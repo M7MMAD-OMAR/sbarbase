@@ -94,10 +94,10 @@ class NativeStageTests(unittest.TestCase):
             state=Path(directory)
             instance=object.__new__(durable_runtime.Runtime)
             instance.values={'environments':{'published':{},'reservation':{},'moved':{}}}
-            instance.provision=Mock()
+            instance.resume=Mock()
             with patch.object(durable_runtime,'STATE',state),patch.object(durable_runtime.source_fence,'is_fenced',side_effect=lambda sql,e:e=='moved'):
                 instance.resume_published_environments()
-                instance.provision.assert_not_called()
+                instance.resume.assert_not_called()
                 (state/'endpoints.json').write_text(json.dumps({'published':{},'moved':{}}))
                 instance.resume_published_environments()
-                instance.provision.assert_called_once_with('published')
+                instance.resume.assert_called_once_with('published')

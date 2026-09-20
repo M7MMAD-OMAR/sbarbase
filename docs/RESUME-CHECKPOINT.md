@@ -146,3 +146,9 @@ The pair probe now passes 43 checks; all 104 Python tests pass. Exact disposable
 Runtime.provision_database now collects the complete durable SQL path and propagates the injected executor into REST deadline checks/writes. The real disposable upstream fixture executes this whole method through GuardedSQL, including Storage setup and limits. Forty-five live checks and 106 Python tests pass. Independent review found no missing SQL or behavior drift.
 
 The services write-ahead marker now precedes shared HBA overwrite/reload; a regression confirms failed marker persistence prevents HBA changes. Normal provisioning still defaults to the original executor. Next bind worker receipt identity and split resume semantics before enabling runtime fencing. No retained runtime mutation occurred.
+
+## Published resume separated from provisioning, latest checkpoint
+
+Read docs/PUBLISHED-ENVIRONMENT-RESUME.md. Routine published startup now validates existing state and resumes retained containers without rerunning native environment SQL, rewriting REST deadlines or creating missing Storage tenants. Missing containers cannot fall back to creation. Outer shared infrastructure startup and service-owned migrations still have effects.
+
+All 110 Python tests pass. The retained combined supervisor passes 13 receipt integration checks, including all four environment routes, exact capacity refusal without allocation, unchanged credential reservation file and complete owned shutdown. No pending receipt remains. Independent review found no new must-fix. Next bind exact worker receipt identities to guarded SQL for creation; unknown later-stage replay remains blocked.

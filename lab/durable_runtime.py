@@ -95,9 +95,11 @@ class Runtime:
     def sql(self, query, database='postgres', check=True):
         return lab.docker('exec', '-i', DB, 'psql', '-X', '-v', 'ON_ERROR_STOP=1', '-U', 'supabase_admin', '-d', database, '-At', data=query, check=check)
 
-    def launch(self, name, component, env, memory, cpus, volumes=(), command=()):
+    def launch(self, name, component, env, memory, cpus, volumes=(), command=(), existing_only=False):
         image = self.pins[component]['id']
         actual = inspect('container', name)
+        if existing_only and not actual:
+            raise RuntimeError('Resume cannot create a missing service container')
         if actual:
             expected = json.loads(lab.docker('image', 'inspect', image).stdout)[0]['Id']
             configured = dict(entry.split('=', 1) for entry in actual['Config'].get('Env', []) if '=' in entry)
@@ -193,14 +195,34 @@ class Runtime:
         published = json.loads(path.read_text()) if path.exists() else {}
         for e in tuple(self.values['environments']):
             if e in published and not source_fence.is_fenced(self.sql,e):
-                self.provision(e)
+                self.resume(e)
 
-    def rest_deadlines(self, e, executor=None):
+    def resume(self, e):
+        """Resume published state without native schema repair or tenant creation."""
+        effect_receipt.require_settled(STATE)
+        if not re.fullmatch(r'e_[a-f0-9]{24}', e):
+            raise RuntimeError('Invalid environment runtime identifier')
+        path=STATE/'endpoints.json'
+        published=json.loads(path.read_text()) if path.exists() else {}
+        if e not in published or e not in self.values['environments']:
+            raise RuntimeError('Resume requires a published environment')
+        if source_fence.is_fenced(self.sql,e):
+            raise RuntimeError('Environment database is fenced; explicit reconciliation required')
+        for service in ('auth','rest'):
+            if not inspect('container',PREFIX+'-'+e+'-'+service):
+                raise RuntimeError('Resume requires retained service containers')
+        self.rest_deadlines(e,validate_only=True)
+        self.activate_services(e,self.values['environments'][e],creating=False)
+
+    def rest_deadlines(self, e, executor=None, validate_only=False):
         execute = executor or self.sql
         if not re.fullmatch(r'e_[a-f0-9]{24}', e):
             raise RuntimeError('Invalid environment runtime identifier')
         # Role defaults affect new logins. Refuse silent changes under a warm pool.
         deadline_current = execute(f"SELECT EXISTS(SELECT 1 FROM pg_db_role_setting s JOIN pg_roles r ON r.oid=s.setrole JOIN pg_database d ON d.oid=s.setdatabase WHERE r.rolname='{e}_rest' AND d.datname='{e}' AND s.setconfig @> ARRAY['statement_timeout=8s','transaction_timeout=12s']);").stdout.strip() == 't'
+        if validate_only:
+            if not deadline_current:raise RuntimeError('Existing REST deadlines require explicit reconciliation')
+            return
         rest_container = inspect('container', PREFIX+'-'+e+'-rest')
         if not deadline_current and rest_container and rest_container.get('State', {}).get('Running'):
             raise RuntimeError('REST deadline changes require stopping the owned runtime first')
@@ -251,17 +273,21 @@ class Runtime:
         self.provision_database(e, v)
         effect_receipt.native_stage(STATE,e,'services')
         self.hba()
+        self.activate_services(e,v,creating=True)
+
+    def activate_services(self,e,v,*,creating):
         endpoints = {}
         for service, builder, port, suffix in [('auth', lab.auth_configuration, 9999, '/health'), ('rest', lab.rest_configuration, 3000, '/')]:
             name = PREFIX+'-'+e+'-'+service
-            self.launch(name, service, builder(e, v, DB), '256m', .25)
+            self.launch(name, service, builder(e, v, DB), '256m', .25, existing_only=not creating)
             endpoints[service] = self.endpoint(name, port)
             self.wait(endpoints[service]+suffix)
-        effect_receipt.native_stage(STATE,e,'storage')
+        if creating:effect_receipt.native_stage(STATE,e,'storage')
         admin = self.endpoint(PREFIX+'-storage', 5001)
         headers = {'apikey': self.values['storage_admin'], 'content-type': 'application/json'}
         status, _ = http(admin+'/tenants/'+e, headers=headers)
         if status == 404:
+            if not creating:raise RuntimeError('Missing Storage tenant requires explicit reconciliation')
             payload = {'anonKey': token(v['jwt'], 'anon'), 'serviceKey': token(v['jwt'], 'service_role'), 'jwtSecret': v['jwt'],
                        'databaseUrl': f"postgres://{e}_storage:{v['storage']}@{DB}:5432/{e}", 'maxConnections': 3,
                        'features': {'s3Protocol': {'enabled': False}, 'imageTransformation': {'enabled': False}}}
@@ -276,7 +302,7 @@ class Runtime:
             raise RuntimeError('Environment migrations incomplete')
         endpoints['storage'] = {'url': public, 'tenantHost': e+'.storage.internal'}
         endpoints['serviceConcurrency'] = {'rest': int(lab.rest_configuration(e, v, DB)['PGRST_DB_POOL'])}
-        effect_receipt.native_stage(STATE,e,'publication')
+        if creating:effect_receipt.native_stage(STATE,e,'publication')
         path = STATE/'endpoints.json'
         all_endpoints = json.loads(path.read_text()) if path.exists() else {}
         all_endpoints[e] = endpoints
