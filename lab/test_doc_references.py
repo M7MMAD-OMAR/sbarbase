@@ -11,8 +11,15 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-DOCUMENTS = (ROOT / 'docs' / 'SERVER-DEPLOYMENT.md', ROOT / 'docs' / 'DEPLOYMENT-READINESS.md')
-PATH_PATTERN = re.compile(r'\b((?:lab|deploy)/[A-Za-z0-9_./-]+\.(?:py|ts|sh|service))\b')
+# The live operational documents: an operator follows these on a server. Review
+# records and the point-in-time checkpoint are deliberately out of scope, because
+# they must keep saying what was true when they were written.
+DOCUMENTS = (ROOT / 'docs' / 'SERVER-DEPLOYMENT.md', ROOT / 'docs' / 'DEPLOYMENT-READINESS.md',
+             ROOT / 'docs' / 'INDEPENDENT-RESTORE.md', ROOT / 'docs' / 'HERMES-HANDOFF.md',
+             ROOT / 'docs' / 'UPSTREAM-UPDATE-POLICY.md')
+# Not preceded by a word character or a dot, so a runtime path such as
+# .lab/rendered-sbarbase.service is not read as the repository's lab/ directory.
+PATH_PATTERN = re.compile(r'(?<![\w.])((?:lab|deploy)/[A-Za-z0-9_./-]+\.(?:py|ts|sh|service))\b')
 EVIDENCE_PATTERN = re.compile(r'docs/evidence/([a-z0-9-]+)\.json')
 
 
