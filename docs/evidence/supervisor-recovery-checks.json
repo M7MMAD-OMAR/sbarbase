@@ -1,0 +1,14 @@
+{
+  "scope": "One real provisioning interruption after private state persistence; trusted fixture actor, four retained environments; not exhaustive crash-point or disaster recovery coverage",
+  "count": 8,
+  "checks": [
+    "interrupted running claim after persistent runtime state changed",
+    "target worker is direct owned child",
+    "worker restarted while API process retained",
+    "interrupted operation succeeded",
+    "operation claimed again with same runtime identity",
+    "one operation retained for runtime",
+    "recovered environment has published trusted endpoints",
+    "runner stops after recovery"
+  ]
+}

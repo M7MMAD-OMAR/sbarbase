@@ -21,7 +21,7 @@ Research and adversarial reviews: [feasibility](reviews/supabase-feasibility.md)
 
 Local console, management login, organization/project discovery, project/environment creation, queued provisioning, scoped API keys, real Supabase Auth/REST/Storage integration and retained volumes. Versioned checks are in [evidence](evidence/); browser results are in [console QA](design/CONSOLE-QA.md). Recovery evidence covers a quiescent same-cluster fixture, not production off-host disaster recovery.
 
-**Local supervisor:** `lab/dev.py` runs the console and watching worker. Five lifecycle tests and [eight live smoke checks](evidence/supervisor-smoke-checks.json) pass, including lock exclusion, idle worker restart and graceful shutdown. Review fixes retain the worker lock across restarts and bound startup cancellation. In-flight provisioning interruption and production service management remain unverified.
+**Local supervisor:** `lab/dev.py` runs the console and watching worker. Five lifecycle tests and [eight live smoke checks](evidence/supervisor-smoke-checks.json) pass, including lock exclusion, idle worker restart and graceful shutdown. Review fixes retain the worker lock across restarts and bound startup cancellation. An additional [eight-check recovery probe](evidence/supervisor-recovery-checks.json) interrupts a running provisioner after private state persistence and verifies completion with stable identity. Other crash points and production service management remain unverified.
 
 ## Saved visuals
 
@@ -36,10 +36,10 @@ The diagrams illustrate future operations. Ten projects is not a measured capaci
 
 Production admission and noisy-neighbor controls; capacity at 10 or 100 projects; upgrades; complete off-host backup and restore; server cutover and full ownership transfer; Realtime, pooler, functions and cron; production onboarding, audit and installation. Daily visitor counts alone cannot size these workloads.
 
-Local budget proposal: 4 GB RAM, 4 CPUs and 20-30 GB disk. Retained three-environment upstream containers have limits totaling 3328 MiB and 3.25 CPUs; the experimental four-environment guard totals 3840 MiB and 3.75 CPUs. These are configured ceilings, not measured workload capacity or total host consumption. Recheck available host resources before starting anything.
+Local budget proposal: 4 GB RAM, 4 CPUs and 20-30 GB disk. The four retained upstream environments have container limits totaling 3840 MiB and 3.75 CPUs, reaching the experimental admission guard. These are configured ceilings, not measured workload capacity or total host consumption. Recheck available host resources before starting anything.
 
 ## Continue in either assistant
 
-Open `/home/sbarah/R/Projects/P/sbarbase`. Read `~/AGENTS.md`, this file, `PROJECT.md`, then `lab/README.md`. Inspect Git changes and live processes before acting. Next: test interrupted in-flight provisioning under the supervisor, preserving runtime identity and proving reconciliation. Then advance the gates in `PROJECT.md`.
+Open `/home/sbarah/R/Projects/P/sbarbase`. Read `~/AGENTS.md`, this file, `PROJECT.md`, then `lab/README.md`. Inspect Git changes and live processes before acting. Next: extend lifecycle crash-point coverage and verify admission failure behavior without allocating beyond the four-environment guard. Then advance the gates in `PROJECT.md`.
 
 Use one assistant as the active writer at a time. Hermes can continue in the same repository without moving code; no Hermes execution has been dispatched. Keep credentials and runtime payloads in ignored `.secrets/` and `.lab/`. The handoff ZIP includes source, research, pictures and sanitized evidence, including clearly identified unfinished source, but excludes secrets, dependencies, runtime data and Git history.

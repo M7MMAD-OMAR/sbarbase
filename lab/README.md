@@ -94,15 +94,14 @@ stop it after testing. Details: [operator setup](../docs/OPERATOR-SETUP.md).
 
 ## Local console
 
-Run `bun install --frozen-lockfile`, `bun run build:ui`, then start the durable
-runtime and run `bun lab/upstream-server.ts`. Open its printed loopback URL.
-Create the initial operator with `lab/bootstrap.py` if needed. A separate terminal
-running `/usr/bin/python3 lab/worker.py --upstream` drains queued environment
-creation operations; there is no background supervisor yet. Stop the server and
-runtime when finished. Browser sessions are in memory, so reloading requires login.
+Run `bun install --frozen-lockfile`, then `/usr/bin/python3 lab/dev.py`. The foreground runner builds the console, starts the owned runtime and continuously processes queued creation operations. Open its printed loopback URL. Create the initial operator with `lab/bootstrap.py` if needed. Ctrl+C stops the runner and its owned runtime while preserving volumes. Browser sessions are in memory, so reloading requires login. Do not run manual lifecycle commands concurrently with the runner. This is not a production service manager.
 
 `bun run typecheck:ui` checks frontend types. `lab/ui-fixture.ts` creates only a
 private temporary QA identity attached to the existing durable probe organization;
 use its explicit `cleanup` command afterward. It is not operator onboarding.
 The captured [real browser workflow](../docs/design/CONSOLE-QA.md) includes the
 third durable environment created through the UI and its revoked test key.
+
+## Supervisor failure checks
+
+`/usr/bin/python3 lab/supervisor-check.py` verifies runner exclusion, idle worker restart and graceful shutdown. `/usr/bin/python3 lab/supervisor-recovery-check.py` consumes the fourth retained environment and interrupts its worker after private runtime state is persisted. It verifies recovery with the same runtime identity and one catalog operation. This second check intentionally refuses a repeated fixture; inspect retained state instead of allocating more environments. Both scripts own their runner process and stop the runtime in a finalizer. They require existing durable probe fixtures and available host resources. Neither proves every provisioning crash point or complete disaster recovery.
