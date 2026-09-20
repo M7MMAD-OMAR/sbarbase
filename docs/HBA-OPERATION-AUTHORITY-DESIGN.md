@@ -59,3 +59,13 @@ Adversarial review found no must-fix in the isolated gate and identified an addi
 Three target tests plus one worker rejection test cover immutability, wrong metadata, stopped state, changed IDs, different intent targets and rejection before journal creation. Four real pinned-container checks validate the configured target and reject wrong name/owner/image. All 150 Python tests and 34 image checks pass. Independent review found no must-fix in this scope. The image fixture runs a shell, not PostgreSQL, so this is target identity evidence rather than database readiness evidence.
 
 Expected policy still must originate from trusted installation configuration when production wiring is added. This does not create an installation-generation registry, authorize hostile host administrators, or settle old journals after container replacement. Existing runtime writers and startup integration remain pending.
+
+## Startup ownership gate
+
+`lab/hba_startup.py` acquires worker, effect and operation ownership in that order. Effect and operation always use fresh open descriptions. The supervisor may explicitly supply its inherited worker descriptor; the gate duplicates it and only closes the duplicate, never unlocking the shared flock. A surviving worker/guardian's effect lock still blocks startup.
+
+Only genuinely absent journal and worker-receipt entries are clear. Existing, malformed or dangling entries and lookup errors block new startup. The context creates its own UUID after acquiring ownership, requires exactly three distinct validated lock descriptors, and permits one begin attempt only. Begin rechecks ownership, pending records and target identity. An expired or fork-inherited context cannot begin. It does not clear, settle or replay a prior journal.
+
+Ten tests exercise real local flocks, inherited ownership, surviving effect exclusion, pending/dangling records, lookup errors, failed attempts, malformed descriptor counts, expired context and a real fork. The image probe now registers through this gate and demonstrates that a pending journal blocks a fresh startup context. All 160 Python tests and 36 image checks pass. Tests do not establish integration with the actual supervisor.
+
+Review prompted explicit descriptor-count validation: empty/short contexts already failed the three-distinct-lock check, while extra descriptors were previously ignored by zip. Constructor and begin now both reject any count other than three. Production startup wiring, registry initialization/generation reconciliation, conservative settlement and all-writer migration remain open.

@@ -1,13 +1,15 @@
 {
   "scope": "Isolated authority protocol against the pinned image's real filesystem/tools.\n\nIncludes helper SIGKILL around registry rename and host SIGKILL before/after registration. Does not start PostgreSQL or test\nreload, host lease recovery, power loss or whole-operation recovery.\nA private immutable host journal precedes initial registration and supports read-only inspection.",
   "image": "sha256:b3bfedb107413abb3b8cb0d0874b0414a1dceb3d55bc0c778de6ad22d1f7dc86",
-  "count": 34,
+  "count": 36,
   "checks": [
     "bounded isolated pinned container",
     "configured database target captured and rechecked by exact ID",
     "live container validation rejects wrong configured name",
     "live container validation rejects wrong configured owner",
     "live container validation rejects wrong configured image",
+    "fresh startup ownership gates real registry registration",
+    "pending startup journal blocks a fresh startup context",
     "durable host journal binds registered operation",
     "read-only journal inspection observes revocation without activation claim",
     "same journal cannot create replacement intent",

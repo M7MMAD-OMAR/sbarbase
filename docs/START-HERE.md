@@ -14,7 +14,7 @@ Compatibility is required. Replacing Supabase changes that contract. Schema-only
 
 Four local environments have been exercised, including one restored to a separate local target. Real SDK checks cover Auth, RLS and private Storage access. Provisioning uses durable receipts, exact worker identities and scoped SQL guards. Complete HBA writes reject truncation and stale prepared requests; reload acknowledgment does not prove enforcement or terminate existing sessions.
 
-Recorded checkpoints: 150 Python tests, 73 Bun tests/408 assertions, 57 fresh worker/SDK checks, 51 SQL-pair checks and 36 HBA checks. These have different scopes ; Python was rerun for the authority prototype, while the other runtime checkpoints remain recorded evidence. They do not certify production security.
+Recorded checkpoints: 160 Python tests, 73 Bun tests/408 assertions, 57 fresh worker/SDK checks, 51 SQL-pair checks and 36 HBA checks. These have different scopes ; Python was rerun for the authority prototype, while the other runtime checkpoints remain recorded evidence. They do not certify production security.
 
 Configured retained ceilings are 5888 MiB RAM/5.75 CPUs, not measured demand or a hardware recommendation. There is no validated maximum of 10 or 100 projects. Daily visitors alone cannot determine capacity.
 
@@ -26,7 +26,7 @@ Configured retained ceilings are 5888 MiB RAM/5.75 CPUs, not measured demand or 
 
 ## Exact stopping point
 
-The runtime baseline is `155e230`. The isolated authority/journal prototype passes 8 host shell tests, 8 journal tests and 34 pinned-image checks, but remains **unintegrated**. Its next gate is the [HBA authority design](HBA-OPERATION-AUTHORITY-DESIGN.md): immutable operation journal, permanent revocation records, startup/container generation reconciliation and isolated fault tests. Do not enable later-stage automatic replay.
+The runtime baseline is `155e230`. The isolated authority/journal prototype passes 8 host shell tests, 8 journal tests and 36 pinned-image checks, but remains **unintegrated**. Its next gate is the [HBA authority design](HBA-OPERATION-AUTHORITY-DESIGN.md): immutable operation journal, permanent revocation records, startup/container generation reconciliation and isolated fault tests. Do not enable later-stage automatic replay.
 
 Last recorded retained state: owned containers stopped, moved source fenced, target routing paused. Preserve both recovery targets and their volumes. Inspect live state before acting; never switch back blindly to the stale source. No runtime changes were made for this documentation update.
 

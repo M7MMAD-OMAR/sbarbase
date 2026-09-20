@@ -234,3 +234,9 @@ Nine real subprocess/flock/SQLite tests cover success and stale/missing/competin
 The worker entry gate now requires an immutable captured target from trusted name/owner/image policy. It rechecks only the captured full Docker ID and matches prepared/snapshot IDs before journal creation. Wrong target metadata, stopped state or another container are refused without name-based recapture. All 150 Python tests and 34 pinned-image checks pass, with independent review finding no must-fix in the bounded scope. Exact disposable cleanup passed; retained resources were untouched.
 
 Next complete startup authority and conservative settlement/container-generation rules, then wire a disposable real worker and all managed writers. The target gate supplies no database-readiness or automatic recovery guarantee, and expected installation policy must remain trusted.
+
+## Startup ownership gate checkpoint
+
+The isolated startup context now acquires worker/effect/operation ownership, with fresh effect/operation descriptions and optional explicitly inherited supervisor worker ownership. Closing never unlocks the supervisor's shared flock. Pending or unreadable records block startup, and one context permits only one attempt. Identity is generated under ownership and cannot be used after exit or across fork. Exact descriptor count and distinctness are required.
+
+Ten local tests cover actual flocks/fork and negative paths. The pinned-image probe now performs its first registration through this context and refuses a fresh startup while its journal remains. Full Python 160 and image 36 checks pass. No actual supervisor integration or retained resource changes. Next implement conservative reconciliation that retires exact authority under fresh ownership without silently replaying HBA writes, then address generation initialization and all-writer wiring.

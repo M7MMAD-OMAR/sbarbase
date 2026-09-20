@@ -15,6 +15,7 @@ import atomic_hba
 import hba_authority as authority
 import hba_journal as journal
 import hba_target
+import hba_startup
 import hba_journal_crash_check as host_crash
 
 OWNER='hba-authority-probe'
@@ -95,9 +96,15 @@ def main():
             expected={'container_id':cid,'name':name,'owner':OWNER,'image':image}
             expected[field]=value
             refused('live container validation rejects wrong configured '+field,lambda expected=expected:hba_target.require(docker,hba_target.Target(**expected),initial,prepared))
-        binding=authority.operation_binding(prepared,identity)
         journal_file=Path(private.name)/journal.NAME
-        active=journal.begin(docker,journal_file,initial,prepared,token,identity)
+        with hba_startup.acquire(Path(private.name)) as startup_lease:
+            identity=startup_lease.identity
+            binding=authority.operation_binding(prepared,identity)
+            active=startup_lease.begin(docker,initial,prepared,token,target=captured)
+        check('fresh startup ownership gates real registry registration',journal.load(journal_file)['identity']==identity)
+        def repeat_startup():
+            with hba_startup.acquire(Path(private.name)):pass
+        refused('pending startup journal blocks a fresh startup context',repeat_startup)
         check('durable host journal binds registered operation',journal.load(journal_file)['binding']==binding and journal.inspect(docker,journal_file)['authority']=='active')
         permit=authority.authorize(active,prepared,token,identity)
         revoked=authority.update(docker,active,token,binding,revoke=True)
