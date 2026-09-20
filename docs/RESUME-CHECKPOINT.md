@@ -673,3 +673,17 @@ true`, `service_account: present`, `verify: passed` in
 `docs/evidence/supervisor-unit.json` after the unit reached `active`. The unit,
 its drop-in and the rendered copy are removed from this workstation once the
 background attempt finishes; nothing of it is left enabled on boot.
+
+### The documented command under sudo, 2026-09-20
+
+Running the runbook's own `sudo deploy/server-acceptance.sh --rehearse
+--install-unit` form exposed one more defect: `sudo` replaces `PATH` with a
+secure default, so a Bun installed under the invoking user's home is invisible to
+the script and to the unit it installs, and the run stopped at the first
+prerequisite with a bare `bun is not on PATH`. `--bun-dir` now adds the directory
+to `PATH` for every step as well as rendering it into the unit, and the failure
+names the flag and the path to pass. Verified from a sudo run: without the flag
+the message names `/home/$SUDO_USER/.bun/bin`; with it the prerequisites pass and
+the run reaches the preflight, which then refused honestly on host memory
+(8502 MiB available against an 8789 MiB plan) instead of half-starting. The
+runbook examples carry the flag and say why.
