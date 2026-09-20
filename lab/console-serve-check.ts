@@ -9,6 +9,7 @@
 import {createHash} from 'node:crypto';
 import {readFileSync,writeFileSync,mkdirSync} from 'node:fs';
 import {resolve} from 'node:path';
+import {connect} from 'node:net';
 import {serveLocal} from '../src/http/local-server';
 import {uiStatic} from './ui-static';
 
@@ -26,6 +27,18 @@ const handler=async(request:Request):Promise<Response>=>{
  if(url.pathname==='/favicon.ico')return new Response(null,{status:204});
  return (await uiStatic(request))??new Response(FALLTHROUGH,{status:404,headers:{'content-type':'text/plain'}});
 };
+
+/** A raw HTTP/1.1 request, so the server sees the request line exactly as written. */
+function rawRequest(port:number,line:string):Promise<{status:number;body:string}> {
+ return new Promise(resolvePromise=>{
+  const socket=connect(port,'127.0.0.1');
+  let data='';
+  socket.on('connect',()=>socket.write(`${line} HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n`));
+  socket.on('data',chunk=>{data+=chunk.toString('utf8');});
+  socket.on('close',()=>{const match=data.match(/^HTTP\/1\.[01] (\d+)/);resolvePromise({status:match?Number(match[1]):0,body:data});});
+  socket.on('error',()=>resolvePromise({status:0,body:''}));
+ });
+}
 
 const server=await serveLocal(handler);
 const base=`http://127.0.0.1:${server.port}`;
@@ -56,9 +69,25 @@ try {
  const post=await fetch(base+'/',{method:'POST',body:'x'});
  record('a write to a static path is refused',post.status===405,`status ${post.status}`);
 
- const traversal=await fetch(base+'/../src/http/local-server.ts');
- const traversalBody=await traversal.text();
- record('path traversal serves no source file',traversal.status!==200&&!traversalBody.includes('serveLocal'),`status ${traversal.status}`);
+ // A traversal check only proves something if the literal, undecoded request line
+ // reaches the server: fetch normalises '/../x' before it leaves the process, so the
+ // old check sent a plain '/src/...' and could not fail. This one goes over a raw
+ // socket, and the allow-list itself is exercised directly underneath.
+ const literal=await rawRequest(server.port,'GET /../src/http/local-server.ts');
+ record('a literal traversal in the request line serves no source file',
+        literal.status!==200&&!literal.body.includes('serveLocal'),`status ${literal.status}`);
+ const encoded=await rawRequest(server.port,'GET /assets/%2e%2e%2f%2e%2e%2fsrc%2fhttp%2flocal-server.ts');
+ record('a percent-encoded traversal serves no source file',
+        encoded.status!==200&&!encoded.body.includes('serveLocal'),`status ${encoded.status}`);
+
+ // The allow-list is what makes the refusals above true; prove it refuses and that it
+ // still admits a real asset (a permissive allow-list would fail this one).
+ const outside=await uiStatic(new Request(base+'/src/http/local-server.ts'));
+ const nested=await uiStatic(new Request(base+'/assets/../index.html'));
+ const allowed=await uiStatic(new Request(base+references.filter(reference=>/^\/assets\//.test(reference))[0]));
+ record('the static allow-list refuses anything outside build assets',
+        outside===undefined&&nested===undefined&&allowed!==undefined&&allowed.status===200,
+        `outside ${outside===undefined?'refused':'served'} nested ${nested===undefined?'refused':'served'} asset ${allowed?.status}`);
 
  const unknown=await fetch(base+'/api/does-not-exist');
  record('non-static paths reach the application layer',unknown.status===404&&(await unknown.text())===FALLTHROUGH,`status ${unknown.status}`);

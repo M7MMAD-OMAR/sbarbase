@@ -95,17 +95,28 @@ def owned_running(owner):
     return bool(result.stdout.strip())
 
 
-def wait_for_console(timeout):
+def wait_for_console(timeout,started_after):
+    """The supervisor the unit just started, not state left by an earlier run."""
     deadline=time.monotonic()+timeout
     while time.monotonic()<deadline:
         try:
-            supervisor=json.loads((STATE/'supervisor.json').read_text())
-            server=json.loads((STATE/'server.json').read_text())
-            if supervisor.get('pid') and server.get('url'):
-                return supervisor,server
-        except (OSError,ValueError):pass
+            supervisor_path=STATE/'supervisor.json';server_path=STATE/'server.json'
+            if supervisor_path.stat().st_mtime>started_after and server_path.stat().st_mtime>started_after:
+                supervisor=json.loads(supervisor_path.read_text())
+                server=json.loads(server_path.read_text())
+                if supervisor.get('pid') and server.get('url') and alive(supervisor['pid']) and alive(server['pid']):
+                    return supervisor,server
+        except (OSError,ValueError,KeyError):pass
         time.sleep(.5)
     return None,None
+
+
+def alive(pid):
+    """A pid is only evidence if the process is still there."""
+    try:
+        os.kill(int(pid),0);return True
+    except (ProcessLookupError,ValueError,TypeError):return False
+    except PermissionError:return True
 
 
 def main():
@@ -130,9 +141,10 @@ def main():
 
         start=systemctl('start',UNIT_NAME,check=False)
         started=start.returncode==0
+        started_after=time.time()
         record('systemctl start accepted the unit',started,(start.stderr or start.stdout).strip()[:200])
 
-        supervisor,server=wait_for_console(args.timeout)
+        supervisor,server=wait_for_console(args.timeout,started_after)
         if supervisor and server:
             record('systemd started the supervisor and the console',True)
             record('console serves the built page',http_status(server['url']+'/')==200)
@@ -143,7 +155,9 @@ def main():
             record('systemd started the supervisor and the console',False,'no server.json and supervisor.json within the timeout')
 
         gate=journal()
-        record('the preflight gate ran under systemd',('Preflight:' in gate) or ('blocker' in gate),
+        # The gate must have admitted the host, not merely run: the summary line is
+        # present for a refusal too.
+        record('the preflight gate admitted the host under systemd','Preflight: 0 blocker(s)' in gate,
                gate.strip().splitlines()[-1][:160] if gate.strip() else 'no journal output')
     finally:
         if started:

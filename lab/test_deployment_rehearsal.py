@@ -1,8 +1,12 @@
 """Deployment rehearsal helpers: status mapping and honest failure recording."""
+from pathlib import Path
 from unittest.mock import patch
 import os
+import tempfile
 import unittest
 import deployment_rehearsal as rehearsal
+
+ROOT=Path(rehearsal.__file__).resolve().parent.parent
 
 
 class RehearsalTests(unittest.TestCase):
@@ -46,7 +50,10 @@ class ServerEvidenceTests(unittest.TestCase):
     def test_unit_status_reports_absence_rather_than_guessing(self):
         from pathlib import Path
         status=rehearsal.unit_status(Path('/nonexistent/sbarbase.service'))
-        self.assertEqual(status,{'installed':False,'enabled':None,'active':None,'verify':'not-run'})
+        self.assertFalse(status['installed'])
+        self.assertIsNone(status['enabled'])
+        self.assertEqual(status['verify_source'],'template')
+        self.assertTrue(Path(status['verified_path']).exists())
 
     def test_the_shipped_unit_verifies_under_systemd_analyze(self):
         from pathlib import Path
@@ -101,7 +108,10 @@ class StartupDiagnosticsTests(unittest.TestCase):
              patch.object(rehearsal.install_server,'smoke',return_value=True), \
              patch.object(rehearsal,'stop_supervisor',return_value=0), \
              patch.object(rehearsal,'owned_running',return_value=False), \
-             patch.object(rehearsal,'unit_status',return_value={'installed':False}):
+             patch.object(rehearsal,'run_bootstrap_check',return_value=None), \
+             patch.object(rehearsal,'combined_gateway_check',return_value=(0,'stubbed')), \
+             patch.object(rehearsal,'cutover_recorded',return_value=False), \
+             patch.object(rehearsal,'unit_status',return_value={'installed':False,'verify':'not-run','verified_path':None,'verify_source':None}):
             findings,_=rehearsal.rehearse(None,True,5,attempts=3,delay=0)
         self.assertEqual(calls['count'],2)
         started=[item for item in findings if item['check']=='supervisor started and owns the console'][0]
@@ -109,17 +119,18 @@ class StartupDiagnosticsTests(unittest.TestCase):
         self.assertIn('after 2 attempts',started['detail'])
         self.assertIn('host_memory_headroom',started['detail'])
 
-    def test_exhausting_the_attempts_reports_how_many_were_made(self):
+    def test_exhausting_the_attempts_is_context_not_a_green_check(self):
         with patch.object(rehearsal.install_server,'preflight',return_value=[]), \
              patch.object(rehearsal.console_build_check,'verify',return_value=([],{})), \
              patch.object(rehearsal,'start_supervisor',side_effect=RuntimeError('Supervisor exited during startup; host_memory_headroom')):
-            findings,_=rehearsal.rehearse(None,True,5,attempts=2,delay=0)
-        attempts=[item for item in findings if item['check']=='startup attempts before refusal'][0]
-        self.assertEqual(attempts['detail'],'2')
+            findings,context=rehearsal.rehearse(None,True,5,attempts=2,delay=0)
+        self.assertEqual(context['startup_attempts'],2)
+        self.assertEqual(len(context['startup_refusals']),2)
+        self.assertNotIn('startup attempts before refusal',[item['check'] for item in findings])
         self.assertFalse([item for item in findings if item['check']=='supervisor started and owns the console'][0]['ok'])
 
     def test_the_systemd_unit_is_informational_unless_the_run_requires_it(self):
-        absent={'installed':False,'enabled':None,'active':None,'verify':'not-run'}
+        absent={'installed':False,'enabled':None,'active':None,'verify':'not-run','verified_path':None,'verify_source':None}
         with patch.object(rehearsal.install_server,'preflight',return_value=[]), \
              patch.object(rehearsal.console_build_check,'verify',return_value=([],{})), \
              patch.object(rehearsal,'start_supervisor',return_value=(object(),{'url':'http://127.0.0.1:1'})), \
@@ -127,6 +138,8 @@ class StartupDiagnosticsTests(unittest.TestCase):
              patch.object(rehearsal.install_server,'smoke',return_value=True), \
              patch.object(rehearsal,'stop_supervisor',return_value=0), \
              patch.object(rehearsal,'owned_running',return_value=False), \
+             patch.object(rehearsal,'cutover_recorded',return_value=False), \
+             patch.object(rehearsal,'run_bootstrap_check',return_value=None), \
              patch.object(rehearsal,'unit_status',return_value=absent):
             lenient,_=rehearsal.rehearse(None,True,5)
             strict,_=rehearsal.rehearse(None,True,5,require_unit=True)
@@ -179,11 +192,12 @@ class BootstrapStepTests(unittest.TestCase):
              patch.object(rehearsal,'http_status',return_value=200), \
              patch.object(rehearsal.install_server,'smoke',return_value=True), \
              patch.object(rehearsal,'run_bootstrap_check',return_value=(0,'18 live operator bootstrap checks passed.')), \
-             patch.object(rehearsal.subprocess,'run') as gateway, \
+             patch.object(rehearsal,'cutover_recorded',return_value=True), \
+             patch.object(rehearsal,'combined_gateway_check',return_value=(0,'14 combined gateway checks passed')), \
              patch.object(rehearsal,'stop_supervisor',return_value=0), \
              patch.object(rehearsal,'owned_running',return_value=False), \
-             patch.object(rehearsal,'unit_status',return_value={'installed':False}):
-            gateway.return_value=type('R',(),{'returncode':0,'stdout':'14 combined gateway checks passed','stderr':''})()
+             patch.object(rehearsal,'cutover_recorded',return_value=False), \
+             patch.object(rehearsal,'unit_status',return_value={'installed':False,'verify':'not-run','verified_path':None,'verify_source':None}):
             findings,_=rehearsal.rehearse(None,True,5)
         names=[item['check'] for item in findings]
         self.assertIn('operator bootstrap checks passed against the live management Auth',names)
@@ -198,10 +212,39 @@ class BootstrapStepTests(unittest.TestCase):
              patch.object(rehearsal,'run_bootstrap_check',return_value=None), \
              patch.object(rehearsal,'stop_supervisor',return_value=0), \
              patch.object(rehearsal,'owned_running',return_value=False), \
-             patch.object(rehearsal,'unit_status',return_value={'installed':False}):
+             patch.object(rehearsal,'cutover_recorded',return_value=False), \
+             patch.object(rehearsal,'unit_status',return_value={'installed':False,'verify':'not-run','verified_path':None,'verify_source':None}):
             findings,_=rehearsal.rehearse(None,True,5)
         self.assertNotIn('operator bootstrap checks passed against the live management Auth',
                          [item['check'] for item in findings])
+
+
+class EvidenceHygieneTests(unittest.TestCase):
+    def test_the_bootstrap_file_path_is_redacted_from_the_recorded_command(self):
+        redacted=rehearsal.redacted_arguments(['--skip-install','--bootstrap-file','/root/operator.json','--attempts','2'])
+        self.assertEqual(redacted,['--skip-install','--bootstrap-file','<bootstrap-file>','--attempts','2'])
+        self.assertNotIn('/root/operator.json',' '.join(redacted))
+
+    def test_the_unit_is_verified_where_systemd_runs_it(self):
+        with tempfile.TemporaryDirectory() as directory:
+            installed=Path(directory)/'sbarbase.service'
+            installed.write_text((ROOT/'deploy'/'sbarbase.service').read_text())
+            with patch.object(rehearsal,'UNIT',installed):
+                status=rehearsal.unit_status(path=installed)
+        self.assertTrue(status['installed'])
+        self.assertEqual(status['verify_source'],'installed')
+        self.assertEqual(status['verified_path'],str(installed))
+
+    def test_without_an_installed_unit_only_the_template_is_verified_and_labelled(self):
+        status=rehearsal.unit_status(path=Path('/nonexistent/sbarbase.service'))
+        self.assertFalse(status['installed'])
+        self.assertEqual(status['verify_source'],'template')
+        self.assertIn('deploy/sbarbase.service',status['verified_path'])
+
+    def test_the_evidence_carries_the_attempts_outside_the_checks(self):
+        source=(ROOT/'lab'/'deployment_rehearsal.py').read_text()
+        self.assertIn("'startup':{'attempts_allowed'",source)
+        self.assertNotIn("'check':'startup attempts before refusal'",source)
 
 
 if __name__=='__main__':unittest.main()

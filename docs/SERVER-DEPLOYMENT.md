@@ -3,11 +3,12 @@
 Runbook for deploying a sbarbase installation to a Linux server. Status:
 2026-09-20. The deployment path is implemented: preflight, installer, systemd
 supervision, a one-command rehearsal and this runbook. The full source and target
-lifecycle rehearsal passes on the development host (10 of 10 checks,
+lifecycle rehearsal passes on the development host (11 of 11 checks,
 `docs/evidence/deployment-rehearsal.json`). It has **not** been run on a real
-server, and an independent adversarial review of the deployment code found
+server, and two independent adversarial reviews of the deployment code found
 defects that are now fixed
-([review](reviews/target-and-deployment-review.md)); the fresh target and
+([review](reviews/target-and-deployment-review.md),
+[second review](reviews/deployment-tooling-review-2.md)); the fresh target and
 retained adoption paths are proven on disposable fixtures and on the retained
 databases, not through a full restore or install. Read
 [DEPLOYMENT-READINESS](DEPLOYMENT-READINESS.md) for the itemised status.
@@ -32,15 +33,15 @@ One command on the server covers prerequisites, preflight, the full rehearsal an
 the acceptance evidence:
 
 ```
-deploy/server-acceptance.sh --bootstrap-file /path/to/operator.json
+deploy/server-acceptance.sh --rehearse --bootstrap-file /path/to/operator.json
 ```
 
-It refuses before touching anything when a prerequisite is missing (docker, bun,
+Without `--rehearse` the same command runs the prerequisites and the preflight
+only. It refuses before touching anything when a prerequisite is missing (docker, bun,
 git, `/usr/bin/python3` 3.14+, native Linux daemon), when the bootstrap file is
 not mode 600, or when the preflight reports a blocker, and it never prints a
-secret. Without `--rehearse` it stops after a passing preflight. The step-by-step
-sequence below is what it runs, for an operator who wants to drive each stage by
-hand.
+secret. The step-by-step sequence below is what it runs, for an operator who
+wants to drive each stage by hand.
 
 ```
 /usr/bin/python3 lab/install_server.py check        # read-only preflight, non-zero on blockers
@@ -102,8 +103,11 @@ On the server, one command produces the acceptance evidence:
 
 On a server where the unit still has to be installed, run the acceptance path as
 root with `--install-unit`: it renders and verifies the unit, installs and starts
-it, proves the console and the TLS termination, runs the rehearsal with the unit
-required, and leaves the evidence in one place.
+it, proves the console and the TLS termination, stops the unit so the rehearsal
+can own the containers and state, runs the rehearsal with the unit required,
+starts the unit again and asserts it is active, and leaves the evidence in one
+place. Two supervisors cannot own the same containers, so the rehearsal never
+runs against a live installation.
 
 ```
 sudo deploy/server-acceptance.sh --rehearse --install-unit \
@@ -124,7 +128,10 @@ cannot run records the blocking finding instead of a pass, and exits non-zero.
 The rehearsal runs the supervisor directly. It records the systemd unit's own
 state, and fails the `supervised path exercised through systemd` check when
 `/etc/systemd/system/sbarbase.service` is not installed, so a green run means
-the unit was present, enabled and verified.
+the unit was present and enabled. The unit it verifies with `systemd-analyze` is
+the installed file itself, and the evidence says which file that was; the
+checkout's template is verified only when no unit is installed, and the evidence
+records that too.
 
 ## Verify after install
 
@@ -161,8 +168,8 @@ installer creates no published ports. Do not expose the management Auth endpoint
 or the provisioning API directly. Set the public URL the console should advertise
 in the proxy, not in the console build.
 
-A reference termination ships with the repository and is exercised by the test
-suite (`bun lab/tls_termination_check.py`, 15 checks,
+A reference termination ships with the repository and is exercised by the check
+(`/usr/bin/python3 lab/tls_termination_check.py`, 21 checks,
 `docs/evidence/tls-termination.json`). It needs only Bun and a certificate:
 
 ```
@@ -175,11 +182,15 @@ bun deploy/console-tls-proxy.ts \
 
 It refuses to start unless the certificate and key are regular files, the key is
 not group or world readable, `--public-host` is set to a bare host name, and the
-upstream is loopback (it takes the console URL from `.lab/upstream/server.json`
-when `--upstream` is omitted). It answers plain HTTP with a 308 redirect to
-HTTPS, adds `Strict-Transport-Security`, `X-Content-Type-Options`,
-`Referrer-Policy` and `X-Forwarded-Proto`, and logs only method, path and status:
-never bodies, query strings, cookies or credentials.
+upstream is loopback. The loopback assertion is applied to the console URL
+whichever way it was supplied, including the one read from
+`.lab/upstream/server.json` when `--upstream` is omitted. It answers plain HTTP
+with a 308 redirect to HTTPS, adds `Strict-Transport-Security`,
+`X-Content-Type-Options`, `Referrer-Policy`, `X-Forwarded-Proto` and
+`X-Forwarded-Host`, and logs only method, path and status: never bodies, query
+strings, cookies or credentials. The forwarding headers carry `--public-host`,
+never the client's own `X-Forwarded-*` or `Host` values, which are dropped
+before the request reaches the console.
 
 Its own hardening is part of the checks: the redirect and the forwarded host come
 from `--public-host`, never from the client's `Host` header (an attacker supplied

@@ -25,7 +25,7 @@ class ServerAcceptanceTests(unittest.TestCase):
         self.assertTrue(SCRIPT.exists())
         self.assertTrue(SCRIPT.stat().st_mode & stat.S_IXUSR)
         source=SCRIPT.read_text()
-        self.assertIn('set -uo pipefail',source)
+        self.assertIn('set -euo pipefail',source)
 
     def test_help_lists_usage_without_touching_the_host(self):
         result=run('--help')
@@ -73,6 +73,23 @@ class ServerAcceptanceTests(unittest.TestCase):
         self.assertIn('read-only preflight',output)
         # Either the host admits the plan, or the refusal is stated as a blocker.
         self.assertTrue('Preflight: 0 blocker' in output or 'FAIL: preflight refused' in output)
+
+
+class AcceptanceScriptContractTests(unittest.TestCase):
+    def setUp(self):
+        self.source=(Path(__file__).resolve().parent.parent/'deploy'/'server-acceptance.sh').read_text()
+
+    def test_a_failed_step_stops_the_run(self):
+        self.assertIn('set -euo pipefail',self.source)
+        self.assertNotIn('|| true',self.source)
+
+    def test_the_unit_is_released_before_the_rehearsal_and_restored_after(self):
+        stop=self.source.index('systemctl stop sbarbase.service')
+        rehearsal=self.source.index('lab/deployment_rehearsal.py "${rehearsal_args[@]}"')
+        restart=self.source.index('systemctl start sbarbase.service')
+        self.assertLess(stop,rehearsal)
+        self.assertLess(rehearsal,restart)
+        self.assertIn('did not stop',self.source)
 
 
 if __name__=='__main__':unittest.main()

@@ -110,20 +110,26 @@ def host_facts():
 UNIT=Path('/etc/systemd/system/sbarbase.service')
 
 
-def unit_status(path=UNIT):
-    """Whether the supervised path is installed, valid and active on this host."""
-    status={'installed':path.exists(),'enabled':None,'active':None,'verify':'not-run'}
+def unit_status(path=UNIT, template=None):
+    """Whether the supervised path is installed, valid and active on this host.
+
+    What gets verified is the unit systemd actually runs when it is installed; the
+    checkout's template is only a fallback, and the evidence says which one it was.
+    """
+    template=template or (ROOT/'deploy'/'sbarbase.service')
+    status={'installed':path.exists(),'enabled':None,'active':None,'verify':'not-run','verified_path':None,'verify_source':None}
+    target=path if status['installed'] else template
+    if target.exists():
+        status['verified_path']=str(target);status['verify_source']='installed' if status['installed'] else 'template'
+        try:
+            result=subprocess.run(['systemd-analyze','verify',str(target)],capture_output=True,text=True,timeout=60)
+            status['verify']='passed' if result.returncode==0 else 'failed: '+(result.stderr.strip() or result.stdout.strip())
+        except Exception:status['verify']='unavailable'
     if not status['installed']:return status
     for key,argv in (('enabled',['systemctl','is-enabled','sbarbase.service']),
                      ('active',['systemctl','is-active','sbarbase.service'])):
         try:status[key]=subprocess.run(argv,capture_output=True,text=True,timeout=20).stdout.strip() or 'unknown'
         except Exception:status[key]='unavailable'
-    source=(ROOT/'deploy'/'sbarbase.service')
-    if source.exists():
-        try:
-            result=subprocess.run(['systemd-analyze','verify',str(source)],capture_output=True,text=True,timeout=60)
-            status['verify']='passed' if result.returncode==0 else 'failed: '+(result.stderr.strip() or result.stdout.strip())
-        except Exception:status['verify']='unavailable'
     return status
 
 
@@ -140,8 +146,39 @@ def run_bootstrap_check(timeout=300):
     return result.returncode,detail
 
 
+def redacted_arguments(arguments):
+    """The command that ran, with any operator file path replaced by a placeholder.
+
+    The evidence is committed and copied around; the path to a private bootstrap
+    file must not travel with it.
+"""
+    redacted=[];hide_next=False
+    for argument in arguments:
+        if hide_next:redacted.append('<bootstrap-file>');hide_next=False;continue
+        redacted.append(argument)
+        if argument in ('--bootstrap-file','--evidence'):hide_next=True
+    return redacted
+
+
+def cutover_recorded():
+    """Whether this installation recorded a cutover, so the gateway checks apply."""
+    return (STATE/'cutover-operation.json').exists()
+
+
+def combined_gateway_check():
+    """The cutover gateway checks, run as a subprocess so tests can stub them."""
+    result=subprocess.run(['bun','lab/combined-gateway-check.ts'],cwd=ROOT,capture_output=True,text=True,timeout=180)
+    return result.returncode,(result.stdout.strip() or result.stderr.strip())
+
+
 def rehearse(bootstrap_file,skip_install,timeout,attempts=1,delay=15,require_unit=False):
+    """Run the rehearsal. Returns the checks and the context the evidence needs.
+
+    The startup attempt count and the unit status live in the context, not in the
+    checks: a check that is green whenever the code ran would be evidence of nothing.
+    """
     findings=[]
+    context={'startup_attempts':0,'startup_refusals':[],'unit':None}
     def record(label,ok,detail=''):
         findings.append({'check':label,'ok':bool(ok),'detail':detail})
         print(('ok: ' if ok else 'FAIL: ')+label+(('  '+str(detail)) if detail and not ok else ''))
@@ -150,7 +187,7 @@ def rehearse(bootstrap_file,skip_install,timeout,attempts=1,delay=15,require_uni
     blockers=[detail for kind,detail in preflight if kind=='blocker']
     for detail in blockers:record('preflight: '+detail,False)
     if blockers:
-        return findings,None
+        return findings,context
     record('host preflight passed',True)
     if not skip_install:
         install_server.install(bootstrap_file)
@@ -171,10 +208,11 @@ def rehearse(bootstrap_file,skip_install,timeout,attempts=1,delay=15,require_uni
                 refusals.append(f'attempt {attempt}: {error}')
                 print('retry: '+refusals[-1])
                 if attempt<max(1,attempts):time.sleep(delay)
+        context['startup_attempts']=len(refusals)+1 if process is not None else len(refusals)
+        context['startup_refusals']=refusals
         if process is None:
             record('supervisor started and owns the console',False,refusals[-1] if refusals else 'no attempt ran')
-            findings.append({'check':'startup attempts before refusal','ok':True,'detail':str(len(refusals))})
-            return findings,None
+            return findings,context
         record('supervisor started and owns the console',True,
                '' if len(refusals)==0 else f'after {len(refusals)+1} attempts: '+' | '.join(refusals))
         record('console serves the built page',http_status(server['url']+'/')==200)
@@ -188,13 +226,15 @@ def rehearse(bootstrap_file,skip_install,timeout,attempts=1,delay=15,require_uni
         if bootstrap is not None:
             code,detail=bootstrap
             record('operator bootstrap checks passed against the live management Auth',code==0,detail)
-        if (STATE/'cutover-operation.json').exists():
-            result=subprocess.run(['bun','lab/combined-gateway-check.ts'],cwd=ROOT,capture_output=True,text=True,timeout=180)
-            record('combined gateway checks passed',result.returncode==0,result.stdout.strip() or result.stderr.strip())
+        if cutover_recorded():
+            code,detail=combined_gateway_check()
+            record('combined gateway checks passed',code==0,detail)
         supervised=unit_status()
+        context['unit']=supervised
         if supervised['installed']:
             record('supervisor unit is enabled on this host',supervised['enabled'] in ('enabled','enabled-runtime'),supervised['enabled'])
-            record('supervisor unit file verifies',supervised['verify']=='passed',supervised['verify'])
+            record('the unit systemd runs verifies',supervised['verify']=='passed',
+                   str(supervised['verified_path'])+': '+str(supervised['verify']))
         elif require_unit:
             record('supervised path exercised through systemd',False,
                    'sbarbase.service is not installed at /etc/systemd/system; a server acceptance run requires it')
@@ -206,7 +246,8 @@ def rehearse(bootstrap_file,skip_install,timeout,attempts=1,delay=15,require_uni
             code=stop_supervisor(process)
             record('supervisor shut down cleanly',code==0,'exit '+str(code))
             record('no owned container left running',not owned_running('durable-upstream') and not owned_running('recovery-target'))
-    return findings,None
+    if context['unit'] is None:context['unit']=unit_status()
+    return findings,context
 
 
 def main():
@@ -223,7 +264,7 @@ def main():
                         help='where to write the run evidence (the acceptance run keeps its own file)')
     args=parser.parse_args()
     started=datetime.datetime.now().astimezone()
-    findings,_=rehearse(args.bootstrap_file,args.skip_install,args.timeout,args.attempts,args.attempt_delay,args.require_unit)
+    findings,context=rehearse(args.bootstrap_file,args.skip_install,args.timeout,args.attempts,args.attempt_delay,args.require_unit)
     finished=datetime.datetime.now().astimezone()
     passed=bool(findings) and all(item['ok'] for item in findings)
     pins=[{'component':label,'digest':digest,'pull':reference} for label,digest,reference in install_server.pinned_images()]
@@ -231,10 +272,11 @@ def main():
                        'startup, console and management reachability, recorded environment routes, the supervised unit when '
                        'installed, supervised shutdown and absence of running owned containers. Not sustained load, not '
                        'multi-host, not HTTPS termination.'),
-              'command':' '.join(['/usr/bin/python3','lab/deployment_rehearsal.py']+sys.argv[1:]),
+              'command':' '.join(['/usr/bin/python3','lab/deployment_rehearsal.py']+redacted_arguments(sys.argv[1:])),
               'host':host_facts(),
               'pins':pins,
-              'unit':unit_status(),
+              'unit':context['unit'],
+              'startup':{'attempts_allowed':args.attempts,'attempts_used':context['startup_attempts'],'refusals':context['startup_refusals']},
               'bootstrap_file_used':bool(args.bootstrap_file),
               'install_skipped':bool(args.skip_install),
               'startup_attempts_allowed':args.attempts,

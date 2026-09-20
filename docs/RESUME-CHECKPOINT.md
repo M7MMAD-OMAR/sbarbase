@@ -476,7 +476,7 @@ identity realm answered 200, all eight recorded environment routes answered 200,
 fourteen combined gateway checks passed, the supervisor shut down cleanly with
 exit 0, and no owned container was left running. The combined admission that the
 same run exercised recorded 5888 MiB of container limits and 5.75 CPUs admitted
-at 9328 MiB available, with the target started
+at 8943 MiB available, with the target started
 (`docs/evidence/combined-runtime-admission.json`).
 
 What made it possible, after several refusals caused by the shared host:

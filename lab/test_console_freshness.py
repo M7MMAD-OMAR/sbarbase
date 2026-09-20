@@ -50,8 +50,16 @@ class FreshnessTests(unittest.TestCase):
         self.assertFalse(fresh)
         self.assertIn('index.html is missing',detail)
 
-    def test_the_flutter_of_sources_covers_ui_and_config(self):
-        newest=check.newest_source_mtime(('ui','vite.config.ts','package.json'))
+    def test_the_input_list_covers_the_real_vite_config_and_mts_sources(self):
+        from pathlib import Path
+        import console_build_check as check
+        self.assertIn('vite.config.mts',check.SOURCE_ROOTS)
+        self.assertIn('.mts',check.SOURCE_SUFFIXES)
+        root=Path(check.__file__).resolve().parent.parent
+        for relative in ('ui','package.json','tsconfig.json','vite.config.mts'):
+            self.assertIn(relative,check.SOURCE_ROOTS)
+            self.assertTrue((root/relative).exists(),relative+' is listed but does not exist')
+        newest=check.newest_source_mtime(('ui','vite.config.mts','package.json'))
         self.assertGreater(newest,0)
         self.assertEqual(check.newest_source_mtime(('does-not-exist.xyz',)),0.0)
 

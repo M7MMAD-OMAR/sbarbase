@@ -27,7 +27,10 @@ type Options = {
 };
 
 const MAX_BODY_DEFAULT = 1024 * 1024;
-const HOP_BY_HOP = ['host', 'connection', 'upgrade', 'keep-alive', 'te', 'trailer', 'transfer-encoding', 'proxy-authorization', 'proxy-authenticate'];
+// Hop-by-hop headers, plus the framing headers a re-framed body must not carry,
+// plus the client-supplied forwarding headers the proxy itself sets.
+const STRIP_HEADERS = ['host', 'connection', 'upgrade', 'keep-alive', 'te', 'trailer', 'transfer-encoding', 'content-length',
+  'proxy-authorization', 'proxy-authenticate', 'x-forwarded-for', 'x-forwarded-proto', 'x-forwarded-host', 'forwarded'];
 // A host used in a Location header or forwarded to the backend is attacker input
 // unless it is validated: no whitespace, no slashes, no scheme, digits only in a port.
 const VALID_HOST = /^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:\d{1,5})?$/;
@@ -107,10 +110,20 @@ async function resolveUpstream(declared: string): Promise<string> {
 }
 
 const options = parseArguments(process.argv.slice(2));
+for (const [label, value] of [['--https-port', options.httpsPort], ['--http-port', options.httpPort]] as const) {
+  if (!Number.isInteger(value) || value < 0 || value > 65535) {
+    throw new Error(label + ' must be a port number between 0 and 65535, not ' + String(value));
+  }
+}
+if (!Number.isInteger(options.maxBody) || options.maxBody <= 0) {
+  throw new Error('--max-body must be a positive number of bytes, not ' + String(options.maxBody));
+}
 assertRegular(options.cert, 'certificate');
 assertPrivate(options.key, 'key');
 assertLoopbackUpstream(options.upstream);
 const upstream = await resolveUpstream(options.upstream);
+// Whatever the source, the upstream must be loopback: the console is never exposed.
+assertLoopbackUpstream(upstream);
 
 const secure = Bun.serve({
   port: options.httpsPort,
@@ -135,10 +148,11 @@ const secure = Bun.serve({
       const target = new URL(upstream + url.pathname + url.search);
       const forwarded = await fetch(target, {
         method: request.method,
-        // Hop by hop headers are never forwarded; the client's host must not win
-        // over the configured public host.
+        // Hop by hop and framing headers are never forwarded, and the client's own
+        // forwarding headers are replaced by ours: a spoofed Host or X-Forwarded-*
+        // must not reach the console.
         headers: {
-          ...Object.fromEntries([...request.headers].filter(([name]) => !HOP_BY_HOP.includes(name.toLowerCase()))),
+          ...Object.fromEntries([...request.headers].filter(([name]) => !STRIP_HEADERS.includes(name.toLowerCase()))),
           ...Object.fromEntries(Object.entries(headers)),
         },
         body,
@@ -146,6 +160,8 @@ const secure = Bun.serve({
       });
       status = forwarded.status;
       const output = new Headers(forwarded.headers);
+      // The body is re-framed, so the upstream's framing headers go too.
+      for (const name of ['content-length', 'transfer-encoding']) output.delete(name);
       for (const [name, value] of Object.entries(headers)) output.set(name, value);
       response = new Response(forwarded.body, {status: forwarded.status, headers: output});
     } catch (error) {

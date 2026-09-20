@@ -44,7 +44,7 @@ def generate_certificate(directory):
     return certificate,key
 
 
-def start(command,pattern,timeout=60,cwd=ROOT):
+def start(command,pattern,timeout=60,cwd=ROOT,required=True):
     process=subprocess.Popen(command,cwd=cwd,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,start_new_session=True)
     deadline=time.monotonic()+timeout
     captured=[]
@@ -57,6 +57,7 @@ def start(command,pattern,timeout=60,cwd=ROOT):
         elif process.poll() is not None:
             break
     process.terminate()
+    if not required:return process,None,captured
     raise RuntimeError('Process did not announce its port: '+' | '.join(captured[-4:]))
 
 
@@ -97,11 +98,15 @@ def fetch(url,context=None,method='GET',follow=False,headers=None,body=None):
         return None,{},str(error).encode()
 
 
-def free_port():
-    """A loopback port nothing is listening on right now."""
-    with socket.socket() as probe:
-        probe.bind(('127.0.0.1',0))
-        return probe.getsockname()[1]
+def free_ports(count):
+    """Distinct loopback ports nothing is listening on, held until all are chosen."""
+    sockets=[]
+    try:
+        for _ in range(count):
+            probe=socket.socket();probe.bind(('127.0.0.1',0));sockets.append(probe)
+        return [probe.getsockname()[1] for probe in sockets]
+    finally:
+        for probe in sockets:probe.close()
 
 
 def port_open(port):
@@ -115,7 +120,25 @@ def stop(process):
         os.killpg(process.pid,signal.SIGTERM)
         try:process.wait(timeout=30)
         except subprocess.TimeoutExpired:os.killpg(process.pid,signal.SIGKILL)
+    if process.stdout and not process.stdout.closed:process.stdout.close()
     return process.returncode
+
+
+def finish(checks):
+    """Write the evidence and exit: an aborted run still records what it saw."""
+    passed=bool(checks) and all(item['ok'] for item in checks)
+    evidence={'scope':('TLS termination check: a self-signed certificate, deploy/console-tls-proxy.ts terminating HTTPS in '
+                       'front of a stub upstream that serves the real built console page, HTTP to HTTPS redirection, the '
+                       'transport security headers, the proxy\'s handling of attacker supplied hosts and oversized bodies, '
+                       'and its own refusals. Not a public certificate, not a running installation, not the operator\'s '
+                       'chosen proxy (nginx, Caddy, the platform proxy).'),
+              'run_at':datetime.datetime.now().astimezone().isoformat(timespec='seconds'),
+              'checks':checks,'count':len(checks),'passed':passed}
+    EVIDENCE.parent.mkdir(parents=True,exist_ok=True)
+    EVIDENCE.write_text(json.dumps(evidence,indent=1)+'\n')
+    print('evidence:',EVIDENCE)
+    print('TLS termination check:','passed' if passed else 'failed')
+    raise SystemExit(0 if passed else 1)
 
 
 def main():
@@ -133,17 +156,23 @@ def main():
     certificate,key=generate_certificate(directory)
     stub=None;proxy=None
     try:
-        stub,stub_match,_=start(['bun','lab/tls_upstream_stub.ts'],re.compile(r'"port":(\d+)'))
+        stub,stub_match,stub_log=start(['bun','lab/tls_upstream_stub.ts'],re.compile(r'"port":(\d+)'),required=False)
+        record('stub upstream serving the real built page',stub_match is not None,str(stub_log[-2:]))
+        if stub_match is None:
+            record('the check could not run without its upstream',False,'stub upstream did not start')
+            return finish(checks)
         stub_port=stub_match.group(1)
-        record('stub upstream serving the real built page',True,'port '+stub_port)
 
-        https_port,http_port=str(free_port()),str(free_port())
+        https_port,http_port=[str(port) for port in free_ports(2)]
         proxy,proxy_match,proxy_log=start(['bun','deploy/console-tls-proxy.ts','--cert',str(certificate),'--key',str(key),
                                            '--upstream','http://127.0.0.1:'+stub_port,
                                            '--public-host',PUBLIC_HOST,
                                            '--https-port',https_port,'--http-port',http_port],
                                           re.compile(r'https://127\.0\.0\.1:'+https_port))
         record('proxy announced its HTTPS port',proxy_match is not None,str(proxy_log[-1:]))
+        if proxy_match is None:
+            record('the check could not run without the proxy',False,'proxy did not announce its ports')
+            return finish(checks)
         record('proxy binds the HTTPS and the redirect port it was given',
                port_open(int(https_port)) and port_open(int(http_port)))
         base='https://127.0.0.1:'+https_port
@@ -181,7 +210,7 @@ def main():
             location=headers.get('Location','')
             record('the redirect never points at a client supplied host',status==308 and location.startswith('https://'+PUBLIC_HOST),f'status {status} location {location}')
 
-        small_https,small_http=str(free_port()),str(free_port())
+        small_https,small_http=[str(port) for port in free_ports(2)]
         small,small_match,_=start(['bun','deploy/console-tls-proxy.ts','--cert',str(certificate),'--key',str(key),
                                    '--upstream','http://127.0.0.1:'+stub_port,'--public-host',PUBLIC_HOST,
                                    '--max-body','64','--https-port',small_https,'--http-port',small_http],
@@ -238,18 +267,7 @@ def main():
             path.unlink(missing_ok=True)
         directory.rmdir()
 
-    passed=bool(checks) and all(item['ok'] for item in checks)
-    evidence={'scope':('TLS termination check: a self-signed certificate, deploy/console-tls-proxy.ts terminating HTTPS in '
-                       'front of a stub upstream that serves the real built console page, HTTP to HTTPS redirection, the '
-                       'transport security headers, and the proxy\'s own refusals. Not a public certificate, not a running '
-                       'installation, not the operator\'s chosen proxy (nginx, Caddy, the platform proxy).'),
-              'run_at':datetime.datetime.now().astimezone().isoformat(timespec='seconds'),
-              'checks':checks,'count':len(checks),'passed':passed}
-    EVIDENCE.parent.mkdir(parents=True,exist_ok=True)
-    EVIDENCE.write_text(json.dumps(evidence,indent=1)+'\n')
-    print('evidence:',EVIDENCE)
-    print('TLS termination check:','passed' if passed else 'failed')
-    raise SystemExit(0 if passed else 1)
+    return finish(checks)
 
 
 if __name__=='__main__':main()

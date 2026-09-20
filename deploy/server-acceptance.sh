@@ -13,7 +13,7 @@
 # that fails stops the run and exits non-zero. Evidence lands in
 # docs/evidence/deployment-rehearsal.json and is copied to
 # docs/evidence/server-acceptance-latest.json for handoff.
-set -uo pipefail
+set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
@@ -25,6 +25,7 @@ INSTALL_UNIT=0
 
 fail() { printf 'FAIL: %s\n' "$1" >&2; exit 1; }
 step() { printf '\n== %s\n' "$1"; }
+unit_state() { systemctl is-active sbarbase.service 2>/dev/null || printf 'unknown'; }
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -85,7 +86,7 @@ if [ "$INSTALL_UNIT" = "1" ]; then
 else
   "$PYTHON" lab/install_server.py supervise || fail "the supervisor unit did not render and verify for this installation"
 fi
-"$PYTHON" - <<'PY' || true
+"$PYTHON" - <<'PY'
 import json
 record=json.load(open('docs/evidence/supervisor-unit.json'))
 if not record['applied']:
@@ -95,10 +96,30 @@ if not record['applied']:
 PY
 
 step "deployment rehearsal"
+# The unit is stopped for the rehearsal and started again afterwards: two
+# supervisors cannot own the same containers and state, and the rehearsal's own
+# preflight would refuse to run against a live installation.
+if [ "$INSTALL_UNIT" = "1" ]; then
+  systemctl stop sbarbase.service || fail "sbarbase.service could not be stopped for the rehearsal"
+  for _ in $(seq 1 60); do
+    if [ "$(unit_state)" = "inactive" ]; then break; fi
+    sleep 1
+  done
+  [ "$(unit_state)" = "inactive" ] || fail "sbarbase.service did not stop; the rehearsal would run against a live installation"
+  printf 'ok: sbarbase.service stopped for the rehearsal\n'
+fi
+
 rehearsal_args=(--attempts 3 --require-unit --evidence docs/evidence/server-acceptance-rehearsal.json)
-[ -n "$BOOTSTRAP" ] && rehearsal_args+=(--bootstrap-file "$BOOTSTRAP")
-[ "$SKIP_INSTALL" = "1" ] && rehearsal_args+=(--skip-install)
+if [ -n "$BOOTSTRAP" ]; then rehearsal_args+=(--bootstrap-file "$BOOTSTRAP"); fi
+if [ "$SKIP_INSTALL" = "1" ]; then rehearsal_args+=(--skip-install); fi
 "$PYTHON" lab/deployment_rehearsal.py "${rehearsal_args[@]}" || fail "rehearsal failed; see docs/evidence/server-acceptance-rehearsal.json"
+
+if [ "$INSTALL_UNIT" = "1" ]; then
+  step "restore the supervised installation"
+  systemctl start sbarbase.service || fail "sbarbase.service could not be started again after the rehearsal"
+  systemctl is-active --quiet sbarbase.service || fail "sbarbase.service is not active after the rehearsal"
+  printf 'ok: sbarbase.service active again\n'
+fi
 
 step "evidence"
 evidence=docs/evidence/server-acceptance-rehearsal.json

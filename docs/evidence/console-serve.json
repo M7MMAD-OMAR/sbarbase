@@ -58,9 +58,19 @@
    "detail": "status 405"
   },
   {
-   "check": "path traversal serves no source file",
+   "check": "a literal traversal in the request line serves no source file",
    "ok": true,
    "detail": "status 404"
+  },
+  {
+   "check": "a percent-encoded traversal serves no source file",
+   "ok": true,
+   "detail": "status 404"
+  },
+  {
+   "check": "the static allow-list refuses anything outside build assets",
+   "ok": true,
+   "detail": "outside refused nested refused asset 200"
   },
   {
    "check": "non-static paths reach the application layer",
@@ -78,7 +88,7 @@
    "detail": "status 403"
   }
  ],
- "count": 15,
+ "count": 17,
  "passed": true,
- "run_at": "2026-09-20T12:32:19.331Z"
+ "run_at": "2026-09-20T12:52:51.227Z"
 }

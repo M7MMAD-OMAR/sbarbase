@@ -314,6 +314,20 @@ UNIT_ANCHORS=('WorkingDirectory=/opt/sbarbase','User=sbarbase','Group=sbarbase',
               'ReadWritePaths=/opt/sbarbase /home/sbarbase/.secrets','Documentation=file:/opt/sbarbase/docs/SERVER-DEPLOYMENT.md')
 
 
+def validate_service_identity(user,home,bun_dir):
+    """Reject anything that could inject a directive into the unit or a path we cannot reason about."""
+    import re as _re
+    if not _re.fullmatch(r'[A-Za-z0-9_][A-Za-z0-9_.-]*',str(user)):
+        raise SystemExit('--service-user must be a plain account name, not '+repr(user))
+    for label,value in (('--home',home),('--bun-dir',bun_dir)):
+        text=str(value)
+        if not text.startswith('/'):
+            raise SystemExit(label+' must be an absolute path, not '+repr(text))
+        if any(character in text for character in ('\n','\r','\t',' ','%','\\','"',"'")):
+            raise SystemExit(label+' must not contain whitespace, quotes, percent or backslash: '+repr(text))
+    return True
+
+
 def rendered_unit(root,home,user,bun_dir,text=None):
     """Rewrite the shipped unit for an installation. Refuses if its shape changed.
 
@@ -324,6 +338,7 @@ def rendered_unit(root,home,user,bun_dir,text=None):
     """
     source=text if text is not None else SERVICE_UNIT.read_text()
     if not bun_dir:raise SystemExit('Bun directory is required: the service needs bun on PATH')
+    validate_service_identity(user,home,bun_dir)
     for anchor in UNIT_ANCHORS:
         if anchor not in source:raise SystemExit('Shipped unit no longer contains '+repr(anchor)+'; refusing to render it blindly')
     rendered=(source
@@ -341,19 +356,23 @@ def rendered_unit(root,home,user,bun_dir,text=None):
     return rendered
 
 
-def unit_commands(rendered):
+def unit_commands(rendered_path):
     """The exact commands an operator runs to install and start the unit."""
-    return ['sudo install -m 0644 <rendered unit> '+str(SERVICE_UNIT_PATH),
+    return ['sudo install -m 0644 '+str(rendered_path)+' '+str(SERVICE_UNIT_PATH),
             'sudo systemctl daemon-reload',
             'sudo systemctl enable --now sbarbase.service',
             'systemctl is-active sbarbase.service']
 
 
-def supervise(apply=False,service_user='sbarbase',home=None,bun_dir=None):
+def supervise(apply=False,service_user='sbarbase',home=None,bun_dir=None,evidence_path=None):
     """Render, verify and optionally install the supervisor unit."""
-    import shutil as _shutil
     home=home or Path('/home')/service_user
-    bun_dir=bun_dir or str(Path(_shutil.which('bun') or '/usr/bin/bun').parent)
+    if bun_dir is None:
+        found=shutil.which('bun')
+        if not found:
+            raise SystemExit('bun is not on PATH: pass --bun-dir with the directory holding it '
+                             '(a service does not inherit your shell PATH)')
+        bun_dir=str(Path(found).parent)
     rendered=rendered_unit(ROOT,home,service_user,bun_dir)
     temporary=ROOT/'.lab'/'rendered-sbarbase.service'
     temporary.parent.mkdir(parents=True,exist_ok=True)
@@ -365,20 +384,27 @@ def supervise(apply=False,service_user='sbarbase',home=None,bun_dir=None):
     if apply:
         if not root_user:raise SystemExit('Installing the unit requires root (run with sudo)')
         if not verified:raise SystemExit('Rendered unit did not verify; refusing to install it')
-        subprocess.run(['install','-m','0644',str(temporary),str(SERVICE_UNIT_PATH)],check=True)
-        subprocess.run(['systemctl','daemon-reload'],check=True)
-        subprocess.run(['systemctl','enable','--now','sbarbase.service'],check=True)
-        applied=subprocess.run(['systemctl','is-active','sbarbase.service'],capture_output=True,text=True).stdout.strip()=='active'
+        for command in (['install','-m','0644',str(temporary),str(SERVICE_UNIT_PATH)],
+                        ['systemctl','daemon-reload'],
+                        ['systemctl','enable','--now','sbarbase.service']):
+            if run(command,check=False).returncode:
+                raise SystemExit('Unit installation step failed: '+' '.join(command))
+        applied=run(['systemctl','is-active','sbarbase.service'],check=False).stdout.strip()=='active'
+        if not applied:
+            raise SystemExit('The unit was installed but did not become active; inspect systemctl status sbarbase.service')
     evidence={'scope':('Supervisor unit: the shipped unit is rendered for this installation (paths, service user and Bun '
                        'directory), verified with systemd-analyze, and the exact install commands are recorded. With '
-                       '--apply and root the unit is installed, reloaded, enabled and started. Not a substitute for the '
-                       'server acceptance run, which requires the unit to be installed.'),
+                       '--apply and root the unit is installed, reloaded, enabled and started, and the run fails unless it '
+                       'becomes active. Not a substitute for the server acceptance run, which requires the unit to be '
+                       'installed.'),
               'installation_root':str(ROOT),'service_user':service_user,'home':str(home),'bun_dir':bun_dir,
-              'rendered':rendered,'verify':'passed' if verified else ('failed: '+(verify.stderr or verify.stdout).strip()),
-              'running_as_root':root_user,'applied':applied,'install_commands':unit_commands(rendered),
+              'rendered':rendered,'rendered_path':str(temporary),
+              'verify':'passed' if verified else ('failed: '+(verify.stderr or verify.stdout).strip()),
+              'running_as_root':root_user,'applied':applied,'install_commands':unit_commands(temporary),
               'run_at':datetime.datetime.now().astimezone().isoformat(timespec='seconds'),
-              'passed':bool(verified)}
-    out=ROOT/'docs'/'evidence'/'supervisor-unit.json'
+              'passed':bool(verified) and (not apply or applied)}
+    out=Path(evidence_path) if evidence_path else ROOT/'docs'/'evidence'/'supervisor-unit.json'
+    out.parent.mkdir(parents=True,exist_ok=True)
     out.write_text(json.dumps(evidence,indent=1)+'\n')
     print('rendered unit verified' if verified else 'rendered unit FAILED verification')
     print('evidence:',out)

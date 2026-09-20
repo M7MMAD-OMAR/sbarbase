@@ -65,10 +65,11 @@ class InterfaceTests(unittest.TestCase):
 
 
 class HelperTests(unittest.TestCase):
-    def test_a_free_port_is_a_real_port_number(self):
-        port=check.free_port()
-        self.assertIsInstance(port,int)
-        self.assertGreater(port,1023)
+    def test_free_ports_are_real_and_distinct(self):
+        first,second=check.free_ports(2)
+        self.assertIsInstance(first,int)
+        self.assertGreater(first,1023)
+        self.assertNotEqual(first,second)
 
     def test_redirects_are_not_followed_by_default(self):
         import urllib.request
@@ -79,3 +80,45 @@ class HelperTests(unittest.TestCase):
 
 
 if __name__=='__main__':unittest.main()
+
+class UpstreamSourceTests(unittest.TestCase):
+    """The upstream must be loopback whichever way it was supplied."""
+
+    def run_proxy(self, server_json, extra=()):
+        import json, subprocess, tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            certificate,key=check.generate_certificate(root)
+            (root/'.lab'/'upstream').mkdir(parents=True)
+            (root/'.lab'/'upstream'/'server.json').write_text(json.dumps(server_json))
+            command=['bun',str(check.ROOT/'deploy'/'console-tls-proxy.ts'),
+                     '--public-host','console.example.com','--cert',str(certificate),'--key',str(key),*extra]
+            return subprocess.run(command,cwd=root,capture_output=True,text=True,timeout=120)
+
+    def test_a_non_loopback_upstream_read_from_server_json_is_refused(self):
+        result=self.run_proxy({'url':'http://evil.example.net:8000'})
+        self.assertNotEqual(result.returncode,0)
+        self.assertIn('loopback',result.stderr+result.stdout)
+
+    def test_a_loopback_upstream_from_server_json_is_accepted_and_the_proxy_starts(self):
+        import json, tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            certificate,key=check.generate_certificate(root)
+            (root/'.lab'/'upstream').mkdir(parents=True)
+            (root/'.lab'/'upstream'/'server.json').write_text(json.dumps({'url':'http://127.0.0.1:1'}))
+            command=['bun',str(check.ROOT/'deploy'/'console-tls-proxy.ts'),'--public-host','console.example.com',
+                     '--cert',str(certificate),'--key',str(key),'--https-port','0','--http-port','0']
+            process,match,log=check.start(command,re.compile(r'https://127\.0\.0\.1:(\d+)'),timeout=60,cwd=root,required=False)
+            try:
+                self.assertIsNotNone(match,'the proxy did not start: '+' | '.join(log[-3:]))
+                self.assertNotIn('must be loopback',' '.join(log))
+            finally:
+                check.stop(process)
+
+    def test_server_json_without_a_url_is_refused(self):
+        result=self.run_proxy({'port':5432})
+        self.assertNotEqual(result.returncode,0)
+        self.assertIn('no console url',result.stderr+result.stdout)
