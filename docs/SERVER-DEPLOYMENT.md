@@ -71,14 +71,21 @@ the gate.
 
 ## Supervise
 
-Copy `deploy/sbarbase.service` to `/etc/systemd/system/`, adjust `User`,
-`WorkingDirectory` and the paths, then:
+Install and start the unit with one command. It renders the shipped unit for this
+installation (paths, service user, Bun directory), verifies the result with
+`systemd-analyze verify`, then installs, reloads, enables and starts it:
 
 ```
-systemctl daemon-reload
-systemctl enable --now sbarbase.service
-systemctl status sbarbase.service
+sudo /usr/bin/python3 lab/install_server.py supervise --apply
 ```
+
+Without `--apply` it only renders and verifies, prints the exact commands it would
+run, and writes `docs/evidence/supervisor-unit.json`. It refuses to install a unit
+that does not verify and refuses `--apply` without root. Point it at a different
+layout with `--service-user`, `--home` and `--bun-dir`; the shipped unit is never
+hand-edited. The rendering has been verified on the development host and the
+install commands are recorded in that evidence file; the install itself needs root
+on the target server.
 
 The unit runs `lab/dev.py`, which builds the console, starts the owned runtime,
 runs the API and the provisioning worker, and stops the runtime on SIGTERM.

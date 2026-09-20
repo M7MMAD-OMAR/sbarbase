@@ -1,0 +1,19 @@
+{
+ "scope": "Supervisor unit: the shipped unit is rendered for this installation (paths, service user and Bun directory), verified with systemd-analyze, and the exact install commands are recorded. With --apply and root the unit is installed, reloaded, enabled and started. Not a substitute for the server acceptance run, which requires the unit to be installed.",
+ "installation_root": "/home/sbarah/R/Projects/P/sbarbase",
+ "service_user": "sbarbase",
+ "home": "/home/sbarbase",
+ "bun_dir": "/home/sbarah/.bun/bin",
+ "rendered": "[Unit]\nDescription=sbarbase installation supervisor (owned Supabase placement, console and worker)\nDocumentation=file:/home/sbarah/R/Projects/P/sbarbase/docs/SERVER-DEPLOYMENT.md\nRequires=docker.service\nAfter=docker.service network-online.target\nWants=network-online.target\n\n[Service]\nType=simple\nUser=sbarbase\nGroup=sbarbase\nWorkingDirectory=/home/sbarah/R/Projects/P/sbarbase\nEnvironment=HOME=/home/sbarbase\n# A system service does not inherit a user-local Bun; the supervisor and its\n# preflight both need it on PATH.\nEnvironment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/sbarah/.bun/bin\n# Preflight refuses on insufficient headroom, missing pins or pending authority state.\nExecStartPre=/usr/bin/python3 /home/sbarah/R/Projects/P/sbarbase/lab/install_server.py check\nExecStart=/usr/bin/python3 /home/sbarah/R/Projects/P/sbarbase/lab/dev.py\n# dev.py stops the owned runtime on SIGTERM; allow its 90 second budget.\nTimeoutStopSec=150\nKillMode=mixed\nRestart=on-failure\nRestartSec=10\n# The supervisor needs Docker access; keep it out of the docker group only if an\n# equivalent socket permission already applies to this user.\nSupplementaryGroups=docker\nNoNewPrivileges=yes\nPrivateTmp=yes\nProtectSystem=full\nReadWritePaths=/home/sbarah/R/Projects/P/sbarbase /home/sbarbase/.secrets\n\n[Install]\nWantedBy=multi-user.target",
+ "verify": "passed",
+ "running_as_root": false,
+ "applied": false,
+ "install_commands": [
+  "sudo install -m 0644 <rendered unit> /etc/systemd/system/sbarbase.service",
+  "sudo systemctl daemon-reload",
+  "sudo systemctl enable --now sbarbase.service",
+  "systemctl is-active sbarbase.service"
+ ],
+ "run_at": "2026-09-20T16:30:50+04:00",
+ "passed": true
+}

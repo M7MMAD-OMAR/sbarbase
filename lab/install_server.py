@@ -13,6 +13,7 @@ Rules:
 - Every mutating command holds the installation operation lock.
 """
 import argparse
+import datetime
 import fcntl
 import json
 import os
@@ -305,11 +306,98 @@ def smoke():
     return endpoints_ok and alive
 
 
+SERVICE_UNIT=ROOT/'deploy'/'sbarbase.service'
+SERVICE_UNIT_PATH=Path('/etc/systemd/system/sbarbase.service')
+UNIT_ANCHORS=('WorkingDirectory=/opt/sbarbase','User=sbarbase','Group=sbarbase',
+              'Environment=HOME=/home/sbarbase','ExecStart=/usr/bin/python3 /opt/sbarbase/lab/dev.py',
+              'ExecStartPre=/usr/bin/python3 /opt/sbarbase/lab/install_server.py check',
+              'ReadWritePaths=/opt/sbarbase /home/sbarbase/.secrets','Documentation=file:/opt/sbarbase/docs/SERVER-DEPLOYMENT.md')
+
+
+def rendered_unit(root,home,user,bun_dir,text=None):
+    """Rewrite the shipped unit for an installation. Refuses if its shape changed.
+
+    The shipped file carries a server layout such as /opt/sbarbase. A deployment
+    elsewhere must not be hand-edited, so the substitution is explicit and the
+    anchors are checked first: a unit whose directives moved is not rewritten
+    blindly.
+    """
+    source=text if text is not None else SERVICE_UNIT.read_text()
+    if not bun_dir:raise SystemExit('Bun directory is required: the service needs bun on PATH')
+    for anchor in UNIT_ANCHORS:
+        if anchor not in source:raise SystemExit('Shipped unit no longer contains '+repr(anchor)+'; refusing to render it blindly')
+    rendered=(source
+        .replace('Documentation=file:/opt/sbarbase/','Documentation=file:'+str(root)+'/')
+        .replace('WorkingDirectory=/opt/sbarbase','WorkingDirectory='+str(root))
+        .replace('User=sbarbase','User='+user)
+        .replace('Group=sbarbase','Group='+user)
+        .replace('Environment=HOME=/home/sbarbase','Environment=HOME='+str(home))
+        .replace(':/home/sbarbase/.bun/bin',':'+str(bun_dir))
+        .replace('ExecStartPre=/usr/bin/python3 /opt/sbarbase/','ExecStartPre=/usr/bin/python3 '+str(root)+'/')
+        .replace('ExecStart=/usr/bin/python3 /opt/sbarbase/','ExecStart=/usr/bin/python3 '+str(root)+'/')
+        .replace('ReadWritePaths=/opt/sbarbase /home/sbarbase/.secrets','ReadWritePaths='+str(root)+' '+str(Path(home)/'.secrets')))
+    if '/opt/sbarbase' in rendered:
+        raise SystemExit('Rendered unit still refers to the shipped default path; refusing it')
+    return rendered
+
+
+def unit_commands(rendered):
+    """The exact commands an operator runs to install and start the unit."""
+    return ['sudo install -m 0644 <rendered unit> '+str(SERVICE_UNIT_PATH),
+            'sudo systemctl daemon-reload',
+            'sudo systemctl enable --now sbarbase.service',
+            'systemctl is-active sbarbase.service']
+
+
+def supervise(apply=False,service_user='sbarbase',home=None,bun_dir=None):
+    """Render, verify and optionally install the supervisor unit."""
+    import shutil as _shutil
+    home=home or Path('/home')/service_user
+    bun_dir=bun_dir or str(Path(_shutil.which('bun') or '/usr/bin/bun').parent)
+    rendered=rendered_unit(ROOT,home,service_user,bun_dir)
+    temporary=ROOT/'.lab'/'rendered-sbarbase.service'
+    temporary.parent.mkdir(parents=True,exist_ok=True)
+    temporary.write_text(rendered)
+    verify=run(['systemd-analyze','verify',str(temporary)],check=False)
+    verified=verify.returncode==0
+    root_user=os.geteuid()==0
+    applied=False
+    if apply:
+        if not root_user:raise SystemExit('Installing the unit requires root (run with sudo)')
+        if not verified:raise SystemExit('Rendered unit did not verify; refusing to install it')
+        subprocess.run(['install','-m','0644',str(temporary),str(SERVICE_UNIT_PATH)],check=True)
+        subprocess.run(['systemctl','daemon-reload'],check=True)
+        subprocess.run(['systemctl','enable','--now','sbarbase.service'],check=True)
+        applied=subprocess.run(['systemctl','is-active','sbarbase.service'],capture_output=True,text=True).stdout.strip()=='active'
+    evidence={'scope':('Supervisor unit: the shipped unit is rendered for this installation (paths, service user and Bun '
+                       'directory), verified with systemd-analyze, and the exact install commands are recorded. With '
+                       '--apply and root the unit is installed, reloaded, enabled and started. Not a substitute for the '
+                       'server acceptance run, which requires the unit to be installed.'),
+              'installation_root':str(ROOT),'service_user':service_user,'home':str(home),'bun_dir':bun_dir,
+              'rendered':rendered,'verify':'passed' if verified else ('failed: '+(verify.stderr or verify.stdout).strip()),
+              'running_as_root':root_user,'applied':applied,'install_commands':unit_commands(rendered),
+              'run_at':datetime.datetime.now().astimezone().isoformat(timespec='seconds'),
+              'passed':bool(verified)}
+    out=ROOT/'docs'/'evidence'/'supervisor-unit.json'
+    out.write_text(json.dumps(evidence,indent=1)+'\n')
+    print('rendered unit verified' if verified else 'rendered unit FAILED verification')
+    print('evidence:',out)
+    if apply:print('unit installed and started' if applied else 'unit installed but not active')
+    else:print('dry run: install it with  sudo /usr/bin/python3 lab/install_server.py supervise --apply')
+    return evidence['passed']
+
+
 def main():
     parser=argparse.ArgumentParser(description='sbarbase server preflight and installation')
-    parser.add_argument('command',choices=('check','plan','install','smoke'))
+    parser.add_argument('command',choices=('check','plan','install','smoke','supervise'))
     parser.add_argument('--bootstrap-file',help='private 0600 JSON with email, password and organization')
+    parser.add_argument('--apply',action='store_true',help='supervise: install, enable and start the unit (requires root)')
+    parser.add_argument('--service-user',default='sbarbase',help='supervise: the account the service runs as')
+    parser.add_argument('--home',help='supervise: the service account home directory')
+    parser.add_argument('--bun-dir',help='supervise: directory holding the bun binary')
     args=parser.parse_args()
+    if args.command=='supervise':
+        raise SystemExit(0 if supervise(args.apply,args.service_user,args.home,args.bun_dir) else 1)
     if args.command=='check':
         raise SystemExit(0 if report(preflight()) else 1)
     if args.command=='plan':
@@ -321,7 +409,7 @@ def main():
         print('6. bun run build:ui')
         print('7. /usr/bin/python3 lab/installation_runtime.py up')
         print('8. /usr/bin/python3 lab/bootstrap.py --stdin  (from the private 0600 JSON file)')
-        print('9. supervise: deploy/sbarbase.service, or the foreground supervisor')
+        print('9. supervise: /usr/bin/python3 lab/install_server.py supervise --apply  (root: renders, verifies, enables, starts)')
         return
     if args.command=='install':
         install(args.bootstrap_file);return

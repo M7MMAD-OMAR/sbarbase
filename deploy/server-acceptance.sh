@@ -73,6 +73,17 @@ bun lab/console-serve-check.ts || fail "console static-serving check failed; see
 step "TLS termination check (reference proxy)"
 "$PYTHON" lab/tls_termination_check.py || fail "TLS termination check failed; see docs/evidence/tls-termination.json"
 
+step "supervisor unit"
+"$PYTHON" lab/install_server.py supervise || fail "the supervisor unit did not render and verify for this installation"
+"$PYTHON" - <<'PY' || true
+import json
+record=json.load(open('docs/evidence/supervisor-unit.json'))
+if not record['applied']:
+    print('The unit is not installed on this host. Install it with:')
+    for command in record['install_commands']:
+        print('  '+command)
+PY
+
 step "deployment rehearsal"
 rehearsal_args=(--attempts 3 --require-unit)
 [ -n "$BOOTSTRAP" ] && rehearsal_args+=(--bootstrap-file "$BOOTSTRAP")
