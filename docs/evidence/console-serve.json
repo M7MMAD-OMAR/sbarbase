@@ -1,0 +1,84 @@
+{
+ "scope": "Console static-serving check: the built console page and its assets are served by the same loopback adapter the console uses, on an ephemeral port, with the security headers, method refusal, traversal refusal and loopback host check. Not the console API, not the runtime, not a browser render.",
+ "build_root": "/home/sbarah/R/Projects/P/sbarbase/.lab/ui",
+ "checks": [
+  {
+   "check": "built page is served as html",
+   "ok": true,
+   "detail": "status 200 text/html; charset=utf-8"
+  },
+  {
+   "check": "page is not cached by intermediaries",
+   "ok": true,
+   "detail": "no-store"
+  },
+  {
+   "check": "page carries a restrictive content security policy",
+   "ok": true,
+   "detail": "default-src 'self'; script-src 'self'; style-src 'self'; con"
+  },
+  {
+   "check": "page forbids content sniffing",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "page references at least one local asset",
+   "ok": true,
+   "detail": "/assets/index-03pyDXHP.js /assets/index-NdYKSyHJ.css"
+  },
+  {
+   "check": "served asset matches the built file: /assets/index-03pyDXHP.js",
+   "ok": true,
+   "detail": "status 200 served b969fa0a9ee5 disk b969fa0a9ee5"
+  },
+  {
+   "check": "asset is announced immutable: /assets/index-03pyDXHP.js",
+   "ok": true,
+   "detail": "public, max-age=31536000, immutable"
+  },
+  {
+   "check": "served asset matches the built file: /assets/index-NdYKSyHJ.css",
+   "ok": true,
+   "detail": "status 200 served 7afed8fae3bd disk 7afed8fae3bd"
+  },
+  {
+   "check": "asset is announced immutable: /assets/index-NdYKSyHJ.css",
+   "ok": true,
+   "detail": "public, max-age=31536000, immutable"
+  },
+  {
+   "check": "HEAD returns headers without a body",
+   "ok": true,
+   "detail": "status 200"
+  },
+  {
+   "check": "a write to a static path is refused",
+   "ok": true,
+   "detail": "status 405"
+  },
+  {
+   "check": "path traversal serves no source file",
+   "ok": true,
+   "detail": "status 404"
+  },
+  {
+   "check": "non-static paths reach the application layer",
+   "ok": true,
+   "detail": "status 404"
+  },
+  {
+   "check": "favicon is answered without a file",
+   "ok": true,
+   "detail": "status 204"
+  },
+  {
+   "check": "a non-loopback host header is refused",
+   "ok": true,
+   "detail": "status 403"
+  }
+ ],
+ "count": 15,
+ "passed": true,
+ "run_at": "2026-09-20T11:33:11.136Z"
+}

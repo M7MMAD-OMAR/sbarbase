@@ -67,6 +67,9 @@ if [ "$REHEARSAL" = "0" ]; then
   exit 0
 fi
 
+step "console static-serving check"
+bun lab/console-serve-check.ts || fail "console static-serving check failed; see docs/evidence/console-serve.json"
+
 step "deployment rehearsal"
 rehearsal_args=()
 [ -n "$BOOTSTRAP" ] && rehearsal_args+=(--bootstrap-file "$BOOTSTRAP")
