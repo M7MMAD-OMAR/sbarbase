@@ -38,15 +38,10 @@ try {
   const job=catalog.getProvision(actor,id);
   if(['failed','cancelled'].includes(job.state))catalog.retryProvision(actor,id);
  }
- // Simulate lost completion after real provisioning, before recording success.
- const claim=catalog.claimProvision();
- if(claim) {
-  await command(['/usr/bin/python3','lab/durable_runtime.py','provision',claim.runtime]);
-  check('runtime effect completed while job remains running',catalog.getProvision(actor,claim.environment).state==='running');
- }
+ // Native provisioning must run through the worker's durable receipt protocol.
  await command(['/usr/bin/python3','lab/worker.py','--upstream']);
  const jobs=probe.environments.map(id=>catalog.getProvision(actor,id));
- check('worker reconciles both upstream environments to success',jobs.every(job=>job.state==='succeeded'));
+ check('worker provisions both upstream environments through receipts',jobs.every(job=>job.state==='succeeded'));
  const secrets=await Bun.file('.secrets/upstream/runtime.json').json();
  let endpoints=await Bun.file(`${directory}/endpoints.json`).json();
  const encode=(value:unknown)=>Buffer.from(JSON.stringify(value)).toString('base64url');

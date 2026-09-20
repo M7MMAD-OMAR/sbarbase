@@ -49,3 +49,13 @@ class GuardedSQLTests(unittest.TestCase):
         executor.transport=self.transport;before=len(self.calls)
         with self.assertRaisesRegex(RuntimeError,'reconciliation'):executor('SELECT 1;')
         self.assertEqual(len(self.calls),before)
+
+    def test_close_refuses_replaced_target_before_revocation_and_stays_poisoned(self):
+        executor=GuardedSQL(self.transport,*self.args)
+        executor('SELECT 17;',self.args[0])
+        self.meta['target']={'oid':43,'allows_connections':True}
+        before=len(self.calls)
+        with self.assertRaisesRegex(RuntimeError,'Captured database identity'):executor.close()
+        self.assertEqual(len(self.calls),before+1)
+        self.assertTrue(self.calls[-1][1].startswith('SELECT json_build_object'))
+        with self.assertRaisesRegex(RuntimeError,'reconciliation'):executor('SELECT 1;')

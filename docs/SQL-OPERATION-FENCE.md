@@ -1,6 +1,6 @@
 # Experimental database-local SQL operation fence
 
-Implemented as an isolated prototype on 2026-09-20. Not wired into runtime provisioning, worker settlement or automatic recovery. Read [cross-database design constraints](DATABASE-OPERATION-FENCING-DESIGN.md) before extending it.
+Implemented as an isolated prototype on 2026-09-20. Wired into the durable worker SQL stage through exact receipt identity. Not used to authorize automatic recovery. Read [cross-database design constraints](DATABASE-OPERATION-FENCING-DESIGN.md) before extending it.
 
 ## Protocol
 
@@ -22,7 +22,7 @@ Run `/usr/bin/python3 lab/partial-database-crash-check.py --upstream --sql-fence
 
 Other checks cover private registry access despite adversarial default grants, token/claim mismatches, revoked registration, revocation before registration, stale attempts, preservation of newer authority, fresh reconnect rejection and guarded CREATE DATABASE. The identical lock key is simultaneously acquired in another database, explicitly demonstrating the limited scope. The exact disposable container is removed afterward.
 
-Four isolated builder tests pass; the full Python checkpoint is 110 tests. Adversarial review found no must-fix in the declared experimental scope and prompted specific error validation plus a wider bounded lock timeout. No retained environment or production-like catalog was modified.
+Four isolated builder tests pass; the full Python checkpoint is 115 tests. Adversarial review found no must-fix in the declared experimental scope and prompted specific error validation plus a wider bounded lock timeout. No retained environment or production-like catalog was modified.
 
 Guard lock/unlock now use DO/PERFORM to avoid contaminating scalar query output. A live regression failed before this correction and passes afterward. Executor integration must additionally use psql quiet mode to suppress command tags.
 
@@ -30,4 +30,4 @@ Guard lock/unlock now use DO/PERFORM to avoid contaminating scalar query output.
 
 The registry is database-local. It does not stop target-database migrations, Auth/REST startup, Storage registration or delayed Docker container creation. There is no operator revoke API, no catalog settlement transition based on this prototype, and no automatic partial-operation replay.
 
-A separate [two-database prototype](SQL-PAIR-REVOCATION.md) now tests sequential revocation and coordinator interruption. Neither prototype is integrated into runtime provisioning. Keep all unknown later-stage receipts blocked until the whole relevant mutation path is covered.
+A separate [two-database prototype](SQL-PAIR-REVOCATION.md) now tests sequential revocation and coordinator interruption. The scoped executor now uses these primitives in the durable worker SQL stage. Keep all unknown later-stage receipts blocked until the whole relevant mutation path is covered.

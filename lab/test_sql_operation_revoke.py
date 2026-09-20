@@ -71,3 +71,17 @@ class SQLRevokeTests(unittest.TestCase):
                 return json.dumps({**self.meta,'target':target})
             with self.assertRaisesRegex(RuntimeError,'existing open'):revoke.register_target(closed,*self.args)
             self.assertEqual(calls,['postgres'])
+
+    def test_captured_target_replacement_during_control_drain_prevents_target_revoke(self):
+        calls=[];observations=0
+        def execute(database,script):
+            nonlocal observations
+            calls.append((database,script))
+            if script.startswith('SELECT json_build_object'):
+                observations+=1
+                target={'oid':42 if observations==1 else 43,'allows_connections':True}
+                return json.dumps({**self.meta,'target':target})
+            return ''
+        with self.assertRaisesRegex(RuntimeError,'while control revocation drained'):
+            revoke.revoke_pair(execute,*self.args,expected_control_oid=5,expected_cluster='123',expected_target_oid=42)
+        self.assertFalse(any(database==self.args[0] for database,script in calls))

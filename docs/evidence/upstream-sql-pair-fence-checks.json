@@ -2,7 +2,7 @@
   "image": "sha256:b3bfedb107413abb3b8cb0d0874b0414a1dceb3d55bc0c778de6ad22d1f7dc86",
   "profile": "upstream",
   "scope": "Experimental sequential control and target SQL revocation on pinned PostgreSQL. Actual coordinator SIGKILL between commits, retry, target tombstones, absent/closed targets and OID replacement tested. Not an atomic cutoff, production integration or replay authorization.",
-  "count": 45,
+  "count": 51,
   "checks": [
     "native local Linux daemon",
     "host headroom checked before bounded probe",
@@ -44,9 +44,15 @@
     "complete durable SQL creates Storage schema",
     "complete durable SQL sets REST deadline",
     "unterminated SQL with trailing comment stays separated from guard cleanup",
+    "executor close retires exact captured database authority",
+    "closed executor target token rejects delayed native SQL",
     "revocation stops actual provisioning executor target mutations",
     "rejected mutation leaves no application table",
     "executor never retries after rejected dispatch",
+    "actual Runtime provision reaches services through receipt-bound SQL",
+    "actual Runtime service boundary follows durable stage",
+    "actual Runtime retires control authority before HBA",
+    "actual Runtime retires target authority before HBA",
     "disposable database did not OOM",
     "exact disposable container absent from successful inventory"
   ]

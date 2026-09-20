@@ -102,3 +102,33 @@ def native_stage(state,runtime,stage):
     expected={**receipt,'stage':STAGES[index-1],'stageIndex':index-1}
     if previous!=expected:raise RuntimeError('Stage sequence mismatch')
     atomic_record(path,value)
+
+
+def sql_identity(state,runtime,stage):
+    """Bind native SQL to the exact pending worker claim and durable stage."""
+    import sqlite3
+    from contextlib import closing
+    import sql_operation_fence
+    if stage not in ('preflight','database'):
+        raise ValueError('Unsupported SQL authorization stage')
+    require_permission(state,runtime)
+    path=state/'worker-effect.json'
+    if not path.exists():raise RuntimeError('Native provisioning requires a worker receipt')
+    receipt=json.loads(path.read_text())
+    job=receipt.get('job',{})
+    if (type(receipt.get('version')) is not int or receipt['version']!=1
+            or type(receipt.get('stageProtocol')) is not int or receipt['stageProtocol']!=1
+            or receipt.get('phase')!='pending' or receipt.get('native')!='durable-provision-v1'
+            or receipt.get('token')!=os.environ.get('SBARBASE_EFFECT_TOKEN')
+            or not isinstance(job,dict) or job.get('runtime')!=runtime):
+        raise RuntimeError('Native SQL receipt identity mismatch')
+    args=(runtime,receipt.get('token'),job.get('claim'),job.get('attempt'))
+    sql_operation_fence.identity(*args)
+    record=json.loads((state/'effect-stages'/(receipt['token']+'.json')).read_text())
+    if record!={**receipt,'stage':stage,'stageIndex':STAGES.index(stage)}:
+        raise RuntimeError('Native SQL stage identity mismatch')
+    with closing(sqlite3.connect((state/'control.sqlite').resolve().as_uri()+'?mode=ro',uri=True)) as database:
+        row=database.execute('SELECT runtime,claim,attempt,state FROM provision_jobs WHERE environment=?',(job.get('environment'),)).fetchone()
+    if row!=(runtime,job['claim'],job['attempt'],'running'):
+        raise RuntimeError('Native SQL catalog claim mismatch')
+    return args

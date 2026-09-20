@@ -1,5 +1,7 @@
 """Write-ahead native stages and the boundary before external mutation."""
 import json
+import sqlite3
+from contextlib import closing
 import os
 from pathlib import Path
 import tempfile
@@ -13,8 +15,11 @@ class NativeStageTests(unittest.TestCase):
     def fixture(self,state):
         token='12345678-1234-1234-1234-123456789abc';runtime='e_'+'a'*24
         receipt={'version':1,'phase':'pending','token':token,'native':'durable-provision-v1','stageProtocol':1,
-                 'job':{'environment':'fixture','runtime':runtime,'claim':'claim','attempt':1}}
+                 'job':{'environment':'fixture','runtime':runtime,'claim':'22345678-1234-1234-1234-123456789abc','attempt':1}}
         (state/'worker-effect.json').write_text(json.dumps(receipt))
+        with closing(sqlite3.connect(state/'control.sqlite')) as db, db:
+            db.execute('CREATE TABLE provision_jobs(environment TEXT,runtime TEXT,claim TEXT,attempt INTEGER,state TEXT)')
+            db.execute('INSERT INTO provision_jobs VALUES (?,?,?,?,?)',('fixture',runtime,receipt['job']['claim'],1,'running'))
         return receipt,runtime,state/'effect-stages'/(token+'.json')
 
     def test_stages_only_advance_and_outcome_requires_correct_boundary(self):
@@ -49,7 +54,7 @@ class NativeStageTests(unittest.TestCase):
                  patch.object(durable_runtime.pressure_admission,'snapshot',return_value=None),\
                  patch.object(durable_runtime.pressure_admission,'refusal',return_value=None),\
                  patch.object(durable_runtime.source_fence,'is_fenced',return_value=False),\
-                 patch.object(durable_runtime.lab,'provision_environment',side_effect=mutate) as effect:
+                 patch.object(durable_runtime,'GuardedSQL',side_effect=mutate) as effect:
                 effect_receipt.native_stage(state,runtime,'preflight')
                 with self.assertRaisesRegex(RuntimeError,'boundary observed'):instance.provision(runtime)
                 effect.assert_called_once()

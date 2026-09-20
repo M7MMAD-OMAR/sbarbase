@@ -43,3 +43,11 @@ class GuardedSQL:
             # No recapture of target identity after uncertain or rejected dispatch.
             self.failed=True
             raise
+
+    def close(self):
+        """Retire SQL authority before advancing to non-SQL service effects."""
+        if self.failed:raise RuntimeError('Guarded SQL executor requires reconciliation')
+        self.failed=True
+        return coordinator.revoke_pair(self._raw,*self.identity,
+            expected_control_oid=self.control['control_oid'],expected_cluster=self.control['cluster'],
+            expected_target_oid=None if self.target is None else self.target['target']['oid'])

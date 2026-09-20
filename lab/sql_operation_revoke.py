@@ -26,15 +26,23 @@ def observe(execute,runtime):
     return value
 
 
-def revoke_pair(execute,runtime,token,claim,attempt,checkpoint=lambda phase:None):
+def revoke_pair(execute,runtime,token,claim,attempt,checkpoint=lambda phase:None,*,expected_control_oid=None,expected_cluster=None,expected_target_oid=None):
     fence.identity(runtime,token,claim,attempt)
     initial=observe(execute,runtime)
+    fence.backend_identity(expected_control_oid,expected_cluster)
+    if expected_target_oid is not None:fence.backend_identity(expected_target_oid)
+    if ((expected_control_oid is not None and initial['control_oid']!=expected_control_oid)
+            or (expected_cluster is not None and initial['cluster']!=expected_cluster)
+            or (expected_target_oid is not None and (initial['target'] is None or initial['target']['oid']!=expected_target_oid))):
+        raise RuntimeError('Captured database identity changed before revocation')
     execute('postgres',fence.revoke(runtime,token,claim,attempt,initialize=True,expected_oid=initial['control_oid'],expected_cluster=initial['cluster']))
     checkpoint('control_committed')
     current=observe(execute,runtime)
     if (current['cluster'],current['control_oid'])!=(initial['cluster'],initial['control_oid']):
         raise RuntimeError('Control database identity changed')
     target=current['target']
+    if expected_target_oid is not None and (target is None or target['oid']!=expected_target_oid):
+        raise RuntimeError('Captured target identity changed while control revocation drained')
     if target is not None:
         if not target['allows_connections']:raise RuntimeError('Closed target requires explicit reconciliation')
         execute(runtime,fence.revoke(runtime,token,claim,attempt,initialize=True,expected_oid=target['oid'],expected_cluster=current['cluster']))

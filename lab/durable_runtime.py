@@ -1,5 +1,6 @@
 """Bounded, persistent upstream runtime. Experimental, local and unpublished."""
 import effect_receipt
+from guarded_sql_executor import GuardedSQL
 import argparse
 import base64
 import fcntl
@@ -93,7 +94,7 @@ class Runtime:
             atomic(self.path, self.values)
 
     def sql(self, query, database='postgres', check=True):
-        return lab.docker('exec', '-i', DB, 'psql', '-X', '-v', 'ON_ERROR_STOP=1', '-U', 'supabase_admin', '-d', database, '-At', data=query, check=check)
+        return lab.docker('exec', '-i', DB, 'psql', '-X', '-v', 'ON_ERROR_STOP=1', '-U', 'supabase_admin', '-d', database, '-qAt', data=query, check=check)
 
     def launch(self, name, component, env, memory, cpus, volumes=(), command=(), existing_only=False):
         image = self.pins[component]['id']
@@ -263,6 +264,7 @@ class Runtime:
             limits = self.sql("SELECT current_setting('max_connections'), current_setting('superuser_reserved_connections'), current_setting('reserved_connections');").stdout.strip().split('|')
             if len(limits) != 3 or not connection_budget.fits(len(self.values['environments'])+int(new_environment), *(int(value) for value in limits)):
                 raise AdmissionLimitError('Connection budget unavailable')
+        effect_receipt.sql_identity(STATE,e,'preflight')
         if new_environment:
             self.values['environments'][e] = {k: secrets.token_hex(32) for k in ('auth', 'rest', 'storage', 'jwt')}
             atomic(self.path, self.values)
@@ -270,7 +272,10 @@ class Runtime:
             raise RuntimeError('Environment database is fenced; explicit reconciliation required')
         v = self.values['environments'][e]
         effect_receipt.native_stage(STATE,e,'database')
-        self.provision_database(e, v)
+        identity=effect_receipt.sql_identity(STATE,e,'database')
+        guarded=GuardedSQL(self.sql,*identity)
+        self.provision_database(e, v, executor=guarded)
+        guarded.close()
         effect_receipt.native_stage(STATE,e,'services')
         self.hba()
         self.activate_services(e,v,creating=True)

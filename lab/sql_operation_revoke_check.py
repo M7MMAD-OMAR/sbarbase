@@ -154,7 +154,9 @@ raise RuntimeError('Crash checkpoint skipped')
     check('complete durable SQL creates Storage schema',guarded("SELECT to_regnamespace('storage') IS NOT NULL;",provisioned[0]).stdout.strip()=='t')
     check('complete durable SQL sets REST deadline',guarded(f"SELECT EXISTS(SELECT 1 FROM pg_db_role_setting s JOIN pg_roles r ON r.oid=s.setrole WHERE r.rolname='{provisioned[0]}_rest' AND s.setconfig @> ARRAY['statement_timeout=8s','transaction_timeout=12s']);").stdout.strip()=='t')
     check('unterminated SQL with trailing comment stays separated from guard cleanup',guarded('SELECT 19 -- native query without terminator').stdout.strip()=='19')
-    coordinator.revoke_pair(execute,*provisioned)
+    retired=guarded.close()
+    check('executor close retires exact captured database authority',retired['target']=='revoked')
+    check('closed executor target token rejects delayed native SQL',denied(provisioned[0],fence.guarded(*provisioned,'CREATE TABLE public.must_not_exist(id integer);')))
     refused=False
     try:guarded('CREATE TABLE public.must_not_exist(id integer);',provisioned[0])
     except RuntimeError:refused=True
@@ -164,3 +166,34 @@ raise RuntimeError('Crash checkpoint skipped')
     try:guarded('SELECT 1;')
     except RuntimeError as error:refused='requires reconciliation' in str(error)
     check('executor never retries after rejected dispatch',refused)
+
+    # Real Runtime.provision orchestration with disposable catalog and SQL.
+    # Only host leases/admission and service launch boundary are simulated.
+    import effect_receipt
+    import sqlite3
+    from contextlib import closing
+    bound_job=identity();e,t,c,a=bound_job
+    with tempfile.TemporaryDirectory(prefix='sbar-native-wiring-') as directory:
+        state=Path(directory)
+        receipt={'version':1,'phase':'pending','token':t,'native':'durable-provision-v1','stageProtocol':1,
+                 'job':{'environment':'fixture','runtime':e,'claim':c,'attempt':a}}
+        (state/'worker-effect.json').write_text(json.dumps(receipt))
+        (state/'effect-stages').mkdir()
+        (state/'effect-stages'/(t+'.json')).write_text(json.dumps({**receipt,'stage':'preflight','stageIndex':0}))
+        with closing(sqlite3.connect(state/'control.sqlite')) as db,db:
+            db.execute('CREATE TABLE provision_jobs(environment TEXT,runtime TEXT,claim TEXT,attempt INTEGER,state TEXT)')
+            db.execute('INSERT INTO provision_jobs VALUES (?,?,?,?,?)',('fixture',e,c,a,'running'))
+        native=durable_runtime.Runtime.__new__(durable_runtime.Runtime)
+        native.values={'environments':{e:{role:secrets.token_hex(32) for role in ('auth','rest','storage','jwt')}}}
+        native.sql=transport
+        class ReachedServices(Exception):pass
+        def stop_before_hba():raise ReachedServices()
+        native.hba=stop_before_hba
+        reached=False
+        with patch.dict(os.environ,SBARBASE_EFFECT_TOKEN=t),patch.object(durable_runtime,'STATE',state),patch.object(effect_receipt,'require_permission'),patch.object(durable_runtime,'inspect',return_value={'owned':True}),patch.object(durable_runtime.resource_admission,'snapshot',return_value=None),patch.object(durable_runtime.resource_admission,'refusal',return_value=None),patch.object(durable_runtime.pressure_admission,'snapshot',return_value=None),patch.object(durable_runtime.pressure_admission,'refusal',return_value=None):
+            try:native.provision(e)
+            except ReachedServices:reached=True
+        check('actual Runtime provision reaches services through receipt-bound SQL',reached)
+        check('actual Runtime service boundary follows durable stage',json.loads((state/'effect-stages'/(t+'.json')).read_text())['stage']=='services')
+        check('actual Runtime retires control authority before HBA',execute('postgres',f"SELECT state FROM {fence.TABLE} WHERE token='{t}';").strip()=='revoked')
+        check('actual Runtime retires target authority before HBA',execute(e,f"SELECT state FROM {fence.TABLE} WHERE token='{t}';").strip()=='revoked')

@@ -2,7 +2,7 @@
 
 Execute each generated script on one fresh psql backend via stdin with
 ON_ERROR_STOP. Do not pool, reconnect or wrap the whole script in a transaction.
-Not yet integrated into runtime provisioning or cross-database recovery.
+Used by receipt-bound durable provisioning; not automatic recovery authority.
 """
 import re
 
