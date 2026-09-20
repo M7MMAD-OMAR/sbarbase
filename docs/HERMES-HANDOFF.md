@@ -1,5 +1,9 @@
 # Paused handoff for Hermes
 
+Deployment status and the remaining gaps are summarised in
+[DEPLOYMENT-READINESS](DEPLOYMENT-READINESS.md); the server runbook is
+[SERVER-DEPLOYMENT](SERVER-DEPLOYMENT.md).
+
 The user explicitly stopped Codex implementation on 2026-09-20 to continue with another Hermes agent/model. No new implementation or experiments should run in this Codex task without a new user request. This file is a handoff, not a claim that the platform is complete.
 
 ## Project and decision
