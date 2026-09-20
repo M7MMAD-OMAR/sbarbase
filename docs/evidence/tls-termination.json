@@ -1,0 +1,83 @@
+{
+ "scope": "TLS termination check: a self-signed certificate, deploy/console-tls-proxy.ts terminating HTTPS in front of a stub upstream that serves the real built console page, HTTP to HTTPS redirection, the transport security headers, and the proxy's own refusals. Not a public certificate, not a running installation, not the operator's chosen proxy (nginx, Caddy, the platform proxy).",
+ "run_at": "2026-09-20T16:25:48+04:00",
+ "checks": [
+  {
+   "check": "stub upstream serving the real built page",
+   "ok": true,
+   "detail": "port 46449"
+  },
+  {
+   "check": "proxy announced its HTTPS port",
+   "ok": true,
+   "detail": "['TLS termination: https://127.0.0.1:45895 -> http://127.0.0.1:46449']"
+  },
+  {
+   "check": "proxy binds the HTTPS and the redirect port it was given",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "the built page is served over HTTPS unchanged",
+   "ok": true,
+   "detail": "status 200 bytes 392 vs 392"
+  },
+  {
+   "check": "HTTPS carries the transport security header",
+   "ok": true,
+   "detail": "max-age=31536000; includeSubDomains"
+  },
+  {
+   "check": "HTTPS forbids content sniffing",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "an asset is served over HTTPS byte for byte",
+   "ok": true,
+   "detail": "/assets/index-03pyDXHP.js"
+  },
+  {
+   "check": "a management route is reachable through the proxy",
+   "ok": true,
+   "detail": "status 200"
+  },
+  {
+   "check": "the proxy tells the upstream the original protocol was https",
+   "ok": true,
+   "detail": "b'https'"
+  },
+  {
+   "check": "plain HTTP is redirected to HTTPS",
+   "ok": true,
+   "detail": "status 308 location https://127.0.0.1:37781/some/path?x=1"
+  },
+  {
+   "check": "a group or world readable key is refused",
+   "ok": true,
+   "detail": "Bun v1.3.14 (Linux x64)"
+  },
+  {
+   "check": "a non-loopback upstream is refused",
+   "ok": true,
+   "detail": "Bun v1.3.14 (Linux x64)"
+  },
+  {
+   "check": "a missing certificate argument is refused",
+   "ok": true,
+   "detail": "Bun v1.3.14 (Linux x64)"
+  },
+  {
+   "check": "the proxy shut down on SIGTERM",
+   "ok": true,
+   "detail": "exit 0"
+  },
+  {
+   "check": "both ports are released after shutdown",
+   "ok": true,
+   "detail": "https 45895 http 37781"
+  }
+ ],
+ "count": 15,
+ "passed": true
+}

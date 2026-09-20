@@ -70,6 +70,9 @@ fi
 step "console static-serving check"
 bun lab/console-serve-check.ts || fail "console static-serving check failed; see docs/evidence/console-serve.json"
 
+step "TLS termination check (reference proxy)"
+"$PYTHON" lab/tls_termination_check.py || fail "TLS termination check failed; see docs/evidence/tls-termination.json"
+
 step "deployment rehearsal"
 rehearsal_args=(--attempts 3 --require-unit)
 [ -n "$BOOTSTRAP" ] && rehearsal_args+=(--bootstrap-file "$BOOTSTRAP")
