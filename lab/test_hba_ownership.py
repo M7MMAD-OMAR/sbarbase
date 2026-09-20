@@ -10,6 +10,8 @@ import sys
 import tempfile
 import unittest
 import uuid
+from types import SimpleNamespace
+import hba_target
 import atomic_hba
 import hba_authority as authority
 import hba_journal as journal
@@ -22,10 +24,13 @@ def child(state,worker,effect,operation):
     os.environ['SBARBASE_EFFECT_TOKEN']=config['receipt']
     snapshot=authority.Snapshot(**config['snapshot'])
     prepared=atomic_hba.Prepared(**config['prepared'])
+    target=hba_target.Target('a'*64,'fixture-db','fixture','sha256:'+'c'*64)
     def dispatch(*args,**kwargs):
+        if args==('inspect','a'*64):
+            return SimpleNamespace(stdout=json.dumps([{'Id':'a'*64,'Name':'/fixture-db','Image':target.image,'Config':{'Labels':{'io.sbarbase.owner':config.get('owner','fixture')}},'State':{'Running':True}}]))
         saved=journal.load(state/journal.NAME)
         (state/'dispatched.json').write_text(json.dumps(saved['identity']))
-    try:ownership.begin_worker(dispatch,state,operation,config['runtime'],snapshot,prepared,config['token'])
+    try:ownership.begin_worker(dispatch,state,operation,config['runtime'],snapshot,prepared,config['token'],target=target)
     except Exception:return 2
     return 0
 
@@ -76,6 +81,10 @@ class OwnershipTests(unittest.TestCase):
                 high=fcntl.fcntl(fd,fcntl.F_DUPFD_CLOEXEC,10);os.close(fd)
                 try:self.assert_refused({name:high})
                 finally:os.close(high)
+
+    def test_wrong_container_owner_cannot_publish_intent(self):
+        path=self.state/'input.json';config=json.loads(path.read_text());config['owner']='foreign'
+        path.write_text(json.dumps(config));self.assert_refused()
 
     def test_wrong_inode_rejected(self):
         fd=os.open(self.state/'wrong.lock',os.O_CREAT|os.O_RDWR,0o600)

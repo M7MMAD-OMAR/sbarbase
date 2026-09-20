@@ -14,6 +14,7 @@ import uuid
 import atomic_hba
 import hba_authority as authority
 import hba_journal as journal
+import hba_target
 import hba_journal_crash_check as host_crash
 
 OWNER='hba-authority-probe'
@@ -87,6 +88,13 @@ def main():
         generation=str(uuid.uuid4());token=str(uuid.uuid4());identity={'kind':'startup','startup':str(uuid.uuid4())}
         initial=authority.initialize(docker,cid,generation)
         prepared=atomic_hba.prepare(docker,cid,'local all all reject\n')
+        captured=hba_target.capture(docker,name,OWNER,image)
+        hba_target.require(docker,captured,initial,prepared)
+        check('configured database target captured and rechecked by exact ID',captured.container_id==cid)
+        for field,value in (('name','foreign-db'),('owner','foreign-owner'),('image','sha256:'+'0'*64)):
+            expected={'container_id':cid,'name':name,'owner':OWNER,'image':image}
+            expected[field]=value
+            refused('live container validation rejects wrong configured '+field,lambda expected=expected:hba_target.require(docker,hba_target.Target(**expected),initial,prepared))
         binding=authority.operation_binding(prepared,identity)
         journal_file=Path(private.name)/journal.NAME
         active=journal.begin(docker,journal_file,initial,prepared,token,identity)

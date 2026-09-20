@@ -228,3 +228,9 @@ No retained runtime mutation or production recovery was performed. The unchanged
 The isolated hba_ownership.begin_worker now requires distinct matching worker/effect/operation lock inodes and real exclusive flock ownership, then validates the exact services receipt/stage/current catalog claim. The journal receives derived worker identity. A dedicated hbaProtocol: 1 receipt field rejects legacy records; the real guardian does not yet emit it and no runtime writer uses this helper.
 
 Nine real subprocess/flock/SQLite tests cover success and stale/missing/competing/aliased/symlink/legacy rejection before journal publication or dispatch. All 146 Python tests pass. No retained resources were changed. Existing image evidence remains 30 checks, not a combined real worker/Docker proof. Next design startup ownership and conservative settlement, then exercise the new protocol through a disposable real worker before all-writer integration. Inherited ownership is not fresh recovery ownership.
+
+## Configured HBA database target checkpoint
+
+The worker entry gate now requires an immutable captured target from trusted name/owner/image policy. It rechecks only the captured full Docker ID and matches prepared/snapshot IDs before journal creation. Wrong target metadata, stopped state or another container are refused without name-based recapture. All 150 Python tests and 34 pinned-image checks pass, with independent review finding no must-fix in the bounded scope. Exact disposable cleanup passed; retained resources were untouched.
+
+Next complete startup authority and conservative settlement/container-generation rules, then wire a disposable real worker and all managed writers. The target gate supplies no database-readiness or automatic recovery guarantee, and expected installation policy must remain trusted.

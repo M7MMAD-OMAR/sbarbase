@@ -51,3 +51,11 @@ Nine subprocess tests use actual inherited file descriptions, exclusive flocks a
 This is authority for the executing native worker, not fresh recovery ownership. Inherited descriptions may be shared with living holders. Recovery must acquire independent descriptions. The real guardian does not yet advertise the new protocol and Runtime.hba does not call this entry point. Startup authority, full-operation settlement, state-directory/container-generation binding and all-writer migration are still required before production integration. The shared native identity validator preserves SQL's preflight/database-only wrapper.
 
 Adversarial review found no must-fix in the isolated gate and identified an additional integration boundary: valid host locks and receipt do not prove that the supplied captured container belongs to this installation. The runtime caller must verify the exact owned database target and expected image before granting configuration authority.
+
+## Configured database target gate
+
+`lab/hba_target.py` captures a target once from trusted installation name, owner label and pinned image. The frozen record contains the full Docker ID. Worker entry now requires this record, rechecks the captured ID's exact name/owner/image and running state, and requires prepared content and registry snapshot to identify that same container before journal publication. A mismatch cannot trigger name-based recapture.
+
+Three target tests plus one worker rejection test cover immutability, wrong metadata, stopped state, changed IDs, different intent targets and rejection before journal creation. Four real pinned-container checks validate the configured target and reject wrong name/owner/image. All 150 Python tests and 34 image checks pass. Independent review found no must-fix in this scope. The image fixture runs a shell, not PostgreSQL, so this is target identity evidence rather than database readiness evidence.
+
+Expected policy still must originate from trusted installation configuration when production wiring is added. This does not create an installation-generation registry, authorize hostile host administrators, or settle old journals after container replacement. Existing runtime writers and startup integration remain pending.
