@@ -304,6 +304,30 @@ Both fresh-worker-check.py --hba-crash after-intent and --hba-crash after-witnes
 The retained source and recovery targets were not used. Next implement the durable adoption operation outlined in HBA-LEGACY-ADOPTION-DESIGN.md and test disposable legacy fixtures first. Review identified the operational quiescence assumption, pre-start durable intent, exact IDs/generation, preserved HBA content and crash-safe stopped-state completion requirements. Same-CID adoption must not claim to fence raw legacy writers or all queued daemon requests.
 
 
+## Durable legacy HBA adoption implemented, 2026-09-20
+
+Read docs/HBA-LEGACY-ADOPTION.md. `lab/hba_adoption.py` implements the durable
+adoption operation: exclusive fsynced intent capture of the stopped source
+(exact CID, trusted policy, pgdata mount identity, stopped inventory), fresh
+ownership via the startup gate, conflicting-pin refusal before start, one INIT
+on the intent's exact generation, preserved HBA rules published through the
+owned apply/reload pipeline, durable checkpoints separating database start,
+generation initialization, owned HBA completion, exact stopped observation and
+completion, and resume-only-from-checkpoints recovery. Stable-readiness waiting
+covers the entrypoint's re-initialization restart window.
+
+Evidence: 224 Python tests, 73 Bun tests/408 assertions, and a 35-check live
+probe over four phases (healthy, adopter SIGKILL after database-started, after
+hba-completed checkpoint, and after the durable witness with pending journal
+recovery) on disposable pinned Supabase PostgreSQL containers:
+docs/evidence/hba-adoption-crash-checks.json. Exact disposable cleanup passed;
+retained source, recovery targets and volumes untouched.
+
+Next: reconcile retained adoption (the legacy source still has no generation pin
+and its startup still refuses), then recovery-target writers. Quiescence of
+legacy host clients remains an explicit operational assumption; raw legacy
+writers are not fenced.
+
 ## User stop and Hermes handoff, 2026-09-20
 
 The user explicitly stopped this Codex implementation to continue with another Hermes agent/model. All reviews are completed; no test process remains active. Read-only inventory verified 11 source and 8 recovery-target containers stopped, no fresh fixture containers remaining, and no retained source generation pin. Saved the completed crash-probe changes and evidence, without beginning adoption or another experiment. HERMES-HANDOFF.md is the concise continuation entry point. The wider platform goal remains unfinished; this is a user-requested stop, not goal completion.

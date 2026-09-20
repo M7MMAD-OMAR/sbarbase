@@ -24,7 +24,10 @@ The retained source has no HBA generation pin. Its startup deliberately refuses 
 
 ## Next work, in order
 
-1. Implement and crash-test the [durable legacy adoption operation](HBA-LEGACY-ADOPTION-DESIGN.md) on disposable legacy fixtures. Same-container adoption requires an explicit quiescence assumption; stopped containers and locks do not prove that no old Docker requests remain.
+1. DONE 2026-09-20 (Hermes): the durable legacy adoption operation is
+   implemented and crash-tested on disposable fixtures
+   ([docs/HBA-LEGACY-ADOPTION.md](HBA-LEGACY-ADOPTION.md)); retained-adoption
+   reconciliation and container-generation migration remain open.
 2. Only after review and verification, reconcile retained adoption. Container-generation migration and recovery-target writers are separate unfinished work.
 3. Broader worker/supervisor interruption, service effects and later-stage recovery. Current evidence is two native worker checkpoints, not arbitrary crash or power-loss safety.
 4. Sustained mixed-load capacity, off-host restore, upgrades, complete organization transfer and multi-host coordination. Realtime/functions/pooler/cron remain unfinished.
