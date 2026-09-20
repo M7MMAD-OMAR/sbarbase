@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 import durable_runtime as runtime
 import resource_admission
+import pressure_admission
 import connection_budget as budget
 
 
@@ -20,7 +21,7 @@ class ConnectionBudgetTests(unittest.TestCase):
         target=runtime.Runtime.__new__(runtime.Runtime)
         target.values={'environments':{}}
         target.sql=lambda query: SimpleNamespace(stdout='20|3|0')
-        with patch.object(runtime, 'inspect', return_value={'owned':True}), patch.object(resource_admission, 'snapshot'), patch.object(resource_admission, 'refusal', return_value=None), patch.object(runtime, 'atomic') as persist:
+        with patch.object(runtime, 'inspect', return_value={'owned':True}), patch.object(resource_admission, 'snapshot'), patch.object(resource_admission, 'refusal', return_value=None), patch.object(pressure_admission, 'snapshot'), patch.object(pressure_admission, 'refusal', return_value=None), patch.object(runtime, 'atomic') as persist:
             with self.assertRaises(runtime.AdmissionLimitError):
                 target.provision('e_'+'b'*24)
             self.assertEqual(target.values['environments'], {})

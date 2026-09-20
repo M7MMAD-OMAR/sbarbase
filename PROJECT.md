@@ -67,3 +67,7 @@ New durable environments now also require host-memory and mounted-volume free-sp
 ## Connection budget checkpoint
 
 Durable service logins and databases now enforce finite PostgreSQL connection limits. New environment admission accounts for planned service connections and operational headroom against actual PostgreSQL settings. [Policy, seven live saturation checks and limits](docs/CONNECTION-BUDGET.md). A neighboring SQL login and the operator remained available while one Auth login was saturated. Twenty-two Python tests pass. This does not isolate query CPU, memory or I/O.
+
+## Pressure and initial load checkpoint
+
+New allocations now check cgroup CPU, I/O and memory pressure for the owned database and Storage containers. [Policy and snapshot](docs/PRESSURE-ADMISSION.md). Twenty-seven Python tests pass. An [initial neighboring-environment SQL probe](docs/NOISY-NEIGHBOR.md) validated 150 results across baseline, an eight-second neighboring CPU workload and recovery. Its small latency difference is not production capacity evidence. Continuous overload response, HTTP workload benchmarks and sustained write/I/O tests remain open.

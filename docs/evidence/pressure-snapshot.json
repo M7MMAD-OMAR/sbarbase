@@ -1,0 +1,1 @@
+{"snapshot": {"sbarbase-durable-db": {"cpu_some10": 0.0, "io_full10": 0.01, "memory_full10": 0.0}, "sbarbase-durable-storage": {"cpu_some10": 0.0, "io_full10": 0.0, "memory_full10": 0.0}}, "thresholds": {"cpu_some10": 50.0, "io_full10": 20.0, "memory_full10": 1.0}, "refusal": null}

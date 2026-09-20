@@ -14,6 +14,7 @@ import urllib.request
 import run as lab
 import resource_admission
 import connection_budget
+import pressure_admission
 
 class AdmissionLimitError(RuntimeError):
     pass
@@ -197,6 +198,8 @@ class Runtime:
                 raise RuntimeError('Resource measurement unavailable') from None
             if reason:
                 raise AdmissionLimitError('Resource headroom unavailable')
+            if pressure_admission.refusal(pressure_admission.snapshot()):
+                raise AdmissionLimitError('Runtime pressure exceeds admission threshold')
             limits = self.sql("SELECT current_setting('max_connections'), current_setting('superuser_reserved_connections'), current_setting('reserved_connections');").stdout.strip().split('|')
             if len(limits) != 3 or not connection_budget.fits(len(self.values['environments'])+1, *(int(value) for value in limits)):
                 raise AdmissionLimitError('Connection budget unavailable')
