@@ -1,5 +1,7 @@
 # Sbarbase in one page
 
+**Paused by the user for handoff to another Hermes agent/model.** Start with [HERMES-HANDOFF](HERMES-HANDOFF.md). No further Codex implementation was authorized after this stop.
+
 Updated 2026-09-20. This is the short entry point for Codex or Hermes. Detailed evidence remains in [HANDOFF](HANDOFF.md); older chronological checkpoints can be superseded.
 
 ## Decision
@@ -28,7 +30,7 @@ Configured retained ceilings are 5888 MiB RAM/5.75 CPUs, not measured demand or 
 
 Source HBA authority is now integrated into startup and worker provisioning, with exact ownership, generation pins, one-attempt publication and durable completion. The fresh real worker and parent-bound restart pass 76 checks. [Integration scope and next gates](SOURCE-HBA-INTEGRATION.md).
 
-**The retained legacy source has not been adopted and its startup now refuses.** Preserve it; do not remove state or recreate containers to bypass this gate. The old container-recreation probe is disabled until generation migration exists. Next: actual worker interruption testing, explicit legacy adoption and recovery-target coverage. HBA completion alone does not prove activation or authorize later-stage job replay.
+**The retained legacy source has not been adopted and its startup now refuses.** Preserve it; do not remove state or recreate containers to bypass this gate. The old container-recreation probe is disabled until generation migration exists. Native worker death before apply and after its durable witness now passes two separate 90-check rehearsals; the broader services job stays blocked. Next: [explicit legacy adoption](HBA-LEGACY-ADOPTION-DESIGN.md) and recovery-target coverage. HBA completion alone does not prove activation or authorize later-stage job replay.
 
 Last recorded retained state: owned containers stopped, moved source fenced, target routing paused. Preserve both recovery targets and their volumes. Inspect live state before acting; never switch back blindly to the stale source. Retained runtime resources were not changed for this integration rehearsal.
 

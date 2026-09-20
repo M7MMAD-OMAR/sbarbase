@@ -33,3 +33,6 @@ Latest regression: all 57 checks passed after removing the duplicate startup HBA
 ## Source HBA integration and parent-bound restart
 
 The current probe passes 76 checks. It additionally validates real guardian hbaProtocol1, exact startup/worker HBA archives and claim binding, registry tombstones, missing-pin refusal without new outcomes, same-generation restart through dev.run_stage with an inherited supervisor worker descriptor, and three archived operations after restart. SDK checks run after restart. The snapshot now includes all source HBA helpers and verifies they do not target retained resource names. Full suites: 217 Python and 73 Bun tests/408 assertions. See [integration limits](SOURCE-HBA-INTEGRATION.md); actual worker interruption and legacy adoption remain open.
+
+
+Optional `--hba-crash after-intent` and `--hba-crash after-witness` each pass 90 checks in separate fixtures, including the healthy baseline. They kill a second native provisioning worker through a private profile hook, confirm the guardian's reaped SIGKILL status, reconcile only HBA and verify the services-stage job still refuses replay. These modes write separate evidence files and preserve the healthy-only evidence. See [exact scope](WORKER-HBA-CRASH.md).

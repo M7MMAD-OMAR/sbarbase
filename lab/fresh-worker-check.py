@@ -1,5 +1,6 @@
 """Fresh real worker/service lifecycle in a private namespaced source snapshot."""
 import json
+import argparse
 import fcntl
 import os
 from pathlib import Path
@@ -15,7 +16,7 @@ import uuid
 import run as lab
 
 
-def main():
+def main(crash_phase=None):
     checks=[]
     def check(name,value):
         if not value:raise RuntimeError(name)
@@ -137,6 +138,9 @@ def main():
         (repo/'lab/fresh-worker-sdk.ts').write_text(sdk)
         result=command(['bun','lab/fresh-worker-sdk.ts',name+'-db'],timeout=90,label='sdk')
         check('real SDK signup RLS and Storage roundtrip',result.strip()=='Fresh worker SDK passed')
+        if crash_phase is not None:
+            from hba_worker_crash_check import run as crash
+            crash(repo,private,name,crash_phase,command,check)
         completed=True
     finally:
         # Detached guardians hold these same locks. Do not tear down beneath one.
@@ -172,12 +176,16 @@ def main():
         check('all isolated Docker resources removed',all(not resources(kind) for kind in ('container','volume','network')))
         for handle in leases:handle.close()
     if completed:
-        (lab.ROOT/'docs/evidence/fresh-worker-checks.json').write_text(json.dumps({'scope':'Fresh real worker receipts, leases, guarded SQL and source HBA authority with original Auth/REST/Storage in a private source snapshot. Includes generation pin refusal and parent-bound installation restart with inherited supervisor ownership. Only Docker identity constants replaced. Single environment, not crash recovery or capacity.','count':len(checks),'checks':checks},indent=2)+'\n')
+        evidence='fresh-worker-checks.json' if crash_phase is None else 'worker-hba-crash-'+crash_phase+'.json'
+        (lab.ROOT/'docs/evidence'/evidence).write_text(json.dumps({'crash_phase':crash_phase,'scope':'Fresh real worker receipts, leases, guarded SQL and source HBA authority with original Auth/REST/Storage in a private source snapshot. Includes generation pin refusal and parent-bound installation restart with inherited supervisor ownership. Only Docker identity constants replaced. Healthy lifecycle plus optional selected native HBA SIGKILL and HBA-only reconciliation. Not automatic job recovery or capacity.','count':len(checks),'checks':checks},indent=2)+'\n')
         print(str(len(checks))+' fresh worker lifecycle checks passed')
 
 
 if __name__=='__main__':
-    try:main()
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--hba-crash',choices=('after-intent','after-witness'))
+    options=parser.parse_args()
+    try:main(options.hba_crash)
     except Exception as error:
         # Our own fixed messages only; private diagnostics retain native output.
         if isinstance(error,RuntimeError):raise SystemExit(str(error)) from None

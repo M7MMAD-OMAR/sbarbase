@@ -295,3 +295,15 @@ The source now uses SourceHBA for startup and services-stage publication, comple
 The retained legacy source and both recovery targets were not changed. Legacy source startup is intentionally blocked pending quiesced adoption. The historical durable-check.ts recreation probe refuses before catalog/Docker effects until explicit generation migration exists. Next perform actual worker HBA interruption testing, implement adoption/migration, then cover recovery-target writers. Do not reset pins or delete authority to bypass these gates.
 
 Read-only final inventory verified all 11 source and 8 recovery-target containers remain stopped, and the retained source has no HBA generation pin. No adoption or retained restart was performed.
+
+
+## Actual native worker HBA interruption, 2026-09-20
+
+Both fresh-worker-check.py --hba-crash after-intent and --hba-crash after-witness pass 90 checks, each including the overlapping healthy 76-check baseline. The private profiling hook matches exact native function return and services receipt identity; the guardian confirms its reaped child's SIGKILL status. Fresh ownership, exact active authority, pending receipt/claim preservation, no HBA apply/SQL during reconciliation and specific services-stage refusal afterward are verified. No production execution code changed. Full Python suite still passes 217 tests. Independent review found no must-fix in the scoped experiment. See WORKER-HBA-CRASH.md.
+
+The retained source and recovery targets were not used. Next implement the durable adoption operation outlined in HBA-LEGACY-ADOPTION-DESIGN.md and test disposable legacy fixtures first. Review identified the operational quiescence assumption, pre-start durable intent, exact IDs/generation, preserved HBA content and crash-safe stopped-state completion requirements. Same-CID adoption must not claim to fence raw legacy writers or all queued daemon requests.
+
+
+## User stop and Hermes handoff, 2026-09-20
+
+The user explicitly stopped this Codex implementation to continue with another Hermes agent/model. All reviews are completed; no test process remains active. Read-only inventory verified 11 source and 8 recovery-target containers stopped, no fresh fixture containers remaining, and no retained source generation pin. Saved the completed crash-probe changes and evidence, without beginning adoption or another experiment. HERMES-HANDOFF.md is the concise continuation entry point. The wider platform goal remains unfinished; this is a user-requested stop, not goal completion.
