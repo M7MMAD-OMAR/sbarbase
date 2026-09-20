@@ -62,3 +62,11 @@ A parent-bound guardian in its own session supervises each effect in a separate 
 Latest evidence: 74 Python tests, 65 Bun tests/354 assertions, strict worker types, independent review and another 11-check real known-refusal integration pass. Test fixtures observe non-cooperative grandchild termination; production cleanup only waits for the direct leader. No new runtime allocated; all owned containers stopped. No pending receipt remains from the live check.
 
 Next: explicit pending-receipt inspection and Docker/database outcome reconciliation. Do not infer rollback from process termination. Escaped groups, guardian SIGKILL and uninterruptible kernel work remain outside the local containment guarantee.
+
+## Native outcome recovery, latest checkpoint
+
+Native provisioners now publish immutable, fsynced outcome witnesses. Replacement-worker startup can settle a matching known outcome without replay; a surviving worker must exit before native recovery. Every worker fresh-opens effect.lock and retains it through guardians/native children. Read NATIVE-OUTCOME-RECOVERY.md.
+
+The first live verification exposed installed Bun descriptor swap aliasing and recorded runtime_failed before any receipt was published. Source descriptors are now duplicated above child slots; an actual inode-mapping regression passes. The same failed fixture was explicitly retried and now returns capacity_exceeded with an exact native witness.
+
+Latest evidence: 76 Python tests, 67 Bun tests/377 assertions, strict types and 12 real known-refusal integration checks. A temporary native-success fixture survives SIGKILL after witness persistence without replay. All owned runtimes stopped; current refused fixture has a settled failure, no pending receipt, and its private native witness is retained. Unknown partial effects remain blocked. Next build explicit read-only inspection and stage-specific reconciliation for outcomes lacking such a witness.

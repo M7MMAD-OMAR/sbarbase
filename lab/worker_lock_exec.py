@@ -31,20 +31,27 @@ def main():
     if (held.st_dev,held.st_ino)!=(expected.st_dev,expected.st_ino):
         raise SystemExit('Invalid effect ownership descriptor')
     fcntl.flock(3,fcntl.LOCK_EX|fcntl.LOCK_NB)
+    held_lease,expected_lease=os.fstat(4),lock_path.with_name('effect.lock').stat()
+    if (held_lease.st_dev,held_lease.st_ino)!=(expected_lease.st_dev,expected_lease.st_ino):
+        raise SystemExit('Invalid effect lease descriptor')
+    fcntl.flock(4,fcntl.LOCK_EX|fcntl.LOCK_NB)
     identity=json.loads(sys.argv[2])
     if (not isinstance(identity,dict)
             or any(not isinstance(identity.get(k),str) or not identity[k] for k in ('environment','runtime','claim'))
             or type(identity.get('attempt')) is not int or identity['attempt']<1):
         raise SystemExit('Invalid effect identity')
     receipt=lock_path.with_name('worker-effect.json')
-    record={'version':1,'phase':'pending','token':str(uuid.uuid4()),'job':identity}
-    publish(receipt,record)
     command=sys.argv[4:]
+    native=None
+    if command==['/usr/bin/python3','lab/durable_runtime.py','provision',identity['runtime']]:native='durable-provision-v1'
+    if command==['/usr/bin/python3','lab/provision.py',identity['runtime']]:native='component-provision-v1'
+    record={'version':1,'phase':'pending','token':str(uuid.uuid4()),'job':identity,'native':native}
+    publish(receipt,record)
     child=None;interrupted=False;code=None
     deadline=time.monotonic()+timeout
     try:
         if stopping:return 1
-        child=subprocess.Popen(command,pass_fds=(3,),start_new_session=True,env=dict(os.environ,SBARBASE_EFFECT_TOKEN=record['token']))
+        child=subprocess.Popen(command,pass_fds=(3,4),start_new_session=True,env=dict(os.environ,SBARBASE_EFFECT_TOKEN=record['token']))
         while (code:=child_status(child)) is None:
             if stopping or time.monotonic()>=deadline:
                 interrupted=True;break

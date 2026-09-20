@@ -40,7 +40,7 @@ def main():
     def inventory():
         return {owner:lab.docker('ps','-aq','--filter','label=io.sbarbase.owner='+owner).stdout.strip() for owner in ('durable-upstream','recovery-target')}
     before=job()
-    check('retained failed capacity fixture reused',before['state']=='failed' and before['failure']=='capacity_exceeded')
+    check('retained failed capacity fixture reused',before['state']=='failed' and not (STATE/'worker-effect.json').exists())
     try:
         runner=subprocess.Popen(['/usr/bin/python3','lab/dev.py'],cwd=lab.ROOT,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,start_new_session=True)
         first=wait(ready)
@@ -52,8 +52,11 @@ def main():
         check('classified admission refusal preserved',final['failure']=='capacity_exceeded')
         check('same runtime identity and one new attempt',final['runtime']==before['runtime'] and final['attempt']==before['attempt']+1)
         with sqlite3.connect(STATE/'control.sqlite') as db:
-            row=db.execute('SELECT runtime,exit_code FROM provision_effect_results WHERE environment=? AND attempt=?',(environment,final['attempt'])).fetchone()
-        check('exact attempt outcome committed in catalog',row==(final['runtime'],75))
+            row=db.execute('SELECT runtime,exit_code,claim FROM provision_effect_results WHERE environment=? AND attempt=?',(environment,final['attempt'])).fetchone()
+        check('exact attempt outcome committed in catalog',row is not None and row[:2]==(final['runtime'],75))
+        witnesses=[json.loads(path.read_text()) for path in (STATE/'effect-outcomes').glob('*.json')]
+        matched=[w for w in witnesses if w.get('job',{}).get('environment')==environment and w.get('job',{}).get('attempt')==final['attempt']]
+        check('native refusal witness binds the exact committed claim',len(matched)==1 and matched[0].get('phase')=='native-completed' and matched[0].get('native')=='durable-provision-v1' and matched[0].get('exitCode')==75 and matched[0]['job']['claim']==row[2])
         wait(lambda:not (STATE/'worker-effect.json').exists(),5)
         check('receipt consumed only after committed outcome',not (STATE/'worker-effect.json').exists())
         check('no runtime container allocated',inventory()==containers)

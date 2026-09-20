@@ -1,12 +1,13 @@
 {
   "scope": "Existing failed capacity fixture retried through real combined supervisor and receipt settlement; no new environment allocated. Does not test uncertain Docker daemon effects.",
-  "count": 11,
+  "count": 12,
   "checks": [
     "retained failed capacity fixture reused",
     "existing failed operation explicitly retried",
     "classified admission refusal preserved",
     "same runtime identity and one new attempt",
     "exact attempt outcome committed in catalog",
+    "native refusal witness binds the exact committed claim",
     "receipt consumed only after committed outcome",
     "no runtime container allocated",
     "private allocation file unchanged",

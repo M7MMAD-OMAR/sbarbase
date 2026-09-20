@@ -199,3 +199,7 @@ Durable receipts now precede worker effects and block normal startup/replay when
 ## Effect guardian checkpoint
 
 Parent-bound guardians now retain ownership while supervising separate effect process groups, with a 180-second local deadline and TERM/KILL cleanup. Worker death cancellation failed before the change and now passes, including lock retention during cleanup. Non-cooperative grandchild fixtures and stop-during-spawn tests pass. Totals: 74 Python tests, 65 Bun tests/354 assertions, strict worker types and 11 real receipt integration checks. All owned runtimes stopped. Pending Docker/database outcomes still need explicit reconciliation; local termination is not rollback. Details: docs/EFFECT-GUARDIAN.md.
+
+## Native outcome recovery checkpoint
+
+Known native completion can now be recovered after a lost guardian acknowledgment without reexecution. Fresh per-worker effect leases prevent inherited worker-lock bypass; surviving workers cannot settle native evidence without restart. Live verification exposed and fixed Bun source-FD swap aliasing by duplicating sources above mapping slots. 76 Python tests, 67 Bun tests/377 assertions, strict types and 12 live known-refusal checks pass. No new runtime allocation; all owned containers stopped. Unknown native/daemon effects remain blocked. Details: docs/NATIVE-OUTCOME-RECOVERY.md.

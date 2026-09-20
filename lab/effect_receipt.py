@@ -1,6 +1,7 @@
 """Durable uncertainty marker for worker-driven external effects."""
 import json
 import os
+import re
 from pathlib import Path
 import tempfile
 
@@ -44,8 +45,27 @@ def require_permission(state,runtime):
     held,expected=os.fstat(3),os.stat(state/'worker.lock')
     if (held.st_dev,held.st_ino)!=(expected.st_dev,expected.st_ino):
         raise RuntimeError('Provisioning ownership unavailable')
+    held,expected=os.fstat(4),os.stat(state/'effect.lock')
+    if (held.st_dev,held.st_ino)!=(expected.st_dev,expected.st_ino):
+        raise RuntimeError('Effect lease unavailable')
 
 
 def require_settled(state):
     if (state/'worker-effect.json').exists():
         raise RuntimeError('Settle or reconcile provisioning receipt before startup')
+
+
+def native_outcome(state,runtime,exit_code,native):
+    """Called by the fixed native entry point only after synchronous effects end."""
+    if not os.environ.get('SBARBASE_EFFECT_TOKEN'):return
+    require_permission(state,runtime)
+    record=json.loads((state/'worker-effect.json').read_text())
+    token=record['token']
+    if (native not in ('durable-provision-v1','component-provision-v1')
+            or record.get('native')!=native or not re.fullmatch(r'[a-f0-9-]{36}',token)
+            or exit_code not in (0,75) or (exit_code==75 and native!='durable-provision-v1')):
+        raise RuntimeError('Native outcome identity mismatch')
+    directory=state/'effect-outcomes'
+    directory.mkdir(mode=0o700,exist_ok=True)
+    sync_directory(state)
+    publish(directory/(token+'.json'),{**record,'phase':'native-completed','exitCode':exit_code})

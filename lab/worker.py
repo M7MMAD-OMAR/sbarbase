@@ -1,5 +1,6 @@
 """Keep an OS lock alive in the worker process, including after wrapper exit."""
 import fcntl
+import effect_lease
 import os
 import sys
 import argparse
@@ -27,6 +28,12 @@ try:
     fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
 except BlockingIOError:
     raise SystemExit('Another provisioning worker is active')
+# Never reuse an inherited effect lease: old guardians may still own it.
+lease=effect_lease.acquire(state)
+exported_lock,exported_lease=effect_lease.export_descriptors(lock,lease)
+os.close(lock);os.close(lease)
+lock,lease=exported_lock,exported_lease
+os.environ['SBARBASE_EFFECT_FD']=str(lease)
 os.set_inheritable(lock, True)
 os.environ['SBARBASE_WORKER_FD'] = str(lock)
 os.environ['SBARBASE_WORKER_LOCKED'] = '1'

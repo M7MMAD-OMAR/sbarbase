@@ -72,6 +72,7 @@ if __name__ == '__main__':
         with (lab.STATE / 'operation.lock').open('a') as lock:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             provision(sys.argv[1])
+            effect_receipt.native_outcome(lab.STATE,sys.argv[1],0,'component-provision-v1')
     except Exception:
         # Never expose SQL, credentials, request payloads or Docker environment.
         print('Environment provisioning failed; retained state can be reconciled.', file=sys.stderr)

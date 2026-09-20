@@ -14,7 +14,7 @@ const stop=()=>{stopping=true;activeEffect?.kill('SIGTERM');};
 process.on('SIGTERM',stop);process.on('SIGINT',stop);
 const lockPath=upstream?'.lab/upstream/worker.lock':'.lab/worker.lock';
 try {
- settleWorkerReceipt(catalog,lockPath);
+ settleWorkerReceipt(catalog,lockPath,true);
  if(!settleOnly)catalog.recoverProvisioning();
  while(!settleOnly&&!stopping) {
   const job=catalog.claimProvision();

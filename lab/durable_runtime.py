@@ -308,7 +308,11 @@ if __name__ == '__main__':
                 if args.command == 'up':
                     runtime.start()
                 else:
-                    runtime.provision(args.environment or '')
+                    try:runtime.provision(args.environment or '')
+                    except AdmissionLimitError:
+                        effect_receipt.native_outcome(STATE,args.environment or '',75,'durable-provision-v1')
+                        raise
+                    effect_receipt.native_outcome(STATE,args.environment or '',0,'durable-provision-v1')
         print('Durable upstream runtime operation completed.')
     except AdmissionLimitError:
         # Stable local worker protocol. Never classify failures from raw stderr.
