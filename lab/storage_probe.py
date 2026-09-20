@@ -32,7 +32,7 @@ def run_storage_probe(db, prefix, sql, launch, endpoint, credentials, accounts, 
     launch(name,info['Id'],{
         'MULTI_TENANT':'true','MULTITENANT_DATABASE_URL':f'postgres://storage_control:{control_password}@{db}:5432/storage_metadata',
         'ENCRYPTION_KEY':encryption_key,'ADMIN_API_KEYS':admin_key,'DB_INSTALL_ROLES':'false',
-        'STORAGE_BACKEND':'file','FILE_STORAGE_BACKEND_PATH':'/tmp/storage-data','REGION':'local',
+        'STORAGE_BACKEND':'file','GLOBAL_S3_BUCKET':'sbarbase-lab','FILE_STORAGE_BACKEND_PATH':'/tmp/storage-data','REGION':'local',
         'FILE_SIZE_LIMIT':'1048576','DATABASE_MAX_CONNECTIONS':'3','MULTITENANT_DATABASE_MAX_CONNECTIONS':'3',
         'PG_QUEUE_ENABLE':'false','ENABLE_IMAGE_TRANSFORMATION':'false','S3_PROTOCOL_ENABLED':'false',
         'X_FORWARDED_HOST_REGEXP':r'^([a-z_]+)\.storage\.internal$',
@@ -129,4 +129,6 @@ def run_storage_probe(db, prefix, sql, launch, endpoint, credentials, accounts, 
     sdk_results=json.loads(sdk.stdout)
     for result in sdk_results['checks']:
         check(result['check'],result['passed'])
+    from storage_restore_probe import recover_storage
+    recover_storage(db,name,sql,http,admin,admin_key,public,credentials,accounts,service_keys,jwt,hba,check,evidence)
     evidence['storage_scope']='One original Storage process, file backend, separate tenant DB logins and JWT secrets; private upload/download and crossed-token rejection. SDK gateway and public/signed URL behavior also checked; no backups, S3 or durable worker integration.'
