@@ -8,6 +8,7 @@ file. Nothing here is a production capacity claim.
 
 | Requirement | Status | Evidence or gap |
 |---|---|---|
+| One-command server acceptance with evidence | implemented, refusals tested | `deploy/server-acceptance.sh`: prerequisites, preflight, rehearsal, handoff copy of the evidence; 7 tests in `lab/test_server_acceptance.py` cover a missing prerequisite, a public bootstrap file, unknown arguments and no secret leakage |
 | Host preflight (Docker native, Bun, `/usr/bin/python3` 3.14+, pinned images, headroom, disk, state) | implemented, proven | `lab/install_server.py check`; on this host it reports exactly one host-capacity blocker and the retained-installation actions |
 | Fresh install (state dirs, image pull by digest, console build, owned runtime startup, operator bootstrap) | implemented, guarded, not yet run end to end | `lab/install_server.py install`: takes the operation lock, validates the bootstrap file's owner and mode, pulls each pin by its `repository@digest` reference; full run blocked by host headroom here |
 | Retained installation migrated to owned HBA authority | implemented and executed | both retained databases adopted; per role an operation section (7 checks) and a verification section (12 checks) in `docs/evidence/retained-source-adoption.json` and `retained-target-adoption.json`, rules preserved byte for byte |

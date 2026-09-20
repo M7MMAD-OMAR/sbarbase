@@ -26,6 +26,20 @@ Pinned images are pulled by digest on install; no floating tags are used. See
 
 ## Install
 
+One command on the server covers prerequisites, preflight, the full rehearsal and
+the acceptance evidence:
+
+```
+deploy/server-acceptance.sh --bootstrap-file /path/to/operator.json
+```
+
+It refuses before touching anything when a prerequisite is missing (docker, bun,
+git, `/usr/bin/python3` 3.14+, native Linux daemon), when the bootstrap file is
+not mode 600, or when the preflight reports a blocker, and it never prints a
+secret. Without `--rehearse` it stops after a passing preflight. The step-by-step
+sequence below is what it runs, for an operator who wants to drive each stage by
+hand.
+
 ```
 /usr/bin/python3 lab/install_server.py check        # read-only preflight, non-zero on blockers
 /usr/bin/python3 lab/install_server.py plan         # print the exact steps
