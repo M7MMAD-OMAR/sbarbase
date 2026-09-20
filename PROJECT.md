@@ -4,7 +4,7 @@ Updated 2026-09-20. Workspace: `/home/sbarah/R/Projects/P/sbarbase`.
 
 ## Product and current decision
 
-Downloadable open source Supabase-based administration for multiple projects, usually on one VPS. Preserve Supabase SDK/SQL compatibility and use its design system for the future UI. Operators are trusted; application visitors are not. A loopback API server exists for the durable experiment. No production platform, complete installer or UI exists yet.
+Downloadable open source Supabase-based administration for multiple projects, usually on one VPS. Preserve Supabase SDK/SQL compatibility and follow its design system for the administration UI. Operators are trusted; application visitors are not. A working local console now runs on the loopback API server. No production platform or complete installer exists yet.
 
 **Continue implementation and verification; production architecture is not approved.** Hierarchy: installation > organization > project > environment. Ownership is independent of server placement. Candidate: shared PostgreSQL, separate environment databases and service credentials, original Auth/REST per environment and shared Storage. Shared roles/processes/resources remain failure boundaries. Independent PostgreSQL is the fallback if compatibility, isolation or recovery gates fail. No fixed project capacity, distribution license or upstream adoption has been chosen.
 
@@ -12,6 +12,7 @@ Downloadable open source Supabase-based administration for multiple projects, us
 
 | Area | What works | Evidence and limits |
 |---|---|---|
+| Console | Login, organization/project discovery, creation, provisioning status, connection details and key management | [Real browser workflow and saved screenshots](docs/design/CONSOLE-QA.md). Local only, manual worker, no health/capacity/backup UI yet |
 | Control plane | Owner/admin/viewer policy, dedicated management Auth realm, durable publishable keys and composed loopback API | [28 upstream management checks](docs/evidence/upstream-management-checks.json), [scope](docs/reviews/upstream-management.md). Local operator bootstrap and organization discovery now work; production onboarding, invitations, full audit and edge controls remain pending |
 | Initial operator | Private local setup, persisted intent, interrupted Auth/catalog recovery and authenticated organization discovery | [18 live checks](docs/evidence/bootstrap-checks.json), [usage and scope](docs/OPERATOR-SETUP.md). No real operator account retained; no public bootstrap endpoint |
 | Provisioning | Atomic environment/job creation, exclusive local worker, stable runtime identity and interrupted-operation reconciliation | [7 live checks](docs/evidence/provision-checks.json), [scope](docs/PROVISIONING.md). Default worker retains the stock fixture; `--upstream` selects an isolated durable Supabase runtime |
@@ -23,7 +24,7 @@ Downloadable open source Supabase-based administration for multiple projects, us
 
 Retained component containers now reject image or configured-environment drift before reuse: [12 read-only live checks](docs/evidence/runtime-reuse-checks.json) and six Python tests. This guard does not perform upgrades or container reconciliation.
 
-Thirty-four TypeScript unit tests pass with 188 assertions. Evidence files are versioned snapshots, not cumulative independent test totals.
+Thirty-five Bun tests pass with 201 assertions; UI typecheck and production build also pass. Evidence files are versioned snapshots, not cumulative independent test totals.
 
 The gateway now also permits API-key-free GET/HEAD on public-object and signed-download paths only. Storage enforces bucket visibility and signature validity. API-key revocation does not revoke previously issued signed URLs. Uploads currently buffer at most 1 MiB with a read deadline. Large/resumable uploads, CORS and service-key forwarding remain unfinished.
 
@@ -35,7 +36,7 @@ Local SQLite stores experimental control metadata and hashed API keys; applicati
 2. Complete production management deployment, operator onboarding UX, invitations, key rotation/auditing, admission controls, CORS/OAuth and streaming uploads. Integrate Realtime, pooler, functions and scheduled jobs with isolation tests.
 3. Prove encrypted off-host recovery of databases, objects, secrets/configuration and function artifacts. Implement ownership transfer and server cutover; rollback after destination writes requires reconciliation.
 4. Benchmark peak workloads and noisy neighbors, then 10 environments when resources permit. Admission must account for CPU, RAM, I/O, connections, disk and recovery headroom. Daily visitors do not establish 10/100-project capacity.
-5. Build the Supabase-inspired administration UI and distributable installer against verified APIs.
+5. Extend the working local console with actual operations, complete design-system integration and accessible onboarding. Build a distributable installer/supervisor against verified APIs.
 
 ## Research and saved diagrams
 
@@ -45,6 +46,6 @@ Saved images: [10 projects](docs/diagrams/ten-projects.png), [transfer/restore](
 
 ## Continue safely in Codex or Hermes
 
-Use this repository and read lab/README.md before executing probes. Use bun and /usr/bin/python3. Recheck live resources and git status; preserve unrelated services. Proposed lab budget: 4 GB RAM, 4 CPUs, 20-30 GB disk. Persistent component lab ceilings are 3072 MiB/3 CPUs; the upstream Storage probe uses 2560 MiB/2.5 CPUs and removes its resources. Historical idle memory is not a capacity forecast. The component and durable upstream labs are stopped between runs with volumes retained. The durable upstream experiment uses 2816 MiB/2.75 CPUs at two environments including management Auth; its four-environment guard caps container limits at 3840 MiB/3.75 CPUs, not a measured capacity guarantee. Do not run these labs concurrently without rechecking aggregate resources.
+Use this repository and read lab/README.md before executing probes. Use bun and /usr/bin/python3. Recheck live resources and git status; preserve unrelated services. Proposed lab budget: 4 GB RAM, 4 CPUs, 20-30 GB disk. Persistent component lab ceilings are 3072 MiB/3 CPUs; the upstream Storage probe uses 2560 MiB/2.5 CPUs and removes its resources. Historical idle memory is not a capacity forecast. The component and durable upstream labs are stopped between runs with volumes retained. The durable upstream experiment uses 2816 MiB/2.75 CPUs at two environments including management Auth. The UI probe now retains three environments, whose container ceilings total 3328 MiB/3.25 CPUs; its four-environment guard caps container limits at 3840 MiB/3.75 CPUs, not a measured capacity guarantee. Do not run these labs concurrently without rechecking aggregate resources.
 
 Keep .secrets, .lab and dependencies out of sharing. The handoff ZIP includes source, research, pictures and sanitized evidence, not credentials, runtime data or Git history. Verify pinned image availability on another host. No remote server was changed and no Hermes execution was dispatched. Avoid concurrent mutation of one checkout by different assistants.

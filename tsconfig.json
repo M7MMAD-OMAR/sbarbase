@@ -1,0 +1,1 @@
+{"compilerOptions":{"target":"ES2022","module":"ESNext","moduleResolution":"Bundler","jsx":"react-jsx","strict":true,"noUncheckedIndexedAccess":true,"noEmit":true,"skipLibCheck":true,"types":["bun","react","react-dom"],"lib":["ES2022","DOM","DOM.Iterable"]},"include":["ui/**/*.ts","ui/**/*.tsx","vite.config.mts"]}

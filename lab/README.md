@@ -91,3 +91,18 @@ the initial organization owner, not unrestricted authority over other organizati
 with a private temporary catalog, then deletes its test Auth user and private
 files. It requires a running durable runtime. It does not stop the runtime itself;
 stop it after testing. Details: [operator setup](../docs/OPERATOR-SETUP.md).
+
+## Local console
+
+Run `bun install --frozen-lockfile`, `bun run build:ui`, then start the durable
+runtime and run `bun lab/upstream-server.ts`. Open its printed loopback URL.
+Create the initial operator with `lab/bootstrap.py` if needed. A separate terminal
+running `/usr/bin/python3 lab/worker.py --upstream` drains queued environment
+creation operations; there is no background supervisor yet. Stop the server and
+runtime when finished. Browser sessions are in memory, so reloading requires login.
+
+`bun run typecheck:ui` checks frontend types. `lab/ui-fixture.ts` creates only a
+private temporary QA identity attached to the existing durable probe organization;
+use its explicit `cleanup` command afterward. It is not operator onboarding.
+The captured [real browser workflow](../docs/design/CONSOLE-QA.md) includes the
+third durable environment created through the UI and its revoked test key.

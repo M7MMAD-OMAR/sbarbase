@@ -10,7 +10,7 @@ Verified 2026-09-20. This is local experimental onboarding, not a finished insta
    uses no echo and asks for confirmation. Do not put credentials in arguments.
 3. Run `bun lab/upstream-server.ts` to start the loopback API. The management
    Supabase SDK endpoint is its printed base URL plus `/management`; the public
-   routing key is `sb_publishable_sbarbase_local_management`. A login UI is pending.
+   routing key is `sb_publishable_sbarbase_local_management`. Open the printed base URL for the login UI. Run `bun run build:ui` before starting the server.
 4. After login, `GET /management/v1/organizations` lists the authenticated user's
    current memberships, including organization ID, name and role. Existing
    project/environment APIs then operate within that organization.
@@ -70,7 +70,7 @@ verification before authority, revoked ownership and membership-scoped discovery
 The complete TypeScript suite passes 34 tests with 188 assertions; six existing
 Python tests pass. These counts do not establish production readiness.
 
-Missing: supported repair/reset flows, invitations, onboarding UI, MFA, login
+Missing: supported repair/reset flows, invitations, guided first-run onboarding, MFA, login
 rate controls, HTTPS deployment, pagination for very large organization lists,
 remote backups and a complete distributable installer. Bootstrap identity lookup
 paginates the private Auth API and stops with an error after 10,000 users rather
