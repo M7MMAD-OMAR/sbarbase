@@ -61,4 +61,31 @@ class ServerEvidenceTests(unittest.TestCase):
             self.assertIn('@sha256:',pin['pull'])
 
 
+class StartupDiagnosticsTests(unittest.TestCase):
+    """A supervisor that dies during startup must state why, in the evidence."""
+
+    def test_supervisor_tail_reports_missing_and_empty_logs_honestly(self):
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as directory:
+            missing=Path(directory)/'none.log'
+            self.assertEqual(rehearsal.supervisor_tail(missing),'no supervisor output captured')
+            empty=Path(directory)/'empty.log';empty.write_text('   \n')
+            self.assertEqual(rehearsal.supervisor_tail(empty),'supervisor printed nothing')
+            loud=Path(directory)/'loud.log';loud.write_text('\n'.join(f'line {n}' for n in range(12)))
+            tail=rehearsal.supervisor_tail(loud,lines=3)
+            self.assertEqual(tail,'line 9 | line 10 | line 11')
+
+    def test_startup_failure_is_recorded_with_the_cause_and_no_crash(self):
+        with patch.object(rehearsal.install_server,'preflight',return_value=[]), \
+             patch.object(rehearsal.console_build_check,'verify',return_value=([],{})), \
+             patch.object(rehearsal,'start_supervisor',side_effect=RuntimeError('Supervisor exited during startup; reason line')):
+            findings,_=rehearsal.rehearse(None,True,5)
+        failed=[item for item in findings if not item['ok']]
+        self.assertEqual(len(failed),1)
+        self.assertIn('supervisor started and owns the console',failed[0]['check'])
+        self.assertIn('reason line',failed[0]['detail'])
+        self.assertFalse(all(item['ok'] for item in findings))
+
+
 if __name__=='__main__':unittest.main()

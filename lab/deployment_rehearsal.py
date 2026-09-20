@@ -46,11 +46,18 @@ def http_status(url,headers=None,timeout=5):
 
 
 def start_supervisor(timeout):
-    process=subprocess.Popen(['/usr/bin/python3','lab/dev.py'],cwd=ROOT,
-                             stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,start_new_session=True)
+    log_path=STATE/'rehearsal-supervisor.log'
+    log=open(log_path,'wb')
+    try:
+        process=subprocess.Popen(['/usr/bin/python3','lab/dev.py'],cwd=ROOT,
+                                 stdout=log,stderr=subprocess.STDOUT,start_new_session=True)
+    finally:
+        # The child holds its own descriptor; the parent's copy can be closed.
+        log.close()
     deadline=time.monotonic()+timeout
     while time.monotonic()<deadline:
-        if process.poll() is not None:raise RuntimeError('Supervisor exited during startup')
+        if process.poll() is not None:
+            raise RuntimeError('Supervisor exited during startup; '+supervisor_tail(log_path))
         try:
             supervisor=json.loads((STATE/'supervisor.json').read_text())
             server=json.loads((STATE/'server.json').read_text())
@@ -58,7 +65,16 @@ def start_supervisor(timeout):
                 return process,server
         except (OSError,ValueError,KeyError):pass
         time.sleep(.2)
-    process.terminate();raise RuntimeError('Supervisor startup timed out')
+    process.terminate();raise RuntimeError('Supervisor startup timed out; '+supervisor_tail(log_path))
+
+
+def supervisor_tail(path,lines=8):
+    """Last lines the supervisor printed, so a startup failure states its cause."""
+    try:
+        content=Path(path).read_text(errors='replace').strip().splitlines()
+    except OSError:
+        return 'no supervisor output captured'
+    return ' | '.join(content[-lines:]) if content else 'supervisor printed nothing'
 
 
 def stop_supervisor(process,grace=150):
@@ -130,7 +146,13 @@ def rehearse(bootstrap_file,skip_install,timeout):
     try:
         problems,_=console_build_check.verify()
         record('built console page is intact',not problems,'; '.join(problems))
-        process,server=start_supervisor(timeout)
+        process,server=None,None
+        try:
+            process,server=start_supervisor(timeout)
+        except RuntimeError as error:
+            # The supervisor's own last lines carry the cause; record, do not crash.
+            record('supervisor started and owns the console',False,str(error))
+            return findings,None
         record('supervisor started and owns the console',True)
         record('console serves the built page',http_status(server['url']+'/')==200)
         record('management identity realm reachable through the console',
@@ -178,6 +200,8 @@ def main():
               'unit':unit_status(),
               'bootstrap_file_used':bool(args.bootstrap_file),
               'install_skipped':bool(args.skip_install),
+              'supervisor_log':str(STATE/'rehearsal-supervisor.log'),
+              'runtime_diagnostics':str(STATE/'diagnostics'),
               'started_at':started.isoformat(timespec='seconds'),
               'finished_at':finished.isoformat(timespec='seconds'),
               'checks':findings,'passed':passed,'count':len(findings)}

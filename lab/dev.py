@@ -160,7 +160,7 @@ def main():
             started = True
             if run_stage(['/usr/bin/python3', 'lab/installation_runtime.py', 'up'], stop_event,
                          pass_fds=(worker_lock.fileno(),),env=dict(os.environ,SBARBASE_WORKER_FD=str(worker_lock.fileno()))):
-                raise RuntimeError('Runtime startup failed')
+                raise RuntimeError('Runtime startup failed; the installation runtime reported its own reason above')
             if not stop_event.is_set():
                 Supervisor(stop_event, worker_lock.fileno()).run()
         except InterruptedError:

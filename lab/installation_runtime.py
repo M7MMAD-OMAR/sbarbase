@@ -1,8 +1,10 @@
 """Source plus retained moved target lifecycle for the local foreground supervisor."""
 import argparse
+import datetime
 import fcntl
 import json
 import os
+import traceback
 import hba_startup
 import durable_runtime as runtime
 import run as lab
@@ -58,4 +60,12 @@ if __name__=='__main__':
             with (runtime.STATE/'operation.lock').open('a') as lock:
                 fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB);main(args.command)
         print('Installation runtime '+args.command+' completed')
-    except Exception:raise SystemExit('Installation runtime refused or incomplete; inspect retained state') from None
+    except Exception:
+        # The public message stays fixed; the cause goes to a private diagnostic.
+        diagnostics=runtime.STATE/'diagnostics'
+        diagnostics.mkdir(mode=0o700,parents=True,exist_ok=True)
+        os.chmod(diagnostics,0o700)
+        path=diagnostics/('installation-runtime-'+datetime.datetime.now().strftime('%Y%m%dT%H%M%S')+'.log')
+        path.write_text(traceback.format_exc())
+        os.chmod(path,0o600)
+        raise SystemExit('Installation runtime refused or incomplete; diagnostics: '+str(path)) from None
