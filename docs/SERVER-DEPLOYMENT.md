@@ -21,7 +21,7 @@ databases, not through a full restore or install. Read
 | `/usr/bin/python3` 3.14 or newer | the lab runtime uses modern f-strings |
 | Git checkout of this repository | state and lock files live in the checkout by default |
 | Headroom: the preflight states the exact figure it needs and refuses below it | `CombinedAdmission` and `ResourceAdmission` measure the host; the requirement is the combined placement (5888 MiB of container limits) plus a 2560 MiB reserve, plus, on an installation that has been moved, the measured cost of the already-running source stage recorded in `docs/evidence/source-stage-footprint.json`. The preflight prints the composition, so a refusal names each term |
-| Docker socket access for the service user | the supervisor starts and stops owned containers only |
+| Docker socket access for the service user | the supervisor starts and stops owned containers only. The unit reaches the socket its Docker context resolves to; a host whose context points elsewhere (a Docker Desktop socket, for example) must forward `DOCKER_HOST` in the unit, and the preflight names the endpoint it tried when the daemon is unreachable |
 
 Pinned images are pulled by digest on install; no floating tags are used. See
 [upstream update policy](UPSTREAM-UPDATE-POLICY.md) before changing any pin.

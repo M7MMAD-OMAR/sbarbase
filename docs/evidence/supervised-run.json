@@ -1,0 +1,63 @@
+{
+ "scope": "Supervised-path check: a temporary systemd user unit mirroring the shipped unit directives starts the supervisor, the preflight gate runs as systemd runs it, the console and management realm answer, systemctl stop is clean and no owned container is left running. Not the shipped system unit installed at /etc/systemd/system, not HTTPS, not an empty-host install.",
+ "unit": "user unit sbar-supervised-check.service (temporary, mirrors deploy/sbarbase.service)",
+ "docker_forwarded": {
+  "DOCKER_HOST": "unix:///var/run/docker.sock"
+ },
+ "docker_note": "Forwarded because this host reaches the daemon through DOCKER_HOST while its docker context points elsewhere; a server whose context resolves to the native socket needs neither.",
+ "run_at": "2026-09-20T16:18:16+04:00",
+ "checks": [
+  {
+   "check": "temporary unit loaded by systemd",
+   "ok": true,
+   "detail": "loaded"
+  },
+  {
+   "check": "systemctl start accepted the unit",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "systemd started the supervisor and the console",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "console serves the built page",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "management identity realm reachable through the console",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "owned containers were started by the unit",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "the preflight gate ran under systemd",
+   "ok": true,
+   "detail": "Sep 20 16:18:14 muhmad python3[129439]: Local Sbarbase API: http://127.0.0.1:44627"
+  },
+  {
+   "check": "systemctl stop returned cleanly",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "temporary unit file removed",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "no owned container left running",
+   "ok": true,
+   "detail": ""
+  }
+ ],
+ "count": 10,
+ "passed": true
+}

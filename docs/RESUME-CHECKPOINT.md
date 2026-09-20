@@ -423,6 +423,28 @@ environment routes, supervised shutdown, no owned container left running). On
 this host it records the preflight refusal, `Host headroom insufficient`,
 without starting anything: docs/evidence/deployment-rehearsal.json.
 
+## Supervised path proven under systemd, 2026-09-20 (Hermes)
+
+`lab/supervised_run_check.py` writes a temporary systemd *user* unit that mirrors
+the shipped unit's directives (`ExecStartPre` preflight gate, `ExecStart` the
+supervisor, PATH, no restart), starts it with `systemctl --user`, probes the
+console and the management realm, stops it, and removes the unit. All ten checks
+pass (`docs/evidence/supervised-run.json`, 16:18). This proves the supervision
+mechanics and the gate as systemd runs them; the shipped unit installed at
+`/etc/systemd/system/sbarbase.service` remains for the server acceptance run,
+which passes `--require-unit`.
+
+The first attempt failed for a real reason worth remembering: under systemd the
+unit reported the Docker daemon as unreachable, because this host's docker
+context points at a Docker Desktop socket that does not exist and only the
+interactive shell's `DOCKER_HOST` made the daemon visible. A service inherits
+neither. Two fixes: the check forwards `DOCKER_HOST` and `DOCKER_CONTEXT` into the
+temporary unit and records that it did, and the preflight now names the endpoint
+it tried (`Docker daemon unreachable from this process (tried ...); a system
+service must reach the socket its docker context resolves to`) instead of a bare
+"unreachable". On a server whose context resolves to the native
+`/var/run/docker.sock`, neither is needed.
+
 ## Full lifecycle rehearsal passed locally, 2026-09-20 (Hermes)
 
 The complete source plus target rehearsal now passes on this host:
