@@ -21,3 +21,14 @@ One shared process holds access to all tenant configuration and can reach all te
 This demonstrates a sharing candidate, not full Storage integration. Still required: gateway-controlled tenant routing, SDK compatibility through the gateway, opaque service-key handling, signed URLs, range/streaming uploads, S3, restart and migration recovery, upgrades, tenant deletion, backup/restore of objects with database state, quotas and noisy-neighbor measurements. The durable worker does not yet provision Storage, and no UI is implemented.
 
 Sources: [pinned configuration](https://github.com/supabase/storage/blob/v1.73.1/src/config.ts), [tenant admin routes](https://github.com/supabase/storage/blob/v1.73.1/src/http/routes/admin/tenants.ts), [role/schema migration](https://github.com/supabase/storage/blob/v1.73.1/migrations/tenant/0002-storage-schema.sql). The actual executed image's compiled source and migrations were also inspected locally; raw copies remain outside version control.
+
+
+## Gateway integration follow-up
+
+The gateway now accepts optional per-environment Storage configuration: a public Storage upstream URL and an operator-controlled tenant host. It sets x-forwarded-host from that configuration and discards client tenant/routing headers. It never forwards the installation's Storage admin API key. Missing Storage configuration returns an unavailable route. Auth/REST behavior remains available without Storage configuration.
+
+Sixteen additional live checks pass through the real Supabase SDK and loopback gateway: upload, upsert, download of updated bytes, list, removal, attempts to inject another tenant host, crossed environment API keys and denial after key revocation. The combined upstream run now has 87 checks, including the previous 71. [Evidence](../evidence/storage-gateway-checks.json). The helper receives transient credentials through stdin, does not write them and uses an in-memory key store. Owned infrastructure is removed after the probe.
+
+Gateway request bodies remain bounded to 1 MiB total, including multipart overhead, with a ten-second read deadline. Broken or stalled bodies fail without reaching upstream. Twenty-four unit tests pass with 115 assertions, including cancellation resolving a pending read. Large/resumable uploads need a streaming design with admission limits; this implementation must not be marketed as supporting arbitrary uploads.
+
+Public object URLs and signed URLs without an API-key header are not yet supported by this gateway. Browser CORS, opaque service keys, S3 protocol, image transforms, durable Storage provisioning and backup/restore remain open. This follow-up implements and verifies basic gateway integration, superseding only that item in the earlier remaining-work list.

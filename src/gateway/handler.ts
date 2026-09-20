@@ -3,12 +3,13 @@ import { timingSafeEqual } from 'node:crypto';
 export type EnvironmentRoute = {
   auth: string;
   rest: string;
+  storage?: {url:string;tenantHost:string};
   keys: readonly string[];
   anonymousToken: string;
   enabled: boolean;
 };
 export type RouteRegistry = ReadonlyMap<string, EnvironmentRoute>;
-const forwardedHeaders = ['accept','content-type','prefer','range','range-unit','accept-profile','content-profile','x-client-info'];
+const forwardedHeaders = ['accept','content-type','prefer','range','range-unit','accept-profile','content-profile','x-client-info','x-upsert','cache-control','if-none-match','if-modified-since'];
 function matches(a: string, b: string): boolean {
   const left = Buffer.from(a), right = Buffer.from(b);
   return left.length === right.length && timingSafeEqual(left,right);
@@ -19,15 +20,15 @@ function error(status:number, message:string) {
 
 /** Auth validates user JWTs; PostgREST validates JWTs and applies RLS.
  * This boundary binds an API key to an enabled environment before proxying.
- * No Storage, Realtime, browser CORS or OAuth callback support is claimed yet.
+ * Storage uses a trusted tenant header; Realtime, browser CORS and OAuth remain pending.
  */
-export function createGateway(registry:RouteRegistry, transport:typeof fetch = fetch, verifyKey?:(environment:string,key:string)=>boolean) {
+export function createGateway(registry:RouteRegistry, transport:typeof fetch = fetch, verifyKey?:(environment:string,key:string)=>boolean, bodyReadTimeoutMs=10_000) {
   return async (request:Request):Promise<Response> => {
     const url = new URL(request.url);
-    const match = url.pathname.match(/^\/([a-z][a-z0-9_]{1,30})\/(auth|rest)\/v1(\/.*)?$/);
+    const match = url.pathname.match(/^\/([a-z][a-z0-9_]{1,30})\/(auth|rest|storage)\/v1(\/.*)?$/);
     if (!match) return error(404,'Unknown route');
     const environment = match[1], service = match[2], path = match[3] || '/';
-    if (!environment || (service !== 'auth' && service !== 'rest')) return error(404,'Unknown route');
+    if (!environment || (service !== 'auth' && service !== 'rest' && service !== 'storage')) return error(404,'Unknown route');
     const route = registry.get(environment);
     if (!route || !route.enabled) return error(404,'Unknown route');
     const apiKey = request.headers.get('apikey');
@@ -39,7 +40,10 @@ export function createGateway(registry:RouteRegistry, transport:typeof fetch = f
     // Never let a forwarded path or absolute URL choose the upstream host.
     if (path.includes('\\') || /%2f|%5c|%00/i.test(path)) return error(400,'Invalid path');
     if (!['GET','HEAD','POST','PUT','PATCH','DELETE'].includes(request.method)) return error(405,'Method not allowed');
-    const target = new URL(route[service]);
+    const upstream=service==='storage'?route.storage?.url:route[service];
+    if(!upstream) return error(404,'Service not configured');
+    let target:URL;
+    try {target=new URL(upstream);} catch {return error(503,'Invalid upstream');}
     if (!['http:','https:'].includes(target.protocol) || target.username || target.password) return error(503,'Invalid upstream');
     target.pathname = path;
     target.search = url.search;
@@ -47,6 +51,11 @@ export function createGateway(registry:RouteRegistry, transport:typeof fetch = f
     for (const name of forwardedHeaders) {
       const value = request.headers.get(name);
       if (value !== null) headers.set(name,value);
+    }
+    if(service==='storage') {
+      const host=route.storage?.tenantHost;
+      if(!host||!/^[a-z0-9_][a-z0-9_.-]{0,252}$/.test(host)) return error(503,'Invalid storage tenant');
+      headers.set('x-forwarded-host',host);
     }
     const authorization = request.headers.get('authorization');
     if (authorization && !/^Bearer \S+$/i.test(authorization)) return error(401,'Invalid authorization');
@@ -58,13 +67,21 @@ export function createGateway(registry:RouteRegistry, transport:typeof fetch = f
       if (Number(request.headers.get('content-length')) > limit) return error(413,'Request too large');
       const reader=request.body.getReader();
       const chunks:Uint8Array[]=[]; let size=0;
-      while (true) {
-        const item=await reader.read();
-        if (item.done) break;
-        size+=item.value.byteLength;
-        if (size>limit) { await reader.cancel(); return error(413,'Request too large'); }
-        chunks.push(item.value);
-      }
+      let timer:ReturnType<typeof setTimeout>|undefined;
+      const expired=new Promise<never>((_,reject)=>{timer=setTimeout(()=>{
+        reject(new Error('Body timeout'));void reader.cancel().catch(()=>{});
+      },bodyReadTimeoutMs);});
+      try {
+        while (true) {
+          const item=await Promise.race([reader.read(),expired]);
+          if (item.done) break;
+          size+=item.value.byteLength;
+          if (size>limit) { void reader.cancel().catch(()=>{}); return error(413,'Request too large'); }
+          chunks.push(item.value);
+        }
+      } catch {
+        return error(400,'Request body unavailable');
+      } finally {clearTimeout(timer);reader.releaseLock();}
       body=new Uint8Array(size); let offset=0;
       for(const chunk of chunks) {body.set(chunk,offset);offset+=chunk.length;}
     }

@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import json
 import secrets
+import subprocess
 import time
 import urllib.error
 import urllib.request
@@ -116,4 +117,11 @@ def run_storage_probe(db, prefix, sql, launch, endpoint, credentials, accounts, 
             result=lab.docker(*command,data=credentials[e]['storage']+'\nSELECT 1;',check=False)
             check(e+' storage credential '+('accepted by ' if target==e else 'denied by ')+target,(result.returncode==0)==(target==e))
         check(e+' Storage tables owned by scoped login',sql(f"SELECT bool_and(pg_get_userbyid(c.relowner)='{e}_storage') FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='storage' AND c.relkind='r';",e).stdout.strip()=='t')
-    evidence['storage_scope']='One original Storage process, file backend, separate tenant DB logins and JWT secrets; private upload/download and crossed-token rejection. No backups, signed URLs, S3 or production gateway integration.'
+    sdk_input={'storage':public,'tenants':{e:{'anonymousToken':jwt(e,'anon'),'token':accounts[e]['access_token']} for e in credentials}}
+    sdk=subprocess.run(['bun','lab/storage-sdk-check.ts'],input=json.dumps(sdk_input),text=True,capture_output=True,cwd=lab.ROOT)
+    if sdk.returncode:
+        raise RuntimeError('Storage SDK gateway checks failed; secret-bearing output withheld')
+    sdk_results=json.loads(sdk.stdout)
+    for result in sdk_results['checks']:
+        check(result['check'],result['passed'])
+    evidence['storage_scope']='One original Storage process, file backend, separate tenant DB logins and JWT secrets; private upload/download and crossed-token rejection. Basic SDK gateway integration also checked; no backups, signed URLs, S3 or durable worker integration.'

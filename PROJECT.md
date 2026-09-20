@@ -19,7 +19,7 @@ Shared PostgreSQL roles and resources remain important boundaries. The lab uses 
 | [Retry checks](docs/evidence/retry-checks.json) | Recovery after 3 provisioning interruptions, existing data preserved | Selected creation phases only |
 | [Restore check](docs/evidence/restore-check.json) | Logical restore into fresh database; source and neighbor preserved | Same cluster, selected data, not full recovery or PITR |
 
-Twenty-one unit tests now pass, including organization authorization and persistent metadata transfer. Older SDK evidence files are earlier iterations, not additional independent coverage. API key metadata uses a local SQLite adapter storing hashes; application data stays in PostgreSQL. The control-store choice for multiple hosts remains open.
+Twenty-four unit tests now pass, including organization authorization and persistent metadata transfer. Older SDK evidence files are earlier iterations, not additional independent coverage. API key metadata uses a local SQLite adapter storing hashes; application data stays in PostgreSQL. The control-store choice for multiple hosts remains open.
 
 Last recorded lab state: owned containers stopped, volumes retained. Configured container ceilings: 3072 MiB and 3 logical CPUs for this component lab. The approximately 134 MiB idle snapshot is not a full-platform requirement or a capacity estimate. Recheck available RAM before startup. The proposed overall lab budget is 4 GB RAM, 4 logical CPUs and 20-30 GB disk; never disturb existing services.
 
@@ -36,6 +36,8 @@ A separate upstream PostgreSQL/Auth distribution probe passed 10 checks and conf
 The upstream-image follow-up now passes 40 checks across two scoped Auth/REST environments using original Auth migrations and identity helpers, with no custom auth.uid replacement. Credentials/tokens are isolated, RLS works, and bootstrap retry preserves identities. [Evidence](docs/evidence/upstream-environment-checks.json). The durable worker has not yet switched its existing stock-PostgreSQL data; remaining components and upgrades are still gates.
 
 One original shared Storage process now passes 31 additional live checks with separate tenant database logins and JWT secrets, including private files, same-name object isolation and crossed credentials/tokens. The combined upstream run has 71 checks, including the earlier 40 Auth/REST checks. [Findings](docs/reviews/shared-storage.md), [evidence](docs/evidence/shared-storage-checks.json). Gateway integration, lifecycle/recovery and resource scaling remain unverified.
+
+Basic Storage gateway integration now passes 16 additional real SDK checks for upload/upsert/download/list/delete, forged tenant headers, crossed keys and revocation. The upstream combined run totals 87 checks. [Evidence](docs/evidence/storage-gateway-checks.json). Uploads remain bounded to 1 MiB; public/signed URLs, streaming, CORS and durable Storage provisioning are not complete.
 
 ## Research, reasons and saved pictures
 

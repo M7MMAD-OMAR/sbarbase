@@ -11,7 +11,7 @@ async function body(request:Request):Promise<{name:string}> {
   const reader=request.body.getReader(),chunks:Uint8Array[]=[];let bytes=0;
   let timer:ReturnType<typeof setTimeout>|undefined;
   const expired=new Promise<never>((_,reject)=>{timer=setTimeout(()=>{
-    void reader.cancel().catch(()=>{});reject(new InputError());
+    reject(new InputError());void reader.cancel().catch(()=>{});
   },5000);});
   try {
     while(true) {

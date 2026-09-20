@@ -19,3 +19,5 @@ Distribution probe: `/usr/bin/python3 lab/distro-check.py` starts a separate eph
 Upstream environment probe: `/usr/bin/python3 lab/upstream-environments.py` tests two independent Auth/REST databases on the pinned Supabase PostgreSQL image with real migrated identity helpers. It reuses the environment reconciler and service configuration builders, and removes its owned containers/network/environment files afterward.
 
 Shared Storage probe: `/usr/bin/python3 lab/upstream-environments.py --storage` adds one original multi-tenant Storage process, two scoped storage logins and a separate metadata database. It tests private objects and credential/token boundaries, then removes its temporary resources.
+
+The shared Storage probe also invokes `lab/storage-sdk-check.ts` over stdin to test the original Supabase SDK through the gateway. Do not run this helper with credentials on command-line arguments or save its input.

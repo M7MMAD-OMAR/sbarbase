@@ -65,3 +65,30 @@ test('key store failure cannot fall back to static key acceptance',async()=>{
  expect(response.status).toBe(503);expect(forwarded).toBe(false);
  expect(await response.text()).not.toContain('private');
 });
+
+test('Storage tenant header comes only from trusted configuration and preserves upload headers',async()=>{
+ let seen:Headers|undefined,target='';
+ const handler=createGateway(new Map([['a_prod',{...route,storage:{url:'http://shared-storage:5000',tenantHost:'a_prod.storage.internal'}}]]),
+  (async(url,init)=>{target=String(url);seen=new Headers(init?.headers);return new Response('ok');}) as typeof fetch);
+ const response=await handler(new Request('http://local/a_prod/storage/v1/object/private/file.txt',{method:'POST',body:'abc',headers:{
+  apikey:'key-a',authorization:'Bearer user','x-forwarded-host':'b_prod.storage.internal','x-forwarded-prefix':'/tenants/b_prod',
+  'x-upsert':'true','cache-control':'max-age=60','content-type':'text/plain'}}));
+ expect(response.status).toBe(200);expect(target).toBe('http://shared-storage:5000/object/private/file.txt');
+ expect(seen?.get('x-forwarded-host')).toBe('a_prod.storage.internal');
+ expect(seen?.has('x-forwarded-prefix')).toBe(false);expect(seen?.has('apikey')).toBe(false);
+ expect(seen?.get('x-upsert')).toBe('true');expect(seen?.get('authorization')).toBe('Bearer user');
+});
+test('unconfigured Storage is unavailable and broken request streams never reach upstream',async()=>{
+ const {handler,calls}=setup();
+ expect((await handler(new Request('http://local/a_prod/storage/v1/object/private/file',{headers:{apikey:'key-a'}}))).status).toBe(404);
+ const stream=new ReadableStream({start(controller){controller.error(new Error('private body detail'));}});
+ const response=await handler(new Request('http://local/a_prod/rest/v1/items',{method:'POST',headers:{apikey:'key-a'},body:stream}));
+ expect(response.status).toBe(400);expect(await response.text()).not.toContain('private');expect(calls).toHaveLength(0);
+});
+test('slow body deadline rejects even when cancellation resolves the pending read',async()=>{
+ let forwarded=false,cancelled=false;
+ const handler=createGateway(new Map([['a_prod',route]]),(async()=>{forwarded=true;return new Response('wrong');}) as typeof fetch,undefined,20);
+ const delayed=new ReadableStream<Uint8Array>({cancel(){cancelled=true;}});
+ expect((await handler(new Request('http://local/a_prod/rest/v1/items',{method:'POST',headers:{apikey:'key-a'},body:delayed}))).status).toBe(400);
+ expect(forwarded).toBe(false);expect(cancelled).toBe(true);
+});
