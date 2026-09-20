@@ -1,3 +1,4 @@
+import {ConcurrencyGate} from './concurrency';
 import { timingSafeEqual } from 'node:crypto';
 
 export type EnvironmentRoute = {
@@ -22,7 +23,7 @@ function error(status:number, message:string) {
  * This boundary binds an API key to an enabled environment before proxying.
  * Storage uses a trusted tenant header; Realtime, browser CORS and OAuth remain pending.
  */
-export function createGateway(registry:RouteRegistry, transport:typeof fetch = fetch, verifyKey?:(environment:string,key:string)=>boolean, bodyReadTimeoutMs=10_000) {
+export function createGateway(registry:RouteRegistry, transport:typeof fetch = fetch, verifyKey?:(environment:string,key:string)=>boolean, bodyReadTimeoutMs=10_000, concurrency=new ConcurrencyGate()) {
   return async (request:Request):Promise<Response> => {
     const url = new URL(request.url);
     const match = url.pathname.match(/^\/([a-z][a-z0-9_]{1,30})\/(auth|rest|storage)\/v1(\/.*)?$/);
@@ -71,6 +72,7 @@ export function createGateway(registry:RouteRegistry, transport:typeof fetch = f
     if (authorization && !/^Bearer \S+$/i.test(authorization)) return error(401,'Invalid authorization');
     const bearerIsApiKey = authorization?.toLowerCase().startsWith('bearer ') && apiKey!==null && matches(authorization.slice(7), apiKey);
     headers.set('authorization', authorization && !bearerIsApiKey ? authorization : `Bearer ${route.anonymousToken}`);
+    return concurrency.run(environment,request,async()=>{
     let body:Uint8Array | undefined;
     if (request.body) {
       const limit = 1024*1024;
@@ -78,12 +80,16 @@ export function createGateway(registry:RouteRegistry, transport:typeof fetch = f
       const reader=request.body.getReader();
       const chunks:Uint8Array[]=[]; let size=0;
       let timer:ReturnType<typeof setTimeout>|undefined;
+      let abortBody=()=>{};
+      const aborted=new Promise<never>((_,reject)=>{abortBody=()=>{reject(new Error('Body aborted'));void reader.cancel().catch(()=>{});};});
+      request.signal.addEventListener('abort',abortBody,{once:true});
+      if(request.signal.aborted)abortBody();
       const expired=new Promise<never>((_,reject)=>{timer=setTimeout(()=>{
         reject(new Error('Body timeout'));void reader.cancel().catch(()=>{});
       },bodyReadTimeoutMs);});
       try {
         while (true) {
-          const item=await Promise.race([reader.read(),expired]);
+          const item=await Promise.race([reader.read(),expired,aborted]);
           if (item.done) break;
           size+=item.value.byteLength;
           if (size>limit) { void reader.cancel().catch(()=>{}); return error(413,'Request too large'); }
@@ -91,15 +97,17 @@ export function createGateway(registry:RouteRegistry, transport:typeof fetch = f
         }
       } catch {
         return error(400,'Request body unavailable');
-      } finally {clearTimeout(timer);reader.releaseLock();}
+      } finally {clearTimeout(timer);request.signal.removeEventListener('abort',abortBody);reader.releaseLock();}
       body=new Uint8Array(size); let offset=0;
       for(const chunk of chunks) {body.set(chunk,offset);offset+=chunk.length;}
     }
+    if(request.signal.aborted)return error(408,'Request cancelled');
     try {
-      return await transport(target,{method:request.method,headers,body,redirect:'manual',
+      return await transport(target,{method:request.method,headers,body,redirect:'manual',decompress:false,
         signal:AbortSignal.any([request.signal,AbortSignal.timeout(15_000)])});
     } catch {
       return error(502,'Upstream unavailable');
     }
+    });
   };
 }

@@ -79,3 +79,7 @@ New allocations now check cgroup CPU, I/O and memory pressure for the owned data
 ## Documentation handoff checkpoint
 
 The [compact handoff](docs/HANDOFF.md) indexes decisions, research and saved diagrams. The [resume checkpoint](docs/RESUME-CHECKPOINT.md) records unfinished gateway/HTTP changes, the unsupported Bun connection-counting call, evidence boundaries and exact next steps. Read it before treating older next-step paragraphs or evidence as current.
+
+## Gateway overload checkpoint
+
+[Application request admission and streaming](docs/GATEWAY-OVERLOAD.md) now pass 44 unit tests, 22 real HTTP checks and a 1,000-operation SDK regression without failures. An earlier 8-check actual Supabase saturation probe verifies neighbor correctness and recovery. The unsupported connection-counting call recorded in the handoff is fixed. Shared resource containment, sustained open-loop capacity and production recovery remain open.

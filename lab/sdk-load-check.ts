@@ -1,10 +1,12 @@
+import {serveLocal} from '../src/http/local-server';
 import {createClient} from '@supabase/supabase-js';
 import {openUpstreamApplication,internalToken} from './upstream-app';
 
 // Existing lab fixture actor authorizes temporary scoped keys. Setup is excluded
 // from timing. Requests use the composed managed gateway and original SDK.
+if(process.argv[2]&&process.argv[2]!=='--overload-regression')throw new Error('Unknown SDK probe option');
 const app=openUpstreamApplication();
-const server=Bun.serve({hostname:'127.0.0.1',port:0,fetch:app.handler});
+const server=await serveLocal(app.handler);
 const base=`http://127.0.0.1:${server.port}`;
 const secrets=await Bun.file('.secrets/upstream/runtime.json').json();
 const endpoints=await Bun.file('.lab/upstream/endpoints.json').json();
@@ -116,7 +118,7 @@ try {
  await command(['/usr/bin/python3','lab/durable_runtime.py','stop']);
  require(failures.length===0,'Probe cleanup incomplete; inspect retained fixture state');
 }
-await Bun.write('docs/evidence/sdk-load-checks.json',JSON.stringify(result,null,2)+'\n');
+await Bun.write(process.argv[2]==='--overload-regression'?'docs/evidence/sdk-overload-regression.json':'docs/evidence/sdk-load-checks.json',JSON.stringify(result,null,2)+'\n');
 console.log(JSON.stringify({...result as object,samples:undefined}));
 
 require(samples.every(sample=>sample.ok),'SDK load contained failed or incorrect operations; evidence saved');

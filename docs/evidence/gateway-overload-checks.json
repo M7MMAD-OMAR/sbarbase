@@ -1,0 +1,14 @@
+{
+  "scope": "Actual managed gateway, SDK, pinned PostgREST and PostgreSQL. One environment has eight temporary two-second RPCs, ninth refused; neighbor returns a correct distinct value and target recovers. Temporary RPCs removed and keys revoked. Not global socket or multi-process DDoS protection.",
+  "checks": [
+    "temporary RPC schema ready 0",
+    "temporary RPC schema ready 1",
+    "eight concurrent requests admitted to actual REST",
+    "ninth request receives retryable overload",
+    "rejected request never reaches REST",
+    "neighbor succeeds while target requests remain active",
+    "all admitted requests complete correctly",
+    "target accepts requests after draining"
+  ],
+  "count": 8
+}

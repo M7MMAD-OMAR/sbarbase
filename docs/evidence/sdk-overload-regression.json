@@ -1,0 +1,7135 @@
+{
+  "scope": "Two retained environments through managed loopback gateway and Supabase SDK. Ten-second closed-loop phases, concurrency 1 then 4 per environment, maximum 8 total. Each worker waits until at least 100 ms after its previous operation began, so nominal rates are approximately 20 then 80 operations/second across both environments, actual rate decreases with latency. Five-operation repeating mix, tiny private files and fixture rows; setup excluded. No open-loop/production-capacity/SLO conclusion.",
+  "phases": {
+    "serial": {
+      "duration_ms": 10001.908157,
+      "pressure_snapshot": {
+        "snapshot": {
+          "sbarbase-durable-db": {
+            "cpu_some10": 0,
+            "io_full10": 0.32,
+            "memory_full10": 0
+          },
+          "sbarbase-durable-storage": {
+            "cpu_some10": 0,
+            "io_full10": 0,
+            "memory_full10": 0
+          }
+        },
+        "thresholds": {
+          "cpu_some10": 50,
+          "io_full10": 20,
+          "memory_full10": 1
+        },
+        "refusal": null
+      }
+    },
+    "concurrent": {
+      "duration_ms": 10002.833735,
+      "pressure_snapshot": {
+        "snapshot": {
+          "sbarbase-durable-db": {
+            "cpu_some10": 0,
+            "io_full10": 0.22,
+            "memory_full10": 0
+          },
+          "sbarbase-durable-storage": {
+            "cpu_some10": 0,
+            "io_full10": 0,
+            "memory_full10": 0
+          }
+        },
+        "thresholds": {
+          "cpu_some10": 50,
+          "io_full10": 20,
+          "memory_full10": 1
+        },
+        "refusal": null
+      }
+    }
+  },
+  "groups": [
+    {
+      "phase": "serial",
+      "operation": "read",
+      "samples": 40,
+      "failures": 0,
+      "median_ms": 2.601104000000305,
+      "p95_ms": 3.2810779999999795
+    },
+    {
+      "phase": "serial",
+      "operation": "insert",
+      "samples": 40,
+      "failures": 0,
+      "median_ms": 7.962988000000223,
+      "p95_ms": 48.98607900000002
+    },
+    {
+      "phase": "serial",
+      "operation": "identity",
+      "samples": 40,
+      "failures": 0,
+      "median_ms": 27.896044999999503,
+      "p95_ms": 30.047217000000046
+    },
+    {
+      "phase": "serial",
+      "operation": "upload",
+      "samples": 40,
+      "failures": 0,
+      "median_ms": 23.20940500000006,
+      "p95_ms": 62.423601999999846
+    },
+    {
+      "phase": "serial",
+      "operation": "download",
+      "samples": 40,
+      "failures": 0,
+      "median_ms": 5.233962000000247,
+      "p95_ms": 6.988806000000295
+    },
+    {
+      "phase": "concurrent",
+      "operation": "read",
+      "samples": 160,
+      "failures": 0,
+      "median_ms": 2.0229729999991832,
+      "p95_ms": 2.988111000000572
+    },
+    {
+      "phase": "concurrent",
+      "operation": "insert",
+      "samples": 160,
+      "failures": 0,
+      "median_ms": 3.6153529999992315,
+      "p95_ms": 4.753815000000031
+    },
+    {
+      "phase": "concurrent",
+      "operation": "identity",
+      "samples": 160,
+      "failures": 0,
+      "median_ms": 26.61535299999923,
+      "p95_ms": 29.019776999997703
+    },
+    {
+      "phase": "concurrent",
+      "operation": "upload",
+      "samples": 160,
+      "failures": 0,
+      "median_ms": 8.935692999999446,
+      "p95_ms": 13.307238999999754
+    },
+    {
+      "phase": "concurrent",
+      "operation": "download",
+      "samples": 160,
+      "failures": 0,
+      "median_ms": 4.753448999999819,
+      "p95_ms": 7.314589999998134
+    }
+  ],
+  "samples": [
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "read",
+      "ms": 3.35282600000005,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "read",
+      "ms": 3.2810779999999795,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 8.593443999999977,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 14.015002999999979,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 29.183723999999984,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 30.095703999999955,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 22.483986999999956,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 26.59738600000003,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "download",
+      "ms": 9.531293999999889,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "download",
+      "ms": 9.018231999999898,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "read",
+      "ms": 3.0810699999999542,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.7651350000001003,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 48.98607900000002,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 48.41572199999996,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 26.666056000000026,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 26.806141000000025,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 21.68689399999994,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 23.20940500000006,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "download",
+      "ms": 4.766844999999876,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "download",
+      "ms": 5.797920000000204,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.8219340000000557,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "read",
+      "ms": 3.350148999999874,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 17.154295000000047,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 18.879011999999875,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 28.094156000000112,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 30.047217000000046,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 51.09263199999987,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 52.108836999999994,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "download",
+      "ms": 4.691193999999996,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "download",
+      "ms": 4.671731999999793,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "read",
+      "ms": 2.923244000000068,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.609342000000197,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 42.67937400000028,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 43.46125299999994,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 28.448151999999936,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 28.728810000000067,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 70.26092500000004,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 70.87269799999967,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "download",
+      "ms": 5.790832000000137,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "download",
+      "ms": 6.050580999999966,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.1345729999998184,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "read",
+      "ms": 3.01900999999998,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 16.92716900000005,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 17.00799300000017,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 26.746174999999766,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 27.354432999999972,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 10.24467999999979,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 10.41385500000024,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "download",
+      "ms": 5.447661000000153,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "download",
+      "ms": 5.887107999999898,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "read",
+      "ms": 1.996005999999852,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.4408189999999195,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 4.765796000000137,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 5.155508999999711,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 24.531289000000015,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 26.107092000000193,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 35.784771999999975,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 36.58909900000026,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "download",
+      "ms": 5.00951699999996,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "download",
+      "ms": 4.697602999999617,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "read",
+      "ms": 2.0311469999996916,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "read",
+      "ms": 1.6305280000001403,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 52.24991999999975,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 53.56476199999997,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 26.92411200000015,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 28.08714400000008,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 40.05533699999978,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 41.59149800000023,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "download",
+      "ms": 6.198893000000226,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "download",
+      "ms": 6.479094999999688,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "read",
+      "ms": 3.1550649999999223,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.938521000000037,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 4.796446000000287,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 4.148298000000068,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 25.775606000000153,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 28.660092999999506,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 51.56548800000019,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 52.014280000000326,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "download",
+      "ms": 5.233962000000247,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "download",
+      "ms": 5.296548000000257,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "read",
+      "ms": 3.0348080000003392,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "read",
+      "ms": 2.7659279999998034,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 3.14387699999952,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 4.319637999999941,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 28.413606000000073,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 28.597818999999618,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 9.642265999999836,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 10.4801039999993,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "download",
+      "ms": 5.837647999999717,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "download",
+      "ms": 6.0661300000001575,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "read",
+      "ms": 3.0656830000007176,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.6963260000002265,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.0661079999999856,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 4.1026029999993625,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 29.393558999999186,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 30.448671000000104,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 11.164031999999679,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 11.104529999999613,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "download",
+      "ms": 5.317434999999932,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "download",
+      "ms": 5.0118729999994684,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.1655470000005153,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "read",
+      "ms": 1.9287389999999505,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 2.9147800000000643,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 4.387660000000324,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 25.2275180000006,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 28.655437000000347,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 15.996927000000142,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 15.620083000000704,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "download",
+      "ms": 3.58538899999985,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "download",
+      "ms": 3.3479059999999663,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "read",
+      "ms": 2.1023459999996703,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.5514530000000377,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 39.309377999999924,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 39.68034299999999,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 27.157428999999865,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 27.281581999999617,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 9.282914999999775,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 9.156662999999753,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "download",
+      "ms": 4.848019999999451,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "download",
+      "ms": 4.53535599999941,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "read",
+      "ms": 2.8401679999997214,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.601104000000305,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 31.841647999999623,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 32.64648599999964,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 23.373899999999594,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 25.96656499999972,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 61.38265499999943,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 62.423601999999846,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "download",
+      "ms": 6.523858000000473,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "download",
+      "ms": 6.7278550000000905,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "read",
+      "ms": 2.1812950000003184,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.496399999999994,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 7.962988000000223,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 9.651214999999866,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 28.077064000000064,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 28.316831999999522,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 9.409763999999996,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 10.3868480000001,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "download",
+      "ms": 6.988806000000295,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "download",
+      "ms": 6.778021000000081,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "read",
+      "ms": 2.6047710000002553,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.326717999999346,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 3.9069549999994706,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.898584999999912,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 29.583604999999807,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 29.776519999999437,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 59.136435999999776,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 59.912231999999676,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "download",
+      "ms": 6.352857999999287,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "download",
+      "ms": 6.631037000000106,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "read",
+      "ms": 2.027911000000131,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.4258770000005825,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 5.335102000000916,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 5.776223999999274,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 27.093293999998423,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 28.859207999999853,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 11.14422100000047,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 11.552267999999458,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "download",
+      "ms": 4.517046000000846,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "download",
+      "ms": 4.756438000000344,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.622293999998874,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "read",
+      "ms": 2.3408980000003794,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 3.3378990000001068,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.762252999998964,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 27.722563999999693,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 28.001774000000296,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 59.25895800000035,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 58.94154100000014,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "download",
+      "ms": 4.324774000000616,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "download",
+      "ms": 3.7292579999993904,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "read",
+      "ms": 2.2934370000002673,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "read",
+      "ms": 1.4373590000013792,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 4.105310999999347,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.9982439999985218,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 26.919177999998283,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 25.581969999999274,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 8.829561000000467,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 10.495912000000317,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "download",
+      "ms": 4.068790999999692,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "download",
+      "ms": 3.296055000000706,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "read",
+      "ms": 2.5801589999991847,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "read",
+      "ms": 1.8192529999996623,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 8.436440999999832,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 8.454241999999795,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 25.59041200000138,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 27.536705999998958,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 35.51915200000076,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 35.773771000000124,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "download",
+      "ms": 3.5673600000009174,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "download",
+      "ms": 3.846959999998944,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.6696439999996073,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "read",
+      "ms": 2.4318999999995867,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 5.270022999999128,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 6.230059999999867,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 27.74786200000017,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 27.896044999999503,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 7.894862999999532,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 7.9047910000008414,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 1,
+      "operation": "download",
+      "ms": 4.498575999999957,
+      "ok": true
+    },
+    {
+      "phase": "serial",
+      "environment": 0,
+      "operation": "download",
+      "ms": 4.742301000000225,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 4.098513000000821,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 3.851894999999786,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 9.481877000000168,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 9.46798999999919,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 11.436945000001288,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 11.937676999999894,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 26.259373000000778,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 26.61535299999923,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.105960999999297,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 2.0324130000008154,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 4.194240000000718,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 4.436617999999726,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 5.6179360000005545,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 4.01147999999921,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 24.060050000000047,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 25.725694000000658,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.880309000000125,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 2.71313900000132,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 3.2457919999997102,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.527894999999262,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 9.830158000000665,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 10.725066999999399,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 10.804379999999583,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 10.677878999998939,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 1.6554089999990538,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 2.331093000000692,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 5.255769000001237,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 5.233330999999453,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 9.317950000000565,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 10.48123300000043,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 28.961091000001034,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 27.772605000000112,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 4.169436999998652,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 3.7291669999995065,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 6.076475000001665,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 6.114070000001448,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 9.654438999999911,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 10.424644000000626,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 27.25012400000014,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 26.42827699999907,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.836730000000898,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 1.2396969999990688,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.4103790000008303,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 2.301014999999097,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 7.414171000000351,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 8.183160000000498,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 26.444799000000785,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 29.102446000000782,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.2122810000000754,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 1.62124699999913,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 3.9592670000001817,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 3.2019259999997303,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.199817000000621,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 3.675196000000142,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 27.226654000000053,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 27.55982100000074,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.988111000000572,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 2.121344000001045,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 3.798953999999867,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 4.582932999999684,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 8.377630000000863,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 8.465517000000546,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 12.493247000000338,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 13.307238999999754,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 1.919287999999142,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 2.0285430000003544,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 8.198441000000457,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 8.087306000001263,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 15.432925999999497,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 14.950460000000021,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 27.063124999998763,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 27.305734000001394,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 4.475660999998581,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 4.451374000000214,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 5.286967000000004,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 5.4987009999986185,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 9.97031699999934,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 10.28923599999871,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 24.52361100000053,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 25.809574000000794,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 1.7335520000015094,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 1.9966949999998178,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 1.9573399999990215,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 2.546956999998656,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 9.574925999999323,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 9.710614000001442,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 23.663880000000063,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 25.52795200000037,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 1.979708999999275,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.0758529999984603,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.3399870000012015,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 4.454175999999279,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 4.3749989999996615,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 5.4642579999999725,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 25.614997999999105,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 26.728789999999208,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.1679910000002565,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 2.381106999999247,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 3.707575000000361,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 4.624938999999358,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 4.410893000000215,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 4.448298000001159,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 7.805757000000085,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 9.07175499999903,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 1.3678540000000794,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 1.481127999999444,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 4.7189890000008745,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 4.873646000000008,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 9.10983600000145,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 9.10639699999956,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 26.13657499999863,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 25.118280000000595,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.826184999999896,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 3.7695500000008906,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 4.361103999999614,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 4.73937400000068,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 9.596938000000591,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 9.044583999999304,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 26.337594999999055,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 27.570103000000017,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.9665509999995265,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 1.984770999999455,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 4.32260099999985,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 3.480424999999741,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 7.775499999999738,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 7.372393999999986,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 28.06708500000059,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 27.831740999999965,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.3747309999998834,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 2.0659189999987575,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 3.4199859999989712,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 4.651515999999901,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.4779820000003383,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 3.488499999999476,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 27.455785000000105,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 27.012047000000166,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 2.2463989999996556,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 3.06662999999935,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 2.9986900000003516,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 4.753815000000031,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 5.5512630000011995,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 5.432292999999845,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 8.369677000000593,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 9.552553999999873,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 2.5080080000007,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.7317370000000665,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 7.295399999999063,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 6.792695000000094,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 11.720981000000393,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 12.367569999998523,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 25.264028999999937,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 26.722905999999057,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 4.126267999999982,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 4.284013000000414,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 4.750470999999379,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 5.800114000001486,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 10.367441999998846,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 9.793571999998676,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 25.924519999998665,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 26.80048700000043,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 2.486426000001302,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.8102060000001075,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.301629999999932,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 2.8712299999988318,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 7.185965000000579,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 8.320160999999644,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 28.991979000000356,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 29.76654299999973,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 1.3887160000012955,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.0229729999991832,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.0067959999996674,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 3.35369399999945,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 4.720054000001255,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 4.5135839999984455,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 24.842823999999382,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 25.73656899999878,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 1.4884770000007848,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.068083000000115,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 1.8963589999984833,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 2.8930749999999534,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 4.269073999999819,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 5.125817000000097,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 9.78523099999984,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 9.6988309999997,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 1.3620219999993424,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 1.453245999999126,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 4.276180999999269,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 4.568438000000242,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 8.731266999999207,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 8.975892000000385,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 24.997099000000162,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 25.906066999999894,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 3.3244250000007014,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.575278000000253,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 4.373831999999311,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 5.485531000000265,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 8.770516999999018,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 9.505154000000402,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 25.116014999999607,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 25.242965000001277,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 2.102406999998493,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 1.8595109999987471,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 2.4925600000005943,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 2.8697269999993296,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 7.4046069999985775,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 7.836850000001505,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 27.690050000001065,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 28.339266000000862,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 1.594240999998874,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 1.5309520000009798,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 3.0966200000002573,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.318632999998954,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 3.8777460000001156,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 4.619591000000582,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 23.93829200000073,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 26.699900999999954,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 1.3980110000011337,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 2.1701240000002144,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.2215520000008837,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 3.5977229999989504,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 4.689280000000508,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 4.5412299999989045,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 8.539308999999776,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 8.995579000000362,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 1.8439239999988786,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 1.7027899999993679,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 4.5365510000010545,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 4.450662000001103,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 9.15147099999922,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 10.235695000001215,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 27.671604999999545,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 28.61594200000036,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 3.6757829999987734,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.2471519999999146,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 4.862157000001389,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 5.619018999999753,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 8.534605000000738,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 8.267370999999912,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 23.5457779999997,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 26.447705000000497,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 1.7648619999999937,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 1.7746669999996811,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 2.9246800000000803,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.1905249999999796,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 6.031920999999784,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 7.482708000001367,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 26.803539999998975,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 26.70267899999999,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 1.8878740000000107,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.0656249999992724,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 3.9112310000000434,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 4.634519999999611,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 13.889478999999483,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 14.253893999999491,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 28.226206999999704,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 28.287277999999787,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 2.2113219999991998,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 1.332721999999194,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 2.869403999999122,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.6153529999992315,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 5.016928000000917,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 4.218037999999069,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 8.476683000000776,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 8.946687999999995,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 1.360114999999496,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 1.292317000001276,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 4.015745999999126,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 4.317913000000772,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 9.667124999999942,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 9.3005890000004,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 25.74922399999923,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 27.290751000000455,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 3.0566490000001068,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 2.711890000000494,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 4.471544999998514,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 4.5592089999991,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 9.13077499999963,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 9.917423000000781,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 23.422591000000466,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 24.449404000000868,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 2.363996000000043,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 1.6767440000003262,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.037575000000288,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 3.210010999999213,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 6.973436999998739,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 7.26315600000089,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 26.60691599999882,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 26.586151999999856,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.2241869999998016,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 2.4412480000009964,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 2.9858000000003813,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.4326160000000527,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 4.804034999999203,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 5.29334100000051,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 25.414362999999867,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 26.940805000000182,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 1.7626229999987117,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.1143130000000383,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.299460000000181,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 3.9417999999986932,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 6.566868999998405,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 7.03518399999848,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 10.673047000000224,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 10.814766999999847,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 1.692920999999842,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 1.98364600000059,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 5.503570000000764,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 4.793641000000207,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 9.766493999999511,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 10.357850000000326,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 26.41800499999954,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 27.896770000001197,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 3.778084999999919,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 4.163649000000078,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 6.728838999999425,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 6.792765000000145,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 11.885399000000689,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 13.873588000000382,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 23.92996099999982,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 26.042428999999174,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 1.550572000000102,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.509143999999651,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 3.0760000000009313,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.5407429999995657,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 6.235610000001543,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 6.483467999998538,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 26.42624699999942,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 28.918868999999177,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 2.356746999999814,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.27091400000063,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.30955399999948,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 4.278220999998666,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 4.614615000000413,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 3.1915329999992537,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 24.363029999998616,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 27.2244069999997,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.433752999999342,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 1.9850320000005013,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 3.3826540000009118,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 4.378383999999642,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 5.402137999999468,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 4.419738000000507,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 8.018426000000545,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 8.887666999999055,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 1.6313869999994495,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 1.556350000000748,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 3.6949489999988145,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 4.562597000000096,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 8.438269000000219,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 8.599382000000332,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 26.39436399999977,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 26.43147499999941,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.9115989999991143,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 3.9224410000006174,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 4.086088000000018,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 4.241700000000492,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 7.147284999999101,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 7.38707500000055,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 25.7124960000001,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 26.4145410000001,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 2.339710999998715,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.6885160000001633,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.989051999998992,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 4.255536999999094,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 6.892878999999084,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 7.6863459999985935,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 24.344968999999764,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 26.1467530000009,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 4.047096000000238,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 3.967595000000074,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 5.695374000000811,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 5.266885999999431,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 5.825769999999466,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 6.631550000000061,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 28.23916300000019,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 28.924109999999928,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 1.5248019999999087,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 1.6807439999993221,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.7051979999996547,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 4.097058999999717,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 3.5420720000001893,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 4.090509000001475,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 7.350626999999804,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 7.57646399999976,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 1.6835009999995236,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 1.873247999999876,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 4.546243999999206,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 4.689120999999432,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 8.689614999999321,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 8.784546999999293,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 26.79122599999937,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 28.469843999999284,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.35269100000005,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 2.5323609999995824,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 7.562245000000985,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 7.5377840000001015,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 13.389443000000028,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 13.972796000000017,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 26.599040999999488,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 26.1873429999996,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.506040000000212,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 1.4580640000003768,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.361849999999322,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 3.7468840000001364,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 8.287553000000116,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 8.788609000001088,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 24.612036999998963,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 25.498681000000943,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.22379699999874,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 1.713807000000088,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 3.9041180000003806,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 3.318171999999322,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 3.6285600000010163,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.5395280000011553,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 25.467225999998846,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 26.762822999999116,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 1.6875710000003892,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 1.7702160000008007,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 2.169828999998572,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 2.1860349999988102,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 3.9215500000009342,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 4.841918999998597,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 8.013218000000052,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 8.002951000000394,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 1.945228999999017,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 1.6147450000007666,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 4.678216999998767,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 4.64358700000048,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 10.184818000001542,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 9.670941999998831,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 25.697215000000142,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 24.859581000000617,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 4.212997999999061,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 3.0257309999997233,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 5.13674600000013,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 4.753448999999819,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 10.40422899999976,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 10.442531999999119,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 26.16484500000115,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 24.695416000000478,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.3916100000005827,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 1.4496830000007321,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.7415689999997994,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 2.5542789999999513,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 7.8867300000001705,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 7.3022300000011455,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 27.209219999998822,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 27.827476000000388,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.3939679999984946,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 1.4555409999993572,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 2.8411550000000716,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 3.474898000000394,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 3.2452890000004118,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.7859059999991587,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 28.996805000000677,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 28.977015999998912,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 1.354799999999159,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 1.8583070000004227,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 3.8172059999997145,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 2.9910559999989346,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 4.958891999998741,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 3.441842000000179,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 8.681124999999156,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 8.336869000000661,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 1.5209839999988617,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 1.6371710000021267,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 4.253643000000011,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 4.372062999998889,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 8.286506999997073,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 8.596985000000132,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 24.874810000001162,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 26.260309000001143,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 4.64864099999977,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 3.9892779999972845,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 4.0383550000005926,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 4.73213300000134,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 8.710203000002366,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 7.791682999999466,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 27.350902000001952,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 27.498227000000043,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.1259750000026543,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 1.4507870000015828,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 2.175043999999616,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 2.6338079999986803,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 8.05764999999883,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 8.863048999999592,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 22.628356000001077,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 25.595848000000842,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 1.8711110000003828,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.4803940000019793,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.7663049999973737,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 5.407280000003084,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 5.067102000000887,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 4.00692600000184,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 28.412428999999975,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 28.75257699999929,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 1.8170819999977539,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 1.8941330000016023,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 3.395419000000402,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 4.805678000000626,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 5.8894839999993565,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 4.894445000001724,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 8.290987000000314,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 9.054758000002039,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 2.468104999999923,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 1.4461840000003576,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 5.340613000000303,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 5.305704000002152,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 15.407560999999987,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 15.734756999998353,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 28.50050900000133,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 29.502714000002015,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.163219999998546,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 4.4567040000001725,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 3.8864770000000135,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 3.6336519999968004,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 7.1703769999985525,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 8.161940000001778,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 25.92710299999817,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 27.010057999999844,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.4417880000000878,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 2.770874999998341,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.5657280000013998,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 4.2297619999990275,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 10.031581999999617,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 9.873230000001058,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 27.54226600000038,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 29.212611999999353,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 4.002646000000823,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.94872899999973,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 4.117956999998569,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.0980750000016997,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 7.314589999998134,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 6.210006999997859,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 30.428242999998474,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 29.019776999997703,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 2.075444999998581,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 1.4915269999983138,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 3.791490999999951,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.6791320000011183,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 6.417300000000978,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 5.419003999999404,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 10.250013999997464,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 9.25094000000172,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 1.8785979999993287,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 2.594960999998875,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 6.876811000001908,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 6.38136300000042,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 10.315442000002804,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 9.49466300000131,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 29.275243000000046,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 30.222297999996954,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 4.444810000000871,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.716980000001058,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 5.887281999999686,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 7.295307000000321,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 13.32932499999879,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 12.804070000001957,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 27.713739999999234,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 26.0341640000006,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 2.5427049999998417,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 1.4936459999989893,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 3.6984789999987697,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.444511000001512,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 7.361081999999442,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 6.951506000001245,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 26.337555000001885,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 26.42262800000026,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 2.309518999998545,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.210796000003029,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 3.696662999998807,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 4.42471999999907,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 5.247778999997536,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 2.8956509999989066,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 23.367643000001408,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 27.5423609999998,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 1.989268000001175,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 1.4707549999984622,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 3.9889450000009674,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 3.5442799999982526,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 4.594107000000804,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 2.93383299999914,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 7.917492000000493,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 7.321056000000681,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 1.9448230000016338,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 1.136685999998008,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 3.379774000000907,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 4.515994000001228,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 7.9364779999996244,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 8.375790999998571,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 25.760481000001164,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 25.05478000000221,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 2.9894679999997607,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 3.7043589999993856,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 5.009088000002521,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 5.354393999998138,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 9.35859100000016,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 10.150109999998676,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 27.410100999997667,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 26.822582000000693,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 2.5096229999981006,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.244991999999911,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.4840970000004745,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 4.255546000000322,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 7.509202999997797,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 8.960675000002084,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 24.379297999999835,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 25.42069300000003,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 1.9887520000011136,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 2.4597020000001066,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 5.024240999999165,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 4.388095999998768,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 4.985598999999638,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 4.441389999999956,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 25.083640999997442,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 25.375229000001127,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.1120329999976093,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 2.38698000000295,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 3.5661419999996724,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 4.713562999997521,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.895174000001134,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 4.435012999998435,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 7.301328999998077,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 9.026068999999552,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 1.7617100000024948,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 2.3373219999994035,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 4.703368999998929,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 4.870720999999321,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 9.355516999999963,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 9.664998999996897,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 26.828851999998733,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 28.774859999997716,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 4.165351999999984,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.101892000002408,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 4.247440999999526,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 4.9171559999995225,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 7.992443999999523,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 8.251346000000922,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 25.10073000000193,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 26.910899999998946,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 2.7521059999999125,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 1.8206340000033379,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 3.2176630000030855,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.8099760000004608,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 6.80018900000141,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 7.7176110000000335,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 25.589312000000064,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 26.672139000002062,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 2.600006000000576,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.5089350000016566,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 4.0499629999976605,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 5.13872099999935,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 4.271013000001403,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 4.3119200000001,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 25.873743000000104,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 26.969058999999106,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.2225340000004508,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 2.29457999999795,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.911320999999589,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 3.899648000002344,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 4.892253000001801,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 5.637117999998736,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 9.090437999999267,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 11.153719000001729,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 1.7862400000012713,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 1.7068540000000212,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 5.828317000003153,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 6.329400999999052,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 10.54573099999834,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 11.102344000002631,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 27.8739519999981,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 27.67103400000269,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 4.005971000002319,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 4.721888000000035,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 4.594678000001295,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 4.958592999999382,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 8.472484999998414,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 8.871911999998702,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 26.656580999999278,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 27.063664999997854,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.1204710000019986,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 2.4368410000024596,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.696175000000949,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 3.9830629999996745,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 6.574214000000211,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 6.780504000002111,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 26.008293999999296,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 26.98621700000149,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.0318399999996473,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 1.9537380000001576,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 3.9173029999983555,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.529989000002388,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 3.993421999999555,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 3.1091840000008233,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 28.912970999997924,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 28.65021600000182,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 1.742138999998133,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 2.4902489999985846,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 4.770140000000538,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 4.200800000002346,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.6090019999974174,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 4.33297500000117,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 8.663234999999986,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 7.776702000002842,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 1.4134689999991679,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 1.5004820000031032,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 6.2571159999970405,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 6.141970000000583,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 11.51676900000166,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 11.077275999999983,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 25.750465000000986,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 25.286834000002273,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.8879070000002685,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 3.7223080000003392,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 4.308498000002146,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 4.304503999999724,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 8.835197000000335,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 9.259276999997383,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 26.881302000001597,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 26.376508000001195,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 3.0092489999988175,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 2.887512000001152,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.452927999998792,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 2.7916259999983595,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 10.63357299999916,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 10.746290999999474,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 26.40280300000086,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 26.89659699999902,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 1.7022329999999783,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 1.864476000002469,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 4.390972000001057,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 3.875357000000804,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 3.1646450000007462,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.35477400000309,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 26.12174899999809,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 25.829091000003245,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 1.4120490000022983,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 1.8723690000006172,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 4.116484000001947,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 4.35591900000145,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 5.226792000001296,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 5.107346000000689,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 8.935692999999446,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 8.24943500000154,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 1.9296059999978752,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 2.840249999997468,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 4.281891000002361,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 4.828448000000208,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 8.625801999998657,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 8.790047999998933,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 28.61259699999937,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 29.289542999998957,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.816343999998935,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 5.1694099999986065,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 5.0106010000017704,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 4.851191000001563,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 8.694558000002871,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 9.191874999996799,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 28.639100999997027,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 27.957900000001246,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 2.0233179999995627,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 1.2910779999983788,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 2.2087329999994836,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 2.0157039999976405,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 6.383723999999347,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 5.840611000003264,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 26.810100999999122,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 26.28422000000137,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 2.5408779999997932,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 1.9921460000005027,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 4.8969470000010915,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 3.266754000000219,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 3.1652720000020054,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.5725539999984903,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 28.621895000000222,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 27.65464400000201,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 2.685500999999931,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 3.6657630000008794,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 5.705332000001363,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.703998999997566,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 4.661801000002015,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 5.33908899999733,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 8.274901999997383,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 10.629843000002438,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "read",
+      "ms": 1.588726999998471,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "read",
+      "ms": 1.1450730000033218,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 3.8643249999986438,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 4.053525999999692,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 8.441030999998475,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 7.4243659999992815,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 23.974652000000788,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 24.303704000001744,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "insert",
+      "ms": 4.6273979999969015,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "insert",
+      "ms": 3.0254019999993034,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "download",
+      "ms": 4.070717999999033,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "download",
+      "ms": 4.420068000003084,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "upload",
+      "ms": 8.988423999999213,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "upload",
+      "ms": 8.706269000002067,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 1,
+      "operation": "identity",
+      "ms": 25.58042800000112,
+      "ok": true
+    },
+    {
+      "phase": "concurrent",
+      "environment": 0,
+      "operation": "identity",
+      "ms": 24.993765999999596,
+      "ok": true
+    }
+  ]
+}

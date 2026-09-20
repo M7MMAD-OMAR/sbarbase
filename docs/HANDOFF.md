@@ -38,9 +38,9 @@ Production admission and noisy-neighbor controls; capacity at 10 or 100 projects
 
 Local budget proposal: 4 GB RAM, 4 CPUs and 20-30 GB disk. The four retained upstream environments have container limits totaling 3840 MiB and 3.75 CPUs, reaching the experimental admission guard. These are configured ceilings, not measured workload capacity or total host consumption. Recheck available host resources before starting anything.
 
-## Latest work, explicitly unfinished
+## Latest gateway checkpoint
 
-Committed baseline: `548d898`, the SDK workload checkpoint. The working tree additionally contains gateway concurrency and HTTP transport changes. Read [the exact resume checkpoint](RESUME-CHECKPOINT.md) before running or merging them. Earlier evidence does not certify the latest working tree.
+Committed baseline: `548d898`, the SDK workload checkpoint. [Gateway concurrency and streaming](GATEWAY-OVERLOAD.md) now have 22 HTTP checks, 8 actual Supabase overload checks and a 1,000-operation SDK regression. Read [the exact resume checkpoint](RESUME-CHECKPOINT.md) for remaining limits and next steps.
 
 ## Continue in Codex or Hermes
 
