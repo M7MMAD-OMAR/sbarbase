@@ -423,6 +423,38 @@ environment routes, supervised shutdown, no owned container left running). On
 this host it records the preflight refusal, `Host headroom insufficient`,
 without starting anything: docs/evidence/deployment-rehearsal.json.
 
+## Combined rehearsal headroom correction, 2026-09-20 (Hermes)
+
+The first full rehearsal that got past the preflight exposed a real defect: it
+started the source placement, then refused at the combined admission and rolled
+back, because the preflight figure (5888 MiB of container limits plus a 2560 MiB
+reserve) is measured on an idle host while the combined admission measures the
+host with the source stage already running. The preflight therefore understated
+what a combined start needs, and the failure landed after eleven containers had
+been created.
+
+Fixes, all tested:
+
+- `lab/installation_runtime.py` samples the running source stage with
+  `docker stats` immediately before the combined check and records it in
+  `docs/evidence/source-stage-footprint.json`. Measured on the retained
+  nine-container source layout: 283 MiB total (database 96, storage 116,
+  management Auth 14, per-environment Auth and REST 8 to 10 each).
+- `lab/install_server.py` adds that measurement to the requirement on an
+  installation that has been moved and prints the composition, so a refusal
+  names every term: `5888 MiB placement + 2560 MiB reserve + 283 MiB measured
+  for the running source stage` = 8731 MiB. Without a measurement it says so
+  instead of implying the figure is complete.
+- Startup refusals now state their cause: `lab/installation_runtime.py` writes
+  the traceback to `.lab/upstream/diagnostics/` (0700 directory, 0600 file) and
+  prints the path, `lab/dev.py` names the failing stage, and
+  `lab/deployment_rehearsal.py` captures the supervisor to
+  `.lab/upstream/rehearsal-supervisor.log` and records its tail in a failed
+  check instead of crashing. A rehearsal that fails now carries the reason.
+
+Consequence for a server: provision roughly 9 GiB free (8731 MiB plus churn)
+before a combined start, or the preflight will refuse before touching anything.
+
 ## Adversarial review and fixes, 2026-09-20 (Hermes)
 
 Independent adversarial review:
