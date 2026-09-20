@@ -52,15 +52,15 @@ The saved successful rerun reuses its two environments, so its 25 checks do not
 independently establish fresh-install or interruption coverage. Expand fault
 injection and fresh-install evidence before release.
 
-Six Python runtime-reuse tests and 25 TypeScript tests (128 assertions) also pass.
+At this lifecycle checkpoint, six Python runtime-reuse tests and 25 TypeScript tests (128 assertions) passed.
 The new probe uses a fixture management actor and temporary gateway API keys.
 It does not yet prove dedicated management Auth plus durable key issuance on
-this upstream profile. That integration remains a required gate.
+this upstream profile. That integration has since passed in the separate [dedicated management review](upstream-management.md).
 
 ## Resource and recovery limits
 
-Two environments use container ceilings of 2560 MiB and 2.5 CPUs. The experiment
-refuses a fifth environment, capping four environments at 3584 MiB and 3.5 CPUs.
+This initial lifecycle checkpoint used container ceilings of 2560 MiB and 2.5 CPUs for two environments. The subsequent dedicated management Auth process adds 256 MiB and 0.25 CPU. The experiment
+refuses a fifth environment; including management Auth, four environments are capped at 3840 MiB and 3.75 CPUs.
 These are conservative local guardrails, not a public project capacity limit.
 The runtime checks available host memory before startup. Admission still needs
 ongoing memory, disk, I/O, connection and recovery-headroom accounting.

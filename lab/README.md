@@ -56,3 +56,25 @@ deleting volumes. State is in `.lab/upstream`, credentials in `.secrets/upstream
 resources carry `io.sbarbase.owner=durable-upstream`. Nothing publishes host
 ports. Existing stock lab data is not migrated. See
 [verified scope and remaining gates](../docs/reviews/durable-runtime.md).
+
+## Dedicated management and local API
+
+The durable runtime now also provisions a separate `management` database and
+Auth process, with independent credentials/signing key, disabled public signup,
+and no application REST/Storage route. Existing application identities cannot
+authenticate management operations. Private operator bootstrap is still pending
+as a supported CLI; the live probe creates and removes its own confirmed fixture
+identity through the private upstream admin API without sending email.
+
+Run `bun lab/upstream-server.ts` after starting the durable runtime to launch
+the composed API on a newly assigned loopback port. Its descriptor is written to
+`.lab/upstream/server.json` and removed on normal SIGINT/SIGTERM shutdown. The
+server is not a supervisor; restart it after the management Auth endpoint changes.
+Application routes reload trusted runtime metadata on each request. A descriptor
+file alone is not proof the server is alive.
+
+`bun lab/upstream-management-check.ts` requires the durable lifecycle fixture.
+It tests actual management login/memberships, key issuance and revocation across
+Auth/REST/Storage, cross-realm/database denial and runtime restart. Its finalizer
+removes the test management identity/membership, revokes its key and stops the
+runtime. See [scope](../docs/reviews/upstream-management.md).

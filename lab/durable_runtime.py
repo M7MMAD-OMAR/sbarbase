@@ -79,6 +79,9 @@ class Runtime:
         if not self.path.exists():
             atomic(self.path, {**{key: secrets.token_hex(32) for key in ('admin', 'storage_control', 'storage_admin', 'encryption')}, 'environments': {}})
         self.values = json.loads(self.path.read_text())
+        if 'management' not in self.values:
+            self.values['management'] = {k: secrets.token_hex(32) for k in ('auth', 'jwt')}
+            atomic(self.path, self.values)
 
     def sql(self, query, database='postgres', check=True):
         return lab.docker('exec', '-i', DB, 'psql', '-X', '-v', 'ON_ERROR_STOP=1', '-U', 'supabase_admin', '-d', database, '-At', data=query, check=check)
@@ -127,7 +130,8 @@ class Runtime:
         raise RuntimeError('Runtime readiness timed out')
 
     def hba(self):
-        lines = ['local all supabase_admin trust', 'host storage_metadata storage_control 0.0.0.0/0 scram-sha-256']
+        lines = ['local all supabase_admin trust', 'host storage_metadata storage_control 0.0.0.0/0 scram-sha-256',
+                 'host management management_auth 0.0.0.0/0 scram-sha-256']
         for e in self.values['environments']:
             if not re.fullmatch(r'e_[a-f0-9]{24}', e):
                 raise RuntimeError('Invalid runtime inventory')
@@ -157,6 +161,7 @@ class Runtime:
         if self.sql("SELECT 1 FROM pg_database WHERE datname='storage_metadata';").stdout.strip() != '1':
             self.sql('CREATE DATABASE storage_metadata OWNER storage_control;')
         self.sql('REVOKE ALL ON DATABASE storage_metadata FROM PUBLIC;')
+        self.management()
         self.hba()
         self.launch(PREFIX+'-storage', 'storage', {
             'MULTI_TENANT': 'true', 'MULTITENANT_DATABASE_URL': f"postgres://storage_control:{self.values['storage_control']}@{DB}:5432/storage_metadata",
@@ -176,7 +181,7 @@ class Runtime:
         if not inspect('container', DB) or not inspect('container', PREFIX+'-storage'):
             raise RuntimeError('Start the upstream runtime first')
         if e not in self.values['environments']:
-            # At most four environments: 3584 MiB and 3.5 CPUs in this experiment.
+            # With management Auth: at most four environments, 3840 MiB/3.75 CPUs.
             if len(self.values['environments']) >= 4:
                 raise RuntimeError('Local runtime admission limit reached')
             self.values['environments'][e] = {k: secrets.token_hex(32) for k in ('auth', 'rest', 'storage', 'jwt')}
@@ -216,6 +221,26 @@ class Runtime:
         all_endpoints = json.loads(path.read_text()) if path.exists() else {}
         all_endpoints[e] = endpoints
         atomic(path, all_endpoints)
+
+    def management(self):
+        """Dedicated identity realm; it has no application REST or Storage route."""
+        values = self.values['management']
+        if self.sql("SELECT 1 FROM pg_roles WHERE rolname='management_auth';").stdout.strip() != '1':
+            self.sql(f"CREATE ROLE management_auth LOGIN NOINHERIT PASSWORD '{values['auth']}';")
+        if self.sql("SELECT 1 FROM pg_database WHERE datname='management';").stdout.strip() != '1':
+            self.sql('CREATE DATABASE management;')
+        self.sql('REVOKE ALL ON DATABASE management FROM PUBLIC; GRANT CONNECT ON DATABASE management TO management_auth;')
+        self.sql('CREATE SCHEMA IF NOT EXISTS auth AUTHORIZATION management_auth;', 'management')
+        self.sql('ALTER ROLE management_auth IN DATABASE management SET search_path TO auth;')
+        self.hba()
+        config = lab.auth_configuration('management', values, DB)
+        config.update({'GOTRUE_DISABLE_SIGNUP': 'true', 'GOTRUE_MAILER_AUTOCONFIRM': 'false',
+                       'GOTRUE_EXTERNAL_ANONYMOUS_USERS_ENABLED': 'false'})
+        name = PREFIX+'-management-auth'
+        self.launch(name, 'auth', config, '256m', .25)
+        endpoint = self.endpoint(name, 9999)
+        self.wait(endpoint+'/health')
+        atomic(STATE/'management.json', {'auth': endpoint})
 
 
 def stop():

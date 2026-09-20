@@ -6,7 +6,8 @@ const reply=(status:number,data:unknown)=>Response.json(data,{status,headers:{'c
 /** Publishable keys only. Never accepts a client-supplied runtime, role or actor.
  * Raw key material is returned once; list responses contain only metadata.
  */
-export function keyHandler(catalog:Catalog,keys:KeyStore,identify:ManagementIdentity) {
+export type ServiceDiscovery = (runtime:string)=>readonly ('auth'|'rest'|'storage')[];
+export function keyHandler(catalog:Catalog,keys:KeyStore,identify:ManagementIdentity,services:ServiceDiscovery=()=>['auth','rest']) {
  return async(request:Request):Promise<Response>=>{
   const path=new URL(request.url).pathname;
   const match=path.match(/^\/management\/v1\/environments\/([a-f0-9-]{36})\/(keys|connection)(?:\/([a-f0-9-]{36}))?$/);
@@ -21,7 +22,7 @@ export function keyHandler(catalog:Catalog,keys:KeyStore,identify:ManagementIden
   if(request.body) return reply(400,{message:'This endpoint does not accept a body'});
   try {
    return catalog.withReadyEnvironment(actor,environment,action==='keys',job=>{
-    if(action==='connection') return reply(200,{environment,apiPath:`/${job.runtime}`,services:['auth','rest']});
+    if(action==='connection') return reply(200,{environment,apiPath:`/${job.runtime}`,services:services(job.runtime)});
     if(method==='GET') return reply(200,{data:keys.list(job.runtime)});
     if(method==='POST') return reply(201,keys.issue(job.runtime,'publishable'));
     return keys.revoke(job.runtime,keyId!)?reply(200,{revoked:true}):reply(404,{message:'Active key not found'});

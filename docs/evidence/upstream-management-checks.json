@@ -1,0 +1,117 @@
+{
+  "scope": "Dedicated management Auth, actual memberships and durable publishable keys on upstream Auth/REST/shared Storage; runtime restart and crossed realm/DB denial; loopback only",
+  "checks": [
+    {
+      "check": "private operator creates dedicated management identity",
+      "passed": true
+    },
+    {
+      "check": "management Auth itself disables public signup",
+      "passed": true
+    },
+    {
+      "check": "public management gateway blocks signup",
+      "passed": true
+    },
+    {
+      "check": "SDK management password login works",
+      "passed": true
+    },
+    {
+      "check": "management SDK getUser works through limited gateway",
+      "passed": true
+    },
+    {
+      "check": "management identity discovers all three configured services",
+      "passed": true
+    },
+    {
+      "check": "dedicated management identity issues scoped publishable key",
+      "passed": true
+    },
+    {
+      "check": "key listing omits raw key",
+      "passed": true
+    },
+    {
+      "check": "issued key accesses application Auth with separate identity",
+      "passed": true
+    },
+    {
+      "check": "application JWT cannot issue management keys",
+      "passed": true
+    },
+    {
+      "check": "issued key accesses original REST with RLS",
+      "passed": true
+    },
+    {
+      "check": "issued key accesses shared Storage upload",
+      "passed": true
+    },
+    {
+      "check": "issued key accesses private Storage download",
+      "passed": true
+    },
+    {
+      "check": "issued key denied by neighboring runtime",
+      "passed": true
+    },
+    {
+      "check": "management Auth admin API not exposed",
+      "passed": true
+    },
+    {
+      "check": "current viewer cannot mint keys",
+      "passed": true
+    },
+    {
+      "check": "current viewer can discover connection",
+      "passed": true
+    },
+    {
+      "check": "management identity survives runtime restart",
+      "passed": true
+    },
+    {
+      "check": "issued key survives server and runtime restart",
+      "passed": true
+    },
+    {
+      "check": "management owner revokes key",
+      "passed": true
+    },
+    {
+      "check": "revocation blocks auth gateway requests",
+      "passed": true
+    },
+    {
+      "check": "revocation blocks rest gateway requests",
+      "passed": true
+    },
+    {
+      "check": "revocation blocks storage gateway requests",
+      "passed": true
+    },
+    {
+      "check": "revocation persists after process state reopen",
+      "passed": true
+    },
+    {
+      "check": "management_auth cannot connect to e_60332245e3a0426dd242492f",
+      "passed": true
+    },
+    {
+      "check": "e_60332245e3a0426dd242492f_auth cannot connect to management",
+      "passed": true
+    },
+    {
+      "check": "e_60332245e3a0426dd242492f_rest cannot connect to management",
+      "passed": true
+    },
+    {
+      "check": "e_60332245e3a0426dd242492f_storage cannot connect to management",
+      "passed": true
+    }
+  ]
+}
