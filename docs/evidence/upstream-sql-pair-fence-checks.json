@@ -2,7 +2,7 @@
   "image": "sha256:b3bfedb107413abb3b8cb0d0874b0414a1dceb3d55bc0c778de6ad22d1f7dc86",
   "profile": "upstream",
   "scope": "Experimental sequential control and target SQL revocation on pinned PostgreSQL. Actual coordinator SIGKILL between commits, retry, target tombstones, absent/closed targets and OID replacement tested. Not an atomic cutoff, production integration or replay authorization.",
-  "count": 28,
+  "count": 29,
   "checks": [
     "native local Linux daemon",
     "host headroom checked before bounded probe",
@@ -26,6 +26,7 @@
     "absent target is recorded only after control revoke",
     "late guarded creation cannot materialize absent target",
     "absent target stays absent",
+    "known limitation: new target generation admits delayed old registration",
     "closed target does not become completed barrier evidence",
     "closed target remains closed",
     "closed target failure still retains control revocation",

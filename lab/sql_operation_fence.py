@@ -52,12 +52,12 @@ def begin(runtime):
 SET default_transaction_isolation='read committed';
 SET lock_timeout='5s';
 SET statement_timeout='10s';
-SELECT pg_catalog.pg_advisory_lock({lock_key(runtime)});
+DO $acquire$ BEGIN PERFORM pg_catalog.pg_advisory_lock({lock_key(runtime)}); END $acquire$;
 '''
 
 
 def end(runtime):
-    return f'SELECT pg_catalog.pg_advisory_unlock({lock_key(runtime)});\n'
+    return f'DO $release$ BEGIN PERFORM pg_catalog.pg_advisory_unlock({lock_key(runtime)}); END $release$;\n'
 
 
 def register(runtime,token,claim,attempt,*,initialize=False):

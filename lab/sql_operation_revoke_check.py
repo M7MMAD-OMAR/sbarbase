@@ -82,6 +82,13 @@ raise RuntimeError('Crash checkpoint skipped')
     check('absent target is recorded only after control revoke',result['target']=='absent' and result['target_oid'] is None)
     check('late guarded creation cannot materialize absent target',denied('postgres',fence.guarded(*missing,f'CREATE DATABASE {missing[0]};')))
     check('absent target stays absent',coordinator.observe(execute,missing[0])['target'] is None)
+    # Counterexample, not a safety assertion: a new generation loses tombstones.
+    newer=(missing[0],str(uuid.uuid4()),str(uuid.uuid4()),2)
+    execute('postgres',fence.register(*newer,initialize=True))
+    execute('postgres',fence.guarded(*newer,f'CREATE DATABASE {missing[0]};'))
+    execute(missing[0],fence.register(*missing,initialize=True))
+    exposed=execute(missing[0],fence.guarded(*missing,"SELECT 'old-authority-restored';")).strip()
+    check('known limitation: new target generation admits delayed old registration',exposed=='old-authority-restored')
     closed=identity();create(closed,True)
     refused=False
     try:coordinator.revoke_pair(execute,*closed)

@@ -16,9 +16,13 @@ Registry bootstrap now creates metadata and removes default grants in one transa
 
 Run `/usr/bin/python3 lab/partial-database-crash-check.py --upstream --cross-fence`.
 
-[28 live checks](evidence/upstream-sql-pair-fence-checks.json) pass in an isolated, network-disabled pinned Supabase PostgreSQL container. They cover actual coordinator SIGKILL after the control commit, target writes during that gap, successful retry, delayed SQL/registration rejection, absent and closed targets, cluster mismatch and real target replacement. Native OIDs are explicitly normalized to JSON integers before validation. Exact disposable cleanup passed.
+[29 live checks](evidence/upstream-sql-pair-fence-checks.json) pass in an isolated, network-disabled pinned Supabase PostgreSQL container. They cover actual coordinator SIGKILL after the control commit, target writes during that gap, successful retry, delayed SQL/registration rejection, absent and closed targets, cluster mismatch and real target replacement. Native OIDs are explicitly normalized to JSON integers before validation. Exact disposable cleanup passed.
 
-The separate database-local suite passes 34 live checks. The full Python suite passes 98 tests. The unchanged recorded Bun checkpoint is 73 tests and 408 assertions. These counts describe different scopes, not cumulative security coverage. Unit failure injection covers uncertain target outcomes; this pair probe does not claim a real target-lock timeout rehearsal.
+The separate database-local suite passes 35 live checks. The full Python suite passes 98 tests. The unchanged recorded Bun checkpoint is 73 tests and 408 assertions. These counts describe different scopes, not cumulative security coverage. Unit failure injection covers uncertain target outcomes; this pair probe does not claim a real target-lock timeout rehearsal.
+
+## Newly verified limitation
+
+A live counterexample shows that after an absent-target barrier, a newer claim can create the database and a delayed old lazy registration can then establish old authority in it. The 29-check result includes reproducing this limitation, not proving it fixed. Database-generation binding on revocation alone is insufficient; target admission must also reject stale registration across generations. Do not interpret the result as safe admission of subsequent jobs. See [the mutation map](PROVISIONING-MUTATION-MAP.md).
 
 ## Next gate
 

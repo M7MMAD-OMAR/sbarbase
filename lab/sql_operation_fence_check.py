@@ -53,6 +53,7 @@ def run(container,admin,check,docker,sql):
         check('registry hidden from unprivileged neighbor',denied.returncode!=0 and 'permission denied for schema' in denied.stderr)
         good(fence.register(*args));good(fence.register(*args))
         check('exact registration idempotent',good(f'SELECT count(*) FROM {fence.TABLE};')=='1')
+        check('guard preserves query result without lock output',good(fence.guarded(*args,"SELECT 'application-result';"))=='application-result')
         good(fence.guarded(*args,"INSERT INTO public.fence_events VALUES ('initial');"))
         wrong=command(fence.guarded(runtime,token,str(uuid.uuid4()),1,"INSERT INTO public.fence_events VALUES ('wrong');"))
         check('wrong claim cannot mutate',wrong.returncode!=0 and 'SQL operation is not active' in wrong.stderr)

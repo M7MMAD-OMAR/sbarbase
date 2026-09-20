@@ -2,7 +2,7 @@
   "image": "sha256:b3bfedb107413abb3b8cb0d0874b0414a1dceb3d55bc0c778de6ad22d1f7dc86",
   "profile": "upstream",
   "scope": "Experimental same-database operation revocation on pinned PostgreSQL. Concurrent queued batches, cancellation, tombstones and CREATE DATABASE tested. Explicitly proves identical advisory keys do not fence another database. Not wired into runtime recovery.",
-  "count": 34,
+  "count": 35,
   "checks": [
     "native local Linux daemon",
     "host headroom checked before bounded probe",
@@ -17,6 +17,7 @@
     "service_role: registry denies even pre-existing default grants",
     "registry hidden from unprivileged neighbor",
     "exact registration idempotent",
+    "guard preserves query result without lock output",
     "wrong claim cannot mutate",
     "revocation waits behind live guarded batch",
     "cancelled revocation is not success",
