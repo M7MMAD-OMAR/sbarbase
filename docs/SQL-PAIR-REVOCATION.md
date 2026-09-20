@@ -16,13 +16,19 @@ Registry bootstrap now creates metadata and removes default grants in one transa
 
 Run `/usr/bin/python3 lab/partial-database-crash-check.py --upstream --cross-fence`.
 
-[29 live checks](evidence/upstream-sql-pair-fence-checks.json) pass in an isolated, network-disabled pinned Supabase PostgreSQL container. They cover actual coordinator SIGKILL after the control commit, target writes during that gap, successful retry, delayed SQL/registration rejection, absent and closed targets, cluster mismatch and real target replacement. Native OIDs are explicitly normalized to JSON integers before validation. Exact disposable cleanup passed.
+[37 live checks](evidence/upstream-sql-pair-fence-checks.json) pass in an isolated, network-disabled pinned Supabase PostgreSQL container. They cover actual coordinator SIGKILL after the control commit, target writes during that gap, successful retry, delayed SQL/registration rejection, absent and closed targets, cluster mismatch and real target replacement. Native OIDs are explicitly normalized to JSON integers before validation. Exact disposable cleanup passed.
 
-The separate database-local suite passes 35 live checks. The full Python suite passes 98 tests. The unchanged recorded Bun checkpoint is 73 tests and 408 assertions. These counts describe different scopes, not cumulative security coverage. Unit failure injection covers uncertain target outcomes; this pair probe does not claim a real target-lock timeout rehearsal.
+The separate database-local suite passes 35 live checks. The full Python suite passes 100 tests. The unchanged recorded Bun checkpoint is 73 tests and 408 assertions. These counts describe different scopes, not cumulative security coverage. Unit failure injection covers uncertain target outcomes; this pair probe does not claim a real target-lock timeout rehearsal.
 
-## Newly verified limitation
+## Target admission after the generation counterexample
 
-A live counterexample shows that after an absent-target barrier, a newer claim can create the database and a delayed old lazy registration can then establish old authority in it. The 29-check result includes reproducing this limitation, not proving it fixed. Database-generation binding on revocation alone is insufficient; target admission must also reject stale registration across generations. Do not interpret the result as safe admission of subsequent jobs. See [the mutation map](PROVISIONING-MUTATION-MAP.md).
+The low-level unpinned register primitive still reproduces the old-generation counterexample. It must not initialize production target authority. The 37-check result includes that deliberate counterexample plus checks of the new bounded admission path.
+
+`register_target` observes target identity only through a batch guarded by the exact active control token. Missing or closed targets produce no target dispatch. The resulting target registration pins cluster and database OID and checks both after acquiring the target advisory lock, before any registry bootstrap. The caller cannot replace the captured binding between observation and dispatch. Returned metadata includes runtime, token, claim and attempt.
+
+If revocation runs after binding, target registration either precedes its tombstone or is refused afterward. If a newer claim replaces the database, the pinned OID check refuses the delayed registration before bootstrap. A call begun after control revocation cannot obtain a binding at all. Live tests exercise all three orders, including guarded DROP/CREATE between binding and target dispatch. Separate tests refuse absent and closed targets.
+
+This assumes all database lifecycle changes use the control guard, host admission is exclusive, and database OIDs are not reused. Restored clones, physical rollback, OID wraparound and uncontrolled administrator writes need additional incarnation rules before production recovery. The safe coordinator is not integrated into runtime provisioning. See [the mutation map](PROVISIONING-MUTATION-MAP.md).
 
 ## Next gate
 

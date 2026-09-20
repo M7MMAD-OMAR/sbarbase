@@ -45,3 +45,24 @@ def revoke_pair(execute,runtime,token,claim,attempt,checkpoint=lambda phase:None
             'cluster':final['cluster'],'control_oid':final['control_oid'],
             'control':'revoked','target':'absent' if target is None else 'revoked',
             'target_oid':None if target is None else target['oid']}
+
+
+def register_target(execute,runtime,token,claim,attempt,checkpoint=lambda phase:None):
+    """Authorize a pinned target registration through the active control token.
+
+    Only this path may initialize target authority. An absent or closed target
+    cannot produce a dispatch. Retain the binding when retrying a dispatch;
+    never replace it with fresh unguarded metadata.
+    """
+    fence.identity(runtime,token,claim,attempt)
+    def authorized(database,query):
+        return execute(database,fence.guarded(runtime,token,claim,attempt,query))
+    binding=observe(authorized,runtime)
+    target=binding['target']
+    if target is None or not target['allows_connections']:
+        raise RuntimeError('Target registration requires an existing open database')
+    script=fence.register(runtime,token,claim,attempt,initialize=True,
+                          expected_oid=target['oid'],expected_cluster=binding['cluster'])
+    checkpoint('target_bound')
+    execute(runtime,script)
+    return {**binding,'runtime':runtime,'token':token,'claim':claim,'attempt':attempt}

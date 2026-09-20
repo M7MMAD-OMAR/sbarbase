@@ -41,3 +41,33 @@ class SQLRevokeTests(unittest.TestCase):
         self.meta['control_oid']=5
         with self.assertRaisesRegex(RuntimeError,'uncertain'):revoke.revoke_pair(self.executor(fail='postgres'),*self.args)
         self.assertFalse(any(db==self.args[0] for db,q in self.calls))
+
+    def test_registration_requires_guarded_control_observation_and_pins_target(self):
+        calls=[]
+        def execute(database,script):
+            calls.append((database,script))
+            return json.dumps(self.meta) if database=='postgres' else ''
+        binding=revoke.register_target(execute,*self.args)
+        self.assertEqual(binding['token'],self.args[1])
+        control,target=calls
+        self.assertIn('SQL operation is not active',control[1])
+        self.assertLess(control[1].index('SQL operation is not active'),control[1].index('SELECT json_build_object'))
+        self.assertIn('<>42',target[1])
+        self.assertIn("<>'123'",target[1])
+        self.assertLess(target[1].index('pg_advisory_lock'),target[1].index('Database identity changed'))
+        self.assertLess(target[1].index('Database identity changed'),target[1].index('CREATE SCHEMA'))
+
+    def test_registration_never_dispatches_after_control_failure_or_absent_target(self):
+        calls=[]
+        def failed(database,script):
+            calls.append(database)
+            raise RuntimeError('Control refused')
+        with self.assertRaisesRegex(RuntimeError,'Control refused'):revoke.register_target(failed,*self.args)
+        self.assertEqual(calls,['postgres'])
+        for target in (None,{'oid':42,'allows_connections':False}):
+            calls.clear()
+            def closed(database,script):
+                calls.append(database)
+                return json.dumps({**self.meta,'target':target})
+            with self.assertRaisesRegex(RuntimeError,'existing open'):revoke.register_target(closed,*self.args)
+            self.assertEqual(calls,['postgres'])

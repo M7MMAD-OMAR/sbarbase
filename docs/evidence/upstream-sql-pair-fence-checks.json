@@ -2,7 +2,7 @@
   "image": "sha256:b3bfedb107413abb3b8cb0d0874b0414a1dceb3d55bc0c778de6ad22d1f7dc86",
   "profile": "upstream",
   "scope": "Experimental sequential control and target SQL revocation on pinned PostgreSQL. Actual coordinator SIGKILL between commits, retry, target tombstones, absent/closed targets and OID replacement tested. Not an atomic cutoff, production integration or replay authorization.",
-  "count": 29,
+  "count": 37,
   "checks": [
     "native local Linux daemon",
     "host headroom checked before bounded probe",
@@ -10,6 +10,7 @@
     "upstream bootstrap roles present",
     "neighbor role is unprivileged without inherited memberships",
     "native database OIDs are normalized before identity validation",
+    "authorized target registration binds exact claim",
     "coordinator killed after acknowledged control revocation",
     "control token is durably revoked after crash",
     "target remains active between the two revocation commits",
@@ -31,6 +32,13 @@
     "closed target remains closed",
     "closed target failure still retains control revocation",
     "target replacement prevents reuse of old database evidence",
+    "safe target admission denies revoked old claim on new generation",
+    "active control token cannot bind an absent target",
+    "active control token cannot bind a closed target",
+    "revocation after binding prevents delayed registration",
+    "delayed registration preserves revoked tombstone",
+    "replacement after binding rejects delayed target registration",
+    "replaced target remains free of stale registry bootstrap",
     "disposable database did not OOM",
     "exact disposable container absent from successful inventory"
   ]

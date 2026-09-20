@@ -24,7 +24,8 @@ def run(container,admin,check,docker,sql):
     args=identity();runtime=args[0];create(args)
     metadata=coordinator.observe(execute,runtime)
     check('native database OIDs are normalized before identity validation',type(metadata['control_oid']) is int and type(metadata['target']['oid']) is int)
-    execute(runtime,fence.register(*args,initialize=True))
+    bound=coordinator.register_target(execute,*args)
+    check('authorized target registration binds exact claim',all(bound[k]==v for k,v in zip(('runtime','token','claim','attempt'),args)))
     execute(runtime,fence.guarded(*args,'CREATE TABLE public.barrier_events(value text);'))
     with tempfile.TemporaryDirectory(prefix='sbarbase-pair-') as directory:
         marker=Path(directory)/'control-committed'
@@ -104,3 +105,27 @@ raise RuntimeError('Crash checkpoint skipped')
     try:coordinator.revoke_pair(execute,*replaced,checkpoint=replace)
     except RuntimeError as error:refused='identity changed' in str(error)
     check('target replacement prevents reuse of old database evidence',refused)
+
+    def registration_refused(args,checkpoint=lambda phase:None):
+        try:coordinator.register_target(execute,*args,checkpoint=checkpoint)
+        except RuntimeError:return True
+        return False
+    check('safe target admission denies revoked old claim on new generation',registration_refused(missing))
+    absent=identity();execute('postgres',fence.register(*absent,initialize=True))
+    check('active control token cannot bind an absent target',registration_refused(absent))
+    paused=identity();create(paused,True)
+    check('active control token cannot bind a closed target',registration_refused(paused))
+    raced=identity();create(raced)
+    def revoke_after_binding(phase):
+        if phase=='target_bound':coordinator.revoke_pair(execute,*raced)
+    check('revocation after binding prevents delayed registration',registration_refused(raced,revoke_after_binding))
+    check('delayed registration preserves revoked tombstone',execute(raced[0],f"SELECT state FROM {fence.TABLE} WHERE token='{raced[1]}';").strip()=='revoked')
+    recreated=identity();create(recreated)
+    def recreate_after_binding(phase):
+        if phase=='target_bound':
+            coordinator.revoke_pair(execute,*recreated)
+            next_claim=(recreated[0],str(uuid.uuid4()),str(uuid.uuid4()),2)
+            execute('postgres',fence.register(*next_claim,initialize=True))
+            execute('postgres',fence.guarded(*next_claim,f'DROP DATABASE {recreated[0]};\nCREATE DATABASE {recreated[0]};'))
+    check('replacement after binding rejects delayed target registration',registration_refused(recreated,recreate_after_binding))
+    check('replaced target remains free of stale registry bootstrap',execute(recreated[0],"SELECT count(*) FROM pg_namespace WHERE nspname='sbarbase_provision_guard';").strip()=='0')
