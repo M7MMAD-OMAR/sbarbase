@@ -92,10 +92,16 @@ def main():
         check('exact scoped logins exported',len(roles)==3 and all(r['rolcanlogin'] and not any(r[k] for k in ('rolsuper','rolcreaterole','rolcreatedb','rolreplication','rolbypassrls')) for r in roles))
         memberships=rows(f"SELECT parent.rolname AS parent,member.rolname AS member,m.admin_option,m.inherit_option,m.set_option FROM pg_auth_members m JOIN pg_roles parent ON parent.oid=m.roleid JOIN pg_roles member ON member.oid=m.member WHERE member.rolname IN ({selected}) ORDER BY 1,2")
         check('memberships stay inside canonical API roles',all(m['parent'] in ('anon','authenticated','service_role') and not m['admin_option'] for m in memberships))
-        database=rows(f"SELECT datname,pg_get_userbyid(datdba) AS owner,pg_encoding_to_char(encoding) AS encoding,datcollate,datctype,datlocprovider,datconnlimit FROM pg_database WHERE datname='{e}'")
+        database=rows(f"SELECT datname,pg_get_userbyid(datdba) AS owner,pg_encoding_to_char(encoding) AS encoding,datcollate,datctype,datlocprovider,datlocale,daticurules,datcollversion,datconnlimit FROM pg_database WHERE datname='{e}'")
         acl=rows(f"SELECT coalesce(grantee.rolname,'PUBLIC') AS grantee,grantor.rolname AS grantor,a.privilege_type,a.is_grantable FROM pg_database d CROSS JOIN LATERAL aclexplode(coalesce(d.datacl,acldefault('d',d.datdba))) a LEFT JOIN pg_roles grantee ON grantee.oid=a.grantee JOIN pg_roles grantor ON grantor.oid=a.grantor WHERE d.datname='{e}' ORDER BY 1,3")
         settings=rows(f"SELECT coalesce(r.rolname,'ALL') AS role,coalesce(d.datname,'ALL') AS database,s.setconfig FROM pg_db_role_setting s LEFT JOIN pg_roles r ON r.oid=s.setrole LEFT JOIN pg_database d ON d.oid=s.setdatabase WHERE d.datname='{e}' OR (s.setdatabase=0 AND r.rolname IN ({selected})) ORDER BY 1,2")
         defaults=rows("SELECT rolname,rolconfig FROM pg_roles WHERE rolname IN ('anon','authenticated','service_role') ORDER BY rolname")
+        tables=rows("SELECT n.nspname AS schema,c.relname AS name FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname IN ('auth','storage','public') AND c.relkind='r' ORDER BY 1,2",e)
+        snapshots=[]
+        for table in tables:
+            identifier='.'.join('"'+table[k].replace('"','""')+'"' for k in ('schema','name'))
+            digest=target.sql(f"SELECT count(*)||'|'||encode(extensions.digest(coalesce(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text)::text,'[]'),'sha256'),'hex') FROM {identifier} t;",e).stdout.strip().split('|')
+            snapshots.append({**table,'rows':int(digest[0]),'sha256':digest[1]})
         dump=binary(['docker','exec',runtime.DB,'pg_dump','-U','supabase_admin','-Fc',e])
         volume=runtime.PREFIX+'-objects';runtime.inspect('volume',volume)
         helper=(lab.ROOT/'lab/storage-files.cjs').read_text()
@@ -109,7 +115,7 @@ def main():
                 if json.loads(remaining.stdout)[0]['Config']['Labels'].get('io.sbarbase.owner')!='recovery-export':raise RuntimeError('Snapshot helper ownership changed')
                 lab.docker('rm','-f',helper_name)
         check('objects and metadata captured',len(files)>0)
-        payload={'format':2,'environment':e,'images':target.pins,'database':base64.b64encode(dump).decode(),'database_sha256':hashlib.sha256(dump).hexdigest(),'database_metadata':database,'database_acl':acl,'roles':roles,'memberships':memberships,'settings':settings,'canonical_defaults':defaults,'credentials':target.values['environments'][e],'storage_tenant':tenant,'storage_jwks':jwks,'files':files,'scope':'Quiescent local file-backed environment. No Vault/function/external-object-store state. Source address in tenant config must be rebound on isolated target.'}
+        payload={'format':2,'environment':e,'images':target.pins,'database':base64.b64encode(dump).decode(),'database_sha256':hashlib.sha256(dump).hexdigest(),'database_metadata':database,'table_snapshots':snapshots,'database_acl':acl,'roles':roles,'memberships':memberships,'settings':settings,'canonical_defaults':defaults,'credentials':target.values['environments'][e],'storage_tenant':tenant,'storage_jwks':jwks,'files':files,'scope':'Quiescent local file-backed environment. No Vault/function/external-object-store state. Source address in tenant config must be rebound on isolated target.'}
         key=secrets.token_bytes(32);envelope=seal(payload,key)
         check('authenticated bundle round trip matches',open_bundle(envelope,key)==payload)
         check('shared platform credentials not added to configuration',all(target.values[k] not in json.dumps({name:value for name,value in payload.items() if name not in ('database','files')}) for k in ('encryption','admin','storage_admin','storage_control')))

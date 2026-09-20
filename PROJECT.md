@@ -115,3 +115,7 @@ A [selected-environment encrypted export](docs/RECOVERY-EXPORT.md) now includes 
 ## Documentation checkpoint for continuation
 
 [Current resume state](docs/RESUME-CHECKPOINT.md) supersedes older next-step text. The latest export includes ICU locale metadata and table hashes. The independent database restore consumer is an uncommitted draft and failed resource preflight before target creation because the source is intentionally stopped. No independent restore success is claimed. Saved diagrams, research, decisions and unfinished source are included in the development handoff ZIP; private backup artifacts and keys are excluded.
+
+## Independent database restore checkpoint
+
+[Fresh-cluster database restoration](docs/INDEPENDENT-RESTORE.md) now passes 45 live checks, including 32 table content comparisons. Destination volume measurement fixes the stopped-source preflight. Source and target are stopped with separate volumes retained. This supersedes the preceding preflight failure checkpoint. Full role/ACL readback and application, identity, object and signed-URL verification remain open.

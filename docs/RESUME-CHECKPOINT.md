@@ -20,13 +20,13 @@ Keep Supabase. Installation > organization > project > environment. Ownership is
 
 Baseline commit: `bb0bba1`. Uncommitted work: `lab/recovery-export.py`, `docs/evidence/recovery-export-checks.json`, and new `lab/recovery-restore-db.py`. Preserve it; the handoff archive includes it as unfinished source.
 
-The restore draft failed before target allocation. `resource_admission.snapshot()` tries Docker exec against deliberately stopped source containers. Next: measure the actual destination filesystem and native host memory without requiring the source to run or lowering safeguards. Then run the separate-cluster database restore and verify complete roles, memberships, ACLs, settings, locale and table contents. Review cleanup after partial container creation.
+The source-dependent preflight is fixed. The first independent database restore passed 45 live checks, including the contents of 32 tables, locale, scoped connections and deadlines. See [database-stage evidence and limits](INDEPENDENT-RESTORE.md). The target is retained stopped. Do not create another target automatically; inspect `.lab/upstream/recovery-target.json` and reuse it for subsequent verification.
 
-No independent database restore success is claimed. After database verification, restore target Auth/REST/Storage, rebind target connections, reencrypt tenant signing keys under a fresh target platform key, restore objects/xattrs and verify identity, old signed URLs and source/neighbor isolation. Database-only success will not complete recovery. Full server migration, organization transfer, upgrades, sustained capacity and production installation remain open.
+Next: independently compare complete roles, memberships, ACLs and settings and review failure cleanup. Then restore target Auth/REST/Storage, rebind connections, reencrypt tenant signing keys under a fresh platform key, restore objects/xattrs and verify identity, old signed URLs and source/neighbor isolation. Database-only success does not complete recovery. Full server migration, organization transfer, upgrades, sustained capacity and production installation remain open.
 
 ## Runtime and secrets
 
-Source durable containers are stopped, volumes retained. No recovery-target container was found at documentation time. Reinspect before execution. Preserve unrelated containers and all source volumes. The private artifact pointer is `.lab/upstream/recovery-latest.json`; load it programmatically without printing secrets. `.secrets/` and `.lab/` are excluded from the handoff ZIP, so the ZIP is not a usable data backup.
+Source durable containers are stopped, volumes retained. The independent recovery target also exists stopped with its own volume. Reinspect before execution. Preserve unrelated containers and all source volumes. The private artifact pointer is `.lab/upstream/recovery-latest.json`; load it programmatically without printing secrets. `.secrets/` and `.lab/` are excluded from the handoff ZIP, so the ZIP is not a usable data backup.
 
 Local source container ceilings total 3840 MiB and 3.75 CPUs. They are not total host usage or production sizing. Recheck resources, stage source/target startup and retain existing guards.
 
