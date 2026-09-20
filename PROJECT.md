@@ -87,3 +87,7 @@ The [compact handoff](docs/HANDOFF.md) indexes decisions, research and saved dia
 ## Pre-header deadline checkpoint
 
 The application gate now bounds pre-header waiting independently of transport cooperation. It returns 504 on expiry, releases admission, signals cancellation and cancels late response bodies. Client abort releases the slot with 408. Forty-six unit tests with 248 assertions and 24 HTTP checks pass; strict types pass for the adapter, handler and gate. This bounds gateway waiting, not arbitrary upstream work that ignores cancellation. The earlier SDK regression predates this additional deadline change.
+
+## Sustained arrival failure checkpoint
+
+The [30-second open-loop slow-RPC probe](docs/SUSTAINED-OVERLOAD.md) exposed two target client timeouts among 600 offered target requests. It also observed 549 expected rejections, 49 correct target results and 60 correct neighbor results. Cleanup completed. This is failed acceptance, not capacity certification; next investigate REST queueing and cancellation, then coordinate service admission with connection budgets.

@@ -47,3 +47,5 @@ Committed baseline: `548d898`, the SDK workload checkpoint. [Gateway concurrency
 Use the same repository, `/home/sbarah/R/Projects/P/sbarbase`; no migration of code is necessary. Read `~/AGENTS.md`, this file, `RESUME-CHECKPOINT.md`, `PROJECT.md`, then `lab/README.md`. Inspect Git changes and live processes first. Use one assistant as active writer. No Hermes execution has been dispatched.
 
 Keep `.secrets/` and `.lab/` private. The handoff ZIP contains source, research, saved pictures and sanitized evidence, including explicitly unfinished source. It excludes credentials, runtime data, dependencies and Git history. It is a development handoff, not a runnable backup of the installation.
+
+Latest result: the [30-second sustained arrival probe](SUSTAINED-OVERLOAD.md) failed with two target client timeouts despite fast 429 responses and 60 correct neighbor responses. Diagnose accepted-work queueing before treating the short overload checks as sufficient.

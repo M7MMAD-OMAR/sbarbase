@@ -1,0 +1,5298 @@
+{
+  "scope": "Failed slow-RPC arrival probe; no capacity or isolation pass",
+  "checks": [
+    "temporary RPC schema ready 0",
+    "temporary RPC schema ready 1",
+    "eight concurrent requests admitted to actual REST",
+    "ninth request receives retryable overload",
+    "rejected request never reaches REST",
+    "neighbor succeeds while target requests remain active",
+    "all admitted requests complete correctly",
+    "target accepts requests after draining",
+    "open-loop generator kept schedule without missed arrivals"
+  ],
+  "skipped": 0,
+  "peakPending": 10,
+  "samples": [
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 2.190573999998378,
+      "correct": true,
+      "lag_ms": 0.011134000000311062,
+      "started_ms": 0.30640300000050047
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.125421999999162,
+      "correct": true,
+      "lag_ms": -0.15510300000096322,
+      "started_ms": 399.8643659999998
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.1015590000006341,
+      "correct": true,
+      "lag_ms": 0.33724400000028254,
+      "started_ms": 450.3430219999991
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.4815579999994952,
+      "correct": true,
+      "lag_ms": -0.09392200000002049,
+      "started_ms": 499.9114900000004
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 3.167782000000443,
+      "correct": true,
+      "lag_ms": -0.09392200000002049,
+      "started_ms": 500.0094219999992
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.1300329999994574,
+      "correct": true,
+      "lag_ms": -0.3256760000003851,
+      "started_ms": 549.6811170000001
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9658390000004147,
+      "correct": true,
+      "lag_ms": 0.24770299999909184,
+      "started_ms": 600.2529309999991
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.2931580000004033,
+      "correct": true,
+      "lag_ms": -0.13777599999957602,
+      "started_ms": 649.869193999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8583459999990737,
+      "correct": true,
+      "lag_ms": 0.3106239999997342,
+      "started_ms": 700.324815
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.0867450000005192,
+      "correct": true,
+      "lag_ms": -0.046179000000847736,
+      "started_ms": 749.9708609999998
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.052663999998913,
+      "correct": true,
+      "lag_ms": -0.37122699999963515,
+      "started_ms": 799.6349250000003
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.876959999999599,
+      "correct": true,
+      "lag_ms": 0.3004079999991518,
+      "started_ms": 850.3060960000003
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9595750000007683,
+      "correct": true,
+      "lag_ms": -0.28049900000041816,
+      "started_ms": 899.7248359999994
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.0146750000003522,
+      "correct": true,
+      "lag_ms": 0.36758999999983644,
+      "started_ms": 950.3749029999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.1177320000006148,
+      "correct": true,
+      "lag_ms": 0.19783300000017334,
+      "started_ms": 1000.2031349999997
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 3.1308890000000247,
+      "correct": true,
+      "lag_ms": 0.19783300000017334,
+      "started_ms": 1000.2821210000002
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.0035310000002937,
+      "correct": true,
+      "lag_ms": 0.4339399999989837,
+      "started_ms": 1050.4391660000001
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.2498540000015055,
+      "correct": true,
+      "lag_ms": 0.7949580000004062,
+      "started_ms": 1100.802760999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.1913400000012189,
+      "correct": true,
+      "lag_ms": 0.11197799999899871,
+      "started_ms": 1150.1240939999989
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9612820000002102,
+      "correct": true,
+      "lag_ms": -0.6518660000001546,
+      "started_ms": 1199.3555359999991
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9819460000016988,
+      "correct": true,
+      "lag_ms": 0.38222899999891524,
+      "started_ms": 1250.387612999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.2255109999987326,
+      "correct": true,
+      "lag_ms": -0.11030200000095647,
+      "started_ms": 1299.8950060000006
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9805259999993723,
+      "correct": true,
+      "lag_ms": 0.30456799999956274,
+      "started_ms": 1350.3221759999997
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.1885419999998703,
+      "correct": true,
+      "lag_ms": -0.4818219999997382,
+      "started_ms": 1399.5276959999992
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8768970000000991,
+      "correct": true,
+      "lag_ms": -0.010830999999598134,
+      "started_ms": 1449.9954259999995
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.3104630000016186,
+      "correct": true,
+      "lag_ms": -0.5981210000009014,
+      "started_ms": 1499.421022999999
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 2.5562129999998433,
+      "correct": true,
+      "lag_ms": -0.5981210000009014,
+      "started_ms": 1499.5146559999994
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8898619999999937,
+      "correct": true,
+      "lag_ms": 0.10458999999900698,
+      "started_ms": 1550.1417149999997
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8172329999997601,
+      "correct": true,
+      "lag_ms": -0.31823400000030233,
+      "started_ms": 1599.6944519999997
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8654210000004241,
+      "correct": true,
+      "lag_ms": 0.47687000000041735,
+      "started_ms": 1650.4815749999998
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7225889999990613,
+      "correct": true,
+      "lag_ms": -0.15084600000045612,
+      "started_ms": 1699.853094
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8101879999994708,
+      "correct": true,
+      "lag_ms": 0.4012640000000829,
+      "started_ms": 1750.4063970000007
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9396569999989879,
+      "correct": true,
+      "lag_ms": -0.10535999999956402,
+      "started_ms": 1799.8991270000006
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8160280000010971,
+      "correct": true,
+      "lag_ms": 0.38417200000003504,
+      "started_ms": 1850.388139999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8193490000012389,
+      "correct": true,
+      "lag_ms": -0.18266399999993155,
+      "started_ms": 1899.8213849999993
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8409449999999197,
+      "correct": true,
+      "lag_ms": 0.39816400000017893,
+      "started_ms": 1950.4133220000003
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7964740000006714,
+      "correct": true,
+      "lag_ms": -0.13247400000000198,
+      "started_ms": 1999.8709049999998
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 2.0506060000006983,
+      "correct": true,
+      "lag_ms": -0.13247400000000198,
+      "started_ms": 1999.937473
+    },
+    {
+      "environment": "target",
+      "status": 200,
+      "duration_ms": 2003.8267989999986,
+      "correct": true,
+      "lag_ms": 0.011134000000311062,
+      "started_ms": 0.11320700000032957
+    },
+    {
+      "environment": "target",
+      "status": 200,
+      "duration_ms": 2004.097319999999,
+      "correct": true,
+      "lag_ms": -0.12160100000073726,
+      "started_ms": 49.88470000000052
+    },
+    {
+      "environment": "target",
+      "status": 200,
+      "duration_ms": 2005.0220280000012,
+      "correct": true,
+      "lag_ms": 0.5555669999994279,
+      "started_ms": 100.56115399999908
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7291329999989102,
+      "correct": true,
+      "lag_ms": -0.11046100000021397,
+      "started_ms": 2199.9028820000003
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8038980000001175,
+      "correct": true,
+      "lag_ms": -0.6106429999999818,
+      "started_ms": 2249.392941
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9275950000010198,
+      "correct": true,
+      "lag_ms": 0.19491699999889534,
+      "started_ms": 2300.1986899999993
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.1414850000001024,
+      "correct": true,
+      "lag_ms": -0.11314200000015262,
+      "started_ms": 2349.901786999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6918339999992895,
+      "correct": true,
+      "lag_ms": 0.3062470000004396,
+      "started_ms": 2400.319308
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8145229999990988,
+      "correct": true,
+      "lag_ms": -0.22975200000109908,
+      "started_ms": 2449.781503
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.088676999999734,
+      "correct": true,
+      "lag_ms": 0.34956599999895843,
+      "started_ms": 2500.3612049999992
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 2.7751940000016475,
+      "correct": true,
+      "lag_ms": 0.34956599999895843,
+      "started_ms": 2500.471470999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.3121190000001661,
+      "correct": true,
+      "lag_ms": -0.2060940000010305,
+      "started_ms": 2549.80941
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.042131000000154,
+      "correct": true,
+      "lag_ms": -0.8200510000006034,
+      "started_ms": 2599.1917510000003
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9622189999990951,
+      "correct": true,
+      "lag_ms": -0.04139799999938987,
+      "started_ms": 2649.9628030000003
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.0104900000005728,
+      "correct": true,
+      "lag_ms": -0.4951020000007702,
+      "started_ms": 2699.508539999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.973427000000811,
+      "correct": true,
+      "lag_ms": 0.3447869999999966,
+      "started_ms": 2750.3583199999994
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9463329999998678,
+      "correct": true,
+      "lag_ms": 0.014532999999573804,
+      "started_ms": 2800.0182210000003
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8146259999994072,
+      "correct": true,
+      "lag_ms": -0.549485999999888,
+      "started_ms": 2849.453753
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7427420000003622,
+      "correct": true,
+      "lag_ms": 0.3476890000001731,
+      "started_ms": 2900.3720869999997
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.970686000000569,
+      "correct": true,
+      "lag_ms": -0.1493719999998575,
+      "started_ms": 2949.854249
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.1290900000003603,
+      "correct": true,
+      "lag_ms": 0.24703799999952025,
+      "started_ms": 3000.2595199999996
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 2.127825000001394,
+      "correct": true,
+      "lag_ms": 0.24703799999952025,
+      "started_ms": 3000.377237999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7749949999997625,
+      "correct": true,
+      "lag_ms": -0.2991340000007767,
+      "started_ms": 3049.704818
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7116619999997056,
+      "correct": true,
+      "lag_ms": 0.277154999999766,
+      "started_ms": 3100.2804849999993
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7481090000001132,
+      "correct": true,
+      "lag_ms": -0.06445399999938672,
+      "started_ms": 3149.939237999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6624659999997675,
+      "correct": true,
+      "lag_ms": 0.394202999999834,
+      "started_ms": 3200.3978549999993
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9719290000011824,
+      "correct": true,
+      "lag_ms": -0.061956999999893014,
+      "started_ms": 3249.941703999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.3737989999990532,
+      "correct": true,
+      "lag_ms": -0.9240520000003016,
+      "started_ms": 3299.0807320000004
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8184419999997772,
+      "correct": true,
+      "lag_ms": -0.4442749999998341,
+      "started_ms": 3349.559324
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7581799999989016,
+      "correct": true,
+      "lag_ms": 0.21664500000042608,
+      "started_ms": 3400.2205350000004
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7523329999985435,
+      "correct": true,
+      "lag_ms": -0.3306190000002971,
+      "started_ms": 3449.6803660000005
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7230060000001686,
+      "correct": true,
+      "lag_ms": 0.30782100000033097,
+      "started_ms": 3500.325854999999
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 1.7406670000000304,
+      "correct": true,
+      "lag_ms": 0.30782100000033097,
+      "started_ms": 3500.429130999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7488589999993565,
+      "correct": true,
+      "lag_ms": -0.18137899999965157,
+      "started_ms": 3549.8222100000003
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7473150000005262,
+      "correct": true,
+      "lag_ms": 0.2461409999996249,
+      "started_ms": 3600.256449999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7783770000005461,
+      "correct": true,
+      "lag_ms": -0.13088299999981245,
+      "started_ms": 3649.8737149999997
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6540270000004966,
+      "correct": true,
+      "lag_ms": 0.533488999999463,
+      "started_ms": 3700.537167999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7162100000005012,
+      "correct": true,
+      "lag_ms": 0.03630999999950291,
+      "started_ms": 3750.0412429999997
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.730187000001024,
+      "correct": true,
+      "lag_ms": -0.5529310000001715,
+      "started_ms": 3799.450531999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9385670000010577,
+      "correct": true,
+      "lag_ms": 0.055830999999670894,
+      "started_ms": 3850.059380999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9077720000004774,
+      "correct": true,
+      "lag_ms": -0.5900459999993473,
+      "started_ms": 3899.413246
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.080670999999711,
+      "correct": true,
+      "lag_ms": 0.009727999999086023,
+      "started_ms": 3950.0203579999998
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.6114749999997002,
+      "correct": true,
+      "lag_ms": -0.8012240000007296,
+      "started_ms": 3999.2105040000006
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 3.3137449999994715,
+      "correct": true,
+      "lag_ms": -0.8012240000007296,
+      "started_ms": 3999.3419699999995
+    },
+    {
+      "environment": "target",
+      "status": 200,
+      "duration_ms": 3754.8347030000004,
+      "correct": true,
+      "lag_ms": 0.10011599999961618,
+      "started_ms": 250.1048439999995
+    },
+    {
+      "environment": "target",
+      "status": 200,
+      "duration_ms": 3906.6606169999995,
+      "correct": true,
+      "lag_ms": -0.2840510000005452,
+      "started_ms": 149.7234069999995
+    },
+    {
+      "environment": "target",
+      "status": 200,
+      "duration_ms": 3807.9687540000014,
+      "correct": true,
+      "lag_ms": -0.2928840000004129,
+      "started_ms": 299.72943999999916
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6612949999998818,
+      "correct": true,
+      "lag_ms": -0.36226800000076764,
+      "started_ms": 4199.641394
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6219980000005307,
+      "correct": true,
+      "lag_ms": 0.1687629999996716,
+      "started_ms": 4250.172085
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7521859999997105,
+      "correct": true,
+      "lag_ms": -0.43323899999995774,
+      "started_ms": 4299.570231
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7462030000006052,
+      "correct": true,
+      "lag_ms": 0.05748200000016368,
+      "started_ms": 4350.070293999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7838709999996354,
+      "correct": true,
+      "lag_ms": -0.49507099999937054,
+      "started_ms": 4399.508803000001
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6704399999998714,
+      "correct": true,
+      "lag_ms": -0.08558199999970384,
+      "started_ms": 4449.926839
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6498819999997067,
+      "correct": true,
+      "lag_ms": -0.567510000000766,
+      "started_ms": 4499.439292999999
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 1.8496999999988475,
+      "correct": true,
+      "lag_ms": -0.567510000000766,
+      "started_ms": 4499.508034
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7112199999992299,
+      "correct": true,
+      "lag_ms": 0.1279469999990397,
+      "started_ms": 4550.131491
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8769350000002305,
+      "correct": true,
+      "lag_ms": -0.33155900000019756,
+      "started_ms": 4599.671769999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7917100000013306,
+      "correct": true,
+      "lag_ms": 0.4204539999991539,
+      "started_ms": 4650.431677999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7827649999999267,
+      "correct": true,
+      "lag_ms": -0.23545600000034028,
+      "started_ms": 4699.767954999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7039899999999761,
+      "correct": true,
+      "lag_ms": 0.36341799999900104,
+      "started_ms": 4750.3685430000005
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7193220000008296,
+      "correct": true,
+      "lag_ms": -0.23877600000014354,
+      "started_ms": 4799.765597
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6986759999999776,
+      "correct": true,
+      "lag_ms": 0.30667299999913666,
+      "started_ms": 4850.317997
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7531519999993179,
+      "correct": true,
+      "lag_ms": -0.07644799999980023,
+      "started_ms": 4899.9347020000005
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.747084000000541,
+      "correct": true,
+      "lag_ms": -0.6606609999998909,
+      "started_ms": 4949.342667999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7051559999999881,
+      "correct": true,
+      "lag_ms": -0.16076699999939592,
+      "started_ms": 4999.848139
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 2.388102999999319,
+      "correct": true,
+      "lag_ms": -0.16076699999939592,
+      "started_ms": 4999.927680000001
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7944160000006377,
+      "correct": true,
+      "lag_ms": 0.49552199999925506,
+      "started_ms": 5050.498760999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7072229999994306,
+      "correct": true,
+      "lag_ms": 0.12385600000015984,
+      "started_ms": 5100.12723
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6177599999991799,
+      "correct": true,
+      "lag_ms": -0.4680900000003021,
+      "started_ms": 5149.535027
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6308699999990495,
+      "correct": true,
+      "lag_ms": -0.07113000000026659,
+      "started_ms": 5199.940418
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9051729999991949,
+      "correct": true,
+      "lag_ms": -0.49488000000019383,
+      "started_ms": 5249.508607
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9588939999994182,
+      "correct": true,
+      "lag_ms": 0.11028099999930419,
+      "started_ms": 5300.122399
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9363539999994828,
+      "correct": true,
+      "lag_ms": -0.46766399999978603,
+      "started_ms": 5349.536004
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7932019999989279,
+      "correct": true,
+      "lag_ms": 0.051933000000644824,
+      "started_ms": 5400.063134
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8019279999989521,
+      "correct": true,
+      "lag_ms": -0.3312999999998283,
+      "started_ms": 5449.672515
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.1784549999993033,
+      "correct": true,
+      "lag_ms": 0.06730699999934586,
+      "started_ms": 5500.071732
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 2.4755519999998796,
+      "correct": true,
+      "lag_ms": 0.06730699999934586,
+      "started_ms": 5500.142704
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9182020000007469,
+      "correct": true,
+      "lag_ms": -0.521136999999726,
+      "started_ms": 5549.482644
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9638790000008157,
+      "correct": true,
+      "lag_ms": 0.03623399999924004,
+      "started_ms": 5600.047927
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6668950000002951,
+      "correct": true,
+      "lag_ms": -0.5011759999997594,
+      "started_ms": 5649.502495999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8374640000001818,
+      "correct": true,
+      "lag_ms": -0.07517800000096031,
+      "started_ms": 5699.936382
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8997259999996459,
+      "correct": true,
+      "lag_ms": -0.5252999999993335,
+      "started_ms": 5749.479799000001
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8790579999986221,
+      "correct": true,
+      "lag_ms": 0.150061000000278,
+      "started_ms": 5800.1616730000005
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8457589999998163,
+      "correct": true,
+      "lag_ms": -0.3182460000007268,
+      "started_ms": 5849.6933819999995
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9349779999993189,
+      "correct": true,
+      "lag_ms": 0.23607300000003306,
+      "started_ms": 5900.239554
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9839339999998629,
+      "correct": true,
+      "lag_ms": -0.3146049999995739,
+      "started_ms": 5949.688588999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.1001280000000406,
+      "correct": true,
+      "lag_ms": 0.11288599999897997,
+      "started_ms": 6000.117769
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 2.4239980000002106,
+      "correct": true,
+      "lag_ms": 0.11288599999897997,
+      "started_ms": 6000.197812
+    },
+    {
+      "environment": "target",
+      "status": 200,
+      "duration_ms": 3907.2507019999994,
+      "correct": true,
+      "lag_ms": -0.041766000000279746,
+      "started_ms": 2099.9618740000005
+    },
+    {
+      "environment": "target",
+      "status": 200,
+      "duration_ms": 5707.954335,
+      "correct": true,
+      "lag_ms": 0.21686600000066392,
+      "started_ms": 350.2223240000003
+    },
+    {
+      "environment": "target",
+      "status": 200,
+      "duration_ms": 5910.312814000001,
+      "correct": true,
+      "lag_ms": 0.4799199999997654,
+      "started_ms": 200.48454899999888
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9099679999999353,
+      "correct": true,
+      "lag_ms": 0.333067999999912,
+      "started_ms": 6200.3374619999995
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.0941100000000006,
+      "correct": true,
+      "lag_ms": -0.19226999999955297,
+      "started_ms": 6249.81287
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7791360000010172,
+      "correct": true,
+      "lag_ms": 0.4112229999991541,
+      "started_ms": 6300.415929999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.4498690000000352,
+      "correct": true,
+      "lag_ms": -0.4609440000003815,
+      "started_ms": 6349.544044
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7675829999989219,
+      "correct": true,
+      "lag_ms": -0.06045600000106788,
+      "started_ms": 6399.9499940000005
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6898419999997714,
+      "correct": true,
+      "lag_ms": -0.5861740000000282,
+      "started_ms": 6449.424621
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8210409999992407,
+      "correct": true,
+      "lag_ms": -0.04416200000014214,
+      "started_ms": 6499.967214
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 2.3569960000004357,
+      "correct": true,
+      "lag_ms": -0.04416200000014214,
+      "started_ms": 6500.154484999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8691139999991719,
+      "correct": true,
+      "lag_ms": -0.3719870000004448,
+      "started_ms": 6549.640191
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7864479999989271,
+      "correct": true,
+      "lag_ms": 0.4189150000001973,
+      "started_ms": 6600.43138
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.721003999999084,
+      "correct": true,
+      "lag_ms": -0.14236300000084157,
+      "started_ms": 6649.869987
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7904429999998683,
+      "correct": true,
+      "lag_ms": 0.35497399999985646,
+      "started_ms": 6700.364503999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7783249999993131,
+      "correct": true,
+      "lag_ms": -0.20982399999957124,
+      "started_ms": 6749.804359
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6769220000005589,
+      "correct": true,
+      "lag_ms": 0.23490099999980885,
+      "started_ms": 6800.246652
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8448740000003454,
+      "correct": true,
+      "lag_ms": -0.34756299999935436,
+      "started_ms": 6849.664188999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7776700000013079,
+      "correct": true,
+      "lag_ms": 0.2010680000003049,
+      "started_ms": 6900.210541999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8256950000013603,
+      "correct": true,
+      "lag_ms": -0.3021499999995285,
+      "started_ms": 6949.708312999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.1989429999994172,
+      "correct": true,
+      "lag_ms": 0.3855519999997341,
+      "started_ms": 7000.440084
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 2.540748999999778,
+      "correct": true,
+      "lag_ms": 0.3855519999997341,
+      "started_ms": 7000.668941
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.2094059999999445,
+      "correct": true,
+      "lag_ms": 0.12099099999977625,
+      "started_ms": 7050.130633000001
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.1649260000012873,
+      "correct": true,
+      "lag_ms": -0.49545500000022,
+      "started_ms": 7099.507830999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8105189999987488,
+      "correct": true,
+      "lag_ms": -0.09679999999934807,
+      "started_ms": 7149.911926000001
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7202509999988251,
+      "correct": true,
+      "lag_ms": 0.5342099999998027,
+      "started_ms": 7200.536946
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.924261000000115,
+      "correct": true,
+      "lag_ms": 0.144202999999834,
+      "started_ms": 7250.151996999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7448019999992539,
+      "correct": true,
+      "lag_ms": -0.44000299999970593,
+      "started_ms": 7299.56285
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8301179999998567,
+      "correct": true,
+      "lag_ms": 0.12016600000060862,
+      "started_ms": 7350.128757
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7748119999996561,
+      "correct": true,
+      "lag_ms": -0.13111700000081328,
+      "started_ms": 7399.871897999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6825399999997899,
+      "correct": true,
+      "lag_ms": 0.5529279999991559,
+      "started_ms": 7450.5555110000005
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.3371160000006057,
+      "correct": true,
+      "lag_ms": -0.2401079999999638,
+      "started_ms": 7499.763042999999
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 2.2136179999997694,
+      "correct": true,
+      "lag_ms": -0.2401079999999638,
+      "started_ms": 7499.845375999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7422659999992902,
+      "correct": true,
+      "lag_ms": 0.25181700000030105,
+      "started_ms": 7550.261171
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.759158999999272,
+      "correct": true,
+      "lag_ms": -0.1731920000001992,
+      "started_ms": 7599.836044
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.879665999998906,
+      "correct": true,
+      "lag_ms": 0.2551309999998921,
+      "started_ms": 7650.2870760000005
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6596040000003995,
+      "correct": true,
+      "lag_ms": -0.11496699999952398,
+      "started_ms": 7699.887892999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7797169999994367,
+      "correct": true,
+      "lag_ms": 0.6012140000002546,
+      "started_ms": 7750.604524
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.828269999999975,
+      "correct": true,
+      "lag_ms": 0.11695800000052259,
+      "started_ms": 7800.120096000001
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7395290000004024,
+      "correct": true,
+      "lag_ms": -0.46043599999939033,
+      "started_ms": 7849.542533
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6048469999986992,
+      "correct": true,
+      "lag_ms": 0.09347800000068673,
+      "started_ms": 7900.096637000001
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8538370000005671,
+      "correct": true,
+      "lag_ms": -0.5495129999999335,
+      "started_ms": 7949.452909
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8571560000000318,
+      "correct": true,
+      "lag_ms": 0.05415299999913259,
+      "started_ms": 8000.064194999999
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 2.443981000000349,
+      "correct": true,
+      "lag_ms": 0.05415299999913259,
+      "started_ms": 8000.179956
+    },
+    {
+      "environment": "target",
+      "status": 200,
+      "duration_ms": 3857.9358710000015,
+      "correct": true,
+      "lag_ms": 0.16534499999943364,
+      "started_ms": 4150.169142999999
+    },
+    {
+      "environment": "target",
+      "status": 200,
+      "duration_ms": 5909.783514999999,
+      "correct": true,
+      "lag_ms": -0.560750000000553,
+      "started_ms": 2149.4508960000003
+    },
+    {
+      "environment": "target",
+      "status": 200,
+      "duration_ms": 4011.776527,
+      "correct": true,
+      "lag_ms": 0.3006019999993441,
+      "started_ms": 4100.312414
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8107930000005581,
+      "correct": true,
+      "lag_ms": 0.5668210000003455,
+      "started_ms": 8200.570154
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.911748999998963,
+      "correct": true,
+      "lag_ms": 0.13934599999993225,
+      "started_ms": 8250.147132
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7715900000002875,
+      "correct": true,
+      "lag_ms": -0.48188999999911175,
+      "started_ms": 8299.520632999998
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.891301999999996,
+      "correct": true,
+      "lag_ms": 0.06334900000001653,
+      "started_ms": 8350.065863999998
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.777459999997518,
+      "correct": true,
+      "lag_ms": -0.28819399999702,
+      "started_ms": 8399.715374000001
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9262610000005225,
+      "correct": true,
+      "lag_ms": 0.2574960000019928,
+      "started_ms": 8450.26012
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6326619999999821,
+      "correct": true,
+      "lag_ms": -0.04333599999881699,
+      "started_ms": 8499.959365
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 2.1179510000001756,
+      "correct": true,
+      "lag_ms": -0.04333599999881699,
+      "started_ms": 8500.030323
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7343400000027032,
+      "correct": true,
+      "lag_ms": -0.5819190000001981,
+      "started_ms": 8549.422712999998
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.0037000000011176,
+      "correct": true,
+      "lag_ms": -0.151968999998644,
+      "started_ms": 8599.851395
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6139660000008007,
+      "correct": true,
+      "lag_ms": 0.6197590000010678,
+      "started_ms": 8650.629184
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7359600000017963,
+      "correct": true,
+      "lag_ms": 0.02651700000205892,
+      "started_ms": 8700.037497
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7200559999982943,
+      "correct": true,
+      "lag_ms": -0.19909499999994296,
+      "started_ms": 8749.804297
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.809385000000475,
+      "correct": true,
+      "lag_ms": 0.356433000000834,
+      "started_ms": 8800.36312
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6761640000004263,
+      "correct": true,
+      "lag_ms": -0.09228900000016438,
+      "started_ms": 8849.910349
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7283119999992778,
+      "correct": true,
+      "lag_ms": 0.5714210000005551,
+      "started_ms": 8900.574732
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.935550999998668,
+      "correct": true,
+      "lag_ms": 0.2064620000019204,
+      "started_ms": 8950.209052
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.0563010000005306,
+      "correct": true,
+      "lag_ms": -0.5702049999999872,
+      "started_ms": 8999.433334
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 3.0522089999976743,
+      "correct": true,
+      "lag_ms": -0.5702049999999872,
+      "started_ms": 8999.502460000002
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8077499999999418,
+      "correct": true,
+      "lag_ms": -0.1258029999989958,
+      "started_ms": 9049.877465
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.958730000002106,
+      "correct": true,
+      "lag_ms": 0.2485480000032112,
+      "started_ms": 9100.258966
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.3897989999968559,
+      "correct": true,
+      "lag_ms": -0.5097699999969336,
+      "started_ms": 9149.493454000001
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8554890000013984,
+      "correct": true,
+      "lag_ms": 0.07684900000094785,
+      "started_ms": 9200.079855999998
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.1319750000002387,
+      "correct": true,
+      "lag_ms": -0.2660769999965851,
+      "started_ms": 9249.737396999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8948359999994864,
+      "correct": true,
+      "lag_ms": 0.5570840000000317,
+      "started_ms": 9300.560251
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.0031589999998687,
+      "correct": true,
+      "lag_ms": 0.2772770000010496,
+      "started_ms": 9350.28
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9326000000000931,
+      "correct": true,
+      "lag_ms": -0.11802999999781605,
+      "started_ms": 9399.884709
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9039549999979499,
+      "correct": true,
+      "lag_ms": 0.6542930000032356,
+      "started_ms": 9450.658763000001
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.156888000001345,
+      "correct": true,
+      "lag_ms": 0.6000960000019404,
+      "started_ms": 9500.604099999999
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 2.4525200000025507,
+      "correct": true,
+      "lag_ms": 0.6000960000019404,
+      "started_ms": 9500.722833999998
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.4365360000010696,
+      "correct": true,
+      "lag_ms": -0.14758599999913713,
+      "started_ms": 9549.862702
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.8656730000002426,
+      "correct": true,
+      "lag_ms": -0.5888959999974759,
+      "started_ms": 9599.414812
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7832520000010845,
+      "correct": true,
+      "lag_ms": 0.2078959999998915,
+      "started_ms": 9650.210987
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8111959999987448,
+      "correct": true,
+      "lag_ms": 0.020524999999906868,
+      "started_ms": 9700.028863000001
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9159690000014962,
+      "correct": true,
+      "lag_ms": 0.10266200000114623,
+      "started_ms": 9750.107904999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8780050000023039,
+      "correct": true,
+      "lag_ms": -0.36242399999900954,
+      "started_ms": 9799.640174999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.0412919999980659,
+      "correct": true,
+      "lag_ms": 0.4809800000002724,
+      "started_ms": 9850.484328
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.26687099999981,
+      "correct": true,
+      "lag_ms": -0.35102999999799067,
+      "started_ms": 9899.652834999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6178480000016862,
+      "correct": true,
+      "lag_ms": 0.3834600000009232,
+      "started_ms": 9950.392429999998
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8844589999971504,
+      "correct": true,
+      "lag_ms": 1.3720500000017637,
+      "started_ms": 10001.374848000001
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 2.1326140000019222,
+      "correct": true,
+      "lag_ms": 1.3720500000017637,
+      "started_ms": 10001.444961
+    },
+    {
+      "environment": "target",
+      "status": 200,
+      "duration_ms": 5959.629595,
+      "correct": true,
+      "lag_ms": -0.20824999999967986,
+      "started_ms": 4049.8036360000006
+    },
+    {
+      "environment": "target",
+      "status": 200,
+      "duration_ms": 3961.2482820000005,
+      "correct": true,
+      "lag_ms": 0.22947899999962829,
+      "started_ms": 6100.241480999999
+    },
+    {
+      "environment": "target",
+      "status": 200,
+      "duration_ms": 8063.701079,
+      "correct": true,
+      "lag_ms": 0.48248899999998685,
+      "started_ms": 2050.487015999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.649438000000373,
+      "correct": true,
+      "lag_ms": -0.35891300000002957,
+      "started_ms": 10199.650456000001
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6692089999996824,
+      "correct": true,
+      "lag_ms": 0.585599000001821,
+      "started_ms": 10250.589077999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6865440000001399,
+      "correct": true,
+      "lag_ms": 0.17504100000223843,
+      "started_ms": 10300.177101
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6825529999987339,
+      "correct": true,
+      "lag_ms": -0.3754049999988638,
+      "started_ms": 10349.633249
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6888460000009218,
+      "correct": true,
+      "lag_ms": 0.31501700000080746,
+      "started_ms": 10400.317351
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.573472000000038,
+      "correct": true,
+      "lag_ms": -0.2638599999991129,
+      "started_ms": 10449.738486
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.679575999998633,
+      "correct": true,
+      "lag_ms": 0.41722000000299886,
+      "started_ms": 10500.419821000001
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 1.6545040000019071,
+      "correct": true,
+      "lag_ms": 0.41722000000299886,
+      "started_ms": 10500.481649
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6205860000009125,
+      "correct": true,
+      "lag_ms": 0.33916600000156905,
+      "started_ms": 10550.341725
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6433109999998123,
+      "correct": true,
+      "lag_ms": 0.7308810000031372,
+      "started_ms": 10600.733719999998
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6724700000013399,
+      "correct": true,
+      "lag_ms": 0.3265270000010787,
+      "started_ms": 10650.33506
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.617856999997457,
+      "correct": true,
+      "lag_ms": -0.15872299999682582,
+      "started_ms": 10699.854729
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.5929270000015094,
+      "correct": true,
+      "lag_ms": 0.49287200000253506,
+      "started_ms": 10750.496313999998
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6806030000007013,
+      "correct": true,
+      "lag_ms": 0.16641500000332599,
+      "started_ms": 10800.175149
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7916160000022501,
+      "correct": true,
+      "lag_ms": -0.30185100000016973,
+      "started_ms": 10849.709539999998
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6590200000027835,
+      "correct": true,
+      "lag_ms": 0.19369400000141468,
+      "started_ms": 10900.200772999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6203900000000431,
+      "correct": true,
+      "lag_ms": -0.3315439999969385,
+      "started_ms": 10949.67075
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8174700000017765,
+      "correct": true,
+      "lag_ms": 0.7417190000014671,
+      "started_ms": 11000.744039
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 1.8424679999989166,
+      "correct": true,
+      "lag_ms": 0.7417190000014671,
+      "started_ms": 11000.805748
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.584631999998237,
+      "correct": true,
+      "lag_ms": 0.15627500000118744,
+      "started_ms": 11050.158889
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.5709400000014284,
+      "correct": true,
+      "lag_ms": -0.37871199999790406,
+      "started_ms": 11099.623969999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.5960349999986647,
+      "correct": true,
+      "lag_ms": 0.7643150000003516,
+      "started_ms": 11150.766908
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6341240000001562,
+      "correct": true,
+      "lag_ms": -0.11349699999846052,
+      "started_ms": 11199.888788999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.652419000001828,
+      "correct": true,
+      "lag_ms": 0.2987520000024233,
+      "started_ms": 11250.311749999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.5990180000007967,
+      "correct": true,
+      "lag_ms": 0.41221000000223285,
+      "started_ms": 11300.414719999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.5965839999989839,
+      "correct": true,
+      "lag_ms": -0.11590999999680207,
+      "started_ms": 11349.886894000001
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.752942000002804,
+      "correct": true,
+      "lag_ms": -0.008014999999431893,
+      "started_ms": 11400.000031999998
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6214959999997518,
+      "correct": true,
+      "lag_ms": -0.18944199999896227,
+      "started_ms": 11449.819280000002
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8749659999994037,
+      "correct": true,
+      "lag_ms": -0.01772499999788124,
+      "started_ms": 11499.984748
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 1.5534609999995155,
+      "correct": true,
+      "lag_ms": -0.01772499999788124,
+      "started_ms": 11500.043333
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6145910000013828,
+      "correct": true,
+      "lag_ms": -0.5206339999967895,
+      "started_ms": 11549.488986999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6593609999981709,
+      "correct": true,
+      "lag_ms": 0.30808299999989686,
+      "started_ms": 11600.320524
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.5958659999996598,
+      "correct": true,
+      "lag_ms": -0.030430999999225605,
+      "started_ms": 11649.977573999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.656223999998474,
+      "correct": true,
+      "lag_ms": -0.6291189999974449,
+      "started_ms": 11699.373393
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.727709999999206,
+      "correct": true,
+      "lag_ms": 0.05689400000119349,
+      "started_ms": 11750.067421000002
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.891101000001072,
+      "correct": true,
+      "lag_ms": 0.0026330000000598375,
+      "started_ms": 11800.010301
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6201179999989108,
+      "correct": true,
+      "lag_ms": -0.6516179999998712,
+      "started_ms": 11849.350824
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8303269999996701,
+      "correct": true,
+      "lag_ms": 0.2706720000023779,
+      "started_ms": 11900.273436000001
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.768474000000424,
+      "correct": true,
+      "lag_ms": -0.059665999997378094,
+      "started_ms": 11949.943526000001
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.1164490000010119,
+      "correct": true,
+      "lag_ms": -0.6399489999967045,
+      "started_ms": 11999.369402999999
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 2.3019710000007763,
+      "correct": true,
+      "lag_ms": -0.6399489999967045,
+      "started_ms": 11999.438267
+    },
+    {
+      "environment": "target",
+      "status": 200,
+      "duration_ms": 5861.708744,
+      "correct": true,
+      "lag_ms": -0.46852899999976216,
+      "started_ms": 6149.537758
+    },
+    {
+      "environment": "target",
+      "status": 200,
+      "duration_ms": 4014.048818000001,
+      "correct": true,
+      "lag_ms": -0.34068500000103086,
+      "started_ms": 8049.661866999999
+    },
+    {
+      "environment": "target",
+      "status": 200,
+      "duration_ms": 3968.0083540000014,
+      "correct": true,
+      "lag_ms": -0.20789899999726913,
+      "started_ms": 8149.794244999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6375469999984489,
+      "correct": true,
+      "lag_ms": 0.42330300000321586,
+      "started_ms": 12200.427999000001
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7011359999996785,
+      "correct": true,
+      "lag_ms": 0.1369010000016715,
+      "started_ms": 12250.145326
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.0193030000009458,
+      "correct": true,
+      "lag_ms": -0.47802499999670545,
+      "started_ms": 12299.524796
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.0117590000008931,
+      "correct": true,
+      "lag_ms": 0.5617950000014389,
+      "started_ms": 12350.56501
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.1657589999995253,
+      "correct": true,
+      "lag_ms": -0.2030349999986356,
+      "started_ms": 12399.800297
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.694682000001194,
+      "correct": true,
+      "lag_ms": 0.3028620000004594,
+      "started_ms": 12450.305928
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8827760000021954,
+      "correct": true,
+      "lag_ms": 0.025996000000304775,
+      "started_ms": 12500.031909
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 2.683102000002691,
+      "correct": true,
+      "lag_ms": 0.025996000000304775,
+      "started_ms": 12500.152124999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8755369999998948,
+      "correct": true,
+      "lag_ms": -0.46134600000004866,
+      "started_ms": 12549.541731
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9522129999968456,
+      "correct": true,
+      "lag_ms": -0.31040500000017346,
+      "started_ms": 12599.698374000001
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8555029999988619,
+      "correct": true,
+      "lag_ms": 0.48119300000325893,
+      "started_ms": 12650.484641000001
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6226640000022599,
+      "correct": true,
+      "lag_ms": 0.050580000002810266,
+      "started_ms": 12700.052517999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6629570000004605,
+      "correct": true,
+      "lag_ms": -0.49200899999777903,
+      "started_ms": 12749.510728
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8070930000030785,
+      "correct": true,
+      "lag_ms": 0.6539420000008249,
+      "started_ms": 12800.656035999998
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8493559999988065,
+      "correct": true,
+      "lag_ms": -0.06540200000017649,
+      "started_ms": 12849.936712
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.654499999996915,
+      "correct": true,
+      "lag_ms": 0.39798500000324566,
+      "started_ms": 12900.400349000001
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8112249999976484,
+      "correct": true,
+      "lag_ms": 0.4640870000002906,
+      "started_ms": 12950.466093000001
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9837870000010298,
+      "correct": true,
+      "lag_ms": 1.1167160000004515,
+      "started_ms": 13001.118548
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 2.0531799999989744,
+      "correct": true,
+      "lag_ms": 1.1167160000004515,
+      "started_ms": 13001.171964
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.2750019999984943,
+      "correct": true,
+      "lag_ms": -0.43525099999897066,
+      "started_ms": 13049.56806
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.937685999997484,
+      "correct": true,
+      "lag_ms": 1.0899140000001353,
+      "started_ms": 13101.092296
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7442300000002433,
+      "correct": true,
+      "lag_ms": -0.3914999999979045,
+      "started_ms": 13149.623880000001
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7972740000004706,
+      "correct": true,
+      "lag_ms": 0.0798560000002908,
+      "started_ms": 13200.083152000001
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7362429999993765,
+      "correct": true,
+      "lag_ms": -0.5487759999996342,
+      "started_ms": 13249.453787
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6982820000011998,
+      "correct": true,
+      "lag_ms": -0.34429499999896507,
+      "started_ms": 13299.658048
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6449109999994107,
+      "correct": true,
+      "lag_ms": 0.1422210000018822,
+      "started_ms": 13350.144639
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9355299999988347,
+      "correct": true,
+      "lag_ms": -0.3435319999989588,
+      "started_ms": 13399.659069
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8851480000012089,
+      "correct": true,
+      "lag_ms": 0.21792500000083237,
+      "started_ms": 13450.220508
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.299098999999842,
+      "correct": true,
+      "lag_ms": -0.10568499999862979,
+      "started_ms": 13499.896783999999
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 2.562796000001981,
+      "correct": true,
+      "lag_ms": -0.10568499999862979,
+      "started_ms": 13499.959872999998
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9663130000008096,
+      "correct": true,
+      "lag_ms": 0.4536580000021786,
+      "started_ms": 13550.457104
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9930109999986598,
+      "correct": true,
+      "lag_ms": 0.6309209999999439,
+      "started_ms": 13600.633365
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9924360000004526,
+      "correct": true,
+      "lag_ms": 0.6116840000031516,
+      "started_ms": 13650.623159
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.3149830000002112,
+      "correct": true,
+      "lag_ms": -0.23548999999911757,
+      "started_ms": 13699.775190999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.0394570000025851,
+      "correct": true,
+      "lag_ms": 1.0417640000014217,
+      "started_ms": 13751.051903999998
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.3969639999995707,
+      "correct": true,
+      "lag_ms": -0.48862000000008265,
+      "started_ms": 13799.514612
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.1611179999999877,
+      "correct": true,
+      "lag_ms": 0.5775180000018736,
+      "started_ms": 13850.587704
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9309160000011616,
+      "correct": true,
+      "lag_ms": 0.06787500000064028,
+      "started_ms": 13900.070313999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8286729999999807,
+      "correct": true,
+      "lag_ms": -0.41347599999789963,
+      "started_ms": 13949.589001999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9686360000014247,
+      "correct": true,
+      "lag_ms": -0.25247399999716436,
+      "started_ms": 13999.750069
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 2.121833000001061,
+      "correct": true,
+      "lag_ms": -0.25247399999716436,
+      "started_ms": 13999.809041999999
+    },
+    {
+      "environment": "target",
+      "status": 200,
+      "duration_ms": 7964.047956,
+      "correct": true,
+      "lag_ms": -0.47382400000060443,
+      "started_ms": 6049.532261
+    },
+    {
+      "environment": "target",
+      "status": 200,
+      "duration_ms": 4015.4324500000002,
+      "correct": true,
+      "lag_ms": 0.12294400000246242,
+      "started_ms": 10050.135240999998
+    },
+    {
+      "environment": "target",
+      "status": 200,
+      "duration_ms": 3968.9058890000015,
+      "correct": true,
+      "lag_ms": 0.19624100000146427,
+      "started_ms": 10150.198724
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6593769999999495,
+      "correct": true,
+      "lag_ms": 0.2115620000004128,
+      "started_ms": 14200.214211
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6991439999983413,
+      "correct": true,
+      "lag_ms": -0.30518299999675946,
+      "started_ms": 14249.702862
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7695029999995313,
+      "correct": true,
+      "lag_ms": 0.011503000001539476,
+      "started_ms": 14300.014264
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.5789540000005218,
+      "correct": true,
+      "lag_ms": -0.6063099999992119,
+      "started_ms": 14349.39637
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7589630000002217,
+      "correct": true,
+      "lag_ms": 0.08459700000094017,
+      "started_ms": 14400.092340000001
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6459170000016456,
+      "correct": true,
+      "lag_ms": -0.3745409999974072,
+      "started_ms": 14449.635158
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9982950000012352,
+      "correct": true,
+      "lag_ms": -0.08184799999798997,
+      "started_ms": 14499.920660999998
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 2.773962000002939,
+      "correct": true,
+      "lag_ms": -0.08184799999798997,
+      "started_ms": 14499.988490999998
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7060380000002624,
+      "correct": true,
+      "lag_ms": 0.5468120000005001,
+      "started_ms": 14550.54918
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6247250000014901,
+      "correct": true,
+      "lag_ms": 0.09979800000292016,
+      "started_ms": 14600.105539999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.691980000003241,
+      "correct": true,
+      "lag_ms": -0.22521499999857042,
+      "started_ms": 14649.783581999998
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7474649999967369,
+      "correct": true,
+      "lag_ms": 0.23765500000081374,
+      "started_ms": 14700.240499000001
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7350120000010065,
+      "correct": true,
+      "lag_ms": -0.1957429999965825,
+      "started_ms": 14749.815445999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.615961999999854,
+      "correct": true,
+      "lag_ms": 0.23393100000248523,
+      "started_ms": 14800.237081000001
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8544899999978952,
+      "correct": true,
+      "lag_ms": -0.33518199999889475,
+      "started_ms": 14849.667821000001
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.5832349999982398,
+      "correct": true,
+      "lag_ms": 0.5133910000004107,
+      "started_ms": 14900.515784000001
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9274910000021919,
+      "correct": true,
+      "lag_ms": -0.24300699999730568,
+      "started_ms": 14949.765635999998
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.1962409999978263,
+      "correct": true,
+      "lag_ms": 0.34955900000204565,
+      "started_ms": 15000.352946
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 2.460266000001866,
+      "correct": true,
+      "lag_ms": 0.34955900000204565,
+      "started_ms": 15000.433646
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.216816000000108,
+      "correct": true,
+      "lag_ms": -0.4618080000000191,
+      "started_ms": 15049.54128
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6346499999999651,
+      "correct": true,
+      "lag_ms": 0.5172960000018065,
+      "started_ms": 15100.519782000001
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9718860000029963,
+      "correct": true,
+      "lag_ms": 0.3284400000011374,
+      "started_ms": 15150.336227999998
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9111679999987246,
+      "correct": true,
+      "lag_ms": 0.2868990000024496,
+      "started_ms": 15200.28952
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.956648999999743,
+      "correct": true,
+      "lag_ms": -0.31451299999753246,
+      "started_ms": 15249.688291
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9373050000031071,
+      "correct": true,
+      "lag_ms": 0.818358000000444,
+      "started_ms": 15300.821064999998
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.7578490000014426,
+      "correct": true,
+      "lag_ms": 0.12072600000101374,
+      "started_ms": 15350.12435
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.5442960000000312,
+      "correct": true,
+      "lag_ms": -0.10858999999982188,
+      "started_ms": 15399.895877
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6443980000003648,
+      "correct": true,
+      "lag_ms": 0.08895600000323611,
+      "started_ms": 15450.093779
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7591710000015155,
+      "correct": true,
+      "lag_ms": -0.2850349999971513,
+      "started_ms": 15499.71782
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 1.9139580000010028,
+      "correct": true,
+      "lag_ms": -0.2850349999971513,
+      "started_ms": 15499.803977999998
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6740060000010999,
+      "correct": true,
+      "lag_ms": -0.024837999997544102,
+      "started_ms": 15549.978079999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6323630000006233,
+      "correct": true,
+      "lag_ms": -0.5086499999997613,
+      "started_ms": 15599.49432
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.804284000001644,
+      "correct": true,
+      "lag_ms": 0.3430320000006759,
+      "started_ms": 15650.346845999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6914649999998801,
+      "correct": true,
+      "lag_ms": 0.3639080000029935,
+      "started_ms": 15700.366843999998
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7540179999996326,
+      "correct": true,
+      "lag_ms": -0.09684699999706936,
+      "started_ms": 15749.906716
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.649663000000146,
+      "correct": true,
+      "lag_ms": 0.6076630000025034,
+      "started_ms": 15800.610503999998
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.772292000001471,
+      "correct": true,
+      "lag_ms": 0.1725010000009206,
+      "started_ms": 15850.1804
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.466006999999081,
+      "correct": true,
+      "lag_ms": -0.5868479999990086,
+      "started_ms": 15899.416918
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7168099999980768,
+      "correct": true,
+      "lag_ms": 0.5347450000008394,
+      "started_ms": 15950.541210000001
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9326829999990878,
+      "correct": true,
+      "lag_ms": 0.5779210000000603,
+      "started_ms": 16000.580498000001
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 2.3961399999971036,
+      "correct": true,
+      "lag_ms": 0.5779210000000603,
+      "started_ms": 16000.639956
+    },
+    {
+      "environment": "target",
+      "status": 200,
+      "duration_ms": 3966.6118829999978,
+      "correct": true,
+      "lag_ms": -0.012288999998418149,
+      "started_ms": 12049.998698000001
+    },
+    {
+      "environment": "target",
+      "status": 200,
+      "duration_ms": 7968.073243000003,
+      "correct": true,
+      "lag_ms": 0.09781300000031479,
+      "started_ms": 8100.106840999999
+    },
+    {
+      "environment": "target",
+      "status": 200,
+      "duration_ms": 3970.4103940000023,
+      "correct": true,
+      "lag_ms": -0.24507699999958277,
+      "started_ms": 12149.764917999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7439740000008896,
+      "correct": true,
+      "lag_ms": -0.5416019999975106,
+      "started_ms": 16199.461164999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8524219999999332,
+      "correct": true,
+      "lag_ms": 0.3119090000000142,
+      "started_ms": 16250.319824
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8490480000000389,
+      "correct": true,
+      "lag_ms": 0.08470500000112224,
+      "started_ms": 16300.088201
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.6772990000026766,
+      "correct": true,
+      "lag_ms": -0.6875329999966198,
+      "started_ms": 16349.322709999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.0088880000002973,
+      "correct": true,
+      "lag_ms": 0.6993020000008983,
+      "started_ms": 16400.701801000003
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8113060000032419,
+      "correct": true,
+      "lag_ms": 0.08424700000250596,
+      "started_ms": 16450.086452999996
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.2312500000007276,
+      "correct": true,
+      "lag_ms": -0.512960000000021,
+      "started_ms": 16499.489457999996
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 3.15588199999911,
+      "correct": true,
+      "lag_ms": -0.512960000000021,
+      "started_ms": 16499.549333000003
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8917940000028466,
+      "correct": true,
+      "lag_ms": 0.3278290000016568,
+      "started_ms": 16550.32993
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.763265000001411,
+      "correct": true,
+      "lag_ms": -0.018132999997760635,
+      "started_ms": 16599.98515
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.837772999999288,
+      "correct": true,
+      "lag_ms": -0.4529229999970994,
+      "started_ms": 16649.550494000003
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8407960000004095,
+      "correct": true,
+      "lag_ms": 0.20332800000323914,
+      "started_ms": 16700.20729
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.2107240000004822,
+      "correct": true,
+      "lag_ms": 0.5894060000027821,
+      "started_ms": 16750.606185999997
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9406839999974181,
+      "correct": true,
+      "lag_ms": 1.3657039999998233,
+      "started_ms": 16801.368927000003
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7903509999996459,
+      "correct": true,
+      "lag_ms": 0.11927700000160257,
+      "started_ms": 16850.122604999997
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9633270000012999,
+      "correct": true,
+      "lag_ms": -0.3435799999970186,
+      "started_ms": 16899.658932
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.3895100000008824,
+      "correct": true,
+      "lag_ms": 0.42842900000323425,
+      "started_ms": 16950.437174
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.672711999999592,
+      "correct": true,
+      "lag_ms": 0.024840000001859153,
+      "started_ms": 17000.027856
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 3.283691999997245,
+      "correct": true,
+      "lag_ms": 0.024840000001859153,
+      "started_ms": 17000.102292000003
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.561229999999341,
+      "correct": true,
+      "lag_ms": -0.4676949999993667,
+      "started_ms": 17049.535474999997
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.697928999998112,
+      "correct": true,
+      "lag_ms": 0.16534099999989849,
+      "started_ms": 17100.174149
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8256029999974999,
+      "correct": true,
+      "lag_ms": -0.4846499999985099,
+      "started_ms": 17149.517805000003
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9467640000002575,
+      "correct": true,
+      "lag_ms": 0.16863000000012107,
+      "started_ms": 17200.171876
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7689019999997981,
+      "correct": true,
+      "lag_ms": -0.20280099999945378,
+      "started_ms": 17249.800775999996
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7029900000015914,
+      "correct": true,
+      "lag_ms": 0.24384600000121281,
+      "started_ms": 17300.246616999997
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7412530000001425,
+      "correct": true,
+      "lag_ms": -0.14339299999846844,
+      "started_ms": 17349.858706
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6384570000009262,
+      "correct": true,
+      "lag_ms": 0.31859800000165706,
+      "started_ms": 17400.325616000002
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7632370000028459,
+      "correct": true,
+      "lag_ms": -0.15562199999840232,
+      "started_ms": 17449.851455999997
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9006049999989045,
+      "correct": true,
+      "lag_ms": 0.4877840000008291,
+      "started_ms": 17500.494772
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 2.280012999999599,
+      "correct": true,
+      "lag_ms": 0.4877840000008291,
+      "started_ms": 17500.556723
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6149100000002363,
+      "correct": true,
+      "lag_ms": 0.6712200000001758,
+      "started_ms": 17550.673762
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6251269999993383,
+      "correct": true,
+      "lag_ms": 0.3546200000018871,
+      "started_ms": 17600.357210000002
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7193130000014207,
+      "correct": true,
+      "lag_ms": -0.12194999999701395,
+      "started_ms": 17649.887889999998
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6157410000014352,
+      "correct": true,
+      "lag_ms": 0.334552000000258,
+      "started_ms": 17700.342728999996
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6826550000005227,
+      "correct": true,
+      "lag_ms": -0.13525599999775295,
+      "started_ms": 17749.874879000003
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.593365000000631,
+      "correct": true,
+      "lag_ms": 0.7090390000012121,
+      "started_ms": 17800.711464
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6153890000023239,
+      "correct": true,
+      "lag_ms": -0.05202199999985169,
+      "started_ms": 17849.950524
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8128670000005513,
+      "correct": true,
+      "lag_ms": -0.6318299999984447,
+      "started_ms": 17899.370965000002
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6919090000010328,
+      "correct": true,
+      "lag_ms": -0.05257699999856413,
+      "started_ms": 17949.950635
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7953839999972843,
+      "correct": true,
+      "lag_ms": -0.6193260000000009,
+      "started_ms": 17999.383454000003
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 1.5858919999991485,
+      "correct": true,
+      "lag_ms": -0.6193260000000009,
+      "started_ms": 17999.448195999998
+    },
+    {
+      "environment": "target",
+      "status": 200,
+      "duration_ms": 3967.770661999999,
+      "correct": true,
+      "lag_ms": 0.36054800000056275,
+      "started_ms": 14050.375880000001
+    },
+    {
+      "environment": "target",
+      "status": 200,
+      "duration_ms": 5970.972854,
+      "correct": true,
+      "lag_ms": -0.7160699999985809,
+      "started_ms": 12099.287308
+    },
+    {
+      "environment": "target",
+      "status": 200,
+      "duration_ms": 3973.6457819999996,
+      "correct": true,
+      "lag_ms": -0.49388899999757996,
+      "started_ms": 14149.514712999999
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7481220000008761,
+      "correct": true,
+      "lag_ms": 0.222289000001183,
+      "started_ms": 18200.226231
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6995120000028692,
+      "correct": true,
+      "lag_ms": 0.6535120000007737,
+      "started_ms": 18250.656109999996
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7603080000008049,
+      "correct": true,
+      "lag_ms": 0.22383600000102888,
+      "started_ms": 18300.227069
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.5998379999982717,
+      "correct": true,
+      "lag_ms": -0.07050699999672361,
+      "started_ms": 18349.932394000003
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6100669999977981,
+      "correct": true,
+      "lag_ms": -0.5433589999993274,
+      "started_ms": 18399.459152000003
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7840169999981299,
+      "correct": true,
+      "lag_ms": 0.7838830000000598,
+      "started_ms": 18450.786329000002
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.1205189999964205,
+      "correct": true,
+      "lag_ms": 0.613814000000275,
+      "started_ms": 18500.615822
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 2.860001999997621,
+      "correct": true,
+      "lag_ms": 0.613814000000275,
+      "started_ms": 18500.674462000003
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8051100000011502,
+      "correct": true,
+      "lag_ms": -0.10530499999731546,
+      "started_ms": 18549.897302999998
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7510519999996177,
+      "correct": true,
+      "lag_ms": 0.5044840000009572,
+      "started_ms": 18600.507534999997
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6884759999993548,
+      "correct": true,
+      "lag_ms": -0.04651499999818043,
+      "started_ms": 18649.956415
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6426759999994829,
+      "correct": true,
+      "lag_ms": -0.6014379999978701,
+      "started_ms": 18699.406755999997
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8351069999989704,
+      "correct": true,
+      "lag_ms": 0.363736000002973,
+      "started_ms": 18750.366904000002
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8779570000006061,
+      "correct": true,
+      "lag_ms": 0.21401500000138185,
+      "started_ms": 18800.21722
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9079369999999471,
+      "correct": true,
+      "lag_ms": -0.3297099999981583,
+      "started_ms": 18849.672712
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7405590000016673,
+      "correct": true,
+      "lag_ms": 0.4020060000002559,
+      "started_ms": 18900.40524
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.0654209999993327,
+      "correct": true,
+      "lag_ms": 0.8111460000000079,
+      "started_ms": 18950.814485000003
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.0920049999986077,
+      "correct": true,
+      "lag_ms": 0.30985100000179955,
+      "started_ms": 19000.312691
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 2.6228059999994002,
+      "correct": true,
+      "lag_ms": 0.30985100000179955,
+      "started_ms": 19000.393674
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8777699999991455,
+      "correct": true,
+      "lag_ms": 0.4964880000006815,
+      "started_ms": 19050.499811
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9367519999977958,
+      "correct": true,
+      "lag_ms": 1.3459790000015346,
+      "started_ms": 19101.349239000003
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.1540510000013455,
+      "correct": true,
+      "lag_ms": 0.1050310000027821,
+      "started_ms": 19150.108525999996
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.3388390000000072,
+      "correct": true,
+      "lag_ms": -0.7121689999985392,
+      "started_ms": 19199.291254000003
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9257010000001173,
+      "correct": true,
+      "lag_ms": 0.15018800000325427,
+      "started_ms": 19250.153497
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9465939999972761,
+      "correct": true,
+      "lag_ms": -0.3384429999969143,
+      "started_ms": 19299.664985000003
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.916693999999552,
+      "correct": true,
+      "lag_ms": 1.074638000001869,
+      "started_ms": 19351.078923
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.6316550000010466,
+      "correct": true,
+      "lag_ms": -0.30235999999786145,
+      "started_ms": 19399.701803999997
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8121500000015658,
+      "correct": true,
+      "lag_ms": 0.15399800000159303,
+      "started_ms": 19450.157131
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.0528989999984333,
+      "correct": true,
+      "lag_ms": 0.4509070000021893,
+      "started_ms": 19500.454241
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 2.207140000002255,
+      "correct": true,
+      "lag_ms": 0.4509070000021893,
+      "started_ms": 19500.546768
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9669599999979255,
+      "correct": true,
+      "lag_ms": 0.5095849999997881,
+      "started_ms": 19550.513108
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8948170000003302,
+      "correct": true,
+      "lag_ms": 0.3266590000021097,
+      "started_ms": 19600.330668000002
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7944139999999607,
+      "correct": true,
+      "lag_ms": 0.6736930000006396,
+      "started_ms": 19650.676613000003
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9587759999994887,
+      "correct": true,
+      "lag_ms": 0.6977619999997842,
+      "started_ms": 19700.7013
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.0781459999998333,
+      "correct": true,
+      "lag_ms": 0.8272130000004836,
+      "started_ms": 19750.830547999998
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.486347999998543,
+      "correct": true,
+      "lag_ms": 0.08765600000333507,
+      "started_ms": 19800.091414000002
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.1860820000001695,
+      "correct": true,
+      "lag_ms": -0.29122499999721185,
+      "started_ms": 19849.712535
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7332950000018172,
+      "correct": true,
+      "lag_ms": 0.236032000000705,
+      "started_ms": 19900.239397999998
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7587269999967248,
+      "correct": true,
+      "lag_ms": -0.09665200000017649,
+      "started_ms": 19949.906152000003
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.0600379999996221,
+      "correct": true,
+      "lag_ms": -0.5887099999999919,
+      "started_ms": 19999.413784999997
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 2.26664399999936,
+      "correct": true,
+      "lag_ms": -0.5887099999999919,
+      "started_ms": 19999.536180000003
+    },
+    {
+      "environment": "target",
+      "status": 200,
+      "duration_ms": 3970.0335269999996,
+      "correct": true,
+      "lag_ms": 0.07102800000211573,
+      "started_ms": 16050.073502000001
+    },
+    {
+      "environment": "target",
+      "status": 200,
+      "duration_ms": 3922.2846900000004,
+      "correct": true,
+      "lag_ms": 0.010201000000961358,
+      "started_ms": 16150.017472999998
+    },
+    {
+      "environment": "target",
+      "status": 0,
+      "duration_ms": 10000.786431,
+      "correct": false,
+      "lag_ms": -0.2855599999966216,
+      "started_ms": 10099.717347
+    },
+    {
+      "environment": "target",
+      "status": 200,
+      "duration_ms": 2074.9356750000006,
+      "correct": true,
+      "lag_ms": 0.21790099999998347,
+      "started_ms": 18050.221282
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6483710000029532,
+      "correct": true,
+      "lag_ms": -0.379174999998213,
+      "started_ms": 20249.623399999997
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6736559999990277,
+      "correct": true,
+      "lag_ms": 0.7508120000020426,
+      "started_ms": 20300.759591000002
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6419019999993907,
+      "correct": true,
+      "lag_ms": 0.21549100000265753,
+      "started_ms": 20350.219605
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.67011199999979,
+      "correct": true,
+      "lag_ms": -0.253551999998308,
+      "started_ms": 20399.756358
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6777450000008685,
+      "correct": true,
+      "lag_ms": 0.41745799999989686,
+      "started_ms": 20450.4208
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.0530340000004799,
+      "correct": true,
+      "lag_ms": -0.13518899999689893,
+      "started_ms": 20499.874073
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 2.5901730000005045,
+      "correct": true,
+      "lag_ms": -0.13518899999689893,
+      "started_ms": 20499.94519
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6566099999981816,
+      "correct": true,
+      "lag_ms": 0.9315180000012333,
+      "started_ms": 20550.934389000002
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.0592150000011316,
+      "correct": true,
+      "lag_ms": -0.36249899999893387,
+      "started_ms": 20599.641373
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.668974000000162,
+      "correct": true,
+      "lag_ms": 0.2502620000013849,
+      "started_ms": 20650.25799
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7145950000012817,
+      "correct": true,
+      "lag_ms": -0.12684099999751197,
+      "started_ms": 20699.881686
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6860219999980472,
+      "correct": true,
+      "lag_ms": 0.40161600000283215,
+      "started_ms": 20750.411296
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9694200000012643,
+      "correct": true,
+      "lag_ms": 0.6185550000009243,
+      "started_ms": 20800.621578
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7984319999995932,
+      "correct": true,
+      "lag_ms": 0.5046880000008969,
+      "started_ms": 20850.507818
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9136040000012144,
+      "correct": true,
+      "lag_ms": 0.6386890000030689,
+      "started_ms": 20900.6412
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7115970000013476,
+      "correct": true,
+      "lag_ms": 0.18915600000036648,
+      "started_ms": 20950.197306000002
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8725140000024112,
+      "correct": true,
+      "lag_ms": -0.3254820000001928,
+      "started_ms": 20999.677057
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 2.773431999998138,
+      "correct": true,
+      "lag_ms": -0.3254820000001928,
+      "started_ms": 20999.745892
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8702499999999418,
+      "correct": true,
+      "lag_ms": 1.1759750000019267,
+      "started_ms": 21051.185766000002
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.681246000000101,
+      "correct": true,
+      "lag_ms": -0.25041699999928824,
+      "started_ms": 21099.760559000002
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6566669999992882,
+      "correct": true,
+      "lag_ms": 0.3232930000012857,
+      "started_ms": 21150.337423999998
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.5884509999996226,
+      "correct": true,
+      "lag_ms": 0.4965700000029756,
+      "started_ms": 21200.499253
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8214279999992868,
+      "correct": true,
+      "lag_ms": 1.001310999999987,
+      "started_ms": 21251.005049
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.308191000000079,
+      "correct": true,
+      "lag_ms": -0.40657999999893946,
+      "started_ms": 21299.610905
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8728169999994861,
+      "correct": true,
+      "lag_ms": 0.6163240000023507,
+      "started_ms": 21350.619617999997
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8880170000011276,
+      "correct": true,
+      "lag_ms": 0.5620100000014645,
+      "started_ms": 21400.564637999996
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7874840000004042,
+      "correct": true,
+      "lag_ms": 0.5070380000033765,
+      "started_ms": 21450.510368000003
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.664678000001004,
+      "correct": true,
+      "lag_ms": 0.6860240000023623,
+      "started_ms": 21500.688538000002
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 2.5644150000007357,
+      "correct": true,
+      "lag_ms": 0.6860240000023623,
+      "started_ms": 21500.757002
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8030419999995502,
+      "correct": true,
+      "lag_ms": -0.0840250000001106,
+      "started_ms": 21549.918466000003
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8078920000007201,
+      "correct": true,
+      "lag_ms": 0.945889000002353,
+      "started_ms": 21600.948709999997
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6325560000004771,
+      "correct": true,
+      "lag_ms": -0.5722099999984493,
+      "started_ms": 21649.432200000003
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6664029999992636,
+      "correct": true,
+      "lag_ms": 0.027442000002338318,
+      "started_ms": 21700.030736
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8002379999998084,
+      "correct": true,
+      "lag_ms": -0.44789599999785423,
+      "started_ms": 21749.556356
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.0705699999998615,
+      "correct": true,
+      "lag_ms": 1.0268980000000738,
+      "started_ms": 21801.030856999998
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.3947279999993043,
+      "correct": true,
+      "lag_ms": -0.08392800000001444,
+      "started_ms": 21849.921801999997
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8979470000012952,
+      "correct": true,
+      "lag_ms": 0.9292950000017299,
+      "started_ms": 21900.932345
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8946700000014971,
+      "correct": true,
+      "lag_ms": 0.40590400000291993,
+      "started_ms": 21950.408412999997
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6941809999989346,
+      "correct": true,
+      "lag_ms": -0.09577999999964959,
+      "started_ms": 21999.908262999998
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 2.467751000000135,
+      "correct": true,
+      "lag_ms": -0.09577999999964959,
+      "started_ms": 21999.982055
+    },
+    {
+      "environment": "target",
+      "status": 200,
+      "duration_ms": 7921.049711,
+      "correct": true,
+      "lag_ms": 0.006036000002495712,
+      "started_ms": 14100.008732
+    },
+    {
+      "environment": "target",
+      "status": 200,
+      "duration_ms": 2023.6875119999968,
+      "correct": true,
+      "lag_ms": 0.5785740000028454,
+      "started_ms": 20050.581272000003
+    },
+    {
+      "environment": "target",
+      "status": 200,
+      "duration_ms": 3976.779497000003,
+      "correct": true,
+      "lag_ms": 0.3693380000004254,
+      "started_ms": 18150.373162999997
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8865670000013779,
+      "correct": true,
+      "lag_ms": -0.18977599999925587,
+      "started_ms": 22199.814805
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9422799999993003,
+      "correct": true,
+      "lag_ms": 0.6545890000015788,
+      "started_ms": 22250.657567000002
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.3579399999980524,
+      "correct": true,
+      "lag_ms": -0.20062699999834877,
+      "started_ms": 22299.803557
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.0313029999997525,
+      "correct": true,
+      "lag_ms": 0.37279100000159815,
+      "started_ms": 22350.382725000003
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9610430000029737,
+      "correct": true,
+      "lag_ms": 0.27939300000070943,
+      "started_ms": 22400.28226
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.1035759999977017,
+      "correct": true,
+      "lag_ms": -0.20089499999812688,
+      "started_ms": 22449.802137
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.913351999999577,
+      "correct": true,
+      "lag_ms": 0.8776980000002368,
+      "started_ms": 22500.881827999998
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 2.88672299999962,
+      "correct": true,
+      "lag_ms": 0.8776980000002368,
+      "started_ms": 22500.981637999997
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.0019780000002356,
+      "correct": true,
+      "lag_ms": 0.2335720000010042,
+      "started_ms": 22550.237611999997
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6678979999996955,
+      "correct": true,
+      "lag_ms": -0.17232499999954598,
+      "started_ms": 22599.830648000003
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7525019999993674,
+      "correct": true,
+      "lag_ms": 0.42339800000263494,
+      "started_ms": 22650.426377000003
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6491349999996601,
+      "correct": true,
+      "lag_ms": 0.6509440000008908,
+      "started_ms": 22700.654458999998
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7841750000006869,
+      "correct": true,
+      "lag_ms": 0.050123000000894535,
+      "started_ms": 22750.053180000003
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6833740000001853,
+      "correct": true,
+      "lag_ms": -0.4996389999978419,
+      "started_ms": 22799.503690999998
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8555549999982759,
+      "correct": true,
+      "lag_ms": 0.4778310000001511,
+      "started_ms": 22850.481265000002
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8940959999999905,
+      "correct": true,
+      "lag_ms": 0.4889160000020638,
+      "started_ms": 22900.491941
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.97049799999877,
+      "correct": true,
+      "lag_ms": 0.4478500000004715,
+      "started_ms": 22950.451329000003
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9529529999999795,
+      "correct": true,
+      "lag_ms": 0.0071250000000873115,
+      "started_ms": 23000.010294
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 2.379891000000498,
+      "correct": true,
+      "lag_ms": 0.0071250000000873115,
+      "started_ms": 23000.078147
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6803010000003269,
+      "correct": true,
+      "lag_ms": -0.40294599999833736,
+      "started_ms": 23049.599664
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.867512999997416,
+      "correct": true,
+      "lag_ms": 0.13131200000134413,
+      "started_ms": 23100.139549
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8771679999990738,
+      "correct": true,
+      "lag_ms": -0.33162199999787845,
+      "started_ms": 23149.671201999998
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7451949999995122,
+      "correct": true,
+      "lag_ms": 0.5575970000027155,
+      "started_ms": 23200.560314000002
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8883009999990463,
+      "correct": true,
+      "lag_ms": 0.19855500000267057,
+      "started_ms": 23250.205943
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8590089999997872,
+      "correct": true,
+      "lag_ms": -0.2128579999989597,
+      "started_ms": 23299.789902999997
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.882407000000967,
+      "correct": true,
+      "lag_ms": 0.753193000000465,
+      "started_ms": 23350.756440999998
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7761259999970207,
+      "correct": true,
+      "lag_ms": 0.14196400000219,
+      "started_ms": 23400.144568000003
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6794620000000577,
+      "correct": true,
+      "lag_ms": -0.357174999997369,
+      "started_ms": 23449.650390000003
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8932689999965078,
+      "correct": true,
+      "lag_ms": 0.5826210000013816,
+      "started_ms": 23500.585335000003
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 2.4913089999972726,
+      "correct": true,
+      "lag_ms": 0.5826210000013816,
+      "started_ms": 23500.650102
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.659072999998898,
+      "correct": true,
+      "lag_ms": 0.3081850000016857,
+      "started_ms": 23550.314283
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6412600000003295,
+      "correct": true,
+      "lag_ms": -0.1987489999992249,
+      "started_ms": 23599.80425
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6957200000033481,
+      "correct": true,
+      "lag_ms": 0.48120900000139954,
+      "started_ms": 23650.484256999996
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7629200000010314,
+      "correct": true,
+      "lag_ms": 0.5248060000012629,
+      "started_ms": 23700.527697999998
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7692520000018703,
+      "correct": true,
+      "lag_ms": 0.16291800000180956,
+      "started_ms": 23750.166791999996
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8484609999977692,
+      "correct": true,
+      "lag_ms": -0.09479799999826355,
+      "started_ms": 23799.908097
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.615311000001384,
+      "correct": true,
+      "lag_ms": 0.4234180000021297,
+      "started_ms": 23850.426035999997
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9538189999984752,
+      "correct": true,
+      "lag_ms": 0.5850280000013299,
+      "started_ms": 23900.588102
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6538430000000517,
+      "correct": true,
+      "lag_ms": 0.019500000002153683,
+      "started_ms": 23950.022026
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6359650000013062,
+      "correct": true,
+      "lag_ms": -0.5737909999988915,
+      "started_ms": 23999.439315999996
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 2.4934309999989637,
+      "correct": true,
+      "lag_ms": -0.5737909999988915,
+      "started_ms": 23999.508541000003
+    },
+    {
+      "environment": "target",
+      "status": 200,
+      "duration_ms": 5922.619436000001,
+      "correct": true,
+      "lag_ms": -0.3144539999993867,
+      "started_ms": 18099.688748
+    },
+    {
+      "environment": "target",
+      "status": 200,
+      "duration_ms": 7977.943224999999,
+      "correct": true,
+      "lag_ms": -0.5312809999995807,
+      "started_ms": 16099.471461
+    },
+    {
+      "environment": "target",
+      "status": 200,
+      "duration_ms": 3929.0492919999997,
+      "correct": true,
+      "lag_ms": 0.19701700000223354,
+      "started_ms": 20200.199906
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9119929999978922,
+      "correct": true,
+      "lag_ms": 0.013442999999824679,
+      "started_ms": 24200.026163000002
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8664029999999912,
+      "correct": true,
+      "lag_ms": -0.5026509999988775,
+      "started_ms": 24249.499956
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7333330000001297,
+      "correct": true,
+      "lag_ms": 0.8199970000023313,
+      "started_ms": 24300.822229999998
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8854070000015781,
+      "correct": true,
+      "lag_ms": 0.29011499999978696,
+      "started_ms": 24350.297954
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.729460000002291,
+      "correct": true,
+      "lag_ms": 0.7002870000032999,
+      "started_ms": 24400.707930999997
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7131310000004305,
+      "correct": true,
+      "lag_ms": 0.07174700000177836,
+      "started_ms": 24450.074224999997
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9845500000010361,
+      "correct": true,
+      "lag_ms": -0.33915300000080606,
+      "started_ms": 24499.669055
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 1.9965899999951944,
+      "correct": true,
+      "lag_ms": -0.33915300000080606,
+      "started_ms": 24499.753061000003
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.5648079999955371,
+      "correct": true,
+      "lag_ms": 0.2968479999981355,
+      "started_ms": 24550.299745000004
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9071929999990971,
+      "correct": true,
+      "lag_ms": -0.254731000000902,
+      "started_ms": 24599.754268000004
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8857789999965462,
+      "correct": true,
+      "lag_ms": 0.8051469999991241,
+      "started_ms": 24650.807803000003
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6103900000016438,
+      "correct": true,
+      "lag_ms": 0.7743479999990086,
+      "started_ms": 24700.776833000004
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7756370000060997,
+      "correct": true,
+      "lag_ms": 0.41717700000299374,
+      "started_ms": 24750.421571
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.5790500000002794,
+      "correct": true,
+      "lag_ms": 0.8140459999995073,
+      "started_ms": 24800.816651
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.713530000000901,
+      "correct": true,
+      "lag_ms": 0.25347200000396697,
+      "started_ms": 24850.257036000003
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6352380000025732,
+      "correct": true,
+      "lag_ms": -0.23375700000178767,
+      "started_ms": 24899.775494
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7227189999975963,
+      "correct": true,
+      "lag_ms": 0.39291100000264123,
+      "started_ms": 24950.396668
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7835629999972298,
+      "correct": true,
+      "lag_ms": 1.230052999999316,
+      "started_ms": 25001.233805000003
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 1.8837190000049304,
+      "correct": true,
+      "lag_ms": 1.230052999999316,
+      "started_ms": 25001.331306
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.0738510000010137,
+      "correct": true,
+      "lag_ms": -0.1999329999962356,
+      "started_ms": 25049.805628000002
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8339300000006915,
+      "correct": true,
+      "lag_ms": 0.9855910000042059,
+      "started_ms": 25100.989881
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.3617779999985942,
+      "correct": true,
+      "lag_ms": -0.2737159999960568,
+      "started_ms": 25149.731217
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8521980000004987,
+      "correct": true,
+      "lag_ms": 1.3647459999992861,
+      "started_ms": 25201.36832
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.2071569999970961,
+      "correct": true,
+      "lag_ms": 0.36401499999919906,
+      "started_ms": 25250.367792000005
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.1200649999955203,
+      "correct": true,
+      "lag_ms": -0.4267399999953341,
+      "started_ms": 25299.583598000005
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8025459999989835,
+      "correct": true,
+      "lag_ms": 0.5744980000017677,
+      "started_ms": 25350.576953000003
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6132750000033411,
+      "correct": true,
+      "lag_ms": 0.4319130000003497,
+      "started_ms": 25400.434688
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9622760000056587,
+      "correct": true,
+      "lag_ms": 1.0817690000039875,
+      "started_ms": 25451.108169
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.8228139999991981,
+      "correct": true,
+      "lag_ms": -0.14703799999551848,
+      "started_ms": 25499.86193
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 1.979973000001337,
+      "correct": true,
+      "lag_ms": -0.14703799999551848,
+      "started_ms": 25499.978053
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6501639999987674,
+      "correct": true,
+      "lag_ms": 0.547937000003003,
+      "started_ms": 25550.550662
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6926749999984168,
+      "correct": true,
+      "lag_ms": 0.035260000004200265,
+      "started_ms": 25600.037903000004
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7042170000058832,
+      "correct": true,
+      "lag_ms": -0.46008699999947567,
+      "started_ms": 25649.543517
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.728265999998257,
+      "correct": true,
+      "lag_ms": 0.8016209999987041,
+      "started_ms": 25700.804348000005
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6964300000036019,
+      "correct": true,
+      "lag_ms": 0.42118000000482425,
+      "started_ms": 25750.424536
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8018480000027921,
+      "correct": true,
+      "lag_ms": -0.1664390000005369,
+      "started_ms": 25799.837016999998
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8312740000037593,
+      "correct": true,
+      "lag_ms": 0.6250179999988177,
+      "started_ms": 25850.627533
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.2636060000004363,
+      "correct": true,
+      "lag_ms": -0.10430300000007264,
+      "started_ms": 25899.898520000002
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6003140000029816,
+      "correct": true,
+      "lag_ms": 0.43334300000424264,
+      "started_ms": 25950.436317
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8316279999999097,
+      "correct": true,
+      "lag_ms": 0.4128439999985858,
+      "started_ms": 26000.415889000004
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 1.631614999998419,
+      "correct": true,
+      "lag_ms": 0.4128439999985858,
+      "started_ms": 26000.476659
+    },
+    {
+      "environment": "target",
+      "status": 200,
+      "duration_ms": 3972.5522640000017,
+      "correct": true,
+      "lag_ms": 0.5200750000003609,
+      "started_ms": 22050.522710999998
+    },
+    {
+      "environment": "target",
+      "status": 200,
+      "duration_ms": 5979.060611000001,
+      "correct": true,
+      "lag_ms": 0.1959290000013425,
+      "started_ms": 20100.198706000003
+    },
+    {
+      "environment": "target",
+      "status": 200,
+      "duration_ms": 4032.301964999995,
+      "correct": true,
+      "lag_ms": -0.019082999999227468,
+      "started_ms": 22099.983556
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.681734999998298,
+      "correct": true,
+      "lag_ms": 0.13678600000275765,
+      "started_ms": 26200.140304
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6446900000009919,
+      "correct": true,
+      "lag_ms": -0.3000929999980144,
+      "started_ms": 26249.710035000004
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7146189999984927,
+      "correct": true,
+      "lag_ms": 0.8948180000006687,
+      "started_ms": 26300.897985000003
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.5423809999992955,
+      "correct": true,
+      "lag_ms": 0.43732200000522425,
+      "started_ms": 26350.444083000002
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6998420000018086,
+      "correct": true,
+      "lag_ms": 0.18747499999881256,
+      "started_ms": 26400.194103
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.5813080000007176,
+      "correct": true,
+      "lag_ms": -0.12369400000170572,
+      "started_ms": 26449.878701
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.0033949999997276,
+      "correct": true,
+      "lag_ms": -0.014045999996596947,
+      "started_ms": 26499.994185000003
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 2.5278459999972256,
+      "correct": true,
+      "lag_ms": -0.014045999996596947,
+      "started_ms": 26500.104597000005
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9916840000005323,
+      "correct": true,
+      "lag_ms": -0.3430670000016107,
+      "started_ms": 26549.660253000002
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9357509999972535,
+      "correct": true,
+      "lag_ms": 0.3685870000044815,
+      "started_ms": 26600.370798000004
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7205200000025798,
+      "correct": true,
+      "lag_ms": -0.25659900000027847,
+      "started_ms": 26649.745808
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7307649999929708,
+      "correct": true,
+      "lag_ms": 0.8851419999991776,
+      "started_ms": 26700.887416000005
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.589786999997159,
+      "correct": true,
+      "lag_ms": 0.3726920000044629,
+      "started_ms": 26750.376077
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7229260000021895,
+      "correct": true,
+      "lag_ms": -0.09219299999676878,
+      "started_ms": 26799.917335
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.779804999998305,
+      "correct": true,
+      "lag_ms": -0.5172069999971427,
+      "started_ms": 26849.492448000005
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7071980000037001,
+      "correct": true,
+      "lag_ms": 0.2434450000000652,
+      "started_ms": 26900.251283999998
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6300610000034794,
+      "correct": true,
+      "lag_ms": -0.2807669999965583,
+      "started_ms": 26949.728569
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6436580000008689,
+      "correct": true,
+      "lag_ms": 0.6186600000000908,
+      "started_ms": 27000.629311000004
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 1.5758529999948223,
+      "correct": true,
+      "lag_ms": 0.6186600000000908,
+      "started_ms": 27000.691574000004
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6591489999991609,
+      "correct": true,
+      "lag_ms": 0.06335399999807123,
+      "started_ms": 27050.065927000003
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7942320000001928,
+      "correct": true,
+      "lag_ms": -0.5108279999985825,
+      "started_ms": 27099.499436
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.5846440000022994,
+      "correct": true,
+      "lag_ms": 0.1601920000030077,
+      "started_ms": 27150.169193
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8165229999940493,
+      "correct": true,
+      "lag_ms": -0.4218509999991511,
+      "started_ms": 27199.585488000004
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6373220000023139,
+      "correct": true,
+      "lag_ms": 0.42172800000116695,
+      "started_ms": 27250.424955000002
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6748809999990044,
+      "correct": true,
+      "lag_ms": 0.9643609999984619,
+      "started_ms": 27300.967300000004
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.584246999998868,
+      "correct": true,
+      "lag_ms": -0.5249580000017886,
+      "started_ms": 27349.478906000004
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7665479999996023,
+      "correct": true,
+      "lag_ms": 1.0523020000036922,
+      "started_ms": 27401.062143000003
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.3167120000071009,
+      "correct": true,
+      "lag_ms": -0.3366420000020298,
+      "started_ms": 27449.673566999998
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8738890000022366,
+      "correct": true,
+      "lag_ms": 0.089311000003363,
+      "started_ms": 27500.092421
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 1.5286170000035781,
+      "correct": true,
+      "lag_ms": 0.089311000003363,
+      "started_ms": 27500.155452
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.5930430000007618,
+      "correct": true,
+      "lag_ms": -0.45787600000039674,
+      "started_ms": 27549.544893
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.1239219999988563,
+      "correct": true,
+      "lag_ms": 1.0305980000048294,
+      "started_ms": 27601.039945000004
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.8911490000027698,
+      "correct": true,
+      "lag_ms": 0.044028000003891066,
+      "started_ms": 27650.048998
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7492889999994077,
+      "correct": true,
+      "lag_ms": -0.4277040000015404,
+      "started_ms": 27699.575987000004
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7692440000028,
+      "correct": true,
+      "lag_ms": 0.6952860000019427,
+      "started_ms": 27750.69876
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.1737609999981942,
+      "correct": true,
+      "lag_ms": -0.15257299999939278,
+      "started_ms": 27799.851000000002
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8663530000048922,
+      "correct": true,
+      "lag_ms": 0.45384000000194646,
+      "started_ms": 27850.461654
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.804786000000604,
+      "correct": true,
+      "lag_ms": 0.17321300000185147,
+      "started_ms": 27900.176407
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8943279999948572,
+      "correct": true,
+      "lag_ms": -0.36279600000125356,
+      "started_ms": 27949.639952000005
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.104258999999729,
+      "correct": true,
+      "lag_ms": -0.02409800000168616,
+      "started_ms": 27999.978382
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 2.847815000000992,
+      "correct": true,
+      "lag_ms": -0.02409800000168616,
+      "started_ms": 28000.057589000004
+    },
+    {
+      "environment": "target",
+      "status": 200,
+      "duration_ms": 3974.0393010000007,
+      "correct": true,
+      "lag_ms": 0.04026700000031269,
+      "started_ms": 24050.047443999996
+    },
+    {
+      "environment": "target",
+      "status": 200,
+      "duration_ms": 3981.5517729999992,
+      "correct": true,
+      "lag_ms": -0.5068009999995411,
+      "started_ms": 24099.502259
+    },
+    {
+      "environment": "target",
+      "status": 200,
+      "duration_ms": 2034.1164310000022,
+      "correct": true,
+      "lag_ms": 0.1283049999983632,
+      "started_ms": 26100.137641
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7525129999994533,
+      "correct": true,
+      "lag_ms": -0.19482799999968847,
+      "started_ms": 28199.808920000003
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8611729999975068,
+      "correct": true,
+      "lag_ms": 0.502267000003485,
+      "started_ms": 28250.533275
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9765390000029583,
+      "correct": true,
+      "lag_ms": 0.6530410000050324,
+      "started_ms": 28300.656105000002
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.5549109999992652,
+      "correct": true,
+      "lag_ms": 0.41873299999861047,
+      "started_ms": 28350.421586000004
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6109169999981532,
+      "correct": true,
+      "lag_ms": -0.12249799999699462,
+      "started_ms": 28399.880023000005
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.5900080000064918,
+      "correct": true,
+      "lag_ms": 0.4400949999981094,
+      "started_ms": 28450.442974999998
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9641259999989416,
+      "correct": true,
+      "lag_ms": -0.14918899999611313,
+      "started_ms": 28499.860916000005
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 2.468257000000449,
+      "correct": true,
+      "lag_ms": -0.14918899999611313,
+      "started_ms": 28499.953395000004
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8271269999968354,
+      "correct": true,
+      "lag_ms": 0.2879000000029919,
+      "started_ms": 28550.290650000003
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6679890000013984,
+      "correct": true,
+      "lag_ms": -0.04833700000017416,
+      "started_ms": 28599.954521
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6024739999993471,
+      "correct": true,
+      "lag_ms": -0.6533579999959329,
+      "started_ms": 28649.349823000004
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8183300000018789,
+      "correct": true,
+      "lag_ms": -0.20900799999799347,
+      "started_ms": 28699.800293
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8063360000014654,
+      "correct": true,
+      "lag_ms": 0.9508009999990463,
+      "started_ms": 28750.953903
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.0318899999983842,
+      "correct": true,
+      "lag_ms": -0.44215499999700114,
+      "started_ms": 28799.560804
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6220830000020214,
+      "correct": true,
+      "lag_ms": 0.23729900000034831,
+      "started_ms": 28850.239389000002
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.5759750000070198,
+      "correct": true,
+      "lag_ms": 0.04435300000477582,
+      "started_ms": 28900.046761999998
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6706369999956223,
+      "correct": true,
+      "lag_ms": -0.5423030000019935,
+      "started_ms": 28949.460420000003
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8396199999988312,
+      "correct": true,
+      "lag_ms": 0.8828219999995781,
+      "started_ms": 29000.889358
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 2.3409499999979744,
+      "correct": true,
+      "lag_ms": 0.8828219999995781,
+      "started_ms": 29000.956653
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6332019999972545,
+      "correct": true,
+      "lag_ms": 0.36467999999877065,
+      "started_ms": 29050.373588000002
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6591209999969578,
+      "correct": true,
+      "lag_ms": -0.2326309999989462,
+      "started_ms": 29099.770087000004
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6860109999979613,
+      "correct": true,
+      "lag_ms": 0.7783649999983027,
+      "started_ms": 29150.782134
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.572202000003017,
+      "correct": true,
+      "lag_ms": 0.4246800000037183,
+      "started_ms": 29200.427779999998
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8124939999979688,
+      "correct": true,
+      "lag_ms": 0.7637340000001132,
+      "started_ms": 29250.766626000004
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7654750000001513,
+      "correct": true,
+      "lag_ms": 0.290553999999247,
+      "started_ms": 29300.293535000004
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9519609999988461,
+      "correct": true,
+      "lag_ms": 0.09224499999982072,
+      "started_ms": 29350.095524000004
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.9177390000040759,
+      "correct": true,
+      "lag_ms": -0.1941789999982575,
+      "started_ms": 29399.814434
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.8646240000016405,
+      "correct": true,
+      "lag_ms": 0.6118690000002971,
+      "started_ms": 29450.619997
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.537244000006467,
+      "correct": true,
+      "lag_ms": -0.0653009999950882,
+      "started_ms": 29499.938785
+    },
+    {
+      "environment": "neighbor",
+      "status": 200,
+      "duration_ms": 3.0306219999984023,
+      "correct": true,
+      "lag_ms": -0.0653009999950882,
+      "started_ms": 29500.038464000005
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.3236260000048787,
+      "correct": true,
+      "lag_ms": -0.7080979999955161,
+      "started_ms": 29549.29679
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.1119279999984428,
+      "correct": true,
+      "lag_ms": -0.03556899999966845,
+      "started_ms": 29599.967839000004
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 1.1571330000006128,
+      "correct": true,
+      "lag_ms": -0.4501430000018445,
+      "started_ms": 29649.552707000003
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7918070000014268,
+      "correct": true,
+      "lag_ms": 0.49117800000385614,
+      "started_ms": 29700.493921
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6736999999993714,
+      "correct": true,
+      "lag_ms": 0.17729700000199955,
+      "started_ms": 29750.186513
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7872310000020661,
+      "correct": true,
+      "lag_ms": 0.16176200000336394,
+      "started_ms": 29800.165106
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6936810000042897,
+      "correct": true,
+      "lag_ms": -0.02502000000094995,
+      "started_ms": 29849.985169
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.7766090000004624,
+      "correct": true,
+      "lag_ms": -0.2705759999953443,
+      "started_ms": 29899.738654
+    },
+    {
+      "environment": "target",
+      "status": 429,
+      "duration_ms": 0.6654159999961848,
+      "correct": true,
+      "lag_ms": 0.48924600000464125,
+      "started_ms": 29950.492297000004
+    },
+    {
+      "environment": "target",
+      "status": 200,
+      "duration_ms": 3975.141588999999,
+      "correct": true,
+      "lag_ms": 0.8309520000038901,
+      "started_ms": 26050.833937000003
+    },
+    {
+      "environment": "target",
+      "status": 200,
+      "duration_ms": 9933.449868000003,
+      "correct": true,
+      "lag_ms": -0.2840550000000803,
+      "started_ms": 20149.720279
+    },
+    {
+      "environment": "target",
+      "status": 200,
+      "duration_ms": 5986.0173840000025,
+      "correct": true,
+      "lag_ms": 0.1580340000000433,
+      "started_ms": 24150.165977999997
+    },
+    {
+      "environment": "target",
+      "status": 200,
+      "duration_ms": 5878.264833999994,
+      "correct": true,
+      "lag_ms": -0.09204999999928987,
+      "started_ms": 26149.916602000005
+    },
+    {
+      "environment": "target",
+      "status": 200,
+      "duration_ms": 3934.8159270000033,
+      "correct": true,
+      "lag_ms": 0.12459800000215182,
+      "started_ms": 28150.13435
+    },
+    {
+      "environment": "target",
+      "status": 200,
+      "duration_ms": 4087.4910510000045,
+      "correct": true,
+      "lag_ms": -0.5204269999958342,
+      "started_ms": 28049.482354
+    },
+    {
+      "environment": "target",
+      "status": 0,
+      "duration_ms": 10000.318499,
+      "correct": false,
+      "lag_ms": 0.03226400000130525,
+      "started_ms": 22150.041548
+    },
+    {
+      "environment": "target",
+      "status": 200,
+      "duration_ms": 5929.955505999998,
+      "correct": true,
+      "lag_ms": 0.28409000000101514,
+      "started_ms": 28100.292454000002
+    }
+  ]
+}

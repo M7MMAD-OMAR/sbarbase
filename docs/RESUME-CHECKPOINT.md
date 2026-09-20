@@ -21,7 +21,7 @@ Baseline commit: `548d898`. Gateway files add `ConcurrencyGate`, a `node:http` l
 
 ## Next actions in order
 
-1. Continue sustained/open-loop load, failure recovery, off-host restore and transfer gates. Short local runs cannot size a public service.
+1. Diagnose the failed [sustained arrival probe](SUSTAINED-OVERLOAD.md): 49 target successes, 549 expected rejections and two client timeouts; all 60 neighbor requests succeeded. Inspect REST connection wait and upstream cancellation, then coordinate admission with service budgets and rerun without relaxing acceptance.
 2. Audit management traffic limits separately from application traffic and measure actual upstream cancellation under sustained overload.
 3. Recheck free host resources and existing owned containers before running probes; preserve earlier baseline evidence and do not lower admission thresholds.
 
