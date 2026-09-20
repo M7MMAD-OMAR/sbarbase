@@ -9,10 +9,14 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 import uuid
 from types import SimpleNamespace
 import hba_target
 import hba_generation
+import hba_apply
+import hba_settlement
+import hba_reconcile
 import atomic_hba
 import hba_authority as authority
 import hba_journal as journal
@@ -31,7 +35,23 @@ def child(state,worker,effect,operation):
             return SimpleNamespace(stdout=json.dumps([{'Id':'a'*64,'Name':'/fixture-db','Image':target.image,'Config':{'Labels':{'io.sbarbase.owner':config.get('owner','fixture')}},'State':{'Running':True}}]))
         saved=journal.load(state/journal.NAME)
         (state/'dispatched.json').write_text(json.dumps(saved['identity']))
-    try:ownership.begin_worker(dispatch,state,operation,config['runtime'],snapshot,prepared,config['token'],target=target)
+    try:
+        active=ownership.begin_worker(dispatch,state,operation,config['runtime'],snapshot,prepared,config['token'],target=target)
+        if config.get('complete'):
+            with patch.object(authority,'read',return_value=active), patch.object(authority,'apply'), patch.object(hba_apply,'file_digest',return_value=authority.digest(prepared.content)), patch.object(hba_apply,'sql',side_effect=['0','t']):
+                hba_apply.execute(dispatch,state,(3,4,operation),target=target)
+            mutation=config['complete']
+            if mutation=='stale-claim':
+                with closing(sqlite3.connect(state/'control.sqlite')) as db,db:db.execute('UPDATE provision_jobs SET claim=?',(str(uuid.uuid4()),))
+            elif mutation=='missing-receipt':(state/'worker-effect.json').unlink()
+            elif mutation=='legacy':
+                path=state/'worker-effect.json';receipt=json.loads(path.read_text());receipt.pop('hbaProtocol');path.write_text(json.dumps(receipt))
+            elif mutation=='wrong-lock':operation=os.open(state/'operation.lock',os.O_RDWR)
+            def retire(*args,**kwargs):
+                (state/'retirement.json').write_text('called')
+                return journal.load(state/journal.NAME),{'observed_digest':authority.digest(prepared.content)}
+            with patch.object(hba_reconcile,'retire_locked',side_effect=retire), patch.object(hba_reconcile,'fresh_ownership',side_effect=AssertionError('fresh ownership requested')):
+                hba_settlement.complete_owned(dispatch,state,(3,4,operation),target=target)
     except Exception:return 2
     return 0
 
@@ -75,6 +95,40 @@ class OwnershipTests(unittest.TestCase):
         self.assertEqual(self.invoke(),0)
         identity=json.loads((self.state/'dispatched.json').read_text())
         self.assertEqual(identity,{'kind':'worker','runtime':self.runtime,'receipt':self.receipt,'claim':self.claim,'attempt':1})
+
+    def completion_mode(self,mode):
+        path=self.state/'input.json';config=json.loads(path.read_text());config['complete']=mode
+        path.write_text(json.dumps(config))
+        return config
+
+    def assert_completion_refused(self,mode):
+        config=self.completion_mode(mode)
+        self.assertEqual(self.invoke(),2)
+        self.assertTrue((self.state/hba_apply.COMPLETIONS/(config['token']+'.json')).exists())
+        self.assertTrue((self.state/journal.NAME).exists())
+        self.assertFalse((self.state/'retirement.json').exists())
+
+    def test_live_worker_completion_preserves_pending_receipt_and_catalog(self):
+        config=self.completion_mode('valid')
+        before={name:(self.state/name).read_bytes() for name in ('worker-effect.json','control.sqlite')}
+        self.assertEqual(self.invoke(),0)
+        self.assertFalse((self.state/journal.NAME).exists())
+        outcome=hba_settlement.read(self.state,config['token'])
+        self.assertEqual(outcome['journal']['identity']['claim'],self.claim)
+        self.assertEqual(outcome['activation'],'unknown')
+        for name,content in before.items():self.assertEqual((self.state/name).read_bytes(),content)
+
+    def test_changed_worker_claim_refuses_completion_before_retirement(self):
+        self.assert_completion_refused('stale-claim')
+
+    def test_missing_worker_receipt_refuses_completion_before_retirement(self):
+        self.assert_completion_refused('missing-receipt')
+
+    def test_legacy_worker_receipt_refuses_completion_before_retirement(self):
+        self.assert_completion_refused('legacy')
+
+    def test_competing_descriptor_refuses_completion_before_retirement(self):
+        self.assert_completion_refused('wrong-lock')
 
     def test_same_inode_competing_open_description_cannot_claim_ownership(self):
         for name in self.fds:

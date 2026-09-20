@@ -1,5 +1,7 @@
 """Real pinned PostgreSQL publication evidence, using disposable host state."""
 import json
+import fcntl
+import os
 from pathlib import Path
 import tempfile
 import uuid
@@ -50,12 +52,24 @@ def run(container,check,docker):
                 except FileExistsError:pass
                 else:raise AssertionError('Execution attempt was replayed')
                 check(('valid' if valid else 'invalid')+' execution cannot dispatch apply twice',not any(authority.APPLY in args for args in calls))
-            retired=hba_reconcile.retire(docker,state,target=target)
-            check(('valid' if valid else 'invalid')+' publication retirement preserves unknown activation',retired['observed_content']=='matches-desired' and retired['activation']=='unknown' and (state/journal.NAME).exists())
-            if valid:
-                outcome=hba_settlement.complete_applied(docker,state,target=target)
-                check('valid applied witness settles only the HBA pending slot',outcome['witness']==witness and outcome['activation']=='unknown' and not (state/journal.NAME).exists())
-            else:
+                if valid:
+                    calls.clear()
+                    outcome=hba_settlement.complete_owned(traced,state,lease.descriptors,target=target,startup=lease)
+                    check('live originating owner settles exact applied witness',outcome['witness']==witness and outcome['activation']=='unknown' and not (state/journal.NAME).exists())
+                    check('live completion performs no apply or PostgreSQL SQL call',not any(authority.APPLY in args or 'psql' in args for args in calls))
+                    check('live completion leaves historical archive readable',hba_settlement.read(state,token)==outcome)
+                    # Check each separately: a combined acquisition stops at its first busy lock.
+                    for name in hba_startup.NAMES:
+                        descriptor=os.open(state/name,os.O_RDWR|os.O_NOFOLLOW)
+                        try:
+                            try:fcntl.flock(descriptor,fcntl.LOCK_EX|fcntl.LOCK_NB)
+                            except BlockingIOError:pass
+                            else:raise AssertionError('Live completion released '+name)
+                        finally:os.close(descriptor)
+                    check('live completion retains original exclusive ownership',lease.active)
+            if not valid:
+                retired=hba_reconcile.retire(docker,state,target=target)
+                check('invalid publication retirement preserves unknown activation',retired['observed_content']=='matches-desired' and retired['activation']=='unknown' and (state/journal.NAME).exists())
                 try:hba_settlement.complete_applied(docker,state,target=target)
                 except FileNotFoundError:pass
                 else:raise AssertionError('Invalid applied attempt was settled')

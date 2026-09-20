@@ -184,8 +184,8 @@ class Runtime:
             self.sql('CREATE DATABASE storage_metadata OWNER storage_control;')
         self.sql(f'ALTER ROLE storage_control CONNECTION LIMIT {connection_budget.SERVICE_LIMIT}; ALTER DATABASE storage_metadata CONNECTION LIMIT {connection_budget.SERVICE_LIMIT};')
         self.sql('REVOKE ALL ON DATABASE storage_metadata FROM PUBLIC;')
+        # Management publishes the complete inventory HBA before starting Auth.
         self.management()
-        self.hba()
         self.launch(PREFIX+'-storage', 'storage', {
             'MULTI_TENANT': 'true', 'MULTITENANT_DATABASE_URL': f"postgres://storage_control:{self.values['storage_control']}@{DB}:5432/storage_metadata",
             'ENCRYPTION_KEY': self.values['encryption'], 'ADMIN_API_KEYS': self.values['storage_admin'], 'DB_INSTALL_ROLES': 'false',

@@ -277,3 +277,10 @@ Next implement normal completion under the originating live owner, because fresh
 ## Live-owner HBA completion scaffold, 2026-09-20
 
 Added `hba_settlement.complete_owned` using the same originating owner validation as publication, without fresh recovery lock acquisition. Recovery and live completion share strict evidence, retirement and archive handling. Two added tests cover completion under held startup locks without another apply/reload and rejection of expired startup ownership before retirement. Full Python suite: 198 tests passed. This remains an isolated prototype. Next: adversarial worker/descriptor cases, real PostgreSQL live completion probe and independent review before runtime integration. Retained containers were not changed.
+
+
+## Live completion validated and duplicate startup write removed, 2026-09-20
+
+Validated originating worker completion with actual locks and SQLite claims, rejecting stale claims, missing/legacy receipts and competing descriptors before backend retirement. Fresh/expired startup contexts are also refused. All 203 Python tests pass. The real pinned PostgreSQL HBA probe passes 26 checks, independently testing all three held locks; host-death recovery remains covered. Independent review found no helper bypass and prompted the stronger per-lock check.
+
+Removed the redundant `Runtime.start` HBA call after `management()` has already published the complete inventory. The real fresh worker/SDK lifecycle passes 57 checks with exact disposable cleanup. Thus current startup needs one operation, not reusable one-shot contexts. See the concrete integration map at the end of HBA-OPERATION-AUTHORITY-DESIGN.md. Next wire explicit ownership and receipt protocol into source writers, with an explicit legacy-adoption gate. The new authority protocol remains unintegrated; retained source/targets were not started or changed.

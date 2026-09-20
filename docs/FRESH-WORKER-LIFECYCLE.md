@@ -25,3 +25,6 @@ Owned child groups are terminated before reaping. Before resource teardown, fres
 [57 live checks](evidence/fresh-worker-checks.json) pass, including actual SDK isolation checks and complete Docker cleanup. Strict TypeScript checking of the SDK probe passes. The prior full Python checkpoint remains 115 tests; the unchanged recorded Bun checkpoint is 73 tests/408 assertions. Independent review found no remaining must-fix in the fixture scope.
 
 This closes the fresh worker-driven service integration gate for the new SQL guard. It does not cover interrupted HBA writes, interrupted service migrations, daemon/power failure, multi-host movement or 10/100-project capacity. Unknown later-stage outcomes still block replay. Next define bounded recovery for shared configuration and service effects, preserving this successful lifecycle as a regression.
+
+
+Latest regression: all 57 checks passed after removing the duplicate startup HBA write following `management()`. The full Python suite now passes 203 tests. The separate HBA authority prototype has live completion evidence but is still not used by this worker lifecycle; these results must not be described as its runtime integration.

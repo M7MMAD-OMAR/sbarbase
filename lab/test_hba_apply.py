@@ -65,9 +65,13 @@ class ApplyTests(unittest.TestCase):
         self.assertTrue(self.lease.active)
         self.publication.assert_called_once();self.assertEqual(self.sql.call_count,2)
 
-    def test_live_completion_rejects_expired_context_before_retirement(self):
-        self.execute();self.lease.active=False
+    def test_live_completion_rejects_fresh_or_expired_context_before_retirement(self):
+        self.execute()
+        fresh=hba_startup.Startup(self.state,self.lease.descriptors);fresh.attempted=True
         with patch.object(hba_reconcile,'retire_locked') as retire:
+            with self.assertRaisesRegex(RuntimeError,'originating'):
+                hba_settlement.complete_owned(Mock(),self.state,self.lease.descriptors,target=self.target,startup=fresh)
+            self.lease.active=False
             with self.assertRaisesRegex(RuntimeError,'originating'):
                 hba_settlement.complete_owned(Mock(),self.state,self.lease.descriptors,target=self.target,startup=self.lease)
             retire.assert_not_called()

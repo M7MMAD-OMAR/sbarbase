@@ -119,3 +119,24 @@ Eight completion tests cover exact archive binding, missing/malformed/public/sym
 The real PostgreSQL applied-path probe now passes 24 checks. Its child performs the whole startup-owned publication and stops in straight-line code only after `execute` returns normally, including completion file/directory fsync. The parent confirms its own stopped unreaped child, sends SIGKILL, then acquires fresh ownership to settle the exact witness. Tracing proves recovery makes no HBA apply or PostgreSQL SQL call, file bytes remain unchanged, and the historical archive remains readable. Invalid-file attempts without completion evidence stay pending. Independent review found no must-fix. [Updated evidence](evidence/upstream-hba-apply-checks.json).
 
 Next add completion under the still-live originating ownership for normal worker/startup execution; fresh recovery locks deliberately cannot be acquired while that live owner remains. Then integrate guardian protocol/version rollout and every managed runtime writer, handling repeated legitimate startup updates without bypassing one-attempt uncertainty. Actual supervisor/worker integration, activation policy and container-generation migration remain open.
+
+
+## Live originating-owner completion
+
+`hba_settlement.complete_owned` validates current worker/effect/operation descriptors and the exact worker services claim or originating active startup context before using the same strict completion-evidence, retirement and archival path as fresh recovery. It never obtains fresh recovery locks, reapplies HBA, reloads PostgreSQL or settles the surrounding worker receipt. Callers must keep descriptors continuously held; inode/flock validation proves current ownership, not descriptor history.
+
+Five additional worker tests use actual inherited locks and SQLite claims with a mocked backend. They cover successful completion without changing the receipt/catalog, a changed claim, missing or legacy receipt, and a competing open description. Startup tests refuse fresh and expired contexts before retirement. The full Python suite passes 203 tests.
+
+The real PostgreSQL probe passes 26 checks, now including live completion with no apply or SQL calls, an exact readable archive and independent contention against each of the three still-held locks. Separate child-death recovery remains covered. Independent review found no helper bypass; its observation that combined lock acquisition checks only the first busy lock was addressed by checking each lock independently.
+
+Runtime inspection found a redundant second HBA write in `Runtime.start`: `management()` already publishes all current inventory rules before starting management Auth, and no intervening operation changes them. The duplicate call was removed. The real fresh worker/SDK lifecycle passed all 57 checks afterward. Normal source startup and provisioning each need one HBA operation; a reusable startup context is therefore not needed for the current call graph.
+
+### Concrete integration map
+
+- Source writers converge at `Runtime.hba`: startup through `management()`, or provisioning at the services stage. Pass explicit ownership into these paths and require it before dispatch.
+- `durable_runtime.py up`, `installation_runtime.py up`, `cutover-export.py` and `cutover-neighbors.py` must acquire startup worker/effect/operation ownership in the same order. The supervisor already owns worker.lock and must explicitly pass its descriptor to installation startup.
+- Native provisioning already receives worker/effect descriptors 3/4 and opens operation.lock. Its guardian must emit exact `hbaProtocol: 1` for new durable receipts. Legacy receipts remain refused by the HBA gate.
+- New source containers may initialize their generation once under startup ownership. Existing retained containers require explicit, quiesced adoption; missing pins must not silently authorize backend initialization or reset.
+- Retained recovery-target restore writers are separate from the source runtime. Inventory and address those before making an installation-wide all-writers guarantee. Pending HBA state and broader worker uncertainty remain separate recovery gates.
+
+These are remaining implementation tasks. This checkpoint does not wire the isolated authority protocol into runtime or change retained installation resources.
