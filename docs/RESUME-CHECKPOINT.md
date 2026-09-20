@@ -389,7 +389,23 @@ pinned PostgreSQL container, docs/evidence/target-hba-creation-checks.json.
 Not done: a full live recovery restore re-run with the owned writer, conversion
 of the storage check probe and the legacy bootstrap scripts, and
 container-generation migration. The remaining raw writers are inventoried with
-explicit dispositions in TARGET-HBA-WRITERS.md.
+explicit dispositions in TARGET-HBA-WRITERS.md. The migration design (not
+implemented) is in [CONTAINER-GENERATION-MIGRATION](CONTAINER-GENERATION-MIGRATION.md).
+
+## Server deployment path written, 2026-09-20 (Hermes)
+
+Read [SERVER-DEPLOYMENT](SERVER-DEPLOYMENT.md). `lab/install_server.py` provides
+`check` (read-only preflight), `plan`, `install` and `smoke`; `deploy/sbarbase.service`
+supervises the installation with an `ExecStartPre` preflight; the runbook covers
+prerequisites, HTTPS termination, backup, upgrade per the upstream policy,
+rollback and explicit limits. Preflight proof on this host: it reports exactly
+one blocker, `Host headroom insufficient: 6898 MiB available, plan needs 8448
+MiB`, plus the retained-installation actions and the historical-target note.
+That blocker is a host capacity condition, not a code defect.
+
+Suites after the change: 248 Python tests, 73 Bun tests/408 assertions.
+Independent adversarial review of the new target and deployment code is
+running; its findings will be recorded under docs/reviews/.
 
 ## User stop and Hermes handoff, 2026-09-20
 
