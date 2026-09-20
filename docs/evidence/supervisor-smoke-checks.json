@@ -1,0 +1,14 @@
+{
+  "scope": "Local supervisor smoke test; idle worker interruption only, not in-flight provisioning recovery",
+  "checks": [
+    "runner started owned server and worker",
+    "duplicate runner rejected",
+    "manual worker excluded",
+    "worker is direct owned child",
+    "idle worker restarted after forced exit",
+    "server retained across worker restart",
+    "graceful runner stop",
+    "supervisor descriptor removed"
+  ],
+  "count": 8
+}

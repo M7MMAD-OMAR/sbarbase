@@ -2,6 +2,8 @@
 
 Updated 2026-09-20. Workspace: `/home/sbarah/R/Projects/P/sbarbase`.
 
+Short continuation brief: [handoff](docs/HANDOFF.md), including saved visuals, rationale and supervisor verification limits.
+
 ## Product and current decision
 
 Downloadable open source Supabase-based administration for multiple projects, usually on one VPS. Preserve Supabase SDK/SQL compatibility and follow its design system for the administration UI. Operators are trusted; application visitors are not. A working local console now runs on the loopback API server. No production platform or complete installer exists yet.
@@ -12,7 +14,7 @@ Downloadable open source Supabase-based administration for multiple projects, us
 
 | Area | What works | Evidence and limits |
 |---|---|---|
-| Console | Login, organization/project discovery, creation, provisioning status, connection details and key management | [Real browser workflow and saved screenshots](docs/design/CONSOLE-QA.md). Local only, manual worker, no health/capacity/backup UI yet |
+| Console | Login, organization/project discovery, creation, provisioning status, connection details and key management | [Real browser workflow and saved screenshots](docs/design/CONSOLE-QA.md). Local only, foreground supervised worker, no health/capacity/backup UI yet |
 | Control plane | Owner/admin/viewer policy, dedicated management Auth realm, durable publishable keys and composed loopback API | [28 upstream management checks](docs/evidence/upstream-management-checks.json), [scope](docs/reviews/upstream-management.md). Local operator bootstrap and organization discovery now work; production onboarding, invitations, full audit and edge controls remain pending |
 | Initial operator | Private local setup, persisted intent, interrupted Auth/catalog recovery and authenticated organization discovery | [18 live checks](docs/evidence/bootstrap-checks.json), [usage and scope](docs/OPERATOR-SETUP.md). No real operator account retained; no public bootstrap endpoint |
 | Provisioning | Atomic environment/job creation, exclusive local worker, stable runtime identity and interrupted-operation reconciliation | [7 live checks](docs/evidence/provision-checks.json), [scope](docs/PROVISIONING.md). Default worker retains the stock fixture; `--upstream` selects an isolated durable Supabase runtime |
@@ -49,3 +51,7 @@ Saved images: [10 projects](docs/diagrams/ten-projects.png), [transfer/restore](
 Use this repository and read lab/README.md before executing probes. Use bun and /usr/bin/python3. Recheck live resources and git status; preserve unrelated services. Proposed lab budget: 4 GB RAM, 4 CPUs, 20-30 GB disk. Persistent component lab ceilings are 3072 MiB/3 CPUs; the upstream Storage probe uses 2560 MiB/2.5 CPUs and removes its resources. Historical idle memory is not a capacity forecast. The component and durable upstream labs are stopped between runs with volumes retained. The durable upstream experiment uses 2816 MiB/2.75 CPUs at two environments including management Auth. The UI probe now retains three environments, whose container ceilings total 3328 MiB/3.25 CPUs; its four-environment guard caps container limits at 3840 MiB/3.75 CPUs, not a measured capacity guarantee. Do not run these labs concurrently without rechecking aggregate resources.
 
 Keep .secrets, .lab and dependencies out of sharing. The handoff ZIP includes source, research, pictures and sanitized evidence, not credentials, runtime data or Git history. Verify pinned image availability on another host. No remote server was changed and no Hermes execution was dispatched. Avoid concurrent mutation of one checkout by different assistants.
+
+## Local runner checkpoint
+
+`/usr/bin/python3 lab/dev.py` builds the console, starts the owned runtime and continuously processes provisioning jobs. Ctrl+C stops its children and owned containers while preserving volumes. Five lifecycle unit tests and [eight live smoke checks](docs/evidence/supervisor-smoke-checks.json) pass. Worker locks remain reserved across restarts; repeated failures stop the runner. Forced idle-worker restart was tested, but in-flight provisioning recovery under this supervisor still needs verification. This foreground runner is not a production service manager. Other local Docker services remained running after the smoke check.
