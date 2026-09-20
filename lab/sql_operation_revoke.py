@@ -47,7 +47,7 @@ def revoke_pair(execute,runtime,token,claim,attempt,checkpoint=lambda phase:None
             'target_oid':None if target is None else target['oid']}
 
 
-def register_target(execute,runtime,token,claim,attempt,checkpoint=lambda phase:None):
+def register_target(execute,runtime,token,claim,attempt,checkpoint=lambda phase:None,*,expected_control_oid=None,expected_cluster=None):
     """Authorize a pinned target registration through the active control token.
 
     Only this path may initialize target authority. An absent or closed target
@@ -56,7 +56,7 @@ def register_target(execute,runtime,token,claim,attempt,checkpoint=lambda phase:
     """
     fence.identity(runtime,token,claim,attempt)
     def authorized(database,query):
-        return execute(database,fence.guarded(runtime,token,claim,attempt,query))
+        return execute(database,fence.guarded(runtime,token,claim,attempt,query,expected_oid=expected_control_oid,expected_cluster=expected_cluster))
     binding=observe(authorized,runtime)
     target=binding['target']
     if target is None or not target['allows_connections']:

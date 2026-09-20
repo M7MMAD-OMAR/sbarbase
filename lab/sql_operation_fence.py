@@ -99,14 +99,14 @@ END $guard$;
 '''+end(runtime)
 
 
-def guarded(runtime,token,claim,attempt,query):
+def guarded(runtime,token,claim,attempt,query,*,expected_oid=None,expected_cluster=None):
     exact=identity(runtime,token,claim,attempt)
     if not isinstance(query,str) or not query.strip() or '\\' in query:
         raise ValueError('Only fixed native SQL without psql metacommands is supported')
-    return begin(runtime)+f'''DO $guard$
+    return begin(runtime)+backend_identity(expected_oid,expected_cluster)+f'''DO $guard$
 BEGIN
  IF NOT EXISTS(SELECT 1 FROM {TABLE} WHERE {exact} AND state='active') THEN
   RAISE EXCEPTION 'SQL operation is not active';
  END IF;
 END $guard$;
-'''+query+'\n'+end(runtime)
+'''+query+'\n;\n'+end(runtime)

@@ -129,3 +129,32 @@ raise RuntimeError('Crash checkpoint skipped')
             execute('postgres',fence.guarded(*next_claim,f'DROP DATABASE {recreated[0]};\nCREATE DATABASE {recreated[0]};'))
     check('replacement after binding rejects delayed target registration',registration_refused(recreated,recreate_after_binding))
     check('replaced target remains free of stale registry bootstrap',execute(recreated[0],"SELECT count(*) FROM pg_namespace WHERE nspname='sbarbase_provision_guard';").strip()=='0')
+
+    # Exercise the actual closed-bootstrap SQL through the scoped executor.
+    import guarded_sql_executor
+    import run as lab
+    import secrets
+    def transport(query,database='postgres',check=True):
+        result=docker('exec','-i',container,'psql','-X','-qAt','-v','ON_ERROR_STOP=1','-U',admin,'-d',database,data=query,check=False)
+        if check and result.returncode:
+            categories=('permission denied','already exists','does not exist','not active','identity changed','cannot run inside a transaction block','syntax error','registration refused')
+            category=next((value for value in categories if value in result.stderr),'unclassified')
+            raise RuntimeError('Guarded fixture SQL failure: '+category)
+        return result
+    provisioned=identity()
+    guarded=guarded_sql_executor.GuardedSQL(transport,*provisioned)
+    credentials={role:secrets.token_hex(32) for role in ('auth','rest')}
+    lab.provision_environment(provisioned[0],credentials,executor=guarded)
+    check('actual closed-bootstrap provision succeeds through guarded executor',guarded("SELECT to_regnamespace('auth') IS NOT NULL;",provisioned[0]).stdout.strip()=='t')
+    check('guarded scalar reads preserve exact output',guarded('SELECT 17;').stdout.strip()=='17')
+    check('unterminated SQL with trailing comment stays separated from guard cleanup',guarded('SELECT 19 -- native query without terminator').stdout.strip()=='19')
+    coordinator.revoke_pair(execute,*provisioned)
+    refused=False
+    try:guarded('CREATE TABLE public.must_not_exist(id integer);',provisioned[0])
+    except RuntimeError:refused=True
+    check('revocation stops actual provisioning executor target mutations',refused)
+    check('rejected mutation leaves no application table',execute(provisioned[0],"SELECT to_regclass('public.must_not_exist') IS NULL;").strip()=='t')
+    refused=False
+    try:guarded('SELECT 1;')
+    except RuntimeError as error:refused='requires reconciliation' in str(error)
+    check('executor never retries after rejected dispatch',refused)

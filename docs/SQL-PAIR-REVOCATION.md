@@ -16,13 +16,13 @@ Registry bootstrap now creates metadata and removes default grants in one transa
 
 Run `/usr/bin/python3 lab/partial-database-crash-check.py --upstream --cross-fence`.
 
-[37 live checks](evidence/upstream-sql-pair-fence-checks.json) pass in an isolated, network-disabled pinned Supabase PostgreSQL container. They cover actual coordinator SIGKILL after the control commit, target writes during that gap, successful retry, delayed SQL/registration rejection, absent and closed targets, cluster mismatch and real target replacement. Native OIDs are explicitly normalized to JSON integers before validation. Exact disposable cleanup passed.
+[43 live checks](evidence/upstream-sql-pair-fence-checks.json) pass in an isolated, network-disabled pinned Supabase PostgreSQL container. They cover actual coordinator SIGKILL after the control commit, target writes during that gap, successful retry, delayed SQL/registration rejection, absent and closed targets, cluster mismatch and real target replacement. Native OIDs are explicitly normalized to JSON integers before validation. Exact disposable cleanup passed.
 
-The separate database-local suite passes 35 live checks. The full Python suite passes 100 tests. The unchanged recorded Bun checkpoint is 73 tests and 408 assertions. These counts describe different scopes, not cumulative security coverage. Unit failure injection covers uncertain target outcomes; this pair probe does not claim a real target-lock timeout rehearsal.
+The separate database-local suite passes 35 live checks. The full Python suite passes 104 tests. The unchanged recorded Bun checkpoint is 73 tests and 408 assertions. These counts describe different scopes, not cumulative security coverage. Unit failure injection covers uncertain target outcomes; this pair probe does not claim a real target-lock timeout rehearsal.
 
 ## Target admission after the generation counterexample
 
-The low-level unpinned register primitive still reproduces the old-generation counterexample. It must not initialize production target authority. The 37-check result includes that deliberate counterexample plus checks of the new bounded admission path.
+The low-level unpinned register primitive still reproduces the old-generation counterexample. It must not initialize production target authority. The 43-check result includes that deliberate counterexample plus checks of the new bounded admission path.
 
 `register_target` observes target identity only through a batch guarded by the exact active control token. Missing or closed targets produce no target dispatch. The resulting target registration pins cluster and database OID and checks both after acquiring the target advisory lock, before any registry bootstrap. The caller cannot replace the captured binding between observation and dispatch. Returned metadata includes runtime, token, claim and attempt.
 
