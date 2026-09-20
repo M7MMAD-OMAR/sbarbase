@@ -1,6 +1,6 @@
 # Sbarbase handoff
 
-For the shortest overview, read [START-HERE](START-HERE.md). Unfinished local work: `lab/hba_authority.py` is an isolated, unintegrated prototype with 8 host shell tests and 13 pinned-image checks; no operation-authority guarantee follows from its presence.
+For the shortest overview, read [START-HERE](START-HERE.md). Unfinished local work: `lab/hba_authority.py` is an isolated, unintegrated prototype with 8 host shell tests and 17 pinned-image checks; no operation-authority guarantee follows from its presence.
 
 Snapshot: 2026-09-20. Start here, then read [the current checkpoint](RESUME-CHECKPOINT.md). Repository files are the continuation source; older chat and chronological status entries may be superseded.
 

@@ -204,3 +204,9 @@ The draft is now an isolated tested prototype. Eight real host shell tests and 1
 Read HBA-OPERATION-AUTHORITY-DESIGN.md for remaining requirements: exact host journal identity, startup/container-generation reconciliation, interruption tests and migration of every managed writer. This supersedes the prior untested-draft status, not the unresolved recovery gates.
 
 All 129 Python tests pass. Adversarial review found an uncertain-container-create cleanup gap in the new probe; a private cidfile now recovers the captured ID after lost run acknowledgment, with ID/name/owner/image checks before cleanup.
+
+## HBA registry interruption checkpoint
+
+The pinned-image authority probe now passes 17 checks, including actual helper SIGKILL immediately before and after registry rename. Before rename, the complete active version remains; after rename, the complete revoked version remains. The killed helper releases its lock, a new operation registers, and the persisted tombstone refuses resurrection. Failed revocation before publication is not cancellation.
+
+This uses a disposable shell container, with no running PostgreSQL and no retained resources. It does not test machine power loss, host journal recovery, registry cloning or startup integration. Next persist exact host operation journals before dispatch and define reconciliation before integrating runtime writers. The unchanged full Python checkpoint remains 129 tests.

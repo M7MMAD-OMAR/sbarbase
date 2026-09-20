@@ -1,11 +1,13 @@
 """Isolated authority protocol against the pinned image's real filesystem/tools.
 
-Does not start PostgreSQL or test reload, host journals or process interruption.
+Includes helper SIGKILL around registry rename. Does not start PostgreSQL or test
+reload, host journals, power loss or whole-operation recovery.
 """
 import json
 from pathlib import Path
 import subprocess
 import tempfile
+import time
 import re
 import uuid
 import atomic_hba
@@ -16,6 +18,45 @@ OWNER='hba-authority-probe'
 
 def docker(*args,data=None):
     return subprocess.run(['docker',*args],input=data,text=True,capture_output=True,check=True,timeout=30)
+
+
+def interrupt_update(cid,snapshot,token,binding,after_rename):
+    """Kill the exact stopped helper; outer fixture owns failure cleanup."""
+    record=authority.decode(snapshot.text,snapshot.generation)
+    record['operations'][token]={'binding':binding,'state':'revoked'}
+    record['revision']=str(uuid.uuid4())
+    text=authority.encode(record)
+    marker='/tmp/authority-stop-'+uuid.uuid4().hex
+    stop=f'printf "%s" "$$" > {marker}; kill -STOP "$$"\n'
+    boundary='sync "$directory"' if after_rename else 'mv -f --'
+    script=authority.UPDATE.replace(boundary,stop+boundary,1)
+    child=subprocess.Popen(['docker','exec','-i',cid,'sh','-c',script,'authority-interrupt',
+                            str(len(text.encode())),authority.digest(text),authority.digest(snapshot.text)],
+                           stdin=subprocess.PIPE,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,text=True)
+    try:
+        child.stdin.write(text);child.stdin.close();child.stdin=None
+        deadline=time.monotonic()+10
+        stamp=None
+        while time.monotonic()<deadline:
+            observed=subprocess.run(['docker','exec',cid,'cat',marker],capture_output=True,text=True,timeout=5)
+            if observed.returncode==0 and observed.stdout.isdigit():
+                pid=observed.stdout
+                fields=docker('exec',cid,'cat','/proc/'+pid+'/stat').stdout.split()
+                if fields[2]=='T':stamp=fields[21];break
+            time.sleep(.05)
+        if stamp is None:raise RuntimeError('Authority helper did not stop at checkpoint')
+        # Read only while the writer is demonstrably stopped holding the lock.
+        before_kill=authority.read(docker,cid,snapshot.generation)
+        docker('exec',cid,'sh','-c',f"[ \"$(awk '{{print $22}}' /proc/{pid}/stat)\" = \"{stamp}\" ] && kill -KILL {pid}")
+        code=child.wait(timeout=10)
+        docker('exec',cid,'rm',marker)
+        after_kill=authority.read(docker,cid,snapshot.generation)
+        expected=authority.Snapshot(cid,snapshot.generation,text) if after_rename else snapshot
+        if code==0 or before_kill!=expected or after_kill!=expected:
+            raise AssertionError('Interrupted registry did not preserve expected complete version')
+        return after_kill
+    finally:
+        if child.poll() is None:child.kill();child.wait(timeout=5)
 
 
 def main():
@@ -61,6 +102,14 @@ def main():
         truncated=second.text[:20]
         refused('truncated registry update rejected',lambda:docker('exec','-i',cid,'sh','-c',authority.UPDATE,'probe',str(len(second.text.encode())),authority.digest(second.text),authority.digest(second.text),data=truncated))
         check('truncation preserves complete registry',authority.read(docker,cid,generation)==second)
+        interrupted=interrupt_update(cid,second,token2,binding2,False)
+        check('SIGKILL before registry rename preserves active version',interrupted==second)
+        finished=interrupt_update(cid,second,token2,binding2,True)
+        check('SIGKILL after registry rename preserves revoked version',authority.decode(finished.text,generation)['operations'][token2]['state']=='revoked')
+        refused('post-crash tombstone refuses registration',lambda:authority.update(docker,finished,token2,binding2))
+        token3=str(uuid.uuid4())
+        resumed=authority.update(docker,finished,token3,binding2)
+        check('dead helper releases lock for a new exact operation',authority.decode(resumed.text,generation)['operations'][token3]['state']=='active')
         docker('exec',cid,'rm',authority.PATH)
         refused('missing registry refuses read',lambda:authority.read(docker,cid,generation))
         refused('retained marker prevents silent reinitialization',lambda:authority.initialize(docker,cid,generation))

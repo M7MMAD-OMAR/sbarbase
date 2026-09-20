@@ -1,7 +1,7 @@
 {
-  "scope": "Isolated authority protocol against the pinned image's real filesystem/tools.\n\nDoes not start PostgreSQL or test reload, host journals or process interruption.",
+  "scope": "Isolated authority protocol against the pinned image's real filesystem/tools.\n\nIncludes helper SIGKILL around registry rename. Does not start PostgreSQL or test\nreload, host journals, power loss or whole-operation recovery.",
   "image": "sha256:b3bfedb107413abb3b8cb0d0874b0414a1dceb3d55bc0c778de6ad22d1f7dc86",
-  "count": 13,
+  "count": 17,
   "checks": [
     "bounded isolated pinned container",
     "old permit rejected after revocation",
@@ -13,6 +13,10 @@
     "new active operation publishes exact content",
     "truncated registry update rejected",
     "truncation preserves complete registry",
+    "SIGKILL before registry rename preserves active version",
+    "SIGKILL after registry rename preserves revoked version",
+    "post-crash tombstone refuses registration",
+    "dead helper releases lock for a new exact operation",
     "missing registry refuses read",
     "retained marker prevents silent reinitialization",
     "exact disposable container removed"
