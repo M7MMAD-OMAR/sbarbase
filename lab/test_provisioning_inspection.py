@@ -107,3 +107,36 @@ class ProvisioningInspectionTests(unittest.TestCase):
             with patch.object(inspection,'docker') as command:
                 self.assertEqual(inspection.database_status([],receipt['job']['runtime'],command)['status'],'owned_source_not_observed')
                 command.assert_not_called()
+
+
+    def test_stage_evidence_is_exact_read_only_and_does_not_override_bad_outcome(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state=Path(directory);receipt={**self.fixture(state),'stageProtocol':1}
+            (state/'worker-effect.json').write_text(json.dumps(receipt))
+            stages=state/'effect-stages';stages.mkdir()
+            path=stages/(receipt['token']+'.json')
+            stage={**receipt,'stage':'preflight','stageIndex':0}
+            path.write_text(json.dumps(stage))
+            result=inspection.inspect_state(state,self.fake_docker)
+            self.assertEqual(result['next_action'],'evaluate_bounded_preflight_recovery_under_fresh_lease')
+            self.assertFalse(result['safe_to_replay'])
+            self.assertEqual(json.loads(path.read_text()),stage)
+            self.assertNotIn(receipt['token'],json.dumps(result))
+            for value in ({**stage,'job':{**stage['job'],'attempt':True}},{**stage,'stageIndex':True},{**stage,'stageProtocol':True},
+                          {**stage,'job':{**stage['job'],'claim':'other'}},
+                          {**stage,'stage':'database','stageIndex':0}):
+                path.write_text(json.dumps(value))
+                result=inspection.inspect_state(state,self.fake_docker)
+                self.assertEqual(result['native_stage']['status'],'mismatch')
+                self.assertEqual(result['next_action'],'inspect_unresolved_effects')
+            for index,name in enumerate(('database','services','storage','publication'),1):
+                path.write_text(json.dumps({**stage,'stage':name,'stageIndex':index}))
+                result=inspection.inspect_state(state,self.fake_docker)
+                self.assertEqual(result['native_stage']['name'],name)
+                self.assertEqual(result['next_action'],'inspect_unresolved_effects')
+            path.write_text(json.dumps(stage))
+            outcomes=state/'effect-outcomes';outcomes.mkdir()
+            witness=outcomes/(receipt['token']+'.json');witness.write_text('{partial')
+            self.assertEqual(inspection.inspect_state(state,self.fake_docker)['next_action'],'inspect_unresolved_effects')
+            witness.write_text(json.dumps({**receipt,'phase':'native-completed','exitCode':75}))
+            self.assertEqual(inspection.inspect_state(state,self.fake_docker)['next_action'],'settle_known_outcome_under_fresh_lease')

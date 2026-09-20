@@ -1,0 +1,31 @@
+{
+  "scope": "Real supervisor SIGKILL with native provisioner paused by a temporary CPython profile hook after preflight persistence. Guardian cleanup, fresh startup requeue and subsequent capacity refusal verified. No external provisioning effects, active writes, later stages or power loss tested. No new environment allocated.",
+  "count": 25,
+  "checks": [
+    "installation idle before rehearsal",
+    "existing capacity failure cannot allocate at current ceiling",
+    "existing fixture has bounded recovery budget",
+    "retained failed capacity fixture reused",
+    "capacity still refuses before explicit retry",
+    "existing failed operation explicitly retried",
+    "real native provisioner paused at exact claimed preflight",
+    "active supervisor terminated by SIGKILL",
+    "guardian cleanup releases fresh worker effect and operation ownership",
+    "pending preflight remains and inspector requires fresh recovery",
+    "crashed attempt has no completion witness",
+    "crash does not allocate containers or persist credentials",
+    "capacity still refuses before recovery restart",
+    "classified admission refusal preserved",
+    "same runtime identity and exactly one automatic retry",
+    "crashed claim has exact durable requeue decision",
+    "exact attempt outcome committed in catalog",
+    "native refusal witness binds the exact committed claim",
+    "native refusal retains exact preflight boundary",
+    "receipt consumed only after committed outcome",
+    "no runtime container allocated",
+    "private allocation file unchanged",
+    "worker survived classified refusal",
+    "combined console and all four environments respond",
+    "all owned runtimes stopped"
+  ]
+}

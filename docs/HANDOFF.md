@@ -16,7 +16,7 @@ Experimental runtime: shared PostgreSQL, a separate database and scoped service 
 - Four local environments: three on the source cluster and one restored onto a separate local target. Real SDK tests cover identity, RLS, reads/writes, files and an unchanged signed URL created before export.
 - Fenced encrypted export, independent restore, persistent routing, maintenance, address refresh, target startup/shutdown and combined supervisor. See [recovery details](INDEPENDENT-RESTORE.md) and [combined runtime](COMBINED-RUNTIME.md).
 - Combined configured ceilings: **5888 MiB RAM and 5.75 CPUs**, within a 6 GiB/6 CPU admission cap plus host reserves. This is an experimental allocation budget, not actual peak use or a VPS recommendation. No measured 10/100-project limit exists.
-- Latest recorded suites: 87 Python tests; 73 Bun tests, 408 assertions. The latest nine-check supervisor SIGKILL rehearsal passed for an idle worker and subsequent restart. The two review findings were fixed and reviewed; see the checkpoint. Test counts have different scopes and are not cumulative safety coverage.
+- Latest recorded suites: 88 Python tests; 73 Bun tests, 408 assertions. The latest nine-check supervisor SIGKILL rehearsal passed for an idle worker and subsequent restart. The two review findings were fixed and reviewed; see the checkpoint. Test counts have different scopes and are not cumulative safety coverage.
 
 ## Research and reviews
 
@@ -31,11 +31,11 @@ Source links, findings and limitations are preserved in [architecture research](
 
 The pictures illustrate design intent, including future operations. Ten projects is an illustrative pilot proposal, not demonstrated capacity. The optional second server is future placement; current experiments use one computer. The UI follows Supabase's direction, not a complete implementation of its design system.
 
-Direct provisioning effects now retain worker ownership after worker death; see [scope and tests](WORKER-EFFECT-OWNERSHIP.md). A [durable receipt gate](PROVISIONING-RECEIPTS.md) now blocks replay and startup after unknown outcomes. A [parent-bound guardian](EFFECT-GUARDIAN.md) now applies a local deadline and group termination protocol. A [native completion witness](NATIVE-OUTCOME-RECOVERY.md) now recovers a lost acknowledgment without replay. A [read-only inspector](PROVISIONING-INSPECTION.md) now reports evidence for unresolved effects. [Bounded preflight recovery](PREFLIGHT-RECOVERY.md) now requeues proven pre-mutation interruptions under fresh ownership. Later-stage unknown outcomes remain blocked.
+Direct provisioning effects now retain worker ownership after worker death; see [scope and tests](WORKER-EFFECT-OWNERSHIP.md). A [durable receipt gate](PROVISIONING-RECEIPTS.md) now blocks replay and startup after unknown outcomes. A [parent-bound guardian](EFFECT-GUARDIAN.md) now applies a local deadline and group termination protocol. A [native completion witness](NATIVE-OUTCOME-RECOVERY.md) now recovers a lost acknowledgment without replay. A [read-only inspector](PROVISIONING-INSPECTION.md) now reports evidence for unresolved effects. [Bounded preflight recovery](PREFLIGHT-RECOVERY.md) now requeues proven pre-mutation interruptions under fresh ownership. Later-stage unknown outcomes remain blocked. [A real active-preflight supervisor crash and restart](ACTIVE-PREFLIGHT-CRASH.md) passed 25 checks without allocating resources.
 
 ## Remaining gates
 
-Test active-job crash recovery, coordinated graceful cutover and sustained mixed traffic across placements. Production installation, off-host recovery, upgrades, full organization transfer, multi-host coordination, Realtime/functions/pooler/cron and capacity at 10 or 100 projects remain unfinished. Daily visitor counts alone cannot size the system.
+Test later-stage active-job crash recovery, coordinated graceful cutover and sustained mixed traffic across placements. Production installation, off-host recovery, upgrades, full organization transfer, multi-host coordination, Realtime/functions/pooler/cron and capacity at 10 or 100 projects remain unfinished. Daily visitor counts alone cannot size the system.
 
 ## Continue here or in Hermes
 

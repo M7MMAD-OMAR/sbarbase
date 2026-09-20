@@ -12,6 +12,7 @@ If a valid receipt identifies an environment and the owned source database is al
 
 - `busy` or unavailable evidence: obtain a new snapshot later; do not infer completion.
 - `settle_known_outcome_under_fresh_lease`: a matching known outcome is observable. The existing settlement path must still acquire fresh ownership and validate it again.
+- `evaluate_bounded_preflight_recovery_under_fresh_lease`: exact supported preflight evidence, no native outcome and a current matching claim are observable. The worker must independently reacquire ownership, validate and apply its retry budget. This does not promise a requeue.
 - `inspect_unresolved_effects`: there is no sufficient known completion proof. Resources may reflect partial work; do not delete the receipt or requeue the job.
 - `safe_to_replay` is always false. This report is not mutation authority or a reusable approval token.
 
@@ -21,8 +22,8 @@ SQLite uses `mode=ro`, query-only mode and a read transaction, not `immutable=1`
 
 ## Verification
 
-Six isolated tests cover unchanged fixture bytes, exact evidence binding, absent/busy locks, redaction, unavailable Docker, ownership collision, bounded read-only SQL, malformed evidence and strict integer protocol versions. Adversarial review corrected Python's boolean-version acceptance and an overstrong resource-absence description.
+Seven isolated tests cover unchanged fixture bytes, exact evidence binding, absent/busy locks, redaction, unavailable Docker, ownership collision, bounded read-only SQL, malformed evidence and strict integer protocol versions. Adversarial review corrected Python's boolean-version acceptance and an overstrong resource-absence description.
 
-[Seven live checks](evidence/provisioning-inspection-checks.json) observe 19 owned containers, all stopped, with no pending receipt. Catalog, journals, endpoints and native-witness hashes remain unchanged. No database query was attempted in that stopped fixture. Pending-state and live-database query branches are covered by isolated tests, not this live check. All 82 Python tests pass; unchanged Bun checkpoint remains 67 tests and 377 assertions.
+[Seven live checks](evidence/provisioning-inspection-checks.json) observe 19 owned containers, all stopped, with no pending receipt. Catalog, journals, endpoints and native-witness hashes remain unchanged. No database query was attempted in that stopped fixture. Pending-state and live-database query branches are covered by isolated tests, not this live check. All 88 Python tests pass; unchanged Bun checkpoint remains 73 tests and 408 assertions. Stage tests cover exact identity and index, boolean rejection, later stages, malformed outcome refusal and native completion precedence.
 
-Next: define stage-specific evidence and recovery actions for genuinely partial effects. Inspection alone does not resolve them.
+The report now includes sanitized native stage status, name and index. It never exposes raw stage tokens or claims. Historical preflight decisions with newer claims deliberately remain unresolved in this observer; the authoritative worker settlement handles them. Later-stage reconciliation remains unfinished.

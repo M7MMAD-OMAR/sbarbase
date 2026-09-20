@@ -23,6 +23,6 @@ Retained credentials remain stable but do not prove admission. Every worker disp
 
 ## Limits and next work
 
-Database, services, Storage and publication stages remain blocked without a matching completion witness. The read-only inspector does not yet describe stage-specific recovery decisions; inspect this protocol before interpreting an unresolved report. No generic clear-receipt operation exists.
+Database, services, Storage and publication stages remain blocked without a matching completion witness. The read-only inspector now describes exact supported stage evidence and recommends fresh evaluation for matching preflight claims, without authorizing replay. No generic clear-receipt operation exists.
 
-Next extend the inspector with exact stage evidence and exercise a full supervisor crash during active provisioning without touching retained production-like fixtures. Multi-host coordination, external backup storage, production upgrades and measured 10/100-project capacity remain separate unfinished gates.
+A [full active-preflight supervisor crash rehearsal](ACTIVE-PREFLIGHT-CRASH.md) now passes 25 checks using the retained refused-capacity fixture, with no allocation. Next establish isolated later-stage fault fixtures and reconciliation. Multi-host coordination, external backup storage, production upgrades and measured 10/100-project capacity remain separate unfinished gates.

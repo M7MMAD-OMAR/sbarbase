@@ -87,6 +87,22 @@ def witness_status(state,receipt):
     return 'matching',witness['exitCode']
 
 
+def stage_status(state,receipt):
+    if receipt.get('native')!='durable-provision-v1' or type(receipt.get('stageProtocol')) is not int or receipt['stageProtocol']!=1:
+        return {'status':'unsupported_protocol'}
+    status,stage=read_json(state/'effect-stages'/(receipt['token']+'.json'))
+    if status!='present':return {'status':status}
+    names=('preflight','database','services','storage','publication')
+    if (not valid_receipt(stage)
+            or type(stage.get('stageProtocol')) is not int or stage['stageProtocol']!=1
+            or stage.get('phase')!='pending' or stage.get('native')!=receipt['native']
+            or stage.get('token')!=receipt['token'] or stage.get('job')!=receipt['job']
+            or type(stage.get('stageIndex')) is not int or not 0<=stage['stageIndex']<len(names)
+            or stage.get('stage')!=names[stage['stageIndex']]):
+        return {'status':'mismatch'}
+    return {'status':'matching','name':stage['stage'],'index':stage['stageIndex']}
+
+
 def catalog_status(state,receipt,code):
     db=sqlite3.connect((state/'control.sqlite').resolve().as_uri()+'?mode=ro',uri=True,timeout=1)
     try:
@@ -141,12 +157,17 @@ def inspect_state(state,command=docker):
                 report['receipt']={'phase':receipt['phase'],'attempt':receipt['job']['attempt'],
                     'runtime':receipt['job']['runtime'],'identity_digest':hashlib.sha256(json.dumps(receipt,sort_keys=True).encode()).hexdigest()}
                 witness,code=witness_status(state,receipt);report['native_witness']=witness
+                report['native_stage']=stage_status(state,receipt)
                 if receipt['phase']=='completed':
                     code=receipt.get('exitCode') if type(receipt.get('exitCode')) is int and receipt['exitCode'] in (0,75) else None
                 try:report['catalog']=catalog_status(state,receipt,code)
                 except (sqlite3.Error,OSError):report['catalog']={'status':'unavailable'}
                 report['next_action']=('settle_known_outcome_under_fresh_lease' if code is not None and report['catalog']['status'] in
                     ('current_claim_matches','historical_outcome_matches') else 'inspect_unresolved_effects')
+                if (receipt['phase']=='pending' and witness=='missing'
+                        and report['native_stage']=={'status':'matching','name':'preflight','index':0}
+                        and report['catalog']['status']=='current_claim_matches'):
+                    report['next_action']='evaluate_bounded_preflight_recovery_under_fresh_lease'
             else:report['next_action']='no_pending_receipt' if status=='missing' else 'repair_invalid_evidence'
             try:
                 report['containers']=owned_inventory(command);report['docker_status']='observed'
