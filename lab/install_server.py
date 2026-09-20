@@ -23,6 +23,7 @@ import sys
 from pathlib import Path
 
 import console_build_check
+import pinned_images_check
 ROOT=Path(__file__).resolve().parent.parent
 STATE=ROOT/'.lab'/'upstream'
 PRIVATE=ROOT/'.secrets'/'upstream'
@@ -200,7 +201,11 @@ def install(bootstrap_file):
         for label,digest,reference in pinned_images():
             if docker('image','inspect',digest,check=False).returncode:
                 if docker('pull',reference,check=False).returncode:raise SystemExit('Pinned image pull failed for '+label)
-        print('step 2/5  pinned images present')
+        for label,digest,reference in pinned_images():
+            record,error=pinned_images_check.inspect_image(reference)
+            ok,detail=pinned_images_check.evaluate(digest,record)
+            if not ok:raise SystemExit('Pinned image '+label+' did not verify: '+detail)
+        print('step 2/5  pinned images present and verified')
         npm_install()
         run(['bun','run','build:ui'],cwd=ROOT)
         problems,_=console_build_check.verify()

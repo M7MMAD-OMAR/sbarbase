@@ -110,6 +110,9 @@ the unit was present, enabled and verified.
   intact (non-empty index, every local asset it references present and hashed).
   The installer now refuses a build that produces an unusable page, and the
   rehearsal records `built console page is intact` before it starts anything.
+- `lab/pinned_images_check.py` proves every pin is present locally and resolves
+  to the pinned digest. It never pulls, and a tag that now points at a different
+  digest fails instead of passing.
 
 ```
 /usr/bin/python3 lab/install_server.py smoke         # management Auth, per-environment routes, console pid

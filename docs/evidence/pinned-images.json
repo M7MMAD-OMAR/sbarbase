@@ -1,0 +1,58 @@
+{
+ "scope": "Install step \"pinned images present\", isolated: every pin in lab/images.lock.json, lab/distro-image.lock.json and the storage lock is present in the local daemon and resolves to the pinned digest. Nothing is pulled, no container starts.",
+ "run_at": "2026-09-20T15:32:00+04:00",
+ "images": [
+  {
+   "component": "distro-image.lock.json:default",
+   "pin": "sha256:b3bfedb107413abb3b8cb0d0874b0414a1dceb3d55bc0c778de6ad22d1f7dc86",
+   "pull_reference": "public.ecr.aws/supabase/postgres@sha256:b3bfedb107413abb3b8cb0d0874b0414a1dceb3d55bc0c778de6ad22d1f7dc86",
+   "ok": true,
+   "detail": "present and matches the pin",
+   "repo_tags": [
+    "public.ecr.aws/supabase/postgres:17.6.1.166"
+   ]
+  },
+  {
+   "component": "images.lock.json:db",
+   "pin": "sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73",
+   "pull_reference": "postgres@sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73",
+   "ok": true,
+   "detail": "present and matches the pin",
+   "repo_tags": [
+    "postgres:17-alpine"
+   ]
+  },
+  {
+   "component": "images.lock.json:auth",
+   "pin": "sha256:c0c25187a6b835e65a6f6e6c6b39d090e832d40e6de5186f2c038e0411944232",
+   "pull_reference": "public.ecr.aws/supabase/gotrue@sha256:c0c25187a6b835e65a6f6e6c6b39d090e832d40e6de5186f2c038e0411944232",
+   "ok": true,
+   "detail": "present and matches the pin",
+   "repo_tags": [
+    "public.ecr.aws/supabase/gotrue:v2.196.0"
+   ]
+  },
+  {
+   "component": "images.lock.json:rest",
+   "pin": "sha256:2f8e7b656f09db697a8875177694b417b35cb76c21370de07fc54e711e902326",
+   "pull_reference": "public.ecr.aws/supabase/postgrest@sha256:2f8e7b656f09db697a8875177694b417b35cb76c21370de07fc54e711e902326",
+   "ok": true,
+   "detail": "present and matches the pin",
+   "repo_tags": [
+    "public.ecr.aws/supabase/postgrest:v14.15"
+   ]
+  },
+  {
+   "component": "storage-image.lock.json:default",
+   "pin": "sha256:c24fb33cc2fa38d0f9582a30312907fc56da333fb9ba0646833186197e4982f3",
+   "pull_reference": "public.ecr.aws/supabase/storage-api@sha256:c24fb33cc2fa38d0f9582a30312907fc56da333fb9ba0646833186197e4982f3",
+   "ok": true,
+   "detail": "present and matches the pin",
+   "repo_tags": [
+    "public.ecr.aws/supabase/storage-api:v1.73.1"
+   ]
+  }
+ ],
+ "count": 5,
+ "passed": true
+}
