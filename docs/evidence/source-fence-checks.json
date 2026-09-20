@@ -1,0 +1,14 @@
+{
+  "scope": "Database connection fence and session termination on disposable database, persistence across restart and explicit rollback. Retained neighbor read checked. Does not fence in-flight Storage filesystem/S3 writes or prove full cutover.",
+  "checks": [
+    "existing fixture session is active before fence",
+    "existing database session terminated",
+    "new privileged database connection denied",
+    "neighbor retained environment remains readable",
+    "database fence survives server restart",
+    "new connection still denied after restart",
+    "explicit operator rollback restores connectivity",
+    "target stopped after fixture removal"
+  ],
+  "count": 8
+}

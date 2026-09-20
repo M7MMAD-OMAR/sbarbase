@@ -15,6 +15,7 @@ import run as lab
 import resource_admission
 import connection_budget
 import pressure_admission
+import source_fence
 
 class AdmissionLimitError(RuntimeError):
     pass
@@ -181,7 +182,8 @@ class Runtime:
             '512m', .5, [(PREFIX+'-objects', '/tmp/storage-data')])
         self.wait(self.endpoint(PREFIX+'-storage', 5001)+'/tenants', {'apikey': self.values['storage_admin']})
         for e in tuple(self.values['environments']):
-            self.provision(e)
+            if not source_fence.is_fenced(self.sql,e):
+                self.provision(e)
 
     def rest_deadlines(self, e):
         if not re.fullmatch(r'e_[a-f0-9]{24}', e):
@@ -215,6 +217,8 @@ class Runtime:
                 raise AdmissionLimitError('Connection budget unavailable')
             self.values['environments'][e] = {k: secrets.token_hex(32) for k in ('auth', 'rest', 'storage', 'jwt')}
             atomic(self.path, self.values)
+        if source_fence.is_fenced(self.sql,e):
+            raise RuntimeError('Environment database is fenced; explicit reconciliation required')
         v = self.values['environments'][e]
         lab.provision_environment(e, v, executor=self.sql)
         self.sql('CREATE SCHEMA IF NOT EXISTS extensions; CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions; CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions; GRANT USAGE ON SCHEMA extensions TO anon,authenticated,service_role;', e)

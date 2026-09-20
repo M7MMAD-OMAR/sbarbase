@@ -57,3 +57,7 @@ Database restore cleanup now attempts helper and database cleanup independently,
 ## Latest durable cutover foundation
 
 Catalog `runtime_routing` now persists revision, maintenance and optional service placement. Trusted `changeRuntimeRouting` pause/stage/resume transitions are transactional and reject stale writers. Gateways refuse during maintenance, use target endpoints only after resume and do not reuse source Storage when omitted on target. Connection discovery follows placement. Tests: 60 Bun, 314 assertions; targeted strict types pass. Full application strict checking encounters existing custom-fetch typing in `src/control/auth.ts`. No actual runtime routing records were changed by these tests. Next: source write fencing, concrete cutover orchestration and real managed SDK verification; controller death and chronological pre-export URL proof remain open.
+
+## Latest source fence foundation
+
+`source_fence.py` now closes a database to new connections, terminates sessions, verifies quiescence and preserves refusal on failure. Durable startup skips fenced environments; provisioning refuses them. Tests: 49 Python and eight live disposable-database checks. Source and retained environment data unchanged; target stopped. Next combine durable maintenance, all gateway drains, database fence and Storage quiescence into a consistent final export/cutover workflow. Do not mistake a database fence for stopping already-authorized file writes, or reuse the older snapshot as current source state without reconciliation.

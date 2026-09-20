@@ -151,3 +151,7 @@ An explicit identity/ownership-checked reconciliation command stops retained tar
 ## Persistent routing checkpoint
 
 [Durable maintenance and placement](docs/PERSISTENT-ROUTING.md) now survive catalog reopen, reject stale revisions and keep staged destinations inactive until resume. Managed traffic and connection discovery follow this state. All 60 Bun tests and 314 assertions pass; targeted routing types pass. Broader application typing has an existing custom-fetch/preconnect mismatch. No actual placement changed; source fencing and complete cutover orchestration remain next.
+
+## Source database fence checkpoint
+
+[Database connection fencing](docs/SOURCE-FENCING.md) persists refusal before terminating existing sessions. Installer restart/provisioning preserves it. All 49 Python tests and eight live disposable-database checks pass, including restart persistence, neighbor readability and explicit rollback. No source environment was fenced. Storage side effects and coordinated final export/cutover remain open.
