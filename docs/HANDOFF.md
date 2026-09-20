@@ -45,12 +45,12 @@ Local budget proposal: 4 GB RAM, 4 CPUs and 20-30 GB disk. The four retained ups
 - REST client abort does not promptly stop SQL. The gateway now retains admission through upstream completion and bounded response draining. [Evidence and limits](REST-CANCELLATION.md).
 - REST login/database defaults: 8-second statements, 12-second transactions. Live checks verify both expiries and recovery. Warm changes require stopped REST. [SQL policy](SQL-DEADLINES.md).
 - The unchanged [mixed SDK workload](SDK-LOAD.md) passed 1,001 operations with those policies active. Fixtures were removed and runtime stopped.
-- Latest recorded suites: 52 Bun tests, 269 assertions; 30 Python tests. Evidence snapshots cover different scopes and must not be added as independent coverage.
+- Latest recorded suites: 52 Bun tests, 269 assertions; 34 Python tests. Evidence snapshots cover different scopes and must not be added as independent coverage.
 
 ## Continue in Codex or Hermes
 
 Use `/home/sbarah/R/Projects/P/sbarbase`. Read `~/AGENTS.md`, this file, `PROJECT.md` and `lab/README.md`; inspect Git and live processes first. Use one assistant as active writer. No Hermes execution has been dispatched.
 
-Next major gate: [prove restoration into a separate PostgreSQL cluster](reviews/independent-restore.md), preserving Supabase identity, object bytes and required configuration. Existing recovery used the same cluster. Stage source and target runs within the local resource budget. Sustained capacity, production installation, upgrades and full transfer workflows remain open.
+Next major gate: [prove restoration into a separate PostgreSQL cluster](reviews/independent-restore.md), preserving Supabase identity, object bytes and required configuration. The [encrypted export checkpoint](RECOVERY-EXPORT.md) passes 29 checks and leaves source containers stopped with volumes retained. The private latest-artifact descriptor is `.lab/upstream/recovery-latest.json`; the target restore is still unimplemented. Existing recovery used the same cluster. Stage source and target runs within the local resource budget. Sustained capacity, production installation, upgrades and full transfer workflows remain open.
 
 Keep `.secrets/` and `.lab/` private. The handoff ZIP contains source, research, saved pictures and sanitized evidence. It excludes credentials, runtime data, dependencies and Git history. It is a development handoff, not an installation backup.

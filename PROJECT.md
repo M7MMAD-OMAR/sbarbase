@@ -26,7 +26,7 @@ Downloadable open source Supabase-based administration for multiple projects, us
 
 Retained component containers now reject image or configured-environment drift before reuse: [12 read-only live checks](docs/evidence/runtime-reuse-checks.json) and six Python tests. This guard does not perform upgrades or container reconciliation.
 
-The latest recorded backend checks are 52 Bun tests with 269 assertions and 30 Python tests. UI typecheck and production build passed at the earlier UI checkpoint. Evidence files are versioned snapshots, not cumulative independent test totals.
+The latest recorded backend checks are 52 Bun tests with 269 assertions and 34 Python tests. UI typecheck and production build passed at the earlier UI checkpoint. Evidence files are versioned snapshots, not cumulative independent test totals.
 
 The gateway now also permits API-key-free GET/HEAD on public-object and signed-download paths only. Storage enforces bucket visibility and signature validity. API-key revocation does not revoke previously issued signed URLs. Uploads currently buffer at most 1 MiB with a read deadline. Large/resumable uploads, CORS and service-key forwarding remain unfinished.
 
@@ -107,3 +107,7 @@ The durable installer now publishes a REST admission cap from its configured Pos
 ## Combined-policy SDK checkpoint
 
 The [same mixed SDK workload](docs/SDK-LOAD.md) now passes with service admission, REST disconnect retention and SQL defaults active: 1,001 correct operations, no failed operations, cleanup and runtime stop completed. This remains two short closed-loop phases, not a capacity forecast. Next major recovery gate: restore onto a separate PostgreSQL cluster while preserving identity and objects, then verify source/neighbor isolation within the local resource budget.
+
+## Independent recovery export checkpoint
+
+A [selected-environment encrypted export](docs/RECOVERY-EXPORT.md) now includes scoped roles/settings, objects/xattrs and decrypted tenant signing keys enclosed under a new backup key. Twenty-nine live checks pass and the owned source is stopped with volumes retained. No shared platform key is intentionally added to configuration. Thirty-four Python tests pass. The next step remains a fresh-cluster restore and independent identity/object/signed-URL verification; archive round-trip is not restore certification.

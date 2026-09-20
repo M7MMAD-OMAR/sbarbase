@@ -38,3 +38,7 @@ Sources for the current transport setting: [Bun fetch documentation](https://bun
 ## Latest continuation priority
 
 The mixed SDK regression now passed 1,001 operations with all recent admission/deadline policies. See SDK-LOAD.md. The next major gate is restoration into a separate PostgreSQL cluster. Existing encrypted recovery evidence is same-cluster only. Inspect the recovery code and preserve source/neighbor data; use staged container startup to stay within the local resource budget.
+
+## Recovery export ready for the next gate
+
+[RECOVERY-EXPORT.md](RECOVERY-EXPORT.md) records the new encrypted artifact, consistency checks and remaining limitations. Source runtime is stopped after 29 live export checks; volumes are retained. Use `.lab/upstream/recovery-latest.json` programmatically to locate the private archive/key. The separate-cluster restore consumer is not implemented yet. Thirty-four Python tests pass.
