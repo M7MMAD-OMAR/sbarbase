@@ -449,7 +449,7 @@ behaviour any replacement must keep).
 the shipped unit's directives (`ExecStartPre` preflight gate, `ExecStart` the
 supervisor, PATH, no restart), starts it with `systemctl --user`, probes the
 console and the management realm, stops it, and removes the unit. All ten checks
-pass (`docs/evidence/supervised-run.json`, 16:18). This proves the supervision
+pass (`docs/evidence/supervised-run.json`, 17:08). This proves the supervision
 mechanics and the gate as systemd runs them; the shipped unit installed at
 `/etc/systemd/system/sbarbase.service` remains for the server acceptance run,
 which passes `--require-unit`.

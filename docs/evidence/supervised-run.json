@@ -5,7 +5,7 @@
   "DOCKER_HOST": "unix:///var/run/docker.sock"
  },
  "docker_note": "Forwarded because this host reaches the daemon through DOCKER_HOST while its docker context points elsewhere; a server whose context resolves to the native socket needs neither.",
- "run_at": "2026-09-20T16:18:16+04:00",
+ "run_at": "2026-09-20T17:08:17+04:00",
  "checks": [
   {
    "check": "temporary unit loaded by systemd",
@@ -38,9 +38,9 @@
    "detail": ""
   },
   {
-   "check": "the preflight gate ran under systemd",
+   "check": "the preflight gate admitted the host under systemd",
    "ok": true,
-   "detail": "Sep 20 16:18:14 muhmad python3[129439]: Local Sbarbase API: http://127.0.0.1:44627"
+   "detail": "Sep 20 17:08:15 muhmad python3[642364]: Local Sbarbase API: http://127.0.0.1:42683"
   },
   {
    "check": "systemctl stop returned cleanly",
