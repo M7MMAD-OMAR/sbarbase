@@ -72,7 +72,15 @@ container is touched. For a foreground run instead, execute
 /usr/bin/python3 lab/install_server.py smoke         # management Auth, per-environment routes, console pid
 bun lab/combined-gateway-check.ts                    # 14 simultaneous gateway checks (needs the console built)
 bun lab/combined-supervisor-check.ts                 # full rehearsal: start, checks, supervised shutdown
+/usr/bin/python3 lab/deployment_rehearsal.py         # one command: install, supervise, verify, shut down, evidence
+/usr/bin/python3 lab/target_placement_rehearsal.py   # retained target placement: start, probes, stop
 ```
+
+`deployment_rehearsal.py` writes `docs/evidence/deployment-rehearsal.json` and
+exits non-zero on any failure; on a host without the required headroom it
+records the preflight refusal and stops without starting anything.
+`target_placement_rehearsal.py` exercises the adopted recovery-target placement
+end to end and returns it to the paused, stopped state.
 
 The smoke command reports each endpoint status and does not modify state. The
 supervisor rehearsal additionally requires the same headroom as a normal start.

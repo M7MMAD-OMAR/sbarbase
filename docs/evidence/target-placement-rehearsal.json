@@ -1,0 +1,68 @@
+{
+ "scope": "Rehearsal of the retained recovery-target placement after HBA adoption: target lifecycle start with its own readiness probes, independent Auth and REST probes, resumed routing with a persisted placement, lifecycle stop, paused maintenance afterwards and an untouched stopped source. Not sustained load, not HTTPS, not multi-host.",
+ "environment": "e_60332245e3a0426dd242492f",
+ "checks": [
+  {
+   "check": "source placement stays stopped",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "target started through its own lifecycle",
+   "ok": true,
+   "detail": "{\"running\": true, \"revision\": 73}"
+  },
+  {
+   "check": "target lifecycle reports running and a new routing revision",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "all four target containers are running",
+   "ok": true,
+   "detail": "db, auth, rest, storage"
+  },
+  {
+   "check": "target Auth answers",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "target REST answers",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "routing is resumed with a persisted placement",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "target carries the adopted generation pin",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "target stopped through its own lifecycle",
+   "ok": true,
+   "detail": "Target stopped; routing paused"
+  },
+  {
+   "check": "no target container left running",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "routing returned to paused maintenance",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "source placement still stopped",
+   "ok": true,
+   "detail": ""
+  }
+ ],
+ "count": 12,
+ "passed": true
+}

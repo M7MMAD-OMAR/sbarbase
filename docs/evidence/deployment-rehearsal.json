@@ -1,0 +1,12 @@
+{
+ "scope": "Deployment rehearsal: read-only preflight, installation (or an already installed host), supervisor startup, console and management reachability, recorded environment routes, supervised shutdown and absence of running owned containers. Not sustained load, not multi-host, not HTTPS termination.",
+ "checks": [
+  {
+   "check": "preflight: Host headroom insufficient: 6816 MiB available, plan needs 8448 MiB",
+   "ok": false,
+   "detail": ""
+  }
+ ],
+ "passed": false,
+ "count": 1
+}

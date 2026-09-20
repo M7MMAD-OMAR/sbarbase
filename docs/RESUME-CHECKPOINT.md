@@ -407,6 +407,22 @@ Suites after the change: 248 Python tests, 73 Bun tests/408 assertions.
 Independent adversarial review of the new target and deployment code is
 running; its findings will be recorded under docs/reviews/.
 
+## Target placement rehearsal passed, 2026-09-20 (Hermes)
+
+`lab/target_placement_rehearsal.py` passes 12 checks on the retained recovery
+target after adoption: the target starts through its own lifecycle (which
+health-checks Auth, REST and Storage and re-stages routing), Auth and REST
+answer independently, routing is resumed with a persisted placement, the target
+carries its adopted generation pin, and the lifecycle stop leaves no container
+running with routing paused and the source untouched.
+Evidence: docs/evidence/target-placement-rehearsal.json.
+
+`lab/deployment_rehearsal.py` runs the whole deployment verification in one
+command (preflight, install, supervisor, console and management reachability,
+environment routes, supervised shutdown, no owned container left running). On
+this host it records the preflight refusal, `Host headroom insufficient`,
+without starting anything: docs/evidence/deployment-rehearsal.json.
+
 ## User stop and Hermes handoff, 2026-09-20
 
 The user explicitly stopped this Codex implementation to continue with another Hermes agent/model. All reviews are completed; no test process remains active. Read-only inventory verified 11 source and 8 recovery-target containers stopped, no fresh fixture containers remaining, and no retained source generation pin. Saved the completed crash-probe changes and evidence, without beginning adoption or another experiment. HERMES-HANDOFF.md is the concise continuation entry point. The wider platform goal remains unfinished; this is a user-requested stop, not goal completion.
