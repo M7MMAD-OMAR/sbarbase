@@ -92,3 +92,18 @@ test('slow body deadline rejects even when cancellation resolves the pending rea
  expect((await handler(new Request('http://local/a_prod/rest/v1/items',{method:'POST',headers:{apikey:'key-a'},body:delayed}))).status).toBe(400);
  expect(forwarded).toBe(false);expect(cancelled).toBe(true);
 });
+
+test('only public and signed Storage reads may omit API keys',async()=>{
+ let forwarded=0;
+ const storage={url:'http://storage:5000',tenantHost:'a_prod.storage.internal'};
+ const handler=createGateway(new Map([['a_prod',{...route,storage}]]),(async()=>{forwarded++;return new Response('upstream');}) as typeof fetch);
+ for(const path of ['/object/public/bucket/file','/object/sign/bucket/file?token=capability']) {
+  expect((await handler(new Request('http://local/a_prod/storage/v1'+path))).status).toBe(200);
+  expect((await handler(new Request('http://local/a_prod/storage/v1'+path,{method:'HEAD'}))).status).toBe(200);
+  expect((await handler(new Request('http://local/a_prod/storage/v1'+path,{method:'DELETE'}))).status).toBe(401);
+ }
+ for(const path of ['/object/sign/bucket/file','/object/sign/bucket/file?token=one&token=two','/object/authenticated/bucket/file','/object/bucket/file','/bucket'])
+  expect((await handler(new Request('http://local/a_prod/storage/v1'+path))).status).toBe(401);
+ expect((await handler(new Request('http://local/a_prod/storage/v1/object/public/bucket/file',{headers:{apikey:'wrong'}}))).status).toBe(401);
+ expect(forwarded).toBe(4);
+});

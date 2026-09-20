@@ -108,6 +108,11 @@ def run_storage_probe(db, prefix, sql, launch, endpoint, credentials, accounts, 
         status,_=api(e,'/object/public/private/same.txt',token=jwt(e,'anon'))
         check(e+' private object inaccessible through public route',status!=200)
     for e in credentials:
+        status,_=api(e,'/bucket','POST',json.dumps({'id':'public','name':'public','public':True}).encode())
+        check(e+' public fixture bucket created',status in (200,201))
+        status,_=api(e,'/object/public/public.txt','POST',e.encode(),accounts[e]['access_token'],'text/plain')
+        check(e+' public fixture object uploaded',status in (200,201))
+    for e in credentials:
         status,data=api(e,'/object/private/same.txt',token=accounts[e]['access_token'])
         check(e+' original bytes survive same-name upload in neighbor',status==200 and data==e.encode())
         for target in (*credentials, 'storage_metadata', 'postgres'):
@@ -124,4 +129,4 @@ def run_storage_probe(db, prefix, sql, launch, endpoint, credentials, accounts, 
     sdk_results=json.loads(sdk.stdout)
     for result in sdk_results['checks']:
         check(result['check'],result['passed'])
-    evidence['storage_scope']='One original Storage process, file backend, separate tenant DB logins and JWT secrets; private upload/download and crossed-token rejection. Basic SDK gateway integration also checked; no backups, signed URLs, S3 or durable worker integration.'
+    evidence['storage_scope']='One original Storage process, file backend, separate tenant DB logins and JWT secrets; private upload/download and crossed-token rejection. SDK gateway and public/signed URL behavior also checked; no backups, S3 or durable worker integration.'

@@ -32,11 +32,21 @@ export function createGateway(registry:RouteRegistry, transport:typeof fetch = f
     const route = registry.get(environment);
     if (!route || !route.enabled) return error(404,'Unknown route');
     const apiKey = request.headers.get('apikey');
-    if (!apiKey || apiKey.length > 8192) return error(401,'Invalid API key');
-    let keyAccepted=false;
-    try { keyAccepted=verifyKey ? verifyKey(environment,apiKey) : route.keys.some(key=>matches(key,apiKey)); }
-    catch { return error(503,'Key verification unavailable'); }
-    if (!keyAccepted) return error(401,'Invalid API key');
+    const readMethod=request.method==='GET'||request.method==='HEAD';
+    const signedTokens=url.searchParams.getAll('token');
+    const publicStorageRead=service==='storage'&&readMethod&&(
+      /^\/object\/public\/[^/]+\/.+/.test(path)||
+      /^\/object\/sign\/[^/]+\/.+/.test(path)&&signedTokens.length===1&&
+        !!signedTokens[0]&&signedTokens[0].length<=8192);
+    // Public object visibility and signed-token validity are enforced by Storage.
+    // No exception exists for writes, listing, signing, or authenticated paths.
+    if(apiKey!==null) {
+      if(!apiKey||apiKey.length>8192) return error(401,'Invalid API key');
+      let keyAccepted=false;
+      try {keyAccepted=verifyKey?verifyKey(environment,apiKey):route.keys.some(key=>matches(key,apiKey));}
+      catch {return error(503,'Key verification unavailable');}
+      if(!keyAccepted) return error(401,'Invalid API key');
+    } else if(!publicStorageRead) return error(401,'Invalid API key');
     // Never let a forwarded path or absolute URL choose the upstream host.
     if (path.includes('\\') || /%2f|%5c|%00/i.test(path)) return error(400,'Invalid path');
     if (!['GET','HEAD','POST','PUT','PATCH','DELETE'].includes(request.method)) return error(405,'Method not allowed');
@@ -59,7 +69,7 @@ export function createGateway(registry:RouteRegistry, transport:typeof fetch = f
     }
     const authorization = request.headers.get('authorization');
     if (authorization && !/^Bearer \S+$/i.test(authorization)) return error(401,'Invalid authorization');
-    const bearerIsApiKey = authorization?.toLowerCase().startsWith('bearer ') && matches(authorization.slice(7), apiKey);
+    const bearerIsApiKey = authorization?.toLowerCase().startsWith('bearer ') && apiKey!==null && matches(authorization.slice(7), apiKey);
     headers.set('authorization', authorization && !bearerIsApiKey ? authorization : `Bearer ${route.anonymousToken}`);
     let body:Uint8Array | undefined;
     if (request.body) {

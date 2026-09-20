@@ -32,3 +32,14 @@ Sixteen additional live checks pass through the real Supabase SDK and loopback g
 Gateway request bodies remain bounded to 1 MiB total, including multipart overhead, with a ten-second read deadline. Broken or stalled bodies fail without reaching upstream. Twenty-four unit tests pass with 115 assertions, including cancellation resolving a pending read. Large/resumable uploads need a streaming design with admission limits; this implementation must not be marketed as supporting arbitrary uploads.
 
 Public object URLs and signed URLs without an API-key header are not yet supported by this gateway. Browser CORS, opaque service keys, S3 protocol, image transforms, durable Storage provisioning and backup/restore remain open. This follow-up implements and verifies basic gateway integration, superseding only that item in the earlier remaining-work list.
+
+
+## Public and signed download URLs
+
+The gateway now permits GET/HEAD without an API-key header only for `/object/public/:bucket/:object` and `/object/sign/:bucket/:object?token=...`. Signed reads require one nonempty bounded token parameter; Storage itself verifies its signature, expiry and object binding. Writes, listing, signing requests and authenticated-download paths still require an environment-bound API key. If a client supplies an API key, it must be valid even on public paths. The configured environment must remain enabled, and tenant routing is still supplied by the gateway.
+
+The combined live probe now passes 111 checks: previous checks plus public fixtures and signed/public URL behavior. Tests cover SDK-produced URLs, header-free downloads, private bucket denial through public paths, changed signatures, changed object paths, changed environment paths, actual expiry after a one-second TTL and the independence of an existing signed URL from API-key revocation. [Evidence](../evidence/storage-url-checks.json). Twenty-five unit tests pass with 128 assertions, including exclusion of write and private paths from the exception.
+
+A signed URL is its own temporary access capability. Revoking the issuing API key does not invalidate that URL before expiry. Do not promise that API-key rotation alone removes all previously shared file access. This behavior was verified locally, not inferred from a successful signing response. Public URL access intentionally exposes public bucket objects. Cached copies and emergency signed-link revocation remain operational design work.
+
+The earlier public/signed URL limitation is superseded for ordinary object downloads. Signed upload URLs, image transformations, resumable uploads, browser CORS, durable Storage lifecycle and production deployment remain unfinished. Reference behavior: [bucket visibility](https://supabase.com/docs/guides/storage/buckets/fundamentals), [serving downloads](https://supabase.com/docs/guides/storage/serving/downloads), [SDK signed URLs](https://supabase.com/docs/reference/javascript/file-buckets-createsignedurl).
