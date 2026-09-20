@@ -15,7 +15,7 @@ databases, not through a full restore or install. Read
 | Requirement | Why |
 |---|---|
 | Linux x86-64 host with Docker (native daemon, not remote) | every placement runs pinned containers |
-| Bun on PATH (for a system service, add its directory to the unit's `PATH`, e.g. `/home/sbarbase/.bun/bin`) | package manager, console build, gateway checks |
+| Bun on PATH (for a system service, add its directory to the unit's `PATH`, e.g. `/home/sbarah/.bun/bin`) | package manager, console build, gateway checks |
 | `/usr/bin/python3` 3.14 or newer | the lab runtime uses modern f-strings |
 | Git checkout of this repository | state and lock files live in the checkout by default |
 | Headroom: 5888 MiB planned plus 2560 MiB reserve, 6 both-CPU spare, 12 GiB free disk | `CombinedAdmission` and `ResourceAdmission` refuse below these |
@@ -97,6 +97,25 @@ forwards to the printed console URL, and keep the Docker networks internal: the
 installer creates no published ports. Do not expose the management Auth endpoint
 or the provisioning API directly. Set the public URL the console should advertise
 in the proxy, not in the console build.
+
+## If a restore is interrupted
+
+A failed restore leaves `.lab/upstream/recovery-target.json`, and a plain rerun
+refuses because the descriptor exists. Do not edit that state by hand:
+
+```
+/usr/bin/python3 lab/recovery_reconcile.py        # stop the retained containers
+/usr/bin/python3 lab/retire_recovery_target.py --reason "why it failed"
+/usr/bin/python3 lab/recovery-restore-db.py       # now a fresh restore may run
+```
+
+Retirement refuses unless the descriptor's status is `interrupted`, `failed` or
+`cleanup-failed`, every container of that prefix is stopped, and no per-target
+HBA operation is pending. It archives the descriptor into
+`recovery-target-history/`, records the path in the cutover journal, and removes
+the active descriptor; containers and volumes are never deleted. A target that
+already holds a usable database can instead be adopted in place with
+`lab/adopt-retained.py target`.
 
 ## Backup, upgrade and rollback
 

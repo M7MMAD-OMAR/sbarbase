@@ -454,6 +454,16 @@ regression test where the finding is testable without live containers:
 - `install` took no operation lock, did not validate the bootstrap file's owner
   and mode, and `prepare_target_state` could create the installation root with
   umask permissions;
+- a failure after the target descriptor existed was a dead end: the restore
+  refused to resume and the docs forbade clearing state by hand. Two commands
+  now close it. `publish_intent` binds an existing pin for the same container,
+  so `lab/adopt-retained.py target` can adopt a half-restored target, and
+  `lab/retire_recovery_target.py` archives an interrupted or failed descriptor
+  into `recovery-target-history/` (recording it in the cutover journal) so a
+  fresh restore can start. Only `interrupted`, `failed` and `cleanup-failed`
+  descriptors may be retired; a running container, a pending per-target HBA
+  operation, or a verified target all refuse, and containers and volumes are
+  never deleted;
 - the fresh-target probe contained a tautological check and a label that
   overstated what it tested; the probe and its evidence were regenerated.
 

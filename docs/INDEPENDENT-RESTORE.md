@@ -52,6 +52,17 @@ Six fault-injection unit cases exercise the actual database-restorer cleanup fun
 
 `cutover-export.py` has now run on the owned source. It persisted maintenance for all four ready source environments before source startup, because shared Storage must stop for this export. A source URL was issued and verified before the dump, then enclosed in the encrypted artifact. Scoped service logins were disabled during export, followed by full database refusal. Source shutdown and 34 export checks passed. Direct standalone cutover mode was removed after independent review because it bypassed maintenance.
 
+If a restore run is interrupted or fails after the target descriptor exists, the
+run cannot simply be repeated and its state must not be edited by hand.
+`/usr/bin/python3 lab/retire_recovery_target.py --reason TEXT` refuses unless the
+descriptor's status is `interrupted`, `failed` or `cleanup-failed`, every
+container of that prefix is stopped and no per-target HBA operation is pending;
+it then archives the descriptor into `recovery-target-history/`, records that
+path in the cutover journal and removes the active descriptor, leaving all
+containers and volumes in place. Read the data back with
+`/usr/bin/python3 lab/adopt-retained.py target` where the target holds a usable
+database.
+
 The old target descriptor was copied durably into `.lab/upstream/recovery-target-history/` and recorded in the private cutover journal before replacing the active descriptor. Its containers and volumes remain stopped and retained. A new cluster from the new artifact passed 49 database checks, 11 Auth/REST checks, nine Storage checks and 14 end-user Storage checks. The last set verifies the unchanged pre-export URL downloads matching bytes on the new target. Earlier evidence snapshots remain in Git history; counts are different scopes, not additive coverage.
 
 Current operation phase: target-services-verified-routing-paused. Source and both targets are stopped; all four source runtime routes remain in maintenance. Selected source database and scoped logins remain fenced. The target has not received public gateway traffic. Private journal: `.lab/upstream/cutover-operation.json`. Resume from it; do not rerun allocation/export or discard the old target.

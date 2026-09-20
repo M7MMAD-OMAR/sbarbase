@@ -46,6 +46,11 @@ as `SourceHBA`, pointed at that directory, and it adds `before_create`:
 
 ## Evidence
 
+- A failed run is recoverable without hand-editing state:
+  `lab/adopt-retained.py target` binds the pin that run published, and
+  `lab/retire_recovery_target.py` archives an interrupted or failed descriptor
+  so the restore can run again. Both are guarded and unit-tested
+  (`lab/test_retire_recovery_target.py`).
 - `docs/evidence/target-hba-creation-checks.json`: 16 live checks on a
   disposable pinned PostgreSQL container for the fresh-target writer path
   (creation evidence, per-target state, one-shot generation, owned publication,
