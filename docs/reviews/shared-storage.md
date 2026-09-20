@@ -1,0 +1,23 @@
+# Shared original Supabase Storage
+
+Recorded 2026-09-20. The installed Storage v1.73.1 image is pinned by ID/digest in [lockfile](../../lab/storage-image.lock.json). The probe runs one original Storage process for two environments on the pinned Supabase PostgreSQL cluster. It uses a local file backend, not S3 or an external service.
+
+## Implemented and tested
+
+A separate metadata database and login hold Storage tenant configuration. Each environment has a distinct storage login/password and storage schema owner. Those logins can assume canonical API roles but are allowed to connect only to their own database. The installer pre-creates schemas and default grants, sets DB_INSTALL_ROLES=false and leaves migrations to the original service. This avoids replaying its global role installer.
+
+Each tenant registration provides its own database URL, JWT secret, anon JWT and service JWT. The internal admin endpoint requires a separate API key. Tenant selection uses an anchored x-forwarded-host expression. The eventual gateway must set this header from trusted routing and discard the client's version; it is not a safe externally supplied tenant selector.
+
+Seventy-one combined live checks passed: the preceding forty Auth/REST checks plus thirty-one Storage checks. Storage coverage includes authenticated admin registration, private bucket creation, upload/download, same-path files with different bytes in both environments, re-reading after the neighbor upload, cross-environment user/service token rejection, same-environment second-user denial, private-file denial through the public route, schema table ownership and database credential rejection across tenant/metadata/admin databases. [Evidence](../evidence/shared-storage-checks.json).
+
+The complete probe uses six containers: PostgreSQL, two Auth, two REST and one Storage. Aggregate container ceilings are 2560 MiB and 2.5 logical CPUs. These are configured limits, not a benchmark or estimate for ten projects. All temporary containers, network, file data and credential files are removed afterward.
+
+## Operational findings and remaining gates
+
+Tenant registration can return 201 even when its migration attempt fails and is deferred. Provisioning must check migration state and usable APIs before marking Storage ready. The probe checks object metadata existence and performs real bucket/object operations, rather than treating registration alone as readiness.
+
+One shared process holds access to all tenant configuration and can reach all tenant databases. Compromise of that service is therefore a shared failure boundary, even though each database credential is scoped. The management encryption key and metadata database are recovery material. These boundaries are compatible with the current trusted-operator threat model only after further containment and recovery work.
+
+This demonstrates a sharing candidate, not full Storage integration. Still required: gateway-controlled tenant routing, SDK compatibility through the gateway, opaque service-key handling, signed URLs, range/streaming uploads, S3, restart and migration recovery, upgrades, tenant deletion, backup/restore of objects with database state, quotas and noisy-neighbor measurements. The durable worker does not yet provision Storage, and no UI is implemented.
+
+Sources: [pinned configuration](https://github.com/supabase/storage/blob/v1.73.1/src/config.ts), [tenant admin routes](https://github.com/supabase/storage/blob/v1.73.1/src/http/routes/admin/tenants.ts), [role/schema migration](https://github.com/supabase/storage/blob/v1.73.1/migrations/tenant/0002-storage-schema.sql). The actual executed image's compiled source and migrations were also inspected locally; raw copies remain outside version control.

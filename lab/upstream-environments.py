@@ -3,6 +3,7 @@ Creates only owned ephemeral resources. No replacement auth.uid fixture.
 """
 import json
 import secrets
+import sys
 import time
 import urllib.request
 import urllib.error
@@ -137,6 +138,7 @@ def main():
             check(e+' forged owner denied', code == 403)
             code,other = request(auth+'/signup','POST',{'email':'other-'+email,'password':password})
             check(e+' second user signup', code == 200)
+            accounts[e]['other_access_token'] = other['access_token']
             code,rows = request(rest+'/probe_items',token=other['access_token'])
             check(e+' other user cannot read row', code == 200 and rows == [])
             for target in ENVIRONMENTS:
@@ -153,6 +155,9 @@ def main():
             lab.docker('restart', auth);ready(auth,endpoints[e]['auth']+'/health')
             code,login = request(endpoints[e]['auth']+'/token?grant_type=password','POST',{'email':email,'password':password})
             check(e+' migration restart preserves Auth account', code == 200 and login['user']['id'] == accounts[e]['user']['id'])
+        if '--storage' in sys.argv:
+            from storage_probe import run_storage_probe
+            run_storage_probe(db, prefix, sql, launch, endpoint, credentials, accounts, check, evidence)
         print(f'{len(checks)} upstream environment checks passed without a replacement Auth helper.')
     finally:
         for name in reversed(containers):

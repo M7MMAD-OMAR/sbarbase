@@ -35,6 +35,8 @@ A separate upstream PostgreSQL/Auth distribution probe passed 10 checks and conf
 
 The upstream-image follow-up now passes 40 checks across two scoped Auth/REST environments using original Auth migrations and identity helpers, with no custom auth.uid replacement. Credentials/tokens are isolated, RLS works, and bootstrap retry preserves identities. [Evidence](docs/evidence/upstream-environment-checks.json). The durable worker has not yet switched its existing stock-PostgreSQL data; remaining components and upgrades are still gates.
 
+One original shared Storage process now passes 31 additional live checks with separate tenant database logins and JWT secrets, including private files, same-name object isolation and crossed credentials/tokens. The combined upstream run has 71 checks, including the earlier 40 Auth/REST checks. [Findings](docs/reviews/shared-storage.md), [evidence](docs/evidence/shared-storage-checks.json). Gateway integration, lifecycle/recovery and resource scaling remain unverified.
+
 ## Research, reasons and saved pictures
 
 - [Decision register](docs/DECISIONS.md): why this candidate, alternatives, remaining gates.

@@ -1,0 +1,320 @@
+{
+  "images": {
+    "db": {
+      "tag": "public.ecr.aws/supabase/postgres:17.6.1.166",
+      "id": "sha256:b3bfedb107413abb3b8cb0d0874b0414a1dceb3d55bc0c778de6ad22d1f7dc86",
+      "digests": [
+        "public.ecr.aws/supabase/postgres@sha256:b3bfedb107413abb3b8cb0d0874b0414a1dceb3d55bc0c778de6ad22d1f7dc86"
+      ]
+    },
+    "auth": {
+      "tag": "public.ecr.aws/supabase/gotrue:v2.196.0",
+      "id": "sha256:c0c25187a6b835e65a6f6e6c6b39d090e832d40e6de5186f2c038e0411944232",
+      "digests": [
+        "public.ecr.aws/supabase/gotrue@sha256:c0c25187a6b835e65a6f6e6c6b39d090e832d40e6de5186f2c038e0411944232"
+      ]
+    },
+    "rest": {
+      "tag": "public.ecr.aws/supabase/postgrest:v14.15",
+      "id": "sha256:2f8e7b656f09db697a8875177694b417b35cb76c21370de07fc54e711e902326",
+      "digests": [
+        "public.ecr.aws/supabase/postgrest@sha256:2f8e7b656f09db697a8875177694b417b35cb76c21370de07fc54e711e902326"
+      ]
+    },
+    "storage": {
+      "tag": "public.ecr.aws/supabase/storage-api:v1.73.1",
+      "id": "sha256:c24fb33cc2fa38d0f9582a30312907fc56da333fb9ba0646833186197e4982f3",
+      "digests": [
+        "public.ecr.aws/supabase/storage-api@sha256:c24fb33cc2fa38d0f9582a30312907fc56da333fb9ba0646833186197e4982f3"
+      ]
+    }
+  },
+  "scope": "Two Auth/REST environment databases on original Supabase PostgreSQL; real Auth migrations and helpers, scoped service logins; not all Supabase components or upgrades",
+  "checks": [
+    {
+      "check": "upstream database initialized",
+      "passed": true
+    },
+    {
+      "check": "env_alpha original Auth migrations create uid and jwt helpers",
+      "passed": true
+    },
+    {
+      "check": "env_alpha Auth tables owned by scoped login",
+      "passed": true
+    },
+    {
+      "check": "env_alpha REST role cannot assume global admin",
+      "passed": true
+    },
+    {
+      "check": "env_alpha auth own database accepted",
+      "passed": true
+    },
+    {
+      "check": "env_alpha auth denied database env_beta",
+      "passed": true
+    },
+    {
+      "check": "env_alpha auth denied database postgres",
+      "passed": true
+    },
+    {
+      "check": "env_alpha rest own database accepted",
+      "passed": true
+    },
+    {
+      "check": "env_alpha rest denied database env_beta",
+      "passed": true
+    },
+    {
+      "check": "env_alpha rest denied database postgres",
+      "passed": true
+    },
+    {
+      "check": "env_beta original Auth migrations create uid and jwt helpers",
+      "passed": true
+    },
+    {
+      "check": "env_beta Auth tables owned by scoped login",
+      "passed": true
+    },
+    {
+      "check": "env_beta REST role cannot assume global admin",
+      "passed": true
+    },
+    {
+      "check": "env_beta auth own database accepted",
+      "passed": true
+    },
+    {
+      "check": "env_beta auth denied database env_alpha",
+      "passed": true
+    },
+    {
+      "check": "env_beta auth denied database postgres",
+      "passed": true
+    },
+    {
+      "check": "env_beta rest own database accepted",
+      "passed": true
+    },
+    {
+      "check": "env_beta rest denied database env_alpha",
+      "passed": true
+    },
+    {
+      "check": "env_beta rest denied database postgres",
+      "passed": true
+    },
+    {
+      "check": "env_alpha signup",
+      "passed": true
+    },
+    {
+      "check": "env_alpha RLS insert uses original uid helper",
+      "passed": true
+    },
+    {
+      "check": "env_alpha RLS owner reads own row",
+      "passed": true
+    },
+    {
+      "check": "env_alpha forged owner denied",
+      "passed": true
+    },
+    {
+      "check": "env_alpha second user signup",
+      "passed": true
+    },
+    {
+      "check": "env_alpha other user cannot read row",
+      "passed": true
+    },
+    {
+      "check": "env_alpha token denied by env_beta Auth",
+      "passed": true
+    },
+    {
+      "check": "env_alpha token denied by env_beta REST",
+      "passed": true
+    },
+    {
+      "check": "env_beta signup",
+      "passed": true
+    },
+    {
+      "check": "env_beta RLS insert uses original uid helper",
+      "passed": true
+    },
+    {
+      "check": "env_beta RLS owner reads own row",
+      "passed": true
+    },
+    {
+      "check": "env_beta forged owner denied",
+      "passed": true
+    },
+    {
+      "check": "env_beta second user signup",
+      "passed": true
+    },
+    {
+      "check": "env_beta other user cannot read row",
+      "passed": true
+    },
+    {
+      "check": "env_beta token denied by env_alpha Auth",
+      "passed": true
+    },
+    {
+      "check": "env_beta token denied by env_alpha REST",
+      "passed": true
+    },
+    {
+      "check": "same email remains separate identity per environment",
+      "passed": true
+    },
+    {
+      "check": "env_alpha bootstrap retry keeps database identity",
+      "passed": true
+    },
+    {
+      "check": "env_alpha migration restart preserves Auth account",
+      "passed": true
+    },
+    {
+      "check": "env_beta bootstrap retry keeps database identity",
+      "passed": true
+    },
+    {
+      "check": "env_beta migration restart preserves Auth account",
+      "passed": true
+    },
+    {
+      "check": "shared Storage admin rejects missing API key",
+      "passed": true
+    },
+    {
+      "check": "env_alpha registered in shared Storage",
+      "passed": true
+    },
+    {
+      "check": "env_alpha Storage migration created object metadata",
+      "passed": true
+    },
+    {
+      "check": "env_beta registered in shared Storage",
+      "passed": true
+    },
+    {
+      "check": "env_beta Storage migration created object metadata",
+      "passed": true
+    },
+    {
+      "check": "env_alpha service token creates private bucket",
+      "passed": true
+    },
+    {
+      "check": "env_alpha user uploads private object",
+      "passed": true
+    },
+    {
+      "check": "env_alpha same object path returns only its own bytes",
+      "passed": true
+    },
+    {
+      "check": "env_alpha rejects other environment user token",
+      "passed": true
+    },
+    {
+      "check": "env_alpha rejects other environment service token",
+      "passed": true
+    },
+    {
+      "check": "env_alpha private object hidden from second user in same environment",
+      "passed": true
+    },
+    {
+      "check": "env_alpha private object inaccessible through public route",
+      "passed": true
+    },
+    {
+      "check": "env_beta service token creates private bucket",
+      "passed": true
+    },
+    {
+      "check": "env_beta user uploads private object",
+      "passed": true
+    },
+    {
+      "check": "env_beta same object path returns only its own bytes",
+      "passed": true
+    },
+    {
+      "check": "env_beta rejects other environment user token",
+      "passed": true
+    },
+    {
+      "check": "env_beta rejects other environment service token",
+      "passed": true
+    },
+    {
+      "check": "env_beta private object hidden from second user in same environment",
+      "passed": true
+    },
+    {
+      "check": "env_beta private object inaccessible through public route",
+      "passed": true
+    },
+    {
+      "check": "env_alpha original bytes survive same-name upload in neighbor",
+      "passed": true
+    },
+    {
+      "check": "env_alpha storage credential accepted by env_alpha",
+      "passed": true
+    },
+    {
+      "check": "env_alpha storage credential denied by env_beta",
+      "passed": true
+    },
+    {
+      "check": "env_alpha storage credential denied by storage_metadata",
+      "passed": true
+    },
+    {
+      "check": "env_alpha storage credential denied by postgres",
+      "passed": true
+    },
+    {
+      "check": "env_alpha Storage tables owned by scoped login",
+      "passed": true
+    },
+    {
+      "check": "env_beta original bytes survive same-name upload in neighbor",
+      "passed": true
+    },
+    {
+      "check": "env_beta storage credential denied by env_alpha",
+      "passed": true
+    },
+    {
+      "check": "env_beta storage credential accepted by env_beta",
+      "passed": true
+    },
+    {
+      "check": "env_beta storage credential denied by storage_metadata",
+      "passed": true
+    },
+    {
+      "check": "env_beta storage credential denied by postgres",
+      "passed": true
+    },
+    {
+      "check": "env_beta Storage tables owned by scoped login",
+      "passed": true
+    }
+  ],
+  "storage_scope": "One original Storage process, file backend, separate tenant DB logins and JWT secrets; private upload/download and crossed-token rejection. No backups, signed URLs, S3 or production gateway integration."
+}
