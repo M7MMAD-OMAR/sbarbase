@@ -51,3 +51,5 @@ Keep `.secrets/` and `.lab/` private. The handoff ZIP contains source, research,
 Latest result: a [service-specific REST cap mitigated the sustained arrival failure](SUSTAINED-OVERLOAD.md). The original failure remains recorded. This is local mitigation evidence, not production sizing; SQL cancellation, mixed traffic after the new cap and longer tests remain open.
 
 [REST cancellation](REST-CANCELLATION.md): a client abort does not promptly cancel SQL. Configured REST now retains admission through upstream settlement and abandoned-response draining; 15 live checks pass. Independent SQL deadlines and mixed SDK regression remain next.
+
+[REST SQL defaults](SQL-DEADLINES.md) now use an 8-second statement timeout and 12-second transaction timeout per REST login/database. Fourteen live checks verify effective settings, both deadlines and recovery. Warm changes require a stopped runtime. Next: representative mixed SDK regression with the new admission and timeout policies.

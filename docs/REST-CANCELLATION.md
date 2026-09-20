@@ -23,3 +23,5 @@ This is admission retention during ordinary client disconnect, not active SQL ca
 PostgREST supports transaction-scoped role settings and hoisted function settings. An execution policy must account for those overrides rather than setting a timeout only on the connection login. Sources: [PostgREST transactions](https://postgrest.org/en/latest/references/transactions.html), [pinned major-version configuration](https://docs.postgrest.org/en/v14/references/configuration.html). A blanket cluster-wide policy is not established here.
 
 The local probe is bounded and uses sleep RPCs. It does not prove cancellation of CPU, I/O, lock waits, commits or long transactions. Mixed SDK regression under the new service cap remains separate outstanding work.
+
+Subsequent checkpoint: [per-login REST SQL deadlines](SQL-DEADLINES.md) now have live evidence for statement expiry and transaction termination despite a statement override. This narrows the earlier gap for the tested configuration; it does not create a hard boundary against SQL authors changing the transaction deadline itself.

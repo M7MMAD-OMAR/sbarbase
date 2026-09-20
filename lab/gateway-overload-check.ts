@@ -4,9 +4,11 @@ import {openUpstreamApplication,internalToken} from './upstream-app';
 import {managedGateway} from '../src/gateway/managed';
 const sustained=process.argv.includes('--sustained');
 const cancellation=process.argv.includes('--cancellation');
+const deadlineProbe=process.argv.includes('--sql-deadline');
+let deadlineObservation:unknown;
 let cancellationObservation:unknown;
-if(sustained&&cancellation)throw new Error('Choose one workload mode');
-if(process.argv.slice(2).some(arg=>arg!=='--sustained'&&arg!=='--cancellation'))throw new Error('Unknown probe option');
+if([sustained,cancellation,deadlineProbe].filter(Boolean).length>1)throw new Error('Choose one workload mode');
+if(process.argv.slice(2).some(arg=>arg!=='--sustained'&&arg!=='--cancellation'&&arg!=='--sql-deadline'))throw new Error('Unknown probe option');
 const samples:{environment:string;status:number;duration_ms:number;correct:boolean;lag_ms:number;started_ms:number}[]=[];
 let skipped=0,peakPending=0;
 const app=openUpstreamApplication();
@@ -49,6 +51,34 @@ try{
  const neighbor=await b.rpc(name);check('neighbor succeeds while target requests remain active',!neighbor.error&&neighbor.data===2&&finished<admitted);
  check('all admitted requests complete correctly',(await Promise.all(pending)).every(Boolean));
  const recovered=await a.rpc(name);check('target accepts requests after draining',!recovered.error&&recovered.data===1);
+ if(deadlineProbe){
+  const settingsName=name+'_settings';
+  await sql(first.runtime,`CREATE FUNCTION public.${settingsName}() RETURNS json LANGUAGE sql SECURITY INVOKER AS $$ SELECT json_build_object('statement',current_setting('statement_timeout'),'transaction',current_setting('transaction_timeout')) $$; REVOKE ALL ON FUNCTION public.${settingsName}() FROM PUBLIC; GRANT EXECUTE ON FUNCTION public.${settingsName}() TO anon,service_role; NOTIFY pgrst,'reload schema';`);
+  const headers={apikey:first.token,'content-type':'application/json',authorization:'Bearer '+internalToken(secrets.environments[first.runtime].jwt,'service_role')};
+  await Bun.sleep(1000);
+  const settingsResponse=await fetch(`${base}/${first.runtime}/rest/v1/rpc/${settingsName}`,{method:'POST',headers,body:'{}'});
+  const settings=await settingsResponse.json();
+  check('effective REST service defaults are eight and twelve seconds',settingsResponse.ok&&settings.statement==='8s'&&settings.transaction==='12s');
+  await sql(first.runtime,`CREATE OR REPLACE FUNCTION public.${name}() RETURNS integer LANGUAGE plpgsql SECURITY INVOKER AS $$ BEGIN PERFORM pg_sleep(20); RETURN 1; END $$; GRANT EXECUTE ON FUNCTION public.${name}() TO service_role; NOTIFY pgrst,'reload schema';`);
+  const statementStarted=performance.now();
+  const statementResponse=await fetch(`${base}/${first.runtime}/rest/v1/rpc/${name}`,{method:'POST',headers,body:'{}',signal:AbortSignal.timeout(14000)});
+  const statementBody=await statementResponse.json(),statementElapsed=performance.now()-statementStarted;
+  check('ordinary service RPC obeys statement timeout',statementResponse.status===500&&statementBody.code==='57014'&&statementElapsed>7000&&statementElapsed<10000);
+  await sql(first.runtime,`CREATE OR REPLACE FUNCTION public.${name}() RETURNS integer LANGUAGE plpgsql SECURITY INVOKER SET statement_timeout='0' AS $$ BEGIN PERFORM pg_sleep(20); RETURN 1; END $$; NOTIFY pgrst,'reload schema';`);
+  await Bun.sleep(1000);
+  const started=performance.now();
+  const response=await fetch(`${base}/${first.runtime}/rest/v1/rpc/${name}`,{method:'POST',headers:{apikey:first.token,'content-type':'application/json'},body:'{}',signal:AbortSignal.timeout(16000)});
+  const value=await response.json(),elapsed=performance.now()-started;
+  check('SQL transaction deadline ends RPC before gateway fetch timeout',response.status===503&&value.code==='PGRST001'&&elapsed>10000&&elapsed<14500);
+  // This SELECT fails if the old RPC is still executing on any target backend.
+  await sql(first.runtime,`DO $$ BEGIN IF EXISTS(SELECT 1 FROM pg_stat_activity WHERE datname='${first.runtime}' AND usename='${first.runtime}_rest' AND state='active' AND query LIKE '%${name}%') THEN RAISE EXCEPTION 'RPC still active'; END IF; END $$;`);
+  check('expired SQL is no longer active',true);
+  const neighbor=await b.rpc(name);check('neighbor remains correct after SQL deadline',!neighbor.error&&neighbor.data===2);
+  await sql(first.runtime,`CREATE OR REPLACE FUNCTION public.${name}() RETURNS integer LANGUAGE sql SECURITY INVOKER AS $$ SELECT 1 $$; ALTER FUNCTION public.${name}() RESET statement_timeout; NOTIFY pgrst,'reload schema';`);
+  await Bun.sleep(1000);
+  const after=await a.rpc(name);check('target reconnects and recovers after SQL deadline',!after.error&&after.data===1);
+  deadlineObservation={scope:'Twenty-second RPC hoists statement_timeout=0. A per-login per-database transaction_timeout=12s must terminate SQL before the 15s gateway fetch timeout. Trusted functions that change transaction_timeout itself are outside this test.',effectiveServiceSettings:settings,statement:{status:statementResponse.status,code:statementBody.code,elapsed_ms:statementElapsed},status:response.status,code:typeof value.code==='string'?value.code:null,elapsed_ms:elapsed};
+ }
  if(cancellation){
   const observe=async()=>{
    const child=Bun.spawn(['docker','exec','-i','sbarbase-durable-db','psql','-X','-At','-v','ON_ERROR_STOP=1','-U','supabase_admin','-d','postgres'],{stdin:'pipe',stdout:'pipe',stderr:'ignore'});
@@ -126,11 +156,11 @@ try{
 }finally{
  await Promise.allSettled(pending);
  const failures=[];
- for(const f of fixtures){try{await sql(f.runtime,`DROP FUNCTION IF EXISTS public.${name}(); NOTIFY pgrst,'reload schema';`);}catch{failures.push('SQL cleanup');}try{if(!app.keys.revoke(f.runtime,f.key))failures.push('key cleanup');}catch{failures.push('key cleanup');}}
+ for(const f of fixtures){try{await sql(f.runtime,`DROP FUNCTION IF EXISTS public.${name}(); DROP FUNCTION IF EXISTS public.${name}_settings(); NOTIFY pgrst,'reload schema';`);}catch{failures.push('SQL cleanup');}try{if(!app.keys.revoke(f.runtime,f.key))failures.push('key cleanup');}catch{failures.push('key cleanup');}}
  try{server?.stop(true);}catch{failures.push('server cleanup');}
  try{app.close();}catch{failures.push('catalog cleanup');}
  try{await command(['/usr/bin/python3','lab/durable_runtime.py','stop']);}catch{failures.push('runtime cleanup');}
  if(failures.length)throw new Error('Overload fixture cleanup incomplete');
 }
-await Bun.write(sustained?'docs/evidence/gateway-sustained-checks.json':cancellation?'docs/evidence/gateway-cancellation-checks.json':'docs/evidence/gateway-overload-checks.json',JSON.stringify({cancellation:cancellationObservation,sustained:sustained?{duration_seconds:30,target_arrivals_per_second:20,neighbor_arrivals_per_second:2,rest_budget:3,skipped,peakPending,samples}:undefined,scope:'Actual managed gateway, SDK, pinned PostgREST and PostgreSQL. One environment fills its configured admission budget with temporary two-second RPCs, next request refused; neighbor returns a correct distinct value and target recovers. Temporary RPCs removed and keys revoked. Not global socket or multi-process DDoS protection.',checks,count:checks.length},null,2)+'\n');
+await Bun.write(sustained?'docs/evidence/gateway-sustained-checks.json':cancellation?'docs/evidence/gateway-cancellation-checks.json':deadlineProbe?'docs/evidence/sql-deadline-checks.json':'docs/evidence/gateway-overload-checks.json',JSON.stringify({sqlDeadline:deadlineObservation,cancellation:cancellationObservation,sustained:sustained?{duration_seconds:30,target_arrivals_per_second:20,neighbor_arrivals_per_second:2,rest_budget:3,skipped,peakPending,samples}:undefined,scope:'Actual managed gateway, SDK, pinned PostgREST and PostgreSQL. One environment fills its configured admission budget with temporary two-second RPCs, next request refused; neighbor returns a correct distinct value and target recovers. Temporary RPCs removed and keys revoked. Not global socket or multi-process DDoS protection.',checks,count:checks.length},null,2)+'\n');
 console.log(`${checks.length} real gateway overload checks passed.`);

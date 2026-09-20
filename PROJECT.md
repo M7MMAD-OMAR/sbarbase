@@ -99,3 +99,7 @@ The durable installer now publishes a REST admission cap from its configured Pos
 ## REST disconnect checkpoint
 
 [SQL observation and retained admission](docs/REST-CANCELLATION.md) expose and mitigate a client-abort gap. Three cancelled HTTP requests leave three SQL RPCs active; the gateway now retains all admission counters and rejects a fourth until upstream completion/draining. Fifteen live checks and 52 unit tests with 269 assertions pass. This is not active SQL cancellation; timeout/transport failures can still release slots ahead of SQL completion.
+
+## REST SQL deadline checkpoint
+
+[Per-login, per-database REST defaults](docs/SQL-DEADLINES.md) now set statement_timeout=8s and transaction_timeout=12s. Fourteen live checks verify actual service-role settings, SQL error after eight seconds, transaction termination near twelve seconds despite a statement override, no surviving fixture SQL and successful reconnect/recovery. Thirty Python tests pass. Warm setting changes refuse before modifying defaults unless REST is stopped. Mixed SDK traffic under the combined policies remains next.

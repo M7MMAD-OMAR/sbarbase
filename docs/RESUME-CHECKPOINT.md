@@ -21,7 +21,7 @@ Baseline commit: `548d898`. Gateway files add `ConcurrencyGate`, a `node:http` l
 
 ## Next actions in order
 
-1. Review the [service-budget mitigation and retained failed baseline](SUSTAINED-OVERLOAD.md). REST admission now follows its configured pool of 3, alongside environment/process limits. [Actual SQL observation](REST-CANCELLATION.md) found client abort does not promptly stop SQL; configured REST now retains admission through upstream response settlement and draining. Verify SQL execution deadlines after upstream failure, and representative mixed traffic with this new cap before production sizing. The earlier 1,000-operation SDK regression predates this service cap.
+1. Review the [service-budget mitigation and retained failed baseline](SUSTAINED-OVERLOAD.md). REST admission now follows its configured pool of 3, alongside environment/process limits. [Actual SQL observation](REST-CANCELLATION.md) found client abort does not promptly stop SQL; configured REST now retains admission through upstream response settlement and draining. [REST SQL defaults](SQL-DEADLINES.md) now pass live 8-second statement and 12-second transaction expiry/recovery checks. Verify representative mixed traffic with these policies before production sizing; trusted SQL overrides and other execution patterns remain outside this proof. The earlier 1,000-operation SDK regression predates this service cap.
 2. Audit management traffic limits separately from application traffic and measure actual upstream cancellation under sustained overload.
 3. Recheck free host resources and existing owned containers before running probes; preserve earlier baseline evidence and do not lower admission thresholds.
 

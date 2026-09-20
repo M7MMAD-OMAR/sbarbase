@@ -1,0 +1,35 @@
+{
+  "sqlDeadline": {
+    "scope": "Twenty-second RPC hoists statement_timeout=0. A per-login per-database transaction_timeout=12s must terminate SQL before the 15s gateway fetch timeout. Trusted functions that change transaction_timeout itself are outside this test.",
+    "effectiveServiceSettings": {
+      "statement": "8s",
+      "transaction": "12s"
+    },
+    "statement": {
+      "status": 500,
+      "code": "57014",
+      "elapsed_ms": 8008.797135999999
+    },
+    "status": 503,
+    "code": "PGRST001",
+    "elapsed_ms": 12011.949882
+  },
+  "scope": "Actual managed gateway, SDK, pinned PostgREST and PostgreSQL. One environment fills its configured admission budget with temporary two-second RPCs, next request refused; neighbor returns a correct distinct value and target recovers. Temporary RPCs removed and keys revoked. Not global socket or multi-process DDoS protection.",
+  "checks": [
+    "temporary RPC schema ready 0",
+    "temporary RPC schema ready 1",
+    "configured concurrent requests admitted to actual REST",
+    "next request receives retryable overload",
+    "rejected request never reaches REST",
+    "neighbor succeeds while target requests remain active",
+    "all admitted requests complete correctly",
+    "target accepts requests after draining",
+    "effective REST service defaults are eight and twelve seconds",
+    "ordinary service RPC obeys statement timeout",
+    "SQL transaction deadline ends RPC before gateway fetch timeout",
+    "expired SQL is no longer active",
+    "neighbor remains correct after SQL deadline",
+    "target reconnects and recovers after SQL deadline"
+  ],
+  "count": 14
+}
