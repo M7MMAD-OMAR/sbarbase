@@ -651,12 +651,15 @@ rehearsal that follows in the acceptance flow then refused on host memory
 (8663 MiB available against an 8810 MiB plan), which is this workstation's
 condition, not the product's: a server must keep about 9 GiB clear.
 
-### The unit gate on this host, observed directly
+### The unit gate on this host
 
-The rehearsal's own `--require-unit` row has not been re-run green here, because
-that run needs the host's full 8.8 GiB twice and this workstation sits below it
-while other agents work. The three facts the row checks were verified directly
-instead, with the unit installed as root on 2026-09-20:
+The host freed its memory at 18:08 and the rehearsal ran green with the unit
+required: 12 of 12 checks,
+`docs/evidence/server-acceptance-rehearsal.json`, verifying the installed
+`/etc/systemd/system/sbarbase.service` itself (`verify_source: installed`) with
+18 live bootstrap checks, 14 combined gateway checks and no owned container left
+running. Before that window, with memory below the gate, the same three facts
+were verified directly with the unit installed as root on 2026-09-20:
 
 ```
 $ systemctl is-enabled sbarbase.service          -> enabled

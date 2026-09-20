@@ -1,6 +1,6 @@
 {
  "scope": "Deployment rehearsal: read-only preflight, installation (or an already installed host), supervisor startup, console and management reachability, recorded environment routes, the supervised unit when installed, supervised shutdown and absence of running owned containers. Not sustained load, not multi-host, not HTTPS termination.",
- "command": "/usr/bin/python3 lab/deployment_rehearsal.py --attempts 3 --require-unit --evidence <bootstrap-file>",
+ "command": "/usr/bin/python3 lab/deployment_rehearsal.py --skip-install --require-unit --attempts 3 --attempt-delay 20 --evidence docs/evidence/server-acceptance-rehearsal.json",
  "host": {
   "platform": "Linux-7.1.12-200.fc44.x86_64-x86_64-with-glibc2.43",
   "kernel": "7.1.12-200.fc44.x86_64",
@@ -9,8 +9,8 @@
   "docker": "29.7.2",
   "bun": "1.3.14",
   "systemd": "systemd 259 (259.8-1.fc44)",
-  "mem_available_mib": 8702,
-  "disk_free_mib": 505289
+  "mem_available_mib": 8434,
+  "disk_free_mib": 505283
  },
  "pins": [
   {
@@ -40,37 +40,30 @@
   }
  ],
  "unit": {
-  "installed": false,
-  "enabled": null,
-  "active": null,
+  "installed": true,
+  "enabled": "enabled",
+  "active": "inactive",
   "verify": "passed",
-  "verified_path": "/home/sbarah/R/Projects/P/sbarbase/deploy/sbarbase.service",
-  "verify_source": "template"
+  "verified_path": "/etc/systemd/system/sbarbase.service",
+  "verify_source": "installed"
  },
  "startup": {
   "attempts_allowed": 3,
-  "attempts_used": 2,
-  "refusals": [
-   "attempt 1: Supervisor exited during startup; console build up to date: built page is newer than every input | Installation runtime refused or incomplete; diagnostics: /home/sbarah/R/Projects/P/sbarbase/.lab/upstream/diagnostics/installation-runtime-20260920T171137.log | Runtime startup failed; the installation runtime reported its own reason above | Installation runtime stop completed"
-  ],
+  "attempts_used": 1,
+  "refusals": [],
   "install_failed": null
  },
  "bootstrap_file_used": false,
- "install_skipped": false,
+ "install_skipped": true,
  "startup_attempts_allowed": 3,
  "unit_required": true,
  "supervisor_log": "/home/sbarah/R/Projects/P/sbarbase/.lab/upstream/rehearsal-supervisor.log",
  "runtime_diagnostics": "/home/sbarah/R/Projects/P/sbarbase/.lab/upstream/diagnostics",
- "started_at": "2026-09-20T17:11:15+04:00",
- "finished_at": "2026-09-20T17:12:16+04:00",
+ "started_at": "2026-09-20T18:08:42+04:00",
+ "finished_at": "2026-09-20T18:09:06+04:00",
  "checks": [
   {
    "check": "host preflight passed",
-   "ok": true,
-   "detail": ""
-  },
-  {
-   "check": "installation steps completed",
    "ok": true,
    "detail": ""
   },
@@ -82,7 +75,7 @@
   {
    "check": "supervisor started and owns the console",
    "ok": true,
-   "detail": "after 2 attempts: attempt 1: Supervisor exited during startup; console build up to date: built page is newer than every input | Installation runtime refused or incomplete; diagnostics: /home/sbarah/R/Projects/P/sbarbase/.lab/upstream/diagnostics/installation-runtime-20260920T171137.log | Runtime startup failed; the installation runtime reported its own reason above | Installation runtime stop completed"
+   "detail": ""
   },
   {
    "check": "console serves the built page",
@@ -110,9 +103,14 @@
    "detail": "14 combined gateway checks passed"
   },
   {
-   "check": "supervised path exercised through systemd",
-   "ok": false,
-   "detail": "sbarbase.service is not installed at /etc/systemd/system; a server acceptance run requires it"
+   "check": "supervisor unit is enabled on this host",
+   "ok": true,
+   "detail": "enabled"
+  },
+  {
+   "check": "the unit systemd runs verifies",
+   "ok": true,
+   "detail": "/etc/systemd/system/sbarbase.service: passed"
   },
   {
    "check": "supervisor shut down cleanly",
@@ -125,6 +123,6 @@
    "detail": ""
   }
  ],
- "passed": false,
+ "passed": true,
  "count": 12
 }

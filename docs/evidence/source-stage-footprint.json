@@ -1,16 +1,16 @@
 {
   "sampled_containers": 9,
-  "total_mib": 287,
+  "total_mib": 341,
   "per_container_mib": {
-    "sbarbase-durable-db": 107,
-    "sbarbase-durable-e_1f0624c545789214eef426c9-auth": 9,
+    "sbarbase-durable-db": 119,
+    "sbarbase-durable-e_1f0624c545789214eef426c9-auth": 8,
     "sbarbase-durable-e_1f0624c545789214eef426c9-rest": 10,
     "sbarbase-durable-e_3ac7584e45004caac76be27c-auth": 8,
-    "sbarbase-durable-e_3ac7584e45004caac76be27c-rest": 9,
-    "sbarbase-durable-e_f61bf85dccd73890ec63997c-auth": 8,
-    "sbarbase-durable-e_f61bf85dccd73890ec63997c-rest": 9,
-    "sbarbase-durable-management-auth": 8,
-    "sbarbase-durable-storage": 115
+    "sbarbase-durable-e_3ac7584e45004caac76be27c-rest": 10,
+    "sbarbase-durable-e_f61bf85dccd73890ec63997c-auth": 9,
+    "sbarbase-durable-e_f61bf85dccd73890ec63997c-rest": 22,
+    "sbarbase-durable-management-auth": 27,
+    "sbarbase-durable-storage": 124
   },
   "note": "Actual usage of the source stage, sampled immediately before the combined admission check."
 }
