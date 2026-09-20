@@ -1,6 +1,6 @@
 """Isolated authority protocol against the pinned image's real filesystem/tools.
 
-Includes helper SIGKILL around registry rename. Does not start PostgreSQL or test
+Includes helper SIGKILL around registry rename and host SIGKILL before/after registration. Does not start PostgreSQL or test
 reload, host lease recovery, power loss or whole-operation recovery.
 A private immutable host journal precedes initial registration and supports read-only inspection.
 """
@@ -14,6 +14,7 @@ import uuid
 import atomic_hba
 import hba_authority as authority
 import hba_journal as journal
+import hba_journal_crash_check as host_crash
 
 OWNER='hba-authority-probe'
 
@@ -117,6 +118,8 @@ def main():
         token3=str(uuid.uuid4())
         resumed=authority.update(docker,finished,token3,binding2)
         check('dead helper releases lock for a new exact operation',authority.decode(resumed.text,generation)['operations'][token3]['state']=='active')
+        idle=authority.update(docker,resumed,token3,binding2,revoke=True)
+        host_crash.run(cid,idle,check)
         docker('exec',cid,'rm',authority.PATH)
         refused('missing registry refuses read',lambda:authority.read(docker,cid,generation))
         refused('retained marker prevents silent reinitialization',lambda:authority.initialize(docker,cid,generation))

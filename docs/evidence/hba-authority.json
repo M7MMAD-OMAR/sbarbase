@@ -1,7 +1,7 @@
 {
-  "scope": "Isolated authority protocol against the pinned image's real filesystem/tools.\n\nIncludes helper SIGKILL around registry rename. Does not start PostgreSQL or test\nreload, host lease recovery, power loss or whole-operation recovery.\nA private immutable host journal precedes initial registration and supports read-only inspection.",
+  "scope": "Isolated authority protocol against the pinned image's real filesystem/tools.\n\nIncludes helper SIGKILL around registry rename and host SIGKILL before/after registration. Does not start PostgreSQL or test\nreload, host lease recovery, power loss or whole-operation recovery.\nA private immutable host journal precedes initial registration and supports read-only inspection.",
   "image": "sha256:b3bfedb107413abb3b8cb0d0874b0414a1dceb3d55bc0c778de6ad22d1f7dc86",
-  "count": 20,
+  "count": 30,
   "checks": [
     "bounded isolated pinned container",
     "durable host journal binds registered operation",
@@ -20,6 +20,16 @@
     "SIGKILL after registry rename preserves revoked version",
     "post-crash tombstone refuses registration",
     "dead helper releases lock for a new exact operation",
+    "before-register: SIGKILL leaves exact immutable host intent",
+    "before-register: fresh inspection observes absent authority",
+    "before-register: interrupted intent blocks replacement before dispatch",
+    "before-register: registration-only crash does not change HBA",
+    "before-register: explicit fixture revocation persists tombstone",
+    "after-register: SIGKILL leaves exact immutable host intent",
+    "after-register: fresh inspection observes active authority",
+    "after-register: interrupted intent blocks replacement before dispatch",
+    "after-register: registration-only crash does not change HBA",
+    "after-register: explicit fixture revocation persists tombstone",
     "missing registry refuses read",
     "retained marker prevents silent reinitialization",
     "exact disposable container removed"

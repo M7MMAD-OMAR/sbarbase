@@ -216,3 +216,9 @@ This uses a disposable shell container, with no running PostgreSQL and no retain
 lab/hba_journal.py now creates a fixed-name exclusive private journal and syncs file/parent before one registry registration dispatch. Exact token, container, generation, original registry snapshot and prepared content/identity stay discoverable after an uncertain acknowledgment. Existing or invalid journals block replacement. Read-only inspection reports observed authority, never application or activation. An absent token does not exclude delayed registration.
 
 All137 Python tests and 20 pinned-image checks pass. No runtime wiring or retained installation mutation occurred. Next test host process interruption around dispatch, bind live ownership and receipt/startup identities, and design conservative settlement/container-generation reconciliation before integrating managed writers. Structural identity validation alone does not confer authority. No automatic replay or journal deletion is implemented.
+
+## Host journal SIGKILL checkpoint
+
+The isolated authority probe now passes 30 checks. A real host child is stopped and killed after fsynced journal publication before register dispatch, and after register return before the outer call completes. Fresh reads preserve exact token/content/original registry identity and observe absent versus active authority respectively. Both interrupted journals reject replacement before dispatch. Explicit fixture revocation leaves tombstones; exact container cleanup passes.
+
+No retained runtime mutation or production recovery was performed. The unchanged Python suite checkpoint is 137. Next bind journal operations to verified host ownership and exact live startup/worker identity, then settle authority conservatively before wiring managed writers. In-flight Docker RPC interruption and container-generation replacement remain separate gates.

@@ -26,7 +26,7 @@ Configured retained ceilings are 5888 MiB RAM/5.75 CPUs, not measured demand or 
 
 ## Exact stopping point
 
-The runtime baseline is `155e230`. The isolated authority/journal prototype passes 8 host shell tests, 8 journal tests and 20 pinned-image checks, but remains **unintegrated**. Its next gate is the [HBA authority design](HBA-OPERATION-AUTHORITY-DESIGN.md): immutable operation journal, permanent revocation records, startup/container generation reconciliation and isolated fault tests. Do not enable later-stage automatic replay.
+The runtime baseline is `155e230`. The isolated authority/journal prototype passes 8 host shell tests, 8 journal tests and 30 pinned-image checks, but remains **unintegrated**. Its next gate is the [HBA authority design](HBA-OPERATION-AUTHORITY-DESIGN.md): immutable operation journal, permanent revocation records, startup/container generation reconciliation and isolated fault tests. Do not enable later-stage automatic replay.
 
 Last recorded retained state: owned containers stopped, moved source fenced, target routing paused. Preserve both recovery targets and their volumes. Inspect live state before acting; never switch back blindly to the stale source. No runtime changes were made for this documentation update.
 
