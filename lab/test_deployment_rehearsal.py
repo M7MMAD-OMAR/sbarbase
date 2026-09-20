@@ -143,6 +143,13 @@ class StartupDiagnosticsTests(unittest.TestCase):
         self.assertIn('--require-unit',script)
         self.assertIn('--attempts 3',script)
 
+    def test_the_acceptance_script_can_install_the_unit_only_as_root(self):
+        from pathlib import Path
+        script=(Path(__file__).resolve().parent.parent/'deploy'/'server-acceptance.sh').read_text()
+        self.assertIn('--install-unit',script)
+        self.assertIn('supervise --apply',script)
+        self.assertIn('"$(id -u)" = "0"',script)
+
 
 class BootstrapStepTests(unittest.TestCase):
     """Install step "operator bootstrap" is part of the acceptance evidence."""

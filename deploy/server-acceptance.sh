@@ -7,6 +7,7 @@
 #   deploy/server-acceptance.sh --rehearse         # full rehearsal, no bootstrap secrets
 #   deploy/server-acceptance.sh --bootstrap-file /path/to/operator.json
 #   deploy/server-acceptance.sh --rehearse --skip-install
+#   sudo deploy/server-acceptance.sh --rehearse --install-unit --bootstrap-file /path/operator.json
 #
 # It never prints a secret: only whether a bootstrap file was used. Every step
 # that fails stops the run and exits non-zero. Evidence lands in
@@ -20,6 +21,7 @@ PYTHON=/usr/bin/python3
 BOOTSTRAP=""
 REHEARSAL=0
 SKIP_INSTALL=0
+INSTALL_UNIT=0
 
 fail() { printf 'FAIL: %s\n' "$1" >&2; exit 1; }
 step() { printf '\n== %s\n' "$1"; }
@@ -28,6 +30,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --rehearse) REHEARSAL=1 ;;
     --skip-install) SKIP_INSTALL=1 ;;
+    --install-unit) INSTALL_UNIT=1 ;;
     --bootstrap-file) shift; [ $# -gt 0 ] || fail "--bootstrap-file needs a path"; BOOTSTRAP="$1" ;;
     --python) shift; [ $# -gt 0 ] || fail "--python needs a path"; PYTHON="$1" ;;
     -h|--help) sed -n '2,17p' "$0"; exit 0 ;;
@@ -74,12 +77,19 @@ step "TLS termination check (reference proxy)"
 "$PYTHON" lab/tls_termination_check.py || fail "TLS termination check failed; see docs/evidence/tls-termination.json"
 
 step "supervisor unit"
-"$PYTHON" lab/install_server.py supervise || fail "the supervisor unit did not render and verify for this installation"
+if [ "$INSTALL_UNIT" = "1" ]; then
+  [ "$(id -u)" = "0" ] || fail "--install-unit needs root (run the whole script with sudo)"
+  "$PYTHON" lab/install_server.py supervise --apply || fail "the supervisor unit could not be installed"
+  systemctl is-active --quiet sbarbase.service || fail "sbarbase.service is not active after install"
+  printf 'ok: sbarbase.service installed, enabled and active\n'
+else
+  "$PYTHON" lab/install_server.py supervise || fail "the supervisor unit did not render and verify for this installation"
+fi
 "$PYTHON" - <<'PY' || true
 import json
 record=json.load(open('docs/evidence/supervisor-unit.json'))
 if not record['applied']:
-    print('The unit is not installed on this host. Install it with:')
+    print('The unit is not installed on this host. Install it with --install-unit (as root):')
     for command in record['install_commands']:
         print('  '+command)
 PY

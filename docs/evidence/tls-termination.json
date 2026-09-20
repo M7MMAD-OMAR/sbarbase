@@ -1,16 +1,16 @@
 {
  "scope": "TLS termination check: a self-signed certificate, deploy/console-tls-proxy.ts terminating HTTPS in front of a stub upstream that serves the real built console page, HTTP to HTTPS redirection, the transport security headers, and the proxy's own refusals. Not a public certificate, not a running installation, not the operator's chosen proxy (nginx, Caddy, the platform proxy).",
- "run_at": "2026-09-20T16:25:48+04:00",
+ "run_at": "2026-09-20T16:32:20+04:00",
  "checks": [
   {
    "check": "stub upstream serving the real built page",
    "ok": true,
-   "detail": "port 46449"
+   "detail": "port 36297"
   },
   {
    "check": "proxy announced its HTTPS port",
    "ok": true,
-   "detail": "['TLS termination: https://127.0.0.1:45895 -> http://127.0.0.1:46449']"
+   "detail": "['TLS termination: https://127.0.0.1:36221 -> http://127.0.0.1:36297']"
   },
   {
    "check": "proxy binds the HTTPS and the redirect port it was given",
@@ -50,7 +50,7 @@
   {
    "check": "plain HTTP is redirected to HTTPS",
    "ok": true,
-   "detail": "status 308 location https://127.0.0.1:37781/some/path?x=1"
+   "detail": "status 308 location https://127.0.0.1:54699/some/path?x=1"
   },
   {
    "check": "a group or world readable key is refused",
@@ -75,7 +75,7 @@
   {
    "check": "both ports are released after shutdown",
    "ok": true,
-   "detail": "https 45895 http 37781"
+   "detail": "https 36221 http 54699"
   }
  ],
  "count": 15,

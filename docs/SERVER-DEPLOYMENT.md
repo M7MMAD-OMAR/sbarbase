@@ -100,6 +100,16 @@ On the server, one command produces the acceptance evidence:
 /usr/bin/python3 lab/deployment_rehearsal.py --bootstrap-file /path/to/operator.json
 ```
 
+On a server where the unit still has to be installed, run the acceptance path as
+root with `--install-unit`: it renders and verifies the unit, installs and starts
+it, proves the console and the TLS termination, runs the rehearsal with the unit
+required, and leaves the evidence in one place.
+
+```
+sudo deploy/server-acceptance.sh --rehearse --install-unit \
+     --bootstrap-file /path/to/operator.json
+```
+
 `docs/evidence/deployment-rehearsal.json` then records the host facts (kernel,
 Docker, Bun, Python, headroom, free disk), the exact command that ran, the full
 pin set with digests, the state of the `sbarbase.service` unit, start and finish
