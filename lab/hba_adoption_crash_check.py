@@ -69,11 +69,12 @@ def child(state):
     config=json.loads((state/'input.json').read_text())
     target=hba_target.Target(**config['target'])
     phase=config['phase']
-    if phase in ('after-start','after-hba'):
+    if phase in ('after-start','after-hba','after-stop'):
+        stop_at={'after-start':'database-started','after-hba':'hba-completed','after-stop':'source-stopped'}[phase]
         original=adoption.checkpoint
         def stopping_checkpoint(state_,phase_,payload):
             record=original(state_,phase_,payload)
-            if phase_==('database-started' if phase=='after-start' else 'hba-completed'):
+            if phase_==stop_at:
                 os.kill(os.getpid(),signal.SIGSTOP)
             return record
         adoption.checkpoint=stopping_checkpoint
@@ -139,10 +140,16 @@ def run_phase(image,phase,check,docker):
                               outcome['application']=='publication-witnessed'
                               and not any(authority.APPLY in args or 'psql' in args for args in calls))
                         check(phase+': settlement retained no pending journal',not (state/journal.NAME).exists())
-                    completed=adoption.execute(docker,state,target=target)
+                    recovery=[]
+                    def recording(*args,**kwargs):
+                        recovery.append(args);return docker(*args,**kwargs)
+                    completed=adoption.execute(recording,state,target=target)
                 expected_inits=1 if phase=='after-start' else 0
                 check(phase+': fresh recovery completes adoption from checkpoints',completed['phase']=='completed')
                 check(phase+': recovery never repeats generation initialization',len(inits)==expected_inits)
+                if phase=='after-stop':
+                    check(phase+': resuming a stopped source performs no database work',
+                          not any(args[0] in ('start','stop','exec') for args in recovery))
             check(phase+': generation pin equals the intent generation',
                   hba_generation.load(state)['generation']==intent['generation'])
             check(phase+': checkpoints distinguish all durable phases',
@@ -181,9 +188,9 @@ def main():
     check('host headroom checked before bounded probe',memory>=4*1024**3)
     image=json.loads((LAB/'distro-image.lock.json').read_text())['id']
     docker('image','inspect',image)
-    for phase in ('healthy','after-start','after-hba','after-witness'):
+    for phase in ('healthy','after-start','after-hba','after-stop','after-witness'):
         run_phase(image,phase,check,docker)
-    evidence={'image':image,'scope':'Durable legacy adoption on a disposable pinned Supabase PostgreSQL container: healthy run, adopter SIGKILL after database-started and after HBA-completion checkpoints, pending-journal recovery, exact stop and replay refusal. Quiescence of legacy host clients remains an explicit operational assumption; raw legacy writers are not fenced. Retained installation untouched.','count':len(checks),'checks':checks}
+    evidence={'image':image,'scope':'Durable legacy adoption on a disposable pinned Supabase PostgreSQL container: healthy run, adopter SIGKILL after database-started, after HBA-completion and after source-stopped checkpoints, pending-journal recovery, mount-identity revalidation, exact stop and replay refusal. Quiescence of legacy host clients remains an explicit operational assumption; raw legacy writers are not fenced. Retained installation untouched.','count':len(checks),'checks':checks}
     out=LAB.parent/'docs'/'evidence'/'hba-adoption-crash-checks.json'
     out.write_text(json.dumps(evidence,indent=1)+'\n')
     print('evidence:',out)

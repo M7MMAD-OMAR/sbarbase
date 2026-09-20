@@ -328,6 +328,21 @@ and its startup still refuses), then recovery-target writers. Quiescence of
 legacy host clients remains an explicit operational assumption; raw legacy
 writers are not fenced.
 
+### Adversarial review and fixes, 2026-09-20
+
+Independent adversarial review (docs/reviews/legacy-adoption-review.md) found
+five must-fix defects; all five are fixed with regression tests: resume past the
+source-stopped checkpoint now performs no database work, a preexisting backend
+authority marker refuses adoption before any pin is written, a pin with no
+committed backend marker resolves by one same-generation INIT, checkpoint
+existence and reads are strict (lstat for absence, O_NOFOLLOW plus owner, mode,
+size and checksum for content), and the captured mount identity is revalidated
+before start and after the final stop. Evidence after the fixes: 230 Python
+tests, 73 Bun tests/408 assertions and a 44-check live probe over five phases,
+including the source-stopped window:
+docs/evidence/hba-adoption-crash-checks.json. The review worktree was merged
+into main and removed.
+
 ## User stop and Hermes handoff, 2026-09-20
 
 The user explicitly stopped this Codex implementation to continue with another Hermes agent/model. All reviews are completed; no test process remains active. Read-only inventory verified 11 source and 8 recovery-target containers stopped, no fresh fixture containers remaining, and no retained source generation pin. Saved the completed crash-probe changes and evidence, without beginning adoption or another experiment. HERMES-HANDOFF.md is the concise continuation entry point. The wider platform goal remains unfinished; this is a user-requested stop, not goal completion.

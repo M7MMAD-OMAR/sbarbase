@@ -38,6 +38,35 @@ unit tests `lab/test_hba_adoption.py`.
 - Initialization uncertainty inspects the same operation/generation; INIT is
   never dispatched twice and no replacement identity is ever minted.
 
+## Adversarial review and fixes, 2026-09-20
+
+Independent adversarial review: docs/reviews/legacy-adoption-review.md. Five
+must-fix findings were established and all five are now fixed, each with a
+regression test that fails against the previous code:
+
+- MF-1 resume past the source-stopped checkpoint: the database-dependent steps
+  (readiness, generation, HBA byte recheck) ran unconditionally, so a crash
+  after source-stopped could never reach completion. They now run only while
+  the HBA stage is outstanding, and a resume from source-stopped performs no
+  database work at all.
+- MF-2 generation pin written before initialization could refuse: a preexisting
+  backend authority marker now refuses adoption without writing any pin, and a
+  durable pin with no committed backend marker resolves by exactly one INIT on
+  the recorded generation (never a new one).
+- MF-3 unreadable checkpoints were treated as absent: existence now uses lstat
+  and only FileNotFoundError is absence; denied state stays fatal, so an
+  unreadable completion checkpoint can no longer replay the HBA stage.
+- MF-4 existing checkpoints were read without the invariants every other reader
+  applies: one strict reader now enforces O_NOFOLLOW, regular file, owner,
+  0600, size limit and the envelope checksum.
+- MF-5 captured mount identity was never revalidated: the live mount list and
+  pgdata volume are now compared against the intent before the source is
+  started and again after the final stop.
+
+Lesser observations were also addressed: the checkpoint directory entry is now
+fsynced, the two branches of checkpoint comparison use one rule, and the
+running-versus-stopped discrimination no longer matches on error text.
+
 ## Explicit limits
 
 Same-CID adoption does not fence raw legacy writers or queued Docker requests;
@@ -47,10 +76,11 @@ no recovery-target writers, no power-loss guarantee, and restarting PostgreSQL
 terminates its sessions and reloads configuration (unchanged session behavior is
 not claimed).
 
-## Evidence
+## Live verification
 
-Live probe on a disposable pinned Supabase PostgreSQL 17 container, four phases
+Live probe on a disposable pinned Supabase PostgreSQL 17 container, five phases
 (healthy, kill after database-started, kill after hba-completed checkpoint, kill
-after durable witness with pending journal):
+after source-stopped checkpoint, kill after durable witness with pending
+journal), 44 checks:
 `docs/evidence/hba-adoption-crash-checks.json`. Retained source, recovery
 targets and all volumes untouched.
