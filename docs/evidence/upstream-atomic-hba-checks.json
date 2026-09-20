@@ -1,0 +1,24 @@
+{
+  "image": "sha256:b3bfedb107413abb3b8cb0d0874b0414a1dceb3d55bc0c778de6ad22d1f7dc86",
+  "profile": "upstream",
+  "scope": "Pinned upstream HBA atomic replacement: producer EOF, checksum rejection and helper SIGKILL before/after rename. Not stale-writer fencing, power-loss or activation recovery.",
+  "count": 16,
+  "checks": [
+    "native local Linux daemon",
+    "host headroom checked before bounded probe",
+    "owned exact container is isolated and memory bounded",
+    "upstream bootstrap roles present",
+    "neighbor role is unprivileged without inherited memberships",
+    "legacy producer EOF publishes truncated active file",
+    "atomic writer rejects producer EOF before expected length",
+    "atomic writer rejects same-length wrong content",
+    "helper SIGKILL before rename preserves complete old file",
+    "helper SIGKILL after rename leaves complete new file",
+    "replacement preserves mode uid and gid",
+    "new complete HBA parses without errors",
+    "explicit reload acknowledges signal",
+    "normal complete replacement returns original content",
+    "disposable database did not OOM",
+    "exact disposable container absent from successful inventory"
+  ]
+}

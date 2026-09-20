@@ -1,6 +1,6 @@
 {
   "scope": "Fresh real worker receipts, leases and guarded SQL with original Auth/REST/Storage in a private source snapshot. Only Docker identity constants replaced. Single environment, not crash recovery or capacity.",
-  "count": 56,
+  "count": 57,
   "checks": [
     "whole-stack host memory headroom exceeds 6 GiB",
     "fresh container namespace absent",
@@ -16,6 +16,7 @@
     "exact fixture identity replacement lab/pressure_admission.py sbarbase-durable-db",
     "exact fixture identity replacement lab/pressure_admission.py sbarbase-durable-storage",
     "retained durable identities absent from lab/pressure_admission.py",
+    "worker helper has no retained resource target atomic_hba.py",
     "worker helper has no retained resource target effect_receipt.py",
     "worker helper has no retained resource target guarded_sql_executor.py",
     "worker helper has no retained resource target sql_operation_fence.py",

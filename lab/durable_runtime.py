@@ -1,5 +1,6 @@
 """Bounded, persistent upstream runtime. Experimental, local and unpublished."""
 import effect_receipt
+import atomic_hba
 from guarded_sql_executor import GuardedSQL
 import argparse
 import base64
@@ -149,7 +150,7 @@ class Runtime:
                 raise RuntimeError('Invalid runtime inventory')
             lines += [f'host {e} {e}_{role} 0.0.0.0/0 scram-sha-256' for role in ('auth', 'rest', 'storage')]
         lines += ['host all all 0.0.0.0/0 reject', 'host all all ::/0 reject']
-        lab.docker('exec', '-i', DB, 'sh', '-c', 'cat > /etc/postgresql/pg_hba.conf', data='\n'.join(lines)+'\n')
+        atomic_hba.replace(lab.docker,DB,'\n'.join(lines)+'\n')
         self.sql('SELECT pg_reload_conf();')
 
     def start(self):

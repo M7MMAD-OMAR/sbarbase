@@ -64,7 +64,7 @@ def main():
         check('retained durable identities absent from '+item,'sbarbase-durable' not in text and 'durable-upstream' not in text)
         path.write_text(text)
     # Fixed transitive worker helpers have no Docker target identities.
-    for item in ('effect_receipt.py','guarded_sql_executor.py','sql_operation_fence.py','sql_operation_revoke.py','source_fence.py','worker.py','worker.ts','worker-effect.ts','worker-receipt.ts','worker_lock_exec.py','effect_lease.py'):
+    for item in ('atomic_hba.py','effect_receipt.py','guarded_sql_executor.py','sql_operation_fence.py','sql_operation_revoke.py','source_fence.py','worker.py','worker.ts','worker-effect.ts','worker-receipt.ts','worker_lock_exec.py','effect_lease.py'):
         text=(repo/'lab'/item).read_text()
         check('worker helper has no retained resource target '+item,'sbarbase-durable' not in text and 'durable-upstream' not in text)
     command(['git','-c','init.templateDir=','init','-q'],label='git-init')

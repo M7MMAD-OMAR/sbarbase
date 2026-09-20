@@ -136,3 +136,5 @@ The experimental same-database SQL revocation proof runs with `/usr/bin/python3 
 The sequential two-database prototype runs with `/usr/bin/python3 lab/partial-database-crash-check.py --upstream --cross-fence`. See [its evidence and limits](../docs/SQL-PAIR-REVOCATION.md). It does not enable production recovery.
 
 Run `/usr/bin/python3 lab/fresh-worker-check.py` for the fresh real worker/SQL/Auth/REST/Storage lifecycle in a private namespaced source snapshot. It requires 6 GiB host headroom and removes only its isolated Docker resources. Read [scope and cleanup](../docs/FRESH-WORKER-LIFECYCLE.md).
+
+Run `/usr/bin/python3 lab/partial-database-crash-check.py --upstream --hba` to verify complete-file HBA replacement under producer EOF and helper interruption. See [limits](../docs/ATOMIC-HBA-REPLACEMENT.md).

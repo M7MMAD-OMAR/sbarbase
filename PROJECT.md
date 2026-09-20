@@ -293,3 +293,11 @@ Read docs/FRESH-WORKER-LIFECYCLE.md. A private source snapshot with only literal
 Five fixture containers have combined configured ceilings of 2304 MiB/2.25 CPUs, require 6 GiB initial host headroom and publish no container ports. Fresh worker/effect/operation locks precede exact-ID cleanup; all fixture containers/volumes/network are removed. Private diagnostic snapshots remain ignored. Retained installation resources are not used. Strict SDK probe types pass; prior Python checkpoint115 and unchanged Bun73/408 remain.
 
 The fresh worker lifecycle gate is now covered. Next address shared HBA and service-effect interruption/reconciliation; unknown later-stage replay remains blocked. This is not 10/100 capacity evidence or arbitrary crash recovery.
+
+## Complete-file HBA replacement, latest checkpoint
+
+Read docs/ATOMIC-HBA-REPLACEMENT.md. Shared HBA updates now validate stdin byte length and SHA256 in a unique same-directory temporary file, preserve metadata, sync and rename before the separate reload. This closes producer EOF truncation; rename alone was insufficient. Commands are verified against the pinned image's BusyBox tools.
+
+Sixteen upstream fault checks pass, including legacy truncation, rejected short/corrupt input and helper SIGKILL before/after rename. The fresh actual worker/SDK lifecycle passes 57 checks after the change. Full Python remains115 passing tests. Exact disposable cleanup passed and no retained runtime was used for these probes. Independent review found no must-fix in this scope.
+
+Next fence stale complete HBA writers and define activation/reconciliation semantics. Post-rename failure remains uncertain; no automatic later-stage replay or power-loss guarantee is introduced.

@@ -66,7 +66,7 @@ def bun(code,state):
     return result.stdout
 
 
-def main(upstream=False,sql_fence=False,cross_fence=False):
+def main(upstream=False,sql_fence=False,cross_fence=False,hba=False):
     global ADMIN
     ADMIN="supabase_admin" if upstream else "postgres"
     checks=[];container=None;native=None
@@ -122,7 +122,10 @@ try{const o=c.createOrganization('probe','O'),p=c.createProject('probe',o,'P');c
             if cross_fence:
                 from sql_operation_revoke_check import run as run_pair
                 run_pair(container,ADMIN,check,docker,sql)
-            for phase in (() if sql_fence or cross_fence else ('roles','database','permissions','transaction_failure')):
+            if hba:
+                from atomic_hba_check import run as run_hba
+                run_hba(container,ADMIN,check,docker,sql)
+            for phase in (() if sql_fence or cross_fence or hba else ('roles','database','permissions','transaction_failure')):
                 state=Path(directory)/phase;state.mkdir()
                 job=json.loads(bun(setup,state));runtime=job['runtime']
                 check(phase+': fresh runtime has no prior database or roles',sql(container,f"SELECT NOT EXISTS(SELECT 1 FROM pg_database WHERE datname='{runtime}') AND NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname IN ('{runtime}_auth','{runtime}_rest'));").stdout.strip()=='t')
@@ -191,9 +194,10 @@ console.log('blocked');}finally{c.close();}"""
     evidence={'image':image,'profile':'upstream' if upstream else 'component','scope':('Pinned Supabase PostgreSQL distribution, ' if upstream else 'Pinned stock PostgreSQL 17 component, ')+ ' actual provision_environment SQL interrupted after roles, database and permissions checkpoints plus injected permission transaction failure. Process kill follows synchronous SQL completion. Confirms durable partial state and blocked replay, not full Supabase recovery or in-flight daemon cancellation. Retained installation untouched.','count':len(checks),'checks':checks}
     if sql_fence:evidence['scope']='Experimental same-database operation revocation on pinned PostgreSQL. Concurrent queued batches, cancellation, tombstones and CREATE DATABASE tested. Explicitly proves identical advisory keys do not fence another database. Not wired into runtime recovery.'
     if cross_fence:evidence['scope']='Experimental sequential control and target SQL revocation on pinned PostgreSQL. Actual coordinator SIGKILL between commits, retry, target tombstones, absent/closed targets and OID replacement tested. Not an atomic cutoff, production integration or replay authorization.'
-    output=('upstream-' if upstream else '')+('sql-pair-fence-checks.json' if cross_fence else 'sql-fence-checks.json' if sql_fence else 'partial-database-crash-checks.json')
+    if hba:evidence['scope']='Pinned upstream HBA atomic replacement: producer EOF, checksum rejection and helper SIGKILL before/after rename. Not stale-writer fencing, power-loss or activation recovery.'
+    output=('upstream-' if upstream else '')+('atomic-hba-checks.json' if hba else 'sql-pair-fence-checks.json' if cross_fence else 'sql-fence-checks.json' if sql_fence else 'partial-database-crash-checks.json')
     (lab.ROOT/'docs/evidence'/output).write_text(json.dumps(evidence,indent=2)+'\n')
-    print(str(len(checks))+(' SQL operation fence checks passed' if sql_fence or cross_fence else ' partial database crash checks passed'))
+    print(str(len(checks))+(' HBA replacement checks passed' if hba else ' SQL operation fence checks passed' if sql_fence or cross_fence else ' partial database crash checks passed'))
 
 
 if __name__=='__main__':
@@ -204,6 +208,7 @@ if __name__=='__main__':
         elif len(sys.argv)==1:main()
         elif sys.argv[1:]==['--upstream']:main(upstream=True)
         elif sys.argv[1:] in (['--sql-fence'],['--upstream','--sql-fence']):main(upstream='--upstream' in sys.argv,sql_fence=True)
+        elif sys.argv[1:]==['--upstream','--hba']:main(upstream=True,hba=True)
         elif sys.argv[1:] in (['--cross-fence'],['--upstream','--cross-fence']):main(upstream='--upstream' in sys.argv,cross_fence=True)
         else:raise RuntimeError('Invalid probe arguments')
     except AssertionError as error:raise SystemExit('Probe assertion failed: '+str(error)) from None
