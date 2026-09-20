@@ -1,0 +1,27 @@
+{
+  "scope": "Three source neighbors restarted and resumed through composed gateway. Auth settings and REST root checks, not full neighbor data workloads. Moved environment remains in maintenance with target placement. Temporary keys revoked.",
+  "checks": [
+    "moved environment remains paused with target placement",
+    "neighbor begins in expected maintenance state",
+    "neighbor refused before explicit resume",
+    "neighbor auth works after source restart and routing resume",
+    "neighbor rest works after source restart and routing resume",
+    "moved environment stays paused while neighbor is active",
+    "neighbor begins in expected maintenance state",
+    "neighbor refused before explicit resume",
+    "neighbor auth works after source restart and routing resume",
+    "neighbor rest works after source restart and routing resume",
+    "moved environment stays paused while neighbor is active",
+    "neighbor begins in expected maintenance state",
+    "neighbor refused before explicit resume",
+    "neighbor auth works after source restart and routing resume",
+    "neighbor rest works after source restart and routing resume",
+    "moved environment stays paused while neighbor is active"
+  ],
+  "count": 16,
+  "resumedRevisions": {
+    "e_1f0624c545789214eef426c9": 2,
+    "e_3ac7584e45004caac76be27c": 2,
+    "e_f61bf85dccd73890ec63997c": 2
+  }
+}

@@ -167,3 +167,7 @@ Coordinated source export passed 34 checks after durable maintenance of four rea
 ## Managed target publication checkpoint
 
 Eleven real SDK checks now pass through persistent target placement and the composed gateway: identity, RLS reads/writes confirmed on target SQL, Storage upload/download and pre-export URL. Probe data/key cleaned up. Target placement retained paused and all containers stopped. Operation records possible target writes; stale-source rollback must not be automatic. Three maintenance cleanup unit cases bring Python to 54 tests. SDK/application strict types and four management/application tests pass. Unaffected source environment restoration remains next.
+
+## Unaffected neighbor restoration checkpoint
+
+Normal source startup preserved the moved database fence and left its old Auth/REST stopped. Three neighbors resumed with 16 gateway checks for maintenance transitions and Auth/REST availability. All source containers were stopped afterward; neighbor routes are active for the next normal startup, moved target remains paused. Routine target lifecycle/address refresh and combined-resource admission remain open.
