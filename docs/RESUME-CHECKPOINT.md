@@ -210,3 +210,9 @@ All 129 Python tests pass. Adversarial review found an uncertain-container-creat
 The pinned-image authority probe now passes 17 checks, including actual helper SIGKILL immediately before and after registry rename. Before rename, the complete active version remains; after rename, the complete revoked version remains. The killed helper releases its lock, a new operation registers, and the persisted tombstone refuses resurrection. Failed revocation before publication is not cancellation.
 
 This uses a disposable shell container, with no running PostgreSQL and no retained resources. It does not test machine power loss, host journal recovery, registry cloning or startup integration. Next persist exact host operation journals before dispatch and define reconciliation before integrating runtime writers. The unchanged full Python checkpoint remains 129 tests.
+
+## Immutable host HBA journal checkpoint
+
+lab/hba_journal.py now creates a fixed-name exclusive private journal and syncs file/parent before one registry registration dispatch. Exact token, container, generation, original registry snapshot and prepared content/identity stay discoverable after an uncertain acknowledgment. Existing or invalid journals block replacement. Read-only inspection reports observed authority, never application or activation. An absent token does not exclude delayed registration.
+
+All137 Python tests and 20 pinned-image checks pass. No runtime wiring or retained installation mutation occurred. Next test host process interruption around dispatch, bind live ownership and receipt/startup identities, and design conservative settlement/container-generation reconciliation before integrating managed writers. Structural identity validation alone does not confer authority. No automatic replay or journal deletion is implemented.

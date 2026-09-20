@@ -1,7 +1,8 @@
 """Isolated authority protocol against the pinned image's real filesystem/tools.
 
 Includes helper SIGKILL around registry rename. Does not start PostgreSQL or test
-reload, host journals, power loss or whole-operation recovery.
+reload, host lease recovery, power loss or whole-operation recovery.
+A private immutable host journal precedes initial registration and supports read-only inspection.
 """
 import json
 from pathlib import Path
@@ -12,6 +13,7 @@ import re
 import uuid
 import atomic_hba
 import hba_authority as authority
+import hba_journal as journal
 
 OWNER='hba-authority-probe'
 
@@ -71,7 +73,7 @@ def main():
         checks.append(label)
     def refused(label,call,code=None):
         try:call()
-        except (RuntimeError,ValueError,subprocess.CalledProcessError) as error:
+        except (RuntimeError,ValueError,FileExistsError,subprocess.CalledProcessError) as error:
             if code is not None and getattr(error,'returncode',None)!=code:raise
             checks.append(label)
         else:raise AssertionError(label)
@@ -81,13 +83,18 @@ def main():
         info=json.loads(docker('inspect',cid).stdout)[0]
         check('bounded isolated pinned container',info['Image']==image and info['HostConfig']['Memory']==128*1024**2 and info['HostConfig']['NetworkMode']=='none' and not info['HostConfig']['PortBindings'])
         original=docker('exec',cid,'cat','/etc/postgresql/pg_hba.conf').stdout
-        generation=str(uuid.uuid4());token=str(uuid.uuid4());identity={'kind':'startup','id':str(uuid.uuid4())}
+        generation=str(uuid.uuid4());token=str(uuid.uuid4());identity={'kind':'startup','startup':str(uuid.uuid4())}
         initial=authority.initialize(docker,cid,generation)
         prepared=atomic_hba.prepare(docker,cid,'local all all reject\n')
         binding=authority.operation_binding(prepared,identity)
-        active=authority.update(docker,initial,token,binding)
+        journal_file=Path(private.name)/journal.NAME
+        active=journal.begin(docker,journal_file,initial,prepared,token,identity)
+        check('durable host journal binds registered operation',journal.load(journal_file)['binding']==binding and journal.inspect(docker,journal_file)['authority']=='active')
         permit=authority.authorize(active,prepared,token,identity)
         revoked=authority.update(docker,active,token,binding,revoke=True)
+        observed_journal=journal.inspect(docker,journal_file)
+        check('read-only journal inspection observes revocation without activation claim',observed_journal['authority']=='revoked' and observed_journal['application']=='unknown' and observed_journal['activation']=='unknown')
+        refused('same journal cannot create replacement intent',lambda:journal.begin(docker,journal_file,revoked,prepared,str(uuid.uuid4()),identity))
         refused('old permit rejected after revocation',lambda:authority.apply(docker,permit),75)
         check('rejected permit leaves HBA unchanged',docker('exec',cid,'cat','/etc/postgresql/pg_hba.conf').stdout==original)
         refused('stale snapshot cannot erase tombstone',lambda:authority.update(docker,initial,token,binding),74)
