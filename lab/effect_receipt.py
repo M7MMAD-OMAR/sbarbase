@@ -104,13 +104,11 @@ def native_stage(state,runtime,stage):
     atomic_record(path,value)
 
 
-def sql_identity(state,runtime,stage):
-    """Bind native SQL to the exact pending worker claim and durable stage."""
+def _native_identity(state,runtime,stage,*,hba=False):
+    """Bind native effects to the exact pending worker claim and durable stage."""
     import sqlite3
     from contextlib import closing
     import sql_operation_fence
-    if stage not in ('preflight','database'):
-        raise ValueError('Unsupported SQL authorization stage')
     require_permission(state,runtime)
     path=state/'worker-effect.json'
     if not path.exists():raise RuntimeError('Native provisioning requires a worker receipt')
@@ -122,6 +120,8 @@ def sql_identity(state,runtime,stage):
             or receipt.get('token')!=os.environ.get('SBARBASE_EFFECT_TOKEN')
             or not isinstance(job,dict) or job.get('runtime')!=runtime):
         raise RuntimeError('Native SQL receipt identity mismatch')
+    if hba and (type(receipt.get('hbaProtocol')) is not int or receipt['hbaProtocol']!=1):
+        raise RuntimeError('HBA journal protocol receipt required')
     args=(runtime,receipt.get('token'),job.get('claim'),job.get('attempt'))
     sql_operation_fence.identity(*args)
     record=json.loads((state/'effect-stages'/(receipt['token']+'.json')).read_text())
@@ -132,3 +132,14 @@ def sql_identity(state,runtime,stage):
     if row!=(runtime,job['claim'],job['attempt'],'running'):
         raise RuntimeError('Native SQL catalog claim mismatch')
     return args
+
+
+def sql_identity(state,runtime,stage):
+    if stage not in ('preflight','database'):
+        raise ValueError('Unsupported SQL authorization stage')
+    return _native_identity(state,runtime,stage)
+
+
+def hba_identity(state,runtime):
+    """Services-stage identity only; caller must separately own host locks."""
+    return _native_identity(state,runtime,'services',hba=True)

@@ -14,7 +14,7 @@ Compatibility is required. Replacing Supabase changes that contract. Schema-only
 
 Four local environments have been exercised, including one restored to a separate local target. Real SDK checks cover Auth, RLS and private Storage access. Provisioning uses durable receipts, exact worker identities and scoped SQL guards. Complete HBA writes reject truncation and stale prepared requests; reload acknowledgment does not prove enforcement or terminate existing sessions.
 
-Recorded checkpoints: 137 Python tests, 73 Bun tests/408 assertions, 57 fresh worker/SDK checks, 51 SQL-pair checks and 36 HBA checks. These have different scopes ; Python was rerun for the authority prototype, while the other runtime checkpoints remain recorded evidence. They do not certify production security.
+Recorded checkpoints: 146 Python tests, 73 Bun tests/408 assertions, 57 fresh worker/SDK checks, 51 SQL-pair checks and 36 HBA checks. These have different scopes ; Python was rerun for the authority prototype, while the other runtime checkpoints remain recorded evidence. They do not certify production security.
 
 Configured retained ceilings are 5888 MiB RAM/5.75 CPUs, not measured demand or a hardware recommendation. There is no validated maximum of 10 or 100 projects. Daily visitors alone cannot determine capacity.
 

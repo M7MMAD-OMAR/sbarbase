@@ -222,3 +222,9 @@ All137 Python tests and 20 pinned-image checks pass. No runtime wiring or retain
 The isolated authority probe now passes 30 checks. A real host child is stopped and killed after fsynced journal publication before register dispatch, and after register return before the outer call completes. Fresh reads preserve exact token/content/original registry identity and observe absent versus active authority respectively. Both interrupted journals reject replacement before dispatch. Explicit fixture revocation leaves tombstones; exact container cleanup passes.
 
 No retained runtime mutation or production recovery was performed. The unchanged Python suite checkpoint is 137. Next bind journal operations to verified host ownership and exact live startup/worker identity, then settle authority conservatively before wiring managed writers. In-flight Docker RPC interruption and container-generation replacement remain separate gates.
+
+## Worker ownership entry gate checkpoint
+
+The isolated hba_ownership.begin_worker now requires distinct matching worker/effect/operation lock inodes and real exclusive flock ownership, then validates the exact services receipt/stage/current catalog claim. The journal receives derived worker identity. A dedicated hbaProtocol: 1 receipt field rejects legacy records; the real guardian does not yet emit it and no runtime writer uses this helper.
+
+Nine real subprocess/flock/SQLite tests cover success and stale/missing/competing/aliased/symlink/legacy rejection before journal publication or dispatch. All 146 Python tests pass. No retained resources were changed. Existing image evidence remains 30 checks, not a combined real worker/Docker proof. Next design startup ownership and conservative settlement, then exercise the new protocol through a disposable real worker before all-writer integration. Inherited ownership is not fresh recovery ownership.
