@@ -1,5 +1,7 @@
 # Sbarbase handoff
 
+For the shortest overview, read [START-HERE](START-HERE.md). Unfinished local work: `lab/hba_authority.py` is an untested, unintegrated draft; no operation-authority guarantee follows from its presence.
+
 Snapshot: 2026-09-20. Start here, then read [the current checkpoint](RESUME-CHECKPOINT.md). Repository files are the continuation source; older chat and chronological status entries may be superseded.
 
 ## Decision and rationale

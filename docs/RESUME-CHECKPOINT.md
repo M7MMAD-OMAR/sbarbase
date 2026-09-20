@@ -192,3 +192,7 @@ The upstream HBA probe passes36 checks: restrictive file publication alone does 
 All121 Python tests pass. Read docs/ATOMIC-HBA-REPLACEMENT.md and the reviewed, unimplemented HBA-OPERATION-AUTHORITY-DESIGN.md. Next implement immutable operation journals and registry/tombstone semantics only after specifying startup and container-generation reconciliation. Unknown services-stage replay stays blocked.
 
 Fresh real worker/SDK lifecycle also passes57 checks after reload validation, with exact isolated cleanup. Independent review found no runtime must-fix and tightened invalid-reload evidence wording: immediate continued rejection does not confirm SIGHUP processing.
+
+## Documentation handoff checkpoint
+
+The concise entry point is now docs/START-HERE.md, linking decisions, reasons, research, saved visuals, measured evidence and open gates. Verified implementation baseline remains155e230. lab/hba_authority.py was started but has not been tested or integrated; preserve and review it as a draft. No runtime work or new validation run occurred during this documentation update. Continue with one active writer in the same checkout, whether Codex or Hermes.
