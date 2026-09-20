@@ -9,8 +9,8 @@
   "docker": "29.7.2",
   "bun": "1.3.14",
   "systemd": "systemd 259 (259.8-1.fc44)",
-  "mem_available_mib": 8293,
-  "disk_free_mib": 505402
+  "mem_available_mib": 8427,
+  "disk_free_mib": 505242
  },
  "pins": [
   {
@@ -47,15 +47,27 @@
  },
  "bootstrap_file_used": false,
  "install_skipped": true,
- "started_at": "2026-09-20T15:39:10+04:00",
- "finished_at": "2026-09-20T15:39:11+04:00",
+ "supervisor_log": "/home/sbarah/R/Projects/P/sbarbase/.lab/upstream/rehearsal-supervisor.log",
+ "runtime_diagnostics": "/home/sbarah/R/Projects/P/sbarbase/.lab/upstream/diagnostics",
+ "started_at": "2026-09-20T15:48:23+04:00",
+ "finished_at": "2026-09-20T15:48:39+04:00",
  "checks": [
   {
-   "check": "preflight: Host headroom insufficient: 8333 MiB available, plan needs 8448 MiB",
-   "ok": false,
+   "check": "host preflight passed",
+   "ok": true,
    "detail": ""
+  },
+  {
+   "check": "built console page is intact",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "supervisor started and owns the console",
+   "ok": false,
+   "detail": "Supervisor exited during startup;  \u001b[38;5;240m  \u2502\u001b[0m  |  \u001b[38;5;240m  \u2502\u001b[0m \u001b[38;5;115mHelp\u001b[0m: For more information, see https://rolldown.rs/in-depth/directives#other-directives | \u001b[38;5;246m\u2500\u2500\u2500\u256f\u001b[0m |  | \u2713 built in 138ms | Installation runtime refused or incomplete; diagnostics: /home/sbarah/R/Projects/P/sbarbase/.lab/upstream/diagnostics/installation-runtime-20260920T154839.log | Runtime startup failed; the installation runtime reported its own reason above | Installation runtime stop completed"
   }
  ],
  "passed": false,
- "count": 1
+ "count": 3
 }
