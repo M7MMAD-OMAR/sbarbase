@@ -139,3 +139,7 @@ Twelve end-user checks now verify original-login object access, different-owner 
 ## Recovery cleanup failure checkpoint
 
 Six injected failure unit cases and six disposable-container live checks now cover independent cleanup attempts and truthful status publication. Three reproduced defects were fixed: helper failures skipping DB stop and a missing verified target being treated as success. All 40 Python tests pass. No retained data was modified. Actual interrupted restoration and process-death reconciliation remain unverified.
+
+## Recovery interruption and reconciliation checkpoint
+
+An explicit identity/ownership-checked reconciliation command stops retained target services without deleting data. Five new unit cases bring Python tests to 45. A real pg_restore interruption/retry probe passes 38 checks including rollback and all 32 table hashes after replay. Disposable database removed; target stopped. Controller death, automatic stage resume and route cutover remain open.

@@ -45,3 +45,7 @@ Twelve end-user Storage checks pass: original login, own-object access, cross-ow
 ## Latest failure-path checkpoint
 
 Database restore cleanup now attempts helper and database cleanup independently, preserves foreign helpers and refuses success when the verified target is missing. Six unit fault cases and six disposable-container live checks pass; complete Python suite is 40 tests. See `lab/test_recovery_cleanup.py` and `docs/evidence/recovery-cleanup-checks.json`. Actual pg_restore interruption, SIGKILL/restart reconciliation and resumable stage orchestration remain next, followed by chronological pre-export URL and management routing cutover.
+
+## Latest interruption checkpoint
+
+45 Python tests pass. `lab/recovery_reconcile.py` can explicitly stop the retained recovery target under the operation lock, retaining all data and recording incomplete operations honestly. Live reconciliation found/stopped four target containers. `lab/recovery-interruption-check.py` passes 38 checks for real pg_restore backend termination, transaction rollback and replay of the same dump with all 32 table hashes matching, in a disposable database that was removed afterward. Target remains stopped. Controller SIGKILL reconciliation, automatic stage resume, chronological pre-export URL and public route cutover remain unfinished.

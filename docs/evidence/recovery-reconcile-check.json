@@ -1,0 +1,7 @@
+{
+  "scope": "Explicit stop reconciliation of existing verified target. No process-death simulation or replay of data writes.",
+  "state": "stopped",
+  "containers": 4,
+  "database_verified": true,
+  "data_retained": true
+}
