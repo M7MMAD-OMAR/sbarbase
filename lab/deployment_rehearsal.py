@@ -127,7 +127,7 @@ def unit_status(path=UNIT):
     return status
 
 
-def rehearse(bootstrap_file,skip_install,timeout,attempts=1,delay=15):
+def rehearse(bootstrap_file,skip_install,timeout,attempts=1,delay=15,require_unit=False):
     findings=[]
     def record(label,ok,detail=''):
         findings.append({'check':label,'ok':bool(ok),'detail':detail})
@@ -178,9 +178,12 @@ def rehearse(bootstrap_file,skip_install,timeout,attempts=1,delay=15):
         if supervised['installed']:
             record('supervisor unit is enabled on this host',supervised['enabled'] in ('enabled','enabled-runtime'),supervised['enabled'])
             record('supervisor unit file verifies',supervised['verify']=='passed',supervised['verify'])
-        else:
+        elif require_unit:
             record('supervised path exercised through systemd',False,
-                   'sbarbase.service is not installed at /etc/systemd/system; ran the supervisor directly')
+                   'sbarbase.service is not installed at /etc/systemd/system; a server acceptance run requires it')
+        else:
+            record('supervised path exercised through systemd',True,
+                   'not required for this run: the supervisor was started directly, sbarbase.service is not installed')
     finally:
         if process is not None:
             code=stop_supervisor(process)
@@ -197,9 +200,11 @@ def main():
     parser.add_argument('--attempts',type=int,default=3,
                         help='startup attempts allowed before the run is declared failed (host pressure is transient)')
     parser.add_argument('--attempt-delay',type=int,default=15)
+    parser.add_argument('--require-unit',action='store_true',
+                        help='fail when sbarbase.service is not installed (a server acceptance run requires it)')
     args=parser.parse_args()
     started=datetime.datetime.now().astimezone()
-    findings,_=rehearse(args.bootstrap_file,args.skip_install,args.timeout,args.attempts,args.attempt_delay)
+    findings,_=rehearse(args.bootstrap_file,args.skip_install,args.timeout,args.attempts,args.attempt_delay,args.require_unit)
     finished=datetime.datetime.now().astimezone()
     passed=bool(findings) and all(item['ok'] for item in findings)
     pins=[{'component':label,'digest':digest,'pull':reference} for label,digest,reference in install_server.pinned_images()]
@@ -214,6 +219,7 @@ def main():
               'bootstrap_file_used':bool(args.bootstrap_file),
               'install_skipped':bool(args.skip_install),
               'startup_attempts_allowed':args.attempts,
+              'unit_required':bool(args.require_unit),
               'supervisor_log':str(STATE/'rehearsal-supervisor.log'),
               'runtime_diagnostics':str(STATE/'diagnostics'),
               'started_at':started.isoformat(timespec='seconds'),

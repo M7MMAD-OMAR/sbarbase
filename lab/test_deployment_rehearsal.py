@@ -117,5 +117,30 @@ class StartupDiagnosticsTests(unittest.TestCase):
         self.assertEqual(attempts['detail'],'2')
         self.assertFalse([item for item in findings if item['check']=='supervisor started and owns the console'][0]['ok'])
 
+    def test_the_systemd_unit_is_informational_unless_the_run_requires_it(self):
+        absent={'installed':False,'enabled':None,'active':None,'verify':'not-run'}
+        with patch.object(rehearsal.install_server,'preflight',return_value=[]), \
+             patch.object(rehearsal.console_build_check,'verify',return_value=([],{})), \
+             patch.object(rehearsal,'start_supervisor',return_value=(object(),{'url':'http://127.0.0.1:1'})), \
+             patch.object(rehearsal,'http_status',return_value=200), \
+             patch.object(rehearsal.install_server,'smoke',return_value=True), \
+             patch.object(rehearsal,'stop_supervisor',return_value=0), \
+             patch.object(rehearsal,'owned_running',return_value=False), \
+             patch.object(rehearsal,'unit_status',return_value=absent):
+            lenient,_=rehearsal.rehearse(None,True,5)
+            strict,_=rehearsal.rehearse(None,True,5,require_unit=True)
+        lenient_unit=[item for item in lenient if item['check']=='supervised path exercised through systemd'][0]
+        strict_unit=[item for item in strict if item['check']=='supervised path exercised through systemd'][0]
+        self.assertTrue(lenient_unit['ok'])
+        self.assertIn('not required for this run',lenient_unit['detail'])
+        self.assertFalse(strict_unit['ok'])
+        self.assertIn('requires it',strict_unit['detail'])
+
+    def test_the_acceptance_script_requires_the_unit(self):
+        from pathlib import Path
+        script=(Path(__file__).resolve().parent.parent/'deploy'/'server-acceptance.sh').read_text()
+        self.assertIn('--require-unit',script)
+        self.assertIn('--attempts 3',script)
+
 
 if __name__=='__main__':unittest.main()

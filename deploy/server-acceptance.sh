@@ -71,7 +71,7 @@ step "console static-serving check"
 bun lab/console-serve-check.ts || fail "console static-serving check failed; see docs/evidence/console-serve.json"
 
 step "deployment rehearsal"
-rehearsal_args=()
+rehearsal_args=(--attempts 3 --require-unit)
 [ -n "$BOOTSTRAP" ] && rehearsal_args+=(--bootstrap-file "$BOOTSTRAP")
 [ "$SKIP_INSTALL" = "1" ] && rehearsal_args+=(--skip-install)
 "$PYTHON" lab/deployment_rehearsal.py "${rehearsal_args[@]}" || fail "rehearsal failed; see docs/evidence/deployment-rehearsal.json"
