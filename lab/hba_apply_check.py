@@ -11,6 +11,8 @@ import hba_journal as journal
 import hba_reconcile
 import hba_startup
 import hba_target
+import hba_settlement
+import hba_apply_crash_check
 
 
 def run(container,check,docker):
@@ -50,7 +52,16 @@ def run(container,check,docker):
                 check(('valid' if valid else 'invalid')+' execution cannot dispatch apply twice',not any(authority.APPLY in args for args in calls))
             retired=hba_reconcile.retire(docker,state,target=target)
             check(('valid' if valid else 'invalid')+' publication retirement preserves unknown activation',retired['observed_content']=='matches-desired' and retired['activation']=='unknown' and (state/journal.NAME).exists())
+            if valid:
+                outcome=hba_settlement.complete_applied(docker,state,target=target)
+                check('valid applied witness settles only the HBA pending slot',outcome['witness']==witness and outcome['activation']=='unknown' and not (state/journal.NAME).exists())
+            else:
+                try:hba_settlement.complete_applied(docker,state,target=target)
+                except FileNotFoundError:pass
+                else:raise AssertionError('Invalid applied attempt was settled')
+                check('missing successful witness keeps invalid attempt pending',(state/journal.NAME).exists())
     # Fixture-only restoration, not an operation recovery path.
     atomic_hba.replace(docker,container,original)
     hba_apply.sql(docker,container,'SELECT pg_reload_conf();')
+    hba_apply_crash_check.run(container,target,shared.generation,original,check)
     check('fixture baseline restored after applied-operation probes',docker('exec',container,'cat','/etc/postgresql/pg_hba.conf').stdout.endswith(original))

@@ -264,3 +264,11 @@ All 182 Python tests and 56 image checks pass. Real host-SIGKILL cases archive t
 hba_apply.execute now persists an exclusive attempt before actual publication, verifies desired bytes, checks parser errors and reload signal acknowledgment on the captured CID, rechecks exact authority/journal and writes a durable completion witness with activation unknown. Startup execution requires its originating live context; worker execution revalidates the services receipt. Failed/uncertain attempts stay blocked without automatic replay.
 
 Full Python 188 and a separate real PostgreSQL 17-check applied-path probe pass. Valid and invalid HBA both retain journals; only the valid path produces the exact witness. Prior registry 56 evidence is separate and unchanged. Independent review found no must-fix. Next validate and settle successful witnesses conservatively before actual supervisor/guardian/all-writer integration. No retained runtime mutation occurred.
+
+## Successful applied-witness settlement checkpoint
+
+Strict private attempt/completion readers now bind exact JSON types, phases, full journal/raw digest and desired content before successful HBA-slot settlement. Under fresh locks, exact authority retires, desired bytes are rechecked, deterministic witness-bearing archive is synced before journal unlink. Worker receipt/catalog and activation remain outside this completion claim.
+
+All 196 Python tests and 24 real PostgreSQL checks pass. The probe kills an actual host child only after normal completion publication returns, then fresh recovery settles it without apply or SQL calls. Missing/invalid proof and content drift stay blocked. Archive retry and final sync uncertainty are covered. Independent review found no must-fix.
+
+Next implement normal completion under the originating live owner, because fresh recovery locks intentionally refuse while the worker/startup owner still holds them. Then wire actual supervisor/guardian and repeated managed HBA writers after protocol rollout and quiescing legacy effects. Retained installation resources were untouched; prior registry-only 56 evidence remains separate.

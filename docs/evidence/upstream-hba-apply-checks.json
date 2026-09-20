@@ -1,8 +1,8 @@
 {
   "image": "sha256:b3bfedb107413abb3b8cb0d0874b0414a1dceb3d55bc0c778de6ad22d1f7dc86",
   "profile": "upstream",
-  "scope": "Pinned Supabase PostgreSQL single-attempt HBA publication, parser validation and durable reload-signal acknowledgment witness. Not activation confirmation, successful operation settlement or supervisor integration.",
-  "count": 17,
+  "scope": "Pinned Supabase PostgreSQL single-attempt HBA publication, parser validation and durable reload-signal acknowledgment witness. Exact HBA-slot success settlement includes host SIGKILL after durable witness publication. Not activation confirmation, job settlement or supervisor integration.",
+  "count": 24,
   "checks": [
     "native local Linux daemon",
     "host headroom checked before bounded probe",
@@ -14,10 +14,17 @@
     "valid apply retains pending journal",
     "valid execution cannot dispatch apply twice",
     "valid publication retirement preserves unknown activation",
+    "valid applied witness settles only the HBA pending slot",
     "invalid applied HBA cannot produce completion witness",
     "invalid apply retains pending journal",
     "invalid execution cannot dispatch apply twice",
     "invalid publication retirement preserves unknown activation",
+    "missing successful witness keeps invalid attempt pending",
+    "actual host SIGKILL after successful completion persistence",
+    "fresh ownership settles exact durable completion after host death",
+    "success settlement makes no apply or PostgreSQL SQL call",
+    "success settlement leaves applied HBA bytes unchanged",
+    "successful historical outcome remains readable after journal removal",
     "fixture baseline restored after applied-operation probes",
     "disposable database did not OOM",
     "exact disposable container absent from successful inventory"

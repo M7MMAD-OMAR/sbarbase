@@ -1,4 +1,4 @@
-"""Archive only a retired HBA attempt with its baseline bytes observed.
+"""Archive a retired HBA attempt with baseline observation or exact apply evidence.
 
 This is not evidence of no past application, active policy or whole-job success.
 """
@@ -10,6 +10,7 @@ import effect_receipt
 import hba_authority as authority
 import hba_journal as journal
 import hba_reconcile as reconcile
+import hba_apply
 
 DIRECTORY='hba-outcomes'
 LIMIT=journal.MAX_BYTES*2
@@ -28,14 +29,21 @@ def directory(state,create=False):
 
 
 def validate(value,token):
-    if not isinstance(value,dict) or set(value)!={'version','kind','journal','observed_digest','application','activation'}:
-        raise ValueError('Invalid HBA outcome shape')
-    if type(value['version']) is not int or value['version']!=1 or value['kind']!='retired-baseline-observed':
-        raise ValueError('Invalid HBA outcome kind')
+    base={'version','kind','journal','observed_digest','application','activation'}
+    if not isinstance(value,dict):raise ValueError('Invalid HBA outcome shape')
+    applied=value.get('kind')=='retired-applied-reload-acknowledged'
+    if set(value)!=(base|{'witness'} if applied else base):raise ValueError('Invalid HBA outcome shape')
+    if type(value['version']) is not int or value['version']!=1:raise ValueError('Invalid HBA outcome version')
     record=journal.validate(value['journal'])
-    if (record['token']!=token or value['observed_digest']!=record['expected']
-            or authority.digest(record['content'])==record['expected']
-            or value['application']!='unknown' or value['activation']!='unknown'):
+    if record['token']!=token or value['activation']!='unknown':raise ValueError('HBA outcome identity mismatch')
+    if applied:
+        witness=value['witness']
+        if not isinstance(witness,dict):raise ValueError('HBA completion witness required')
+        hba_apply.validate_completion(witness,record,witness.get('journal_digest'))
+        if value['observed_digest']!=authority.digest(record['content']) or value['application']!='publication-witnessed':
+            raise ValueError('Applied HBA outcome content mismatch')
+    elif (value['kind']!='retired-baseline-observed' or value['observed_digest']!=record['expected']
+            or authority.digest(record['content'])==record['expected'] or value['application']!='unknown'):
         raise ValueError('HBA outcome does not bind distinct baseline observation')
     return value
 
@@ -82,6 +90,25 @@ def cancel_baseline(docker,state,*,target):
             raise RuntimeError('HBA cancellation requires distinct baseline bytes; journal remains pending')
         outcome={'version':1,'kind':'retired-baseline-observed','journal':record,
                  'observed_digest':result['observed_digest'],'application':'unknown','activation':'unknown'}
+        persist(state,outcome)
+        if journal.read_text(state/journal.NAME)!=original:raise RuntimeError('Pending HBA journal changed before settlement')
+        (state/journal.NAME).unlink()
+        effect_receipt.sync_directory(state)
+        return outcome
+
+
+def complete_applied(docker,state,*,target):
+    with reconcile.fresh_ownership(state) as state:
+        original=journal.read_text(state/journal.NAME)
+        record=journal.decode(original)
+        witness=hba_apply.read_completion(state,record,original)
+        retired,result=reconcile.retire_locked(docker,state,target=target)
+        if retired!=record:raise RuntimeError('Pending HBA journal changed during retirement')
+        if result['observed_digest']!=authority.digest(record['content']):
+            raise RuntimeError('HBA completion requires current desired bytes; journal remains pending')
+        outcome={'version':1,'kind':'retired-applied-reload-acknowledged','journal':record,
+                 'observed_digest':result['observed_digest'],'application':'publication-witnessed',
+                 'activation':'unknown','witness':witness}
         persist(state,outcome)
         if journal.read_text(state/journal.NAME)!=original:raise RuntimeError('Pending HBA journal changed before settlement')
         (state/journal.NAME).unlink()
