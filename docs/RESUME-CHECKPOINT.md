@@ -650,3 +650,23 @@ installed, enabled and reached `active` under systemd on this host at 17:59. The
 rehearsal that follows in the acceptance flow then refused on host memory
 (8663 MiB available against an 8810 MiB plan), which is this workstation's
 condition, not the product's: a server must keep about 9 GiB clear.
+
+### The unit gate on this host, observed directly
+
+The rehearsal's own `--require-unit` row has not been re-run green here, because
+that run needs the host's full 8.8 GiB twice and this workstation sits below it
+while other agents work. The three facts the row checks were verified directly
+instead, with the unit installed as root on 2026-09-20:
+
+```
+$ systemctl is-enabled sbarbase.service          -> enabled
+$ systemd-analyze verify .lab/rendered-sbarbase.service -> exit 0
+$ ls -l /etc/systemd/system/sbarbase.service      -> root:root, 1318 bytes, 18:01
+$ ls -l /etc/systemd/system/sbarbase.service.d/docker.conf -> DOCKER_HOST drop-in, 62 bytes
+```
+
+and the install that produced them recorded `applied: true`, `running_as_root:
+true`, `service_account: present`, `verify: passed` in
+`docs/evidence/supervisor-unit.json` after the unit reached `active`. The unit,
+its drop-in and the rendered copy are removed from this workstation once the
+background attempt finishes; nothing of it is left enabled on boot.
