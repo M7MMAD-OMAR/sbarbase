@@ -1,0 +1,17 @@
+[
+  {
+    "interrupted_after": "roles",
+    "retry_preserved_database_and_data": true,
+    "explicit_connection_grants": true
+  },
+  {
+    "interrupted_after": "database",
+    "retry_preserved_database_and_data": true,
+    "explicit_connection_grants": true
+  },
+  {
+    "interrupted_after": "permissions",
+    "retry_preserved_database_and_data": true,
+    "explicit_connection_grants": true
+  }
+]

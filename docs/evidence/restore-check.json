@@ -1,0 +1,8 @@
+{
+  "source": "a_prod",
+  "neighbor": "b_prod",
+  "restored_data_matches": true,
+  "source_unchanged": true,
+  "neighbor_unchanged": true,
+  "scope": "Logical database restore to a fresh database in the same lab cluster. Not PITR, off-host recovery, object storage, or routing cutover."
+}

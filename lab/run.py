@@ -1,5 +1,7 @@
 """Owned, bounded local component lab. Never manages unrelated containers."""
 import argparse
+import fcntl
+import re
 import json
 import os
 from pathlib import Path
@@ -67,6 +69,27 @@ def port(name, inside):
     return f'http://{address}:{inside}'
 
 
+def provision_environment(e, credentials, checkpoint=lambda phase: None):
+    """Reconcile each phase independently after an interrupted operation."""
+    if not re.fullmatch(r'[a-z][a-z0-9_]{1,30}', e):
+        raise ValueError('Invalid environment identifier')
+    for role in ('auth', 'rest'):
+        name = f'{e}_{role}'
+        password = credentials[role]
+        if not re.fullmatch(r'[a-f0-9]{64}', password):
+            raise ValueError('Invalid generated credential')
+        if sql(f"SELECT 1 FROM pg_roles WHERE rolname='{name}'").stdout.strip() != '1':
+            sql(f"CREATE ROLE {name} LOGIN NOINHERIT PASSWORD '{password}';")
+    checkpoint('roles')
+    if sql(f"SELECT 1 FROM pg_database WHERE datname='{e}'").stdout.strip() != '1':
+        sql(f'CREATE DATABASE {e};')
+    checkpoint('database')
+    sql(f"REVOKE ALL ON DATABASE {e} FROM PUBLIC; GRANT CONNECT ON DATABASE {e} TO {e}_auth, {e}_rest; GRANT anon, authenticated, service_role TO {e}_rest;")
+    sql(f"REVOKE CREATE ON SCHEMA public FROM PUBLIC; CREATE SCHEMA IF NOT EXISTS auth AUTHORIZATION {e}_auth; GRANT USAGE ON SCHEMA auth TO anon, authenticated, service_role; GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;", e)
+    sql(f'ALTER ROLE {e}_auth IN DATABASE {e} SET search_path TO auth;')
+    checkpoint('permissions')
+
+
 def up():
     available = int(next(x.split()[1] for x in Path('/proc/meminfo').read_text().splitlines() if x.startswith('MemAvailable:')))
     if available < 6 * 1024 * 1024:
@@ -110,10 +133,7 @@ def up():
     hba = ['local all all trust', 'host all postgres 0.0.0.0/0 reject']
     for e in ENVS:
         v = values['environments'][e]
-        if sql(f"SELECT 1 FROM pg_database WHERE datname='{e}'").stdout.strip() != '1':
-            sql(f"CREATE ROLE {e}_auth LOGIN PASSWORD '{v['auth']}'; CREATE ROLE {e}_rest LOGIN NOINHERIT PASSWORD '{v['rest']}'; GRANT anon, authenticated, service_role TO {e}_rest; CREATE DATABASE {e}; REVOKE ALL ON DATABASE {e} FROM PUBLIC; GRANT CONNECT ON DATABASE {e} TO {e}_auth, {e}_rest;")
-            sql(f"REVOKE CREATE ON SCHEMA public FROM PUBLIC; CREATE SCHEMA auth AUTHORIZATION {e}_auth; GRANT USAGE ON SCHEMA auth TO anon, authenticated, service_role; GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;", e)
-        sql(f'ALTER ROLE {e}_auth IN DATABASE {e} SET search_path TO auth;')
+        provision_environment(e, v)
         for role in ('auth', 'rest'):
             hba.append(f'host {e} {e}_{role} 0.0.0.0/0 scram-sha-256')
     hba += ['host all all 0.0.0.0/0 reject', 'host all all ::/0 reject']
@@ -169,6 +189,12 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('command', choices=['up', 'status', 'stop'])
     args = parser.parse_args()
+    STATE.mkdir(exist_ok=True)
+    operation_lock = (STATE / 'operation.lock').open('w')
+    try:
+        fcntl.flock(operation_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        raise SystemExit('Another lab operation is active')
     try:
         globals()[args.command]()
     except Exception as exc:
