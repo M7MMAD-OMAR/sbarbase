@@ -139,7 +139,10 @@ runs the API and the provisioning worker, and stops the runtime on SIGTERM.
 container is touched. For a foreground run instead, execute
 `/usr/bin/python3 lab/dev.py` in a terminal and stop it with Ctrl+C.
 
-On the server, one command produces the acceptance evidence:
+The one command that produces the acceptance evidence is
+`deploy/server-acceptance.sh` (below); it runs the preflight, the checks and the
+rehearsal in order and keeps the handoff copy. To drive the two stages yourself
+instead:
 
 ```
 /usr/bin/python3 lab/install_server.py check
@@ -232,7 +235,7 @@ records that too.
 ```
 /usr/bin/python3 lab/install_server.py smoke         # management Auth, per-environment routes, console pid
 bun lab/combined-gateway-check.ts                    # 14 simultaneous gateway checks (needs the console built)
-bun lab/combined-supervisor-check.ts                 # full rehearsal: start, checks, supervised shutdown
+/usr/bin/python3 lab/combined-supervisor-check.py   # full rehearsal: start, checks, supervised shutdown
 /usr/bin/python3 lab/deployment_rehearsal.py         # one command: install, supervise, verify, shut down, evidence
 /usr/bin/python3 lab/target_placement_rehearsal.py   # retained target placement: start, probes, stop
 ```
@@ -322,9 +325,13 @@ already holds a usable database can instead be adopted in place with
 
 ## Known limits at this revision
 
-- No end-to-end install rehearsal has been run on a real server yet; the
-  preflight, the runtime startup, adoption and verification are each proven
-  separately in the evidence files under `docs/evidence/`.
+- No end-to-end install rehearsal has been run on a real server yet. The
+  documented command itself completed end to end on the development host at
+  19:25, 13 of 13, including the unit install as root and its restart
+  (`docs/evidence/server-acceptance-latest.json`); what a server adds is root,
+  the service account, a public certificate and the absence of a retained
+  installation. The preflight, the runtime startup, adoption and verification are
+  also each proven separately in the evidence files under `docs/evidence/`.
 - No production capacity claim: 5888 MiB and 5.75 CPUs are configured ceilings,
   not measured peak demand. Sustained mixed load and 10/100-project capacity are
   unproven.

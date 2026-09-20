@@ -50,8 +50,8 @@ file. Nothing here is a production capacity claim.
    `docs/evidence/deployment-rehearsal.json`.
 3. `/usr/bin/python3 lab/target_placement_rehearsal.py` when the installation
    has a recovery target, to re-prove that placement on the server.
-4. `bun lab/combined-supervisor-check.ts` for the full source plus target
-   rehearsal, which needs the full headroom.
+4. `/usr/bin/python3 lab/combined-supervisor-check.py` for the full source plus
+   target rehearsal, which needs the full headroom.
 5. Keep the evidence files with the deployment record. A rehearsal that fails
    is evidence too: the refusal is recorded, not hidden.
 
