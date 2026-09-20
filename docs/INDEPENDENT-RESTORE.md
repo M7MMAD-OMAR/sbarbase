@@ -15,3 +15,9 @@ Adversarial review identified descriptor overwrite, premature success publicatio
 Still required: fault-injection verification of cleanup; target Auth/REST/Storage startup; tenant connection rebinding; signing-key reencryption under fresh platform credentials; object/xattr restoration; identity and old signed-URL verification; source and neighboring environment isolation. No production transfer or recovery objective is certified.
 
 Private target descriptor: `.lab/upstream/recovery-target.json`. Preserve it and the target volume for continuation. Do not print credentials or raw SQL failure output. The development handoff ZIP excludes private recovery data.
+
+## Original service verification
+
+`lab/recovery-check-services.py` passed 11 live checks on the retained independent target. Pinned original Auth and REST start against the restored database. The fixture logs in using its original password, retains its user ID, receives a working session and reads its original RLS-protected rows. REST rejects a token signed by an unrelated secret. Source stays stopped; target services and database stop after the run with volumes retained. This is direct service HTTP verification, not a restored management gateway or SDK cutover. Auth login modifies session/audit state on the target after the earlier exact table comparison.
+
+The new service containers remain stopped and are intentionally not overwritten on repeat runs. Inspect and explicitly reconcile them before rerunning. Storage, objects and original signed URLs remain unverified on this target.

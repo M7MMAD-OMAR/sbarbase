@@ -123,3 +123,7 @@ A [selected-environment encrypted export](docs/RECOVERY-EXPORT.md) now includes 
 ## Restored boundary verification
 
 Five additional live checks independently compare complete scoped roles, memberships, database ACLs and settings with the encrypted export, then verify target shutdown. Review-driven repeat-run and cleanup fixes are implemented; new failure branches still need fault-injection verification. Target application services and object recovery remain next.
+
+## Independent Auth and REST checkpoint
+
+Original pinned Auth/REST services now pass 11 live checks against the independent restored cluster: original-password login, stable identity, valid session, original RLS rows and rejection of an unrelated signing secret. Source remains stopped; target services stop afterward. Storage and signed URLs remain the next recovery gate. Details: [independent recovery](docs/INDEPENDENT-RESTORE.md).

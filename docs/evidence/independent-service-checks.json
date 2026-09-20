@@ -1,0 +1,17 @@
+{
+  "scope": "Original Auth and REST on independent restored database. Existing fixture passwords, user IDs, sessions, RLS rows and foreign signing-secret rejection. Storage not yet restored.",
+  "checks": [
+    "restored fixture identity exists",
+    "auth pinned image matches export",
+    "auth original service starts on independent cluster",
+    "rest pinned image matches export",
+    "rest original service starts on independent cluster",
+    "original password retains restored user identity",
+    "restored Auth validates issued session",
+    "restored REST returns only original user rows",
+    "REST rejects token signed by unrelated environment secret",
+    "source remains stopped after service verification",
+    "all target services stopped with data retained"
+  ],
+  "count": 11
+}

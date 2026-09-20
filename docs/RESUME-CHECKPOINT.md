@@ -22,7 +22,7 @@ Baseline commit: `bb0bba1`. Uncommitted work: `lab/recovery-export.py`, `docs/ev
 
 The source-dependent preflight is fixed. The first independent database restore passed 45 live checks, including the contents of 32 tables, locale, scoped connections and deadlines. See [database-stage evidence and limits](INDEPENDENT-RESTORE.md). The target is retained stopped. Do not create another target automatically; inspect `.lab/upstream/recovery-target.json` and reuse it for subsequent verification.
 
-Complete roles, memberships, ACLs and settings now match in five retained-target checks. Adversarial cleanup fixes are implemented but still need failure-path verification. Next restore target Auth/REST/Storage, rebind connections, reencrypt tenant signing keys under a fresh platform key, restore objects/xattrs and verify identity, old signed URLs and source/neighbor isolation. Database-only success does not complete recovery. Full server migration, organization transfer, upgrades, sustained capacity and production installation remain open.
+Complete roles, memberships, ACLs and settings now match in five retained-target checks. Adversarial cleanup fixes are implemented but still need failure-path verification. Original target Auth/REST now pass 11 live checks, including original-password login, stable identity, session validation and RLS row access. Their containers remain stopped. Next restore Storage, rebind its connection, reencrypt tenant signing keys under a fresh platform key, restore objects/xattrs and verify identity, old signed URLs and source/neighbor isolation. Database-only success does not complete recovery. Full server migration, organization transfer, upgrades, sustained capacity and production installation remain open.
 
 ## Runtime and secrets
 
