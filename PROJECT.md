@@ -143,3 +143,7 @@ Six injected failure unit cases and six disposable-container live checks now cov
 ## Recovery interruption and reconciliation checkpoint
 
 An explicit identity/ownership-checked reconciliation command stops retained target services without deleting data. Five new unit cases bring Python tests to 45. A real pg_restore interruption/retry probe passes 38 checks including rollback and all 32 table hashes after replay. Disposable database removed; target stopped. Controller death, automatic stage resume and route cutover remain open.
+
+## Gateway drain checkpoint
+
+[Per-environment pause leases](docs/GATEWAY-DRAIN.md) now reject new requests while existing gateway slots drain, without pausing neighbors. Five new tests include a shared managed-factory source-to-target resolver switch. All 57 Bun tests, 294 assertions and affected strict types pass. No live placement changed. Durable maintenance state, source write fencing and coordinated cutover remain next.

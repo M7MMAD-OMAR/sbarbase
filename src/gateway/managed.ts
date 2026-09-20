@@ -5,6 +5,11 @@ import {createGateway,type EnvironmentRoute} from './handler';
 
 const applicationConcurrency=new ConcurrencyGate();
 
+/** Trusted in-process operator hook. It does not fence upstream SQL or other processes. */
+export function pauseManagedEnvironment(runtime:string) {
+ return applicationConcurrency.pause(runtime);
+}
+
 /** Runtime configuration comes from the trusted installer, never HTTP input.
  * Resolve on every request so routing does not outlive its control-plane state.
  */

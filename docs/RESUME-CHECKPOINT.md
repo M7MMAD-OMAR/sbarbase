@@ -49,3 +49,7 @@ Database restore cleanup now attempts helper and database cleanup independently,
 ## Latest interruption checkpoint
 
 45 Python tests pass. `lab/recovery_reconcile.py` can explicitly stop the retained recovery target under the operation lock, retaining all data and recording incomplete operations honestly. Live reconciliation found/stopped four target containers. `lab/recovery-interruption-check.py` passes 38 checks for real pg_restore backend termination, transaction rollback and replay of the same dump with all 32 table hashes matching, in a disposable database that was removed afterward. Target remains stopped. Controller SIGKILL reconciliation, automatic stage resume, chronological pre-export URL and public route cutover remain unfinished.
+
+## Latest cutover foundation
+
+`pauseManagedEnvironment(runtime)` now pauses the shared default in-process gateway gate and provides bounded drain waiting plus exclusive resume. Five new tests bring Bun totals to 57 tests and 294 assertions; targeted strict types pass. See GATEWAY-DRAIN.md. This is not durable maintenance or SQL quiescence. Next: persisted per-environment maintenance state, coordinated source fencing and atomic placement publication, then actual managed SDK traffic through a staged cutover. Existing runtime placement remains unchanged.

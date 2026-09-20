@@ -1,6 +1,34 @@
 /** In-process admission only. No queue and no per-key bypass of tenant limits. */
 export class ConcurrencyGate {
  private total=0;
+ private paused=new Map<string,symbol>();
+ private drainWaiters=new Map<string,Set<()=>void>>();
+ /** Pause applies to this process only. A drained gateway does not prove SQL stopped. */
+ pause(environment:string) {
+  if(!environment||this.paused.has(environment))throw new Error('Environment already paused or invalid');
+  const lease=Symbol(environment);this.paused.set(environment,lease);
+  return {
+   waitForDrain:(timeoutMs:number):Promise<boolean>=>{
+    if(!Number.isSafeInteger(timeoutMs)||timeoutMs<1)throw new Error('Invalid drain deadline');
+    if(this.paused.get(environment)!==lease)throw new Error('Pause lease expired');
+    if(!(this.active.get(environment)??0))return Promise.resolve(true);
+    return new Promise(resolve=>{
+     const waiters=this.drainWaiters.get(environment)??new Set<()=>void>();
+     this.drainWaiters.set(environment,waiters);
+     const finish=(drained:boolean)=>{clearTimeout(timer);waiters.delete(done);if(!waiters.size)this.drainWaiters.delete(environment);resolve(drained);};
+     const done=()=>finish(!(this.active.get(environment)??0)&&this.paused.get(environment)===lease);
+     const timer=setTimeout(()=>finish(false),timeoutMs);
+     waiters.add(done);
+    });
+   },
+   resume:()=>{
+    if(this.paused.get(environment)!==lease)throw new Error('Pause lease expired');
+    this.paused.delete(environment);
+    for(const done of [...(this.drainWaiters.get(environment)??[])])done();
+   },
+  };
+ }
+
  private services=new Map<string,number>();
  private active=new Map<string,number>();
  constructor(private perEnvironment=8,private maximum=32,private responseTimeoutMs=30_000,private forwardTimeoutMs=30_000) {
@@ -8,6 +36,7 @@ export class ConcurrencyGate {
    throw new Error('Invalid concurrency limits');
  }
  async run(environment:string,request:Pick<Request,'signal'>,forward:(signal:AbortSignal)=>Promise<Response>,budget?:{service:string;maximum:number;drainOnCancel?:boolean}):Promise<Response> {
+  if(this.paused.has(environment))return Response.json({message:'Environment temporarily paused'},{status:503,headers:{'retry-after':'1','cache-control':'no-store'}});
   if(request.signal.aborted)return Response.json({message:'Request cancelled'},{status:408});
   if(budget&&(!Number.isSafeInteger(budget.maximum)||budget.maximum<1))
    return Response.json({message:'Invalid service capacity'},{status:503});
@@ -27,7 +56,10 @@ export class ConcurrencyGate {
     if(remaining)this.services.set(serviceKey,remaining);else this.services.delete(serviceKey);
    }
    const remaining=(this.active.get(environment)??1)-1;
-   if(remaining)this.active.set(environment,remaining);else this.active.delete(environment);
+   if(remaining)this.active.set(environment,remaining);else {
+    this.active.delete(environment);
+    for(const done of [...(this.drainWaiters.get(environment)??[])])done();
+   }
   };
   try {
    const upstream=new AbortController();
