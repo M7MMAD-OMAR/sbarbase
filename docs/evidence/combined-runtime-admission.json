@@ -1,9 +1,9 @@
 {
   "planned_memory_mib": 5888,
   "planned_cpus": 5.75,
-  "available_memory_mib": 9045,
+  "available_memory_mib": 8943,
   "host_pressure": {
-    "cpu_some10": 0.07,
+    "cpu_some10": 0.81,
     "io_full10": 0.0,
     "memory_full10": 0.0
   },
