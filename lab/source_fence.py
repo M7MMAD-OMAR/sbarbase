@@ -11,7 +11,7 @@ def validate(environment):
 
 def is_fenced(sql,environment):
     validate(environment)
-    value=sql(f"SELECT NOT datallowconn FROM pg_database WHERE datname='{environment}';").stdout.strip()
+    value=sql(f"SELECT NOT datallowconn OR EXISTS (SELECT 1 FROM pg_roles WHERE rolname IN ('{environment}_auth','{environment}_rest','{environment}_storage') AND NOT rolcanlogin) FROM pg_database WHERE datname='{environment}';").stdout.strip()
     if value not in ('t','f',''):raise RuntimeError('Invalid database fence state')
     return value=='t'
 
@@ -39,3 +39,28 @@ def unfence(sql,environment):
     validate(environment)
     sql(f'ALTER DATABASE {environment} ALLOW_CONNECTIONS true;')
     if is_fenced(sql,environment):raise RuntimeError('Database still fenced')
+
+
+def prepare_export(sql,environment,persist,timeout=10):
+    """Disable scoped service logins while retaining trusted local dump access.
+    Caller must stop service/file writers first and persist the supplied journal.
+    """
+    validate(environment)
+    names=[environment+'_'+kind for kind in ('auth','rest','storage')]
+    selected=','.join("'"+name+"'" for name in names)
+    import json
+    roles=json.loads(sql(f"SELECT coalesce(jsonb_agg(jsonb_build_object('name',rolname,'login',rolcanlogin) ORDER BY rolname),'[]') FROM pg_roles WHERE rolname IN ({selected});").stdout)
+    if {r['name'] for r in roles}!=set(names) or not all(r['login'] for r in roles):raise RuntimeError('Service login inventory requires explicit reconciliation')
+    if is_fenced(sql,environment):raise RuntimeError('Database already fenced')
+    journal={'environment':environment,'phase':'preparing','original_logins':roles}
+    persist(journal)
+    sql('BEGIN; '+''.join('ALTER ROLE '+name+' NOLOGIN; ' for name in names)+'COMMIT;')
+    # Never automatically reopen logins after a partial failure.
+    sql(f"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='{environment}' AND pid<>pg_backend_pid();")
+    deadline=time.monotonic()+timeout
+    while sql(f"SELECT count(*) FROM pg_stat_activity WHERE datname='{environment}';").stdout.strip()!='0':
+        if time.monotonic()>=deadline:raise RuntimeError('Service logins fenced; sessions still active')
+        time.sleep(.1)
+    if sql(f"SELECT count(*) FROM pg_roles WHERE rolname IN ({selected}) AND rolcanlogin;").stdout.strip()!='0':raise RuntimeError('Service login fence not retained')
+    journal['phase']='services-fenced';persist(journal)
+    return journal

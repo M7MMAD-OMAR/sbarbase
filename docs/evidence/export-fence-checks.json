@@ -1,0 +1,14 @@
+{
+  "scope": "Disposable export fence: actual service login denied, local operator pg_dump succeeds, final database fence denies operator. Temporary roles/database/HBA rule removed. Not a full cutover export rehearsal.",
+  "checks": [
+    "fixture service login connects before fencing",
+    "service login rejected after export fence",
+    "operator connection remains available for export",
+    "pg_dump completes with service logins disabled",
+    "original login intent retained in journal",
+    "installer sees export-fenced environment as fenced",
+    "final database fence also closes operator connections",
+    "target stopped after fixture removal"
+  ],
+  "count": 8
+}

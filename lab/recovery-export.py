@@ -40,7 +40,7 @@ def binary(args, data=None):
         process.stdout.close()
 
 
-def main():
+def main(cutover=False):
     checks=[]
     def check(name,ok):
         if not ok:raise RuntimeError(name)
@@ -90,6 +90,12 @@ def main():
         selected=','.join("'"+name+"'" for name in role_names)
         roles=rows(f"SELECT rolname,rolsuper,rolinherit,rolcreaterole,rolcreatedb,rolcanlogin,rolreplication,rolbypassrls,rolconnlimit,rolvaliduntil,rolconfig FROM pg_roles WHERE rolname IN ({selected}) ORDER BY rolname")
         check('exact scoped logins exported',len(roles)==3 and all(r['rolcanlogin'] and not any(r[k] for k in ('rolsuper','rolcreaterole','rolcreatedb','rolreplication','rolbypassrls')) for r in roles))
+        if cutover:
+            import source_fence
+            fence_record=runtime.STATE/('export-fence-'+e+'.json')
+            if fence_record.exists():raise RuntimeError('Export fence already exists; explicit reconciliation required')
+            source_fence.prepare_export(target.sql,e,lambda value:runtime.atomic(fence_record,value))
+            check('service logins fenced before database and file snapshot',True)
         memberships=rows(f"SELECT parent.rolname AS parent,member.rolname AS member,m.admin_option,m.inherit_option,m.set_option FROM pg_auth_members m JOIN pg_roles parent ON parent.oid=m.roleid JOIN pg_roles member ON member.oid=m.member WHERE member.rolname IN ({selected}) ORDER BY 1,2")
         check('memberships stay inside canonical API roles',all(m['parent'] in ('anon','authenticated','service_role') and not m['admin_option'] for m in memberships))
         database=rows(f"SELECT datname,pg_get_userbyid(datdba) AS owner,pg_encoding_to_char(encoding) AS encoding,datcollate,datctype,datlocprovider,datlocale,daticurules,datcollversion,datconnlimit FROM pg_database WHERE datname='{e}'")
@@ -124,6 +130,10 @@ def main():
         check('archive and key paths ignored',all(subprocess.run(['git','check-ignore','-q',str(p)],cwd=lab.ROOT).returncode==0 for p in (archive,key_path)))
         runtime.atomic(archive,envelope);lab.secure_file(key_path,base64.b64encode(key).decode())
         runtime.atomic(runtime.STATE/'recovery-latest.json',{'archive':str(archive),'key':str(key_path)})
+        if cutover:
+            source_fence.fence(target.sql,e)
+            runtime.atomic(fence_record,{'environment':e,'phase':'exported-and-fenced','archive':str(archive),'key':str(key_path),'original_logins':[{'name':r['rolname'],'login':r['rolcanlogin']} for r in roles]})
+            check('source database closed after encrypted export',True)
         check('private archive and key permissions',archive.stat().st_mode&0o777==0o600 and key_path.stat().st_mode&0o777==0o600)
         evidence={'scope':'Encrypted selected-environment export only, not a separate-cluster restore or off-host backup. Source services quiesced; whole owned source runtime stopped afterward. Shared encryption/admin keys not intentionally included in configuration; database contents are not scanned for embedded secrets.', 'checks':checks,'count':len(checks),'roles':len(roles),'objects':len(files),'signing_keys':len(jwks),'dump_bytes':len(dump),'encrypted_bytes':archive.stat().st_size}
     finally:
@@ -138,6 +148,8 @@ if __name__=='__main__':
     try:
         with (runtime.STATE/'operation.lock').open('a') as lock:
             fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
-            main()
+            import argparse
+            parser=argparse.ArgumentParser();parser.add_argument('--cutover',action='store_true')
+            main(parser.parse_args().cutover)
     except Exception:
         raise SystemExit('Recovery export failed; private state retained, sensitive output withheld.') from None

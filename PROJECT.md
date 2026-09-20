@@ -155,3 +155,7 @@ An explicit identity/ownership-checked reconciliation command stops retained tar
 ## Source database fence checkpoint
 
 [Database connection fencing](docs/SOURCE-FENCING.md) persists refusal before terminating existing sessions. Installer restart/provisioning preserves it. All 49 Python tests and eight live disposable-database checks pass, including restart persistence, neighbor readability and explicit rollback. No source environment was fenced. Storage side effects and coordinated final export/cutover remain open.
+
+## Export fence checkpoint
+
+Two-stage export fencing now retains operator dump access while blocking scoped service logins, then closes the database after export persistence. Original login intent is journaled. The optional exporter integration is not yet exercised on the real source. 51 Python tests and eight disposable live checks pass. Real source remains unchanged and stopped.

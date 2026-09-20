@@ -61,3 +61,7 @@ Catalog `runtime_routing` now persists revision, maintenance and optional servic
 ## Latest source fence foundation
 
 `source_fence.py` now closes a database to new connections, terminates sessions, verifies quiescence and preserves refusal on failure. Durable startup skips fenced environments; provisioning refuses them. Tests: 49 Python and eight live disposable-database checks. Source and retained environment data unchanged; target stopped. Next combine durable maintenance, all gateway drains, database fence and Storage quiescence into a consistent final export/cutover workflow. Do not mistake a database fence for stopping already-authorized file writes, or reuse the older snapshot as current source state without reconciliation.
+
+## Latest export fence foundation
+
+An optional `recovery-export.py --cutover` journals and disables scoped service logins for operator-only export, then applies the full database fence after archive persistence. Installer fence detection covers disabled scoped logins. 51 Python tests and eight live disposable export-fence checks pass; full cutover export against the real source remains unrun. Existing real source remains unfenced and stopped. Next integrate catalog maintenance and source quiescence with this option, preserving the old target/artifact and creating a chronological signed-URL fixture before a new export.
