@@ -252,3 +252,9 @@ All 166 Python tests and 42 live checks pass. Real lost-ack and host SIGKILL fix
 The isolated protocol now persists hba-generation.json before backend initialization and requires its exact target/generation in startup, worker and retirement paths. Startup initialization and begin are separate one-shot allowances. Uncertain initialization retains the pin; read_existing only observes established state. Missing registry or replaced container cannot trigger automatic reset.
 
 All 174 Python tests and 47 live checks pass, including lost real INIT acknowledgment and read-only generation recovery. Independent review found no must-fix. No retained runtime was changed. Next define durable operation outcomes and journal settlement, then exercise real worker/supervisor wiring after quiescing legacy writers. Container-generation migration and simultaneous host/backend rollback protection remain unresolved; container recreation intentionally blocks.
+
+## Baseline-only cancellation settlement checkpoint
+
+hba_settlement.cancel_baseline now archives an exact retired HBA attempt only when current bytes match the distinct original baseline. Locks span retirement through private deterministic archive durability, exact raw journal recheck, unlink and state-directory sync. Existing archives must match and are resynced; partial or changed artifacts block release. Changed/desired/ambiguous HBA content stays pending. Worker receipts/catalog are untouched and no job success or activation is inferred.
+
+All 182 Python tests and 56 image checks pass. Real host-SIGKILL cases archive their baseline-only attempt without changing HBA; a changed-file case refuses. Next implement successful applied-file/reload completion with durable evidence and conservative crash handling, then integrate actual supervisor/worker and all managed writers after quiescing legacy effects. Retained installation resources were not used.

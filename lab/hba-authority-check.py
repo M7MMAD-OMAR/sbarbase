@@ -2,7 +2,7 @@
 
 Includes helper SIGKILL around registry rename and host SIGKILL before/after registration. Does not start PostgreSQL or test
 reload, actual supervisor recovery, power loss or whole-operation recovery.
-Exact-token retirement uses fresh host ownership and retains pending journals.
+Exact-token retirement retains pending journals; baseline cancellation archives only the HBA attempt under fresh ownership.
 A private immutable host journal precedes initial registration and supports read-only inspection.
 """
 import json
@@ -19,6 +19,7 @@ import hba_target
 import hba_startup
 import hba_reconcile
 import hba_generation
+import hba_settlement
 import hba_journal_crash_check as host_crash
 
 OWNER='hba-authority-probe'
@@ -159,6 +160,10 @@ def main():
         finished=interrupt_update(cid,second,token2,binding2,True)
         check('SIGKILL after registry rename preserves revoked version',authority.decode(finished.text,generation)['operations'][token2]['state']=='revoked')
         refused('post-crash tombstone refuses registration',lambda:authority.update(docker,finished,token2,binding2))
+        different=hba_reconcile.retire(docker,Path(private.name),target=captured)
+        check('changed HBA bytes require separate settlement',different['observed_content']=='different')
+        refused('changed HBA cancellation leaves journal pending',lambda:hba_settlement.cancel_baseline(docker,Path(private.name),target=captured))
+        check('refused cancellation preserves exact pending journal',journal_file.read_bytes()==original_journal)
         token3=str(uuid.uuid4())
         resumed=authority.update(docker,finished,token3,binding2)
         check('dead helper releases lock for a new exact operation',authority.decode(resumed.text,generation)['operations'][token3]['state']=='active')

@@ -14,6 +14,8 @@ import hba_authority as authority
 import hba_journal as journal
 import hba_reconcile
 import hba_generation
+import hba_settlement
+import hba_startup
 
 
 def docker(*args,data=None):
@@ -97,6 +99,11 @@ def run(container,snapshot,check,target):
                 if error.returncode!=74:raise
             else:raise AssertionError('Delayed registration survived retirement')
             check(checkpoint+': delayed old registration rejected after retirement',True)
+            outcome=hba_settlement.cancel_baseline(docker,root,target=target)
+            check(checkpoint+': baseline cancellation durably archives exact journal',outcome['journal']==saved and hba_settlement.read(root,token)==outcome and not path.exists())
+            check(checkpoint+': settlement never changes HBA bytes',docker('exec',container,'cat','/etc/postgresql/pg_hba.conf').stdout==before)
+            with hba_startup.acquire(root):pass
+            check(checkpoint+': only HBA pending slot released after durable cancellation',True)
     return snapshot
 
 

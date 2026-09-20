@@ -14,7 +14,7 @@ Compatibility is required. Replacing Supabase changes that contract. Schema-only
 
 Four local environments have been exercised, including one restored to a separate local target. Real SDK checks cover Auth, RLS and private Storage access. Provisioning uses durable receipts, exact worker identities and scoped SQL guards. Complete HBA writes reject truncation and stale prepared requests; reload acknowledgment does not prove enforcement or terminate existing sessions.
 
-Recorded checkpoints: 174 Python tests, 73 Bun tests/408 assertions, 57 fresh worker/SDK checks, 51 SQL-pair checks and 36 HBA checks. These have different scopes ; Python was rerun for the authority prototype, while the other runtime checkpoints remain recorded evidence. They do not certify production security.
+Recorded checkpoints: 182 Python tests, 73 Bun tests/408 assertions, 57 fresh worker/SDK checks, 51 SQL-pair checks and 36 HBA checks. These have different scopes ; Python was rerun for the authority prototype, while the other runtime checkpoints remain recorded evidence. They do not certify production security.
 
 Configured retained ceilings are 5888 MiB RAM/5.75 CPUs, not measured demand or a hardware recommendation. There is no validated maximum of 10 or 100 projects. Daily visitors alone cannot determine capacity.
 
@@ -26,7 +26,7 @@ Configured retained ceilings are 5888 MiB RAM/5.75 CPUs, not measured demand or 
 
 ## Exact stopping point
 
-The isolated HBA prototype covers immutable journals, worker/startup ownership, configured container identity and exact-token retirement under fresh ownership. The latest checkpoints are 174 Python tests and 47 pinned-image checks. It remains **unintegrated** with actual runtime writers. Next: [durable settlement and all-writer integration](HBA-OPERATION-AUTHORITY-DESIGN.md). Retirement retains the journal and does not enable later-stage automatic replay.
+The isolated HBA prototype covers immutable journals, worker/startup ownership, configured container identity and exact-token retirement under fresh ownership. The latest checkpoints are 182 Python tests and 56 pinned-image checks. It remains **unintegrated** with actual runtime writers. Next: [applied-file completion and all-writer integration](HBA-OPERATION-AUTHORITY-DESIGN.md). Retirement retains the journal. A separate baseline-only cancellation archives it after durable outcome publication; neither path enables later-stage automatic replay.
 
 Last recorded retained state: owned containers stopped, moved source fenced, target routing paused. Preserve both recovery targets and their volumes. Inspect live state before acting; never switch back blindly to the stale source. No runtime changes were made for this documentation update.
 

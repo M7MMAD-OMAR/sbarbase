@@ -58,10 +58,10 @@ def decode(text):
     return validate(value['record'])
 
 
-def load(path):
+def read_text(path):
     path=journal_path(path)
     descriptor=os.open(path,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK)
-    with os.fdopen(descriptor,'r',encoding='utf-8') as source:
+    with os.fdopen(descriptor,'r',encoding='utf-8',newline='') as source:
         metadata=os.fstat(source.fileno())
         if not stat.S_ISREG(metadata.st_mode):raise ValueError('HBA journal must be a regular file')
         if metadata.st_uid!=os.getuid() or stat.S_IMODE(metadata.st_mode)!=0o600:
@@ -69,7 +69,12 @@ def load(path):
         if metadata.st_size>MAX_BYTES:raise ValueError('HBA journal too large')
         text=source.read(MAX_BYTES+1)
         if len(text.encode('utf-8'))>MAX_BYTES:raise ValueError('HBA journal too large')
-        return decode(text)
+        decode(text)
+        return text
+
+
+def load(path):
+    return decode(read_text(path))
 
 
 def publish(path,record):
