@@ -33,3 +33,7 @@ Local source container ceilings total 3840 MiB and 3.75 CPUs. They are not total
 ## Continue
 
 Work in `/home/sbarah/R/Projects/P/sbarbase`. Read `~/AGENTS.md`, `docs/HANDOFF.md`, this file and `lab/README.md`, then inspect Git and live resources. Use one active writer. No execution has been dispatched to Hermes. Changing assistant does not require moving the repository.
+
+## Latest Storage checkpoint
+
+Target Storage now exists stopped with separate metadata and object volume. Eight retained-target checks pass: exact files/xattrs, signing material, object-specific service-key downloads and foreign-secret denial. Initial failure was an incorrect common-content test expectation; explicit resume verified the existing restore without recreating it. Next: end-user Storage RLS and valid pre-export signed URL continuity. The bundle currently does not record a pre-export URL fixture; preserving private signing material alone is not proof of URL continuity. Do not overwrite the retained target or regenerate source artifacts silently.

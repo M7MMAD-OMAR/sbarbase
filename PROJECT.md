@@ -127,3 +127,7 @@ Five additional live checks independently compare complete scoped roles, members
 ## Independent Auth and REST checkpoint
 
 Original pinned Auth/REST services now pass 11 live checks against the independent restored cluster: original-password login, stable identity, valid session, original RLS rows and rejection of an unrelated signing secret. Source remains stopped; target services stop afterward. Storage and signed URLs remain the next recovery gate. Details: [independent recovery](docs/INDEPENDENT-RESTORE.md).
+
+## Independent Storage checkpoint
+
+Eight live checks now validate original signing material under fresh target platform encryption, exact object bytes/xattrs, per-object service-key downloads and unrelated-secret denial. Initial common-content fixture assumption was corrected and retained target verification passed. All owned services are stopped. End-user Storage RLS, valid pre-export signed URL continuity and full platform recovery remain open.
