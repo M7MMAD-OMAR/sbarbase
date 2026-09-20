@@ -23,3 +23,19 @@ Shared Storage probe: `/usr/bin/python3 lab/upstream-environments.py --storage` 
 The shared Storage probe also invokes `lab/storage-sdk-check.ts` over stdin to test the original Supabase SDK through the gateway. Do not run this helper with credentials on command-line arguments or save its input.
 
 The Storage probe now rehearses encrypted database+object recovery using `storage_restore_probe.py` and the fixed `storage-files.cjs` helper. It requires Python cryptography. Ciphertext and its separate key remain in ignored local directories, not in the handoff. See [scope](../docs/reviews/storage-recovery.md).
+
+## Retained runtime configuration
+
+`run.py` resolves the requested image pin to its Docker image config identity and
+compares it with a retained container before starting it. It also compares every
+requested environment setting without printing secret values. Drift fails closed;
+startup never deletes or recreates a database as an implicit upgrade. Image-default
+environment variables may remain. This is not a full configuration reconciler: mount,
+network, resource-limit and command drift still need checks. The lab's existing
+failed-start cleanup policy still applies.
+
+Run `/usr/bin/python3 -m unittest discover -s lab -p test_runtime_reuse.py`.
+Six regression tests cover manifest/config digest resolution, ownership recheck,
+image drift, missing/changed settings and secret-safe errors. Twelve recorded
+read-only live checks verified existing containers and rejected mismatched pins
+and credentials without changing their states.

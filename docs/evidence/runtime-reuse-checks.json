@@ -1,0 +1,53 @@
+{
+  "scope": "Read-only checks of retained component lab containers; no upgrade or migration performed",
+  "checks": [
+    {
+      "check": "retained database matches pinned image and configuration",
+      "passed": true
+    },
+    {
+      "check": "a_prod auth retained configuration matches",
+      "passed": true
+    },
+    {
+      "check": "a_prod rest retained configuration matches",
+      "passed": true
+    },
+    {
+      "check": "a_stage auth retained configuration matches",
+      "passed": true
+    },
+    {
+      "check": "a_stage rest retained configuration matches",
+      "passed": true
+    },
+    {
+      "check": "b_prod auth retained configuration matches",
+      "passed": true
+    },
+    {
+      "check": "b_prod rest retained configuration matches",
+      "passed": true
+    },
+    {
+      "check": "e_5ee20977f1f47b698a014bcd auth retained configuration matches",
+      "passed": true
+    },
+    {
+      "check": "e_5ee20977f1f47b698a014bcd rest retained configuration matches",
+      "passed": true
+    },
+    {
+      "check": "different installed image pin rejected",
+      "passed": true
+    },
+    {
+      "check": "stale database credential rejected",
+      "passed": true
+    },
+    {
+      "check": "all retained container states unchanged",
+      "passed": true
+    }
+  ]
+}

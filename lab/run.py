@@ -48,6 +48,7 @@ def sql(query, database='postgres', check=True):
 
 def launch(name, image, env, memory, cpus, port=None, extra=()):
     if owned(name):
+        validate_existing(name, image, env)
         docker('start', name)
         return
     path = PRIVATE / (name + '.env')
@@ -59,6 +60,25 @@ def launch(name, image, env, memory, cpus, port=None, extra=()):
     # Internal bridge endpoints are reachable by this Linux host, not published.
     args += list(extra) + [image]
     docker(*args)
+
+
+def validate_existing(name, image, env):
+    """Reject stale runtime configuration before starting a retained container.
+
+    Resolve the pin through Docker because manifest digests and image config
+    digests can differ. Keep inspection output private: it contains credentials.
+    Replacing containers, especially database images, requires a separate
+    migration procedure, never an implicit delete/recreate on startup.
+    """
+    actual = json.loads(docker('inspect', name).stdout)[0]
+    expected = json.loads(docker('image', 'inspect', image).stdout)[0]
+    if actual.get('Config', {}).get('Labels', {}).get('io.sbarbase.owner') != 'component-lab':
+        raise RuntimeError('Retained container ownership mismatch')
+    if actual.get('Image') != expected.get('Id') or not expected.get('Id'):
+        raise RuntimeError('Retained container image differs from pin; explicit migration required')
+    configured = dict(entry.split('=', 1) for entry in actual['Config'].get('Env', []) if '=' in entry)
+    if any(configured.get(key) != str(value) for key, value in env.items()):
+        raise RuntimeError('Retained container configuration differs; explicit reconciliation required')
 
 
 def port(name, inside):
