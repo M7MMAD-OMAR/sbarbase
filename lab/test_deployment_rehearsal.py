@@ -172,9 +172,11 @@ class BootstrapStepTests(unittest.TestCase):
              patch.object(rehearsal,'http_status',return_value=200), \
              patch.object(rehearsal.install_server,'smoke',return_value=True), \
              patch.object(rehearsal,'run_bootstrap_check',return_value=(0,'18 live operator bootstrap checks passed.')), \
+             patch.object(rehearsal.subprocess,'run') as gateway, \
              patch.object(rehearsal,'stop_supervisor',return_value=0), \
              patch.object(rehearsal,'owned_running',return_value=False), \
              patch.object(rehearsal,'unit_status',return_value={'installed':False}):
+            gateway.return_value=type('R',(),{'returncode':0,'stdout':'14 combined gateway checks passed','stderr':''})()
             findings,_=rehearsal.rehearse(None,True,5)
         names=[item['check'] for item in findings]
         self.assertIn('operator bootstrap checks passed against the live management Auth',names)
