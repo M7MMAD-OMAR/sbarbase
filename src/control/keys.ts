@@ -7,7 +7,7 @@ export type KeyRecord = {id:string;environment:string;kind:KeyKind;created_at:nu
 const digest=(token:string)=>createHash('sha256').update(token).digest('hex');
 
 /** Local key metadata, never signing secrets or raw API keys. Parent must be private.
- * Management authorization is the caller's responsibility; no public admin API yet.
+ * The management key handler enforces scope; direct callers must authorize first.
  */
 export class KeyStore {
   private db:Database;

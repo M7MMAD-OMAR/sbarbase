@@ -29,3 +29,14 @@ Seventeen unit/integration tests pass with 71 assertions. The management tests u
 `bun lab/management-check.ts` now passes 10 checks against real Supabase Auth and a loopback HTTP server. For this test only, a_stage acts as the management realm and a_prod as the independent application realm. Crossed application tokens and tampered tokens are rejected. Authenticated nonmembers and viewers cannot create projects, actor injection fails, and removing membership immediately blocks the same valid token. Allowed creation writes metadata only. The catalog is ephemeral; synthetic Auth users remain in the isolated lab volume. [Sanitized evidence](evidence/management-checks.json).
 
 This supplements the mocked SDK tests above. It does not prove a dedicated management deployment, complete login experience, MFA, production rate limits or session revocation semantics. All owned lab containers were stopped afterward.
+
+
+## Management-issued environment keys
+
+`controlHandler` combines metadata and key handlers. A ready environment exposes GET `/management/v1/environments/:id/connection`, returning a relative API path for the installation gateway. Owners/admins can GET or POST `/keys` and DELETE `/keys/:keyId`. Viewers can discover connection information but cannot list, issue or revoke keys. A POST accepts no body and issues only a publishable key, returning raw material once. Listings contain hashes neither directly nor indirectly; they return key metadata only. Cross-environment key IDs cannot revoke another environment's keys.
+
+Authorization and readiness checks hold a catalog write transaction throughout the synchronous key operation. The key store is a separate local database; this is not a distributed transaction or atomic audit/key store. Membership changes apply to subsequent management requests. Previously issued application keys survive membership removal until explicitly revoked; complete organization transfer is still internal and unfinished.
+
+The managed gateway checks successful provisioning on every request, resolves operator-controlled endpoints and validates current key metadata before proxying. Unknown runtimes and unavailable metadata fail closed. A readiness record does not replace ongoing health monitoring, and internal configuration must be refreshed after container IP changes.
+
+`bun lab/connection-check.ts` passed nine live checks using the existing provisioned environment, a temporary management Auth realm and a loopback server. It exercises management-issued keys with the real Supabase SDK, separate application identity rejection and immediate gateway denial after revocation. Twenty-one unit tests pass with 101 assertions. All lab services were stopped afterward. Secret-key forwarding, automatic route publication in a supervised server, key limits, full audit integration, TLS, browser CORS and production management deployment remain incomplete.

@@ -121,6 +121,20 @@ export class Catalog {
       return this.db.query<Environment,[string]>('SELECT * FROM environments WHERE project=? ORDER BY id').all(project);
     })();
   }
+  withReadyEnvironment<T>(actor:string,environment:string,write:boolean,operation:(job:ProvisionJob)=>T):T {
+    return this.db.transaction(()=>{
+      const env=this.db.query<Environment,[string]>('SELECT * FROM environments WHERE id=?').get(environment);
+      if(!env) throw new Error('Forbidden');
+      this.project(actor,env.project,write?['owner','admin']:['owner','admin','viewer']);
+      const job=this.db.query<ProvisionJob,[string]>('SELECT * FROM provision_jobs WHERE environment=?').get(environment);
+      if(!job||job.state!=='succeeded') throw new Error('Environment is not ready');
+      return operation(job);
+    }).immediate();
+  }
+  runtimeReady(runtime:string):boolean {
+    return !!this.db.query<{environment:string},[string]>(
+      "SELECT environment FROM provision_jobs WHERE runtime=? AND state='succeeded'").get(runtime);
+  }
   getProvision(actor:string,environment:string):ProvisionJob {
     const env=this.db.query<Environment,[string]>('SELECT * FROM environments WHERE id=?').get(environment);
     if(!env) throw new Error('Forbidden');

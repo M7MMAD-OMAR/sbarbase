@@ -15,11 +15,11 @@ Shared PostgreSQL roles and resources remain important boundaries. The lab uses 
 | Evidence | Verified scope | Important limit |
 |---|---|---|
 | [97 component checks](docs/evidence/four-environment-component-checks.json) | Auth, RLS, crossed tokens and database credentials across 4 environments | Stock PostgreSQL with a minimal auth.uid fixture |
-| [44 current SDK/gateway checks](docs/evidence/four-environment-sdk-checks.json) | SDK CRUD/Auth, scoped publishable keys and revocation | Auth/REST only; no public management authorization |
+| [44 current SDK/gateway checks](docs/evidence/four-environment-sdk-checks.json) | SDK CRUD/Auth, scoped publishable keys and revocation | Auth/REST only; management integration tested separately |
 | [Retry checks](docs/evidence/retry-checks.json) | Recovery after 3 provisioning interruptions, existing data preserved | Selected creation phases only |
 | [Restore check](docs/evidence/restore-check.json) | Logical restore into fresh database; source and neighbor preserved | Same cluster, selected data, not full recovery or PITR |
 
-Twenty unit tests now pass, including organization authorization and persistent metadata transfer. Older SDK evidence files are earlier iterations, not additional independent coverage. API key metadata uses a local SQLite adapter storing hashes; application data stays in PostgreSQL. The control-store choice for multiple hosts remains open.
+Twenty-one unit tests now pass, including organization authorization and persistent metadata transfer. Older SDK evidence files are earlier iterations, not additional independent coverage. API key metadata uses a local SQLite adapter storing hashes; application data stays in PostgreSQL. The control-store choice for multiple hosts remains open.
 
 Last recorded lab state: owned containers stopped, volumes retained. Configured container ceilings: 3072 MiB and 3 logical CPUs for this component lab. The approximately 134 MiB idle snapshot is not a full-platform requirement or a capacity estimate. Recheck available RAM before startup. The proposed overall lab budget is 4 GB RAM, 4 logical CPUs and 20-30 GB disk; never disturb existing services.
 
@@ -28,6 +28,8 @@ Internal catalog now models organizations, owner/admin/viewer membership, projec
 Live management evidence: [10 checks](docs/evidence/management-checks.json) cover crossed application tokens, tampering, nonmembers, viewer writes, body/header identity spoofing and immediate membership revocation. The lab was stopped after verification.
 
 Environment creation now atomically queues a persistent provisioning operation. The single-host lab worker provisions database/Auth/REST, checks health and records success. Seven live checks cover recovery after services started but completion was not recorded, preserving database identity and Auth data. [Evidence](docs/evidence/provision-checks.json), [worker scope](docs/PROVISIONING.md). This is not full Supabase provisioning or automatic installation startup.
+
+The combined management handler now provides scoped connection discovery and publishable-key issuance/list/revocation. The managed gateway accepts only successfully provisioned runtimes and currently valid stored keys. Nine live checks connected the SDK to a provisioned environment with a management-issued key, denied application-token management access and proved immediate key revocation. [Evidence](docs/evidence/connection-checks.json). No secret/service key proxying or full platform routing is enabled.
 
 ## Research, reasons and saved pictures
 

@@ -1,0 +1,41 @@
+{
+  "scope": "Provisioned Auth/REST via management-issued publishable key, live separate Auth realms and loopback gateway",
+  "checks": [
+    {
+      "check": "authorized connection discovery",
+      "passed": true
+    },
+    {
+      "check": "stable runtime route matches provisioned environment",
+      "passed": true
+    },
+    {
+      "check": "management Auth permits key issuance",
+      "passed": true
+    },
+    {
+      "check": "key list never discloses raw token",
+      "passed": true
+    },
+    {
+      "check": "issued key connects SDK to provisioned Auth",
+      "passed": true
+    },
+    {
+      "check": "application identity cannot issue management keys",
+      "passed": true
+    },
+    {
+      "check": "issued key connects SDK to provisioned REST",
+      "passed": true
+    },
+    {
+      "check": "authorized key revocation",
+      "passed": true
+    },
+    {
+      "check": "revocation immediately removes gateway access",
+      "passed": true
+    }
+  ]
+}
