@@ -1,0 +1,14 @@
+{
+ "name": "sbarbase-website",
+ "private": true,
+ "type": "module",
+ "scripts": {
+  "build": "bun build.ts",
+  "dev": "wrangler dev",
+  "deploy": "bun run build && wrangler deploy",
+  "check": "bun test"
+ },
+ "devDependencies": {
+  "wrangler": "4.135.0"
+ }
+}
