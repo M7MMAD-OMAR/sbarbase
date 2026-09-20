@@ -54,14 +54,17 @@ def launch(name, image, env, memory, cpus, port=None, extra=()):
             '--memory', memory, '--memory-swap', memory, '--cpus', str(cpus),
             '--pids-limit', '128', '--log-opt', 'max-size=5m', '--log-opt', 'max-file=2',
             '--env-file', str(path)]
-    if port:
-        args += ['-p', f'127.0.0.1::{port}']
+    # Internal bridge endpoints are reachable by this Linux host, not published.
     args += list(extra) + [image]
     docker(*args)
 
 
 def port(name, inside):
-    return int(docker('port', name, f'{inside}/tcp').stdout.strip().rsplit(':', 1)[1])
+    info = json.loads(docker('inspect', name).stdout)[0]
+    address = info['NetworkSettings']['Networks'][NETWORK]['IPAddress']
+    if not address:
+        raise RuntimeError(f'{name} has no active network endpoint')
+    return f'http://{address}:{inside}'
 
 
 def up():
@@ -71,7 +74,7 @@ def up():
     STATE.mkdir(exist_ok=True)
     PRIVATE.mkdir(mode=0o700, exist_ok=True)
     os.chmod(PRIVATE, 0o700)
-    lock = STATE / 'images.json'
+    lock = ROOT / 'lab' / 'images.lock.json'
     if not lock.exists():
         pins = {}
         for key, tag in IMAGES.items():
@@ -110,6 +113,7 @@ def up():
         if sql(f"SELECT 1 FROM pg_database WHERE datname='{e}'").stdout.strip() != '1':
             sql(f"CREATE ROLE {e}_auth LOGIN PASSWORD '{v['auth']}'; CREATE ROLE {e}_rest LOGIN NOINHERIT PASSWORD '{v['rest']}'; GRANT anon, authenticated, service_role TO {e}_rest; CREATE DATABASE {e}; REVOKE ALL ON DATABASE {e} FROM PUBLIC; GRANT CONNECT ON DATABASE {e} TO {e}_auth, {e}_rest;")
             sql(f"REVOKE CREATE ON SCHEMA public FROM PUBLIC; CREATE SCHEMA auth AUTHORIZATION {e}_auth; GRANT USAGE ON SCHEMA auth TO anon, authenticated, service_role; GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;", e)
+        sql(f'ALTER ROLE {e}_auth IN DATABASE {e} SET search_path TO auth;')
         for role in ('auth', 'rest'):
             hba.append(f'host {e} {e}_{role} 0.0.0.0/0 scram-sha-256')
     hba += ['host all all 0.0.0.0/0 reject', 'host all all ::/0 reject']
@@ -133,8 +137,19 @@ def up():
             'PGRST_DB_URI': f'postgres://{e}_rest:{v["rest"]}@{DB}:5432/{e}',
             'PGRST_DB_SCHEMAS': 'public', 'PGRST_DB_ANON_ROLE': 'anon',
             'PGRST_JWT_SECRET': v['jwt'], 'PGRST_DB_POOL': '3'}, '256m', .25, 3000)
-        endpoints[e] = {'auth': f'http://127.0.0.1:{port(auth,9999)}', 'rest': f'http://127.0.0.1:{port(rest,3000)}'}
+        endpoints[e] = {'auth': port(auth,9999), 'rest': port(rest,3000)}
     (STATE / 'endpoints.json').write_text(json.dumps(endpoints, indent=2))
+    for e in ENVS:
+        for service, suffix in (('auth', '/health'), ('rest', '/')):
+            for attempt in range(30):
+                try:
+                    with urllib.request.urlopen(endpoints[e][service] + suffix, timeout=2) as response:
+                        if response.status == 200:
+                            break
+                except Exception:
+                    time.sleep(.5)
+            else:
+                raise RuntimeError(f'{e} {service} readiness failed')
     print('Lab started: 7 containers, aggregate limits 2560 MiB and 2.5 logical CPUs.')
     status()
 
@@ -158,4 +173,6 @@ if __name__ == '__main__':
         globals()[args.command]()
     except Exception as exc:
         print(f'Lab operation failed: {exc}')
+        if args.command == 'up':
+            stop()
         raise SystemExit(1)

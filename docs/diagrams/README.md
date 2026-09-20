@@ -26,4 +26,3 @@ Short line beneath "يبقى معرف المشروع ثابتًا، وتُعاد
 ROW 3 heading "3. النسخ والاستعادة". Project P03 -> off-host vault "نسخة مشفرة خارج السيرفر" -> isolated new database box "استعادة إلى بيئة مؤقتة" -> check icon "فحص ثم استبدال البيئة". Under vault four short tags "قاعدة البيانات" "الملفات" "الأسرار" "الإعدادات والدوال". Note "مشاريع P01 وP02 وبقية المشاريع لا تُستبدل". Another concise note "تعطيل المهام والإرسال أثناء الاستعادة". Footnote amber readable "PITR: نستعيد المحرك مؤقتًا ثم نستخرج قاعدة البيئة فقط".
 Bottom narrow principle band exact "ملكية مستقلة • هوية ثابتة • مكان تشغيل قابل للنقل • استعادة قابلة للاختبار"
 Small footer "هذه إجراءات تصميم، وتحتاج اختبارات تنفيذ". Ensure arrows represent order and no uncontrolled double writable databases. No max project claims, no em/en dashes. Arabic clear, exact text, no spelling errors.
-

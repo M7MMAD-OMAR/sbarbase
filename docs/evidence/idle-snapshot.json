@@ -1,0 +1,79 @@
+[
+  {
+    "BlockIO": "0B / 0B",
+    "CPUPerc": "0.03%",
+    "Container": "e770e34c7912",
+    "ID": "e770e34c7912",
+    "MemPerc": "5.27%",
+    "MemUsage": "13.5MiB / 256MiB",
+    "Name": "sbarbase-lab-b_prod-rest",
+    "NetIO": "98.1kB / 90.6kB",
+    "PIDs": "62"
+  },
+  {
+    "BlockIO": "0B / 0B",
+    "CPUPerc": "0.00%",
+    "Container": "5de3df109586",
+    "ID": "5de3df109586",
+    "MemPerc": "4.00%",
+    "MemUsage": "10.23MiB / 256MiB",
+    "Name": "sbarbase-lab-b_prod-auth",
+    "NetIO": "194kB / 232kB",
+    "PIDs": "8"
+  },
+  {
+    "BlockIO": "0B / 0B",
+    "CPUPerc": "0.05%",
+    "Container": "836a93f0eddc",
+    "ID": "836a93f0eddc",
+    "MemPerc": "5.29%",
+    "MemUsage": "13.54MiB / 256MiB",
+    "Name": "sbarbase-lab-a_stage-rest",
+    "NetIO": "98.3kB / 90.4kB",
+    "PIDs": "63"
+  },
+  {
+    "BlockIO": "0B / 0B",
+    "CPUPerc": "0.00%",
+    "Container": "1b2c4d9b9afb",
+    "ID": "1b2c4d9b9afb",
+    "MemPerc": "4.02%",
+    "MemUsage": "10.3MiB / 256MiB",
+    "Name": "sbarbase-lab-a_stage-auth",
+    "NetIO": "195kB / 231kB",
+    "PIDs": "8"
+  },
+  {
+    "BlockIO": "10.8MB / 0B",
+    "CPUPerc": "0.00%",
+    "Container": "0ccd68dfd2bb",
+    "ID": "0ccd68dfd2bb",
+    "MemPerc": "6.52%",
+    "MemUsage": "16.7MiB / 256MiB",
+    "Name": "sbarbase-lab-a_prod-auth",
+    "NetIO": "194kB / 231kB",
+    "PIDs": "8"
+  },
+  {
+    "BlockIO": "1.99MB / 0B",
+    "CPUPerc": "0.05%",
+    "Container": "3d3ce920219e",
+    "ID": "3d3ce920219e",
+    "MemPerc": "5.74%",
+    "MemUsage": "14.7MiB / 256MiB",
+    "Name": "sbarbase-lab-a_prod-rest",
+    "NetIO": "98.6kB / 90.5kB",
+    "PIDs": "63"
+  },
+  {
+    "BlockIO": "7.73MB / 48.7MB",
+    "CPUPerc": "0.01%",
+    "Container": "21e75cddee82",
+    "ID": "21e75cddee82",
+    "MemPerc": "5.35%",
+    "MemUsage": "54.83MiB / 1GiB",
+    "Name": "sbarbase-lab-db",
+    "NetIO": "903kB / 787kB",
+    "PIDs": "12"
+  }
+]
