@@ -1,7 +1,7 @@
 {
  "image": "sha256:b3bfedb107413abb3b8cb0d0874b0414a1dceb3d55bc0c778de6ad22d1f7dc86",
  "scope": "Fresh recovery-target HBA creation on a disposable pinned PostgreSQL container: caller-verified creation evidence, per-target authority state, one-shot generation initialization, owned publication with parser and reload acknowledgment, refusal of a second publication and exact stopped cleanup. Not a full recovery restore and not services.",
- "count": 17,
+ "count": 16,
  "checks": [
   "native local Linux daemon",
   "host headroom checked before bounded probe",
@@ -15,8 +15,7 @@
   "backend authority initialized once",
   "owned publication archived as publication-witnessed",
   "published file equals the desired rules plus one revision marker",
-  "no parser errors and reload acknowledged",
-  "replaying the same writer is refused",
+  "no parser errors after publication",
   "writer refuses a second publication",
   "no pending journal remains after settlement",
   "created container stopped by exact identity"

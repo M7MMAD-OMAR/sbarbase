@@ -8,6 +8,7 @@ database uses the installation state root, and a recovery-target database uses
 <installation state>/targets/<prefix>, with its own worker/effect/operation
 locks, generation pin, journals, attempts, completions and outcomes.
 """
+import os
 import re
 import stat
 import uuid
@@ -118,9 +119,20 @@ class SourceHBA:
 def prepare_target_state(installation_state,prefix):
     """Create and verify the private per-target state directory."""
     state=target_state(installation_state,prefix)
+    root=Path(installation_state)
+    if not root.exists():
+        root.mkdir(mode=0o700,parents=True,exist_ok=True)
+    metadata=root.lstat()
+    if not stat.S_ISDIR(metadata.st_mode):raise ValueError('Installation state root must be a directory')
+    if metadata.st_uid!=os.getuid():raise ValueError('Installation state root must be owned by the caller')
+    if stat.S_IMODE(metadata.st_mode)!=0o700:
+        # Tighten the caller's own state root; its contents are private evidence.
+        os.chmod(root,0o700)
+        if stat.S_IMODE(root.lstat().st_mode)!=0o700:raise ValueError('Installation state root must be private')
     parent=state.parent
     if not parent.exists():
         parent.mkdir(mode=0o700,parents=True,exist_ok=True)
+        os.chmod(parent,0o700)
     metadata=parent.lstat()
     if not stat.S_ISDIR(metadata.st_mode) or stat.S_IMODE(metadata.st_mode)!=0o700:
         raise ValueError('Target authority parent directory must be private')

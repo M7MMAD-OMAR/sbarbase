@@ -1,17 +1,21 @@
 # Server deployment
 
 Runbook for deploying a sbarbase installation to a Linux server. Status:
-2026-09-20. The deployment path is written and its preflight is proven; an
-end-to-end install has been rehearsed on this host only up to the admission
-gate, because the host currently lacks the required headroom. Read
-[HERMES-HANDOFF](HERMES-HANDOFF.md) for what is finished and what is not.
+2026-09-20. The deployment path is implemented: preflight, installer, systemd
+supervision, a one-command rehearsal and this runbook. It has **not** been run
+end to end on a real server, and an independent adversarial review of the
+deployment code found defects that are now fixed
+([review](reviews/target-and-deployment-review.md)); the fresh target and
+retained adoption paths are proven on disposable fixtures and on the retained
+databases, not through a full restore or install. Read
+[DEPLOYMENT-READINESS](DEPLOYMENT-READINESS.md) for the itemised status.
 
 ## Prerequisites
 
 | Requirement | Why |
 |---|---|
 | Linux x86-64 host with Docker (native daemon, not remote) | every placement runs pinned containers |
-| Bun on PATH | package manager, console build, gateway checks |
+| Bun on PATH (for a system service, add its directory to the unit's `PATH`, e.g. `/home/sbarbase/.bun/bin`) | package manager, console build, gateway checks |
 | `/usr/bin/python3` 3.14 or newer | the lab runtime uses modern f-strings |
 | Git checkout of this repository | state and lock files live in the checkout by default |
 | Headroom: 5888 MiB planned plus 2560 MiB reserve, 6 both-CPU spare, 12 GiB free disk | `CombinedAdmission` and `ResourceAdmission` refuse below these |
@@ -40,9 +44,9 @@ and current recovery target carry generation pins:
 
 ```
 /usr/bin/python3 lab/adopt-retained.py source
-/usr/bin/python3 lab/verify-retained.py source
+/usr/bin/python3 lab/verify_retained.py source
 /usr/bin/python3 lab/adopt-retained.py target
-/usr/bin/python3 lab/verify-retained.py target
+/usr/bin/python3 lab/verify_retained.py target
 ```
 
 Adoption starts and stops only the captured database container and preserves its

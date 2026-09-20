@@ -4,17 +4,20 @@ Commands:
   check   read-only preflight; prints findings and exits non-zero on blockers
   plan    print the exact steps install would run, without running them
   install perform the steps below, stopping at the first failure
-  smoke   verify a running installation (management Auth, console, gateway)
+  smoke   verify a running installation (console, management Auth, environments)
 
 Rules:
 - Never print or accept secrets in arguments. The operator identity is supplied
   through a private 0600 JSON file read on stdin.
 - Never modify retained containers or volumes; adopt them explicitly instead.
+- Every mutating command holds the installation operation lock.
 """
 import argparse
+import fcntl
 import json
 import os
 import shutil
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -36,6 +39,23 @@ def run(command,*,check=True,stdin=None,env=None,cwd=None):
 
 def docker(*args,**kwargs):
     return run(['docker',*args],**kwargs)
+
+
+def pinned_images():
+    """Every pinned component with a pullable 'repository@sha256:...' reference."""
+    result=[]
+    for lock in LOCKS:
+        entry=json.loads((ROOT/'lab'/lock).read_text())
+        for key,value in entry.items():
+            if isinstance(value,dict) and isinstance(value.get('id'),str):
+                result.append((lock+':'+key,value))
+            elif key=='id' and isinstance(value,str):
+                result.append((lock+':default',entry))
+    references=[]
+    for label,value in result:
+        digests=[item for item in value.get('digests') or [] if isinstance(item,str) and '@sha256:' in item]
+        references.append((label,value['id'],digests[0] if digests else value['id']))
+    return references
 
 
 def versions():
@@ -66,17 +86,9 @@ def daemon():
 
 def images():
     findings=[]
-    pins={}
-    for name in LOCKS:
-        pins[name]=json.loads((ROOT/'lab'/name).read_text())
-    pinned=[]
-    for name,lock in pins.items():
-        if 'id' in lock:pinned.append((name,lock['id']))
-        for key,value in lock.items():
-            if isinstance(value,dict) and 'id' in value:pinned.append((name+':'+key,value['id']))
-    for name,digest in pinned:
+    for label,digest,reference in pinned_images():
         if docker('image','inspect',digest,check=False).returncode:
-            findings.append(('action','Pinned image '+name+' is not local; install will pull '+digest[:24]+'...'))
+            findings.append(('action','Pinned image '+label+' is not local; install will pull '+reference[:60]))
     return findings
 
 
@@ -101,9 +113,13 @@ def target_findings(target_names,state,current_prefix):
     prefixes=sorted({name.split('-db')[0] for name in target_names if name.endswith('-db')})
     for prefix in prefixes:
         pinned=(state/'targets'/prefix/'hba-generation.json').exists()
+        pending=(state/'targets'/prefix/'hba-operation.json').exists()
         if prefix==current_prefix:
-            if not pinned:findings.append(('blocker','Current recovery target '+prefix+' has no generation pin: adopt it with lab/adopt-retained.py target'))
+            if pending:findings.append(('blocker','Current recovery target '+prefix+' has a pending HBA operation: reconcile it before install'))
+            elif not pinned:findings.append(('blocker','Current recovery target '+prefix+' has no generation pin: adopt it with lab/adopt-retained.py target'))
             else:findings.append(('action','Current recovery target '+prefix+' carries a generation pin'))
+        elif pending:
+            findings.append(('blocker','Historical recovery target '+prefix+' has a pending HBA operation: reconcile it explicitly'))
         elif not pinned:
             findings.append(('info','Historical recovery target '+prefix+' has no generation pin; the runtime does not start it'))
     return findings
@@ -137,8 +153,7 @@ def state():
 
 
 def preflight():
-    checks=versions()+daemon()+images()+capacity()+state()
-    return checks
+    return versions()+daemon()+images()+capacity()+state()
 
 
 def report(checks,title='Preflight'):
@@ -149,6 +164,25 @@ def report(checks,title='Preflight'):
     return not blockers
 
 
+def operation_lock():
+    """One installation mutation at a time; a held lock is a clean refusal."""
+    STATE.mkdir(parents=True,exist_ok=True)
+    handle=(STATE/'operation.lock').open('a')
+    try:fcntl.flock(handle,fcntl.LOCK_EX|fcntl.LOCK_NB)
+    except BlockingIOError:
+        handle.close();raise SystemExit('Another installation operation holds the operation lock')
+    return handle
+
+
+def bootstrap_payload(path):
+    """Refuse anything but the operator's own private 0600 regular file."""
+    metadata=os.lstat(path)
+    if not stat.S_ISREG(metadata.st_mode):raise SystemExit('Bootstrap file must be a regular file')
+    if metadata.st_uid!=os.getuid():raise SystemExit('Bootstrap file must be owned by the running user')
+    if stat.S_IMODE(metadata.st_mode)!=0o600:raise SystemExit('Bootstrap file must be mode 0600')
+    return Path(path).read_text()
+
+
 def npm_install():
     if not (ROOT/'node_modules').exists():
         run(['bun','install'],cwd=ROOT)
@@ -157,60 +191,72 @@ def npm_install():
 def install(bootstrap_file):
     checks=preflight()
     if not report(checks):raise SystemExit('Preflight failed; nothing was installed')
-    STATE.mkdir(parents=True,exist_ok=True)
-    PRIVATE.mkdir(mode=0o700,parents=True,exist_ok=True)
-    os.chmod(PRIVATE,0o700)
-    print('step 1/5  state and secret directories prepared')
-    for lock in LOCKS:
-        entry=json.loads((ROOT/'lab'/lock).read_text())
-        digest=entry['id']
-        if docker('image','inspect',digest,check=False).returncode:
-            if docker('pull',digest,check=False).returncode:raise SystemExit('Pinned image pull failed for '+lock)
-    print('step 2/5  pinned images present')
-    npm_install()
-    run(['bun','run','build:ui'],cwd=ROOT)
-    print('step 3/5  console built')
-    env={**os.environ}
-    result=run(['/usr/bin/python3','lab/installation_runtime.py','up'],cwd=ROOT,check=False,env=env)
-    if result.returncode:raise SystemExit('Runtime startup failed: '+result.stderr.strip())
-    print('step 4/5  owned runtime started')
-    if bootstrap_file is not None:
-        payload=Path(bootstrap_file).read_text()
-        boot=run(['/usr/bin/python3','lab/bootstrap.py','--stdin'],cwd=ROOT,check=False,stdin=payload)
-        if boot.returncode:raise SystemExit('Operator bootstrap failed: '+boot.stderr.strip())
-        print('step 5/5  operator identity bootstrapped')
-    else:
-        print('step 5/5  operator bootstrap skipped; run: /usr/bin/python3 lab/bootstrap.py')
-    print('Installation ready. Supervise it with deploy/sbarbase.service or run the foreground supervisor:')
-    print('  bun lab/upstream-server.ts   # after /usr/bin/python3 lab/installation_runtime.py up')
-    print('Smoke test: /usr/bin/python3 lab/install_server.py smoke')
+    lock=operation_lock()
+    try:
+        PRIVATE.mkdir(mode=0o700,parents=True,exist_ok=True)
+        os.chmod(PRIVATE,0o700)
+        print('step 1/5  state and secret directories prepared')
+        for label,digest,reference in pinned_images():
+            if docker('image','inspect',digest,check=False).returncode:
+                if docker('pull',reference,check=False).returncode:raise SystemExit('Pinned image pull failed for '+label)
+        print('step 2/5  pinned images present')
+        npm_install()
+        run(['bun','run','build:ui'],cwd=ROOT)
+        print('step 3/5  console built')
+        result=run(['/usr/bin/python3','lab/installation_runtime.py','up'],cwd=ROOT,check=False,env={**os.environ})
+        if result.returncode:raise SystemExit('Runtime startup failed: '+result.stderr.strip())
+        print('step 4/5  owned runtime started')
+        if bootstrap_file is not None:
+            payload=bootstrap_payload(bootstrap_file)
+            boot=run(['/usr/bin/python3','lab/bootstrap.py','--stdin'],cwd=ROOT,check=False,stdin=payload)
+            if boot.returncode:raise SystemExit('Operator bootstrap failed: '+boot.stderr.strip())
+            print('step 5/5  operator identity bootstrapped')
+        else:
+            print('step 5/5  operator bootstrap skipped; run: /usr/bin/python3 lab/bootstrap.py')
+        print('Installation ready. Supervise it with deploy/sbarbase.service or the foreground supervisor')
+        print('(bun lab/upstream-server.ts starts the console API beside the owned runtime).')
+        print('Smoke test (console running): /usr/bin/python3 lab/install_server.py smoke')
+    finally:
+        lock.close()
+
+
+def console_status():
+    """Live console check: a missing or dead server.json is a failure."""
+    server=STATE/'server.json'
+    if not server.exists():return False,'server.json missing (console not started)'
+    try:pid=json.loads(server.read_text()).get('pid')
+    except (OSError,ValueError):return False,'server.json unreadable'
+    if not isinstance(pid,int) or pid<=0:return False,'server.json has no usable pid'
+    try:os.kill(pid,0)
+    except ProcessLookupError:return False,f'console pid {pid} is not running'
+    except PermissionError:return True,f'console pid {pid} exists (owned by another user)'
+    return True,f'console pid {pid} running'
 
 
 def smoke():
-    checks=[]
-    envs=json.loads((STATE/'endpoints.json').read_text()) if (STATE/'endpoints.json').exists() else {}
-    management=json.loads((STATE/'management.json').read_text()) if (STATE/'management.json').exists() else {}
-    routes={'management-auth':management.get('auth')}
-    for environment,endpoints in envs.items():
-        routes[environment+':auth']=endpoints.get('auth')
-        routes[environment+':rest']=endpoints.get('rest')
     import urllib.request
+    checks=[]
+    routes={}
+    if (STATE/'management.json').exists():
+        routes['management-auth']=json.loads((STATE/'management.json').read_text()).get('auth')
+    else:
+        routes['management-auth']=None
+    if (STATE/'endpoints.json').exists():
+        for environment,endpoints in json.loads((STATE/'endpoints.json').read_text()).items():
+            routes[environment+':auth']=endpoints.get('auth')
+            routes[environment+':rest']=endpoints.get('rest')
     for name,base in routes.items():
         if not base:checks.append((name,'missing endpoint'));continue
-        url=base+('/health' if name.endswith('auth') or name=='management-auth' else '/')
+        url=base+('/health' if name.endswith('auth') else '/')
         try:
             with urllib.request.urlopen(url,timeout=5) as response:code=response.status
         except Exception as error:code=str(error)
         checks.append((name,code))
-    server=STATE/'server.json'
-    console='missing'
-    if server.exists():
-        pid=json.loads(server.read_text()).get('pid')
-        console=f'server pid {pid}' if pid else 'no pid'
+    alive,detail=console_status()
     for name,value in checks:print(f'{name:>22}  {value}')
-    print('console:',console)
-    ok=all(value==200 for name,value in checks if name.endswith('auth') or name.endswith('rest'))
-    return ok
+    print(f'{">":>22}  console: {detail}')
+    endpoints_ok=all(value==200 for _,value in checks)
+    return endpoints_ok and alive
 
 
 def main():
@@ -222,13 +268,14 @@ def main():
         raise SystemExit(0 if report(preflight()) else 1)
     if args.command=='plan':
         print('1. preflight (docker, bun, /usr/bin/python3 3.14+, pinned images, headroom, disk, state)')
-        print('2. create private state and secret directories (0700)')
-        print('3. pull each pinned image by digest when it is not local')
-        print('4. bun install when node_modules is absent')
-        print('5. bun run build:ui')
-        print('6. /usr/bin/python3 lab/installation_runtime.py up')
-        print('7. /usr/bin/python3 lab/bootstrap.py --stdin  (from the private JSON file)')
-        print('8. supervise: deploy/sbarbase.service, or the foreground supervisor')
+        print('2. take the installation operation lock')
+        print('3. create the private secret directory (0700)')
+        print('4. pull each pinned image by its repository@digest reference when it is not local')
+        print('5. bun install when node_modules is absent')
+        print('6. bun run build:ui')
+        print('7. /usr/bin/python3 lab/installation_runtime.py up')
+        print('8. /usr/bin/python3 lab/bootstrap.py --stdin  (from the private 0600 JSON file)')
+        print('9. supervise: deploy/sbarbase.service, or the foreground supervisor')
         return
     if args.command=='install':
         install(args.bootstrap_file);return

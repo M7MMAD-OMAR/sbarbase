@@ -358,7 +358,7 @@ pre-adoption bytes are preserved byte for byte against the journal expected
 digest, exactly one revision marker exists, inventory rules exist for every
 catalog environment, no pending journal or worker effect remains, and the source
 is stopped by exact identity. Runners: lab/adopt-retained.py (source|target) and
-lab/verify-retained.py (source|target).
+lab/verify_retained.py (source|target).
 
 Explicit assumption: legacy host clients and queued Docker requests were
 quiesced (all source containers stopped for hours, locks free, no receipt, no
@@ -422,6 +422,44 @@ command (preflight, install, supervisor, console and management reachability,
 environment routes, supervised shutdown, no owned container left running). On
 this host it records the preflight refusal, `Host headroom insufficient`,
 without starting anything: docs/evidence/deployment-rehearsal.json.
+
+## Adversarial review and fixes, 2026-09-20 (Hermes)
+
+Independent adversarial review:
+[docs/reviews/target-and-deployment-review.md](reviews/target-and-deployment-review.md).
+Twelve must-fix findings were established and all twelve are fixed, each with a
+regression test where the finding is testable without live containers:
+
+- the installer's image step read a top-level `id` from a lock file that has
+  none (a `KeyError` on the documented happy path) and pulled a bare digest; it
+  now walks every nested pin and pulls the `repository@digest` reference;
+- `smoke` reported success with the console down; it now checks the console pid
+  is alive and folds that into the result;
+- the restore path leaked its target ownership descriptors on failure and bound
+  the created container by name; it now closes the stack in `finally` and passes
+  the identity captured from `docker run`;
+- any failure after generation initialization left a durable pin that adoption
+  could never bind; `publish_intent` now adopts an existing pin that targets the
+  same container instead of minting a new generation;
+- `adopt-retained.py` did not verify the whole placement was stopped, so a
+  running service container could observe the database disappearing; it now
+  refuses when any container of that owner is running;
+- `verify_retained.py` opened the source catalog read-write from a target-scoped
+  check; the catalog is now read-only and skipped entirely for a target;
+- the systemd unit did not put Bun on the service `PATH`;
+- evidence files merged checks across code revisions while recomputing `passed`;
+  each script now replaces its own section wholesale and stamps it with the
+  producing script digest, and the migration design does the same;
+- `install` took no operation lock, did not validate the bootstrap file's owner
+  and mode, and `prepare_target_state` could create the installation root with
+  umask permissions;
+- the fresh-target probe contained a tautological check and a label that
+  overstated what it tested; the probe and its evidence were regenerated.
+
+Suites after the fixes: 271 Python tests, 73 Bun tests/408 assertions. Claims
+that the review judged overstated were corrected in
+[TARGET-HBA-WRITERS](TARGET-HBA-WRITERS.md), [SERVER-DEPLOYMENT](SERVER-DEPLOYMENT.md)
+and [DEPLOYMENT-READINESS](DEPLOYMENT-READINESS.md).
 
 ## User stop and Hermes handoff, 2026-09-20
 

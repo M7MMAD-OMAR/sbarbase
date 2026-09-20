@@ -128,6 +128,8 @@ def main():
         env=runtime.PRIVATE/(prefix+'.env')
         lab.secure_file(env,'POSTGRES_PASSWORD='+secrets.token_hex(32)+'\nPOSTGRES_HOST=/var/run/postgresql\nPOSTGRES_DB=postgres\n')
         lab.docker('run','-d','--pull','never','--name',db,'--label','io.sbarbase.owner='+OWNER,'--network',network,'--memory','1024m','--memory-swap','1024m','--cpus','1','--pids-limit','128','--log-opt','max-size=5m','--log-opt','max-file=2','--env-file',str(env),'-v',volume+':/var/lib/postgresql/data',pin['id'],'postgres','-c','config_file=/etc/postgresql/postgresql.conf','-c','log_statement=none')
+        created=json.loads(lab.docker('inspect',db).stdout)[0]['Id']
+        if not created:raise RuntimeError('Created target identity unavailable')
         stage('bootstrap')
         ready=False
         for _ in range(120):
@@ -135,7 +137,7 @@ def main():
             if result.returncode==0 and result.stdout.strip()=='t' and lab.docker('exec',db,'pg_isready','-h','127.0.0.1',check=False).returncode==0:ready=True;break
             time.sleep(.5)
         check('fresh pinned Supabase cluster ready',ready)
-        hba_writer.ready(json.loads(lab.docker('inspect',db).stdout)[0]['Id'],created=True)
+        hba_writer.ready(created,created=True)
         check('fresh target generation initialized under owned authority',True)
         check('source remains stopped during target bootstrap',not lab.docker('ps','-q','--filter','label=io.sbarbase.owner='+runtime.OWNER).stdout.strip())
         canonical=rows("SELECT rolname,rolconfig FROM pg_roles WHERE rolname IN ('anon','authenticated','service_role') ORDER BY rolname")
@@ -192,9 +194,9 @@ def main():
         descriptor['status']='database-verified';stage('verified')
         evidence={'scope':'Fresh separate PostgreSQL cluster, database stage only. No target Auth/REST/Storage processes, object restore or signed-URL verification yet. Source stayed stopped; target stopped with isolated volume retained.','checks':checks,'count':len(checks),'tables':len(tables),'target_memory_mib':1024,'target_cpus':1}
     finally:
+        authority.close()
         cleanup_target(descriptor,record,helper,db)
     (lab.ROOT/'docs/evidence/independent-database-restore.json').write_text(json.dumps(evidence,indent=2)+'\n')
-    authority.close()
     print(f'{len(checks)} independent database restore checks passed; target retained stopped.')
 
 

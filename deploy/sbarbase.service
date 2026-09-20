@@ -11,6 +11,9 @@ User=sbarbase
 Group=sbarbase
 WorkingDirectory=/opt/sbarbase
 Environment=HOME=/home/sbarbase
+# A system service does not inherit a user-local Bun; the supervisor and its
+# preflight both need it on PATH.
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/sbarbase/.bun/bin
 # Preflight refuses on insufficient headroom, missing pins or pending authority state.
 ExecStartPre=/usr/bin/python3 /opt/sbarbase/lab/install_server.py check
 ExecStart=/usr/bin/python3 /opt/sbarbase/lab/dev.py

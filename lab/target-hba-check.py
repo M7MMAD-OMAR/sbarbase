@@ -95,9 +95,8 @@ def main():
             live=docker('exec',cid,'cat','/etc/postgresql/pg_hba.conf').stdout
             check('published file equals the desired rules plus one revision marker',
                   live.count('# sbarbase-hba-revision:')==1 and ''.join(line for line in live.splitlines(keepends=True) if not line.startswith('# sbarbase-hba-revision:'))==rules)
-            check('no parser errors and reload acknowledged',
+            check('no parser errors after publication',
                   docker('exec','-i',cid,'psql','-X','-qAt','-U',ADMIN,'-d','postgres',data='SELECT count(*) FROM pg_hba_file_rules WHERE error IS NOT NULL;').stdout.strip()=='0')
-            check('replaying the same writer is refused',True)
             try:writer.publish(rules)
             except RuntimeError as error:
                 check('writer refuses a second publication',('already attempted' in str(error)) or ('unavailable' in str(error)))

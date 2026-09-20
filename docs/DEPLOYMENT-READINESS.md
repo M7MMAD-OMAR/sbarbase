@@ -9,9 +9,11 @@ file. Nothing here is a production capacity claim.
 | Requirement | Status | Evidence or gap |
 |---|---|---|
 | Host preflight (Docker native, Bun, `/usr/bin/python3` 3.14+, pinned images, headroom, disk, state) | implemented, proven | `lab/install_server.py check`; on this host it reports exactly one host-capacity blocker and the retained-installation actions |
-| Fresh install (state dirs, image pull by digest, console build, owned runtime startup, operator bootstrap) | implemented, not yet run end to end | `lab/install_server.py install`; components individually proven, full run blocked by host headroom here |
-| Retained installation migrated to owned HBA authority | implemented and executed | both retained databases adopted; 12 verification checks each in `docs/evidence/retained-source-adoption.json` and `retained-target-adoption.json`, rules preserved byte for byte |
+| Fresh install (state dirs, image pull by digest, console build, owned runtime startup, operator bootstrap) | implemented, guarded, not yet run end to end | `lab/install_server.py install`: takes the operation lock, validates the bootstrap file's owner and mode, pulls each pin by its `repository@digest` reference; full run blocked by host headroom here |
+| Retained installation migrated to owned HBA authority | implemented and executed | both retained databases adopted; per role an operation section (7 checks) and a verification section (12 checks) in `docs/evidence/retained-source-adoption.json` and `retained-target-adoption.json`, rules preserved byte for byte |
 | Recovery target placement starts and serves | rehearsed live, passed | `docs/evidence/target-placement-rehearsal.json`, 12 checks: lifecycle start, Auth and REST 200, routing resumed, clean stop |
+| Fresh-target HBA writer on a disposable container | proven, 16 checks | `docs/evidence/target-hba-creation-checks.json`; the consuming restore path has not been re-run with the owned writer |
+| Adversarial review of the target and deployment code | completed, 12 must-fix findings all fixed | `docs/reviews/target-and-deployment-review.md`; fixes covered below |
 | Deployment rehearsal in one command | implemented, records refusal honestly | `lab/deployment_rehearsal.py`; current run records `Host headroom insufficient` without starting anything, `docs/evidence/deployment-rehearsal.json` |
 | Supervision with a restart policy | implemented, unit reviewed by file only | `deploy/sbarbase.service` with `ExecStartPre` preflight and a 150 s stop budget for the supervised runtime stop |
 | HTTPS and network exposure | documented, operator-provided | `docs/SERVER-DEPLOYMENT.md`; no TLS termination is implemented or tested here, no port is published by the installation |

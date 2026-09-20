@@ -16,7 +16,8 @@ class OwnedHbaWriterTests(unittest.TestCase):
         source=(LAB/'recovery-restore-db.py').read_text()
         self.assertRegex(source,r'hba_runtime\.TargetHBA\(')
         self.assertRegex(source,r'\.before_create\(preexisting_volume=')
-        self.assertRegex(source,r'\.ready\(json\.loads')
+        self.assertRegex(source,r'\.ready\(created,created=True\)')
+        self.assertIn("created=json.loads(lab.docker('inspect',db).stdout)[0]['Id']",source)
 
     def test_restore_path_requires_verified_absence_before_creation_evidence(self):
         source=(LAB/'recovery-restore-db.py').read_text()

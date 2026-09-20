@@ -1,12 +1,18 @@
 """Verify a completed retained adoption from durable evidence only.
 
-Usage: /usr/bin/python3 lab/verify-retained.py [source|target]
+Usage: /usr/bin/python3 lab/verify_retained.py [source|target]
 
 Reads the stopped container's HBA file through docker cp (a tar stream is never
 compared), the private checkpoints and the generation pin of that database's
-authority state. No container is started and no private path or secret is
-written to evidence.
+authority state. No container is started, the installation catalog is opened
+read-only and nothing is written outside the evidence file.
+
+Preservation method: the published file is one fresh revision-marker line
+followed by the exact pre-adoption bytes, so removing only the first marker line
+and hashing the remainder must reproduce the journal's expected digest. Older
+marker lines inside the preserved region stay part of the comparison.
 """
+import datetime
 import hashlib
 import json
 import sqlite3
@@ -23,6 +29,7 @@ import hba_runtime
 LAB=Path(__file__).resolve().parent
 ROOT=LAB.parent
 STATE=ROOT/'.lab'/'upstream'
+MARKER='# sbarbase-hba-revision:'
 
 
 def docker(*args):
@@ -51,6 +58,26 @@ def placement(role):
     return {'state':hba_runtime.target_state(STATE,prefix),'name':prefix+'-db','owner':'recovery-target','image':image}
 
 
+def source_environments():
+    """Read the shared catalog read-only; never create or write it."""
+    uri=(STATE/'control.sqlite').as_uri()+'?mode=ro'
+    catalog=sqlite3.connect(uri,uri=True)
+    try:return sorted(row[0] for row in catalog.execute('SELECT DISTINCT runtime FROM runtime_routing') if row[0])
+    finally:catalog.close()
+
+
+def preserved_bytes(text):
+    """Remove exactly the first published marker line, nothing else."""
+    lines=text.splitlines(keepends=True)
+    for index,line in enumerate(lines):
+        if line.startswith(MARKER):return ''.join(lines[:index]+lines[index+1:])
+    return ''.join(lines)
+
+
+def script_digest():
+    return hashlib.sha256((LAB/'verify_retained.py').read_bytes()+(LAB/'hba_adoption.py').read_bytes()).hexdigest()
+
+
 def main(role):
     info_placement=placement(role)
     state=info_placement['state'];name=info_placement['name']
@@ -62,15 +89,14 @@ def main(role):
     record=outcome['journal']
     text=read_stopped_file(cid+':'+adoption.HBA_PATH)
     lines=text.splitlines(keepends=True)
-    markers=[line for line in lines if line.startswith('# sbarbase-hba-revision:')]
-    preserved=''.join(line for line in lines if not line.startswith('# sbarbase-hba-revision:'))
+    markers=[line for line in lines if line.startswith(MARKER)]
+    preserved=preserved_bytes(text)
     digest=lambda value:hashlib.sha256(value.encode()).hexdigest()
-    catalog=sqlite3.connect(STATE/'control.sqlite')
-    environments=sorted(row[0] for row in catalog.execute('SELECT DISTINCT runtime FROM runtime_routing') if row[0])
-    catalog.close()
-    environment=json.loads((STATE/'recovery-target.json').read_text())['environment'] if role=='target' else None
     if role=='target':
+        environment=json.loads((STATE/'recovery-target.json').read_text())['environment']
         environments=[environment] if environment else []
+    else:
+        environments=source_environments()
     expected_rules=[f'host {runtime_name} {runtime_name}_{role_name} 0.0.0.0/0 scram-sha-256'
                     for runtime_name in environments for role_name in ('auth','rest','storage')]
     present=set(line.strip() for line in preserved.splitlines())
@@ -90,24 +116,31 @@ def main(role):
     }
     for label,ok in checks.items():
         print(('ok: ' if ok else 'FAIL: ')+label)
-    evidence={'scope':('Verification of the completed retained '+role+' adoption, read from durable evidence and the stopped container only. '
-                        'The pre-adoption bytes are evidenced by the journal expected digest, so rule preservation is proven byte for byte. '
-                        'Quiescence of legacy host clients remains an explicit operational assumption. No container was started.'),
-              'role':role,'source':{'name':name,'owner':owner,'image':image},
+    out=ROOT/'docs'/'evidence'/('retained-'+role+'-adoption.json')
+    existing=json.loads(out.read_text()) if out.exists() else {}
+    # The verification section is replaced wholesale: a check produced by an
+    # older code revision never survives into a new claim.
+    evidence={**{key:value for key,value in existing.items() if key not in
+                ('verification_checks','verification_passed','verification_script_digest','verification_run_at',
+                 'checks','passed')},
+              'role':role,
+              'verification_scope':('Verification of the completed retained '+role+' adoption, read from durable evidence and the stopped '
+                                    'container only. The pre-adoption bytes are evidenced by the journal expected digest, so rule preservation '
+                                    'is proven byte for byte. Quiescence of legacy host clients remains an explicit operational assumption. '
+                                    'No container was started and the catalog was read read-only.'),
               'hba_before_digest':record['expected'],'hba_applied_digest':authority.digest(record['content']),
               'hba_live_digest':digest(text),'hba_preserved_digest':digest(preserved),
               'revision_marker_count':len(markers),'environment_rule_count':len(expected_rules),
-              'generation':pin['generation'],'checks':checks,'passed':all(checks.values())}
-    out=ROOT/'docs'/'evidence'/('retained-'+role+'-adoption.json')
-    existing=json.loads(out.read_text()) if out.exists() else {}
-    merged={**existing,**evidence,'checks':{**existing.get('checks',{}),**checks},
-            'passed':all({**existing.get('checks',{}),**checks}.values())}
-    out.write_text(json.dumps(merged,indent=1)+'\n')
+              'generation':pin['generation'],
+              'verification_checks':checks,'verification_passed':all(checks.values()),
+              'verification_script_digest':script_digest(),
+              'verification_run_at':datetime.datetime.now().astimezone().isoformat(timespec='seconds')}
+    out.write_text(json.dumps(evidence,indent=1)+'\n')
     print('evidence:',out)
     if not all(checks.values()):sys.exit(1)
 
 
 if __name__=='__main__':
     if len(sys.argv)>2 or (len(sys.argv)==2 and sys.argv[1] not in ('source','target')):
-        raise SystemExit('usage: verify-retained.py [source|target]')
+        raise SystemExit('usage: verify_retained.py [source|target]')
     main(sys.argv[1] if len(sys.argv)==2 else 'source')

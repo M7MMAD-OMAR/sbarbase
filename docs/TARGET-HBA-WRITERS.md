@@ -46,19 +46,23 @@ as `SourceHBA`, pointed at that directory, and it adds `before_create`:
 
 ## Evidence
 
-- `docs/evidence/target-hba-creation-checks.json`: 20 live checks on a
+- `docs/evidence/target-hba-creation-checks.json`: 16 live checks on a
   disposable pinned PostgreSQL container for the fresh-target writer path
-  (creation evidence, per-target state, one-shot generation, owned publication
-  with parser and reload acknowledgment, refused second publication, exact
-  cleanup).
+  (creation evidence, per-target state, one-shot generation, owned publication,
+  a second publication refused, exact cleanup). The reload acknowledgment is
+  asserted inside the owned publication, not by a separate probe check.
 - `docs/evidence/retained-target-adoption.json` and
-  `docs/evidence/retained-source-adoption.json`: 12 checks each, byte-for-byte
-  rule preservation proven from the journal expected digest.
+  `docs/evidence/retained-source-adoption.json`: an operation section (7 checks)
+  and a verification section (12 checks) per role, replaced wholesale on every
+  run and stamped with the producing script digest. Byte-for-byte rule
+  preservation is proven from the journal expected digest, comparing the live
+  file with exactly the first published revision marker removed.
 
 ## Explicit limits
 
 The restore path's owned publication is wired and unit-guarded, but a full live
 recovery restore executed end to end with the owned writer has not been re-run
 since the change; run `lab/recovery-restore-db.py` against a fresh disposable
-export before claiming that. Service-driven migrations and container-generation
+export before claiming that. The fresh-target writer evidence above proves the
+writer on a disposable container, not the consuming restore path. Service-driven migrations and container-generation
 migration remain separate gates.

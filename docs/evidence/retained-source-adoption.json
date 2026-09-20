@@ -12,8 +12,10 @@
  "revision_marker_count": 1,
  "environment_rule_count": 12,
  "generation": "3d427363-a624-40d9-ab91-f1ec05fdb8d1",
- "checks": {
-  "source still stopped by exact identity": true,
+ "role": "source",
+ "verification_scope": "Verification of the completed retained source adoption, read from durable evidence and the stopped container only. The pre-adoption bytes are evidenced by the journal expected digest, so rule preservation is proven byte for byte. Quiescence of legacy host clients remains an explicit operational assumption. No container was started and the catalog was read read-only.",
+ "verification_checks": {
+  "database still stopped by exact identity": true,
   "owner and pinned image unchanged": true,
   "generation pin matches a completed target": true,
   "adoption intent consumed": true,
@@ -21,13 +23,12 @@
   "live file digest equals the recorded applied content": true,
   "effective rules preserved byte for byte": true,
   "exactly one fresh revision marker": true,
-  "inventory rules for every catalog environment are present": true,
+  "environment rules for this placement are present": true,
   "completion archived as publication-witnessed": true,
   "no pending HBA journal remains": true,
-  "no pending worker effect remains": true,
-  "database still stopped by exact identity": true,
-  "environment rules for this placement are present": true
+  "no pending worker effect remains": true
  },
- "passed": true,
- "role": "source"
+ "verification_passed": true,
+ "verification_script_digest": "d70bc4a192ce52a9a79492e5629eab571d87cc98e5354f9e8ad104494c1fdb44",
+ "verification_run_at": "2026-09-20T15:25:12+04:00"
 }

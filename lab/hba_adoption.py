@@ -109,7 +109,12 @@ def stopped_identity(docker,target):
 
 
 def publish_intent(docker,state,*,name,owner,image):
-    """Exclusively publish the adoption intent; any existing or torn intent blocks."""
+    """Exclusively publish the adoption intent; any existing or torn intent blocks.
+
+    A generation pin that already targets this exact container is bound to the
+    intent instead of minting a new generation: a failed first run (restore or
+    earlier adoption) leaves a durable pin, and re-minting would dead-end it.
+    """
     hba_target.policy(name,owner,image)
     info=inspect_exact(docker,name)
     if (info.get('Name')!='/'+name or info.get('Image')!=image
@@ -120,7 +125,14 @@ def publish_intent(docker,state,*,name,owner,image):
     target=hba_target.Target(info['Id'],name,owner,image)
     mounts=_mounts(info)
     if not any(m['destination']==PGDATA for m in mounts):raise RuntimeError('Adoption pgdata mount missing')
-    record=validate({'version':1,'adoption':str(uuid.uuid4()),'generation':str(uuid.uuid4()),
+    generation=str(uuid.uuid4())
+    pin=Path(state)/hba_generation.NAME
+    if _present(pin):
+        existing=hba_generation.load(state)
+        if existing['target']!=asdict(target):
+            raise RuntimeError('Preexisting generation pin belongs to a different target container')
+        generation=existing['generation']
+    record=validate({'version':1,'adoption':str(uuid.uuid4()),'generation':generation,
                      'target':asdict(target),'volume':_volume(mounts),
                      'mounts':mounts,'initial_state':'stopped'})
     state=Path(state)
