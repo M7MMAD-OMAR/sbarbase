@@ -54,6 +54,30 @@ def verify(out=OUT):
                      'assets':assets,'referenced':len(references)}
 
 
+def newest_source_mtime(roots=('ui','vite.config.ts','vite.config.js','package.json','tsconfig.json','index.html')):
+    """Newest modification time among the console's inputs."""
+    newest=0.0
+    for relative in roots:
+        path=ROOT/relative
+        if path.is_dir():
+            for candidate in path.rglob('*'):
+                if candidate.is_file() and candidate.suffix in ('.ts','.tsx','.js','.jsx','.css','.html','.json'):
+                    newest=max(newest,candidate.stat().st_mtime)
+        elif path.exists():
+            newest=max(newest,path.stat().st_mtime)
+    return newest
+
+
+def is_fresh(out=OUT,roots=None):
+    """A usable build that is newer than every input can be reused as it stands."""
+    problems,_=verify(out)
+    if problems:return False,'build output is not usable: '+'; '.join(problems)
+    newest=newest_source_mtime(roots or ('ui','vite.config.ts','vite.config.js','package.json','tsconfig.json','index.html'))
+    built=(out/'index.html').stat().st_mtime
+    if built<newest:return False,'a source file is newer than the built page'
+    return True,'built page is newer than every input'
+
+
 def build(command=('bun','run','build:ui'),cwd=ROOT,timeout=900):
     started=time.monotonic()
     result=subprocess.run(list(command),cwd=cwd,capture_output=True,text=True,timeout=timeout)

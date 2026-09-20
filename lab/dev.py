@@ -1,5 +1,6 @@
 """Foreground local installation runner. Owns only its children and labelled lab."""
 import collections
+import console_build_check
 import fcntl
 import json
 import os
@@ -153,7 +154,11 @@ def main():
             if run_stage(['/usr/bin/python3','lab/worker.py','--upstream','--settle-only'],stop_event,
                          pass_fds=(worker_lock.fileno(),),env=dict(os.environ,SBARBASE_WORKER_FD=str(worker_lock.fileno()))):
                 raise RuntimeError('Provisioning receipt requires reconciliation before startup')
-            if run_stage(['bun', 'run', 'build:ui'], stop_event):
+            fresh,detail=console_build_check.is_fresh()
+            if fresh:
+                # Rebuilding an up-to-date page costs a few hundred MiB and a minute.
+                print('console build up to date: '+detail)
+            elif run_stage(['bun', 'run', 'build:ui'], stop_event):
                 raise RuntimeError('Console build failed')
             if stop_event.is_set():
                 return
