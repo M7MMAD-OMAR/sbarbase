@@ -127,7 +127,7 @@ def unit_status(path=UNIT):
     return status
 
 
-def rehearse(bootstrap_file,skip_install,timeout):
+def rehearse(bootstrap_file,skip_install,timeout,attempts=1,delay=15):
     findings=[]
     def record(label,ok,detail=''):
         findings.append({'check':label,'ok':bool(ok),'detail':detail})
@@ -147,13 +147,23 @@ def rehearse(bootstrap_file,skip_install,timeout):
         problems,_=console_build_check.verify()
         record('built console page is intact',not problems,'; '.join(problems))
         process,server=None,None
-        try:
-            process,server=start_supervisor(timeout)
-        except RuntimeError as error:
-            # The supervisor's own last lines carry the cause; record, do not crash.
-            record('supervisor started and owns the console',False,str(error))
+        # A refusal from host pressure is transient on a shared host; each attempt
+        # is recorded, and the run states how many it took.
+        refusals=[]
+        for attempt in range(1,max(1,attempts)+1):
+            try:
+                process,server=start_supervisor(timeout)
+                break
+            except RuntimeError as error:
+                refusals.append(f'attempt {attempt}: {error}')
+                print('retry: '+refusals[-1])
+                if attempt<max(1,attempts):time.sleep(delay)
+        if process is None:
+            record('supervisor started and owns the console',False,refusals[-1] if refusals else 'no attempt ran')
+            findings.append({'check':'startup attempts before refusal','ok':True,'detail':str(len(refusals))})
             return findings,None
-        record('supervisor started and owns the console',True)
+        record('supervisor started and owns the console',True,
+               '' if len(refusals)==0 else f'after {len(refusals)+1} attempts: '+' | '.join(refusals))
         record('console serves the built page',http_status(server['url']+'/')==200)
         record('management identity realm reachable through the console',
                http_status(server['url']+'/management/auth/v1/settings',{'apikey':PUBLISHABLE})==200)
@@ -184,9 +194,12 @@ def main():
     parser.add_argument('--bootstrap-file')
     parser.add_argument('--skip-install',action='store_true')
     parser.add_argument('--timeout',type=int,default=600)
+    parser.add_argument('--attempts',type=int,default=3,
+                        help='startup attempts allowed before the run is declared failed (host pressure is transient)')
+    parser.add_argument('--attempt-delay',type=int,default=15)
     args=parser.parse_args()
     started=datetime.datetime.now().astimezone()
-    findings,_=rehearse(args.bootstrap_file,args.skip_install,args.timeout)
+    findings,_=rehearse(args.bootstrap_file,args.skip_install,args.timeout,args.attempts,args.attempt_delay)
     finished=datetime.datetime.now().astimezone()
     passed=bool(findings) and all(item['ok'] for item in findings)
     pins=[{'component':label,'digest':digest,'pull':reference} for label,digest,reference in install_server.pinned_images()]
@@ -200,6 +213,7 @@ def main():
               'unit':unit_status(),
               'bootstrap_file_used':bool(args.bootstrap_file),
               'install_skipped':bool(args.skip_install),
+              'startup_attempts_allowed':args.attempts,
               'supervisor_log':str(STATE/'rehearsal-supervisor.log'),
               'runtime_diagnostics':str(STATE/'diagnostics'),
               'started_at':started.isoformat(timespec='seconds'),

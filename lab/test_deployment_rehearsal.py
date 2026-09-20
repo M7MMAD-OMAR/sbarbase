@@ -87,5 +87,35 @@ class StartupDiagnosticsTests(unittest.TestCase):
         self.assertIn('reason line',failed[0]['detail'])
         self.assertFalse(all(item['ok'] for item in findings))
 
+    def test_a_transient_refusal_is_retried_and_the_attempts_are_recorded(self):
+        calls={'count':0}
+        def flaky(timeout):
+            calls['count']+=1
+            if calls['count']==1:raise RuntimeError('Supervisor exited during startup; host_memory_headroom')
+            return (object(),{'url':'http://127.0.0.1:1'})
+        with patch.object(rehearsal.install_server,'preflight',return_value=[]), \
+             patch.object(rehearsal.console_build_check,'verify',return_value=([],{})), \
+             patch.object(rehearsal,'start_supervisor',side_effect=flaky), \
+             patch.object(rehearsal,'http_status',return_value=0), \
+             patch.object(rehearsal.install_server,'smoke',return_value=True), \
+             patch.object(rehearsal,'stop_supervisor',return_value=0), \
+             patch.object(rehearsal,'owned_running',return_value=False), \
+             patch.object(rehearsal,'unit_status',return_value={'installed':False}):
+            findings,_=rehearsal.rehearse(None,True,5,attempts=3,delay=0)
+        self.assertEqual(calls['count'],2)
+        started=[item for item in findings if item['check']=='supervisor started and owns the console'][0]
+        self.assertTrue(started['ok'])
+        self.assertIn('after 2 attempts',started['detail'])
+        self.assertIn('host_memory_headroom',started['detail'])
+
+    def test_exhausting_the_attempts_reports_how_many_were_made(self):
+        with patch.object(rehearsal.install_server,'preflight',return_value=[]), \
+             patch.object(rehearsal.console_build_check,'verify',return_value=([],{})), \
+             patch.object(rehearsal,'start_supervisor',side_effect=RuntimeError('Supervisor exited during startup; host_memory_headroom')):
+            findings,_=rehearsal.rehearse(None,True,5,attempts=2,delay=0)
+        attempts=[item for item in findings if item['check']=='startup attempts before refusal'][0]
+        self.assertEqual(attempts['detail'],'2')
+        self.assertFalse([item for item in findings if item['check']=='supervisor started and owns the console'][0]['ok'])
+
 
 if __name__=='__main__':unittest.main()
