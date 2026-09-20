@@ -1,0 +1,18 @@
+{
+  "scope": "Real Supabase SDK through composed managed gateway and persistent target placement. Login, RLS read/write, target SQL confirmation, Storage upload/download and pre-export signed URL. Source stopped. Target route paused after cleanup; no public DNS cutover or multi-worker drain.",
+  "checks": [
+    "environment maintenance is durable before target staging",
+    "managed gateway rejects traffic before target staging",
+    "staged target remains unavailable during maintenance",
+    "real SDK login through published target retains identity",
+    "real SDK reads original RLS rows through target",
+    "real SDK writes through target placement",
+    "new SDK row exists on independent target database",
+    "real SDK uploads through target Storage",
+    "real SDK downloads exact target upload",
+    "pre-export signed URL works through managed gateway without API key",
+    "probe data removed, temporary key revoked and routing paused"
+  ],
+  "count": 11,
+  "finalRevision": 4
+}

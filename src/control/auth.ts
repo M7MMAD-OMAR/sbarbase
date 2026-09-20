@@ -9,9 +9,12 @@ export function managementIdentity(url:string,key:string,transport:typeof fetch=
   const endpoint=new URL(url);
   if(!['https:','http:'].includes(endpoint.protocol)||endpoint.username||endpoint.password)
     throw new Error('Invalid management endpoint');
+  const guardedFetch=Object.assign(
+    (input:Parameters<typeof fetch>[0],init?:Parameters<typeof fetch>[1])=>transport(input,{...init,redirect:'error',
+      signal:AbortSignal.any([...(init?.signal?[init.signal]:[]),AbortSignal.timeout(5000)])}),
+    {preconnect:(...args:Parameters<typeof fetch.preconnect>)=>transport.preconnect?.(...args)});
   const client=createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false},
-    global:{fetch:(input,init)=>transport(input,{...init,redirect:'error',
-      signal:AbortSignal.any([...(init?.signal?[init.signal]:[]),AbortSignal.timeout(5000)])})}});
+    global:{fetch:guardedFetch}});
   return async request=>{
     const header=request.headers.get('authorization');
     if(!header||header.length>8192||!/^Bearer \S+$/i.test(header)) return null;

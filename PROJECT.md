@@ -163,3 +163,7 @@ Two-stage export fencing now retains operator dump access while blocking scoped 
 ## Chronological cutover export checkpoint
 
 Coordinated source export passed 34 checks after durable maintenance of four ready environments. Selected source remains fenced. Previous target retained; new target passes 49 database, 11 Auth/REST, nine Storage and 14 end-user checks, including unchanged pre-export URL continuity. All stacks stopped; routing remains paused. Continue the private cutover operation journal. Public gateway publication and neighbor restoration remain next. This downtime rehearsal does not yet coordinate graceful drain across live gateway processes.
+
+## Managed target publication checkpoint
+
+Eleven real SDK checks now pass through persistent target placement and the composed gateway: identity, RLS reads/writes confirmed on target SQL, Storage upload/download and pre-export URL. Probe data/key cleaned up. Target placement retained paused and all containers stopped. Operation records possible target writes; stale-source rollback must not be automatic. Three maintenance cleanup unit cases bring Python to 54 tests. SDK/application strict types and four management/application tests pass. Unaffected source environment restoration remains next.
