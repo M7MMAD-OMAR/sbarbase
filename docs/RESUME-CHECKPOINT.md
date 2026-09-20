@@ -449,7 +449,8 @@ regression test where the finding is testable without live containers:
 - the systemd unit did not put Bun on the service `PATH`;
 - evidence files merged checks across code revisions while recomputing `passed`;
   each script now replaces its own section wholesale and stamps it with the
-  producing script digest, and the migration design does the same;
+  producing script digest (the migration design has no checks yet: it is not
+  implemented);
 - `install` took no operation lock, did not validate the bootstrap file's owner
   and mode, and `prepare_target_state` could create the installation root with
   umask permissions;
