@@ -423,6 +423,26 @@ environment routes, supervised shutdown, no owned container left running). On
 this host it records the preflight refusal, `Host headroom insufficient`,
 without starting anything: docs/evidence/deployment-rehearsal.json.
 
+## Reference TLS termination proven, 2026-09-20 (Hermes)
+
+The repository now ships `deploy/console-tls-proxy.ts`, a TLS termination that
+needs only Bun and a certificate, and `lab/tls_termination_check.py` proves it on
+this host: fifteen checks (`docs/evidence/tls-termination.json`). A generated
+self-signed certificate terminates in front of a stub upstream that serves the
+real built console page through the same static layer the console uses, so the
+page and its assets arrive over HTTPS byte for byte, a management route is
+reachable through the proxy, `Strict-Transport-Security` and
+`X-Content-Type-Options` are set, the original protocol is forwarded as https,
+plain HTTP is answered with a 308 redirect, and the proxy refuses to start with a
+group or world readable key, a non-loopback upstream, or no certificate argument.
+Shutdown releases both ports.
+
+The check also found a real trap: with certificates in play, an HTTP client that
+follows redirects turns the redirect probe into a TLS failure, so the check
+observes redirects instead of following them. What remains for a server: a public
+certificate and whichever proxy the operator prefers (the checks state which
+behaviour any replacement must keep).
+
 ## Supervised path proven under systemd, 2026-09-20 (Hermes)
 
 `lab/supervised_run_check.py` writes a temporary systemd *user* unit that mirrors

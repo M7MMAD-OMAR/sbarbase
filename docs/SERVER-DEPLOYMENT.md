@@ -136,11 +136,31 @@ supervisor rehearsal additionally requires the same headroom as a normal start.
 ## HTTPS and network exposure
 
 The console and the gateway bind loopback and are reachable only through the
-host. Terminate TLS in a reverse proxy (nginx, Caddy or the platform proxy) that
-forwards to the printed console URL, and keep the Docker networks internal: the
+host. Terminate TLS in a reverse proxy and keep the Docker networks internal: the
 installer creates no published ports. Do not expose the management Auth endpoint
 or the provisioning API directly. Set the public URL the console should advertise
 in the proxy, not in the console build.
+
+A reference termination ships with the repository and is exercised by the test
+suite (`bun lab/tls_termination_check.py`, 15 checks,
+`docs/evidence/tls-termination.json`). It needs only Bun and a certificate:
+
+```
+bun deploy/console-tls-proxy.ts \
+    --cert /etc/letsencrypt/live/console.example.com/fullchain.pem \
+    --key  /etc/letsencrypt/live/console.example.com/privkey.pem \
+    --public-host console.example.com \
+    --https-port 8443 --http-port 8080
+```
+
+It refuses to start unless the certificate and key are regular files, the key is
+not group or world readable, and the upstream is loopback (it takes the console
+URL from `.lab/upstream/server.json` when `--upstream` is omitted). It answers
+plain HTTP with a 308 redirect to HTTPS, adds `Strict-Transport-Security`,
+`X-Content-Type-Options`, `Referrer-Policy` and `X-Forwarded-Proto`, and logs only
+method, path and status: never bodies, query strings, cookies or credentials. An
+operator may prefer nginx, Caddy or the platform proxy; the checks above state
+which behaviour any replacement must keep.
 
 ## If a restore is interrupted
 
