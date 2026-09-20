@@ -1,16 +1,16 @@
 {
  "scope": "TLS termination check: a self-signed certificate, deploy/console-tls-proxy.ts terminating HTTPS in front of a stub upstream that serves the real built console page, HTTP to HTTPS redirection, the transport security headers, the proxy's handling of attacker supplied hosts and oversized bodies, and its own refusals. Not a public certificate, not a running installation, not the operator's chosen proxy (nginx, Caddy, the platform proxy).",
- "run_at": "2026-09-20T18:37:56+04:00",
+ "run_at": "2026-09-20T19:24:50+04:00",
  "checks": [
   {
    "check": "stub upstream serving the real built page",
    "ok": true,
-   "detail": "['{\"port\":38591}']"
+   "detail": "['{\"port\":45097}']"
   },
   {
    "check": "proxy announced its HTTPS port",
    "ok": true,
-   "detail": "['TLS termination: https://127.0.0.1:44575 -> http://127.0.0.1:38591']"
+   "detail": "['TLS termination: https://127.0.0.1:38635 -> http://127.0.0.1:45097']"
   },
   {
    "check": "proxy binds the HTTPS and the redirect port it was given",
@@ -20,7 +20,7 @@
   {
    "check": "the built page is served over HTTPS unchanged",
    "ok": true,
-   "detail": "status 200 bytes 392 vs 392"
+   "detail": "status 200 bytes 516 vs 516"
   },
   {
    "check": "HTTPS carries the transport security header",
@@ -35,7 +35,7 @@
   {
    "check": "an asset is served over HTTPS byte for byte",
    "ok": true,
-   "detail": "/assets/index-03pyDXHP.js"
+   "detail": "/assets/sbarbase-mark-96-BpB05cjQ.webp"
   },
   {
    "check": "a management route is reachable through the proxy",
@@ -115,7 +115,7 @@
   {
    "check": "both ports are released after shutdown",
    "ok": true,
-   "detail": "https 44575 http 54579"
+   "detail": "https 38635 http 37059"
   }
  ],
  "count": 23,

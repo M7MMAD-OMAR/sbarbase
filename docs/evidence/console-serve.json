@@ -25,25 +25,35 @@
   {
    "check": "page references at least one local asset",
    "ok": true,
-   "detail": "/assets/index-03pyDXHP.js /assets/index-NdYKSyHJ.css"
+   "detail": "/assets/sbarbase-mark-96-BpB05cjQ.webp /assets/index-BbA7WXXv.js /assets/index-BTxPU7nh.css"
   },
   {
-   "check": "served asset matches the built file: /assets/index-03pyDXHP.js",
+   "check": "served asset matches the built file: /assets/sbarbase-mark-96-BpB05cjQ.webp",
    "ok": true,
-   "detail": "status 200 served b969fa0a9ee5 disk b969fa0a9ee5"
+   "detail": "status 200 served 8d85121a5fee disk 8d85121a5fee"
   },
   {
-   "check": "asset is announced immutable: /assets/index-03pyDXHP.js",
+   "check": "asset is announced immutable: /assets/sbarbase-mark-96-BpB05cjQ.webp",
    "ok": true,
    "detail": "public, max-age=31536000, immutable"
   },
   {
-   "check": "served asset matches the built file: /assets/index-NdYKSyHJ.css",
+   "check": "served asset matches the built file: /assets/index-BbA7WXXv.js",
    "ok": true,
-   "detail": "status 200 served 7afed8fae3bd disk 7afed8fae3bd"
+   "detail": "status 200 served 835bfedf321b disk 835bfedf321b"
   },
   {
-   "check": "asset is announced immutable: /assets/index-NdYKSyHJ.css",
+   "check": "asset is announced immutable: /assets/index-BbA7WXXv.js",
+   "ok": true,
+   "detail": "public, max-age=31536000, immutable"
+  },
+  {
+   "check": "served asset matches the built file: /assets/index-BTxPU7nh.css",
+   "ok": true,
+   "detail": "status 200 served bc0367749fa2 disk bc0367749fa2"
+  },
+  {
+   "check": "asset is announced immutable: /assets/index-BTxPU7nh.css",
    "ok": true,
    "detail": "public, max-age=31536000, immutable"
   },
@@ -88,7 +98,7 @@
    "detail": "status 403"
   }
  ],
- "count": 17,
+ "count": 19,
  "passed": true,
- "run_at": "2026-09-20T13:11:14.279Z"
+ "run_at": "2026-09-20T15:24:37.545Z"
 }
