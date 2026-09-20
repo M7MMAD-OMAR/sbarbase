@@ -18,4 +18,4 @@ The disposable upstream probe exercises actual Runtime.provision with real tempo
 
 Validation: 115 Python tests and 51 disposable upstream checks pass. The retained supervisor rehearsal passes 13 checks, with four working environment routes and all owned runtimes stopped afterward. No new retained environment was allocated and no pending receipt remains. Independent review found no remaining must-fix in this scope.
 
-The retained supervisor rehearsal exercises actual worker ownership and admission refusal without allocating another environment. It does not prove a complete fresh worker-driven Auth/REST/Storage provisioning cycle with the new SQL guard. That remains the next integration gate, together with stage-specific recovery and service-effect fencing.
+The retained supervisor rehearsal exercises actual worker ownership and admission refusal without allocating another environment. The separate [fresh lifecycle fixture](FRESH-WORKER-LIFECYCLE.md) now verifies a complete worker-driven Auth/REST/Storage cycle with the guard. Stage-specific recovery and service-effect fencing remain open.

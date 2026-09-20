@@ -160,3 +160,11 @@ Read docs/RECEIPT-BOUND-SQL.md. Durable provisioning now validates the exact wor
 All 115 Python tests and 51 disposable upstream checks pass. Actual Runtime.provision wiring uses real temporary records/SQL with simulated host ownership/admission and stops before HBA. The separate retained supervisor rehearsal passes 13 checks, with all four environments responding, no new allocation, no pending receipt and all owned runtimes stopped. Review found no remaining must-fix.
 
 Next verify a fresh full worker-driven Auth/REST/Storage lifecycle with this guard, then address HBA/service-effect recovery. No generic partial replay is authorized.
+
+## Fresh real worker and services, latest checkpoint
+
+Read docs/FRESH-WORKER-LIFECYCLE.md. A private source snapshot with only literal Docker identity replacements now runs the real worker, guardian ownership, receipts, catalog settlement and guarded native SQL through original Auth/REST/Storage. Fifty-six live checks pass, including actual SDK signup, owner data access, rejected wrong-owner writes, hidden second-user reads and private Storage isolation. Both SQL tokens retire before service startup and the native witness binds the exact settled claim.
+
+Five fixture containers have combined configured ceilings of 2304 MiB/2.25 CPUs, require 6 GiB initial host headroom and publish no container ports. Fresh worker/effect/operation locks precede exact-ID cleanup; all fixture containers/volumes/network are removed. Private diagnostic snapshots remain ignored. Retained installation resources are not used. Strict SDK probe types pass; prior Python checkpoint115 and unchanged Bun73/408 remain.
+
+The fresh worker lifecycle gate is now covered. Next address shared HBA and service-effect interruption/reconciliation; unknown later-stage replay remains blocked. This is not 10/100 capacity evidence or arbitrary crash recovery.

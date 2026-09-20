@@ -26,4 +26,4 @@ Normal Runtime.provision now constructs the guarded executor from the pending wo
 
 ## Remaining integration
 
-Validate a complete fresh worker-driven service lifecycle with the newly wired guard. Existing-environment resume is already separate. Persist exact operation identity and respect pending receipts. HBA file writes are now outside the SQL-only stage; define their own recovery. Auth and Storage migrations use independent service connections and are not fenced by this adapter. No new replay permission follows from these tests.
+The [fresh worker lifecycle](FRESH-WORKER-LIFECYCLE.md) now validates the newly wired guard with original services and SDK access. Existing-environment resume is already separate. Persist exact operation identity and respect pending receipts. HBA file writes are now outside the SQL-only stage; define their own recovery. Auth and Storage migrations use independent service connections and are not fenced by this adapter. No new replay permission follows from these tests.
