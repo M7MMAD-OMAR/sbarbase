@@ -18,7 +18,7 @@ databases, not through a full restore or install. Read
 | Bun on PATH (for a system service, add its directory to the unit's `PATH`, e.g. `/home/sbarah/.bun/bin`) | package manager, console build, gateway checks |
 | `/usr/bin/python3` 3.14 or newer | the lab runtime uses modern f-strings |
 | Git checkout of this repository | state and lock files live in the checkout by default |
-| Headroom: 5888 MiB planned plus 2560 MiB reserve, 6 both-CPU spare, 12 GiB free disk | `CombinedAdmission` and `ResourceAdmission` refuse below these |
+| Headroom: the preflight states the exact figure it needs and refuses below it | `CombinedAdmission` and `ResourceAdmission` measure the host; the requirement is the combined placement (5888 MiB of container limits) plus a 2560 MiB reserve, plus, on an installation that has been moved, the measured cost of the already-running source stage recorded in `docs/evidence/source-stage-footprint.json`. The preflight prints the composition, so a refusal names each term |
 | Docker socket access for the service user | the supervisor starts and stops owned containers only |
 
 Pinned images are pulled by digest on install; no floating tags are used. See
