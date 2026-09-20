@@ -78,3 +78,7 @@ Latest evidence: 76 Python tests, 67 Bun tests/377 assertions, strict types and 
 All 82 Python tests pass. Seven live checks observe 19 owned containers, all stopped, no pending receipt, and unchanged catalog/journal/endpoint/native-witness hashes. The live fixture did not run PostgreSQL queries; the bounded metadata-query branch and pending evidence combinations have isolated coverage. Adversarial review corrected strict version validation and unobserved-owned-source wording.
 
 Next: stage-specific recovery for partial effects without a native witness. Do not treat this observation report as permission to clear a receipt or replay a command.
+
+## Documentation handoff and unfinished preflight recovery
+
+The current entry point is HANDOFF.md, with saved diagrams, decision rationale, research links and remaining gates. PREFLIGHT-RECOVERY-WIP.md records the uncommitted stage protocol, exact source files, targeted test evidence and missing review/integration. Preserve that working tree when switching assistants. This documentation update does not certify or complete the implementation. No new live runtime check was performed for the handoff.

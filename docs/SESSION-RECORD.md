@@ -1,6 +1,6 @@
 # Sbarbase: implementation record through 2026-09-20
 
-Updated 2026-09-20. Historical implementation record. Read PROJECT.md for current status. Workspace: `/home/sbarah/R/Projects/P/sbarbase`.
+Updated 2026-09-20. Historical implementation record. Start with docs/HANDOFF.md and the final section of docs/RESUME-CHECKPOINT.md for current status; earlier entries below are historical. Workspace: `/home/sbarah/R/Projects/P/sbarbase`.
 
 ## Purpose and firm requirements
 
