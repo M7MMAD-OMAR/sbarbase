@@ -143,7 +143,7 @@ def main():
             if stop_event.is_set():
                 return
             started = True
-            if run_stage(['/usr/bin/python3', 'lab/durable_runtime.py', 'up'], stop_event):
+            if run_stage(['/usr/bin/python3', 'lab/installation_runtime.py', 'up'], stop_event):
                 raise RuntimeError('Runtime startup failed')
             if not stop_event.is_set():
                 Supervisor(stop_event, worker_lock.fileno()).run()
@@ -154,7 +154,7 @@ def main():
             raise SystemExit(1)
         finally:
             if started:
-                result = run_stage(['/usr/bin/python3', 'lab/durable_runtime.py', 'stop'], threading.Event(), timeout=30)
+                result = run_stage(['/usr/bin/python3', 'lab/installation_runtime.py', 'stop'], threading.Event(), timeout=90)
                 if result:
                     print('Owned runtime stop failed; inspect its current container state.', file=sys.stderr)
 

@@ -118,4 +118,4 @@ third durable environment created through the UI and its revoked test key.
 
 ## Retained recovery target
 
-After the documented cutover rehearsal, `target_runtime.py up` and `target_runtime.py stop` manage the retained moved target under the operation lock. See `../docs/TARGET-LIFECYCLE.md`. Current staged mode requires the source stopped and refuses simultaneous startup in either direction. Normal `dev.py` continues to serve source neighbors only; combined source/target supervision is not implemented yet.
+After the documented cutover rehearsal, `target_runtime.py up` and `target_runtime.py stop` manage the retained moved target under the operation lock. See `../docs/TARGET-LIFECYCLE.md`. Current staged mode requires the source stopped and refuses simultaneous startup in either direction. Normal `dev.py` now uses `installation_runtime.py` for combined source/target startup after bounded resource admission. See `../docs/COMBINED-RUNTIME.md`.

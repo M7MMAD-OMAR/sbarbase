@@ -64,10 +64,11 @@ class TargetRuntime:
         self.phase('target-stop-failed' if errors else 'target-stopped-routing-paused')
         if errors:raise RuntimeError('Target shutdown incomplete')
 
-    def start(self):
+    def start(self,combined_admission=None):
         # Preserve the current bounded staged-test budget until combined source
         # and target resource admission is implemented.
-        if lab.docker('ps','-q','--filter','label=io.sbarbase.owner='+runtime.OWNER).stdout.strip():raise RuntimeError('Staged target mode requires stopped source')
+        if combined_admission is not None:combined_admission.check_current()
+        elif lab.docker('ps','-q','--filter','label=io.sbarbase.owner='+runtime.OWNER).stdout.strip():raise RuntimeError('Staged target mode requires stopped source')
         available=int(next(x.split()[1] for x in Path('/proc/meminfo').read_text().splitlines() if x.startswith('MemAvailable:')))
         if available<6*1024*1024:raise RuntimeError('Insufficient memory headroom')
         revision=self.pause();self.phase('target-starting')

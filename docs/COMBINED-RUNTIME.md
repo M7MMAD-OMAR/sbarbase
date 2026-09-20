@@ -1,0 +1,11 @@
+# Combined local placement runtime
+
+`/usr/bin/python3 lab/dev.py` now starts the source neighbors and the retained moved target through `installation_runtime.py`, then runs the console/API and worker. Shutdown pauses target routing and stops both runtimes, retaining all data. Installations without a cutover journal keep the previous source-only behavior.
+
+Combined startup validates retained container identities, applies a 6 GiB and 6 CPU installation ceiling, requires planned memory plus 2.5 GiB host reserve and two spare logical CPUs, and rejects excessive host CPU/I/O/memory pressure. It rejects any unexpected running owned container, including an old recovery target. Every planned container must have finite memory and CPU limits. Admission is checked before startup and again before target activation. This explicitly extends the staged experiment budget; it is not a recommendation for production sizing.
+
+The conservative plan includes all four source environments even though the fenced one's old Auth/REST stay stopped: 5888 MiB and 5.75 CPUs of configured ceilings. The recorded host snapshot had 11130 MiB available and low pressure. These are allocation limits and a snapshot, not measured peak use. Existing unrelated workloads remain outside ownership and are accounted for only indirectly through host headroom/pressure. Admission is not continuous overload control.
+
+The controller starts source services, verifies the moved database is still closed and its old Auth/REST are stopped, then starts/health-checks the target, refreshes its placement and resumes it. Standalone source/target commands retain the staged restrictions. The combined controller is the explicit exception after admission. Current local supervisor and worker locks still apply.
+
+The real foreground supervisor passed 14 simultaneous gateway checks: built console, management Auth settings, three source neighbors and moved target Auth/REST endpoints. Shutdown was verified to leave all owned source and target containers stopped. All 62 Python tests and 60 Bun tests with 314 assertions pass; the combined gateway probe passes strict types. This short availability run does not prove sustained mixed workloads, crash recovery, multi-host supervision, graceful multi-worker drain or production HA.

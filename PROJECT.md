@@ -175,3 +175,7 @@ Normal source startup preserved the moved database fence and left its old Auth/R
 ## Retained target lifecycle checkpoint
 
 [Target up/stop lifecycle](docs/TARGET-LIFECYCLE.md) now validates resources, preserves maintenance through health checks, refreshes addresses and resumes the moved environment. Stop pauses admission and retains data. Ten live checks and three new unit cases pass; Python total 57. Source/target startup is symmetrically restricted to staged mode pending combined resource admission and supervisor integration. Both stacks are stopped; moved route paused, neighbors ready for normal source startup.
+
+## Combined foreground installation checkpoint
+
+Normal dev.py now supervises source neighbors and moved target through a combined controller. Conservative planned ceilings: 5888 MiB and 5.75 CPUs, admitted under 6 GiB/6 CPU caps with host memory/CPU reserves and pressure checks. Actual supervisor passed 14 simultaneous gateway checks across console, management and all four environments; shutdown stopped both stacks. 62 Python and 60 Bun tests pass, with 314 Bun assertions. Continuous capacity, controller death and production HA remain unverified.

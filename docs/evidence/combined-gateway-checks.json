@@ -1,0 +1,20 @@
+{
+  "scope": "Actual foreground supervisor console and management realm, three source neighbors and moved target simultaneously reachable through one gateway. Auth settings/REST root availability, not sustained load or full user workflows.",
+  "checks": [
+    "foreground console serves built page",
+    "management identity realm remains reachable alongside moved target",
+    "environment route active in shared control catalog",
+    "combined auth endpoint returns success",
+    "combined rest endpoint returns success",
+    "environment route active in shared control catalog",
+    "combined auth endpoint returns success",
+    "combined rest endpoint returns success",
+    "environment route active in shared control catalog",
+    "combined auth endpoint returns success",
+    "combined rest endpoint returns success",
+    "environment route active in shared control catalog",
+    "combined auth endpoint returns success",
+    "combined rest endpoint returns success"
+  ],
+  "count": 14
+}
