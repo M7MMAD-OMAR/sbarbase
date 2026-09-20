@@ -1,0 +1,31 @@
+[Unit]
+Description=sbarbase installation supervisor (owned Supabase placement, console and worker)
+Documentation=file:/opt/sbarbase/docs/SERVER-DEPLOYMENT.md
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=sbarbase
+Group=sbarbase
+WorkingDirectory=/opt/sbarbase
+Environment=HOME=/home/sbarbase
+# Preflight refuses on insufficient headroom, missing pins or pending authority state.
+ExecStartPre=/usr/bin/python3 /opt/sbarbase/lab/install_server.py check
+ExecStart=/usr/bin/python3 /opt/sbarbase/lab/dev.py
+# dev.py stops the owned runtime on SIGTERM; allow its 90 second budget.
+TimeoutStopSec=150
+KillMode=mixed
+Restart=on-failure
+RestartSec=10
+# The supervisor needs Docker access; keep it out of the docker group only if an
+# equivalent socket permission already applies to this user.
+SupplementaryGroups=docker
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+ReadWritePaths=/opt/sbarbase /home/sbarbase/.secrets
+
+[Install]
+WantedBy=multi-user.target

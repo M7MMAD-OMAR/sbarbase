@@ -1,0 +1,114 @@
+# Server deployment
+
+Runbook for deploying a sbarbase installation to a Linux server. Status:
+2026-09-20. The deployment path is written and its preflight is proven; an
+end-to-end install has been rehearsed on this host only up to the admission
+gate, because the host currently lacks the required headroom. Read
+[HERMES-HANDOFF](HERMES-HANDOFF.md) for what is finished and what is not.
+
+## Prerequisites
+
+| Requirement | Why |
+|---|---|
+| Linux x86-64 host with Docker (native daemon, not remote) | every placement runs pinned containers |
+| Bun on PATH | package manager, console build, gateway checks |
+| `/usr/bin/python3` 3.14 or newer | the lab runtime uses modern f-strings |
+| Git checkout of this repository | state and lock files live in the checkout by default |
+| Headroom: 5888 MiB planned plus 2560 MiB reserve, 6 both-CPU spare, 12 GiB free disk | `CombinedAdmission` and `ResourceAdmission` refuse below these |
+| Docker socket access for the service user | the supervisor starts and stops owned containers only |
+
+Pinned images are pulled by digest on install; no floating tags are used. See
+[upstream update policy](UPSTREAM-UPDATE-POLICY.md) before changing any pin.
+
+## Install
+
+```
+/usr/bin/python3 lab/install_server.py check        # read-only preflight, non-zero on blockers
+/usr/bin/python3 lab/install_server.py plan         # print the exact steps
+/usr/bin/python3 lab/install_server.py install --bootstrap-file /root/sbarbase-operator.json
+```
+
+`install` performs, in order: preflight, private state and secret directories
+(0700), pinned image pull when not local, `bun install` when needed, console
+build, owned runtime startup, and the operator identity bootstrap. The
+bootstrap file is a 0600 JSON object with exactly `email`, `password` and
+`organization`; it is piped on stdin and never passed as an argument or printed.
+
+A fresh install initializes exactly one HBA generation for the new database. A
+retained installation (containers already present) is refused until its source
+and current recovery target carry generation pins:
+
+```
+/usr/bin/python3 lab/adopt-retained.py source
+/usr/bin/python3 lab/verify-retained.py source
+/usr/bin/python3 lab/adopt-retained.py target
+/usr/bin/python3 lab/verify-retained.py target
+```
+
+Adoption starts and stops only the captured database container and preserves its
+existing rules byte for byte. Never delete a pin, journal or receipt to bypass
+the gate.
+
+## Supervise
+
+Copy `deploy/sbarbase.service` to `/etc/systemd/system/`, adjust `User`,
+`WorkingDirectory` and the paths, then:
+
+```
+systemctl daemon-reload
+systemctl enable --now sbarbase.service
+systemctl status sbarbase.service
+```
+
+The unit runs `lab/dev.py`, which builds the console, starts the owned runtime,
+runs the API and the provisioning worker, and stops the runtime on SIGTERM.
+`ExecStartPre` re-runs the preflight, so an unfit host fails before any
+container is touched. For a foreground run instead, execute
+`/usr/bin/python3 lab/dev.py` in a terminal and stop it with Ctrl+C.
+
+## Verify after install
+
+```
+/usr/bin/python3 lab/install_server.py smoke         # management Auth, per-environment routes, console pid
+bun lab/combined-gateway-check.ts                    # 14 simultaneous gateway checks (needs the console built)
+bun lab/combined-supervisor-check.ts                 # full rehearsal: start, checks, supervised shutdown
+```
+
+The smoke command reports each endpoint status and does not modify state. The
+supervisor rehearsal additionally requires the same headroom as a normal start.
+
+## HTTPS and network exposure
+
+The console and the gateway bind loopback and are reachable only through the
+host. Terminate TLS in a reverse proxy (nginx, Caddy or the platform proxy) that
+forwards to the printed console URL, and keep the Docker networks internal: the
+installer creates no published ports. Do not expose the management Auth endpoint
+or the provisioning API directly. Set the public URL the console should advertise
+in the proxy, not in the console build.
+
+## Backup, upgrade and rollback
+
+- Backup: stop the supervisor, then back up the `pgdata` volumes plus the
+  private state directory. The encrypted export and independent-restore path is
+  documented in [INDEPENDENT-RESTORE](INDEPENDENT-RESTORE.md); it is the only
+  restore path with recorded evidence.
+- Upgrade: follow [UPSTREAM-UPDATE-POLICY](UPSTREAM-UPDATE-POLICY.md): read the
+  upstream changelog, write a dated entry in `docs/upstream/`, adopt one
+  component at a time, run the full Python and Bun suites plus the live checks,
+  and record the rollback pin before starting.
+- Rollback: restore the previous pin, then restart the supervisor. Data
+  migrations are the operator's responsibility and must be recorded in the same
+  entry.
+
+## Known limits at this revision
+
+- No end-to-end install rehearsal has been run on a real server yet; the
+  preflight, the runtime startup, adoption and verification are each proven
+  separately in the evidence files under `docs/evidence/`.
+- No production capacity claim: 5888 MiB and 5.75 CPUs are configured ceilings,
+  not measured peak demand. Sustained mixed load and 10/100-project capacity are
+  unproven.
+- Realtime, Functions, the connection pooler and cron are not implemented.
+- Off-host restore, multi-host coordination and automatic upgrades are out of
+  scope for this revision.
+- The bootstrap flow has no invitations, MFA or rate limiting.

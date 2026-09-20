@@ -1,10 +1,19 @@
 # Local operator setup
 
-Verified 2026-09-20. This is local experimental onboarding, not a finished installer.
+Verified 2026-09-20. This is local experimental onboarding. A server deployment
+runbook is in [SERVER-DEPLOYMENT](SERVER-DEPLOYMENT.md). The installer is
+`lab/install_server.py` (`check`, `plan`, `install`, `smoke`).
 
 ## Current compatibility gate
 
-Fresh installations and source restarts with a matching HBA generation pin are supported by the current local experiment. Retained legacy installations without that pin require explicit adoption, which is not implemented yet. Their startup refuses before credential writes or service startup. Do not recreate their containers or remove state to bypass the gate. See [source HBA integration](SOURCE-HBA-INTEGRATION.md).
+Fresh installations and retained installations whose source and current recovery
+target carry a matching HBA generation pin are supported. Retained legacy
+databases without that pin require explicit adoption
+(`lab/adopt-retained.py source|target`), and their startup refuses before
+credential writes or service startup. Both retained databases in this checkout
+are adopted as of 2026-09-20. Do not recreate their containers or remove state to
+bypass the gate. See [source HBA integration](SOURCE-HBA-INTEGRATION.md) and
+[recovery-target writers](TARGET-HBA-WRITERS.md).
 
 ## Run
 
