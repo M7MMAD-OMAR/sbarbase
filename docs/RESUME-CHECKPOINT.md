@@ -423,6 +423,37 @@ environment routes, supervised shutdown, no owned container left running). On
 this host it records the preflight refusal, `Host headroom insufficient`,
 without starting anything: docs/evidence/deployment-rehearsal.json.
 
+## Full lifecycle rehearsal passed locally, 2026-09-20 (Hermes)
+
+The complete source plus target rehearsal now passes on this host:
+`docs/evidence/deployment-rehearsal.json`, ten of ten checks, 16:08:16 to
+16:09:19 (63 s). Preflight passed, the built page was intact, the supervisor
+started and owned the console (it needed a second attempt while the host was
+under memory pressure), the console served the built page, the management
+identity realm answered 200, all eight recorded environment routes answered 200,
+fourteen combined gateway checks passed, the supervisor shut down cleanly with
+exit 0, and no owned container was left running. The combined admission that the
+same run exercised recorded 5888 MiB of container limits and 5.75 CPUs admitted
+at 9328 MiB available, with the target started
+(`docs/evidence/combined-runtime-admission.json`).
+
+What made it possible, after several refusals caused by the shared host:
+
+- the preflight states the real requirement (placement plus reserve plus the
+  measured running-stage cost, 8731 MiB) and refuses before creating containers,
+  so a doomed start no longer creates eleven containers and rolls back;
+- the console build is reused when it is newer than every input, removing the
+  few hundred MiB and the delay of rebuilding it on every start;
+- the rehearsal retries a pressure-refused start (`--attempts`) and records each
+  attempt's reason;
+- the systemd unit check is informational unless the run is a server acceptance
+  run (`--require-unit`, which `deploy/server-acceptance.sh` passes), because a
+  development host runs the supervisor directly.
+
+Still not proven on this host: a run with `sbarbase.service` installed and
+enabled, HTTPS termination, and the install path from an empty host. Those are
+what the server acceptance run adds.
+
 ## Combined rehearsal headroom correction, 2026-09-20 (Hermes)
 
 The first full rehearsal that got past the preflight exposed a real defect: it

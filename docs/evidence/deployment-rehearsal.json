@@ -1,6 +1,6 @@
 {
  "scope": "Deployment rehearsal: read-only preflight, installation (or an already installed host), supervisor startup, console and management reachability, recorded environment routes, the supervised unit when installed, supervised shutdown and absence of running owned containers. Not sustained load, not multi-host, not HTTPS termination.",
- "command": "/usr/bin/python3 lab/deployment_rehearsal.py --skip-install",
+ "command": "/usr/bin/python3 lab/deployment_rehearsal.py --skip-install --attempts 2 --attempt-delay 25",
  "host": {
   "platform": "Linux-7.1.12-200.fc44.x86_64-x86_64-with-glibc2.43",
   "kernel": "7.1.12-200.fc44.x86_64",
@@ -9,8 +9,8 @@
   "docker": "29.7.2",
   "bun": "1.3.14",
   "systemd": "systemd 259 (259.8-1.fc44)",
-  "mem_available_mib": 8427,
-  "disk_free_mib": 505242
+  "mem_available_mib": 8614,
+  "disk_free_mib": 505341
  },
  "pins": [
   {
@@ -47,10 +47,12 @@
  },
  "bootstrap_file_used": false,
  "install_skipped": true,
+ "startup_attempts_allowed": 2,
+ "unit_required": false,
  "supervisor_log": "/home/sbarah/R/Projects/P/sbarbase/.lab/upstream/rehearsal-supervisor.log",
  "runtime_diagnostics": "/home/sbarah/R/Projects/P/sbarbase/.lab/upstream/diagnostics",
- "started_at": "2026-09-20T15:48:23+04:00",
- "finished_at": "2026-09-20T15:48:39+04:00",
+ "started_at": "2026-09-20T16:08:16+04:00",
+ "finished_at": "2026-09-20T16:09:19+04:00",
  "checks": [
   {
    "check": "host preflight passed",
@@ -64,10 +66,45 @@
   },
   {
    "check": "supervisor started and owns the console",
-   "ok": false,
-   "detail": "Supervisor exited during startup;  \u001b[38;5;240m  \u2502\u001b[0m  |  \u001b[38;5;240m  \u2502\u001b[0m \u001b[38;5;115mHelp\u001b[0m: For more information, see https://rolldown.rs/in-depth/directives#other-directives | \u001b[38;5;246m\u2500\u2500\u2500\u256f\u001b[0m |  | \u2713 built in 138ms | Installation runtime refused or incomplete; diagnostics: /home/sbarah/R/Projects/P/sbarbase/.lab/upstream/diagnostics/installation-runtime-20260920T154839.log | Runtime startup failed; the installation runtime reported its own reason above | Installation runtime stop completed"
+   "ok": true,
+   "detail": "after 2 attempts: attempt 1: Supervisor exited during startup; console build up to date: built page is newer than every input | Installation runtime refused or incomplete; diagnostics: /home/sbarah/R/Projects/P/sbarbase/.lab/upstream/diagnostics/installation-runtime-20260920T160832.log | Runtime startup failed; the installation runtime reported its own reason above | Installation runtime stop completed"
+  },
+  {
+   "check": "console serves the built page",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "management identity realm reachable through the console",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "every recorded environment route answered",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "combined gateway checks passed",
+   "ok": true,
+   "detail": "14 combined gateway checks passed"
+  },
+  {
+   "check": "supervised path exercised through systemd",
+   "ok": true,
+   "detail": "not required for this run: the supervisor was started directly, sbarbase.service is not installed"
+  },
+  {
+   "check": "supervisor shut down cleanly",
+   "ok": true,
+   "detail": "exit 0"
+  },
+  {
+   "check": "no owned container left running",
+   "ok": true,
+   "detail": ""
   }
  ],
- "passed": false,
- "count": 3
+ "passed": true,
+ "count": 10
 }

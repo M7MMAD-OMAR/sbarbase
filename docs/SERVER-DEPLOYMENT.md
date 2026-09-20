@@ -2,9 +2,11 @@
 
 Runbook for deploying a sbarbase installation to a Linux server. Status:
 2026-09-20. The deployment path is implemented: preflight, installer, systemd
-supervision, a one-command rehearsal and this runbook. It has **not** been run
-end to end on a real server, and an independent adversarial review of the
-deployment code found defects that are now fixed
+supervision, a one-command rehearsal and this runbook. The full source and target
+lifecycle rehearsal passes on the development host (10 of 10 checks,
+`docs/evidence/deployment-rehearsal.json`). It has **not** been run on a real
+server, and an independent adversarial review of the deployment code found
+defects that are now fixed
 ([review](reviews/target-and-deployment-review.md)); the fresh target and
 retained adoption paths are proven on disposable fixtures and on the retained
 databases, not through a full restore or install. Read
