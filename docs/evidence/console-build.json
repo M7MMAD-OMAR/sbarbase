@@ -1,0 +1,22 @@
+{
+ "scope": "Install step \"console built\", isolated: the production UI build is run and the produced page is checked for a non-empty index and for every local asset it references. Not a browser render, not a serving check, not the console API.",
+ "build": null,
+ "page": {
+  "page_bytes": 392,
+  "page_sha256": "6a708019e50f066b4742537ed814ab84b3af23a345213638641ece966016298b",
+  "assets": {
+   "assets/index-03pyDXHP.js": {
+    "bytes": 454098,
+    "sha256": "b969fa0a9ee5870420a2491a3181ba319e1e8ca3b69cac978f0c620fe27144a0"
+   },
+   "assets/index-NdYKSyHJ.css": {
+    "bytes": 6954,
+    "sha256": "7afed8fae3bd6eb7a73c57a13c87bea9a07c4c2bb9300f5511cac83fe994d3c2"
+   }
+  },
+  "referenced": 2
+ },
+ "problems": [],
+ "run_at": "2026-09-20T15:31:14+04:00",
+ "passed": true
+}

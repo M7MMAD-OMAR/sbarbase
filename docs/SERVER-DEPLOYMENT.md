@@ -106,6 +106,11 @@ the unit was present, enabled and verified.
 
 ## Verify after install
 
+- `lab/console_build_check.py` rebuilds the console and proves the served page is
+  intact (non-empty index, every local asset it references present and hashed).
+  The installer now refuses a build that produces an unusable page, and the
+  rehearsal records `built console page is intact` before it starts anything.
+
 ```
 /usr/bin/python3 lab/install_server.py smoke         # management Auth, per-environment routes, console pid
 bun lab/combined-gateway-check.ts                    # 14 simultaneous gateway checks (needs the console built)

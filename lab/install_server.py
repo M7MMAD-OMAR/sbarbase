@@ -22,6 +22,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import console_build_check
 ROOT=Path(__file__).resolve().parent.parent
 STATE=ROOT/'.lab'/'upstream'
 PRIVATE=ROOT/'.secrets'/'upstream'
@@ -202,7 +203,9 @@ def install(bootstrap_file):
         print('step 2/5  pinned images present')
         npm_install()
         run(['bun','run','build:ui'],cwd=ROOT)
-        print('step 3/5  console built')
+        problems,_=console_build_check.verify()
+        if problems:raise SystemExit('Console build produced an unusable page: '+'; '.join(problems))
+        print('step 3/5  console built and verified')
         result=run(['/usr/bin/python3','lab/installation_runtime.py','up'],cwd=ROOT,check=False,env={**os.environ})
         if result.returncode:raise SystemExit('Runtime startup failed: '+result.stderr.strip())
         print('step 4/5  owned runtime started')

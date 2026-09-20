@@ -24,6 +24,7 @@ import time
 import urllib.error
 import urllib.request
 from pathlib import Path
+import console_build_check
 import install_server
 
 ROOT=Path(__file__).resolve().parent.parent
@@ -127,6 +128,8 @@ def rehearse(bootstrap_file,skip_install,timeout):
         record('installation steps completed',True)
     process=None
     try:
+        problems,_=console_build_check.verify()
+        record('built console page is intact',not problems,'; '.join(problems))
         process,server=start_supervisor(timeout)
         record('supervisor started and owns the console',True)
         record('console serves the built page',http_status(server['url']+'/')==200)
