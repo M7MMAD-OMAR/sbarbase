@@ -2,16 +2,30 @@
 import fcntl
 import json
 import os
+import math
+import signal
+import time
 from pathlib import Path
 import subprocess
 import sys
 import uuid
 from effect_receipt import publish,complete
+from dev import child_status,terminate_group
 
 
 def main():
-    if len(sys.argv)<4:
+    if len(sys.argv)<5:
         raise SystemExit('Expected worker lock, identity and effect command')
+    stopping=False
+    def stop(*_):
+        nonlocal stopping
+        stopping=True
+    signal.signal(signal.SIGTERM,stop);signal.signal(signal.SIGINT,stop)
+    # Keep this guardian outside the worker group so worker escalation cannot
+    # interrupt cleanup. Parent-death binding remains active after setsid.
+    os.setsid()
+    timeout=float(sys.argv[3])
+    if not math.isfinite(timeout) or not 0<timeout<=180:raise SystemExit('Invalid effect deadline')
     lock_path=Path(sys.argv[1])
     held,expected=os.fstat(3),lock_path.stat()
     if (held.st_dev,held.st_ino)!=(expected.st_dev,expected.st_ino):
@@ -25,9 +39,19 @@ def main():
     receipt=lock_path.with_name('worker-effect.json')
     record={'version':1,'phase':'pending','token':str(uuid.uuid4()),'job':identity}
     publish(receipt,record)
-    command=sys.argv[3:]
-    child=subprocess.Popen(command,pass_fds=(3,),env=dict(os.environ,SBARBASE_EFFECT_TOKEN=record['token']))
-    code=child.wait()
+    command=sys.argv[4:]
+    child=None;interrupted=False;code=None
+    deadline=time.monotonic()+timeout
+    try:
+        if stopping:return 1
+        child=subprocess.Popen(command,pass_fds=(3,),start_new_session=True,env=dict(os.environ,SBARBASE_EFFECT_TOKEN=record['token']))
+        while (code:=child_status(child)) is None:
+            if stopping or time.monotonic()>=deadline:
+                interrupted=True;break
+            time.sleep(.02)
+    finally:
+        if child is not None:terminate_group(child,grace=.5)
+    if interrupted or stopping or time.monotonic()>=deadline:return 1
     # Admission refusal is proven before mutations only for this exact entry point.
     refused=code==75 and command==['/usr/bin/python3','lab/durable_runtime.py','provision',identity['runtime']]
     if code==0 or refused:complete(receipt,record,code)

@@ -42,10 +42,10 @@ class WorkerEffectTests(unittest.TestCase):
                     self.assertNotEqual(subprocess.run(['bun','-e',script],timeout=5,**options).returncode,0)
                     self.assertFalse(marker.exists());self.assertEqual(receipt.read_bytes(),before)
 
-    def test_effect_retains_lock_after_worker_sigkill(self):
+    def test_worker_death_cancels_effect_while_retaining_lock(self):
         with tempfile.TemporaryDirectory() as directory:
-            base=Path(directory);ready=base/'ready';release=base/'release';done=base/'done'
-            effect="import pathlib,time; p=pathlib.Path("+repr(directory)+"); (p/'ready').touch(); deadline=time.monotonic()+10\nwhile not (p/'release').exists() and time.monotonic()<deadline: time.sleep(.02)\n(p/'done').touch()"
+            base=Path(directory);ready=base/'ready';release=base/'release';done=base/'done';stopping=base/'stopping'
+            effect="import signal,pathlib,time; p=pathlib.Path("+repr(directory)+")\ndef stop(*_):\n (p/'stopping').touch();time.sleep(.3);(p/'done').touch();raise SystemExit(0)\nsignal.signal(signal.SIGTERM,stop);(p/'ready').touch();deadline=time.monotonic()+10\nwhile not (p/'release').exists() and time.monotonic()<deadline: time.sleep(.02)\n(p/'done').touch()"
             with (base/'worker.lock').open('a') as held:
                 fcntl.flock(held,fcntl.LOCK_EX|fcntl.LOCK_NB)
                 command=['/usr/bin/python3','-c',effect]
@@ -56,15 +56,20 @@ class WorkerEffectTests(unittest.TestCase):
                     while not ready.exists() and time.monotonic()<deadline:time.sleep(.02)
                     self.assertTrue(ready.exists())
                     held.close();worker.kill();worker.wait(timeout=5)
+                    deadline=time.monotonic()+2
+                    while not stopping.exists() and time.monotonic()<deadline:time.sleep(.01)
+                    self.assertTrue(stopping.exists(),'Worker death must begin effect cancellation')
                     with (base/'worker.lock').open('a') as contender:
-                        with self.assertRaises(BlockingIOError):
-                            fcntl.flock(contender,fcntl.LOCK_EX|fcntl.LOCK_NB)
+                        with self.assertRaises(BlockingIOError):fcntl.flock(contender,fcntl.LOCK_EX|fcntl.LOCK_NB)
+                    deadline=time.monotonic()+5
+                    while not done.exists() and time.monotonic()<deadline:time.sleep(.02)
+                    self.assertTrue(done.exists())
+                    self.assertEqual(json.loads((base/'worker-effect.json').read_text())['phase'],'pending')
                 finally:
                     release.touch()
                     if worker.poll() is None:worker.wait(timeout=5)
                     deadline=time.monotonic()+5
                     while not done.exists() and time.monotonic()<deadline:time.sleep(.02)
-                self.assertTrue(done.exists())
                 deadline=time.monotonic()+5
                 with (base/'worker.lock').open('a') as contender:
                     while True:
@@ -72,3 +77,32 @@ class WorkerEffectTests(unittest.TestCase):
                         except BlockingIOError:
                             if time.monotonic()>=deadline:raise
                             time.sleep(.02)
+
+    def test_deadline_and_success_cleanup_noncooperative_descendants(self):
+        for success in (False,True):
+            with self.subTest(success=success),tempfile.TemporaryDirectory() as directory:
+                base=Path(directory);lock=base/'worker.lock'
+                grandchild="import signal,pathlib,time;signal.signal(signal.SIGTERM,signal.SIG_IGN);pathlib.Path("+repr(str(base/'grandchild-ready'))+").touch();time.sleep(30)"
+                effect="import os,signal,subprocess,pathlib,json,time;signal.signal(signal.SIGTERM,signal.SIG_IGN);p=pathlib.Path("+repr(directory)+");c=subprocess.Popen(['/usr/bin/python3','-c',"+repr(grandchild)+"]);deadline=time.monotonic()+5\nwhile not (p/'grandchild-ready').exists() and time.monotonic()<deadline:time.sleep(.01)\n(p/'pids').write_text(json.dumps([os.getpid(),c.pid]))\n"+("raise SystemExit(0)" if success else 'time.sleep(30)')
+                with lock.open('a') as held:
+                    fcntl.flock(held,fcntl.LOCK_EX|fcntl.LOCK_NB)
+                    command=['/usr/bin/python3','-c',effect]
+                    script="import {spawnWorkerEffect} from './lab/worker-effect'; const c=spawnWorkerEffect("+json.dumps(command)+",Number(process.env.TEST_WORKER_FD),"+json.dumps(str(lock))+",{environment:'fixture',runtime:'e_fixture',claim:'claim',attempt:1},1.5);process.exitCode=await c.exited;"
+                    start=time.monotonic()
+                    worker=subprocess.Popen(['bun','-e',script],cwd=ROOT,pass_fds=(held.fileno(),),env=dict(os.environ,TEST_WORKER_FD=str(held.fileno())))
+                    held.close()
+                    self.assertEqual(worker.wait(timeout=7)==0,success)
+                    self.assertLess(time.monotonic()-start,7)
+                    pids=json.loads((base/'pids').read_text())
+                    for pid in pids:
+                        status=Path(f'/proc/{pid}/stat')
+                        deadline=time.monotonic()+2
+                        while status.exists():
+                            try:state=status.read_text().split(') ',1)[1].split()[0]
+                            except FileNotFoundError:break
+                            if state=='Z':break
+                            if time.monotonic()>=deadline:self.fail('Owned effect descendant still running')
+                            time.sleep(.02)
+                    receipt=json.loads((base/'worker-effect.json').read_text())
+                    self.assertEqual(receipt['phase'],'completed' if success else 'pending')
+                    with lock.open('a') as contender:fcntl.flock(contender,fcntl.LOCK_EX|fcntl.LOCK_NB)

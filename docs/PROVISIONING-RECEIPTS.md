@@ -27,6 +27,6 @@ The live check verifies known refusal settlement, not a real Docker daemon crash
 
 ## Remaining work
 
-This is replay prevention, not complete automatic recovery. There is no timeout or complete descendant containment yet. Killing the direct provisioner or wrapper may leave a Docker client or daemon-side effect running, but a pending receipt prevents worker replay and normal startup.
+This is replay prevention, not complete automatic recovery. A later [effect guardian](EFFECT-GUARDIAN.md) adds a local deadline and owned-group termination protocol; complete descendant containment is not claimed. Killing the direct provisioner or wrapper may leave a Docker client or daemon-side effect running, but a pending receipt prevents worker replay and normal startup.
 
 Do not delete a pending receipt, edit a job to queued, or clear it based on age/PID alone. A bounded operator reconciliation workflow must verify actual Docker/database effects, preserve resource identity, and record a specific safe result before allowing recovery. That workflow remains to be implemented. Trusted low-level operator code and direct Docker/SQL access are outside this worker gate; this is not protection from a hostile host operator.

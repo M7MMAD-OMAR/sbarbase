@@ -9,7 +9,8 @@ const settleOnly=process.env.SBARBASE_RECEIPT_ONLY==='1';
 const watch=process.env.SBARBASE_WORKER_WATCH==='1';
 const catalog=new Catalog(upstream?'.lab/upstream/control.sqlite':'.lab/control.sqlite');
 let failed=false,stopping=false;
-const stop=()=>{stopping=true;};
+let activeEffect:ReturnType<typeof spawnWorkerEffect>|null=null;
+const stop=()=>{stopping=true;activeEffect?.kill('SIGTERM');};
 process.on('SIGTERM',stop);process.on('SIGINT',stop);
 const lockPath=upstream?'.lab/upstream/worker.lock':'.lab/worker.lock';
 try {
@@ -20,7 +21,8 @@ try {
   if(!job) {if(!watch)break;await Bun.sleep(500);continue;}
   const command=upstream?['/usr/bin/python3','lab/durable_runtime.py','provision',job.runtime]:['/usr/bin/python3','lab/provision.py',job.runtime];
   const child=spawnWorkerEffect(command,Number(process.env.SBARBASE_WORKER_FD),lockPath,{environment:job.environment,runtime:job.runtime,claim:job.claim!,attempt:job.attempt});
-  await child.exited;
+  activeEffect=child;
+  try{await child.exited;}finally{activeEffect=null;}
   const settled=settleWorkerReceipt(catalog,lockPath);
   const ok=settled==='succeeded';
   // An interrupted external effect remains recoverable, not falsely completed.

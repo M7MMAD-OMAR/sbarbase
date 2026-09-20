@@ -195,3 +195,7 @@ The direct provisioning process now inherits the same worker flock, validates it
 ## Provisioning replay protection checkpoint
 
 Durable receipts now precede worker effects and block normal startup/replay when their outcome is unknown. Exact-claim completion is persisted before receipt removal, and historical receipts cannot overwrite newer retries. Runtime startup bypass and retry/consumption race found in adversarial review are fixed. 72 Python tests, 65 Bun tests with 354 assertions and 11 live known-capacity-refusal checks pass. No new runtime allocated; all owned runtimes stopped. Explicit uncertain-effect reconciliation and descendant containment remain open. See docs/PROVISIONING-RECEIPTS.md.
+
+## Effect guardian checkpoint
+
+Parent-bound guardians now retain ownership while supervising separate effect process groups, with a 180-second local deadline and TERM/KILL cleanup. Worker death cancellation failed before the change and now passes, including lock retention during cleanup. Non-cooperative grandchild fixtures and stop-during-spawn tests pass. Totals: 74 Python tests, 65 Bun tests/354 assertions, strict worker types and 11 real receipt integration checks. All owned runtimes stopped. Pending Docker/database outcomes still need explicit reconciliation; local termination is not rollback. Details: docs/EFFECT-GUARDIAN.md.

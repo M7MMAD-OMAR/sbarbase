@@ -54,3 +54,11 @@ Next: direct provisioner death can still orphan a Docker CLI or leave daemon-sid
 Latest evidence: 72 Python tests, 65 Bun tests with 354 assertions, strict worker types and 11 live known-refusal integration checks. The existing rejected-capacity metadata was retried, with no new runtime allocation; all owned runtimes stopped afterward. Reviewer fixes for startup bypass and historical-receipt retry race are included. No pending receipt remains after the live check.
 
 Next: build explicit reconciliation for a pending receipt and bounded descendant containment. Do not clear a receipt based on age or process disappearance. Earlier automatic interrupted-job recovery evidence does not establish recovery under this new uncertainty gate. Inspect legacy interrupted jobs without receipts explicitly.
+
+## Effect guardian, latest checkpoint
+
+A parent-bound guardian in its own session supervises each effect in a separate owned group. Worker shutdown forwards SIGTERM; worker death triggers the parent binding. Default 180-second deadline, TERM/KILL cleanup with unreaped leader identity, and retained worker ownership now cover catchable cancellation. Interrupted effects remain pending even if the child exits zero. See EFFECT-GUARDIAN.md for precise limits.
+
+Latest evidence: 74 Python tests, 65 Bun tests/354 assertions, strict worker types, independent review and another 11-check real known-refusal integration pass. Test fixtures observe non-cooperative grandchild termination; production cleanup only waits for the direct leader. No new runtime allocated; all owned containers stopped. No pending receipt remains from the live check.
+
+Next: explicit pending-receipt inspection and Docker/database outcome reconciliation. Do not infer rollback from process termination. Escaped groups, guardian SIGKILL and uninterruptible kernel work remain outside the local containment guarantee.
