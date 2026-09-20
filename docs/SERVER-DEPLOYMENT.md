@@ -104,7 +104,11 @@ one rather than failing obscurely:
    account must be in the `docker` group. Where the account's context points at a
    desktop or per-user socket, point the unit at the system socket with a drop-in:
    `Environment=DOCKER_HOST=unix:///var/run/docker.sock` in
-   `/etc/systemd/system/sbarbase.service.d/docker.conf`. The preflight reports
+   `/etc/systemd/system/sbarbase.service.d/docker.conf`. One endpoint has to
+   serve both the service and the acceptance run: the unit carries no
+   `DOCKER_HOST` of its own, and the run's steps use the account's context, so
+   name the same socket for the run with `--docker-host` (below) whenever the
+   drop-in is needed. The preflight reports
    `Docker daemon unreachable from this process (tried <endpoint>)`, and when the
    daemon is unreachable it no longer guesses about pinned images or the existing
    containers.
@@ -171,6 +175,21 @@ rehearsal as root against a service-account installation fails, and a root-run
 install would leave files the service cannot use. The script does that
 substitution itself, so the single `sudo` invocation above is still the whole
 command.
+
+That substitution has one consequence worth naming: the step account's Docker
+context decides which daemon the preflight, the checks and the rehearsal reach,
+and `sudo` does not carry the invoking shell's `DOCKER_HOST` into the script. On a
+host whose account context resolves elsewhere (Docker Desktop, a non-default
+context, a socket only root's context knows), pass the socket explicitly:
+
+```
+deploy/server-acceptance.sh --rehearse --docker-host unix:///var/run/docker.sock
+```
+
+The flag exports `DOCKER_HOST` for every step, including the unit steps, so the
+run verifies the same daemon the service will use. Without it the preflight names
+the endpoint it tried and stops, rather than checking a daemon the service cannot
+reach.
 
 An acceptance run writes its rehearsal to
 `docs/evidence/server-acceptance-rehearsal.json` and copies it to

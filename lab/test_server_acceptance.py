@@ -175,6 +175,21 @@ class AcceptanceScriptContractTests(unittest.TestCase):
         self.assertEqual(result.returncode,0,result.stderr)
         self.assertIn('ran-as '+subprocess.run(['id','-un'],capture_output=True,text=True).stdout.strip(),result.stdout)
 
+    def test_the_docker_endpoint_is_named_and_forwarded_to_every_step(self):
+        self.assertIn('--docker-host) shift;',self.source)
+        self.assertIn('export DOCKER_HOST=\"$DOCKER_HOST_ARG\"',self.source)
+        self.assertIn('*[[:space:]]*) fail \"--docker-host must be a single endpoint',self.source)
+        # named before the steps that use it, and carried into the step account
+        self.assertLess(self.source.index('export DOCKER_HOST=\"$DOCKER_HOST_ARG\"'),
+                        self.source.index('install_server.py check'))
+        self.assertIn('environment+=(\"DOCKER_HOST=$DOCKER_HOST\")',self.source)
+
+    def test_the_help_documents_the_docker_endpoint(self):
+        help_text=subprocess.run(['bash',str(ROOT/'deploy'/'server-acceptance.sh'),'--help'],
+                                 capture_output=True,text=True)
+        self.assertEqual(help_text.returncode,0,help_text.stderr)
+        self.assertIn('--docker-host',help_text.stdout)
+
     def test_the_step_messages_say_whether_evidence_was_written(self):
         for path in ('docs/evidence/console-serve.json','docs/evidence/tls-termination.json'):
             self.assertIn(path,self.source)

@@ -15,6 +15,14 @@
 #   deploy/server-acceptance.sh --rehearse --install-unit \
 #        --service-user ops-account --home /srv/ops-account --bun-dir /srv/ops-account/.bun/bin
 #
+# Every step runs as that account, so name the Docker endpoint when the account's
+# Docker context does not resolve to the daemon the unit will use (a workstation
+# with Docker Desktop, a non-default context, a socket systemd must be told
+# about). The unit itself carries no DOCKER_HOST: on such a host add it to the
+# unit with a drop-in, as docs/SERVER-DEPLOYMENT.md describes.
+#
+#   deploy/server-acceptance.sh --rehearse --docker-host unix:///var/run/docker.sock
+#
 # It never prints a secret: only whether a bootstrap file was used. Every step
 # that fails stops the run and exits non-zero. Evidence lands in
 # docs/evidence/deployment-rehearsal.json and is copied to
@@ -31,6 +39,7 @@ INSTALL_UNIT=0
 SERVICE_USER=""
 SERVICE_HOME=""
 BUN_DIR=""
+DOCKER_HOST_ARG=""
 
 fail() { printf 'FAIL: %s\n' "$1" >&2; exit 1; }
 step() { printf '\n== %s\n' "$1"; }
@@ -48,8 +57,9 @@ while [ $# -gt 0 ]; do
     --service-user) shift; [ $# -gt 0 ] || fail "--service-user needs an account name"; SERVICE_USER="$1" ;;
     --home) shift; [ $# -gt 0 ] || fail "--home needs a path"; SERVICE_HOME="$1" ;;
     --bun-dir) shift; [ $# -gt 0 ] || fail "--bun-dir needs a path"; BUN_DIR="$1" ;;
+    --docker-host) shift; [ $# -gt 0 ] || fail "--docker-host needs an endpoint"; DOCKER_HOST_ARG="$1" ;;
     --python) shift; [ $# -gt 0 ] || fail "--python needs a path"; PYTHON="$1" ;;
-    -h|--help) sed -n '2,21p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,29p' "$0"; exit 0 ;;
     *) fail "unknown argument: $1" ;;
   esac
   shift
@@ -63,6 +73,17 @@ if [ -n "$BUN_DIR" ]; then
   PATH="$BUN_DIR:$PATH"
   export PATH
   printf 'ok: bun directory %s added to PATH\n' "$BUN_DIR"
+fi
+
+# The steps run as the installation's account, and that account's Docker context
+# may resolve elsewhere than the daemon the unit will use, so the endpoint is
+# named explicitly when the host needs it. It is forwarded to every step below.
+if [ -n "$DOCKER_HOST_ARG" ]; then
+  case "$DOCKER_HOST_ARG" in
+    *[[:space:]]*) fail "--docker-host must be a single endpoint with no whitespace: $DOCKER_HOST_ARG" ;;
+  esac
+  export DOCKER_HOST="$DOCKER_HOST_ARG"
+  printf 'note: docker steps use %s\n' "$DOCKER_HOST"
 fi
 
 # The installation's state belongs to an account, and its ownership model refuses
