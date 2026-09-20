@@ -111,3 +111,7 @@ The [same mixed SDK workload](docs/SDK-LOAD.md) now passes with service admissio
 ## Independent recovery export checkpoint
 
 A [selected-environment encrypted export](docs/RECOVERY-EXPORT.md) now includes scoped roles/settings, objects/xattrs and decrypted tenant signing keys enclosed under a new backup key. Twenty-nine live checks pass and the owned source is stopped with volumes retained. No shared platform key is intentionally added to configuration. Thirty-four Python tests pass. The next step remains a fresh-cluster restore and independent identity/object/signed-URL verification; archive round-trip is not restore certification.
+
+## Documentation checkpoint for continuation
+
+[Current resume state](docs/RESUME-CHECKPOINT.md) supersedes older next-step text. The latest export includes ICU locale metadata and table hashes. The independent database restore consumer is an uncommitted draft and failed resource preflight before target creation because the source is intentionally stopped. No independent restore success is claimed. Saved diagrams, research, decisions and unfinished source are included in the development handoff ZIP; private backup artifacts and keys are excluded.

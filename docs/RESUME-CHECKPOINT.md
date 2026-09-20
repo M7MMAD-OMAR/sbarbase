@@ -1,44 +1,35 @@
 # Resume checkpoint
 
-Recorded 2026-09-20 for documentation handoff. This file supersedes older next-step paragraphs for the current gateway change.
+Snapshot: 2026-09-20. Read this before older chronological checkpoints in PROJECT.md. Repository files are the continuation source for Codex or Hermes.
 
-## Decision and research
+## Current decision
 
-Keep Supabase. Use installation > organization > project > environment, with ownership independent of server placement. The local candidate uses shared PostgreSQL, one database and service credentials per environment, original Auth/REST per environment and shared Storage. Independent PostgreSQL remains the fallback. See [decisions and alternatives](DECISIONS.md), [research](ARCHITECTURE-REVIEW.md) and [handoff](HANDOFF.md). No production approval or 10/100-project capacity claim exists.
+Keep Supabase. Installation > organization > project > environment. Ownership is separate from server placement. Candidate: shared PostgreSQL, separate database and scoped credentials per environment, original Auth/REST per environment, shared Storage. Independent PostgreSQL remains the fallback if isolation, lifecycle or savings fail. This is a local prototype, not production approval or capacity certification for 10 or 100 projects.
 
-## Gateway verification checkpoint
+[Reasons and alternatives](DECISIONS.md), [research and review index](HANDOFF.md), [saved diagrams](diagrams/README.md).
 
-Baseline commit: `548d898`. Gateway files add `ConcurrencyGate`, a `node:http` loopback adapter under Bun, controlled HTTP tests, actual Supabase overload tests and an SDK regression mode. Preserve these files; do not overwrite them from the earlier baseline.
+## Verified
 
-- Application gateway defaults: 8 active requests per environment, 32 across its process, immediate 429/503 and Retry-After. A slot lasts through response consumption, cancellation or deadline. These are experimental request limits, not project capacity or cluster-wide limits. Management traffic has a separate lane.
-- Controlled HTTP evidence currently records 24 passing checks: saturation, neighboring response, recovery, gzip, disconnect, detectable stream deadline failure and a paused TCP client.
-- Actual Supabase overload evidence records 8 checks: eight concurrent RPCs admitted, ninth refused, neighbor returns correct data, target recovers. Temporary RPCs and keys were cleaned up.
-- Repeated unit run: 52 tests and 269 assertions passed. Strict type checking passed for the HTTP adapter, handler and concurrency gate.
-- Fixed the unsupported Bun `server.getConnections()` call using owned socket tracking. The paused-client test now waits for server acceptance and proves the socket closes after its deadline while the client remains paused.
-- The SDK regression passed 1,000 operations with no failures across the two paced phases. Fixture cleanup completed and the owned runtime stopped. Raw results: `docs/evidence/sdk-overload-regression.json`.
-- Native fetch proxying uses `decompress: false` to preserve compressed bytes and matching headers. The HTTP adapter was introduced after local Bun.serve streaming probes showed deadline/error handling could appear as successful partial output. This observation is version-specific, not a general claim about Bun.
-- Pre-header waiting now has a separate 30-second deadline. Tests verify slot recovery even if an injected transport never settles, cancellation of late response bodies, and HTTP 504/recovery. The gate cannot force arbitrary underlying work to terminate.
+- Local management console, queued provisioning, scoped keys and original Supabase services with retained volumes.
+- Gateway admission: 8 requests/environment, 32/process, REST 3 matching its pool. These are experimental limits.
+- REST client disconnect can leave SQL running. Admission is retained through bounded upstream settlement/draining. REST defaults are 8-second statement and 12-second transaction deadlines; trusted SQL is outside the hard-isolation claim.
+- Combined-policy SDK probe: 1,001 correct operations. Latest recorded unit suites: 52 Bun tests, 269 assertions, 34 Python tests. These are prior results, not newly rerun during documentation.
+- Encrypted selected-environment export: 29 live checks. Includes database, scoped configuration, object bytes/xattrs and tenant signing material. Latest export adds ICU locale metadata and table counts/hashes.
 
-## Next actions in order
+## Exact unfinished work
 
-1. Review the [service-budget mitigation and retained failed baseline](SUSTAINED-OVERLOAD.md). REST admission now follows its configured pool of 3, alongside environment/process limits. [Actual SQL observation](REST-CANCELLATION.md) found client abort does not promptly stop SQL; configured REST now retains admission through upstream response settlement and draining. [REST SQL defaults](SQL-DEADLINES.md) now pass live 8-second statement and 12-second transaction expiry/recovery checks. Verify representative mixed traffic with these policies before production sizing; trusted SQL overrides and other execution patterns remain outside this proof. The earlier 1,000-operation SDK regression predates this service cap.
-2. Audit management traffic limits separately from application traffic and measure actual upstream cancellation under sustained overload.
-3. Recheck free host resources and existing owned containers before running probes; preserve earlier baseline evidence and do not lower admission thresholds.
+Baseline commit: `bb0bba1`. Uncommitted work: `lab/recovery-export.py`, `docs/evidence/recovery-export-checks.json`, and new `lab/recovery-restore-db.py`. Preserve it; the handoff archive includes it as unfinished source.
 
-## Runtime safety
+The restore draft failed before target allocation. `resource_admission.snapshot()` tries Docker exec against deliberately stopped source containers. Next: measure the actual destination filesystem and native host memory without requiring the source to run or lowering safeguards. Then run the separate-cluster database restore and verify complete roles, memberships, ACLs, settings, locale and table contents. Review cleanup after partial container creation.
 
-The SDK regression and subsequent eight-check supervisor smoke test stopped the owned durable runtime with four retained environments. Reinspect actual state before acting. Configured container ceilings total 3840 MiB and 3.75 CPUs, not total host consumption. Startup may refuse below 6 GiB available RAM; do not bypass that guard. Preserve unrelated Docker services and all retained volumes. Credentials stay in ignored `.secrets/`, runtime state in `.lab/`.
+No independent database restore success is claimed. After database verification, restore target Auth/REST/Storage, rebind target connections, reencrypt tenant signing keys under a fresh target platform key, restore objects/xattrs and verify identity, old signed URLs and source/neighbor isolation. Database-only success will not complete recovery. Full server migration, organization transfer, upgrades, sustained capacity and production installation remain open.
 
-## Saved artifacts
+## Runtime and secrets
 
-[Ten-project illustration](diagrams/ten-projects.png), [transfer and recovery illustration](diagrams/move-and-restore.png), [diagram assumptions](diagrams/README.md), [console images and QA](design/CONSOLE-QA.md). Illustrations describe intended operations, not completed transfer/backup functionality.
+Source durable containers are stopped, volumes retained. No recovery-target container was found at documentation time. Reinspect before execution. Preserve unrelated containers and all source volumes. The private artifact pointer is `.lab/upstream/recovery-latest.json`; load it programmatically without printing secrets. `.secrets/` and `.lab/` are excluded from the handoff ZIP, so the ZIP is not a usable data backup.
 
-Sources for the current transport setting: [Bun fetch documentation](https://bun.sh/docs/runtime/networking/fetch), [Bun fetch request options](https://bun.com/reference/globals/BunFetchRequestInit). Reproductions and their scope are in `lab/gateway-http-check.ts`, `docs/evidence/gateway-http-checks.json` and `docs/evidence/gateway-overload-checks.json`.
+Local source container ceilings total 3840 MiB and 3.75 CPUs. They are not total host usage or production sizing. Recheck resources, stage source/target startup and retain existing guards.
 
-## Latest continuation priority
+## Continue
 
-The mixed SDK regression now passed 1,001 operations with all recent admission/deadline policies. See SDK-LOAD.md. The next major gate is restoration into a separate PostgreSQL cluster. Existing encrypted recovery evidence is same-cluster only. Inspect the recovery code and preserve source/neighbor data; use staged container startup to stay within the local resource budget.
-
-## Recovery export ready for the next gate
-
-[RECOVERY-EXPORT.md](RECOVERY-EXPORT.md) records the new encrypted artifact, consistency checks and remaining limitations. Source runtime is stopped after 29 live export checks; volumes are retained. Use `.lab/upstream/recovery-latest.json` programmatically to locate the private archive/key. The separate-cluster restore consumer is not implemented yet. Thirty-four Python tests pass.
+Work in `/home/sbarah/R/Projects/P/sbarbase`. Read `~/AGENTS.md`, `docs/HANDOFF.md`, this file and `lab/README.md`, then inspect Git and live resources. Use one active writer. No execution has been dispatched to Hermes. Changing assistant does not require moving the repository.
