@@ -30,6 +30,7 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parent.parent
 EVIDENCE=ROOT/'docs'/'evidence'/'tls-termination.json'
 BUILD=ROOT/'.lab'/'ui'
+PUBLIC_HOST='console.example.com'
 CONTEXT=ssl._create_unverified_context()
 
 
@@ -82,11 +83,11 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
-def fetch(url,context=None,method='GET',follow=False):
+def fetch(url,context=None,method='GET',follow=False,headers=None,body=None):
     handlers=[NoRedirect()] if not follow else []
     if context is not None:handlers.append(urllib.request.HTTPSHandler(context=context))
     opener=urllib.request.build_opener(*handlers)
-    request=urllib.request.Request(url,method=method)
+    request=urllib.request.Request(url,method=method,headers=headers or {},data=body)
     try:
         with opener.open(request,timeout=10) as response:
             return response.status,dict(response.headers),response.read()
@@ -139,6 +140,7 @@ def main():
         https_port,http_port=str(free_port()),str(free_port())
         proxy,proxy_match,proxy_log=start(['bun','deploy/console-tls-proxy.ts','--cert',str(certificate),'--key',str(key),
                                            '--upstream','http://127.0.0.1:'+stub_port,
+                                           '--public-host',PUBLIC_HOST,
                                            '--https-port',https_port,'--http-port',http_port],
                                           re.compile(r'https://127\.0\.0\.1:'+https_port))
         record('proxy announced its HTTPS port',proxy_match is not None,str(proxy_log[-1:]))
@@ -167,28 +169,61 @@ def main():
         status,_,body=fetch(base+'/echo-forwarded',CONTEXT)
         record('the proxy tells the upstream the original protocol was https',body.strip()==b'https',body[:40])
 
+        status,_,body=fetch(base+'/echo-host',CONTEXT,headers={'Host':'evil.example.net'})
+        record('a client supplied Host header cannot override the configured public host',
+               body.strip()==PUBLIC_HOST.encode(),body[:60])
+
         if http_port:
             status,headers,_=fetch('http://127.0.0.1:'+http_port+'/some/path?x=1')
             location=headers.get('Location','')
-            record('plain HTTP is redirected to HTTPS',status==308 and location.startswith('https://'),f'status {status} location {location}')
+            record('plain HTTP is redirected to HTTPS',status==308 and location.startswith('https://'+PUBLIC_HOST),f'status {status} location {location}')
+            status,headers,_=fetch('http://127.0.0.1:'+http_port+'/some/path',headers={'Host':'evil.example.net'})
+            location=headers.get('Location','')
+            record('the redirect never points at a client supplied host',status==308 and location.startswith('https://'+PUBLIC_HOST),f'status {status} location {location}')
+
+        small_https,small_http=str(free_port()),str(free_port())
+        small,small_match,_=start(['bun','deploy/console-tls-proxy.ts','--cert',str(certificate),'--key',str(key),
+                                   '--upstream','http://127.0.0.1:'+stub_port,'--public-host',PUBLIC_HOST,
+                                   '--max-body','64','--https-port',small_https,'--http-port',small_http],
+                                  re.compile(r'https://127\.0\.0\.1:'+small_https))
+        try:
+            status,_,_=fetch('https://127.0.0.1:'+small_https+'/',CONTEXT,method='POST',body=b'x'*200)
+            record('a declared body over the limit is answered 413 without being read',status==413,f'status {status}')
+            # The stub answers 405 to a write, so 405 here means the body reached it.
+            status,_,_=fetch('https://127.0.0.1:'+small_https+'/',CONTEXT,method='POST',body=b'x'*10)
+            record('a body within the limit still reaches the upstream',status==405,f'status {status}')
+        finally:
+            stop(small)
 
         os.chmod(key,0o644)
-        result=subprocess.run(['bun','deploy/console-tls-proxy.ts','--cert',str(certificate),'--key',str(key),
+        result=subprocess.run(['bun','deploy/console-tls-proxy.ts','--cert',str(certificate),'--key',str(key),'--public-host',PUBLIC_HOST,
                                '--upstream','http://127.0.0.1:'+stub_port,'--https-port','0','--http-port','0'],
                               cwd=ROOT,capture_output=True,text=True,timeout=60)
         record('a group or world readable key is refused',result.returncode!=0 and 'readable' in (result.stdout+result.stderr),
                (result.stdout+result.stderr).strip().splitlines()[-1][:120] if result.returncode else 'started anyway')
         os.chmod(key,0o600)
 
-        result=subprocess.run(['bun','deploy/console-tls-proxy.ts','--cert',str(certificate),'--key',str(key),
+        result=subprocess.run(['bun','deploy/console-tls-proxy.ts','--cert',str(certificate),'--key',str(key),'--public-host',PUBLIC_HOST,
                                '--upstream','http://198.51.100.7:8000','--https-port','0','--http-port','0'],
                               cwd=ROOT,capture_output=True,text=True,timeout=60)
         record('a non-loopback upstream is refused',result.returncode!=0 and 'loopback' in (result.stdout+result.stderr),
                (result.stdout+result.stderr).strip().splitlines()[-1][:120] if result.returncode else 'started anyway')
 
-        result=subprocess.run(['bun','deploy/console-tls-proxy.ts','--key',str(key)],
+        result=subprocess.run(['bun','deploy/console-tls-proxy.ts','--key',str(key),'--public-host',PUBLIC_HOST],
                               cwd=ROOT,capture_output=True,text=True,timeout=60)
         record('a missing certificate argument is refused',result.returncode!=0 and 'required' in (result.stdout+result.stderr),
+               (result.stdout+result.stderr).strip().splitlines()[-1][:120] if result.returncode else 'started anyway')
+
+        result=subprocess.run(['bun','deploy/console-tls-proxy.ts','--cert',str(certificate),'--key',str(key)],
+                              cwd=ROOT,capture_output=True,text=True,timeout=60)
+        record('a missing public host is refused',result.returncode!=0 and 'required' in (result.stdout+result.stderr),
+               (result.stdout+result.stderr).strip().splitlines()[-1][:120] if result.returncode else 'started anyway')
+
+        result=subprocess.run(['bun','deploy/console-tls-proxy.ts','--cert',str(certificate),'--key',str(key),
+                               '--public-host','evil.example.com/path'],
+                              cwd=ROOT,capture_output=True,text=True,timeout=60)
+        record('a public host that is not a bare host name is refused',
+               result.returncode!=0 and 'bare host name' in (result.stdout+result.stderr),
                (result.stdout+result.stderr).strip().splitlines()[-1][:120] if result.returncode else 'started anyway')
 
         code=stop(proxy);proxy=None

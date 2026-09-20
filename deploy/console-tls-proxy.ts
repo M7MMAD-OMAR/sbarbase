@@ -3,7 +3,7 @@
 // Usage:
 //   bun deploy/console-tls-proxy.ts --cert PATH --key PATH \
 //       [--https-port 8443] [--http-port 8080] [--upstream http://127.0.0.1:PORT] \
-//       [--public-host console.example.com]
+//       [--public-host console.example.com] [--max-body BYTES]
 //
 // It terminates HTTPS in front of the loopback console, redirects plain HTTP to
 // HTTPS, and adds the transport security headers. It refuses to start unless the
@@ -22,8 +22,20 @@ type Options = {
   httpsPort: number;
   httpPort: number;
   upstream: string;
-  publicHost: string | undefined;
+  publicHost: string;
+  maxBody: number;
 };
+
+const MAX_BODY_DEFAULT = 1024 * 1024;
+const HOP_BY_HOP = ['host', 'connection', 'upgrade', 'keep-alive', 'te', 'trailer', 'transfer-encoding', 'proxy-authorization', 'proxy-authenticate'];
+// A host used in a Location header or forwarded to the backend is attacker input
+// unless it is validated: no whitespace, no slashes, no scheme, digits only in a port.
+const VALID_HOST = /^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:\d{1,5})?$/;
+
+function validatedHost(value: string | null): string | null {
+  if (!value) return null;
+  return VALID_HOST.test(value) ? value : null;
+}
 
 function parseArguments(argv: string[]): Options {
   const values: Record<string, string> = {};
@@ -35,8 +47,11 @@ function parseArguments(argv: string[]): Options {
     values[name.slice(2)] = value;
     index += 1;
   }
-  for (const required of ['cert', 'key']) {
+  for (const required of ['cert', 'key', 'public-host']) {
     if (!values[required]) throw new Error('--' + required + ' is required');
+  }
+  if (!VALID_HOST.test(values['public-host'])) {
+    throw new Error('--public-host must be a bare host name with an optional port: ' + values['public-host']);
   }
   return {
     cert: values.cert,
@@ -45,6 +60,7 @@ function parseArguments(argv: string[]): Options {
     httpPort: Number(values['http-port'] ?? 8080),
     upstream: values.upstream ?? '',
     publicHost: values['public-host'],
+    maxBody: Number(values['max-body'] ?? MAX_BODY_DEFAULT),
   };
 }
 
@@ -68,15 +84,16 @@ function assertLoopbackUpstream(upstream: string): void {
   }
 }
 
-function securityHeaders(request: Request): HeadersInit {
+function securityHeaders(request: Request, publicHost: string): HeadersInit {
   const headers: Record<string, string> = {
     'strict-transport-security': 'max-age=31536000; includeSubDomains',
     'x-content-type-options': 'nosniff',
     'referrer-policy': 'no-referrer',
     'x-forwarded-proto': 'https',
+    'x-forwarded-host': publicHost,
   };
-  const host = request.headers.get('host');
-  if (host) headers['x-forwarded-host'] = host;
+  const clientHost = validatedHost(request.headers.get('host'));
+  if (!clientHost && request.headers.get('host')) headers['x-forwarded-host-invalid'] = 'dropped';
   return headers;
 }
 
@@ -101,25 +118,38 @@ const secure = Bun.serve({
   tls: {cert: Bun.file(options.cert), key: Bun.file(options.key)},
   async fetch(request) {
     const url = new URL(request.url);
+    const headers = securityHeaders(request, options.publicHost);
     let status = 502;
+    const declared = Number(request.headers.get('content-length') ?? '0');
+    if (!['GET', 'HEAD'].includes(request.method) && declared > options.maxBody) {
+      console.log(request.method + ' ' + url.pathname + ' 413');
+      return new Response('Request body too large', {status: 413, headers});
+    }
     let response: Response;
     try {
+      const body = ['GET', 'HEAD'].includes(request.method) ? undefined : await request.arrayBuffer();
+      if (body && body.byteLength > options.maxBody) {
+        console.log(request.method + ' ' + url.pathname + ' 413');
+        return new Response('Request body too large', {status: 413, headers});
+      }
       const target = new URL(upstream + url.pathname + url.search);
       const forwarded = await fetch(target, {
         method: request.method,
+        // Hop by hop headers are never forwarded; the client's host must not win
+        // over the configured public host.
         headers: {
-          ...Object.fromEntries([...request.headers].filter(([name]) => !['host', 'connection', 'upgrade'].includes(name.toLowerCase()))),
-          ...Object.fromEntries(Object.entries(securityHeaders(request)).map(([name, value]) => [name, value])),
+          ...Object.fromEntries([...request.headers].filter(([name]) => !HOP_BY_HOP.includes(name.toLowerCase()))),
+          ...Object.fromEntries(Object.entries(headers)),
         },
-        body: ['GET', 'HEAD'].includes(request.method) ? undefined : await request.arrayBuffer(),
+        body,
         redirect: 'manual',
       });
       status = forwarded.status;
-      const headers = new Headers(forwarded.headers);
-      for (const [name, value] of Object.entries(securityHeaders(request))) headers.set(name, value);
-      response = new Response(forwarded.body, {status: forwarded.status, headers});
+      const output = new Headers(forwarded.headers);
+      for (const [name, value] of Object.entries(headers)) output.set(name, value);
+      response = new Response(forwarded.body, {status: forwarded.status, headers: output});
     } catch (error) {
-      response = new Response('Upstream unavailable', {status: 502, headers: securityHeaders(request)});
+      response = new Response('Upstream unavailable', {status: 502, headers});
     }
     console.log(request.method + ' ' + url.pathname + ' ' + String(status));
     return response;
@@ -131,9 +161,10 @@ const redirect = Bun.serve({
   hostname: '127.0.0.1',
   fetch(request) {
     const url = new URL(request.url);
-    const host = options.publicHost ?? request.headers.get('host') ?? 'localhost';
+    // Only the configured public host is used: an attacker supplied Host header
+    // must never become the redirect target.
     console.log('REDIRECT ' + url.pathname);
-    return new Response(null, {status: 308, headers: {location: 'https://' + host + url.pathname + url.search}});
+    return new Response(null, {status: 308, headers: {location: 'https://' + options.publicHost + url.pathname + url.search}});
   },
 });
 

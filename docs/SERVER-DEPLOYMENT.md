@@ -174,13 +174,20 @@ bun deploy/console-tls-proxy.ts \
 ```
 
 It refuses to start unless the certificate and key are regular files, the key is
-not group or world readable, and the upstream is loopback (it takes the console
-URL from `.lab/upstream/server.json` when `--upstream` is omitted). It answers
-plain HTTP with a 308 redirect to HTTPS, adds `Strict-Transport-Security`,
-`X-Content-Type-Options`, `Referrer-Policy` and `X-Forwarded-Proto`, and logs only
-method, path and status: never bodies, query strings, cookies or credentials. An
-operator may prefer nginx, Caddy or the platform proxy; the checks above state
-which behaviour any replacement must keep.
+not group or world readable, `--public-host` is set to a bare host name, and the
+upstream is loopback (it takes the console URL from `.lab/upstream/server.json`
+when `--upstream` is omitted). It answers plain HTTP with a 308 redirect to
+HTTPS, adds `Strict-Transport-Security`, `X-Content-Type-Options`,
+`Referrer-Policy` and `X-Forwarded-Proto`, and logs only method, path and status:
+never bodies, query strings, cookies or credentials.
+
+Its own hardening is part of the checks: the redirect and the forwarded host come
+from `--public-host`, never from the client's `Host` header (an attacker supplied
+host cannot turn the redirect into an open redirect), hop by hop headers are
+stripped before forwarding, and a request body over `--max-body` (1 MiB by
+default) is answered `413` before it is read rather than buffered. An operator may
+prefer nginx, Caddy or the platform proxy; the checks above state which behaviour
+any replacement must keep.
 
 ## If a restore is interrupted
 

@@ -1,16 +1,16 @@
 {
  "scope": "TLS termination check: a self-signed certificate, deploy/console-tls-proxy.ts terminating HTTPS in front of a stub upstream that serves the real built console page, HTTP to HTTPS redirection, the transport security headers, and the proxy's own refusals. Not a public certificate, not a running installation, not the operator's chosen proxy (nginx, Caddy, the platform proxy).",
- "run_at": "2026-09-20T16:32:20+04:00",
+ "run_at": "2026-09-20T16:41:28+04:00",
  "checks": [
   {
    "check": "stub upstream serving the real built page",
    "ok": true,
-   "detail": "port 36297"
+   "detail": "port 44177"
   },
   {
    "check": "proxy announced its HTTPS port",
    "ok": true,
-   "detail": "['TLS termination: https://127.0.0.1:36221 -> http://127.0.0.1:36297']"
+   "detail": "['TLS termination: https://127.0.0.1:35989 -> http://127.0.0.1:44177']"
   },
   {
    "check": "proxy binds the HTTPS and the redirect port it was given",
@@ -48,9 +48,29 @@
    "detail": "b'https'"
   },
   {
+   "check": "a client supplied Host header cannot override the configured public host",
+   "ok": true,
+   "detail": "b'console.example.com'"
+  },
+  {
    "check": "plain HTTP is redirected to HTTPS",
    "ok": true,
-   "detail": "status 308 location https://127.0.0.1:54699/some/path?x=1"
+   "detail": "status 308 location https://console.example.com/some/path?x=1"
+  },
+  {
+   "check": "the redirect never points at a client supplied host",
+   "ok": true,
+   "detail": "status 308 location https://console.example.com/some/path"
+  },
+  {
+   "check": "a declared body over the limit is answered 413 without being read",
+   "ok": true,
+   "detail": "status 413"
+  },
+  {
+   "check": "a body within the limit still reaches the upstream",
+   "ok": true,
+   "detail": "status 405"
   },
   {
    "check": "a group or world readable key is refused",
@@ -68,6 +88,16 @@
    "detail": "Bun v1.3.14 (Linux x64)"
   },
   {
+   "check": "a missing public host is refused",
+   "ok": true,
+   "detail": "Bun v1.3.14 (Linux x64)"
+  },
+  {
+   "check": "a public host that is not a bare host name is refused",
+   "ok": true,
+   "detail": "Bun v1.3.14 (Linux x64)"
+  },
+  {
    "check": "the proxy shut down on SIGTERM",
    "ok": true,
    "detail": "exit 0"
@@ -75,9 +105,9 @@
   {
    "check": "both ports are released after shutdown",
    "ok": true,
-   "detail": "https 36221 http 54699"
+   "detail": "https 35989 http 45103"
   }
  ],
- "count": 15,
+ "count": 21,
  "passed": true
 }

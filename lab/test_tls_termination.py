@@ -21,9 +21,29 @@ class InterfaceTests(unittest.TestCase):
             self.assertIn(flag,PROXY)
 
     def test_the_proxy_refuses_what_the_check_proves_it_refuses(self):
-        for behaviour in ('readable','loopback','required'):
+        for behaviour in ('readable','loopback','required','bare host name'):
             with self.subTest(behaviour=behaviour):
                 self.assertIn(behaviour,PROXY)
+
+    def test_the_public_host_is_required_and_used_instead_of_the_client_header(self):
+        from pathlib import Path
+        proxy=(Path(__file__).resolve().parent.parent/'deploy'/'console-tls-proxy.ts').read_text()
+        self.assertIn("for (const required of ['cert', 'key', 'public-host'])",proxy)
+        self.assertIn("location: 'https://' + options.publicHost",proxy)
+        self.assertNotIn("request.headers.get('host') ?? 'localhost'",proxy)
+
+    def test_hop_by_hop_headers_are_never_forwarded(self):
+        from pathlib import Path
+        proxy=(Path(__file__).resolve().parent.parent/'deploy'/'console-tls-proxy.ts').read_text()
+        for header in ('connection','upgrade','transfer-encoding','te','trailer','keep-alive'):
+            self.assertIn("'"+header+"'",proxy)
+
+    def test_a_body_cap_exists_and_is_configurable(self):
+        from pathlib import Path
+        proxy=(Path(__file__).resolve().parent.parent/'deploy'/'console-tls-proxy.ts').read_text()
+        self.assertIn('MAX_BODY_DEFAULT',proxy)
+        self.assertIn("'--max-body'",CHECK)
+        self.assertIn("values['max-body']",proxy)
 
     def test_the_evidence_states_what_is_not_proven(self):
         self.assertIn('Not a public certificate',CHECK)
