@@ -15,6 +15,7 @@ import durable_runtime as runtime
 import resource_admission
 import run as lab
 from recovery_bundle import open_bundle
+from recovery_boundaries import verify as verify_boundaries
 
 OWNER='recovery-target'
 
@@ -28,6 +29,7 @@ def identifier(value):
 
 
 def main():
+    if (runtime.STATE/'recovery-target.json').exists():raise RuntimeError('Retained target descriptor exists; resume it explicitly')
     source=json.loads((runtime.STATE/'recovery-latest.json').read_text())
     payload=open_bundle(json.loads(Path(source['archive']).read_text()),base64.b64decode(Path(source['key']).read_text(),validate=True))
     e=payload['environment'];roles=payload['roles'];database=payload['database_metadata'][0]
@@ -74,11 +76,12 @@ def main():
         descriptor['stage']=name;runtime.atomic(record,descriptor)
     for kind,name in (('container',db),('network',network),('volume',volume)):
         if lab.docker(kind,'inspect',name,check=False).returncode==0:raise RuntimeError('Target resource already exists')
+    helper=prefix+'-headroom'
     try:
         lab.docker('network','create','--internal','--label','io.sbarbase.owner='+OWNER,network)
         lab.docker('volume','create','--label','io.sbarbase.owner='+OWNER,volume)
         stage('destination-headroom')
-        measured=lab.docker('run','--rm','--pull','never','--network','none','--memory','64m','--memory-swap','64m','--cpus','0.25','--pids-limit','32','--label','io.sbarbase.owner='+OWNER,'--entrypoint','sh','-v',volume+':/target:ro',pin['id'],'-c','df -Pk /target && df -Pi /target && stat -f -c %t /target').stdout.splitlines()
+        measured=lab.docker('run','--rm','--name',helper,'--pull','never','--network','none','--memory','64m','--memory-swap','64m','--cpus','0.25','--pids-limit','32','--label','io.sbarbase.owner='+OWNER,'--entrypoint','sh','-v',volume+':/target:ro',pin['id'],'-c','df -Pk /target && df -Pi /target && stat -f -c %t /target').stdout.splitlines()
         blocks=measured[1].split();inodes=measured[3].split()
         free_inodes=None if int(inodes[1])==0 and int(inodes[3])==0 and measured[4].strip().lower()=='9123683e' else int(inodes[3])
         free_bytes=int(blocks[3])*1024
@@ -111,11 +114,13 @@ def main():
             if database['daticurules'] is not None:options+=' ICU_RULES '+quote(database['daticurules'])
         sql(f'CREATE DATABASE {identifier(e)} WITH {options};')
         stage('restore-dump')
-        restored=subprocess.run(['docker','exec','-i',db,'pg_restore','-U','supabase_admin','--exit-on-error','--single-transaction','-d',e],input=dump,capture_output=True)
+        restored=subprocess.run(['docker','exec','-i',db,'pg_restore','-U','supabase_admin','--exit-on-error','--single-transaction','-d',e],input=dump,capture_output=True,timeout=120)
         if restored.returncode:raise RuntimeError('Database restore failed')
         check('logical dump restored transactionally on separate cluster',True)
         stage('reconcile-boundaries')
         sql(f'REVOKE ALL ON DATABASE {identifier(e)} FROM PUBLIC; ALTER DATABASE {identifier(e)} CONNECTION LIMIT {int(database["datconnlimit"])};')
+        for grantee in sorted(scoped|{'supabase_admin'}):
+            sql(f'REVOKE ALL ON DATABASE {identifier(e)} FROM {identifier(grantee)};')
         for row in payload['database_acl']:
             grantee='PUBLIC' if row['grantee']=='PUBLIC' else identifier(row['grantee'])
             sql(f"GRANT {row['privilege_type']} ON DATABASE {identifier(e)} TO {grantee}"+(' WITH GRANT OPTION' if row['is_grantable'] else '')+';')
@@ -125,6 +130,7 @@ def main():
                 key,value=setting.split('=',1);sql(f'ALTER ROLE {identifier(row["role"])}{scope} SET {identifier(key)} TO {quote(value)};')
         hba=['local all supabase_admin trust']+[f'host {e} {name} 0.0.0.0/0 scram-sha-256' for name in sorted(scoped)]+['host all all 0.0.0.0/0 reject','host all all ::/0 reject']
         lab.docker('exec','-i',db,'sh','-c','cat > /etc/postgresql/pg_hba.conf',data='\n'.join(hba)+'\n');sql('SELECT pg_reload_conf();')
+        checks.extend(verify_boundaries(payload,rows))
         stage('verify-data')
         tables=rows("SELECT n.nspname AS schema,c.relname AS name FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname IN ('auth','storage','public') AND c.relkind='r' ORDER BY 1,2",e)
         check('application Auth and Storage table inventory matches',tables==[{k:t[k] for k in ('schema','name')} for t in payload['table_snapshots']])
@@ -141,16 +147,26 @@ def main():
             check('restored '+kind+' credential connects only to target',connect(e,'SELECT 1;').stdout.strip()=='1' and connect('postgres','SELECT 1;').returncode!=0)
             if kind=='rest':check('REST SQL deadlines apply after fresh login',connect(e,"SELECT current_setting('statement_timeout')||'|'||current_setting('transaction_timeout');").stdout.strip()=='8s|12s')
             if kind=='auth':check('Auth search path restored',connect(e,"SHOW search_path;").stdout.strip()=='auth')
-        descriptor['status']='database-restored';stage('verified')
+        descriptor['status']='database-verified';stage('verified')
         evidence={'scope':'Fresh separate PostgreSQL cluster, database stage only. No target Auth/REST/Storage processes, object restore or signed-URL verification yet. Source stayed stopped; target stopped with isolated volume retained.','checks':checks,'count':len(checks),'tables':len(tables),'target_memory_mib':1024,'target_cpus':1}
     finally:
-        inspected=lab.docker('container','inspect',db,check=False)
-        if inspected.returncode==0:
-            state=json.loads(inspected.stdout)[0]
-            if state['Config']['Labels'].get('io.sbarbase.owner')!=OWNER:raise RuntimeError('Target ownership changed')
-            lab.docker('stop',db)
-        if descriptor['status']!='database-restored':descriptor['status']='failed'
-        runtime.atomic(record,descriptor)
+        try:
+            helper_state=lab.docker('container','inspect',helper,check=False)
+            if helper_state.returncode==0:
+                if json.loads(helper_state.stdout)[0]['Config']['Labels'].get('io.sbarbase.owner')!=OWNER:raise RuntimeError('Helper ownership changed')
+                lab.docker('rm','-f',helper)
+            inspected=lab.docker('container','inspect',db,check=False)
+            if inspected.returncode==0:
+                state=json.loads(inspected.stdout)[0]
+                if state['Config']['Labels'].get('io.sbarbase.owner')!=OWNER:raise RuntimeError('Target ownership changed')
+                lab.docker('stop',db)
+                if json.loads(lab.docker('inspect',db).stdout)[0]['State']['Running']:raise RuntimeError('Target failed to stop')
+            descriptor['status']='database-restored' if descriptor['status']=='database-verified' else 'failed'
+        except BaseException:
+            descriptor['status']='cleanup-failed'
+            raise
+        finally:
+            runtime.atomic(record,descriptor)
     (lab.ROOT/'docs/evidence/independent-database-restore.json').write_text(json.dumps(evidence,indent=2)+'\n')
     print(f'{len(checks)} independent database restore checks passed; target retained stopped.')
 

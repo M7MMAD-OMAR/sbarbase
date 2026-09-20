@@ -8,6 +8,10 @@ The original preflight depended on running source containers. It now validates t
 
 Verified: all 32 ordinary Auth, Storage and public table inventories, row counts and content hashes; database ownership, locale and connection limit; actual collation version; canonical API defaults; three original scoped passwords connect to the restored database and cannot connect to postgres; REST statement/transaction defaults and Auth search path.
 
-Still required: independent readback of full roles, memberships, ACLs and settings; adversarial review of failure cleanup; target Auth/REST/Storage startup; tenant connection rebinding; signing-key reencryption under fresh platform credentials; object/xattr restoration; identity and old signed-URL verification; source and neighboring environment isolation. No production transfer or recovery objective is certified.
+Additional retained-target verification passed five checks in `evidence/independent-boundary-checks.json`: complete scoped role attributes, memberships, database ACLs and settings match the encrypted export, and the target stopped afterward.
+
+Adversarial review identified descriptor overwrite, premature success publication, additive ACL reconciliation and unnamed helper cleanup. The restore consumer now refuses an existing target descriptor, publishes success after verified stop, records cleanup failure, resets supported ACL grantees before replay, compares boundary metadata, names and cleans its helper, and bounds pg_restore to 120 seconds. These new fresh-allocation and failure branches are syntax checked but have not yet received a new full restore or fault-injection run.
+
+Still required: fault-injection verification of cleanup; target Auth/REST/Storage startup; tenant connection rebinding; signing-key reencryption under fresh platform credentials; object/xattr restoration; identity and old signed-URL verification; source and neighboring environment isolation. No production transfer or recovery objective is certified.
 
 Private target descriptor: `.lab/upstream/recovery-target.json`. Preserve it and the target volume for continuation. Do not print credentials or raw SQL failure output. The development handoff ZIP excludes private recovery data.

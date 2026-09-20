@@ -119,3 +119,7 @@ A [selected-environment encrypted export](docs/RECOVERY-EXPORT.md) now includes 
 ## Independent database restore checkpoint
 
 [Fresh-cluster database restoration](docs/INDEPENDENT-RESTORE.md) now passes 45 live checks, including 32 table content comparisons. Destination volume measurement fixes the stopped-source preflight. Source and target are stopped with separate volumes retained. This supersedes the preceding preflight failure checkpoint. Full role/ACL readback and application, identity, object and signed-URL verification remain open.
+
+## Restored boundary verification
+
+Five additional live checks independently compare complete scoped roles, memberships, database ACLs and settings with the encrypted export, then verify target shutdown. Review-driven repeat-run and cleanup fixes are implemented; new failure branches still need fault-injection verification. Target application services and object recovery remain next.

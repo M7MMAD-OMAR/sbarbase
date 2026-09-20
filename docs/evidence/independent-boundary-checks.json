@@ -1,0 +1,11 @@
+{
+  "scope": "Readback of complete exported scoped role metadata, memberships, database ACL and settings on retained independent target. No application service verification.",
+  "checks": [
+    "complete restored roles matches encrypted export",
+    "complete restored memberships matches encrypted export",
+    "complete restored database_acl matches encrypted export",
+    "complete restored settings matches encrypted export",
+    "target stopped after boundary verification"
+  ],
+  "count": 5
+}
