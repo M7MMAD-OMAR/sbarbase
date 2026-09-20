@@ -31,6 +31,8 @@ Environment creation now atomically queues a persistent provisioning operation. 
 
 The combined management handler now provides scoped connection discovery and publishable-key issuance/list/revocation. The managed gateway accepts only successfully provisioned runtimes and currently valid stored keys. Nine live checks connected the SDK to a provisioned environment with a management-issued key, denied application-token management access and proved immediate key revocation. [Evidence](docs/evidence/connection-checks.json). No secret/service key proxying or full platform routing is enabled.
 
+A separate upstream PostgreSQL/Auth distribution probe passed 10 checks and confirmed two implementation requirements: raw bootstrap cannot be replayed per environment because roles already exist, and modern identity helpers require Auth migrations after database initialization. [Findings](docs/reviews/distribution-bootstrap.md), [evidence](docs/evidence/distro-checks.json). This does not replace or certify the stock-PostgreSQL component lab.
+
 ## Research, reasons and saved pictures
 
 - [Decision register](docs/DECISIONS.md): why this candidate, alternatives, remaining gates.

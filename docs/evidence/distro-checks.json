@@ -1,0 +1,206 @@
+{
+  "image": {
+    "tag": "public.ecr.aws/supabase/postgres:17.6.1.166",
+    "id": "sha256:b3bfedb107413abb3b8cb0d0874b0414a1dceb3d55bc0c778de6ad22d1f7dc86",
+    "digests": [
+      "public.ecr.aws/supabase/postgres@sha256:b3bfedb107413abb3b8cb0d0874b0414a1dceb3d55bc0c778de6ad22d1f7dc86"
+    ]
+  },
+  "scope": "Fresh upstream image initialization and database-boundary/bootstrap checks, no full platform or upgrade certification",
+  "checks": [
+    {
+      "check": "fresh upstream image initializes canonical schemas and roles",
+      "passed": true
+    },
+    {
+      "check": "canonical API roles are NOLOGIN",
+      "passed": true
+    },
+    {
+      "check": "authenticator cannot assume supabase_admin after final migrations",
+      "passed": true
+    },
+    {
+      "check": "image bootstrap alone still needs Auth helper migrations",
+      "passed": true
+    },
+    {
+      "check": "original Auth migrations complete on upstream database image",
+      "passed": true
+    },
+    {
+      "check": "auth.uid reads modern JSON claims after Auth migrations",
+      "passed": true
+    },
+    {
+      "check": "Auth migration installs auth.jwt helper",
+      "passed": true
+    },
+    {
+      "check": "new environment does not inherit Auth schema automatically",
+      "passed": true
+    },
+    {
+      "check": "raw upstream bootstrap cannot be replayed per database due to global roles",
+      "passed": true
+    },
+    {
+      "check": "failed transactional bootstrap leaves no partial publication",
+      "passed": true
+    }
+  ],
+  "server_version": "17.6",
+  "extensions": [
+    "pg_stat_statements:1.11",
+    "pgcrypto:1.3",
+    "plpgsql:1.0",
+    "supabase_vault:0.3.1",
+    "uuid-ossp:1.1"
+  ],
+  "roles": [
+    {
+      "rolname": "anon",
+      "rolsuper": false,
+      "rolcreaterole": false,
+      "rolcreatedb": false,
+      "rolcanlogin": false,
+      "rolbypassrls": false
+    },
+    {
+      "rolname": "authenticated",
+      "rolsuper": false,
+      "rolcreaterole": false,
+      "rolcreatedb": false,
+      "rolcanlogin": false,
+      "rolbypassrls": false
+    },
+    {
+      "rolname": "authenticator",
+      "rolsuper": false,
+      "rolcreaterole": false,
+      "rolcreatedb": false,
+      "rolcanlogin": true,
+      "rolbypassrls": false
+    },
+    {
+      "rolname": "dashboard_user",
+      "rolsuper": false,
+      "rolcreaterole": true,
+      "rolcreatedb": true,
+      "rolcanlogin": false,
+      "rolbypassrls": false
+    },
+    {
+      "rolname": "pgbouncer",
+      "rolsuper": false,
+      "rolcreaterole": false,
+      "rolcreatedb": false,
+      "rolcanlogin": true,
+      "rolbypassrls": false
+    },
+    {
+      "rolname": "postgres",
+      "rolsuper": false,
+      "rolcreaterole": true,
+      "rolcreatedb": true,
+      "rolcanlogin": true,
+      "rolbypassrls": true
+    },
+    {
+      "rolname": "service_role",
+      "rolsuper": false,
+      "rolcreaterole": false,
+      "rolcreatedb": false,
+      "rolcanlogin": false,
+      "rolbypassrls": true
+    },
+    {
+      "rolname": "supabase_admin",
+      "rolsuper": true,
+      "rolcreaterole": true,
+      "rolcreatedb": true,
+      "rolcanlogin": true,
+      "rolbypassrls": true
+    },
+    {
+      "rolname": "supabase_auth_admin",
+      "rolsuper": false,
+      "rolcreaterole": true,
+      "rolcreatedb": false,
+      "rolcanlogin": true,
+      "rolbypassrls": false
+    },
+    {
+      "rolname": "supabase_etl_admin",
+      "rolsuper": false,
+      "rolcreaterole": false,
+      "rolcreatedb": false,
+      "rolcanlogin": true,
+      "rolbypassrls": true
+    },
+    {
+      "rolname": "supabase_privileged_role",
+      "rolsuper": false,
+      "rolcreaterole": false,
+      "rolcreatedb": false,
+      "rolcanlogin": false,
+      "rolbypassrls": false
+    },
+    {
+      "rolname": "supabase_read_only_user",
+      "rolsuper": false,
+      "rolcreaterole": false,
+      "rolcreatedb": false,
+      "rolcanlogin": true,
+      "rolbypassrls": true
+    },
+    {
+      "rolname": "supabase_replication_admin",
+      "rolsuper": false,
+      "rolcreaterole": false,
+      "rolcreatedb": false,
+      "rolcanlogin": true,
+      "rolbypassrls": false
+    },
+    {
+      "rolname": "supabase_storage_admin",
+      "rolsuper": false,
+      "rolcreaterole": true,
+      "rolcreatedb": false,
+      "rolcanlogin": true,
+      "rolbypassrls": false
+    }
+  ],
+  "memberships": [
+    "authenticator -> anon",
+    "authenticator -> authenticated",
+    "authenticator -> service_role",
+    "pg_monitor -> pg_read_all_settings",
+    "pg_monitor -> pg_read_all_stats",
+    "pg_monitor -> pg_stat_scan_tables",
+    "postgres -> anon",
+    "postgres -> authenticated",
+    "postgres -> authenticator",
+    "postgres -> pg_create_subscription",
+    "postgres -> pg_monitor",
+    "postgres -> pg_read_all_data",
+    "postgres -> pg_signal_backend",
+    "postgres -> service_role",
+    "postgres -> supabase_privileged_role",
+    "supabase_etl_admin -> pg_monitor",
+    "supabase_etl_admin -> pg_read_all_data",
+    "supabase_etl_admin -> supabase_privileged_role",
+    "supabase_read_only_user -> pg_monitor",
+    "supabase_read_only_user -> pg_read_all_data",
+    "supabase_storage_admin -> authenticator"
+  ],
+  "uid_before_auth_reads_json_claims": false,
+  "auth_image": {
+    "tag": "public.ecr.aws/supabase/gotrue:v2.196.0",
+    "id": "sha256:c0c25187a6b835e65a6f6e6c6b39d090e832d40e6de5186f2c038e0411944232",
+    "digests": [
+      "public.ecr.aws/supabase/gotrue@sha256:c0c25187a6b835e65a6f6e6c6b39d090e832d40e6de5186f2c038e0411944232"
+    ]
+  },
+  "raw_bootstrap_failure": "Existing cluster-global role; raw replay is not an environment provisioning strategy."
+}
