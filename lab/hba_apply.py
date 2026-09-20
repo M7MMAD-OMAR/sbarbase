@@ -47,8 +47,8 @@ def sql(docker,cid,query):
     return docker('exec','-i',cid,'psql','-X','-qAt','-v','ON_ERROR_STOP=1','-U','supabase_admin','-d','postgres',data=query).stdout.strip()
 
 
-def execute(docker,state,descriptors,*,target,startup=None):
-    """Caller keeps these descriptors held throughout this native execution."""
+def require_owner(state,descriptors,*,startup=None):
+    """Validate live ownership without reacquiring fresh recovery locks."""
     state=Path(state)
     if len(descriptors)!=3:raise ValueError('Three HBA execution descriptors required')
     locks=[ownership.require_lock(state,name,fd) for name,fd in zip(('worker.lock','effect.lock','operation.lock'),descriptors)]
@@ -68,6 +68,14 @@ def execute(docker,state,descriptors,*,target,startup=None):
         try:(state/'worker-effect.json').lstat()
         except FileNotFoundError:pass
         else:raise RuntimeError('Startup HBA execution conflicts with worker receipt')
+    return original,record
+
+
+def execute(docker,state,descriptors,*,target,startup=None):
+    """Caller keeps these descriptors held throughout this native execution."""
+    state=Path(state)
+    original,record=require_owner(state,descriptors,startup=startup)
+    identity=record['identity']
     hba_generation.require(state,target,record['generation'])
     prepared=atomic_hba.Prepared(record['container'],record['expected'],record['content'])
     current=authority.read(docker,record['container'],record['generation'])

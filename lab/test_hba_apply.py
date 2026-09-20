@@ -14,6 +14,8 @@ import hba_generation
 import hba_journal as journal
 import hba_startup
 import hba_target
+import hba_settlement
+import hba_reconcile
 
 
 class ApplyTests(unittest.TestCase):
@@ -51,6 +53,25 @@ class ApplyTests(unittest.TestCase):
         self.assertTrue((self.state/journal.NAME).exists())
         with self.assertRaises(FileExistsError):self.execute()
         self.publication.assert_called_once();self.assertEqual(self.sql.call_count,2)
+
+    def test_live_completion_preserves_ownership_without_reapplying(self):
+        witness=self.execute()
+        record=journal.load(self.state/journal.NAME)
+        result={'observed_digest':authority.digest(record['content'])}
+        with patch.object(hba_reconcile,'retire_locked',return_value=(record,result)), patch.object(hba_reconcile,'fresh_ownership',side_effect=AssertionError('fresh lock acquisition')):
+            outcome=hba_settlement.complete_owned(Mock(),self.state,self.lease.descriptors,target=self.target,startup=self.lease)
+        self.assertEqual(outcome['witness'],witness)
+        self.assertFalse((self.state/journal.NAME).exists())
+        self.assertTrue(self.lease.active)
+        self.publication.assert_called_once();self.assertEqual(self.sql.call_count,2)
+
+    def test_live_completion_rejects_expired_context_before_retirement(self):
+        self.execute();self.lease.active=False
+        with patch.object(hba_reconcile,'retire_locked') as retire:
+            with self.assertRaisesRegex(RuntimeError,'originating'):
+                hba_settlement.complete_owned(Mock(),self.state,self.lease.descriptors,target=self.target,startup=self.lease)
+            retire.assert_not_called()
+        self.assertTrue((self.state/journal.NAME).exists())
 
     def test_parser_error_never_requests_reload_or_emits_completion(self):
         self.sql.side_effect=['1']

@@ -272,3 +272,8 @@ Strict private attempt/completion readers now bind exact JSON types, phases, ful
 All 196 Python tests and 24 real PostgreSQL checks pass. The probe kills an actual host child only after normal completion publication returns, then fresh recovery settles it without apply or SQL calls. Missing/invalid proof and content drift stay blocked. Archive retry and final sync uncertainty are covered. Independent review found no must-fix.
 
 Next implement normal completion under the originating live owner, because fresh recovery locks intentionally refuse while the worker/startup owner still holds them. Then wire actual supervisor/guardian and repeated managed HBA writers after protocol rollout and quiescing legacy effects. Retained installation resources were untouched; prior registry-only 56 evidence remains separate.
+
+
+## Live-owner HBA completion scaffold, 2026-09-20
+
+Added `hba_settlement.complete_owned` using the same originating owner validation as publication, without fresh recovery lock acquisition. Recovery and live completion share strict evidence, retirement and archive handling. Two added tests cover completion under held startup locks without another apply/reload and rejection of expired startup ownership before retirement. Full Python suite: 198 tests passed. This remains an isolated prototype. Next: adversarial worker/descriptor cases, real PostgreSQL live completion probe and independent review before runtime integration. Retained containers were not changed.

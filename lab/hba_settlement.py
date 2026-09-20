@@ -100,17 +100,27 @@ def cancel_baseline(docker,state,*,target):
 def complete_applied(docker,state,*,target):
     with reconcile.fresh_ownership(state) as state:
         original=journal.read_text(state/journal.NAME)
-        record=journal.decode(original)
-        witness=hba_apply.read_completion(state,record,original)
-        retired,result=reconcile.retire_locked(docker,state,target=target)
-        if retired!=record:raise RuntimeError('Pending HBA journal changed during retirement')
-        if result['observed_digest']!=authority.digest(record['content']):
-            raise RuntimeError('HBA completion requires current desired bytes; journal remains pending')
-        outcome={'version':1,'kind':'retired-applied-reload-acknowledged','journal':record,
-                 'observed_digest':result['observed_digest'],'application':'publication-witnessed',
-                 'activation':'unknown','witness':witness}
-        persist(state,outcome)
-        if journal.read_text(state/journal.NAME)!=original:raise RuntimeError('Pending HBA journal changed before settlement')
-        (state/journal.NAME).unlink()
-        effect_receipt.sync_directory(state)
-        return outcome
+        return _complete_locked(docker,state,target,original,journal.decode(original))
+
+
+def complete_owned(docker,state,descriptors,*,target,startup=None):
+    """Complete under the originating live owner's continuously held locks."""
+    state=Path(state)
+    original,record=hba_apply.require_owner(state,descriptors,startup=startup)
+    return _complete_locked(docker,state,target,original,record)
+
+
+def _complete_locked(docker,state,target,original,record):
+    witness=hba_apply.read_completion(state,record,original)
+    retired,result=reconcile.retire_locked(docker,state,target=target)
+    if retired!=record:raise RuntimeError('Pending HBA journal changed during retirement')
+    if result['observed_digest']!=authority.digest(record['content']):
+        raise RuntimeError('HBA completion requires current desired bytes; journal remains pending')
+    outcome={'version':1,'kind':'retired-applied-reload-acknowledged','journal':record,
+             'observed_digest':result['observed_digest'],'application':'publication-witnessed',
+             'activation':'unknown','witness':witness}
+    persist(state,outcome)
+    if journal.read_text(state/journal.NAME)!=original:raise RuntimeError('Pending HBA journal changed before settlement')
+    (state/journal.NAME).unlink()
+    effect_receipt.sync_directory(state)
+    return outcome
