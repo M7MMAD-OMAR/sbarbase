@@ -147,3 +147,7 @@ An explicit identity/ownership-checked reconciliation command stops retained tar
 ## Gateway drain checkpoint
 
 [Per-environment pause leases](docs/GATEWAY-DRAIN.md) now reject new requests while existing gateway slots drain, without pausing neighbors. Five new tests include a shared managed-factory source-to-target resolver switch. All 57 Bun tests, 294 assertions and affected strict types pass. No live placement changed. Durable maintenance state, source write fencing and coordinated cutover remain next.
+
+## Persistent routing checkpoint
+
+[Durable maintenance and placement](docs/PERSISTENT-ROUTING.md) now survive catalog reopen, reject stale revisions and keep staged destinations inactive until resume. Managed traffic and connection discovery follow this state. All 60 Bun tests and 314 assertions pass; targeted routing types pass. Broader application typing has an existing custom-fetch/preconnect mismatch. No actual placement changed; source fencing and complete cutover orchestration remain next.

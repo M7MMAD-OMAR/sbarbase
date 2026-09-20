@@ -1,4 +1,5 @@
 import {Database} from 'bun:sqlite';
+import {validatePlacement,type RuntimePlacement,type RuntimeRouting} from './placement';
 import {randomUUID,randomBytes} from 'node:crypto';
 import {chmodSync} from 'node:fs';
 
@@ -36,6 +37,10 @@ export class Catalog {
         actor TEXT NOT NULL,organization TEXT NOT NULL REFERENCES organizations(id),
         state TEXT NOT NULL CHECK(state IN ('queued','running','succeeded','failed','cancelled')),
         attempt INTEGER NOT NULL DEFAULT 0,claim TEXT);
+      CREATE TABLE IF NOT EXISTS runtime_routing(
+        runtime TEXT PRIMARY KEY REFERENCES provision_jobs(runtime),
+        revision INTEGER NOT NULL CHECK(revision>0),
+        maintenance INTEGER NOT NULL CHECK(maintenance IN (0,1)),placement TEXT);
       CREATE TABLE IF NOT EXISTS audit_events(
         sequence INTEGER PRIMARY KEY AUTOINCREMENT, actor TEXT NOT NULL,
         action TEXT NOT NULL, subject TEXT NOT NULL, detail TEXT NOT NULL, at INTEGER NOT NULL);
@@ -240,6 +245,34 @@ export class Catalog {
       if(active?.n) throw new Error('Provisioning is active');
       this.db.query('UPDATE projects SET organization=? WHERE id=?').run(destination,project);
       this.record(actor,'project.ownership_changed',project,{from:source.organization,to:destination});
+    }).immediate();
+  }
+  runtimeRouting(runtime:string):RuntimeRouting {
+    const row=this.db.query<{revision:number;maintenance:number;placement:string|null},[string]>(
+      'SELECT revision,maintenance,placement FROM runtime_routing WHERE runtime=?').get(runtime);
+    if(!row)return {revision:0,maintenance:false,placement:null};
+    return {revision:row.revision,maintenance:row.maintenance===1,
+      placement:row.placement===null?null:validatePlacement(JSON.parse(row.placement))};
+  }
+  /** Trusted operator only. No HTTP exposure; source fencing and drain are separate prerequisites. */
+  changeRuntimeRouting(runtime:string,expectedRevision:number,action:'pause'|'stage'|'resume',placement?:RuntimePlacement):number {
+    if(!Number.isSafeInteger(expectedRevision)||expectedRevision<0)throw new Error('Invalid routing revision');
+    if(!['pause','stage','resume'].includes(action))throw new Error('Invalid routing action');
+    const target=action==='stage'?validatePlacement(placement!):undefined;
+    if(action!=='stage'&&placement!==undefined)throw new Error('Unexpected placement');
+    return this.db.transaction(()=>{
+      if(!this.runtimeReady(runtime))throw new Error('Runtime unavailable');
+      const current=this.runtimeRouting(runtime);
+      if(current.revision!==expectedRevision)throw new Error('Stale routing revision');
+      if(action==='pause'&&current.maintenance||action!=='pause'&&!current.maintenance)throw new Error('Invalid routing transition');
+      const revision=current.revision+1;
+      if(!Number.isSafeInteger(revision))throw new Error('Routing revision exhausted');
+      const next=target??current.placement;
+      this.db.query(`INSERT INTO runtime_routing(runtime,revision,maintenance,placement) VALUES (?,?,?,?)
+        ON CONFLICT(runtime) DO UPDATE SET revision=excluded.revision,maintenance=excluded.maintenance,placement=excluded.placement`)
+        .run(runtime,revision,action==='resume'?0:1,next===null?null:JSON.stringify(next));
+      this.record('system:placement','runtime.routing_'+action,runtime,{revision});
+      return revision;
     }).immediate();
   }
   close(){this.db.close();}

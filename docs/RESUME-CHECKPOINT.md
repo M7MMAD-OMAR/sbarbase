@@ -53,3 +53,7 @@ Database restore cleanup now attempts helper and database cleanup independently,
 ## Latest cutover foundation
 
 `pauseManagedEnvironment(runtime)` now pauses the shared default in-process gateway gate and provides bounded drain waiting plus exclusive resume. Five new tests bring Bun totals to 57 tests and 294 assertions; targeted strict types pass. See GATEWAY-DRAIN.md. This is not durable maintenance or SQL quiescence. Next: persisted per-environment maintenance state, coordinated source fencing and atomic placement publication, then actual managed SDK traffic through a staged cutover. Existing runtime placement remains unchanged.
+
+## Latest durable cutover foundation
+
+Catalog `runtime_routing` now persists revision, maintenance and optional service placement. Trusted `changeRuntimeRouting` pause/stage/resume transitions are transactional and reject stale writers. Gateways refuse during maintenance, use target endpoints only after resume and do not reuse source Storage when omitted on target. Connection discovery follows placement. Tests: 60 Bun, 314 assertions; targeted strict types pass. Full application strict checking encounters existing custom-fetch typing in `src/control/auth.ts`. No actual runtime routing records were changed by these tests. Next: source write fencing, concrete cutover orchestration and real managed SDK verification; controller death and chronological pre-export URL proof remain open.

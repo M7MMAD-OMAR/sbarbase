@@ -1,0 +1,11 @@
+# Persistent maintenance and placement
+
+The local SQLite control catalog now stores one routing record per runtime: a monotonically increasing revision, maintenance flag and optional trusted service endpoints. Credentials and signing secrets are excluded. Organization ownership remains independent of placement.
+
+Trusted operator code uses `changeRuntimeRouting(runtime, expectedRevision, action, placement?)`. `pause` requires active routing; `stage` requires maintenance and validates the destination; `resume` requires maintenance. Every successful transition increments the revision and records an audit event transactionally. A stale caller cannot overwrite or resume a newer decision. These methods are not exposed as an HTTP API.
+
+Managed application requests read this record on every request. Maintenance returns 503 without forwarding. Staged endpoints remain inactive until explicit resume. Missing target Storage configuration removes the old Storage route instead of falling back to the source. Management connection discovery follows the same saved placement and refuses discovery during maintenance. Existing environments without a routing record keep their installer routing.
+
+Three new tests verify persistence across database reopen, visibility across catalog connections, stale-write refusal, gateway refusal while paused, explicit target routing after resume, no old-Storage fallback and invalid transition/endpoint rejection. All 60 Bun tests and 314 assertions pass. Targeted strict types pass for placement, catalog, managed routing and these tests. A broader application strict-type check encounters the existing custom fetch typing error in control/auth.ts, involving Bun's preconnect property; that check is not claimed passing.
+
+No live environment was moved. Durable maintenance prevents new requests through cooperating gateways, but requests already admitted can continue. The in-process pause/drain hook must be coordinated across gateway processes. Source database/Storage write fencing, target health validation, interrupted-controller handling and public route cutover still require an operator workflow. Resume alone does not establish these prerequisites. All processes must share this local catalog; multi-host coordination is not implemented.

@@ -22,7 +22,10 @@ export function application(catalog:Catalog,keys:KeyStore,realm:ManagementRealm,
  }) as typeof fetch;
  const identity=managementIdentity('http://management.internal',realm.publishableKey,identityTransport);
  const control=controlHandler(catalog,keys,identity,runtime=>{
-  const route=resolve(runtime);
+  const routing=catalog.runtimeRouting(runtime);
+  if(routing.maintenance)throw new Error('Runtime under maintenance');
+  const configured=resolve(runtime);
+  const route=configured&&routing.placement?{...configured,...routing.placement,storage:routing.placement.storage}:configured;
   if(!route||!route.enabled)throw new Error('Runtime routing unavailable');
   return route.storage?['auth','rest','storage']:['auth','rest'];
  });

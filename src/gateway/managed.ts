@@ -19,7 +19,11 @@ export function managedGateway(catalog:Catalog,keys:KeyStore,resolve:(runtime:st
   try {
    if(!runtime||!catalog.runtimeReady(runtime))
     return Response.json({message:'Unknown environment'},{status:404});
-   const route=resolve(runtime);
+   const routing=catalog.runtimeRouting(runtime);
+   if(routing.maintenance)return Response.json({message:'Environment temporarily paused'},
+    {status:503,headers:{'retry-after':'1','cache-control':'no-store'}});
+   const configured=resolve(runtime);
+   const route=configured&&routing.placement?{...configured,...routing.placement,storage:routing.placement.storage}:configured;
    if(!route) return Response.json({message:'Environment routing unavailable'},{status:503});
    return await createGateway(new Map([[runtime,route]]),transport,
     (environment,key)=>keys.resolve(environment,key)==='publishable',10_000,concurrency)(request);
