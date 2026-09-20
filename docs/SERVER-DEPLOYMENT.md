@@ -47,8 +47,17 @@ wants to drive each stage by hand.
 ```
 /usr/bin/python3 lab/install_server.py check        # read-only preflight, non-zero on blockers
 /usr/bin/python3 lab/install_server.py plan         # print the exact steps
+/usr/bin/python3 lab/operator_file.py /root/sbarbase-operator.json   # prompts, no echo, mode 0600
 /usr/bin/python3 lab/install_server.py install --bootstrap-file /root/sbarbase-operator.json
 ```
+
+Create the file with `lab/operator_file.py` rather than by hand: it prompts for
+the email, the organization and the password twice without echoing, refuses a
+password shorter than 12 characters, a malformed email, a relative path, a
+symlink and an existing file (unless `--force`), creates it with mode 0600, and
+never prints the password. For automation it also accepts the same JSON on
+bounded stdin with `--stdin`, so a password never reaches an argument or the
+shell history.
 
 `install` performs, in order: preflight, private state and secret directories
 (0700), pinned image pull when not local, `bun install` when needed, console

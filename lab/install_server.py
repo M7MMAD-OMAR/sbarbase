@@ -456,7 +456,7 @@ def supervise(apply=False,service_user='sbarbase',home=None,bun_dir=None,evidenc
 def main():
     parser=argparse.ArgumentParser(description='sbarbase server preflight and installation')
     parser.add_argument('command',choices=('check','plan','install','smoke','supervise'))
-    parser.add_argument('--bootstrap-file',help='private 0600 JSON with email, password and organization')
+    parser.add_argument('--bootstrap-file',help='private 0600 JSON with email, password and organization; write it with lab/operator_file.py')
     parser.add_argument('--apply',action='store_true',help='supervise: install, enable and start the unit (requires root)')
     parser.add_argument('--service-user',default='sbarbase',help='supervise: the account the service runs as')
     parser.add_argument('--home',help='supervise: the service account home directory')
