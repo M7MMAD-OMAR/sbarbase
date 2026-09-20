@@ -16,6 +16,6 @@ No operator recovery API or automatic replay is enabled. SQL authority retiremen
 
 The disposable upstream probe exercises actual Runtime.provision with real temporary receipt, stage, catalog and PostgreSQL state. It verifies both tokens are revoked at the services boundary. Host lease validation and host admission are simulated in that disposable wiring fixture; HBA and services are deliberately not run there. Separate tests validate catalog/receipt mismatches, direct invocation refusal, interruption poisoning and failure before HBA.
 
-Validation: 115 Python tests and 51 disposable upstream checks pass. The retained supervisor rehearsal passes 13 checks, with four working environment routes and all owned runtimes stopped afterward. No new retained environment was allocated and no pending receipt remains. Independent review found no remaining must-fix in this scope.
+Validation: 118 Python tests and 51 disposable upstream checks pass. The retained supervisor rehearsal passes 13 checks, with four working environment routes and all owned runtimes stopped afterward. No new retained environment was allocated and no pending receipt remains. Independent review found no remaining must-fix in this scope.
 
 The retained supervisor rehearsal exercises actual worker ownership and admission refusal without allocating another environment. The separate [fresh lifecycle fixture](FRESH-WORKER-LIFECYCLE.md) now verifies a complete worker-driven Auth/REST/Storage cycle with the guard. Stage-specific recovery and service-effect fencing remain open.

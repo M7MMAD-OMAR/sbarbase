@@ -176,3 +176,11 @@ Read docs/ATOMIC-HBA-REPLACEMENT.md. Shared HBA updates now validate stdin byte 
 Sixteen upstream fault checks pass, including legacy truncation, rejected short/corrupt input and helper SIGKILL before/after rename. The fresh actual worker/SDK lifecycle passes 57 checks after the change. Full Python remains115 passing tests. Exact disposable cleanup passed and no retained runtime was used for these probes. Independent review found no must-fix in this scope.
 
 Next fence stale complete HBA writers and define activation/reconciliation semantics. Post-rename failure remains uncertain; no automatic later-stage replay or power-loss guarantee is introduced.
+
+## Immutable HBA revisions, latest checkpoint
+
+Read docs/ATOMIC-HBA-REPLACEMENT.md. Managed HBA writes now capture full Docker CID and expected whole-file hash into a frozen request, add a fresh UUID header, and compare under a stable container-local nonblocking flock before atomic replacement. Requests are never recaptured/retried after failure. Twenty-six real checks cover competing prepared writes, replay rejection, identical-rule generations and lock-holder death as well as truncation.
+
+This fences already-prepared stale writes, not an old operation preparing anew after a newer update. Next bind full configuration-operation authority and reconcile activation; unknown service-stage replay stays blocked. Administrator lock replacement/filesystem rollback remain excluded.
+
+Validation: all 118 Python tests and the fresh 57-check real worker/SDK lifecycle pass. Exact isolated cleanup passed; retained installation was not used. Independent review found no must-fix within prepared-request revision protection.

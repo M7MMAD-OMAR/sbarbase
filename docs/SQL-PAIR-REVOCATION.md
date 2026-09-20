@@ -18,7 +18,7 @@ Run `/usr/bin/python3 lab/partial-database-crash-check.py --upstream --cross-fen
 
 [51 live checks](evidence/upstream-sql-pair-fence-checks.json) pass in an isolated, network-disabled pinned Supabase PostgreSQL container. They cover actual coordinator SIGKILL after the control commit, target writes during that gap, successful retry, delayed SQL/registration rejection, absent and closed targets, cluster mismatch and real target replacement. Native OIDs are explicitly normalized to JSON integers before validation. Exact disposable cleanup passed.
 
-The separate database-local suite passes 35 live checks. The full Python suite passes 115 tests. The unchanged recorded Bun checkpoint is 73 tests and 408 assertions. These counts describe different scopes, not cumulative security coverage. Unit failure injection covers uncertain target outcomes; this pair probe does not claim a real target-lock timeout rehearsal.
+The separate database-local suite passes 35 live checks. The full Python suite passes 118 tests. The unchanged recorded Bun checkpoint is 73 tests and 408 assertions. These counts describe different scopes, not cumulative security coverage. Unit failure injection covers uncertain target outcomes; this pair probe does not claim a real target-lock timeout rehearsal.
 
 ## Target admission after the generation counterexample
 

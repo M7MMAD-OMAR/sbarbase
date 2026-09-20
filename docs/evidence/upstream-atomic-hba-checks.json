@@ -1,8 +1,8 @@
 {
   "image": "sha256:b3bfedb107413abb3b8cb0d0874b0414a1dceb3d55bc0c778de6ad22d1f7dc86",
   "profile": "upstream",
-  "scope": "Pinned upstream HBA atomic replacement: producer EOF, checksum rejection and helper SIGKILL before/after rename. Not stale-writer fencing, power-loss or activation recovery.",
-  "count": 16,
+  "scope": "Pinned upstream HBA replacement: producer EOF, checksum rejection, helper SIGKILL before/after rename, immutable prepared revisions, competing writers and lock-holder death. Not full operation revocation, power-loss or activation recovery.",
+  "count": 26,
   "checks": [
     "native local Linux daemon",
     "host headroom checked before bounded probe",
@@ -18,6 +18,16 @@
     "new complete HBA parses without errors",
     "explicit reload acknowledges signal",
     "normal complete replacement returns original content",
+    "prepared request captures exact container identity",
+    "first prepared write succeeds",
+    "competing stale prepared write is rejected",
+    "successful prepared request cannot replay",
+    "same rules receive a different revision header",
+    "same rules new revision succeeds",
+    "old expected revision does not revive after same rules",
+    "busy writer lock refuses without changing target",
+    "writer lock releases after stopped helper death",
+    "versioned HBA remains valid configuration",
     "disposable database did not OOM",
     "exact disposable container absent from successful inventory"
   ]

@@ -16,7 +16,7 @@ The disposable upstream pair probe exercises actual role creation, closed CREATE
 
 The first real bootstrap run exposed a syntax error from a native SELECT without a terminator. The adapter's query separator was corrected and a trailing-comment case was added. Independent review also found and corrected executor reuse after BaseException interruption. Unit coverage checks exact scopes, pinned target batches, output preservation, uncertain registration and interruption poisoning.
 
-The upstream pair probe passes 51 checks with exact disposable cleanup. The full Python suite passes 115 tests. Sanitized evidence is [stored here](evidence/upstream-sql-pair-fence-checks.json). The unchanged recorded Bun checkpoint remains 73 tests/408 assertions.
+The upstream pair probe passes 51 checks with exact disposable cleanup. The full Python suite passes 118 tests. Sanitized evidence is [stored here](evidence/upstream-sql-pair-fence-checks.json). The unchanged recorded Bun checkpoint remains 73 tests/408 assertions.
 
 ## Full durable SQL boundary
 
