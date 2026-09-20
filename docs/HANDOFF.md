@@ -1,60 +1,44 @@
 # Sbarbase handoff
 
-Snapshot: 2026-09-20. Read [PROJECT.md](../PROJECT.md) for detailed status and evidence. This repository, not a chat transcript, is the continuation source.
+Snapshot: 2026-09-20. Start here, then read [the current checkpoint](RESUME-CHECKPOINT.md). Repository files are the continuation source; older chat and chronological status entries may be superseded.
 
-## Decision in one minute
+## Decision and rationale
 
-- Build an open source, self-hosted Supabase-based platform, initially on one server.
-- Hierarchy: installation > organization > project > environment. Organization owns the project; placement selects where an environment runs.
-- Candidate runtime: shared PostgreSQL, separate database and service credentials per environment, original Auth/REST per environment, shared Storage with tenant isolation.
-- Keep Supabase compatibility. Shared Auth/REST database switching would require unsupported behavior or substantial custom security-sensitive code.
-- Separate PostgreSQL instances remain the fallback if shared isolation, upgrades, recovery or measured savings fail. This is a tested local direction, not an approved production architecture.
-- Follow Supabase's UI direction; current console is functional locally, not a complete implementation of its design system.
+Build an open-source, self-hosted platform on original Supabase services, initially on one server. Hierarchy: **installation > organization > project > environment**. Ownership is independent of the server hosting each environment.
 
-## Why this, and why not alternatives?
+Experimental runtime: shared PostgreSQL, a separate database and scoped service credentials per environment, original Auth/REST per environment, shared tenant-aware Storage. Keep compatibility without inventing request-time database switching in Auth/REST. Independent PostgreSQL instances remain the fallback if isolation, upgrades, recovery or resource savings do not justify sharing. Trusted host operators and SQL authors are assumed; this is not isolation from hostile administrators.
 
-[Decision register](DECISIONS.md) records alternatives and rejection criteria. Schema-only separation weakens the independent lifecycle we want. A full stack per environment is the resource-cost baseline, not a discarded option. Replacing Supabase conflicts with the required compatibility. Deployment managers alone do not implement the intended tenant hierarchy.
+[Decision register](DECISIONS.md) compares alternatives and conditions for reconsideration. Schema-only separation does not provide the desired independent lifecycle. Full stacks remain the resource-cost baseline. Replacing Supabase conflicts with the user's compatibility requirement. Deployment managers alone do not provide this ownership and environment model. This is a tested local candidate, not a proven best architecture for every workload.
 
-Research and adversarial reviews: [feasibility](reviews/supabase-feasibility.md), [security](reviews/security-operations.md), [alternatives](reviews/alternatives-product.md), [capacity](reviews/capacity-method.md), [upstream bootstrap](reviews/distribution-bootstrap.md), [shared Storage](reviews/shared-storage.md), [recovery](reviews/storage-recovery.md), [durable runtime](reviews/durable-runtime.md), [management](reviews/upstream-management.md). These files contain source links and limitations; reviews are not security certification.
+## What exists and what was measured
 
-## What is actually present?
+- Local console, management login, organizations/projects/environments, scoped keys, queued provisioning, original Supabase Auth/REST/Storage and retained volumes.
+- Four local environments: three on the source cluster and one restored onto a separate local target. Real SDK tests cover identity, RLS, reads/writes, files and an unchanged signed URL created before export.
+- Fenced encrypted export, independent restore, persistent routing, maintenance, address refresh, target startup/shutdown and combined supervisor. See [recovery details](INDEPENDENT-RESTORE.md) and [combined runtime](COMBINED-RUNTIME.md).
+- Combined configured ceilings: **5888 MiB RAM and 5.75 CPUs**, within a 6 GiB/6 CPU admission cap plus host reserves. This is an experimental allocation budget, not actual peak use or a VPS recommendation. No measured 10/100-project limit exists.
+- Latest recorded suites: 64 Python tests; 60 Bun tests, 314 assertions. The latest nine-check supervisor SIGKILL rehearsal passed for an idle worker and subsequent restart. Two review concerns remain open; see the checkpoint. Test counts have different scopes and are not cumulative safety coverage.
 
-Local console, management login, organization/project discovery, project/environment creation, queued provisioning, scoped API keys, real Supabase Auth/REST/Storage integration and retained volumes. Versioned checks are in [evidence](evidence/); browser results are in [console QA](design/CONSOLE-QA.md). Recovery evidence covers a quiescent same-cluster fixture, not production off-host disaster recovery.
+## Research and reviews
 
-**Local supervisor:** `lab/dev.py` runs the console and watching worker. Five lifecycle tests and [eight live smoke checks](evidence/supervisor-smoke-checks.json) pass, including lock exclusion, idle worker restart and graceful shutdown. Review fixes retain the worker lock across restarts and bound startup cancellation. An additional [eight-check recovery probe](evidence/supervisor-recovery-checks.json) interrupts a running provisioner after private state persistence and verifies completion with stable identity. Other crash points and production service management remain unverified.
+Source links, findings and limitations are preserved in [architecture research](ARCHITECTURE-REVIEW.md), [feasibility](reviews/supabase-feasibility.md), [security](reviews/security-operations.md), [alternatives](reviews/alternatives-product.md), [capacity](reviews/capacity-method.md), [bootstrap](reviews/distribution-bootstrap.md), [Storage](reviews/shared-storage.md), [recovery](reviews/storage-recovery.md), [runtime](reviews/durable-runtime.md) and [management](reviews/upstream-management.md). Multiple adversarial reviews informed the work; they are not security certification. This handoff consolidates existing research, not a new source audit.
 
 ## Saved visuals
 
 - [Ten-project hierarchy](diagrams/ten-projects.png).
 - [Ownership, migration and recovery](diagrams/move-and-restore.png).
-- [Diagram assumptions and original prompts](diagrams/README.md).
-- [Console concept](design/console-concept.png), [desktop](design/console-desktop.jpg), [mobile](design/console-mobile.jpg).
+- [Diagram assumptions and prompts](diagrams/README.md).
+- [Console concept](design/console-concept.png), [desktop](design/console-desktop.jpg), [mobile](design/console-mobile.jpg), [visual QA](design/CONSOLE-QA.md).
 
-The diagrams illustrate future operations. Ten projects is not a measured capacity limit; the second server is optional future placement, not a current requirement.
+The pictures illustrate design intent, including future operations. Ten projects is an illustrative pilot proposal, not demonstrated capacity. The optional second server is future placement; current experiments use one computer. The UI follows Supabase's direction, not a complete implementation of its design system.
 
-## Still unresolved
+## Remaining gates
 
-Production admission and noisy-neighbor controls; capacity at 10 or 100 projects; upgrades; complete off-host backup and restore; server cutover and full ownership transfer; Realtime, pooler, functions and cron; production onboarding, audit and installation. Daily visitor counts alone cannot size these workloads.
+Fix the two supervisor review concerns first. Then test active-job crash recovery, coordinated graceful cutover and sustained mixed traffic across placements. Production installation, off-host recovery, upgrades, full organization transfer, multi-host coordination, Realtime/functions/pooler/cron and capacity at 10 or 100 projects remain unfinished. Daily visitor counts alone cannot size the system.
 
-Local budget proposal: 4 GB RAM, 4 CPUs and 20-30 GB disk. The four retained upstream environments have container limits totaling 3840 MiB and 3.75 CPUs, reaching the experimental admission guard. These are configured ceilings, not measured workload capacity or total host consumption. Recheck available host resources before starting anything.
+## Continue here or in Hermes
 
-## Latest verified checkpoint
+Both can continue from this same directory. Use one active writer; changing assistant does not improve or invalidate the architecture. No Hermes execution has been dispatched. Suggested continuation message:
 
-- Application admission: 8 requests per environment, 32 per gateway process; durable REST also has a 3-request service budget matching its configured pool.
-- Sustained arrival test: the initial failure is retained. With service admission, two 30-second reruns passed. This is a local slow-RPC result, not project capacity.
-- REST client abort does not promptly stop SQL. The gateway now retains admission through upstream completion and bounded response draining. [Evidence and limits](REST-CANCELLATION.md).
-- REST login/database defaults: 8-second statements, 12-second transactions. Live checks verify both expiries and recovery. Warm changes require stopped REST. [SQL policy](SQL-DEADLINES.md).
-- The unchanged [mixed SDK workload](SDK-LOAD.md) passed 1,001 operations with those policies active. Fixtures were removed and runtime stopped.
-- Latest recorded suites: 52 Bun tests, 269 assertions; 34 Python tests. Evidence snapshots cover different scopes and must not be added as independent coverage.
+> Work in /home/sbarah/R/Projects/P/sbarbase. Read ~/AGENTS.md, docs/HANDOFF.md, docs/RESUME-CHECKPOINT.md and lab/README.md. Inspect Git and live state first. Preserve retained volumes, source fencing and unrelated Docker resources. Resolve the two recorded supervisor review concerns before extending crash guarantees. Continue the open-source Supabase platform with bounded local experiments and adversarial review. Do not claim production readiness or fixed project capacity.
 
-## Continue in Codex or Hermes
-
-Use `/home/sbarah/R/Projects/P/sbarbase`. Read `~/AGENTS.md`, this file, `PROJECT.md` and `lab/README.md`; inspect Git and live processes first. Use one assistant as active writer. No Hermes execution has been dispatched.
-
-Next major gate: complete independent recovery. The [encrypted export](RECOVERY-EXPORT.md) passes 29 checks. The [fresh-cluster database restore](INDEPENDENT-RESTORE.md) now passes 45 checks, including 32 table content comparisons. Source and target are stopped with separate retained volumes. Full role/ACL readback passes five checks. Original target Auth/REST, original-password login, identity and RLS access pass 11 checks. Storage passes eight checks; end-user Storage isolation passes 12. A new coordinated export now captures a URL before the dump, and 14 end-user Storage checks verify that unchanged URL on a fresh target. All four source routes currently remain in maintenance, the selected source is fenced, and both targets are retained stopped. Public routing cutover remains open; read RESUME-CHECKPOINT.md before starting services. Read RESUME-CHECKPOINT.md before continuing. Sustained capacity, production installation, upgrades and full transfer remain open.
-
-Keep `.secrets/` and `.lab/` private. The handoff ZIP contains source, research, saved pictures and sanitized evidence. It excludes credentials, runtime data, dependencies and Git history. It is a development handoff, not an installation backup.
-
-## Combined runtime entry point
-
-The normal `lab/dev.py` supervisor now runs both placements after [combined resource admission](COMBINED-RUNTIME.md). Four environments, management Auth and console passed 14 simultaneous gateway checks. Shutdown left all owned containers stopped. The moved target route is paused until next admitted startup; neighbor routes remain active for source startup. Latest suites: 62 Python tests; 60 Bun tests, 314 assertions. Controller death/restart, sustained combined workload and production operations remain open.
+The ignored `sbarbase-handoff.zip` includes source, research, diagrams and sanitized evidence, including explicitly unfinished supervisor work. It excludes `.secrets/`, `.lab/`, dependencies and Git history. It is a development handoff, not a data backup or a runnable copy of the retained installation. On this computer, continue in the existing directory.

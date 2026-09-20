@@ -179,3 +179,7 @@ Normal source startup preserved the moved database fence and left its old Auth/R
 ## Combined foreground installation checkpoint
 
 Normal dev.py now supervises source neighbors and moved target through a combined controller. Conservative planned ceilings: 5888 MiB and 5.75 CPUs, admitted under 6 GiB/6 CPU caps with host memory/CPU reserves and pressure checks. Actual supervisor passed 14 simultaneous gateway checks across console, management and all four environments; shutdown stopped both stacks. 62 Python and 60 Bun tests pass, with 314 Bun assertions. Continuous capacity, controller death and production HA remain unverified.
+
+## Documentation handoff checkpoint
+
+Consolidated [HANDOFF.md](docs/HANDOFF.md) with current decisions, alternatives, source research, saved diagrams and a portable continuation prompt. [RESUME-CHECKPOINT.md](docs/RESUME-CHECKPOINT.md) records the nine-check idle-supervisor SIGKILL/restart pass and two unresolved review findings: process-group identity after reaping and HTTP readiness polling. Latest recorded Python suite: 64 tests. Supervisor implementation remains uncommitted and explicitly unfinished. No production or 10/100-project capacity claim is made.
