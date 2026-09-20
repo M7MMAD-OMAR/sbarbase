@@ -48,4 +48,4 @@ Use the same repository, `/home/sbarah/R/Projects/P/sbarbase`; no migration of c
 
 Keep `.secrets/` and `.lab/` private. The handoff ZIP contains source, research, saved pictures and sanitized evidence, including explicitly unfinished source. It excludes credentials, runtime data, dependencies and Git history. It is a development handoff, not a runnable backup of the installation.
 
-Latest result: the [30-second sustained arrival probe](SUSTAINED-OVERLOAD.md) failed with two target client timeouts despite fast 429 responses and 60 correct neighbor responses. Diagnose accepted-work queueing before treating the short overload checks as sufficient.
+Latest result: a [service-specific REST cap mitigated the sustained arrival failure](SUSTAINED-OVERLOAD.md). The original failure remains recorded. This is local mitigation evidence, not production sizing; SQL cancellation, mixed traffic after the new cap and longer tests remain open.

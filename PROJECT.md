@@ -91,3 +91,7 @@ The application gate now bounds pre-header waiting independently of transport co
 ## Sustained arrival failure checkpoint
 
 The [30-second open-loop slow-RPC probe](docs/SUSTAINED-OVERLOAD.md) exposed two target client timeouts among 600 offered target requests. It also observed 549 expected rejections, 49 correct target results and 60 correct neighbor results. Cleanup completed. This is failed acceptance, not capacity certification; next investigate REST queueing and cancellation, then coordinate service admission with connection budgets.
+
+## REST service budget checkpoint
+
+The durable installer now publishes a REST admission cap from its configured PostgREST pool, currently 3. Service/environment/process acquisition is atomic and shared across managed factories. Two repeated 30-second arrival probes passed after the change, with the original failed evidence retained. The latest run has 14 checks including explicit budget verification and post-load recovery. Forty-nine Bun tests, 261 assertions, 27 Python tests, 24 HTTP checks and gateway strict types pass. See [comparison and limits](docs/SUSTAINED-OVERLOAD.md). Mixed SDK traffic under the new cap and actual upstream cancellation remain unverified.

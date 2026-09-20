@@ -13,7 +13,7 @@ Baseline commit: `548d898`. Gateway files add `ConcurrencyGate`, a `node:http` l
 - Application gateway defaults: 8 active requests per environment, 32 across its process, immediate 429/503 and Retry-After. A slot lasts through response consumption, cancellation or deadline. These are experimental request limits, not project capacity or cluster-wide limits. Management traffic has a separate lane.
 - Controlled HTTP evidence currently records 24 passing checks: saturation, neighboring response, recovery, gzip, disconnect, detectable stream deadline failure and a paused TCP client.
 - Actual Supabase overload evidence records 8 checks: eight concurrent RPCs admitted, ninth refused, neighbor returns correct data, target recovers. Temporary RPCs and keys were cleaned up.
-- Repeated unit run: 46 tests and 248 assertions passed. Strict type checking passed for the HTTP adapter, handler and concurrency gate.
+- Repeated unit run: 49 tests and 261 assertions passed. Strict type checking passed for the HTTP adapter, handler and concurrency gate.
 - Fixed the unsupported Bun `server.getConnections()` call using owned socket tracking. The paused-client test now waits for server acceptance and proves the socket closes after its deadline while the client remains paused.
 - The SDK regression passed 1,000 operations with no failures across the two paced phases. Fixture cleanup completed and the owned runtime stopped. Raw results: `docs/evidence/sdk-overload-regression.json`.
 - Native fetch proxying uses `decompress: false` to preserve compressed bytes and matching headers. The HTTP adapter was introduced after local Bun.serve streaming probes showed deadline/error handling could appear as successful partial output. This observation is version-specific, not a general claim about Bun.
@@ -21,7 +21,7 @@ Baseline commit: `548d898`. Gateway files add `ConcurrencyGate`, a `node:http` l
 
 ## Next actions in order
 
-1. Diagnose the failed [sustained arrival probe](SUSTAINED-OVERLOAD.md): 49 target successes, 549 expected rejections and two client timeouts; all 60 neighbor requests succeeded. Inspect REST connection wait and upstream cancellation, then coordinate admission with service budgets and rerun without relaxing acceptance.
+1. Review the [service-budget mitigation and retained failed baseline](SUSTAINED-OVERLOAD.md). REST admission now follows its configured pool of 3, alongside environment/process limits. Verify actual SQL cancellation and representative mixed traffic with this new cap before production sizing. The earlier 1,000-operation SDK regression predates this service cap.
 2. Audit management traffic limits separately from application traffic and measure actual upstream cancellation under sustained overload.
 3. Recheck free host resources and existing owned containers before running probes; preserve earlier baseline evidence and do not lower admission thresholds.
 

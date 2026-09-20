@@ -32,16 +32,18 @@ try{
  const base=`http://127.0.0.1:${server.port}`;
  const client=(f:typeof first)=>createClient(`${base}/${f.runtime}`,f.token,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false},global:{fetch:(input,init)=>fetch(input,{...init,signal:AbortSignal.timeout(15000)})}});
  const a=client(first),b=client(second);
+ const admitted=endpoints[first.runtime].serviceConcurrency?.rest??8;
+ if(sustained)check('published REST budget matches the three-connection lab pool',fixtures.every(f=>endpoints[f.runtime].serviceConcurrency?.rest===3));
  // Check schema discovery without executing the delaying function.
  for(const f of fixtures){let ready=false;for(let i=0;i<30;i++){const response=await fetch(`${base}/${f.runtime}/rest/v1/`,{headers:{apikey:f.token}});if((await response.text()).includes(name)){ready=true;break;}await Bun.sleep(100);}check('temporary RPC schema ready '+fixtures.indexOf(f),ready);}
- pending=Array.from({length:8},()=>a.rpc(name).then(response=>{finished++;return !response.error&&response.data===1;}));
+ pending=Array.from({length:admitted},()=>a.rpc(name).then(response=>{finished++;return !response.error&&response.data===1;}));
  const deadline=Date.now()+5000;
- while(forwarded<8&&Date.now()<deadline)await Bun.sleep(10);
- check('eight concurrent requests admitted to actual REST',forwarded===8&&finished===0);
+ while(forwarded<admitted&&Date.now()<deadline)await Bun.sleep(10);
+ check('configured concurrent requests admitted to actual REST',forwarded===admitted&&finished===0);
  const denied=await fetch(`${base}/${first.runtime}/rest/v1/rpc/${name}`,{method:'POST',headers:{apikey:first.token,'content-type':'application/json'},body:'{}'});
- check('ninth request receives retryable overload',denied.status===429&&denied.headers.get('retry-after')==='1');await denied.text();
- check('rejected request never reaches REST',forwarded===8);
- const neighbor=await b.rpc(name);check('neighbor succeeds while target requests remain active',!neighbor.error&&neighbor.data===2&&finished<8);
+ check('next request receives retryable overload',denied.status===429&&denied.headers.get('retry-after')==='1');await denied.text();
+ check('rejected request never reaches REST',forwarded===admitted);
+ const neighbor=await b.rpc(name);check('neighbor succeeds while target requests remain active',!neighbor.error&&neighbor.data===2&&finished<admitted);
  check('all admitted requests complete correctly',(await Promise.all(pending)).every(Boolean));
  const recovered=await a.rpc(name);check('target accepts requests after draining',!recovered.error&&recovered.data===1);
  if(sustained){
@@ -93,5 +95,5 @@ try{
  try{await command(['/usr/bin/python3','lab/durable_runtime.py','stop']);}catch{failures.push('runtime cleanup');}
  if(failures.length)throw new Error('Overload fixture cleanup incomplete');
 }
-await Bun.write(sustained?'docs/evidence/gateway-sustained-checks.json':'docs/evidence/gateway-overload-checks.json',JSON.stringify({sustained:sustained?{duration_seconds:30,target_arrivals_per_second:20,neighbor_arrivals_per_second:2,skipped,peakPending,samples}:undefined,scope:'Actual managed gateway, SDK, pinned PostgREST and PostgreSQL. One environment has eight temporary two-second RPCs, ninth refused; neighbor returns a correct distinct value and target recovers. Temporary RPCs removed and keys revoked. Not global socket or multi-process DDoS protection.',checks,count:checks.length},null,2)+'\n');
+await Bun.write(sustained?'docs/evidence/gateway-sustained-checks.json':'docs/evidence/gateway-overload-checks.json',JSON.stringify({sustained:sustained?{duration_seconds:30,target_arrivals_per_second:20,neighbor_arrivals_per_second:2,rest_budget:3,skipped,peakPending,samples}:undefined,scope:'Actual managed gateway, SDK, pinned PostgREST and PostgreSQL. One environment fills its configured admission budget with temporary two-second RPCs, next request refused; neighbor returns a correct distinct value and target recovers. Temporary RPCs removed and keys revoked. Not global socket or multi-process DDoS protection.',checks,count:checks.length},null,2)+'\n');
 console.log(`${checks.length} real gateway overload checks passed.`);

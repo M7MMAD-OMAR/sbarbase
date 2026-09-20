@@ -8,6 +8,7 @@ export type EnvironmentRoute = {
   keys: readonly string[];
   anonymousToken: string;
   enabled: boolean;
+  serviceConcurrency?:Partial<Record<'auth'|'rest'|'storage',number>>;
 };
 export type RouteRegistry = ReadonlyMap<string, EnvironmentRoute>;
 const forwardedHeaders = ['accept','content-type','prefer','range','range-unit','accept-profile','content-profile','x-client-info','x-upsert','cache-control','if-none-match','if-modified-since'];
@@ -108,6 +109,6 @@ export function createGateway(registry:RouteRegistry, transport:typeof fetch = f
     } catch {
       return error(502,'Upstream unavailable');
     }
-    });
+    },route.serviceConcurrency?.[service]===undefined?undefined:{service,maximum:route.serviceConcurrency[service]});
   };
 }

@@ -131,3 +131,49 @@ test('pre-header client abort releases slot even if transport never settles',asy
  expect(upstream?.aborted).toBe(true);
  expect((await gate.run('a',request(),empty)).status).toBe(204);
 });
+
+test('service budget rejects atomically while preserving other services and neighbors',async()=>{
+ const gate=new ConcurrencyGate(3,4);
+ const rest={service:'rest',maximum:1};
+ const held=await gate.run('a',request(),async()=>new Response('held'),rest);
+ let forwarded=false;
+ const rejected=await gate.run('a',request(),async()=>{forwarded=true;return new Response('wrong');},rest);
+ expect(rejected.status).toBe(429);expect(forwarded).toBe(false);
+ const auth=await gate.run('a',request(),async()=>new Response('auth'),{service:'auth',maximum:2});
+ const storage=await gate.run('a',request(),async()=>new Response('storage'),{service:'storage',maximum:2});
+ expect((await gate.run('a',request(),empty)).status).toBe(429);
+ const neighbor=await gate.run('b',request(),async()=>new Response('neighbor'),rest);
+ expect((await gate.run('c',request(),empty,rest)).status).toBe(503);
+ await held.body!.cancel();
+ expect((await gate.run('a',request(),empty,rest)).status).toBe(204);
+ await Promise.all([auth.text(),storage.text(),neighbor.text()]);
+ expect((await gate.run('a',request(),empty,rest)).status).toBe(204);
+ expect((await gate.run('a',request(),empty,{service:'rest',maximum:0})).status).toBe(503);
+});
+
+test('service cap persists across managed factories and API keys',async()=>{
+ const {Catalog}=await import('../src/control/catalog');const {KeyStore}=await import('../src/control/keys');const {managedGateway}=await import('../src/gateway/managed');
+ const catalog=new Catalog(':memory:'),keys=new KeyStore(':memory:');
+ const org=catalog.createOrganization('owner','Org'),project=catalog.createProject('owner',org,'Project');
+ const environment=catalog.createEnvironment('owner',project,'env'),job=catalog.claimProvision()!;catalog.finishProvision(environment,job.claim!,true);
+ const first=keys.issue(job.runtime),second=keys.issue(job.runtime);
+ const complete:((r:Response)=>void)[]=[];
+ const transport=(()=>new Promise<Response>(resolve=>complete.push(resolve))) as typeof fetch;
+ const route=()=>({auth:'http://upstream',rest:'http://upstream',keys:[],anonymousToken:'anon',enabled:true,serviceConcurrency:{rest:1}});
+ const a=managedGateway(catalog,keys,route,transport),b=managedGateway(catalog,keys,route,transport);
+ const req=(key:string,service='rest')=>new Request(`http://localhost/${job.runtime}/${service}/v1/`,{headers:{apikey:key}});
+ const pending=[a(req(first.token))];
+ try{
+  expect((await b(req(second.token))).status).toBe(429);
+  expect(complete.length).toBe(1);
+  pending.push(b(req(second.token,'auth')));expect(complete.length).toBe(2);
+ }finally{for(const finish of complete)finish(new Response(null,{status:204}));await Promise.all(pending);catalog.close();keys.close();}
+});
+
+test('service budget releases after pre-header and response deadlines',async()=>{
+ const gate=new ConcurrencyGate(8,32,10,10),budget={service:'rest',maximum:1};
+ expect((await gate.run('a',request(),()=>new Promise(()=>{}),budget)).status).toBe(504);
+ const response=await gate.run('a',request(),async()=>new Response(new ReadableStream()),budget);
+ await expect(response.text()).rejects.toThrow('Response stream deadline exceeded');
+ expect((await gate.run('a',request(),empty,budget)).status).toBe(204);
+});

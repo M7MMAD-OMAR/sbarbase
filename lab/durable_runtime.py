@@ -238,6 +238,7 @@ class Runtime:
         if self.sql("SELECT to_regclass('storage.objects') IS NOT NULL AND to_regprocedure('auth.uid()') IS NOT NULL;", e).stdout.strip() != 't':
             raise RuntimeError('Environment migrations incomplete')
         endpoints['storage'] = {'url': public, 'tenantHost': e+'.storage.internal'}
+        endpoints['serviceConcurrency'] = {'rest': int(lab.rest_configuration(e, v, DB)['PGRST_DB_POOL'])}
         path = STATE/'endpoints.json'
         all_endpoints = json.loads(path.read_text()) if path.exists() else {}
         all_endpoints[e] = endpoints

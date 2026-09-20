@@ -1,21 +1,31 @@
 /** In-process admission only. No queue and no per-key bypass of tenant limits. */
 export class ConcurrencyGate {
  private total=0;
+ private services=new Map<string,number>();
  private active=new Map<string,number>();
  constructor(private perEnvironment=8,private maximum=32,private responseTimeoutMs=30_000,private forwardTimeoutMs=30_000) {
   if(![perEnvironment,maximum,responseTimeoutMs,forwardTimeoutMs].every(value=>Number.isSafeInteger(value)&&value>0))
    throw new Error('Invalid concurrency limits');
  }
- async run(environment:string,request:Request,forward:(signal:AbortSignal)=>Promise<Response>):Promise<Response> {
+ async run(environment:string,request:Request,forward:(signal:AbortSignal)=>Promise<Response>,budget?:{service:string;maximum:number}):Promise<Response> {
   if(request.signal.aborted)return Response.json({message:'Request cancelled'},{status:408});
+  if(budget&&(!Number.isSafeInteger(budget.maximum)||budget.maximum<1))
+   return Response.json({message:'Invalid service capacity'},{status:503});
+  const serviceKey=budget?JSON.stringify([environment,budget.service]):undefined;
+  const serviceCount=serviceKey?this.services.get(serviceKey)??0:0;
   const count=this.active.get(environment)??0;
-  const status=count>=this.perEnvironment?429:this.total>=this.maximum?503:0;
+  const status=count>=this.perEnvironment||(budget&&serviceCount>=budget.maximum)?429:this.total>=this.maximum?503:0;
   if(status)return Response.json({message:'Request capacity unavailable. Retry later.'},{status,
    headers:{'retry-after':'1','cache-control':'no-store'}});
   this.active.set(environment,count+1);this.total++;
+  if(serviceKey)this.services.set(serviceKey,serviceCount+1);
   let released=false;
   const release=()=>{
    if(released)return;released=true;this.total--;
+   if(serviceKey){
+    const remaining=(this.services.get(serviceKey)??1)-1;
+    if(remaining)this.services.set(serviceKey,remaining);else this.services.delete(serviceKey);
+   }
    const remaining=(this.active.get(environment)??1)-1;
    if(remaining)this.active.set(environment,remaining);else this.active.delete(environment);
   };

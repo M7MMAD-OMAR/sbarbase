@@ -1,4 +1,4 @@
-# Sustained arrival probe: failed acceptance
+# Sustained arrival probe and service admission
 
 Command: `bun lab/gateway-overload-check.ts --sustained`, after the owned durable runtime starts. This extends the short overload probe with 30 seconds of offered arrivals: 20 RPCs/second to the target, 2/second to its neighbor. The target RPC sleeps for two seconds; the neighbor returns immediately. Requests use distinct databases and return distinct integers. It tests admission and waiting, not CPU or disk saturation.
 
@@ -24,3 +24,15 @@ Fast overload rejection and correct neighbor responses are observed, but accepte
 Next: coordinate per-service admission with available connections and verify cancellation frees upstream work. Rerun the same arrival profile, require zero unexpected failures, retain rejection rate and neighbor latency, and verify post-load recovery. Production capacity, long-running soak behavior and 10/100-environment placement remain unproven.
 
 A read-only agent review identified scheduling jitter wording, missing neighbor latency acceptance and teardown short-circuit risks. The wording and reporting now describe actual scope; cleanup attempts each teardown independently. No product latency promise was invented for this experiment.
+
+## Service-budget mitigation
+
+The gateway now atomically applies a trusted per-service cap alongside the 8-request environment and 32-request process ceilings. The durable installer derives REST admission from its PostgREST pool setting, currently 3. Existing container configuration drift fails startup. Shared counters span managed handler factories and API keys.
+
+The [first rerun](evidence/gateway-sustained-first-pass.json) of the same 600 target / 60 neighbor arrivals passed: 45 correct target results, 555 expected rejections and 60 correct neighbor results, with no skipped arrivals or unexpected failures. Target-success p95 was 2004.61 ms versus 7977.94 ms in the failed run. Neighbor p95 was 3.42 ms and rejection p95 1.28 ms. Peak generator concurrency was 5. Post-load recovery and cleanup passed. This is mitigation evidence, not proof of pool fairness internals or upstream cancellation.
+
+The script now refuses sustained certification unless both published REST budgets equal the lab's three-connection pool. The prior failed artifact remains unchanged. Tests also cover cross-factory/key service enforcement, service/aggregate accounting and deadline release. Old registries without published service limits do not gain this protection automatically. Effective database-based PostgREST overrides remain outside the installer check.
+
+The smaller service cap intentionally rejects more simultaneous REST requests. A three-connection local lab is not the final production default. The earlier mixed SDK run predates this cap, so its zero-error result must not be attributed to the current policy. Measure mixed bursts and client retry behavior rather than hiding this tradeoff.
+
+The [verification rerun](evidence/gateway-sustained-checks.json) passed all 14 checks, including explicit published-budget validation: 45 target successes, 555 expected rejections and 60 neighbor successes, zero skipped arrivals. Target-success p95 was 2004.37 ms; neighbor p95 was 3.00 ms. Recovery and cleanup passed.
