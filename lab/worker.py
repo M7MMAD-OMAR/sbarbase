@@ -10,6 +10,7 @@ os.chdir(root)
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--upstream', action='store_true')
 parser.add_argument('--watch', action='store_true', help='Keep processing newly queued operations until stopped')
+parser.add_argument('--settle-only', action='store_true', help='Settle a known outcome before runtime startup; refuse uncertainty')
 args = parser.parse_args()
 profile = 'upstream' if args.upstream else 'component'
 state = root / '.lab' / 'upstream' if profile == 'upstream' else root / '.lab'
@@ -30,5 +31,6 @@ os.set_inheritable(lock, True)
 os.environ['SBARBASE_WORKER_FD'] = str(lock)
 os.environ['SBARBASE_WORKER_LOCKED'] = '1'
 os.environ['SBARBASE_RUNTIME_PROFILE'] = profile
+os.environ['SBARBASE_RECEIPT_ONLY'] = '1' if args.settle_only else '0'
 os.environ['SBARBASE_WORKER_WATCH'] = '1' if args.watch else '0'
 os.execvp('bun', ['bun', 'lab/worker.ts'])

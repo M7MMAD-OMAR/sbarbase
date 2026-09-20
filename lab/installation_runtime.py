@@ -10,6 +10,7 @@ import source_fence
 
 
 def main(command):
+    if command=='up':runtime.effect_receipt.require_settled(runtime.STATE)
     moved=(runtime.STATE/'cutover-operation.json').exists()
     if not moved:
         if command=='up':runtime.Runtime().start()

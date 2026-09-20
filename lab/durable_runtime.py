@@ -1,4 +1,5 @@
 """Bounded, persistent upstream runtime. Experimental, local and unpublished."""
+import effect_receipt
 import argparse
 import base64
 import fcntl
@@ -149,6 +150,7 @@ class Runtime:
         self.sql('SELECT pg_reload_conf();')
 
     def start(self):
+        effect_receipt.require_settled(STATE)
         if lab.docker('ps','-q','--filter','label=io.sbarbase.owner=recovery-target').stdout.strip():
             raise RuntimeError('Staged source mode requires stopped recovery targets')
         available = int(next(x.split()[1] for x in lab.Path('/proc/meminfo').read_text().splitlines() if x.startswith('MemAvailable:')))
@@ -198,6 +200,7 @@ class Runtime:
         self.sql(f"ALTER ROLE {e}_rest IN DATABASE {e} SET statement_timeout = '8s'; ALTER ROLE {e}_rest IN DATABASE {e} SET transaction_timeout = '12s';")
 
     def provision(self, e):
+        effect_receipt.require_permission(STATE,e)
         if not re.fullmatch(r'e_[a-f0-9]{24}', e):
             raise RuntimeError('Invalid environment runtime identifier')
         if not inspect('container', DB) or not inspect('container', PREFIX+'-storage'):

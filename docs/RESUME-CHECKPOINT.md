@@ -46,3 +46,11 @@ Next: controller death during active provisioning, with bounded descendant clean
 [Inherited worker lock](WORKER-EFFECT-OWNERSHIP.md) now prevents a new worker from taking ownership while the previous worker's direct effect remains alive. A real Bun/Python regression failed before the fix. Full Python suite: 68 tests; Bun: 60 tests, 314 assertions; strict worker types pass. Wrong-descriptor and startup-failure cases fail closed without retaining a permanent lock. Adversarial review found no must-fix in this limited scope. No runtime allocation or catalog mutation was used.
 
 Next: direct provisioner death can still orphan a Docker CLI or leave daemon-side effects in progress. Establish bounded local descendant containment and explicit effect-state reconciliation before declaring active provisioning crash recovery complete.
+
+## Provisioning replay gate, latest checkpoint
+
+[Durable effect receipts](PROVISIONING-RECEIPTS.md) are published before effects and settled before runtime startup under the worker lock. Unknown outcomes block automatic recovery. Successful or proven capacity-refused outcomes settle the exact claim; durable outcome rows make consumption idempotent even after an API retry. Startup/provision guards close direct runtime bypasses.
+
+Latest evidence: 72 Python tests, 65 Bun tests with 354 assertions, strict worker types and 11 live known-refusal integration checks. The existing rejected-capacity metadata was retried, with no new runtime allocation; all owned runtimes stopped afterward. Reviewer fixes for startup bypass and historical-receipt retry race are included. No pending receipt remains after the live check.
+
+Next: build explicit reconciliation for a pending receipt and bounded descendant containment. Do not clear a receipt based on age or process disappearance. Earlier automatic interrupted-job recovery evidence does not establish recovery under this new uncertainty gate. Inspect legacy interrupted jobs without receipts explicitly.

@@ -1,4 +1,5 @@
 """One owned dynamic Auth/REST environment; local experiment only."""
+import effect_receipt
 import fcntl
 import json
 import os
@@ -11,6 +12,7 @@ import run as lab
 
 
 def provision(environment):
+    effect_receipt.require_permission(lab.STATE,environment)
     if not re.fullmatch(r'e_[a-f0-9]{24}', environment):
         raise RuntimeError('Invalid runtime identifier')
     if not lab.owned(lab.DB):

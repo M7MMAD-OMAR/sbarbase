@@ -112,8 +112,8 @@ class Supervisor:
                 path.unlink()
 
 
-def run_stage(command, stop_event, timeout=180):
-    process = subprocess.Popen(['/usr/bin/python3','lab/parent_bound.py',str(os.getpid()),*command], cwd=ROOT, start_new_session=True)
+def run_stage(command, stop_event, timeout=180, pass_fds=(), env=None):
+    process = subprocess.Popen(['/usr/bin/python3','lab/parent_bound.py',str(os.getpid()),*command], cwd=ROOT, start_new_session=True, pass_fds=pass_fds, env=env)
     deadline = time.monotonic()+timeout
     try:
         while child_status(process) is None:
@@ -150,6 +150,9 @@ def main():
             raise SystemExit('Stop the existing manual worker before starting the runner.')
         started = False
         try:
+            if run_stage(['/usr/bin/python3','lab/worker.py','--upstream','--settle-only'],stop_event,
+                         pass_fds=(worker_lock.fileno(),),env=dict(os.environ,SBARBASE_WORKER_FD=str(worker_lock.fileno()))):
+                raise RuntimeError('Provisioning receipt requires reconciliation before startup')
             if run_stage(['bun', 'run', 'build:ui'], stop_event):
                 raise RuntimeError('Console build failed')
             if stop_event.is_set():

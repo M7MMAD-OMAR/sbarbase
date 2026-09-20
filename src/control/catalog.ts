@@ -37,6 +37,10 @@ export class Catalog {
         actor TEXT NOT NULL,organization TEXT NOT NULL REFERENCES organizations(id),
         state TEXT NOT NULL CHECK(state IN ('queued','running','succeeded','failed','cancelled')),
         attempt INTEGER NOT NULL DEFAULT 0,claim TEXT);
+      CREATE TABLE IF NOT EXISTS provision_effect_results(
+        environment TEXT NOT NULL REFERENCES provision_jobs(environment), attempt INTEGER NOT NULL,
+        runtime TEXT NOT NULL, claim TEXT NOT NULL, exit_code INTEGER NOT NULL CHECK(exit_code IN (0,75)),
+        PRIMARY KEY(environment,attempt));
       CREATE TABLE IF NOT EXISTS runtime_routing(
         runtime TEXT PRIMARY KEY REFERENCES provision_jobs(runtime),
         revision INTEGER NOT NULL CHECK(revision>0),
@@ -219,6 +223,25 @@ export class Catalog {
         .run(success?'succeeded':'failed',success?null:failure,environment,claim);
       if(result.changes!==1) throw new Error('Stale provisioning claim');
       this.record('system',success?'provision.succeeded':'provision.failed',environment,success?{}:{failure});
+    }).immediate();
+  }
+  /** Worker-only durable outcome settlement. Receipt consumption happens after this commit. */
+  applyProvisionReceipt(environment:string,runtime:string,claim:string,attempt:number,exitCode:number) {
+    if(![0,75].includes(exitCode))throw new Error('Unresolved provisioning outcome');
+    this.db.transaction(()=>{
+      const job=this.db.query<ProvisionJob,[string]>('SELECT * FROM provision_jobs WHERE environment=?').get(environment);
+      if(!job||job.runtime!==runtime||job.attempt<attempt)throw new Error('Provisioning receipt mismatch');
+      const success=exitCode===0;
+      const prior=this.db.query<{runtime:string;claim:string;exit_code:number},[string,number]>(
+        'SELECT runtime,claim,exit_code FROM provision_effect_results WHERE environment=? AND attempt=?').get(environment,attempt);
+      if(prior) {
+        if(prior.runtime!==runtime||prior.claim!==claim||prior.exit_code!==exitCode)throw new Error('Provisioning receipt mismatch');
+        return;
+      }
+      if(job.attempt!==attempt||job.state!=='running'||job.claim!==claim)throw new Error('Provisioning receipt mismatch');
+      this.finishProvision(environment,claim,success,'capacity_exceeded');
+      this.db.query('INSERT INTO provision_effect_results(environment,attempt,runtime,claim,exit_code) VALUES (?,?,?,?,?)')
+        .run(environment,attempt,runtime,claim,exitCode);
     }).immediate();
   }
   retryProvision(actor:string,environment:string) {

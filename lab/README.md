@@ -119,3 +119,7 @@ third durable environment created through the UI and its revoked test key.
 ## Retained recovery target
 
 After the documented cutover rehearsal, `target_runtime.py up` and `target_runtime.py stop` manage the retained moved target under the operation lock. See `../docs/TARGET-LIFECYCLE.md`. Current staged mode requires the source stopped and refuses simultaneous startup in either direction. Normal `dev.py` now uses `installation_runtime.py` for combined source/target startup after bounded resource admission. See `../docs/COMBINED-RUNTIME.md`.
+
+## Provisioning effect receipts
+
+The supervisor now settles known receipts under its worker lock before runtime startup. Unknown outcomes block replay and startup; direct provision commands cannot bypass a pending worker receipt. Use `worker.py --upstream --settle-only` only to settle known durable outcomes, not to clear uncertainty. Read [the receipt protocol](../docs/PROVISIONING-RECEIPTS.md) before recovering interrupted provisioning. Do not remove pending receipts or blindly requeue their jobs. `worker-receipt-check.py` reuses the retained failed-capacity fixture to test real receipt settlement without allocating another environment.

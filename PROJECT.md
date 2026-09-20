@@ -191,3 +191,7 @@ Parent-bound direct children now exit when the supervisor dies. Process-group cl
 ## Provisioning effect lock checkpoint
 
 The direct provisioning process now inherits the same worker flock, validates it before execution and retains it through exec. Worker death cannot release ownership while that process is still alive. A real-process regression failed before the fix; 68 Python tests, 60 Bun tests with 314 assertions and worker strict types now pass. Review found no must-fix for this scope. No Docker runtime or catalog job was created. Provisioner death, downstream Docker effects and bounded cancellation remain open; see docs/WORKER-EFFECT-OWNERSHIP.md.
+
+## Provisioning replay protection checkpoint
+
+Durable receipts now precede worker effects and block normal startup/replay when their outcome is unknown. Exact-claim completion is persisted before receipt removal, and historical receipts cannot overwrite newer retries. Runtime startup bypass and retry/consumption race found in adversarial review are fixed. 72 Python tests, 65 Bun tests with 354 assertions and 11 live known-capacity-refusal checks pass. No new runtime allocated; all owned runtimes stopped. Explicit uncertain-effect reconciliation and descendant containment remain open. See docs/PROVISIONING-RECEIPTS.md.
