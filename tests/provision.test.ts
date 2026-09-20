@@ -51,3 +51,21 @@ test('provision status is scoped and hides internal claim and runtime details',a
   expect((await managementHandler(c,async()=> 'outsider')(request)).status).toBe(403);
  } finally {c.close();}
 });
+
+
+test('safe failure code persists, stale claims cannot change it, retry clears it',async()=>{
+ const {managementHandler}=await import('../src/control/http');
+ const c=new Catalog(':memory:');
+ try {
+  const org=c.createOrganization('owner','A'),project=c.createProject('owner',org,'P');
+  const environment=c.createEnvironment('owner',project,'production'),job=c.claimProvision()!;
+  c.finishProvision(environment,job.claim!,false,'capacity_exceeded');
+  expect(()=>c.finishProvision(environment,job.claim!,false,'runtime_failed')).toThrow('Stale');
+  const response=await managementHandler(c,async()=> 'owner')(new Request(`http://localhost/management/v1/environments/${environment}/provision`));
+  expect(await response.json()).toEqual({environment,state:'failed',attempt:1,failure:'capacity_exceeded'});
+  c.retryProvision('owner',environment);
+  expect(c.getProvision('owner',environment).failure).toBeNull();
+  const retried=c.claimProvision()!;c.finishProvision(environment,retried.claim!,true);
+  expect(c.getProvision('owner',environment).failure).toBeNull();
+ }finally{c.close();}
+});

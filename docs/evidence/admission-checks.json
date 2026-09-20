@@ -1,0 +1,18 @@
+{
+  "scope": "Four-environment local guard, trusted catalog fixture actor; refused fifth runtime leaves failed metadata for explicit retry. Endpoint liveness and resource identities checked, not workload latency or full data-content equivalence.",
+  "count": 12,
+  "checks": [
+    "four environment fixture present",
+    "all existing Auth and REST endpoints respond before refusal",
+    "excess environment job fails",
+    "safe capacity reason retained",
+    "private runtime allocation file unchanged",
+    "database identities unchanged",
+    "no extra owned container created",
+    "trusted endpoint registry unchanged",
+    "same worker alive after failed job",
+    "all existing Auth and REST endpoints respond after refusal",
+    "console responds after refused job",
+    "runner shuts down cleanly"
+  ]
+}

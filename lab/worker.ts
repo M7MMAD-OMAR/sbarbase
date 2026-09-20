@@ -15,10 +15,11 @@ try {
   if(!job) {if(!watch)break;await Bun.sleep(500);continue;}
   const command=upstream?['/usr/bin/python3','lab/durable_runtime.py','provision',job.runtime]:['/usr/bin/python3','lab/provision.py',job.runtime];
   const child=Bun.spawn(command,{stdout:'ignore',stderr:'ignore'});
-  const ok=(await child.exited)===0;
+  const exitCode=await child.exited;
+  const ok=exitCode===0;
   // An interrupted external effect remains recoverable, not falsely completed.
   if(stopping&&!ok)break;
-  catalog.finishProvision(job.environment,job.claim!,ok);
+  catalog.finishProvision(job.environment,job.claim!,ok,upstream&&exitCode===75?'capacity_exceeded':'runtime_failed');
   console.log(`Provision ${job.environment}: ${ok?'succeeded':'failed'}`);
   if(!ok) failed=true;
  }

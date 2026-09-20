@@ -55,7 +55,7 @@ export function managementHandler(catalog:Catalog,identify:ManagementIdentity) {
     try {
       if(match[1]==='environments') {
         const job=catalog.getProvision(actor,id);
-        return reply(200,{environment:job.environment,state:job.state,attempt:job.attempt});
+        return reply(200,{environment:job.environment,state:job.state,attempt:job.attempt,...(job.failure?{failure:job.failure}:{})});
       }
       if(request.method==='GET') return reply(200,{data:match[1]==='organizations'
         ?catalog.listProjects(actor,id):catalog.listEnvironments(actor,id)});

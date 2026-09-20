@@ -5,7 +5,8 @@ import {chmodSync} from 'node:fs';
 export type MembershipRole = 'owner' | 'admin' | 'viewer';
 type Project = {id:string;organization:string;name:string};
 type Environment = {id:string;project:string;name:string};
-export type ProvisionJob = {environment:string;runtime:string;actor:string;organization:string;state:string;attempt:number;claim:string|null};
+export type ProvisionFailure = 'capacity_exceeded' | 'runtime_failed';
+export type ProvisionJob = {environment:string;runtime:string;actor:string;organization:string;state:string;attempt:number;claim:string|null;failure:ProvisionFailure|null};
 
 /** Internal control-plane boundary. Actor IDs must come from verified management
  * authentication, never request bodies or application JWTs. Not an HTTP API.
@@ -40,6 +41,11 @@ export class Catalog {
         action TEXT NOT NULL, subject TEXT NOT NULL, detail TEXT NOT NULL, at INTEGER NOT NULL);
       CREATE INDEX IF NOT EXISTS projects_organization ON projects(organization);
       CREATE INDEX IF NOT EXISTS environments_project ON environments(project);`);
+    this.db.transaction(()=>{
+      const columns=this.db.query<{name:string},[]>('PRAGMA table_info(provision_jobs)').all();
+      if(!columns.some(column=>column.name==='failure'))
+        this.db.exec("ALTER TABLE provision_jobs ADD COLUMN failure TEXT CHECK(failure IS NULL OR failure IN ('capacity_exceeded','runtime_failed'))");
+    }).immediate();
   }
   private name(value:string) {
     if(typeof value!=='string'||!value.trim()||value.length>100||/[\x00-\x1f]/.test(value))
@@ -201,12 +207,13 @@ export class Catalog {
       return null;
     }).immediate();
   }
-  finishProvision(environment:string,claim:string,success:boolean) {
+  finishProvision(environment:string,claim:string,success:boolean,failure:ProvisionFailure='runtime_failed') {
+    if(!['capacity_exceeded','runtime_failed'].includes(failure)) throw new Error('Invalid provisioning failure code');
     return this.db.transaction(()=>{
-      const result=this.db.query("UPDATE provision_jobs SET state=?,claim=NULL WHERE environment=? AND claim=? AND state='running'")
-        .run(success?'succeeded':'failed',environment,claim);
+      const result=this.db.query("UPDATE provision_jobs SET state=?,failure=?,claim=NULL WHERE environment=? AND claim=? AND state='running'")
+        .run(success?'succeeded':'failed',success?null:failure,environment,claim);
       if(result.changes!==1) throw new Error('Stale provisioning claim');
-      this.record('system',success?'provision.succeeded':'provision.failed',environment,{});
+      this.record('system',success?'provision.succeeded':'provision.failed',environment,success?{}:{failure});
     }).immediate();
   }
   retryProvision(actor:string,environment:string) {
@@ -214,7 +221,7 @@ export class Catalog {
       const env=this.db.query<Environment,[string]>('SELECT * FROM environments WHERE id=?').get(environment);
       if(!env) throw new Error('Forbidden');
       const parent=this.project(actor,env.project,['owner','admin']);
-      const result=this.db.query("UPDATE provision_jobs SET state='queued',actor=?,organization=?,claim=NULL WHERE environment=? AND state IN ('failed','cancelled')")
+      const result=this.db.query("UPDATE provision_jobs SET state='queued',actor=?,organization=?,claim=NULL,failure=NULL WHERE environment=? AND state IN ('failed','cancelled')")
         .run(actor,parent.organization,environment);
       if(result.changes!==1) throw new Error('Operation is not retryable');
       this.record(actor,'provision.retried',environment,{});

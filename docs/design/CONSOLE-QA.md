@@ -95,3 +95,7 @@ Remaining: installer/supervisor, broader admin features, MFA/invitations/recover
 production edge protections, accessibility audit, browser E2E automation in CI,
 localization and real capacity/health/backup operations. Do not expose this local
 console publicly or claim that the overall platform is production-ready.
+
+## Capacity status follow-up
+
+The environment row now shows `Capacity limit` for a failed operation carrying `capacity_exceeded`, with an owner-capacity-review explanation. Other failures retain the generic message. Frontend typecheck and build pass. Backend status scope, claim protection and retry clearing are tested, and the live worker refusal probe verifies the stored code. Existing screenshots predate this text change; no new browser visual inspection is claimed for this follow-up.

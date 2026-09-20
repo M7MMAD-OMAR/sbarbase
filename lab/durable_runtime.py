@@ -13,6 +13,10 @@ import urllib.error
 import urllib.request
 import run as lab
 
+class AdmissionLimitError(RuntimeError):
+    pass
+
+
 OWNER = 'durable-upstream'
 PREFIX = 'sbarbase-durable'
 DB = PREFIX + '-db'
@@ -183,7 +187,7 @@ class Runtime:
         if e not in self.values['environments']:
             # With management Auth: at most four environments, 3840 MiB/3.75 CPUs.
             if len(self.values['environments']) >= 4:
-                raise RuntimeError('Local runtime admission limit reached')
+                raise AdmissionLimitError('Local runtime admission limit reached')
             self.values['environments'][e] = {k: secrets.token_hex(32) for k in ('auth', 'rest', 'storage', 'jwt')}
             atomic(self.path, self.values)
         v = self.values['environments'][e]
@@ -267,6 +271,10 @@ if __name__ == '__main__':
                 else:
                     runtime.provision(args.environment or '')
         print('Durable upstream runtime operation completed.')
+    except AdmissionLimitError:
+        # Stable local worker protocol. Never classify failures from raw stderr.
+        print('Local runtime admission limit reached.')
+        raise SystemExit(75)
     except Exception:
         # Secrets, SQL and HTTP response bodies must never reach console output.
         raise SystemExit('Durable runtime operation failed; retained state is available for reconciliation.')

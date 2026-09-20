@@ -26,7 +26,7 @@ Downloadable open source Supabase-based administration for multiple projects, us
 
 Retained component containers now reject image or configured-environment drift before reuse: [12 read-only live checks](docs/evidence/runtime-reuse-checks.json) and six Python tests. This guard does not perform upgrades or container reconciliation.
 
-Thirty-five Bun tests pass with 201 assertions; UI typecheck and production build also pass. Evidence files are versioned snapshots, not cumulative independent test totals.
+Thirty-six Bun tests pass with 205 assertions; UI typecheck and production build also pass. Evidence files are versioned snapshots, not cumulative independent test totals.
 
 The gateway now also permits API-key-free GET/HEAD on public-object and signed-download paths only. Storage enforces bucket visibility and signature validity. API-key revocation does not revoke previously issued signed URLs. Uploads currently buffer at most 1 MiB with a read deadline. Large/resumable uploads, CORS and service-key forwarding remain unfinished.
 
@@ -55,3 +55,7 @@ Keep .secrets, .lab and dependencies out of sharing. The handoff ZIP includes so
 ## Local runner checkpoint
 
 `/usr/bin/python3 lab/dev.py` builds the console, starts the owned runtime and continuously processes provisioning jobs. Ctrl+C stops its children and owned containers while preserving volumes. Five lifecycle unit tests and [eight live smoke checks](docs/evidence/supervisor-smoke-checks.json) pass. Worker locks remain reserved across restarts; repeated failures stop the runner. Forced idle-worker restart and [one in-flight provisioning interruption](docs/evidence/supervisor-recovery-checks.json) now pass. The interrupted job was reclaimed and completed with the same runtime identity and one catalog operation. Further crash points and full installation recovery remain open. This foreground runner is not a production service manager. Other local Docker services remained running after the smoke check.
+
+## Admission checkpoint
+
+The four-environment local guard now has [12 live checks](docs/evidence/admission-checks.json): a fifth runtime is refused without new databases, containers or endpoint entries; existing Auth/REST endpoints, console and worker remain available. Failed metadata is retained for explicit retry. The worker stores only `capacity_exceeded` or `runtime_failed`, and the authorized status API exposes that safe reason. The console labels capacity refusals and explains the next action. Thirteen Python tests pass, including guard ordering and reconciliation of existing environments at capacity. This count guard is not production CPU, memory, disk or workload admission.
