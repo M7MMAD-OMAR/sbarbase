@@ -38,12 +38,12 @@ Production admission and noisy-neighbor controls; capacity at 10 or 100 projects
 
 Local budget proposal: 4 GB RAM, 4 CPUs and 20-30 GB disk. The four retained upstream environments have container limits totaling 3840 MiB and 3.75 CPUs, reaching the experimental admission guard. These are configured ceilings, not measured workload capacity or total host consumption. Recheck available host resources before starting anything.
 
-## Continue in either assistant
+## Latest work, explicitly unfinished
 
-Open `/home/sbarah/R/Projects/P/sbarbase`. Read `~/AGENTS.md`, this file, `PROJECT.md`, then `lab/README.md`. Inspect Git changes and live processes before acting. Next: extend lifecycle crash-point coverage and resource-aware admission beyond the new memory/filesystem snapshot gate. See [resource policy and limits](RESOURCE-ADMISSION.md) and [connection budget](CONNECTION-BUDGET.md). Login limits and planned connection admission now have unit and live saturation evidence; query CPU/I/O containment remains open. The four-environment guard now passes 12 live refusal checks; the fifth runtime is refused while existing endpoints remain responsive. The status API carries a safe capacity reason and the console explains it. This is a configured count guard, not measured resource admission. Then advance the gates in `PROJECT.md`.
+Committed baseline: `548d898`, the SDK workload checkpoint. The working tree additionally contains gateway concurrency and HTTP transport changes. Read [the exact resume checkpoint](RESUME-CHECKPOINT.md) before running or merging them. Earlier evidence does not certify the latest working tree.
 
-Use one assistant as the active writer at a time. Hermes can continue in the same repository without moving code; no Hermes execution has been dispatched. Keep credentials and runtime payloads in ignored `.secrets/` and `.lab/`. The handoff ZIP includes source, research, pictures and sanitized evidence, including clearly identified unfinished source, but excludes secrets, dependencies, runtime data and Git history.
+## Continue in Codex or Hermes
 
-Latest local checkpoint: [pressure admission](PRESSURE-ADMISSION.md) reads cgroup PSI and refuses new allocation during measured pressure. [Initial SQL load probe](NOISY-NEIGHBOR.md) includes raw timings for 150 validated results. Next: realistic HTTP/SDK mixtures and continuous overload protection; do not infer 10/100-project capacity from this microbenchmark.
+Use the same repository, `/home/sbarah/R/Projects/P/sbarbase`; no migration of code is necessary. Read `~/AGENTS.md`, this file, `RESUME-CHECKPOINT.md`, `PROJECT.md`, then `lab/README.md`. Inspect Git changes and live processes first. Use one assistant as active writer. No Hermes execution has been dispatched.
 
-[Managed SDK workload](SDK-LOAD.md): 1,010 correct operations across two ten-second phases, plus a separate 200-operation burst. Temporary data and identities were cleaned up. Next: per-environment request concurrency/overload controls and longer open-loop tests.
+Keep `.secrets/` and `.lab/` private. The handoff ZIP contains source, research, saved pictures and sanitized evidence, including explicitly unfinished source. It excludes credentials, runtime data, dependencies and Git history. It is a development handoff, not a runnable backup of the installation.

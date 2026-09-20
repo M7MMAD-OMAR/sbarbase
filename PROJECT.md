@@ -75,3 +75,7 @@ New allocations now check cgroup CPU, I/O and memory pressure for the owned data
 ## Managed SDK load checkpoint
 
 [Two-environment SDK workload](docs/SDK-LOAD.md) completed 1,010 verified operations without errors across two ten-second paced phases, at nominal aggregate rates of 20 and 80 operations/second. Reads, inserts, identity checks and private uploads/downloads used the managed gateway. Fixture resources were cleaned up, keys revoked and runtime stopped. A preceding 200-operation burst is separately retained. These short local runs do not establish production capacity or SLOs. Next: bounded request admission and overload response, then longer open-loop and recovery tests.
+
+## Documentation handoff checkpoint
+
+The [compact handoff](docs/HANDOFF.md) indexes decisions, research and saved diagrams. The [resume checkpoint](docs/RESUME-CHECKPOINT.md) records unfinished gateway/HTTP changes, the unsupported Bun connection-counting call, evidence boundaries and exact next steps. Read it before treating older next-step paragraphs or evidence as current.
