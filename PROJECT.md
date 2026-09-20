@@ -1,67 +1,57 @@
-# Sbarbase: current state and handoff
+# Sbarbase: start here
 
-Updated 2026-09-20. Read this first in Codex or Hermes. Workspace: `/home/sbarah/R/Projects/P/sbarbase`.
+Updated 2026-09-20. Workspace: `/home/sbarah/R/Projects/P/sbarbase`.
 
-## Purpose and firm requirements
+## Product and latest decision
 
-Downloadable open source software for running multiple Supabase projects on an operator's own server, commonly one VPS, with possible expansion later. Keep Supabase and compatibility with existing applications. Provide UI-based administration, low incremental resource cost, project isolation, backup/restore and eventual transfers. Follow Supabase's design system for the eventual UI; current images are illustrations, not implemented UI.
+Open source, downloadable Supabase-based administration for multiple projects, usually on one VPS. Preserve Supabase application compatibility and use its design system for the future UI. Installation operators are trusted; application visitors are not. No production platform or UI exists yet.
 
-The operator is trusted; application visitors are not. Public hosting for mutually hostile project owners is not the default product. Avoid a complete repeated stack per project; a small number of per-environment services is not ruled out. Do not replace Supabase or rewrite authentication merely to reduce process count.
+**Decision: continue a local feasibility experiment, not approve a production architecture.** Candidate hierarchy: installation > organization > project > environment. Ownership and server placement are independent. Each environment has its own database, identities and credentials. Candidate runtime: one PostgreSQL cluster with original Auth and PostgREST per environment. Share other services only after verification. This avoids rewriting authentication and may reduce repeated infrastructure.
 
-## Latest direction, not a final architecture approval
+Shared PostgreSQL roles and resources remain important boundaries. The lab uses shared canonical API roles and separate service logins. Independent PostgreSQL per environment remains the fallback if compatibility, isolation or recovery gates fail. No permanent project cap, 100-project promise, upstream adoption or distribution license is selected.
 
-Proposed hierarchy: installation -> organization -> project -> environment. Production and optional staging have separate data and credentials. Deployment placement is separate from ownership, so a stable project can move between hosts or organizations.
+## What actually works locally
 
-Primary experiment: shared PostgreSQL, database per environment, unique service logins, original Auth and PostgREST per environment, other services shared where verified. Reason: potential resource savings without replacing Supabase semantics. Savings and safety are unproven.
+| Evidence | Verified scope | Important limit |
+|---|---|---|
+| [61 component checks](docs/evidence/component-checks.json) | Auth, RLS, crossed tokens and database credentials across 3 environments | Stock PostgreSQL with a minimal auth.uid fixture |
+| [30 current SDK/gateway checks](docs/evidence/persistent-key-sdk-checks.json) | SDK CRUD/Auth, scoped publishable keys and revocation | Auth/REST only; no public management authorization |
+| [Retry checks](docs/evidence/retry-checks.json) | Recovery after 3 provisioning interruptions, existing data preserved | Selected creation phases only |
+| [Restore check](docs/evidence/restore-check.json) | Logical restore into fresh database; source and neighbor preserved | Same cluster, selected data, not full recovery or PITR |
 
-Comparison/fallback: independent PostgreSQL instances per environment with shared administration. Reason: canonical roles remain independent and SQL compatibility is simpler. Costs must be measured. Full repeated Supabase stacks are a reference baseline, not the preferred product. Kubernetes and multi-host HA are not initial requirements.
+Seventeen unit tests now pass, including organization authorization and persistent metadata transfer. Older SDK evidence files are earlier iterations, not additional independent coverage. API key metadata uses a local SQLite adapter storing hashes; application data stays in PostgreSQL. The control-store choice for multiple hosts remains open.
 
-Critical open choice: shared canonical NOLOGIN API roles versus namespaced API roles. PostgreSQL roles are cluster-global; renaming `authenticated` can break policies and imports. Shared roles require strict login/database rules and membership review. Neither strategy is approved yet.
+Last recorded lab state: owned containers stopped, volumes retained. Configured container ceilings: 2560 MiB and 2.5 logical CPUs for this component lab. The approximately 134 MiB idle snapshot is not a full-platform requirement or a capacity estimate. Recheck available RAM before startup. The proposed overall lab budget is 4 GB RAM, 4 logical CPUs and 20-30 GB disk; never disturb existing services.
 
-## Research completed
+Internal catalog now models organizations, owner/admin/viewer membership, projects and environments. Mutations check current membership inside SQLite transactions; the last owner cannot be removed. Metadata ownership transfer requires ownership of both organizations and preserves project/environment IDs. An initial HTTP handler now derives actor identity through Supabase SDK getUser against a fixed dedicated management endpoint. Ten live Auth/HTTP checks now pass using a_stage as a temporary management realm and a_prod as an application realm. A dedicated management deployment remains pending. Runtime secrets/access still need revocation for complete transfer. See [control-plane boundary](docs/CONTROL-PLANE.md).
 
-Three independent agent reviews covered component feasibility, adversarial security/operations, and existing implementations. Primary documentation and selected code were inspected; no runtime certification occurred.
+Live management evidence: [10 checks](docs/evidence/management-checks.json) cover crossed application tokens, tampering, nonmembers, viewer writes, body/header identity spoofing and immediate membership revocation. The lab was stopped after verification.
 
-- [Foundation review](docs/ARCHITECTURE-REVIEW.md): architecture options and acceptance gates.
-- [Supabase feasibility](docs/reviews/supabase-feasibility.md): Auth/PostgREST limits, role compatibility, Storage/Realtime sharing and a pinned Auth migration scan.
-- [Security and operations](docs/reviews/security-operations.md): isolation, privilege boundaries, recovery, upgrades and HA limitations.
-- [Alternatives](docs/reviews/alternatives-product.md): supabase-multitenant is an adaptation candidate, not endorsed; Supafleet CLI shares database service credentials; Pigsty helps operations; Coolify/Dokploy alone do not establish resource sharing.
-- [Capacity method](docs/reviews/capacity-method.md): reproducible load comparison, not benchmark results.
+## Research, reasons and saved pictures
 
-Corrections: no evidence Supabase lacks a sound hierarchy; its self-hosted distribution lacks cloud project management. Separate databases do not isolate CPU, memory or host failure. Container count and daily visits do not determine capacity. A replica is not a backup; native physical PITR restores the cluster, not one database directly.
+- [Decision register](docs/DECISIONS.md): why this candidate, alternatives, remaining gates.
+- [Architecture review](docs/ARCHITECTURE-REVIEW.md): overall reasoning and acceptance criteria.
+- Independent reviews: [feasibility](docs/reviews/supabase-feasibility.md), [security/operations](docs/reviews/security-operations.md), [alternatives](docs/reviews/alternatives-product.md), [capacity methodology](docs/reviews/capacity-method.md). Each contains source links.
+- Saved images: [10 projects](docs/diagrams/ten-projects.png), [transfer and restore](docs/diagrams/move-and-restore.png). [Assumptions/prompts](docs/diagrams/README.md).
+- [Implementation record](docs/SESSION-RECORD.md) retains earlier findings and progression. This page takes precedence for current state.
 
-## Saved diagrams and lifecycle intent
+Images illustrate proposed behavior. Their 10-project pilot cap and two-server layout are not measured limits or implemented features.
 
-- [10-project diagram](docs/diagrams/ten-projects.png)
-- [Transfer and restore diagram](docs/diagrams/move-and-restore.png)
-- [Diagram assumptions and generation prompts](docs/diagrams/README.md)
+## Remaining work, in order
 
-The six/four server distribution is illustrative. The depicted 10-project cap is a proposed pilot policy, not a user-approved permanent limit or measured capacity. Count environments and active workloads too. No promise of 100 projects on one host.
+1. Verify full Supabase PostgreSQL bootstrap, canonical role privileges and upgrades using pinned versions; compare independent PostgreSQL if the candidate fails.
+2. Implement authenticated management, organization/project/environment authorization, durable lifecycle operations and gateway hardening, including service keys, CORS, OAuth, rate limits and timeouts.
+3. Integrate and test Storage, Realtime, pooler, functions and scheduled jobs; verify cross-environment boundaries for every service.
+4. Prove complete encrypted off-host backup/restore, safe server transfer and organization transfer, failed-upgrade recovery and audit trails.
+5. Benchmark representative peak workloads and noisy neighbors, first 3 then 10 environments. Determine admission limits from RAM, CPU, I/O, connections, disk and recovery headroom. Daily visitor totals alone cannot establish 10 or 100 project capacity.
+6. Build the Supabase-inspired administration UI and installer against verified lifecycle APIs.
 
-Organization transfer changes whole-project ownership and permissions. Server transfer moves an environment after copy, brief write pause, final synchronization, validation and routing switch. Rollback after destination writes requires reconciliation. Cross-installation export/import is a separate future workflow. Backups include database, objects, secrets/configuration and function artifacts; restore into an isolated target with outbound jobs disabled before switching.
+Organization transfer changes whole-project ownership and permissions. Server transfer moves one environment with a write pause, validation and routing cutover. After destination writes, rollback requires reconciliation. Recovery covers databases, objects, secrets/configuration and function artifacts. These are design requirements, not implemented workflows.
 
-## Local experiment in progress
+## Continue in Codex or Hermes
 
-Last read-only snapshot: about 32 GB total RAM, 9.6 GiB available, 24 logical CPUs and 496 GB free disk. Docker 29.7.2 was available with an unrelated Supabase stack running. This is a historical snapshot; recheck before allocating anything.
+Use this same repository as the source of truth. Read this file, DECISIONS.md and lab/README.md; inspect git status and current host resources. Use bun and /usr/bin/python3. Keep secrets in ignored .secrets and local runtime state in .lab. Never publish either. Preserve unrelated containers and services. Local lab checks do not establish Contabo capacity.
 
-Proposed initial aggregate lab budget: 4 GB RAM, 4 logical CPUs, 20-30 GB disk. Start with A production, A staging and B production, then 10 environments if the workstation remains comfortable. This budget is a candidate, not proof that every comparison fits. Isolate networks, ports, volumes and names; preserve existing services. Monitor host memory and disk pressure and stop load generation if it affects desktop work. Do not run simultaneous large comparisons or assume 100 environments fit.
+The handoff archive contains source, research, diagrams and sanitized evidence only. It excludes secrets, runtime data, dependencies and Git history. Reinstall dependencies with bun install. Local image IDs in lab/images.lock.json are machine-specific, so a different host needs image availability and provenance verification before running the lab.
 
-Next implementation gate: pin versions; test real Supabase SDK/SQL behavior; deny cross-environment tokens AND database credentials; test lifecycle retries, restore and upgrade failure; measure idle/active footprint and noisy-neighbor effects. Local tests need no rented infrastructure or paid APIs, but cannot establish Contabo performance.
-
-## Execution state and continuation
-
-The user authorized continuing implementation in Codex. Git was initialized on main. `lab/run.py` now creates an owned network, volume, three environment databases and per-environment Auth/REST service definitions using local pinned image IDs. This is a component experiment on stock PostgreSQL 17, not yet the Supabase PostgreSQL distribution or the full product.
-
-The component lab now passed 61 live HTTP/database checks and 21 Supabase SDK checks. Evidence: `docs/evidence/component-checks.json`, `sdk-checks.json`, and `idle-snapshot.json`. Auth migration startup required a per-login, per-database auth search_path, consistent with upstream bootstrap. Internal bridge IPs work from the Linux host without publishing container ports; the SDK test uses a transient loopback router.
-
-Verified scope: three environments, independent signup/login/refresh identities, owner-only RLS reads/writes, swapped Auth/REST token rejection, and service database credential rejection across environment and administrative databases. SDK CRUD and logout passed. Limitations: stock PostgreSQL plus a minimal auth.uid fixture, test-only router without API-key enforcement, no Storage/Realtime/functions or full upstream database bootstrap. This is not production compatibility certification.
-
-Provisioning now recovers from injected interruptions after roles, database creation and permissions. Repeating creation preserved the same database OID and canary rows. A logical dump restored into a fresh temporary database reproduced Auth user identities and application rows while source and neighbor stayed unchanged. This does not test off-host backups, PITR, complete Auth state comparison, Storage, or route switching. Evidence: `docs/evidence/retry-checks.json` and `restore-check.json`. A process lock prevents overlapping CLI lifecycle commands.
-
-An initial gateway module now binds API keys to enabled environments before proxying Auth/REST and removes client-injected routing headers. Eleven unit tests and 27 live SDK/gateway checks passed, including six crossed-key rejections. User JWT validation remains upstream. Evidence: `docs/evidence/gateway-sdk-checks.json`. Keys are generated ephemerally by the lab probe; durable key management, service keys, CORS, OAuth callbacks, rate limits, Storage and WebSockets remain pending. The earlier test-only router is replaced in the SDK probe.
-
-Local persistent key metadata now stores SHA-256 digests of random 256-bit API keys, with environment scope and revocation. Raw values are returned on creation only. The gateway can resolve against this store and fails closed on store errors. Thirteen unit tests and 30 live gateway/SDK checks passed, including revocation for each environment. Evidence: `docs/evidence/persistent-key-sdk-checks.json`. SQLite is a small experimental local metadata adapter, not a replacement for PostgreSQL application databases or a final multi-host control-store decision. No public key-management API or management authorization exists yet; secret-key proxying is not enabled.
-
-All owned lab containers are stopped after the checks, with volumes preserved. Snapshot container memory totaled about 134 MiB after a tiny workload; this excludes full platform services and is not a capacity forecast. Aggregate configured container ceilings remain 2560 MiB and 2.5 logical CPUs. Recheck available memory before each startup. Next: strengthen repeatable provisioning and recovery, implement a real keyed gateway, then extend the matrix to upstream database bootstrap and remaining services.
-
-The original broader requirements remain active: UI administration, compatibility, lifecycle, transfer, backup/recovery, upgrades and measured capacity. No server purchased or remotely modified. No final topology, capacity, license or upstream adoption selected. No transfer to Hermes was dispatched.
+No Hermes execution was dispatched. Changing assistant does not change these technical decisions. Avoid two agents mutating the same checkout simultaneously.

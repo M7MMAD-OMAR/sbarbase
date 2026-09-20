@@ -1,0 +1,45 @@
+{
+  "scope": "Live Auth/HTTP authorization using a_stage as a temporary management realm; metadata only, no dedicated management deployment",
+  "checks": [
+    {
+      "check": "application realm token rejected by live management Auth",
+      "passed": true
+    },
+    {
+      "check": "tampered token rejected",
+      "passed": true
+    },
+    {
+      "check": "valid nonmember denied despite injected owner header",
+      "passed": true
+    },
+    {
+      "check": "viewer cannot create project",
+      "passed": true
+    },
+    {
+      "check": "body actor spoofing rejected",
+      "passed": true
+    },
+    {
+      "check": "owner creates project metadata",
+      "passed": true
+    },
+    {
+      "check": "owner creates production metadata",
+      "passed": true
+    },
+    {
+      "check": "viewer reads project environments",
+      "passed": true
+    },
+    {
+      "check": "membership revocation denies same unexpired token",
+      "passed": true
+    },
+    {
+      "check": "denied writes created no projects",
+      "passed": true
+    }
+  ]
+}
