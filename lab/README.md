@@ -123,3 +123,7 @@ After the documented cutover rehearsal, `target_runtime.py up` and `target_runti
 ## Provisioning effect receipts
 
 The supervisor now settles known receipts under its worker lock before runtime startup. Unknown outcomes block replay and startup; direct provision commands cannot bypass a pending worker receipt. Use `worker.py --upstream --settle-only` only to settle known durable outcomes, not to clear uncertainty. Read [the receipt protocol](../docs/PROVISIONING-RECEIPTS.md) before recovering interrupted provisioning. Do not remove pending receipts or blindly requeue their jobs. `worker-receipt-check.py` reuses the retained failed-capacity fixture to test real receipt settlement without allocating another environment.
+
+## Read-only provisioning inspection
+
+Run `/usr/bin/python3 lab/inspect-provisioning.py` to inspect pending upstream effects without starting services or settling receipts. The JSON report distinguishes missing, invalid, busy and unavailable evidence; it never authorizes replay. Read [inspection limits](../docs/PROVISIONING-INSPECTION.md). `/usr/bin/python3 lab/inspection-check.py` verifies the current stopped retained fixture and unchanged logical state hashes.

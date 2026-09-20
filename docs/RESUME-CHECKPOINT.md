@@ -70,3 +70,11 @@ Native provisioners now publish immutable, fsynced outcome witnesses. Replacemen
 The first live verification exposed installed Bun descriptor swap aliasing and recorded runtime_failed before any receipt was published. Source descriptors are now duplicated above child slots; an actual inode-mapping regression passes. The same failed fixture was explicitly retried and now returns capacity_exceeded with an exact native witness.
 
 Latest evidence: 76 Python tests, 67 Bun tests/377 assertions, strict types and 12 real known-refusal integration checks. A temporary native-success fixture survives SIGKILL after witness persistence without replay. All owned runtimes stopped; current refused fixture has a settled failure, no pending receipt, and its private native witness is retained. Unknown partial effects remain blocked. Next build explicit read-only inspection and stage-specific reconciliation for outcomes lacking such a witness.
+
+## Unresolved-effect inspection, latest checkpoint
+
+`/usr/bin/python3 lab/inspect-provisioning.py` now acquires existing locks independently and reports sanitized receipt/witness/catalog/Docker evidence. It never mutates logical runtime state or authorizes replay. Read PROVISIONING-INSPECTION.md for interpretation and SQLite sidecar limitations.
+
+All 82 Python tests pass. Seven live checks observe 19 owned containers, all stopped, no pending receipt, and unchanged catalog/journal/endpoint/native-witness hashes. The live fixture did not run PostgreSQL queries; the bounded metadata-query branch and pending evidence combinations have isolated coverage. Adversarial review corrected strict version validation and unobserved-owned-source wording.
+
+Next: stage-specific recovery for partial effects without a native witness. Do not treat this observation report as permission to clear a receipt or replay a command.

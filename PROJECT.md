@@ -203,3 +203,7 @@ Parent-bound guardians now retain ownership while supervising separate effect pr
 ## Native outcome recovery checkpoint
 
 Known native completion can now be recovered after a lost guardian acknowledgment without reexecution. Fresh per-worker effect leases prevent inherited worker-lock bypass; surviving workers cannot settle native evidence without restart. Live verification exposed and fixed Bun source-FD swap aliasing by duplicating sources above mapping slots. 76 Python tests, 67 Bun tests/377 assertions, strict types and 12 live known-refusal checks pass. No new runtime allocation; all owned containers stopped. Unknown native/daemon effects remain blocked. Details: docs/NATIVE-OUTCOME-RECOVERY.md.
+
+## Unresolved-effect inspection checkpoint
+
+Read-only provisioning inspection now binds receipt/witness/catalog identities, independently acquires existing locks and sanitizes exact-owned Docker observations. Conditional metadata SQL is bounded and READ ONLY; stopped services stay stopped. Replay is never authorized. Six isolated tests and seven live checks pass, with unchanged state hashes and 19 owned containers stopped. Total Python suite: 82. Stage-specific partial-effect recovery remains open. Details: docs/PROVISIONING-INSPECTION.md.
