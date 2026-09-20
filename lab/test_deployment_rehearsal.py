@@ -1,5 +1,6 @@
 """Deployment rehearsal helpers: status mapping and honest failure recording."""
 from unittest.mock import patch
+import os
 import unittest
 import deployment_rehearsal as rehearsal
 
@@ -141,6 +142,57 @@ class StartupDiagnosticsTests(unittest.TestCase):
         script=(Path(__file__).resolve().parent.parent/'deploy'/'server-acceptance.sh').read_text()
         self.assertIn('--require-unit',script)
         self.assertIn('--attempts 3',script)
+
+
+class BootstrapStepTests(unittest.TestCase):
+    """Install step "operator bootstrap" is part of the acceptance evidence."""
+
+    def test_the_step_is_skipped_only_when_explicitly_disabled(self):
+        with patch.dict(os.environ,{'SBARBASE_SKIP_BOOTSTRAP_CHECK':'1'}):
+            self.assertIsNone(rehearsal.run_bootstrap_check())
+        with patch.dict(os.environ,{},clear=False), \
+             patch.object(rehearsal.subprocess,'run') as run:
+            os.environ.pop('SBARBASE_SKIP_BOOTSTRAP_CHECK',None)
+            run.return_value=type('R',(),{'returncode':0,'stdout':'18 live operator bootstrap checks passed.\n','stderr':''})()
+            self.assertEqual(rehearsal.run_bootstrap_check(),(0,'18 live operator bootstrap checks passed.'))
+
+    def test_a_failing_bootstrap_step_is_recorded_with_its_output(self):
+        with patch.dict(os.environ,{},clear=False), \
+             patch.object(rehearsal.subprocess,'run') as run:
+            os.environ.pop('SBARBASE_SKIP_BOOTSTRAP_CHECK',None)
+            run.return_value=type('R',(),{'returncode':1,'stdout':'','stderr':'Test operator cleanup failed'})()
+            code,detail=rehearsal.run_bootstrap_check()
+        self.assertEqual(code,1)
+        self.assertIn('cleanup failed',detail)
+
+    def test_the_rehearsal_records_the_bootstrap_check_when_it_runs(self):
+        with patch.object(rehearsal.install_server,'preflight',return_value=[]), \
+             patch.object(rehearsal.console_build_check,'verify',return_value=([],{})), \
+             patch.object(rehearsal,'start_supervisor',return_value=(object(),{'url':'http://127.0.0.1:1'})), \
+             patch.object(rehearsal,'http_status',return_value=200), \
+             patch.object(rehearsal.install_server,'smoke',return_value=True), \
+             patch.object(rehearsal,'run_bootstrap_check',return_value=(0,'18 live operator bootstrap checks passed.')), \
+             patch.object(rehearsal,'stop_supervisor',return_value=0), \
+             patch.object(rehearsal,'owned_running',return_value=False), \
+             patch.object(rehearsal,'unit_status',return_value={'installed':False}):
+            findings,_=rehearsal.rehearse(None,True,5)
+        names=[item['check'] for item in findings]
+        self.assertIn('operator bootstrap checks passed against the live management Auth',names)
+        self.assertTrue(all(item['ok'] for item in findings))
+
+    def test_a_skipped_bootstrap_step_leaves_no_check_behind(self):
+        with patch.object(rehearsal.install_server,'preflight',return_value=[]), \
+             patch.object(rehearsal.console_build_check,'verify',return_value=([],{})), \
+             patch.object(rehearsal,'start_supervisor',return_value=(object(),{'url':'http://127.0.0.1:1'})), \
+             patch.object(rehearsal,'http_status',return_value=200), \
+             patch.object(rehearsal.install_server,'smoke',return_value=True), \
+             patch.object(rehearsal,'run_bootstrap_check',return_value=None), \
+             patch.object(rehearsal,'stop_supervisor',return_value=0), \
+             patch.object(rehearsal,'owned_running',return_value=False), \
+             patch.object(rehearsal,'unit_status',return_value={'installed':False}):
+            findings,_=rehearsal.rehearse(None,True,5)
+        self.assertNotIn('operator bootstrap checks passed against the live management Auth',
+                         [item['check'] for item in findings])
 
 
 if __name__=='__main__':unittest.main()

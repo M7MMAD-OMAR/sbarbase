@@ -127,6 +127,19 @@ def unit_status(path=UNIT):
     return status
 
 
+def run_bootstrap_check(timeout=300):
+    """Install step "operator bootstrap", against the live management Auth.
+
+    Returns None when the step is deliberately skipped, so the evidence never
+    implies a check that did not run.
+    """
+    if os.environ.get('SBARBASE_SKIP_BOOTSTRAP_CHECK')=='1':return None
+    result=subprocess.run(['bun','lab/bootstrap-check.ts'],cwd=ROOT,capture_output=True,text=True,timeout=timeout)
+    lines=[line for line in result.stdout.strip().splitlines() if line.strip()]
+    detail=lines[-1] if lines else (result.stderr.strip()[-200:] or 'no output')
+    return result.returncode,detail
+
+
 def rehearse(bootstrap_file,skip_install,timeout,attempts=1,delay=15,require_unit=False):
     findings=[]
     def record(label,ok,detail=''):
@@ -171,6 +184,10 @@ def rehearse(bootstrap_file,skip_install,timeout,attempts=1,delay=15,require_uni
             record('every recorded environment route answered',True)
         else:
             record('every recorded environment route answered',False,'see smoke output above')
+        bootstrap=run_bootstrap_check()
+        if bootstrap is not None:
+            code,detail=bootstrap
+            record('operator bootstrap checks passed against the live management Auth',code==0,detail)
         if (STATE/'cutover-operation.json').exists():
             result=subprocess.run(['bun','lab/combined-gateway-check.ts'],cwd=ROOT,capture_output=True,text=True,timeout=180)
             record('combined gateway checks passed',result.returncode==0,result.stdout.strip() or result.stderr.strip())
