@@ -343,6 +343,32 @@ including the source-stopped window:
 docs/evidence/hba-adoption-crash-checks.json. The review worktree was merged
 into main and removed.
 
+## Retained source adopted, 2026-09-20 (Hermes)
+
+The retained `sbarbase-durable-db` source is now adopted into HBA authority.
+Only that container was started and stopped again; no application service and no
+recovery target was started. The operation published a private intent in the
+retained state directory, wrote immutable checkpoints, published the intent's
+exact generation pin and published the preserved rules through the owned
+apply/reload pipeline with exactly one fresh revision marker.
+
+Verified from durable evidence only (docs/evidence/retained-source-adoption.json,
+12 checks): the live file digest equals the recorded applied content, the
+pre-adoption bytes are preserved byte for byte against the journal expected
+digest, exactly one revision marker exists, inventory rules exist for every
+catalog environment, no pending journal or worker effect remains, and the source
+is stopped by exact identity. Runners: lab/adopt-retained-source.py and
+lab/verify-retained-adoption.py.
+
+Explicit assumption: legacy host clients and queued Docker requests were
+quiesced (all source containers stopped for hours, locks free, no receipt, no
+journal). Raw legacy writers are still not fenced by this operation.
+
+Next: the retained source now carries a generation pin, so its startup no longer
+refuses on that gate. A source lifecycle rehearsal (start, four environment
+routes, stop) is the natural next verification, followed by recovery-target
+writers and container-generation migration.
+
 ## User stop and Hermes handoff, 2026-09-20
 
 The user explicitly stopped this Codex implementation to continue with another Hermes agent/model. All reviews are completed; no test process remains active. Read-only inventory verified 11 source and 8 recovery-target containers stopped, no fresh fixture containers remaining, and no retained source generation pin. Saved the completed crash-probe changes and evidence, without beginning adoption or another experiment. HERMES-HANDOFF.md is the concise continuation entry point. The wider platform goal remains unfinished; this is a user-requested stop, not goal completion.

@@ -3,3 +3,4 @@
 node_modules/
 sbarbase-handoff.zip
 __pycache__/
+.worktrees/

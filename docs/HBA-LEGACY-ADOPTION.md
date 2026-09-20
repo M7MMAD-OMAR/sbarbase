@@ -84,3 +84,18 @@ after source-stopped checkpoint, kill after durable witness with pending
 journal), 44 checks:
 `docs/evidence/hba-adoption-crash-checks.json`. Retained source, recovery
 targets and all volumes untouched.
+
+## Retained adoption executed, 2026-09-20
+
+The retained `sbarbase-durable-db` source was adopted with this operation:
+lab/adopt-retained-source.py ran it and lab/verify-retained-adoption.py verified
+it from durable evidence only (12 checks,
+docs/evidence/retained-source-adoption.json). Only the captured database
+container was started and stopped again; no application service and no recovery
+target was touched. Reported evidence: the live pg_hba.conf digest equals the
+recorded applied content, the pre-adoption bytes are preserved byte for byte
+against the journal expected digest, exactly one fresh revision marker exists,
+inventory rules exist for every catalog environment, no pending journal or
+worker effect remains, and the source is stopped by exact identity. Quiescence
+was checked before running (all source containers stopped, locks free, no
+receipt, no journal) and remains an explicit assumption for raw legacy writers.

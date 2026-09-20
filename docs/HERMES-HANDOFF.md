@@ -28,7 +28,11 @@ The retained source has no HBA generation pin. Its startup deliberately refuses 
    implemented and crash-tested on disposable fixtures
    ([docs/HBA-LEGACY-ADOPTION.md](HBA-LEGACY-ADOPTION.md)); retained-adoption
    reconciliation and container-generation migration remain open.
-2. Only after review and verification, reconcile retained adoption. Container-generation migration and recovery-target writers are separate unfinished work.
+2. DONE 2026-09-20 (Hermes): retained adoption is reconciled. `sbarbase-durable-db`
+   now carries a generation pin; its HBA rules were preserved byte for byte with
+   one fresh revision marker, and the container was stopped again. Evidence:
+   docs/evidence/retained-source-adoption.json (12 checks). Container-generation
+   migration and recovery-target writers remain separate unfinished work.
 3. Broader worker/supervisor interruption, service effects and later-stage recovery. Current evidence is two native worker checkpoints, not arbitrary crash or power-loss safety.
 4. Sustained mixed-load capacity, off-host restore, upgrades, complete organization transfer and multi-host coordination. Realtime/functions/pooler/cron remain unfinished.
 
