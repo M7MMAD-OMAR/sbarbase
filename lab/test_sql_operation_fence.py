@@ -22,3 +22,8 @@ class SQLFenceTests(unittest.TestCase):
         self.assertNotIn('BEGIN;',script)
         self.assertLess(script.index('pg_advisory_lock'),script.index('SQL operation is not active'))
         self.assertLess(script.index('END $guard$;'),script.index('CREATE DATABASE'))
+
+
+    def test_backend_identity_pins_reject_malformed_values(self):
+        for options in ({'expected_oid':True},{'expected_oid':0},{'expected_cluster':"1';"},{'expected_cluster':'0'}):
+            with self.assertRaises(ValueError):fence.revoke(*self.identity,**options)

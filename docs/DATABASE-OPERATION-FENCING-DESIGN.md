@@ -1,6 +1,6 @@
 # Database operation fencing: design gate
 
-Status: reviewed design constraints with a [tested single-database prototype](SQL-OPERATION-FENCE.md); production integration and cross-database fencing are not implemented. Recorded 2026-09-20.
+Status: reviewed design constraints with a [tested single-database prototype](SQL-OPERATION-FENCE.md); a [sequential two-database prototype](SQL-PAIR-REVOCATION.md) is also tested. Production integration is not implemented. Recorded 2026-09-20.
 
 ## Problem
 

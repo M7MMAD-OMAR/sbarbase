@@ -12,7 +12,8 @@ TABLE='sbarbase_provision_guard.operations'
 
 
 def bootstrap():
-    return f'''CREATE SCHEMA IF NOT EXISTS sbarbase_provision_guard;
+    return f'''BEGIN;
+CREATE SCHEMA IF NOT EXISTS sbarbase_provision_guard;
 REVOKE ALL ON SCHEMA sbarbase_provision_guard FROM PUBLIC;
 CREATE TABLE IF NOT EXISTS {TABLE} (
  token uuid PRIMARY KEY, runtime text NOT NULL, claim uuid NOT NULL,
@@ -28,6 +29,7 @@ BEGIN
  END LOOP;
 END $privileges$;
 CREATE UNIQUE INDEX IF NOT EXISTS one_active_operation ON {TABLE}(runtime) WHERE state='active';
+COMMIT;
 '''
 
 
@@ -58,9 +60,9 @@ def end(runtime):
     return f'SELECT pg_catalog.pg_advisory_unlock({lock_key(runtime)});\n'
 
 
-def register(runtime,token,claim,attempt):
+def register(runtime,token,claim,attempt,*,initialize=False):
     exact=identity(runtime,token,claim,attempt)
-    return begin(runtime)+f'''DO $guard$
+    return begin(runtime)+(bootstrap() if initialize else '')+f'''DO $guard$
 BEGIN
  IF EXISTS(SELECT 1 FROM {TABLE} WHERE runtime='{runtime}' AND token<>'{token}' AND attempt>={attempt}) THEN
   RAISE EXCEPTION 'Stale SQL operation registration';
@@ -75,9 +77,13 @@ END $guard$;
 '''+end(runtime)
 
 
-def revoke(runtime,token,claim,attempt):
+def revoke(runtime,token,claim,attempt,*,initialize=False,expected_oid=None,expected_cluster=None):
     exact=identity(runtime,token,claim,attempt)
-    return begin(runtime)+f'''DO $guard$
+    if expected_oid is not None and (type(expected_oid) is not int or expected_oid<=0):raise ValueError('Invalid expected database identity')
+    if expected_cluster is not None and (not isinstance(expected_cluster,str) or not re.fullmatch(r'[1-9][0-9]{0,31}',expected_cluster)):raise ValueError('Invalid expected cluster identity')
+    identity_check='' if expected_oid is None else f"DO $identity$ BEGIN IF (SELECT oid FROM pg_catalog.pg_database WHERE datname=current_database())<>{expected_oid} THEN RAISE EXCEPTION 'Database identity changed'; END IF; END $identity$;\n"
+    if expected_cluster is not None:identity_check+=f"DO $cluster$ BEGIN IF (SELECT system_identifier::text FROM pg_catalog.pg_control_system())<>'{expected_cluster}' THEN RAISE EXCEPTION 'Cluster identity changed'; END IF; END $cluster$;\n"
+    return begin(runtime)+identity_check+(bootstrap() if initialize else '')+f'''DO $guard$
 BEGIN
  INSERT INTO {TABLE} VALUES ('{token}','{runtime}','{claim}',{attempt},'revoked') ON CONFLICT(token) DO NOTHING;
  IF NOT EXISTS(SELECT 1 FROM {TABLE} WHERE {exact}) THEN
