@@ -130,3 +130,5 @@ Run `/usr/bin/python3 lab/inspect-provisioning.py` to inspect pending upstream e
 
 
 For the original Supabase PostgreSQL distribution, run `/usr/bin/python3 lab/partial-database-crash-check.py --upstream`. This uses a fresh network-disabled container and requires 4 GiB host headroom. It tests SQL boundaries only; `upstream-environments.py --storage` separately tests fresh Auth/REST/Storage integration. See [measured scopes](../docs/PARTIAL-DATABASE-CRASH.md).
+
+The experimental same-database SQL revocation proof runs with `/usr/bin/python3 lab/partial-database-crash-check.py --upstream --sql-fence`. It does not enable production recovery. Read [the precise barrier scope](../docs/SQL-OPERATION-FENCE.md).

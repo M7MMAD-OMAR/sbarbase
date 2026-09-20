@@ -66,7 +66,7 @@ def bun(code,state):
     return result.stdout
 
 
-def main(upstream=False):
+def main(upstream=False,sql_fence=False):
     global ADMIN
     ADMIN="supabase_admin" if upstream else "postgres"
     checks=[];container=None;native=None
@@ -116,7 +116,10 @@ def main(upstream=False):
 const state=process.env.SBARBASE_PROBE_STATE!;
 const c=new Catalog(state+'/control.sqlite');
 try{const o=c.createOrganization('probe','O'),p=c.createProject('probe',o,'P');c.createEnvironment('probe',p,'E');console.log(JSON.stringify(c.claimProvision()));}finally{c.close();}"""
-            for phase in ('roles','database','permissions','transaction_failure'):
+            if sql_fence:
+                from sql_operation_fence_check import run as run_fence
+                run_fence(container,ADMIN,check,docker,sql)
+            for phase in (() if sql_fence else ('roles','database','permissions','transaction_failure')):
                 state=Path(directory)/phase;state.mkdir()
                 job=json.loads(bun(setup,state));runtime=job['runtime']
                 check(phase+': fresh runtime has no prior database or roles',sql(container,f"SELECT NOT EXISTS(SELECT 1 FROM pg_database WHERE datname='{runtime}') AND NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname IN ('{runtime}_auth','{runtime}_rest'));").stdout.strip()=='t')
@@ -183,8 +186,10 @@ console.log('blocked');}finally{c.close();}"""
                     docker('rm','-f','-v',container)
                     check('exact disposable container absent from successful inventory',container not in docker('ps','-aq','--no-trunc').stdout.split())
     evidence={'image':image,'profile':'upstream' if upstream else 'component','scope':('Pinned Supabase PostgreSQL distribution, ' if upstream else 'Pinned stock PostgreSQL 17 component, ')+ ' actual provision_environment SQL interrupted after roles, database and permissions checkpoints plus injected permission transaction failure. Process kill follows synchronous SQL completion. Confirms durable partial state and blocked replay, not full Supabase recovery or in-flight daemon cancellation. Retained installation untouched.','count':len(checks),'checks':checks}
-    (lab.ROOT/('docs/evidence/upstream-partial-database-crash-checks.json' if upstream else 'docs/evidence/partial-database-crash-checks.json')).write_text(json.dumps(evidence,indent=2)+'\n')
-    print(str(len(checks))+' partial database crash checks passed')
+    if sql_fence:evidence['scope']='Experimental same-database operation revocation on pinned PostgreSQL. Concurrent queued batches, cancellation, tombstones and CREATE DATABASE tested. Explicitly proves identical advisory keys do not fence another database. Not wired into runtime recovery.'
+    output=('upstream-' if upstream else '')+('sql-fence-checks.json' if sql_fence else 'partial-database-crash-checks.json')
+    (lab.ROOT/'docs/evidence'/output).write_text(json.dumps(evidence,indent=2)+'\n')
+    print(str(len(checks))+(' SQL operation fence checks passed' if sql_fence else ' partial database crash checks passed'))
 
 
 if __name__=='__main__':
@@ -194,6 +199,7 @@ if __name__=='__main__':
             child(sys.argv[2],Path(sys.argv[3]),sys.argv[4])
         elif len(sys.argv)==1:main()
         elif sys.argv[1:]==['--upstream']:main(upstream=True)
+        elif sys.argv[1:] in (['--sql-fence'],['--upstream','--sql-fence']):main(upstream='--upstream' in sys.argv,sql_fence=True)
         else:raise RuntimeError('Invalid probe arguments')
     except AssertionError as error:raise SystemExit('Probe assertion failed: '+str(error)) from None
     except RuntimeError as error:raise SystemExit('Partial database probe failed: '+str(error)) from None
