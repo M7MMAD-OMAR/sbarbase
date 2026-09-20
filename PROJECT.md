@@ -59,3 +59,7 @@ Keep .secrets, .lab and dependencies out of sharing. The handoff ZIP includes so
 ## Admission checkpoint
 
 The four-environment local guard now has [12 live checks](docs/evidence/admission-checks.json): a fifth runtime is refused without new databases, containers or endpoint entries; existing Auth/REST endpoints, console and worker remain available. Failed metadata is retained for explicit retry. The worker stores only `capacity_exceeded` or `runtime_failed`, and the authorized status API exposes that safe reason. The console labels capacity refusals and explains the next action. Thirteen Python tests pass, including guard ordering and reconciliation of existing environments at capacity. This count guard is not production CPU, memory, disk or workload admission.
+
+## Resource admission checkpoint
+
+New durable environments now also require host-memory and mounted-volume free-space headroom before credentials or databases are allocated. [Policy, live snapshot and limitations](docs/RESOURCE-ADMISSION.md). Eighteen Python tests pass. This is a local snapshot gate with fixed reserves; CPU/I/O, connection budgets, quotas and continuous pressure monitoring remain unfinished. The four-environment count guard remains in force.

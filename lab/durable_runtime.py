@@ -12,6 +12,7 @@ import time
 import urllib.error
 import urllib.request
 import run as lab
+import resource_admission
 
 class AdmissionLimitError(RuntimeError):
     pass
@@ -188,6 +189,12 @@ class Runtime:
             # With management Auth: at most four environments, 3840 MiB/3.75 CPUs.
             if len(self.values['environments']) >= 4:
                 raise AdmissionLimitError('Local runtime admission limit reached')
+            try:
+                reason = resource_admission.refusal(resource_admission.snapshot())
+            except Exception:
+                raise RuntimeError('Resource measurement unavailable') from None
+            if reason:
+                raise AdmissionLimitError('Resource headroom unavailable')
             self.values['environments'][e] = {k: secrets.token_hex(32) for k in ('auth', 'rest', 'storage', 'jwt')}
             atomic(self.path, self.values)
         v = self.values['environments'][e]
