@@ -22,7 +22,10 @@ def publish(path,record):
 
 
 def complete(path,record,exit_code):
-    record={**record,'phase':'completed','exitCode':exit_code}
+    atomic_record(path,{**record,'phase':'completed','exitCode':exit_code})
+
+
+def atomic_record(path,record):
     temporary=None
     try:
         with tempfile.NamedTemporaryFile(mode='w',dir=path.parent,delete=False) as output:
@@ -65,7 +68,37 @@ def native_outcome(state,runtime,exit_code,native):
             or record.get('native')!=native or not re.fullmatch(r'[a-f0-9-]{36}',token)
             or exit_code not in (0,75) or (exit_code==75 and native!='durable-provision-v1')):
         raise RuntimeError('Native outcome identity mismatch')
+    if record.get('stageProtocol')==1 and native=='durable-provision-v1':
+        stage=json.loads((state/'effect-stages'/(token+'.json')).read_text())
+        expected='preflight' if exit_code==75 else 'publication'
+        if stage!={**record,'stage':expected,'stageIndex':STAGES.index(expected)}:
+            raise RuntimeError('Native outcome stage mismatch')
     directory=state/'effect-outcomes'
     directory.mkdir(mode=0o700,exist_ok=True)
     sync_directory(state)
     publish(directory/(token+'.json'),{**record,'phase':'native-completed','exitCode':exit_code})
+
+
+STAGES=('preflight','database','services','storage','publication')
+
+
+def native_stage(state,runtime,stage):
+    """Write-ahead marker: the next phase cannot begin before this is durable."""
+    if not os.environ.get('SBARBASE_EFFECT_TOKEN'):return
+    require_permission(state,runtime)
+    receipt=json.loads((state/'worker-effect.json').read_text())
+    if (receipt.get('native')!='durable-provision-v1' or type(receipt.get('stageProtocol')) is not int
+            or receipt['stageProtocol']!=1 or stage not in STAGES
+            or not re.fullmatch(r'[a-f0-9-]{36}',receipt['token'])):
+        raise RuntimeError('Stage protocol mismatch')
+    directory=state/'effect-stages';directory.mkdir(mode=0o700,exist_ok=True);sync_directory(state)
+    path=directory/(receipt['token']+'.json')
+    index=STAGES.index(stage)
+    value={**receipt,'stage':stage,'stageIndex':index}
+    if index==0:
+        publish(path,value)
+        return
+    previous=json.loads(path.read_text())
+    expected={**receipt,'stage':STAGES[index-1],'stageIndex':index-1}
+    if previous!=expected:raise RuntimeError('Stage sequence mismatch')
+    atomic_record(path,value)

@@ -46,6 +46,7 @@ def main():
     if command==['/usr/bin/python3','lab/durable_runtime.py','provision',identity['runtime']]:native='durable-provision-v1'
     if command==['/usr/bin/python3','lab/provision.py',identity['runtime']]:native='component-provision-v1'
     record={'version':1,'phase':'pending','token':str(uuid.uuid4()),'job':identity,'native':native}
+    if native=='durable-provision-v1':record['stageProtocol']=1
     publish(receipt,record)
     child=None;interrupted=False;code=None
     deadline=time.monotonic()+timeout

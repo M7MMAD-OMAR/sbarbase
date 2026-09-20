@@ -57,6 +57,8 @@ def main():
         witnesses=[json.loads(path.read_text()) for path in (STATE/'effect-outcomes').glob('*.json')]
         matched=[w for w in witnesses if w.get('job',{}).get('environment')==environment and w.get('job',{}).get('attempt')==final['attempt']]
         check('native refusal witness binds the exact committed claim',len(matched)==1 and matched[0].get('phase')=='native-completed' and matched[0].get('native')=='durable-provision-v1' and matched[0].get('exitCode')==75 and matched[0]['job']['claim']==row[2])
+        stage=json.loads((STATE/'effect-stages'/(matched[0]['token']+'.json')).read_text())
+        check('native refusal retains exact preflight boundary',stage.get('stageProtocol')==1 and stage.get('stage')=='preflight' and stage.get('stageIndex')==0 and stage.get('job')==matched[0]['job'])
         wait(lambda:not (STATE/'worker-effect.json').exists(),5)
         check('receipt consumed only after committed outcome',not (STATE/'worker-effect.json').exists())
         check('no runtime container allocated',inventory()==containers)

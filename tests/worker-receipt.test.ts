@@ -137,3 +137,120 @@ test('missing partial and conflicting native evidence cannot resolve pending eff
   }
  }finally{f.catalog.close();rmSync(f.dir,{recursive:true,force:true});}
 });
+
+function preflight(f:ReturnType<typeof fixture>,token='12345678-1234-1234-1234-123456789abc'){
+ const job=f.catalog.getProvision('owner',f.environment);
+ const receipt={version:1,phase:'pending',token,native:'durable-provision-v1',stageProtocol:1,
+  job:{environment:job.environment,runtime:job.runtime,claim:job.claim!,attempt:job.attempt}};
+ mkdirSync(join(f.dir,'effect-stages'),{recursive:true});
+ writeFileSync(f.file,JSON.stringify(receipt));
+ writeFileSync(join(f.dir,'effect-stages',token+'.json'),JSON.stringify({...receipt,stage:'preflight',stageIndex:0}));
+ return receipt;
+}
+
+test('preflight recovery is exact, bounded and idempotent after commit before receipt consumption',()=>{
+ const f=fixture();
+ try{
+  const first=preflight(f);
+  expect(f.catalog.recoverPreflightReceipt(f.environment,f.job.runtime,f.job.claim!,1,first.token)).toBe('requeued');
+  f.catalog.close();f.catalog=new Catalog(f.path);
+  expect(settleWorkerReceipt(f.catalog,f.lock,true)).toBe('requeued');
+  expect(f.catalog.getProvision('owner',f.environment).state).toBe('queued');
+  f.catalog.claimProvision();preflight(f,'22345678-1234-1234-1234-123456789abc');
+  expect(settleWorkerReceipt(f.catalog,f.lock,true)).toBe('requeued');
+  f.catalog.claimProvision();preflight(f,'32345678-1234-1234-1234-123456789abc');
+  expect(settleWorkerReceipt(f.catalog,f.lock,true)).toBe('failed');
+  expect(f.catalog.getProvision('owner',f.environment).failure).toBe('runtime_failed');
+  expect(f.catalog.claimProvision()).toBeNull();
+ }finally{f.catalog.close();rmSync(f.dir,{recursive:true,force:true});}
+});
+
+test('later stages, corrupt native outcomes and legacy protocols cannot authorize preflight retry',()=>{
+ const f=fixture();
+ try{
+  const receipt=preflight(f),stage=join(f.dir,'effect-stages',receipt.token+'.json');
+  for(const name of ['database','services','storage','publication']){
+   writeFileSync(stage,JSON.stringify({...receipt,stage:name,stageIndex:1}));
+   expect(()=>settleWorkerReceipt(f.catalog,f.lock,true)).toThrow('external effects');
+  }
+  writeFileSync(stage,JSON.stringify({...receipt,stage:'preflight',stageIndex:0}));
+  writeFileSync(f.file,JSON.stringify({...receipt,stageProtocol:undefined}));
+  expect(()=>settleWorkerReceipt(f.catalog,f.lock,true)).toThrow('unavailable');
+  writeFileSync(f.file,JSON.stringify(receipt));mkdirSync(join(f.dir,'effect-outcomes'));
+  writeFileSync(join(f.dir,'effect-outcomes',receipt.token+'.json'),'{partial');
+  expect(()=>settleWorkerReceipt(f.catalog,f.lock,true)).toThrow('malformed');
+  expect(f.catalog.getProvision('owner',f.environment).state).toBe('running');
+ }finally{f.catalog.close();rmSync(f.dir,{recursive:true,force:true});}
+});
+
+test('preflight history cannot change a newer attempt',()=>{
+ const f=fixture();
+ try{
+  const receipt=preflight(f);
+  f.catalog.recoverPreflightReceipt(f.environment,f.job.runtime,f.job.claim!,1,receipt.token);
+  const next=f.catalog.claimProvision()!;
+  expect(settleWorkerReceipt(f.catalog,f.lock,true)).toBe('requeued');
+  expect(f.catalog.getProvision('owner',f.environment).claim).toBe(next.claim);
+  expect(()=>f.catalog.recoverPreflightReceipt(f.environment,f.job.runtime,'different',1,receipt.token)).toThrow('mismatch');
+ }finally{f.catalog.close();rmSync(f.dir,{recursive:true,force:true});}
+});
+
+
+test('recovered preflight cannot execute after its original actor loses authorization',()=>{
+ const f=fixture();
+ try{
+  f.catalog.finishProvision(f.environment,f.job.claim!,true);
+  const org=f.catalog.createOrganization('owner','Revocation');
+  f.catalog.setMember('owner',org,'admin','admin');
+  const project=f.catalog.createProject('owner',org,'Project');
+  const environment=f.catalog.createEnvironment('admin',project,'Environment');
+  const job=f.catalog.claimProvision()!;
+  preflight({...f,environment,job});
+  f.catalog.setMember('owner',org,'admin',null);
+  expect(settleWorkerReceipt(f.catalog,f.lock,true)).toBe('requeued');
+  expect(f.catalog.claimProvision()).toBeNull();
+  expect(f.catalog.getProvision('owner',environment).state).toBe('cancelled');
+  expect(existsSync(f.file)).toBe(false);
+ }finally{f.catalog.close();rmSync(f.dir,{recursive:true,force:true});}
+});
+
+for(const stage of ['preflight','database'] as const){
+ test(`native SIGKILL at ${stage} preserves the write-ahead recovery boundary`,async()=>{
+  const f=fixture(),receipt=preflight(f);
+  const workerFd=openSync(f.lock,'a'),effectFd=openSync(join(f.dir,'effect.lock'),'a');
+  let child:ReturnType<typeof Bun.spawn>|undefined;
+  try{
+   rmSync(join(f.dir,'effect-stages',receipt.token+'.json'));
+   const ready=join(f.dir,'stage-ready');
+   const code=`import sys,fcntl,time
+from pathlib import Path
+sys.path.insert(0,${JSON.stringify(join(process.cwd(),'lab'))})
+import effect_receipt
+fcntl.flock(3,fcntl.LOCK_EX);fcntl.flock(4,fcntl.LOCK_EX)
+state=Path(${JSON.stringify(f.dir)})
+effect_receipt.native_stage(state,${JSON.stringify(f.job.runtime)},'preflight')
+${stage==='database'?`effect_receipt.native_stage(state,${JSON.stringify(f.job.runtime)},'database')`:''}
+Path(${JSON.stringify(ready)}).touch()
+time.sleep(30)`;
+   child=Bun.spawn(['/usr/bin/python3','-c',code],{stdio:['ignore','ignore','ignore',workerFd,effectFd],env:{...process.env,SBARBASE_EFFECT_TOKEN:receipt.token}});
+   const deadline=Date.now()+3000;
+   while(!existsSync(ready)&&Date.now()<deadline&&child.exitCode===null)await Bun.sleep(10);
+   expect(existsSync(ready)).toBe(true);
+   child.kill('SIGKILL');await child.exited;
+   expect(()=>settleWorkerReceipt(f.catalog,f.lock)).toThrow('fresh worker lease');
+   f.catalog.close();f.catalog=new Catalog(f.path);
+   if(stage==='preflight'){
+    expect(settleWorkerReceipt(f.catalog,f.lock,true)).toBe('requeued');
+    expect(f.catalog.getProvision('owner',f.environment).state).toBe('queued');
+    expect(existsSync(f.file)).toBe(false);
+   }else{
+    expect(()=>settleWorkerReceipt(f.catalog,f.lock,true)).toThrow('external effects');
+    expect(f.catalog.getProvision('owner',f.environment).state).toBe('running');
+    expect(existsSync(f.file)).toBe(true);
+   }
+  }finally{
+   if(child&&child.exitCode===null){child.kill('SIGKILL');await child.exited;}
+   closeSync(workerFd);closeSync(effectFd);f.catalog.close();rmSync(f.dir,{recursive:true,force:true});
+  }
+ });
+}

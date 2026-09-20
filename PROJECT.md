@@ -207,3 +207,9 @@ Known native completion can now be recovered after a lost guardian acknowledgmen
 ## Unresolved-effect inspection checkpoint
 
 Read-only provisioning inspection now binds receipt/witness/catalog identities, independently acquires existing locks and sanitizes exact-owned Docker observations. Conditional metadata SQL is bounded and READ ONLY; stopped services stay stopped. Replay is never authorized. Six isolated tests and seven live checks pass, with unchanged state hashes and 19 owned containers stopped. Total Python suite: 82. Stage-specific partial-effect recovery remains open. Details: docs/PROVISIONING-INSPECTION.md.
+
+## Bounded preflight recovery, latest checkpoint
+
+Read docs/PREFLIGHT-RECOVERY.md. New native stage records allow exact pre-mutation recovery under fresh worker/effect ownership and the operation lock, with at most two automatic requeues. Later stages remain blocked without native completion. Review exposed and fixed retained-credential admission bypass and startup provisioning of reservations before authorization. Startup now resumes only published environments.
+
+Validation: 87 Python tests, 73 Bun tests/408 assertions, strict worker/receipt types and 13 live known-refusal integration checks. Temporary native SIGKILL tests cover both sides of the stage boundary, not a full active-supervisor crash. No new runtime allocated; all owned runtimes stopped and receipt consumed after the live check. Next: stage-aware read-only inspection and a full active-provisioning supervisor crash rehearsal.

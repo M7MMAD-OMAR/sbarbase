@@ -185,8 +185,14 @@ class Runtime:
             'X_FORWARDED_HOST_REGEXP': r'^(e_[a-f0-9]{24})\.storage\.internal$', 'LOG_LEVEL': 'error'},
             '512m', .5, [(PREFIX+'-objects', '/tmp/storage-data')])
         self.wait(self.endpoint(PREFIX+'-storage', 5001)+'/tenants', {'apikey': self.values['storage_admin']})
+        self.resume_published_environments()
+
+    def resume_published_environments(self):
+        # Credential reservations must only be dispatched by an authorized worker.
+        path = STATE/'endpoints.json'
+        published = json.loads(path.read_text()) if path.exists() else {}
         for e in tuple(self.values['environments']):
-            if not source_fence.is_fenced(self.sql,e):
+            if e in published and not source_fence.is_fenced(self.sql,e):
                 self.provision(e)
 
     def rest_deadlines(self, e):
@@ -205,9 +211,10 @@ class Runtime:
             raise RuntimeError('Invalid environment runtime identifier')
         if not inspect('container', DB) or not inspect('container', PREFIX+'-storage'):
             raise RuntimeError('Start the upstream runtime first')
-        if e not in self.values['environments']:
+        new_environment = e not in self.values['environments']
+        if new_environment or os.environ.get('SBARBASE_EFFECT_TOKEN'):
             # With management Auth: at most four environments, 3840 MiB/3.75 CPUs.
-            if len(self.values['environments']) >= 4:
+            if len(self.values['environments']) + int(new_environment) > 4:
                 raise AdmissionLimitError('Local runtime admission limit reached')
             try:
                 reason = resource_admission.refusal(resource_admission.snapshot())
@@ -218,13 +225,15 @@ class Runtime:
             if pressure_admission.refusal(pressure_admission.snapshot()):
                 raise AdmissionLimitError('Runtime pressure exceeds admission threshold')
             limits = self.sql("SELECT current_setting('max_connections'), current_setting('superuser_reserved_connections'), current_setting('reserved_connections');").stdout.strip().split('|')
-            if len(limits) != 3 or not connection_budget.fits(len(self.values['environments'])+1, *(int(value) for value in limits)):
+            if len(limits) != 3 or not connection_budget.fits(len(self.values['environments'])+int(new_environment), *(int(value) for value in limits)):
                 raise AdmissionLimitError('Connection budget unavailable')
+        if new_environment:
             self.values['environments'][e] = {k: secrets.token_hex(32) for k in ('auth', 'rest', 'storage', 'jwt')}
             atomic(self.path, self.values)
         if source_fence.is_fenced(self.sql,e):
             raise RuntimeError('Environment database is fenced; explicit reconciliation required')
         v = self.values['environments'][e]
+        effect_receipt.native_stage(STATE,e,'database')
         lab.provision_environment(e, v, executor=self.sql)
         self.sql('CREATE SCHEMA IF NOT EXISTS extensions; CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions; CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions; GRANT USAGE ON SCHEMA extensions TO anon,authenticated,service_role;', e)
         if self.sql(f"SELECT 1 FROM pg_roles WHERE rolname='{e}_storage';").stdout.strip() != '1':
@@ -235,12 +244,14 @@ class Runtime:
         self.sql(f'GRANT anon,authenticated,service_role TO {e}_storage; GRANT CONNECT ON DATABASE {e} TO {e}_storage;')
         self.sql(f'CREATE SCHEMA IF NOT EXISTS storage AUTHORIZATION {e}_storage; GRANT USAGE ON SCHEMA storage TO anon,authenticated,service_role; ALTER DEFAULT PRIVILEGES FOR ROLE {e}_storage IN SCHEMA storage GRANT ALL ON TABLES TO anon,authenticated,service_role; ALTER DEFAULT PRIVILEGES FOR ROLE {e}_storage IN SCHEMA storage GRANT ALL ON SEQUENCES TO anon,authenticated,service_role;', e)
         self.hba()
+        effect_receipt.native_stage(STATE,e,'services')
         endpoints = {}
         for service, builder, port, suffix in [('auth', lab.auth_configuration, 9999, '/health'), ('rest', lab.rest_configuration, 3000, '/')]:
             name = PREFIX+'-'+e+'-'+service
             self.launch(name, service, builder(e, v, DB), '256m', .25)
             endpoints[service] = self.endpoint(name, port)
             self.wait(endpoints[service]+suffix)
+        effect_receipt.native_stage(STATE,e,'storage')
         admin = self.endpoint(PREFIX+'-storage', 5001)
         headers = {'apikey': self.values['storage_admin'], 'content-type': 'application/json'}
         status, _ = http(admin+'/tenants/'+e, headers=headers)
@@ -259,6 +270,7 @@ class Runtime:
             raise RuntimeError('Environment migrations incomplete')
         endpoints['storage'] = {'url': public, 'tenantHost': e+'.storage.internal'}
         endpoints['serviceConcurrency'] = {'rest': int(lab.rest_configuration(e, v, DB)['PGRST_DB_POOL'])}
+        effect_receipt.native_stage(STATE,e,'publication')
         path = STATE/'endpoints.json'
         all_endpoints = json.loads(path.read_text()) if path.exists() else {}
         all_endpoints[e] = endpoints
@@ -304,6 +316,7 @@ if __name__ == '__main__':
             if args.command == 'stop':
                 stop()
             else:
+                if args.command=='provision':effect_receipt.native_stage(STATE,args.environment or '', 'preflight')
                 runtime = Runtime()
                 if args.command == 'up':
                     runtime.start()

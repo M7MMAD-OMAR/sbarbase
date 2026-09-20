@@ -1,3 +1,4 @@
+import {closeSync} from 'node:fs';
 import {settleWorkerReceipt} from './worker-receipt';
 import {spawnWorkerEffect} from './worker-effect';
 import {Catalog} from '../src/control/catalog';
@@ -14,7 +15,9 @@ const stop=()=>{stopping=true;activeEffect?.kill('SIGTERM');};
 process.on('SIGTERM',stop);process.on('SIGINT',stop);
 const lockPath=upstream?'.lab/upstream/worker.lock':'.lab/worker.lock';
 try {
- settleWorkerReceipt(catalog,lockPath,true);
+ const operationFd=Number(process.env.SBARBASE_OPERATION_FD);
+ if(!Number.isInteger(operationFd)||operationFd<3)throw new Error('Missing operation ownership');
+ try{settleWorkerReceipt(catalog,lockPath,true);}finally{closeSync(operationFd);}
  if(!settleOnly)catalog.recoverProvisioning();
  while(!settleOnly&&!stopping) {
   const job=catalog.claimProvision();

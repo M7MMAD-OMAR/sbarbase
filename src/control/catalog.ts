@@ -41,6 +41,11 @@ export class Catalog {
         environment TEXT NOT NULL REFERENCES provision_jobs(environment), attempt INTEGER NOT NULL,
         runtime TEXT NOT NULL, claim TEXT NOT NULL, exit_code INTEGER NOT NULL CHECK(exit_code IN (0,75)),
         PRIMARY KEY(environment,attempt));
+      CREATE TABLE IF NOT EXISTS provision_recovery_decisions(
+        environment TEXT NOT NULL REFERENCES provision_jobs(environment),attempt INTEGER NOT NULL,
+        runtime TEXT NOT NULL,claim TEXT NOT NULL,receipt_token TEXT NOT NULL,
+        decision TEXT NOT NULL CHECK(decision IN ('retry','failed')),
+        PRIMARY KEY(environment,attempt));
       CREATE TABLE IF NOT EXISTS runtime_routing(
         runtime TEXT PRIMARY KEY REFERENCES provision_jobs(runtime),
         revision INTEGER NOT NULL CHECK(revision>0),
@@ -242,6 +247,29 @@ export class Catalog {
       this.finishProvision(environment,claim,success,'capacity_exceeded');
       this.db.query('INSERT INTO provision_effect_results(environment,attempt,runtime,claim,exit_code) VALUES (?,?,?,?,?)')
         .run(environment,attempt,runtime,claim,exitCode);
+    }).immediate();
+  }
+  /** Fresh worker/effect/operation ownership and preflight proof are required by the caller. */
+  recoverPreflightReceipt(environment:string,runtime:string,claim:string,attempt:number,token:string):'requeued'|'failed' {
+    return this.db.transaction(()=>{
+      const job=this.db.query<ProvisionJob,[string]>('SELECT * FROM provision_jobs WHERE environment=?').get(environment);
+      if(!job||job.runtime!==runtime||job.attempt<attempt)throw new Error('Preflight receipt mismatch');
+      const prior=this.db.query<{runtime:string;claim:string;receipt_token:string;decision:string},[string,number]>(
+        'SELECT runtime,claim,receipt_token,decision FROM provision_recovery_decisions WHERE environment=? AND attempt=?').get(environment,attempt);
+      if(prior) {
+        if(prior.runtime!==runtime||prior.claim!==claim||prior.receipt_token!==token)throw new Error('Preflight receipt mismatch');
+        return prior.decision==='retry'?'requeued':'failed';
+      }
+      if(job.state!=='running'||job.attempt!==attempt||job.claim!==claim)throw new Error('Preflight receipt mismatch');
+      const retries=this.db.query<{n:number},[string]>(
+        "SELECT count(*) n FROM provision_recovery_decisions WHERE environment=? AND decision='retry'").get(environment)!.n;
+      const retry=retries<2;
+      this.db.query('UPDATE provision_jobs SET state=?,claim=NULL,failure=? WHERE environment=?')
+        .run(retry?'queued':'failed',retry?null:'runtime_failed',environment);
+      this.db.query('INSERT INTO provision_recovery_decisions VALUES (?,?,?,?,?,?)')
+        .run(environment,attempt,runtime,claim,token,retry?'retry':'failed');
+      this.record('system',retry?'provision.preflight_requeued':'provision.preflight_retry_limit',environment,{attempt});
+      return retry?'requeued':'failed';
     }).immediate();
   }
   retryProvision(actor:string,environment:string) {
