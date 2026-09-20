@@ -1,0 +1,25 @@
+{
+  "image": "sha256:b3bfedb107413abb3b8cb0d0874b0414a1dceb3d55bc0c778de6ad22d1f7dc86",
+  "profile": "upstream",
+  "scope": "Pinned Supabase PostgreSQL single-attempt HBA publication, parser validation and durable reload-signal acknowledgment witness. Not activation confirmation, successful operation settlement or supervisor integration.",
+  "count": 17,
+  "checks": [
+    "native local Linux daemon",
+    "host headroom checked before bounded probe",
+    "owned exact container is isolated and memory bounded",
+    "upstream bootstrap roles present",
+    "neighbor role is unprivileged without inherited memberships",
+    "actual HBA apply has zero parser errors and reload acknowledgment",
+    "completion witness durably binds exact journal and desired bytes",
+    "valid apply retains pending journal",
+    "valid execution cannot dispatch apply twice",
+    "valid publication retirement preserves unknown activation",
+    "invalid applied HBA cannot produce completion witness",
+    "invalid apply retains pending journal",
+    "invalid execution cannot dispatch apply twice",
+    "invalid publication retirement preserves unknown activation",
+    "fixture baseline restored after applied-operation probes",
+    "disposable database did not OOM",
+    "exact disposable container absent from successful inventory"
+  ]
+}

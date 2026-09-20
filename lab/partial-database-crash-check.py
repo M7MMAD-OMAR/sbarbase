@@ -66,7 +66,7 @@ def bun(code,state):
     return result.stdout
 
 
-def main(upstream=False,sql_fence=False,cross_fence=False,hba=False):
+def main(upstream=False,sql_fence=False,cross_fence=False,hba=False,hba_apply=False):
     global ADMIN
     ADMIN="supabase_admin" if upstream else "postgres"
     checks=[];container=None;native=None
@@ -122,10 +122,13 @@ try{const o=c.createOrganization('probe','O'),p=c.createProject('probe',o,'P');c
             if cross_fence:
                 from sql_operation_revoke_check import run as run_pair
                 run_pair(container,ADMIN,check,docker,sql)
+            if hba_apply:
+                from hba_apply_check import run as run_apply
+                run_apply(container,check,docker)
             if hba:
                 from atomic_hba_check import run as run_hba
                 run_hba(container,ADMIN,check,docker,sql)
-            for phase in (() if sql_fence or cross_fence or hba else ('roles','database','permissions','transaction_failure')):
+            for phase in (() if sql_fence or cross_fence or hba or hba_apply else ('roles','database','permissions','transaction_failure')):
                 state=Path(directory)/phase;state.mkdir()
                 job=json.loads(bun(setup,state));runtime=job['runtime']
                 check(phase+': fresh runtime has no prior database or roles',sql(container,f"SELECT NOT EXISTS(SELECT 1 FROM pg_database WHERE datname='{runtime}') AND NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname IN ('{runtime}_auth','{runtime}_rest'));").stdout.strip()=='t')
@@ -195,9 +198,10 @@ console.log('blocked');}finally{c.close();}"""
     if sql_fence:evidence['scope']='Experimental same-database operation revocation on pinned PostgreSQL. Concurrent queued batches, cancellation, tombstones and CREATE DATABASE tested. Explicitly proves identical advisory keys do not fence another database. Not wired into runtime recovery.'
     if cross_fence:evidence['scope']='Experimental sequential control and target SQL revocation on pinned PostgreSQL. Actual coordinator SIGKILL between commits, retry, target tombstones, absent/closed targets and OID replacement tested. Not an atomic cutoff, production integration or replay authorization.'
     if hba:evidence['scope']='Pinned upstream HBA replacement and prepared revisions plus real connection observations across file publication and reload. Existing sessions remain active. Invalid reload signal acknowledgment is not processing confirmation. Not full operation revocation or power-loss recovery.'
-    output=('upstream-' if upstream else '')+('atomic-hba-checks.json' if hba else 'sql-pair-fence-checks.json' if cross_fence else 'sql-fence-checks.json' if sql_fence else 'partial-database-crash-checks.json')
+    if hba_apply:evidence['scope']='Pinned Supabase PostgreSQL single-attempt HBA publication, parser validation and durable reload-signal acknowledgment witness. Not activation confirmation, successful operation settlement or supervisor integration.'
+    output=('upstream-' if upstream else '')+('hba-apply-checks.json' if hba_apply else 'atomic-hba-checks.json' if hba else 'sql-pair-fence-checks.json' if cross_fence else 'sql-fence-checks.json' if sql_fence else 'partial-database-crash-checks.json')
     (lab.ROOT/'docs/evidence'/output).write_text(json.dumps(evidence,indent=2)+'\n')
-    print(str(len(checks))+(' HBA replacement checks passed' if hba else ' SQL operation fence checks passed' if sql_fence or cross_fence else ' partial database crash checks passed'))
+    print(str(len(checks))+(' HBA apply witness checks passed' if hba_apply else ' HBA replacement checks passed' if hba else ' SQL operation fence checks passed' if sql_fence or cross_fence else ' partial database crash checks passed'))
 
 
 if __name__=='__main__':
@@ -208,6 +212,7 @@ if __name__=='__main__':
         elif len(sys.argv)==1:main()
         elif sys.argv[1:]==['--upstream']:main(upstream=True)
         elif sys.argv[1:] in (['--sql-fence'],['--upstream','--sql-fence']):main(upstream='--upstream' in sys.argv,sql_fence=True)
+        elif sys.argv[1:]==['--upstream','--hba-apply']:main(upstream=True,hba_apply=True)
         elif sys.argv[1:]==['--upstream','--hba']:main(upstream=True,hba=True)
         elif sys.argv[1:] in (['--cross-fence'],['--upstream','--cross-fence']):main(upstream='--upstream' in sys.argv,cross_fence=True)
         else:raise RuntimeError('Invalid probe arguments')

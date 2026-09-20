@@ -258,3 +258,9 @@ All 174 Python tests and 47 live checks pass, including lost real INIT acknowled
 hba_settlement.cancel_baseline now archives an exact retired HBA attempt only when current bytes match the distinct original baseline. Locks span retirement through private deterministic archive durability, exact raw journal recheck, unlink and state-directory sync. Existing archives must match and are resynced; partial or changed artifacts block release. Changed/desired/ambiguous HBA content stays pending. Worker receipts/catalog are untouched and no job success or activation is inferred.
 
 All 182 Python tests and 56 image checks pass. Real host-SIGKILL cases archive their baseline-only attempt without changing HBA; a changed-file case refuses. Next implement successful applied-file/reload completion with durable evidence and conservative crash handling, then integrate actual supervisor/worker and all managed writers after quiescing legacy effects. Retained installation resources were not used.
+
+## Native applied HBA witness checkpoint
+
+hba_apply.execute now persists an exclusive attempt before actual publication, verifies desired bytes, checks parser errors and reload signal acknowledgment on the captured CID, rechecks exact authority/journal and writes a durable completion witness with activation unknown. Startup execution requires its originating live context; worker execution revalidates the services receipt. Failed/uncertain attempts stay blocked without automatic replay.
+
+Full Python 188 and a separate real PostgreSQL 17-check applied-path probe pass. Valid and invalid HBA both retain journals; only the valid path produces the exact witness. Prior registry 56 evidence is separate and unchanged. Independent review found no must-fix. Next validate and settle successful witnesses conservatively before actual supervisor/guardian/all-writer integration. No retained runtime mutation occurred.

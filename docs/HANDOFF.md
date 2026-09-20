@@ -18,7 +18,7 @@ Experimental runtime: shared PostgreSQL, a separate database and scoped service 
 - Four local environments: three on the source cluster and one restored onto a separate local target. Real SDK tests cover identity, RLS, reads/writes, files and an unchanged signed URL created before export.
 - Fenced encrypted export, independent restore, persistent routing, maintenance, address refresh, target startup/shutdown and combined supervisor. See [recovery details](INDEPENDENT-RESTORE.md) and [combined runtime](COMBINED-RUNTIME.md).
 - Combined configured ceilings: **5888 MiB RAM and 5.75 CPUs**, within a 6 GiB/6 CPU admission cap plus host reserves. This is an experimental allocation budget, not actual peak use or a VPS recommendation. No measured 10/100-project limit exists.
-- Latest recorded suites: 182 Python tests; 73 Bun tests, 408 assertions. The latest nine-check supervisor SIGKILL rehearsal passed for an idle worker and subsequent restart. The two review findings were fixed and reviewed; see the checkpoint. Test counts have different scopes and are not cumulative safety coverage.
+- Latest recorded suites: 188 Python tests; 73 Bun tests, 408 assertions. The latest nine-check supervisor SIGKILL rehearsal passed for an idle worker and subsequent restart. The two review findings were fixed and reviewed; see the checkpoint. Test counts have different scopes and are not cumulative safety coverage.
 
 ## Research and reviews
 
