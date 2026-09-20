@@ -12,6 +12,7 @@ import uuid
 import atomic_hba
 import hba_authority as authority
 import hba_journal as journal
+import hba_reconcile
 
 
 def docker(*args,data=None):
@@ -58,12 +59,13 @@ def kill_at_checkpoint(config_path):
             process.wait(timeout=10)
 
 
-def run(container,snapshot,check):
+def run(container,snapshot,check,target):
     for checkpoint,expected in (('before-register','absent'),('after-register','active')):
         # Separate disposable host fixtures, not alternative production slots.
         with tempfile.TemporaryDirectory(prefix='sbar-hba-host-crash-') as directory:
             root=Path(directory)
             path=root/journal.NAME
+            for name in hba_reconcile.NAMES:(root/name).touch(mode=0o600)
             prepared=atomic_hba.prepare(docker,container,'local all all reject\n')
             token=str(uuid.uuid4());identity={'kind':'startup','startup':str(uuid.uuid4())}
             config={'checkpoint':checkpoint,'snapshot':asdict(snapshot),'prepared':asdict(prepared),
@@ -82,10 +84,17 @@ def run(container,snapshot,check):
             else:raise AssertionError('Interrupted journal permitted replacement')
             check(checkpoint+': interrupted intent blocks replacement before dispatch',not calls)
             check(checkpoint+': registration-only crash does not change HBA',docker('exec',container,'cat','/etc/postgresql/pg_hba.conf').stdout==before)
-            # Explicit fixture teardown only. No production recovery is invoked.
-            current=authority.read(docker,container,snapshot.generation)
-            snapshot=authority.update(docker,current,token,saved['binding'],revoke=True)
-            check(checkpoint+': explicit fixture revocation persists tombstone',journal.inspect(docker,path)['authority']=='revoked')
+            # Isolated exact-token retirement leaves startup blocked by its journal.
+            before_journal=path.read_bytes()
+            prior=snapshot
+            retired=hba_reconcile.retire(docker,root,target=target)
+            snapshot=authority.read(docker,container,snapshot.generation)
+            check(checkpoint+': retirement preserves journal and revoked authority',retired['authority']=='revoked' and path.read_bytes()==before_journal)
+            try:authority.update(docker,prior,token,saved['binding'])
+            except subprocess.CalledProcessError as error:
+                if error.returncode!=74:raise
+            else:raise AssertionError('Delayed registration survived retirement')
+            check(checkpoint+': delayed old registration rejected after retirement',True)
     return snapshot
 
 

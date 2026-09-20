@@ -1,7 +1,8 @@
 """Isolated authority protocol against the pinned image's real filesystem/tools.
 
 Includes helper SIGKILL around registry rename and host SIGKILL before/after registration. Does not start PostgreSQL or test
-reload, host lease recovery, power loss or whole-operation recovery.
+reload, actual supervisor recovery, power loss or whole-operation recovery.
+Exact-token retirement uses fresh host ownership and retains pending journals.
 A private immutable host journal precedes initial registration and supports read-only inspection.
 """
 import json
@@ -16,6 +17,7 @@ import hba_authority as authority
 import hba_journal as journal
 import hba_target
 import hba_startup
+import hba_reconcile
 import hba_journal_crash_check as host_crash
 
 OWNER='hba-authority-probe'
@@ -107,7 +109,20 @@ def main():
         refused('pending startup journal blocks a fresh startup context',repeat_startup)
         check('durable host journal binds registered operation',journal.load(journal_file)['binding']==binding and journal.inspect(docker,journal_file)['authority']=='active')
         permit=authority.authorize(active,prepared,token,identity)
-        revoked=authority.update(docker,active,token,binding,revoke=True)
+        original_journal=journal_file.read_bytes()
+        lost_ack=[]
+        def lost_retirement_ack(*args,**kwargs):
+            result=docker(*args,**kwargs)
+            if authority.UPDATE in args:
+                lost_ack.append('committed')
+                raise RuntimeError('Injected lost retirement acknowledgment')
+            return result
+        refused('lost retirement acknowledgment leaves operation pending',lambda:hba_reconcile.retire(lost_retirement_ack,Path(private.name),target=captured))
+        check('lost acknowledgment injected after actual registry commit',lost_ack==['committed'])
+        retirement=hba_reconcile.retire(docker,Path(private.name),target=captured)
+        revoked=authority.read(docker,cid,generation)
+        check('repeated exact retirement confirms tombstone without replay',retirement['authority']=='revoked' and retirement['observed_content']=='matches-before' and retirement['activation']=='unknown')
+        check('retirement retains immutable pending journal',journal_file.read_bytes()==original_journal)
         observed_journal=journal.inspect(docker,journal_file)
         check('read-only journal inspection observes revocation without activation claim',observed_journal['authority']=='revoked' and observed_journal['application']=='unknown' and observed_journal['activation']=='unknown')
         refused('same journal cannot create replacement intent',lambda:journal.begin(docker,journal_file,revoked,prepared,str(uuid.uuid4()),identity))
@@ -134,7 +149,7 @@ def main():
         resumed=authority.update(docker,finished,token3,binding2)
         check('dead helper releases lock for a new exact operation',authority.decode(resumed.text,generation)['operations'][token3]['state']=='active')
         idle=authority.update(docker,resumed,token3,binding2,revoke=True)
-        host_crash.run(cid,idle,check)
+        host_crash.run(cid,idle,check,captured)
         docker('exec',cid,'rm',authority.PATH)
         refused('missing registry refuses read',lambda:authority.read(docker,cid,generation))
         refused('retained marker prevents silent reinitialization',lambda:authority.initialize(docker,cid,generation))
