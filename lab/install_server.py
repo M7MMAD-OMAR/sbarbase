@@ -74,11 +74,20 @@ def versions():
     return findings
 
 
+def resolved_endpoint():
+    """The socket the docker context resolves to, readable even without a daemon."""
+    result=docker('context','inspect','--format','{{.Endpoints.docker.Host}}',check=False)
+    return result.stdout.strip() or 'the docker context endpoint (unresolved)'
+
+
 def daemon():
     findings=[]
     result=docker('info','--format','{{json .}}',check=False)
     if result.returncode:
-        findings.append(('blocker','Docker daemon unreachable'));return findings
+        # A service does not inherit the caller's shell; name what was tried.
+        endpoint=os.environ.get('DOCKER_HOST') or resolved_endpoint()
+        findings.append(('blocker',f'Docker daemon unreachable from this process (tried {endpoint}); a system service must reach the socket its docker context resolves to'))
+        return findings
     info=json.loads(result.stdout)
     if info.get('OSType')!='linux':findings.append(('blocker','Native Linux containers required'))
     if info.get('Name')!=os.uname().nodename:

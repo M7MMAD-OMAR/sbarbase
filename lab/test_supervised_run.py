@@ -1,7 +1,9 @@
 """The mirrored user unit must stay faithful to the shipped system unit."""
+import os
 from pathlib import Path
 import re
 import unittest
+from unittest.mock import patch
 import supervised_run_check as supervised
 
 ROOT=Path(__file__).resolve().parent.parent
@@ -54,6 +56,44 @@ class MirrorFidelityTests(unittest.TestCase):
         finally_block=source.split('finally:')[1]
         self.assertIn('UNIT_PATH.unlink(missing_ok=True)',finally_block)
         self.assertIn("record('temporary unit file removed'",finally_block)
+
+
+class ServiceEnvironmentTests(unittest.TestCase):
+    """A service does not inherit the caller's shell, so what it needs must be stated."""
+
+    def test_only_present_docker_settings_are_forwarded(self):
+        with patch.dict(os.environ,{'DOCKER_HOST':'unix:///var/run/docker.sock'},clear=False):
+            os.environ.pop('DOCKER_CONTEXT',None)
+            forwarded=supervised.docker_environment()
+        self.assertEqual(forwarded,{'DOCKER_HOST':'unix:///var/run/docker.sock'})
+        with patch.dict(os.environ,{},clear=True):
+            self.assertEqual(supervised.docker_environment(),{})
+
+    def test_the_mirror_unit_carries_the_docker_host_when_the_shell_has_one(self):
+        with patch.dict(os.environ,{'DOCKER_HOST':'unix:///var/run/docker.sock'},clear=False):
+            text=supervised.unit_text()
+        self.assertIn('Environment=DOCKER_HOST=unix:///var/run/docker.sock',text)
+        with patch.dict(os.environ,{},clear=True):
+            self.assertNotIn('Environment=DOCKER_HOST=',supervised.unit_text())
+
+    def test_an_unreachable_daemon_names_what_was_tried(self):
+        import install_server
+        with patch.dict(os.environ,{'DOCKER_HOST':'unix:///var/run/docker.sock'},clear=False), \
+             patch.object(install_server,'docker') as docker:
+            docker.return_value=type('R',(),{'returncode':1,'stdout':'','stderr':''})()
+            findings=install_server.daemon()
+        self.assertEqual(findings[0][0],'blocker')
+        self.assertIn('unix:///var/run/docker.sock',findings[0][1])
+        self.assertIn('a system service must reach the socket',findings[0][1])
+
+    def test_without_a_docker_host_the_context_endpoint_is_named(self):
+        import install_server
+        with patch.dict(os.environ,{},clear=True), \
+             patch.object(install_server,'docker') as docker, \
+             patch.object(install_server,'resolved_endpoint',return_value='unix:///home/x/.docker/desktop/docker.sock'):
+            docker.return_value=type('R',(),{'returncode':1,'stdout':'','stderr':''})()
+            findings=install_server.daemon()
+        self.assertIn('desktop/docker.sock',findings[0][1])
 
 
 if __name__=='__main__':unittest.main()

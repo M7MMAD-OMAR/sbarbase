@@ -33,7 +33,23 @@ STATE=ROOT/'.lab'/'upstream'
 PUBLISHABLE='sb_publishable_sbarbase_local_management'
 
 
+def docker_environment():
+    """Docker settings a service must inherit on a host whose CLI config differs.
+
+    The shipped unit relies on the daemon socket the host's Docker context resolves
+    to. Where a shell reaches the daemon through DOCKER_HOST (a non-default context
+    such as Docker Desktop), a unit without it cannot reach the daemon at all, so
+    the check forwards it and says so in the evidence.
+    """
+    forwarded={}
+    for name in ('DOCKER_HOST','DOCKER_CONTEXT'):
+        value=os.environ.get(name)
+        if value:forwarded[name]=value
+    return forwarded
+
+
 def unit_text():
+    docker_lines=''.join(f'Environment={name}={value}\n' for name,value in docker_environment().items())
     return f"""[Unit]
 Description=sbarbase supervised-path check (temporary)
 
@@ -42,7 +58,7 @@ Type=simple
 WorkingDirectory={ROOT}
 Environment=HOME={Path.home()}
 Environment=PATH={os.environ.get('PATH','/usr/local/bin:/usr/bin:/bin')}
-ExecStartPre=/usr/bin/python3 {ROOT}/lab/install_server.py check
+{docker_lines}ExecStartPre=/usr/bin/python3 {ROOT}/lab/install_server.py check
 ExecStart=/usr/bin/python3 {ROOT}/lab/dev.py
 Restart=no
 TimeoutStopSec=220
@@ -144,6 +160,9 @@ def main():
                        'systemctl stop is clean and no owned container is left running. Not the shipped system unit '
                        'installed at /etc/systemd/system, not HTTPS, not an empty-host install.'),
               'unit':'user unit '+UNIT_NAME+' (temporary, mirrors deploy/sbarbase.service)',
+              'docker_forwarded':docker_environment(),
+              'docker_note':('Forwarded because this host reaches the daemon through DOCKER_HOST while its docker context '
+                             'points elsewhere; a server whose context resolves to the native socket needs neither.'),
               'run_at':datetime.datetime.now().astimezone().isoformat(timespec='seconds'),
               'checks':checks,'count':len(checks),'passed':passed}
     EVIDENCE.parent.mkdir(parents=True,exist_ok=True)
