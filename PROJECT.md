@@ -131,3 +131,7 @@ Original pinned Auth/REST services now pass 11 live checks against the independe
 ## Independent Storage checkpoint
 
 Eight live checks now validate original signing material under fresh target platform encryption, exact object bytes/xattrs, per-object service-key downloads and unrelated-secret denial. Initial common-content fixture assumption was corrected and retained target verification passed. All owned services are stopped. End-user Storage RLS, valid pre-export signed URL continuity and full platform recovery remain open.
+
+## Independent end-user Storage and source URL checkpoint
+
+Twelve end-user checks now verify original-login object access, different-owner download/sign denial and anonymous denial. Seven sequential source/target checks verify source signing material equals the export and an unchanged source-issued signature works on the independent target while tampering fails. URL issuance occurred after export; pre-export chronology and public route cutover remain open. Both stacks are stopped.

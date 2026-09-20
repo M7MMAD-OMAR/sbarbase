@@ -1,0 +1,13 @@
+{
+  "scope": "URL issued by source after export with signing material equal to exported snapshot, then consumed unchanged on independent target. Only origin/IP changed, tenant host preserved. Does not prove pre-export issuance, expiration handling or stable public route cutover.",
+  "checks": [
+    "source signing material still matches exported snapshot",
+    "source issues valid URL",
+    "source URL returns expected original bytes",
+    "source fully stopped before target startup",
+    "unchanged source-issued path and signature work on independent target",
+    "target rejects modified source signature",
+    "source and target stopped after sequential verification"
+  ],
+  "count": 7
+}

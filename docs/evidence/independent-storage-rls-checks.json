@@ -1,0 +1,18 @@
+{
+  "scope": "Original end-user login on independent target; own-object bytes, other-owner download/sign denial, anonymous denial and newly issued signed URL. Does not prove pre-export URL continuity.",
+  "checks": [
+    "original fixture identity available",
+    "original user logs in after independent recovery",
+    "fixture contains own and different-owner objects",
+    "original user downloads own exact restored bytes",
+    "restored owner can issue signed URL",
+    "new signed URL downloads exact bytes without user token",
+    "anonymous token cannot download private object",
+    "original user cannot download different-owner object",
+    "original user cannot sign different-owner object",
+    "anonymous token cannot download private object",
+    "source remains stopped",
+    "target stopped with restored objects retained"
+  ],
+  "count": 12
+}
