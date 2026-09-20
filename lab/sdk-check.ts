@@ -2,6 +2,9 @@ import { createClient } from '@supabase/supabase-js';
 
 const endpoints = await Bun.file('.lab/endpoints.json').json() as Record<string, {auth:string;rest:string}>;
 import {createHmac} from 'node:crypto';
+import {KeyStore} from '../src/control/keys';
+const keyStore=new KeyStore('.secrets/gateway-keys.sqlite');
+const issued=new Map<string,{id:string;token:string}>();
 import {createGateway, type EnvironmentRoute} from '../src/gateway/handler';
 // Lab-only key provisioning. Never expose the JWT signing secrets in output.
 const secrets = await Bun.file('.secrets/lab.json').json();
@@ -10,9 +13,10 @@ for (const [env,upstreams] of Object.entries(endpoints)) {
   const encode=(value:unknown)=>Buffer.from(JSON.stringify(value)).toString('base64url');
   const payload=encode({alg:'HS256',typ:'JWT'})+'.'+encode({role:'anon',iss:'sbarbase-lab',exp:Math.floor(Date.now()/1000)+3600});
   const token=payload+'.'+createHmac('sha256',secrets.environments[env].jwt).update(payload).digest('base64url');
-  registry.set(env,{...upstreams,enabled:true,keys:['sb_publishable_'+crypto.randomUUID()],anonymousToken:token});
+  const key=keyStore.issue(env); issued.set(env,key);
+  registry.set(env,{...upstreams,enabled:true,keys:[key.token],anonymousToken:token});
 }
-const router = Bun.serve({hostname:'127.0.0.1',port:0,fetch:createGateway(registry)});
+const router = Bun.serve({hostname:'127.0.0.1',port:0,fetch:createGateway(registry,fetch,(environment,key)=>keyStore.resolve(environment,key)==='publishable')});
 const results: {check:string;passed:boolean}[] = [];
 function check(name:string, ok:boolean) {
   results.push({check:name,passed:ok});
@@ -44,9 +48,14 @@ try {
     check(`${env} SDK delete`,!deleteError && after?.length===0);
     const {error:logoutError}=await client.auth.signOut();
     check(`${env} SDK logout`,!logoutError);
+    keyStore.revoke(env,issued.get(env)!.id);
+    const denied=await fetch(`http://127.0.0.1:${router.port}/${env}/rest/v1/lab_items`,{headers:{apikey:issued.get(env)!.token}});
+    check(`${env} revoked stored key denied`,denied.status===401);
   }
   console.log(`${results.length} Supabase SDK checks passed through environment-key gateway.`);
 } finally {
-  await Bun.write('.lab/sdk-verification.json',JSON.stringify({sdk:'2.116.0',scope:'environment key gateway with ephemeral lab publishable keys, Auth and REST only',checks:results},null,2));
+  await Bun.write('.lab/sdk-verification.json',JSON.stringify({sdk:'2.116.0',scope:'environment key gateway with persisted hashed publishable-key metadata, Auth and REST only',checks:results},null,2));
   router.stop(true);
+  for(const [env,key] of issued) keyStore.revoke(env,key.id);
+  keyStore.close();
 }

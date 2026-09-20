@@ -58,3 +58,10 @@ test('upstream failure is sanitized',async()=>{
  expect(response.status).toBe(502);
  expect(await response.text()).not.toContain('private');
 });
+test('key store failure cannot fall back to static key acceptance',async()=>{
+ let forwarded=false;
+ const handler=createGateway(new Map([['a_prod',route]]),(async()=>{forwarded=true;return Response.json([]);}) as typeof fetch,()=>{throw new Error('private storage failure');});
+ const response=await handler(new Request('http://local/a_prod/rest/v1/items',{headers:{apikey:'key-a'}}));
+ expect(response.status).toBe(503);expect(forwarded).toBe(false);
+ expect(await response.text()).not.toContain('private');
+});

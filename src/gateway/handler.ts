@@ -21,7 +21,7 @@ function error(status:number, message:string) {
  * This boundary binds an API key to an enabled environment before proxying.
  * No Storage, Realtime, browser CORS or OAuth callback support is claimed yet.
  */
-export function createGateway(registry:RouteRegistry, transport:typeof fetch = fetch) {
+export function createGateway(registry:RouteRegistry, transport:typeof fetch = fetch, verifyKey?:(environment:string,key:string)=>boolean) {
   return async (request:Request):Promise<Response> => {
     const url = new URL(request.url);
     const match = url.pathname.match(/^\/([a-z][a-z0-9_]{1,30})\/(auth|rest)\/v1(\/.*)?$/);
@@ -31,7 +31,11 @@ export function createGateway(registry:RouteRegistry, transport:typeof fetch = f
     const route = registry.get(environment);
     if (!route || !route.enabled) return error(404,'Unknown route');
     const apiKey = request.headers.get('apikey');
-    if (!apiKey || apiKey.length > 8192 || !route.keys.some(key=>matches(key,apiKey))) return error(401,'Invalid API key');
+    if (!apiKey || apiKey.length > 8192) return error(401,'Invalid API key');
+    let keyAccepted=false;
+    try { keyAccepted=verifyKey ? verifyKey(environment,apiKey) : route.keys.some(key=>matches(key,apiKey)); }
+    catch { return error(503,'Key verification unavailable'); }
+    if (!keyAccepted) return error(401,'Invalid API key');
     // Never let a forwarded path or absolute URL choose the upstream host.
     if (path.includes('\\') || /%2f|%5c|%00/i.test(path)) return error(400,'Invalid path');
     if (!['GET','HEAD','POST','PUT','PATCH','DELETE'].includes(request.method)) return error(405,'Method not allowed');
