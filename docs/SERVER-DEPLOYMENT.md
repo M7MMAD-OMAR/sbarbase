@@ -110,11 +110,13 @@ sudo deploy/server-acceptance.sh --rehearse --install-unit \
      --bootstrap-file /path/to/operator.json
 ```
 
-`docs/evidence/deployment-rehearsal.json` then records the host facts (kernel,
-Docker, Bun, Python, headroom, free disk), the exact command that ran, the full
-pin set with digests, the state of the `sbarbase.service` unit, start and finish
-times, and one row per check with its result. A rehearsal that cannot run
-records the blocking finding instead of a pass, and exits non-zero.
+`docs/evidence/server-acceptance-rehearsal.json` then records the host facts
+(kernel, Docker, Bun, Python, headroom, free disk), the exact command that ran,
+the full pin set with digests, the state of the `sbarbase.service` unit, start and
+finish times, and one row per check with its result. A rehearsal that cannot run
+records the blocking finding instead of a pass, and exits non-zero. The plain
+rehearsal (without `--require-unit`) writes `docs/evidence/deployment-rehearsal.json`,
+so an acceptance run never overwrites it.
 
 ### Check: does the supervised path work, not just a direct run?
 

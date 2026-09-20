@@ -52,7 +52,14 @@ class ServerAcceptanceTests(unittest.TestCase):
             self.assertIn('mode 600',result.stderr)
             self.assertNotIn('placeholder',result.stdout+result.stderr)
 
-    def test_the_script_never_prints_bootstrap_contents(self):
+    def test_the_acceptance_rehearsal_keeps_its_own_evidence_file(self):
+        from pathlib import Path
+        script=(Path(__file__).resolve().parent.parent/'deploy'/'server-acceptance.sh').read_text()
+        self.assertIn('--evidence docs/evidence/server-acceptance-rehearsal.json',script)
+        rehearsal=(Path(__file__).resolve().parent/'deployment_rehearsal.py').read_text()
+        self.assertIn("default='docs/evidence/deployment-rehearsal.json'",rehearsal)
+
+    def test_the_acceptance_script_never_prints_bootstrap_contents(self):
         source=SCRIPT.read_text()
         for leak in ('cat "$BOOTSTRAP"','cat "${BOOTSTRAP}"','echo "$BOOTSTRAP"','head "$BOOTSTRAP"'):
             self.assertNotIn(leak,source)

@@ -219,6 +219,8 @@ def main():
     parser.add_argument('--attempt-delay',type=int,default=15)
     parser.add_argument('--require-unit',action='store_true',
                         help='fail when sbarbase.service is not installed (a server acceptance run requires it)')
+    parser.add_argument('--evidence',default='docs/evidence/deployment-rehearsal.json',
+                        help='where to write the run evidence (the acceptance run keeps its own file)')
     args=parser.parse_args()
     started=datetime.datetime.now().astimezone()
     findings,_=rehearse(args.bootstrap_file,args.skip_install,args.timeout,args.attempts,args.attempt_delay,args.require_unit)
@@ -242,7 +244,8 @@ def main():
               'started_at':started.isoformat(timespec='seconds'),
               'finished_at':finished.isoformat(timespec='seconds'),
               'checks':findings,'passed':passed,'count':len(findings)}
-    out=ROOT/'docs'/'evidence'/'deployment-rehearsal.json'
+    out=ROOT/args.evidence
+    out.parent.mkdir(parents=True,exist_ok=True)
     out.write_text(json.dumps(evidence,indent=1)+'\n')
     print('evidence:',out)
     print('deployment rehearsal:', 'passed' if passed else 'failed')

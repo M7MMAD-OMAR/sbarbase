@@ -95,13 +95,13 @@ if not record['applied']:
 PY
 
 step "deployment rehearsal"
-rehearsal_args=(--attempts 3 --require-unit)
+rehearsal_args=(--attempts 3 --require-unit --evidence docs/evidence/server-acceptance-rehearsal.json)
 [ -n "$BOOTSTRAP" ] && rehearsal_args+=(--bootstrap-file "$BOOTSTRAP")
 [ "$SKIP_INSTALL" = "1" ] && rehearsal_args+=(--skip-install)
-"$PYTHON" lab/deployment_rehearsal.py "${rehearsal_args[@]}" || fail "rehearsal failed; see docs/evidence/deployment-rehearsal.json"
+"$PYTHON" lab/deployment_rehearsal.py "${rehearsal_args[@]}" || fail "rehearsal failed; see docs/evidence/server-acceptance-rehearsal.json"
 
 step "evidence"
-evidence=docs/evidence/deployment-rehearsal.json
+evidence=docs/evidence/server-acceptance-rehearsal.json
 [ -f "$evidence" ] || fail "rehearsal reported success but wrote no evidence"
 cp "$evidence" docs/evidence/server-acceptance-latest.json
 "$PYTHON" - "$evidence" <<'PY' || fail "evidence could not be summarised"
