@@ -12,6 +12,7 @@ import unittest
 import uuid
 from types import SimpleNamespace
 import hba_target
+import hba_generation
 import atomic_hba
 import hba_authority as authority
 import hba_journal as journal
@@ -44,6 +45,7 @@ class OwnershipTests(unittest.TestCase):
                 'snapshot':{'container_id':'a'*64,'generation':generation,'text':authority.encode({'version':1,'generation':generation,'revision':str(uuid.uuid4()),'operations':{}})},
                 'prepared':{'container_id':'a'*64,'expected_digest':'b'*64,'content':'local all all trust\n'}}
         (self.state/'input.json').write_text(json.dumps(config))
+        hba_generation.publish(self.state,hba_target.Target('a'*64,'fixture-db','fixture','sha256:'+'c'*64),generation)
         self.record={'version':1,'phase':'pending','token':self.receipt,'native':'durable-provision-v1','stageProtocol':1,'hbaProtocol':1,
                      'job':{'environment':'fixture','runtime':self.runtime,'claim':self.claim,'attempt':1}}
         (self.state/'worker-effect.json').write_text(json.dumps(self.record))

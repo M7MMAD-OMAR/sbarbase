@@ -13,6 +13,7 @@ import hba_authority as authority
 import hba_journal as journal
 import hba_reconcile as reconcile
 import hba_target
+import hba_generation
 
 
 class ReconcileTests(unittest.TestCase):
@@ -22,6 +23,7 @@ class ReconcileTests(unittest.TestCase):
         self.generation=str(uuid.uuid4());self.token=str(uuid.uuid4());self.cid='a'*64
         self.prepared=atomic_hba.Prepared(self.cid,'b'*64,'local all all reject\n')
         self.target=hba_target.Target(self.cid,'fixture-db','fixture','sha256:'+'c'*64)
+        hba_generation.publish(self.state,self.target,self.generation)
         initial=self.snapshot('absent')
         journal.begin(Mock(),self.state/journal.NAME,initial,self.prepared,self.token,{'kind':'startup','startup':str(uuid.uuid4())})
         self.record=journal.load(self.state/journal.NAME)
@@ -51,6 +53,13 @@ class ReconcileTests(unittest.TestCase):
                 self.assertEqual((self.state/journal.NAME).read_bytes(),self.original)
                 for name,content in self.protected.items():self.assertEqual((self.state/name).read_bytes(),content)
                 docker.assert_called_once_with('exec',self.cid,'sha256sum','/etc/postgresql/pg_hba.conf')
+
+    def test_missing_generation_pin_blocks_recovery_before_backend_read(self):
+        (self.state/hba_generation.NAME).unlink()
+        docker=Mock()
+        with self.assertRaises(FileNotFoundError):reconcile.retire(docker,self.state,target=self.target)
+        docker.assert_not_called()
+        self.assertEqual((self.state/journal.NAME).read_bytes(),self.original)
 
     def test_surviving_lock_holder_blocks_before_any_backend_read(self):
         for name in reconcile.NAMES:

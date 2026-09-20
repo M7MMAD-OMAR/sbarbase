@@ -13,6 +13,7 @@ import atomic_hba
 import hba_authority as authority
 import hba_journal as journal
 import hba_reconcile
+import hba_generation
 
 
 def docker(*args,data=None):
@@ -65,6 +66,7 @@ def run(container,snapshot,check,target):
         with tempfile.TemporaryDirectory(prefix='sbar-hba-host-crash-') as directory:
             root=Path(directory)
             path=root/journal.NAME
+            hba_generation.publish(root,target,snapshot.generation)
             for name in hba_reconcile.NAMES:(root/name).touch(mode=0o600)
             prepared=atomic_hba.prepare(docker,container,'local all all reject\n')
             token=str(uuid.uuid4());identity={'kind':'startup','startup':str(uuid.uuid4())}

@@ -1,9 +1,13 @@
 {
   "scope": "Isolated authority protocol against the pinned image's real filesystem/tools.\n\nIncludes helper SIGKILL around registry rename and host SIGKILL before/after registration. Does not start PostgreSQL or test\nreload, actual supervisor recovery, power loss or whole-operation recovery.\nExact-token retirement uses fresh host ownership and retains pending journals.\nA private immutable host journal precedes initial registration and supports read-only inspection.",
   "image": "sha256:b3bfedb107413abb3b8cb0d0874b0414a1dceb3d55bc0c778de6ad22d1f7dc86",
-  "count": 42,
+  "count": 47,
   "checks": [
     "bounded isolated pinned container",
+    "uncertain initialization retains host generation pin",
+    "initialization acknowledgment lost after actual registry commit",
+    "read-only generation reconciliation recovers exact initialized identity",
+    "established host generation cannot be initialized again",
     "configured database target captured and rechecked by exact ID",
     "live container validation rejects wrong configured name",
     "live container validation rejects wrong configured owner",
@@ -43,6 +47,7 @@
     "after-register: retirement preserves journal and revoked authority",
     "after-register: delayed old registration rejected after retirement",
     "missing registry refuses read",
+    "established host pin does not recreate missing registry",
     "retained marker prevents silent reinitialization",
     "exact disposable container removed"
   ]

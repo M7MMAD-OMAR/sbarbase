@@ -13,6 +13,7 @@ import hba_authority as authority
 import hba_journal as journal
 import hba_startup as startup
 import hba_target
+import hba_generation
 
 
 class StartupTests(unittest.TestCase):
@@ -22,6 +23,7 @@ class StartupTests(unittest.TestCase):
         self.snapshot=authority.Snapshot('a'*64,generation,authority.encode({'version':1,'generation':generation,'revision':str(uuid.uuid4()),'operations':{}}))
         self.prepared=atomic_hba.Prepared('a'*64,'b'*64,'local all all trust\n')
         self.target=hba_target.Target('a'*64,'fixture-db','fixture','sha256:'+'c'*64)
+        hba_generation.publish(self.state,self.target,generation)
         self.dispatched=0
 
     def docker(self,*args,**kwargs):
@@ -48,6 +50,12 @@ class StartupTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,'reconciliation'):self.begin(lease)
         self.assertEqual(self.dispatched,1)
         with self.assertRaisesRegex(RuntimeError,'expired'):self.begin(lease)
+
+    def test_missing_generation_pin_blocks_startup_intent(self):
+        (self.state/hba_generation.NAME).unlink()
+        with startup.acquire(self.state) as lease:
+            with self.assertRaises(FileNotFoundError):self.begin(lease)
+        self.assertEqual(self.dispatched,0);self.assertFalse((self.state/journal.NAME).exists())
 
     def test_pending_or_dangling_markers_block_all_startup(self):
         for name in ('worker-effect.json',journal.NAME):

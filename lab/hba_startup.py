@@ -7,6 +7,7 @@ import uuid
 import hba_journal as journal
 import hba_ownership as ownership
 import hba_target
+import hba_generation
 
 
 NAMES=('worker.lock','effect.lock','operation.lock')
@@ -29,15 +30,26 @@ class Startup:
         self.identity={'kind':'startup','startup':str(uuid.uuid4())}
         self.active=True
         self.attempted=False
+        self.initialization_attempted=False
 
-    def begin(self,docker,snapshot,prepared,token,*,target):
+    def verify(self):
         if not self.active or os.getpid()!=self.process:raise RuntimeError('Startup ownership context expired')
         if len(self.descriptors)!=3:raise ValueError('Exactly three startup descriptors required')
-        if self.attempted:raise RuntimeError('Startup intent already attempted; reconciliation required')
-        self.attempted=True
         locks=[ownership.require_lock(self.state,name,descriptor) for name,descriptor in zip(NAMES,self.descriptors)]
         if len(set(locks))!=3:raise RuntimeError('Startup ownership locks must be distinct')
         require_clear(self.state)
+
+    def initialize(self,docker,*,target):
+        self.verify()
+        if self.initialization_attempted or self.attempted:raise RuntimeError('Startup initialization already attempted')
+        self.initialization_attempted=True
+        return hba_generation.initialize(docker,self.state,target=target)
+
+    def begin(self,docker,snapshot,prepared,token,*,target):
+        self.verify()
+        if self.attempted:raise RuntimeError('Startup intent already attempted; reconciliation required')
+        self.attempted=True
+        hba_generation.require(self.state,target,snapshot.generation)
         hba_target.require(docker,target,snapshot,prepared)
         return journal.begin(docker,self.state/journal.NAME,snapshot,prepared,token,self.identity)
 

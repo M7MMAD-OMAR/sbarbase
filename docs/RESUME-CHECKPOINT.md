@@ -246,3 +246,9 @@ Ten local tests cover actual flocks/fork and negative paths. The pinned-image pr
 hba_reconcile.retire now uses fresh independent existing worker/effect/operation locks, validates the captured target and generation, and retires only the journal's exact token/binding. It rechecks the tombstone before reporting a point-in-time HBA digest observation. Missing/conflicting authority refuses; lost acknowledgments propagate. A later call can confirm an already persisted tombstone without repeating the update.
 
 All 166 Python tests and 42 live checks pass. Real lost-ack and host SIGKILL fixtures confirm retirement, unchanged pending journals, blocked old permits and rejected delayed registration. No HBA apply/reload, job settlement, receipt/catalog mutation, journal removal or startup permission occurs. Independent review found no must-fix. Next implement explicit generation initialization and durable settlement rules before actual supervisor/worker and all-writer integration. Retained resources remain untouched.
+
+## Immutable generation binding checkpoint
+
+The isolated protocol now persists hba-generation.json before backend initialization and requires its exact target/generation in startup, worker and retirement paths. Startup initialization and begin are separate one-shot allowances. Uncertain initialization retains the pin; read_existing only observes established state. Missing registry or replaced container cannot trigger automatic reset.
+
+All 174 Python tests and 47 live checks pass, including lost real INIT acknowledgment and read-only generation recovery. Independent review found no must-fix. No retained runtime was changed. Next define durable operation outcomes and journal settlement, then exercise real worker/supervisor wiring after quiescing legacy writers. Container-generation migration and simultaneous host/backend rollback protection remain unresolved; container recreation intentionally blocks.

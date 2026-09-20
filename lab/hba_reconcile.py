@@ -9,6 +9,7 @@ import hba_authority as authority
 import hba_journal as journal
 import hba_ownership as ownership
 import hba_target
+import hba_generation
 
 
 NAMES=('worker.lock','effect.lock','operation.lock')
@@ -34,6 +35,7 @@ def retire(docker,state,*,target):
         identities=[(os.fstat(fd).st_dev,os.fstat(fd).st_ino) for fd in descriptors]
         if len(set(identities))!=3:raise RuntimeError('Recovery ownership locks must be distinct')
         record=journal.load(state/journal.NAME)
+        hba_generation.require(state,target,record['generation'])
         prepared=atomic_hba.Prepared(record['container'],record['expected'],record['content'])
         snapshot=authority.read(docker,record['container'],record['generation'])
         hba_target.require(docker,target,snapshot,prepared)

@@ -18,6 +18,7 @@ import hba_journal as journal
 import hba_target
 import hba_startup
 import hba_reconcile
+import hba_generation
 import hba_journal_crash_check as host_crash
 
 OWNER='hba-authority-probe'
@@ -89,9 +90,22 @@ def main():
         check('bounded isolated pinned container',info['Image']==image and info['HostConfig']['Memory']==128*1024**2 and info['HostConfig']['NetworkMode']=='none' and not info['HostConfig']['PortBindings'])
         original=docker('exec',cid,'cat','/etc/postgresql/pg_hba.conf').stdout
         generation=str(uuid.uuid4());token=str(uuid.uuid4());identity={'kind':'startup','startup':str(uuid.uuid4())}
-        initial=authority.initialize(docker,cid,generation)
-        prepared=atomic_hba.prepare(docker,cid,'local all all reject\n')
         captured=hba_target.capture(docker,name,OWNER,image)
+        init_ack=[]
+        def lost_init_ack(*args,**kwargs):
+            result=docker(*args,**kwargs)
+            if authority.INIT in args:
+                init_ack.append('committed')
+                raise RuntimeError('Injected lost initialization acknowledgment')
+            return result
+        with hba_startup.acquire(Path(private.name)) as initializer:
+            refused('uncertain initialization retains host generation pin',lambda:initializer.initialize(lost_init_ack,target=captured))
+        check('initialization acknowledgment lost after actual registry commit',init_ack==['committed'])
+        initial=hba_generation.read_existing(docker,Path(private.name),target=captured)
+        generation=initial.generation
+        check('read-only generation reconciliation recovers exact initialized identity',hba_generation.load(Path(private.name))['generation']==generation)
+        refused('established host generation cannot be initialized again',lambda:hba_generation.initialize(docker,Path(private.name),target=captured))
+        prepared=atomic_hba.prepare(docker,cid,'local all all reject\n')
         hba_target.require(docker,captured,initial,prepared)
         check('configured database target captured and rechecked by exact ID',captured.container_id==cid)
         for field,value in (('name','foreign-db'),('owner','foreign-owner'),('image','sha256:'+'0'*64)):
@@ -152,6 +166,7 @@ def main():
         host_crash.run(cid,idle,check,captured)
         docker('exec',cid,'rm',authority.PATH)
         refused('missing registry refuses read',lambda:authority.read(docker,cid,generation))
+        refused('established host pin does not recreate missing registry',lambda:hba_generation.read_existing(docker,Path(private.name),target=captured))
         refused('retained marker prevents silent reinitialization',lambda:authority.initialize(docker,cid,generation))
     finally:
         if cid is None and cidfile.is_file():cid=cidfile.read_text().strip()

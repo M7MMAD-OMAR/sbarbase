@@ -9,6 +9,7 @@ import stat
 import effect_receipt
 import hba_journal as journal
 import hba_target
+import hba_generation
 
 
 def require_lock(state,name,descriptor):
@@ -33,6 +34,7 @@ def begin_worker(docker,state,operation_fd,runtime,snapshot,prepared,token,*,tar
            require_lock(state,'worker.lock',3),require_lock(state,'effect.lock',4))
     if len(set(locks))!=3:raise RuntimeError('HBA ownership locks must be distinct')
     runtime,receipt,claim,attempt=effect_receipt.hba_identity(state,runtime)
+    hba_generation.require(state,target,snapshot.generation)
     hba_target.require(docker,target,snapshot,prepared)
     identity={'kind':'worker','runtime':runtime,'receipt':receipt,'claim':claim,'attempt':attempt}
     return journal.begin(docker,state/journal.NAME,snapshot,prepared,token,identity)
