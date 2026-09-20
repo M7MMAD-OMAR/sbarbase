@@ -1,6 +1,6 @@
 # Guarded provisioning SQL adapter
 
-The experimental `lab/guarded_sql_executor.py` now adapts the actual `run.provision_environment` SQL path. It is not wired into the retained Runtime, worker settlement or automatic replay.
+The experimental `lab/guarded_sql_executor.py` now adapts the complete `Runtime.provision_database` SQL path, including `run.provision_environment`. It is not wired into the retained Runtime, worker settlement or automatic replay.
 
 ## Execution contract
 
@@ -16,8 +16,14 @@ The disposable upstream pair probe exercises actual role creation, closed CREATE
 
 The first real bootstrap run exposed a syntax error from a native SELECT without a terminator. The adapter's query separator was corrected and a trailing-comment case was added. Independent review also found and corrected executor reuse after BaseException interruption. Unit coverage checks exact scopes, pinned target batches, output preservation, uncertain registration and interruption poisoning.
 
-The upstream pair probe passes 43 checks with exact disposable cleanup. The full Python suite passes 104 tests. Sanitized evidence is [stored here](evidence/upstream-sql-pair-fence-checks.json). The unchanged recorded Bun checkpoint remains 73 tests/408 assertions.
+The upstream pair probe passes 45 checks with exact disposable cleanup. The full Python suite passes 106 tests. Sanitized evidence is [stored here](evidence/upstream-sql-pair-fence-checks.json). The unchanged recorded Bun checkpoint remains 73 tests/408 assertions.
+
+## Full durable SQL boundary
+
+Runtime.provision_database now contains all native environment SQL: initial bootstrap, extensions, Storage role/schema privileges, connection limits and REST deadlines. Its executor is propagated into deadline reads and writes. The disposable fixture invokes this exact method with the guarded executor and verifies Storage schema and deadline settings. Only the REST-container inspection is replaced with an absent-container fixture; database SQL is real.
+
+Normal Runtime.provision still uses the existing default executor. The services write-ahead marker now precedes HBA file replacement and reload. A regression proves marker persistence failure prevents that shared write. This improves phase accounting but does not fence HBA or recover it. Independent review found no missing SQL or behavior drift in the extraction.
 
 ## Remaining integration
 
-Route the complete durable provisioning path through this contract, including helper calls and extensions, and separate existing-environment resume from new provisioning. Persist exact operation identity and respect pending receipts. Move HBA file writes outside the SQL-only stage and define their own recovery. Auth and Storage migrations use independent service connections and are not fenced by this adapter. No new replay permission follows from these tests.
+Wire exact worker receipt identities into this complete SQL boundary, and separate existing-environment resume from new provisioning. Persist exact operation identity and respect pending receipts. HBA file writes are now outside the SQL-only stage; define their own recovery. Auth and Storage migrations use independent service connections and are not fenced by this adapter. No new replay permission follows from these tests.

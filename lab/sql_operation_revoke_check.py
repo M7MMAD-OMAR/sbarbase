@@ -143,10 +143,16 @@ raise RuntimeError('Crash checkpoint skipped')
         return result
     provisioned=identity()
     guarded=guarded_sql_executor.GuardedSQL(transport,*provisioned)
-    credentials={role:secrets.token_hex(32) for role in ('auth','rest')}
-    lab.provision_environment(provisioned[0],credentials,executor=guarded)
+    credentials={role:secrets.token_hex(32) for role in ('auth','rest','storage')}
+    import durable_runtime
+    from unittest.mock import patch
+    fixture=durable_runtime.Runtime.__new__(durable_runtime.Runtime)
+    with patch.object(durable_runtime,'inspect',return_value=None):
+        fixture.provision_database(provisioned[0],credentials,executor=guarded)
     check('actual closed-bootstrap provision succeeds through guarded executor',guarded("SELECT to_regnamespace('auth') IS NOT NULL;",provisioned[0]).stdout.strip()=='t')
     check('guarded scalar reads preserve exact output',guarded('SELECT 17;').stdout.strip()=='17')
+    check('complete durable SQL creates Storage schema',guarded("SELECT to_regnamespace('storage') IS NOT NULL;",provisioned[0]).stdout.strip()=='t')
+    check('complete durable SQL sets REST deadline',guarded(f"SELECT EXISTS(SELECT 1 FROM pg_db_role_setting s JOIN pg_roles r ON r.oid=s.setrole WHERE r.rolname='{provisioned[0]}_rest' AND s.setconfig @> ARRAY['statement_timeout=8s','transaction_timeout=12s']);").stdout.strip()=='t')
     check('unterminated SQL with trailing comment stays separated from guard cleanup',guarded('SELECT 19 -- native query without terminator').stdout.strip()=='19')
     coordinator.revoke_pair(execute,*provisioned)
     refused=False

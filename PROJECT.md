@@ -265,3 +265,9 @@ Not integrated into runtime provisioning. Next build the explicit guarded execut
 Read docs/GUARDED-PROVISIONING-SQL.md. The scoped executor runs real run.provision_environment SQL in a disposable upstream fixture with control and target identity pins, rejects writes after revocation and refuses reuse after any uncertain failure/interruption. A native unterminated SELECT exposed a syntax error; explicit query separation fixes it, including trailing comments. Review corrected BaseException poisoning.
 
 The pair probe now passes 43 checks; all 104 Python tests pass. Exact disposable cleanup passed and no retained runtime was changed. Next integrate the full durable SQL path with exact receipt identities and explicit resume semantics. HBA and service migrations remain separate unresolved effects. The guard does not authorize partial replay.
+
+## Full native SQL boundary extraction, latest checkpoint
+
+Runtime.provision_database now collects the complete durable SQL path and propagates the injected executor into REST deadline checks/writes. The real disposable upstream fixture executes this whole method through GuardedSQL, including Storage setup and limits. Forty-five live checks and 106 Python tests pass. Independent review found no missing SQL or behavior drift.
+
+The services write-ahead marker now precedes shared HBA overwrite/reload; a regression confirms failed marker persistence prevents HBA changes. Normal provisioning still defaults to the original executor. Next bind worker receipt identity and split resume semantics before enabling runtime fencing. No retained runtime mutation occurred.

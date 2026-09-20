@@ -22,7 +22,7 @@ Run `/usr/bin/python3 lab/partial-database-crash-check.py --upstream --sql-fence
 
 Other checks cover private registry access despite adversarial default grants, token/claim mismatches, revoked registration, revocation before registration, stale attempts, preservation of newer authority, fresh reconnect rejection and guarded CREATE DATABASE. The identical lock key is simultaneously acquired in another database, explicitly demonstrating the limited scope. The exact disposable container is removed afterward.
 
-Four isolated builder tests pass; the full Python checkpoint is 104 tests. Adversarial review found no must-fix in the declared experimental scope and prompted specific error validation plus a wider bounded lock timeout. No retained environment or production-like catalog was modified.
+Four isolated builder tests pass; the full Python checkpoint is 106 tests. Adversarial review found no must-fix in the declared experimental scope and prompted specific error validation plus a wider bounded lock timeout. No retained environment or production-like catalog was modified.
 
 Guard lock/unlock now use DO/PERFORM to avoid contaminating scalar query output. A live regression failed before this correction and passes afterward. Executor integration must additionally use psql quiet mode to suppress command tags.
 

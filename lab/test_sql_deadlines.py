@@ -27,3 +27,12 @@ class SqlDeadlineTests(unittest.TestCase):
         with patch.object(runtime,'inspect',return_value={'State':{'Running':True}}):
             target.rest_deadlines('e_'+'a'*24)
         self.assertEqual(target.sql.call_count,2)
+
+    def test_injected_executor_covers_deadline_read_and_write(self):
+        target=runtime.Runtime.__new__(runtime.Runtime)
+        target.sql=Mock(side_effect=AssertionError('unguarded SQL bypass'))
+        execute=Mock(return_value=SimpleNamespace(stdout='t'))
+        with patch.object(runtime,'inspect',return_value={'State':{'Running':True}}):
+            target.rest_deadlines('e_'+'a'*24,executor=execute)
+        self.assertEqual(execute.call_count,2)
+        target.sql.assert_not_called()

@@ -195,15 +195,29 @@ class Runtime:
             if e in published and not source_fence.is_fenced(self.sql,e):
                 self.provision(e)
 
-    def rest_deadlines(self, e):
+    def rest_deadlines(self, e, executor=None):
+        execute = executor or self.sql
         if not re.fullmatch(r'e_[a-f0-9]{24}', e):
             raise RuntimeError('Invalid environment runtime identifier')
         # Role defaults affect new logins. Refuse silent changes under a warm pool.
-        deadline_current = self.sql(f"SELECT EXISTS(SELECT 1 FROM pg_db_role_setting s JOIN pg_roles r ON r.oid=s.setrole JOIN pg_database d ON d.oid=s.setdatabase WHERE r.rolname='{e}_rest' AND d.datname='{e}' AND s.setconfig @> ARRAY['statement_timeout=8s','transaction_timeout=12s']);").stdout.strip() == 't'
+        deadline_current = execute(f"SELECT EXISTS(SELECT 1 FROM pg_db_role_setting s JOIN pg_roles r ON r.oid=s.setrole JOIN pg_database d ON d.oid=s.setdatabase WHERE r.rolname='{e}_rest' AND d.datname='{e}' AND s.setconfig @> ARRAY['statement_timeout=8s','transaction_timeout=12s']);").stdout.strip() == 't'
         rest_container = inspect('container', PREFIX+'-'+e+'-rest')
         if not deadline_current and rest_container and rest_container.get('State', {}).get('Running'):
             raise RuntimeError('REST deadline changes require stopping the owned runtime first')
-        self.sql(f"ALTER ROLE {e}_rest IN DATABASE {e} SET statement_timeout = '8s'; ALTER ROLE {e}_rest IN DATABASE {e} SET transaction_timeout = '12s';")
+        execute(f"ALTER ROLE {e}_rest IN DATABASE {e} SET statement_timeout = '8s'; ALTER ROLE {e}_rest IN DATABASE {e} SET transaction_timeout = '12s';")
+
+    def provision_database(self, e, v, executor=None):
+        """All native per-environment SQL, excluding shared HBA and services."""
+        execute = executor or self.sql
+        lab.provision_environment(e, v, executor=execute)
+        execute('CREATE SCHEMA IF NOT EXISTS extensions; CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions; CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions; GRANT USAGE ON SCHEMA extensions TO anon,authenticated,service_role;', e)
+        if execute(f"SELECT 1 FROM pg_roles WHERE rolname='{e}_storage';").stdout.strip() != '1':
+            execute(f"CREATE ROLE {e}_storage LOGIN NOINHERIT PASSWORD '{v['storage']}';")
+        execute('; '.join(f'ALTER ROLE {e}_{role} CONNECTION LIMIT {connection_budget.SERVICE_LIMIT}' for role in ('auth', 'rest', 'storage'))+';')
+        execute(f'ALTER DATABASE {e} CONNECTION LIMIT {connection_budget.ENVIRONMENT_LIMIT};')
+        self.rest_deadlines(e, executor=execute)
+        execute(f'GRANT anon,authenticated,service_role TO {e}_storage; GRANT CONNECT ON DATABASE {e} TO {e}_storage;')
+        execute(f'CREATE SCHEMA IF NOT EXISTS storage AUTHORIZATION {e}_storage; GRANT USAGE ON SCHEMA storage TO anon,authenticated,service_role; ALTER DEFAULT PRIVILEGES FOR ROLE {e}_storage IN SCHEMA storage GRANT ALL ON TABLES TO anon,authenticated,service_role; ALTER DEFAULT PRIVILEGES FOR ROLE {e}_storage IN SCHEMA storage GRANT ALL ON SEQUENCES TO anon,authenticated,service_role;', e)
 
     def provision(self, e):
         effect_receipt.require_permission(STATE,e)
@@ -234,17 +248,9 @@ class Runtime:
             raise RuntimeError('Environment database is fenced; explicit reconciliation required')
         v = self.values['environments'][e]
         effect_receipt.native_stage(STATE,e,'database')
-        lab.provision_environment(e, v, executor=self.sql)
-        self.sql('CREATE SCHEMA IF NOT EXISTS extensions; CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions; CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions; GRANT USAGE ON SCHEMA extensions TO anon,authenticated,service_role;', e)
-        if self.sql(f"SELECT 1 FROM pg_roles WHERE rolname='{e}_storage';").stdout.strip() != '1':
-            self.sql(f"CREATE ROLE {e}_storage LOGIN NOINHERIT PASSWORD '{v['storage']}';")
-        self.sql('; '.join(f'ALTER ROLE {e}_{role} CONNECTION LIMIT {connection_budget.SERVICE_LIMIT}' for role in ('auth', 'rest', 'storage'))+';')
-        self.sql(f'ALTER DATABASE {e} CONNECTION LIMIT {connection_budget.ENVIRONMENT_LIMIT};')
-        self.rest_deadlines(e)
-        self.sql(f'GRANT anon,authenticated,service_role TO {e}_storage; GRANT CONNECT ON DATABASE {e} TO {e}_storage;')
-        self.sql(f'CREATE SCHEMA IF NOT EXISTS storage AUTHORIZATION {e}_storage; GRANT USAGE ON SCHEMA storage TO anon,authenticated,service_role; ALTER DEFAULT PRIVILEGES FOR ROLE {e}_storage IN SCHEMA storage GRANT ALL ON TABLES TO anon,authenticated,service_role; ALTER DEFAULT PRIVILEGES FOR ROLE {e}_storage IN SCHEMA storage GRANT ALL ON SEQUENCES TO anon,authenticated,service_role;', e)
-        self.hba()
+        self.provision_database(e, v)
         effect_receipt.native_stage(STATE,e,'services')
+        self.hba()
         endpoints = {}
         for service, builder, port, suffix in [('auth', lab.auth_configuration, 9999, '/health'), ('rest', lab.rest_configuration, 3000, '/')]:
             name = PREFIX+'-'+e+'-'+service

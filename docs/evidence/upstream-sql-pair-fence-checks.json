@@ -2,7 +2,7 @@
   "image": "sha256:b3bfedb107413abb3b8cb0d0874b0414a1dceb3d55bc0c778de6ad22d1f7dc86",
   "profile": "upstream",
   "scope": "Experimental sequential control and target SQL revocation on pinned PostgreSQL. Actual coordinator SIGKILL between commits, retry, target tombstones, absent/closed targets and OID replacement tested. Not an atomic cutoff, production integration or replay authorization.",
-  "count": 43,
+  "count": 45,
   "checks": [
     "native local Linux daemon",
     "host headroom checked before bounded probe",
@@ -41,6 +41,8 @@
     "replaced target remains free of stale registry bootstrap",
     "actual closed-bootstrap provision succeeds through guarded executor",
     "guarded scalar reads preserve exact output",
+    "complete durable SQL creates Storage schema",
+    "complete durable SQL sets REST deadline",
     "unterminated SQL with trailing comment stays separated from guard cleanup",
     "revocation stops actual provisioning executor target mutations",
     "rejected mutation leaves no application table",

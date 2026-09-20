@@ -28,6 +28,18 @@ class AdmissionTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,'fenced'):self.runtime.provision('e_'+'0'*24)
             provision.assert_not_called()
 
+class DatabaseStageBoundaryTests(unittest.TestCase):
+    def test_services_marker_failure_prevents_shared_hba_write(self):
+        target=runtime.Runtime.__new__(runtime.Runtime)
+        environment='e_'+'a'*24
+        target.values={'environments':{environment:{}}}
+        def stage(state,e,name):
+            if name=='services':raise RuntimeError('Marker persistence failed')
+        with patch.object(runtime.effect_receipt,'require_permission'), patch.object(runtime.effect_receipt,'native_stage',side_effect=stage), patch.object(runtime.source_fence,'is_fenced',return_value=False), patch.object(runtime,'inspect',return_value={'owned':True}), patch.object(target,'provision_database') as database, patch.object(target,'hba') as hba:
+            with self.assertRaisesRegex(RuntimeError,'Marker persistence failed'):target.provision(environment)
+            database.assert_called_once_with(environment,{})
+            hba.assert_not_called()
+
 
 if __name__ == '__main__':
     unittest.main()
