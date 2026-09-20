@@ -45,3 +45,5 @@ Open `/home/sbarah/R/Projects/P/sbarbase`. Read `~/AGENTS.md`, this file, `PROJE
 Use one assistant as the active writer at a time. Hermes can continue in the same repository without moving code; no Hermes execution has been dispatched. Keep credentials and runtime payloads in ignored `.secrets/` and `.lab/`. The handoff ZIP includes source, research, pictures and sanitized evidence, including clearly identified unfinished source, but excludes secrets, dependencies, runtime data and Git history.
 
 Latest local checkpoint: [pressure admission](PRESSURE-ADMISSION.md) reads cgroup PSI and refuses new allocation during measured pressure. [Initial SQL load probe](NOISY-NEIGHBOR.md) includes raw timings for 150 validated results. Next: realistic HTTP/SDK mixtures and continuous overload protection; do not infer 10/100-project capacity from this microbenchmark.
+
+[Managed SDK workload](SDK-LOAD.md): 1,010 correct operations across two ten-second phases, plus a separate 200-operation burst. Temporary data and identities were cleaned up. Next: per-environment request concurrency/overload controls and longer open-loop tests.
