@@ -41,3 +41,7 @@ Target Storage now exists stopped with separate metadata and object volume. Eigh
 ## Latest identity and URL verification
 
 Twelve end-user Storage checks pass: original login, own-object access, cross-owner download/sign denial and anonymous denial. Seven source-issued URL checks pass sequentially: source signing rows match export, the unchanged signature works on the independent target, tampering is rejected and both stacks stop. The URL was issued after export; pre-export issuance and public routing cutover remain unproven. Preserve the distinction. Next: explicit resumable recovery orchestration, failure-path tests and chronological pre-export fixture before management cutover.
+
+## Latest failure-path checkpoint
+
+Database restore cleanup now attempts helper and database cleanup independently, preserves foreign helpers and refuses success when the verified target is missing. Six unit fault cases and six disposable-container live checks pass; complete Python suite is 40 tests. See `lab/test_recovery_cleanup.py` and `docs/evidence/recovery-cleanup-checks.json`. Actual pg_restore interruption, SIGKILL/restart reconciliation and resumable stage orchestration remain next, followed by chronological pre-export URL and management routing cutover.

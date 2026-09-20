@@ -1,0 +1,12 @@
+{
+  "scope": "Actual cleanup function with injected helper-remove failure and real disposable container shutdown, followed by cleanup retry. No database contents, SIGKILL recovery or daemon outage exercised. Retained data volumes untouched.",
+  "checks": [
+    "helper removal failure records cleanup failure",
+    "database container actually stopped despite helper failure",
+    "failed helper remains available for explicit cleanup",
+    "cleanup retry removes owned helper",
+    "cleanup retry leaves target stopped",
+    "cleanup retry does not upgrade failed verification to success"
+  ],
+  "count": 6
+}

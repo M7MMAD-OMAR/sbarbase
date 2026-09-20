@@ -28,6 +28,33 @@ def identifier(value):
     return '"'+str(value).replace('"','""')+'"'
 
 
+def cleanup_target(descriptor,record,helper,db):
+    # Cleanup attempts are independent: a helper failure cannot skip DB shutdown.
+    failures=[]
+    try:
+        helper_state=lab.docker('container','inspect',helper,check=False)
+        if helper_state.returncode==0:
+            if json.loads(helper_state.stdout)[0]['Config']['Labels'].get('io.sbarbase.owner')!=OWNER:raise RuntimeError('Helper ownership changed')
+            lab.docker('rm','-f',helper)
+    except BaseException as error:
+        failures.append(error)
+    try:
+        inspected=lab.docker('container','inspect',db,check=False)
+        if inspected.returncode==0:
+            state=json.loads(inspected.stdout)[0]
+            if state['Config']['Labels'].get('io.sbarbase.owner')!=OWNER:raise RuntimeError('Target ownership changed')
+            lab.docker('stop',db)
+            if json.loads(lab.docker('inspect',db).stdout)[0]['State']['Running']:raise RuntimeError('Target failed to stop')
+        elif descriptor['status']=='database-verified':
+            raise RuntimeError('Verified target unavailable during cleanup')
+    except BaseException as error:
+        failures.append(error)
+    descriptor['status']='cleanup-failed' if failures else ('database-restored' if descriptor['status']=='database-verified' else 'failed')
+    runtime.atomic(record,descriptor)
+    if failures:
+        raise RuntimeError('Recovery cleanup incomplete; inspect retained resources') from None
+
+
 def main():
     if (runtime.STATE/'recovery-target.json').exists():raise RuntimeError('Retained target descriptor exists; resume it explicitly')
     source=json.loads((runtime.STATE/'recovery-latest.json').read_text())
@@ -150,23 +177,7 @@ def main():
         descriptor['status']='database-verified';stage('verified')
         evidence={'scope':'Fresh separate PostgreSQL cluster, database stage only. No target Auth/REST/Storage processes, object restore or signed-URL verification yet. Source stayed stopped; target stopped with isolated volume retained.','checks':checks,'count':len(checks),'tables':len(tables),'target_memory_mib':1024,'target_cpus':1}
     finally:
-        try:
-            helper_state=lab.docker('container','inspect',helper,check=False)
-            if helper_state.returncode==0:
-                if json.loads(helper_state.stdout)[0]['Config']['Labels'].get('io.sbarbase.owner')!=OWNER:raise RuntimeError('Helper ownership changed')
-                lab.docker('rm','-f',helper)
-            inspected=lab.docker('container','inspect',db,check=False)
-            if inspected.returncode==0:
-                state=json.loads(inspected.stdout)[0]
-                if state['Config']['Labels'].get('io.sbarbase.owner')!=OWNER:raise RuntimeError('Target ownership changed')
-                lab.docker('stop',db)
-                if json.loads(lab.docker('inspect',db).stdout)[0]['State']['Running']:raise RuntimeError('Target failed to stop')
-            descriptor['status']='database-restored' if descriptor['status']=='database-verified' else 'failed'
-        except BaseException:
-            descriptor['status']='cleanup-failed'
-            raise
-        finally:
-            runtime.atomic(record,descriptor)
+        cleanup_target(descriptor,record,helper,db)
     (lab.ROOT/'docs/evidence/independent-database-restore.json').write_text(json.dumps(evidence,indent=2)+'\n')
     print(f'{len(checks)} independent database restore checks passed; target retained stopped.')
 

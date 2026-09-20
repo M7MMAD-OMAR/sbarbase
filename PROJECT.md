@@ -135,3 +135,7 @@ Eight live checks now validate original signing material under fresh target plat
 ## Independent end-user Storage and source URL checkpoint
 
 Twelve end-user checks now verify original-login object access, different-owner download/sign denial and anonymous denial. Seven sequential source/target checks verify source signing material equals the export and an unchanged source-issued signature works on the independent target while tampering fails. URL issuance occurred after export; pre-export chronology and public route cutover remain open. Both stacks are stopped.
+
+## Recovery cleanup failure checkpoint
+
+Six injected failure unit cases and six disposable-container live checks now cover independent cleanup attempts and truthful status publication. Three reproduced defects were fixed: helper failures skipping DB stop and a missing verified target being treated as success. All 40 Python tests pass. No retained data was modified. Actual interrupted restoration and process-death reconciliation remain unverified.
