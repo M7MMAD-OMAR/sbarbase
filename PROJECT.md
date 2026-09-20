@@ -62,4 +62,8 @@ The four-environment local guard now has [12 live checks](docs/evidence/admissio
 
 ## Resource admission checkpoint
 
-New durable environments now also require host-memory and mounted-volume free-space headroom before credentials or databases are allocated. [Policy, live snapshot and limitations](docs/RESOURCE-ADMISSION.md). Eighteen Python tests pass. This is a local snapshot gate with fixed reserves; CPU/I/O, connection budgets, quotas and continuous pressure monitoring remain unfinished. The four-environment count guard remains in force.
+New durable environments now also require host-memory and mounted-volume free-space headroom before credentials or databases are allocated. [Policy, live snapshot and limitations](docs/RESOURCE-ADMISSION.md). Eighteen Python tests pass. This is a local snapshot gate with fixed reserves; CPU/I/O, quotas and continuous pressure monitoring remain unfinished; connection budgeting is described below. The four-environment count guard remains in force.
+
+## Connection budget checkpoint
+
+Durable service logins and databases now enforce finite PostgreSQL connection limits. New environment admission accounts for planned service connections and operational headroom against actual PostgreSQL settings. [Policy, seven live saturation checks and limits](docs/CONNECTION-BUDGET.md). A neighboring SQL login and the operator remained available while one Auth login was saturated. Twenty-two Python tests pass. This does not isolate query CPU, memory or I/O.

@@ -1,0 +1,13 @@
+{
+  "scope": "One real Auth login saturation, neighboring SQL login and operator availability; not a full noisy-neighbor load or query-resource isolation test",
+  "count": 7,
+  "checks": [
+    "at least two owned environments available",
+    "target login has finite non-superuser limit",
+    "environment database has finite limit",
+    "probe held real concurrent service connections",
+    "extra login refused by PostgreSQL role limit",
+    "neighbor login remains available while target saturated",
+    "operator connection remains available"
+  ]
+}

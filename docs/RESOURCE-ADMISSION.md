@@ -21,4 +21,6 @@ On this host, `df -i` reports zero inode totals on Btrfs. Recognized Btrfs volum
 
 ## Still required
 
-CPU saturation, I/O pressure, PostgreSQL connection budgets, cgroup limits, persistent resource reservations, tenant disk quotas, backup-size-aware recovery reserve, monitoring after admission and workload benchmarks. This snapshot cannot prevent another process from consuming resources immediately afterward. It does not establish capacity for 10 or 100 projects.
+CPU saturation, I/O pressure, cgroup limits, persistent resource reservations, tenant disk quotas, backup-size-aware recovery reserve, monitoring after admission and workload benchmarks. This snapshot cannot prevent another process from consuming resources immediately afterward. It does not establish capacity for 10 or 100 projects.
+
+A separate [PostgreSQL connection budget](CONNECTION-BUDGET.md) now checks planned connection headroom and enforces service login/database limits.

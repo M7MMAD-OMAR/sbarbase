@@ -13,6 +13,7 @@ import urllib.error
 import urllib.request
 import run as lab
 import resource_admission
+import connection_budget
 
 class AdmissionLimitError(RuntimeError):
     pass
@@ -165,6 +166,7 @@ class Runtime:
             self.sql(f"CREATE ROLE storage_control LOGIN NOINHERIT PASSWORD '{self.values['storage_control']}';")
         if self.sql("SELECT 1 FROM pg_database WHERE datname='storage_metadata';").stdout.strip() != '1':
             self.sql('CREATE DATABASE storage_metadata OWNER storage_control;')
+        self.sql(f'ALTER ROLE storage_control CONNECTION LIMIT {connection_budget.SERVICE_LIMIT}; ALTER DATABASE storage_metadata CONNECTION LIMIT {connection_budget.SERVICE_LIMIT};')
         self.sql('REVOKE ALL ON DATABASE storage_metadata FROM PUBLIC;')
         self.management()
         self.hba()
@@ -195,6 +197,9 @@ class Runtime:
                 raise RuntimeError('Resource measurement unavailable') from None
             if reason:
                 raise AdmissionLimitError('Resource headroom unavailable')
+            limits = self.sql("SELECT current_setting('max_connections'), current_setting('superuser_reserved_connections'), current_setting('reserved_connections');").stdout.strip().split('|')
+            if len(limits) != 3 or not connection_budget.fits(len(self.values['environments'])+1, *(int(value) for value in limits)):
+                raise AdmissionLimitError('Connection budget unavailable')
             self.values['environments'][e] = {k: secrets.token_hex(32) for k in ('auth', 'rest', 'storage', 'jwt')}
             atomic(self.path, self.values)
         v = self.values['environments'][e]
@@ -202,6 +207,8 @@ class Runtime:
         self.sql('CREATE SCHEMA IF NOT EXISTS extensions; CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions; CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions; GRANT USAGE ON SCHEMA extensions TO anon,authenticated,service_role;', e)
         if self.sql(f"SELECT 1 FROM pg_roles WHERE rolname='{e}_storage';").stdout.strip() != '1':
             self.sql(f"CREATE ROLE {e}_storage LOGIN NOINHERIT PASSWORD '{v['storage']}';")
+        self.sql('; '.join(f'ALTER ROLE {e}_{role} CONNECTION LIMIT {connection_budget.SERVICE_LIMIT}' for role in ('auth', 'rest', 'storage'))+';')
+        self.sql(f'ALTER DATABASE {e} CONNECTION LIMIT {connection_budget.ENVIRONMENT_LIMIT};')
         self.sql(f'GRANT anon,authenticated,service_role TO {e}_storage; GRANT CONNECT ON DATABASE {e} TO {e}_storage;')
         self.sql(f'CREATE SCHEMA IF NOT EXISTS storage AUTHORIZATION {e}_storage; GRANT USAGE ON SCHEMA storage TO anon,authenticated,service_role; ALTER DEFAULT PRIVILEGES FOR ROLE {e}_storage IN SCHEMA storage GRANT ALL ON TABLES TO anon,authenticated,service_role; ALTER DEFAULT PRIVILEGES FOR ROLE {e}_storage IN SCHEMA storage GRANT ALL ON SEQUENCES TO anon,authenticated,service_role;', e)
         self.hba()
@@ -242,6 +249,7 @@ class Runtime:
             self.sql('CREATE DATABASE management;')
         self.sql('REVOKE ALL ON DATABASE management FROM PUBLIC; GRANT CONNECT ON DATABASE management TO management_auth;')
         self.sql('CREATE SCHEMA IF NOT EXISTS auth AUTHORIZATION management_auth;', 'management')
+        self.sql(f'ALTER ROLE management_auth CONNECTION LIMIT {connection_budget.SERVICE_LIMIT}; ALTER DATABASE management CONNECTION LIMIT {connection_budget.SERVICE_LIMIT};')
         self.sql('ALTER ROLE management_auth IN DATABASE management SET search_path TO auth;')
         self.hba()
         config = lab.auth_configuration('management', values, DB)
