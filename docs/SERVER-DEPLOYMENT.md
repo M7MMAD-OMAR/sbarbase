@@ -70,6 +70,26 @@ runs the API and the provisioning worker, and stops the runtime on SIGTERM.
 container is touched. For a foreground run instead, execute
 `/usr/bin/python3 lab/dev.py` in a terminal and stop it with Ctrl+C.
 
+On the server, one command produces the acceptance evidence:
+
+```
+/usr/bin/python3 lab/install_server.py check
+/usr/bin/python3 lab/deployment_rehearsal.py --bootstrap-file /path/to/operator.json
+```
+
+`docs/evidence/deployment-rehearsal.json` then records the host facts (kernel,
+Docker, Bun, Python, headroom, free disk), the exact command that ran, the full
+pin set with digests, the state of the `sbarbase.service` unit, start and finish
+times, and one row per check with its result. A rehearsal that cannot run
+records the blocking finding instead of a pass, and exits non-zero.
+
+### Check: does the supervised path work, not just a direct run?
+
+The rehearsal runs the supervisor directly. It records the systemd unit's own
+state, and fails the `supervised path exercised through systemd` check when
+`/etc/systemd/system/sbarbase.service` is not installed, so a green run means
+the unit was present, enabled and verified.
+
 ## Verify after install
 
 ```

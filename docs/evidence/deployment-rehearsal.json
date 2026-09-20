@@ -1,8 +1,57 @@
 {
- "scope": "Deployment rehearsal: read-only preflight, installation (or an already installed host), supervisor startup, console and management reachability, recorded environment routes, supervised shutdown and absence of running owned containers. Not sustained load, not multi-host, not HTTPS termination.",
+ "scope": "Deployment rehearsal: read-only preflight, installation (or an already installed host), supervisor startup, console and management reachability, recorded environment routes, the supervised unit when installed, supervised shutdown and absence of running owned containers. Not sustained load, not multi-host, not HTTPS termination.",
+ "command": "/usr/bin/python3 lab/deployment_rehearsal.py --skip-install",
+ "host": {
+  "platform": "Linux-7.1.12-200.fc44.x86_64-x86_64-with-glibc2.43",
+  "kernel": "7.1.12-200.fc44.x86_64",
+  "machine": "x86_64",
+  "python": "3.14.7",
+  "docker": "29.7.2",
+  "bun": "1.3.14",
+  "systemd": "systemd 259 (259.8-1.fc44)",
+  "mem_available_mib": 6797,
+  "disk_free_mib": 505455
+ },
+ "pins": [
+  {
+   "component": "distro-image.lock.json:default",
+   "digest": "sha256:b3bfedb107413abb3b8cb0d0874b0414a1dceb3d55bc0c778de6ad22d1f7dc86",
+   "pull": "public.ecr.aws/supabase/postgres@sha256:b3bfedb107413abb3b8cb0d0874b0414a1dceb3d55bc0c778de6ad22d1f7dc86"
+  },
+  {
+   "component": "images.lock.json:db",
+   "digest": "sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73",
+   "pull": "postgres@sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73"
+  },
+  {
+   "component": "images.lock.json:auth",
+   "digest": "sha256:c0c25187a6b835e65a6f6e6c6b39d090e832d40e6de5186f2c038e0411944232",
+   "pull": "public.ecr.aws/supabase/gotrue@sha256:c0c25187a6b835e65a6f6e6c6b39d090e832d40e6de5186f2c038e0411944232"
+  },
+  {
+   "component": "images.lock.json:rest",
+   "digest": "sha256:2f8e7b656f09db697a8875177694b417b35cb76c21370de07fc54e711e902326",
+   "pull": "public.ecr.aws/supabase/postgrest@sha256:2f8e7b656f09db697a8875177694b417b35cb76c21370de07fc54e711e902326"
+  },
+  {
+   "component": "storage-image.lock.json:default",
+   "digest": "sha256:c24fb33cc2fa38d0f9582a30312907fc56da333fb9ba0646833186197e4982f3",
+   "pull": "public.ecr.aws/supabase/storage-api@sha256:c24fb33cc2fa38d0f9582a30312907fc56da333fb9ba0646833186197e4982f3"
+  }
+ ],
+ "unit": {
+  "installed": false,
+  "enabled": null,
+  "active": null,
+  "verify": "not-run"
+ },
+ "bootstrap_file_used": false,
+ "install_skipped": true,
+ "started_at": "2026-09-20T15:28:49+04:00",
+ "finished_at": "2026-09-20T15:28:50+04:00",
  "checks": [
   {
-   "check": "preflight: Host headroom insufficient: 6816 MiB available, plan needs 8448 MiB",
+   "check": "preflight: Host headroom insufficient: 6796 MiB available, plan needs 8448 MiB",
    "ok": false,
    "detail": ""
   }

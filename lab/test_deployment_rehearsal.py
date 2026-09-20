@@ -32,4 +32,33 @@ class RehearsalTests(unittest.TestCase):
             self.assertTrue(rehearsal.owned_running('durable-upstream'))
 
 
+class ServerEvidenceTests(unittest.TestCase):
+    """The evidence has to let an operator certify a server run."""
+
+    def test_host_facts_carry_versions_and_headroom_without_paths(self):
+        facts=rehearsal.host_facts()
+        for key in ('platform','kernel','machine','python','docker','bun','systemd','mem_available_mib','disk_free_mib'):
+            self.assertIn(key,facts)
+        self.assertTrue(facts['python'])
+        self.assertIsInstance((facts['mem_available_mib'],facts['disk_free_mib'])[0],(int,type(None)))
+
+    def test_unit_status_reports_absence_rather_than_guessing(self):
+        from pathlib import Path
+        status=rehearsal.unit_status(Path('/nonexistent/sbarbase.service'))
+        self.assertEqual(status,{'installed':False,'enabled':None,'active':None,'verify':'not-run'})
+
+    def test_the_shipped_unit_verifies_under_systemd_analyze(self):
+        from pathlib import Path
+        status=rehearsal.unit_status(Path(rehearsal.__file__).resolve().parent.parent/'deploy'/'sbarbase.service')
+        self.assertTrue(status['installed'])
+        self.assertEqual(status['verify'],'passed')
+
+    def test_evidence_records_pins_that_match_the_lock_files(self):
+        pins=[{'component':label,'digest':digest,'pull':reference} for label,digest,reference in rehearsal.install_server.pinned_images()]
+        self.assertGreaterEqual(len(pins),4)
+        for pin in pins:
+            self.assertTrue(pin['digest'].startswith('sha256:'))
+            self.assertIn('@sha256:',pin['pull'])
+
+
 if __name__=='__main__':unittest.main()
