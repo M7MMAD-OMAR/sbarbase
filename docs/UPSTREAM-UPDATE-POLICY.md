@@ -39,14 +39,33 @@ binding for every future change, assistant and release.
 
 ## Current pins
 
-Record the live pin set here and update it on every adoption:
+Record the live pin set here and update it on every adoption. `lab/pin_update.py show`
+prints this table from the lock files, and `lab/pin_update.py verify` refuses a
+floating tag or an unpinned component.
 
-| Component | Pinned version | Since | Notes |
-|---|---|---|---|
-| PostgreSQL | 17 (pinned image) | project start | probes use the same pin |
-| Auth / REST / Storage | see `lab/` image pins | project start | pinned Supabase distribution |
+| Component | Lock file | Pinned version | Digest (short) | Since | Notes |
+|---|---|---|---|---|---|
+| Distribution (`db` used by the installation) | `lab/distro-image.lock.json` | public.ecr.aws/supabase/postgres:17.6.1.166 | b3bfedb10741 | project start | probes use the same pin |
+| Stock PostgreSQL (`db` in the component profile) | `lab/images.lock.json` | postgres:17-alpine | 18cfe3ef5e68 | project start | used by component-profile fixtures |
+| Auth | `lab/images.lock.json` | public.ecr.aws/supabase/gotrue:v2.196.0 | c0c25187a6b8 | project start | GoTrue |
+| REST | `lab/images.lock.json` | public.ecr.aws/supabase/postgrest:v14.15 | 2f8e7b656f09 | project start | PostgREST |
+| Storage | `lab/storage-image.lock.json` | public.ecr.aws/supabase/storage-api:v1.73.1 | c24fb33cc2fa | project start | tenant-aware |
 
 Keep this table honest. An out-of-date pin table is treated as a bug.
+
+## Staging an update
+
+```
+/usr/bin/python3 lab/pin_update.py verify        # no floating tags, every component pinned
+/usr/bin/python3 lab/pin_update.py show          # the whole pin set with digests
+/usr/bin/python3 lab/pin_update.py stage --file lab/images.lock.json --component rest \
+    --tag public.ecr.aws/supabase/postgrest:v14.16 --digest sha256:<64 hex> --note "why"
+```
+
+`stage` writes the dated review entry first, records the previous digest as the
+rollback pin, changes exactly one component and refuses a floating tag, an
+unknown component, an unchanged digest or a second entry for the same version.
+Completing the entry and passing the adoption gate are still the operator's job.
 
 ## Where the log goes
 
