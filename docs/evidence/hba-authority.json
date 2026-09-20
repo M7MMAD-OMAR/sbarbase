@@ -1,0 +1,20 @@
+{
+  "scope": "Isolated authority protocol against the pinned image's real filesystem/tools.\n\nDoes not start PostgreSQL or test reload, host journals or process interruption.",
+  "image": "sha256:b3bfedb107413abb3b8cb0d0874b0414a1dceb3d55bc0c778de6ad22d1f7dc86",
+  "count": 13,
+  "checks": [
+    "bounded isolated pinned container",
+    "old permit rejected after revocation",
+    "rejected permit leaves HBA unchanged",
+    "stale snapshot cannot erase tombstone",
+    "revoked token cannot register again",
+    "revoked operation cannot freshly prepare authority",
+    "competing active token refused",
+    "new active operation publishes exact content",
+    "truncated registry update rejected",
+    "truncation preserves complete registry",
+    "missing registry refuses read",
+    "retained marker prevents silent reinitialization",
+    "exact disposable container removed"
+  ]
+}

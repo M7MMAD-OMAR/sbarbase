@@ -14,7 +14,7 @@ Compatibility is required. Replacing Supabase changes that contract. Schema-only
 
 Four local environments have been exercised, including one restored to a separate local target. Real SDK checks cover Auth, RLS and private Storage access. Provisioning uses durable receipts, exact worker identities and scoped SQL guards. Complete HBA writes reject truncation and stale prepared requests; reload acknowledgment does not prove enforcement or terminate existing sessions.
 
-Recorded checkpoints: 121 Python tests, 73 Bun tests/408 assertions, 57 fresh worker/SDK checks, 51 SQL-pair checks and 36 HBA checks. These have different scopes and were not rerun for this documentation update. They do not certify production security.
+Recorded checkpoints: 129 Python tests, 73 Bun tests/408 assertions, 57 fresh worker/SDK checks, 51 SQL-pair checks and 36 HBA checks. These have different scopes ; Python was rerun for the authority prototype, while the other runtime checkpoints remain recorded evidence. They do not certify production security.
 
 Configured retained ceilings are 5888 MiB RAM/5.75 CPUs, not measured demand or a hardware recommendation. There is no validated maximum of 10 or 100 projects. Daily visitors alone cannot determine capacity.
 
@@ -26,7 +26,7 @@ Configured retained ceilings are 5888 MiB RAM/5.75 CPUs, not measured demand or 
 
 ## Exact stopping point
 
-Last verified implementation baseline: `155e230`. The local `lab/hba_authority.py` is an **untested, unintegrated draft**, preserved for review, not a completed guarantee. Its next gate is the [HBA authority design](HBA-OPERATION-AUTHORITY-DESIGN.md): immutable operation journal, permanent revocation records, startup/container generation reconciliation and isolated fault tests. Do not enable later-stage automatic replay.
+The runtime baseline is `155e230`. The isolated `lab/hba_authority.py` prototype now passes 8 host shell tests and 13 pinned-image checks, but remains **unintegrated**. Its next gate is the [HBA authority design](HBA-OPERATION-AUTHORITY-DESIGN.md): immutable operation journal, permanent revocation records, startup/container generation reconciliation and isolated fault tests. Do not enable later-stage automatic replay.
 
 Last recorded retained state: owned containers stopped, moved source fenced, target routing paused. Preserve both recovery targets and their volumes. Inspect live state before acting; never switch back blindly to the stale source. No runtime changes were made for this documentation update.
 
@@ -36,6 +36,6 @@ Still open: later-stage crash recovery, service effects, sustained mixed-load ca
 
 Use the same checkout and one active writer. The project files, not assistant memory, are authoritative. This update does not launch work in Hermes.
 
-> Work in /home/sbarah/R/Projects/P/sbarbase. Read ~/AGENTS.md, docs/START-HERE.md, docs/HANDOFF.md, the latest docs/RESUME-CHECKPOINT.md entries and lab/README.md. Inspect Git and live state. Review the untested lab/hba_authority.py against docs/HBA-OPERATION-AUTHORITY-DESIGN.md before using it. Continue bounded local experiments with adversarial review. Preserve retained volumes, source fencing and unrelated Docker resources. Do not claim production readiness, automatic later-stage recovery or fixed project capacity.
+> Work in /home/sbarah/R/Projects/P/sbarbase. Read ~/AGENTS.md, docs/START-HERE.md, docs/HANDOFF.md, the latest docs/RESUME-CHECKPOINT.md entries and lab/README.md. Inspect Git and live state. Review the isolated lab/hba_authority.py against docs/HBA-OPERATION-AUTHORITY-DESIGN.md before using it. Continue bounded local experiments with adversarial review. Preserve retained volumes, source fencing and unrelated Docker resources. Do not claim production readiness, automatic later-stage recovery or fixed project capacity.
 
-`sbarbase-handoff.zip` is a portable source/research/diagram handoff, including the explicitly unfinished draft. It excludes secrets, local runtime state, dependencies and Git history. It is not a backup of application data.
+`sbarbase-handoff.zip` is a portable source/research/diagram handoff, including the explicitly unfinished authority prototype. It excludes secrets, local runtime state, dependencies and Git history. It is not a backup of application data.

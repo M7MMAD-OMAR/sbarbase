@@ -1,6 +1,6 @@
 # HBA operation authority: reviewed next gate
 
-Design only, not implemented. Prepared-request revision checks already exist; full operation revocation does not.
+An isolated registry prototype now exists in `lab/hba_authority.py`; it is not integrated into runtime or startup. Prepared-request revision checks are integrated; full runtime operation revocation is not.
 
 ## Protocol to prove
 
@@ -17,3 +17,13 @@ Registration cannot reactivate a revoked token or admit another token while an u
 - File application, parser validity, reload signaling, enforcement on new connections and existing sessions are separate states. Revocation does not roll back an already published file.
 
 Independent adversarial review identified these constraints. Do not integrate a token registry without this startup and recovery design merely to claim whole-operation fencing.
+
+## Isolated implementation evidence
+
+The prototype captures the exact container ID, validates a checksummed registry snapshot, and compares the whole previous registry hash under the stable HBA lock before atomically updating it. Revocation leaves permanent tombstones, including for operations that have not registered. Applying a prepared file checks registry and HBA revisions under that same lock. Registry deletion is not treated as an empty registry; a separate initialization marker prevents silently recreating a lost registry.
+
+Eight host shell tests and 13 checks using the pinned Supabase PostgreSQL image pass. The image probe starts only a bounded shell container, not PostgreSQL. It covers stale permits, stale snapshots, re-registration, fresh preparation after revocation, competing authority, complete application, truncated registry input, lost registry and exact cleanup. Host tests also cover lost acknowledgment without retry, duplicate JSON keys, checksum corruption and generation mismatch. A failing marker-loss test exposed shell `set -e` behavior with an AND-list; separate mandatory checks fix it.
+
+Run `/usr/bin/python3 -m unittest discover -s lab -p 'test_hba_authority.py'` and `/usr/bin/python3 lab/hba-authority-check.py`. Sanitized output is in [evidence](evidence/hba-authority.json).
+
+These are trusted-host protocol helpers, not an API accepting arbitrary permits or operation identities. Exact receipt/startup identity validation and host journal persistence are still required. Legacy runtime writers do not consult this registry. No helper-kill, power-loss, clone/rollback, PostgreSQL activation or full operation-recovery guarantee follows from these checks. Do not integrate or enable later-stage replay until the blockers above are resolved.

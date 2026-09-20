@@ -196,3 +196,11 @@ Fresh real worker/SDK lifecycle also passes57 checks after reload validation, wi
 ## Documentation handoff checkpoint
 
 The concise entry point is now docs/START-HERE.md, linking decisions, reasons, research, saved visuals, measured evidence and open gates. Verified implementation baseline remains155e230. lab/hba_authority.py was started but has not been tested or integrated; preserve and review it as a draft. No runtime work or new validation run occurred during this documentation update. Continue with one active writer in the same checkout, whether Codex or Hermes.
+
+## Isolated HBA authority registry checkpoint
+
+The draft is now an isolated tested prototype. Eight real host shell tests and 13 pinned-image filesystem checks pass. Tombstones, whole-registry CAS and same-lock authority/HBA checks reject delayed old operations. Missing initialization markers now refuse updates; a real failing test found and fixed an AND-list/set-e mistake. Registry parsing rejects duplicate keys. No runtime integration or PostgreSQL activation was performed. The disposable probe was removed; retained installation resources were not used.
+
+Read HBA-OPERATION-AUTHORITY-DESIGN.md for remaining requirements: exact host journal identity, startup/container-generation reconciliation, interruption tests and migration of every managed writer. This supersedes the prior untested-draft status, not the unresolved recovery gates.
+
+All 129 Python tests pass. Adversarial review found an uncertain-container-create cleanup gap in the new probe; a private cidfile now recovers the captured ID after lost run acknowledgment, with ID/name/owner/image checks before cleanup.
