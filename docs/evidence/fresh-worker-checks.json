@@ -1,5 +1,6 @@
 {
-  "scope": "Fresh real worker receipts, leases, guarded SQL and source HBA authority with original Auth/REST/Storage in a private source snapshot. Includes generation pin refusal and parent-bound installation restart with inherited supervisor ownership. Only Docker identity constants replaced. Single environment, not crash recovery or capacity.",
+  "crash_phase": null,
+  "scope": "Fresh real worker receipts, leases, guarded SQL and source HBA authority with original Auth/REST/Storage in a private source snapshot. Includes generation pin refusal and parent-bound installation restart with inherited supervisor ownership. Only Docker identity constants replaced. Healthy lifecycle plus optional selected native HBA SIGKILL and HBA-only reconciliation. Not automatic job recovery or capacity.",
   "count": 76,
   "checks": [
     "whole-stack host memory headroom exceeds 6 GiB",

@@ -9,8 +9,8 @@
   "docker": "29.7.2",
   "bun": "1.3.14",
   "systemd": "systemd 259 (259.8-1.fc44)",
-  "mem_available_mib": 7063,
-  "disk_free_mib": 505435
+  "mem_available_mib": 8293,
+  "disk_free_mib": 505402
  },
  "pins": [
   {
@@ -47,11 +47,11 @@
  },
  "bootstrap_file_used": false,
  "install_skipped": true,
- "started_at": "2026-09-20T15:31:14+04:00",
- "finished_at": "2026-09-20T15:31:14+04:00",
+ "started_at": "2026-09-20T15:39:10+04:00",
+ "finished_at": "2026-09-20T15:39:11+04:00",
  "checks": [
   {
-   "check": "preflight: Host headroom insufficient: 7076 MiB available, plan needs 8448 MiB",
+   "check": "preflight: Host headroom insufficient: 8333 MiB available, plan needs 8448 MiB",
    "ok": false,
    "detail": ""
   }
