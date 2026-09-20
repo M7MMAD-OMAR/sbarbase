@@ -28,7 +28,7 @@ SupplementaryGroups=docker
 NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectSystem=full
-ReadWritePaths=/opt/sbarbase /home/sbarbase/.secrets
+ReadWritePaths=/opt/sbarbase
 
 [Install]
 WantedBy=multi-user.target

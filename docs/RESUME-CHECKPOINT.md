@@ -623,3 +623,30 @@ Capacity, measured tonight: the combined runtime needs 8761 MiB of free memory,
 so a server must keep 9 GiB clear of other work; this host fell under that line
 repeatedly while other agents used it, and the admission refused with
 `host_memory_headroom` instead of half-starting.
+
+## Supervised installation exercised for real, 2026-09-20 (Hermes)
+
+Installing and starting `sbarbase.service` on this host, which no earlier run had
+done (every rehearsal used `--skip-install` and every unit check ran as a
+per-user unit), exposed three more defects:
+
+- the unit demanded `ReadWritePaths=$HOME/.secrets`; nothing in the project
+  creates or uses that directory, and a `ReadWritePaths` entry for a missing path
+  makes systemd fail the unit with `226/NAMESPACE` before the first command runs,
+  so the unit could never start on a fresh host. The unit now names the checkout
+  only, and a test refuses any write path outside it;
+- a system service does not inherit the operator's shell, so a docker context
+  pointing at a desktop socket is unreachable from the unit. The preflight already
+  refused, naming the endpoint it tried, but then reported the pinned images as
+  "not local; install will pull" and the host as a "fresh install" from a process
+  that could not see the daemon at all. It now reports one honest line instead:
+  images not inspected and containers not enumerated;
+- the installer refused a missing service account only by failing later at
+  `systemctl enable --now`. It now validates the account before installing, and
+  the acceptance script forwards `--service-user`, `--home` and `--bun-dir`.
+
+With the path fixed and `DOCKER_HOST` pointed at the system socket, the unit
+installed, enabled and reached `active` under systemd on this host at 17:59. The
+rehearsal that follows in the acceptance flow then refused on host memory
+(8663 MiB available against an 8810 MiB plan), which is this workstation's
+condition, not the product's: a server must keep about 9 GiB clear.

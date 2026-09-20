@@ -9,6 +9,12 @@
 #   deploy/server-acceptance.sh --rehearse --skip-install
 #   sudo deploy/server-acceptance.sh --rehearse --install-unit --bootstrap-file /path/operator.json
 #
+# The supervised installation runs as an account that exists on the server and
+# holds the checkout. Name it when it is not 'sbarbase', the shipped default:
+#
+#   deploy/server-acceptance.sh --rehearse --install-unit \
+#        --service-user ops-account --home /srv/ops-account --bun-dir /srv/ops-account/.bun/bin
+#
 # It never prints a secret: only whether a bootstrap file was used. Every step
 # that fails stops the run and exits non-zero. Evidence lands in
 # docs/evidence/deployment-rehearsal.json and is copied to
@@ -22,6 +28,9 @@ BOOTSTRAP=""
 REHEARSAL=0
 SKIP_INSTALL=0
 INSTALL_UNIT=0
+SERVICE_USER=""
+SERVICE_HOME=""
+BUN_DIR=""
 
 fail() { printf 'FAIL: %s\n' "$1" >&2; exit 1; }
 step() { printf '\n== %s\n' "$1"; }
@@ -33,8 +42,11 @@ while [ $# -gt 0 ]; do
     --skip-install) SKIP_INSTALL=1 ;;
     --install-unit) INSTALL_UNIT=1 ;;
     --bootstrap-file) shift; [ $# -gt 0 ] || fail "--bootstrap-file needs a path"; BOOTSTRAP="$1" ;;
+    --service-user) shift; [ $# -gt 0 ] || fail "--service-user needs an account name"; SERVICE_USER="$1" ;;
+    --home) shift; [ $# -gt 0 ] || fail "--home needs a path"; SERVICE_HOME="$1" ;;
+    --bun-dir) shift; [ $# -gt 0 ] || fail "--bun-dir needs a path"; BUN_DIR="$1" ;;
     --python) shift; [ $# -gt 0 ] || fail "--python needs a path"; PYTHON="$1" ;;
-    -h|--help) sed -n '2,17p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,21p' "$0"; exit 0 ;;
     *) fail "unknown argument: $1" ;;
   esac
   shift
@@ -78,13 +90,17 @@ step "TLS termination check (reference proxy)"
 "$PYTHON" lab/tls_termination_check.py || fail "TLS termination check failed; see docs/evidence/tls-termination.json"
 
 step "supervisor unit"
+supervise_args=(supervise)
+if [ -n "$SERVICE_USER" ]; then supervise_args+=(--service-user "$SERVICE_USER"); fi
+if [ -n "$SERVICE_HOME" ]; then supervise_args+=(--home "$SERVICE_HOME"); fi
+if [ -n "$BUN_DIR" ]; then supervise_args+=(--bun-dir "$BUN_DIR"); fi
 if [ "$INSTALL_UNIT" = "1" ]; then
   [ "$(id -u)" = "0" ] || fail "--install-unit needs root (run the whole script with sudo)"
-  "$PYTHON" lab/install_server.py supervise --apply || fail "the supervisor unit could not be installed"
+  "$PYTHON" lab/install_server.py "${supervise_args[@]}" --apply || fail "the supervisor unit could not be installed"
   systemctl is-active --quiet sbarbase.service || fail "sbarbase.service is not active after install"
   printf 'ok: sbarbase.service installed, enabled and active\n'
 else
-  "$PYTHON" lab/install_server.py supervise || fail "the supervisor unit did not render and verify for this installation"
+  "$PYTHON" lab/install_server.py "${supervise_args[@]}" || fail "the supervisor unit did not render and verify for this installation"
 fi
 "$PYTHON" - <<'PY'
 import json

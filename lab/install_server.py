@@ -194,7 +194,15 @@ def state():
 
 
 def preflight():
-    return versions()+daemon()+images()+capacity()+state()
+    daemon_findings=daemon()
+    reachable=not any(kind=='blocker' and 'unreachable' in detail for kind,detail in daemon_findings)
+    if not reachable:
+        # Saying "will pull" or "fresh install" from a process that cannot see the
+        # daemon would be a guess dressed as a finding.
+        unknown=[('info','Pinned images were not inspected and installation containers were not enumerated: '
+                         'the Docker daemon was unreachable from this process')]
+        return versions()+daemon_findings+unknown+capacity()
+    return versions()+daemon_findings+images()+capacity()+state()
 
 
 def report(checks,title='Preflight'):
@@ -315,7 +323,7 @@ SERVICE_UNIT_PATH=Path('/etc/systemd/system/sbarbase.service')
 UNIT_ANCHORS=('WorkingDirectory=/opt/sbarbase','User=sbarbase','Group=sbarbase',
               'Environment=HOME=/home/sbarbase','ExecStart=/usr/bin/python3 /opt/sbarbase/lab/dev.py',
               'ExecStartPre=/usr/bin/python3 /opt/sbarbase/lab/install_server.py check',
-              'ReadWritePaths=/opt/sbarbase /home/sbarbase/.secrets','Documentation=file:/opt/sbarbase/docs/SERVER-DEPLOYMENT.md')
+              'ReadWritePaths=/opt/sbarbase','Documentation=file:/opt/sbarbase/docs/SERVER-DEPLOYMENT.md')
 
 
 def validate_service_identity(user,home,bun_dir):
@@ -354,10 +362,21 @@ def rendered_unit(root,home,user,bun_dir,text=None):
         .replace(':/home/sbarbase/.bun/bin',':'+str(bun_dir))
         .replace('ExecStartPre=/usr/bin/python3 /opt/sbarbase/','ExecStartPre=/usr/bin/python3 '+str(root)+'/')
         .replace('ExecStart=/usr/bin/python3 /opt/sbarbase/','ExecStart=/usr/bin/python3 '+str(root)+'/')
-        .replace('ReadWritePaths=/opt/sbarbase /home/sbarbase/.secrets','ReadWritePaths='+str(root)+' '+str(Path(home)/'.secrets')))
+        # Only the checkout is granted write access: a ReadWritePaths entry for a
+        # directory that does not exist makes systemd fail the unit with
+        # 226/NAMESPACE, and the installation keeps every secret under
+        # <checkout>/.secrets/upstream.
+        .replace('ReadWritePaths=/opt/sbarbase','ReadWritePaths='+str(root)))
     if '/opt/sbarbase' in rendered:
         raise SystemExit('Rendered unit still refers to the shipped default path; refusing it')
     return rendered
+
+
+def account_exists(user):
+    """A unit naming a missing account installs cleanly and never starts."""
+    import pwd
+    try:pwd.getpwnam(user);return True
+    except KeyError:return False
 
 
 def unit_commands(rendered_path):
@@ -381,6 +400,12 @@ def supervise(apply=False,service_user='sbarbase',home=None,bun_dir=None,evidenc
     temporary=ROOT/'.lab'/'rendered-sbarbase.service'
     temporary.parent.mkdir(parents=True,exist_ok=True)
     temporary.write_text(rendered)
+    account='present' if account_exists(service_user) else 'missing'
+    if apply and account=='missing':
+        raise SystemExit('Service account '+service_user+' does not exist on this host; create it first '
+                         'or pass --service-user with an account that exists, plus --home and --bun-dir')
+    if account=='missing':
+        print('note: service account '+service_user+' does not exist on this host; the unit will not start until it does')
     verify=run(['systemd-analyze','verify',str(temporary)],check=False)
     verified=verify.returncode==0
     root_user=os.geteuid()==0
@@ -404,7 +429,7 @@ def supervise(apply=False,service_user='sbarbase',home=None,bun_dir=None,evidenc
               'installation_root':str(ROOT),'service_user':service_user,'home':str(home),'bun_dir':bun_dir,
               'rendered':rendered,'rendered_path':str(temporary),
               'verify':'passed' if verified else ('failed: '+(verify.stderr or verify.stdout).strip()),
-              'running_as_root':root_user,'applied':applied,'install_commands':unit_commands(temporary),
+              'running_as_root':root_user,'applied':applied,'service_account':account,'install_commands':unit_commands(temporary),
               'run_at':datetime.datetime.now().astimezone().isoformat(timespec='seconds'),
               'passed':bool(verified) and (not apply or applied)}
     out=Path(evidence_path) if evidence_path else ROOT/'docs'/'evidence'/'supervisor-unit.json'

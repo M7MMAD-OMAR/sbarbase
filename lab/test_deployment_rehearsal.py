@@ -160,7 +160,7 @@ class StartupDiagnosticsTests(unittest.TestCase):
         from pathlib import Path
         script=(Path(__file__).resolve().parent.parent/'deploy'/'server-acceptance.sh').read_text()
         self.assertIn('--install-unit',script)
-        self.assertIn('supervise --apply',script)
+        self.assertIn('"${supervise_args[@]}" --apply',script)
         self.assertIn('"$(id -u)" = "0"',script)
 
 

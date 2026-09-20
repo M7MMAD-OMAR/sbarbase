@@ -83,6 +83,12 @@ class AcceptanceScriptContractTests(unittest.TestCase):
         self.assertIn('set -euo pipefail',self.source)
         self.assertNotIn('|| true',self.source)
 
+    def test_the_service_account_and_paths_are_named_for_the_installer(self):
+        for flag in ('--service-user','--home','--bun-dir'):
+            self.assertIn(flag,self.source)
+        self.assertIn('supervise_args+=(--service-user "$SERVICE_USER")',self.source)
+        self.assertIn('"${supervise_args[@]}"',self.source)
+
     def test_the_failure_message_does_not_promise_a_file_that_may_not_exist(self):
         self.assertIn('before it could write evidence',self.source)
         self.assertIn('[ -f docs/evidence/server-acceptance-rehearsal.json ]',self.source)

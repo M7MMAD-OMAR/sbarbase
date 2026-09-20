@@ -82,9 +82,36 @@ sudo /usr/bin/python3 lab/install_server.py supervise --apply
 
 Without `--apply` it only renders and verifies, prints the exact commands it would
 run, and writes `docs/evidence/supervisor-unit.json`. It refuses to install a unit
-that does not verify and refuses `--apply` without root. Point it at a different
-layout with `--service-user`, `--home` and `--bun-dir`; the shipped unit is never
-hand-edited. The rendering has been verified on the development host and the
+that does not verify, refuses `--apply` without root, and refuses to install for an
+account that does not exist on the host. Point it at a different layout with
+`--service-user`, `--home` and `--bun-dir`; the shipped unit is never hand-edited.
+`deploy/server-acceptance.sh` forwards the same three flags, so the one-command
+acceptance path can name the server's account too.
+
+Four things must be true before the unit can serve, and the preflight names each
+one rather than failing obscurely:
+
+1. **The service account exists.** Create it and give it the checkout, or install
+   with `--service-user`/`--home`/`--bun-dir`.
+2. **The service can reach a Docker daemon.** A system service does not inherit
+   the operator's shell, so it uses the socket its docker context resolves to. On
+   a server with native Docker that is `/var/run/docker.sock`, and the service
+   account must be in the `docker` group. Where the account's context points at a
+   desktop or per-user socket, point the unit at the system socket with a drop-in:
+   `Environment=DOCKER_HOST=unix:///var/run/docker.sock` in
+   `/etc/systemd/system/sbarbase.service.d/docker.conf`. The preflight reports
+   `Docker daemon unreachable from this process (tried <endpoint>)`, and when the
+   daemon is unreachable it no longer guesses about pinned images or the existing
+   containers.
+3. **The host has the memory.** The combined runtime needs about 8.8 GiB free
+   (5888 MiB of container limits, a 2560 MiB reserve, plus the measured cost of a
+   running source stage); the gate refuses with `host_memory_headroom` rather than
+   half-starting.
+4. **Write access stays inside the checkout.** `ReadWritePaths` names the
+   installation root only. A `ReadWritePaths` entry for a directory that does not
+   exist makes systemd fail the unit with `226/NAMESPACE` before it runs anything,
+   so the unit never lists a path the installation does not create; every secret
+   lives in `<checkout>/.secrets/upstream`. The rendering has been verified on the development host and the
 install commands are recorded in that evidence file; the install itself needs root
 on the target server.
 
