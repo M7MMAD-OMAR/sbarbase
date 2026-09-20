@@ -151,7 +151,13 @@ class Runtime:
             lines += [f'host {e} {e}_{role} 0.0.0.0/0 scram-sha-256' for role in ('auth', 'rest', 'storage')]
         lines += ['host all all 0.0.0.0/0 reject', 'host all all ::/0 reject']
         atomic_hba.replace(lab.docker,DB,'\n'.join(lines)+'\n')
-        self.sql('SELECT pg_reload_conf();')
+        self.reload_hba()
+
+    def reload_hba(self):
+        if self.sql('SELECT count(*) FROM pg_hba_file_rules WHERE error IS NOT NULL;').stdout.strip()!='0':
+            raise RuntimeError('HBA parse failure requires explicit reconciliation')
+        if self.sql('SELECT pg_reload_conf();').stdout.strip()!='t':
+            raise RuntimeError('HBA reload signal was not acknowledged')
 
     def start(self):
         effect_receipt.require_settled(STATE)

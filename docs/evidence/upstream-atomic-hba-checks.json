@@ -1,8 +1,8 @@
 {
   "image": "sha256:b3bfedb107413abb3b8cb0d0874b0414a1dceb3d55bc0c778de6ad22d1f7dc86",
   "profile": "upstream",
-  "scope": "Pinned upstream HBA replacement: producer EOF, checksum rejection, helper SIGKILL before/after rename, immutable prepared revisions, competing writers and lock-holder death. Not full operation revocation, power-loss or activation recovery.",
-  "count": 26,
+  "scope": "Pinned upstream HBA replacement and prepared revisions plus real connection observations across file publication and reload. Existing sessions remain active. Invalid reload signal acknowledgment is not processing confirmation. Not full operation revocation or power-loss recovery.",
+  "count": 36,
   "checks": [
     "native local Linux daemon",
     "host headroom checked before bounded probe",
@@ -28,6 +28,16 @@
     "busy writer lock refuses without changing target",
     "writer lock releases after stopped helper death",
     "versioned HBA remains valid configuration",
+    "activation baseline allows fresh neighbor connection",
+    "neighbor session established before restriction",
+    "file replacement alone does not activate rejection",
+    "reload request acknowledges restriction signal",
+    "fresh connections enforce reloaded HBA rejection",
+    "existing sessions remain usable after HBA restriction",
+    "invalid file is visible through HBA parse errors",
+    "reload signal can succeed for an invalid HBA file",
+    "fresh connections still observe rejection after invalid reload signal",
+    "explicit valid restore reopens fresh neighbor connections",
     "disposable database did not OOM",
     "exact disposable container absent from successful inventory"
   ]

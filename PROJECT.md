@@ -309,3 +309,11 @@ Read docs/ATOMIC-HBA-REPLACEMENT.md. Managed HBA writes now capture full Docker 
 This fences already-prepared stale writes, not an old operation preparing anew after a newer update. Next bind full configuration-operation authority and reconcile activation; unknown service-stage replay stays blocked. Administrator lock replacement/filesystem rollback remain excluded.
 
 Validation: all 118 Python tests and the fresh 57-check real worker/SDK lifecycle pass. Exact isolated cleanup passed; retained installation was not used. Independent review found no must-fix within prepared-request revision protection.
+
+## HBA activation and existing-session boundary, latest checkpoint
+
+The upstream HBA probe passes36 checks: restrictive file publication alone does not affect new connections; after reload fresh connections are rejected, but an existing session remains usable. Invalid-file parser errors coexist with a true reload-signal acknowledgment. Runtime now checks parser errors and signal success explicitly. These are not full activation or session-revocation guarantees.
+
+All121 Python tests pass. Read docs/ATOMIC-HBA-REPLACEMENT.md and the reviewed, unimplemented HBA-OPERATION-AUTHORITY-DESIGN.md. Next implement immutable operation journals and registry/tombstone semantics only after specifying startup and container-generation reconciliation. Unknown services-stage replay stays blocked.
+
+Fresh real worker/SDK lifecycle also passes57 checks after reload validation, with exact isolated cleanup. Independent review found no runtime must-fix and tightened invalid-reload evidence wording: immediate continued rejection does not confirm SIGHUP processing.

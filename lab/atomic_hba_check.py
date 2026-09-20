@@ -90,3 +90,43 @@ def run(container,admin,check,docker,sql):
     interrupted(paused,while_locked)
     check('writer lock releases after stopped helper death',attempt(waiting).returncode==0 and read()==waiting.content)
     check('versioned HBA remains valid configuration',sql(container,'SELECT count(*) FROM pg_hba_file_rules WHERE error IS NOT NULL;').stdout.strip()=='0')
+
+    # File publication, reload signaling and connection enforcement are distinct.
+    import select
+    def neighbor():
+        return docker('exec',container,'psql','-X','-qAt','-w','-U','neighbor','-d','neighbor','-c','SELECT 1;',check=False)
+    def await_neighbor(allowed):
+        deadline=time.monotonic()+5
+        while time.monotonic()<deadline:
+            result=neighbor()
+            if allowed and result.returncode==0 and result.stdout.strip()=='1':return True
+            if not allowed and result.returncode!=0 and 'pg_hba.conf rejects connection' in result.stderr:return True
+            time.sleep(.05)
+        return False
+    atomic_hba.replace(docker,container,new)
+    sql(container,'SELECT pg_reload_conf();')
+    check('activation baseline allows fresh neighbor connection',await_neighbor(True))
+    session=subprocess.Popen(['docker','exec','-i',container,'psql','-X','-qAt','-w','-U','neighbor','-d','neighbor'],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,text=True)
+    def held_query(value):
+        session.stdin.write('SELECT '+str(value)+';\n');session.stdin.flush()
+        if not select.select([session.stdout],[],[],5)[0]:raise RuntimeError('Existing connection response deadline')
+        return session.stdout.readline().strip()==str(value)
+    try:
+        check('neighbor session established before restriction',held_query(17))
+        atomic_hba.replace(docker,container,'local all neighbor reject\n'+new)
+        check('file replacement alone does not activate rejection',neighbor().returncode==0)
+        check('reload request acknowledges restriction signal',sql(container,'SELECT pg_reload_conf();').stdout.strip()=='t')
+        check('fresh connections enforce reloaded HBA rejection',await_neighbor(False))
+        check('existing sessions remain usable after HBA restriction',held_query(19))
+        atomic_hba.replace(docker,container,'invalid HBA syntax\n')
+        check('invalid file is visible through HBA parse errors',sql(container,'SELECT count(*)>0 FROM pg_hba_file_rules WHERE error IS NOT NULL;').stdout.strip()=='t')
+        check('reload signal can succeed for an invalid HBA file',sql(container,'SELECT pg_reload_conf();').stdout.strip()=='t')
+        check('fresh connections still observe rejection after invalid reload signal',await_neighbor(False))
+        atomic_hba.replace(docker,container,new)
+        sql(container,'SELECT pg_reload_conf();')
+        check('explicit valid restore reopens fresh neighbor connections',await_neighbor(True))
+    finally:
+        if session.stdin is not None:session.stdin.close();session.stdin=None
+        try:session.wait(timeout=5)
+        except subprocess.TimeoutExpired:session.kill();session.wait(timeout=5)
+        session.stdout.close()
