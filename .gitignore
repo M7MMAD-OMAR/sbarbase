@@ -1,0 +1,5 @@
+.secrets/
+.lab/
+node_modules/
+sbarbase-handoff.zip
+__pycache__/

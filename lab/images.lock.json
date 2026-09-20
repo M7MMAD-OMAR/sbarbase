@@ -1,0 +1,23 @@
+{
+  "db": {
+    "tag": "postgres:17-alpine",
+    "id": "sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73",
+    "digests": [
+      "postgres@sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73"
+    ]
+  },
+  "auth": {
+    "tag": "public.ecr.aws/supabase/gotrue:v2.196.0",
+    "id": "sha256:c0c25187a6b835e65a6f6e6c6b39d090e832d40e6de5186f2c038e0411944232",
+    "digests": [
+      "public.ecr.aws/supabase/gotrue@sha256:c0c25187a6b835e65a6f6e6c6b39d090e832d40e6de5186f2c038e0411944232"
+    ]
+  },
+  "rest": {
+    "tag": "public.ecr.aws/supabase/postgrest:v14.15",
+    "id": "sha256:2f8e7b656f09db697a8875177694b417b35cb76c21370de07fc54e711e902326",
+    "digests": [
+      "public.ecr.aws/supabase/postgrest@sha256:2f8e7b656f09db697a8875177694b417b35cb76c21370de07fc54e711e902326"
+    ]
+  }
+}
