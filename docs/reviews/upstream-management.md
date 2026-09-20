@@ -55,8 +55,9 @@ including Auth route allowlisting and Storage discovery. Six Python tests pass.
 
 ## Remaining gates
 
-Operator bootstrap/onboarding, invitations and a finished management UI are not
-implemented. The probe creates a temporary private test identity and removes it.
+Local operator bootstrap has since been implemented and tested in
+[operator setup](../OPERATOR-SETUP.md). Onboarding UI, invitations and a finished
+management UI are not implemented. The probe creates a temporary private test identity and removes it.
 No user account or password was delivered as a production login. Key mutation
 audit atomicity, quotas, login rate controls, comprehensive drift checks, TLS,
 CORS, recovery and version upgrades remain unfinished. Stop the runtime between

@@ -1,0 +1,77 @@
+{
+  "scope": "Actual dedicated Auth operator creation, interrupted bootstrap recovery, password verification, private journal, idempotent catalog and authenticated organization discovery; isolated probe catalog, no real operator account retained",
+  "checks": [
+    {
+      "check": "interruption after actual Auth user creation exercised",
+      "passed": true
+    },
+    {
+      "check": "catalog has no authority before setup commit",
+      "passed": true
+    },
+    {
+      "check": "operation marker locates identity despite missing local actor ID",
+      "passed": true
+    },
+    {
+      "check": "recovery refuses a different password without granting ownership",
+      "passed": true
+    },
+    {
+      "check": "interruption after actual catalog commit exercised",
+      "passed": true
+    },
+    {
+      "check": "recovery reuses original Auth identity",
+      "passed": true
+    },
+    {
+      "check": "recovery preserves one organization",
+      "passed": true
+    },
+    {
+      "check": "bootstrap journal excludes password",
+      "passed": true
+    },
+    {
+      "check": "bootstrap journal permissions are private",
+      "passed": true
+    },
+    {
+      "check": "completed setup retry is idempotent",
+      "passed": true
+    },
+    {
+      "check": "missing journal cannot initialize another owner",
+      "passed": true
+    },
+    {
+      "check": "bootstrapped operator logs in through composed API",
+      "passed": true
+    },
+    {
+      "check": "operator discovers owned organization and role",
+      "passed": true
+    },
+    {
+      "check": "unauthenticated organization discovery rejected",
+      "passed": true
+    },
+    {
+      "check": "public organization bootstrap is unavailable",
+      "passed": true
+    },
+    {
+      "check": "bootstrapped owner creates first project through API",
+      "passed": true
+    },
+    {
+      "check": "organization discovery excludes another owner organization",
+      "passed": true
+    },
+    {
+      "check": "operator cannot create project in unrelated organization",
+      "passed": true
+    }
+  ]
+}

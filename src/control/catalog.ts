@@ -18,6 +18,9 @@ export class Catalog {
     if(path!==':memory:') chmodSync(path,0o600);
     this.db.exec(`PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000; PRAGMA journal_mode=DELETE;
       CREATE TABLE IF NOT EXISTS organizations(id TEXT PRIMARY KEY,name TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS installation_bootstrap(
+        singleton INTEGER PRIMARY KEY CHECK(singleton=1), operation TEXT NOT NULL UNIQUE,
+        actor TEXT NOT NULL, organization TEXT NOT NULL REFERENCES organizations(id));
       CREATE TABLE IF NOT EXISTS memberships(
         organization TEXT NOT NULL REFERENCES organizations(id), actor TEXT NOT NULL,
         role TEXT NOT NULL CHECK(role IN ('owner','admin','viewer')),
@@ -64,7 +67,7 @@ export class Catalog {
     this.db.query('INSERT INTO audit_events(actor,action,subject,detail,at) VALUES (?,?,?,?,?)')
       .run(actor,action,subject,JSON.stringify(detail),Date.now());
   }
-  /** Bootstrap entry point for a trusted operator until management auth exists. */
+  /** Trusted operator entry point, never an unauthenticated HTTP endpoint. */
   createOrganization(owner:string,name:string):string {
     this.actor(owner); const title=this.name(name),id=randomUUID();
     return this.db.transaction(()=>{
@@ -72,6 +75,32 @@ export class Catalog {
       this.db.query('INSERT INTO memberships VALUES (?,?,?)').run(id,owner,'owner');
       this.record(owner,'organization.created',id,{});return id;
     }).immediate();
+  }
+  installationBootstrap():{operation:string;actor:string;organization:string}|null {
+    return this.db.query<{operation:string;actor:string;organization:string},[]>(
+      'SELECT operation,actor,organization FROM installation_bootstrap WHERE singleton=1').get();
+  }
+  initializeInstallation(operation:string,owner:string,name:string):string {
+    this.actor(owner);this.actor(operation);const title=this.name(name);
+    return this.db.transaction(()=>{
+      const existing=this.installationBootstrap();
+      if(existing) {
+        if(existing.operation!==operation||existing.actor!==owner)throw new Error('Installation already initialized');
+        // Retry must not resurrect revoked authority.
+        this.require(owner,existing.organization,['owner']);
+        return existing.organization;
+      }
+      const id=randomUUID();
+      this.db.query('INSERT INTO organizations VALUES (?,?)').run(id,title);
+      this.db.query('INSERT INTO memberships VALUES (?,?,?)').run(id,owner,'owner');
+      this.db.query('INSERT INTO installation_bootstrap VALUES (1,?,?,?)').run(operation,owner,id);
+      this.record(owner,'installation.initialized',id,{});return id;
+    }).immediate();
+  }
+  listOrganizations(actor:string):{id:string;name:string;role:MembershipRole}[] {
+    this.actor(actor);
+    return this.db.query<{id:string;name:string;role:MembershipRole},[string]>(
+      'SELECT o.id,o.name,m.role FROM organizations o JOIN memberships m ON m.organization=o.id WHERE m.actor=? ORDER BY o.id').all(actor);
   }
   setMember(actor:string,organization:string,target:string,role:MembershipRole|null) {
     this.actor(target);

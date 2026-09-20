@@ -35,6 +35,14 @@ async function body(request:Request):Promise<{name:string}> {
 export function managementHandler(catalog:Catalog,identify:ManagementIdentity) {
   return async(request:Request):Promise<Response>=>{
     const path=new URL(request.url).pathname;
+    if(path==='/management/v1/organizations') {
+      if(request.method!=='GET')return reply(405,{message:'Method not allowed'});
+      let actor:string|null;
+      try {actor=await identify(request);}catch{return reply(503,{message:'Authentication unavailable'});}
+      if(!actor)return reply(401,{message:'Authentication required'});
+      try{return reply(200,{data:catalog.listOrganizations(actor)});}
+      catch{return reply(500,{message:'Management operation failed'});}
+    }
     const match=path.match(/^\/management\/v1\/(organizations|projects|environments)\/([a-f0-9-]{36})\/(projects|environments|provision)$/);
     if(!match||!((match[1]==='organizations'&&match[3]==='projects')||
       (match[1]==='projects'&&match[3]==='environments')||

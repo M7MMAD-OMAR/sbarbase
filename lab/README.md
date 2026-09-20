@@ -62,9 +62,9 @@ ports. Existing stock lab data is not migrated. See
 The durable runtime now also provisions a separate `management` database and
 Auth process, with independent credentials/signing key, disabled public signup,
 and no application REST/Storage route. Existing application identities cannot
-authenticate management operations. Private operator bootstrap is still pending
-as a supported CLI; the live probe creates and removes its own confirmed fixture
-identity through the private upstream admin API without sending email.
+authenticate management operations. Private operator bootstrap is available through `lab/bootstrap.py`; the integration
+probe creates and removes its own confirmed fixture identity through the private
+upstream admin API without sending email.
 
 Run `bun lab/upstream-server.ts` after starting the durable runtime to launch
 the composed API on a newly assigned loopback port. Its descriptor is written to
@@ -78,3 +78,16 @@ It tests actual management login/memberships, key issuance and revocation across
 Auth/REST/Storage, cross-realm/database denial and runtime restart. Its finalizer
 removes the test management identity/membership, revokes its key and stops the
 runtime. See [scope](../docs/reviews/upstream-management.md).
+
+## Initial operator setup
+
+After starting the durable runtime, run `/usr/bin/python3 lab/bootstrap.py`
+in a terminal. Email and organization are prompted normally; the password is
+entered twice without echo. `--stdin` accepts bounded JSON for secure automation.
+Do not put passwords in command arguments or shell history. Setup creates only
+the initial organization owner, not unrestricted authority over other organizations.
+
+`bun lab/bootstrap-check.ts` tests real Auth creation and interruption recovery
+with a private temporary catalog, then deletes its test Auth user and private
+files. It requires a running durable runtime. It does not stop the runtime itself;
+stop it after testing. Details: [operator setup](../docs/OPERATOR-SETUP.md).
