@@ -687,3 +687,48 @@ the message names `/home/$SUDO_USER/.bun/bin`; with it the prerequisites pass an
 the run reaches the preflight, which then refused honestly on host memory
 (8502 MiB available against an 8789 MiB plan) instead of half-starting. The
 runbook examples carry the flag and say why.
+
+## Third adversarial review, of tonight's fixes (2026-09-20)
+
+A second independent review attacked the changes that closed review 2 and the
+defects found by running the documented command. It reported nine must-fix
+defects; all nine were reproduced here first and then fixed:
+
+- the unit-state probe printed `unknown` on top of systemctl's own word whenever
+  the unit was not active, so the stop gate could never compare equal: every
+  `--install-unit` run waited out its timeout and aborted with a false "did not
+  stop" while leaving the installation stopped. The probe now prints only
+  systemctl's word, and a test runs the real definition against a stubbed
+  systemctl;
+- the unit was released only under `--install-unit`, so a plain `--rehearse`
+  could run a second supervisor against a live supervised installation, and no
+  failure path restored it. The release now happens whenever the unit is active,
+  and a trap starts it again on any exit;
+- the renderer refused `/opt/sbarbase`, the layout the shipped unit itself names,
+  because it checked for the absence of that literal. It now checks the values the
+  unit must carry, so the shipped layout renders and a moved directive still
+  refuses;
+- the TLS proxy's body cap was a Content-Length pre-check plus a full buffer, so a
+  chunked body was read whole before the 413. The body is now read incrementally
+  and refused the moment it passes the cap;
+- the supervised gate row grepped a 60-line journal window that could contain an
+  earlier run's `Preflight: 0 blocker(s)`, so it could not fail. It is now bounded
+  to the current start with `journalctl --since`;
+- the recorded-command redaction missed the `--bootstrap-file=PATH` form, which
+  leaked the private path into committed evidence;
+- a crash in the TLS or console check could leave the previous run's evidence in
+  place while the acceptance script pointed the operator at it. Both checks now
+  clear the file before they start, the TLS check writes a failure record if it
+  raises, and every step message states whether evidence was written;
+- the row that reported a green `supervised path exercised through systemd` is
+  renamed to `the shipped supervisor unit is not required for this run`, and the
+  acceptance variant's red row to `the shipped supervisor unit is installed for
+  an acceptance run`.
+
+Numeric claims this document and the readiness matrix carried from older runs
+(admission 8943, source-stage footprint 313, plan 8761, 10 acceptance tests) were
+wrong against the committed artifacts and are corrected to what those files
+actually record (8766, 341, 8789, 18).
+
+Suites after the fixes: 399 Python tests, 73 Bun tests, `tsc --project
+tsconfig.json` clean.

@@ -98,6 +98,24 @@ def fetch(url,context=None,method='GET',follow=False,headers=None,body=None):
         return None,{},str(error).encode()
 
 
+def raw_https(port,lines,chunks,context=CONTEXT):
+    """Send a literal request over TLS and return its status code.
+
+    urllib sets Content-Length for us; a chunked body has to be written by hand,
+    which is the only way to test what the proxy does when the length is unknown.
+    """
+    with socket.create_connection(('127.0.0.1',int(port)),timeout=15) as raw:
+        with context.wrap_socket(raw,server_hostname=PUBLIC_HOST) as tls:
+            tls.sendall(('\r\n'.join(lines)+'\r\n\r\n').encode()+b''.join(chunks))
+            data=b''
+            while True:
+                piece=tls.recv(4096)
+                if not piece:break
+                data+=piece
+    try:return int(data.split(b' ')[1])
+    except Exception:return 0
+
+
 def free_ports(count):
     """Distinct loopback ports nothing is listening on, held until all are chosen."""
     sockets=[]
@@ -143,6 +161,9 @@ def finish(checks):
 
 def main():
     import tempfile
+    # A crash must not leave the previous run's file in place: the acceptance
+    # script points the operator at this path.
+    EVIDENCE.unlink(missing_ok=True)
     checks=[]
     def record(label,ok,detail=''):
         detail=str(detail)
@@ -221,6 +242,13 @@ def main():
             # The stub answers 405 to a write, so 405 here means the body reached it.
             status,_,_=fetch('https://127.0.0.1:'+small_https+'/',CONTEXT,method='POST',body=b'x'*10)
             record('a body within the limit still reaches the upstream',status==405,f'status {status}')
+            # A chunked body carries no length, so only a bounded reader can refuse it.
+            head=['POST / HTTP/1.1','Host: '+PUBLIC_HOST,'Transfer-Encoding: chunked','Connection: close']
+            chunk=lambda value:('%x'%len(value)).encode()+b'\r\n'+value+b'\r\n'
+            over=raw_https(small_https,head,[chunk(b'x'*64),chunk(b'y'*64),b'0\r\n\r\n'])
+            record('a chunked body over the limit is refused without being buffered in full',over==413,f'status {over}')
+            under=raw_https(small_https,head,[chunk(b'x'*8),b'0\r\n\r\n'])
+            record('a chunked body within the limit still reaches the upstream',under==405,f'status {under}')
         finally:
             stop(small)
 
@@ -270,4 +298,8 @@ def main():
     return finish(checks)
 
 
-if __name__=='__main__':main()
+if __name__=='__main__':
+    try:main()
+    except SystemExit:raise
+    except Exception as error:  # noqa: BLE001 - the failure belongs in the evidence
+        finish([{'check':'the check ran to completion','ok':False,'detail':str(error)[:300]}])

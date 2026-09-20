@@ -143,10 +143,10 @@ class StartupDiagnosticsTests(unittest.TestCase):
              patch.object(rehearsal,'unit_status',return_value=absent):
             lenient,_=rehearsal.rehearse(None,True,5)
             strict,_=rehearsal.rehearse(None,True,5,require_unit=True)
-        lenient_unit=[item for item in lenient if item['check']=='supervised path exercised through systemd'][0]
-        strict_unit=[item for item in strict if item['check']=='supervised path exercised through systemd'][0]
+        lenient_unit=[item for item in lenient if item['check']=='the shipped supervisor unit is not required for this run'][0]
+        strict_unit=[item for item in strict if item['check']=='the shipped supervisor unit is installed for an acceptance run'][0]
         self.assertTrue(lenient_unit['ok'])
-        self.assertIn('not required for this run',lenient_unit['detail'])
+        self.assertIn('nothing under systemd was exercised',lenient_unit['detail'])
         self.assertFalse(strict_unit['ok'])
         self.assertIn('requires it',strict_unit['detail'])
 
@@ -244,6 +244,11 @@ class EvidenceHygieneTests(unittest.TestCase):
     def test_the_bootstrap_file_path_is_redacted_from_the_recorded_command(self):
         redacted=rehearsal.redacted_arguments(['--skip-install','--bootstrap-file','/root/operator.json','--attempts','2'])
         self.assertEqual(redacted,['--skip-install','--bootstrap-file','<bootstrap-file>','--attempts','2'])
+        self.assertNotIn('/root/operator.json',' '.join(redacted))
+
+    def test_the_equals_form_of_the_bootstrap_argument_is_redacted_too(self):
+        redacted=rehearsal.redacted_arguments(['--rehearse','--bootstrap-file=/root/operator.json','--attempts','2'])
+        self.assertEqual(redacted[1],'--bootstrap-file=<bootstrap-file>')
         self.assertNotIn('/root/operator.json',' '.join(redacted))
 
     def test_the_unit_is_verified_where_systemd_runs_it(self):

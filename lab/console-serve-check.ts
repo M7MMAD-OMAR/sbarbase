@@ -7,7 +7,7 @@
 // container, no secret, no fixed port. Evidence goes to
 // docs/evidence/console-serve.json. Exit code is non-zero if any check fails.
 import {createHash} from 'node:crypto';
-import {readFileSync,writeFileSync,mkdirSync} from 'node:fs';
+import {readFileSync,writeFileSync,mkdirSync,rmSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {connect} from 'node:net';
 import {serveLocal} from '../src/http/local-server';
@@ -18,6 +18,8 @@ const EVIDENCE=resolve('docs/evidence/console-serve.json');
 const FALLTHROUGH='app-layer-fallthrough';
 
 type Check={check:string;ok:boolean;detail:string};
+// A crash must not leave the previous run's file in place.
+try { rmSync(EVIDENCE,{force:true}); } catch {}
 const checks:Check[]=[];
 function record(check:string,ok:boolean,detail=''){checks.push({check,ok,detail});console.log((ok?'ok:  ':'FAIL ')+check+(ok||!detail?'':'  '+detail));}
 

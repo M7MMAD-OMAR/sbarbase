@@ -67,6 +67,39 @@ function parseArguments(argv: string[]): Options {
   };
 }
 
+/** Read at most `limit` bytes and refuse as soon as the stream passes it.
+ *
+ * A Content-Length pre-check alone would let a chunked body buffer in full before
+ * the refusal; this stops reading at the cap and cancels the rest.
+ */
+async function readBoundedBody(request: Request, limit: number): Promise<{body: ArrayBuffer | undefined; tooLarge: boolean}> {
+  if (['GET', 'HEAD'].includes(request.method)) return {body: undefined, tooLarge: false};
+  if (!request.body) return {body: new ArrayBuffer(0), tooLarge: false};
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  try {
+    for (;;) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      size += value.byteLength;
+      if (size > limit) return {body: undefined, tooLarge: true};
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const buffer = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    buffer.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return {body: buffer.buffer, tooLarge: false};
+}
+
+
 /** The key must not be readable by anyone but its owner; a certificate is public. */
 function assertRegular(path: string, label: string): void {
   if (!statSync(path).isFile()) throw new Error(label + ' is not a regular file: ' + path);
@@ -140,11 +173,12 @@ const secure = Bun.serve({
     }
     let response: Response;
     try {
-      const body = ['GET', 'HEAD'].includes(request.method) ? undefined : await request.arrayBuffer();
-      if (body && body.byteLength > options.maxBody) {
+      const read = await readBoundedBody(request, options.maxBody);
+      if (read.tooLarge) {
         console.log(request.method + ' ' + url.pathname + ' 413');
         return new Response('Request body too large', {status: 413, headers});
       }
+      const body = read.body;
       const target = new URL(upstream + url.pathname + url.search);
       const forwarded = await fetch(target, {
         method: request.method,

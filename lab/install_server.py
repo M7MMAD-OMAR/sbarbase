@@ -367,8 +367,19 @@ def rendered_unit(root,home,user,bun_dir,text=None):
         # 226/NAMESPACE, and the installation keeps every secret under
         # <checkout>/.secrets/upstream.
         .replace('ReadWritePaths=/opt/sbarbase','ReadWritePaths='+str(root)))
-    if '/opt/sbarbase' in rendered:
-        raise SystemExit('Rendered unit still refers to the shipped default path; refusing it')
+    # The shipped layout IS /opt/sbarbase, so the check is the values the unit must
+    # carry, not the absence of that literal: a unit rendered for the shipped
+    # layout is a legitimate deployment, and a moved directive still refuses.
+    expected=('WorkingDirectory='+str(root),'User='+user,'Group='+user,
+              'Environment=HOME='+str(home),
+              'ExecStart=/usr/bin/python3 '+str(root)+'/lab/dev.py',
+              'ExecStartPre=/usr/bin/python3 '+str(root)+'/lab/install_server.py check',
+              'ReadWritePaths='+str(root),
+              'Documentation=file:'+str(root)+'/docs/SERVER-DEPLOYMENT.md',
+              ':'+str(bun_dir))
+    for wanted in expected:
+        if wanted not in rendered:
+            raise SystemExit('Rendered unit does not carry '+repr(wanted)+'; refusing it')
     return rendered
 
 

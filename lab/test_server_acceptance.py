@@ -106,8 +106,47 @@ class AcceptanceScriptContractTests(unittest.TestCase):
         rehearsal=self.source.index('lab/deployment_rehearsal.py "${rehearsal_args[@]}"')
         restart=self.source.index('systemctl start sbarbase.service')
         self.assertLess(stop,rehearsal)
-        self.assertLess(rehearsal,restart)
+        # the restore runs from a trap, and is also called explicitly afterwards
+        self.assertIn('trap restore_unit_on_exit EXIT',self.source)
+        self.assertGreater(self.source.rindex('restore_unit_on_exit'),rehearsal)
         self.assertIn('did not stop',self.source)
+
+    def test_the_unit_is_released_whether_or_not_it_was_just_installed(self):
+        release=self.source.index('step "release the supervised installation for the rehearsal"')
+        self.assertIn('if [ "$(unit_state)" = "active" ] || [ "$(unit_state)" = "activating" ]',self.source)
+        self.assertGreater(release,0)
+        # the stop is no longer nested under --install-unit alone
+        nested=[line for line in self.source.splitlines() if 'INSTALL_UNIT' in line and 'systemctl stop' in line]
+        self.assertEqual(nested,[])
+
+    def test_the_restore_function_actually_starts_the_unit(self):
+        lines=self.source.splitlines()
+        def block(name):
+            start=next(i for i,line in enumerate(lines) if line.startswith(name))
+            if lines[start].rstrip().endswith('}'):return lines[start]+'\n'
+            end=next(i for i in range(start+1,len(lines)) if lines[i]=='}')
+            return '\n'.join(lines[start:end+1])+'\n'
+        harness=('systemctl() { echo active; return 0; }; STOPPED_UNIT=1; '+block('unit_state()')
+                 +block('restore_unit_on_exit()')+'restore_unit_on_exit')
+        result=subprocess.run(['bash','-c',harness],capture_output=True,text=True)
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertIn('sbarbase.service active again',result.stdout)
+
+    def test_a_failure_after_the_stop_still_starts_the_unit_again(self):
+        self.assertIn('trap restore_unit_on_exit EXIT',self.source)
+        self.assertIn('STOPPED_UNIT=1',self.source)
+        self.assertIn('restore_unit_on_exit',self.source)
+
+    def test_unit_state_reports_the_units_own_word_for_a_stopped_unit(self):
+        definition=[line for line in self.source.splitlines() if line.startswith('unit_state()')][0]
+        script='systemctl() { echo inactive; return 3; }; '+definition+'; printf "[%s]" "$(unit_state)"'
+        result=subprocess.run(['bash','-c',script],capture_output=True,text=True)
+        self.assertEqual(result.stdout,'[inactive]',result.stdout+result.stderr)
+
+    def test_the_step_messages_say_whether_evidence_was_written(self):
+        for path in ('docs/evidence/console-serve.json','docs/evidence/tls-termination.json'):
+            self.assertIn(path,self.source)
+        self.assertIn('before it could write evidence',self.source)
 
 
 if __name__=='__main__':unittest.main()

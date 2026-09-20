@@ -72,10 +72,14 @@ def systemctl(*args,check=True,timeout=240):
     return subprocess.run(['systemctl','--user',*args],capture_output=True,text=True,timeout=timeout,check=check)
 
 
-def journal(lines=60):
+def journal(lines=60,since=None):
+    """The unit's journal, optionally only from a moment: a previous run's lines
+    would otherwise satisfy a check that is meant to describe this one."""
+    command=['journalctl','--user','-u',UNIT_NAME,'--no-pager','-n',str(lines)]
+    if since is not None:
+        command[2:2]=['--since',datetime.datetime.fromtimestamp(since).strftime('%Y-%m-%d %H:%M:%S')]
     try:
-        return subprocess.run(['journalctl','--user','-u',UNIT_NAME,'--no-pager','-n',str(lines)],
-                              capture_output=True,text=True,timeout=60).stdout
+        return subprocess.run(command,capture_output=True,text=True,timeout=60).stdout
     except Exception:
         return ''
 
@@ -154,7 +158,7 @@ def main():
         else:
             record('systemd started the supervisor and the console',False,'no server.json and supervisor.json within the timeout')
 
-        gate=journal()
+        gate=journal(since=started_after)
         # The gate must have admitted the host, not merely run: the summary line is
         # present for a refusal too.
         record('the preflight gate admitted the host under systemd','Preflight: 0 blocker(s)' in gate,

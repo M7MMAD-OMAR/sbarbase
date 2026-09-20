@@ -142,11 +142,13 @@ takes that lock itself and holds it for its lifetime.
 
 On a server where the unit still has to be installed, run the acceptance path as
 root with `--install-unit`: it renders and verifies the unit, installs and starts
-it, proves the console and the TLS termination, stops the unit so the rehearsal
+it, proves the console and the TLS termination, releases the unit so the rehearsal
 can own the containers and state, runs the rehearsal with the unit required,
 starts the unit again and asserts it is active, and leaves the evidence in one
-place. Two supervisors cannot own the same containers, so the rehearsal never
-runs against a live installation.
+place. The release happens whenever the unit is found active, with or without
+`--install-unit`, and a trap starts it again on any exit, so a failure in the
+middle of the run cannot leave the installation down. Two supervisors cannot own
+the same containers, so the rehearsal never runs against a live installation.
 
 ```
 sudo deploy/server-acceptance.sh --rehearse --install-unit \
@@ -172,9 +174,9 @@ cannot run records the blocking finding instead of a pass, and exits non-zero.
 ### Check: does the supervised path work, not just a direct run?
 
 The rehearsal runs the supervisor directly. It records the systemd unit's own
-state, and fails the `supervised path exercised through systemd` check when
-`/etc/systemd/system/sbarbase.service` is not installed, so a green run means
-the unit was present and enabled. The unit it verifies with `systemd-analyze` is
+state, and fails the `the shipped supervisor unit is installed for an acceptance
+run` check when `/etc/systemd/system/sbarbase.service` is not installed, so a
+green acceptance run means the unit was present and enabled. The unit it verifies with `systemd-analyze` is
 the installed file itself, and the evidence says which file that was; the
 checkout's template is verified only when no unit is installed, and the evidence
 records that too.
@@ -215,7 +217,7 @@ or the provisioning API directly. Set the public URL the console should advertis
 in the proxy, not in the console build.
 
 A reference termination ships with the repository and is exercised by the check
-(`/usr/bin/python3 lab/tls_termination_check.py`, 21 checks,
+(`/usr/bin/python3 lab/tls_termination_check.py`, 23 checks,
 `docs/evidence/tls-termination.json`). It needs only Bun and a certificate:
 
 ```
@@ -242,7 +244,8 @@ Its own hardening is part of the checks: the redirect and the forwarded host com
 from `--public-host`, never from the client's `Host` header (an attacker supplied
 host cannot turn the redirect into an open redirect), hop by hop headers are
 stripped before forwarding, and a request body over `--max-body` (1 MiB by
-default) is answered `413` before it is read rather than buffered. An operator may
+default) is answered `413` as soon as the stream passes the cap, without
+buffering it in full. An operator may
 prefer nginx, Caddy or the platform proxy; the checks above state which behaviour
 any replacement must keep.
 

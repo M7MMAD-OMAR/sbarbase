@@ -30,6 +30,15 @@ class RenderingTests(unittest.TestCase):
         self.assertIn('Environment=HOME=/srv/sbarbase',rendered)
         self.assertIn(':/srv/sbarbase/.bun/bin',rendered)
 
+    def test_the_shipped_default_layout_renders(self):
+        """/opt/sbarbase is the layout the shipped unit already names; rendering it
+        must work rather than trip over its own anchors."""
+        rendered=install_server.rendered_unit(Path('/opt/sbarbase'),Path('/home/sbarbase'),'sbarbase','/home/sbarbase/.bun/bin')
+        self.assertIn('WorkingDirectory=/opt/sbarbase',rendered)
+        self.assertIn('ReadWritePaths=/opt/sbarbase',rendered)
+        self.assertIn('ExecStart=/usr/bin/python3 /opt/sbarbase/lab/dev.py',rendered)
+        self.assertIn('Documentation=file:/opt/sbarbase/docs/SERVER-DEPLOYMENT.md',rendered)
+
     def test_a_unit_whose_shape_changed_is_not_rewritten_blindly(self):
         broken=install_server.SERVICE_UNIT.read_text().replace('ExecStart=/usr/bin/python3 /opt/sbarbase/lab/dev.py','ExecStart=/bin/true')
         with self.assertRaises(SystemExit):

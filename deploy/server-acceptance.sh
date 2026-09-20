@@ -34,7 +34,10 @@ BUN_DIR=""
 
 fail() { printf 'FAIL: %s\n' "$1" >&2; exit 1; }
 step() { printf '\n== %s\n' "$1"; }
-unit_state() { systemctl is-active sbarbase.service 2>/dev/null || printf 'unknown'; }
+# Prints systemctl's own word for the unit (active, activating, inactive, failed)
+# for a stopped unit too; `systemctl is-active` exits non-zero when the unit is
+# not active, so the function must not append anything of its own.
+unit_state() { systemctl is-active sbarbase.service 2>/dev/null || :; }
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -99,10 +102,22 @@ if [ "$REHEARSAL" = "0" ]; then
 fi
 
 step "console static-serving check"
-bun lab/console-serve-check.ts || fail "console static-serving check failed; see docs/evidence/console-serve.json"
+if ! bun lab/console-serve-check.ts; then
+  if [ -f docs/evidence/console-serve.json ]; then
+    fail "console static-serving check failed; the recorded findings are in docs/evidence/console-serve.json"
+  else
+    fail "console static-serving check failed before it could write evidence; the refusal is in the output above"
+  fi
+fi
 
 step "TLS termination check (reference proxy)"
-"$PYTHON" lab/tls_termination_check.py || fail "TLS termination check failed; see docs/evidence/tls-termination.json"
+if ! "$PYTHON" lab/tls_termination_check.py; then
+  if [ -f docs/evidence/tls-termination.json ]; then
+    fail "TLS termination check failed; the recorded findings are in docs/evidence/tls-termination.json"
+  else
+    fail "TLS termination check failed before it could write evidence; the refusal is in the output above"
+  fi
+fi
 
 step "supervisor unit"
 supervise_args=(supervise)
@@ -126,18 +141,34 @@ if not record['applied']:
         print('  '+command)
 PY
 
-step "deployment rehearsal"
-# The unit is stopped for the rehearsal and started again afterwards: two
-# supervisors cannot own the same containers and state, and the rehearsal's own
-# preflight would refuse to run against a live installation.
-if [ "$INSTALL_UNIT" = "1" ]; then
+step "release the supervised installation for the rehearsal"
+# Two supervisors cannot own the same containers and state, and the rehearsal's
+# preflight refuses to run against a live installation. This applies whether or
+# not the unit was just installed, and the unit is started again on any exit.
+restore_unit_on_exit() {
+  if [ "${STOPPED_UNIT:-0}" = "1" ]; then
+    printf '\n== restore the supervised installation\n'
+    if systemctl start sbarbase.service; then
+      if [ "$(unit_state)" = "active" ]; then printf 'ok: sbarbase.service active again\n';
+      else printf 'FAIL: sbarbase.service did not become active again\n' >&2; fi
+    else
+      printf 'FAIL: sbarbase.service could not be started again\n' >&2
+    fi
+  fi
+}
+trap restore_unit_on_exit EXIT
+STOPPED_UNIT=0
+if [ "$(unit_state)" = "active" ] || [ "$(unit_state)" = "activating" ]; then
   systemctl stop sbarbase.service || fail "sbarbase.service could not be stopped for the rehearsal"
-  for _ in $(seq 1 60); do
+  STOPPED_UNIT=1
+  for _ in $(seq 1 120); do
     if [ "$(unit_state)" = "inactive" ]; then break; fi
     sleep 1
   done
   [ "$(unit_state)" = "inactive" ] || fail "sbarbase.service did not stop; the rehearsal would run against a live installation"
   printf 'ok: sbarbase.service stopped for the rehearsal\n'
+else
+  printf 'ok: sbarbase.service is not active; nothing to release\n'
 fi
 
 rehearsal_args=(--attempts 3 --require-unit --evidence docs/evidence/server-acceptance-rehearsal.json)
@@ -151,11 +182,9 @@ if ! "$PYTHON" lab/deployment_rehearsal.py "${rehearsal_args[@]}"; then
   fi
 fi
 
-if [ "$INSTALL_UNIT" = "1" ]; then
-  step "restore the supervised installation"
-  systemctl start sbarbase.service || fail "sbarbase.service could not be started again after the rehearsal"
+if [ "${STOPPED_UNIT:-0}" = "1" ]; then
+  restore_unit_on_exit
   systemctl is-active --quiet sbarbase.service || fail "sbarbase.service is not active after the rehearsal"
-  printf 'ok: sbarbase.service active again\n'
 fi
 
 step "evidence"

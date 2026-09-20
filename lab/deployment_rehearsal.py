@@ -155,6 +155,8 @@ def redacted_arguments(arguments):
     redacted=[];hide_next=False
     for argument in arguments:
         if hide_next:redacted.append('<bootstrap-file>');hide_next=False;continue
+        if argument.startswith('--bootstrap-file='):
+            redacted.append('--bootstrap-file=<bootstrap-file>');continue
         redacted.append(argument)
         if argument=='--bootstrap-file':hide_next=True
     return redacted
@@ -246,11 +248,11 @@ def rehearse(bootstrap_file,skip_install,timeout,attempts=1,delay=15,require_uni
             record('the unit systemd runs verifies',supervised['verify']=='passed',
                    str(supervised['verified_path'])+': '+str(supervised['verify']))
         elif require_unit:
-            record('supervised path exercised through systemd',False,
+            record('the shipped supervisor unit is installed for an acceptance run',False,
                    'sbarbase.service is not installed at /etc/systemd/system; a server acceptance run requires it')
         else:
-            record('supervised path exercised through systemd',True,
-                   'not required for this run: the supervisor was started directly, sbarbase.service is not installed')
+            record('the shipped supervisor unit is not required for this run',True,
+                   'the supervisor was started directly and sbarbase.service is not installed; nothing under systemd was exercised')
     finally:
         if process is not None:
             code=stop_supervisor(process)
