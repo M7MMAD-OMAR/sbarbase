@@ -1,0 +1,16 @@
+{
+  "scope": "Retained target startup, composed gateway availability, pause-before-stop and restart replacing intentionally stale addresses. Source stopped throughout. Staged local mode only; no combined source/target capacity or multi-worker graceful drain.",
+  "checks": [
+    "auth available through composed gateway",
+    "rest available through composed gateway",
+    "auth paused through composed gateway",
+    "rest paused through composed gateway",
+    "auth available through composed gateway",
+    "rest available through composed gateway",
+    "restart replaces stale placement and restores Storage route before admission",
+    "source stayed stopped throughout target lifecycle",
+    "auth paused through composed gateway",
+    "rest paused through composed gateway"
+  ],
+  "count": 10
+}

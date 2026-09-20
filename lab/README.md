@@ -115,3 +115,7 @@ third durable environment created through the UI and its revoked test key.
 `/usr/bin/python3 lab/pressure_admission.py` reads cgroup v2 pressure from the running database and Storage containers. New environments require both to be below the [documented thresholds](../docs/PRESSURE-ADMISSION.md). `lab/noisy-neighbor-check.py` runs a bounded read-only SQL microbenchmark on two existing environments and stops the owned runtime afterward. Do not run it alongside normal lab use. [Results and limits](../docs/NOISY-NEIGHBOR.md).
 
 `bun lab/sdk-load-check.ts` requires the running durable fixture. It issues temporary scoped keys through the trusted local fixture actor and exercises the actual managed gateway with two environments. Ten-second phases use one then four paced workers per environment. Temporary SQL tables, policies, Auth users and private buckets/objects are removed, keys revoked and the runtime stopped. It must run without other fixture mutators. [Measured results and limitations](../docs/SDK-LOAD.md).
+
+## Retained recovery target
+
+After the documented cutover rehearsal, `target_runtime.py up` and `target_runtime.py stop` manage the retained moved target under the operation lock. See `../docs/TARGET-LIFECYCLE.md`. Current staged mode requires the source stopped and refuses simultaneous startup in either direction. Normal `dev.py` continues to serve source neighbors only; combined source/target supervision is not implemented yet.

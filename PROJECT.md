@@ -171,3 +171,7 @@ Eleven real SDK checks now pass through persistent target placement and the comp
 ## Unaffected neighbor restoration checkpoint
 
 Normal source startup preserved the moved database fence and left its old Auth/REST stopped. Three neighbors resumed with 16 gateway checks for maintenance transitions and Auth/REST availability. All source containers were stopped afterward; neighbor routes are active for the next normal startup, moved target remains paused. Routine target lifecycle/address refresh and combined-resource admission remain open.
+
+## Retained target lifecycle checkpoint
+
+[Target up/stop lifecycle](docs/TARGET-LIFECYCLE.md) now validates resources, preserves maintenance through health checks, refreshes addresses and resumes the moved environment. Stop pauses admission and retains data. Ten live checks and three new unit cases pass; Python total 57. Source/target startup is symmetrically restricted to staged mode pending combined resource admission and supervisor integration. Both stacks are stopped; moved route paused, neighbors ready for normal source startup.

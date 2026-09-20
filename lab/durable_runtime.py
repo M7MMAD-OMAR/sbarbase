@@ -149,6 +149,8 @@ class Runtime:
         self.sql('SELECT pg_reload_conf();')
 
     def start(self):
+        if lab.docker('ps','-q','--filter','label=io.sbarbase.owner=recovery-target').stdout.strip():
+            raise RuntimeError('Staged source mode requires stopped recovery targets')
         available = int(next(x.split()[1] for x in lab.Path('/proc/meminfo').read_text().splitlines() if x.startswith('MemAvailable:')))
         if available < 6*1024*1024:
             raise RuntimeError('Insufficient runtime memory headroom')
