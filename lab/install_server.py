@@ -94,13 +94,42 @@ def images():
     return findings
 
 
+def combined_stage_measured_mib():
+    """Measured cost of the already-running source stage, when it has been sampled.
+
+    The combined admission measures the host while the source stage is up, so the
+    preflight must add what that stage actually uses or it understates the
+    requirement and the start dies halfway with containers already created.
+    """
+    record=ROOT/'docs'/'evidence'/'source-stage-footprint.json'
+    try:
+        value=json.loads(record.read_text()).get('total_mib')
+    except Exception:
+        return None
+    return value if isinstance(value,int) and value>0 else None
+
+
+def headroom_requirement(moved,measured):
+    """The headroom a start needs, with its composition stated."""
+    needed=PLANNED_MIB+RESERVE_MIB
+    composition=f'{PLANNED_MIB} MiB placement + {RESERVE_MIB} MiB reserve'
+    if moved and measured:
+        needed+=measured
+        composition+=f' + {measured} MiB measured for the running source stage'
+    return needed,composition
+
+
 def capacity():
     findings=[]
     memory=int(next(line.split()[1] for line in Path('/proc/meminfo').read_text().splitlines() if line.startswith('MemAvailable:')))
     cpus=os.cpu_count() or 0
-    needed=PLANNED_MIB+RESERVE_MIB
+    moved=(STATE/'cutover-operation.json').exists()
+    measured=combined_stage_measured_mib()
+    if moved and not measured:
+        findings.append(('warning','Combined headroom cannot be stated precisely yet: no source-stage footprint measurement exists, so the requirement is the placement and reserve only'))
+    needed,composition=headroom_requirement(moved,measured)
     if memory/1024<needed:
-        findings.append(('blocker',f'Host headroom insufficient: {memory//1024} MiB available, plan needs {needed} MiB'))
+        findings.append(('blocker',f'Host headroom insufficient: {memory//1024} MiB available, plan needs {needed} MiB ({composition})'))
     if cpus<PLANNED_CPUS+CPU_SPARE:
         findings.append(('blocker',f'CPU count insufficient: {cpus} available, plan needs {int(PLANNED_CPUS)+CPU_SPARE}'))
     usage=shutil.disk_usage('/')
