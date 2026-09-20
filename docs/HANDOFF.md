@@ -38,18 +38,19 @@ Production admission and noisy-neighbor controls; capacity at 10 or 100 projects
 
 Local budget proposal: 4 GB RAM, 4 CPUs and 20-30 GB disk. The four retained upstream environments have container limits totaling 3840 MiB and 3.75 CPUs, reaching the experimental admission guard. These are configured ceilings, not measured workload capacity or total host consumption. Recheck available host resources before starting anything.
 
-## Latest gateway checkpoint
+## Latest verified checkpoint
 
-Committed baseline: `548d898`, the SDK workload checkpoint. [Gateway concurrency and streaming](GATEWAY-OVERLOAD.md) now have 24 HTTP checks, 8 actual Supabase overload checks and a 1,000-operation SDK regression. Read [the exact resume checkpoint](RESUME-CHECKPOINT.md) for remaining limits and next steps.
+- Application admission: 8 requests per environment, 32 per gateway process; durable REST also has a 3-request service budget matching its configured pool.
+- Sustained arrival test: the initial failure is retained. With service admission, two 30-second reruns passed. This is a local slow-RPC result, not project capacity.
+- REST client abort does not promptly stop SQL. The gateway now retains admission through upstream completion and bounded response draining. [Evidence and limits](REST-CANCELLATION.md).
+- REST login/database defaults: 8-second statements, 12-second transactions. Live checks verify both expiries and recovery. Warm changes require stopped REST. [SQL policy](SQL-DEADLINES.md).
+- The unchanged [mixed SDK workload](SDK-LOAD.md) passed 1,001 operations with those policies active. Fixtures were removed and runtime stopped.
+- Latest recorded suites: 52 Bun tests, 269 assertions; 30 Python tests. Evidence snapshots cover different scopes and must not be added as independent coverage.
 
 ## Continue in Codex or Hermes
 
-Use the same repository, `/home/sbarah/R/Projects/P/sbarbase`; no migration of code is necessary. Read `~/AGENTS.md`, this file, `RESUME-CHECKPOINT.md`, `PROJECT.md`, then `lab/README.md`. Inspect Git changes and live processes first. Use one assistant as active writer. No Hermes execution has been dispatched.
+Use `/home/sbarah/R/Projects/P/sbarbase`. Read `~/AGENTS.md`, this file, `PROJECT.md` and `lab/README.md`; inspect Git and live processes first. Use one assistant as active writer. No Hermes execution has been dispatched.
 
-Keep `.secrets/` and `.lab/` private. The handoff ZIP contains source, research, saved pictures and sanitized evidence, including explicitly unfinished source. It excludes credentials, runtime data, dependencies and Git history. It is a development handoff, not a runnable backup of the installation.
+Next major gate: [prove restoration into a separate PostgreSQL cluster](reviews/independent-restore.md), preserving Supabase identity, object bytes and required configuration. Existing recovery used the same cluster. Stage source and target runs within the local resource budget. Sustained capacity, production installation, upgrades and full transfer workflows remain open.
 
-Latest result: a [service-specific REST cap mitigated the sustained arrival failure](SUSTAINED-OVERLOAD.md). The original failure remains recorded. This is local mitigation evidence, not production sizing; SQL cancellation, mixed traffic after the new cap and longer tests remain open.
-
-[REST cancellation](REST-CANCELLATION.md): a client abort does not promptly cancel SQL. Configured REST now retains admission through upstream settlement and abandoned-response draining; 15 live checks pass. Independent SQL deadlines and mixed SDK regression remain next.
-
-[REST SQL defaults](SQL-DEADLINES.md) now use an 8-second statement timeout and 12-second transaction timeout per REST login/database. Fourteen live checks verify effective settings, both deadlines and recovery. Warm changes require a stopped runtime. Next: representative mixed SDK regression with the new admission and timeout policies.
+Keep `.secrets/` and `.lab/` private. The handoff ZIP contains source, research, saved pictures and sanitized evidence. It excludes credentials, runtime data, dependencies and Git history. It is a development handoff, not an installation backup.

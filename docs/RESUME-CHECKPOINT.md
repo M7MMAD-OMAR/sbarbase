@@ -34,3 +34,7 @@ The SDK regression and subsequent eight-check supervisor smoke test stopped the 
 [Ten-project illustration](diagrams/ten-projects.png), [transfer and recovery illustration](diagrams/move-and-restore.png), [diagram assumptions](diagrams/README.md), [console images and QA](design/CONSOLE-QA.md). Illustrations describe intended operations, not completed transfer/backup functionality.
 
 Sources for the current transport setting: [Bun fetch documentation](https://bun.sh/docs/runtime/networking/fetch), [Bun fetch request options](https://bun.com/reference/globals/BunFetchRequestInit). Reproductions and their scope are in `lab/gateway-http-check.ts`, `docs/evidence/gateway-http-checks.json` and `docs/evidence/gateway-overload-checks.json`.
+
+## Latest continuation priority
+
+The mixed SDK regression now passed 1,001 operations with all recent admission/deadline policies. See SDK-LOAD.md. The next major gate is restoration into a separate PostgreSQL cluster. Existing encrypted recovery evidence is same-cluster only. Inspect the recovery code and preserve source/neighbor data; use staged container startup to stay within the local resource budget.

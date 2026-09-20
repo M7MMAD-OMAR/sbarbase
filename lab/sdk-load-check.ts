@@ -4,7 +4,8 @@ import {openUpstreamApplication,internalToken} from './upstream-app';
 
 // Existing lab fixture actor authorizes temporary scoped keys. Setup is excluded
 // from timing. Requests use the composed managed gateway and original SDK.
-if(process.argv[2]&&process.argv[2]!=='--overload-regression')throw new Error('Unknown SDK probe option');
+const outputs:Record<string,string>={'--overload-regression':'sdk-overload-regression.json','--policy-regression':'sdk-policy-regression.json'};
+if(process.argv.length>3||(process.argv[2]&&!outputs[process.argv[2]]))throw new Error('Unknown SDK probe option');
 const app=openUpstreamApplication();
 const server=await serveLocal(app.handler);
 const base=`http://127.0.0.1:${server.port}`;
@@ -14,7 +15,7 @@ const probe=await Bun.file('.lab/upstream/probe.json').json();
 const suffix=crypto.randomUUID().replaceAll('-','');
 const table='load_'+suffix,bucket='load-'+suffix,policy='load_'+suffix;
 const fixtures:any[]=[];
-const samples:{phase:string;environment:number;operation:string;ms:number;ok:boolean}[]=[];
+const samples:{phase:string;environment:number;operation:string;ms:number;ok:boolean;status:number|null}[]=[];
 let result:unknown;
 const deadline=()=>AbortSignal.timeout(10000);
 function require(value:unknown,message:string):asserts value {if(!value)throw new Error(message);}
@@ -28,6 +29,10 @@ async function command(args:string[],input?:string) {
 async function sql(database:string,query:string) {
  return command(['docker','exec','-i','sbarbase-durable-db','psql','-X','-v','ON_ERROR_STOP=1','-U','supabase_admin','-d',database,'-At'],query);
 }
+function sdkStatus(response:any):number|null {
+ const raw=response.status??response.error?.status??response.error?.statusCode;
+ return typeof raw==='number'?raw:typeof raw==='string'&&/^\d{3}$/.test(raw)?Number(raw):null;
+}
 async function phase(name:string,concurrency:number) {
  const began=performance.now();
  const pressure=(async()=>{await Bun.sleep(5000);try{return JSON.parse(await command(['/usr/bin/python3','lab/pressure_admission.py']));}catch{return {measurement_unavailable:true};}})();
@@ -36,27 +41,31 @@ async function phase(name:string,concurrency:number) {
   await Promise.all(Array.from({length:concurrency},async()=>{
    while(performance.now()-began<10000) {
     const i=next++,operation=['read','insert','identity','upload','download'][i%5]!;
-    const start=performance.now();let ok=false;
+    const start=performance.now();let ok=false;let status:number|null=0;
     try {
      if(operation==='read') {
       const response=await f.client.from(table).select('payload').eq('id',f.row).single();
+      status=sdkStatus(response);
       ok=!response.error&&response.data?.payload===f.content;
      }else if(operation==='insert') {
       const response=await f.client.from(table).insert({id:crypto.randomUUID(),owner_id:f.user,payload:f.content}).select('payload').single();
+      status=sdkStatus(response);
       ok=!response.error&&response.data?.payload===f.content;
      }else if(operation==='identity') {
-      const response=await f.client.auth.getUser();ok=!response.error&&response.data.user?.id===f.user;
+      const response=await f.client.auth.getUser();status=sdkStatus(response);ok=!response.error&&response.data.user?.id===f.user;
      }else if(operation==='upload') {
       const path=`${name}-${i}.txt`;f.paths.push(path);
       const response=await f.client.storage.from(bucket).upload(path,f.content,{contentType:'text/plain'});
+      status=sdkStatus(response);
       ok=!response.error&&response.data?.path===path;
      }else {
       const response=await f.client.storage.from(bucket).download('seed.txt');
+      status=sdkStatus(response);
       ok=!response.error&&await response.data?.text()===f.content;
      }
     }catch{ok=false;}
     const elapsed=performance.now()-start;
-    samples.push({phase:name,environment,operation,ms:elapsed,ok});
+    samples.push({phase:name,environment,operation,ms:elapsed,ok,status});
     await Bun.sleep(Math.max(0,100-elapsed));
    }
   }));
@@ -112,13 +121,14 @@ try {
   }catch{failures.push('storage cleanup');}
   try{await sql(f.runtime,`DROP TABLE IF EXISTS public.${table}; DROP POLICY IF EXISTS ${policy} ON storage.objects; NOTIFY pgrst,'reload schema';`);}catch{failures.push('SQL cleanup');}
   try{if(f.user){const response=await fetch(endpoints[f.runtime].auth+'/admin/users/'+f.user,{method:'DELETE',signal:deadline(),headers:{authorization:'Bearer '+internalToken(secrets.environments[f.runtime].jwt,'service_role')}});require(response.ok,'Auth cleanup failed');}}catch{failures.push('Auth cleanup');}
-  if(!app.keys.revoke(f.runtime,f.key))failures.push('key revocation');
+  try{if(!app.keys.revoke(f.runtime,f.key))failures.push('key revocation');}catch{failures.push('key revocation');}
  }
- server.stop(true);app.close();
- await command(['/usr/bin/python3','lab/durable_runtime.py','stop']);
+ try{server.stop(true);}catch{failures.push('server cleanup');}
+ try{app.close();}catch{failures.push('catalog cleanup');}
+ try{await command(['/usr/bin/python3','lab/durable_runtime.py','stop']);}catch{failures.push('runtime cleanup');}
  require(failures.length===0,'Probe cleanup incomplete; inspect retained fixture state');
 }
-await Bun.write(process.argv[2]==='--overload-regression'?'docs/evidence/sdk-overload-regression.json':'docs/evidence/sdk-load-checks.json',JSON.stringify(result,null,2)+'\n');
+await Bun.write('docs/evidence/'+(outputs[process.argv[2]??'']??'sdk-load-checks.json'),JSON.stringify(result,null,2)+'\n');
 console.log(JSON.stringify({...result as object,samples:undefined}));
 
 require(samples.every(sample=>sample.ok),'SDK load contained failed or incorrect operations; evidence saved');
