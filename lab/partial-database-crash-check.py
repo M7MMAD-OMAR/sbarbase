@@ -16,16 +16,17 @@ import effect_receipt
 import run as lab
 
 OWNER='partial-provision-probe'
+ADMIN='postgres'
 
 
-def docker(*args,data=None,check=True):
-    result=subprocess.run(['docker',*args],input=data,text=True,capture_output=True,timeout=30)
+def docker(*args,data=None,check=True,env=None):
+    result=subprocess.run(['docker',*args],input=data,text=True,capture_output=True,timeout=30,env=env)
     if check and result.returncode:raise RuntimeError('Disposable Docker operation failed')
     return result
 
 
 def sql(container,query,database='postgres'):
-    return docker('exec','-i',container,'psql','-X','-qAt','-v','ON_ERROR_STOP=1','-U','postgres','-d',database,data=query)
+    return docker('exec','-i',container,'psql','-X','-qAt','-v','ON_ERROR_STOP=1','-U',ADMIN,'-d',database,data=query)
 
 
 def child(container,state,phase):
@@ -65,7 +66,9 @@ def bun(code,state):
     return result.stdout
 
 
-def main():
+def main(upstream=False):
+    global ADMIN
+    ADMIN="supabase_admin" if upstream else "postgres"
     checks=[];container=None;native=None
     def check(name,condition):
         if not condition:raise AssertionError(name)
@@ -73,26 +76,40 @@ def main():
     info=json.loads(docker('info','--format','{{json .}}').stdout)
     check('native local Linux daemon',info['OSType']=='linux' and info['Name']==socket.gethostname())
     memory=int(next(line.split()[1] for line in Path('/proc/meminfo').read_text().splitlines() if line.startswith('MemAvailable:')))*1024
-    check('host has 3 GiB available before bounded probe',memory>=3*1024**3)
-    image=json.loads((lab.ROOT/'lab/images.lock.json').read_text())['db']['id']
+    reserve=4 if upstream else 3
+    check('host headroom checked before bounded probe',memory>=reserve*1024**3)
+    pins=json.loads((lab.ROOT/('lab/distro-image.lock.json' if upstream else 'lab/images.lock.json')).read_text())
+    image=pins['id'] if upstream else pins['db']['id']
+    memory_limit='1024m' if upstream else '512m'
+    tmpfs_size=512*1024**2 if upstream else 384*1024**2
     docker('image','inspect',image)
     name='sbarbase-partial-'+uuid.uuid4().hex[:12]
     with tempfile.TemporaryDirectory(prefix='sbarbase-partial-') as directory:
         cidfile=Path(directory)/'container.id'
         try:
             # Trust applies only inside an isolated, unpublished disposable container.
+            settings=['-e','POSTGRES_PASSWORD','-e','POSTGRES_HOST=/var/run/postgresql','-e','POSTGRES_DB=postgres'] if upstream else ['-e','POSTGRES_HOST_AUTH_METHOD=trust']
+            command=['postgres','-c','config_file=/etc/postgresql/postgresql.conf','-c','log_statement=none'] if upstream else []
+            child_env={**os.environ,'POSTGRES_PASSWORD':secrets.token_hex(32)} if upstream else None
             container=docker('run','-d','--pull=never','--restart=no','--cidfile',str(cidfile),'--name',name,'--label','io.sbarbase.owner='+OWNER,
-                '--network','none','--memory','512m','--memory-swap','512m','--cpus','0.5','--pids-limit','96',
+                '--network','none','--memory',memory_limit,'--memory-swap',memory_limit,'--cpus','1' if upstream else '0.5','--pids-limit','96',
                 '--log-opt','max-size=1m','--log-opt','max-file=1',
-                '--tmpfs','/var/lib/postgresql/data:rw,size=402653184',
-                '-e','POSTGRES_HOST_AUTH_METHOD=trust',image).stdout.strip()
+                '--tmpfs','/var/lib/postgresql/data:rw,size='+str(tmpfs_size),
+                *settings,image,*command,env=child_env).stdout.strip()
             observed=json.loads(docker('inspect',container).stdout)[0]
-            check('owned exact container is isolated and memory bounded',observed['Id']==container and observed['Image']==image and observed['Config']['Labels']['io.sbarbase.owner']==OWNER and observed['HostConfig']['NetworkMode']=='none' and not observed['HostConfig']['PortBindings'] and observed['HostConfig']['Memory']==512*1024**2)
+            check('owned exact container is isolated and memory bounded',observed['Id']==container and observed['Image']==image and observed['Config']['Labels']['io.sbarbase.owner']==OWNER and observed['HostConfig']['NetworkMode']=='none' and not observed['HostConfig']['PortBindings'] and observed['HostConfig']['Memory']==(1024 if upstream else 512)*1024**2)
             deadline=time.monotonic()+60
-            while docker('exec',container,'pg_isready','-h','127.0.0.1','-U','postgres',check=False).returncode:
+            while docker('exec',container,'pg_isready','-h','127.0.0.1','-U',ADMIN,check=False).returncode:
                 if time.monotonic()>deadline:raise RuntimeError('Disposable database readiness deadline')
                 time.sleep(.2)
-            sql(container,'CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN; CREATE ROLE service_role NOLOGIN BYPASSRLS; CREATE ROLE neighbor LOGIN;')
+            if upstream:
+                check('upstream bootstrap roles present',sql(container,"SELECT count(*) FROM pg_roles WHERE rolname IN ('anon','authenticated','service_role','supabase_privileged_role');").stdout.strip()=='4')
+                docker('exec','-i',container,'sh','-c','cat > /etc/postgresql/pg_hba.conf',data='local all all trust\nhost all all 0.0.0.0/0 reject\nhost all all ::/0 reject\n')
+                sql(container,'SELECT pg_reload_conf();')
+            else:
+                sql(container,'CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN; CREATE ROLE service_role NOLOGIN BYPASSRLS;')
+            sql(container,'CREATE ROLE neighbor LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;')
+            check('neighbor role is unprivileged without inherited memberships',sql(container,"SELECT NOT (rolsuper OR rolcreatedb OR rolcreaterole OR rolbypassrls) AND NOT EXISTS(SELECT 1 FROM pg_auth_members WHERE member=pg_roles.oid) FROM pg_roles WHERE rolname='neighbor';").stdout.strip()=='t')
             sql(container,'CREATE DATABASE neighbor;')
             sql(container,"CREATE TABLE sentinel(value text); INSERT INTO sentinel VALUES ('preserve-neighbor');",'neighbor')
             setup="""import {Catalog} from './src/control/catalog';
@@ -102,10 +119,11 @@ try{const o=c.createOrganization('probe','O'),p=c.createProject('probe',o,'P');c
             for phase in ('roles','database','permissions','transaction_failure'):
                 state=Path(directory)/phase;state.mkdir()
                 job=json.loads(bun(setup,state));runtime=job['runtime']
+                check(phase+': fresh runtime has no prior database or roles',sql(container,f"SELECT NOT EXISTS(SELECT 1 FROM pg_database WHERE datname='{runtime}') AND NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname IN ('{runtime}_auth','{runtime}_rest'));").stdout.strip()=='t')
                 receipt={'version':1,'phase':'pending','token':str(uuid.uuid4()),'native':'durable-provision-v1','stageProtocol':1,
                          'job':{key:job[key] for key in ('environment','runtime','claim','attempt')}}
                 effect_receipt.publish(state/'worker-effect.json',receipt)
-                native=subprocess.Popen(['/usr/bin/python3',str(Path(__file__).resolve()),'--child',container,str(state),phase],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,start_new_session=True)
+                native=subprocess.Popen(['/usr/bin/python3',str(Path(__file__).resolve()),'--child',container,str(state),phase,'upstream' if upstream else 'component'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,start_new_session=True)
                 deadline=time.monotonic()+30
                 while not (state/'ready').exists() or 'State:\tT (stopped)' not in Path('/proc',str(native.pid),'status').read_text():
                     if native.poll() is not None or time.monotonic()>deadline:raise RuntimeError('Native checkpoint unavailable')
@@ -164,15 +182,18 @@ console.log('blocked');}finally{c.close();}"""
                     if current['Id']!=container or current['Image']!=image or current['Name']!='/'+name or current['Config']['Labels'].get('io.sbarbase.owner')!=OWNER:raise RuntimeError('Cleanup ownership mismatch')
                     docker('rm','-f','-v',container)
                     check('exact disposable container absent from successful inventory',container not in docker('ps','-aq','--no-trunc').stdout.split())
-    evidence={'scope':'Pinned stock PostgreSQL 17 component, actual provision_environment SQL interrupted after roles, database and permissions checkpoints plus injected permission transaction failure. Process kill follows synchronous SQL completion. Confirms durable partial state and blocked replay, not full Supabase recovery or in-flight daemon cancellation. Retained installation untouched.','count':len(checks),'checks':checks}
-    (lab.ROOT/'docs/evidence/partial-database-crash-checks.json').write_text(json.dumps(evidence,indent=2)+'\n')
+    evidence={'image':image,'profile':'upstream' if upstream else 'component','scope':('Pinned Supabase PostgreSQL distribution, ' if upstream else 'Pinned stock PostgreSQL 17 component, ')+ ' actual provision_environment SQL interrupted after roles, database and permissions checkpoints plus injected permission transaction failure. Process kill follows synchronous SQL completion. Confirms durable partial state and blocked replay, not full Supabase recovery or in-flight daemon cancellation. Retained installation untouched.','count':len(checks),'checks':checks}
+    (lab.ROOT/('docs/evidence/upstream-partial-database-crash-checks.json' if upstream else 'docs/evidence/partial-database-crash-checks.json')).write_text(json.dumps(evidence,indent=2)+'\n')
     print(str(len(checks))+' partial database crash checks passed')
 
 
 if __name__=='__main__':
     try:
-        if len(sys.argv)==5 and sys.argv[1]=='--child':child(sys.argv[2],Path(sys.argv[3]),sys.argv[4])
+        if len(sys.argv)==6 and sys.argv[1]=='--child' and sys.argv[5] in ('component','upstream'):
+            ADMIN='supabase_admin' if sys.argv[5]=='upstream' else 'postgres'
+            child(sys.argv[2],Path(sys.argv[3]),sys.argv[4])
         elif len(sys.argv)==1:main()
+        elif sys.argv[1:]==['--upstream']:main(upstream=True)
         else:raise RuntimeError('Invalid probe arguments')
     except AssertionError as error:raise SystemExit('Probe assertion failed: '+str(error)) from None
     except RuntimeError as error:raise SystemExit('Partial database probe failed: '+str(error)) from None

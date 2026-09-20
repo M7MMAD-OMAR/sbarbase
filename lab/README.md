@@ -127,3 +127,6 @@ The supervisor now settles known receipts under its worker lock before runtime s
 ## Read-only provisioning inspection
 
 Run `/usr/bin/python3 lab/inspect-provisioning.py` to inspect pending upstream effects without starting services or settling receipts. The JSON report distinguishes missing, invalid, busy and unavailable evidence; it never authorizes replay. Read [inspection limits](../docs/PROVISIONING-INSPECTION.md). `/usr/bin/python3 lab/inspection-check.py` verifies the current stopped retained fixture and unchanged logical state hashes.
+
+
+For the original Supabase PostgreSQL distribution, run `/usr/bin/python3 lab/partial-database-crash-check.py --upstream`. This uses a fresh network-disabled container and requires 4 GiB host headroom. It tests SQL boundaries only; `upstream-environments.py --storage` separately tests fresh Auth/REST/Storage integration. See [measured scopes](../docs/PARTIAL-DATABASE-CRASH.md).

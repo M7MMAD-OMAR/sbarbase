@@ -1,12 +1,13 @@
 {
-  "image": "sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73",
-  "profile": "component",
-  "scope": "Pinned stock PostgreSQL 17 component,  actual provision_environment SQL interrupted after roles, database and permissions checkpoints plus injected permission transaction failure. Process kill follows synchronous SQL completion. Confirms durable partial state and blocked replay, not full Supabase recovery or in-flight daemon cancellation. Retained installation untouched.",
-  "count": 64,
+  "image": "sha256:b3bfedb107413abb3b8cb0d0874b0414a1dceb3d55bc0c778de6ad22d1f7dc86",
+  "profile": "upstream",
+  "scope": "Pinned Supabase PostgreSQL distribution,  actual provision_environment SQL interrupted after roles, database and permissions checkpoints plus injected permission transaction failure. Process kill follows synchronous SQL completion. Confirms durable partial state and blocked replay, not full Supabase recovery or in-flight daemon cancellation. Retained installation untouched.",
+  "count": 65,
   "checks": [
     "native local Linux daemon",
     "host headroom checked before bounded probe",
     "owned exact container is isolated and memory bounded",
+    "upstream bootstrap roles present",
     "neighbor role is unprivileged without inherited memberships",
     "roles: fresh runtime has no prior database or roles",
     "roles: checkpoint SQL committed before kill",

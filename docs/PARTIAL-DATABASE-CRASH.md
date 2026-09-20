@@ -32,7 +32,7 @@ This closes the new-database connection window; it does not isolate new LOGIN ro
 
 ## Verified evidence
 
-[59 live disposable checks](evidence/partial-database-crash-checks.json) pass. Roles and database existence are observed before SIGKILL, then checked again under fresh ownership. Actual neighbor login receives the expected closed-database or CONNECT-denied error at the database and permissions checkpoints. The intended scoped role connects after permissions complete. The roles-only checkpoint proves database absence, not a failed login.
+[64 live disposable checks](evidence/partial-database-crash-checks.json) pass. Roles and database existence are observed before SIGKILL, then checked again under fresh ownership. Actual neighbor login receives the expected closed-database or CONNECT-denied error at the database and permissions checkpoints. The intended scoped role connects after permissions complete. The roles-only checkpoint proves database absence, not a failed login.
 
 An injected division-by-zero before COMMIT rolls back grants and reopening: the database remains closed, PUBLIC privileges remain at their pre-transaction defaults, and added role membership is absent. Direct reentry into a closed partial database is refused. The real receipt settlement leaves receipt bytes, exact claim, attempt and running state unchanged, and does not create a new claim. Neighbor sentinel data remains unchanged. The exact disposable container is absent from a successful final inventory and did not OOM.
 
@@ -41,3 +41,13 @@ Three focused unit tests pass. Two fail against the previous committed bootstrap
 The full Python suite passes 91 tests. A separate 13-check retained Supabase supervisor integration also passes after the bootstrap change: the four existing environments respond, the known admission refusal settles, and all owned runtimes stop. New database creation was exercised in the disposable stock PostgreSQL component; the retained integration restarts existing databases and does not prove a fresh full Supabase environment creation.
 
 The historical `lab/retry-check.py` entry point now delegates to this isolated probe. Its former direct retry of a closed partial database is intentionally unsupported, and it no longer creates disposable databases inside the retained component cluster.
+
+## Upstream distribution and fresh service validation
+
+The probe now accepts `--upstream`. It uses the pinned Supabase PostgreSQL image and its original canonical roles, with a 1 GiB memory/swap cap, 1 CPU, a 512 MiB tmpfs and 4 GiB host headroom. The generated bootstrap password is passed through a child-only environment by variable name, never as an argument or persistent file. Local trust is configured only inside the verified network-disabled disposable container to isolate database ACL behavior from password authentication.
+
+[65 upstream SQL checks](evidence/upstream-partial-database-crash-checks.json) pass, including bootstrap role verification, unprivileged neighbor membership checks and absence of each fresh fixture before provisioning. The component profile now has the same neighbor and freshness assertions. Both profiles record their exact pinned image ID and remove their exact disposable container.
+
+Separately, `lab/upstream-environments.py --storage` passes [122 fresh integration checks](evidence/upstream-closed-bootstrap-checks.json) after the bootstrap change. It creates two environment databases on the original Supabase PostgreSQL image, runs original Auth migrations and REST services, and exercises shared Storage. Checks include signup/login, real auth.uid RLS behavior, forged-owner denial, cross-environment service credentials and token rejection, Storage access, and preservation of accounts/database identity on bootstrap retry. Its probe containers and network were removed. This does not cover Realtime, functions, upgrades or interrupted service recovery.
+
+The next recovery barrier is under design in [database operation fencing](DATABASE-OPERATION-FENCING-DESIGN.md). Automatic replay after database mutation remains disabled.
