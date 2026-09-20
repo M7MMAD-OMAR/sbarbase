@@ -83,3 +83,7 @@ The [compact handoff](docs/HANDOFF.md) indexes decisions, research and saved dia
 ## Gateway overload checkpoint
 
 [Application request admission and streaming](docs/GATEWAY-OVERLOAD.md) now pass 44 unit tests, 22 real HTTP checks and a 1,000-operation SDK regression without failures. An earlier 8-check actual Supabase saturation probe verifies neighbor correctness and recovery. The unsupported connection-counting call recorded in the handoff is fixed. Shared resource containment, sustained open-loop capacity and production recovery remain open.
+
+## Pre-header deadline checkpoint
+
+The application gate now bounds pre-header waiting independently of transport cooperation. It returns 504 on expiry, releases admission, signals cancellation and cancels late response bodies. Client abort releases the slot with 408. Forty-six unit tests with 248 assertions and 24 HTTP checks pass; strict types pass for the adapter, handler and gate. This bounds gateway waiting, not arbitrary upstream work that ignores cancellation. The earlier SDK regression predates this additional deadline change.

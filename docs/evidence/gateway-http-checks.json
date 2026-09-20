@@ -20,9 +20,11 @@
     "HTTP disconnect releases streaming slot",
     "connected client detects response deadline as failure",
     "deadline releases slot for next HTTP request",
+    "pre-header deadline returns HTTP 504",
+    "HTTP request recovers after uncooperative pre-header transport",
     "expected transport state observed",
     "paused downstream socket registered",
     "deadline destroys socket even while downstream does not read"
   ],
-  "count": 22
+  "count": 24
 }

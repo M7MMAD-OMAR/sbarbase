@@ -72,8 +72,8 @@ export function createGateway(registry:RouteRegistry, transport:typeof fetch = f
     if (authorization && !/^Bearer \S+$/i.test(authorization)) return error(401,'Invalid authorization');
     const bearerIsApiKey = authorization?.toLowerCase().startsWith('bearer ') && apiKey!==null && matches(authorization.slice(7), apiKey);
     headers.set('authorization', authorization && !bearerIsApiKey ? authorization : `Bearer ${route.anonymousToken}`);
-    return concurrency.run(environment,request,async()=>{
-    let body:Uint8Array | undefined;
+    return concurrency.run(environment,request,async(signal)=>{
+    let body:Uint8Array<ArrayBuffer> | undefined;
     if (request.body) {
       const limit = 1024*1024;
       if (Number(request.headers.get('content-length')) > limit) return error(413,'Request too large');
@@ -104,7 +104,7 @@ export function createGateway(registry:RouteRegistry, transport:typeof fetch = f
     if(request.signal.aborted)return error(408,'Request cancelled');
     try {
       return await transport(target,{method:request.method,headers,body,redirect:'manual',decompress:false,
-        signal:AbortSignal.any([request.signal,AbortSignal.timeout(15_000)])});
+        signal:AbortSignal.any([signal,request.signal,AbortSignal.timeout(15_000)])});
     } catch {
       return error(502,'Upstream unavailable');
     }

@@ -40,7 +40,7 @@ Local budget proposal: 4 GB RAM, 4 CPUs and 20-30 GB disk. The four retained ups
 
 ## Latest gateway checkpoint
 
-Committed baseline: `548d898`, the SDK workload checkpoint. [Gateway concurrency and streaming](GATEWAY-OVERLOAD.md) now have 22 HTTP checks, 8 actual Supabase overload checks and a 1,000-operation SDK regression. Read [the exact resume checkpoint](RESUME-CHECKPOINT.md) for remaining limits and next steps.
+Committed baseline: `548d898`, the SDK workload checkpoint. [Gateway concurrency and streaming](GATEWAY-OVERLOAD.md) now have 24 HTTP checks, 8 actual Supabase overload checks and a 1,000-operation SDK regression. Read [the exact resume checkpoint](RESUME-CHECKPOINT.md) for remaining limits and next steps.
 
 ## Continue in Codex or Hermes
 

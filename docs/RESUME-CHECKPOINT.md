@@ -11,18 +11,18 @@ Keep Supabase. Use installation > organization > project > environment, with own
 Baseline commit: `548d898`. Gateway files add `ConcurrencyGate`, a `node:http` loopback adapter under Bun, controlled HTTP tests, actual Supabase overload tests and an SDK regression mode. Preserve these files; do not overwrite them from the earlier baseline.
 
 - Application gateway defaults: 8 active requests per environment, 32 across its process, immediate 429/503 and Retry-After. A slot lasts through response consumption, cancellation or deadline. These are experimental request limits, not project capacity or cluster-wide limits. Management traffic has a separate lane.
-- Controlled HTTP evidence currently records 22 passing checks: saturation, neighboring response, recovery, gzip, disconnect, detectable stream deadline failure and a paused TCP client.
+- Controlled HTTP evidence currently records 24 passing checks: saturation, neighboring response, recovery, gzip, disconnect, detectable stream deadline failure and a paused TCP client.
 - Actual Supabase overload evidence records 8 checks: eight concurrent RPCs admitted, ninth refused, neighbor returns correct data, target recovers. Temporary RPCs and keys were cleaned up.
-- Repeated unit run: 44 tests and 239 assertions passed. Strict type checking passed for the HTTP adapter and concurrency gate.
+- Repeated unit run: 46 tests and 248 assertions passed. Strict type checking passed for the HTTP adapter, handler and concurrency gate.
 - Fixed the unsupported Bun `server.getConnections()` call using owned socket tracking. The paused-client test now waits for server acceptance and proves the socket closes after its deadline while the client remains paused.
 - The SDK regression passed 1,000 operations with no failures across the two paced phases. Fixture cleanup completed and the owned runtime stopped. Raw results: `docs/evidence/sdk-overload-regression.json`.
 - Native fetch proxying uses `decompress: false` to preserve compressed bytes and matching headers. The HTTP adapter was introduced after local Bun.serve streaming probes showed deadline/error handling could appear as successful partial output. This observation is version-specific, not a general claim about Bun.
-- A custom transport that ignores cancellation can still hold a pre-header slot indefinitely. Native fetch has its own timeout; a universal hard guarantee is not established.
+- Pre-header waiting now has a separate 30-second deadline. Tests verify slot recovery even if an injected transport never settles, cancellation of late response bodies, and HTTP 504/recovery. The gate cannot force arbitrary underlying work to terminate.
 
 ## Next actions in order
 
 1. Continue sustained/open-loop load, failure recovery, off-host restore and transfer gates. Short local runs cannot size a public service.
-2. Harden pre-header cancellation guarantees and audit management traffic limits separately from application traffic.
+2. Audit management traffic limits separately from application traffic and measure actual upstream cancellation under sustained overload.
 3. Recheck free host resources and existing owned containers before running probes; preserve earlier baseline evidence and do not lower admission thresholds.
 
 ## Runtime safety

@@ -51,6 +51,18 @@ try{
   const next=await fetch(`http://127.0.0.1:${timed.port}/deadline/rest/v1/`,{headers});
   check('deadline releases slot for next HTTP request',next.ok&&(await next.json()).source==='a');
  }finally{timed.stop(true);}
+ const beforeHeaders=new ConcurrencyGate(1,1,1000,30);
+ let attempts=0;
+ const stalled=await serveLocal(request=>beforeHeaders.run('stalled',request,async()=>{
+  if(++attempts===1)return new Promise<Response>(()=>{});
+  return Response.json({recovered:true});
+ }));
+ try{
+  const failed=await fetch(`http://127.0.0.1:${stalled.port}/`,{signal:AbortSignal.timeout(3000)});
+  check('pre-header deadline returns HTTP 504',failed.status===504);await failed.text();
+  const recovered=await fetch(`http://127.0.0.1:${stalled.port}/`,{signal:AbortSignal.timeout(3000)});
+  check('HTTP request recovers after uncooperative pre-header transport',recovered.ok&&(await recovered.json()).recovered===true);
+ }finally{stalled.stop(true);}
  const slow=await serveLocal(createGateway(new Map([['slow',route(upstream.port!)]]),fetch,undefined,1000,new ConcurrencyGate(1,1,200)));
  const socket=connect(slow.port,'127.0.0.1');socket.on('error',()=>{});socket.pause();
  try{

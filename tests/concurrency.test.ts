@@ -98,6 +98,36 @@ test('slow upload consumes a slot and abort does not accidentally forward a canc
  const pending=handler(new Request('http://localhost/owned/rest/v1/',{method:'POST',headers:{apikey:'key'},body:new ReadableStream({pull:()=>new Promise(()=>{}),cancel:()=>new Promise(()=>{})}),signal:abort.signal,duplex:'half'} as RequestInit));
  const make=()=>new Request('http://localhost/owned/rest/v1/',{headers:{apikey:'key'}});
  expect((await handler(make())).status).toBe(429);
- abort.abort();const failed=await pending;expect(failed.status).toBe(400);expect(await failed.text()).toBe('');
+ abort.abort();const failed=await pending;expect(failed.status).toBe(408);expect((await failed.json()).message).toBe('Request cancelled');
  expect(calls).toBe(0);expect((await handler(make())).status).toBe(204);expect(calls).toBe(1);
+});
+
+
+test('pre-header deadline frees capacity and cancels a late response from uncooperative transport',async()=>{
+ const gate=new ConcurrencyGate(1,1,1000,20);
+ let complete!:(response:Response)=>void;
+ let upstream:AbortSignal|undefined;
+ const pending=gate.run('a',request(),signal=>{upstream=signal;return new Promise(resolve=>{complete=resolve;});});
+ expect((await gate.run('a',request(),empty)).status).toBe(429);
+ expect((await pending).status).toBe(504);
+ expect(upstream?.aborted).toBe(true);
+ const held=await gate.run('a',request(),async()=>new Response('next'));
+ let cancelled=false;
+ complete(new Response(new ReadableStream({cancel(){cancelled=true;}})));
+ await Bun.sleep(0);
+ expect(cancelled).toBe(true);
+ expect((await gate.run('a',request(),empty)).status).toBe(429);
+ await held.text();
+ expect((await gate.run('a',request(),empty)).status).toBe(204);
+});
+
+test('pre-header client abort releases slot even if transport never settles',async()=>{
+ const gate=new ConcurrencyGate(1,1,1000,1000);
+ const client=new AbortController();let upstream:AbortSignal|undefined;
+ const pending=gate.run('a',new Request('http://localhost/',{signal:client.signal}),signal=>{
+  upstream=signal;return new Promise(()=>{});
+ });
+ client.abort();expect((await pending).status).toBe(408);
+ expect(upstream?.aborted).toBe(true);
+ expect((await gate.run('a',request(),empty)).status).toBe(204);
 });

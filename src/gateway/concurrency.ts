@@ -2,11 +2,11 @@
 export class ConcurrencyGate {
  private total=0;
  private active=new Map<string,number>();
- constructor(private perEnvironment=8,private maximum=32,private responseTimeoutMs=30_000) {
-  if(![perEnvironment,maximum,responseTimeoutMs].every(value=>Number.isSafeInteger(value)&&value>0))
+ constructor(private perEnvironment=8,private maximum=32,private responseTimeoutMs=30_000,private forwardTimeoutMs=30_000) {
+  if(![perEnvironment,maximum,responseTimeoutMs,forwardTimeoutMs].every(value=>Number.isSafeInteger(value)&&value>0))
    throw new Error('Invalid concurrency limits');
  }
- async run(environment:string,request:Request,forward:()=>Promise<Response>):Promise<Response> {
+ async run(environment:string,request:Request,forward:(signal:AbortSignal)=>Promise<Response>):Promise<Response> {
   if(request.signal.aborted)return Response.json({message:'Request cancelled'},{status:408});
   const count=this.active.get(environment)??0;
   const status=count>=this.perEnvironment?429:this.total>=this.maximum?503:0;
@@ -20,13 +20,38 @@ export class ConcurrencyGate {
    if(remaining)this.active.set(environment,remaining);else this.active.delete(environment);
   };
   try {
-   const response=await forward();
+   const upstream=new AbortController();
+   let abandoned=false;
+   let timer:ReturnType<typeof setTimeout>|undefined;
+   let stop!:(status:408|504)=>void;
+   const interrupted=new Promise<408|504>(resolve=>{
+    stop=status=>{abandoned=true;resolve(status);upstream.abort();};
+   });
+   const cancelled=()=>stop(408);
+   request.signal.addEventListener('abort',cancelled,{once:true});
+   timer=setTimeout(()=>stop(504),this.forwardTimeoutMs);timer.unref?.();
+   let result:Response|408|504;
+   try {
+    if(request.signal.aborted)cancelled();
+    const pending=abandoned?Promise.resolve(408 as const):forward(upstream.signal).then(response=>{
+     if(abandoned)void response.body?.cancel().catch(()=>{});
+     return response;
+    });
+    result=await Promise.race([pending,interrupted]);
+   }finally {
+    clearTimeout(timer);request.signal.removeEventListener('abort',cancelled);
+   }
+   if(typeof result==='number'){
+    release();return Response.json({message:result===504?'Upstream deadline exceeded':'Request cancelled'},
+     {status:result,headers:{'cache-control':'no-store'}});
+   }
+   const response=result;
    if(!response.body){release();return response;}
    const reader=response.body.getReader();
-   let timer:ReturnType<typeof setTimeout>|undefined;
+   let responseTimer:ReturnType<typeof setTimeout>|undefined;
    let controller:ReadableStreamDefaultController<Uint8Array>|undefined;
    let finished=false;
-   const finish=()=>{if(finished)return;finished=true;clearTimeout(timer);request.signal.removeEventListener('abort',abort);release();};
+   const finish=()=>{if(finished)return;finished=true;clearTimeout(responseTimer);request.signal.removeEventListener('abort',abort);release();};
    const abort=()=>{
     if(finished)return;
     finish();void reader.cancel().catch(()=>{});
@@ -47,7 +72,7 @@ export class ConcurrencyGate {
     cancel(reason){finish();void reader.cancel(reason).catch(()=>{});},
    });
    request.signal.addEventListener('abort',abort,{once:true});
-   timer=setTimeout(abort,this.responseTimeoutMs);timer.unref?.();
+   responseTimer=setTimeout(abort,this.responseTimeoutMs);responseTimer.unref?.();
    if(request.signal.aborted)abort();
    return new Response(body,{status:response.status,statusText:response.statusText,headers:response.headers});
   }catch(error){release();throw error;}
