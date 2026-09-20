@@ -69,8 +69,9 @@ def port(name, inside):
     return f'http://{address}:{inside}'
 
 
-def provision_environment(e, credentials, checkpoint=lambda phase: None):
+def provision_environment(e, credentials, checkpoint=lambda phase: None, executor=None):
     """Reconcile each phase independently after an interrupted operation."""
+    execute = executor or sql
     if not re.fullmatch(r'[a-z][a-z0-9_]{1,30}', e):
         raise ValueError('Invalid environment identifier')
     for role in ('auth', 'rest'):
@@ -78,34 +79,42 @@ def provision_environment(e, credentials, checkpoint=lambda phase: None):
         password = credentials[role]
         if not re.fullmatch(r'[a-f0-9]{64}', password):
             raise ValueError('Invalid generated credential')
-        if sql(f"SELECT 1 FROM pg_roles WHERE rolname='{name}'").stdout.strip() != '1':
-            sql(f"CREATE ROLE {name} LOGIN NOINHERIT PASSWORD '{password}';")
+        if execute(f"SELECT 1 FROM pg_roles WHERE rolname='{name}'").stdout.strip() != '1':
+            execute(f"CREATE ROLE {name} LOGIN NOINHERIT PASSWORD '{password}';")
     checkpoint('roles')
-    if sql(f"SELECT 1 FROM pg_database WHERE datname='{e}'").stdout.strip() != '1':
-        sql(f'CREATE DATABASE {e};')
+    if execute(f"SELECT 1 FROM pg_database WHERE datname='{e}'").stdout.strip() != '1':
+        execute(f'CREATE DATABASE {e};')
     checkpoint('database')
-    sql(f"REVOKE ALL ON DATABASE {e} FROM PUBLIC; GRANT CONNECT ON DATABASE {e} TO {e}_auth, {e}_rest; GRANT anon, authenticated, service_role TO {e}_rest;")
-    sql(f"REVOKE CREATE ON SCHEMA public FROM PUBLIC; CREATE SCHEMA IF NOT EXISTS auth AUTHORIZATION {e}_auth; GRANT USAGE ON SCHEMA auth TO anon, authenticated, service_role; GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;", e)
-    sql(f'ALTER ROLE {e}_auth IN DATABASE {e} SET search_path TO auth;')
+    execute(f"REVOKE ALL ON DATABASE {e} FROM PUBLIC; GRANT CONNECT ON DATABASE {e} TO {e}_auth, {e}_rest; GRANT anon, authenticated, service_role TO {e}_rest;")
+    execute(f"REVOKE CREATE ON SCHEMA public FROM PUBLIC; CREATE SCHEMA IF NOT EXISTS auth AUTHORIZATION {e}_auth; GRANT USAGE ON SCHEMA auth TO anon, authenticated, service_role; GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;", e)
+    execute(f'ALTER ROLE {e}_auth IN DATABASE {e} SET search_path TO auth;')
     checkpoint('permissions')
+
+
+def auth_configuration(e, v, database_host):
+    return {
+        'GOTRUE_API_HOST': '0.0.0.0', 'GOTRUE_API_PORT': '9999',
+        'API_EXTERNAL_URL': f'http://localhost/{e}/auth/v1',
+        'GOTRUE_SITE_URL': 'http://localhost', 'GOTRUE_DB_DRIVER': 'postgres',
+        'GOTRUE_DB_DATABASE_URL': f'postgres://{e}_auth:{v["auth"]}@{database_host}:5432/{e}',
+        'GOTRUE_JWT_SECRET': v['jwt'], 'GOTRUE_JWT_AUD': 'authenticated',
+        'GOTRUE_JWT_DEFAULT_GROUP_NAME': 'authenticated', 'GOTRUE_JWT_ADMIN_ROLES': 'service_role',
+        'GOTRUE_EXTERNAL_EMAIL_ENABLED': 'true', 'GOTRUE_MAILER_AUTOCONFIRM': 'true',
+        'GOTRUE_DB_MAX_POOL_SIZE': '3', 'GOTRUE_DB_NAMESPACE': 'auth'}
+
+
+def rest_configuration(e, v, database_host):
+    return {
+        'PGRST_DB_URI': f'postgres://{e}_rest:{v["rest"]}@{database_host}:5432/{e}',
+        'PGRST_DB_SCHEMAS': 'public', 'PGRST_DB_ANON_ROLE': 'anon',
+        'PGRST_JWT_SECRET': v['jwt'], 'PGRST_DB_POOL': '3'}
 
 
 def launch_services(e, v, pins):
     auth = f'sbarbase-lab-{e}-auth'
     rest = f'sbarbase-lab-{e}-rest'
-    launch(auth, pins['auth']['id'], {
-        'GOTRUE_API_HOST': '0.0.0.0', 'GOTRUE_API_PORT': '9999',
-        'API_EXTERNAL_URL': f'http://localhost/{e}/auth/v1',
-        'GOTRUE_SITE_URL': 'http://localhost', 'GOTRUE_DB_DRIVER': 'postgres',
-        'GOTRUE_DB_DATABASE_URL': f'postgres://{e}_auth:{v["auth"]}@{DB}:5432/{e}',
-        'GOTRUE_JWT_SECRET': v['jwt'], 'GOTRUE_JWT_AUD': 'authenticated',
-        'GOTRUE_JWT_DEFAULT_GROUP_NAME': 'authenticated', 'GOTRUE_JWT_ADMIN_ROLES': 'service_role',
-        'GOTRUE_EXTERNAL_EMAIL_ENABLED': 'true', 'GOTRUE_MAILER_AUTOCONFIRM': 'true',
-        'GOTRUE_DB_MAX_POOL_SIZE': '3', 'GOTRUE_DB_NAMESPACE': 'auth'}, '256m', .25, 9999)
-    launch(rest, pins['rest']['id'], {
-        'PGRST_DB_URI': f'postgres://{e}_rest:{v["rest"]}@{DB}:5432/{e}',
-        'PGRST_DB_SCHEMAS': 'public', 'PGRST_DB_ANON_ROLE': 'anon',
-        'PGRST_JWT_SECRET': v['jwt'], 'PGRST_DB_POOL': '3'}, '256m', .25, 3000)
+    launch(auth, pins['auth']['id'], auth_configuration(e, v, DB), '256m', .25, 9999)
+    launch(rest, pins['rest']['id'], rest_configuration(e, v, DB), '256m', .25, 3000)
     return {'auth': port(auth,9999), 'rest': port(rest,3000)}
 
 

@@ -33,6 +33,8 @@ The combined management handler now provides scoped connection discovery and pub
 
 A separate upstream PostgreSQL/Auth distribution probe passed 10 checks and confirmed two implementation requirements: raw bootstrap cannot be replayed per environment because roles already exist, and modern identity helpers require Auth migrations after database initialization. [Findings](docs/reviews/distribution-bootstrap.md), [evidence](docs/evidence/distro-checks.json). This does not replace or certify the stock-PostgreSQL component lab.
 
+The upstream-image follow-up now passes 40 checks across two scoped Auth/REST environments using original Auth migrations and identity helpers, with no custom auth.uid replacement. Credentials/tokens are isolated, RLS works, and bootstrap retry preserves identities. [Evidence](docs/evidence/upstream-environment-checks.json). The durable worker has not yet switched its existing stock-PostgreSQL data; remaining components and upgrades are still gates.
+
 ## Research, reasons and saved pictures
 
 - [Decision register](docs/DECISIONS.md): why this candidate, alternatives, remaining gates.

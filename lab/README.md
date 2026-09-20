@@ -15,3 +15,5 @@ Dynamic provisioning: `/usr/bin/python3 lab/worker.py` drains `.lab/control.sqli
 Connection probe: `bun lab/connection-check.ts` exercises management-authenticated publishable key issuance, connection discovery, SDK access and revocation. It requires the provisioning probe and its test fixtures, and always revokes its issued key afterward.
 
 Distribution probe: `/usr/bin/python3 lab/distro-check.py` starts a separate ephemeral Supabase PostgreSQL/Auth pair without network exposure, checks upstream bootstrap and migration behavior, and removes its containers afterward. It does not replace the component lab.
+
+Upstream environment probe: `/usr/bin/python3 lab/upstream-environments.py` tests two independent Auth/REST databases on the pinned Supabase PostgreSQL image with real migrated identity helpers. It reuses the environment reconciler and service configuration builders, and removes its owned containers/network/environment files afterward.
