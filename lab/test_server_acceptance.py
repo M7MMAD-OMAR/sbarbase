@@ -89,6 +89,14 @@ class AcceptanceScriptContractTests(unittest.TestCase):
         self.assertIn('supervise_args+=(--service-user "$SERVICE_USER")',self.source)
         self.assertIn('"${supervise_args[@]}"',self.source)
 
+    def test_bun_dir_is_added_to_path_for_every_step(self):
+        self.assertIn('PATH="$BUN_DIR:$PATH"',self.source)
+        self.assertIn('export PATH',self.source)
+
+    def test_a_missing_bun_under_sudo_names_the_flag_that_fixes_it(self):
+        self.assertIn('sudo replaces PATH',self.source)
+        self.assertIn('--bun-dir /home/$SUDO_USER/.bun/bin',self.source)
+
     def test_the_failure_message_does_not_promise_a_file_that_may_not_exist(self):
         self.assertIn('before it could write evidence',self.source)
         self.assertIn('[ -f docs/evidence/server-acceptance-rehearsal.json ]',self.source)

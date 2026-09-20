@@ -78,8 +78,12 @@ installation (paths, service user, Bun directory), verifies the result with
 `systemd-analyze verify`, then installs, reloads, enables and starts it:
 
 ```
-sudo /usr/bin/python3 lab/install_server.py supervise --apply
+sudo /usr/bin/python3 lab/install_server.py supervise --apply \
+     --service-user ops-account --home /srv/ops-account --bun-dir /srv/ops-account/.bun/bin
 ```
+
+`sudo` replaces `PATH`, so a Bun outside a system directory must be named with
+`--bun-dir` or the unit starts without it.
 
 Without `--apply` it only renders and verifies, prints the exact commands it would
 run, and writes `docs/evidence/supervisor-unit.json`. It refuses to install a unit
@@ -146,8 +150,15 @@ runs against a live installation.
 
 ```
 sudo deploy/server-acceptance.sh --rehearse --install-unit \
+     --service-user ops-account --home /srv/ops-account --bun-dir /srv/ops-account/.bun/bin \
      --bootstrap-file /path/to/operator.json
 ```
+
+`sudo` replaces `PATH` with a secure default, so a Bun installed under the
+invoking user's home is invisible to the script and to the unit it installs.
+Pass `--bun-dir` (the script adds it to `PATH` and uses it in the unit) whenever
+Bun is not in a system directory; without it the script stops at the
+prerequisite step and names the flag.
 
 An acceptance run writes its rehearsal to
 `docs/evidence/server-acceptance-rehearsal.json` and copies it to

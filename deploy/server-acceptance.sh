@@ -52,9 +52,24 @@ while [ $# -gt 0 ]; do
   shift
 done
 
+# sudo replaces PATH with a secure default, so a Bun installed under the
+# invoking user's home disappears. --bun-dir names it once for every step: the
+# prerequisite check here and the unit's PATH below.
+if [ -n "$BUN_DIR" ]; then
+  [ -x "$BUN_DIR/bun" ] || fail "--bun-dir does not hold a bun executable: $BUN_DIR"
+  PATH="$BUN_DIR:$PATH"
+  export PATH
+  printf 'ok: bun directory %s added to PATH\n' "$BUN_DIR"
+fi
+
 step "prerequisites"
 for tool in docker bun git; do
-  command -v "$tool" >/dev/null 2>&1 || fail "$tool is not on PATH"
+  if ! command -v "$tool" >/dev/null 2>&1; then
+    if [ "$tool" = "bun" ] && [ -n "${SUDO_USER:-}" ]; then
+      fail "bun is not on PATH: sudo replaces PATH with a secure default, so an installation under /home/$SUDO_USER is invisible. Pass --bun-dir, for example --bun-dir /home/$SUDO_USER/.bun/bin"
+    fi
+    fail "$tool is not on PATH"
+  fi
   printf 'ok: %s %s\n' "$tool" "$("$tool" --version 2>/dev/null | head -1)"
 done
 [ -x "$PYTHON" ] || fail "$PYTHON is missing; pass --python with a 3.14+ interpreter"
