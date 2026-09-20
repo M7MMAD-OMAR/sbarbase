@@ -90,10 +90,16 @@ def port(name, inside):
 
 
 def provision_environment(e, credentials, checkpoint=lambda phase: None, executor=None):
-    """Reconcile each phase independently after an interrupted operation."""
+    """Provision SQL phases; closed databases require explicit reconciliation."""
     execute = executor or sql
     if not re.fullmatch(r'[a-z][a-z0-9_]{1,30}', e):
         raise ValueError('Invalid environment identifier')
+    database_state = execute(f"SELECT datallowconn FROM pg_database WHERE datname='{e}';").stdout.strip()
+    if database_state == 'f':
+        raise RuntimeError('Existing environment database is closed; explicit reconciliation required')
+    if database_state not in ('', 't'):
+        raise RuntimeError('Database connection state unavailable')
+    created_here = database_state == ''
     for role in ('auth', 'rest'):
         name = f'{e}_{role}'
         password = credentials[role]
@@ -102,10 +108,11 @@ def provision_environment(e, credentials, checkpoint=lambda phase: None, executo
         if execute(f"SELECT 1 FROM pg_roles WHERE rolname='{name}'").stdout.strip() != '1':
             execute(f"CREATE ROLE {name} LOGIN NOINHERIT PASSWORD '{password}';")
     checkpoint('roles')
-    if execute(f"SELECT 1 FROM pg_database WHERE datname='{e}'").stdout.strip() != '1':
-        execute(f'CREATE DATABASE {e};')
+    if created_here:
+        execute(f'CREATE DATABASE {e} ALLOW_CONNECTIONS false;')
     checkpoint('database')
-    execute(f"REVOKE ALL ON DATABASE {e} FROM PUBLIC; GRANT CONNECT ON DATABASE {e} TO {e}_auth, {e}_rest; GRANT anon, authenticated, service_role TO {e}_rest;")
+    reopen = f' ALTER DATABASE {e} ALLOW_CONNECTIONS true;' if created_here else ''
+    execute(f"BEGIN; REVOKE ALL ON DATABASE {e} FROM PUBLIC; GRANT CONNECT ON DATABASE {e} TO {e}_auth, {e}_rest; GRANT anon, authenticated, service_role TO {e}_rest;{reopen} COMMIT;")
     execute(f"REVOKE CREATE ON SCHEMA public FROM PUBLIC; CREATE SCHEMA IF NOT EXISTS auth AUTHORIZATION {e}_auth; GRANT USAGE ON SCHEMA auth TO anon, authenticated, service_role; GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;", e)
     execute(f'ALTER ROLE {e}_auth IN DATABASE {e} SET search_path TO auth;')
     checkpoint('permissions')
