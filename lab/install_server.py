@@ -250,21 +250,25 @@ def install(bootstrap_file):
         problems,_=console_build_check.verify()
         if problems:raise SystemExit('Console build produced an unusable page: '+'; '.join(problems))
         print('step 3/5  console built and verified')
-        result=run(['/usr/bin/python3','lab/installation_runtime.py','up'],cwd=ROOT,check=False,env={**os.environ})
-        if result.returncode:raise SystemExit('Runtime startup failed: '+result.stderr.strip())
-        print('step 4/5  owned runtime started')
-        if bootstrap_file is not None:
-            payload=bootstrap_payload(bootstrap_file)
-            boot=run(['/usr/bin/python3','lab/bootstrap.py','--stdin'],cwd=ROOT,check=False,stdin=payload)
-            if boot.returncode:raise SystemExit('Operator bootstrap failed: '+boot.stderr.strip())
-            print('step 5/5  operator identity bootstrapped')
-        else:
-            print('step 5/5  operator bootstrap skipped; run: /usr/bin/python3 lab/bootstrap.py')
-        print('Installation ready. Supervise it with deploy/sbarbase.service or the foreground supervisor')
-        print('(bun lab/upstream-server.ts starts the console API beside the owned runtime).')
-        print('Smoke test (console running): /usr/bin/python3 lab/install_server.py smoke')
     finally:
+        # Released before the owned runtime starts: the runtime takes the
+        # operation lock itself and holds it for its lifetime, so an installer
+        # that kept it would refuse its own runtime. The lock serialises the
+        # mutations above; the runtime start is serialised by the runtime.
         lock.close()
+    result=run(['/usr/bin/python3','lab/installation_runtime.py','up'],cwd=ROOT,check=False,env={**os.environ})
+    if result.returncode:raise SystemExit('Runtime startup failed: '+result.stderr.strip())
+    print('step 4/5  owned runtime started')
+    if bootstrap_file is not None:
+        payload=bootstrap_payload(bootstrap_file)
+        boot=run(['/usr/bin/python3','lab/bootstrap.py','--stdin'],cwd=ROOT,check=False,stdin=payload)
+        if boot.returncode:raise SystemExit('Operator bootstrap failed: '+boot.stderr.strip())
+        print('step 5/5  operator identity bootstrapped')
+    else:
+        print('step 5/5  operator bootstrap skipped; run: /usr/bin/python3 lab/bootstrap.py')
+    print('Installation ready. Supervise it with deploy/sbarbase.service or the foreground supervisor')
+    print('(bun lab/upstream-server.ts starts the console API beside the owned runtime).')
+    print('Smoke test (console running): /usr/bin/python3 lab/install_server.py smoke')
 
 
 def console_status():

@@ -156,7 +156,7 @@ def redacted_arguments(arguments):
     for argument in arguments:
         if hide_next:redacted.append('<bootstrap-file>');hide_next=False;continue
         redacted.append(argument)
-        if argument in ('--bootstrap-file','--evidence'):hide_next=True
+        if argument=='--bootstrap-file':hide_next=True
     return redacted
 
 
@@ -190,8 +190,18 @@ def rehearse(bootstrap_file,skip_install,timeout,attempts=1,delay=15,require_uni
         return findings,context
     record('host preflight passed',True)
     if not skip_install:
-        install_server.install(bootstrap_file)
-        record('installation steps completed',True)
+        # An install can refuse: the runtime lock may be held by a live
+        # installation on this host. That refusal is a recorded finding, and the
+        # evidence is still written, rather than an exception that leaves the
+        # operator pointing at a file that was never created.
+        try:
+            install_server.install(bootstrap_file)
+            record('installation steps completed',True)
+        except (SystemExit,Exception) as error:
+            detail=' '.join(str(error).split())[:300] or error.__class__.__name__
+            record('installation steps completed',False,detail)
+            context['install_failed']=detail
+            return findings,context
     process=None
     try:
         problems,_=console_build_check.verify()
@@ -276,7 +286,8 @@ def main():
               'host':host_facts(),
               'pins':pins,
               'unit':context['unit'],
-              'startup':{'attempts_allowed':args.attempts,'attempts_used':context['startup_attempts'],'refusals':context['startup_refusals']},
+              'startup':{'attempts_allowed':args.attempts,'attempts_used':context['startup_attempts'],'refusals':context['startup_refusals'],
+                         'install_failed':context.get('install_failed')},
               'bootstrap_file_used':bool(args.bootstrap_file),
               'install_skipped':bool(args.skip_install),
               'startup_attempts_allowed':args.attempts,

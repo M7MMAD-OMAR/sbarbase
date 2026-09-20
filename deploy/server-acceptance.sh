@@ -112,7 +112,13 @@ fi
 rehearsal_args=(--attempts 3 --require-unit --evidence docs/evidence/server-acceptance-rehearsal.json)
 if [ -n "$BOOTSTRAP" ]; then rehearsal_args+=(--bootstrap-file "$BOOTSTRAP"); fi
 if [ "$SKIP_INSTALL" = "1" ]; then rehearsal_args+=(--skip-install); fi
-"$PYTHON" lab/deployment_rehearsal.py "${rehearsal_args[@]}" || fail "rehearsal failed; see docs/evidence/server-acceptance-rehearsal.json"
+if ! "$PYTHON" lab/deployment_rehearsal.py "${rehearsal_args[@]}"; then
+  if [ -f docs/evidence/server-acceptance-rehearsal.json ]; then
+    fail "rehearsal failed; the recorded findings are in docs/evidence/server-acceptance-rehearsal.json"
+  else
+    fail "rehearsal failed before it could write evidence; the refusal is in the output above"
+  fi
+fi
 
 if [ "$INSTALL_UNIT" = "1" ]; then
   step "restore the supervised installation"

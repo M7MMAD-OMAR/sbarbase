@@ -580,3 +580,46 @@ and [DEPLOYMENT-READINESS](DEPLOYMENT-READINESS.md).
 ## User stop and Hermes handoff, 2026-09-20
 
 The user explicitly stopped this Codex implementation to continue with another Hermes agent/model. All reviews are completed; no test process remains active. Read-only inventory verified 11 source and 8 recovery-target containers stopped, no fresh fixture containers remaining, and no retained source generation pin. Saved the completed crash-probe changes and evidence, without beginning adoption or another experiment. HERMES-HANDOFF.md is the concise continuation entry point. The wider platform goal remains unfinished; this is a user-requested stop, not goal completion.
+
+## Second deployment-tooling review and the defects it led to, 2026-09-20 (Hermes)
+
+An independent adversarial review of the deployment tooling
+([review 2](reviews/deployment-tooling-review-2.md)) reported 20 must-fix
+defects and falsified 17 claims in the status documents. All 20 are fixed and
+every falsified claim is corrected, with regression tests: the proxy strips
+hop-by-hop, framing and client-supplied forwarding headers and validates its
+upstream whichever way it was supplied; the supervisor-unit renderer validates
+the account and paths that reach a root-owned unit and fails when an installed
+unit never becomes active; the checks that could not fail now can (TLS stub and
+port announcements, literal and encoded traversal over a raw socket plus a
+direct allow-list probe, `vite.config.mts` in the freshness gate, the gate's own
+`Preflight: 0 blocker(s)` line, console state written after the start); the
+rehearsal keeps attempts and unit status out of the green checks, verifies the
+unit where systemd runs it, and redacts the bootstrap path it recorded; and
+`deploy/server-acceptance.sh` runs under `set -euo pipefail` with no swallowed
+step and stops the unit for the rehearsal and restores it afterwards.
+
+Running the documented acceptance command then exposed two defects no review
+had found, both fixed here:
+
+- `install_server.install()` held the installation operation lock across
+  `lab/installation_runtime.py up`, which takes that same lock for its own
+  lifetime, so the installer refused its own runtime on every host. The lock is
+  released after the console-build step; `lab/test_install_lock.py` pins the
+  handoff.
+- A refused install left the rehearsal without evidence, while the wrapper
+  pointed at a file that did not exist. The refusal is now a recorded finding
+  with the diagnostic path, the rehearsal always writes its evidence, and the
+  wrapper says whether the file was written.
+
+Verified on this host after the fixes: the rehearsal 11 of 11 at 17:21
+(`docs/evidence/deployment-rehearsal.json`), the supervised path 10 of 10 at
+17:08 (`docs/evidence/supervised-run.json`), TLS 21 checks and console static
+serving 17 checks, and the acceptance run 11 of its 12 rows
+(`docs/evidence/server-acceptance-rehearsal.json`), the red row being the unit
+gate that needs root. Suites: 381 Python tests, 73 Bun tests/408 assertions.
+
+Capacity, measured tonight: the combined runtime needs 8761 MiB of free memory,
+so a server must keep 9 GiB clear of other work; this host fell under that line
+repeatedly while other agents used it, and the admission refused with
+`host_memory_headroom` instead of half-starting.

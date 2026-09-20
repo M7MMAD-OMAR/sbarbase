@@ -219,6 +219,27 @@ class BootstrapStepTests(unittest.TestCase):
                          [item['check'] for item in findings])
 
 
+class InstallFailureTests(unittest.TestCase):
+    """An install refusal is a finding the rehearsal records, not a crash."""
+
+    def test_a_refused_install_is_recorded_and_the_rehearsal_returns(self):
+        with patch.object(rehearsal.install_server,'preflight',return_value=[]), \
+             patch.object(rehearsal.install_server,'install',side_effect=SystemExit('Runtime startup failed: lock held')):
+            findings,context=rehearsal.rehearse(None,False,5)
+        failed=[item for item in findings if item['check']=='installation steps completed'][0]
+        self.assertFalse(failed['ok'])
+        self.assertIn('lock held',failed['detail'])
+        self.assertIn('lock held',context['install_failed'])
+        self.assertFalse([item for item in findings if item['check']=='supervisor started and owns the console'])
+
+    def test_a_non_system_exit_from_the_installer_is_also_recorded(self):
+        with patch.object(rehearsal.install_server,'preflight',return_value=[]), \
+             patch.object(rehearsal.install_server,'install',side_effect=RuntimeError('BlockingIOError: [Errno 11] Resource temporarily unavailable')):
+            findings,context=rehearsal.rehearse(None,False,5)
+        self.assertIn('Resource temporarily unavailable',context['install_failed'])
+        self.assertFalse([item for item in findings if item['check']=='installation steps completed'][0]['ok'])
+
+
 class EvidenceHygieneTests(unittest.TestCase):
     def test_the_bootstrap_file_path_is_redacted_from_the_recorded_command(self):
         redacted=rehearsal.redacted_arguments(['--skip-install','--bootstrap-file','/root/operator.json','--attempts','2'])

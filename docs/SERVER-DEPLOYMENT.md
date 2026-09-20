@@ -101,6 +101,13 @@ On the server, one command produces the acceptance evidence:
 /usr/bin/python3 lab/deployment_rehearsal.py --bootstrap-file /path/to/operator.json
 ```
 
+The install itself needs about 8.8 GiB of free memory for the combined runtime:
+the owned runtime refuses to start when the host cannot support the placement
+containers plus the reserve, and names the reason (`host_memory_headroom`) rather
+than half-starting. The installer releases the installation operation lock after
+the console build and before it starts the owned runtime, because the runtime
+takes that lock itself and holds it for its lifetime.
+
 On a server where the unit still has to be installed, run the acceptance path as
 root with `--install-unit`: it renders and verifies the unit, installs and starts
 it, proves the console and the TLS termination, stops the unit so the rehearsal

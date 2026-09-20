@@ -83,6 +83,10 @@ class AcceptanceScriptContractTests(unittest.TestCase):
         self.assertIn('set -euo pipefail',self.source)
         self.assertNotIn('|| true',self.source)
 
+    def test_the_failure_message_does_not_promise_a_file_that_may_not_exist(self):
+        self.assertIn('before it could write evidence',self.source)
+        self.assertIn('[ -f docs/evidence/server-acceptance-rehearsal.json ]',self.source)
+
     def test_the_unit_is_released_before_the_rehearsal_and_restored_after(self):
         stop=self.source.index('systemctl stop sbarbase.service')
         rehearsal=self.source.index('lab/deployment_rehearsal.py "${rehearsal_args[@]}"')
