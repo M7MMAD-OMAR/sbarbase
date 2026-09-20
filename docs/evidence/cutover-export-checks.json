@@ -1,0 +1,7 @@
+{
+  "scope": "Durable maintenance for all ready source runtimes, original source service startup, pre-export signed URL inside encrypted bundle, service-login fence and full database fence after export. Source stopped, target not published.",
+  "paused_environments": 4,
+  "phase": "source-exported-and-stopped",
+  "previous_target_retained": true,
+  "continuation": "Fresh target database, Auth/REST, Storage and pre-export signed URL verified; routing remains paused"
+}

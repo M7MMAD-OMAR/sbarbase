@@ -1,6 +1,7 @@
 """Verify original end-user Storage access after independent recovery."""
 import base64
 import fcntl
+import hashlib
 import json
 import re
 import secrets
@@ -58,6 +59,11 @@ def main():
         public=endpoint(name,5000)
         tenant_headers={'authorization':'Bearer '+runtime.token(payload['credentials']['jwt'],'service_role'),'x-forwarded-host':e+'.storage.internal'}
         wait(public+'/bucket',tenant_headers)
+        fixture=payload.get('signed_url_fixture')
+        check('encrypted archive contains a URL issued before export',bool(fixture) and fixture.get('issued_before_export') is True and fixture['issued_at']<=Path(d['archive']).stat().st_mtime)
+        if not fixture['path'].startswith('/object/sign/'):raise RuntimeError('Unexpected pre-export URL')
+        status,body=runtime.http(public+fixture['path'],headers={'x-forwarded-host':e+'.storage.internal'})
+        check('unchanged pre-export signed URL downloads exact bytes on fresh target',status==200 and hashlib.sha256(body).hexdigest()==fixture['sha256'])
         auth_url=endpoint(auth,9999);wait(auth_url+'/health')
         users=json.loads(sql("SELECT jsonb_agg(jsonb_build_object('id',id,'email',email)) FROM auth.users WHERE email LIKE 'durable-%@example.com';",e))
         check('original fixture identity available',bool(users))
@@ -97,7 +103,7 @@ def main():
         except BaseException:
             stage('cleanup-failed');raise
     checks.append('target stopped with restored objects retained')
-    (lab.ROOT/'docs/evidence/independent-storage-rls-checks.json').write_text(json.dumps({'scope':'Original end-user login on independent target; own-object bytes, other-owner download/sign denial, anonymous denial and newly issued signed URL. Does not prove pre-export URL continuity.','checks':checks,'count':len(checks)},indent=2)+'\n')
+    (lab.ROOT/'docs/evidence/independent-storage-rls-checks.json').write_text(json.dumps({'scope':'Original end-user login on independent target; own-object bytes, other-owner download/sign denial, anonymous denial and newly issued signed URL. Also verifies the unchanged URL issued before this encrypted export. Internal origin changes; public gateway cutover remains unverified.','checks':checks,'count':len(checks)},indent=2)+'\n')
     print(str(len(checks))+' independent Storage RLS checks passed')
 
 

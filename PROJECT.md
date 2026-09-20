@@ -159,3 +159,7 @@ An explicit identity/ownership-checked reconciliation command stops retained tar
 ## Export fence checkpoint
 
 Two-stage export fencing now retains operator dump access while blocking scoped service logins, then closes the database after export persistence. Original login intent is journaled. The optional exporter integration is not yet exercised on the real source. 51 Python tests and eight disposable live checks pass. Real source remains unchanged and stopped.
+
+## Chronological cutover export checkpoint
+
+Coordinated source export passed 34 checks after durable maintenance of four ready environments. Selected source remains fenced. Previous target retained; new target passes 49 database, 11 Auth/REST, nine Storage and 14 end-user checks, including unchanged pre-export URL continuity. All stacks stopped; routing remains paused. Continue the private cutover operation journal. Public gateway publication and neighbor restoration remain next. This downtime rehearsal does not yet coordinate graceful drain across live gateway processes.

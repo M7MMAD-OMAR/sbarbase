@@ -2,6 +2,9 @@
   "scope": "Encrypted selected-environment export only, not a separate-cluster restore or off-host backup. Source services quiesced; whole owned source runtime stopped afterward. Shared encryption/admin keys not intentionally included in configuration; database contents are not scanned for embedded secrets.",
   "checks": [
     "selected tenant configuration readable",
+    "pre-export signing fixture exists",
+    "source issues signed URL before export",
+    "pre-export signed URL returns original object",
     "unsupported tenants_s3_credentials state absent",
     "unsupported iceberg_catalogs state absent",
     "unsupported iceberg_namespaces state absent",
@@ -23,18 +26,20 @@
     "signing state unchanged through quiescence",
     "tenant configuration unchanged through quiescence",
     "exact scoped logins exported",
+    "service logins fenced before database and file snapshot",
     "memberships stay inside canonical API roles",
     "objects and metadata captured",
     "authenticated bundle round trip matches",
     "shared platform credentials not added to configuration",
     "archive and key paths ignored",
+    "source database closed after encrypted export",
     "private archive and key permissions",
     "owned source runtime stopped after export"
   ],
-  "count": 29,
+  "count": 34,
   "roles": 3,
   "objects": 2,
   "signing_keys": 1,
   "dump_bytes": 167743,
-  "encrypted_bytes": 312657
+  "encrypted_bytes": 313637
 }

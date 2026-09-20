@@ -1,6 +1,8 @@
 {
-  "scope": "Original end-user login on independent target; own-object bytes, other-owner download/sign denial, anonymous denial and newly issued signed URL. Does not prove pre-export URL continuity.",
+  "scope": "Original end-user login on independent target; own-object bytes, other-owner download/sign denial, anonymous denial and newly issued signed URL. Also verifies the unchanged URL issued before this encrypted export. Internal origin changes; public gateway cutover remains unverified.",
   "checks": [
+    "encrypted archive contains a URL issued before export",
+    "unchanged pre-export signed URL downloads exact bytes on fresh target",
     "original fixture identity available",
     "original user logs in after independent recovery",
     "fixture contains own and different-owner objects",
@@ -14,5 +16,5 @@
     "source remains stopped",
     "target stopped with restored objects retained"
   ],
-  "count": 12
+  "count": 14
 }

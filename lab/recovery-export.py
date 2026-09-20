@@ -61,6 +61,23 @@ def main(cutover=False):
     status,raw=runtime.http(admin+'/tenants/'+e,headers={'apikey':target.values['storage_admin']})
     check('selected tenant configuration readable',status==200)
     tenant=json.loads(raw)
+    signed_fixture=None
+    if cutover:
+        from urllib.parse import quote
+        obj=rows("SELECT bucket_id,name,version FROM storage.objects ORDER BY name LIMIT 1",e)
+        check('pre-export signing fixture exists',len(obj)==1)
+        item=obj[0];suffix=quote(item['bucket_id'],safe='')+'/'+quote(item['name'],safe='/')
+        public=target.endpoint(storage,5000)
+        headers={'authorization':'Bearer '+runtime.token(target.values['environments'][e]['jwt'],'service_role'),'x-forwarded-host':e+'.storage.internal','content-type':'application/json'}
+        issued=time.time()
+        status,raw=runtime.http(public+'/object/sign/'+suffix,'POST',b'{"expiresIn":86400}',headers)
+        response=json.loads(raw)
+        check('source issues signed URL before export',status==200 and isinstance(response.get('signedURL'),str))
+        path=response['signedURL']
+        if not path.startswith('/object/sign/'):raise RuntimeError('Unexpected signed URL')
+        status,body=runtime.http(public+path,headers={'x-forwarded-host':e+'.storage.internal'})
+        check('pre-export signed URL returns original object',status==200)
+        signed_fixture={'path':path,'issued_before_export':True,'issued_at':issued,'requested_lifetime_seconds':86400,'sha256':hashlib.sha256(body).hexdigest(),**item}
     raw_tenant=rows(f"SELECT * FROM tenants WHERE id='{e}'",'storage_metadata')
     raw_keys=rows(f"SELECT id,tenant_id,kind,content,active,created_at FROM tenants_jwks WHERE tenant_id='{e}' ORDER BY id",'storage_metadata')
     # Decrypt only selected tenant keys inside the pinned Storage process. Its
@@ -122,6 +139,7 @@ def main(cutover=False):
                 lab.docker('rm','-f',helper_name)
         check('objects and metadata captured',len(files)>0)
         payload={'format':2,'environment':e,'images':target.pins,'database':base64.b64encode(dump).decode(),'database_sha256':hashlib.sha256(dump).hexdigest(),'database_metadata':database,'table_snapshots':snapshots,'database_acl':acl,'roles':roles,'memberships':memberships,'settings':settings,'canonical_defaults':defaults,'credentials':target.values['environments'][e],'storage_tenant':tenant,'storage_jwks':jwks,'files':files,'scope':'Quiescent local file-backed environment. No Vault/function/external-object-store state. Source address in tenant config must be rebound on isolated target.'}
+        if signed_fixture is not None:payload['signed_url_fixture']=signed_fixture
         key=secrets.token_bytes(32);envelope=seal(payload,key)
         check('authenticated bundle round trip matches',open_bundle(envelope,key)==payload)
         check('shared platform credentials not added to configuration',all(target.values[k] not in json.dumps({name:value for name,value in payload.items() if name not in ('database','files')}) for k in ('encryption','admin','storage_admin','storage_control')))
@@ -148,8 +166,8 @@ if __name__=='__main__':
     try:
         with (runtime.STATE/'operation.lock').open('a') as lock:
             fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
-            import argparse
-            parser=argparse.ArgumentParser();parser.add_argument('--cutover',action='store_true')
-            main(parser.parse_args().cutover)
+            import sys
+            if len(sys.argv)!=1:raise RuntimeError('Use cutover-export.py for coordinated fencing')
+            main()
     except Exception:
         raise SystemExit('Recovery export failed; private state retained, sensitive output withheld.') from None

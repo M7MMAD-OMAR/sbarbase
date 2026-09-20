@@ -1,8 +1,9 @@
 {
   "scope": "Independent file Storage, fresh platform credentials, preserved tenant signing material and exact object bytes/xattrs. Service-key downloads and unrelated-secret rejection. No pre-export signed URL or end-user Storage RLS proof yet.",
   "checks": [
-    "restored object bytes and xattrs still match export",
-    "restored signing material matches export",
+    "tenant registered against independent database",
+    "original tenant signing material preserved under fresh encryption",
+    "object bytes and extended attributes match export",
     "restored private object downloads with original environment key",
     "unrelated signing secret denied object access",
     "restored private object downloads with original environment key",
@@ -10,5 +11,5 @@
     "source remains stopped",
     "target stopped with restored objects retained"
   ],
-  "count": 8
+  "count": 9
 }

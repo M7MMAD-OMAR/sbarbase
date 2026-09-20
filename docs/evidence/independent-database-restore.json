@@ -6,6 +6,10 @@
     "source remains stopped during target bootstrap",
     "canonical API defaults match source",
     "logical dump restored transactionally on separate cluster",
+    "complete restored roles matches encrypted export",
+    "complete restored memberships matches encrypted export",
+    "complete restored database_acl matches encrypted export",
+    "complete restored settings matches encrypted export",
     "application Auth and Storage table inventory matches",
     "restored table row count and digest match auth.audit_log_entries",
     "restored table row count and digest match auth.custom_oauth_providers",
@@ -47,7 +51,7 @@
     "REST SQL deadlines apply after fresh login",
     "restored storage credential connects only to target"
   ],
-  "count": 45,
+  "count": 49,
   "tables": 32,
   "target_memory_mib": 1024,
   "target_cpus": 1
