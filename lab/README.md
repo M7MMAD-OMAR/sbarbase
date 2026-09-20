@@ -39,3 +39,20 @@ Six regression tests cover manifest/config digest resolution, ownership recheck,
 image drift, missing/changed settings and secret-safe errors. Twelve recorded
 read-only live checks verified existing containers and rejected mismatched pins
 and credentials without changing their states.
+
+## Durable upstream lifecycle
+
+`/usr/bin/python3 lab/durable_runtime.py up` starts the separate persistent
+Supabase PostgreSQL and shared Storage runtime. `/usr/bin/python3 lab/worker.py
+--upstream` drains `.lab/upstream/control.sqlite`; it never consumes the stock
+component catalog. `bun lab/durable-check.ts` creates two environments through
+the management handler with a fixture actor, provisions them, exercises SDK
+Auth/REST/Storage, stops and removes only this runtime's containers, recreates
+them with retained named volumes and verifies data plus signed URLs. The probe
+stops its runtime in a finalizer. Start it before running the probe.
+
+`/usr/bin/python3 lab/durable_runtime.py stop` stops owned containers without
+deleting volumes. State is in `.lab/upstream`, credentials in `.secrets/upstream`,
+resources carry `io.sbarbase.owner=durable-upstream`. Nothing publishes host
+ports. Existing stock lab data is not migrated. See
+[verified scope and remaining gates](../docs/reviews/durable-runtime.md).

@@ -1,0 +1,105 @@
+{
+  "scope": "Two environments provisioned by persistent worker on original Supabase PostgreSQL and shared Storage; service container recreation with retained volumes, original Auth and SDK; no host-loss backup or production readiness",
+  "checks": [
+    {
+      "check": "worker reconciles both upstream environments to success",
+      "passed": true
+    },
+    {
+      "check": "e_60332245e3a0426dd242492f SDK signup works",
+      "passed": true
+    },
+    {
+      "check": "e_60332245e3a0426dd242492f SDK inserts row through real Auth RLS",
+      "passed": true
+    },
+    {
+      "check": "e_60332245e3a0426dd242492f private bucket exists",
+      "passed": true
+    },
+    {
+      "check": "e_60332245e3a0426dd242492f SDK private upload works",
+      "passed": true
+    },
+    {
+      "check": "e_60332245e3a0426dd242492f signed URL issued before restart",
+      "passed": true
+    },
+    {
+      "check": "e_f61bf85dccd73890ec63997c SDK signup works",
+      "passed": true
+    },
+    {
+      "check": "e_f61bf85dccd73890ec63997c SDK inserts row through real Auth RLS",
+      "passed": true
+    },
+    {
+      "check": "e_f61bf85dccd73890ec63997c private bucket exists",
+      "passed": true
+    },
+    {
+      "check": "e_f61bf85dccd73890ec63997c SDK private upload works",
+      "passed": true
+    },
+    {
+      "check": "e_f61bf85dccd73890ec63997c signed URL issued before restart",
+      "passed": true
+    },
+    {
+      "check": "same email has separate Auth identities",
+      "passed": true
+    },
+    {
+      "check": "runtime recreates container services from retained volumes",
+      "passed": true
+    },
+    {
+      "check": "e_60332245e3a0426dd242492f restored Auth login retains user identity",
+      "passed": true
+    },
+    {
+      "check": "e_60332245e3a0426dd242492f database identity retained",
+      "passed": true
+    },
+    {
+      "check": "e_60332245e3a0426dd242492f SDK row survives recreation",
+      "passed": true
+    },
+    {
+      "check": "e_60332245e3a0426dd242492f private object bytes survive recreation",
+      "passed": true
+    },
+    {
+      "check": "e_60332245e3a0426dd242492f earlier signed URL survives Storage recreation",
+      "passed": true
+    },
+    {
+      "check": "e_60332245e3a0426dd242492f neighboring token remains denied",
+      "passed": true
+    },
+    {
+      "check": "e_f61bf85dccd73890ec63997c restored Auth login retains user identity",
+      "passed": true
+    },
+    {
+      "check": "e_f61bf85dccd73890ec63997c database identity retained",
+      "passed": true
+    },
+    {
+      "check": "e_f61bf85dccd73890ec63997c SDK row survives recreation",
+      "passed": true
+    },
+    {
+      "check": "e_f61bf85dccd73890ec63997c private object bytes survive recreation",
+      "passed": true
+    },
+    {
+      "check": "e_f61bf85dccd73890ec63997c earlier signed URL survives Storage recreation",
+      "passed": true
+    },
+    {
+      "check": "e_f61bf85dccd73890ec63997c neighboring token remains denied",
+      "passed": true
+    }
+  ]
+}
