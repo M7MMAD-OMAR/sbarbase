@@ -17,7 +17,7 @@ Tests cover crossed organization access, viewer writes, admin privilege escalati
 
 ## Initial HTTP integration
 
-`src/control/http.ts` exposes GET/POST handlers for organization projects and project environments. Creation returns `state: metadata_only`; it does not start runtime services. No organization creation, membership mutation or transfer endpoint is exposed yet. Requests use explicit Bearer tokens, not cookies. JSON bodies allow only a name, with a 4 KiB limit and five-second read deadline. Responses are not cacheable, and internal errors are sanitized.
+`src/control/http.ts` exposes GET/POST handlers for organization projects and project environments. Project creation returns `state: metadata_only`. Environment creation returns 202 with `state: queued`; the separate worker can start local runtime services. See [provisioning](PROVISIONING.md). No organization creation, membership mutation or transfer endpoint is exposed yet. Requests use explicit Bearer tokens, not cookies. JSON bodies allow only a name, with a 4 KiB limit and five-second read deadline. Responses are not cacheable, and internal errors are sanitized.
 
 `src/control/auth.ts` uses Supabase SDK getUser against one configured management endpoint for every request. The endpoint must have a dedicated Auth database and signing keys, separate from all application environments. Invalid credentials and anonymous identities are denied; unavailable verification fails closed. The caller cannot select the endpoint through a header or route. Network requests reject redirects and have a timeout. This design follows [Supabase getUser documentation](https://supabase.com/docs/reference/javascript/auth-getuser), checked 2026-09-20.
 

@@ -1,0 +1,33 @@
+{
+  "scope": "Single-host lab Auth/REST provisioning and reconciliation after simulated lost completion; not full Supabase or multi-host provisioning",
+  "checks": [
+    {
+      "check": "HTTP creation accepted for asynchronous provisioning",
+      "passed": true
+    },
+    {
+      "check": "durable job claimed",
+      "passed": true
+    },
+    {
+      "check": "provisioned Auth accepts signup",
+      "passed": true
+    },
+    {
+      "check": "running or completed operation survived catalog reopen",
+      "passed": true
+    },
+    {
+      "check": "worker reconciles to success",
+      "passed": true
+    },
+    {
+      "check": "retry preserved same database identity",
+      "passed": true
+    },
+    {
+      "check": "retry preserved Auth user data",
+      "passed": true
+    }
+  ]
+}

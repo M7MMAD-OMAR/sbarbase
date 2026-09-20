@@ -90,6 +90,25 @@ def provision_environment(e, credentials, checkpoint=lambda phase: None):
     checkpoint('permissions')
 
 
+def launch_services(e, v, pins):
+    auth = f'sbarbase-lab-{e}-auth'
+    rest = f'sbarbase-lab-{e}-rest'
+    launch(auth, pins['auth']['id'], {
+        'GOTRUE_API_HOST': '0.0.0.0', 'GOTRUE_API_PORT': '9999',
+        'API_EXTERNAL_URL': f'http://localhost/{e}/auth/v1',
+        'GOTRUE_SITE_URL': 'http://localhost', 'GOTRUE_DB_DRIVER': 'postgres',
+        'GOTRUE_DB_DATABASE_URL': f'postgres://{e}_auth:{v["auth"]}@{DB}:5432/{e}',
+        'GOTRUE_JWT_SECRET': v['jwt'], 'GOTRUE_JWT_AUD': 'authenticated',
+        'GOTRUE_JWT_DEFAULT_GROUP_NAME': 'authenticated', 'GOTRUE_JWT_ADMIN_ROLES': 'service_role',
+        'GOTRUE_EXTERNAL_EMAIL_ENABLED': 'true', 'GOTRUE_MAILER_AUTOCONFIRM': 'true',
+        'GOTRUE_DB_MAX_POOL_SIZE': '3', 'GOTRUE_DB_NAMESPACE': 'auth'}, '256m', .25, 9999)
+    launch(rest, pins['rest']['id'], {
+        'PGRST_DB_URI': f'postgres://{e}_rest:{v["rest"]}@{DB}:5432/{e}',
+        'PGRST_DB_SCHEMAS': 'public', 'PGRST_DB_ANON_ROLE': 'anon',
+        'PGRST_JWT_SECRET': v['jwt'], 'PGRST_DB_POOL': '3'}, '256m', .25, 3000)
+    return {'auth': port(auth,9999), 'rest': port(rest,3000)}
+
+
 def up():
     available = int(next(x.split()[1] for x in Path('/proc/meminfo').read_text().splitlines() if x.startswith('MemAvailable:')))
     if available < 6 * 1024 * 1024:
@@ -111,6 +130,9 @@ def up():
         values = {'admin': secrets.token_hex(24), 'environments': {e: {k: secrets.token_hex(32) for k in ('auth', 'rest', 'jwt')} for e in ENVS}}
         secure_file(secret_path, json.dumps(values))
     values = json.loads(secret_path.read_text())
+    environments = tuple(values['environments'])
+    if len(environments) > 5:
+        raise RuntimeError('Lab environment admission limit exceeded')
     net = docker('network', 'inspect', NETWORK, check=False)
     if net.returncode:
         docker('network', 'create', '--internal', '--label', LABEL, NETWORK)
@@ -131,7 +153,7 @@ def up():
         raise RuntimeError('Database readiness timed out')
     sql("DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname='anon') THEN CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN; CREATE ROLE service_role NOLOGIN BYPASSRLS; END IF; END $$;")
     hba = ['local all all trust', 'host all postgres 0.0.0.0/0 reject']
-    for e in ENVS:
+    for e in environments:
         v = values['environments'][e]
         provision_environment(e, v)
         for role in ('auth', 'rest'):
@@ -140,26 +162,11 @@ def up():
     docker('exec', '-i', DB, 'sh', '-c', 'cat > "$PGDATA/pg_hba.conf"', data='\n'.join(hba)+'\n')
     sql('SELECT pg_reload_conf();')
     endpoints = {}
-    for e in ENVS:
+    for e in environments:
         v = values['environments'][e]
-        auth = f'sbarbase-lab-{e}-auth'
-        rest = f'sbarbase-lab-{e}-rest'
-        launch(auth, pins['auth']['id'], {
-            'GOTRUE_API_HOST': '0.0.0.0', 'GOTRUE_API_PORT': '9999',
-            'API_EXTERNAL_URL': f'http://localhost/{e}/auth/v1',
-            'GOTRUE_SITE_URL': 'http://localhost', 'GOTRUE_DB_DRIVER': 'postgres',
-            'GOTRUE_DB_DATABASE_URL': f'postgres://{e}_auth:{v["auth"]}@{DB}:5432/{e}',
-            'GOTRUE_JWT_SECRET': v['jwt'], 'GOTRUE_JWT_AUD': 'authenticated',
-            'GOTRUE_JWT_DEFAULT_GROUP_NAME': 'authenticated', 'GOTRUE_JWT_ADMIN_ROLES': 'service_role',
-            'GOTRUE_EXTERNAL_EMAIL_ENABLED': 'true', 'GOTRUE_MAILER_AUTOCONFIRM': 'true',
-            'GOTRUE_DB_MAX_POOL_SIZE': '3', 'GOTRUE_DB_NAMESPACE': 'auth'}, '256m', .25, 9999)
-        launch(rest, pins['rest']['id'], {
-            'PGRST_DB_URI': f'postgres://{e}_rest:{v["rest"]}@{DB}:5432/{e}',
-            'PGRST_DB_SCHEMAS': 'public', 'PGRST_DB_ANON_ROLE': 'anon',
-            'PGRST_JWT_SECRET': v['jwt'], 'PGRST_DB_POOL': '3'}, '256m', .25, 3000)
-        endpoints[e] = {'auth': port(auth,9999), 'rest': port(rest,3000)}
+        endpoints[e] = launch_services(e, v, pins)
     (STATE / 'endpoints.json').write_text(json.dumps(endpoints, indent=2))
-    for e in ENVS:
+    for e in environments:
         for service, suffix in (('auth', '/health'), ('rest', '/')):
             for attempt in range(30):
                 try:
@@ -170,7 +177,7 @@ def up():
                     time.sleep(.5)
             else:
                 raise RuntimeError(f'{e} {service} readiness failed')
-    print('Lab started: 7 containers, aggregate limits 2560 MiB and 2.5 logical CPUs.')
+    print(f'Lab started: {1+2*len(environments)} containers, aggregate limits {1024+512*len(environments)} MiB and {1+.5*len(environments)} logical CPUs.')
     status()
 
 

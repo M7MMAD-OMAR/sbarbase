@@ -1,10 +1,11 @@
 import {Database} from 'bun:sqlite';
-import {randomUUID} from 'node:crypto';
+import {randomUUID,randomBytes} from 'node:crypto';
 import {chmodSync} from 'node:fs';
 
 export type MembershipRole = 'owner' | 'admin' | 'viewer';
 type Project = {id:string;organization:string;name:string};
 type Environment = {id:string;project:string;name:string};
+export type ProvisionJob = {environment:string;runtime:string;actor:string;organization:string;state:string;attempt:number;claim:string|null};
 
 /** Internal control-plane boundary. Actor IDs must come from verified management
  * authentication, never request bodies or application JWTs. Not an HTTP API.
@@ -26,6 +27,11 @@ export class Catalog {
       CREATE TABLE IF NOT EXISTS environments(id TEXT PRIMARY KEY,
         project TEXT NOT NULL REFERENCES projects(id),name TEXT NOT NULL,
         UNIQUE(project,name));
+      CREATE TABLE IF NOT EXISTS provision_jobs(
+        environment TEXT PRIMARY KEY REFERENCES environments(id),runtime TEXT NOT NULL UNIQUE,
+        actor TEXT NOT NULL,organization TEXT NOT NULL REFERENCES organizations(id),
+        state TEXT NOT NULL CHECK(state IN ('queued','running','succeeded','failed','cancelled')),
+        attempt INTEGER NOT NULL DEFAULT 0,claim TEXT);
       CREATE TABLE IF NOT EXISTS audit_events(
         sequence INTEGER PRIMARY KEY AUTOINCREMENT, actor TEXT NOT NULL,
         action TEXT NOT NULL, subject TEXT NOT NULL, detail TEXT NOT NULL, at INTEGER NOT NULL);
@@ -96,8 +102,10 @@ export class Catalog {
   createEnvironment(actor:string,project:string,name:string):string {
     const title=this.name(name),id=randomUUID();
     return this.db.transaction(()=>{
-      this.project(actor,project,['owner','admin']);
+      const parent=this.project(actor,project,['owner','admin']);
       this.db.query('INSERT INTO environments VALUES (?,?,?)').run(id,project,title);
+      this.db.query('INSERT INTO provision_jobs(environment,runtime,actor,organization,state) VALUES (?,?,?,?,?)')
+        .run(id,'e_'+randomBytes(12).toString('hex'),actor,parent.organization,'queued');
       this.record(actor,'environment.created',id,{project});return id;
     }).immediate();
   }
@@ -113,6 +121,62 @@ export class Catalog {
       return this.db.query<Environment,[string]>('SELECT * FROM environments WHERE project=? ORDER BY id').all(project);
     })();
   }
+  getProvision(actor:string,environment:string):ProvisionJob {
+    const env=this.db.query<Environment,[string]>('SELECT * FROM environments WHERE id=?').get(environment);
+    if(!env) throw new Error('Forbidden');
+    this.project(actor,env.project,['owner','admin','viewer']);
+    const job=this.db.query<ProvisionJob,[string]>('SELECT * FROM provision_jobs WHERE environment=?').get(environment);
+    if(!job) throw new Error('No provisioning operation');
+    return job;
+  }
+  /** Worker-only methods. Caller must hold the installation's exclusive worker
+   * lock across recovery, claim, external effects and completion. No time-based
+   * lease stealing: a slow Docker operation must not overlap another worker.
+   */
+  recoverProvisioning() {
+    this.db.query("UPDATE provision_jobs SET state='queued',claim=NULL WHERE state='running'").run();
+  }
+  claimProvision():ProvisionJob|null {
+    return this.db.transaction(()=>{
+      const jobs=this.db.query<ProvisionJob,[]>("SELECT * FROM provision_jobs WHERE state='queued' ORDER BY environment").all();
+      for(const job of jobs) {
+        const env=this.db.query<Environment,[string]>('SELECT * FROM environments WHERE id=?').get(job.environment);
+        try {
+          if(!env) throw new Error('Forbidden');
+          const parent=this.project(job.actor,env.project,['owner','admin']);
+          if(parent.organization!==job.organization) throw new Error('Forbidden');
+        } catch {
+          this.db.query("UPDATE provision_jobs SET state='cancelled' WHERE environment=?").run(job.environment);
+          this.record('system','provision.cancelled',job.environment,{});continue;
+        }
+        const claim=randomUUID();
+        this.db.query("UPDATE provision_jobs SET state='running',attempt=attempt+1,claim=? WHERE environment=?")
+          .run(claim,job.environment);
+        this.record('system','provision.started',job.environment,{attempt:job.attempt+1});
+        return {...job,state:'running',attempt:job.attempt+1,claim};
+      }
+      return null;
+    }).immediate();
+  }
+  finishProvision(environment:string,claim:string,success:boolean) {
+    return this.db.transaction(()=>{
+      const result=this.db.query("UPDATE provision_jobs SET state=?,claim=NULL WHERE environment=? AND claim=? AND state='running'")
+        .run(success?'succeeded':'failed',environment,claim);
+      if(result.changes!==1) throw new Error('Stale provisioning claim');
+      this.record('system',success?'provision.succeeded':'provision.failed',environment,{});
+    }).immediate();
+  }
+  retryProvision(actor:string,environment:string) {
+    this.db.transaction(()=>{
+      const env=this.db.query<Environment,[string]>('SELECT * FROM environments WHERE id=?').get(environment);
+      if(!env) throw new Error('Forbidden');
+      const parent=this.project(actor,env.project,['owner','admin']);
+      const result=this.db.query("UPDATE provision_jobs SET state='queued',actor=?,organization=?,claim=NULL WHERE environment=? AND state IN ('failed','cancelled')")
+        .run(actor,parent.organization,environment);
+      if(result.changes!==1) throw new Error('Operation is not retryable');
+      this.record(actor,'provision.retried',environment,{});
+    }).immediate();
+  }
   /** Metadata-only transfer. Requires owner authority in both organizations.
    * Runtime transfer must additionally revoke/rotate previously exposed access.
    * Do not expose as a complete project transfer until that workflow exists.
@@ -122,6 +186,8 @@ export class Catalog {
       const source=this.project(actor,project,['owner']);
       this.require(actor,destination,['owner']);
       if(source.organization===destination) return;
+      const active=this.db.query<{n:number},[string]>("SELECT count(*) n FROM provision_jobs j JOIN environments e ON e.id=j.environment WHERE e.project=? AND j.state='running'").get(project);
+      if(active?.n) throw new Error('Provisioning is active');
       this.db.query('UPDATE projects SET organization=? WHERE id=?').run(destination,project);
       this.record(actor,'project.ownership_changed',project,{from:source.organization,to:destination});
     }).immediate();

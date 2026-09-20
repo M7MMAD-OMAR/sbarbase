@@ -47,7 +47,7 @@ try {
  check('owner creates project metadata',created.status===201);
  const project=await created.json();
  const envPath=`/management/v1/projects/${project.id}/environments`;
- check('owner creates production metadata',(await request(owner.token,envPath,'POST',{name:'production'})).status===201);
+ check('owner queues production creation',(await request(owner.token,envPath,'POST',{name:'production'})).status===202);
  check('viewer reads project environments',(await request(viewer.token,envPath)).status===200);
  catalog.setMember(owner.id,organization,viewer.id,null);
  check('membership revocation denies same unexpired token',(await request(viewer.token,envPath)).status===403);

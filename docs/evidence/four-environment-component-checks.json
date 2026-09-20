@@ -1,0 +1,392 @@
+{
+  "checks": [
+    {
+      "check": "a_prod signup",
+      "passed": true
+    },
+    {
+      "check": "a_prod password login",
+      "passed": true
+    },
+    {
+      "check": "a_prod refresh",
+      "passed": true
+    },
+    {
+      "check": "a_prod owner insert",
+      "passed": true
+    },
+    {
+      "check": "a_prod owner read",
+      "passed": true
+    },
+    {
+      "check": "a_prod forged row owner denied",
+      "passed": true
+    },
+    {
+      "check": "a_prod second signup",
+      "passed": true
+    },
+    {
+      "check": "a_prod second user cannot read first",
+      "passed": true
+    },
+    {
+      "check": "a_prod auth own database accepted",
+      "passed": true
+    },
+    {
+      "check": "a_prod auth database a_stage denied",
+      "passed": true
+    },
+    {
+      "check": "a_prod auth database b_prod denied",
+      "passed": true
+    },
+    {
+      "check": "a_prod auth database e_5ee20977f1f47b698a014bcd denied",
+      "passed": true
+    },
+    {
+      "check": "a_prod auth admin database denied",
+      "passed": true
+    },
+    {
+      "check": "a_prod rest own database accepted",
+      "passed": true
+    },
+    {
+      "check": "a_prod rest database a_stage denied",
+      "passed": true
+    },
+    {
+      "check": "a_prod rest database b_prod denied",
+      "passed": true
+    },
+    {
+      "check": "a_prod rest database e_5ee20977f1f47b698a014bcd denied",
+      "passed": true
+    },
+    {
+      "check": "a_prod rest admin database denied",
+      "passed": true
+    },
+    {
+      "check": "a_stage signup",
+      "passed": true
+    },
+    {
+      "check": "a_stage password login",
+      "passed": true
+    },
+    {
+      "check": "a_stage refresh",
+      "passed": true
+    },
+    {
+      "check": "a_stage owner insert",
+      "passed": true
+    },
+    {
+      "check": "a_stage owner read",
+      "passed": true
+    },
+    {
+      "check": "a_stage forged row owner denied",
+      "passed": true
+    },
+    {
+      "check": "a_stage second signup",
+      "passed": true
+    },
+    {
+      "check": "a_stage second user cannot read first",
+      "passed": true
+    },
+    {
+      "check": "a_stage auth own database accepted",
+      "passed": true
+    },
+    {
+      "check": "a_stage auth database a_prod denied",
+      "passed": true
+    },
+    {
+      "check": "a_stage auth database b_prod denied",
+      "passed": true
+    },
+    {
+      "check": "a_stage auth database e_5ee20977f1f47b698a014bcd denied",
+      "passed": true
+    },
+    {
+      "check": "a_stage auth admin database denied",
+      "passed": true
+    },
+    {
+      "check": "a_stage rest own database accepted",
+      "passed": true
+    },
+    {
+      "check": "a_stage rest database a_prod denied",
+      "passed": true
+    },
+    {
+      "check": "a_stage rest database b_prod denied",
+      "passed": true
+    },
+    {
+      "check": "a_stage rest database e_5ee20977f1f47b698a014bcd denied",
+      "passed": true
+    },
+    {
+      "check": "a_stage rest admin database denied",
+      "passed": true
+    },
+    {
+      "check": "b_prod signup",
+      "passed": true
+    },
+    {
+      "check": "b_prod password login",
+      "passed": true
+    },
+    {
+      "check": "b_prod refresh",
+      "passed": true
+    },
+    {
+      "check": "b_prod owner insert",
+      "passed": true
+    },
+    {
+      "check": "b_prod owner read",
+      "passed": true
+    },
+    {
+      "check": "b_prod forged row owner denied",
+      "passed": true
+    },
+    {
+      "check": "b_prod second signup",
+      "passed": true
+    },
+    {
+      "check": "b_prod second user cannot read first",
+      "passed": true
+    },
+    {
+      "check": "b_prod auth own database accepted",
+      "passed": true
+    },
+    {
+      "check": "b_prod auth database a_prod denied",
+      "passed": true
+    },
+    {
+      "check": "b_prod auth database a_stage denied",
+      "passed": true
+    },
+    {
+      "check": "b_prod auth database e_5ee20977f1f47b698a014bcd denied",
+      "passed": true
+    },
+    {
+      "check": "b_prod auth admin database denied",
+      "passed": true
+    },
+    {
+      "check": "b_prod rest own database accepted",
+      "passed": true
+    },
+    {
+      "check": "b_prod rest database a_prod denied",
+      "passed": true
+    },
+    {
+      "check": "b_prod rest database a_stage denied",
+      "passed": true
+    },
+    {
+      "check": "b_prod rest database e_5ee20977f1f47b698a014bcd denied",
+      "passed": true
+    },
+    {
+      "check": "b_prod rest admin database denied",
+      "passed": true
+    },
+    {
+      "check": "e_5ee20977f1f47b698a014bcd signup",
+      "passed": true
+    },
+    {
+      "check": "e_5ee20977f1f47b698a014bcd password login",
+      "passed": true
+    },
+    {
+      "check": "e_5ee20977f1f47b698a014bcd refresh",
+      "passed": true
+    },
+    {
+      "check": "e_5ee20977f1f47b698a014bcd owner insert",
+      "passed": true
+    },
+    {
+      "check": "e_5ee20977f1f47b698a014bcd owner read",
+      "passed": true
+    },
+    {
+      "check": "e_5ee20977f1f47b698a014bcd forged row owner denied",
+      "passed": true
+    },
+    {
+      "check": "e_5ee20977f1f47b698a014bcd second signup",
+      "passed": true
+    },
+    {
+      "check": "e_5ee20977f1f47b698a014bcd second user cannot read first",
+      "passed": true
+    },
+    {
+      "check": "e_5ee20977f1f47b698a014bcd auth own database accepted",
+      "passed": true
+    },
+    {
+      "check": "e_5ee20977f1f47b698a014bcd auth database a_prod denied",
+      "passed": true
+    },
+    {
+      "check": "e_5ee20977f1f47b698a014bcd auth database a_stage denied",
+      "passed": true
+    },
+    {
+      "check": "e_5ee20977f1f47b698a014bcd auth database b_prod denied",
+      "passed": true
+    },
+    {
+      "check": "e_5ee20977f1f47b698a014bcd auth admin database denied",
+      "passed": true
+    },
+    {
+      "check": "e_5ee20977f1f47b698a014bcd rest own database accepted",
+      "passed": true
+    },
+    {
+      "check": "e_5ee20977f1f47b698a014bcd rest database a_prod denied",
+      "passed": true
+    },
+    {
+      "check": "e_5ee20977f1f47b698a014bcd rest database a_stage denied",
+      "passed": true
+    },
+    {
+      "check": "e_5ee20977f1f47b698a014bcd rest database b_prod denied",
+      "passed": true
+    },
+    {
+      "check": "e_5ee20977f1f47b698a014bcd rest admin database denied",
+      "passed": true
+    },
+    {
+      "check": "same email has different identity in each environment",
+      "passed": true
+    },
+    {
+      "check": "a_prod token rejected by a_stage REST",
+      "passed": true
+    },
+    {
+      "check": "a_prod token rejected by a_stage Auth",
+      "passed": true
+    },
+    {
+      "check": "a_prod token rejected by b_prod REST",
+      "passed": true
+    },
+    {
+      "check": "a_prod token rejected by b_prod Auth",
+      "passed": true
+    },
+    {
+      "check": "a_prod token rejected by e_5ee20977f1f47b698a014bcd REST",
+      "passed": true
+    },
+    {
+      "check": "a_prod token rejected by e_5ee20977f1f47b698a014bcd Auth",
+      "passed": true
+    },
+    {
+      "check": "a_stage token rejected by a_prod REST",
+      "passed": true
+    },
+    {
+      "check": "a_stage token rejected by a_prod Auth",
+      "passed": true
+    },
+    {
+      "check": "a_stage token rejected by b_prod REST",
+      "passed": true
+    },
+    {
+      "check": "a_stage token rejected by b_prod Auth",
+      "passed": true
+    },
+    {
+      "check": "a_stage token rejected by e_5ee20977f1f47b698a014bcd REST",
+      "passed": true
+    },
+    {
+      "check": "a_stage token rejected by e_5ee20977f1f47b698a014bcd Auth",
+      "passed": true
+    },
+    {
+      "check": "b_prod token rejected by a_prod REST",
+      "passed": true
+    },
+    {
+      "check": "b_prod token rejected by a_prod Auth",
+      "passed": true
+    },
+    {
+      "check": "b_prod token rejected by a_stage REST",
+      "passed": true
+    },
+    {
+      "check": "b_prod token rejected by a_stage Auth",
+      "passed": true
+    },
+    {
+      "check": "b_prod token rejected by e_5ee20977f1f47b698a014bcd REST",
+      "passed": true
+    },
+    {
+      "check": "b_prod token rejected by e_5ee20977f1f47b698a014bcd Auth",
+      "passed": true
+    },
+    {
+      "check": "e_5ee20977f1f47b698a014bcd token rejected by a_prod REST",
+      "passed": true
+    },
+    {
+      "check": "e_5ee20977f1f47b698a014bcd token rejected by a_prod Auth",
+      "passed": true
+    },
+    {
+      "check": "e_5ee20977f1f47b698a014bcd token rejected by a_stage REST",
+      "passed": true
+    },
+    {
+      "check": "e_5ee20977f1f47b698a014bcd token rejected by a_stage Auth",
+      "passed": true
+    },
+    {
+      "check": "e_5ee20977f1f47b698a014bcd token rejected by b_prod REST",
+      "passed": true
+    },
+    {
+      "check": "e_5ee20977f1f47b698a014bcd token rejected by b_prod Auth",
+      "passed": true
+    }
+  ]
+}

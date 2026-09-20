@@ -39,11 +39,12 @@ def db_request(env, role, password, database, query):
 
 def verify():
     values = json.loads((run.PRIVATE/'lab.json').read_text())
+    environments = tuple(values['environments'])
     tokens = {}
     stamp = secrets.token_hex(6)
     email = f'lab-{stamp}@example.com'
     password = secrets.token_urlsafe(24)
-    for e in run.ENVS:
+    for e in environments:
         auth = run.port(f'sbarbase-lab-{e}-auth', 9999)
         rest = run.port(f'sbarbase-lab-{e}-rest', 3000)
         run.sql("""
@@ -82,13 +83,13 @@ NOTIFY pgrst, 'reload schema';
         for role in ('auth','rest'):
             pw=values['environments'][e][role]
             expect(e+' '+role+' own database accepted',db_request(e,role,pw,e,'SELECT 1;').returncode==0)
-            for target in run.ENVS:
+            for target in environments:
                 if target != e:
                     expect(e+' '+role+' database '+target+' denied',db_request(e,role,pw,target,'SELECT 1;').returncode!=0)
             expect(e+' '+role+' admin database denied',db_request(e,role,pw,'postgres','SELECT 1;').returncode!=0)
-    expect('same email has different identity in each environment',len({u for _,u in tokens.values()})==3)
+    expect('same email has different identity in each environment',len({u for _,u in tokens.values()})==len(environments))
     for source,(token,_) in tokens.items():
-        for target in run.ENVS:
+        for target in environments:
             if source != target:
                 rest=run.port(f'sbarbase-lab-{target}-rest',3000)
                 auth=run.port(f'sbarbase-lab-{target}-auth',9999)

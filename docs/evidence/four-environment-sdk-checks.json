@@ -1,0 +1,182 @@
+{
+  "sdk": "2.116.0",
+  "scope": "environment key gateway with persisted hashed publishable-key metadata, Auth and REST only",
+  "checks": [
+    {
+      "check": "a_prod key rejected by a_stage gateway",
+      "passed": true
+    },
+    {
+      "check": "a_prod key rejected by b_prod gateway",
+      "passed": true
+    },
+    {
+      "check": "a_prod key rejected by e_5ee20977f1f47b698a014bcd gateway",
+      "passed": true
+    },
+    {
+      "check": "a_stage key rejected by a_prod gateway",
+      "passed": true
+    },
+    {
+      "check": "a_stage key rejected by b_prod gateway",
+      "passed": true
+    },
+    {
+      "check": "a_stage key rejected by e_5ee20977f1f47b698a014bcd gateway",
+      "passed": true
+    },
+    {
+      "check": "b_prod key rejected by a_prod gateway",
+      "passed": true
+    },
+    {
+      "check": "b_prod key rejected by a_stage gateway",
+      "passed": true
+    },
+    {
+      "check": "b_prod key rejected by e_5ee20977f1f47b698a014bcd gateway",
+      "passed": true
+    },
+    {
+      "check": "e_5ee20977f1f47b698a014bcd key rejected by a_prod gateway",
+      "passed": true
+    },
+    {
+      "check": "e_5ee20977f1f47b698a014bcd key rejected by a_stage gateway",
+      "passed": true
+    },
+    {
+      "check": "e_5ee20977f1f47b698a014bcd key rejected by b_prod gateway",
+      "passed": true
+    },
+    {
+      "check": "a_prod SDK signup",
+      "passed": true
+    },
+    {
+      "check": "a_prod SDK refresh",
+      "passed": true
+    },
+    {
+      "check": "a_prod SDK insert/select",
+      "passed": true
+    },
+    {
+      "check": "a_prod SDK update",
+      "passed": true
+    },
+    {
+      "check": "a_prod SDK read",
+      "passed": true
+    },
+    {
+      "check": "a_prod SDK delete",
+      "passed": true
+    },
+    {
+      "check": "a_prod SDK logout",
+      "passed": true
+    },
+    {
+      "check": "a_prod revoked stored key denied",
+      "passed": true
+    },
+    {
+      "check": "a_stage SDK signup",
+      "passed": true
+    },
+    {
+      "check": "a_stage SDK refresh",
+      "passed": true
+    },
+    {
+      "check": "a_stage SDK insert/select",
+      "passed": true
+    },
+    {
+      "check": "a_stage SDK update",
+      "passed": true
+    },
+    {
+      "check": "a_stage SDK read",
+      "passed": true
+    },
+    {
+      "check": "a_stage SDK delete",
+      "passed": true
+    },
+    {
+      "check": "a_stage SDK logout",
+      "passed": true
+    },
+    {
+      "check": "a_stage revoked stored key denied",
+      "passed": true
+    },
+    {
+      "check": "b_prod SDK signup",
+      "passed": true
+    },
+    {
+      "check": "b_prod SDK refresh",
+      "passed": true
+    },
+    {
+      "check": "b_prod SDK insert/select",
+      "passed": true
+    },
+    {
+      "check": "b_prod SDK update",
+      "passed": true
+    },
+    {
+      "check": "b_prod SDK read",
+      "passed": true
+    },
+    {
+      "check": "b_prod SDK delete",
+      "passed": true
+    },
+    {
+      "check": "b_prod SDK logout",
+      "passed": true
+    },
+    {
+      "check": "b_prod revoked stored key denied",
+      "passed": true
+    },
+    {
+      "check": "e_5ee20977f1f47b698a014bcd SDK signup",
+      "passed": true
+    },
+    {
+      "check": "e_5ee20977f1f47b698a014bcd SDK refresh",
+      "passed": true
+    },
+    {
+      "check": "e_5ee20977f1f47b698a014bcd SDK insert/select",
+      "passed": true
+    },
+    {
+      "check": "e_5ee20977f1f47b698a014bcd SDK update",
+      "passed": true
+    },
+    {
+      "check": "e_5ee20977f1f47b698a014bcd SDK read",
+      "passed": true
+    },
+    {
+      "check": "e_5ee20977f1f47b698a014bcd SDK delete",
+      "passed": true
+    },
+    {
+      "check": "e_5ee20977f1f47b698a014bcd SDK logout",
+      "passed": true
+    },
+    {
+      "check": "e_5ee20977f1f47b698a014bcd revoked stored key denied",
+      "passed": true
+    }
+  ]
+}
