@@ -1,3 +1,4 @@
+import {spawnWorkerEffect} from './worker-effect';
 import {Catalog} from '../src/control/catalog';
 
 // Invoke through worker.py, which holds the installation-wide worker lock.
@@ -14,7 +15,7 @@ try {
   const job=catalog.claimProvision();
   if(!job) {if(!watch)break;await Bun.sleep(500);continue;}
   const command=upstream?['/usr/bin/python3','lab/durable_runtime.py','provision',job.runtime]:['/usr/bin/python3','lab/provision.py',job.runtime];
-  const child=Bun.spawn(command,{stdout:'ignore',stderr:'ignore'});
+  const child=spawnWorkerEffect(command,Number(process.env.SBARBASE_WORKER_FD),upstream?'.lab/upstream/worker.lock':'.lab/worker.lock');
   const exitCode=await child.exited;
   const ok=exitCode===0;
   // An interrupted external effect remains recoverable, not falsely completed.

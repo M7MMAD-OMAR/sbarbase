@@ -187,3 +187,7 @@ Consolidated [HANDOFF.md](docs/HANDOFF.md) with current decisions, alternatives,
 ## Supervisor crash and ownership checkpoint
 
 Parent-bound direct children now exit when the supervisor dies. Process-group cleanup retains an unreaped leader through all signals, avoiding numeric identity reuse; already-reaped leaders authorize no group signals. Two regression tests failed before the fix. All 66 Python tests now pass; nine live supervisor SIGKILL/restart checks pass with target metadata and source fence preserved. Adversarial review found no remaining must-fix in this scope. All owned runtimes stopped after the probe. Active provisioning and in-flight writes remain unverified.
+
+## Provisioning effect lock checkpoint
+
+The direct provisioning process now inherits the same worker flock, validates it before execution and retains it through exec. Worker death cannot release ownership while that process is still alive. A real-process regression failed before the fix; 68 Python tests, 60 Bun tests with 314 assertions and worker strict types now pass. Review found no must-fix for this scope. No Docker runtime or catalog job was created. Provisioner death, downstream Docker effects and bounded cancellation remain open; see docs/WORKER-EFFECT-OWNERSHIP.md.

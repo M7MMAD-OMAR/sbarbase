@@ -27,6 +27,7 @@ try:
 except BlockingIOError:
     raise SystemExit('Another provisioning worker is active')
 os.set_inheritable(lock, True)
+os.environ['SBARBASE_WORKER_FD'] = str(lock)
 os.environ['SBARBASE_WORKER_LOCKED'] = '1'
 os.environ['SBARBASE_RUNTIME_PROFILE'] = profile
 os.environ['SBARBASE_WORKER_WATCH'] = '1' if args.watch else '0'
