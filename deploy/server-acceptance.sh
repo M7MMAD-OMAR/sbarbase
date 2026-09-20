@@ -65,6 +65,33 @@ if [ -n "$BUN_DIR" ]; then
   printf 'ok: bun directory %s added to PATH\n' "$BUN_DIR"
 fi
 
+# The installation's state belongs to an account, and its ownership model refuses
+# a process whose uid does not match the files it holds ("HBA ownership inode
+# mismatch"). So every step that touches the installation runs as that account,
+# and root is used only for the two unit steps. Without --service-user the
+# checkout's own owner is used, which is who a sudo run usually is.
+REPO_OWNER="$(stat -c '%U' "$REPO_ROOT")"
+if [ -z "$SERVICE_USER" ]; then
+  SERVICE_USER="$REPO_OWNER"
+  printf 'note: --service-user not given; using the checkout owner %s\n' "$SERVICE_USER"
+fi
+run_as_installation() {
+  if [ "$(id -u)" != "0" ] || [ "$SERVICE_USER" = "root" ]; then
+    "$@"
+    return
+  fi
+  if ! id -u "$SERVICE_USER" >/dev/null 2>&1; then
+    fail "--service-user $SERVICE_USER does not exist on this host"
+  fi
+  local environment=("PATH=$PATH")
+  if [ -n "${DOCKER_HOST:-}" ]; then environment+=("DOCKER_HOST=$DOCKER_HOST"); fi
+  sudo -u "$SERVICE_USER" -H env "${environment[@]}" "$@"
+}
+# System units need root; a non-root run uses sudo when it has the right to.
+unit_control() {
+  if [ "$(id -u)" = "0" ]; then systemctl "$@"; else sudo -n systemctl "$@"; fi
+}
+
 step "prerequisites"
 for tool in docker bun git; do
   if ! command -v "$tool" >/dev/null 2>&1; then
@@ -93,7 +120,7 @@ if [ -n "$BOOTSTRAP" ]; then
 fi
 
 step "read-only preflight"
-"$PYTHON" lab/install_server.py check || fail "preflight refused; fix the blockers above before installing"
+run_as_installation "$PYTHON" lab/install_server.py check || fail "preflight refused; fix the blockers above before installing"
 
 if [ "$REHEARSAL" = "0" ]; then
   step "done"
@@ -102,7 +129,7 @@ if [ "$REHEARSAL" = "0" ]; then
 fi
 
 step "console static-serving check"
-if ! bun lab/console-serve-check.ts; then
+if ! run_as_installation bun lab/console-serve-check.ts; then
   if [ -f docs/evidence/console-serve.json ]; then
     fail "console static-serving check failed; the recorded findings are in docs/evidence/console-serve.json"
   else
@@ -111,7 +138,7 @@ if ! bun lab/console-serve-check.ts; then
 fi
 
 step "TLS termination check (reference proxy)"
-if ! "$PYTHON" lab/tls_termination_check.py; then
+if ! run_as_installation "$PYTHON" lab/tls_termination_check.py; then
   if [ -f docs/evidence/tls-termination.json ]; then
     fail "TLS termination check failed; the recorded findings are in docs/evidence/tls-termination.json"
   else
@@ -127,10 +154,10 @@ if [ -n "$BUN_DIR" ]; then supervise_args+=(--bun-dir "$BUN_DIR"); fi
 if [ "$INSTALL_UNIT" = "1" ]; then
   [ "$(id -u)" = "0" ] || fail "--install-unit needs root (run the whole script with sudo)"
   "$PYTHON" lab/install_server.py "${supervise_args[@]}" --apply || fail "the supervisor unit could not be installed"
-  systemctl is-active --quiet sbarbase.service || fail "sbarbase.service is not active after install"
+  unit_control is-active --quiet sbarbase.service || fail "sbarbase.service is not active after install"
   printf 'ok: sbarbase.service installed, enabled and active\n'
 else
-  "$PYTHON" lab/install_server.py "${supervise_args[@]}" || fail "the supervisor unit did not render and verify for this installation"
+  run_as_installation "$PYTHON" lab/install_server.py "${supervise_args[@]}" || fail "the supervisor unit did not render and verify for this installation"
 fi
 "$PYTHON" - <<'PY'
 import json
@@ -148,7 +175,7 @@ step "release the supervised installation for the rehearsal"
 restore_unit_on_exit() {
   if [ "${STOPPED_UNIT:-0}" = "1" ]; then
     printf '\n== restore the supervised installation\n'
-    if systemctl start sbarbase.service; then
+    if unit_control start sbarbase.service; then
       if [ "$(unit_state)" = "active" ]; then printf 'ok: sbarbase.service active again\n';
       else printf 'FAIL: sbarbase.service did not become active again\n' >&2; fi
     else
@@ -159,7 +186,7 @@ restore_unit_on_exit() {
 trap restore_unit_on_exit EXIT
 STOPPED_UNIT=0
 if [ "$(unit_state)" = "active" ] || [ "$(unit_state)" = "activating" ]; then
-  systemctl stop sbarbase.service || fail "sbarbase.service could not be stopped for the rehearsal"
+  unit_control stop sbarbase.service || fail "sbarbase.service could not be stopped for the rehearsal"
   STOPPED_UNIT=1
   for _ in $(seq 1 120); do
     if [ "$(unit_state)" = "inactive" ]; then break; fi
@@ -174,7 +201,7 @@ fi
 rehearsal_args=(--attempts 3 --require-unit --evidence docs/evidence/server-acceptance-rehearsal.json)
 if [ -n "$BOOTSTRAP" ]; then rehearsal_args+=(--bootstrap-file "$BOOTSTRAP"); fi
 if [ "$SKIP_INSTALL" = "1" ]; then rehearsal_args+=(--skip-install); fi
-if ! "$PYTHON" lab/deployment_rehearsal.py "${rehearsal_args[@]}"; then
+if ! run_as_installation "$PYTHON" lab/deployment_rehearsal.py "${rehearsal_args[@]}"; then
   if [ -f docs/evidence/server-acceptance-rehearsal.json ]; then
     fail "rehearsal failed; the recorded findings are in docs/evidence/server-acceptance-rehearsal.json"
   else
@@ -184,13 +211,15 @@ fi
 
 if [ "${STOPPED_UNIT:-0}" = "1" ]; then
   restore_unit_on_exit
-  systemctl is-active --quiet sbarbase.service || fail "sbarbase.service is not active after the rehearsal"
+  unit_control is-active --quiet sbarbase.service || fail "sbarbase.service is not active after the rehearsal"
 fi
 
 step "evidence"
 evidence=docs/evidence/server-acceptance-rehearsal.json
 [ -f "$evidence" ] || fail "rehearsal reported success but wrote no evidence"
-cp "$evidence" docs/evidence/server-acceptance-latest.json
+run_as_installation cp "$evidence" docs/evidence/server-acceptance-latest.json
+# Read-only summary: it prints, it writes nothing, and running it under sudo would
+# put a password prompt between the here-document and python.
 "$PYTHON" - "$evidence" <<'PY' || fail "evidence could not be summarised"
 import json,sys
 record=json.load(open(sys.argv[1]))

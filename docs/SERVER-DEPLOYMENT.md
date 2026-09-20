@@ -162,6 +162,16 @@ Pass `--bun-dir` (the script adds it to `PATH` and uses it in the unit) whenever
 Bun is not in a system directory; without it the script stops at the
 prerequisite step and names the flag.
 
+`sudo` is used for the two unit steps only. Everything that touches the
+installation runs as the account that owns it (`--service-user`, or the checkout's
+owner when the flag is omitted), because the state carries its owner and the
+runtime refuses a process whose uid does not match the files it holds
+(`HBA ownership inode mismatch`): running the preflight, the checks or the
+rehearsal as root against a service-account installation fails, and a root-run
+install would leave files the service cannot use. The script does that
+substitution itself, so the single `sudo` invocation above is still the whole
+command.
+
 An acceptance run writes its rehearsal to
 `docs/evidence/server-acceptance-rehearsal.json` and copies it to
 `server-acceptance-latest.json`, leaving the plain

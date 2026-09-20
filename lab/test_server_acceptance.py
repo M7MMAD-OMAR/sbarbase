@@ -102,12 +102,12 @@ class AcceptanceScriptContractTests(unittest.TestCase):
         self.assertIn('[ -f docs/evidence/server-acceptance-rehearsal.json ]',self.source)
 
     def test_the_unit_is_released_before_the_rehearsal_and_restored_after(self):
-        stop=self.source.index('systemctl stop sbarbase.service')
+        stop=self.source.index('unit_control stop sbarbase.service')
         rehearsal=self.source.index('lab/deployment_rehearsal.py "${rehearsal_args[@]}"')
-        restart=self.source.index('systemctl start sbarbase.service')
         self.assertLess(stop,rehearsal)
         # the restore runs from a trap, and is also called explicitly afterwards
         self.assertIn('trap restore_unit_on_exit EXIT',self.source)
+        self.assertIn('unit_control start sbarbase.service',self.source)
         self.assertGreater(self.source.rindex('restore_unit_on_exit'),rehearsal)
         self.assertIn('did not stop',self.source)
 
@@ -126,8 +126,8 @@ class AcceptanceScriptContractTests(unittest.TestCase):
             if lines[start].rstrip().endswith('}'):return lines[start]+'\n'
             end=next(i for i in range(start+1,len(lines)) if lines[i]=='}')
             return '\n'.join(lines[start:end+1])+'\n'
-        harness=('systemctl() { echo active; return 0; }; STOPPED_UNIT=1; '+block('unit_state()')
-                 +block('restore_unit_on_exit()')+'restore_unit_on_exit')
+        harness=('systemctl() { echo active; return 0; }; unit_control() { systemctl "$@"; }; STOPPED_UNIT=1; '
+                 +block('unit_state()')+block('restore_unit_on_exit()')+'restore_unit_on_exit')
         result=subprocess.run(['bash','-c',harness],capture_output=True,text=True)
         self.assertEqual(result.returncode,0,result.stderr)
         self.assertIn('sbarbase.service active again',result.stdout)
@@ -142,6 +142,38 @@ class AcceptanceScriptContractTests(unittest.TestCase):
         script='systemctl() { echo inactive; return 3; }; '+definition+'; printf "[%s]" "$(unit_state)"'
         result=subprocess.run(['bash','-c',script],capture_output=True,text=True)
         self.assertEqual(result.stdout,'[inactive]',result.stdout+result.stderr)
+
+    def test_every_step_that_touches_the_installation_runs_as_its_account(self):
+        for step in ('run_as_installation "$PYTHON" lab/install_server.py check',
+                     'run_as_installation bun lab/console-serve-check.ts',
+                     'run_as_installation "$PYTHON" lab/tls_termination_check.py',
+                     'run_as_installation "$PYTHON" lab/deployment_rehearsal.py'):
+            self.assertIn(step,self.source)
+        # the unit install itself needs root, and only it
+        self.assertIn('"$PYTHON" lab/install_server.py "${supervise_args[@]}" --apply',self.source)
+        self.assertNotIn('run_as_installation "$PYTHON" lab/install_server.py "${supervise_args[@]}" --apply',self.source)
+
+    def test_system_control_uses_sudo_when_the_run_is_not_root(self):
+        self.assertIn('unit_control() {',self.source)
+        self.assertIn('sudo -n systemctl "$@"',self.source)
+        for call in ('unit_control stop sbarbase.service','unit_control start sbarbase.service',
+                     'unit_control is-active --quiet sbarbase.service'):
+            self.assertIn(call,self.source)
+
+    def test_the_service_user_defaults_to_the_checkout_owner(self):
+        self.assertIn("REPO_OWNER=\"$(stat -c '%U' \"$REPO_ROOT\")\"",self.source)
+        self.assertIn('using the checkout owner',self.source)
+
+    def test_the_wrapper_runs_the_command_directly_when_the_run_is_not_root(self):
+        lines=self.source.splitlines()
+        start=next(i for i,line in enumerate(lines) if line.startswith('run_as_installation()'))
+        end=next(i for i in range(start+1,len(lines)) if lines[i]=='}')
+        definition='\n'.join(lines[start:end+1])+'\n'
+        harness=('fail() { echo "fail: $1" >&2; return 1; }; SERVICE_USER=sbarah; '
+                 +definition+'run_as_installation bash -c "echo ran-as $(id -un)"')
+        result=subprocess.run(['bash','-c',harness],capture_output=True,text=True)
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertIn('ran-as '+subprocess.run(['id','-un'],capture_output=True,text=True).stdout.strip(),result.stdout)
 
     def test_the_step_messages_say_whether_evidence_was_written(self):
         for path in ('docs/evidence/console-serve.json','docs/evidence/tls-termination.json'):
