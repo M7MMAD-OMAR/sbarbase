@@ -14,31 +14,43 @@ ROOT = Path(__file__).resolve().parents[1]
 STATE = ROOT / '.lab/upstream'
 
 
-def terminate_group(process, grace=20):
-    """Drain the worker first, then reap its process group after an abnormal exit.
+def child_status(process):
+    """Observe our child without releasing its PID reservation by reaping it."""
+    if process.returncode is not None:
+        return process.returncode
+    result = os.waitid(os.P_PID, process.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT)
+    if result is None:
+        return None
+    return result.si_status if result.si_code == os.CLD_EXITED else -result.si_status
 
-    Every process passed here was created with start_new_session=True. Never
-    accept process IDs from a persisted descriptor as authority to kill.
+
+def terminate_group(process, grace=20):
+    """Clean an owned session before reaping its leader. Never use saved PIDs.
+
+    Caller exclusively owns child waiting. Already reaped leaders no longer
+    authorize group signals; their descendants require separate containment.
     """
-    if process.poll() is None:
-        process.terminate()
+    if process.returncode is not None:
+        return
+    try:
+        status = child_status(process)
+    except ChildProcessError:
+        return
+    if status is None:
+        # Popen.terminate() polls internally, which could reap the leader.
+        os.kill(process.pid, signal.SIGTERM)
+        deadline = time.monotonic() + grace
+        while child_status(process) is None and time.monotonic() < deadline:
+            time.sleep(.02)
+    for sig in (signal.SIGTERM, signal.SIGKILL):
         try:
-            process.wait(timeout=grace)
-        except subprocess.TimeoutExpired:
+            os.killpg(process.pid, sig)
+        except ProcessLookupError:
             pass
-    try:
-        os.killpg(process.pid, signal.SIGTERM)
-    except ProcessLookupError:
-        pass
-    try:
-        process.wait(timeout=2)
-    except subprocess.TimeoutExpired:
-        pass
-    # The leader can be gone while an interrupted provisioner is still alive.
-    try:
-        os.killpg(process.pid, signal.SIGKILL)
-    except ProcessLookupError:
-        pass
+        if sig == signal.SIGTERM:
+            deadline = time.monotonic() + 2
+            while child_status(process) is None and time.monotonic() < deadline:
+                time.sleep(.02)
     process.wait()
 
 
@@ -51,7 +63,7 @@ class Supervisor:
         self.worker_fd = worker_fd
 
     def spawn(self, command):
-        return subprocess.Popen(command, cwd=ROOT, start_new_session=True)
+        return subprocess.Popen(['/usr/bin/python3','lab/parent_bound.py',str(os.getpid()),*command], cwd=ROOT, start_new_session=True)
 
     def descriptor(self):
         record = {'pid': os.getpid(), 'serverPid': self.server.pid if self.server else None,
@@ -64,15 +76,15 @@ class Supervisor:
     def start_worker(self):
         if self.worker_fd is None:
             raise RuntimeError('Supervisor requires an exclusive worker lock')
-        self.worker = subprocess.Popen(['/usr/bin/python3', 'lab/worker.py', '--upstream', '--watch'],
+        self.worker = subprocess.Popen(['/usr/bin/python3','lab/parent_bound.py',str(os.getpid()),'/usr/bin/python3', 'lab/worker.py', '--upstream', '--watch'],
                                        cwd=ROOT, start_new_session=True, pass_fds=(self.worker_fd,),
                                        env=dict(os.environ, SBARBASE_WORKER_FD=str(self.worker_fd)))
         self.descriptor()
 
     def check(self):
-        if self.server.poll() is not None:
+        if child_status(self.server) is not None:
             raise RuntimeError('Local API exited; stopping the installation')
-        if self.worker.poll() is not None:
+        if child_status(self.worker) is not None:
             terminate_group(self.worker, grace=0)
             now = time.monotonic()
             while self.restarts and now-self.restarts[0] > 60:
@@ -101,15 +113,15 @@ class Supervisor:
 
 
 def run_stage(command, stop_event, timeout=180):
-    process = subprocess.Popen(command, cwd=ROOT, start_new_session=True)
+    process = subprocess.Popen(['/usr/bin/python3','lab/parent_bound.py',str(os.getpid()),*command], cwd=ROOT, start_new_session=True)
     deadline = time.monotonic()+timeout
     try:
-        while process.poll() is None:
+        while child_status(process) is None:
             if stop_event.wait(.1):
                 raise InterruptedError('Local installation startup cancelled')
             if time.monotonic() >= deadline:
                 raise RuntimeError('Local installation stage timed out')
-        return process.returncode
+        return child_status(process)
     finally:
         # A failed stage leader may leave a Docker CLI child holding a lock.
         terminate_group(process, grace=2)

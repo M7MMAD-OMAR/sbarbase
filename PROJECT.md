@@ -183,3 +183,7 @@ Normal dev.py now supervises source neighbors and moved target through a combine
 ## Documentation handoff checkpoint
 
 Consolidated [HANDOFF.md](docs/HANDOFF.md) with current decisions, alternatives, source research, saved diagrams and a portable continuation prompt. [RESUME-CHECKPOINT.md](docs/RESUME-CHECKPOINT.md) records the nine-check idle-supervisor SIGKILL/restart pass and two unresolved review findings: process-group identity after reaping and HTTP readiness polling. Latest recorded Python suite: 64 tests. Supervisor implementation remains uncommitted and explicitly unfinished. No production or 10/100-project capacity claim is made.
+
+## Supervisor crash and ownership checkpoint
+
+Parent-bound direct children now exit when the supervisor dies. Process-group cleanup retains an unreaped leader through all signals, avoiding numeric identity reuse; already-reaped leaders authorize no group signals. Two regression tests failed before the fix. All 66 Python tests now pass; nine live supervisor SIGKILL/restart checks pass with target metadata and source fence preserved. Adversarial review found no remaining must-fix in this scope. All owned runtimes stopped after the probe. Active provisioning and in-flight writes remain unverified.

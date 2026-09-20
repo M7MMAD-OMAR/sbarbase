@@ -16,6 +16,30 @@ PYTHON = '/usr/bin/python3'
 
 
 class SupervisorTests(unittest.TestCase):
+    def test_reaped_child_never_signals_numeric_group(self):
+        child = subprocess.Popen([PYTHON, '-c', 'pass'], start_new_session=True)
+        child.wait(timeout=5)
+        with patch.object(dev.os, 'killpg') as kill:
+            dev.terminate_group(child, grace=0)
+        kill.assert_not_called()
+
+    def test_group_cleanup_retains_owned_leader(self):
+        child = subprocess.Popen([PYTHON, '-c', 'pass'], start_new_session=True)
+        killpg = os.killpg
+        observations = []
+        def checked_kill(pid, sig):
+            observations.append(os.waitid(os.P_PID, pid, os.WEXITED | os.WNOHANG | os.WNOWAIT))
+            killpg(pid, sig)
+        try:
+            with patch.object(dev.os, 'killpg', checked_kill):
+                dev.terminate_group(child, grace=1)
+            self.assertTrue(observations)
+            self.assertIsNotNone(child.returncode)
+        finally:
+            if child.poll() is None:
+                child.kill()
+                child.wait()
+
     def test_stage_exit_status(self):
         self.assertEqual(dev.run_stage([PYTHON, '-c', 'raise SystemExit(7)'], threading.Event()), 7)
 

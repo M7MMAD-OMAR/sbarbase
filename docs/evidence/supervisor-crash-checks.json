@@ -1,0 +1,15 @@
+{
+  "scope": "SIGKILL of real combined foreground supervisor with idle worker, parent-bound API/worker exit, restart and metadata digest preservation. Docker runtime intentionally survives crash until reconciliation. No active provisioning, in-flight writes, daemon failure or power-loss test.",
+  "checks": [
+    "combined supervisor available before crash",
+    "supervisor terminated by SIGKILL",
+    "parent-bound gateway stops accepting after supervisor death",
+    "idle worker exits and releases inherited lock after parent death",
+    "runtime containers remain for explicit startup reconciliation",
+    "restarted supervisor serves combined console and four environments",
+    "target application and Storage metadata match before crash",
+    "moved source fence survives supervisor crash and restart",
+    "all owned runtimes stopped after crash rehearsal"
+  ],
+  "count": 9
+}

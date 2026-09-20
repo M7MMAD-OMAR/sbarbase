@@ -21,7 +21,7 @@ Keep original Supabase services and PostgreSQL. Hierarchy: installation > organi
 - New export: 34 checks, including pre-export signed URL capture, service-login fence and complete database fence afterward.
 - Fresh target: 49 database checks, 11 Auth/REST checks, nine Storage checks and 14 end-user Storage checks. Original identity/password, table contents, scoped roles, files/xattrs, signing material and the unchanged URL issued before export work on the target.
 - Prior recovery failure work: backend termination rolls back pg_restore and the same dump restores cleanly; cleanup failures do not skip DB shutdown or falsely report success. Automatic recovery-stage resume and controller death during active operations remain unproven.
-- Routing: durable maintenance and revision-checked pause/stage/resume exist, plus an in-process pause/drain lease. Latest Bun suite: 60 tests, 314 assertions. Python: 64 tests. SDK/application dependency-chain strict typing now passes after the management fetch wrapper preserved preconnect.
+- Routing: durable maintenance and revision-checked pause/stage/resume exist, plus an in-process pause/drain lease. Latest Bun suite: 60 tests, 314 assertions. Python: 66 tests. SDK/application dependency-chain strict typing now passes after the management fetch wrapper preserved preconnect.
 
 ## Next work
 
@@ -33,13 +33,10 @@ Keep original Supabase services and PostgreSQL. Hierarchy: installation > organi
 
 Realtime/functions/pooler/cron, production installer, upgrades, complete ownership transfer, multi-host coordination and sustained capacity remain outside completed scope.
 
-## Latest supervisor work and review findings
+## Latest supervisor crash checkpoint
 
-Uncommitted implementation at handoff: `lab/parent_bound.py`, `lab/test_parent_bound.py`, `lab/supervisor-crash-check.py` and changes in `lab/dev.py`. Linux parent-death signaling closes direct-child startup races. [Nine live checks](evidence/supervisor-crash-checks.json) verify API closure, idle worker lock release, restart, target application/Storage metadata digest preservation and the source fence. Docker containers deliberately survive the supervisor crash until explicit reconciliation. The final probe stopped all owned runtimes. Active provisioning, in-flight writes, daemon failure and power loss were not tested.
+Linux parent-death signaling binds direct API, worker and stage children to the foreground supervisor. [Nine live checks](evidence/supervisor-crash-checks.json) pass after the cleanup fix: API closure, idle worker lock release, restart, target application/Storage metadata digest preservation and source fencing. Docker containers deliberately survive the supervisor crash until explicit reconciliation. The final probe stopped all owned runtimes. Active provisioning, in-flight writes, daemon failure and power loss were not tested.
 
-Adversarial reviewer `parent_death_review` found two open concerns:
+Adversarial review found a pre-existing process-group identity race and a probe HTTP readiness race. Both are fixed. Cleanup now observes child exit with WNOWAIT, retains its owned leader until all group signals finish, and never signals a group from an already-reaped leader. Production callers preserve exclusive ownership of child waiting. Two regression tests failed before the fix and now pass. Readiness requires HTTP 200 within a monotonic deadline. Reviewer parent_death_review found no remaining must-fix in this scope. Latest Python suite: 66 tests.
 
-1. Existing `dev.terminate_group` can reap its leader through poll/wait before signaling its numeric process group. A reused group ID could target an unrelated process. Retain the unreaped owned leader until group cleanup, or use stronger ownership containment. Do not signal persisted PIDs as a workaround.
-2. The crash probe matches descriptors before one immediate HTTP request. Descriptor readiness is not HTTP readiness. Poll HTTP within the existing deadline while checking supervisor liveness.
-
-The parent-bound launcher itself had no new must-fix finding for the stated idle-worker scope. Fix the two concerns, run relevant tests and repeat the live rehearsal before calling this lifecycle work complete. The recorded pass does not erase these review findings. Do not commit unfinished implementation as a completed fix.
+Next: controller death during active provisioning, with bounded descendant cleanup and operation reconciliation. The idle-worker result does not establish that guarantee.
