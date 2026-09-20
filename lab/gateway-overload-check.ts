@@ -3,7 +3,10 @@ import {createClient} from '@supabase/supabase-js';
 import {openUpstreamApplication,internalToken} from './upstream-app';
 import {managedGateway} from '../src/gateway/managed';
 const sustained=process.argv.includes('--sustained');
-if(process.argv.slice(2).some(arg=>arg!=='--sustained'))throw new Error('Unknown probe option');
+const cancellation=process.argv.includes('--cancellation');
+let cancellationObservation:unknown;
+if(sustained&&cancellation)throw new Error('Choose one workload mode');
+if(process.argv.slice(2).some(arg=>arg!=='--sustained'&&arg!=='--cancellation'))throw new Error('Unknown probe option');
 const samples:{environment:string;status:number;duration_ms:number;correct:boolean;lag_ms:number;started_ms:number}[]=[];
 let skipped=0,peakPending=0;
 const app=openUpstreamApplication();
@@ -46,6 +49,40 @@ try{
  const neighbor=await b.rpc(name);check('neighbor succeeds while target requests remain active',!neighbor.error&&neighbor.data===2&&finished<admitted);
  check('all admitted requests complete correctly',(await Promise.all(pending)).every(Boolean));
  const recovered=await a.rpc(name);check('target accepts requests after draining',!recovered.error&&recovered.data===1);
+ if(cancellation){
+  const observe=async()=>{
+   const child=Bun.spawn(['docker','exec','-i','sbarbase-durable-db','psql','-X','-At','-v','ON_ERROR_STOP=1','-U','supabase_admin','-d','postgres'],{stdin:'pipe',stdout:'pipe',stderr:'ignore'});
+   child.stdin.write(`SELECT count(*) FROM pg_stat_activity WHERE datname='${first.runtime}' AND usename='${first.runtime}_rest' AND state='active' AND query LIKE '%${name}%' AND wait_event='PgSleep';`);child.stdin.end();
+   const output=(await new Response(child.stdout).text()).trim();
+   if(await child.exited||!/^\d+$/.test(output))throw new Error('Activity observation failed');
+   return Number(output);
+  };
+  const abort=new AbortController();
+  const start=performance.now();
+  const request=Promise.all(Array.from({length:admitted},()=>fetch(`${base}/${first.runtime}/rest/v1/rpc/${name}`,{method:'POST',headers:{apikey:first.token,'content-type':'application/json'},body:'{}',signal:abort.signal}).then(async response=>{await response.text();return false;},()=>true)));
+  let active=0;const waitUntil=performance.now()+1500;
+  while(!active&&performance.now()<waitUntil){active=await observe();if(!active)await Bun.sleep(20);}
+  check('cancellation fixture observed actively sleeping in PostgreSQL',active===admitted);
+  const abortedAt=performance.now();abort.abort();
+  check('client observes request cancellation',(await request).every(Boolean));
+  await Bun.sleep(500);
+  const activeAfter500ms=await observe();
+  const denied=await fetch(`${base}/${first.runtime}/rest/v1/rpc/${name}`,{method:'POST',headers:{apikey:first.token,'content-type':'application/json'},body:'{}'});
+  check('cancelled REST requests retain admission while SQL runs',activeAfter500ms===admitted&&denied.status===429);await denied.text();
+  const during=await b.rpc(name);check('neighbor succeeds while cancelled SQL still runs',!during.error&&during.data===2);
+
+  const observations=[{elapsed_after_abort_ms:performance.now()-abortedAt,active:activeAfter500ms}];
+  const end=performance.now()+5000;
+  while(activeAfter500ms&&performance.now()<end){
+   await Bun.sleep(100);const count=await observe();
+   observations.push({elapsed_after_abort_ms:performance.now()-abortedAt,active:count});
+   if(!count)break;
+  }
+  check('cancelled fixture eventually leaves active SQL state',observations.at(-1)!.active===0);
+  const other=await b.rpc(name);check('neighbor remains correct after cancellation',!other.error&&other.data===2);
+  const after=await a.rpc(name);check('target responds correctly after cancelled SQL drains',!after.error&&after.data===1);
+  cancellationObservation={scope:'Configured REST capacity of two-second sleep RPCs. Active backend observed before client abort; polls observe SQL, not only gateway slots. Prompt cancellation is observed only if activeAfter500ms is zero, not implied by probe completion.',activeAfter500ms,abort_after_start_ms:abortedAt-start,observations};
+ }
  if(sustained){
   const starts=performance.now();let active=0;
   const send=(fixture:typeof first,expected:number,lag:number)=>{
@@ -95,5 +132,5 @@ try{
  try{await command(['/usr/bin/python3','lab/durable_runtime.py','stop']);}catch{failures.push('runtime cleanup');}
  if(failures.length)throw new Error('Overload fixture cleanup incomplete');
 }
-await Bun.write(sustained?'docs/evidence/gateway-sustained-checks.json':'docs/evidence/gateway-overload-checks.json',JSON.stringify({sustained:sustained?{duration_seconds:30,target_arrivals_per_second:20,neighbor_arrivals_per_second:2,rest_budget:3,skipped,peakPending,samples}:undefined,scope:'Actual managed gateway, SDK, pinned PostgREST and PostgreSQL. One environment fills its configured admission budget with temporary two-second RPCs, next request refused; neighbor returns a correct distinct value and target recovers. Temporary RPCs removed and keys revoked. Not global socket or multi-process DDoS protection.',checks,count:checks.length},null,2)+'\n');
+await Bun.write(sustained?'docs/evidence/gateway-sustained-checks.json':cancellation?'docs/evidence/gateway-cancellation-checks.json':'docs/evidence/gateway-overload-checks.json',JSON.stringify({cancellation:cancellationObservation,sustained:sustained?{duration_seconds:30,target_arrivals_per_second:20,neighbor_arrivals_per_second:2,rest_budget:3,skipped,peakPending,samples}:undefined,scope:'Actual managed gateway, SDK, pinned PostgREST and PostgreSQL. One environment fills its configured admission budget with temporary two-second RPCs, next request refused; neighbor returns a correct distinct value and target recovers. Temporary RPCs removed and keys revoked. Not global socket or multi-process DDoS protection.',checks,count:checks.length},null,2)+'\n');
 console.log(`${checks.length} real gateway overload checks passed.`);

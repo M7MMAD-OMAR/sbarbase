@@ -95,3 +95,7 @@ The [30-second open-loop slow-RPC probe](docs/SUSTAINED-OVERLOAD.md) exposed two
 ## REST service budget checkpoint
 
 The durable installer now publishes a REST admission cap from its configured PostgREST pool, currently 3. Service/environment/process acquisition is atomic and shared across managed factories. Two repeated 30-second arrival probes passed after the change, with the original failed evidence retained. The latest run has 14 checks including explicit budget verification and post-load recovery. Forty-nine Bun tests, 261 assertions, 27 Python tests, 24 HTTP checks and gateway strict types pass. See [comparison and limits](docs/SUSTAINED-OVERLOAD.md). Mixed SDK traffic under the new cap and actual upstream cancellation remain unverified.
+
+## REST disconnect checkpoint
+
+[SQL observation and retained admission](docs/REST-CANCELLATION.md) expose and mitigate a client-abort gap. Three cancelled HTTP requests leave three SQL RPCs active; the gateway now retains all admission counters and rejects a fourth until upstream completion/draining. Fifteen live checks and 52 unit tests with 269 assertions pass. This is not active SQL cancellation; timeout/transport failures can still release slots ahead of SQL completion.

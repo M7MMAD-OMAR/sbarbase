@@ -73,7 +73,11 @@ export function createGateway(registry:RouteRegistry, transport:typeof fetch = f
     if (authorization && !/^Bearer \S+$/i.test(authorization)) return error(401,'Invalid authorization');
     const bearerIsApiKey = authorization?.toLowerCase().startsWith('bearer ') && apiKey!==null && matches(authorization.slice(7), apiKey);
     headers.set('authorization', authorization && !bearerIsApiKey ? authorization : `Bearer ${route.anonymousToken}`);
-    return concurrency.run(environment,request,async(signal)=>{
+    const retainRest=service==='rest'&&route.serviceConcurrency?.rest!==undefined;
+    // Upload cancellation still uses the real request below. Once dispatched,
+    // REST must settle independently of a disconnected client.
+    const admissionRequest=retainRest?{signal:new AbortController().signal}:request;
+    return concurrency.run(environment,admissionRequest,async(signal)=>{
     let body:Uint8Array<ArrayBuffer> | undefined;
     if (request.body) {
       const limit = 1024*1024;
@@ -105,10 +109,10 @@ export function createGateway(registry:RouteRegistry, transport:typeof fetch = f
     if(request.signal.aborted)return error(408,'Request cancelled');
     try {
       return await transport(target,{method:request.method,headers,body,redirect:'manual',decompress:false,
-        signal:AbortSignal.any([signal,request.signal,AbortSignal.timeout(15_000)])});
+        signal:AbortSignal.any([signal,...(retainRest?[]:[request.signal]),AbortSignal.timeout(15_000)])});
     } catch {
       return error(502,'Upstream unavailable');
     }
-    },route.serviceConcurrency?.[service]===undefined?undefined:{service,maximum:route.serviceConcurrency[service]});
+    },route.serviceConcurrency?.[service]===undefined?undefined:{service,maximum:route.serviceConcurrency[service],drainOnCancel:retainRest});
   };
 }

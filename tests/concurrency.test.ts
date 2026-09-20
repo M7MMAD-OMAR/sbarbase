@@ -177,3 +177,41 @@ test('service budget releases after pre-header and response deadlines',async()=>
  await expect(response.text()).rejects.toThrow('Response stream deadline exceeded');
  expect((await gate.run('a',request(),empty,budget)).status).toBe(204);
 });
+
+test('disconnected dispatched REST retains capacity until upstream response drains',async()=>{
+ const {createGateway}=await import('../src/gateway/handler');
+ const gate=new ConcurrencyGate();let finish!:(response:Response)=>void;let signal:AbortSignal|undefined;
+ const transport=((_:unknown,init:RequestInit)=>{signal=init.signal??undefined;return new Promise<Response>(resolve=>{finish=resolve;});}) as typeof fetch;
+ const handler=createGateway(new Map([['owned',{auth:'http://upstream',rest:'http://upstream',keys:['key'],anonymousToken:'anon',enabled:true,serviceConcurrency:{rest:1}}]]),transport,undefined,1000,gate);
+ const client=new AbortController();
+ const make=(abort?:AbortSignal)=>new Request('http://localhost/owned/rest/v1/',{headers:{apikey:'key'},signal:abort});
+ const pending=handler(make(client.signal));client.abort();
+ expect(signal?.aborted).toBe(false);
+ expect((await handler(make())).status).toBe(429);
+ let body!:ReadableStreamDefaultController<Uint8Array>;
+ finish(new Response(new ReadableStream({start(controller){body=controller;}})));
+ const response=await pending;await response.body!.cancel();
+ expect((await handler(make())).status).toBe(429);
+ body.close();await Bun.sleep(0);
+ const recovered=handler(make());finish(new Response(null,{status:204}));
+ expect((await recovered).status).toBe(204);
+});
+
+test('abandoned REST response drain has a deadline and releases once',async()=>{
+ const gate=new ConcurrencyGate(8,32,15),budget={service:'rest',maximum:1,drainOnCancel:true};
+ let cancelled=false;
+ const response=await gate.run('a',request(),async()=>new Response(new ReadableStream({cancel(){cancelled=true;}})),budget);
+ await response.body!.cancel();
+ expect((await gate.run('a',request(),empty,budget)).status).toBe(429);
+ await Bun.sleep(25);expect(cancelled).toBe(true);
+ expect((await gate.run('a',request(),empty,budget)).status).toBe(204);
+});
+
+test('abandoned REST drain errors release capacity without downstream errors',async()=>{
+ const gate=new ConcurrencyGate(),budget={service:'rest',maximum:1,drainOnCancel:true};
+ let source!:ReadableStreamDefaultController<Uint8Array>;
+ const response=await gate.run('a',request(),async()=>new Response(new ReadableStream({start(controller){source=controller;}})),budget);
+ await response.body!.cancel();source.error(new Error('upstream body failed'));
+ await Bun.sleep(0);
+ expect((await gate.run('a',request(),empty,budget)).status).toBe(204);
+});

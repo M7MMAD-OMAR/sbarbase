@@ -49,3 +49,5 @@ Use the same repository, `/home/sbarah/R/Projects/P/sbarbase`; no migration of c
 Keep `.secrets/` and `.lab/` private. The handoff ZIP contains source, research, saved pictures and sanitized evidence, including explicitly unfinished source. It excludes credentials, runtime data, dependencies and Git history. It is a development handoff, not a runnable backup of the installation.
 
 Latest result: a [service-specific REST cap mitigated the sustained arrival failure](SUSTAINED-OVERLOAD.md). The original failure remains recorded. This is local mitigation evidence, not production sizing; SQL cancellation, mixed traffic after the new cap and longer tests remain open.
+
+[REST cancellation](REST-CANCELLATION.md): a client abort does not promptly cancel SQL. Configured REST now retains admission through upstream settlement and abandoned-response draining; 15 live checks pass. Independent SQL deadlines and mixed SDK regression remain next.

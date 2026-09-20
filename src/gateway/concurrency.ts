@@ -7,7 +7,7 @@ export class ConcurrencyGate {
   if(![perEnvironment,maximum,responseTimeoutMs,forwardTimeoutMs].every(value=>Number.isSafeInteger(value)&&value>0))
    throw new Error('Invalid concurrency limits');
  }
- async run(environment:string,request:Request,forward:(signal:AbortSignal)=>Promise<Response>,budget?:{service:string;maximum:number}):Promise<Response> {
+ async run(environment:string,request:Pick<Request,'signal'>,forward:(signal:AbortSignal)=>Promise<Response>,budget?:{service:string;maximum:number;drainOnCancel?:boolean}):Promise<Response> {
   if(request.signal.aborted)return Response.json({message:'Request cancelled'},{status:408});
   if(budget&&(!Number.isSafeInteger(budget.maximum)||budget.maximum<1))
    return Response.json({message:'Invalid service capacity'},{status:503});
@@ -60,13 +60,14 @@ export class ConcurrencyGate {
    const reader=response.body.getReader();
    let responseTimer:ReturnType<typeof setTimeout>|undefined;
    let controller:ReadableStreamDefaultController<Uint8Array>|undefined;
-   let finished=false;
+   let finished=false,draining=false;
    const finish=()=>{if(finished)return;finished=true;clearTimeout(responseTimer);request.signal.removeEventListener('abort',abort);release();};
    const abort=()=>{
     if(finished)return;
     finish();void reader.cancel().catch(()=>{});
     // A disconnected client cannot receive an error. Close its stream cleanly;
     // a deadline on a still-connected client must fail, never truncate silently.
+    if(draining)return;
     if(request.signal.aborted)controller?.close();
     else controller?.error(new Error('Response stream deadline exceeded'));
    };
@@ -75,11 +76,19 @@ export class ConcurrencyGate {
     async pull(value){
      try {
       const item=await reader.read();
-      if(finished)return;
+      if(finished||draining)return;
       if(item.done){finish();value.close();}else value.enqueue(item.value);
-     }catch(error){if(!finished){finish();value.error(error);}}
+     }catch(error){if(!finished){finish();if(!draining)value.error(error);}}
     },
-    cancel(reason){finish();void reader.cancel(reason).catch(()=>{});},
+    cancel(reason){
+     if(!budget?.drainOnCancel){finish();void reader.cancel(reason).catch(()=>{});return;}
+     // Keep admission while an abandoned REST response drains, without buffering.
+     draining=true;
+     void (async()=>{
+      try {while(!finished){const part=await reader.read();if(part.done)break;}}
+      catch {} finally {finish();}
+     })();
+    },
    });
    request.signal.addEventListener('abort',abort,{once:true});
    responseTimer=setTimeout(abort,this.responseTimeoutMs);responseTimer.unref?.();
