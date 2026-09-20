@@ -1,5 +1,5 @@
 {
- "scope": "Verification of the completed retained-source adoption, read from durable evidence and the stopped container only. The pre-adoption bytes are evidenced by the journal expected digest, so rule preservation is proven byte for byte. Quiescence of legacy host clients remains an explicit operational assumption. No container was started.",
+ "scope": "Verification of the completed retained source adoption, read from durable evidence and the stopped container only. The pre-adoption bytes are evidenced by the journal expected digest, so rule preservation is proven byte for byte. Quiescence of legacy host clients remains an explicit operational assumption. No container was started.",
  "source": {
   "name": "sbarbase-durable-db",
   "owner": "durable-upstream",
@@ -24,7 +24,10 @@
   "inventory rules for every catalog environment are present": true,
   "completion archived as publication-witnessed": true,
   "no pending HBA journal remains": true,
-  "no pending worker effect remains": true
+  "no pending worker effect remains": true,
+  "database still stopped by exact identity": true,
+  "environment rules for this placement are present": true
  },
- "passed": true
+ "passed": true,
+ "role": "source"
 }

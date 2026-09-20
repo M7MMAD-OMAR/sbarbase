@@ -10,8 +10,11 @@ import secrets
 import socket
 import subprocess
 import time
+from contextlib import ExitStack
 from pathlib import Path
 import durable_runtime as runtime
+import hba_runtime
+import hba_startup
 import resource_admission
 import run as lab
 from recovery_bundle import open_bundle
@@ -103,6 +106,14 @@ def main():
         descriptor['stage']=name;runtime.atomic(record,descriptor)
     for kind,name in (('container',db),('network',network),('volume',volume)):
         if lab.docker(kind,'inspect',name,check=False).returncode==0:raise RuntimeError('Target resource already exists')
+    # Absence was verified immediately above. The owned writer records that
+    # creation evidence and initializes exactly one generation for this fresh
+    # target; its authority state is private to this target prefix. A one-shot
+    # process releases these locks at exit, including on failure.
+    authority=ExitStack()
+    startup=authority.enter_context(hba_startup.acquire(hba_runtime.prepare_target_state(runtime.STATE,prefix)))
+    hba_writer=hba_runtime.TargetHBA(lab.docker,runtime.STATE,prefix,db,OWNER,pin['id'],startup=startup)
+    hba_writer.before_create(preexisting_volume=False)
     helper=prefix+'-headroom'
     try:
         lab.docker('network','create','--internal','--label','io.sbarbase.owner='+OWNER,network)
@@ -124,6 +135,8 @@ def main():
             if result.returncode==0 and result.stdout.strip()=='t' and lab.docker('exec',db,'pg_isready','-h','127.0.0.1',check=False).returncode==0:ready=True;break
             time.sleep(.5)
         check('fresh pinned Supabase cluster ready',ready)
+        hba_writer.ready(json.loads(lab.docker('inspect',db).stdout)[0]['Id'],created=True)
+        check('fresh target generation initialized under owned authority',True)
         check('source remains stopped during target bootstrap',not lab.docker('ps','-q','--filter','label=io.sbarbase.owner='+runtime.OWNER).stdout.strip())
         canonical=rows("SELECT rolname,rolconfig FROM pg_roles WHERE rolname IN ('anon','authenticated','service_role') ORDER BY rolname")
         check('canonical API defaults match source',canonical==payload['canonical_defaults'])
@@ -156,7 +169,9 @@ def main():
             for setting in row['setconfig']:
                 key,value=setting.split('=',1);sql(f'ALTER ROLE {identifier(row["role"])}{scope} SET {identifier(key)} TO {quote(value)};')
         hba=['local all supabase_admin trust']+[f'host {e} {name} 0.0.0.0/0 scram-sha-256' for name in sorted(scoped)]+['host all all 0.0.0.0/0 reject','host all all ::/0 reject']
-        lab.docker('exec','-i',db,'sh','-c','cat > /etc/postgresql/pg_hba.conf',data='\n'.join(hba)+'\n');sql('SELECT pg_reload_conf();')
+        hba_content='\n'.join(hba)+'\n'
+        outcome=hba_writer.publish(hba_content)
+        check('target HBA published under owned authority with reload acknowledgment',outcome['application']=='publication-witnessed' and outcome['activation']=='unknown')
         checks.extend(verify_boundaries(payload,rows))
         stage('verify-data')
         tables=rows("SELECT n.nspname AS schema,c.relname AS name FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname IN ('auth','storage','public') AND c.relkind='r' ORDER BY 1,2",e)
@@ -179,6 +194,7 @@ def main():
     finally:
         cleanup_target(descriptor,record,helper,db)
     (lab.ROOT/'docs/evidence/independent-database-restore.json').write_text(json.dumps(evidence,indent=2)+'\n')
+    authority.close()
     print(f'{len(checks)} independent database restore checks passed; target retained stopped.')
 
 

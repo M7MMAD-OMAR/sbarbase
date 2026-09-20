@@ -1,0 +1,44 @@
+{
+ "scope": "Verification of the completed retained target adoption, read from durable evidence and the stopped container only. The pre-adoption bytes are evidenced by the journal expected digest, so rule preservation is proven byte for byte. Quiescence of legacy host clients remains an explicit operational assumption. No container was started.",
+ "role": "target",
+ "source": {
+  "name": "sbarbase-restore-d2f9e9f091e1-db",
+  "owner": "recovery-target",
+  "image": "sha256:b3bfedb107413abb3b8cb0d0874b0414a1dceb3d55bc0c778de6ad22d1f7dc86"
+ },
+ "authority_state": "per-target state",
+ "adoption": "a26118f7-b5e0-4561-bf5b-930909cb3f7e",
+ "generation": "25af9c0d-274b-4c38-94ec-72ae7cb8881c",
+ "volume": "sbarbase-restore-d2f9e9f091e1-pgdata",
+ "checkpoints": [
+  "database-started",
+  "generation-initialized",
+  "hba-completed",
+  "source-stopped",
+  "completed"
+ ],
+ "checks": {
+  "completed checkpoint reached": true,
+  "database is stopped again by exact identity": true,
+  "generation pin equals the intent generation": true,
+  "every durable checkpoint exists": true,
+  "adoption intent consumed": true,
+  "owner and pinned image unchanged": true,
+  "database still stopped by exact identity": true,
+  "generation pin matches a completed target": true,
+  "live file digest equals the recorded applied content": true,
+  "effective rules preserved byte for byte": true,
+  "exactly one fresh revision marker": true,
+  "environment rules for this placement are present": true,
+  "completion archived as publication-witnessed": true,
+  "no pending HBA journal remains": true,
+  "no pending worker effect remains": true
+ },
+ "passed": true,
+ "hba_before_digest": "daf8b62f4d5835fcc59c36dfac0200677b24be669400d476844077d2446fb508",
+ "hba_applied_digest": "99bfabefb5396cf670ae0e92ae7b65ac3c336a00d64f04a0a1e5c302bba26a82",
+ "hba_live_digest": "99bfabefb5396cf670ae0e92ae7b65ac3c336a00d64f04a0a1e5c302bba26a82",
+ "hba_preserved_digest": "daf8b62f4d5835fcc59c36dfac0200677b24be669400d476844077d2446fb508",
+ "revision_marker_count": 1,
+ "environment_rule_count": 3
+}

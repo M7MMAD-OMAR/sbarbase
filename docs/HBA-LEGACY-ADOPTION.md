@@ -88,7 +88,7 @@ targets and all volumes untouched.
 ## Retained adoption executed, 2026-09-20
 
 The retained `sbarbase-durable-db` source was adopted with this operation:
-lab/adopt-retained-source.py ran it and lab/verify-retained-adoption.py verified
+lab/adopt-retained.py ran it and lab/verify-retained.py verified
 it from durable evidence only (12 checks,
 docs/evidence/retained-source-adoption.json). Only the captured database
 container was started and stopped again; no application service and no recovery

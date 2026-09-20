@@ -2,8 +2,16 @@
 
 Existing containers without an exact generation pin need explicit adoption.
 This module never resets a registry or upgrades legacy writers automatically.
+
+Every managed database container gets its own authority state: the source
+database uses the installation state root, and a recovery-target database uses
+<installation state>/targets/<prefix>, with its own worker/effect/operation
+locks, generation pin, journals, attempts, completions and outcomes.
 """
+import re
+import stat
 import uuid
+from pathlib import Path
 import atomic_hba
 import effect_receipt
 import hba_apply
@@ -15,11 +23,21 @@ import hba_settlement
 import hba_startup
 import hba_target
 
+TARGETS='targets'
+TARGET_PREFIX=re.compile(r'sbarbase-restore-[a-f0-9]{12}')
+
 
 def absent(path):
     try:path.lstat()
     except FileNotFoundError:return True
     return False
+
+
+def target_state(installation_state,prefix):
+    """Private per-target authority state; never the installation root."""
+    if not isinstance(prefix,str) or not TARGET_PREFIX.fullmatch(prefix):
+        raise ValueError('Invalid recovery target prefix')
+    return Path(installation_state)/TARGETS/prefix
 
 
 class SourceHBA:
@@ -95,3 +113,44 @@ class SourceHBA:
             hba_ownership.begin_worker(self.docker,self.state,self.descriptors[2],self.runtime,snapshot,prepared,token,target=self.target)
         hba_apply.execute(self.docker,self.state,self.descriptors,target=self.target,startup=self.startup)
         return hba_settlement.complete_owned(self.docker,self.state,self.descriptors,target=self.target,startup=self.startup)
+
+
+def prepare_target_state(installation_state,prefix):
+    """Create and verify the private per-target state directory."""
+    state=target_state(installation_state,prefix)
+    parent=state.parent
+    if not parent.exists():
+        parent.mkdir(mode=0o700,parents=True,exist_ok=True)
+    metadata=parent.lstat()
+    if not stat.S_ISDIR(metadata.st_mode) or stat.S_IMODE(metadata.st_mode)!=0o700:
+        raise ValueError('Target authority parent directory must be private')
+    if not state.exists():
+        state.mkdir(mode=0o700)
+    metadata=state.lstat()
+    if not stat.S_ISDIR(metadata.st_mode) or stat.S_IMODE(metadata.st_mode)!=0o700:
+        raise ValueError('Target authority state directory must be private')
+    return state
+
+
+class TargetHBA(SourceHBA):
+    """The same owned protocol against a recovery target's own authority state."""
+
+    def __init__(self,docker,installation_state,prefix,name,owner,image,*,startup=None,operation_fd=None):
+        state=prepare_target_state(installation_state,prefix)
+        super().__init__(docker,state,name,owner,image,startup=startup,operation_fd=operation_fd)
+
+    def before_create(self,*,preexisting_volume):
+        """Prepare a first-generation target that this run is about to create.
+
+        The caller must have verified that no target resource existed immediately
+        before. A preexisting volume is retained state: it requires explicit
+        adoption of the existing container, never silent initialization here.
+        """
+        if self.startup is None:raise RuntimeError('Startup HBA ownership required')
+        if type(preexisting_volume) is not bool:raise ValueError('Explicit volume creation evidence required')
+        if preexisting_volume:raise RuntimeError('Existing target volume requires explicit adoption')
+        if self.fresh is not None:raise RuntimeError('HBA startup preparation already attempted')
+        if not absent(self.state/hba_journal.NAME):raise RuntimeError('Pending HBA operation requires reconciliation')
+        self.startup.verify()
+        self.fresh=True
+        return self

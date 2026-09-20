@@ -36,6 +36,15 @@ The retained source has no HBA generation pin. Its startup deliberately refuses 
 3. Broader worker/supervisor interruption, service effects and later-stage recovery. Current evidence is two native worker checkpoints, not arbitrary crash or power-loss safety.
 4. Sustained mixed-load capacity, off-host restore, upgrades, complete organization transfer and multi-host coordination. Realtime/functions/pooler/cron remain unfinished.
 
+## Current blockers for the deployment rehearsal
+
+The combined source plus target startup (`lab/dev.py`, and therefore
+`lab/combined-supervisor-check.py`) is currently refused by
+`CombinedAdmission` with `host_memory_headroom`: the plan needs 5888 MiB plus a
+2560 MiB reserve while this host had about 6961 MiB available (other agents'
+workloads and swap pressure). This is a host capacity condition, not a code
+defect: retry when at least ~8.5 GiB is available, and record the refusal.
+
 There is no verified capacity guarantee for 10 or 100 projects. Retained configured ceilings of 5888 MiB/5.75 CPUs are allocation limits, not measured peak demand.
 
 ## References and visuals

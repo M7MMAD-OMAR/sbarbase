@@ -357,8 +357,8 @@ Verified from durable evidence only (docs/evidence/retained-source-adoption.json
 pre-adoption bytes are preserved byte for byte against the journal expected
 digest, exactly one revision marker exists, inventory rules exist for every
 catalog environment, no pending journal or worker effect remains, and the source
-is stopped by exact identity. Runners: lab/adopt-retained-source.py and
-lab/verify-retained-adoption.py.
+is stopped by exact identity. Runners: lab/adopt-retained.py (source|target) and
+lab/verify-retained.py (source|target).
 
 Explicit assumption: legacy host clients and queued Docker requests were
 quiesced (all source containers stopped for hours, locks free, no receipt, no
@@ -368,6 +368,28 @@ Next: the retained source now carries a generation pin, so its startup no longer
 refuses on that gate. A source lifecycle rehearsal (start, four environment
 routes, stop) is the natural next verification, followed by recovery-target
 writers and container-generation migration.
+
+## Recovery-target writers addressed, 2026-09-20 (Hermes)
+
+Read [TARGET-HBA-WRITERS](TARGET-HBA-WRITERS.md). Every managed database
+container now has its own authority state: the source uses the installation
+state root, each recovery target uses `<installation state>/targets/<prefix>`
+with its own locks, generation pin, journal and evidence. `lab/hba_runtime.TargetHBA`
+is the same owned protocol plus `before_create`, which requires explicit
+creation evidence, refuses a preexisting volume and refuses a pending journal.
+
+The retained recovery-target database (`sbarbase-restore-d2f9e9f091e1-db`) was
+adopted too: byte-for-byte rule preservation, one fresh revision marker, stopped
+by exact identity, 12 verification checks in
+docs/evidence/retained-target-adoption.json. The restore path
+(`lab/recovery-restore-db.py`) now publishes through the owned writer instead of
+a raw shell write. Fresh-target writer evidence: 20 live checks on a disposable
+pinned PostgreSQL container, docs/evidence/target-hba-creation-checks.json.
+
+Not done: a full live recovery restore re-run with the owned writer, conversion
+of the storage check probe and the legacy bootstrap scripts, and
+container-generation migration. The remaining raw writers are inventoried with
+explicit dispositions in TARGET-HBA-WRITERS.md.
 
 ## User stop and Hermes handoff, 2026-09-20
 
