@@ -28,3 +28,8 @@ This closes the fresh worker-driven service integration gate for the new SQL gua
 
 
 Latest regression: all 57 checks passed after removing the duplicate startup HBA write following `management()`. The full Python suite now passes 203 tests. The separate HBA authority prototype has live completion evidence but is still not used by this worker lifecycle; these results must not be described as its runtime integration.
+
+
+## Source HBA integration and parent-bound restart
+
+The current probe passes 76 checks. It additionally validates real guardian hbaProtocol1, exact startup/worker HBA archives and claim binding, registry tombstones, missing-pin refusal without new outcomes, same-generation restart through dev.run_stage with an inherited supervisor worker descriptor, and three archived operations after restart. SDK checks run after restart. The snapshot now includes all source HBA helpers and verifies they do not target retained resource names. Full suites: 217 Python and 73 Bun tests/408 assertions. See [integration limits](SOURCE-HBA-INTEGRATION.md); actual worker interruption and legacy adoption remain open.

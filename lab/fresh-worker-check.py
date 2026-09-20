@@ -8,6 +8,9 @@ import subprocess
 import tempfile
 import time
 import dev
+import hba_authority
+import hba_generation
+import hba_settlement
 import uuid
 import run as lab
 
@@ -23,11 +26,11 @@ def main():
     root=Path(tempfile.mkdtemp(prefix='fresh-worker-',dir=lab.STATE));os.chmod(root,0o700)
     repo=root/'repo';repo.mkdir(mode=0o700)
     private=root/'diagnostics';private.mkdir(mode=0o700)
-    def command(args,*,cwd=repo,timeout=180,input=None,label='command'):
+    def command(args,*,cwd=repo,timeout=180,input=None,label='command',pass_fds=(),env=None,expect_failure=False):
         output=private/(label+'.stdout');error=private/(label+'.stderr')
         with output.open('w') as out,error.open('w') as err:
             child=subprocess.Popen(args,cwd=cwd,stdin=subprocess.PIPE if input is not None else subprocess.DEVNULL,
-                                   stdout=out,stderr=err,text=True,start_new_session=True)
+                                   stdout=out,stderr=err,text=True,start_new_session=True,pass_fds=pass_fds,env=env)
             try:
                 if input is not None:
                     child.stdin.write(input);child.stdin.close()
@@ -37,7 +40,7 @@ def main():
                     time.sleep(.02)
                 status=dev.child_status(child)
             finally:dev.terminate_group(child,grace=5)
-        if status:raise RuntimeError('Fixture '+label+' failed')
+        if bool(status)!=expect_failure:raise RuntimeError('Fixture '+label+' returned unexpected status')
         return output.read_text()
     def docker(*args):return command(['docker',*args],label='docker')
     def resources(kind):
@@ -64,7 +67,7 @@ def main():
         check('retained durable identities absent from '+item,'sbarbase-durable' not in text and 'durable-upstream' not in text)
         path.write_text(text)
     # Fixed transitive worker helpers have no Docker target identities.
-    for item in ('atomic_hba.py','effect_receipt.py','guarded_sql_executor.py','sql_operation_fence.py','sql_operation_revoke.py','source_fence.py','worker.py','worker.ts','worker-effect.ts','worker-receipt.ts','worker_lock_exec.py','effect_lease.py'):
+    for item in ('hba_runtime.py','hba_startup.py','hba_ownership.py','hba_generation.py','hba_target.py','hba_journal.py','hba_authority.py','hba_apply.py','hba_reconcile.py','hba_settlement.py','atomic_hba.py','effect_receipt.py','guarded_sql_executor.py','sql_operation_fence.py','sql_operation_revoke.py','source_fence.py','worker.py','worker.ts','worker-effect.ts','worker-receipt.ts','worker_lock_exec.py','effect_lease.py'):
         text=(repo/'lab'/item).read_text()
         check('worker helper has no retained resource target '+item,'sbarbase-durable' not in text and 'durable-upstream' not in text)
     command(['git','-c','init.templateDir=','init','-q'],label='git-init')
@@ -87,6 +90,38 @@ def main():
         check('native success witness matches exact claim',len(witnesses)==1 and witnesses[0]['exitCode']==0 and witnesses[0]['job']=={'environment':environment,'runtime':runtime,'claim':claim,'attempt':attempt})
         stage=json.loads((state/'effect-stages'/(witnesses[0]['token']+'.json')).read_text())
         check('native success reached publication',stage['stage']=='publication')
+        check('actual guardian and native stages use HBA protocol 1',type(witnesses[0].get('hbaProtocol')) is int and witnesses[0]['hbaProtocol']==1 and stage.get('hbaProtocol')==1)
+        pin=hba_generation.load(state);pin_bytes=(state/hba_generation.NAME).read_bytes()
+        outcomes=[hba_settlement.read(state,p.stem) for p in (state/hba_settlement.DIRECTORY).glob('*.json')]
+        check('startup and worker HBA operations both archived',len(outcomes)==2 and {o['journal']['identity']['kind'] for o in outcomes}=={'startup','worker'} and not (state/'hba-operation.json').exists())
+        worker_outcome=next(o for o in outcomes if o['journal']['identity']['kind']=='worker')
+        check('HBA worker archive binds exact provisioning receipt and claim',worker_outcome['journal']['identity']=={'kind':'worker','runtime':runtime,'receipt':witnesses[0]['token'],'claim':claim,'attempt':attempt})
+        check('HBA archives preserve unknown activation',all(o['activation']=='unknown' and o['kind']=='retired-applied-reload-acknowledged' and o['journal']['generation']==pin['generation'] for o in outcomes))
+        registry=json.loads(docker('exec',name+'-db','cat',hba_authority.PATH))['record']
+        check('source registry retires both exact HBA tokens',len(registry['operations'])==2 and all(registry['operations'][o['journal']['token']]=={'binding':o['journal']['binding'],'state':'revoked'} for o in outcomes))
+        # Missing established state must not silently bootstrap a live old source.
+        saved_pin=state/'hba-generation.saved';(state/hba_generation.NAME).rename(saved_pin)
+        try:command(['/usr/bin/python3','lab/durable_runtime.py','up'],label='missing-pin',expect_failure=True)
+        finally:saved_pin.rename(state/hba_generation.NAME)
+        check('legacy missing-pin refusal does not create another HBA outcome',len(list((state/hba_settlement.DIRECTORY).glob('*.json')))==2)
+        command(['/usr/bin/python3','lab/installation_runtime.py','stop'],label='stop-for-restart')
+        with (state/'worker.lock').open('r+') as held:
+            fcntl.flock(held,fcntl.LOCK_EX|fcntl.LOCK_NB)
+            # Use the actual parent-bound stage launcher with a supervisor-style worker descriptor.
+            driver="import os,sys,threading;sys.path.insert(0,'lab');import dev;fd=int(os.environ['SBARBASE_WORKER_FD']);raise SystemExit(dev.run_stage(['/usr/bin/python3','lab/installation_runtime.py','up'],threading.Event(),pass_fds=(fd,),env=os.environ.copy()))"
+            command(['/usr/bin/python3','-c',driver],label='owned-restart',pass_fds=(held.fileno(),),env=dict(os.environ,SBARBASE_WORKER_FD=str(held.fileno())))
+            other=os.open(state/'worker.lock',os.O_RDWR)
+            try:
+                try:fcntl.flock(other,fcntl.LOCK_EX|fcntl.LOCK_NB)
+                except BlockingIOError:pass
+                else:raise RuntimeError('Startup released supervisor worker ownership')
+            finally:os.close(other)
+        check('installation restart preserves supervisor ownership and original generation',(state/hba_generation.NAME).read_bytes()==pin_bytes)
+        restarted=[hba_settlement.read(state,p.stem) for p in (state/hba_settlement.DIRECTORY).glob('*.json')]
+        check('restart archives exactly one new startup HBA operation',len(restarted)==3 and sum(o['journal']['identity']['kind']=='startup' for o in restarted)==2 and not (state/'hba-operation.json').exists())
+        registry=json.loads(docker('exec',name+'-db','cat',hba_authority.PATH))['record']
+        check('restart retains prior revocations and retires its own token',len(registry['operations'])==3 and all(registry['operations'][o['journal']['token']]=={'binding':o['journal']['binding'],'state':'revoked'} for o in restarted))
+
         for database in ('postgres',runtime):
             result=command(['docker','exec','-i',name+'-db','psql','-X','-qAt','-v','ON_ERROR_STOP=1','-U','supabase_admin','-d',database],input=f"SELECT state FROM sbarbase_provision_guard.operations WHERE token='{witnesses[0]['token']}';",label='sql-state')
             check('worker SQL authority retired in '+('control' if database=='postgres' else 'target'),result.strip()=='revoked')
@@ -137,7 +172,7 @@ def main():
         check('all isolated Docker resources removed',all(not resources(kind) for kind in ('container','volume','network')))
         for handle in leases:handle.close()
     if completed:
-        (lab.ROOT/'docs/evidence/fresh-worker-checks.json').write_text(json.dumps({'scope':'Fresh real worker receipts, leases and guarded SQL with original Auth/REST/Storage in a private source snapshot. Only Docker identity constants replaced. Single environment, not crash recovery or capacity.','count':len(checks),'checks':checks},indent=2)+'\n')
+        (lab.ROOT/'docs/evidence/fresh-worker-checks.json').write_text(json.dumps({'scope':'Fresh real worker receipts, leases, guarded SQL and source HBA authority with original Auth/REST/Storage in a private source snapshot. Includes generation pin refusal and parent-bound installation restart with inherited supervisor ownership. Only Docker identity constants replaced. Single environment, not crash recovery or capacity.','count':len(checks),'checks':checks},indent=2)+'\n')
         print(str(len(checks))+' fresh worker lifecycle checks passed')
 
 

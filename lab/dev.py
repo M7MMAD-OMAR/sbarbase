@@ -158,7 +158,8 @@ def main():
             if stop_event.is_set():
                 return
             started = True
-            if run_stage(['/usr/bin/python3', 'lab/installation_runtime.py', 'up'], stop_event):
+            if run_stage(['/usr/bin/python3', 'lab/installation_runtime.py', 'up'], stop_event,
+                         pass_fds=(worker_lock.fileno(),),env=dict(os.environ,SBARBASE_WORKER_FD=str(worker_lock.fileno()))):
                 raise RuntimeError('Runtime startup failed')
             if not stop_event.is_set():
                 Supervisor(stop_event, worker_lock.fileno()).run()

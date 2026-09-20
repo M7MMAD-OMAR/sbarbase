@@ -45,11 +45,15 @@ and credentials without changing their states.
 `/usr/bin/python3 lab/durable_runtime.py up` starts the separate persistent
 Supabase PostgreSQL and shared Storage runtime. `/usr/bin/python3 lab/worker.py
 --upstream` drains `.lab/upstream/control.sqlite`; it never consumes the stock
-component catalog. `bun lab/durable-check.ts` creates two environments through
-the management handler with a fixture actor, provisions them, exercises SDK
-Auth/REST/Storage, stops and removes only this runtime's containers, recreates
-them with retained named volumes and verifies data plus signed URLs. The probe
-stops its runtime in a finalizer. Start it before running the probe.
+component catalog. The historical `bun lab/durable-check.ts` container-recreation
+probe is currently disabled before catalog/Docker effects pending explicit HBA
+generation migration. `/usr/bin/python3 lab/fresh-worker-check.py` tests current
+startup, original services, worker HBA authority and same-container restart in
+an isolated disposable namespace. It does not replace recreation coverage.
+
+Source startup now requires a matching generation pin for existing containers.
+The retained legacy source has not been adopted and intentionally refuses to
+start. Preserve its state and volumes. See [current scope and adoption gate](../docs/SOURCE-HBA-INTEGRATION.md).
 
 `/usr/bin/python3 lab/durable_runtime.py stop` stops owned containers without
 deleting volumes. State is in `.lab/upstream`, credentials in `.secrets/upstream`,

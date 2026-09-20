@@ -2,6 +2,10 @@
 
 Verified 2026-09-20. This is local experimental onboarding, not a finished installer.
 
+## Current compatibility gate
+
+Fresh installations and source restarts with a matching HBA generation pin are supported by the current local experiment. Retained legacy installations without that pin require explicit adoption, which is not implemented yet. Their startup refuses before credential writes or service startup. Do not recreate their containers or remove state to bypass the gate. See [source HBA integration](SOURCE-HBA-INTEGRATION.md).
+
 ## Run
 
 1. Start the owned upstream runtime: `/usr/bin/python3 lab/durable_runtime.py up`.

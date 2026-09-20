@@ -4,6 +4,9 @@ import {createGateway} from '../src/gateway/handler';
 import {createClient} from '@supabase/supabase-js';
 import {createHmac} from 'node:crypto';
 
+// Preserve this probe's recreation requirement until explicit generation migration exists.
+throw new Error('Container recreation probe is disabled pending HBA generation migration. Use the isolated fresh-worker-check.py for current startup/worker/restart coverage.');
+
 const directory='.lab/upstream',actor='durable-probe-owner';
 const catalog=new Catalog(`${directory}/control.sqlite`);
 const checks:{check:string;passed:boolean}[]=[];

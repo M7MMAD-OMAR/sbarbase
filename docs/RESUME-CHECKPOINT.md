@@ -284,3 +284,14 @@ Added `hba_settlement.complete_owned` using the same originating owner validatio
 Validated originating worker completion with actual locks and SQLite claims, rejecting stale claims, missing/legacy receipts and competing descriptors before backend retirement. Fresh/expired startup contexts are also refused. All 203 Python tests pass. The real pinned PostgreSQL HBA probe passes 26 checks, independently testing all three held locks; host-death recovery remains covered. Independent review found no helper bypass and prompted the stronger per-lock check.
 
 Removed the redundant `Runtime.start` HBA call after `management()` has already published the complete inventory. The real fresh worker/SDK lifecycle passes 57 checks with exact disposable cleanup. Thus current startup needs one operation, not reusable one-shot contexts. See the concrete integration map at the end of HBA-OPERATION-AUTHORITY-DESIGN.md. Next wire explicit ownership and receipt protocol into source writers, with an explicit legacy-adoption gate. The new authority protocol remains unintegrated; retained source/targets were not started or changed.
+
+
+## Source HBA runtime integration, 2026-09-20
+
+The source now uses SourceHBA for startup and services-stage publication, completion and retirement. Startup entry points hold ordered ownership; dev forwards supervisor worker ownership. New guardian receipts emit hbaProtocol1, and native preflight validates it before credentials/database effects. Existing pinned restart reads the same generation; legacy missing-pin startup refuses. Docker inspection failure needs successful absence verification and fresh initialization additionally requires exact positive creation evidence. Pending HBA journals block worker startup before receipt recovery.
+
+217 Python tests and 73 Bun tests/408 assertions pass. The expanded fresh worker/parent-bound installation restart passes 76 real checks, including exact HBA archives, revoked tokens, missing-pin refusal, same generation after restart, SDK isolation and cleanup. Independent review found no remaining must-fix in source HBA scope. See SOURCE-HBA-INTEGRATION.md for exact guarantees and exclusions.
+
+The retained legacy source and both recovery targets were not changed. Legacy source startup is intentionally blocked pending quiesced adoption. The historical durable-check.ts recreation probe refuses before catalog/Docker effects until explicit generation migration exists. Next perform actual worker HBA interruption testing, implement adoption/migration, then cover recovery-target writers. Do not reset pins or delete authority to bypass these gates.
+
+Read-only final inventory verified all 11 source and 8 recovery-target containers remain stopped, and the retained source has no HBA generation pin. No adoption or retained restart was performed.

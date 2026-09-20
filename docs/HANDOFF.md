@@ -1,6 +1,6 @@
 # Sbarbase handoff
 
-For the shortest overview, read [START-HERE](START-HERE.md). Unfinished local work: `lab/hba_authority.py` is an isolated, unintegrated prototype with 8 host shell tests and 56 pinned-image checks; no operation-authority guarantee follows from its presence.
+For the shortest overview, read [START-HERE](START-HERE.md). Source HBA authority is now [integrated and tested](SOURCE-HBA-INTEGRATION.md), with 76 fresh worker/restart checks. Legacy source adoption, generation migration, recovery-target writers and actual worker interruption testing remain open. Retained legacy startup intentionally refuses; its data and containers were preserved.
 
 Snapshot: 2026-09-20. Start here, then read [the current checkpoint](RESUME-CHECKPOINT.md). Repository files are the continuation source; older chat and chronological status entries may be superseded.
 
@@ -18,7 +18,7 @@ Experimental runtime: shared PostgreSQL, a separate database and scoped service 
 - Four local environments: three on the source cluster and one restored onto a separate local target. Real SDK tests cover identity, RLS, reads/writes, files and an unchanged signed URL created before export.
 - Fenced encrypted export, independent restore, persistent routing, maintenance, address refresh, target startup/shutdown and combined supervisor. See [recovery details](INDEPENDENT-RESTORE.md) and [combined runtime](COMBINED-RUNTIME.md).
 - Combined configured ceilings: **5888 MiB RAM and 5.75 CPUs**, within a 6 GiB/6 CPU admission cap plus host reserves. This is an experimental allocation budget, not actual peak use or a VPS recommendation. No measured 10/100-project limit exists.
-- Latest recorded suites: 203 Python tests; 73 Bun tests, 408 assertions. The latest nine-check supervisor SIGKILL rehearsal passed for an idle worker and subsequent restart. The two review findings were fixed and reviewed; see the checkpoint. Test counts have different scopes and are not cumulative safety coverage.
+- Latest recorded suites: 217 Python tests; 73 Bun tests, 408 assertions. The latest nine-check supervisor SIGKILL rehearsal passed for an idle worker and subsequent restart. The two review findings were fixed and reviewed; see the checkpoint. Test counts have different scopes and are not cumulative safety coverage.
 
 ## Research and reviews
 
@@ -53,6 +53,6 @@ Test later-stage active-job crash recovery, coordinated graceful cutover and sus
 
 Both can continue from this same directory. Use one active writer; changing assistant does not improve or invalidate the architecture. No Hermes execution has been dispatched. Suggested continuation message:
 
-> Work in /home/sbarah/R/Projects/P/sbarbase. Read ~/AGENTS.md, docs/START-HERE.md, docs/HANDOFF.md, the latest docs/RESUME-CHECKPOINT.md entries and lab/README.md. Inspect Git and live state first. The next bounded task is source-writer integration of the validated HBA protocol, with explicit startup ownership, guardian receipt versioning and a fail-closed legacy-adoption gate. Read docs/HBA-OPERATION-AUTHORITY-DESIGN.md before changing it. Preserve retained volumes, source fencing and unrelated Docker resources. Continue local experiments with adversarial review and one active writer. Do not claim production readiness, automatic later-stage recovery or fixed project capacity.
+> Work in /home/sbarah/R/Projects/P/sbarbase. Read ~/AGENTS.md, docs/START-HERE.md, docs/HANDOFF.md, the latest docs/RESUME-CHECKPOINT.md entries and lab/README.md. Inspect Git and live state first. The next bounded task is actual worker HBA interruption testing, then explicit legacy adoption and generation migration. Read docs/SOURCE-HBA-INTEGRATION.md first; retained legacy startup is intentionally blocked until adoption. Read docs/HBA-OPERATION-AUTHORITY-DESIGN.md before changing it. Preserve retained volumes, source fencing and unrelated Docker resources. Continue local experiments with adversarial review and one active writer. Do not claim production readiness, automatic later-stage recovery or fixed project capacity.
 
 The ignored `sbarbase-handoff.zip` includes source, research, diagrams and sanitized evidence, including the reviewed supervisor crash changes and verified preflight recovery source. It excludes `.secrets/`, `.lab/`, dependencies and Git history. It is a development handoff, not a data backup or a runnable copy of the retained installation. On this computer, continue in the existing directory.

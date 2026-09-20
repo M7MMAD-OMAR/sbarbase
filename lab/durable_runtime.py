@@ -1,6 +1,7 @@
 """Bounded, persistent upstream runtime. Experimental, local and unpublished."""
 import effect_receipt
-import atomic_hba
+import hba_runtime
+import hba_startup
 from guarded_sql_executor import GuardedSQL
 import argparse
 import base64
@@ -48,6 +49,13 @@ def atomic(path, value):
 def inspect(kind, name):
     result = lab.docker(kind, 'inspect', name, check=False) if kind != 'container' else lab.docker('inspect', name, check=False)
     if result.returncode:
+        # An inspect transport/error result is not proof of absence.
+        listing = {'container': ('ps','-a','--no-trunc','--format','{{.ID}} {{.Names}}'),
+                   'volume': ('volume','ls','--format','{{.Name}}'),
+                   'network': ('network','ls','--no-trunc','--format','{{.ID}} {{.Name}}')}[kind]
+        entries=[line.split() for line in lab.docker(*listing).stdout.splitlines()]
+        if any(name in fields or (kind!='volume' and len(name)>=12 and fields and fields[0].startswith(name)) for fields in entries):
+            raise RuntimeError('Runtime resource inspection unavailable')
         return None
     item = json.loads(result.stdout)[0]
     labels = item.get('Config', {}).get('Labels', {}) if kind == 'container' else item.get('Labels', {})
@@ -75,7 +83,7 @@ def token(secret, role):
 
 
 class Runtime:
-    def __init__(self):
+    def __init__(self,*,startup=None,operation_fd=None,worker_runtime=None):
         STATE.mkdir(parents=True, exist_ok=True)
         PRIVATE.mkdir(mode=0o700, parents=True, exist_ok=True)
         os.chmod(PRIVATE, 0o700)
@@ -86,6 +94,12 @@ class Runtime:
         self.pins = json.loads((lab.ROOT/'lab/images.lock.json').read_text())
         for component, filename in [('db', 'distro-image.lock.json'), ('storage', 'storage-image.lock.json')]:
             self.pins[component] = json.loads((lab.ROOT/'lab'/filename).read_text())
+        self.hba_writer = (hba_runtime.SourceHBA(lab.docker,STATE,DB,OWNER,self.pins['db']['id'],startup=startup,operation_fd=operation_fd)
+                           if startup is not None or operation_fd is not None else None)
+        if startup is not None:
+            self.hba_writer.before_start(inspect('container',DB),inspect('volume',PREFIX+'-pgdata') is not None)
+        elif operation_fd is not None:
+            self.hba_writer.worker_preflight(worker_runtime)
         self.path = PRIVATE/'runtime.json'
         if not self.path.exists():
             atomic(self.path, {**{key: secrets.token_hex(32) for key in ('admin', 'storage_control', 'storage_admin', 'encryption')}, 'environments': {}})
@@ -112,8 +126,8 @@ class Runtime:
                 raise RuntimeError('Runtime persistent volume mismatch')
             if NETWORK not in actual['NetworkSettings']['Networks']:
                 raise RuntimeError('Runtime network mismatch')
-            lab.docker('start', name)
-            return
+            lab.docker('start', actual['Id'])
+            return actual['Id'],False
         path = PRIVATE/(name+'.env')
         lab.secure_file(path, ''.join(f'{k}={v}\n' for k, v in env.items()))
         args = ['run', '-d', '--name', name, '--label', 'io.sbarbase.owner='+OWNER, '--network', NETWORK,
@@ -123,7 +137,7 @@ class Runtime:
             if not inspect('volume', volume):
                 lab.docker('volume', 'create', '--label', 'io.sbarbase.owner='+OWNER, volume)
             args += ['-v', volume+':'+destination]
-        lab.docker(*args, image, *command)
+        return lab.docker(*args, image, *command).stdout.strip(),True
 
     def endpoint(self, name, port):
         item = inspect('container', name)
@@ -150,8 +164,8 @@ class Runtime:
                 raise RuntimeError('Invalid runtime inventory')
             lines += [f'host {e} {e}_{role} 0.0.0.0/0 scram-sha-256' for role in ('auth', 'rest', 'storage')]
         lines += ['host all all 0.0.0.0/0 reject', 'host all all ::/0 reject']
-        atomic_hba.replace(lab.docker,DB,'\n'.join(lines)+'\n')
-        self.reload_hba()
+        if self.hba_writer is None:raise RuntimeError('Explicit HBA ownership required')
+        self.hba_writer.publish('\n'.join(lines)+'\n')
 
     def reload_hba(self):
         if self.sql('SELECT count(*) FROM pg_hba_file_rules WHERE error IS NOT NULL;').stdout.strip()!='0':
@@ -163,12 +177,14 @@ class Runtime:
         effect_receipt.require_settled(STATE)
         if lab.docker('ps','-q','--filter','label=io.sbarbase.owner=recovery-target').stdout.strip():
             raise RuntimeError('Staged source mode requires stopped recovery targets')
+        if self.hba_writer is None or self.hba_writer.startup is None:raise RuntimeError('Explicit startup HBA ownership required')
+        self.hba_writer.startup.verify()
         available = int(next(x.split()[1] for x in lab.Path('/proc/meminfo').read_text().splitlines() if x.startswith('MemAvailable:')))
         if available < 6*1024*1024:
             raise RuntimeError('Insufficient runtime memory headroom')
         if not inspect('network', NETWORK):
             lab.docker('network', 'create', '--internal', '--label', 'io.sbarbase.owner='+OWNER, NETWORK)
-        self.launch(DB, 'db', {'POSTGRES_PASSWORD': self.values['admin'], 'POSTGRES_HOST': '/var/run/postgresql', 'POSTGRES_DB': 'postgres'},
+        launched_cid,created=self.launch(DB, 'db', {'POSTGRES_PASSWORD': self.values['admin'], 'POSTGRES_HOST': '/var/run/postgresql', 'POSTGRES_DB': 'postgres'},
                     '1024m', 1, [(PREFIX+'-pgdata', '/var/lib/postgresql/data')],
                     ('postgres', '-c', 'config_file=/etc/postgresql/postgresql.conf', '-c', 'log_statement=none'))
         for _ in range(120):
@@ -178,6 +194,7 @@ class Runtime:
             time.sleep(.5)
         else:
             raise RuntimeError('Database readiness timed out')
+        self.hba_writer.ready(launched_cid,created=created)
         if self.sql("SELECT 1 FROM pg_roles WHERE rolname='storage_control';").stdout.strip() != '1':
             self.sql(f"CREATE ROLE storage_control LOGIN NOINHERIT PASSWORD '{self.values['storage_control']}';")
         if self.sql("SELECT 1 FROM pg_database WHERE datname='storage_metadata';").stdout.strip() != '1':
@@ -355,16 +372,17 @@ if __name__ == '__main__':
     args = parser.parse_args()
     STATE.mkdir(parents=True, exist_ok=True)
     try:
-        with (STATE/'operation.lock').open('a') as lock:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            if args.command == 'stop':
-                stop()
-            else:
-                if args.command=='provision':effect_receipt.native_stage(STATE,args.environment or '', 'preflight')
-                runtime = Runtime()
-                if args.command == 'up':
-                    runtime.start()
+        if args.command=='up':
+            inherited=os.environ.get('SBARBASE_WORKER_FD')
+            with hba_startup.acquire(STATE,worker_fd=int(inherited) if inherited else None) as startup:
+                Runtime(startup=startup).start()
+        else:
+            with (STATE/'operation.lock').open('a') as lock:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                if args.command=='stop':stop()
                 else:
+                    effect_receipt.native_stage(STATE,args.environment or '', 'preflight')
+                    runtime=Runtime(operation_fd=lock.fileno(),worker_runtime=args.environment or '')
                     try:runtime.provision(args.environment or '')
                     except AdmissionLimitError:
                         effect_receipt.native_outcome(STATE,args.environment or '',75,'durable-provision-v1')

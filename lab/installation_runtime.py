@@ -2,6 +2,8 @@
 import argparse
 import fcntl
 import json
+import os
+import hba_startup
 import durable_runtime as runtime
 import run as lab
 from target_runtime import TargetRuntime
@@ -9,19 +11,22 @@ from combined_admission import CombinedAdmission
 import source_fence
 
 
-def main(command):
-    if command=='up':runtime.effect_receipt.require_settled(runtime.STATE)
+def main(command,*,startup=None):
+    if command=='up':
+        runtime.effect_receipt.require_settled(runtime.STATE)
+        if not isinstance(startup,hba_startup.Startup):raise RuntimeError('Explicit installation startup ownership required')
+        startup.verify()
     moved=(runtime.STATE/'cutover-operation.json').exists()
     if not moved:
-        if command=='up':runtime.Runtime().start()
+        if command=='up':runtime.Runtime(startup=startup).start()
         else:runtime.stop()
         return
     if command=='stop':
         try:TargetRuntime(stop_only=True).stop()
         finally:runtime.stop()
         return
+    source=runtime.Runtime(startup=startup)
     target=TargetRuntime()
-    source=runtime.Runtime()
     admission=CombinedAdmission(source,target)
     snapshot=admission.check_current()
     try:
@@ -44,7 +49,13 @@ def main(command):
 if __name__=='__main__':
     parser=argparse.ArgumentParser();parser.add_argument('command',choices=('up','stop'));args=parser.parse_args()
     try:
-        with (runtime.STATE/'operation.lock').open('a') as lock:
-            fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB);main(args.command)
+        runtime.STATE.mkdir(parents=True,exist_ok=True)
+        if args.command=='up':
+            inherited=os.environ.get('SBARBASE_WORKER_FD')
+            with hba_startup.acquire(runtime.STATE,worker_fd=int(inherited) if inherited else None) as startup:
+                main(args.command,startup=startup)
+        else:
+            with (runtime.STATE/'operation.lock').open('a') as lock:
+                fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB);main(args.command)
         print('Installation runtime '+args.command+' completed')
     except Exception:raise SystemExit('Installation runtime refused or incomplete; inspect retained state') from None

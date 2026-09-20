@@ -1,5 +1,5 @@
 """Restore unaffected local source environments while preserving moved source fence."""
-import fcntl
+import hba_startup
 import json
 import subprocess
 import durable_runtime as runtime
@@ -7,12 +7,13 @@ import source_fence
 import run as lab
 
 
-def main():
+def main(*,startup):
+    startup.verify()
     record=runtime.STATE/'cutover-operation.json';op=json.loads(record.read_text())
     if op['phase']!='managed-target-verified-routing-paused':raise RuntimeError('Unexpected cutover phase')
     d=json.loads((runtime.STATE/'recovery-target.json').read_text());e=d['environment']
     if lab.docker('ps','-q','--filter','label=io.sbarbase.owner=recovery-target').stdout.strip():raise RuntimeError('Recovery targets must remain stopped')
-    target=runtime.Runtime();neighbors=[name for name in op['paused_revisions'] if name!=e]
+    target=runtime.Runtime(startup=startup);neighbors=[name for name in op['paused_revisions'] if name!=e]
     if len(neighbors)!=3:raise RuntimeError('Unexpected neighbor inventory')
     try:
         op['phase']='neighbors-starting';runtime.atomic(record,op)
@@ -40,6 +41,6 @@ def main():
 
 if __name__=='__main__':
     try:
-        with (runtime.STATE/'operation.lock').open('a') as lock:
-            fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB);main()
+        with hba_startup.acquire(runtime.STATE) as startup:
+            main(startup=startup)
     except Exception:raise SystemExit('Neighbor restoration incomplete; inspect retained operation') from None

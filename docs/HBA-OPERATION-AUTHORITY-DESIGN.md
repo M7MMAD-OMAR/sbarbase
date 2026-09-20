@@ -140,3 +140,8 @@ Runtime inspection found a redundant second HBA write in `Runtime.start`: `manag
 - Retained recovery-target restore writers are separate from the source runtime. Inventory and address those before making an installation-wide all-writers guarantee. Pending HBA state and broader worker uncertainty remain separate recovery gates.
 
 These are remaining implementation tasks. This checkpoint does not wire the isolated authority protocol into runtime or change retained installation resources.
+
+
+## Source runtime integration supersedes the isolated-only status
+
+The source-writer integration map above is now implemented for current startup and worker paths. See [SOURCE-HBA-INTEGRATION](SOURCE-HBA-INTEGRATION.md) for 217 Python tests, 76 live worker/restart checks, the explicit legacy-adoption gate and remaining target/migration/crash work. Older sections record historical prototype scope. Retained source startup is intentionally blocked until adoption; no retained resources were changed.

@@ -35,6 +35,10 @@ os.close(lock);os.close(lease)
 lock,lease=exported_lock,exported_lease
 operation=os.open(state/'operation.lock',os.O_CREAT|os.O_RDWR,0o600)
 fcntl.flock(operation,fcntl.LOCK_EX|fcntl.LOCK_NB)
+if args.upstream:
+    try:(state/'hba-operation.json').lstat()
+    except FileNotFoundError:pass
+    else:raise SystemExit('Pending HBA operation requires reconciliation before worker startup')
 exported_operation=fcntl.fcntl(operation,fcntl.F_DUPFD_CLOEXEC,10)
 os.close(operation);os.set_inheritable(exported_operation,True)
 os.environ['SBARBASE_OPERATION_FD']=str(exported_operation)

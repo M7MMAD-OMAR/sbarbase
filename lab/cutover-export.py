@@ -1,5 +1,5 @@
 """Persist local maintenance then export a fenced source. No routing publication."""
-import fcntl
+import hba_startup
 import importlib.util
 import json
 import sqlite3
@@ -9,11 +9,12 @@ import durable_runtime as runtime
 import run as lab
 
 
-def main():
+def main(*,startup):
+    startup.verify()
     record=runtime.STATE/'cutover-operation.json'
     if record.exists():raise RuntimeError('Cutover operation exists; explicit continuation required')
     if lab.docker('ps','-q','--filter','label=io.sbarbase.owner=recovery-target').stdout.strip():raise RuntimeError('Stop recovery target first')
-    target=runtime.Runtime()
+    target=runtime.Runtime(startup=startup)
     with sqlite3.connect('file:'+str(runtime.STATE/'control.sqlite')+'?mode=ro',uri=True) as catalog:
         runtimes=[row[0] for row in catalog.execute("SELECT runtime FROM provision_jobs WHERE state='succeeded' ORDER BY runtime") if row[0] in target.values['environments']]
     if not runtimes:raise RuntimeError('No ready source environments')
@@ -49,6 +50,6 @@ def main():
 
 if __name__=='__main__':
     try:
-        with (runtime.STATE/'operation.lock').open('a') as lock:
-            fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB);main()
+        with hba_startup.acquire(runtime.STATE) as startup:
+            main(startup=startup)
     except Exception:raise SystemExit('Cutover export incomplete; retained operation requires reconciliation') from None

@@ -143,3 +143,8 @@ def sql_identity(state,runtime,stage):
 def hba_identity(state,runtime):
     """Services-stage identity only; caller must separately own host locks."""
     return _native_identity(state,runtime,'services',hba=True)
+
+
+def hba_preflight_identity(state,runtime):
+    """Refuse legacy HBA receipts before native database effects begin."""
+    return _native_identity(state,runtime,'preflight',hba=True)
