@@ -94,3 +94,38 @@ Every workstream ends with: the full Python suite, the full Bun suite, the unit 
 - A weight only matters when the host is contended. On an idle host the experiment will show nothing, which is a real result and must be recorded as such.
 - The mail provider is the operator's to supply. The design ships a working configuration path and a local proof, not a provider.
 - The outbox adds a write to the provisioning path. Its cost is measured, not assumed.
+
+
+## Status, 2026-09-21 06:35 (authoritative: `git log`, not this file)
+
+| Commit | What it carries |
+|---|---|
+| `46d8d46` | The three design documents, the independent review's acceptance criteria, and this plan. |
+| `7878411` | The two facts the parent verified after the designs were written: the daemon reads a container's environment in cleartext, and a test only mailer does not belong in the pin table. |
+| `b21170d` | The recorded decisions: the unconfigured mail posture, the mail state that reaches no console yet, and the retained containers that need one recreation. |
+| `3e14668` | The implementation of all three topics, the recovery target tier labels, and the cgroup mapping evidence. |
+| `0064183` | The seven defects one adversary pass proved, each with a test that fails before it and passes after. |
+
+Built and verified on this host: the tier table and the container flags; the
+counting rule that reads the daemon by label instead of a literal name list; the
+per environment mail configuration, its Auth wiring and its reconcile command;
+the notification outbox, its worker drain, its email and signed webhook channels
+and its fail closed redaction gate. Gates at `0064183`: 530 Python tests, 78 Bun
+tests, the mail probe at 36 checks and the notification probe at 21 checks, both
+re-run by the parent, both cleaning up what they created.
+
+NOT built, so nobody has to read the design to find out:
+
+1. Block IO separation. The measurement in `docs/evidence/resource-policy-cgroup-mapping.json`
+   shows the weight flag does not bind on this host, so the mechanism has to move
+   to per device bandwidth and IOPS limits, with the device derived per host.
+2. The three measurement experiments in section 5, so no capacity claim exists.
+   The neighbour experiment is the one that would answer the original question.
+3. The console surfaces: the mail state route and screen, and the notification
+   route with its undelivered count. A table and a file exist that nothing reads.
+4. Nine of the notification event kinds are declared and emitted by nobody,
+   because their producers live in files this workstream did not own.
+5. The mail templates, the provider decision, and the reauthentication variables
+   the designer could not confirm against the pinned Auth tag.
+6. One recreation of the retained placement, without which the combined admission
+   refuses by contract (section 3.6 of the resource policy).
