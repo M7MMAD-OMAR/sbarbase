@@ -136,3 +136,19 @@ NOT built, so nobody has to read the design to find out:
    registry lives in its own filesystem. The tier contract therefore applies to
    placements created after it, which the fresh worker check exercises, and a tier
    measurement has to run on a fresh placement.
+
+7. Two measurement vehicles refuse to run on the retained placement for the same
+   reason, found and verified by the parent on 2026-09-21 and not yet fixed.
+   `lab/gateway-overload-check.ts --sustained` takes its two fixtures from
+   `.lab/upstream/probe.json`, and the first of those environments resolves through
+   `catalog.getProvision('durable-probe-owner', ...)` to the retired environment
+   `e_60332245e3a0426dd242492f`, whose Auth container is not running and whose role
+   is NOLOGIN, so the run dies on its first SQL command. Its cleanup then throws
+   `Overload fixture cleanup incomplete` at line 163, which replaces the real error
+   with a cleanup error, so the failure it prints is not the failure it hit. The
+   neighbour harness carried the same stale fixture trap and is fixed: it now
+   probes each environment and selects the ones that answer
+   (`lab/noisy-neighbor-check.py`, commit `72fbbc7`). Until the overload vehicle is
+   fixed the same way, and the cleanup stops masking, the sustained arrival
+   measurement in section 5.2 stays unrun, and it should not be quoted as pending
+   capacity evidence either way.
