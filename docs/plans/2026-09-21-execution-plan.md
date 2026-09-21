@@ -196,10 +196,23 @@ implemented"). It is what stops all four of these:
 It is safety critical rather than large: the authority registry and its
 tombstones live in the database container's own filesystem, so the operation has
 to publish an intent record before any effect, verify the old container's absence
-rather than assume it, initialize the new generation before publishing the rules,
-keep the old pin until the new publication is acknowledged, and leave the
-database refusing startup on any uncertainty. The design lists the six required
-properties; what is missing is an executable plan and crash tests on disposable
-fixtures. That is the next piece of work, and it deserves a clean context rather
-than the tail of a long one.
+rather than assume it, keep the old pin until the new publication is
+acknowledged, and leave the database refusing startup on any uncertainty.
+
+**Built and crash-tested, 2026-09-21** (commit `9297377`): `lab/hba_migration.py`,
+the operator command `lab/migrate-generation.py`, and five real SIGKILL crash
+tests inside the disposable fixture, verified by the parent on the landed tree at
+24 checks each plus 196 lifecycle checks. Two deviations from this plan are
+recorded in `docs/CONTAINER-GENERATION-MIGRATION.md`: the fourth crash point has
+no realizable state because the owned publication pipeline requires the pin to
+name the new container and generation before it publishes, and the fifth wording
+holds only in the direction that archives the retired record before the pin
+replacement.
+
+What that leaves here, in order: the retained database container is recreated by
+an attended operator run (`lab/migrate-generation.py`, which refuses the retained
+placement by design), with a row-count snapshot and the pin archived first and
+the tier and block IO limits read back afterwards; then `lab/durable-check.ts` is
+re-enabled, which writes the probe fixture again; then the two load vehicles run
+against that fixture and their evidence is committed.
 
