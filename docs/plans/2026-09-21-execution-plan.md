@@ -117,19 +117,29 @@ re-run by the parent, both cleaning up what they created.
 
 NOT built, so nobody has to read the design to find out:
 
-1. The remaining measurement experiments in section 5 (the continuous pressure
-   response and the mixed SDK load), so the block IO rows stay uncalibrated. The
-   neighbour experiment (section 5.1.1) ran and found no repeatable effect.
-2. Block IO separation is built (commit `64a122f`, section 3.1.2 of the resource
-   policy): every tier carries read and write bandwidth and IOPS rows, the device
-   is resolved from the host, and `io.max` was read back inside a container. The
-   numbers in those rows are a starting point, not a measurement of a tier.
-3. The console surfaces: the mail state route and screen, and the notification
-   route with its undelivered count. A table and a file exist that nothing reads.
-4. Nine of the notification event kinds are declared and emitted by nobody,
-   because their producers live in files this workstream did not own.
-5. The mail templates, the provider decision, and the reauthentication variables
-   the designer could not confirm against the pinned Auth tag.
+1. The mixed SDK load experiment, and the arrival driven form of the pressure
+   experiment. Two of the three in section 5 ran: the neighbour measurement
+   (5.1.1) found no repeatable effect, and the pressure sampler with its level 1
+   response is built and measured (5.2.1). Nothing calls that response on a
+   schedule yet, and the crossing it measured belongs to a disposable probe
+   container rather than to the shared database and Storage containers the gate
+   reads.
+2. No calibration of either tier table. The block IO rows bind and separate the
+   tiers (3.1.2) and the CPU weight column is a relative request, so both are a
+   starting point rather than a measured share.
+3. Three notification kinds are declared and emitted by nobody:
+   `admission.pressure` needs a scheduled caller, and `admission.runtime_refused`
+   and `admission.headroom_changed` need the fine admission reason persisted next
+   to the exit code protocol. Eleven kinds were wired at their durable state
+   changes (commit `dff2c3d`). The supervisor's generic stage-failure path stays
+   unemitted on purpose: it has a return code and a stderr line, not a durable
+   state change, and an event invented from a log line is what the design forbids.
+4. The SMTP provider decision, and nothing else on that subject: the template and
+   reauthentication questions are settled from the pinned tag's own source
+   (`docs/ENVIRONMENT-EMAIL.md`, `docs/evidence/auth-templates-source-v2.196.0.json`).
+5. The mail surface is read only. An operator sets, changes or removes a relay
+   through the runtime command, and nothing in the console can configure one or
+   send a test message.
 6. The retained placement stays grandfathered, and section 3.6 of the resource
    policy was corrected after reading `docs/CONTAINER-GENERATION-MIGRATION.md`: the
    retained database container has no recreation path, because its authority
