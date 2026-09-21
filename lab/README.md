@@ -144,3 +144,14 @@ The sequential two-database prototype runs with `/usr/bin/python3 lab/partial-da
 Run `/usr/bin/python3 lab/fresh-worker-check.py` for the fresh real worker/SQL/Auth/REST/Storage lifecycle in a private namespaced source snapshot. It requires 6 GiB host headroom and removes only its isolated Docker resources. Read [scope and cleanup](../docs/FRESH-WORKER-LIFECYCLE.md).
 
 Run `/usr/bin/python3 lab/partial-database-crash-check.py --upstream --hba` to verify complete-file HBA replacement under producer EOF and helper interruption. See [limits](../docs/ATOMIC-HBA-REPLACEMENT.md).
+
+## One placement per Docker daemon
+
+The component container names in this lab are installation-wide constants
+(`sbarbase-durable-*` and `sbarbase-restore-*`), and a running container carries
+the owner label of whoever started it. A second checkout, a worktree beside the
+main tree, or a test run started while another placement is already up therefore
+cannot start a placement independently: the names collide, and a container that
+exists belongs to the state directory that started it. Start a placement from one
+checkout at a time, and check `docker ps` after any run that does not stop its own
+containers.
