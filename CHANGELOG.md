@@ -1,0 +1,139 @@
+# Changelog
+
+All notable changes to sbarbase. The format follows Keep a Changelog and the
+project uses Semantic Versioning, which for a 0.x version means the interface may
+still change between releases.
+
+This is a source release. Nothing here is deployed as a service, no server
+rehearsal has been run against it, and the repository describes itself as in
+development. Read "Not in this release" before treating anything as production
+ready.
+
+## [0.1.0] - 2026-09-21
+
+The first tagged milestone. It carries the platform's isolation and accounting
+work, per environment mail, operator notifications, and the measurement evidence
+that says what the isolation does and does not do.
+
+### Added
+
+- **Resource tiers and block IO separation.** Every container is launched under a
+  policy tier with a CPU weight, a block IO weight and per device read and write
+  bandwidth and IOPS limits. The device is resolved from the host rather than
+  written down, and a launch refuses rather than starting a container with no
+  block IO separation. `lab/resource_policy.py`, `docs/RESOURCE-POLICY.md`.
+- **A counted placement derived from the daemon.** Admission reads the containers
+  the daemon attributes to the owner label instead of a hand written name list, so
+  a component nobody told the module about is still counted, and a labelled
+  container outside the recorded placement is a refusal while it runs.
+- **Continuous host pressure sampling and a level 1 response.**
+  `lab/pressure_admission.py` takes a bounded series over a window, summarises it,
+  and refuses new admissions while the most recent reading is at or over a
+  threshold, appending every crossing to a durable ledger. Every decision carries
+  what is not implemented next to the action.
+- **Per environment mail.** One 0600 configuration file per environment, an Auth
+  environment built from it, an explicit reconcile command that recreates one
+  environment's Auth to apply or remove a configuration, and a non secret state
+  file. `lab/mail_config.py`, `lab/mail_state.py`, `docs/ENVIRONMENT-EMAIL.md`.
+- **Operator notifications.** A durable outbox and delivery tables whose rows
+  commit inside the transaction that records the state change they describe, a
+  drain inside the worker, an email channel and a signed webhook channel, a
+  fail-closed credential redaction gate, and eleven event kinds wired at their
+  durable state changes (installation started, stopped and failed start, worker
+  restart and restart limit, fence applied and released, export completed and
+  failed, restore verified and failed). `lab/notify.py`,
+  `lab/notification_producers.py`, `docs/OPERATOR-NOTIFICATIONS.md`.
+- **Console surfaces for both.** A read only route for an environment's mail state
+  and one for the undelivered notification count, with the mail state on the
+  environment surface and the count in the console shell.
+- **Disposable probes with negative controls.** A mail probe that proves delivery,
+  an unconfigured environment, a dead relay and a wrong credential, and a
+  notification probe that proves delivery, deduplication, the redaction gate and
+  that a broken channel records a failure instead of changing the operation it
+  reports.
+- **Documentation.** Three design records, an adversarial review that states the
+  unfakeable acceptance criteria, an execution plan, a plan for the deferred
+  container generation migration, and the measurement evidence under
+  `docs/evidence/`.
+- Per environment upstream Studio presented on the administration path, and the
+  console following the operating system theme by default.
+
+### Changed
+
+- Placement arithmetic is derived rather than listed, and the block IO rows are
+  the mechanism that binds, because the weight column was measured not to.
+- The unwritten `environment_mail` catalog table was removed in favour of the
+  runtime's own summary file, which is the single source the console reads.
+- The mail configuration comparison runs in both directions, so a key the desired
+  configuration no longer has cannot survive in a reused container.
+
+### Fixed
+
+- Mail: the unchanged path recorded a state the vocabulary does not define, so a
+  second run against an unchanged configuration raised instead of reporting. A
+  source level test now walks every record call site and requires a defined state.
+- Mail: a configuration an operator deleted could survive a restart and keep a
+  live SMTP credential, rate limits and relay cooldown in the reused container.
+- Notifications: the escalation window was the severity window, so a broken channel
+  would have escalated about 72 times per six hours instead of once, and two broken
+  channels could escalate each other.
+- Placement: an owned container outside the recorded placement refused installation
+  startup where the earlier revision admitted, and a labelled container under any
+  other owner escaped the count while the module's own documentation claimed it was
+  counted.
+- Placement: every recovery target creation site now carries its tier label, and
+  the guard that claimed every launch site passes a tier is a floor rather than an
+  exact count that a new launch site breaks.
+- Notification probe: its default run now exercises the fail-closed redaction gate,
+  which it did not, and its summary comparison no longer re-reads a render time
+  sentence that made one check a coin flip.
+- Mail: a dangling symlink is refused instead of silently reading as unconfigured.
+
+### Measured, with the evidence committed
+
+- `docs/evidence/resource-policy-cgroup-mapping.json`: `--cpu-shares` maps to the
+  cgroup v2 `cpu.weight` sublinearly (2048 asks for 174, not 800), `--blkio-weight`
+  did not bind at all on this host, and `--device-write-bps` did, landing a numeric
+  `wbps` in `io.max`.
+- `docs/evidence/noisy-neighbor-sql-runs.json`: five runs of the neighbour
+  experiment, three preserved. No repeatable effect: the median, the p95 and the
+  maximum stay flat between the baseline and the phase where a second environment
+  saturates the shared engine. One earlier run showed a tail spike that four later
+  runs did not reproduce, and it is recorded as an outlier rather than as the
+  neighbour penalty.
+- `docs/evidence/pressure-response-checks.json`: a real threshold crossing on a
+  disposable container, the level 1 refusal, one durable ledger line, and a return
+  to admitting after recovery.
+- `docs/evidence/auth-templates-source-v2.196.0.json`: what a template variable of
+  the pinned Auth version does, read from the tag's own source with a digest per
+  file. A template value is an HTTP URL, never a file.
+- Probes re-run by the maintainer on the landed tree: mail 36 checks, notifications
+  21 checks, both cleaning up what they created. Gates: 575 Python tests, 87 Bun
+  tests, UI typecheck, console build check.
+
+### Not in this release
+
+Stated here rather than left to be discovered:
+
+- **No server rehearsal.** The deployment readiness matrix is implemented and
+  proven on a workstation, and it is not a rehearsal against real hardware.
+- **The container generation migration is deferred**, so a retained database
+  container cannot be recreated. The tier contract therefore applies to placements
+  created after it, and the retained placement on a development host stays
+  grandfathered. `docs/plans/2026-09-21-generation-migration-plan.md` is the plan.
+- **Two measurements are blocked, not merely unrun**: the arrival driven pressure
+  experiment and the mixed SDK load. Their only fixture generator,
+  `lab/durable-check.ts`, is disabled pending that migration, and its fixture on a
+  development host names a retired environment. One load vehicle also overwrites
+  its own evidence when it fails, and its cleanup replaces the real error.
+- **The tier tables are uncalibrated.** The block IO rows bind and separate the
+  tiers, and no experiment has measured what a tier receives under load.
+- **Three notification kinds are emitted by nobody**: pressure, runtime refused and
+  headroom changed. Nothing calls the pressure response on a schedule.
+- **Mail is read only in the console** and the operator still chooses an SMTP
+  provider. Templates are the upstream defaults, and an override has to be served
+  from inside the runtime network.
+- **No licence file.** `NOTICE` states the copyright and the upstream attributions,
+  including that Supabase Studio and postgres-meta are used as unmodified pinned
+  images and that the console is sbarbase's own work. Choosing a licence is the
+  maintainer's decision and is not made here.
