@@ -1,7 +1,7 @@
 import {useState,type FormEvent} from 'react';
 import {Eye,EyeOff,ArrowRight,LockKeyhole} from 'lucide-react';
 import {auth} from './api';
-import {ErrorMessage} from './components';
+import {ErrorMessage,ThemeControl} from './components';
 import {Brand,CactusArtwork} from './Brand';
 export function Login(){
  const [email,setEmail]=useState(''),[password,setPassword]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[showPassword,setShowPassword]=useState(false);
@@ -19,7 +19,7 @@ export function Login(){
     </form>
     <p className="account-note">Need an account? <span>Contact your installation owner.</span></p>
    </div>
-   <div className="auth-footer"><LockKeyhole aria-hidden="true"/><span>Your own infrastructure. Your own data.</span></div>
+   <div className="auth-footer"><LockKeyhole aria-hidden="true"/><span>Your own infrastructure. Your own data.</span><ThemeControl/></div>
   </section>
   <section className="auth-art-panel" aria-labelledby="art-title">
    <div className="art-topline"><span>A little space. A lot of possibility.</span><span className="art-edition">sbarbase / console</span></div>

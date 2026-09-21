@@ -1,5 +1,13 @@
 import {useId,useState,type FormEvent,type ReactNode} from 'react';
-import {Plus,RefreshCw} from 'lucide-react';
+import {Plus,RefreshCw,Monitor,Sun,Moon} from 'lucide-react';
+import {applyTheme,nextTheme,storeTheme,type ThemeMode} from './theme';
+const themeLabels:Record<ThemeMode,string>={system:'System theme',light:'Light theme',dark:'Dark theme'};
+/** Follows the operating system by default; the button cycles system, light, dark. */
+export function ThemeControl(){
+ const [mode,setMode]=useState<ThemeMode>(()=>{try{return localStorage.getItem('sbarbase.theme')==='light'?'light':localStorage.getItem('sbarbase.theme')==='dark'?'dark':'system';}catch{return 'system';}});
+ const Icon=mode==='system'?Monitor:mode==='light'?Sun:Moon;
+ return <button className="theme-control" type="button" aria-label={themeLabels[mode]+', change theme'} title={themeLabels[mode]+', change theme'} onClick={()=>{const next=nextTheme(mode);try{storeTheme(next);}catch{}applyTheme(next);setMode(next);}}><Icon aria-hidden="true"/>{themeLabels[mode]}</button>;
+}
 export function ErrorMessage({message}:{message:string}){return message?<p className="error" role="alert">{message}</p>:null;}
 export function Loading(){return <p className="muted" role="status">Loading…</p>;}
 export function Empty({children}:{children:ReactNode}){return <div className="empty">{children}</div>;}
