@@ -24,6 +24,22 @@ def client(environment, query):
     return child
 
 
+def answers(environment):
+    """True when this environment's own login can reach its database.
+
+    A state entry is not proof of a live environment: a retired one keeps its row
+    and its role with NOLOGIN, so selecting the first two entries can pick a dead
+    environment and fail the probe for a reason that has nothing to do with
+    neighbours. The selection below probes instead of assuming.
+    """
+    child=client(environment,'SELECT 1;\n')
+    child.wait(timeout=20)
+    # psql prints a command tag for each SET before the answer, so the answer is
+    # the last non empty line, not the whole output.
+    lines=[line for line in child.stdout.read().splitlines() if line]
+    return child.returncode==0 and lines[-1:]==['1']
+
+
 def samples(environment):
     query=''.join('\\timing on\nSELECT sum(i) FROM generate_series(1,10000) i;\n\\timing off\nSELECT pg_sleep(0.1);\n' for _ in range(50))
     child=client(environment, query)
@@ -45,9 +61,9 @@ try:
     available=int(next(line.split()[1] for line in runtime.lab.Path('/proc/meminfo').read_text().splitlines() if line.startswith('MemAvailable:')))
     if available<3*1024*1024:
         raise RuntimeError('Insufficient host headroom for bounded probe')
-    environments=list(rt.values['environments'])
+    environments=[e for e in list(rt.values['environments']) if answers(e)]
     if len(environments)<2:
-        raise RuntimeError('Two retained environments required')
+        raise RuntimeError('Two answering retained environments required')
     target,neighbor=environments[:2]
     actual=runtime.inspect('container', runtime.DB)['HostConfig']
     if actual.get('NanoCpus')!=1000000000 or actual.get('Memory')!=1024**3:
@@ -72,6 +88,7 @@ try:
         raise RuntimeError('Bounded workload did not finish normally')
     recovered=samples(neighbor)
     result={'scope':'Single local SQL microbenchmark: 50 read-only aggregate queries per phase, 100 ms pacing, one other environment runs an eight-second CPU query. Existing DB container is capped at one CPU. No HTTP/SDK, uploads, visitor conversion, sustained disk-write load or 10/100 environment capacity conclusion.',
+            'environments':{'target':target,'neighbor':neighbor},
             'heavy_overlapped_entire_loaded_sample':overlapping,
             'baseline':baseline,'with_neighbor_load':loaded,'after_load':recovered,
             'pressure_before':before,'pressure_during':during}

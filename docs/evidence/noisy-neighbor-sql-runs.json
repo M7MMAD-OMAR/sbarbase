@@ -1,0 +1,124 @@
+{
+  "schema": 1,
+  "taken": "2026-09-21",
+  "harness": "lab/noisy-neighbor-check.py",
+  "question": "does one environment's load degrade a neighbouring environment's SQL latency on the one shared engine",
+  "scope": "Single local SQL microbenchmark: 50 read-only aggregate queries per phase, 100 ms pacing, one other environment runs an eight-second CPU query. Existing DB container is capped at one CPU. No HTTP/SDK, uploads, visitor conversion, sustained disk-write load or 10/100 environment capacity conclusion.",
+  "runs": [
+    {
+      "run": "a",
+      "baseline": {
+        "samples": 50,
+        "median_ms": 0.876,
+        "p95_ms": 1.253,
+        "max_ms": 1.399
+      },
+      "with_neighbor_load": {
+        "samples": 50,
+        "median_ms": 0.855,
+        "p95_ms": 1.089,
+        "max_ms": 1.23
+      },
+      "after_load": {
+        "samples": 50,
+        "median_ms": 0.753,
+        "p95_ms": 0.97,
+        "max_ms": 1.325
+      },
+      "heavy_overlapped_entire_loaded_sample": true,
+      "environments": {
+        "target": "e_f61bf85dccd73890ec63997c",
+        "neighbor": "e_1f0624c545789214eef426c9"
+      },
+      "db_pressure_during": {
+        "cpu_some10": 0.18,
+        "io_full10": 0.0,
+        "memory_full10": 0.0
+      }
+    },
+    {
+      "run": "b",
+      "baseline": {
+        "samples": 50,
+        "median_ms": 0.869,
+        "p95_ms": 1.247,
+        "max_ms": 1.316
+      },
+      "with_neighbor_load": {
+        "samples": 50,
+        "median_ms": 0.794,
+        "p95_ms": 1.168,
+        "max_ms": 1.231
+      },
+      "after_load": {
+        "samples": 50,
+        "median_ms": 0.828,
+        "p95_ms": 0.986,
+        "max_ms": 1.16
+      },
+      "heavy_overlapped_entire_loaded_sample": true,
+      "environments": {
+        "target": "e_f61bf85dccd73890ec63997c",
+        "neighbor": "e_1f0624c545789214eef426c9"
+      },
+      "db_pressure_during": {
+        "cpu_some10": 0.29,
+        "io_full10": 0.0,
+        "memory_full10": 0.0
+      }
+    },
+    {
+      "run": "c",
+      "baseline": {
+        "samples": 50,
+        "median_ms": 0.845,
+        "p95_ms": 1.241,
+        "max_ms": 1.288
+      },
+      "with_neighbor_load": {
+        "samples": 50,
+        "median_ms": 0.854,
+        "p95_ms": 1.243,
+        "max_ms": 1.348
+      },
+      "after_load": {
+        "samples": 50,
+        "median_ms": 0.833,
+        "p95_ms": 1.322,
+        "max_ms": 1.489
+      },
+      "heavy_overlapped_entire_loaded_sample": true,
+      "environments": {
+        "target": "e_f61bf85dccd73890ec63997c",
+        "neighbor": "e_1f0624c545789214eef426c9"
+      },
+      "db_pressure_during": {
+        "cpu_some10": 0.14,
+        "io_full10": 0.0,
+        "memory_full10": 0.0
+      }
+    }
+  ],
+  "a_run_whose_artifact_was_lost": {
+    "note": "One earlier run on the same day reported max 5.156 ms during the neighbour load where its own baseline max was 1.338 ms, with the median and p95 flat in every phase (0.860 to 0.768 median, 1.206 to 1.165 p95). The harness writes one file per run, so that run was overwritten before it was copied out and it is quoted from its console output, not from a measurement file. It is the reason the repeats above exist.",
+    "baseline": {
+      "median_ms": 0.86,
+      "p95_ms": 1.206,
+      "max_ms": 1.338
+    },
+    "with_neighbor_load": {
+      "median_ms": 0.768,
+      "p95_ms": 1.165,
+      "max_ms": 5.156
+    },
+    "after_load": {
+      "max_ms": 4.054
+    }
+  },
+  "conclusion": [
+    "No repeatable effect. In the three preserved runs the median, the p95 and the maximum are flat between the baseline and the phase where the neighbour saturates the shared engine: for example run c reads median 0.845 to 0.854 ms and max 1.288 to 1.348 ms.",
+    "One run of five showed a tail spike that no later run reproduced. It is recorded as an outlier, not as an effect, and the numbers in this file do not support the earlier single reading.",
+    "The load is generated inside the one shared PostgreSQL container through psql, so no per environment cgroup weight, block IO limit or memory ceiling participates. What this measures is the shared engine, not the tier separation, and it cannot show what a separate cluster would do.",
+    "It supports no capacity claim: no HTTP or SDK path, no uploads, no sustained disk writes, one bounded query shape, and nothing about ten or a hundred environments."
+  ]
+}

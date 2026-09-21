@@ -529,6 +529,37 @@ Failure conditions, stated before the run:
 - The measured `cpu.weight` or `io.weight` does not match the table: the Docker
   mapping assumption in section 3.1 is wrong and the policy is void until fixed.
 
+### 5.1.1 The neighbour run, taken 2026-09-21
+
+`lab/noisy-neighbor-check.py` was run five times against the retained runtime on
+this host and the three preserved runs are in
+`docs/evidence/noisy-neighbor-sql-runs.json`. Each run samples 50 read only
+aggregate queries at 100 ms pacing in three phases: alone, while a second
+environment saturates the shared engine with an eight second CPU query, and
+afterwards. The overlap was confirmed active in every run.
+
+The result, and it is not the result the first run suggested:
+
+| Run | Baseline median / max | During the neighbour's load, median / max |
+|---|---|---|
+| a | 0.876 / 1.399 ms | 0.855 / 1.230 ms |
+| b | 0.869 / 1.316 ms | 0.794 / 1.231 ms |
+| c | 0.845 / 1.288 ms | 0.854 / 1.348 ms |
+
+One earlier run reported a maximum of 5.156 ms against its own baseline of
+1.338 ms, with the median and p95 flat in every phase. Four runs out of five show
+no effect at all, so that reading is recorded as an outlier rather than as an
+effect, and the single number must not be quoted as the neighbour penalty. What
+the repeats establish is the absence of a repeatable effect under this load, not
+the presence of one.
+
+Two limits on that, both important. The load is generated inside the one shared
+PostgreSQL container, so no per environment cgroup weight, block IO limit or
+memory ceiling takes part: this measures the shared engine and says nothing about
+whether the tiers separate anything. And a bounded query shape at 100 ms pacing
+is not a capacity test, so nothing here supports a statement about ten or a
+hundred environments.
+
 ### 5.2 Experiment B: pressure response, continuous
 
 Extend `lab/pressure_admission.py` so it can sample repeatedly, and drive it from
