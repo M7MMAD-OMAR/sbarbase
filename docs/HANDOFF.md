@@ -16,7 +16,7 @@ Experimental runtime: shared PostgreSQL, a separate database and scoped service 
 
 ## What exists and what was measured
 
-- Local console, management login, organizations/projects/environments, scoped keys, queued provisioning, original Supabase Auth/REST/Storage and retained volumes.
+- Local console, management login, organizations/projects/environments, scoped keys, queued provisioning, original Supabase Auth/REST/Storage and retained volumes. The console is the platform layer and each environment is administered by the original upstream Studio, which is specified but not served yet.
 - Four local environments: three on the source cluster and one restored onto a separate local target. Real SDK tests cover identity, RLS, reads/writes, files and an unchanged signed URL created before export.
 - Fenced encrypted export, independent restore, persistent routing, maintenance, address refresh, target startup/shutdown and combined supervisor. See [recovery details](INDEPENDENT-RESTORE.md) and [combined runtime](COMBINED-RUNTIME.md).
 - Combined configured ceilings: **5888 MiB RAM and 5.75 CPUs**, within a 6 GiB/6 CPU admission cap plus host reserves. This is an experimental allocation budget, not actual peak use or a VPS recommendation. No measured 10/100-project limit exists.
@@ -31,9 +31,10 @@ Source links, findings and limitations are preserved in [architecture research](
 - [Ten-project hierarchy](diagrams/ten-projects.png).
 - [Ownership, migration and recovery](diagrams/move-and-restore.png).
 - [Diagram assumptions and prompts](diagrams/README.md).
-- [Console concept](design/console-concept.png), [desktop](design/console-desktop.jpg), [mobile](design/console-mobile.jpg), [visual QA](design/CONSOLE-QA.md).
+- [Console concept](design/console-concept.png) and [visual QA](design/CONSOLE-QA.md) record the platform-layer console only; environment administration belongs to upstream Studio.
+- [Studio integration specification](STUDIO-INTEGRATION.md): the per-environment administration surface, its scoped login, routing and the twelve isolation tests it still needs.
 
-The pictures illustrate design intent, including future operations. Ten projects is an illustrative pilot proposal, not demonstrated capacity. The optional second server is future placement; current experiments use one computer. The UI follows Supabase's direction, not a complete implementation of its design system.
+The pictures illustrate design intent, including future operations. Ten projects is an illustrative pilot proposal, not demonstrated capacity. The optional second server is future placement; current experiments use one computer. The platform console is our own surface and does not imitate Studio: each environment is administered through the original upstream Studio, adopted as a pinned component.
 
 Direct provisioning effects now retain worker ownership after worker death; see [scope and tests](WORKER-EFFECT-OWNERSHIP.md). A [durable receipt gate](PROVISIONING-RECEIPTS.md) now blocks replay and startup after unknown outcomes. A [parent-bound guardian](EFFECT-GUARDIAN.md) now applies a local deadline and group termination protocol. A [native completion witness](NATIVE-OUTCOME-RECOVERY.md) now recovers a lost acknowledgment without replay. A [read-only inspector](PROVISIONING-INSPECTION.md) now reports evidence for unresolved effects. [Bounded preflight recovery](PREFLIGHT-RECOVERY.md) now requeues proven pre-mutation interruptions under fresh ownership. Later-stage unknown outcomes remain blocked. A [database-local SQL revocation prototype](SQL-OPERATION-FENCE.md) passes 35 live checks but is not integrated into recovery. [Partial database interruption checks](PARTIAL-DATABASE-CRASH.md) now cover 64 component and 65 upstream-distribution assertions; new databases stay closed until their connection permissions commit. Fresh original Auth/REST/Storage integration also passes 122 checks after that change. [A real active-preflight supervisor crash and restart](ACTIVE-PREFLIGHT-CRASH.md) passed 25 checks without allocating resources.
 

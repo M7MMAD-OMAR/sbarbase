@@ -2,7 +2,7 @@
 
 Current gate: the retained legacy source has not been adopted into the new HBA authority protocol, so source preflight intentionally refuses before the normal target stop/start sequence. Supervisor failure cleanup can still stop owned runtimes. The results below predate that integration. See [source HBA integration](SOURCE-HBA-INTEGRATION.md).
 
-`/usr/bin/python3 lab/dev.py` now starts the source neighbors and the retained moved target through `installation_runtime.py`, then runs the console/API and worker. Shutdown pauses target routing and stops both runtimes, retaining all data. Installations without a cutover journal keep the previous source-only behavior.
+`/usr/bin/python3 lab/dev.py` now starts the source neighbors and the retained moved target through `installation_runtime.py`, then runs the console/API and worker. Shutdown pauses target routing and stops both runtimes, retaining all data. Installations without a cutover journal keep the previous source-only behavior. Studio is not part of this placement yet: it is a per-environment process that the current ceilings do not count, so the plan below predates it ([integration specification](STUDIO-INTEGRATION.md), section 1.3).
 
 Combined startup validates retained container identities, applies a 6 GiB and 6 CPU installation ceiling, requires planned memory plus 2.5 GiB host reserve and two spare logical CPUs, and rejects excessive host CPU/I/O/memory pressure. It rejects any unexpected running owned container, including an old recovery target. Every planned container must have finite memory and CPU limits. Admission is checked before startup and again before target activation. This explicitly extends the staged experiment budget; it is not a recommendation for production sizing.
 

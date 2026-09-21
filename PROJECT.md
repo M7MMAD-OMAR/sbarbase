@@ -6,7 +6,7 @@ Short continuation brief: [handoff](docs/HANDOFF.md), including saved visuals, r
 
 ## Product and current decision
 
-Downloadable open source Supabase-based administration for multiple projects, usually on one VPS. Preserve Supabase SDK/SQL compatibility and follow its design system for the administration UI. Operators are trusted; application visitors are not. A working local console now runs on the loopback API server. No production platform or complete installer exists yet.
+Downloadable open source Supabase-based administration for multiple projects, usually on one VPS. Preserve Supabase SDK/SQL compatibility. Administer each environment through the original upstream Supabase Studio; the platform console covers only organizations, projects, environments, connection details, keys and provisioning status. Operators are trusted; application visitors are not. A working platform console now runs on the loopback API server. No production platform or complete installer exists yet.
 
 **Continue implementation and verification; production architecture is not approved.** Hierarchy: installation > organization > project > environment. Ownership is independent of server placement. Candidate: shared PostgreSQL, separate environment databases and service credentials, original Auth/REST per environment and shared Storage. Shared roles/processes/resources remain failure boundaries. Independent PostgreSQL is the fallback if compatibility, isolation or recovery gates fail. No fixed project capacity, distribution license or upstream adoption has been chosen.
 
@@ -14,7 +14,7 @@ Downloadable open source Supabase-based administration for multiple projects, us
 
 | Area | What works | Evidence and limits |
 |---|---|---|
-| Console | Login, organization/project discovery, creation, provisioning status, connection details and key management | [Real browser workflow and saved screenshots](docs/design/CONSOLE-QA.md). Local only, foreground supervised worker, no health/capacity/backup UI yet |
+| Console | Login, organization/project discovery, creation, provisioning status, connection details, key management and the Studio handoff for each environment | [Real browser workflow and saved screenshots](docs/design/CONSOLE-QA.md). Local only, foreground supervised worker, no health/capacity/backup UI yet. Environment administration is delegated to the original upstream Studio, which is specified but not served yet: [Studio integration specification](docs/STUDIO-INTEGRATION.md) |
 | Control plane | Owner/admin/viewer policy, dedicated management Auth realm, durable publishable keys and composed loopback API | [28 upstream management checks](docs/evidence/upstream-management-checks.json), [scope](docs/reviews/upstream-management.md). Local operator bootstrap and organization discovery now work; production onboarding, invitations, full audit and edge controls remain pending |
 | Initial operator | Private local setup, persisted intent, interrupted Auth/catalog recovery and authenticated organization discovery | [18 live checks](docs/evidence/bootstrap-checks.json), [usage and scope](docs/OPERATOR-SETUP.md). No real operator account retained; no public bootstrap endpoint |
 | Provisioning | Atomic environment/job creation, exclusive local worker, stable runtime identity and interrupted-operation reconciliation | [7 live checks](docs/evidence/provision-checks.json), [scope](docs/PROVISIONING.md). Default worker retains the stock fixture; `--upstream` selects an isolated durable Supabase runtime |
@@ -38,7 +38,7 @@ Local SQLite stores experimental control metadata and hashed API keys; applicati
 2. Complete production management deployment, operator onboarding UX, invitations, key rotation/auditing, admission controls, CORS/OAuth and streaming uploads. Integrate Realtime, pooler, functions and scheduled jobs with isolation tests.
 3. Prove encrypted off-host recovery of databases, objects, secrets/configuration and function artifacts. Implement ownership transfer and server cutover; rollback after destination writes requires reconciliation.
 4. Benchmark peak workloads and noisy neighbors, then 10 environments when resources permit. Admission must account for CPU, RAM, I/O, connections, disk and recovery headroom. Daily visitors do not establish 10/100-project capacity.
-5. Extend the working local console with actual operations, complete design-system integration and accessible onboarding. Build a distributable installer/supervisor against verified APIs.
+5. Extend the platform console with actual operations and accessible onboarding, and serve each environment's original Studio behind an authenticated route. Build a distributable installer/supervisor against verified APIs.
 
 ## Research and saved diagrams
 
@@ -317,3 +317,11 @@ The upstream HBA probe passes36 checks: restrictive file publication alone does 
 All121 Python tests pass. Read docs/ATOMIC-HBA-REPLACEMENT.md and the reviewed, unimplemented HBA-OPERATION-AUTHORITY-DESIGN.md. Next implement immutable operation journals and registry/tombstone semantics only after specifying startup and container-generation reconciliation. Unknown services-stage replay stays blocked.
 
 Fresh real worker/SDK lifecycle also passes57 checks after reload validation, with exact isolated cleanup. Independent review found no runtime must-fix and tightened invalid-reload evidence wording: immediate continued rejection does not confirm SIGHUP processing.
+
+## Administration surface checkpoint
+
+The per-environment administration surface is now the original upstream Supabase Studio, pinned like Auth, REST and Storage: one Studio and one postgres-meta per environment. The home-grown console is the platform layer only, covering organizations, projects, environments, connection details, keys and provisioning status, and it hands each environment off to its Studio. Parity with Studio's design system is withdrawn as a goal for our own UI; the console follows the operating system theme instead.
+
+A live probe against one retained environment started the real Studio, loaded its full navigation and edited that environment's own table through the Table Editor.
+
+[The integration specification](docs/STUDIO-INTEGRATION.md) records the container set, the fourth scoped login and its grants, the HBA rule, how access is authenticated, routing, the surfaces whose backing service does not exist, the pinning consequences and twelve isolation tests. Not implemented and not claimed: Studio serving, the routing change, the fourth login, any measured Studio footprint, and whether the gateway admits Studio's own server-side admin calls. The configured ceilings of 5888 MiB and 5.75 CPUs predate any Studio process, and the placement container list does not count the new pair.

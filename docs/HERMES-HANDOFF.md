@@ -14,7 +14,7 @@ Open-source self-hosted platform on original Supabase. Hierarchy: installation >
 
 ## Completed and evidenced
 
-- Local console, organizations/projects/environments, scoped keys, queued provisioning and original Supabase services.
+- Local console, organizations/projects/environments, scoped keys, queued provisioning and original Supabase services. The console is the platform layer; each environment is administered through the original upstream Studio, which is specified but not served yet.
 - Four retained local environments, including one moved to a separate local recovery target. Auth/RLS/private Storage, export/restore, source fencing and persistent routing were exercised.
 - Source HBA authority integrated into startup and worker provisioning, with exact ownership, generation pins, immutable attempts and durable completion.
 - Latest full Python run: 217 passing tests. Recorded Bun run: 73 tests/408 assertions. Healthy real worker/restart/SDK rehearsal: 76 checks.

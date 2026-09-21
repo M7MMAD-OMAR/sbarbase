@@ -4,7 +4,7 @@ Date: 2026-09-20. Status: research and source review, not an implemented or appr
 
 ## Product contract
 
-Sbarbase is downloadable open source software. Each operator owns an independent installation and manages its own Supabase-based projects through a UI. Keeping Supabase is a firm user requirement. Replacing its APIs or auth system with a different backend is outside the current objective.
+Sbarbase is downloadable open source software. Each operator owns an independent installation and manages its own Supabase-based projects through a UI. The per-environment administration surface of that UI is the original upstream Supabase Studio, one instance per environment. Keeping Supabase is a firm user requirement. Replacing its APIs or auth system with a different backend is outside the current objective.
 
 The objective is low incremental resource use and automatic management, without a full duplicated stack per project. Earlier responses incorrectly strengthened this into a ban on every per-project process. A few appropriately scoped services can be considered, but their resource cost must be measured. No reduction in resource usage has yet been demonstrated.
 
@@ -58,6 +58,7 @@ Keep a small management application with explicit modules, rather than requiring
 - A restricted host agent for privileged work, isolated from the public data path.
 - Desired and observed state, service versions, placement and encrypted secret references.
 - Routing and per-environment admission limits.
+- The per-environment administration route and its authenticated handoff to upstream Studio, with the platform console as the entry point.
 - Backup, restore, upgrade preflight and diagnostic workflows.
 
 Creation should progress through requested, provisioning, validating and ready, or failed with a safe retry. Concurrent retries must not create duplicate environments. A generation identifier prevents stale queued operations from acting on a deleted or replaced environment. Test crashes between each external operation and its completion record.

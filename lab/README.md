@@ -100,6 +100,8 @@ stop it after testing. Details: [operator setup](../docs/OPERATOR-SETUP.md).
 
 Run `bun install --frozen-lockfile`, then `/usr/bin/python3 lab/dev.py`. The foreground runner builds the console, starts the owned runtime and continuously processes queued creation operations. Open its printed loopback URL. Create the initial operator with `lab/bootstrap.py` if needed. Ctrl+C stops the runner and its owned runtime while preserving volumes. Browser sessions are in memory, so reloading requires login. Do not run manual lifecycle commands concurrently with the runner. This is not a production service manager.
 
+This console is the platform layer: organizations, projects, environments, connection details, keys and provisioning status. Environment administration is handed to the original upstream Studio, which is specified in [the integration specification](../docs/STUDIO-INTEGRATION.md) and is not served by any command yet. When it lands, its route and its authenticated gate join this runner and its admission math.
+
 `bun run typecheck:ui` checks frontend types. `lab/ui-fixture.ts` creates only a
 private temporary QA identity attached to the existing durable probe organization;
 use its explicit `cleanup` command afterward. It is not operator onboarding.

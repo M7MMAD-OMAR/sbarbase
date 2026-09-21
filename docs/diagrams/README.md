@@ -1,12 +1,27 @@
 # Diagram generation record
 
-Generated with the built-in image generation tool on 2026-09-20. These are proposed architecture diagrams, not a deployed system or a pixel-exact implementation of Supabase's design system.
+Generated with the built-in image generation tool on 2026-09-20. These are proposed architecture diagrams, not a deployed system. They are also not the administration surface: that is the original upstream Studio, one instance per environment ([integration specification](../STUDIO-INTEGRATION.md)), while these pictures describe the sbarbase platform layer and the data plane.
 
 The project count of 10 is a proposed installation pilot cap, not measured hardware capacity. Environments also consume resources; admission must check environment count, active connections, available memory, storage, workload and reserved recovery capacity. Server placement of six and four production environments is illustrative. Multi-server management is a future capability, not an initial deployment requirement.
 
 Organization transfer means ownership and authorization changes for all project environments inside one installation. Server migration moves a selected environment, preserving project identity; endpoints can remain stable behind an installation-owned gateway, while direct connection details may change. Cross-installation export/import is a separate operation requiring destination identity and secret reconciliation.
 
 Recovery must coordinate database state, objects, auth keys, configuration and function artifacts. Temporary recovery disables external jobs. Retaining the old source is not a safe rollback after new destination writes without reconciliation.
+
+## Administration surface, and what these pictures predate
+
+The middle band of `ten-projects.png` claims one console owns projects, permissions,
+transfer and backup. That claim is now split: the platform console owns
+organizations, projects, environments, connection details, keys and provisioning
+status, and each environment is administered by its own instance of the original
+upstream Studio. The regenerated band should show both, and the bottom band
+"داخل المشروع" should carry the Studio label beside the environment internals.
+The prompts below are retained as the generation history of the committed files,
+and they name the platform layer's own surfaces, not Studio's.
+
+A first corrected drawing is committed as `administration-surface.svg` with its
+rendered `administration-surface.png`, which replaces the middle band of the
+ten-project picture for the administration question specifically.
 
 ## Prompt 1
 

@@ -9,7 +9,8 @@ Recorded 2026-09-20. These are concise research conclusions, not production cert
 | Database boundary | Experiment with database per environment on shared PostgreSQL | Schema per project provides a weaker separation for the desired independent lifecycle; full stacks remain a cost baseline |
 | API roles | Test canonical NOLOGIN roles plus unique service logins, exact login/database HBA and CONNECT grants | Namespaced roles may break existing SQL policies; independent PostgreSQL is the fallback, not rejected |
 | Auth and REST | Original service processes per environment | Request-time database switching is not an established supported mode; rewriting Auth adds security and compatibility risk |
-| Other services | Sharing must pass pinned-version integration and isolation tests | Do not infer that multitenant configuration proves safe integration |
+| Other services | Sharing must pass pinned-version integration and isolation tests. Studio is a component of this kind: adopted per environment, pinned, attributed and integration tested like Auth and REST | Do not infer that multitenant configuration proves safe integration |
+| Administration UI surface | Each environment is administered through the original upstream Supabase Studio (pinned, one Studio and one postgres-meta per environment). The home-grown console keeps only organizations, projects, environments, connection details, keys and provisioning status, and hands off to Studio | A home-grown console that imitates Studio: duplicates upstream features, drifts on every upstream release and cannot reach parity with the real Studio |
 | Existing projects | Evaluate supabase-multitenant for adaptation, Pigsty for operations | No adoption approved. Supafleet CLI credential sharing needs correction. Coolify/Dokploy manage deployments but do not establish this shared topology |
 | Capacity | Measure peak workloads and reserve recovery headroom before admission | Neither 500 daily visitors nor container count predicts hardware needs; no fixed 10/100 guarantee |
 | Recovery | Restore into an isolated target, validate, then switch; include objects and configuration | Replication is not backup. Physical PITR targets the cluster; per-environment recovery needs temporary-cluster extraction |
@@ -23,6 +24,7 @@ Recorded 2026-09-20. These are concise research conclusions, not production cert
 - One environment can exhaust shared resources without effective admission and containment.
 - Backup/restore or migration cannot meet an explicitly chosen recovery objective.
 - Measured savings do not justify operational complexity compared with independent instances.
+- A pinned Studio cannot be served per environment without unacceptable resource cost, or serving it requires forking the administration surface.
 
 ## Research map
 

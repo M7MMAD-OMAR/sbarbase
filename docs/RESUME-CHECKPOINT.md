@@ -732,3 +732,28 @@ actually record (8766, 341, 8789, 18).
 
 Suites after the fixes: 399 Python tests, 73 Bun tests, `tsc --project
 tsconfig.json` clean.
+
+## Administration surface redirect, latest checkpoint
+
+Read [the integration specification](STUDIO-INTEGRATION.md). The per-environment
+administration surface is the original upstream Supabase Studio (pinned, one
+Studio and one postgres-meta per environment), and the home-grown console keeps
+only the platform layer: organizations, projects, environments, connection
+details, keys and provisioning status. The withdrawn goal is parity with Studio's
+design system.
+
+What this invalidates: the design-parity goal, the look-alike framing of the
+console concept and its captures, and any sentence that presents the console as
+the administration surface for an environment. The hierarchy, the isolation model
+and every packaged-backend document are unaffected.
+
+What exists today: a live probe against one retained environment started the real
+Studio and its Table Editor edited that environment's own table. Test counts for
+this checkpoint: 78 Bun tests, 472 assertions, including three that guard the
+console palette and refuse a literal colour outside its token blocks; frontend
+typecheck and build pass.
+
+What does not exist: Studio serving, its route, the fourth scoped login, any
+measured Studio footprint, and the answer to whether the gateway admits Studio's
+own server-side admin calls. The two configured ceilings predate the new
+containers, and the placement name list does not count them.

@@ -1,6 +1,6 @@
 # Sbarbase: implementation record through 2026-09-20
 
-Updated 2026-09-20. Historical implementation record. Start with docs/HANDOFF.md and the final section of docs/RESUME-CHECKPOINT.md for current status; earlier entries below are historical. Workspace: `/home/sbarah/R/Projects/P/sbarbase`.
+Updated 2026-09-20. Historical implementation record. Start with docs/HANDOFF.md and the final section of docs/RESUME-CHECKPOINT.md for current status; earlier entries below are historical. Workspace: `/home/sbarah/R/Projects/P/sbarbase`. The administration-surface direction changed on 2026-09-21: the per-environment surface is the original upstream Studio, adopted as a pinned component, and the console keeps only the platform layer. See DECISIONS.md and the latest RESUME-CHECKPOINT entry. The design-system sentence further down is therefore history, not live direction.
 
 ## Purpose and firm requirements
 

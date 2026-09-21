@@ -9,7 +9,9 @@ binding for every future change, assistant and release.
 1. **Pin everything.** Every upstream component (Postgres image, Auth, REST
    (PostgREST), Storage, CLI, migration scripts) is pinned to an exact version
    in one visible place. No floating tags (`latest`, `main`). The pin file is
-   the single source for "what are we on".
+   the single source for "what are we on". Studio and postgres-meta are
+   components of the same kind, adopted per environment: see the pending
+   components note under Current pins.
 2. **Read the changelog before touching anything.** For every candidate
    upstream release, before adopting it: read the upstream release notes and
    changelog, and record in a dated entry under `docs/upstream/`:
@@ -52,6 +54,20 @@ floating tag or an unpinned component.
 | Storage | `lab/storage-image.lock.json` | public.ecr.aws/supabase/storage-api:v1.73.1 | c24fb33cc2fa | project start | tenant-aware |
 
 Keep this table honest. An out-of-date pin table is treated as a bug.
+
+### Pending components
+
+Studio and postgres-meta are adopted per environment ([decision](DECISIONS.md)) but
+are not pinned yet, because nothing serves them. Each enters this table in its own
+change with its own dated review entry, one component at a time. Two pairs exist and
+one has to be chosen on purpose: the pair already measured on this host is
+`studio:2026.07.27-sha-cbb076d` with `postgres-meta:v0.96.6`, and the pair named by
+the current upstream self-hosting compose is `studio:2026.09.07-sha-7996410` with
+`postgres-meta:v0.99.0`. The compose's database image must not be taken at all;
+this installation pins `17.6.1.166`. Neither Studio nor postgres-meta is covered by
+any existing evidence, so no recorded gate result may be reused for them, and the
+adoption has to state which checkpoints it invalidates. [Integration
+specification](STUDIO-INTEGRATION.md) section 9 lists them.
 
 ## Staging an update
 

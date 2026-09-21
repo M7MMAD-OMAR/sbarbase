@@ -6,7 +6,7 @@ Updated 2026-09-20. This is the short entry point for Codex or Hermes. Detailed 
 
 ## Decision
 
-Keep original Supabase. Model **installation > organization > project > environment**, with ownership separate from server placement. Trial: shared PostgreSQL, separate database and service credentials per environment, original Auth/REST per environment, shared tenant-aware Storage. Independent PostgreSQL remains the fallback. This assumes trusted host operators and SQL authors.
+Keep original Supabase. Model **installation > organization > project > environment**, with ownership separate from server placement. Trial: shared PostgreSQL, separate database and service credentials per environment, original Auth/REST per environment, shared tenant-aware Storage. Independent PostgreSQL remains the fallback. This assumes trusted host operators and SQL authors. Each environment is administered through the original upstream Supabase Studio; the sbarbase console is the platform layer above it, covering organizations, projects, environments, connection details, keys and provisioning status.
 
 ## Why this candidate
 
@@ -24,7 +24,7 @@ Configured retained ceilings are 5888 MiB RAM/5.75 CPUs, not measured demand or 
 
 - [Ten-project hierarchy](diagrams/ten-projects.png) and [migration/recovery](diagrams/move-and-restore.png), with [assumptions](diagrams/README.md). These depict intent, not completed features or proven capacity.
 - [Architecture review](ARCHITECTURE-REVIEW.md), [Supabase feasibility](reviews/supabase-feasibility.md), [security](reviews/security-operations.md), [alternatives](reviews/alternatives-product.md), [capacity method](reviews/capacity-method.md), [recovery](reviews/storage-recovery.md).
-- [Console concept](design/console-concept.png) and [visual QA](design/CONSOLE-QA.md). Supabase design direction is retained; full design-system parity is unfinished.
+- [Console concept](design/console-concept.png) and [visual QA](design/CONSOLE-QA.md) record the platform-layer console. Environment administration is the original upstream Studio, so parity with Studio's design system is withdrawn as a goal for our own UI. See [the Studio integration specification](STUDIO-INTEGRATION.md).
 
 ## Exact stopping point
 

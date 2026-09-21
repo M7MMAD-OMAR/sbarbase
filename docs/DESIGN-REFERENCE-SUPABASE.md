@@ -1,10 +1,15 @@
 # Design reference: Supabase dashboard
 
-The official Supabase dashboard is the UX and visual reference for the sbarbase
-UI. Screenshots captured by the user from their production account are committed
-under `docs/design/supabase-reference/`. Treat them as the source of truth for
-layout, hierarchy and interaction patterns. Do not copy assets, logos or code;
-match the patterns, not the pixels.
+The reference screenshots were captured by the user from their production account
+and are committed under `docs/design/supabase-reference/`. They inform the
+platform layer's organizations and projects screens only, as material for layout
+and hierarchy.
+
+Per-environment administration is not modelled on Studio: it is served as the
+original upstream Studio itself, pinned and attributed like the other upstream
+components. See [the integration specification](STUDIO-INTEGRATION.md). Do not copy
+Studio assets, logos or code into our own platform layer; the upstream image is
+served unmodified instead, under its own license.
 
 ## Reference screenshots
 
@@ -68,3 +73,5 @@ installation > organization > project > environment. Map the screens:
 - Organizations list -> sbarbase organizations.
 - Projects list -> sbarbase projects (add environment count/selector in card).
 - Organization settings -> organization/project settings sections.
+- Environment settings -> not ours. The platform layer links into that
+  environment's Studio for anything inside the environment.

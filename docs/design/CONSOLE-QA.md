@@ -1,6 +1,6 @@
 # Console implementation and verification
 
-Verified 2026-09-20. This is the first working local console, not production release approval.
+Verified 2026-09-20. This is the historical verification record of the platform-layer console, not production release approval. The goal of bringing this console toward Studio parity is withdrawn: environment administration is served as the original upstream Studio ([integration specification](../STUDIO-INTEGRATION.md)), so the fidelity ledger below is history rather than a target. The captures are platform-layer captures and predate the redirect.
 
 ## Real workflow
 
@@ -66,13 +66,13 @@ keyboard/screen-reader audit and a long-duration token refresh were not tested.
 Above-the-fold copy review: no added metrics, claims or unavailable navigation.
 Intentional deviations are real data, its API ordering, native system font fallback,
 flat fills instead of generated-image lighting, and responsive/form/detail states.
-The result follows the selected reference's layout and visual system. It is not
-an exact reuse of Supabase's monorepo UI component package, and broader design
-system integration remains open. See [specification](CONSOLE.md).
+The platform console has its own layout and visual system; parity with Studio is
+intentionally out of scope, because the environment surface is Studio itself. See [specification](CONSOLE.md).
 
 Saved captures: [desktop](console-desktop.jpg), [mobile](console-mobile.jpg),
 [mobile connection](console-mobile-connection.jpg), [login error](console-login-error.jpg).
-Concept: [generated reference](console-concept.png). The reference PNG was losslessly
+These are platform-layer captures taken before the administration surface moved to upstream
+Studio. Concept: [generated reference](console-concept.png). The reference PNG was losslessly
 reduced from 949605 to 836062 bytes with decoded RGBA equality verified. The original
 is retained in the Codex generated-images directory. Orbit's JPEG captures are
 retained without another lossy encoding pass; no local JPEG lossless optimizer was available.

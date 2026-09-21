@@ -257,6 +257,14 @@ installer creates no published ports. Do not expose the management Auth endpoint
 or the provisioning API directly. Set the public URL the console should advertise
 in the proxy, not in the console build.
 
+When Studio lands, each environment's Studio is a second upstream behind the same
+reverse proxy. The shipped proxy terminates exactly one upstream, so it needs a
+second upstream and a host allowlist, or the operator brings their own proxy or an
+SSH tunnel. Studio has no login of its own and its pages carry a database connection
+string, so it must never be reachable unauthenticated, and it must not ride the data
+plane's route pattern. [Integration specification](STUDIO-INTEGRATION.md), sections 4
+and 5, covers the gate and the routing options.
+
 A reference termination ships with the repository and is exercised by the check
 (`/usr/bin/python3 lab/tls_termination_check.py`, 23 checks,
 `docs/evidence/tls-termination.json`). It needs only Bun and a certificate:

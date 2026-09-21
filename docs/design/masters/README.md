@@ -12,3 +12,7 @@ Use case: photorealistic-natural. Create one premium editorial botanical photogr
 ## Logo prompt
 
 Use case: logo-brand. Design a single exceptional professional brand symbol for sbarbase, a developer database platform named after cactus. Symbol only, no lettering. A compact confident abstract prickly pear cactus formed by three slightly angular sculptural interlocking upright pads, with a clever narrow negative-space S-shaped cut through the center. Distinctive bold silhouette, intelligently balanced asymmetry, minimal geometry, strong recognizability at 24 pixels, crafted by a world-class identity design studio. Flat solid mint green #3ecf8e, no gradients, no shadows, no outlines, no textures, no gloss, no 3D, no background. Genuine transparent alpha background. One symbol centered on square canvas with 18 percent transparent padding, fills remaining area. Not the usual cartoon saguaro with two raised arms, not a plant illustration, not a lightning bolt. No text, no mockup, no presentation sheet.
+
+## Scope
+
+These masters and their `ui/assets` derivatives are the platform layer's brand assets. They are not Studio's and derive from nothing upstream. The botanical side panel and the wordmark belong to the platform console, which keeps them under the reduced scope.

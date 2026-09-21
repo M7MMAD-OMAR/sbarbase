@@ -2,7 +2,7 @@
 
 An open source, self-hosted administration project built on original Supabase services. Organize an installation into organizations, projects and environments, with a separate database and scoped service credentials for each environment.
 
-**In development.** A local console, original Auth/REST/Storage integration and independent restore experiments exist. Production readiness, complete automatic recovery, multi-host coordination and fixed capacity guarantees are not established.
+**In development.** A local platform console, original Auth/REST/Storage integration and independent restore experiments exist. Each environment is administered through the original upstream Supabase Studio; the console covers organizations, projects, environments, connection details, keys and provisioning status ([integration specification](docs/STUDIO-INTEGRATION.md)). Production readiness, complete automatic recovery, multi-host coordination and fixed capacity guarantees are not established.
 
 - [Website](https://base.sbarah.com) with an interactive architecture walkthrough, Arabic and English.
 - [Project overview](PROJECT.md): model, implementation and limits.
