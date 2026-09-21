@@ -324,10 +324,11 @@ class MaintenanceLabels(unittest.TestCase):
     lab/combined_admission.py, so every owner labelled creation site carries it.
     """
 
-    def test_labels_carry_the_class_and_the_two_weights(self):
-        self.assertEqual(policy.labels('maintenance'),
-                         ['--label', 'io.sbarbase.tier=maintenance',
-                          '--cpu-shares', '512', '--blkio-weight', '400'])
+    def test_labels_carry_the_class_the_weights_and_the_io_flags(self):
+        flags = policy.labels('maintenance')
+        self.assertEqual(flags[:6], ['--label', 'io.sbarbase.tier=maintenance',
+                                     '--cpu-shares', '512', '--blkio-weight', '400'])
+        self.assertEqual(flags[6:], policy.io_flags('maintenance'))
 
     def test_labels_refuse_an_unknown_tier(self):
         with self.assertRaisesRegex(policy.ResourcePolicyError, 'unknown_tier'):
@@ -343,6 +344,65 @@ class MaintenanceLabels(unittest.TestCase):
             self.assertTrue(sites, name + ' has no owner labelled run site to check')
             for line in sites:
                 self.assertIn("resource_policy.labels(", line, name)
+
+
+class BlockIOLimits(unittest.TestCase):
+    """The block IO mechanism that binds, since the weight flag was measured not to.
+
+    docs/RESOURCE-POLICY.md section 3.1.1 and
+    docs/evidence/resource-policy-cgroup-mapping.json carry the measurement.
+    """
+
+    @staticmethod
+    def _bytes(text):
+        units = {'kb': 1024, 'mb': 1024 ** 2, 'gb': 1024 ** 3}
+        return int(text[:-2]) * units[text[-2:]]
+
+    def test_every_tier_in_the_table_has_an_io_row(self):
+        # Two tables for one policy drift apart unless something checks them.
+        self.assertEqual(sorted(policy.IO_LIMITS), sorted(policy.TIERS))
+
+    def test_the_io_order_follows_the_tier_order(self):
+        self.assertGreater(self._bytes(policy.IO_LIMITS['system.db'][0]),
+                           self._bytes(policy.IO_LIMITS['production'][0]))
+        self.assertGreater(self._bytes(policy.IO_LIMITS['production'][0]),
+                           self._bytes(policy.IO_LIMITS['experimental'][0]))
+        self.assertGreater(policy.IO_LIMITS['production'][2], policy.IO_LIMITS['experimental'][2])
+
+    def test_io_flags_put_the_resolved_device_on_every_limit(self):
+        flags = policy.io_flags('production', '/dev/fixture0')
+        self.assertEqual(len(flags), 8)
+        self.assertEqual(flags[0], '--device-read-bps')
+        self.assertEqual(flags[1], '/dev/fixture0:64mb')
+        self.assertEqual(flags[6], '--device-write-iops')
+        self.assertEqual(flags[7], '/dev/fixture0:1000')
+
+    def test_io_flags_refuse_an_unknown_tier(self):
+        with self.assertRaisesRegex(policy.ResourcePolicyError, 'unknown_tier'):
+            policy.io_flags('nope', '/dev/fixture0')
+
+    def test_io_flags_refuse_when_no_device_could_be_resolved(self):
+        # A container launched without IO separation is the failure this refuses.
+        with patch('resource_policy.device', return_value=None):
+            with self.assertRaisesRegex(policy.ResourcePolicyError, 'io_device_unavailable'):
+                policy.io_flags('production')
+
+    def test_io_device_takes_the_device_from_a_subvolume_mount_source(self):
+        # This host's own device is the fixture, with a subvolume suffix added,
+        # because io_device refuses a device path that does not exist.
+        source = policy._findmnt('/')
+        if not source or not source.startswith('/dev/'):
+            self.skipTest('this host reports no device source for /')
+        device = source.split('[')[0]
+        self.assertEqual(policy.io_device('/', runner=lambda target: device + '[/root]'), device)
+
+    def test_io_device_refuses_a_source_that_is_not_a_block_device(self):
+        for source in ('', 'overlay', 'tmpfs', 'none', '/dev/does-not-exist'):
+            self.assertIsNone(policy.io_device('/tmp', runner=lambda target, s=source: s), source)
+
+    def test_the_launch_path_passes_the_io_flags(self):
+        text = (Path(__file__).parent / 'durable_runtime.py').read_text()
+        self.assertIn('*resource_policy.io_flags(tier)', text)
 
 
 if __name__ == '__main__':

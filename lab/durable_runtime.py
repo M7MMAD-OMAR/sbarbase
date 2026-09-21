@@ -148,6 +148,7 @@ class Runtime:
         args = ['run', '-d', '--name', name, '--label', 'io.sbarbase.owner='+OWNER, '--label', 'io.sbarbase.tier='+flags['label'], '--network', NETWORK,
                 '--memory', memory, '--memory-swap', memory, '--cpus', str(cpus), '--pids-limit', str(flags['pids']),
                 '--cpu-shares', str(flags['shares']), '--blkio-weight', str(flags['weight']),
+                *resource_policy.io_flags(tier),
                 '--log-opt', 'max-size=5m', '--log-opt', 'max-file=2', '--env-file', str(path)]
         for volume, destination in volumes:
             if not inspect('volume', volume):

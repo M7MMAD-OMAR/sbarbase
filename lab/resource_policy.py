@@ -42,6 +42,7 @@ worked example in section 3.2. Making the class configurable, and therefore
 using the experimental row, is an open item.
 """
 from collections import namedtuple
+from pathlib import Path
 
 # Revision id for docs/RESOURCE-POLICY.md section 4.2. No evidence file records
 # it yet because the evidence increment is not built.
@@ -103,6 +104,87 @@ def known_label(value):
     return value in CLASSES
 
 
+# Block IO separation. The weight column above was measured not to bind on this
+# host (docs/evidence/resource-policy-cgroup-mapping.json), so the mechanism that
+# separates block IO is the per device limit, which the kernel honours through
+# io.max. One row per tier id, in the order the daemon takes the flags: read
+# bandwidth, write bandwidth, read IOPS, write IOPS. The order follows the table
+# above, so system sits above production and production above experimental.
+IO_LIMITS = {
+    'system.db': ('256mb', '128mb', 6000, 3000),
+    'system.storage': ('256mb', '256mb', 6000, 4000),
+    'system.management-auth': ('64mb', '64mb', 2000, 2000),
+    'production': ('64mb', '32mb', 2000, 1000),
+    'experimental': ('16mb', '8mb', 500, 250),
+    'operator.studio': ('64mb', '32mb', 2000, 1000),
+    'operator.meta': ('32mb', '16mb', 1000, 500),
+    'maintenance': ('128mb', '64mb', 3000, 1500),
+}
+
+IO_FLAG_NAMES = ('--device-read-bps', '--device-write-bps',
+                 '--device-read-iops', '--device-write-iops')
+
+# Where the installation's volumes live, so the device is read from the host
+# rather than written down here.
+VOLUME_ROOT = '/var/lib/docker'
+_device = {}
+
+
+def _findmnt(target):
+    import subprocess
+    result = subprocess.run(['findmnt', '-no', 'SOURCE', '--target', target],
+                            capture_output=True, text=True)
+    return result.stdout.strip() if result.returncode == 0 else ''
+
+
+def io_device(path=VOLUME_ROOT, runner=None):
+    """The one block device this installation's volumes are written to, or None.
+
+    The device differs per machine, and a request naming a device the daemon
+    cannot find is rejected before the container starts, so it is resolved from
+    the host. A btrfs subvolume mount reports its source as /dev/x[/subvol], and
+    the device is the part before the bracket. None means it could not be
+    resolved to exactly one existing block device, and the caller refuses rather
+    than launching a container with no block IO separation.
+    """
+    run = runner or _findmnt
+    probe = Path(path)
+    while not probe.exists() and probe != probe.parent:
+        probe = probe.parent
+    source = run(str(probe))
+    if not source:
+        return None
+    device = source.split('[')[0].strip()
+    if not device.startswith('/dev/') or not Path(device).exists():
+        return None
+    return device
+
+
+def device():
+    """The block device for this process, resolved once."""
+    if 'device' not in _device:
+        _device['device'] = io_device()
+    return _device['device']
+
+
+def io_flags(tier, target=None):
+    """The block IO flags for a tier on a resolved device, or raise.
+
+    Raises for an unknown tier and for a device that could not be resolved, so a
+    launch path refuses before it creates anything.
+    """
+    limits = IO_LIMITS.get(tier)
+    if limits is None:
+        raise ResourcePolicyError('unknown_tier')
+    resolved = target or device()
+    if resolved is None:
+        raise ResourcePolicyError('io_device_unavailable')
+    flags = []
+    for name, value in zip(IO_FLAG_NAMES, limits):
+        flags += [name, resolved + ':' + str(value)]
+    return flags
+
+
 def labels(tier):
     """The placement flags for a container another module launches at its own limits.
 
@@ -116,4 +198,4 @@ def labels(tier):
     if entry is None:
         raise ResourcePolicyError('unknown_tier')
     return ['--label', 'io.sbarbase.tier=' + entry.label,
-            '--cpu-shares', str(entry.shares), '--blkio-weight', str(entry.weight)]
+            '--cpu-shares', str(entry.shares), '--blkio-weight', str(entry.weight)] + io_flags(tier)
