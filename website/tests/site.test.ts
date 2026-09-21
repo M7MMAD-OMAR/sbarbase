@@ -11,7 +11,10 @@ for(const lang of ['ar','en'] as const){
   const data=html.match(/<script id="page-data" type="application\/json">(.*?)<\/script>/s)?.[1];
   expect(data).toBeDefined();const parsed=JSON.parse(data!);
   expect(parsed.stageNotes).toHaveLength(4);expect(parsed.levels).toHaveLength(4);
-  expect(parsed.serviceNotes).toHaveLength(3);expect(parsed.recoverStages).toHaveLength(4);
+  expect(parsed.serviceNotes).toHaveLength(4);expect(parsed.recoverStages).toHaveLength(4);
+  expect([...html.matchAll(/<button data-service="\d+"/g)]).toHaveLength(content[lang].services.length);
+  expect(html).toContain(content[lang].studioNote);
+  expect(html).toContain(content[lang].serviceNotes[3]);
   expect(html).toContain('aria-pressed="false"');
   expect(html).not.toMatch(/[\u2013\u2014]/);
  });

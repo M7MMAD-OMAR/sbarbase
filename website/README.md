@@ -33,6 +33,8 @@ The walkthrough is illustrative, not live traffic. Autoplay pauses offscreen and
 
 The environment databases shown share a PostgreSQL engine. Separate databases do not establish hostile-operator isolation. Four recorded local environments are evidence scope, not a capacity guarantee. Planned services and production work are labeled separately.
 
+Per-environment administration is planned as the original upstream Supabase Studio, one process per environment, with the sbarbase console kept as the platform layer above it. Studio is not implemented, so the site presents it under planned work only.
+
 ## GitHub and Cloudflare
 
 Source: https://github.com/M7MMAD-OMAR/sbarbase. GitHub Actions checks and packages the site. Deployments currently use authenticated Wrangler. Native Cloudflare Builds connection requires Workers Builds Configuration access, which the current local OAuth session does not grant. Do not claim push-to-deploy is enabled until that connection is verified.
