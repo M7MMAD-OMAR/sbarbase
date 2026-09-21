@@ -74,7 +74,19 @@ async function phase(name:string,concurrency:number) {
  return {duration_ms,pressure_snapshot:await pressure};
 }
 try {
- for(const environment of probe.environments.slice(0,2)) {
+ // The fixture list is a claim, not a fact: an environment can be retired while
+ // its catalog row survives, and then the setup below dies inside its first SQL
+ // statement with an error that names nothing. Only candidates that answer are
+ // used, and the count that answered is reported.
+ const live:string[]=[];
+ for(const environment of probe.environments){
+  const candidate=app.catalog.getProvision('durable-probe-owner',environment);
+  if(!candidate||candidate.state!=='succeeded'){console.error('fixture environment is not ready and is skipped:',environment);continue;}
+  try{await sql(candidate.runtime,'SELECT 1;');live.push(environment);}
+  catch{console.error('fixture environment does not answer and is skipped:',environment);}
+ }
+ require(live.length>=2,`Two answering fixture environments are required; ${live.length} of ${probe.environments.length} answered. The fixture is written by lab/durable-check.ts, which is disabled pending the container generation migration.`);
+ for(const environment of live.slice(0,2)) {
   const job=app.catalog.getProvision('durable-probe-owner',environment);
   require(job.state==='succeeded','Fixture environment not ready');
   const credential=app.catalog.withReadyEnvironment('durable-probe-owner',environment,true,()=>app.keys.issue(job.runtime));
