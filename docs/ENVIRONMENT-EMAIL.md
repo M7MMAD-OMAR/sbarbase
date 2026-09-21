@@ -30,6 +30,22 @@ Two facts were established after this design was written, and both change an ass
    keeps the anti-drift property without the install dependency. The pin table in
    `docs/UPSTREAM-UPDATE-POLICY.md` stays as it is.
 
+3. **What an environment with no mail configuration does today is kept, deliberately.** With no
+   mail file, the Auth environment stays exactly as it was: `GOTRUE_EXTERNAL_EMAIL_ENABLED` true
+   and `GOTRUE_MAILER_AUTOCONFIRM` true, so a signup succeeds and is confirmed without any mail
+   ever being sent (`lab/run.py`). The independent review treats automatic confirmation as a
+   fatal criterion, and that disagreement is recorded here rather than smoothed over. The reason
+   to keep it: flipping it would break every environment provisioned before this change on the
+   day it lands, and an environment that cannot send mail could not confirm anyone either. An
+   operator who wants the stricter posture sets `autoconfirm` false in that environment's mail
+   configuration, which the configuration allows and the probe covers.
+
+4. **The mail state reaches no console yet.** The runtime writes the non secret summary file
+   (`lab/mail_state.py`) and the catalog holds the `environment_mail` table
+   (`src/control/catalog.ts`), but nothing reads the file and nothing writes or serves the table:
+   there is no route and no screen, so the console cannot answer what state an environment's
+   mail is in. That is the next increment, not a working surface.
+
 
 Design document for sbarbase. Executable: every section that changes behaviour names
 the file, the exact variable and the command that proves it. Written 2026-09-21.

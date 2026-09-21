@@ -358,6 +358,19 @@ the ceiling. PROPOSED replacement, in one function
    70 / 40 / 2.0; `experimental` refuses at 50 / 20 / 1.0 (stricter, which is the
    point of the class). Values PROPOSED, to be calibrated by section 5.
 
+### 3.6 The retained containers need one recreation before this contract holds
+
+The tier flags and the class label are written at container creation. The
+containers retained on the development host were created before this policy
+existed, so every one of them still carries `CpuShares: 0`, `BlkioWeight: 0` and
+no `io.sbarbase.tier` label, and the admission refuses that placement by
+contract: `Counted container carries no policy tier`.
+
+The refusal is deliberate. Accepting a container nobody can account for is the
+defect this change exists to remove, so the contract is not relaxed to
+accommodate old containers. What it requires is one recreation of the retained
+placement, and the same step is needed before any Studio container joins it.
+
 ## 4. Keeping the placement math honest
 
 After this change, three artifacts must carry the new numbers, and one class of
