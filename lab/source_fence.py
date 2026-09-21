@@ -3,6 +3,7 @@ Does not fence file/S3 writes or already-authorized Storage transfers.
 """
 import re
 import time
+import notification_producers
 
 
 def validate(environment):
@@ -16,7 +17,7 @@ def is_fenced(sql,environment):
     return value=='t'
 
 
-def fence(sql,environment,timeout=10):
+def fence(sql,environment,timeout=10,*,catalog=None):
     validate(environment)
     if sql(f"SELECT count(*) FROM pg_database WHERE datname='{environment}';").stdout.strip()!='1':raise RuntimeError('Environment database unavailable')
     # Persist refusal before terminating existing sessions; retry is idempotent.
@@ -31,14 +32,23 @@ def fence(sql,environment,timeout=10):
     if not is_fenced(sql,environment):raise RuntimeError('Database fence not retained')
     # Prepared transactions survive client termination and require operator resolution.
     if sql(f"SELECT count(*) FROM pg_prepared_xacts WHERE database='{environment}';").stdout.strip()!='0':raise RuntimeError('Database fenced with unresolved prepared transactions')
+    # The fence is retained and durable. The catalog row and the envelope are committed
+    # before this function returns, and a producer that cannot reach the catalog leaves
+    # the kind unemitted rather than delaying the event or failing the fence.
+    notification_producers.emit('fence.applied','critical','fence.applied|'+environment,
+        {'environment':environment,'runtime':environment},'system:operator','operator_request',
+        {'phase':'fenced'},catalog=catalog)
     return {'connections_refused':True,'sessions':0}
 
 
-def unfence(sql,environment):
+def unfence(sql,environment,*,catalog=None):
     """Explicit operator rollback only, never automatic during provisioning."""
     validate(environment)
     sql(f'ALTER DATABASE {environment} ALLOW_CONNECTIONS true;')
     if is_fenced(sql,environment):raise RuntimeError('Database still fenced')
+    notification_producers.emit('fence.released','warning','fence.released|'+environment,
+        {'environment':environment,'runtime':environment},'system:operator','operator_request',
+        {'phase':'unfenced'},catalog=catalog)
 
 
 def prepare_export(sql,environment,persist,timeout=10):

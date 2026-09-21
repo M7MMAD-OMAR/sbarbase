@@ -14,8 +14,39 @@ import sqlite3
 import subprocess
 from pathlib import Path
 import durable_runtime as runtime
+import notification_producers
 import run as lab
+import source_fence
 from recovery_bundle import seal, open_bundle, MAX_PAYLOAD
+
+# The catalog the operator's own installation drains. None means the default upstream
+# path; a test patches it to a private temporary catalog.
+NOTIFY_CATALOG = None
+
+
+def notify(kind, severity, dedupe_key, subject, reason, detail):
+    """Record one producer event without ever changing the export outcome."""
+    return notification_producers.emit(kind, severity, dedupe_key, subject, 'system:operator',
+                                       reason, detail, catalog=NOTIFY_CATALOG)
+
+
+def notify_export_failed(environment, state=None):
+    """Record a failed export, but only from the fence record that already exists.
+
+    The export's durable state change on failure is the fence record: if it is present
+    the environment is left fenced and the operator must hear about it. Without it there
+    is no durable state change, so the kind stays unemitted rather than being emitted
+    from a caught exception. emit() never raises, so the SystemExit sentence and the exit
+    code are unchanged.
+    """
+    if environment is None:
+        return None
+    state = runtime.STATE if state is None else state
+    if not (state / ('export-fence-' + environment + '.json')).exists():
+        return None
+    return notify('backup.export_failed', 'critical', 'backup.export_failed|' + environment,
+                  {'environment': environment, 'runtime': environment}, 'export_failed',
+                  {'phase': 'export-refused'})
 
 
 def binary(args, data=None):
@@ -42,6 +73,7 @@ def binary(args, data=None):
 
 def main(cutover=False):
     checks=[]
+    e=None
     def check(name,ok):
         if not ok:raise RuntimeError(name)
         checks.append(name)
@@ -108,7 +140,6 @@ def main(cutover=False):
         roles=rows(f"SELECT rolname,rolsuper,rolinherit,rolcreaterole,rolcreatedb,rolcanlogin,rolreplication,rolbypassrls,rolconnlimit,rolvaliduntil,rolconfig FROM pg_roles WHERE rolname IN ({selected}) ORDER BY rolname")
         check('exact scoped logins exported',len(roles)==3 and all(r['rolcanlogin'] and not any(r[k] for k in ('rolsuper','rolcreaterole','rolcreatedb','rolreplication','rolbypassrls')) for r in roles))
         if cutover:
-            import source_fence
             fence_record=runtime.STATE/('export-fence-'+e+'.json')
             if fence_record.exists():raise RuntimeError('Export fence already exists; explicit reconciliation required')
             source_fence.prepare_export(target.sql,e,lambda value:runtime.atomic(fence_record,value))
@@ -149,11 +180,23 @@ def main(cutover=False):
         runtime.atomic(archive,envelope);lab.secure_file(key_path,base64.b64encode(key).decode())
         runtime.atomic(runtime.STATE/'recovery-latest.json',{'archive':str(archive),'key':str(key_path)})
         if cutover:
-            source_fence.fence(target.sql,e)
+            source_fence.fence(target.sql,e,catalog=NOTIFY_CATALOG)
             runtime.atomic(fence_record,{'environment':e,'phase':'exported-and-fenced','archive':str(archive),'key':str(key_path),'original_logins':[{'name':r['rolname'],'login':r['rolcanlogin']} for r in roles]})
             check('source database closed after encrypted export',True)
+        # The durable state change exists now: the encrypted archive and key are written,
+        # and under cutover the fence record and the database fence are retained. The
+        # catalog row is committed here; it is never emitted from a print or a retry.
+        notify('backup.export_completed','info','backup.export_completed|'+e,{'environment':e,'runtime':e},
+               'export_completed',{'phase':'exported-and-fenced' if cutover else 'exported'})
         check('private archive and key permissions',archive.stat().st_mode&0o777==0o600 and key_path.stat().st_mode&0o777==0o600)
         evidence={'scope':'Encrypted selected-environment export only, not a separate-cluster restore or off-host backup. Source services quiesced; whole owned source runtime stopped afterward. Shared encryption/admin keys not intentionally included in configuration; database contents are not scanned for embedded secrets.', 'checks':checks,'count':len(checks),'roles':len(roles),'objects':len(files),'signing_keys':len(jwks),'dump_bytes':len(dump),'encrypted_bytes':archive.stat().st_size}
+    except BaseException:
+        # The export did not complete. If the fence record was already persisted then the
+        # environment is left fenced and that durable state change is reported. Nothing
+        # here can change the failure: emit() never raises, so the SystemExit sentence and
+        # the exit code stay exactly as they are.
+        notify_export_failed(e)
+        raise
     finally:
         runtime.stop()
     check('owned source runtime stopped after export',not lab.docker('ps','-q','--filter','label=io.sbarbase.owner='+runtime.OWNER).stdout.strip())

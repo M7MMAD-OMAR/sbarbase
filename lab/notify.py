@@ -54,14 +54,21 @@ KINDS = frozenset((
     'provision.failed', 'provision.capacity_refused', 'provision.retry_limit',
     'provision.retried', 'routing.paused', 'routing.resumed',
     'membership.owner_changed', 'project.ownership_changed',
-    'notifier.channel_failed', 'notifier.redaction_refused'))
+    'notifier.channel_failed', 'notifier.redaction_refused',
+    'installation.started', 'installation.stopped', 'installation.start_failed',
+    'worker.restart', 'worker.restart_limit',
+    'fence.applied', 'fence.released',
+    'backup.export_completed', 'backup.export_failed',
+    'restore.verified', 'restore.failed'))
 REASONS = frozenset((
     'runtime_failed', 'retry_limit', 'retry_requested', 'owner_changed', 'ownership_changed',
     'routing_paused', 'routing_resumed', 'installation_limit', 'memory_headroom',
     'disk_headroom', 'inode_headroom', 'measurement_unavailable', 'cpu_some10',
     'io_full10', 'memory_full10', 'connection_budget', 'unrecorded',
     'webhook_unreachable', 'webhook_timeout', 'webhook_status',
-    'smtp_refused', 'smtp_temporary_failure', 'channel_disabled', 'redaction_refused'))
+    'smtp_refused', 'smtp_temporary_failure', 'channel_disabled', 'redaction_refused',
+    'operator_request', 'installation_failed', 'worker_restart', 'worker_restart_limit',
+    'export_completed', 'export_failed', 'restore_verified', 'restore_failed'))
 CHANNELS = ('email', 'webhook')
 SEVERITIES = ('info', 'warning', 'critical')
 DETAIL_KEYS = {
@@ -75,6 +82,17 @@ DETAIL_KEYS = {
     'project.ownership_changed': ('from', 'to'),
     'notifier.channel_failed': ('channel', 'last_error'),
     'notifier.redaction_refused': ('refused_event', 'refused_kind'),
+    'installation.started': ('stage',),
+    'installation.stopped': ('stage',),
+    'installation.start_failed': ('stage',),
+    'worker.restart': ('restarts',),
+    'worker.restart_limit': ('restarts',),
+    'fence.applied': ('phase',),
+    'fence.released': ('phase',),
+    'backup.export_completed': ('phase',),
+    'backup.export_failed': ('phase',),
+    'restore.verified': ('status',),
+    'restore.failed': ('status',),
 }
 REASON_CLASS = {
     'runtime_failed': 'provisioning_outcome', 'retry_limit': 'provisioning_outcome',
@@ -90,6 +108,10 @@ REASON_CLASS = {
     'webhook_status': 'channel_outcome', 'smtp_refused': 'channel_outcome',
     'smtp_temporary_failure': 'channel_outcome', 'channel_disabled': 'channel_outcome',
     'redaction_refused': 'channel_outcome',
+    'operator_request': 'operator_action', 'installation_failed': 'installation_lifecycle',
+    'worker_restart': 'supervisor_lifecycle', 'worker_restart_limit': 'supervisor_lifecycle',
+    'export_completed': 'recovery_outcome', 'export_failed': 'recovery_outcome',
+    'restore_verified': 'recovery_outcome', 'restore_failed': 'recovery_outcome',
 }
 # Fixed renderer. summary and action are looked up here and interpolate only safe
 # identifiers, a closed reason name and a number. No caller supplies either string.
@@ -114,6 +136,28 @@ SUMMARY = {
                                 'Repair the recorded channel; the failed event stays visible.'),
     'notifier.redaction_refused': ('A notification was refused by the redaction gate before any bytes left.',
                                    'Inspect the refused event: it carries a credential shape.'),
+    'installation.started': ('The local installation started and its supervised children are running.',
+                             'No action required; this records the start.'),
+    'installation.stopped': ('The local installation stopped and its owned runtime was stopped.',
+                             'No action required; this records the stop.'),
+    'installation.start_failed': ('The installation runtime refused to start or failed during startup.',
+                                  'Inspect the private diagnostic the runtime left, then start again.'),
+    'worker.restart': ('The provisioning worker exited and the supervisor restarted it.',
+                       'Inspect the worker if this repeats, because retained work is waiting.'),
+    'worker.restart_limit': ('The provisioning worker restarted too often and the supervisor stopped the installation.',
+                             'Inspect retained state and the private diagnostics before starting again.'),
+    'fence.applied': ('The environment database was fenced against new connections.',
+                      'Release the fence explicitly when the maintenance or export ends.'),
+    'fence.released': ('The environment database fence was lifted by an explicit operator rollback.',
+                       'No action required; confirm the environment is the one intended.'),
+    'backup.export_completed': ('The environment export completed and the source database was fenced.',
+                                'Retain the private archive and key; no action required.'),
+    'backup.export_failed': ('The environment export failed and the environment may be left fenced.',
+                             'Inspect the retained fence record and the private state before retrying.'),
+    'restore.verified': ('The independent database restore verified every recorded check.',
+                         'No action required; the target is retained stopped for inspection.'),
+    'restore.failed': ('The independent database restore failed or its cleanup did not complete.',
+                       'Inspect the private stage descriptor and the retained target resources.'),
 }
 # Allow-list. The rendered envelope contains exactly these keys, in these positions.
 ENVELOPE_FIELDS = ('schema', 'id', 'delivery', 'kind', 'severity', 'at', 'last_at', 'occurrences',

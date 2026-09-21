@@ -1,0 +1,373 @@
+{
+  "scope": "One disposable container, 0.25 CPU quota, 128 MiB ceiling, private cgroup namespace, sixteen internal busy loops, measured through pressure_admission.series(). The retained durable runtime is not started or touched. No per-tenant work, no SQL, no gateway traffic, and no claim about isolation between tenants inside the shared PostgreSQL engine.",
+  "probe": {
+    "image": "sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73",
+    "cpus": 0.25,
+    "memory": "128m",
+    "pids_limit": 64,
+    "spinners": 16,
+    "network": "none",
+    "label": "io.sbarbase.lab=pressure-response-check"
+  },
+  "windows": {
+    "load": {
+      "seconds": 25.0,
+      "interval": 5.0,
+      "samples": 5,
+      "elapsed_seconds": 70.29
+    },
+    "recovery": {
+      "seconds": 20.0,
+      "interval": 5.0,
+      "settle_seconds": 10.0,
+      "samples": 4,
+      "elapsed_seconds": 16.013
+    }
+  },
+  "host_headroom_bytes": 11879280640,
+  "host_pressure": {
+    "before": {
+      "cpu": 0.88,
+      "io": 0.26,
+      "memory": 0.0
+    },
+    "during_load": {
+      "cpu": 72.32,
+      "io": 0.0,
+      "memory": 0.22
+    },
+    "after": {
+      "cpu": 6.2,
+      "io": 0.76,
+      "memory": 0.0
+    },
+    "caveat": "host-wide PSI is aggregated from descendant cgroups, so the reading taken while the probe runs includes the probe's own stall. It is not an independent measure of load from outside the probe; the inside-the-cgroup series above is the probe's own reading."
+  },
+  "load_series": {
+    "count": 5,
+    "containers": [
+      "sbarbase-pressure-probe-65ddf59b29a8"
+    ],
+    "interval_seconds": 5.0,
+    "window_seconds": 25.0,
+    "observed_seconds": 70.29,
+    "thresholds": {
+      "cpu_some10": 50.0,
+      "io_full10": 20.0,
+      "memory_full10": 1.0
+    },
+    "avg10": {
+      "sbarbase-pressure-probe-65ddf59b29a8": {
+        "cpu_some10": 62.980000000000004,
+        "io_full10": 0.0,
+        "memory_full10": 0.0
+      }
+    },
+    "max10": {
+      "sbarbase-pressure-probe-65ddf59b29a8": {
+        "cpu_some10": 77.72,
+        "io_full10": 0.0,
+        "memory_full10": 0.0
+      }
+    },
+    "last10": {
+      "sbarbase-pressure-probe-65ddf59b29a8": {
+        "cpu_some10": 77.31,
+        "io_full10": 0.0,
+        "memory_full10": 0.0
+      }
+    },
+    "latest_refusal": "cpu_some10",
+    "crossed": true,
+    "crossings": [
+      {
+        "container": "sbarbase-pressure-probe-65ddf59b29a8",
+        "metric": "cpu_some10",
+        "threshold": 50.0,
+        "samples_over": 4,
+        "first_index": 1,
+        "last_index": 4,
+        "span_seconds": 42.901,
+        "duration_seconds": 47.901,
+        "first_at_seconds": 18.99,
+        "last_at_seconds": 61.891,
+        "peak": 77.72
+      }
+    ],
+    "peak": {
+      "container": "sbarbase-pressure-probe-65ddf59b29a8",
+      "metric": "cpu_some10",
+      "value": 77.72
+    },
+    "readings": [
+      {
+        "index": 0,
+        "at_seconds": 0.0,
+        "read_seconds": 13.99,
+        "values": {
+          "sbarbase-pressure-probe-65ddf59b29a8": {
+            "cpu_some10": 13.58,
+            "io_full10": 0.0,
+            "memory_full10": 0.0
+          }
+        }
+      },
+      {
+        "index": 1,
+        "at_seconds": 18.99,
+        "read_seconds": 8.402,
+        "values": {
+          "sbarbase-pressure-probe-65ddf59b29a8": {
+            "cpu_some10": 69.61,
+            "io_full10": 0.0,
+            "memory_full10": 0.0
+          }
+        }
+      },
+      {
+        "index": 2,
+        "at_seconds": 32.393,
+        "read_seconds": 10.498,
+        "values": {
+          "sbarbase-pressure-probe-65ddf59b29a8": {
+            "cpu_some10": 76.68,
+            "io_full10": 0.0,
+            "memory_full10": 0.0
+          }
+        }
+      },
+      {
+        "index": 3,
+        "at_seconds": 47.891,
+        "read_seconds": 9.0,
+        "values": {
+          "sbarbase-pressure-probe-65ddf59b29a8": {
+            "cpu_some10": 77.72,
+            "io_full10": 0.0,
+            "memory_full10": 0.0
+          }
+        }
+      },
+      {
+        "index": 4,
+        "at_seconds": 61.891,
+        "read_seconds": 8.399,
+        "values": {
+          "sbarbase-pressure-probe-65ddf59b29a8": {
+            "cpu_some10": 77.31,
+            "io_full10": 0.0,
+            "memory_full10": 0.0
+          }
+        }
+      }
+    ]
+  },
+  "response": {
+    "action": "refuse_new_admissions",
+    "refuse": true,
+    "reason": "pressure_cpu_some10",
+    "metric": "cpu_some10",
+    "container": "sbarbase-pressure-probe-65ddf59b29a8",
+    "over_threshold_seconds": 47.901,
+    "crossed": true,
+    "record": {
+      "path": "/home/sbarah/R/Projects/P/sbarbase/.worktrees/subagent-sa-1-e68d9c09/.lab/pressure-crossings.jsonl",
+      "records": [
+        {
+          "at": 1789961550.047,
+          "utc": "2026-09-21T03:32:30+00:00",
+          "container": "sbarbase-pressure-probe-65ddf59b29a8",
+          "metric": "cpu_some10",
+          "threshold": 50.0,
+          "peak": 77.72,
+          "samples_over": 4,
+          "duration_seconds": 47.901,
+          "span_seconds": 42.901,
+          "first_at_seconds": 18.99,
+          "last_at_seconds": 61.891,
+          "samples": 5,
+          "interval_seconds": 5.0,
+          "window_seconds": 25.0
+        }
+      ],
+      "ok": true,
+      "error": null
+    },
+    "scope": "refuse new admissions while the latest reading is at or over a threshold, and record every crossing durably",
+    "not_implemented": [
+      "stop, kill or restart any running container",
+      "pause or throttle a running environment (the gateway pause lease is in-process, disappears on restart, and does not prove its SQL stopped; docs/GATEWAY-DRAIN.md)",
+      "change a container CPU quota, CPU weight, block IO limit or memory ceiling at run time",
+      "act on a per-class threshold: no per-environment class exists in the runtime state yet, so only the shared thresholds below are evaluated"
+    ],
+    "limit": "a refusal at admission is not sustained isolation, and a crossing recorded here is not proof that any tenant was slowed down"
+  },
+  "recovery_series": {
+    "count": 4,
+    "containers": [
+      "sbarbase-pressure-probe-65ddf59b29a8"
+    ],
+    "interval_seconds": 5.0,
+    "window_seconds": 20.0,
+    "observed_seconds": 16.013,
+    "thresholds": {
+      "cpu_some10": 50.0,
+      "io_full10": 20.0,
+      "memory_full10": 1.0
+    },
+    "avg10": {
+      "sbarbase-pressure-probe-65ddf59b29a8": {
+        "cpu_some10": 17.235,
+        "io_full10": 0.0,
+        "memory_full10": 0.0
+      }
+    },
+    "max10": {
+      "sbarbase-pressure-probe-65ddf59b29a8": {
+        "cpu_some10": 32.26,
+        "io_full10": 0.0,
+        "memory_full10": 0.0
+      }
+    },
+    "last10": {
+      "sbarbase-pressure-probe-65ddf59b29a8": {
+        "cpu_some10": 6.8,
+        "io_full10": 0.0,
+        "memory_full10": 0.0
+      }
+    },
+    "latest_refusal": null,
+    "crossed": false,
+    "crossings": [],
+    "peak": {
+      "container": "sbarbase-pressure-probe-65ddf59b29a8",
+      "metric": "cpu_some10",
+      "value": 32.26
+    },
+    "readings": [
+      {
+        "index": 0,
+        "at_seconds": 0.0,
+        "read_seconds": 0.205,
+        "values": {
+          "sbarbase-pressure-probe-65ddf59b29a8": {
+            "cpu_some10": 32.26,
+            "io_full10": 0.0,
+            "memory_full10": 0.0
+          }
+        }
+      },
+      {
+        "index": 1,
+        "at_seconds": 5.205,
+        "read_seconds": 0.295,
+        "values": {
+          "sbarbase-pressure-probe-65ddf59b29a8": {
+            "cpu_some10": 17.71,
+            "io_full10": 0.0,
+            "memory_full10": 0.0
+          }
+        }
+      },
+      {
+        "index": 2,
+        "at_seconds": 10.5,
+        "read_seconds": 0.215,
+        "values": {
+          "sbarbase-pressure-probe-65ddf59b29a8": {
+            "cpu_some10": 12.17,
+            "io_full10": 0.0,
+            "memory_full10": 0.0
+          }
+        }
+      },
+      {
+        "index": 3,
+        "at_seconds": 15.715,
+        "read_seconds": 0.298,
+        "values": {
+          "sbarbase-pressure-probe-65ddf59b29a8": {
+            "cpu_some10": 6.8,
+            "io_full10": 0.0,
+            "memory_full10": 0.0
+          }
+        }
+      }
+    ]
+  },
+  "recovery_response": {
+    "action": "admit",
+    "refuse": false,
+    "reason": null,
+    "metric": null,
+    "container": null,
+    "over_threshold_seconds": null,
+    "crossed": false,
+    "record": {
+      "path": "/home/sbarah/R/Projects/P/sbarbase/.worktrees/subagent-sa-1-e68d9c09/.lab/pressure-crossings.jsonl",
+      "records": [],
+      "ok": true,
+      "error": null
+    },
+    "scope": "refuse new admissions while the latest reading is at or over a threshold, and record every crossing durably",
+    "not_implemented": [
+      "stop, kill or restart any running container",
+      "pause or throttle a running environment (the gateway pause lease is in-process, disappears on restart, and does not prove its SQL stopped; docs/GATEWAY-DRAIN.md)",
+      "change a container CPU quota, CPU weight, block IO limit or memory ceiling at run time",
+      "act on a per-class threshold: no per-environment class exists in the runtime state yet, so only the shared thresholds below are evaluated"
+    ],
+    "limit": "a refusal at admission is not sustained isolation, and a crossing recorded here is not proof that any tenant was slowed down"
+  },
+  "ledger": {
+    "path": "/home/sbarah/R/Projects/P/sbarbase/.worktrees/subagent-sa-1-e68d9c09/.lab/pressure-crossings.jsonl",
+    "lines_before": 0,
+    "appended": 1,
+    "recording_ok": true
+  },
+  "crossing_produced": true,
+  "checks": [
+    {
+      "check": "native local Linux Docker daemon",
+      "ok": true
+    },
+    {
+      "check": "host headroom above the probe reserve",
+      "ok": true
+    },
+    {
+      "check": "probe container carries a private cgroup namespace",
+      "ok": true
+    },
+    {
+      "check": "every load reading was complete and within 0 to 100",
+      "ok": true
+    },
+    {
+      "check": "the response refused new admissions while the latest reading was over the threshold",
+      "ok": true
+    },
+    {
+      "check": "every crossing was written to the durable ledger",
+      "ok": true
+    },
+    {
+      "check": "the response admits once the measured readings are below every threshold",
+      "ok": true
+    },
+    {
+      "check": "every created container was removed",
+      "ok": true
+    },
+    {
+      "check": "no probe container was left behind",
+      "ok": true
+    }
+  ],
+  "count": 9,
+  "cleanup": {
+    "created": [
+      "sbarbase-pressure-probe-65ddf59b29a8"
+    ],
+    "failed": []
+  }
+}

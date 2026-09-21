@@ -21,7 +21,7 @@ On this host, `df -i` reports zero inode totals on Btrfs. Recognized Btrfs volum
 
 ## Still required
 
-Continuous response to CPU/I/O pressure, effective ancestor cgroup limits, persistent resource reservations, tenant disk quotas, backup-size-aware recovery reserve, monitoring after admission and workload benchmarks. This snapshot cannot prevent another process from consuming resources immediately afterward. It does not establish capacity for 10 or 100 projects.
+Continuous response to CPU/I/O pressure was on this list; a repeated sampler and one response now exist ([PSI pressure](PRESSURE-ADMISSION.md)), which refuse new admissions while the most recent reading is at or over a threshold and record the crossing durably. Nothing calls them on a schedule and no running container is stopped or throttled, so monitoring after admission is still missing. Also still required: effective ancestor cgroup limits, persistent resource reservations, tenant disk quotas, backup-size-aware recovery reserve and workload benchmarks. This snapshot cannot prevent another process from consuming resources immediately afterward. It does not establish capacity for 10 or 100 projects.
 
 A separate [PostgreSQL connection budget](CONNECTION-BUDGET.md) now checks planned connection headroom and enforces service login/database limits.
 

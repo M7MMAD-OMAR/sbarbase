@@ -12,12 +12,19 @@ export type ProvisionJob = {environment:string;runtime:string;actor:string;organ
 export type NotificationSeverity = 'info' | 'warning' | 'critical';
 export type NotificationChannel = 'email' | 'webhook';
 export type NotificationOutcome = 'delivered' | 'transient' | 'failed';
-/** Every kind of the inventory that an observable in this catalog can produce today. */
+/** Every kind of the inventory that an observable in this catalog can produce today. The
+ * last three groups are produced outside the catalog, by the Python producers in
+ * lab/notification_producers.py, which write through the same outbox rows. */
 export type NotificationKind =
   | 'provision.failed' | 'provision.capacity_refused' | 'provision.retry_limit'
   | 'provision.retried' | 'routing.paused' | 'routing.resumed'
   | 'membership.owner_changed' | 'project.ownership_changed'
-  | 'notifier.channel_failed' | 'notifier.redaction_refused';
+  | 'notifier.channel_failed' | 'notifier.redaction_refused'
+  | 'installation.started' | 'installation.stopped' | 'installation.start_failed'
+  | 'worker.restart' | 'worker.restart_limit'
+  | 'fence.applied' | 'fence.released'
+  | 'backup.export_completed' | 'backup.export_failed'
+  | 'restore.verified' | 'restore.failed';
 /** Closed reason enum. The fine admission reason (`memory_headroom` and the rest) is
  * produced by the admission gates. Exit code 75 is the whole protocol a refused child may
  * publish, so a capacity refusal keeps its fine reason by recording the value the producer
@@ -28,7 +35,9 @@ export type NotificationReason =
   | 'disk_headroom' | 'inode_headroom' | 'measurement_unavailable' | 'cpu_some10'
   | 'io_full10' | 'memory_full10' | 'connection_budget' | 'unrecorded'
   | 'webhook_unreachable' | 'webhook_timeout' | 'webhook_status'
-  | 'smtp_refused' | 'smtp_temporary_failure' | 'channel_disabled' | 'redaction_refused';
+  | 'smtp_refused' | 'smtp_temporary_failure' | 'channel_disabled' | 'redaction_refused'
+  | 'operator_request' | 'installation_failed' | 'worker_restart' | 'worker_restart_limit'
+  | 'export_completed' | 'export_failed' | 'restore_verified' | 'restore_failed';
 export type NotificationDetail = Record<string,string|number|boolean>;
 export type NotificationSubject = {organization?:string;project?:string;environment?:string;runtime?:string};
 export type NotificationClaim = {
@@ -62,13 +71,26 @@ const NOTIFICATION_DETAIL_KEYS:Record<NotificationKind,string[]> = {
   'project.ownership_changed':['from','to'],
   'notifier.channel_failed':['channel','last_error'],
   'notifier.redaction_refused':['refused_event','refused_kind'],
+  'installation.started':['stage'],
+  'installation.stopped':['stage'],
+  'installation.start_failed':['stage'],
+  'worker.restart':['restarts'],
+  'worker.restart_limit':['restarts'],
+  'fence.applied':['phase'],
+  'fence.released':['phase'],
+  'backup.export_completed':['phase'],
+  'backup.export_failed':['phase'],
+  'restore.verified':['status'],
+  'restore.failed':['status'],
 };
 const NOTIFICATION_REASONS:NotificationReason[] = [
   'runtime_failed','retry_limit','retry_requested','owner_changed','ownership_changed',
   'routing_paused','routing_resumed','installation_limit','memory_headroom','disk_headroom',
   'inode_headroom','measurement_unavailable','cpu_some10','io_full10','memory_full10',
   'connection_budget','unrecorded','webhook_unreachable','webhook_timeout','webhook_status',
-  'smtp_refused','smtp_temporary_failure','channel_disabled','redaction_refused'];
+  'smtp_refused','smtp_temporary_failure','channel_disabled','redaction_refused',
+  'operator_request','installation_failed','worker_restart','worker_restart_limit',
+  'export_completed','export_failed','restore_verified','restore_failed'];
 export const NOTIFICATION_MAX_ATTEMPTS = 8;
 const NOTIFICATION_WINDOW_SECONDS:Record<NotificationSeverity,number> = {info:3600,warning:1800,critical:300};
 const NOTIFICATION_BACKOFF_SECONDS = [15,60,300,1800,7200];

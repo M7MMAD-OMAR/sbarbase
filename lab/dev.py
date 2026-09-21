@@ -3,6 +3,7 @@ import collections
 import console_build_check
 import fcntl
 import json
+import notification_producers
 import os
 from pathlib import Path
 import signal
@@ -13,6 +14,17 @@ import time
 
 ROOT = Path(__file__).resolve().parents[1]
 STATE = ROOT / '.lab/upstream'
+
+
+def notify_installation(kind, catalog=None):
+    """One installation lifecycle event, from the durable stage that already completed.
+
+    Called only after a stage returned success (the runtime is up, or the runtime is
+    stopped). emit() never raises, so the installation's outcome and exit status are
+    unchanged by a notification that cannot be written.
+    """
+    return notification_producers.emit(kind, 'info', kind + '|installation', {}, 'system:supervisor',
+                                       'operator_request', {'stage': 'runtime'}, catalog=catalog)
 
 
 def child_status(process):
@@ -56,12 +68,15 @@ def terminate_group(process, grace=20):
 
 
 class Supervisor:
-    def __init__(self, stop_event=None, worker_fd=None):
+    def __init__(self, stop_event=None, worker_fd=None, catalog=None):
         self.stop_event = stop_event or threading.Event()
         self.server = None
         self.worker = None
         self.restarts = collections.deque()
         self.worker_fd = worker_fd
+        # The control catalog the operator's installation drains. None selects the
+        # default upstream path; a test passes a private temporary catalog.
+        self.catalog = catalog
 
     def spawn(self, command):
         return subprocess.Popen(['/usr/bin/python3','lab/parent_bound.py',str(os.getpid()),*command], cwd=ROOT, start_new_session=True)
@@ -91,10 +106,22 @@ class Supervisor:
             while self.restarts and now-self.restarts[0] > 60:
                 self.restarts.popleft()
             if len(self.restarts) >= 3:
+                # The worker exited and the limit was reached: that is the durable state
+                # change. emit() never raises, so it cannot change the RuntimeError below.
+                self.record_worker_event('worker.restart_limit', 'worker_restart_limit')
                 raise RuntimeError('Worker restart limit reached; inspect retained state')
             self.restarts.append(now)
             print('Provisioning worker exited; reconciling retained operations.', flush=True)
             self.start_worker()
+            # The descriptor now records the new workerRestarts count, so the durable
+            # state change exists before the event is written.
+            self.record_worker_event('worker.restart', 'worker_restart')
+
+    def record_worker_event(self, kind, reason):
+        """One supervisor event, from the worker exit the supervisor already recorded."""
+        return notification_producers.emit(kind, 'critical' if kind == 'worker.restart_limit' else 'warning',
+                                           kind+'|installation', {}, 'system:supervisor', reason,
+                                           {'restarts': len(self.restarts)}, catalog=self.catalog)
 
     def run(self):
         try:
@@ -166,11 +193,18 @@ def main():
             if run_stage(['/usr/bin/python3', 'lab/installation_runtime.py', 'up'], stop_event,
                          pass_fds=(worker_lock.fileno(),),env=dict(os.environ,SBARBASE_WORKER_FD=str(worker_lock.fileno()))):
                 raise RuntimeError('Runtime startup failed; the installation runtime reported its own reason above')
+            # The runtime start stage returned success, so the installation runtime is
+            # durable: that is the state change this event records. A stage that fails
+            # leaves no durable start, and no event is emitted for it here.
+            notify_installation('installation.started')
             if not stop_event.is_set():
                 Supervisor(stop_event, worker_lock.fileno()).run()
         except InterruptedError:
             print('Local installation startup cancelled.', file=sys.stderr)
         except RuntimeError as error:
+            # No event here: a stage failure is a return code and a stderr line, and this
+            # path owns no durable state change to emit from. The runtime's own refusal, if
+            # there was one, is emitted where its 0600 diagnostic is written.
             print(str(error), file=sys.stderr)
             raise SystemExit(1)
         finally:
@@ -178,6 +212,11 @@ def main():
                 result = run_stage(['/usr/bin/python3', 'lab/installation_runtime.py', 'stop'], threading.Event(), timeout=90)
                 if result:
                     print('Owned runtime stop failed; inspect its current container state.', file=sys.stderr)
+                else:
+                    # The stop stage returned success, so the owned runtime is down and
+                    # that is the durable state change. emit() never raises, so the
+                    # installation's exit status is unaffected.
+                    notify_installation('installation.stopped')
 
 
 if __name__ == '__main__':

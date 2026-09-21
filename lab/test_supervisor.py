@@ -76,17 +76,20 @@ class SupervisorTests(unittest.TestCase):
                 self.assertNotEqual(result.returncode, 0)
 
     def test_restart_limit_preserves_live_server(self):
-        supervisor = dev.Supervisor()
-        supervisor.server = subprocess.Popen([PYTHON, '-c', 'import time; time.sleep(60)'], start_new_session=True)
-        supervisor.worker = subprocess.Popen([PYTHON, '-c', 'pass'], start_new_session=True)
-        supervisor.worker.wait(timeout=5)
-        supervisor.restarts = collections.deque([time.monotonic()]*3)
-        try:
-            with self.assertRaisesRegex(RuntimeError, 'restart limit'):
-                supervisor.check()
-            self.assertIsNone(supervisor.server.poll())
-        finally:
-            dev.terminate_group(supervisor.server, grace=0)
+        with tempfile.TemporaryDirectory() as directory:
+            # A private catalog path keeps this test off the retained installation catalog:
+            # the produced notification must not reach the real outbox.
+            supervisor = dev.Supervisor(catalog=Path(directory)/'control.sqlite')
+            supervisor.server = subprocess.Popen([PYTHON, '-c', 'import time; time.sleep(60)'], start_new_session=True)
+            supervisor.worker = subprocess.Popen([PYTHON, '-c', 'pass'], start_new_session=True)
+            supervisor.worker.wait(timeout=5)
+            supervisor.restarts = collections.deque([time.monotonic()]*3)
+            try:
+                with self.assertRaisesRegex(RuntimeError, 'restart limit'):
+                    supervisor.check()
+                self.assertIsNone(supervisor.server.poll())
+            finally:
+                dev.terminate_group(supervisor.server, grace=0)
 
 
 if __name__ == '__main__':

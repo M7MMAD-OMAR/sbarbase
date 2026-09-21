@@ -7,10 +7,26 @@ import os
 import traceback
 import hba_startup
 import durable_runtime as runtime
+import notification_producers
 import run as lab
 from target_runtime import TargetRuntime
 from combined_admission import CombinedAdmission
 import source_fence
+
+
+def notify_start_failed(command, catalog=None):
+    """Emit the failed-start event only for a failed start, never for a failed stop.
+
+    The durable state change is the 0600 diagnostic the caller already wrote. A stop
+    failure has no kind in the vocabulary, so it stays unemitted rather than being
+    reported as a start. emit() never raises, so the fixed SystemExit sentence and the
+    exit code are unchanged.
+    """
+    if command != 'up':
+        return None
+    return notification_producers.emit('installation.start_failed', 'critical',
+                                       'installation.start_failed|installation', {}, 'system:supervisor',
+                                       'installation_failed', {'stage': 'runtime'}, catalog=catalog)
 
 
 def sample_usage(names):
@@ -116,4 +132,9 @@ if __name__=='__main__':
         path=diagnostics/('installation-runtime-'+datetime.datetime.now().strftime('%Y%m%dT%H%M%S')+'.log')
         path.write_text(traceback.format_exc())
         os.chmod(path,0o600)
+        if args.command=='up':
+            # The private diagnostic is the durable state change: the start failed and the
+            # cause is retained at mode 0600. notify_start_failed refuses a failed stop,
+            # which has no kind, and never raises.
+            notify_start_failed(args.command)
         raise SystemExit('Installation runtime refused or incomplete; diagnostics: '+str(path)) from None

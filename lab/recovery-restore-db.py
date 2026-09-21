@@ -20,8 +20,18 @@ import resource_policy
 import run as lab
 from recovery_bundle import open_bundle
 from recovery_boundaries import verify as verify_boundaries
+import notification_producers
 
 OWNER='recovery-target'
+# The catalog the operator's own installation drains. None means the default upstream
+# path; a test patches it to a private temporary catalog.
+NOTIFY_CATALOG=None
+
+
+def notify(kind,severity,dedupe_key,subject,reason,detail,catalog=None):
+    """Record one producer event without ever changing the restore outcome."""
+    return notification_producers.emit(kind,severity,dedupe_key,subject,'system:operator',reason,detail,
+                                       catalog=catalog if catalog is not None else NOTIFY_CATALOG)
 
 
 def quote(value):
@@ -32,7 +42,7 @@ def identifier(value):
     return '"'+str(value).replace('"','""')+'"'
 
 
-def cleanup_target(descriptor,record,helper,db):
+def cleanup_target(descriptor,record,helper,db,*,catalog=None):
     # Cleanup attempts are independent: a helper failure cannot skip DB shutdown.
     failures=[]
     try:
@@ -55,6 +65,13 @@ def cleanup_target(descriptor,record,helper,db):
         failures.append(error)
     descriptor['status']='cleanup-failed' if failures else ('database-restored' if descriptor['status']=='database-verified' else 'failed')
     runtime.atomic(record,descriptor)
+    # The descriptor now records the terminal status; that is the durable state change.
+    # Only a status the operator must act on is emitted, and only when the environment is
+    # known. notify() never raises, so cleanup's own outcome is unchanged.
+    environment=descriptor.get('environment')
+    if descriptor['status'] in ('failed','interrupted','cleanup-failed') and isinstance(environment,str):
+        notify('restore.failed','critical','restore.failed|'+environment,{'environment':environment},
+               'restore_failed',{'status':descriptor['status']},catalog=catalog)
     if failures:
         raise RuntimeError('Recovery cleanup incomplete; inspect retained resources') from None
 
@@ -193,6 +210,10 @@ def main():
             if kind=='rest':check('REST SQL deadlines apply after fresh login',connect(e,"SELECT current_setting('statement_timeout')||'|'||current_setting('transaction_timeout');").stdout.strip()=='8s|12s')
             if kind=='auth':check('Auth search path restored',connect(e,"SHOW search_path;").stdout.strip()=='auth')
         descriptor['status']='database-verified';stage('verified')
+        # The descriptor now records the verified status: that is the durable state change.
+        # The catalog row commits after it, and never from the print below.
+        notify('restore.verified','critical','restore.verified|'+e,{'environment':e,'runtime':e},
+               'restore_verified',{'status':'database-verified'})
         evidence={'scope':'Fresh separate PostgreSQL cluster, database stage only. No target Auth/REST/Storage processes, object restore or signed-URL verification yet. Source stayed stopped; target stopped with isolated volume retained.','checks':checks,'count':len(checks),'tables':len(tables),'target_memory_mib':1024,'target_cpus':1}
     finally:
         authority.close()
