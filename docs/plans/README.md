@@ -6,10 +6,11 @@ describes is on main and its evidence is committed under `docs/evidence/`.
 | Date | File | Topic | Status |
 |---|---|---|---|
 | 2026-09-21 | [execution-plan](2026-09-21-execution-plan.md) | resource distribution, environment email, operator notifications | in progress |
-| 2026-09-21 | [RESOURCE-POLICY](../RESOURCE-POLICY.md) | tiers, weights, IO limits, derived placement arithmetic, measurement method | design, not implemented |
-| 2026-09-21 | [ENVIRONMENT-EMAIL](../ENVIRONMENT-EMAIL.md) | per-environment SMTP through original Auth, probe with Mailpit | design, not implemented |
-| 2026-09-21 | [OPERATOR-NOTIFICATIONS](../OPERATOR-NOTIFICATIONS.md) | durable outbox, channels, dedupe, redaction | design, not implemented |
+| 2026-09-21 | [RESOURCE-POLICY](../RESOURCE-POLICY.md) | tiers, weights, IO limits, derived placement arithmetic, measurement method | built, uncalibrated; two measurements blocked (sections 3.6, 5.0) |
+| 2026-09-21 | [ENVIRONMENT-EMAIL](../ENVIRONMENT-EMAIL.md) | per-environment SMTP through original Auth, probe with Mailpit | built and probed; the provider decision is open |
+| 2026-09-21 | [OPERATOR-NOTIFICATIONS](../OPERATOR-NOTIFICATIONS.md) | durable outbox, channels, dedupe, redaction | built; eleven kinds emitted, three not, no scheduled caller |
 | 2026-09-21 | [three-topics-redteam](../reviews/three-topics-redteam.md) | adversary: unfakeable acceptance criteria and forbidden shortcuts | review |
+| `2026-09-21-generation-migration-plan.md` | The executable plan for the deferred generation migration, which four open items wait on. |
 
 The three design records were produced by delegated design passes and reviewed by the parent
 on 2026-09-21. The review re-read the load bearing claims against the code and reproduced the

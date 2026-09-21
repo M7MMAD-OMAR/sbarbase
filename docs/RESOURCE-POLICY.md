@@ -520,6 +520,32 @@ confirms the heavy query is active before sampling
 terminates only its own sessions by application name (`:81`). That discipline is
 what the new runs need.
 
+### 5.0 What can be measured today, and what is blocked
+
+Two of the three experiments in this section cannot run on the retained
+placement, and the reason is structural rather than a stale file:
+
+- `lab/durable-check.ts` is the only thing that writes `.lab/upstream/probe.json`,
+  the fixture both `lab/gateway-overload-check.ts` and `lab/sdk-load-check.ts`
+  read, and it is disabled on purpose: line 8 throws "Container recreation probe
+  is disabled pending HBA generation migration" and tells the reader to use the
+  isolated fresh worker check instead. The `probe.json` on this host is therefore
+  a leftover, and its first environment resolves to the retired environment
+  `e_60332245e3a0426dd242492f`, which is why the overload vehicle dies on its
+  first SQL command (recorded in `docs/plans/2026-09-21-execution-plan.md`).
+- `docs/CONTAINER-GENERATION-MIGRATION.md` records that recreating a retained
+  database container has no supported path, and that document is a deferred
+  checkpoint rather than an implemented operation.
+
+So the arrival driven measurement of section 5.2 and the mixed SDK load of
+section 5.3 are blocked behind that migration, not merely unrun. What DOES run
+today is the supported disposable path: `lab/fresh-worker-check.py` provisions a
+fresh real placement through the worker in an isolated namespace and runs the
+real SDK against the composed gateway through `lab/fresh-worker-sdk.ts`. It
+passed 76 checks when the parent ran it on 2026-09-21, which exercises the SDK
+path functionally at one environment and with no load. It is not a capacity
+measurement and must not be quoted as one.
+
 ### 5.1 Experiment A: CPU and IO fairness between two environments
 
 Extend `lab/noisy-neighbor-check.py` with a `--tiers` mode.

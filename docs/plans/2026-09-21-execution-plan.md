@@ -169,3 +169,30 @@ NOT built, so nobody has to read the design to find out:
    run, and the file was restored from git. Nobody should run that probe against a
    host it cannot complete on, and the write should be made conditional or
    versioned before it is run again.
+
+## The real blocker, found 2026-09-21
+
+Everything still open at the end of this workstream converges on one deferred
+piece: the container generation migration
+(`docs/CONTAINER-GENERATION-MIGRATION.md`, whose own heading says "Not
+implemented"). It is what stops all four of these:
+
+1. Recreating the retained database container, so the retained placement could
+   carry its tiers and its block IO limits (section 3.6 of the resource policy).
+2. Re-enabling `lab/durable-check.ts`, the only writer of the probe fixture the
+   two load vehicles read, so the arrival driven and mixed SDK load measurements
+   can run at all (section 5.0 of the resource policy).
+3. Any measurement of the tiers on a placement that has history, as opposed to a
+   fresh disposable one.
+4. Any future change of the pinned database image on a retained installation.
+
+It is safety critical rather than large: the authority registry and its
+tombstones live in the database container's own filesystem, so the operation has
+to publish an intent record before any effect, verify the old container's absence
+rather than assume it, initialize the new generation before publishing the rules,
+keep the old pin until the new publication is acknowledged, and leave the
+database refusing startup on any uncertainty. The design lists the six required
+properties; what is missing is an executable plan and crash tests on disposable
+fixtures. That is the next piece of work, and it deserves a clean context rather
+than the tail of a long one.
+
