@@ -1,5 +1,57 @@
-import {Catalog} from './catalog';
+import {Catalog,type MembershipRole} from './catalog';
 import type {ManagementIdentity} from './auth';
+import {readFileSync} from 'node:fs';
+import {join} from 'node:path';
+
+/** Runtime state directory, the same tree the runtime writes the catalog in. */
+export const MAIL_STATE_DIRECTORY='.lab/upstream';
+const MAIL_STATE_FILE='mail-state.json';
+/** The non secret fields lab/mail_config.py `summarize` writes, minus `user` and `pass`.
+ * The summary carries those two as the literal markers `set`/`empty`; this route exposes no
+ * credential field at all, not even a marker, so they are dropped by name. */
+const MAIL_SUMMARY_FIELDS=['host','port','admin_email','sender_name','reply_to','max_frequency','otp_exp',
+  'otp_length','secure_email_change','autoconfirm','rate_limit_email_sent','rate_limit_otp',
+  'rate_limit_verify','rate_limit_header'] as const;
+/** The notification design: owner and admin only, most recent events. */
+const NOTIFICATION_ROLES:MembershipRole[]=['owner','admin'];
+const NOTIFICATION_EVENT_LIMIT=50;
+
+/** Missing file: nothing was reconciled yet, so every environment is unconfigured.
+ * A file that exists and cannot be read is a failure, never a silent unconfigured. */
+function mailEntries(directory:string):Record<string,unknown> {
+  let raw:string;
+  try {raw=readFileSync(join(directory,MAIL_STATE_FILE),'utf8');}
+  catch(error) {
+    if((error as {code?:string}).code==='ENOENT')return {};
+    throw error;
+  }
+  const parsed:unknown=JSON.parse(raw);
+  if(!parsed||typeof parsed!=='object'||Array.isArray(parsed))throw new Error('Invalid mail state');
+  return parsed as Record<string,unknown>;
+}
+
+/** One environment's own recorded entry, or the unconfigured state when it has none.
+ * Only fields the recorded summary has are copied: this route invents no value. */
+function mailEntry(entries:Record<string,unknown>,runtime:string) {
+  const recorded=entries[runtime];
+  if(!recorded||typeof recorded!=='object'||Array.isArray(recorded))return {state:'unconfigured'};
+  const source=recorded as Record<string,unknown>,entry:Record<string,unknown>={};
+  if(typeof source.state==='string')entry.state=source.state;
+  if(source.credentials==='set'||source.credentials==='none')entry.credentials=source.credentials;
+  if(typeof source.at==='number')entry.at=source.at;
+  for(const field of MAIL_SUMMARY_FIELDS)if(field in source)entry[field]=source[field];
+  if(!('state' in entry))entry.state='unconfigured';
+  return entry;
+}
+
+/** Both halves of the notification state come from one existing catalog read, so no second
+ * query touches these rows. An event counts as undelivered while any of its channels has
+ * not reached delivered. The rows carry no recipient and no detail payload. */
+function notificationState(catalog:Catalog) {
+  const events=catalog.listNotifications(NOTIFICATION_EVENT_LIMIT);
+  const undelivered=new Set(events.filter(event=>event.state!=='delivered').map(event=>event.id)).size;
+  return {undelivered,events};
+}
 
 function reply(status:number,data:unknown) {
   return Response.json(data,{status,headers:{'cache-control':'no-store','x-content-type-options':'nosniff'}});
@@ -32,7 +84,7 @@ async function body(request:Request):Promise<{name:string}> {
 /** Metadata API only. Organization bootstrap and transfer intentionally remain
  * internal until invitations and complete runtime access revocation are ready.
  */
-export function managementHandler(catalog:Catalog,identify:ManagementIdentity) {
+export function managementHandler(catalog:Catalog,identify:ManagementIdentity,mailDirectory=MAIL_STATE_DIRECTORY) {
   return async(request:Request):Promise<Response>=>{
     const path=new URL(request.url).pathname;
     if(path==='/management/v1/organizations') {
@@ -42,6 +94,38 @@ export function managementHandler(catalog:Catalog,identify:ManagementIdentity) {
       if(!actor)return reply(401,{message:'Authentication required'});
       try{return reply(200,{data:catalog.listOrganizations(actor)});}
       catch{return reply(500,{message:'Management operation failed'});}
+    }
+    if(path==='/management/v1/notifications') {
+      if(request.method!=='GET')return reply(405,{message:'Method not allowed'});
+      let actor:string|null;
+      try {actor=await identify(request);}catch{return reply(503,{message:'Authentication unavailable'});}
+      if(!actor)return reply(401,{message:'Authentication required'});
+      try {
+        // Installation wide read, so the roles come from the memberships the catalog already
+        // holds: an actor who is an owner or admin of any organization may see it.
+        if(!catalog.listOrganizations(actor).some(membership=>NOTIFICATION_ROLES.includes(membership.role)))
+          return reply(403,{message:'Forbidden'});
+        return reply(200,{data:notificationState(catalog)});
+      } catch {return reply(500,{message:'Management operation failed'});}
+    }
+    const mail=path.match(/^\/management\/v1\/environments\/([a-f0-9-]{36})\/mail$/);
+    if(mail) {
+      if(request.method!=='GET')return reply(405,{message:'Method not allowed'});
+      let actor:string|null;
+      try {actor=await identify(request);}catch{return reply(503,{message:'Authentication unavailable'});}
+      if(!actor)return reply(401,{message:'Authentication required'});
+      const id=mail[1];if(!id) return reply(404,{message:'Unknown route'});
+      try {
+        // The neighbouring environment routes read the same catalog row to reach the runtime
+        // identifier, so this route maps the environment the same way and inherits the same
+        // membership check, the same Forbidden answer for an unknown environment, and the
+        // same unconfigured state for an environment that has no mail entry.
+        const job=catalog.getProvision(actor,id);
+        return reply(200,{data:mailEntry(mailEntries(mailDirectory),job.runtime)});
+      } catch(error) {
+        if(error instanceof Error&&error.message==='Forbidden')return reply(403,{message:'Forbidden'});
+        return reply(500,{message:'Management operation failed'});
+      }
     }
     const match=path.match(/^\/management\/v1\/(organizations|projects|environments)\/([a-f0-9-]{36})\/(projects|environments|provision)$/);
     if(!match||!((match[1]==='organizations'&&match[3]==='projects')||

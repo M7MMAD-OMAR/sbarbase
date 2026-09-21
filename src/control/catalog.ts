@@ -135,15 +135,6 @@ export class Catalog {
         runtime TEXT PRIMARY KEY REFERENCES provision_jobs(runtime),
         revision INTEGER NOT NULL CHECK(revision>0),
         maintenance INTEGER NOT NULL CHECK(maintenance IN (0,1)),placement TEXT);
-      CREATE TABLE IF NOT EXISTS environment_mail(
-        environment TEXT PRIMARY KEY REFERENCES environments(id),
-        enabled INTEGER NOT NULL CHECK(enabled IN (0,1)),
-        host TEXT, port INTEGER, from_address TEXT, reply_to TEXT, sender_name TEXT,
-        autoconfirm INTEGER, secure_email_change INTEGER, otp_exp INTEGER,
-        rate_limit_email_sent TEXT, rate_limit_otp INTEGER,
-        credentials_set INTEGER NOT NULL CHECK(credentials_set IN (0,1)),
-        state TEXT NOT NULL CHECK(state IN ('unconfigured','applied','failed','off')),
-        detail TEXT, updated_at INTEGER NOT NULL, updated_by TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS audit_events(
         sequence INTEGER PRIMARY KEY AUTOINCREMENT, actor TEXT NOT NULL,
         action TEXT NOT NULL, subject TEXT NOT NULL, detail TEXT NOT NULL, at INTEGER NOT NULL);

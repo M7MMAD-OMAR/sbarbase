@@ -40,11 +40,12 @@ Two facts were established after this design was written, and both change an ass
    operator who wants the stricter posture sets `autoconfirm` false in that environment's mail
    configuration, which the configuration allows and the probe covers.
 
-4. **The mail state reaches no console yet.** The runtime writes the non secret summary file
-   (`lab/mail_state.py`) and the catalog holds the `environment_mail` table
-   (`src/control/catalog.ts`), but nothing reads the file and nothing writes or serves the table:
-   there is no route and no screen, so the console cannot answer what state an environment's
-   mail is in. That is the next increment, not a working surface.
+4. **The mail state reaches the console.** The runtime writes the non secret summary file
+   (`lab/mail_state.py`), which is the single source: `GET /management/v1/environments/<uuid>/mail`
+   (`src/control/http.ts`) serves that environment's entry to an owner, admin or viewer, and the
+   environment surface renders it (`ui/Connection.tsx`). The `environment_mail` table this
+   document planned was never written and never read, so it was removed from
+   `src/control/catalog.ts` rather than gaining a writer.
 
 
 Design document for sbarbase. Executable: every section that changes behaviour names
@@ -759,23 +760,23 @@ Two accepted limitations, stated rather than hidden:
 
 ### 5.3 How the console shows the state without exposing a credential
 
-New catalog table, in `src/control/catalog.ts` next to the existing tables
-(`catalog.ts:22-53`):
+Read surface, in `src/control/http.ts` beside the existing environment routes, `GET`
+only, behind the same owner, admin or viewer policy as its neighbours:
 
 ```
-CREATE TABLE IF NOT EXISTS environment_mail(
-  environment TEXT PRIMARY KEY REFERENCES environments(id),
-  enabled INTEGER NOT NULL CHECK(enabled IN (0,1)),
-  host TEXT, port INTEGER, from_address TEXT, reply_to TEXT, sender_name TEXT,
-  autoconfirm INTEGER, secure_email_change INTEGER, otp_exp INTEGER,
-  rate_limit_email_sent TEXT, rate_limit_otp INTEGER,
-  credentials_set INTEGER NOT NULL CHECK(credentials_set IN (0,1)),
-  state TEXT NOT NULL CHECK(state IN ('unconfigured','applied','failed','off')),
-  detail TEXT, updated_at INTEGER NOT NULL, updated_by TEXT NOT NULL);
+GET /management/v1/environments/<uuid>/mail
 ```
 
-The table has no password column and no user column, by construction. It holds only what the
-console renders and what an audit can be built from. It is written by the reconcile operation
+The state is not copied into the catalog. The runtime writes
+`.lab/upstream/mail-state.json` (`lab/mail_state.py`), one entry per environment runtime
+identifier, and the route serves that environment's entry through the catalog row that maps
+the uuid to the runtime id. No table exists, so there is no second source to agree with, and
+an environment with no entry answers `{"data":{"state":"unconfigured"}}`.
+
+
+The response carries no password field and no user field, by construction: the recorded summary
+itself carries `user` and `pass` only as the literal markers `set` or `empty`, and the route omits
+them by name. It holds only what the console renders. It is written by the reconcile operation
 (section 2.6 step 7) and not by any HTTP path.
 
 Read surface, in `src/control/http.ts` beside the existing environment route
@@ -1288,9 +1289,10 @@ Rules that follow, and that a reviewer should enforce:
 2. **No shared credential.** An environment's SMTP credential must not be the same credential
    the installation uses for operator alerts. An environment owner who rotates or revokes their
    own relay credential must not be able to silence operator alerts.
-3. **Distinct reason vocabularies, in distinct tables.** This document stores
+3. **Distinct reason vocabularies, in distinct records.** This document stores
    `smtp_unreachable`, `smtp_rejected`, `smtp_tls` and `invalid_configuration` as the apply
-   state of one environment in the catalog's `environment_mail` table. The notification plan
+   state of one environment in the runtime's own `.lab/upstream/mail-state.json`, served read
+   only by `GET /management/v1/environments/<uuid>/mail`. The notification plan
    uses `smtp_refused` and `smtp_temporary_failure` as delivery outcomes in its own outbox.
    The same underlying fault therefore has two names in two places on purpose: one answers
    "did this environment's mail get applied", the other answers "did this alert get delivered".

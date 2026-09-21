@@ -1,11 +1,10 @@
 """Non secret mail state, one entry per environment, written for a console read.
 
-The runtime owns this file. Nothing reads it yet: the catalog's environment_mail
-table (src/control/catalog.ts) is declared but has no writer, no reader and no
-route, no console surface renders this file, and no code under src/ or ui/ names
-this module. The fragment fragments/mail-catalog.md records the read route and the
-console surface as still open, so the file is the record of what the runtime did,
-not a source the control plane copies from.
+The runtime owns this file. The control plane reads it:
+GET /management/v1/environments/<uuid>/mail (src/control/http.ts) serves the
+entry for the environment's runtime identifier and ui/Connection.tsx renders it.
+The catalog holds no mail table, so this file is the record of what the runtime
+did and the single source the console reads.
 
 Nothing here authenticates, so nothing here is a credential: the password lives
 only in the environment's 0600 mail configuration file, which is the only place it

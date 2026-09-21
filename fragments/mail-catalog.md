@@ -1,8 +1,10 @@
 # Fragment: `src/control/catalog.ts` mail table (not applied here)
 
-> APPLIED on 2026-09-21 by the parent: the table is in `src/control/catalog.ts`
-> between `runtime_routing` and `audit_events`. Kept as the record of what was
-> applied. The read route and the console surface it defers are still open.
+> APPLIED then REVERTED on 2026-09-21: the table was added as this fragment
+> describes and then removed, because the copy step the fragment assumes was never
+> built and `lab/mail_state.py` is the single source. The read route and the console
+> surface it defers now exist: `GET /management/v1/environments/<uuid>/mail`
+> (`src/control/http.ts`) and the mail section in `ui/Connection.tsx`.
 
 `src/control/catalog.ts` is owned by another agent running in parallel, so this
 fragment carries the exact change instead of applying it.
