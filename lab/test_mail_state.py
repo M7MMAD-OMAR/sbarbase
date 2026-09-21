@@ -65,5 +65,29 @@ class MailStateTests(unittest.TestCase):
         self.assertEqual(mail_state.STATES, mail_config.STATES)
 
 
+class RecordedStatesInTheRuntime(unittest.TestCase):
+    """Every state the runtime records must be one the vocabulary defines.
+
+    A source level check, because the failure it prevents is a state name the
+    caller invents: an unknown one raises inside record() at the moment the
+    operator runs the command, which no test with a fixture would have seen.
+    """
+
+    def test_every_record_call_passes_a_defined_state(self):
+        import ast
+        import durable_runtime as runtime
+        tree = ast.parse(Path(runtime.__file__).read_text())
+        calls = [node for node in ast.walk(tree)
+                 if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                 and node.func.attr == 'record' and getattr(node.func.value, 'id', None) == 'mail_state']
+        self.assertTrue(calls, 'no mail_state.record call site found to check')
+        for call in calls:
+            self.assertGreaterEqual(len(call.args), 2, 'a record call without a state')
+            states = [node.value for node in ast.walk(call.args[1]) if isinstance(node, ast.Constant)]
+            self.assertTrue(states, 'a record call whose state is not a literal')
+            for state in states:
+                self.assertIn(state, mail_config.STATES, ast.unparse(call))
+
+
 if __name__ == '__main__':
     unittest.main()

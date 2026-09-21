@@ -483,7 +483,10 @@ class ReconcileMailTests(unittest.TestCase):
         record = self.reconcile(mail)
         self.assertEqual([call for call in self.calls if call[0] == 'rm'], [])
         self.target.launch.assert_not_called()
-        self.assertEqual(record.call_args.args[1], 'unchanged')
+        # The recorded state is one the configuration vocabulary defines, so an
+        # unchanged reconcile records that the configuration is applied. That
+        # nothing had to be recreated is the two assertions above, not a state.
+        self.assertEqual(record.call_args.args[1], 'applied')
 
     def test_removing_the_configuration_and_reconciling_off_drops_every_mail_key(self):
         mail = self.configured()

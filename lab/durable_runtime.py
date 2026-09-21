@@ -393,7 +393,11 @@ class Runtime:
                               or key.startswith('GOTRUE_RATE_LIMIT_'))
         configured = dict(entry.split('=', 1) for entry in actual['Config'].get('Env', []) if '=' in entry)
         if {k: v for k, v in configured.items() if marked(k)} == {k: v for k, v in desired.items() if marked(k)}:
-            mail_state.record(e, 'unchanged', mail)
+            # The recorded state is the four state vocabulary the configuration
+            # defines, so an unchanged reconcile records that the configuration is
+            # applied. That nothing had to be recreated is a run outcome, and it is
+            # what the line below reports, not a fifth state.
+            mail_state.record(e, 'off' if off else 'applied', mail)
             print('Environment mail configuration is unchanged.')
             return
         lab.docker('rm', '-f', name)
