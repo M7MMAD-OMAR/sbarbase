@@ -152,3 +152,10 @@ NOT built, so nobody has to read the design to find out:
    fixed the same way, and the cleanup stops masking, the sustained arrival
    measurement in section 5.2 stays unrun, and it should not be quoted as pending
    capacity evidence either way.
+   A third defect in the same vehicle, found the hard way: it writes its result to
+   `docs/evidence/gateway-sustained-failure.json` whatever the outcome, so a run
+   that dies in setup replaces the previous run's committed evidence with an empty
+   record. Running it on the retained placement did exactly that to a 660 sample
+   run, and the file was restored from git. Nobody should run that probe against a
+   host it cannot complete on, and the write should be made conditional or
+   versioned before it is run again.
