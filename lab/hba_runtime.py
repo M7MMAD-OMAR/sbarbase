@@ -34,6 +34,11 @@ def absent(path):
     return False
 
 
+def hba_migration_record(state):
+    """A generation migration record, torn or whole, blocks ordinary ownership."""
+    return not absent(Path(state)/hba_generation.MIGRATION)
+
+
 def target_state(installation_state,prefix):
     """Private per-target authority state; never the installation root."""
     if not isinstance(prefix,str) or not TARGET_PREFIX.fullmatch(prefix):
@@ -58,6 +63,8 @@ class SourceHBA:
 
     def before_start(self,existing,volume_exists):
         if self.startup is None:raise RuntimeError('Startup HBA ownership required')
+        if hba_migration_record(self.state):
+            raise RuntimeError('Generation migration requires reconciliation before startup')
         self.startup.verify()
         if self.fresh is not None:raise RuntimeError('HBA startup preparation already attempted')
         self.fresh=existing is None
@@ -92,6 +99,8 @@ class SourceHBA:
 
     def worker_preflight(self,runtime):
         if self.startup is not None:raise RuntimeError('Worker HBA ownership required')
+        if hba_migration_record(self.state):
+            raise RuntimeError('Generation migration requires reconciliation before worker effects')
         self.locks()
         effect_receipt.hba_preflight_identity(self.state,runtime)
         if not absent(self.state/hba_journal.NAME):raise RuntimeError('Pending HBA operation requires reconciliation')

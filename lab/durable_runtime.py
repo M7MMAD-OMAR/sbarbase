@@ -24,6 +24,22 @@ import source_fence
 import mail_config
 import mail_state
 
+def hba_content(environments):
+    """The desired rule inventory for one set of environment identifiers.
+
+    The one builder both the runtime and the generation migration use, so a
+    migrated database is re-derived from the same inventory the runtime publishes.
+    """
+    lines = ['local all supabase_admin trust', 'host storage_metadata storage_control 0.0.0.0/0 scram-sha-256',
+             'host management management_auth 0.0.0.0/0 scram-sha-256']
+    for e in environments:
+        if not re.fullmatch(r'e_[a-f0-9]{24}', e):
+            raise RuntimeError('Invalid runtime inventory')
+        lines += [f'host {e} {e}_{role} 0.0.0.0/0 scram-sha-256' for role in ('auth', 'rest', 'storage')]
+    lines += ['host all all 0.0.0.0/0 reject', 'host all all ::/0 reject']
+    return '\n'.join(lines)+'\n'
+
+
 class AdmissionLimitError(RuntimeError):
     pass
 
@@ -174,15 +190,8 @@ class Runtime:
         raise RuntimeError('Runtime readiness timed out')
 
     def hba(self):
-        lines = ['local all supabase_admin trust', 'host storage_metadata storage_control 0.0.0.0/0 scram-sha-256',
-                 'host management management_auth 0.0.0.0/0 scram-sha-256']
-        for e in self.values['environments']:
-            if not re.fullmatch(r'e_[a-f0-9]{24}', e):
-                raise RuntimeError('Invalid runtime inventory')
-            lines += [f'host {e} {e}_{role} 0.0.0.0/0 scram-sha-256' for role in ('auth', 'rest', 'storage')]
-        lines += ['host all all 0.0.0.0/0 reject', 'host all all ::/0 reject']
         if self.hba_writer is None:raise RuntimeError('Explicit HBA ownership required')
-        self.hba_writer.publish('\n'.join(lines)+'\n')
+        self.hba_writer.publish(hba_content(self.values['environments']))
 
     def reload_hba(self):
         if self.sql('SELECT count(*) FROM pg_hba_file_rules WHERE error IS NOT NULL;').stdout.strip()!='0':

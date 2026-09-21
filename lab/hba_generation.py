@@ -13,6 +13,11 @@ import hba_target
 
 NAME='hba-generation.json'
 LIMIT=16384
+# The migration record lives beside the pin: a private directory holding the
+# intent, its immutable checkpoints and the retired generation's archive. Its
+# presence is a startup refusal, never a silent re-pin.
+MIGRATION='hba-migration'
+MIGRATION_INTENT='intent.json'
 
 
 def validate(record):

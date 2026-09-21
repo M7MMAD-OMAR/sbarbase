@@ -1,8 +1,10 @@
 # Container-generation migration
 
-Design checkpoint, 2026-09-20. Not implemented. The current runtime refuses to
+Design checkpoint, 2026-09-20. Implemented 2026-09-21 in `lab/hba_migration.py`,
+`lab/migrate-generation.py` and `lab/hba_generation_migration_check.py`, with the
+five crash tests named in the section below. The current runtime refuses to
 silently re-pin a changed database container, which is correct: this document
-records what an explicit migration must do before anyone implements it.
+records what an explicit migration must do, and it now says what was built.
 
 ## The gap
 
@@ -68,3 +70,49 @@ exist today are `hba_runtime.SourceHBA.before_start` (refuses a legacy container
 or a missing container with a retained volume) and `TargetHBA.before_create`
 (refuses a preexisting volume); both must keep refusing until this design is
 implemented and crash-tested on disposable fixtures.
+
+## What was implemented on 2026-09-21
+
+`lab/hba_migration.py` holds the operation, `lab/migrate-generation.py` is the
+operator command, and `lab/hba_generation_migration_check.py` runs the five crash
+tests inside the disposable fixture that `lab/fresh-worker-check.py` builds
+(`--generation-crash all`). The record is a private directory beside the pin
+(`.lab/upstream/hba-migration`), and every effect is checkpointed before the next
+one begins:
+
+1. `intent` (the record itself, exclusive and fsynced, blocks startup);
+2. `old-captured` (the retired container stopped with the operator's assertion, or
+   verifiably gone, with its mounts, volume identity and last observed HBA digest);
+3. `retired-archived` (the retired generation's record and that digest);
+4. `new-captured` (the retired container removed by exact id and the replacement
+   created with its tier label and its per-device block IO limits on the same
+   volume);
+5. `generation-minted` (one generation, durable before it is used);
+6. `generation-initialized` (registry registration and the pin replaced by
+   archive-then-publish);
+7. `rules-published` (the owned single-attempt pipeline, parser and reload
+   acknowledged);
+8. `archived` (the re-derived rules compared with the retired digest, then the
+   record removed).
+
+The five crash tests are named `after-intent`, `after-old-captured`,
+`after-recreated`, `after-generation` and `after-rules`. Each one kills the
+operator command with SIGKILL at that durable checkpoint, then asserts that the
+database refuses ordinary startup, refuses a repeated migration, reconciles
+exactly once, and only afterwards admits startup again.
+
+Three deviations from this document, each deliberate and each visible in the code:
+
+- The pin is replaced immediately after the new generation's registry
+  registration and immediately before the rules publication, not after it.
+  `hba_apply.execute` calls `hba_generation.require` and `SourceHBA.publish` calls
+  `hba_generation.read_existing`, so a pin written after the rules are
+  acknowledged cannot gate that publication. This is the same order the
+  same-container adoption path already uses.
+- The retired generation's archive is a private directory beside the pin
+  (`hba-migration-archive/<migration>`) rather than the HBA outcomes directory.
+  Every file in the outcomes directory is validated as a journal-bound HBA
+  outcome, so a migration record placed there would be rejected as invalid or
+  would break readers that glob that directory.
+- The pin replacement moves the retired pin's exact bytes into that archive
+  instead of unlinking them, so the retirement stays byte-auditable.

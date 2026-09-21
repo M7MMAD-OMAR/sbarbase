@@ -16,7 +16,7 @@ import uuid
 import run as lab
 
 
-def main(crash_phase=None):
+def main(crash_phase=None,generation_phase=None):
     checks=[]
     def check(name,value):
         if not value:raise RuntimeError(name)
@@ -141,6 +141,9 @@ def main(crash_phase=None):
         if crash_phase is not None:
             from hba_worker_crash_check import run as crash
             crash(repo,private,name,crash_phase,command,check)
+        if generation_phase is not None:
+            from hba_generation_migration_check import run_all
+            run_all(repo,private,name,generation_phase,command,check)
         completed=True
     finally:
         # Detached guardians hold these same locks. Do not tear down beneath one.
@@ -176,7 +179,9 @@ def main(crash_phase=None):
         check('all isolated Docker resources removed',all(not resources(kind) for kind in ('container','volume','network')))
         for handle in leases:handle.close()
     if completed:
-        evidence='fresh-worker-checks.json' if crash_phase is None else 'worker-hba-crash-'+crash_phase+'.json'
+        evidence=('fresh-worker-checks.json' if crash_phase is None and generation_phase is None
+                  else 'worker-hba-crash-'+crash_phase+'.json' if crash_phase is not None
+                  else 'fresh-worker-generation-crash-'+generation_phase+'.json')
         (lab.ROOT/'docs/evidence'/evidence).write_text(json.dumps({'crash_phase':crash_phase,'scope':'Fresh real worker receipts, leases, guarded SQL and source HBA authority with original Auth/REST/Storage in a private source snapshot. Includes generation pin refusal and parent-bound installation restart with inherited supervisor ownership. Only Docker identity constants replaced. Healthy lifecycle plus optional selected native HBA SIGKILL and HBA-only reconciliation. Not automatic job recovery or capacity.','count':len(checks),'checks':checks},indent=2)+'\n')
         print(str(len(checks))+' fresh worker lifecycle checks passed')
 
@@ -184,8 +189,9 @@ def main(crash_phase=None):
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--hba-crash',choices=('after-intent','after-witness'))
+    parser.add_argument('--generation-crash',choices=('all','after-intent','after-old-captured','after-recreated','after-generation','after-rules'))
     options=parser.parse_args()
-    try:main(options.hba_crash)
+    try:main(options.hba_crash,options.generation_crash)
     except Exception as error:
         # Our own fixed messages only; private diagnostics retain native output.
         if isinstance(error,RuntimeError):raise SystemExit(str(error)) from None

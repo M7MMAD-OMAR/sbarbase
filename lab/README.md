@@ -55,6 +55,23 @@ Source startup now requires a matching generation pin for existing containers.
 The retained legacy source has not been adopted and intentionally refuses to
 start. Preserve its state and volumes. See [current scope and adoption gate](../docs/SOURCE-HBA-INTEGRATION.md).
 
+## Container generation migration
+
+`/usr/bin/python3 lab/migrate-generation.py` is the one operation that may
+replace a managed database container, and it refuses the retained placement
+outright: it is a deliberate operator run, not this command. Its private record
+lives beside the generation pin (`.lab/upstream/hba-migration`), and a record,
+torn or whole, blocks ordinary startup, worker preflight and a repeated
+migration until it completes or an operator reconciles it with `--reconcile`.
+
+`/usr/bin/python3 lab/fresh-worker-check.py --generation-crash all` runs the five
+crash tests on the disposable fixture: one SIGKILL at each durable checkpoint,
+then the startup refusal, the repeated-migration refusal, exactly one
+reconciliation, and the recreated container carrying its resource tier and its
+per-device block IO limits on the same pgdata volume with its data intact. Each
+phase writes its own `docs/evidence/generation-migration-<phase>.json`. See
+[migration design and its three deviations](../docs/CONTAINER-GENERATION-MIGRATION.md).
+
 `/usr/bin/python3 lab/durable_runtime.py stop` stops owned containers without
 deleting volumes. State is in `.lab/upstream`, credentials in `.secrets/upstream`,
 resources carry `io.sbarbase.owner=durable-upstream`. Nothing publishes host

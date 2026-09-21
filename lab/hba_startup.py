@@ -13,17 +13,27 @@ import hba_generation
 NAMES=('worker.lock','effect.lock','operation.lock')
 
 
-def require_clear(state):
+def require_clear(state,migration=False):
     # Only a missing entry is clear. Permission and lookup errors stay fatal.
     for name in ('worker-effect.json',journal.NAME):
         try:(state/name).lstat()
         except FileNotFoundError:continue
         raise RuntimeError('Startup requires prior operation reconciliation')
+    # A generation migration record, torn or whole, blocks every ordinary startup
+    # and every repeated migration. Only the migration path may hold it.
+    try:(state/hba_generation.MIGRATION).lstat()
+    except FileNotFoundError:present=False
+    else:present=True
+    if migration and not present:
+        raise RuntimeError('Generation migration ownership requires a migration record')
+    if not migration and present:
+        raise RuntimeError('Generation migration requires reconciliation')
 
 
 class Startup:
-    def __init__(self,state,descriptors):
+    def __init__(self,state,descriptors,migration=False):
         self.state=state
+        self.migration=migration
         self.descriptors=tuple(descriptors)
         if len(self.descriptors)!=3:raise ValueError('Exactly three startup descriptors required')
         self.process=os.getpid()
@@ -37,7 +47,7 @@ class Startup:
         if len(self.descriptors)!=3:raise ValueError('Exactly three startup descriptors required')
         locks=[ownership.require_lock(self.state,name,descriptor) for name,descriptor in zip(NAMES,self.descriptors)]
         if len(set(locks))!=3:raise RuntimeError('Startup ownership locks must be distinct')
-        require_clear(self.state)
+        require_clear(self.state,self.migration)
 
     def initialize(self,docker,*,target):
         self.verify()
@@ -55,12 +65,13 @@ class Startup:
 
 
 @contextmanager
-def acquire(state,*,worker_fd=None):
+def acquire(state,*,worker_fd=None,migration=False):
     """Always obtain fresh effect/operation ownership; optionally share supervisor worker lock.
 
     Caller must have exclusive control of its private state directory. Inherited
     worker ownership is not evidence that all prior effects ended: the separate
     fresh effect lock enforces exclusion against surviving workers/guardians.
+    `migration` is the one context that may hold a generation migration record.
     """
     state=Path(state)
     descriptors=[];lease=None
@@ -75,8 +86,8 @@ def acquire(state,*,worker_fd=None):
             ownership.require_lock(state,name,descriptor)
         identities=[(os.fstat(fd).st_dev,os.fstat(fd).st_ino) for fd in descriptors]
         if len(set(identities))!=3:raise RuntimeError('Startup ownership locks must be distinct')
-        require_clear(state)
-        lease=Startup(state,descriptors)
+        require_clear(state,migration)
+        lease=Startup(state,descriptors,migration)
         yield lease
     finally:
         if lease is not None:lease.active=False
