@@ -230,11 +230,35 @@ Three consequences. The first two correct this design.
    exist is refused by the daemon. So block IO separation has to move to
    `--device-read-bps`, `--device-write-bps` and their IOPS siblings, with the
    device derived from the host rather than hardcoded. That is item 11 of
-   section 7 and it is not built.
+   section 7, and section 3.1.2 records it as built.
 
 Unchanged by this reading: the memory column, the pids column and the shares
 column. Those are ceilings and a relative CPU order, and both mechanisms were
 observed to bind.
+
+### 3.1.2 The block IO limits, built 2026-09-21
+
+Item 11 is built. `lab/resource_policy.py` holds one block IO row per tier (read
+bandwidth, write bandwidth, read IOPS, write IOPS) and turns it into the four
+device flags. The device is resolved from the host rather than written down: the
+source of the mount behind `/var/lib/docker`, with a btrfs subvolume bracket
+stripped, and the result has to exist. When it cannot be resolved to one
+existing block device the launch refuses with `io_device_unavailable` before it
+creates anything, because the daemon rejects a device path it cannot find and a
+container started without these flags has no block IO separation at all.
+
+Both paths that create containers carry the flags: `launch()` in
+`lab/durable_runtime.py` for every component, and `labels()` for the recovery
+target sites, which create their own containers.
+
+Live reading, disposable container removed afterwards: the derived device is
+`/dev/mapper/luks-d5d273a7-4705-47d4-9d9a-59d5fbc8f10c`, the production row is
+64mb / 32mb / 2000 / 1000, and `io.max` inside the container reads
+`252:0 rbps=67108864 wbps=33554432 riops=2000 wiops=1000`.
+
+The rows separate the tiers. They are not calibrated: nothing here has measured
+what a tier actually receives under load, so no value in that table may be
+quoted as a guarantee, and the test that would make it one is still section 5.1.
 
 ### 3.2 The exact flags to add, per launch site
 

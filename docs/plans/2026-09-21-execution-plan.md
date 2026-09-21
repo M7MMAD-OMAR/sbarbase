@@ -105,6 +105,7 @@ Every workstream ends with: the full Python suite, the full Bun suite, the unit 
 | `b21170d` | The recorded decisions: the unconfigured mail posture, the mail state that reaches no console yet, and the retained containers that need one recreation. |
 | `3e14668` | The implementation of all three topics, the recovery target tier labels, and the cgroup mapping evidence. |
 | `0064183` | The seven defects one adversary pass proved, each with a test that fails before it and passes after. |
+| `64a122f` | Block IO separation through the per device limits, since the weight flag was measured not to bind. |
 
 Built and verified on this host: the tier table and the container flags; the
 counting rule that reads the daemon by label instead of a literal name list; the
@@ -116,11 +117,13 @@ re-run by the parent, both cleaning up what they created.
 
 NOT built, so nobody has to read the design to find out:
 
-1. Block IO separation. The measurement in `docs/evidence/resource-policy-cgroup-mapping.json`
-   shows the weight flag does not bind on this host, so the mechanism has to move
-   to per device bandwidth and IOPS limits, with the device derived per host.
-2. The three measurement experiments in section 5, so no capacity claim exists.
-   The neighbour experiment is the one that would answer the original question.
+1. The three measurement experiments in section 5, so no capacity claim exists and
+   the block IO rows are uncalibrated. The neighbour experiment is the one that
+   would answer the original question.
+2. Block IO separation is built (commit `64a122f`, section 3.1.2 of the resource
+   policy): every tier carries read and write bandwidth and IOPS rows, the device
+   is resolved from the host, and `io.max` was read back inside a container. The
+   numbers in those rows are a starting point, not a measurement of a tier.
 3. The console surfaces: the mail state route and screen, and the notification
    route with its undelivered count. A table and a file exist that nothing reads.
 4. Nine of the notification event kinds are declared and emitted by nobody,
