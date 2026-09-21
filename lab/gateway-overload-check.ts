@@ -23,8 +23,21 @@ let pending:Promise<boolean>[]=[];
 function check(name:string,ok:boolean){if(!ok)throw new Error(name);checks.push(name);}
 async function command(args:string[],input?:string){const child=Bun.spawn(args,{stdin:input===undefined?'ignore':'pipe',stdout:'ignore',stderr:'ignore'});if(input!==undefined){child.stdin.write(input);child.stdin.end();}if(await child.exited)throw new Error('Probe command failed');}
 async function sql(runtime:string,query:string){await command(['docker','exec','-i','sbarbase-durable-db','psql','-X','-v','ON_ERROR_STOP=1','-U','supabase_admin','-d',runtime],query);}
+let primaryError:unknown=undefined;
 try{
- for(const [index,id] of probe.environments.slice(0,2).entries()){
+ // A fixture list is a claim, not a fact. An environment can be retired while its
+ // catalog row survives, and then this probe dies on its first SQL statement with
+ // an error that says nothing about the cause and a cleanup error on top of it.
+ // The candidates are therefore probed, and only the ones that answer are used.
+ const live:string[]=[];
+ for(const id of probe.environments){
+  const candidate=app.catalog.getProvision('durable-probe-owner',id);
+  if(!candidate?.runtime){console.error('fixture environment has no provision record and is skipped:',id);continue;}
+  try{await sql(candidate.runtime,'SELECT 1;');live.push(id);}
+  catch{console.error('fixture environment does not answer and is skipped:',id);}
+ }
+ if(live.length<2)throw new Error(`Two answering fixture environments are required; ${live.length} of ${probe.environments.length} answered. The probe fixture is written by lab/durable-check.ts, which is disabled pending the container generation migration.`);
+ for(const [index,id] of live.slice(0,2).entries()){
   const job=app.catalog.getProvision('durable-probe-owner',id);
   const key=app.catalog.withReadyEnvironment('durable-probe-owner',id,true,()=>app.keys.issue(job.runtime));
   fixtures.push({runtime:job.runtime,key:key.id,token:key.token});
@@ -151,8 +164,11 @@ try{
  }
 
 }catch(error){
- if(sustained)await Bun.write('docs/evidence/gateway-sustained-failure.json',JSON.stringify({scope:'Failed slow-RPC arrival probe; no capacity or isolation pass',checks,skipped,peakPending,samples},null,2)+'\n');
- throw error;
+ // An empty result is not evidence. Writing this when the probe died in setup is
+ // what replaced a previous run's 660 sample artifact with an empty record, so the
+ // artifact is only written when the run actually produced samples.
+ if(sustained&&samples.length)await Bun.write('docs/evidence/gateway-sustained-failure.json',JSON.stringify({scope:'Failed slow-RPC arrival probe; no capacity or isolation pass',checks,skipped,peakPending,samples},null,2)+'\n');
+ primaryError=error;
 }finally{
  await Promise.allSettled(pending);
  const failures=[];
@@ -160,7 +176,9 @@ try{
  try{server?.stop(true);}catch{failures.push('server cleanup');}
  try{app.close();}catch{failures.push('catalog cleanup');}
  try{await command(['/usr/bin/python3','lab/durable_runtime.py','stop']);}catch{failures.push('runtime cleanup');}
- if(failures.length)throw new Error('Overload fixture cleanup incomplete');
+ if(failures.length&&primaryError!==undefined)console.error('fixture cleanup failures:',failures.join(','));
+ if(failures.length&&primaryError===undefined)throw new Error('Overload fixture cleanup incomplete: '+failures.join(','));
 }
+if(primaryError!==undefined)throw primaryError;
 await Bun.write(sustained?'docs/evidence/gateway-sustained-checks.json':cancellation?'docs/evidence/gateway-cancellation-checks.json':deadlineProbe?'docs/evidence/sql-deadline-checks.json':'docs/evidence/gateway-overload-checks.json',JSON.stringify({sqlDeadline:deadlineObservation,cancellation:cancellationObservation,sustained:sustained?{duration_seconds:30,target_arrivals_per_second:20,neighbor_arrivals_per_second:2,rest_budget:3,skipped,peakPending,samples}:undefined,scope:'Actual managed gateway, SDK, pinned PostgREST and PostgreSQL. One environment fills its configured admission budget with temporary two-second RPCs, next request refused; neighbor returns a correct distinct value and target recovers. Temporary RPCs removed and keys revoked. Not global socket or multi-process DDoS protection.',checks,count:checks.length},null,2)+'\n');
 console.log(`${checks.length} real gateway overload checks passed.`);

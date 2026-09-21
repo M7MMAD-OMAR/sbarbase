@@ -147,8 +147,15 @@ NOT built, so nobody has to read the design to find out:
    placements created after it, which the fresh worker check exercises, and a tier
    measurement has to run on a fresh placement.
 
-7. Two measurement vehicles refuse to run on the retained placement for the same
-   reason, found and verified by the parent on 2026-09-21 and not yet fixed.
+7. Two measurement vehicles could not run on the retained placement, and the
+   defects behind that were found and verified by the parent on 2026-09-21. Three
+   of the four are now fixed: both vehicles no longer replace a real error with a
+   cleanup error, the overload vehicle writes its failure artifact only when the
+   run produced samples (it was overwriting a previous run's 660 sample artifact
+   with an empty record), and that vehicle probes its fixture environments and
+   refuses with the cause instead of dying on its first SQL statement. Still open:
+   the same fixture probe for `lab/sdk-load-check.ts`, and the generator itself,
+   which is disabled pending the migration named below.
    `lab/gateway-overload-check.ts --sustained` takes its two fixtures from
    `.lab/upstream/probe.json`, and the first of those environments resolves through
    `catalog.getProvision('durable-probe-owner', ...)` to the retired environment

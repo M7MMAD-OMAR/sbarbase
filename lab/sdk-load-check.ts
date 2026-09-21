@@ -16,7 +16,7 @@ const suffix=crypto.randomUUID().replaceAll('-','');
 const table='load_'+suffix,bucket='load-'+suffix,policy='load_'+suffix;
 const fixtures:any[]=[];
 const samples:{phase:string;environment:number;operation:string;ms:number;ok:boolean;status:number|null}[]=[];
-let result:unknown;
+let result:unknown;let primaryError:unknown=undefined;const cleanupFailures:string[]=[];
 const deadline=()=>AbortSignal.timeout(10000);
 function require(value:unknown,message:string):asserts value {if(!value)throw new Error(message);}
 async function command(args:string[],input?:string) {
@@ -108,8 +108,8 @@ try {
  }
  require(groups.every(group=>group.samples>=10),'Insufficient per-operation samples');
  result={scope:'Two retained environments through managed loopback gateway and Supabase SDK. Ten-second closed-loop phases, concurrency 1 then 4 per environment, maximum 8 total. Each worker waits until at least 100 ms after its previous operation began, so nominal rates are approximately 20 then 80 operations/second across both environments, actual rate decreases with latency. Five-operation repeating mix, tiny private files and fixture rows; setup excluded. No open-loop/production-capacity/SLO conclusion.',phases,groups,samples};
-}finally{
- const failures:string[]=[];
+}catch(error){primaryError=error;}
+finally{
  for(const f of fixtures) {
   try {
    if(f.bucket) {
@@ -118,16 +118,18 @@ try {
     const response=await fetch(storage.url+'/bucket/'+bucket,{method:'DELETE',signal:deadline(),headers:{authorization:'Bearer '+internalToken(secrets.environments[f.runtime].jwt,'service_role'),'x-forwarded-host':storage.tenantHost}});
     require(response.ok,'Bucket cleanup failed');
    }
-  }catch{failures.push('storage cleanup');}
-  try{await sql(f.runtime,`DROP TABLE IF EXISTS public.${table}; DROP POLICY IF EXISTS ${policy} ON storage.objects; NOTIFY pgrst,'reload schema';`);}catch{failures.push('SQL cleanup');}
-  try{if(f.user){const response=await fetch(endpoints[f.runtime].auth+'/admin/users/'+f.user,{method:'DELETE',signal:deadline(),headers:{authorization:'Bearer '+internalToken(secrets.environments[f.runtime].jwt,'service_role')}});require(response.ok,'Auth cleanup failed');}}catch{failures.push('Auth cleanup');}
-  try{if(!app.keys.revoke(f.runtime,f.key))failures.push('key revocation');}catch{failures.push('key revocation');}
+  }catch{cleanupFailures.push('storage cleanup');}
+  try{await sql(f.runtime,`DROP TABLE IF EXISTS public.${table}; DROP POLICY IF EXISTS ${policy} ON storage.objects; NOTIFY pgrst,'reload schema';`);}catch{cleanupFailures.push('SQL cleanup');}
+  try{if(f.user){const response=await fetch(endpoints[f.runtime].auth+'/admin/users/'+f.user,{method:'DELETE',signal:deadline(),headers:{authorization:'Bearer '+internalToken(secrets.environments[f.runtime].jwt,'service_role')}});require(response.ok,'Auth cleanup failed');}}catch{cleanupFailures.push('Auth cleanup');}
+  try{if(!app.keys.revoke(f.runtime,f.key))cleanupFailures.push('key revocation');}catch{cleanupFailures.push('key revocation');}
  }
- try{server.stop(true);}catch{failures.push('server cleanup');}
- try{app.close();}catch{failures.push('catalog cleanup');}
- try{await command(['/usr/bin/python3','lab/durable_runtime.py','stop']);}catch{failures.push('runtime cleanup');}
- require(failures.length===0,'Probe cleanup incomplete; inspect retained fixture state');
+ try{server.stop(true);}catch{cleanupFailures.push('server cleanup');}
+ try{app.close();}catch{cleanupFailures.push('catalog cleanup');}
+ try{await command(['/usr/bin/python3','lab/durable_runtime.py','stop']);}catch{cleanupFailures.push('runtime cleanup');}
+ if(cleanupFailures.length)console.error('probe cleanup failures:',cleanupFailures.join(','));
 }
+if(primaryError!==undefined)throw primaryError;
+require(cleanupFailures.length===0,'Probe cleanup incomplete; inspect retained fixture state');
 await Bun.write('docs/evidence/'+(outputs[process.argv[2]??'']??'sdk-load-checks.json'),JSON.stringify(result,null,2)+'\n');
 console.log(JSON.stringify({...result as object,samples:undefined}));
 
