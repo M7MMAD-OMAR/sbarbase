@@ -382,18 +382,44 @@ the ceiling. PROPOSED replacement, in one function
    70 / 40 / 2.0; `experimental` refuses at 50 / 20 / 1.0 (stricter, which is the
    point of the class). Values PROPOSED, to be calibrated by section 5.
 
-### 3.6 The retained containers need one recreation before this contract holds
+### 3.6 The retained placement is grandfathered, and the database cannot be recreated
 
-The tier flags and the class label are written at container creation. The
-containers retained on the development host were created before this policy
-existed, so every one of them still carries `CpuShares: 0`, `BlkioWeight: 0` and
-no `io.sbarbase.tier` label, and the admission refuses that placement by
-contract: `Counted container carries no policy tier`.
+The tier flags and the class label are written at container creation, so the
+placement retained on the development host, created before this policy, carries
+`CpuShares: 0`, `BlkioWeight: 0`, no `io.sbarbase.tier` label and no block IO
+limits. The admission refuses that placement by contract, with
+`Counted container carries no policy tier`, and the refusal is deliberate:
+accepting a container nobody can account for is the defect this change removes.
 
-The refusal is deliberate. Accepting a container nobody can account for is the
-defect this change exists to remove, so the contract is not relaxed to
-accommodate old containers. What it requires is one recreation of the retained
-placement, and the same step is needed before any Studio container joins it.
+This section said "one recreation of the retained placement" until the constraint
+was read properly, and that was wrong. Recreating the retained **database**
+container has no supported path. `docs/CONTAINER-GENERATION-MIGRATION.md` records
+why: the HBA authority registry and its tombstones live in that container's own
+filesystem, so a new container starts with a different identity and the retained
+generation pin refuses it. The document's own words are that the only supported
+answers today are to keep the original container or to adopt a retained one that
+still exists, and that recreation has no path. Its migration design is a deferred
+checkpoint, not something to run at the end of a policy change.
+
+The stateless services are a different case and can be recreated, which
+`reconcile_mail` already does for one environment's Auth container. Recreating
+them would give those containers their tiers and their block IO limits. It would
+not make the database accountable, so the placement as a whole still refuses, and
+that is the honest state: the database is the component whose accounting cannot
+be fixed by recreation.
+
+What that leaves, and it is not a workaround but the supported position:
+
+1. The tier contract applies to placements created after it. That path works and
+   is checked: `lab/fresh-worker-check.py` provisions a fresh real placement
+   through the worker and passed 76 checks with the tiers and the block IO limits
+   in place.
+2. A capacity or fairness measurement of the tiers must therefore run on a fresh
+   disposable placement, not on the retained one. Measuring the retained placement
+   measures containers that predate the policy.
+3. Migrating the retained database to a licensed generation is the deferred
+   operation described in that document, and it needs its own implementation and
+   crash testing before anyone runs it.
 
 ## 4. Keeping the placement math honest
 

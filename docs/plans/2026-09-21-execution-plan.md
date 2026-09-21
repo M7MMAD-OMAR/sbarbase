@@ -117,9 +117,9 @@ re-run by the parent, both cleaning up what they created.
 
 NOT built, so nobody has to read the design to find out:
 
-1. The three measurement experiments in section 5, so no capacity claim exists and
-   the block IO rows are uncalibrated. The neighbour experiment is the one that
-   would answer the original question.
+1. The remaining measurement experiments in section 5 (the continuous pressure
+   response and the mixed SDK load), so the block IO rows stay uncalibrated. The
+   neighbour experiment (section 5.1.1) ran and found no repeatable effect.
 2. Block IO separation is built (commit `64a122f`, section 3.1.2 of the resource
    policy): every tier carries read and write bandwidth and IOPS rows, the device
    is resolved from the host, and `io.max` was read back inside a container. The
@@ -130,5 +130,9 @@ NOT built, so nobody has to read the design to find out:
    because their producers live in files this workstream did not own.
 5. The mail templates, the provider decision, and the reauthentication variables
    the designer could not confirm against the pinned Auth tag.
-6. One recreation of the retained placement, without which the combined admission
-   refuses by contract (section 3.6 of the resource policy).
+6. The retained placement stays grandfathered, and section 3.6 of the resource
+   policy was corrected after reading `docs/CONTAINER-GENERATION-MIGRATION.md`: the
+   retained database container has no recreation path, because its authority
+   registry lives in its own filesystem. The tier contract therefore applies to
+   placements created after it, which the fresh worker check exercises, and a tier
+   measurement has to run on a fresh placement.
