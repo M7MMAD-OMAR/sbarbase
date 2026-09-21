@@ -115,7 +115,10 @@ Studio plus a 128 MiB meta at four environments takes the plan to 8448 MiB and
    the provisioning path (`lab/durable_runtime.py:286`). `docs/PRESSURE-ADMISSION.md:16`
    states it plainly: an admission-time gate, not a continuous monitor or a
    remedy for an existing overloaded tenant. Its container tuple also omits
-   every per-environment container.
+   every per-environment container. Section 5.2.1 records what has since been
+   built: a repeated sampler, a summary and a level 1 response that refuses
+   admissions and records crossings. What is still missing here is the arrival
+   driven run and any response above level 1.
 7. Per-tenant traffic shaping. Grep for `rate`, `bucket`, `tokens` in
    `src/gateway/`: not found. The gate counts concurrent requests, so a tenant
    with fast requests can consume the shared engine's CPU and connections at an
@@ -610,6 +613,58 @@ the existing sustained arrival generator.
   responder acts after the host pressure has already returned below threshold
   (an action that arrives late is a failure of the experiment, not a pass).
 
+### 5.2.1 The sampler and the response, built 2026-09-21
+
+The sampler and the response exist now. The arrival-driven experiment of section
+5.2 does not, and the paragraph after the table below says why.
+
+`lab/pressure_admission.py` takes a bounded series (`series()`, default one
+reading every 5 seconds over a 30-second window, at most 120 readings over ten
+minutes), reduces it (`summarise()`: the count, the same three avg10 values per
+container as the mean, the maximum and the most recent reading, and every
+crossing with the readings over it, the span between the first and the last, and
+the peak), and returns one decision (`response()`). The durations come from the
+measured instants each reading started rather than from a count of intervals, and
+a series reports the elapsed span next to the requested window because a reading
+itself costs four Docker calls. The admission-time `snapshot()` and `refusal()`
+are unchanged; `combined_admission.py`, `durable_runtime.provision` and `notify`
+call the same functions with the same vocabulary.
+
+Level 1 of section 7 step 7 is implemented and nothing above it:
+
+| Level | Design asks | State |
+|---|---|---|
+| 1 | refuse new provisioning with the existing safe capacity reason, and record the event | built: `response()` refuses while the most recent reading is at or over a threshold and appends each crossing to `.lab/pressure-crossings.jsonl`, one JSON object per line, flushed and fsynced |
+| 2 | call the gateway pause lease for each experimental environment over threshold for three consecutive samples | not built: no per-environment class exists in the runtime state, so "experimental" cannot be selected, and the lease is in-process, is lost on restart, and does not prove a paused environment's SQL stopped (`docs/GATEWAY-DRAIN.md`) |
+| 3 | pause every class except `system` and refuse all starts | not built: same reasons, and it stops or restricts work that is already running, which this increment was explicitly not to do |
+
+Every decision returns the list of what is not implemented next to the action, so
+a caller cannot present level 1 as a continuous remedy.
+
+The measurement is `lab/pressure-response-check.py`, evidence in
+`docs/evidence/pressure-response-checks.json`. It creates one disposable
+container (private cgroup namespace, 0.25 CPU quota, 128 MiB ceiling, no network,
+the pinned database image) holding sixteen internal busy loops, takes the series,
+stops the load inside the same container, and takes a second series. Run
+2026-09-21: `cpu_some10` crossed in four of the five load readings, peaking at
+77.72; the response refused with `pressure_cpu_some10` and appended one ledger
+line; after the load stopped, `cpu_some10` fell from 32.26 to 6.80 and the
+response admitted with no crossing. The retained runtime is not started or
+touched, and the container is removed.
+
+What this does not replace, and the arrival-driven form is still owed: the
+driver does not run the sustained arrival generator, so the 600 target and 60
+neighbour arrivals, the two-second target RPC, the neighbour acceptance rule and
+the failure condition "the responder acts after host pressure has already
+returned below threshold" are all untested here. That failure condition is
+partially covered: the response decides from the most recent reading and stops
+refusing within one reading of the recovery, which the second series shows. But
+`lab/gateway-overload-check.ts --sustained --pressure` is not built, because it
+needs the retained durable runtime running, and section 5.1.1 already measured
+that this arrival profile produces no repeatable neighbour effect on this host.
+So Experiment B is one third done: the tool and the response exist and are
+measured on their own; the arrival-driven run is not.
+
 ### 5.3 Experiment C: SDK mix under tiers and quotas
 
 Extend `lab/sdk-load-check.ts`, which already runs one then four workers per
@@ -888,6 +943,18 @@ equals the lab pool (`lab/gateway-overload-check.ts:41`), which is the regressio
 guard for this step.
 
 ### Step 7: the continuous responder
+
+Partly built, 2026-09-21. Level 1 now exists inside `lab/pressure_admission.py`
+as `series()`, `summarise()` and `response()` rather than as a separate
+`lab/pressure_responder.py`, because one module already owns the measurement and
+its thresholds, and the response is decided from a summary of that measurement
+rather than from a new signal. Section 5.2.1 records what that covers, what it
+excludes, and the measurement that exercises it. What remains of this step: no
+process calls the response on a schedule, no per-class threshold can be
+evaluated because no per-environment class exists in the runtime state, and
+levels 2 and 3 are unbuilt, so nothing here stops or restricts running work.
+
+The rest of this step is the design as written:
 
 Add `lab/pressure_responder.py`: sample `pressure_admission.snapshot()` every 5
 seconds, evaluate the per-class thresholds, and act in graduated steps, all of

@@ -14,7 +14,7 @@
       "seconds": 25.0,
       "interval": 5.0,
       "samples": 5,
-      "elapsed_seconds": 70.29
+      "elapsed_seconds": 73.484
     },
     "recovery": {
       "seconds": 20.0,
@@ -24,21 +24,21 @@
       "elapsed_seconds": 16.013
     }
   },
-  "host_headroom_bytes": 11879280640,
+  "host_headroom_bytes": 8618213376,
   "host_pressure": {
     "before": {
-      "cpu": 0.88,
-      "io": 0.26,
-      "memory": 0.0
+      "cpu": 3.67,
+      "io": 0.56,
+      "memory": 0.27
     },
     "during_load": {
-      "cpu": 72.32,
+      "cpu": 76.02,
       "io": 0.0,
-      "memory": 0.22
+      "memory": 0.0
     },
     "after": {
-      "cpu": 6.2,
-      "io": 0.76,
+      "cpu": 6.49,
+      "io": 0.62,
       "memory": 0.0
     },
     "caveat": "host-wide PSI is aggregated from descendant cgroups, so the reading taken while the probe runs includes the probe's own stall. It is not an independent measure of load from outside the probe; the inside-the-cgroup series above is the probe's own reading."
@@ -46,33 +46,33 @@
   "load_series": {
     "count": 5,
     "containers": [
-      "sbarbase-pressure-probe-65ddf59b29a8"
+      "sbarbase-pressure-probe-6a82941a669c"
     ],
     "interval_seconds": 5.0,
     "window_seconds": 25.0,
-    "observed_seconds": 70.29,
+    "observed_seconds": 73.484,
     "thresholds": {
       "cpu_some10": 50.0,
       "io_full10": 20.0,
       "memory_full10": 1.0
     },
     "avg10": {
-      "sbarbase-pressure-probe-65ddf59b29a8": {
-        "cpu_some10": 62.980000000000004,
+      "sbarbase-pressure-probe-6a82941a669c": {
+        "cpu_some10": 69.654,
         "io_full10": 0.0,
         "memory_full10": 0.0
       }
     },
     "max10": {
-      "sbarbase-pressure-probe-65ddf59b29a8": {
-        "cpu_some10": 77.72,
+      "sbarbase-pressure-probe-6a82941a669c": {
+        "cpu_some10": 78.38,
         "io_full10": 0.0,
         "memory_full10": 0.0
       }
     },
     "last10": {
-      "sbarbase-pressure-probe-65ddf59b29a8": {
-        "cpu_some10": 77.31,
+      "sbarbase-pressure-probe-6a82941a669c": {
+        "cpu_some10": 78.38,
         "io_full10": 0.0,
         "memory_full10": 0.0
       }
@@ -81,32 +81,32 @@
     "crossed": true,
     "crossings": [
       {
-        "container": "sbarbase-pressure-probe-65ddf59b29a8",
+        "container": "sbarbase-pressure-probe-6a82941a669c",
         "metric": "cpu_some10",
         "threshold": 50.0,
         "samples_over": 4,
         "first_index": 1,
         "last_index": 4,
-        "span_seconds": 42.901,
-        "duration_seconds": 47.901,
-        "first_at_seconds": 18.99,
-        "last_at_seconds": 61.891,
-        "peak": 77.72
+        "span_seconds": 43.869,
+        "duration_seconds": 48.869,
+        "first_at_seconds": 18.614,
+        "last_at_seconds": 62.483,
+        "peak": 78.38
       }
     ],
     "peak": {
-      "container": "sbarbase-pressure-probe-65ddf59b29a8",
+      "container": "sbarbase-pressure-probe-6a82941a669c",
       "metric": "cpu_some10",
-      "value": 77.72
+      "value": 78.38
     },
     "readings": [
       {
         "index": 0,
         "at_seconds": 0.0,
-        "read_seconds": 13.99,
+        "read_seconds": 13.613,
         "values": {
-          "sbarbase-pressure-probe-65ddf59b29a8": {
-            "cpu_some10": 13.58,
+          "sbarbase-pressure-probe-6a82941a669c": {
+            "cpu_some10": 42.64,
             "io_full10": 0.0,
             "memory_full10": 0.0
           }
@@ -114,11 +114,11 @@
       },
       {
         "index": 1,
-        "at_seconds": 18.99,
-        "read_seconds": 8.402,
+        "at_seconds": 18.614,
+        "read_seconds": 12.071,
         "values": {
-          "sbarbase-pressure-probe-65ddf59b29a8": {
-            "cpu_some10": 69.61,
+          "sbarbase-pressure-probe-6a82941a669c": {
+            "cpu_some10": 72.29,
             "io_full10": 0.0,
             "memory_full10": 0.0
           }
@@ -126,11 +126,11 @@
       },
       {
         "index": 2,
-        "at_seconds": 32.393,
-        "read_seconds": 10.498,
+        "at_seconds": 35.684,
+        "read_seconds": 8.6,
         "values": {
-          "sbarbase-pressure-probe-65ddf59b29a8": {
-            "cpu_some10": 76.68,
+          "sbarbase-pressure-probe-6a82941a669c": {
+            "cpu_some10": 77.33,
             "io_full10": 0.0,
             "memory_full10": 0.0
           }
@@ -138,11 +138,11 @@
       },
       {
         "index": 3,
-        "at_seconds": 47.891,
-        "read_seconds": 9.0,
+        "at_seconds": 49.285,
+        "read_seconds": 8.198,
         "values": {
-          "sbarbase-pressure-probe-65ddf59b29a8": {
-            "cpu_some10": 77.72,
+          "sbarbase-pressure-probe-6a82941a669c": {
+            "cpu_some10": 77.63,
             "io_full10": 0.0,
             "memory_full10": 0.0
           }
@@ -150,11 +150,11 @@
       },
       {
         "index": 4,
-        "at_seconds": 61.891,
-        "read_seconds": 8.399,
+        "at_seconds": 62.483,
+        "read_seconds": 11.001,
         "values": {
-          "sbarbase-pressure-probe-65ddf59b29a8": {
-            "cpu_some10": 77.31,
+          "sbarbase-pressure-probe-6a82941a669c": {
+            "cpu_some10": 78.38,
             "io_full10": 0.0,
             "memory_full10": 0.0
           }
@@ -167,24 +167,24 @@
     "refuse": true,
     "reason": "pressure_cpu_some10",
     "metric": "cpu_some10",
-    "container": "sbarbase-pressure-probe-65ddf59b29a8",
-    "over_threshold_seconds": 47.901,
+    "container": "sbarbase-pressure-probe-6a82941a669c",
+    "over_threshold_seconds": 48.869,
     "crossed": true,
     "record": {
-      "path": "/home/sbarah/R/Projects/P/sbarbase/.worktrees/subagent-sa-1-e68d9c09/.lab/pressure-crossings.jsonl",
+      "path": "/home/sbarah/R/Projects/P/sbarbase/.lab/pressure-crossings.jsonl",
       "records": [
         {
-          "at": 1789961550.047,
-          "utc": "2026-09-21T03:32:30+00:00",
-          "container": "sbarbase-pressure-probe-65ddf59b29a8",
+          "at": 1789961969.664,
+          "utc": "2026-09-21T03:39:29+00:00",
+          "container": "sbarbase-pressure-probe-6a82941a669c",
           "metric": "cpu_some10",
           "threshold": 50.0,
-          "peak": 77.72,
+          "peak": 78.38,
           "samples_over": 4,
-          "duration_seconds": 47.901,
-          "span_seconds": 42.901,
-          "first_at_seconds": 18.99,
-          "last_at_seconds": 61.891,
+          "duration_seconds": 48.869,
+          "span_seconds": 43.869,
+          "first_at_seconds": 18.614,
+          "last_at_seconds": 62.483,
           "samples": 5,
           "interval_seconds": 5.0,
           "window_seconds": 25.0
@@ -205,7 +205,7 @@
   "recovery_series": {
     "count": 4,
     "containers": [
-      "sbarbase-pressure-probe-65ddf59b29a8"
+      "sbarbase-pressure-probe-6a82941a669c"
     ],
     "interval_seconds": 5.0,
     "window_seconds": 20.0,
@@ -216,22 +216,22 @@
       "memory_full10": 1.0
     },
     "avg10": {
-      "sbarbase-pressure-probe-65ddf59b29a8": {
-        "cpu_some10": 17.235,
+      "sbarbase-pressure-probe-6a82941a669c": {
+        "cpu_some10": 17.785,
         "io_full10": 0.0,
         "memory_full10": 0.0
       }
     },
     "max10": {
-      "sbarbase-pressure-probe-65ddf59b29a8": {
-        "cpu_some10": 32.26,
+      "sbarbase-pressure-probe-6a82941a669c": {
+        "cpu_some10": 32.98,
         "io_full10": 0.0,
         "memory_full10": 0.0
       }
     },
     "last10": {
-      "sbarbase-pressure-probe-65ddf59b29a8": {
-        "cpu_some10": 6.8,
+      "sbarbase-pressure-probe-6a82941a669c": {
+        "cpu_some10": 7.41,
         "io_full10": 0.0,
         "memory_full10": 0.0
       }
@@ -240,18 +240,18 @@
     "crossed": false,
     "crossings": [],
     "peak": {
-      "container": "sbarbase-pressure-probe-65ddf59b29a8",
+      "container": "sbarbase-pressure-probe-6a82941a669c",
       "metric": "cpu_some10",
-      "value": 32.26
+      "value": 32.98
     },
     "readings": [
       {
         "index": 0,
         "at_seconds": 0.0,
-        "read_seconds": 0.205,
+        "read_seconds": 0.208,
         "values": {
-          "sbarbase-pressure-probe-65ddf59b29a8": {
-            "cpu_some10": 32.26,
+          "sbarbase-pressure-probe-6a82941a669c": {
+            "cpu_some10": 32.98,
             "io_full10": 0.0,
             "memory_full10": 0.0
           }
@@ -259,11 +259,11 @@
       },
       {
         "index": 1,
-        "at_seconds": 5.205,
-        "read_seconds": 0.295,
+        "at_seconds": 5.208,
+        "read_seconds": 0.206,
         "values": {
-          "sbarbase-pressure-probe-65ddf59b29a8": {
-            "cpu_some10": 17.71,
+          "sbarbase-pressure-probe-6a82941a669c": {
+            "cpu_some10": 18.23,
             "io_full10": 0.0,
             "memory_full10": 0.0
           }
@@ -271,11 +271,11 @@
       },
       {
         "index": 2,
-        "at_seconds": 10.5,
-        "read_seconds": 0.215,
+        "at_seconds": 10.414,
+        "read_seconds": 0.285,
         "values": {
-          "sbarbase-pressure-probe-65ddf59b29a8": {
-            "cpu_some10": 12.17,
+          "sbarbase-pressure-probe-6a82941a669c": {
+            "cpu_some10": 12.52,
             "io_full10": 0.0,
             "memory_full10": 0.0
           }
@@ -283,11 +283,11 @@
       },
       {
         "index": 3,
-        "at_seconds": 15.715,
-        "read_seconds": 0.298,
+        "at_seconds": 15.699,
+        "read_seconds": 0.314,
         "values": {
-          "sbarbase-pressure-probe-65ddf59b29a8": {
-            "cpu_some10": 6.8,
+          "sbarbase-pressure-probe-6a82941a669c": {
+            "cpu_some10": 7.41,
             "io_full10": 0.0,
             "memory_full10": 0.0
           }
@@ -304,7 +304,7 @@
     "over_threshold_seconds": null,
     "crossed": false,
     "record": {
-      "path": "/home/sbarah/R/Projects/P/sbarbase/.worktrees/subagent-sa-1-e68d9c09/.lab/pressure-crossings.jsonl",
+      "path": "/home/sbarah/R/Projects/P/sbarbase/.lab/pressure-crossings.jsonl",
       "records": [],
       "ok": true,
       "error": null
@@ -319,7 +319,7 @@
     "limit": "a refusal at admission is not sustained isolation, and a crossing recorded here is not proof that any tenant was slowed down"
   },
   "ledger": {
-    "path": "/home/sbarah/R/Projects/P/sbarbase/.worktrees/subagent-sa-1-e68d9c09/.lab/pressure-crossings.jsonl",
+    "path": "/home/sbarah/R/Projects/P/sbarbase/.lab/pressure-crossings.jsonl",
     "lines_before": 0,
     "appended": 1,
     "recording_ok": true
@@ -366,7 +366,7 @@
   "count": 9,
   "cleanup": {
     "created": [
-      "sbarbase-pressure-probe-65ddf59b29a8"
+      "sbarbase-pressure-probe-6a82941a669c"
     ],
     "failed": []
   }
