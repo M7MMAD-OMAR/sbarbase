@@ -7,6 +7,29 @@ catalogs, the environment Auth at 256m and 0.25 CPU, the database at 1024m and 1
 volume, no blkio or cpu-shares anywhere in the tree, the pin count assertion at
 lab/test_pinned_images.py:38). Unverified items are labelled unconfirmed in place.
 
+## Parent review notes, 2026-09-21
+
+Two facts were established after this design was written, and both change an assumption in it.
+
+1. **A 0600 environment file does not hide a value from the Docker daemon.** Verified live on
+   this host: a container created with `--env-file` pointing at a 0600 file, then
+   `docker inspect --format '{{json .Config.Env}}'`, printed the value in cleartext. This is
+   already true of every credential the runtime writes today, including each environment's
+   database password and JWT secret, so it is the existing posture rather than a new hole. The
+   consequence for this design: the file mode protects the value from other host users, and
+   anyone who can reach the Docker daemon can read it. A mail credential must therefore stay
+   scoped to one environment and revocable on its own, and no sentence may claim the file
+   protects it from an operator with daemon access.
+
+2. **The mailer is a test fixture, not a product component, so it does not enter the pin
+   table.** `lab/install_server.py` walks every entry of the three lock files (`LOCKS` at line
+   36, `pinned_images()` at lines 47 to 61) and requires each image to be present, so adding a
+   test-only mailer to `lab/images.lock.json` would make every production install depend on a
+   test image. The probes therefore carry the image reference as a constant holding both the
+   tag and the expected local image id, and refuse to run when the local id differs, which
+   keeps the anti-drift property without the install dependency. The pin table in
+   `docs/UPSTREAM-UPDATE-POLICY.md` stays as it is.
+
 
 Design document for sbarbase. Executable: every section that changes behaviour names
 the file, the exact variable and the command that proves it. Written 2026-09-21.

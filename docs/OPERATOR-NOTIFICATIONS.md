@@ -7,6 +7,16 @@ catalogs, the environment Auth at 256m and 0.25 CPU, the database at 1024m and 1
 volume, no blkio or cpu-shares anywhere in the tree, the pin count assertion at
 lab/test_pinned_images.py:38). Unverified items are labelled unconfirmed in place.
 
+## Parent review note, 2026-09-21
+
+A container's environment is readable in cleartext by anyone who can reach the Docker daemon.
+Verified live on this host: a container created with `--env-file` pointing at a 0600 file, then
+`docker inspect --format '{{json .Config.Env}}'`, printed the value. So the redaction gate this
+design requires must not rest on the file mode of anything: it must be a construction rule, the
+allow-list the message is built from, and it must fail closed when a field is not on it. The
+same fact bounds every channel's credential: treat a webhook secret or a mail password as
+readable by an operator with daemon access, and say so rather than implying otherwise.
+
 
 Executable design document. Scope: sbarbase on git main, one server, hierarchy
 installation > organization > project > environment, original pinned Supabase
