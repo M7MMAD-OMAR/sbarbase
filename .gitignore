@@ -1,5 +1,6 @@
 .secrets/
 .lab/
+.hermes/
 node_modules/
 sbarbase-handoff.zip
 __pycache__/
