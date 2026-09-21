@@ -43,6 +43,12 @@ RETENTION_MS = 30 * 24 * 60 * 60 * 1000
 WINDOW_SECONDS = {'info': 3600, 'warning': 1800, 'critical': 300}
 ESCALATION_WINDOW_SECONDS = 6 * 3600
 ATTEMPT_TIMEOUT_SECONDS = 10
+# render() computes the remaining waiting seconds when it renders, so two renderings of one
+# row can differ by a second. This template is used by the renderer and by the comparison
+# that reads two renderings back, so the sentence cannot drift between the two.
+SUPPRESSION_TEMPLATE = (' This condition is suppressed for {window} seconds; repeats inside '
+                        'that window are summarised in one message.')
+SUPPRESSION_SENTENCE = re.compile(SUPPRESSION_TEMPLATE.replace('{window}', r'(\d+)'))
 
 KINDS = frozenset((
     'provision.failed', 'provision.capacity_refused', 'provision.retry_limit',
@@ -258,14 +264,22 @@ def prune(database, now=None, limit=500):
     return len(rows)
 
 
-def enqueue(database, kind, severity, dedupe_key, subject, actor, reason, detail, channels=CHANNELS):
+def enqueue(database, kind, severity, dedupe_key, subject, actor, reason, detail, channels=CHANNELS,
+            window_seconds=None):
     """Enqueue an event in the caller's transaction, with the same durable window as notify().
 
     This is the escalation writer. It is still the same single catalog writer: the caller is
     the drain step inside the worker, and the row commits with the settlement that caused it.
+
+    `window_seconds` overrides the severity window for the caller that knows better: the
+    escalation of a failed channel uses ESCALATION_WINDOW_SECONDS, so one broken channel is
+    one message per six hours rather than one per severity window.
     """
     if kind not in KINDS or severity not in SEVERITIES or reason not in REASONS:
         raise ValueError('Notification vocabulary violation')
+    window = WINDOW_SECONDS[severity] if window_seconds is None else window_seconds
+    if type(window) is not int or window <= 0:
+        raise ValueError('Invalid notification window')
     for field, value in detail.items():
         if field not in DETAIL_KEYS[kind]:
             raise ValueError('Unexpected notification detail field')
@@ -287,7 +301,7 @@ def enqueue(database, kind, severity, dedupe_key, subject, actor, reason, detail
     database.execute('''INSERT INTO notification_outbox(id,at,last_at,window_until,occurrences,
         digest_sent,kind,severity,dedupe_key,organization,project,environment,runtime,actor,reason,
         detail,expires_at) VALUES (?,?,?,?,1,0,?,?,?,?,?,?,?,?,?,?,?)''',
-        (identity, now, now, now + WINDOW_SECONDS[severity] * 1000, kind, severity, dedupe_key,
+        (identity, now, now, now + window * 1000, kind, severity, dedupe_key,
          subject.get('organization'), subject.get('project'), subject.get('environment'),
          subject.get('runtime'), actor, reason, json.dumps(detail), now + RETENTION_MS))
     for channel in channels:
@@ -360,8 +374,7 @@ def render(item, delivery_id):
     summary = summary.format(reason=reason)
     window = max(0, (row['window_until'] - int(time.time() * 1000)) // 1000)
     if window:
-        summary = (summary + ' This condition is suppressed for {window} seconds; repeats inside '
-                   'that window are summarised in one message.').format(window=window)
+        summary = summary + SUPPRESSION_TEMPLATE.format(window=window)
     subject = {field: row[field] for field in SUBJECT_FIELDS if row[field] is not None}
     return {
         'schema': 1,
@@ -380,6 +393,16 @@ def render(item, delivery_id):
         'summary': summary,
         'action': action,
     }
+
+
+def stable_summary(summary):
+    """One rendered summary without its render time suppression sentence.
+
+    A reader comparing two renderings of one row (the email and the webhook) compares this
+    part. The sentence's seconds are recomputed at every render, so comparing the whole
+    string is a coin flip that says nothing about the message itself.
+    """
+    return SUPPRESSION_SENTENCE.sub('', summary)
 
 
 def iso(milliseconds):
@@ -590,7 +613,12 @@ def failure_reason(error):
 
 def escalate(database, item, channels, error):
     """One `notifier.channel_failed` event per channel per six hour window, on the channels
-    that are not the failed one. The failed delivery row stays visible."""
+    that are not the failed one. The failed delivery row stays visible.
+
+    The window is ESCALATION_WINDOW_SECONDS, not the critical severity window: a channel that
+    stays broken must not re-escalate every severity window, and two broken channels must not
+    escalate each other indefinitely.
+    """
     others = tuple(channel for channel in channels if channel != item['channel'])
     if not others:
         return False
@@ -599,7 +627,8 @@ def escalate(database, item, channels, error):
                 'notifier.channel_failed|' + item['channel'],
                 {'environment': item['row']['environment'], 'runtime': item['row']['runtime']},
                 'system', failure_reason(error),
-                {'channel': item['channel'], 'last_error': error}, others)
+                {'channel': item['channel'], 'last_error': error}, others,
+                window_seconds=ESCALATION_WINDOW_SECONDS)
     return True
 
 

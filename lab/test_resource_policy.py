@@ -167,14 +167,18 @@ class DerivedPlacementTests(unittest.TestCase):
         self.target = SimpleNamespace(prefix=self.prefix)
         self.items, self.running, self.calls = {}, set(), []
 
-    def add(self, name, owner, tier, memory_mib, cpus, shares, weight, pids=128):
+    def add(self, name, owner, tier, memory_mib, cpus, shares, weight, pids=128, running=True):
         self.items[name] = {
             'Id': 'sha256:' + name,
             'Config': {'Labels': {'io.sbarbase.owner': owner, 'io.sbarbase.tier': tier}},
+            'State': {'Running': running},
             'HostConfig': {'Memory': memory_mib * self.MIB, 'MemorySwap': memory_mib * self.MIB,
                            'NanoCpus': int(cpus * 1_000_000_000), 'CpuShares': shares,
                            'BlkioWeight': weight, 'PidsLimit': pids}}
-        self.running.add(name)
+        if running:
+            self.running.add(name)
+        else:
+            self.running.discard(name)
 
     def placement(self):
         add = self.add
@@ -192,8 +196,12 @@ class DerivedPlacementTests(unittest.TestCase):
     def docker(self, *args, **kwargs):
         self.calls.append(args)
         if args[:1] == ('ps',):
-            owner = [value for value in args if value.startswith('label=io.sbarbase.owner=')][0].rsplit('=', 1)[1]
-            names = [name for name in self.items if self.items[name]['Config']['Labels']['io.sbarbase.owner'] == owner]
+            # The key only filter (label=io.sbarbase.owner) sees every labelled container;
+            # the owner=value form is what a caller that asks for one owner still gets.
+            owner = next((argument.rsplit('=', 1)[1] for argument in args
+                          if argument.startswith('label=io.sbarbase.owner=')), '')
+            names = [name for name in self.items
+                     if not owner or self.items[name]['Config']['Labels']['io.sbarbase.owner'] == owner]
             if '--no-trunc' in args:
                 identity = [self.items[name]['Id'] for name in names if name in self.running]
                 return self.SimpleNamespace(stdout='\n'.join(identity), returncode=0)
@@ -231,6 +239,45 @@ class DerivedPlacementTests(unittest.TestCase):
         self.add('sbarbase-lab-db', 'durable-upstream', 'system', 1024, 1, 2048, 800)
         with self.assertRaisesRegex(RuntimeError, 'recorded placement'):
             self.counted()
+
+    def test_a_second_recovery_target_generation_is_reported_not_refused(self):
+        """Two retained generations share one owner label; only the recorded one is counted.
+
+        Eight stopped containers of two recovery-target generations exist on this
+        host, so requiring every container of that owner to match the recorded
+        target's prefix made the installation start path refuse for a reason that
+        is not a resource, while HEAD^ computed a plan and admitted.
+        """
+        self.placement()
+        other = 'sbarbase-restore-bbbbbbbbbbbb'
+        for kind, memory, cpus in (('db', 1024, 1), ('auth', 256, .25), ('rest', 256, .25), ('storage', 512, .5)):
+            self.add(other + '-' + kind, 'recovery-target', 'maintenance', memory, cpus, 512, 400, running=False)
+        metrics = self.check()
+        self.assertEqual(metrics['planned_memory_mib'], 5888)
+        self.assertEqual(metrics['planned_cpus'], 5.75)
+        self.assertEqual(metrics['unrecorded_stopped'], sorted(other + '-' + kind for kind in ('db', 'auth', 'rest', 'storage')))
+
+    def test_a_running_container_under_an_unrecorded_owner_refuses(self):
+        """A third owner label escapes the two filtered queries and spends the ceiling.
+
+        lab/mail-check.py launches its probe as io.sbarbase.owner=mail-probe while the
+        retained runtime is up, so a running container this module was never told
+        about has to be a refusal, not an omission.
+        """
+        self.placement()
+        self.add('sbarbase-notify-mailpit-aaaaaaaa', 'notification-check', 'operator', 128, .25, 1024, 500)
+        with self.assertRaisesRegex(RuntimeError, 'running'):
+            self.counted()
+        with self.assertRaisesRegex(RuntimeError, 'running'):
+            self.check()
+
+    def test_a_stopped_container_under_an_unrecorded_owner_is_named_not_silent(self):
+        """A stopped container consumes nothing, so it is reported instead of refused."""
+        self.placement()
+        self.add('sbarbase-lab-db', 'component-lab', 'system', 1024, 1, 2048, 800, running=False)
+        counted = self.counted()
+        self.assertNotIn('sbarbase-lab-db', counted)
+        self.assertIn('sbarbase-lab-db', self.check()['unrecorded_stopped'])
 
     def test_ceiling_check_sees_the_container_the_list_omitted(self):
         self.placement()

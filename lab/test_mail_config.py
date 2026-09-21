@@ -22,6 +22,8 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'lab'))
@@ -49,6 +51,8 @@ MAIL_KEYS = (
     'GOTRUE_MAILER_OTP_LENGTH', 'GOTRUE_MAILER_SECURE_EMAIL_CHANGE_ENABLED',
     'GOTRUE_RATE_LIMIT_EMAIL_SENT', 'GOTRUE_RATE_LIMIT_OTP', 'GOTRUE_RATE_LIMIT_VERIFY',
     'GOTRUE_RATE_LIMIT_HEADER', 'GOTRUE_SMTP_HEADERS')
+# The key prefixes the drift guard compares in both directions (lab/durable_runtime.py).
+MAIL_PREFIXES = ('GOTRUE_SMTP_', 'GOTRUE_MAILER_', 'GOTRUE_RATE_LIMIT_')
 
 
 def rendered(configuration):
@@ -291,6 +295,14 @@ class StorageTests(unittest.TestCase):
         with self.assertRaises(mail_config.InvalidMailConfiguration):
             mail_config.load(RUNTIME_ID, self.directory.name)
 
+    def test_a_dangling_symlink_raises_rather_than_reading_as_unconfigured(self):
+        # `exists()` follows the link, so a link with no target reports False.
+        # Testing the link first is what stops the file from silently becoming
+        # the unconfigured case, which is the fallback load() refuses.
+        self.path.symlink_to(self.directory.name + '/missing.json')
+        with self.assertRaises(mail_config.InvalidMailConfiguration):
+            mail_config.load(RUNTIME_ID, self.directory.name)
+
     def test_an_invalid_environment_identifier_is_refused(self):
         for identifier in ('management', 'e_1F0624C545789214EEF426C9', 'e_short', ''):
             with self.assertRaises(mail_config.MailConfigurationError):
@@ -408,6 +420,152 @@ class CommandTests(unittest.TestCase):
         result = self.run_tool('show', str(self.path))
         self.assertEqual(result.returncode, 1)
         self.assertIn('does not exist', result.stderr.decode())
+
+
+class ReconcileMailTests(unittest.TestCase):
+    """docs/ENVIRONMENT-EMAIL.md section 6.4: the three reconcile properties, cheaply.
+
+    No daemon and no container: the reconcile decision is exercised in process
+    against the real builder and the real comparison, with every daemon call
+    recorded. The mail file is stubbed, so nothing is read from or written to
+    .secrets/ or .lab/.
+    """
+
+    RUNTIME_ID = RUNTIME_ID
+
+    def setUp(self):
+        import durable_runtime as runtime
+        self.runtime = runtime
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        self.state = Path(self.directory.name) / 'upstream'
+        self.state.mkdir()
+        (self.state / 'endpoints.json').write_text(json.dumps({RUNTIME_ID: {}}))
+        self.values = {'auth': 'a' * 64, 'rest': 'b' * 64, 'storage': 'c' * 64, 'jwt': 'd' * 64}
+        self.target = runtime.Runtime.__new__(runtime.Runtime)
+        self.target.values = {'environments': {RUNTIME_ID: dict(self.values)}}
+        self.target.launch = Mock()
+        self.target.wait = Mock()
+        self.calls = []
+        self.retained = []
+
+    def container(self, kind, name):
+        return {'Id': 'cid-' + name,
+                'NetworkSettings': {'Networks': {self.runtime.NETWORK: {'IPAddress': '127.0.0.1'}}},
+                'Config': {'Labels': {'io.sbarbase.owner': self.runtime.OWNER}, 'Env': list(self.retained)}}
+
+    def docker(self, *arguments, **kwargs):
+        self.calls.append(arguments)
+        return SimpleNamespace(returncode=0, stdout='')
+
+    def reconcile(self, mail=None, off=False, load_error=None):
+        loader = Mock(side_effect=load_error) if load_error else Mock(return_value=mail)
+        with patch.object(self.runtime, 'STATE', self.state), \
+             patch.object(self.runtime, 'inspect', self.container), \
+             patch.object(self.runtime.lab, 'docker', self.docker), \
+             patch.object(self.runtime.lab, 'auth_configuration', lab.auth_configuration), \
+             patch.object(self.runtime.source_fence, 'is_fenced', return_value=False), \
+             patch.object(self.runtime.mail_config, 'load', loader), \
+             patch.object(self.runtime.mail_state, 'record') as record:
+            self.target.reconcile_mail(self.RUNTIME_ID, off=off)
+        return record
+
+    def configured(self):
+        return mail_config.validate(dict(CONFIG))
+
+    def auth_name(self):
+        return self.runtime.PREFIX + '-' + self.RUNTIME_ID + '-auth'
+
+    def test_an_unchanged_configuration_does_not_recreate_the_container(self):
+        mail = self.configured()
+        self.retained = [f'{key}={value}' for key, value in
+                         lab.auth_configuration(self.RUNTIME_ID, self.values, self.runtime.DB, mail).items()]
+        record = self.reconcile(mail)
+        self.assertEqual([call for call in self.calls if call[0] == 'rm'], [])
+        self.target.launch.assert_not_called()
+        self.assertEqual(record.call_args.args[1], 'unchanged')
+
+    def test_removing_the_configuration_and_reconciling_off_drops_every_mail_key(self):
+        mail = self.configured()
+        retained = lab.auth_configuration(self.RUNTIME_ID, self.values, self.runtime.DB, mail)
+        self.retained = [f'{key}={value}' for key, value in retained.items()]
+        record = self.reconcile(None, off=True)
+        self.assertIn(('rm', '-f', self.auth_name()), self.calls)
+        self.target.launch.assert_called_once()
+        launched = self.target.launch.call_args.args[2]
+        # Only the autoconfirm flip survives the removal; every credential and rate
+        # limit key the retained container carried is gone from the new definition.
+        self.assertEqual(sorted(key for key in retained if key.startswith(MAIL_PREFIXES)
+                                and key in launched),
+                         ['GOTRUE_MAILER_AUTOCONFIRM'])
+        self.assertEqual(launched['GOTRUE_MAILER_AUTOCONFIRM'], 'true')
+        self.assertEqual([key for key in retained if key.startswith('GOTRUE_SMTP_') and key in launched], [])
+        self.assertEqual(record.call_args.args[1], 'off')
+
+    def test_an_invalid_configuration_refuses_before_any_container_is_touched(self):
+        with self.assertRaises(mail_config.InvalidMailConfiguration):
+            self.reconcile(load_error=mail_config.InvalidMailConfiguration('otp_length outside six to ten'))
+        self.assertEqual(self.calls, [])
+        self.target.launch.assert_not_called()
+
+
+class LaunchMailDriftTests(unittest.TestCase):
+    """The startup path, which reaches launch(existing_only=True) with a retained container.
+
+    Removing an environment's mail file must not restart the retained Auth
+    container with the SMTP credentials it was built with: the guard compares the
+    mail keys in both directions, so the deleted configuration is a refusal.
+    """
+
+    RUNTIME_ID = RUNTIME_ID
+
+    def launch(self, retained, desired):
+        import durable_runtime as runtime
+        target = runtime.Runtime.__new__(runtime.Runtime)
+        target.pins = {'auth': {'id': 'fixture'}}
+        actual = {'Id': 'cid-retained', 'Image': 'sha256:fixture',
+                  'Config': {'Labels': {'io.sbarbase.owner': runtime.OWNER}, 'Env': list(retained)},
+                  'Mounts': [], 'NetworkSettings': {'Networks': {runtime.NETWORK: {}}}}
+        self.calls = []
+
+        def docker(*arguments, **kwargs):
+            self.calls.append(arguments)
+            if arguments[:2] == ('image', 'inspect'):
+                return SimpleNamespace(returncode=0, stdout=json.dumps([{'Id': 'sha256:fixture'}]))
+            return SimpleNamespace(returncode=0, stdout='')
+
+        with patch.object(runtime, 'inspect', return_value=actual), \
+             patch.object(runtime.lab, 'docker', docker):
+            return target.launch(runtime.PREFIX + '-' + RUNTIME_ID + '-auth', 'auth', desired,
+                                 '256m', .25, existing_only=True)
+
+    def test_a_deleted_configuration_is_refused_instead_of_started(self):
+        """The retained container carries SMTP keys the desired configuration no longer has.
+
+        autoconfirm is true in the deleted file on purpose: that is the value which
+        leaves every desired key matching, so only the removal direction can refuse.
+        """
+        values = {'auth': 'a' * 64, 'jwt': 'b' * 64}
+        configured = lab.auth_configuration(self.RUNTIME_ID, values, 'sbarbase-durable-db',
+                                            mail_config.validate(dict(CONFIG, autoconfirm=True)))
+        removed = lab.auth_configuration(self.RUNTIME_ID, values, 'sbarbase-durable-db', None)
+        self.assertEqual([key for key in configured if key not in removed and key != 'GOTRUE_MAILER_AUTOCONFIRM'],
+                         [key for key in configured if key.startswith(MAIL_PREFIXES)
+                          and key != 'GOTRUE_MAILER_AUTOCONFIRM'])
+        retained = [f'{key}={value}' for key, value in configured.items()]
+        with self.assertRaisesRegex(RuntimeError, 'explicit reconciliation'):
+            self.launch(retained, removed)
+        self.assertEqual([call for call in self.calls if call[0] == 'start'], [])
+
+    def test_a_matching_configuration_is_still_started(self):
+        """The guard refuses the removal direction only; a matching container is reused."""
+        values = {'auth': 'a' * 64, 'jwt': 'b' * 64}
+        configured = lab.auth_configuration(self.RUNTIME_ID, values, 'sbarbase-durable-db',
+                                            mail_config.validate(dict(CONFIG)))
+        retained = [f'{key}={value}' for key, value in configured.items()]
+        identifier, created = self.launch(retained, dict(configured))
+        self.assertEqual((identifier, created), ('cid-retained', False))
+        self.assertIn(('start', 'cid-retained'), self.calls)
 
 
 if __name__ == '__main__':

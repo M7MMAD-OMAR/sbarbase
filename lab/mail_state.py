@@ -1,9 +1,15 @@
-"""Non secret mail state, one entry per environment, for the platform console.
+"""Non secret mail state, one entry per environment, written for a console read.
 
-The runtime owns this file; the control plane copies the non secret fields into
-the catalog. Nothing here authenticates, so nothing here is a credential: the
-password lives only in the environment's 0600 mail configuration file, which is
-the only place it is written and the only place it is read from.
+The runtime owns this file. Nothing reads it yet: the catalog's environment_mail
+table (src/control/catalog.ts) is declared but has no writer, no reader and no
+route, no console surface renders this file, and no code under src/ or ui/ names
+this module. The fragment fragments/mail-catalog.md records the read route and the
+console surface as still open, so the file is the record of what the runtime did,
+not a source the control plane copies from.
+
+Nothing here authenticates, so nothing here is a credential: the password lives
+only in the environment's 0600 mail configuration file, which is the only place it
+is written and the only place it is read from.
 """
 import json
 import os

@@ -18,10 +18,17 @@ Two values the design left open, and the smallest honest choice made here:
   durable runtime does not launch a maintenance export helper, so a second row
   would be an unused invention. It is an open item, not a silent omission.
 
-The Docker mapping this table assumes is INFERRED and not yet verified: section
-3.1 notes that --cpu-shares maps to the cgroup v2 cpu.weight and --blkio-weight
-to io.weight, and that section 7 step 3 must read both from inside a created
-container before the numbers are trusted. No such reading exists yet.
+The Docker mapping this table assumes has been measured, and the measurement
+corrects it. docs/RESOURCE-POLICY.md section 3.1.1 records the reading taken
+2026-09-21, raw values in docs/evidence/resource-policy-cgroup-mapping.json:
+--cpu-shares maps to the cgroup v2 cpu.weight sublinearly, so 2048 asks for
+weight 174 and not 800, which makes the shares column below a request and a
+relative order rather than a weight this table can promise; and --blkio-weight
+does not bind at all on this host, where every request left io.weight at its
+default, so the weight column isolates nothing and no claim of block IO
+separation may rest on it. The memory and pids columns were observed to bind.
+The flags stay as they are: they are inherited from the design's table, and
+section 3.1.1 is where their effect is stated.
 
 The class label is what a container carries in the Docker label
 io.sbarbase.tier. Class names are exactly the five in the design: system,

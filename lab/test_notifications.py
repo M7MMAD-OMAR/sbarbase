@@ -22,6 +22,7 @@ import unittest
 import uuid
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
+from unittest.mock import patch
 
 import notify
 
@@ -336,6 +337,31 @@ class DrainTests(NotificationCase):
                                            "JOIN notification_outbox o ON o.id=d.event "
                                            "WHERE o.kind='notifier.channel_failed'"), [('email',)])
 
+    def test_a_channel_failure_escalates_once_per_six_hours(self):
+        """docs/OPERATOR-NOTIFICATIONS.md section 4: one escalation per channel per six hours.
+
+        The escalation window was the critical severity window (300 seconds), so a channel
+        that stayed broken produced roughly 72 escalation messages per six hours instead of
+        one, and two broken channels escalated each other.
+        """
+        receiver = self.receiver()
+        config = self.webhookConfig(receiver, url='http://127.0.0.1:1/sbarbase')
+        config['email'] = {'enabled': True, 'host': '127.0.0.1', 'port': 1,
+                           'from': 'sbarbase@installation.invalid', 'to': 'operator@example.invalid',
+                           'tls': 'none'}
+        database = self.connect()
+        event = self.rows('SELECT id FROM notification_outbox')[0][0]
+        for _ in range(notify.MAX_ATTEMPTS + 4):
+            database.execute("UPDATE notification_delivery SET state='pending',next_attempt_at=0 "
+                             'WHERE event=?', (event,))
+            notify.drain(database, config, ['email', 'webhook'], self.secret)
+        escalations = self.rows('SELECT dedupe_key,window_until-at FROM notification_outbox '
+                                "WHERE kind='notifier.channel_failed' ORDER BY dedupe_key")
+        self.assertEqual(notify.ESCALATION_WINDOW_SECONDS, 6 * 3600)
+        self.assertEqual([row[0] for row in escalations],
+                         ['notifier.channel_failed|email', 'notifier.channel_failed|webhook'])
+        self.assertEqual([row[1] for row in escalations], [21600 * 1000, 21600 * 1000])
+
     def test_redaction_gate_refuses_before_any_byte_leaves(self):
         """A credential reaching a rendered field settles failed and sends nothing."""
         receiver = self.receiver()
@@ -441,6 +467,32 @@ class VocabularyTests(unittest.TestCase):
         self.assertFalse(notify.credential_shape(str(uuid.uuid4())))
         self.assertFalse(notify.credential_shape('provision.capacity_refused'))
         self.assertFalse(notify.credential_shape('measurement_unavailable'))
+
+    def test_two_renderings_of_one_row_agree_on_everything_but_the_waiting_seconds(self):
+        """render() recomputes the suppression seconds, so two renderings can differ by one.
+
+        The drain renders the email, sends it, and only then renders the webhook, so the
+        probe's comparison of the webhook's summary against the email body must compare the
+        stable part. Comparing the whole string is a coin flip, and its failure text cannot
+        distinguish a moved second from a credential in the body.
+        """
+        row = {'id': str(uuid.uuid4()), 'kind': 'provision.capacity_refused', 'severity': 'warning',
+               'organization': None, 'project': None, 'environment': None, 'runtime': 'e_' + 'a' * 24,
+               'actor': 'system', 'reason': 'memory_headroom',
+               'detail': json.dumps({'failure': 'capacity_exceeded', 'attempt': 1,
+                                     'reason_source': 'admission_gate'}),
+               'at': 1, 'last_at': 2, 'occurrences': 1, 'window_until': 1_300_000}
+        with patch.object(notify.time, 'time', return_value=1000.0):
+            email = notify.render({'event': 'event', 'claim': 'claim', 'row': dict(row)}, 'email')
+        with patch.object(notify.time, 'time', return_value=1001.0):
+            webhook = notify.render({'event': 'event', 'claim': 'claim', 'row': dict(row)}, 'webhook')
+        self.assertIn('suppressed for 300 seconds', email['summary'])
+        self.assertIn('suppressed for 299 seconds', webhook['summary'])
+        self.assertNotEqual(email['summary'], webhook['summary'])
+        self.assertEqual(notify.stable_summary(email['summary']), notify.stable_summary(webhook['summary']))
+        self.assertIn('summary: ' + email['summary'], notify.mail_body(email))
+        self.assertIn('summary: ' + notify.stable_summary(email['summary']),
+                      notify.mail_body(email).replace(notify.SUPPRESSION_TEMPLATE.format(window=300), ''))
 
 
 class ConfigurationTests(NotificationCase):

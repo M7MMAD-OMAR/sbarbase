@@ -259,9 +259,14 @@ def load(runtime_id, directory=None):
     or to the noop client.
     """
     path = path_for(runtime_id, directory)
+    # The link check runs first on purpose. `exists()` follows a link, so a
+    # dangling one reports False and would fall through to the unconfigured
+    # return below, which is the silent fallback this function refuses.
+    if path.is_symlink():
+        raise InvalidMailConfiguration('the mail configuration must be a regular file, not a link')
     if not path.exists():
         return None
-    if path.is_symlink() or not path.is_file():
+    if not path.is_file():
         raise InvalidMailConfiguration('the mail configuration must be a regular file, not a link')
     mode = stat.S_IMODE(path.stat().st_mode)
     if mode & 0o077:

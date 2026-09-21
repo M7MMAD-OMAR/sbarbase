@@ -10,6 +10,11 @@ What it proves, in order:
    signature is recomputed over `timestamp + "." + raw body`.
 3. The negative control. In every fault mode the probe requires a recorded delivery failure
    and a still-correct operation: a silence is a failed probe, not a pass.
+4. The redaction gate, in the default run as well as in `--redaction-refused`. A credential is
+   written straight into a rendered field of an outbox row, past the enqueue gate, and one
+   drain step must settle both deliveries failed with `redaction_refused` with nothing sent on
+   either channel and one refusal event per channel. The default mode used to pass with the
+   gate deleted, so it could not see the one mechanism that keeps a secret out of a payload.
 
 Everything it touches is disposable and owned by it alone: one private container, one private
 network, one private catalog, one private configuration, all named with a per-run suffix so a
@@ -31,6 +36,8 @@ import urllib.request
 import uuid
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
+
+import notify
 
 ROOT = Path(__file__).resolve().parents[1]
 OWNER = 'io.sbarbase.owner=notification-check'
@@ -203,6 +210,15 @@ def body_shapes(text):
     return [shape for shape in BODY_DENYLIST if shape in text]
 
 
+def mail_summary(text):
+    """The summary line of a rendered mail body, or the empty string if it carries none."""
+    prefix = 'summary: '
+    for line in (text or '').splitlines():
+        if line.startswith(prefix):
+            return line[len(prefix):]
+    return ''
+
+
 def drive_capacity_refusal(catalog, directory, name='drive.ts'):
     """The real path: a real catalog, a real claim, the real receipt settlement of exit 75."""
     driver = directory / name
@@ -256,6 +272,53 @@ def operation_signature(state):
     return {'job': state['job'],
             'actions': [action for action, _ in state['audit']],
             'effects': state['effects']}
+
+
+def redaction_checks(checks, catalog, receiver, mailbox, baseline_requests, baseline_mail):
+    """The four fail-closed checks for one catalog whose rendered field carries a credential.
+
+    The baseline counts are what the receiver and the mailbox held before this catalog's drain
+    ran, so the same checks hold in a fresh run and in the default run, which has already
+    delivered one healthy event on both channels.
+    """
+    rows = deliveries(catalog)
+    refused = [row for row in rows if row['kind'] == 'provision.capacity_refused']
+    checks.record('the fail-closed gate refused both channels',
+                  len(refused) == 2 and all(row['state'] == 'failed'
+                                            and row['last_error'] == 'redaction_refused'
+                                            for row in refused),
+                  ' '.join('{}={}'.format(row['channel'], row['last_error']) for row in refused))
+    checks.record('no byte reached the receiver', len(receiver.requests) == baseline_requests,
+                  'receiver saw {} request(s)'.format(len(receiver.requests)))
+    sent = len(mailbox())
+    checks.record('no byte reached the mailer', sent == baseline_mail,
+                  'mailpit message count {}'.format(sent))
+    checks.record('the refusal is itself an operator event',
+                  len([row for row in rows if row['kind'] == 'notifier.redaction_refused']) == 2,
+                  'one refusal event per enabled channel')
+
+
+def redaction_stage(checks, evidence, state, config_file, mailbox):
+    """Exercise the fail-closed gate inside the default run.
+
+    A credential is written straight into a rendered field of a fresh outbox row, past the
+    enqueue gate that would normally refuse it, and one real drain step must refuse both
+    channels. The default mode used to prove nothing about this gate: with the gate deleted it
+    still passed 17 of 17.
+    """
+    catalog = state['directory'] / 'redaction.sqlite'
+    drive_capacity_refusal(catalog, state['directory'], name='redaction.ts')
+    with sqlite3.connect(catalog) as database:
+        database.execute('UPDATE notification_outbox SET actor=?',
+                         ('postgres://operator:***@database.internal:5432/management',))
+    baseline_requests = len(state['receiver'].requests)
+    baseline_mail = len(mailbox())
+    result = command('/usr/bin/python3', str(ROOT / 'lab/notify.py'), '--catalog', str(catalog),
+                     '--config', str(config_file), '--once', '--json')
+    step = json.loads(result.stdout.strip().splitlines()[-1])
+    evidence['redaction_stage'] = {'result': step, 'requests_before': baseline_requests,
+                                   'mail_before': baseline_mail}
+    redaction_checks(checks, catalog, state['receiver'], mailbox, baseline_requests, baseline_mail)
 
 
 def run(args, mode, checks, evidence, state):
@@ -350,19 +413,7 @@ def run(args, mode, checks, evidence, state):
     webhook = next(row for row in rows if row['channel'] == 'webhook')
 
     if mode == 'redaction_refused':
-        refused = [row for row in rows if row['kind'] == 'provision.capacity_refused']
-        checks.record('the fail-closed gate refused both channels',
-                      len(refused) == 2 and all(row['state'] == 'failed'
-                                                and row['last_error'] == 'redaction_refused'
-                                                for row in refused),
-                      ' '.join('{}={}'.format(row['channel'], row['last_error']) for row in refused))
-        checks.record('no byte reached the receiver', receiver.requests == [],
-                      'receiver saw {} request(s)'.format(len(receiver.requests)))
-        checks.record('no byte reached the mailer', mailbox() == [],
-                      'mailpit message count 0')
-        checks.record('the refusal is itself an operator event',
-                      len([row for row in rows if row['kind'] == 'notifier.redaction_refused']) == 2,
-                      'one refusal event per enabled channel')
+        redaction_checks(checks, state['catalog'], receiver, mailbox, 0, 0)
         return
 
     if mode == 'broken_email':
@@ -430,10 +481,18 @@ def run(args, mode, checks, evidence, state):
                       and 'provision.capacity_refused' in mail[0]['subject'],
                       'subject {}'.format(mail[0]['subject']))
         shapes = body_shapes(mail[0]['text'])
+        # The webhook renders after the email and after the SMTP send, and render() recomputes
+        # the suppression seconds each time, so the two summaries can differ by one second.
+        # Compare the stable part of the mail's own summary line, which is what the assertion
+        # is about, and report the two strings so a real difference is distinguishable.
+        webhook_summary = notify.stable_summary(envelope['summary'])
+        mail_text = mail_summary(mail[0]['text'])
+        same_summary = webhook_summary == notify.stable_summary(mail_text)
         checks.record('the mail carries the same summary and no credential shape',
-                      envelope['summary'] in mail[0]['text'] and not shapes,
-                      'body {} characters, shapes {}'.format(len(mail[0]['text']),
-                                                             shapes or 'none'))
+                      same_summary and not shapes,
+                      'body {} characters, summary match {}, shapes {}'.format(
+                          len(mail[0]['text']), same_summary, shapes or 'none'))
+        evidence['mail_summary'] = {'webhook': envelope['summary'], 'mail': mail_text}
         checks.record('the mail carries the event identity for receiver-side deduplication',
                       envelope['id'] in mail[0]['text'],
                       'event id present in the body')
@@ -444,6 +503,10 @@ def run(args, mode, checks, evidence, state):
                       'mailpit received no message')
         checks.record('the mail carries the event identity for receiver-side deduplication', False,
                       'mailpit received no message')
+    # 6. The redaction gate, exercised inside the default run as well as in its own mode.
+    #    Without this stage the default run stays green with the gate deleted.
+    redaction_stage(checks, evidence, state, config_file, mailbox)
+
     checks.record('the operator recipient never reaches the catalog',
                   'operator@example.invalid' not in json.dumps(evidence['deliveries']),
                   'no recipient address in any delivery row')

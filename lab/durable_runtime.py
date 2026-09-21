@@ -122,7 +122,16 @@ class Runtime:
         if actual:
             expected = json.loads(lab.docker('image', 'inspect', image).stdout)[0]['Id']
             configured = dict(entry.split('=', 1) for entry in actual['Config'].get('Env', []) if '=' in entry)
-            if actual['Image'] != expected or any(configured.get(k) != v for k, v in env.items()):
+            # The comparison runs in both directions for the mail keys. The desired
+            # keys alone miss the removal direction: an operator who deletes an
+            # environment's mail configuration would otherwise have the retained
+            # Auth container restarted with its live SMTP credentials and rate
+            # limits, and mail would keep flowing from a configuration that no
+            # longer exists (reconcile_mail names the same hazard for its own path).
+            marked = lambda key: (key.startswith('GOTRUE_SMTP_') or key.startswith('GOTRUE_MAILER_')
+                                  or key.startswith('GOTRUE_RATE_LIMIT_'))
+            stale = [key for key in configured if marked(key) and key not in env]
+            if actual['Image'] != expected or any(configured.get(k) != v for k, v in env.items()) or stale:
                 raise RuntimeError('Runtime drift requires explicit reconciliation')
             mounts = {(m.get('Name'), m['Destination']) for m in actual['Mounts']}
             if any((name, destination) not in mounts for name, destination in volumes):
