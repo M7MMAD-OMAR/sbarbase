@@ -1,0 +1,67 @@
+{
+  "schema": 1,
+  "taken": "2026-09-21",
+  "question": "what a template variable of the pinned Auth version does, and whether the reauthentication variables exist",
+  "tag": "v2.196.0",
+  "source": "raw.githubusercontent.com/supabase/auth/v2.196.0/<path>, fetched with curl on this host",
+  "files": {
+    "example.env": {
+      "sha256": "82719144265ddbe77677736c909d52c3edb122f85c231a0ee0091e2785276891",
+      "bytes": 10314
+    },
+    "internal/conf/configuration.go": {
+      "sha256": "6a6cfe2b2f14ea5387c875bfedfa3f1b900472fd9ccb58da92927c05e849072e",
+      "bytes": 52163
+    },
+    "internal/mailer/templatemailer/template.go": {
+      "sha256": "3797ffe704af81b7a46134b98e654385f1b97d7dcf2c4dcf8b4134e493f614de",
+      "bytes": 15351
+    },
+    "internal/conf/rate.go": {
+      "sha256": "9df224d608adac6599e294f276ab196035237f7c9c6a32a240e53360f6f4a5f2",
+      "bytes": 1580
+    }
+  },
+  "template_variables_in_example_env": [
+    "GOTRUE_MAILER_TEMPLATES_CONFIRMATION",
+    "GOTRUE_MAILER_TEMPLATES_EMAIL_CHANGE",
+    "GOTRUE_MAILER_TEMPLATES_EMAIL_CHANGED_NOTIFICATION",
+    "GOTRUE_MAILER_TEMPLATES_IDENTITY_LINKED_NOTIFICATION",
+    "GOTRUE_MAILER_TEMPLATES_IDENTITY_UNLINKED_NOTIFICATION",
+    "GOTRUE_MAILER_TEMPLATES_INVITE",
+    "GOTRUE_MAILER_TEMPLATES_MAGIC_LINK",
+    "GOTRUE_MAILER_TEMPLATES_MFA_FACTOR_ENROLLED_NOTIFICATION",
+    "GOTRUE_MAILER_TEMPLATES_MFA_FACTOR_UNENROLLED_NOTIFICATION",
+    "GOTRUE_MAILER_TEMPLATES_PASSWORD_CHANGED_NOTIFICATION",
+    "GOTRUE_MAILER_TEMPLATES_PHONE_CHANGED_NOTIFICATION",
+    "GOTRUE_MAILER_TEMPLATES_RECOVERY"
+  ],
+  "subject_variables_in_example_env": [
+    "GOTRUE_MAILER_SUBJECTS_CONFIRMATION",
+    "GOTRUE_MAILER_SUBJECTS_EMAIL_CHANGE",
+    "GOTRUE_MAILER_SUBJECTS_EMAIL_CHANGED_NOTIFICATION",
+    "GOTRUE_MAILER_SUBJECTS_IDENTITY_LINKED_NOTIFICATION",
+    "GOTRUE_MAILER_SUBJECTS_IDENTITY_UNLINKED_NOTIFICATION",
+    "GOTRUE_MAILER_SUBJECTS_INVITE",
+    "GOTRUE_MAILER_SUBJECTS_MAGIC_LINK",
+    "GOTRUE_MAILER_SUBJECTS_MFA_FACTOR_ENROLLED_NOTIFICATION",
+    "GOTRUE_MAILER_SUBJECTS_MFA_FACTOR_UNENROLLED_NOTIFICATION",
+    "GOTRUE_MAILER_SUBJECTS_PASSWORD_CHANGED_NOTIFICATION",
+    "GOTRUE_MAILER_SUBJECTS_PHONE_CHANGED_NOTIFICATION",
+    "GOTRUE_MAILER_SUBJECTS_RECOVERY"
+  ],
+  "reauthentication_named_in_example_env": [
+    "GOTRUE_SECURITY_UPDATE_PASSWORD_REQUIRE_REAUTHENTICATION"
+  ],
+  "template_value_behaviour_excerpt_template_go_450_457": "\t\t// We preserve the previous behavior of returning the default.\n\t\ttempStr := getEmailContentConfig(defaultTemplateBodies, typ, \"\")\n\t\ttemp := template.Must(template.New(\"\").Parse(tempStr))\n\t\treturn temp, nil\n\t}\n\tif !strings.HasPrefix(url, \"http\") {\n\t\turl = cfg.SiteURL + url\n\t}",
+  "template_body_is_fetched_over_http": "template.go:459-471 calls the cache, template.go:473-490 issues http.NewRequestWithContext GET under a 10 second timeout and returns template_body_http_error when it fails",
+  "conclusion": [
+    "Twelve template variables and twelve subject variables exist at this tag. No variable sets a templates directory or mounts a volume, and a non empty value is an HTTP URL: an empty one yields the body compiled into the binary, and a value that does not begin with http is prefixed with SiteURL and fetched over HTTP anyway.",
+    "The tag lists no reauthentication template or subject variable in example.env while the code declares the field (configuration.go:499) and handles ReauthenticationTemplate (template.go:82, :532-533), so the names are accepted with no upstream example value to copy and the compiled default applies.",
+    "Because the runtime network is internal, a template URL would have to be served from inside that network, which is why the design ships no template override."
+  ],
+  "not_verified": [
+    "The running pinned image was not exercised for templates; this reading is the tag source only.",
+    "Whether an operator served template from inside the runtime network renders end to end was not tested."
+  ]
+}

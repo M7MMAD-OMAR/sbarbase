@@ -448,19 +448,34 @@ in the struct/field declaration cited. Defaults are the `default:"..."` struct t
 | `GOTRUE_RATE_LIMIT_HEADER` | `example.env`, `configuration.go:434` | empty string | Header trusted as the client address. |
 | `GOTRUE_EXTERNAL_EMAIL_ENABLED` | `example.env`, `configuration.go:547` (`Email EmailProviderConfiguration` inside `ProviderConfiguration` at `:423`, struct at `:103`) | the value in `example.env` is `true` | The email provider. Already `'true'` in sbarbase today. |
 
-**unconfirmed**: no variable of this pin sets a templates *directory* or mounts a template
-volume. Searched: the whole `example.env` at tag `v2.196.0`, every struct field in
-`internal/conf/configuration.go`, and the `internal/mailer/` package tree, which contains only
-`mailmeclient`, `noopclient`, `taskclient`, `validateclient`, `mockclient` and
-`templatemailer`. The templates in the image are Go string constants compiled into the binary
-(`internal/mailer/templatemailer/templatemailer.go:32-152`), not files on disk.
+**Verified against the pinned tag, 2026-09-21.** Both items this section left
+unconfirmed were re-read from the tag's own source files and are settled:
 
-**unconfirmed**: `GOTRUE_MAILER_URLPATHS_REAUTHENTICATION` and
-`GOTRUE_MAILER_SUBJECTS_REAUTHENTICATION` are not listed in `example.env` at this tag, although
-`EmailContentConfiguration` declares a `Reauthentication` field
-(`configuration.go:494-499`) and `templatemailer.go:134` gives it a default subject. The
-envconfig name follows the field name, so the value should be accepted, but there is no
-example value to cite, so treat both as unconfirmed and leave them unset.
+- **No variable sets a templates directory, and a template value is an HTTP URL,
+  not a file.** The tag's `example.env` lists twelve template variables
+  (`GOTRUE_MAILER_TEMPLATES_INVITE`, `_CONFIRMATION`, `_RECOVERY`, `_MAGIC_LINK`,
+  `_EMAIL_CHANGE`, and seven `*_NOTIFICATION` kinds) and twelve matching
+  `GOTRUE_MAILER_SUBJECTS_*` variables. What a value does is decided in
+  `internal/mailer/templatemailer/template.go`: an empty value returns the body
+  compiled into the binary (`:450-453`), a value that does not start with `http` is
+  prefixed with `SiteURL` and fetched anyway (`:455-457`), and the body is then
+  retrieved by HTTP GET under a ten second timeout with a cache in front of it
+  (`:459-471`, `:473-490`). A relative value is therefore a URL relative to the
+  site URL, never a path on disk.
+- **The reauthentication variables exist in the code and not in the tag's
+  `example.env`.** `EmailContentConfiguration` declares `Reauthentication`
+  (`configuration.go:499`) and the template machinery handles
+  `ReauthenticationTemplate` and reads that field (`template.go:82`, `:532-533`), so
+  `GOTRUE_MAILER_TEMPLATES_REAUTHENTICATION` and
+  `GOTRUE_MAILER_SUBJECTS_REAUTHENTICATION` are accepted by name. The tag ships no
+  example value for either, so there is nothing to copy and the compiled default
+  body and subject apply. Both stay unset here.
+
+The consequence, and it is why this design ships no template override: the runtime
+network is `--internal`, so a template URL is fetched from inside that network and
+an external one fails the send with `template_body_http_error`. The compiled
+defaults keep the send path free of an outbound fetch, and an operator who wants
+custom bodies has to serve them from inside the runtime network.
 
 ### 2.5 Disabled by default, proven
 
