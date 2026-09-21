@@ -118,8 +118,16 @@ def provision_environment(e, credentials, checkpoint=lambda phase: None, executo
     checkpoint('permissions')
 
 
-def auth_configuration(e, v, database_host):
-    return {
+def auth_configuration(e, v, database_host, mail=None):
+    """The environment's Auth environment. Without mail the dict is unchanged, byte for byte.
+
+    `mail` is the validated per environment mail configuration, or None. It is
+    read once, at process start: the pinned Auth has no reload of the mailer, so a
+    mail change is a container reconcile (docs/ENVIRONMENT-EMAIL.md sections 2.1
+    and 2.3). The management realm calls this with three arguments on purpose: it
+    is the operator's own identity realm and never gains SMTP.
+    """
+    config = {
         'GOTRUE_API_HOST': '0.0.0.0', 'GOTRUE_API_PORT': '9999',
         'API_EXTERNAL_URL': f'http://localhost/{e}/auth/v1',
         'GOTRUE_SITE_URL': 'http://localhost', 'GOTRUE_DB_DRIVER': 'postgres',
@@ -128,6 +136,30 @@ def auth_configuration(e, v, database_host):
         'GOTRUE_JWT_DEFAULT_GROUP_NAME': 'authenticated', 'GOTRUE_JWT_ADMIN_ROLES': 'service_role',
         'GOTRUE_EXTERNAL_EMAIL_ENABLED': 'true', 'GOTRUE_MAILER_AUTOCONFIRM': 'true',
         'GOTRUE_DB_MAX_POOL_SIZE': '3', 'GOTRUE_DB_NAMESPACE': 'auth'}
+    if mail is None:
+        return config
+    config.update({
+        'GOTRUE_SMTP_HOST': mail['host'], 'GOTRUE_SMTP_PORT': str(mail['port']),
+        'GOTRUE_SMTP_USER': mail['user'], 'GOTRUE_SMTP_PASS': mail['pass'],
+        'GOTRUE_SMTP_ADMIN_EMAIL': mail['admin_email'], 'GOTRUE_SMTP_SENDER_NAME': mail['sender_name'],
+        'GOTRUE_SMTP_MAX_FREQUENCY': mail['max_frequency'],
+        # The pinned mailer logs one record per message, including the recipient
+        # address, when this is true. It is fixed here so no configuration can
+        # turn recipient address logging on by accident.
+        'GOTRUE_SMTP_LOGGING_ENABLED': 'false',
+        'GOTRUE_MAILER_AUTOCONFIRM': 'true' if mail['autoconfirm'] else 'false',
+        'GOTRUE_MAILER_OTP_EXP': str(mail['otp_exp']), 'GOTRUE_MAILER_OTP_LENGTH': str(mail['otp_length']),
+        'GOTRUE_MAILER_SECURE_EMAIL_CHANGE_ENABLED': 'true' if mail['secure_email_change'] else 'false',
+        'GOTRUE_RATE_LIMIT_EMAIL_SENT': str(mail['rate_limit_email_sent']),
+        'GOTRUE_RATE_LIMIT_OTP': str(mail['rate_limit_otp']),
+        'GOTRUE_RATE_LIMIT_VERIFY': str(mail['rate_limit_verify']),
+        'GOTRUE_RATE_LIMIT_HEADER': mail['rate_limit_header']})
+    if mail['reply_to']:
+        # Reply-To is not a first class variable in this pin: it travels as an
+        # SMTP header, which upstream parses as JSON into map[string][]string.
+        # The key is omitted when empty so no empty header is ever sent.
+        config['GOTRUE_SMTP_HEADERS'] = json.dumps({'Reply-To': [mail['reply_to']]})
+    return config
 
 
 def rest_configuration(e, v, database_host):

@@ -2,6 +2,7 @@
 import fcntl
 import effect_lease
 import os
+import subprocess
 import sys
 import argparse
 from pathlib import Path
@@ -49,4 +50,30 @@ os.environ['SBARBASE_WORKER_LOCKED'] = '1'
 os.environ['SBARBASE_RUNTIME_PROFILE'] = profile
 os.environ['SBARBASE_RECEIPT_ONLY'] = '1' if args.settle_only else '0'
 os.environ['SBARBASE_WORKER_WATCH'] = '1' if args.watch else '0'
+
+# Operator notifications. The drain is not a service and takes no lock: it is a child of this
+# process, it is handed the descriptor this worker already holds, and it stops when the worker
+# stops. It is skipped entirely when no channel is configured, and it never runs in
+# settle-only mode, which precedes runtime startup and must settle one receipt and exit.
+def start_notifications():
+    if args.settle_only or not (state / 'notifications.json').is_file():
+        return
+    command = ['/usr/bin/python3', 'lab/notify.py',
+               '--catalog', str(state / 'control.sqlite'),
+               '--config', str(state / 'notifications.json'),
+               '--state', str(state), '--require-worker-lock',
+               '--follow' if args.watch else '--once']
+    # The channel never changes the operation it reports, so a nonzero drain exit is ignored
+    # here exactly as a failed delivery is ignored by the catalog.
+    try:
+        if args.watch:
+            subprocess.Popen(command, pass_fds=(lock,))
+        else:
+            subprocess.run(command, pass_fds=(lock,), check=False)
+    except OSError:
+        # A drain that cannot start is a delivery failure, never a provisioning failure.
+        pass
+
+
+start_notifications()
 os.execvp('bun', ['bun', 'lab/worker.ts'])

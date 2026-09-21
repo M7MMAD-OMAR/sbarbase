@@ -68,7 +68,7 @@ def main():
             writer.before_create(preexisting_volume=False)
             check('private per-target authority state prepared',writer.state==state_dir/'targets'/PREFIX and writer.state.stat().st_mode&0o777==0o700)
             env={**os.environ,'POSTGRES_PASSWORD':secrets.token_hex(32)}
-            cid=docker('run','-d','--pull=never','--restart=no','--name',name,'--label','io.sbarbase.owner='+OWNER,
+            cid=docker('run','-d','--pull=never','--restart=no','--name',name,'--label','io.sbarbase.owner='+OWNER,*resource_policy.labels('maintenance'),
                        '--network','none','--memory','1024m','--memory-swap','1024m','--cpus','1','--pids-limit','96',
                        '--log-opt','max-size=1m','--log-opt','max-file=1','-v',volume+':/var/lib/postgresql/data',
                        '-e','POSTGRES_PASSWORD','-e','POSTGRES_HOST=/var/run/postgresql','-e','POSTGRES_DB=postgres',

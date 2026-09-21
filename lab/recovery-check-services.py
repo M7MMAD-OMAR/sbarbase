@@ -7,6 +7,7 @@ import secrets
 import time
 from pathlib import Path
 import durable_runtime as runtime
+import resource_policy
 import run as lab
 from recovery_bundle import open_bundle
 
@@ -56,7 +57,7 @@ def main():
             check(kind+' pinned image matches export',pins[kind]['id']==payload['images'][kind]['id'])
             name=d['prefix']+'-'+kind;env=runtime.PRIVATE/(name+'.env')
             lab.secure_file(env,''.join(k+'='+v+'\n' for k,v in builder(e,payload['credentials'],db).items()))
-            lab.docker('run','-d','--pull','never','--name',name,'--label','io.sbarbase.owner='+OWNER,'--network',d['network'],'--memory','256m','--memory-swap','256m','--cpus','0.25','--pids-limit','128','--log-opt','max-size=5m','--log-opt','max-file=2','--env-file',str(env),pins[kind]['id'])
+            lab.docker('run','-d','--pull','never','--name',name,'--label','io.sbarbase.owner='+OWNER,*resource_policy.labels('maintenance'),'--network',d['network'],'--memory','256m','--memory-swap','256m','--cpus','0.25','--pids-limit','128','--log-opt','max-size=5m','--log-opt','max-file=2','--env-file',str(env),pins[kind]['id'])
             address=inspect(name)['NetworkSettings']['Networks'][d['network']]['IPAddress'];url=f'http://{address}:{port}'
             ready=False
             for _ in range(60):

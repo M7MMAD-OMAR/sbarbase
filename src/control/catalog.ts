@@ -9,15 +9,100 @@ type Environment = {id:string;project:string;name:string};
 export type ProvisionFailure = 'capacity_exceeded' | 'runtime_failed';
 export type ProvisionJob = {environment:string;runtime:string;actor:string;organization:string;state:string;attempt:number;claim:string|null;failure:ProvisionFailure|null};
 
+export type NotificationSeverity = 'info' | 'warning' | 'critical';
+export type NotificationChannel = 'email' | 'webhook';
+export type NotificationOutcome = 'delivered' | 'transient' | 'failed';
+/** Every kind of the inventory that an observable in this catalog can produce today. */
+export type NotificationKind =
+  | 'provision.failed' | 'provision.capacity_refused' | 'provision.retry_limit'
+  | 'provision.retried' | 'routing.paused' | 'routing.resumed'
+  | 'membership.owner_changed' | 'project.ownership_changed'
+  | 'notifier.channel_failed' | 'notifier.redaction_refused';
+/** Closed reason enum. The fine admission reason (`memory_headroom` and the rest) is
+ * produced by the admission gates. Exit code 75 is the whole protocol a refused child may
+ * publish, so a capacity refusal keeps its fine reason by recording the value the producer
+ * published, and records `unrecorded` when no producer value reached this point. */
+export type NotificationReason =
+  | 'runtime_failed' | 'retry_limit' | 'retry_requested' | 'owner_changed' | 'ownership_changed'
+  | 'routing_paused' | 'routing_resumed' | 'installation_limit' | 'memory_headroom'
+  | 'disk_headroom' | 'inode_headroom' | 'measurement_unavailable' | 'cpu_some10'
+  | 'io_full10' | 'memory_full10' | 'connection_budget' | 'unrecorded'
+  | 'webhook_unreachable' | 'webhook_timeout' | 'webhook_status'
+  | 'smtp_refused' | 'smtp_temporary_failure' | 'channel_disabled' | 'redaction_refused';
+export type NotificationDetail = Record<string,string|number|boolean>;
+export type NotificationSubject = {organization?:string;project?:string;environment?:string;runtime?:string};
+export type NotificationClaim = {
+  event:string; channel:NotificationChannel; claim:string; attempts:number;
+  kind:NotificationKind; severity:NotificationSeverity; subject:NotificationSubject;
+  actor:string; reason:NotificationReason; detail:NotificationDetail;
+  at:number; last_at:number; occurrences:number; window_until:number;
+};
+type NotificationDue = {
+  event:string; channel:NotificationChannel; attempts:number; kind:NotificationKind;
+  severity:NotificationSeverity; organization:string|null; project:string|null;
+  environment:string|null; runtime:string|null; actor:string; reason:NotificationReason;
+  detail:string; at:number; last_at:number; occurrences:number; window_until:number;
+};
+export type NotificationSummary = {
+  id:string; kind:NotificationKind; severity:NotificationSeverity; at:number; last_at:number;
+  occurrences:number; reason:NotificationReason; window_until:number; organization:string|null;
+  project:string|null; environment:string|null; runtime:string|null; channel:NotificationChannel;
+  state:string; attempts:number; last_error:string|null;
+};
+
+/** Detail keys are closed per kind: a caller cannot add a field, so it cannot add a secret. */
+const NOTIFICATION_DETAIL_KEYS:Record<NotificationKind,string[]> = {
+  'provision.failed':['failure','attempt'],
+  'provision.capacity_refused':['failure','attempt','reason_source'],
+  'provision.retry_limit':['attempt','reason_source'],
+  'provision.retried':['attempt','reason_source'],
+  'routing.paused':['revision'],
+  'routing.resumed':['revision'],
+  'membership.owner_changed':['target','role'],
+  'project.ownership_changed':['from','to'],
+  'notifier.channel_failed':['channel','last_error'],
+  'notifier.redaction_refused':['refused_event','refused_kind'],
+};
+const NOTIFICATION_REASONS:NotificationReason[] = [
+  'runtime_failed','retry_limit','retry_requested','owner_changed','ownership_changed',
+  'routing_paused','routing_resumed','installation_limit','memory_headroom','disk_headroom',
+  'inode_headroom','measurement_unavailable','cpu_some10','io_full10','memory_full10',
+  'connection_budget','unrecorded','webhook_unreachable','webhook_timeout','webhook_status',
+  'smtp_refused','smtp_temporary_failure','channel_disabled','redaction_refused'];
+export const NOTIFICATION_MAX_ATTEMPTS = 8;
+const NOTIFICATION_WINDOW_SECONDS:Record<NotificationSeverity,number> = {info:3600,warning:1800,critical:300};
+const NOTIFICATION_BACKOFF_SECONDS = [15,60,300,1800,7200];
+const NOTIFICATION_RETENTION_MS = 30*24*60*60*1000;
+const NOTIFICATION_LEASE_MS = 30000;
+const NOTIFICATION_SUBJECT_PREFIX = 'e_';
+/** Fail closed: a shape here means no bytes leave the process and the delivery settles failed. */
+export const CREDENTIAL_SHAPES:RegExp[] = [
+  /postgres(ql)?:\/\//i, /sb_publishable_/i, /sb_secret_/i, /password=/i, /apikey/i,
+  /authorization:/i, /BEGIN PRIVATE KEY/, /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/,
+  /(?<![0-9a-fA-F])[0-9a-fA-F]{64}(?![0-9a-fA-F])/, /[A-Za-z0-9_-]{32,}/,
+];
+/** Catalog identifiers are not credentials. Remove exactly those shapes before scanning,
+ * so a uuid or a runtime identifier cannot be mistaken for a key and silence a message. */
+const NOTIFICATION_IDENTIFIER = /e_[a-f0-9]{24}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g;
+export function credentialShape(value:string):boolean {
+  const normalized = value.replace(NOTIFICATION_IDENTIFIER,'id');
+  return CREDENTIAL_SHAPES.some(shape=>shape.test(normalized));
+}
+
 /** Internal control-plane boundary. Actor IDs must come from verified management
  * authentication, never request bodies or application JWTs. Not an HTTP API.
  * Placement and runtime credentials deliberately do not belong to ownership.
  */
 export class Catalog {
   private db:Database;
-  constructor(path:string) {
+  private channels:NotificationChannel[];
+  constructor(path:string,options?:{channels?:NotificationChannel[]}) {
     this.db=new Database(path,{create:true,strict:true});
     if(path!==':memory:') chmodSync(path,0o600);
+    this.channels=options?.channels??['email','webhook'];
+    if(!this.channels.length||this.channels.some(channel=>!['email','webhook'].includes(channel)))
+      throw new Error('Invalid notification channel');
+    this.channels=[...new Set(this.channels)];
     this.db.exec(`PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000; PRAGMA journal_mode=DELETE;
       CREATE TABLE IF NOT EXISTS organizations(id TEXT PRIMARY KEY,name TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS installation_bootstrap(
@@ -50,9 +135,51 @@ export class Catalog {
         runtime TEXT PRIMARY KEY REFERENCES provision_jobs(runtime),
         revision INTEGER NOT NULL CHECK(revision>0),
         maintenance INTEGER NOT NULL CHECK(maintenance IN (0,1)),placement TEXT);
+      CREATE TABLE IF NOT EXISTS environment_mail(
+        environment TEXT PRIMARY KEY REFERENCES environments(id),
+        enabled INTEGER NOT NULL CHECK(enabled IN (0,1)),
+        host TEXT, port INTEGER, from_address TEXT, reply_to TEXT, sender_name TEXT,
+        autoconfirm INTEGER, secure_email_change INTEGER, otp_exp INTEGER,
+        rate_limit_email_sent TEXT, rate_limit_otp INTEGER,
+        credentials_set INTEGER NOT NULL CHECK(credentials_set IN (0,1)),
+        state TEXT NOT NULL CHECK(state IN ('unconfigured','applied','failed','off')),
+        detail TEXT, updated_at INTEGER NOT NULL, updated_by TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS audit_events(
         sequence INTEGER PRIMARY KEY AUTOINCREMENT, actor TEXT NOT NULL,
         action TEXT NOT NULL, subject TEXT NOT NULL, detail TEXT NOT NULL, at INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS notification_outbox(
+        id TEXT PRIMARY KEY,
+        at INTEGER NOT NULL,
+        last_at INTEGER NOT NULL,
+        window_until INTEGER NOT NULL,
+        occurrences INTEGER NOT NULL DEFAULT 1,
+        digest_sent INTEGER NOT NULL DEFAULT 0 CHECK(digest_sent IN (0,1)),
+        kind TEXT NOT NULL,
+        severity TEXT NOT NULL CHECK(severity IN ('info','warning','critical')),
+        dedupe_key TEXT NOT NULL,
+        organization TEXT,
+        project TEXT,
+        environment TEXT,
+        runtime TEXT,
+        actor TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        detail TEXT NOT NULL,
+        expires_at INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS notification_delivery(
+        event TEXT NOT NULL REFERENCES notification_outbox(id),
+        channel TEXT NOT NULL CHECK(channel IN ('email','webhook')),
+        state TEXT NOT NULL CHECK(state IN ('pending','claimed','delivered','failed')),
+        attempts INTEGER NOT NULL DEFAULT 0,
+        claim TEXT,
+        claim_at INTEGER,
+        next_attempt_at INTEGER NOT NULL,
+        last_error TEXT,
+        delivered_at INTEGER,
+        PRIMARY KEY(event,channel));
+      CREATE INDEX IF NOT EXISTS notification_due
+        ON notification_delivery(state,next_attempt_at);
+      CREATE INDEX IF NOT EXISTS notification_windows
+        ON notification_outbox(dedupe_key,window_until);
       CREATE INDEX IF NOT EXISTS projects_organization ON projects(organization);
       CREATE INDEX IF NOT EXISTS environments_project ON environments(project);`);
     this.db.transaction(()=>{
@@ -86,6 +213,82 @@ export class Catalog {
   private record(actor:string,action:string,subject:string,detail:object) {
     this.db.query('INSERT INTO audit_events(actor,action,subject,detail,at) VALUES (?,?,?,?,?)')
       .run(actor,action,subject,JSON.stringify(detail),Date.now());
+  }
+  /** Enqueue one operator event in the caller's transaction. No I/O, no network, no lock:
+   * it issues local SQLite statements exactly like record(), which is why the outbox row
+   * commits with the state change that produced it and can never outlive it. Detail keys
+   * are closed per kind and every value is scanned for credential shapes, so a caller
+   * cannot pass a secret into a message by adding a field. */
+  private notify(kind:NotificationKind,severity:NotificationSeverity,dedupeKey:string,subject:NotificationSubject,
+    actor:string,reason:NotificationReason,detail:NotificationDetail):string {
+    if(!NOTIFICATION_DETAIL_KEYS[kind])throw new Error('Invalid notification kind');
+    if(!['info','warning','critical'].includes(severity))throw new Error('Invalid notification severity');
+    if(!NOTIFICATION_REASONS.includes(reason))throw new Error('Invalid notification reason');
+    this.actor(actor);
+    const key=this.notificationText('dedupe_key',dedupeKey,200);
+    const allowed=NOTIFICATION_DETAIL_KEYS[kind];
+    const payload:NotificationDetail={};
+    for(const [field,value] of Object.entries(detail)) {
+      if(!allowed.includes(field))throw new Error('Unexpected notification detail field');
+      if(typeof value==='number') {
+        if(!Number.isFinite(value))throw new Error('Invalid notification detail value');
+        payload[field]=value;continue;
+      }
+      if(typeof value==='boolean') {payload[field]=value;continue;}
+      if(typeof value!=='string')throw new Error('Invalid notification detail value');
+      payload[field]=this.notificationText(field,value,200);
+    }
+    for(const field of allowed)
+      if(!(field in payload))throw new Error('Missing notification detail field');
+    const organization=this.notificationSubject('organization',subject.organization);
+    const project=this.notificationSubject('project',subject.project);
+    const environment=this.notificationSubject('environment',subject.environment);
+    const runtime=this.notificationSubject('runtime',subject.runtime);
+    if(runtime!==null&&!new RegExp('^'+NOTIFICATION_SUBJECT_PREFIX+'[a-f0-9]{24}$').test(runtime))
+      throw new Error('Invalid notification subject');
+    const serialized=JSON.stringify(payload);
+    if(credentialShape(key)||credentialShape(serialized)||[organization,project,environment,runtime]
+        .some(value=>value!==null&&credentialShape(value)))
+      // Fail closed at the enqueue, in the caller's transaction, before any row exists.
+      throw new Error('Notification content refused');
+    // The detail reached this point only from the closed key set, so it carries no free text.
+    for(const field of allowed) {
+      if(field.endsWith('_secret')||field.endsWith('_password')||field.endsWith('_token'))
+        throw new Error('Notification content refused');
+    }
+    const now=Date.now();
+    const open=this.db.query<{id:string},[string,number]>(
+      'SELECT id FROM notification_outbox WHERE dedupe_key=? AND window_until>? ORDER BY at DESC LIMIT 1').get(key,now);
+    if(open) {
+      // Suppression is durable: the window lives in the catalog, not in a process.
+      this.db.query('UPDATE notification_outbox SET occurrences=occurrences+1,last_at=? WHERE id=?').run(now,open.id);
+      return open.id;
+    }
+    const id=randomUUID();
+    this.db.query(`INSERT INTO notification_outbox(id,at,last_at,window_until,occurrences,digest_sent,kind,severity,
+      dedupe_key,organization,project,environment,runtime,actor,reason,detail,expires_at) VALUES (?,?,?,?,1,0,?,?,?,?,?,?,?,?,?,?,?)`)
+      .run(id,now,now,now+NOTIFICATION_WINDOW_SECONDS[severity]*1000,kind,severity,key,organization,project,
+        environment,runtime,actor,reason,serialized,now+NOTIFICATION_RETENTION_MS);
+    for(const channel of this.channels)
+      this.db.query("INSERT INTO notification_delivery(event,channel,state,attempts,next_attempt_at) VALUES (?,?,'pending',0,?)")
+        .run(id,channel,now);
+    return id;
+  }
+  private notificationText(field:string,value:string,maxLength:number):string {
+    if(typeof value!=='string'||!value||value.length>maxLength||/[\x00-\x1f]/.test(value))
+      throw new Error('Invalid notification text: '+field);
+    return value;
+  }
+  private notificationSubject(field:string,value:string|undefined):string|null {
+    if(value===undefined)return null;
+    return this.notificationText(field,value,64);
+  }
+  /** Catalog identifiers only. No application data, no recipient, no secret can enter here. */
+  private notificationScope(environment:string,organization:string,runtime:string):NotificationSubject {
+    const project=this.db.query<{id:string},[string]>('SELECT project id FROM environments WHERE id=?').get(environment);
+    const subject:NotificationSubject={organization,environment,runtime};
+    if(project)subject.project=project.id;
+    return subject;
   }
   /** Trusted operator entry point, never an unauthenticated HTTP endpoint. */
   createOrganization(owner:string,name:string):string {
@@ -138,6 +341,10 @@ export class Catalog {
       else this.db.query(`INSERT INTO memberships VALUES (?,?,?)
         ON CONFLICT(organization,actor) DO UPDATE SET role=excluded.role`).run(organization,target,role);
       this.record(actor,'membership.changed',organization,{target,role});
+      // Only the changes that alter who can do what: an owner demoted, removed or added.
+      if(previous?.role==='owner'||role==='owner')
+        this.notify('membership.owner_changed','critical','membership.owner_changed|'+organization+'|'+target,
+          {organization},actor,'owner_changed',{target,role:role??'removed'});
     }).immediate();
   }
   createProject(actor:string,organization:string,name:string):string {
@@ -221,17 +428,33 @@ export class Catalog {
       return null;
     }).immediate();
   }
-  finishProvision(environment:string,claim:string,success:boolean,failure:ProvisionFailure='runtime_failed') {
+  finishProvision(environment:string,claim:string,success:boolean,failure:ProvisionFailure='runtime_failed',
+    refusalReason?:NotificationReason) {
     if(!['capacity_exceeded','runtime_failed'].includes(failure)) throw new Error('Invalid provisioning failure code');
+    if(refusalReason!==undefined&&!NOTIFICATION_REASONS.includes(refusalReason)) throw new Error('Invalid notification reason');
     return this.db.transaction(()=>{
       const result=this.db.query("UPDATE provision_jobs SET state=?,failure=?,claim=NULL WHERE environment=? AND claim=? AND state='running'")
         .run(success?'succeeded':'failed',success?null:failure,environment,claim);
       if(result.changes!==1) throw new Error('Stale provisioning claim');
       this.record('system',success?'provision.succeeded':'provision.failed',environment,success?{}:{failure});
+      if(success)return;
+      const job=this.db.query<ProvisionJob,[string]>('SELECT * FROM provision_jobs WHERE environment=?').get(environment);
+      if(!job)return;
+      const subject=this.notificationScope(environment,job.organization,job.runtime);
+      if(failure==='runtime_failed')
+        this.notify('provision.failed','critical','provision.failed|'+environment,subject,'system','runtime_failed',
+          {failure,attempt:job.attempt});
+      else
+        // The coarse exit code is all the child may publish. A coarse refusal keeps its fine
+        // reason when the producer recorded it, and says `unrecorded` when none arrived.
+        this.notify('provision.capacity_refused','warning','provision.capacity_refused|'+environment,subject,'system',
+          refusalReason??'unrecorded',
+          {failure,attempt:job.attempt,reason_source:refusalReason?'settlement':'unrecorded'});
     }).immediate();
   }
   /** Worker-only durable outcome settlement. Receipt consumption happens after this commit. */
-  applyProvisionReceipt(environment:string,runtime:string,claim:string,attempt:number,exitCode:number) {
+  applyProvisionReceipt(environment:string,runtime:string,claim:string,attempt:number,exitCode:number,
+    refusalReason?:NotificationReason) {
     if(![0,75].includes(exitCode))throw new Error('Unresolved provisioning outcome');
     this.db.transaction(()=>{
       const job=this.db.query<ProvisionJob,[string]>('SELECT * FROM provision_jobs WHERE environment=?').get(environment);
@@ -244,7 +467,7 @@ export class Catalog {
         return;
       }
       if(job.attempt!==attempt||job.state!=='running'||job.claim!==claim)throw new Error('Provisioning receipt mismatch');
-      this.finishProvision(environment,claim,success,'capacity_exceeded');
+      this.finishProvision(environment,claim,success,'capacity_exceeded',refusalReason);
       this.db.query('INSERT INTO provision_effect_results(environment,attempt,runtime,claim,exit_code) VALUES (?,?,?,?,?)')
         .run(environment,attempt,runtime,claim,exitCode);
     }).immediate();
@@ -269,6 +492,11 @@ export class Catalog {
       this.db.query('INSERT INTO provision_recovery_decisions VALUES (?,?,?,?,?,?)')
         .run(environment,attempt,runtime,claim,token,retry?'retry':'failed');
       this.record('system',retry?'provision.preflight_requeued':'provision.preflight_retry_limit',environment,{attempt});
+      if(!retry)
+        // The retry limit is exactly the case the operator must hear about.
+        this.notify('provision.retry_limit','critical','provision.retry_limit|'+environment,
+          this.notificationScope(environment,job.organization,job.runtime),'system','retry_limit',
+          {attempt,reason_source:'settlement'});
       return retry?'requeued':'failed';
     }).immediate();
   }
@@ -281,6 +509,11 @@ export class Catalog {
         .run(actor,parent.organization,environment);
       if(result.changes!==1) throw new Error('Operation is not retryable');
       this.record(actor,'provision.retried',environment,{});
+      const job=this.db.query<ProvisionJob,[string]>('SELECT * FROM provision_jobs WHERE environment=?').get(environment);
+      if(job)
+        this.notify('provision.retried','info','provision.retried|'+environment,
+          this.notificationScope(environment,parent.organization,job.runtime),actor,'retry_requested',
+          {attempt:job.attempt,reason_source:'settlement'});
     }).immediate();
   }
   /** Metadata-only transfer. Requires owner authority in both organizations.
@@ -296,6 +529,9 @@ export class Catalog {
       if(active?.n) throw new Error('Provisioning is active');
       this.db.query('UPDATE projects SET organization=? WHERE id=?').run(destination,project);
       this.record(actor,'project.ownership_changed',project,{from:source.organization,to:destination});
+      this.notify('project.ownership_changed','critical','project.ownership_changed|'+project,
+        {organization:source.organization,project},actor,'ownership_changed',
+        {from:source.organization,to:destination});
     }).immediate();
   }
   runtimeRouting(runtime:string):RuntimeRouting {
@@ -323,8 +559,108 @@ export class Catalog {
         ON CONFLICT(runtime) DO UPDATE SET revision=excluded.revision,maintenance=excluded.maintenance,placement=excluded.placement`)
         .run(runtime,revision,action==='resume'?0:1,next===null?null:JSON.stringify(next));
       this.record('system:placement','runtime.routing_'+action,runtime,{revision});
+      if(action!=='stage') {
+        const job=this.db.query<ProvisionJob,[string]>('SELECT * FROM provision_jobs WHERE runtime=?').get(runtime);
+        if(job)
+          this.notify(action==='pause'?'routing.paused':'routing.resumed',
+            action==='pause'?'warning':'info','runtime.routing_'+action+'|'+runtime,
+            this.notificationScope(job.environment,job.organization,job.runtime),'system:placement',
+            action==='pause'?'routing_paused':'routing_resumed',{revision});
+      }
       return revision;
     }).immediate();
+  }
+  /** One claimant, exactly once. Mirrors claimProvision: one immediate transaction, select
+   * candidates, guard the update, return the claimed rows. Only the process holding the
+   * installation worker lock calls this, so no lease stealing rule is needed. */
+  claimNotifications(limit=20,leaseMs=NOTIFICATION_LEASE_MS):NotificationClaim[] {
+    if(!Number.isInteger(limit)||limit<1||limit>200)throw new Error('Invalid notification limit');
+    if(!Number.isInteger(leaseMs)||leaseMs<1000)throw new Error('Invalid notification lease');
+    const now=Date.now();
+    return this.db.transaction(()=>{
+      const rows=this.db.query<NotificationDue,[number,number,number]>(`SELECT d.event event,d.channel channel,
+        d.attempts attempts,o.kind kind,o.severity severity,o.organization organization,o.project project,
+        o.environment environment,o.runtime runtime,o.actor actor,o.reason reason,o.detail detail,o.at at,
+        o.last_at last_at,o.occurrences occurrences,o.window_until window_until
+        FROM notification_delivery d JOIN notification_outbox o ON o.id=d.event
+        WHERE (d.state='pending' AND d.next_attempt_at<=?) OR (d.state='claimed' AND d.claim_at<=?)
+        ORDER BY o.at LIMIT ?`).all(now,now-leaseMs,limit);
+      const claims:NotificationClaim[]=[];
+      for(const row of rows) {
+        const claim=randomUUID();
+        const result=this.db.query(`UPDATE notification_delivery SET state='claimed',claim=?,claim_at=?,attempts=attempts+1
+          WHERE event=? AND channel=? AND state IN ('pending','claimed')`).run(claim,now,row.event,row.channel);
+        if(result.changes!==1)continue;
+        let detail:NotificationDetail;
+        try{detail=JSON.parse(row.detail);}catch{throw new Error('Invalid notification detail');}
+        const subject:NotificationSubject={};
+        if(row.organization)subject.organization=row.organization;
+        if(row.project)subject.project=row.project;
+        if(row.environment)subject.environment=row.environment;
+        if(row.runtime)subject.runtime=row.runtime;
+        claims.push({event:row.event,channel:row.channel,claim,attempts:row.attempts+1,kind:row.kind,
+          severity:row.severity,subject,actor:row.actor,reason:row.reason,detail,at:row.at,last_at:row.last_at,
+          occurrences:row.occurrences,window_until:row.window_until});
+      }
+      return claims;
+    }).immediate();
+  }
+  /** Settlement mirrors the stale claim guard of finishProvision. Only the attempt holding
+   * the current claim can move a row, so a replay of an older attempt is a stale claim and
+   * is rejected. It never touches provision_jobs, audit_events or any operation state. */
+  settleNotification(event:string,channel:NotificationChannel,claim:string,outcome:NotificationOutcome,error:string|null=null) {
+    if(!['delivered','transient','failed'].includes(outcome))throw new Error('Invalid notification outcome');
+    if(error!==null&&(typeof error!=='string'||error.length>60||!/^[a-z0-9_]+$/.test(error)))
+      throw new Error('Invalid notification error token');
+    const now=Date.now();
+    this.db.transaction(()=>{
+      if(outcome==='delivered') {
+        const result=this.db.query(`UPDATE notification_delivery SET state='delivered',delivered_at=?,claim=NULL,
+          last_error=NULL,next_attempt_at=? WHERE event=? AND channel=? AND claim=? AND state='claimed'`)
+          .run(now,now,event,channel,claim);
+        if(result.changes!==1)throw new Error('Stale notification claim');
+        return;
+      }
+      const row=this.db.query<{attempts:number},[string,string]>(
+        'SELECT attempts FROM notification_delivery WHERE event=? AND channel=?').get(event,channel);
+      if(!row)throw new Error('Stale notification claim');
+      // A permanent refusal, or an exhausted retry budget, settles failed and stays visible.
+      const permanent=outcome==='failed'||row.attempts>=NOTIFICATION_MAX_ATTEMPTS;
+      const next=permanent?now:now+this.notificationBackoffMs(row.attempts);
+      const result=this.db.query(`UPDATE notification_delivery SET state=?,claim=NULL,last_error=?,next_attempt_at=?
+        WHERE event=? AND channel=? AND claim=? AND state='claimed'`)
+        .run(permanent?'failed':'pending',error,next,event,channel,claim);
+      if(result.changes!==1)throw new Error('Stale notification claim');
+    }).immediate();
+  }
+  private notificationBackoffMs(attempts:number):number {
+    const index=Math.min(Math.max(attempts,1),NOTIFICATION_BACKOFF_SECONDS.length)-1;
+    return (NOTIFICATION_BACKOFF_SECONDS[index]??NOTIFICATION_BACKOFF_SECONDS[0]!)*1000;
+  }
+  /** Retention, bounded per iteration. A row is pruned only when no delivery is pending or
+   * claimed, so an undelivered event is never deleted: it ages visibly instead. */
+  pruneNotifications(now=Date.now(),limit=500):number {
+    if(!Number.isInteger(limit)||limit<1||limit>5000)throw new Error('Invalid notification limit');
+    return this.db.transaction(()=>{
+      const rows=this.db.query<{id:string},[number,number]>(`SELECT o.id FROM notification_outbox o
+        WHERE o.expires_at < ? AND NOT EXISTS(SELECT 1 FROM notification_delivery d
+          WHERE d.event=o.id AND d.state IN ('pending','claimed')) ORDER BY o.expires_at LIMIT ?`).all(now,limit);
+      for(const row of rows) {
+        this.db.query('DELETE FROM notification_delivery WHERE event=?').run(row.id);
+        this.db.query('DELETE FROM notification_outbox WHERE id=?').run(row.id);
+      }
+      return rows.length;
+    }).immediate();
+  }
+  /** Read-only delivery state. Already safe fields only: no recipient, no rendered body. */
+  listNotifications(limit=50) {
+    if(!Number.isInteger(limit)||limit<1||limit>500)throw new Error('Invalid notification limit');
+    return this.db.query<NotificationSummary,[number]>(`SELECT o.id id,o.kind kind,o.severity severity,o.at at,
+      o.last_at last_at,o.occurrences occurrences,o.reason reason,o.window_until window_until,
+      o.organization organization,o.project project,o.environment environment,o.runtime runtime,
+      d.channel channel,d.state state,d.attempts attempts,d.last_error last_error
+      FROM notification_outbox o JOIN notification_delivery d ON d.event=o.id
+      ORDER BY o.at DESC,d.channel LIMIT ?`).all(limit);
   }
   close(){this.db.close();}
 }

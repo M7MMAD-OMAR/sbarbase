@@ -194,6 +194,48 @@ Notes that matter:
   reservation needs a reclaim experiment, not a guess. This is a real decision
   deferred, not a gap overlooked.
 
+### 3.1.1 The mapping reading, taken 2026-09-21: the weight column does not bind
+
+The INFERRED note above, and the reading step 3 asks for, are both closed.
+Measured on this host (kernel 7.1.12-200.fc44, Docker 29.7.2, cgroup v2,
+disposable containers, raw readings in
+`docs/evidence/resource-policy-cgroup-mapping.json`):
+
+| `--cpu-shares` asked | kernel `cpu.weight` observed |
+|---|---|
+| 2 | 1 |
+| 128 | 21 |
+| 256 | 35 |
+| 512 | 59 |
+| 1024 | 100 |
+| 2048 | 174 |
+| 4096 | 303 |
+
+Three consequences. The first two correct this design.
+
+1. **The mapping is sublinear.** This section asks for weight 800 at
+   `--cpu-shares 2048`; the kernel reports 174 for that request, and 303 for 4096.
+   The shares column still separates classes, because a weight decides who wins
+   when two containers compete, and the order this table asks for survives
+   (128 below 1024 below 2048). But no shares value produces the weight the table
+   states, so the weight column is a request, not a result, and must be read that
+   way by anyone quoting it.
+2. **`--blkio-weight` isolates nothing here.** Every request tried (100, 400, 500,
+   800) left `io.weight` at its default, so a neighbour that writes hard competes
+   as an equal on this host. The flag stays in the launch flags: it matters on a
+   cgroup v1 host and it costs nothing. No claim of block IO separation may rest
+   on it.
+3. **Per device bandwidth does bind.** `--device-write-bps <device>:8mb` produced
+   `io.max` with `wbps=8388608`, and a request against a device path that does not
+   exist is refused by the daemon. So block IO separation has to move to
+   `--device-read-bps`, `--device-write-bps` and their IOPS siblings, with the
+   device derived from the host rather than hardcoded. That is item 11 of
+   section 7 and it is not built.
+
+Unchanged by this reading: the memory column, the pids column and the shares
+column. Those are ceilings and a relative CPU order, and both mechanisms were
+observed to bind.
+
 ### 3.2 The exact flags to add, per launch site
 
 `lab/durable_runtime.py:133-135` becomes (values shown for a `production`

@@ -1,0 +1,49 @@
+{
+  "schema": 1,
+  "taken": "2026-09-21",
+  "closes": "the INFERRED note in docs/RESOURCE-POLICY.md section 3.1 and the reading docs/RESOURCE-POLICY.md step 3 asks for",
+  "host": {
+    "kernel": "7.1.12-200.fc44.x86_64",
+    "docker": "29.7.2 (build a7dcaa6)",
+    "cgroup": "v2, controllers: cpuset cpu io memory hugetlb pids rdma misc dmem",
+    "root_device": "/dev/mapper/luks-d5d273a7-4705-47d4-9d9a-59d5fbc8f10c",
+    "root_filesystem": "btrfs, mounted through the LUKS mapper"
+  },
+  "method": "one disposable container per reading, removed after it, image public.ecr.aws/supabase/postgres:17.6.1.166, command: cat /sys/fs/cgroup/cpu.weight /sys/fs/cgroup/io.weight",
+  "cpu_weight_by_shares": {
+    "2": 1,
+    "128": 21,
+    "256": 35,
+    "512": 59,
+    "1024": 100,
+    "2048": 174,
+    "4096": 303
+  },
+  "cpu_weight_conclusion": "sublinear. The design's table asks for weight 800 at --cpu-shares 2048; the kernel reports 174 for that request and only 303 at 4096. The relative order a launch site asks for is preserved (128 is below 1024 is below 2048), so the shares column still separates classes, but no column value in the design table produces the weight the table states, and the table's weight column must be read as a request, not as a resulting weight.",
+  "blkio_weight_readings": {
+    "requests": [
+      100,
+      400,
+      500,
+      800
+    ],
+    "io_weight_observed": "default 100 at every request, on every device",
+    "conclusion": "--blkio-weight does not bind on this host and this Docker version, so block IO weight isolates nothing here. Every container kept the default weight, so an IO heavy neighbour competes as an equal, exactly the outcome docs/RESOURCE-POLICY.md section 5.1 predicts the experiment would have to show."
+  },
+  "device_bandwidth_readings": {
+    "request": "--device-write-bps /dev/mapper/luks-d5d273a7-4705-47d4-9d9a-59d5fbc8f10c:8mb",
+    "io_max_observed": "252:0 rbps=max wbps=8388608 riops=max wiops=max",
+    "conclusion": "per device bandwidth limits DO bind: they land in io.max as a numeric wbps. A request against a device path that does not exist is refused by the daemon, so the policy has to derive the device from the host rather than hardcode one."
+  },
+  "what_this_means_for_the_policy": [
+    "The shares column is the only CPU separation that is real today, and it is relative, so it only decides who wins when two containers compete.",
+    "The weight column is a request that does not bind on this host. Passing it is harmless and it matters on a cgroup v1 host, but no document may claim it separates block IO here.",
+    "Block IO separation has to move to --device-read-bps, --device-write-bps, --device-read-iops and --device-write-iops, which do bind, and the device has to be derived per host.",
+    "None of these readings says anything about a neighbouring environment being affected: they only establish which mechanisms the kernel and this Docker actually honour."
+  ],
+  "not_measured": [
+    "whether a limit on the backing device of /var/lib/docker actually produces a lower throughput in the container that writes through a named volume (the io.max reading shows the limit was accepted, not that it was reached during a workload)",
+    "IOPS limits, which were not requested at all",
+    "the same readings on a cgroup v1 host, where the mapping and the blkio weight are known to behave differently"
+  ]
+}

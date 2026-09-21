@@ -16,6 +16,7 @@ import durable_runtime as runtime
 import hba_runtime
 import hba_startup
 import resource_admission
+import resource_policy
 import run as lab
 from recovery_bundle import open_bundle
 from recovery_boundaries import verify as verify_boundaries
@@ -119,7 +120,7 @@ def main():
         lab.docker('network','create','--internal','--label','io.sbarbase.owner='+OWNER,network)
         lab.docker('volume','create','--label','io.sbarbase.owner='+OWNER,volume)
         stage('destination-headroom')
-        measured=lab.docker('run','--rm','--name',helper,'--pull','never','--network','none','--memory','64m','--memory-swap','64m','--cpus','0.25','--pids-limit','32','--label','io.sbarbase.owner='+OWNER,'--entrypoint','sh','-v',volume+':/target:ro',pin['id'],'-c','df -Pk /target && df -Pi /target && stat -f -c %t /target').stdout.splitlines()
+        measured=lab.docker('run','--rm','--name',helper,'--pull','never','--network','none','--memory','64m','--memory-swap','64m','--cpus','0.25','--pids-limit','32','--label','io.sbarbase.owner='+OWNER,*resource_policy.labels('maintenance'),'--entrypoint','sh','-v',volume+':/target:ro',pin['id'],'-c','df -Pk /target && df -Pi /target && stat -f -c %t /target').stdout.splitlines()
         blocks=measured[1].split();inodes=measured[3].split()
         free_inodes=None if int(inodes[1])==0 and int(inodes[3])==0 and measured[4].strip().lower()=='9123683e' else int(inodes[3])
         free_bytes=int(blocks[3])*1024
@@ -127,7 +128,7 @@ def main():
         check('fresh destination volume has disk and inode headroom',True)
         env=runtime.PRIVATE/(prefix+'.env')
         lab.secure_file(env,'POSTGRES_PASSWORD='+secrets.token_hex(32)+'\nPOSTGRES_HOST=/var/run/postgresql\nPOSTGRES_DB=postgres\n')
-        lab.docker('run','-d','--pull','never','--name',db,'--label','io.sbarbase.owner='+OWNER,'--network',network,'--memory','1024m','--memory-swap','1024m','--cpus','1','--pids-limit','128','--log-opt','max-size=5m','--log-opt','max-file=2','--env-file',str(env),'-v',volume+':/var/lib/postgresql/data',pin['id'],'postgres','-c','config_file=/etc/postgresql/postgresql.conf','-c','log_statement=none')
+        lab.docker('run','-d','--pull','never','--name',db,'--label','io.sbarbase.owner='+OWNER,*resource_policy.labels('maintenance'),'--network',network,'--memory','1024m','--memory-swap','1024m','--cpus','1','--pids-limit','128','--log-opt','max-size=5m','--log-opt','max-file=2','--env-file',str(env),'-v',volume+':/var/lib/postgresql/data',pin['id'],'postgres','-c','config_file=/etc/postgresql/postgresql.conf','-c','log_statement=none')
         created=json.loads(lab.docker('inspect',db).stdout)[0]['Id']
         if not created:raise RuntimeError('Created target identity unavailable')
         stage('bootstrap')

@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 from urllib.parse import quote
 import durable_runtime as runtime
+import resource_policy
 import run as lab
 from recovery_bundle import open_bundle
 
@@ -69,7 +70,7 @@ def main():
         env={'MULTI_TENANT':'true','MULTITENANT_DATABASE_URL':f"postgres://storage_control:{values['control']}@{db}:5432/storage_metadata",'ENCRYPTION_KEY':values['encryption'],'ADMIN_API_KEYS':values['admin'],'DB_INSTALL_ROLES':'false','STORAGE_BACKEND':'file','GLOBAL_S3_BUCKET':'sbarbase-lab','FILE_STORAGE_BACKEND_PATH':'/tmp/storage-data','REGION':'local','FILE_SIZE_LIMIT':'1048576','DATABASE_MAX_CONNECTIONS':'3','MULTITENANT_DATABASE_MAX_CONNECTIONS':'3','PG_QUEUE_ENABLE':'false','ENABLE_IMAGE_TRANSFORMATION':'false','S3_PROTOCOL_ENABLED':'false','X_FORWARDED_HOST_REGEXP':r'^(e_[a-f0-9]{24})\.storage\.internal$','LOG_LEVEL':'error'}
         envfile=runtime.PRIVATE/(name+'.env');lab.secure_file(envfile,''.join(k+'='+v+'\n' for k,v in env.items()))
         lab.docker('volume','create','--label','io.sbarbase.owner='+OWNER,volume)
-        lab.docker('run','-d','--pull','never','--name',name,'--label','io.sbarbase.owner='+OWNER,'--network',d['network'],'--memory','512m','--memory-swap','512m','--cpus','0.5','--pids-limit','128','--log-opt','max-size=5m','--log-opt','max-file=2','--env-file',str(envfile),'-v',volume+':/tmp/storage-data',image)
+        lab.docker('run','-d','--pull','never','--name',name,'--label','io.sbarbase.owner='+OWNER,*resource_policy.labels('maintenance'),'--network',d['network'],'--memory','512m','--memory-swap','512m','--cpus','0.5','--pids-limit','128','--log-opt','max-size=5m','--log-opt','max-file=2','--env-file',str(envfile),'-v',volume+':/tmp/storage-data',image)
         admin=endpoint(name,5001);headers={'apikey':values['admin'],'content-type':'application/json'};wait(admin+'/tenants',headers)
         stage('tenant')
         config=dict(payload['storage_tenant']);config['databaseUrl']=f"postgres://{e}_storage:{payload['credentials']['storage']}@{db}:5432/{e}"
