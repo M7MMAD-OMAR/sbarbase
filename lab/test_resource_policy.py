@@ -394,7 +394,8 @@ class BlockIOLimits(unittest.TestCase):
         if not source or not source.startswith('/dev/'):
             self.skipTest('this host reports no device source for /')
         device = source.split('[')[0]
-        self.assertEqual(policy.io_device('/', runner=lambda target: device + '[/root]'), device)
+        # A partition resolves to its whole disk, which is what io.max accepts.
+        self.assertEqual(policy.io_device('/', runner=lambda target: device + '[/root]'), policy.whole_disk(device))
 
     def test_a_partition_is_limited_through_its_whole_disk(self):
         # Mirrors sysfs: /sys/class/block/vda3 links into the disk's own directory.
