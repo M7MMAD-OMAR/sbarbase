@@ -1,5 +1,4 @@
 """Live database fence on a disposable environment, retaining recovery data."""
-import fcntl
 import json
 import secrets
 import subprocess
@@ -60,7 +59,4 @@ def main():
 
 
 if __name__=='__main__':
-    try:
-        with (runtime.STATE/'operation.lock').open('a') as lock:
-            fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB);main()
-    except Exception:raise SystemExit('Fence probe failed; sensitive output withheld') from None
+    runtime.run_locked(main,'Fence probe failed; sensitive output withheld')

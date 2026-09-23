@@ -1,6 +1,5 @@
 """Run original Auth/REST against retained independent recovery database."""
 import base64
-import fcntl
 import json
 import re
 import secrets
@@ -90,8 +89,4 @@ def main():
 
 
 if __name__=='__main__':
-    try:
-        with (runtime.STATE/'operation.lock').open('a') as lock:
-            fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB);main()
-    except Exception:
-        raise SystemExit('Independent service verification failed; sensitive output withheld') from None
+    runtime.run_locked(main,'Independent service verification failed; sensitive output withheld')

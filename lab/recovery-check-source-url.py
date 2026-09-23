@@ -2,7 +2,6 @@
 The URL is issued after export, so this is not a pre-export URL fixture.
 """
 import base64
-import fcntl
 import json
 import time
 from pathlib import Path
@@ -80,8 +79,4 @@ def main():
 
 
 if __name__=='__main__':
-    try:
-        with (runtime.STATE/'operation.lock').open('a') as lock:
-            fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB);main()
-    except Exception:
-        raise SystemExit('Source URL verification failed; sensitive output withheld') from None
+    runtime.run_locked(main,'Source URL verification failed; sensitive output withheld')

@@ -1,6 +1,5 @@
 """Restore file-backed Storage on the independent recovery target."""
 import base64
-import fcntl
 import json
 import secrets
 import time
@@ -48,14 +47,8 @@ def main():
     def endpoint(container,port):
         address=inspect('container',container)['NetworkSettings']['Networks'][d['network']]['IPAddress']
         return f'http://{address}:{port}'
-    def wait(url,headers=None):
-        for _ in range(60):
-            try:
-                if runtime.http(url,headers=headers)[0]==200:return
-            except OSError:pass
-            time.sleep(.5)
-        raise RuntimeError('Service readiness timed out')
-    def literal(value):return "'"+str(value).replace("'","''")+"'"
+    def wait(url,headers=None):runtime.wait_ready(url,headers,'Service readiness timed out')
+    literal=runtime.sql_literal
     try:
         stage('initialize')
         lab.docker('start',db)
@@ -117,8 +110,4 @@ def main():
 
 
 if __name__=='__main__':
-    try:
-        with (runtime.STATE/'operation.lock').open('a') as lock:
-            fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB);main()
-    except Exception:
-        raise SystemExit('Storage recovery failed; private stage retained, sensitive output withheld') from None
+    runtime.run_locked(main,'Storage recovery failed; private stage retained, sensitive output withheld')

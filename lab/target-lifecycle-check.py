@@ -1,5 +1,4 @@
 """Exercise target up/stop/restart and replace stale placement before admission."""
-import fcntl
 import json
 import subprocess
 import durable_runtime as runtime
@@ -32,7 +31,4 @@ def main():
 
 
 if __name__=='__main__':
-    try:
-        with (runtime.STATE/'operation.lock').open('a') as lock:
-            fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB);main()
-    except Exception:raise SystemExit('Target lifecycle check failed; inspect retained state') from None
+    runtime.run_locked(main,'Target lifecycle check failed; inspect retained state')

@@ -1,6 +1,5 @@
 """Verify existing restored target without modifying its database contents."""
 import base64
-import fcntl
 import json
 import time
 from pathlib import Path
@@ -39,9 +38,4 @@ def main():
 
 
 if __name__=='__main__':
-    try:
-        with (runtime.STATE/'operation.lock').open('a') as lock:
-            fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
-            main()
-    except Exception:
-        raise SystemExit('Boundary verification failed; sensitive output withheld') from None
+    runtime.run_locked(main,'Boundary verification failed; sensitive output withheld')

@@ -32,6 +32,17 @@ def is_mail_key(key):
     return key.startswith(MAIL_KEY_PREFIXES)
 
 
+def run_locked(main, failure):
+    """Run main under the installation operation lock. Any failure, a held lock included,
+    exits with only the given message, so no sensitive output reaches the terminal."""
+    try:
+        with (STATE/'operation.lock').open('a') as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            main()
+    except Exception:
+        raise SystemExit(failure) from None
+
+
 def hba_content(environments):
     """The desired rule inventory for one set of environment identifiers.
 
@@ -89,6 +100,23 @@ def http(url, method='GET', body=None, headers=None):
         response = error
     with response:
         return response.status, response.read()
+
+
+def wait_ready(url, headers=None, failure='Runtime readiness timed out'):
+    """Poll for up to thirty seconds until url answers 200, then raise failure."""
+    for _ in range(60):
+        try:
+            if http(url, headers=headers)[0] == 200:
+                return
+        except OSError:
+            pass
+        time.sleep(.5)
+    raise RuntimeError(failure)
+
+
+def sql_literal(value):
+    """A SQL string literal with every quote doubled."""
+    return "'"+str(value).replace("'","''")+"'"
 
 
 def token(secret, role):
@@ -176,14 +204,7 @@ class Runtime:
         return f'http://{address}:{port}'
 
     def wait(self, url, headers=None):
-        for _ in range(60):
-            try:
-                if http(url, headers=headers)[0] == 200:
-                    return
-            except (OSError, TimeoutError):
-                pass
-            time.sleep(.5)
-        raise RuntimeError('Runtime readiness timed out')
+        wait_ready(url, headers)
 
     def hba(self):
         if self.hba_writer is None:raise RuntimeError('Explicit HBA ownership required')

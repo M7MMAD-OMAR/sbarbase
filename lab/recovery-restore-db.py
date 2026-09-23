@@ -2,7 +2,6 @@
 Database stage only. Application/object/signed-URL verification follows separately.
 """
 import base64
-import fcntl
 import hashlib
 import json
 import re
@@ -34,8 +33,7 @@ def notify(kind,severity,dedupe_key,subject,reason,detail,catalog=None):
                                        catalog=catalog if catalog is not None else NOTIFY_CATALOG)
 
 
-def quote(value):
-    return "'"+str(value).replace("'","''")+"'"
+quote=runtime.sql_literal
 
 
 def identifier(value):
@@ -223,8 +221,4 @@ def main():
 
 
 if __name__=='__main__':
-    try:
-        with (runtime.STATE/'operation.lock').open('a') as lock:
-            fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB);main()
-    except Exception:
-        raise SystemExit('Independent database restore failed; inspect private stage descriptor, sensitive output withheld.') from None
+    runtime.run_locked(main,'Independent database restore failed; inspect private stage descriptor, sensitive output withheld.')

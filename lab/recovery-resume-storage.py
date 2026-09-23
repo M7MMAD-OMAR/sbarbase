@@ -1,9 +1,7 @@
 """Explicit read-only continuation after Storage restoration, before verification."""
 import base64
-import fcntl
 import json
 import secrets
-import time
 from pathlib import Path
 from urllib.parse import quote
 import durable_runtime as runtime
@@ -30,7 +28,7 @@ def main():
     payload=open_bundle(json.loads(Path(d['archive']).read_text()),base64.b64decode(Path(d['key']).read_text(),validate=True))
     image=json.loads((lab.ROOT/'lab/storage-image.lock.json').read_text())['id']
     if image!=payload['images']['storage']['id']:raise RuntimeError('Storage image mismatch')
-    name=d['prefix']+'-storage';volume=d['prefix']+'-objects';auth=d['prefix']+'-auth'
+    name=d['prefix']+'-storage'
     for item in (db,name):
         if not inspect('container',item):raise RuntimeError('Target unavailable')
     values=json.loads((runtime.PRIVATE/(d['prefix']+'-storage.json')).read_text())
@@ -44,14 +42,7 @@ def main():
     def endpoint(container,port):
         address=inspect('container',container)['NetworkSettings']['Networks'][d['network']]['IPAddress']
         return f'http://{address}:{port}'
-    def wait(url,headers=None):
-        for _ in range(60):
-            try:
-                if runtime.http(url,headers=headers)[0]==200:return
-            except OSError:pass
-            time.sleep(.5)
-        raise RuntimeError('Service readiness timed out')
-    def literal(value):return "'"+str(value).replace("'","''")+"'"
+    def wait(url,headers=None):runtime.wait_ready(url,headers,'Service readiness timed out')
     try:
         lab.docker('start',db);lab.docker('start',name)
         public=endpoint(name,5000)
@@ -85,8 +76,4 @@ def main():
 
 
 if __name__=='__main__':
-    try:
-        with (runtime.STATE/'operation.lock').open('a') as lock:
-            fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB);main()
-    except Exception:
-        raise SystemExit('Storage recovery failed; private stage retained, sensitive output withheld') from None
+    runtime.run_locked(main,'Storage recovery failed; private stage retained, sensitive output withheld')

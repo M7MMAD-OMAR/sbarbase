@@ -1,6 +1,5 @@
 """Start verified target, exercise managed placement, retain paused target afterward."""
 import base64
-import fcntl
 import json
 import re
 import subprocess
@@ -37,13 +36,7 @@ def main():
     for name in names:inspect(name)
     def sql(query):return lab.docker('exec','-i',db,'psql','-X','-At','-v','ON_ERROR_STOP=1','-U','supabase_admin','-d',e,data=query).stdout
     def endpoint(kind,port):return 'http://'+inspect(d['prefix']+'-'+kind)['NetworkSettings']['Networks'][d['network']]['IPAddress']+':'+str(port)
-    def wait(url,headers=None):
-        for _ in range(60):
-            try:
-                if runtime.http(url,headers=headers)[0]==200:return
-            except OSError:pass
-            time.sleep(.5)
-        raise RuntimeError('Target readiness failed')
+    def wait(url,headers=None):runtime.wait_ready(url,headers,'Target readiness failed')
     try:
         op['phase']='target-starting';runtime.atomic(record,op)
         lab.docker('start',db)
@@ -84,7 +77,4 @@ def main():
 
 
 if __name__=='__main__':
-    try:
-        with (runtime.STATE/'operation.lock').open('a') as lock:
-            fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB);main()
-    except Exception:raise SystemExit('Managed cutover check failed; retained operation requires reconciliation') from None
+    runtime.run_locked(main,'Managed cutover check failed; retained operation requires reconciliation')

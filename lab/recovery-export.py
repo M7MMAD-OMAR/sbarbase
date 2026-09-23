@@ -2,7 +2,6 @@
 Stops the owned source stack. No target restore or off-host backup is claimed.
 """
 import base64
-import fcntl
 import hashlib
 import json
 import os
@@ -12,7 +11,6 @@ import re
 import secrets
 import sqlite3
 import subprocess
-from pathlib import Path
 import durable_runtime as runtime
 import notification_producers
 import run as lab
@@ -205,12 +203,11 @@ def main(cutover=False):
     print(f'{len(checks)} recovery export checks passed; private artifact retained.')
 
 
+def standalone():
+    import sys
+    if len(sys.argv)!=1:raise RuntimeError('Use cutover-export.py for coordinated fencing')
+    main()
+
+
 if __name__=='__main__':
-    try:
-        with (runtime.STATE/'operation.lock').open('a') as lock:
-            fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
-            import sys
-            if len(sys.argv)!=1:raise RuntimeError('Use cutover-export.py for coordinated fencing')
-            main()
-    except Exception:
-        raise SystemExit('Recovery export failed; private state retained, sensitive output withheld.') from None
+    runtime.run_locked(standalone,'Recovery export failed; private state retained, sensitive output withheld.')
