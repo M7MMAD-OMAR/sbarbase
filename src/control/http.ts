@@ -144,6 +144,7 @@ export function managementHandler(catalog:Catalog,identify:ManagementIdentity,ma
         return reply(400,{message:'Invalid request'});
       if(error instanceof Error&&error.message==='Forbidden') return reply(403,{message:'Forbidden'});
       if(error instanceof Error&&error.message==='Name already used') return reply(409,{message:'Name already used'});
+      if(error instanceof Error&&error.message==='Environment capacity reached') return reply(409,{message:'Environment capacity reached'});
       return reply(500,{message:'Management operation failed'});
     }
   };

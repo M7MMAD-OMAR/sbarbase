@@ -100,6 +100,11 @@ function credentialShape(value:string):boolean {
  * authentication, never request bodies or application JWTs. Not an HTTP API.
  * Placement and runtime credentials deliberately do not belong to ownership.
  */
+/** Environments one installation may hold. Mirrors ENVIRONMENT_LIMIT in lab/durable_runtime.py,
+ * which stays the enforcing check; this one refuses before a job is queued, so the request
+ * answers 409 instead of queueing work the worker must then refuse. */
+export const ENVIRONMENT_LIMIT=4;
+
 /** Bumped with each step of Catalog.migrate(). */
 export const CATALOG_SCHEMA_VERSION=2;
 
@@ -210,6 +215,11 @@ export class Catalog {
       }
       this.db.exec(`PRAGMA user_version=${CATALOG_SCHEMA_VERSION}`);
     }).immediate();
+  }
+  /** Counts the environments that hold or may take a runtime slot: queued, running or ready. */
+  private requireEnvironmentCapacity() {
+    const held=this.db.query<{n:number},[]>("SELECT count(*) n FROM provision_jobs WHERE state IN ('queued','running','succeeded')").get()!.n;
+    if(held>=ENVIRONMENT_LIMIT)throw new Error('Environment capacity reached');
   }
   schemaVersion():number {
     return this.db.query<{user_version:number},[]>('PRAGMA user_version').get()!.user_version;
@@ -401,6 +411,7 @@ export class Catalog {
       const parent=this.project(actor,project,['owner','admin']);
       if(this.db.query('SELECT 1 FROM environments WHERE project=? AND name=?').get(project,title))
         throw new Error('Name already used');
+      this.requireEnvironmentCapacity();
       this.db.query('INSERT INTO environments VALUES (?,?,?)').run(id,project,title);
       this.db.query('INSERT INTO provision_jobs(environment,runtime,actor,organization,state) VALUES (?,?,?,?,?)')
         .run(id,'e_'+randomBytes(12).toString('hex'),actor,parent.organization,'queued');
@@ -544,6 +555,7 @@ export class Catalog {
   retryProvision(actor:string,environment:string) {
     this.db.transaction(()=>{
       const parent=this.environmentProject(actor,environment,['owner','admin']);
+      this.requireEnvironmentCapacity();
       const result=this.db.query("UPDATE provision_jobs SET state='queued',actor=?,organization=?,claim=NULL,failure=NULL WHERE environment=? AND state IN ('failed','cancelled')")
         .run(actor,parent.organization,environment);
       if(result.changes!==1) throw new Error('Operation is not retryable');

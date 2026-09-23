@@ -3,7 +3,8 @@ import {Database} from 'bun:sqlite';
 import {mkdtempSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {Catalog} from '../src/control/catalog';
+import {readFileSync} from 'node:fs';
+import {Catalog,ENVIRONMENT_LIMIT} from '../src/control/catalog';
 import {managementHandler} from '../src/control/http';
 import {KeyStore} from '../src/control/keys';
 import {keyHandler} from '../src/control/key-http';
@@ -168,4 +169,30 @@ test('the catalog migrates an older file in place and refuses one written by a n
     const newer=new Database(duplicated);newer.exec('PRAGMA user_version=99');newer.close();
     expect(()=>new Catalog(duplicated)).toThrow('newer than this release');
   } finally {rmSync(directory,{recursive:true});}
+});
+
+test('the API refuses an environment past the installation limit before queueing it',async()=>{
+  const catalog=new Catalog(':memory:');
+  try {
+    const a=catalog.createOrganization('alice','A'),b=catalog.createOrganization('bob','B');
+    const p=catalog.createProject('alice',a,'P'),q=catalog.createProject('bob',b,'Q');
+    for(let index=0;index<ENVIRONMENT_LIMIT;index++)catalog.createEnvironment('alice',p,'e'+index);
+    const handler=managementHandler(catalog,async request=>request.headers.get('authorization'),'.');
+    const response=await handler(new Request(`http://local/management/v1/projects/${q}/environments`,{method:'POST',
+      headers:{authorization:'bob','content-type':'application/json'},body:JSON.stringify({name:'production'})}));
+    expect(response.status).toBe(409);
+    expect(catalog.listEnvironments('bob',q)).toEqual([]);
+    // A cancelled job frees its slot, and retrying it takes the slot back.
+    const cancelled=catalog.listEnvironments('alice',p)[0]!.id;
+    const raw=(catalog as unknown as {db:{query:(sql:string)=>{run:(...args:unknown[])=>unknown}}}).db;
+    raw.query("UPDATE provision_jobs SET state='cancelled' WHERE environment=?").run(cancelled);
+    expect(catalog.createEnvironment('bob',q,'production')).toBeString();
+    expect(()=>catalog.retryProvision('alice',cancelled)).toThrow('Environment capacity reached');
+  } finally {catalog.close();}
+});
+
+test('the API limit and the runtime guard name the same number',()=>{
+  const source=readFileSync(new URL('../lab/durable_runtime.py',import.meta.url),'utf8');
+  expect(source).toContain(`ENVIRONMENT_LIMIT = ${ENVIRONMENT_LIMIT}\n`);
+  expect(source).toContain('> ENVIRONMENT_LIMIT:');
 });
