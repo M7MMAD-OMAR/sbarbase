@@ -8,6 +8,7 @@
 #   deploy/server-acceptance.sh --bootstrap-file /path/to/operator.json
 #   deploy/server-acceptance.sh --rehearse --skip-install
 #   sudo deploy/server-acceptance.sh --rehearse --install-unit --bootstrap-file /path/operator.json
+#   sudo deploy/server-acceptance.sh --rehearse --install-unit --first-project --bootstrap-file /path/operator.json
 #
 # The supervised installation runs as an account that exists on the server and
 # holds the checkout. Name it when it is not 'sbarbase', the shipped default:
@@ -36,6 +37,7 @@ BOOTSTRAP=""
 REHEARSAL=0
 SKIP_INSTALL=0
 INSTALL_UNIT=0
+FIRST_PROJECT=0
 SERVICE_USER=""
 SERVICE_HOME=""
 BUN_DIR=""
@@ -53,13 +55,14 @@ while [ $# -gt 0 ]; do
     --rehearse) REHEARSAL=1 ;;
     --skip-install) SKIP_INSTALL=1 ;;
     --install-unit) INSTALL_UNIT=1 ;;
+    --first-project) FIRST_PROJECT=1 ;;
     --bootstrap-file) shift; [ $# -gt 0 ] || fail "--bootstrap-file needs a path"; BOOTSTRAP="$1" ;;
     --service-user) shift; [ $# -gt 0 ] || fail "--service-user needs an account name"; SERVICE_USER="$1" ;;
     --home) shift; [ $# -gt 0 ] || fail "--home needs a path"; SERVICE_HOME="$1" ;;
     --bun-dir) shift; [ $# -gt 0 ] || fail "--bun-dir needs a path"; BUN_DIR="$1" ;;
     --docker-host) shift; [ $# -gt 0 ] || fail "--docker-host needs an endpoint"; DOCKER_HOST_ARG="$1" ;;
     --python) shift; [ $# -gt 0 ] || fail "--python needs a path"; PYTHON="$1" ;;
-    -h|--help) sed -n '2,29p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,30p' "$0"; exit 0 ;;
     *) fail "unknown argument: $1" ;;
   esac
   shift
@@ -245,6 +248,8 @@ fi
 
 if [ "${STOPPED_UNIT:-0}" = "1" ]; then
   restore_unit_on_exit
+  # Restored once here; the exit trap must not start it a second time.
+  STOPPED_UNIT=0
   unit_control is-active --quiet sbarbase.service || fail "sbarbase.service is not active after the rehearsal"
 fi
 
@@ -267,4 +272,20 @@ for item in record.get('checks',[]):
 raise SystemExit(0 if record.get('passed') else 1)
 PY
 printf '\nEvidence: %s (copy kept at docs/evidence/server-acceptance-latest.json)\n' "$evidence"
+
+# The rehearsal proves the installation starts with no environments. --first-project
+# then does what a new operator does against the supervised installation: a project,
+# an environment provisioned by the worker, a key and supabase-js through the gateway.
+if [ "$FIRST_PROJECT" = "1" ]; then
+  step "first project"
+  [ -n "$BOOTSTRAP" ] || fail "--first-project needs --bootstrap-file to log in as the operator"
+  unit_control is-active --quiet sbarbase.service || fail "--first-project needs the supervised installation running"
+  for _ in $(seq 1 60); do
+    [ -f .lab/upstream/server.json ] && break
+    sleep 2
+  done
+  [ -f .lab/upstream/server.json ] || fail "the supervised console did not publish its address"
+  run_as_installation bun lab/first-project-check.ts "$BOOTSTRAP" --evidence docs/evidence/first-project-check.json \
+    || fail "first project check failed; the recorded findings are in docs/evidence/first-project-check.json"
+fi
 printf 'Server acceptance: PASSED\n'

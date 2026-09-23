@@ -99,6 +99,18 @@ class AcceptanceScriptContractTests(unittest.TestCase):
         self.assertIn('bun install --frozen-lockfile',section)
         self.assertIn('lab/console_build_check.py',section)
 
+    def test_the_first_project_step_runs_only_on_request_and_after_the_unit_is_back(self):
+        self.assertIn('--first-project) FIRST_PROJECT=1',self.source)
+        step=self.source.index('step "first project"')
+        self.assertGreater(step,self.source.index('step "evidence"'))
+        section=self.source[step:]
+        self.assertIn('--first-project needs --bootstrap-file',section)
+        self.assertIn('lab/first-project-check.ts "$BOOTSTRAP"',section)
+
+    def test_the_unit_is_restored_once_not_again_by_the_exit_trap(self):
+        restore=self.source.index('  restore_unit_on_exit\n  # Restored once here')
+        self.assertIn('STOPPED_UNIT=0',self.source[restore:restore+200])
+
     def test_bun_dir_is_added_to_path_for_every_step(self):
         self.assertIn('PATH="$BUN_DIR:$PATH"',self.source)
         self.assertIn('export PATH',self.source)
