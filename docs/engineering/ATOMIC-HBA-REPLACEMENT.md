@@ -10,7 +10,7 @@ Length and checksum validation are essential: sender death closes the pipe, and 
 
 Run `/usr/bin/python3 lab/partial-database-crash-check.py --upstream --hba`.
 
-[36 live checks](evidence/upstream-atomic-hba-checks.json) pass in a bounded, network-disabled disposable upstream container. The probe reproduces legacy truncation after producer EOF, verifies rejection of short and equal-length corrupted content, then kills the stopped helper before and after rename. Before rename the complete old file remains. After rename the complete new file remains, although acknowledgment was lost. Mode/uid/gid are preserved; PostgreSQL parses the new file without errors and accepts an explicit reload signal. Exact disposable cleanup succeeds.
+[36 live checks](../evidence/upstream-atomic-hba-checks.json) pass in a bounded, network-disabled disposable upstream container. The probe reproduces legacy truncation after producer EOF, verifies rejection of short and equal-length corrupted content, then kills the stopped helper before and after rename. Before rename the complete old file remains. After rename the complete new file remains, although acknowledgment was lost. Mode/uid/gid are preserved; PostgreSQL parses the new file without errors and accepts an explicit reload signal. Exact disposable cleanup succeeds.
 
 The full Python checkpoint remains 121 passing tests. The fresh real worker/Auth/REST/Storage lifecycle also passes 57 checks after this change, with SDK positive/negative access tests and exact isolated cleanup. Independent review found no must-fix in complete-file replacement. A successful reload signal does not prove every backend has adopted the new authentication rules. This is not a power-loss filesystem test.
 

@@ -40,7 +40,7 @@ unit tests `lab/test_hba_adoption.py`.
 
 ## Adversarial review and fixes, 2026-09-20
 
-Independent adversarial review: docs/reviews/legacy-adoption-review.md. Five
+Independent adversarial review: docs/engineering/reviews/legacy-adoption-review.md. Five
 must-fix findings were established and all five are now fixed, each with a
 regression test that fails against the previous code:
 

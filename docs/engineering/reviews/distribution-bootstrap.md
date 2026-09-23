@@ -1,6 +1,6 @@
 # Supabase PostgreSQL distribution probe
 
-Recorded 2026-09-20. Image `public.ecr.aws/supabase/postgres:17.6.1.166`, pinned by image ID and repository digest in [lockfile](../../lab/distro-image.lock.json). Server reports PostgreSQL 17.6. Original Auth is the already pinned v2.196.0 image. These are installed local images, not a claim to match every version in current upstream Compose.
+Recorded 2026-09-20. Image `public.ecr.aws/supabase/postgres:17.6.1.166`, pinned by image ID and repository digest in [lockfile](../../../lab/distro-image.lock.json). Server reports PostgreSQL 17.6. Original Auth is the already pinned v2.196.0 image. These are installed local images, not a claim to match every version in current upstream Compose.
 
 ## Findings that change implementation
 
@@ -10,7 +10,7 @@ Recorded 2026-09-20. Image `public.ecr.aws/supabase/postgres:17.6.1.166`, pinned
 4. Final effective memberships matter more than the first initialization SQL: the image's initial bootstrap grants supabase_admin to authenticator, but the completed migration state removes that membership. The probe verifies the final denial. The complete sanitized role graph is included in evidence.
 5. Shared canonical API roles are NOLOGIN. This does not establish isolation for every component or make inherited administrative roles safe for environment service credentials.
 
-Ten checks passed in an ephemeral, network-isolated database/Auth pair. Container ceilings were 1280 MiB and 1.25 logical CPUs. Both owned containers and temporary environment files were removed afterward. No production volumes were attached. [Evidence](../evidence/distro-checks.json).
+Ten checks passed in an ephemeral, network-isolated database/Auth pair. Container ceilings were 1280 MiB and 1.25 logical CPUs. Both owned containers and temporary environment files were removed afterward. No production volumes were attached. [Evidence](../../evidence/distro-checks.json).
 
 ## Required next gate
 
@@ -25,7 +25,7 @@ Sources inspected: [upstream Compose](https://github.com/supabase/supabase/blob/
 
 The follow-up probe `lab/upstream-environments.py` now provisions two environment databases on one initialized Supabase PostgreSQL image. The reusable environment reconciler accepts a scoped SQL executor; it creates unique Auth/REST logins, databases and Auth schema ownership without replaying cluster bootstrap. Each database enables pgcrypto and uuid-ossp under extensions. Exact login/database HBA rules deny neighbor and administrative databases. Shared canonical API roles retain compatibility.
 
-Original Auth performs its own per-database migrations, including auth.uid and auth.jwt. The test never replaces those functions. Forty live checks passed: scoped table ownership, credentials accepted only for intended databases, REST login denied SET ROLE supabase_admin, real signup, original-helper RLS reads/writes, forged-owner denial, second-user isolation, crossed Auth/REST tokens, same-email identity separation, bootstrap retry and Auth restart preserving accounts/database identity. [Evidence](../evidence/upstream-environment-checks.json).
+Original Auth performs its own per-database migrations, including auth.uid and auth.jwt. The test never replaces those functions. Forty live checks passed: scoped table ownership, credentials accepted only for intended databases, REST login denied SET ROLE supabase_admin, real signup, original-helper RLS reads/writes, forged-owner denial, second-user isolation, crossed Auth/REST tokens, same-email identity separation, bootstrap retry and Auth restart preserving accounts/database identity. [Evidence](../../evidence/upstream-environment-checks.json).
 
 An initial test failed with an empty JWT role because the new probe omitted GOTRUE_JWT_DEFAULT_GROUP_NAME. The function definition and EXECUTE/schema privileges were correct. Setting the canonical authenticated default resolved the failure. Auth/REST configuration builders are now shared with the existing lab to avoid this configuration drift; the forty checks passed again after that refactor.
 

@@ -7,18 +7,18 @@ lifecycle rehearsal passes on the development host (11 of 11 checks,
 `docs/evidence/deployment-rehearsal.json`). It has **not** been run on a real
 server, and two independent adversarial reviews of the deployment code found
 defects that are now fixed
-([review](reviews/target-and-deployment-review.md),
-[second review](reviews/deployment-tooling-review-2.md)); the fresh target and
+([review](../engineering/reviews/target-and-deployment-review.md),
+[second review](../engineering/reviews/deployment-tooling-review-2.md)); the fresh target and
 retained adoption paths are proven on disposable fixtures and on the retained
 databases, not through a full restore or install. Read
-[DEPLOYMENT-READINESS](DEPLOYMENT-READINESS.md) for the itemised status.
+[DEPLOYMENT-READINESS](../reference/deployment-readiness.md) for the itemised status.
 
 ## Prerequisites
 
 | Requirement | Why |
 |---|---|
 | Linux x86-64 host with Docker (native daemon, not remote) | every placement runs pinned containers |
-| Bun on PATH (for a system service, add its directory to the unit's `PATH`, e.g. `/home/sbarah/.bun/bin`) | package manager, console build, gateway checks |
+| Bun on PATH (for a system service, add its directory to the unit's `PATH`, e.g. `/home/sbarbase/.bun/bin`) | package manager, console build, gateway checks |
 | `/usr/bin/python3` 3.14 or newer | the lab runtime uses modern f-strings |
 | Git checkout of this repository | state and lock files live in the checkout by default |
 | Headroom: about 9 GiB free before install, and the preflight states the exact figure it needs and refuses below it | `CombinedAdmission` and `ResourceAdmission` measure the host; the requirement is the combined placement (5888 MiB of container limits) plus a 2560 MiB reserve, plus, on an installation that has been moved, the measured cost of the already-running source stage recorded in `docs/evidence/source-stage-footprint.json`. Measured on the development host: 8758 to 8810 MiB, refused with `host_memory_headroom` below it and green at 8900 MiB free. The preflight prints the composition, so a refusal names each term |
@@ -26,7 +26,7 @@ databases, not through a full restore or install. Read
 | Docker socket access for the service user | the supervisor starts and stops owned containers only. The unit reaches the socket its Docker context resolves to; a host whose context points elsewhere (a Docker Desktop socket, for example) must forward `DOCKER_HOST` in the unit, and the preflight names the endpoint it tried when the daemon is unreachable |
 
 Pinned images are pulled by digest on install; no floating tags are used. See
-[upstream update policy](UPSTREAM-UPDATE-POLICY.md) before changing any pin.
+[upstream update policy](../engineering/UPSTREAM-UPDATE-POLICY.md) before changing any pin.
 
 ## Install
 
@@ -262,7 +262,7 @@ reverse proxy. The shipped proxy terminates exactly one upstream, so it needs a
 second upstream and a host allowlist, or the operator brings their own proxy or an
 SSH tunnel. Studio has no login of its own and its pages carry a database connection
 string, so it must never be reachable unauthenticated, and it must not ride the data
-plane's route pattern. [Integration specification](STUDIO-INTEGRATION.md), sections 4
+plane's route pattern. [Integration specification](../engineering/STUDIO-INTEGRATION.md), sections 4
 and 5, covers the gate and the routing options.
 
 A reference termination ships with the repository and is exercised by the check
@@ -319,11 +319,13 @@ already holds a usable database can instead be adopted in place with
 
 ## Backup, upgrade and rollback
 
+The step by step versions are [backup and restore](backup-and-restore.md) and [upgrades](upgrades.md).
+
 - Backup: stop the supervisor, then back up the `pgdata` volumes plus the
   private state directory. The encrypted export and independent-restore path is
-  documented in [INDEPENDENT-RESTORE](INDEPENDENT-RESTORE.md); it is the only
+  documented in [INDEPENDENT-RESTORE](../engineering/INDEPENDENT-RESTORE.md); it is the only
   restore path with recorded evidence.
-- Upgrade: follow [UPSTREAM-UPDATE-POLICY](UPSTREAM-UPDATE-POLICY.md): read the
+- Upgrade: follow [UPSTREAM-UPDATE-POLICY](../engineering/UPSTREAM-UPDATE-POLICY.md): read the
   upstream changelog, write a dated entry in `docs/upstream/`, adopt one
   component at a time, run the full Python and Bun suites plus the live checks,
   and record the rollback pin before starting.

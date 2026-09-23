@@ -13,7 +13,7 @@ This planning reserve is not an exclusive PostgreSQL reservation for management 
 
 ## Evidence
 
-[Seven live checks](evidence/connection-limit-checks.json) saturated one actual environment Auth login using concurrent owned sessions, observed PostgreSQL reject an extra login, and verified neighboring environment SQL access and operator access still worked. Probe connections were terminated by a unique application name before the owned runtime stopped. No credentials were printed or placed in command arguments. The fixture did not modify application data.
+[Seven live checks](../evidence/connection-limit-checks.json) saturated one actual environment Auth login using concurrent owned sessions, observed PostgreSQL reject an extra login, and verified neighboring environment SQL access and operator access still worked. Probe connections were terminated by a unique application name before the owned runtime stopped. No credentials were printed or placed in command arguments. The fixture did not modify application data.
 
 Four Python budget tests cover default-cluster accounting, reserved slots, invalid measurements and refusal before credential persistence. The complete Python suite now contains 22 passing tests.
 

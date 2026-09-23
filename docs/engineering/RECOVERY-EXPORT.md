@@ -8,7 +8,7 @@ This prepares the input for a separate-cluster rehearsal. No target restore has 
 
 Signing keys are decrypted inside the pinned source Storage process and enclosed in the new AES-256-GCM artifact. The shared platform encryption key and administrator credentials are not intentionally added to the configuration payload. This is not a scan proving those values cannot be embedded inside application database contents.
 
-[29 live export checks](evidence/recovery-export-checks.json) passed: 3 roles, 2 objects and 1 signing key, a 167,743-byte database dump and a 307,077-byte encrypted artifact. The archive round trip matched its input. Thirty-four Python tests pass, including wrong-key/corruption rejection, strict envelope format and subprocess output-size rejection.
+[29 live export checks](../evidence/recovery-export-checks.json) passed: 3 roles, 2 objects and 1 signing key, a 167,743-byte database dump and a 307,077-byte encrypted artifact. The archive round trip matched its input. Thirty-four Python tests pass, including wrong-key/corruption rejection, strict envelope format and subprocess output-size rejection.
 
 ## Consistency and resource scope
 

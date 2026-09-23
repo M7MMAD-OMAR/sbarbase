@@ -45,7 +45,7 @@ that says what the isolation does and does not do.
   policy tier with a CPU weight, a block IO weight and per device read and write
   bandwidth and IOPS limits. The device is resolved from the host rather than
   written down, and a launch refuses rather than starting a container with no
-  block IO separation. `lab/resource_policy.py`, `docs/RESOURCE-POLICY.md`.
+  block IO separation. `lab/resource_policy.py`, `docs/engineering/RESOURCE-POLICY.md`.
 - **A counted placement derived from the daemon.** Admission reads the containers
   the daemon attributes to the owner label instead of a hand written name list, so
   a component nobody told the module about is still counted, and a labelled
@@ -58,7 +58,7 @@ that says what the isolation does and does not do.
 - **Per environment mail.** One 0600 configuration file per environment, an Auth
   environment built from it, an explicit reconcile command that recreates one
   environment's Auth to apply or remove a configuration, and a non secret state
-  file. `lab/mail_config.py`, `lab/mail_state.py`, `docs/ENVIRONMENT-EMAIL.md`.
+  file. `lab/mail_config.py`, `lab/mail_state.py`, `docs/engineering/ENVIRONMENT-EMAIL.md`.
 - **Operator notifications.** A durable outbox and delivery tables whose rows
   commit inside the transaction that records the state change they describe, a
   drain inside the worker, an email channel and a signed webhook channel, a
@@ -66,7 +66,7 @@ that says what the isolation does and does not do.
   durable state changes (installation started, stopped and failed start, worker
   restart and restart limit, fence applied and released, export completed and
   failed, restore verified and failed). `lab/notify.py`,
-  `lab/notification_producers.py`, `docs/OPERATOR-NOTIFICATIONS.md`.
+  `lab/notification_producers.py`, `docs/engineering/OPERATOR-NOTIFICATIONS.md`.
 - **Console surfaces for both.** A read only route for an environment's mail state
   and one for the undelivered notification count, with the mail state on the
   environment surface and the count in the console shell.
@@ -144,7 +144,7 @@ Stated here rather than left to be discovered:
 - **The container generation migration is deferred**, so a retained database
   container cannot be recreated. The tier contract therefore applies to placements
   created after it, and the retained placement on a development host stays
-  grandfathered. `docs/plans/2026-09-21-generation-migration-plan.md` is the plan.
+  grandfathered. `docs/engineering/plans/2026-09-21-generation-migration-plan.md` is the plan.
 - **Two measurements are blocked, not merely unrun**: the arrival driven pressure
   experiment and the mixed SDK load. Their only fixture generator,
   `lab/durable-check.ts`, is disabled pending that migration, and its fixture on a

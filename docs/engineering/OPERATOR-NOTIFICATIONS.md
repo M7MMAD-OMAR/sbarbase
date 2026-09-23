@@ -129,7 +129,7 @@ push.
   retained upstream catalog today (52 pause, 51 resume, 49 stage).
 - Cutover journal: `.lab/upstream/cutover-operation.json`, phase recorded as
   `target-stopped-routing-paused` and later `target-services-verified-routing-paused`
-  (docs/RESUME-CHECKPOINT.md:15, docs/INDEPENDENT-RESTORE.md:100).
+  (docs/engineering/handoff/RESUME-CHECKPOINT.md:15, docs/engineering/INDEPENDENT-RESTORE.md:100).
 
 Durable today: routing changes are durable in `audit_events` and `runtime_routing`;
 database fences are durable only as private JSON records. Missing: a push on both, and a
@@ -148,7 +148,7 @@ durable catalog record for the database fence.
   stage descriptor, sensitive output withheld."
 - Interrupted restore reconciliation: `lab/recovery_reconcile.py` under the operation lock,
   and `lab/retire_recovery_target.py --reason TEXT` for retirement
-  (docs/SERVER-DEPLOYMENT.md:301-318).
+  (docs/guides/server-deployment.md:301-318).
 
 Durable today: the private descriptor `.lab/upstream/recovery-target.json` and the evidence
 files. Missing: a catalog event and a push for verified, interrupted, failed and
@@ -749,18 +749,18 @@ the path.
 
 - Any credential, database connection string, password, JWT, signing secret, API key or key
   digest. Including a publishable key, because the console's rule is already that listings
-  "return key metadata only" (`docs/CONTROL-PLANE.md:36`).
+  "return key metadata only" (`docs/engineering/CONTROL-PLANE.md:36`).
 - Any customer data: rows, table contents, object keys, bucket names, user emails, Auth user
   ids, RLS policy text.
 - Any raw SQL, any upstream response body, any stack trace, any exception message.
 - Any private filesystem path to a credential file. The lesson is recorded in
-  docs/RESUME-CHECKPOINT.md:717-718: "the recorded-command redaction missed the
+  docs/engineering/handoff/RESUME-CHECKPOINT.md:717-718: "the recorded-command redaction missed the
   `--bootstrap-file=PATH` form, which leaked the private path into committed evidence."
   Message templates never carry a path to `.secrets/` or to a bootstrap file; the
   diagnostic path exception in section 6.1 is limited to `.lab/upstream/diagnostics/`, which
   holds no credential and is already 0600 (`lab/installation_runtime.py:114-118`).
 - HTTP request bodies, query strings, cookies or credentials in any log line, which is the
-  rule the TLS proxy already keeps (docs/SERVER-DEPLOYMENT.md:287-288: "logs only method, path
+  rule the TLS proxy already keeps (docs/guides/server-deployment.md:287-288: "logs only method, path
   and status: never bodies, query strings, cookies or credentials").
 
 ### 6.3 Enforced by construction, not by care
@@ -1066,7 +1066,7 @@ Verify:
 Files: new `docs/NOTIFICATIONS.md` (configuration, the webhook receiver contract of section
 3.2 including the 300 second replay window and the deduplication requirement, the failure
 semantics of section 3.4, the retention of section 2.5), plus one paragraph in
-`docs/SERVER-DEPLOYMENT.md` under "Verify after install" and one in `lab/README.md`.
+`docs/guides/server-deployment.md` under "Verify after install" and one in `lab/README.md`.
 
 Verify:
 

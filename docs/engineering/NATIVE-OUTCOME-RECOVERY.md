@@ -24,6 +24,6 @@ The first live run stopped before effect publication, recording `runtime_failed`
 - Missing, partial and mismatched native evidence cannot settle a running claim.
 - Independent lease tests reject a new open description while an inherited holder remains. The actual worker-death cleanup fixture also verifies refusal during guardian cleanup.
 - All 76 Python tests, 67 Bun tests with 377 assertions, and worker/receipt strict types pass.
-- [Twelve live checks](evidence/worker-receipt-checks.json) exercise the real supervisor and native capacity-refusal witness, verifying exact claim identity and unchanged allocation. All four environments respond; all owned runtimes stop afterward. The live Docker check covers refusal, while native success/crash recovery uses a harmless temporary fixture.
+- [Twelve live checks](../evidence/worker-receipt-checks.json) exercise the real supervisor and native capacity-refusal witness, verifying exact claim identity and unchanged allocation. All four environments respond; all owned runtimes stop afterward. The live Docker check covers refusal, while native success/crash recovery uses a harmless temporary fixture.
 
 This proves process-crash recovery of a native reported outcome. Fsyncing its witness alone does not prove earlier configuration files or database/storage changes survive host power loss. Unknown native failures and daemon-side effects still require explicit inspection and reconciliation. No generic receipt-clearing command or automatic replay of uncertain effects has been added.

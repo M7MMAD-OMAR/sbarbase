@@ -9,7 +9,7 @@
 `src/control/catalog.ts` is owned by another agent running in parallel, so this
 fragment carries the exact change instead of applying it.
 
-Source: `docs/ENVIRONMENT-EMAIL.md` section 5.3. Acceptance criteria: the state
+Source: `docs/engineering/ENVIRONMENT-EMAIL.md` section 5.3. Acceptance criteria: the state
 each environment's mail is in must be answerable from the catalog without a
 credential ever entering a row (redteam B.5 question 1, and the rule that a
 secret is protected by not being in the plane, B.4).

@@ -28,6 +28,6 @@ Recorded 2026-09-20. These are concise research conclusions, not production cert
 
 ## Research map
 
-[Component feasibility and pinned Auth scan](reviews/supabase-feasibility.md), [adversarial security and operations](reviews/security-operations.md), [alternative products and licenses](reviews/alternatives-product.md), [benchmark method](reviews/capacity-method.md).
+[Component feasibility and pinned Auth scan](../engineering/reviews/supabase-feasibility.md), [adversarial security and operations](../engineering/reviews/security-operations.md), [alternative products and licenses](../engineering/reviews/alternatives-product.md), [benchmark method](../engineering/reviews/capacity-method.md).
 
 Three independent reviews informed the direction. They are design reviews, not security certification. There is no evidence that Supabase failed to invent a hierarchy; its self-hosted package and its managed cloud have different scopes.

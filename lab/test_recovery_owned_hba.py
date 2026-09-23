@@ -26,7 +26,7 @@ class OwnedHbaWriterTests(unittest.TestCase):
         self.assertLess(absence,evidence)
 
     def test_other_raw_writers_are_inventoried(self):
-        inventory=(LAB.parent/'docs'/'TARGET-HBA-WRITERS.md').read_text()
+        inventory=(LAB.parent/'docs'/'engineering'/'TARGET-HBA-WRITERS.md').read_text()
         for path in ('lab/recovery-check-storage.py','lab/run.py','lab/provision.py','lab/storage_probe.py'):
             with self.subTest(path=path):
                 self.assertIn(path,inventory)

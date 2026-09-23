@@ -33,7 +33,7 @@ service tokens. Do not expose it as a production service.
 
 ## Evidence
 
-[25 live lifecycle checks](../evidence/durable-upstream-checks.json) cover two
+[25 live lifecycle checks](../../evidence/durable-upstream-checks.json) cover two
 environments with original Supabase SDK access through a loopback gateway:
 
 - Worker completion and separate identities for the same email.

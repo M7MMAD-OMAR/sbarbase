@@ -28,7 +28,7 @@ Two facts were established after this design was written, and both change an ass
    test image. The probes therefore carry the image reference as a constant holding both the
    tag and the expected local image id, and refuse to run when the local id differs, which
    keeps the anti-drift property without the install dependency. The pin table in
-   `docs/UPSTREAM-UPDATE-POLICY.md` stays as it is.
+   `docs/engineering/UPSTREAM-UPDATE-POLICY.md` stays as it is.
 
 3. **What an environment with no mail configuration does today is kept, deliberately.** With no
    mail file, the Auth environment stays exactly as it was: `GOTRUE_EXTERNAL_EMAIL_ENABLED` true
@@ -60,8 +60,8 @@ the place that was searched.
 
 | Component | Pin | Source |
 |---|---|---|
-| Auth (GoTrue) | `public.ecr.aws/supabase/gotrue:v2.196.0`, digest `sha256:c0c25187a6b835e65a6f6e6c6b39d090e832d40e6de5186f2c038e0411944232` | `lab/images.lock.json` key `auth`, mirrored in the pin table at `docs/UPSTREAM-UPDATE-POLICY.md:52` |
-| Supabase PostgreSQL (distribution) | `public.ecr.aws/supabase/postgres:17.6.1.166` | `docs/UPSTREAM-UPDATE-POLICY.md:50` |
+| Auth (GoTrue) | `public.ecr.aws/supabase/gotrue:v2.196.0`, digest `sha256:c0c25187a6b835e65a6f6e6c6b39d090e832d40e6de5186f2c038e0411944232` | `lab/images.lock.json` key `auth`, mirrored in the pin table at `docs/engineering/UPSTREAM-UPDATE-POLICY.md:52` |
+| Supabase PostgreSQL (distribution) | `public.ecr.aws/supabase/postgres:17.6.1.166` | `docs/engineering/UPSTREAM-UPDATE-POLICY.md:50` |
 | Mailpit (proposed new pin, for local verification only) | `public.ecr.aws/supabase/mailpit:v1.30.2`, digest `sha256:37a38e48e9338cd7e89dfeb487f37b02ebfcd9cb23111bed2d345e79d37d6dd6` | present on this host, confirmed with `docker image inspect`; see section 6.1 |
 
 Upstream source used for every variable name below: the tag matching the pin,
@@ -240,7 +240,7 @@ code.
 `lab/bootstrap-auth.ts` then creates the operator through the management realm's private
 admin API with the email already confirmed:
 `admin.auth.admin.createUser({email,password,email_confirm:true,app_metadata:{sbarbase_bootstrap:operation}})`.
-No invite mail is sent and none is needed, and `docs/OPERATOR-SETUP.md:64-65` states the
+No invite mail is sent and none is needed, and `docs/guides/operator-setup.md:64-65` states the
 position explicitly: "The setup command does not email an invitation; its private admin
 creation explicitly confirms the operator-supplied email."
 
@@ -848,7 +848,7 @@ Healthcheck ["/mailpit","readyz"]
 ```
 
 Add it to the pin set, one component, one change, in its own commit, following
-`docs/UPSTREAM-UPDATE-POLICY.md` rule 5. New key `mailer` in `lab/images.lock.json`:
+`docs/engineering/UPSTREAM-UPDATE-POLICY.md` rule 5. New key `mailer` in `lab/images.lock.json`:
 
 ```json
 "mailer": {
@@ -871,7 +871,7 @@ reports one more pinned component. Verification command:
 
 Machine identity: Mailpit is a test mailbox. The pin exists so the probe cannot silently run a
 different mailbox binary, and the evidence names the digest for the reason
-`docs/UPSTREAM-UPDATE-POLICY.md` gives: "A pin that resolves to a different digest at the same
+`docs/engineering/UPSTREAM-UPDATE-POLICY.md` gives: "A pin that resolves to a different digest at the same
 tag is a failure, not a warning."
 
 Also note, because it is a prerequisite and it was measured on this host: the runtime network
@@ -1049,7 +1049,7 @@ Each step names the files it touches and the command that verifies it. bun only.
 change no behaviour and are safe to land first.
 
 **Step 1. Pin the test mailbox.**
-Files: `lab/images.lock.json` (one new key, section 6.1), `docs/UPSTREAM-UPDATE-POLICY.md`
+Files: `lab/images.lock.json` (one new key, section 6.1), `docs/engineering/UPSTREAM-UPDATE-POLICY.md`
 (one row in the Current pins table, one entry under Pending components is not needed), a new
 `docs/upstream/2026-09-21-mailer-1.30.2.md` with the four sections rule 2 requires.
 Verify:
@@ -1145,7 +1145,7 @@ Then the visual check per `docs/design/CONSOLE-QA.md`: the four states, and a sc
 the section visible. The section must render no value that could be a credential.
 
 **Step 10. Document the operator procedure.**
-Files: `docs/OPERATOR-SETUP.md` (a new section after the run steps), `docs/DECISIONS.md` (the
+Files: `docs/guides/operator-setup.md` (a new section after the run steps), `docs/decisions/README.md` (the
 decision record: per environment mail file, no password through HTTP, defaults for templates).
 Verify:
 ```
@@ -1155,7 +1155,7 @@ The new section must state the three commands an operator runs (write, show, rec
 the exact words of the disabled default.
 
 **Step 11. Update the pin table's coverage.**
-Files: `docs/UPSTREAM-UPDATE-POLICY.md` if the mailer pin row needs its Notes column filled,
+Files: `docs/engineering/UPSTREAM-UPDATE-POLICY.md` if the mailer pin row needs its Notes column filled,
 `PROJECT.md` (the evidence row).
 Verify: `/usr/bin/python3 -m unittest lab/test_doc_references.py` and a read of the pin table
 against `lab/pin_update.py show`.
@@ -1178,7 +1178,7 @@ against `lab/pin_update.py show`.
 
 1. **No write route for mail configuration.** The password would cross the HTTP boundary and
    would then have to be held somewhere in the API process or the job queue. Both are worse
-   than a 0600 file written by the trusted operator, and `docs/OPERATOR-SETUP.md:36-38`
+   than a 0600 file written by the trusted operator, and `docs/guides/operator-setup.md:36-38`
    already takes that position for the bootstrap: "The setup script is for the trusted host
    operator... It is not an HTTP endpoint." Reconsider only together with a secret transport
    design for the job queue.
@@ -1234,8 +1234,8 @@ sbarbase, this repository:
 | Operator supplied secret file precedent | `lab/operator_file.py:66-91`, `:104-114` |
 | Pins walked from lock files | `lab/install_server.py:47-61` |
 | Pin digest comparison | `lab/pinned_images_check.py` `evaluate` |
-| Pin table and staging rules | `docs/UPSTREAM-UPDATE-POLICY.md:42-84` |
-| Bootstrap deliberately does not email | `docs/OPERATOR-SETUP.md:36-40`, `:62-65` |
+| Pin table and staging rules | `docs/engineering/UPSTREAM-UPDATE-POLICY.md:42-84` |
+| Bootstrap deliberately does not email | `docs/guides/operator-setup.md:36-40`, `:62-65` |
 | Ignored secrets tree | `.gitignore:1-2`, `lab/run.py:13-15` |
 | Catalog schema shape | `src/control/catalog.ts:22-53` |
 | Environment route regex and methods | `src/control/http.ts:46-56` |

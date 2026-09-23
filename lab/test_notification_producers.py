@@ -1,6 +1,6 @@
 """The producer side of the operator notifications: one event per durable state change.
 
-Every producer named in docs/OPERATOR-NOTIFICATIONS.md section 8, step 7 to 9 that is not
+Every producer named in docs/engineering/OPERATOR-NOTIFICATIONS.md section 8, step 7 to 9 that is not
 the catalog itself is exercised here through its real entry point:
 
 - lab/dev.py: installation started, installation stopped, and the supervisor's worker

@@ -1,6 +1,6 @@
 # Active preflight supervisor crash
 
-Verified locally on 2026-09-20 with `lab/active-preflight-crash-check.py`: 25 checks passed. Evidence: [recorded checks](evidence/active-preflight-crash-checks.json).
+Verified locally on 2026-09-20 with `lab/active-preflight-crash-check.py`: 25 checks passed. Evidence: [recorded checks](../evidence/active-preflight-crash-checks.json).
 
 ## What actually happened
 

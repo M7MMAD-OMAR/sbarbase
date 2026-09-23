@@ -8,7 +8,7 @@ This is one bounded local microbenchmark, not a capacity forecast. The database 
 | With neighboring load | 50 | 0.816 | 1.348 | 1.445 |
 | After load | 50 | 0.736 | 0.902 | 1.008 |
 
-[Raw timings and pressure measurements](evidence/noisy-neighbor-sql.json) are saved for reproducibility. PostgreSQL client timing measures SQL execution plus the local connection round trip inside the database container, not end-user request latency. The small observed difference cannot establish tenant isolation under heavier or longer workloads. The pressure snapshot remained below admission thresholds; no live threshold crossing is claimed.
+[Raw timings and pressure measurements](../evidence/noisy-neighbor-sql.json) are saved for reproducibility. PostgreSQL client timing measures SQL execution plus the local connection round trip inside the database container, not end-user request latency. The small observed difference cannot establish tenant isolation under heavier or longer workloads. The pressure snapshot remained below admission thresholds; no live threshold crossing is claimed.
 
 The script uses existing scoped service credentials through a private stdin pipe. It creates no application data, emits no credentials and terminates only sessions carrying its unique application name before stopping the owned runtime. Unrelated Docker services remain running.
 

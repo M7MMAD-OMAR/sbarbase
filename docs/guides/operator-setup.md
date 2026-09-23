@@ -1,7 +1,9 @@
-# Local operator setup
+# Operator setup
 
-Verified 2026-09-20. This is local experimental onboarding. A server deployment
-runbook is in [SERVER-DEPLOYMENT](SERVER-DEPLOYMENT.md). The installer is
+Create the first operator account and the first client (organization) on your
+server. Verified 2026-09-20 on the development workstation. This is local
+experimental onboarding. A server deployment
+runbook is in [SERVER-DEPLOYMENT](server-deployment.md). The installer is
 `lab/install_server.py` (`check`, `plan`, `install`, `smoke`).
 
 ## Current compatibility gate
@@ -12,8 +14,8 @@ databases without that pin require explicit adoption
 (`lab/adopt-retained.py source|target`), and their startup refuses before
 credential writes or service startup. Both retained databases in this checkout
 are adopted as of 2026-09-20. Do not recreate their containers or remove state to
-bypass the gate. See [source HBA integration](SOURCE-HBA-INTEGRATION.md) and
-[recovery-target writers](TARGET-HBA-WRITERS.md).
+bypass the gate. See [source HBA integration](../engineering/SOURCE-HBA-INTEGRATION.md) and
+[recovery-target writers](../engineering/TARGET-HBA-WRITERS.md).
 
 ## Run
 
@@ -66,7 +68,7 @@ private admin creation explicitly confirms the operator-supplied email.
 
 ## Evidence and limits
 
-[18 live checks](evidence/bootstrap-checks.json) verify real management Auth user
+[18 live checks](../evidence/bootstrap-checks.json) verify real management Auth user
 creation, interruption after Auth creation, interruption after catalog commit,
 wrong-password refusal, identity/organization reuse, journal privacy and SDK
 login. They also prove organization discovery, first project creation, denial of
@@ -78,10 +80,10 @@ malformed input, weak/invalid input, oversized input and concurrent-lock refusal
 Interactive password entry was not automated. No actual owner account was
 retained or delivered; the probe removed its generated identity and private files.
 
-Seven new unit tests cover four durable interruption boundaries, password
-verification before authority, revoked ownership and membership-scoped discovery.
-The complete TypeScript suite passes 34 tests with 188 assertions; six existing
-Python tests pass. These counts do not establish production readiness.
+Unit tests cover four durable interruption boundaries, password verification
+before authority, revoked ownership and membership-scoped discovery. Current suite
+totals are recorded in [status](../reference/status.md); they do not establish
+production readiness.
 
 Missing: supported repair/reset flows, invitations, guided first-run onboarding, MFA, login
 rate controls, HTTPS deployment, pagination for very large organization lists,

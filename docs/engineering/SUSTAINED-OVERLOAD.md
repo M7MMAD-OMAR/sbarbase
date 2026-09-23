@@ -6,7 +6,7 @@ The generator does not wait for prior responses. It permits up to 100 ms schedul
 
 ## Observed failure
 
-The initial attempt failed response acceptance. A second attempt retained [sanitized raw failure evidence](evidence/gateway-sustained-failure.json):
+The initial attempt failed response acceptance. A second attempt retained [sanitized raw failure evidence](../evidence/gateway-sustained-failure.json):
 
 | Outcome | Count | p95 latency | Maximum latency |
 |---|---:|---:|---:|
@@ -29,10 +29,10 @@ A read-only agent review identified scheduling jitter wording, missing neighbor 
 
 The gateway now atomically applies a trusted per-service cap alongside the 8-request environment and 32-request process ceilings. The durable installer derives REST admission from its PostgREST pool setting, currently 3. Existing container configuration drift fails startup. Shared counters span managed handler factories and API keys.
 
-The [first rerun](evidence/gateway-sustained-first-pass.json) of the same 600 target / 60 neighbor arrivals passed: 45 correct target results, 555 expected rejections and 60 correct neighbor results, with no skipped arrivals or unexpected failures. Target-success p95 was 2004.61 ms versus 7977.94 ms in the failed run. Neighbor p95 was 3.42 ms and rejection p95 1.28 ms. Peak generator concurrency was 5. Post-load recovery and cleanup passed. This is mitigation evidence, not proof of pool fairness internals or upstream cancellation.
+The [first rerun](../evidence/gateway-sustained-first-pass.json) of the same 600 target / 60 neighbor arrivals passed: 45 correct target results, 555 expected rejections and 60 correct neighbor results, with no skipped arrivals or unexpected failures. Target-success p95 was 2004.61 ms versus 7977.94 ms in the failed run. Neighbor p95 was 3.42 ms and rejection p95 1.28 ms. Peak generator concurrency was 5. Post-load recovery and cleanup passed. This is mitigation evidence, not proof of pool fairness internals or upstream cancellation.
 
 The script now refuses sustained certification unless both published REST budgets equal the lab's three-connection pool. The prior failed artifact remains unchanged. Tests also cover cross-factory/key service enforcement, service/aggregate accounting and deadline release. Old registries without published service limits do not gain this protection automatically. Effective database-based PostgREST overrides remain outside the installer check.
 
 The smaller service cap intentionally rejects more simultaneous REST requests. A three-connection local lab is not the final production default. The earlier mixed SDK run predates this cap, so its zero-error result must not be attributed to the current policy. Measure mixed bursts and client retry behavior rather than hiding this tradeoff.
 
-The [verification rerun](evidence/gateway-sustained-checks.json) passed all 14 checks, including explicit published-budget validation: 45 target successes, 555 expected rejections and 60 neighbor successes, zero skipped arrivals. Target-success p95 was 2004.37 ms; neighbor p95 was 3.00 ms. Recovery and cleanup passed.
+The [verification rerun](../evidence/gateway-sustained-checks.json) passed all 14 checks, including explicit published-budget validation: 45 target successes, 555 expected rejections and 60 neighbor successes, zero skipped arrivals. Target-success p95 was 2004.37 ms; neighbor p95 was 3.00 ms. Recovery and cleanup passed.

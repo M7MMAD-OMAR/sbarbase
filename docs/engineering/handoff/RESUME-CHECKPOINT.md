@@ -35,7 +35,7 @@ Realtime/functions/pooler/cron, production installer, upgrades, complete ownersh
 
 ## Latest supervisor crash checkpoint
 
-Linux parent-death signaling binds direct API, worker and stage children to the foreground supervisor. [Nine live checks](evidence/supervisor-crash-checks.json) pass after the cleanup fix: API closure, idle worker lock release, restart, target application/Storage metadata digest preservation and source fencing. Docker containers deliberately survive the supervisor crash until explicit reconciliation. The final probe stopped all owned runtimes. Active provisioning, in-flight writes, daemon failure and power loss were not tested.
+Linux parent-death signaling binds direct API, worker and stage children to the foreground supervisor. [Nine live checks](../../evidence/supervisor-crash-checks.json) pass after the cleanup fix: API closure, idle worker lock release, restart, target application/Storage metadata digest preservation and source fencing. Docker containers deliberately survive the supervisor crash until explicit reconciliation. The final probe stopped all owned runtimes. Active provisioning, in-flight writes, daemon failure and power loss were not tested.
 
 Adversarial review found a pre-existing process-group identity race and a probe HTTP readiness race. Both are fixed. Cleanup now observes child exit with WNOWAIT, retains its owned leader until all group signals finish, and never signals a group from an already-reaped leader. Production callers preserve exclusive ownership of child waiting. Two regression tests failed before the fix and now pass. Readiness requires HTTP 200 within a monotonic deadline. Reviewer parent_death_review found no remaining must-fix in this scope. Latest Python suite: 66 tests.
 
@@ -43,13 +43,13 @@ Next: controller death during active provisioning, with bounded descendant clean
 
 ## Direct provisioning effect ownership
 
-[Inherited worker lock](WORKER-EFFECT-OWNERSHIP.md) now prevents a new worker from taking ownership while the previous worker's direct effect remains alive. A real Bun/Python regression failed before the fix. Full Python suite: 68 tests; Bun: 60 tests, 314 assertions; strict worker types pass. Wrong-descriptor and startup-failure cases fail closed without retaining a permanent lock. Adversarial review found no must-fix in this limited scope. No runtime allocation or catalog mutation was used.
+[Inherited worker lock](../WORKER-EFFECT-OWNERSHIP.md) now prevents a new worker from taking ownership while the previous worker's direct effect remains alive. A real Bun/Python regression failed before the fix. Full Python suite: 68 tests; Bun: 60 tests, 314 assertions; strict worker types pass. Wrong-descriptor and startup-failure cases fail closed without retaining a permanent lock. Adversarial review found no must-fix in this limited scope. No runtime allocation or catalog mutation was used.
 
 Next: direct provisioner death can still orphan a Docker CLI or leave daemon-side effects in progress. Establish bounded local descendant containment and explicit effect-state reconciliation before declaring active provisioning crash recovery complete.
 
 ## Provisioning replay gate, latest checkpoint
 
-[Durable effect receipts](PROVISIONING-RECEIPTS.md) are published before effects and settled before runtime startup under the worker lock. Unknown outcomes block automatic recovery. Successful or proven capacity-refused outcomes settle the exact claim; durable outcome rows make consumption idempotent even after an API retry. Startup/provision guards close direct runtime bypasses.
+[Durable effect receipts](../PROVISIONING-RECEIPTS.md) are published before effects and settled before runtime startup under the worker lock. Unknown outcomes block automatic recovery. Successful or proven capacity-refused outcomes settle the exact claim; durable outcome rows make consumption idempotent even after an API retry. Startup/provision guards close direct runtime bypasses.
 
 Latest evidence: 72 Python tests, 65 Bun tests with 354 assertions, strict worker types and 11 live known-refusal integration checks. The existing rejected-capacity metadata was retried, with no new runtime allocation; all owned runtimes stopped afterward. Reviewer fixes for startup bypass and historical-receipt retry race are included. No pending receipt remains after the live check.
 
@@ -91,13 +91,13 @@ Validation: 87 Python tests, 73 Bun tests/408 assertions, strict worker/receipt 
 
 ## Active preflight supervisor crash, latest checkpoint
 
-Read docs/ACTIVE-PREFLIGHT-CRASH.md. Twenty-five live checks pass through actual supervisor SIGKILL with the native provisioner paused after durable preflight. Fresh startup requeues the exact claim once; the next attempt is capacity-refused with a matching native witness. No runtime allocation or credential change. Four existing environments respond, then all owned runtimes stop. No pending receipt remains. The fixture has consumed one lifetime automatic preflight requeue; do not reset history.
+Read docs/engineering/ACTIVE-PREFLIGHT-CRASH.md. Twenty-five live checks pass through actual supervisor SIGKILL with the native provisioner paused after durable preflight. Fresh startup requeues the exact claim once; the next attempt is capacity-refused with a matching native witness. No runtime allocation or credential change. Four existing environments respond, then all owned runtimes stop. No pending receipt remains. The fixture has consumed one lifetime automatic preflight requeue; do not reset history.
 
 The inspector now reports sanitized exact stage evidence and recommends fresh bounded evaluation only with a missing native witness and current matching claim. All 88 Python tests pass; unchanged Bun checkpoint is 73 tests/408 assertions. Review added ownership-aware cleanup and capacity preconditions before the live run. Later-stage effects and arbitrary crash timing remain unproven. Next design isolated database/service fault fixtures and explicit reconciliation, preserving all retained environments.
 
 ## Partial database interruption and closed bootstrap, latest checkpoint
 
-Read docs/PARTIAL-DATABASE-CRASH.md. A disposable pinned PostgreSQL 17 container exercised actual provision_environment SQL at roles, database, permissions and injected transaction failure. Fifty-nine checks pass: partial SQL persists, pending receipts and exact claims remain unchanged, automatic replay is blocked, scoped access works after permissions, and neighbor data remains unchanged. The isolated container was removed by exact identity; retained volumes/catalogs were not used by this probe.
+Read docs/engineering/PARTIAL-DATABASE-CRASH.md. A disposable pinned PostgreSQL 17 container exercised actual provision_environment SQL at roles, database, permissions and injected transaction failure. Fifty-nine checks pass: partial SQL persists, pending receipts and exact claims remain unchanged, automatic replay is blocked, scoped access works after permissions, and neighbor data remains unchanged. The isolated container was removed by exact identity; retained volumes/catalogs were not used by this probe.
 
 Measured default PUBLIC CONNECT before the permission step motivated hardening: CREATE DATABASE now starts with ALLOW_CONNECTIONS false. Revoke/grant/reopen commit together, only for a database created by that invocation. Existing closed databases are refused before writes. Two regression tests fail against the previous bootstrap; all 91 Python tests pass now. Adversarial review found no remaining must-fix in this scope. The separate retained integration passes 13 checks and stops all owned runtimes. Bun code is unchanged at the recorded 73 tests/408 assertions.
 
@@ -109,23 +109,23 @@ The partial-database probe now supports an explicit upstream profile with the pi
 
 Separately, fresh two-environment original Auth/REST/shared Storage integration passes 122 checks after the closed-bootstrap change. Sanitized evidence is docs/evidence/upstream-closed-bootstrap-checks.json. Probe containers/networks are removed, and retained runtime state is unchanged by these experiments. No new unit-test claim: the prior full-suite checkpoint remains 91 Python and 73 Bun tests/408 assertions.
 
-Adversarial review found no remaining must-fix in profile implementation. It rejected a proposed single-control-database advisory lock as whole-operation fencing: advisory locks are database-local. Read docs/DATABASE-OPERATION-FENCING-DESIGN.md. Next prove a same-database SQL revocation barrier and explicitly handle target-database statements before enabling any database-stage recovery. No such SQL barrier is implemented yet; unknown partial effects remain blocked.
+Adversarial review found no remaining must-fix in profile implementation. It rejected a proposed single-control-database advisory lock as whole-operation fencing: advisory locks are database-local. Read docs/engineering/DATABASE-OPERATION-FENCING-DESIGN.md. Next prove a same-database SQL revocation barrier and explicitly handle target-database statements before enabling any database-stage recovery. No such SQL barrier is implemented yet; unknown partial effects remain blocked.
 
 ## Database-local SQL revocation prototype, latest checkpoint
 
-Read docs/SQL-OPERATION-FENCE.md. Experimental scripts and a disposable upstream probe now prove a same-database token revocation barrier: active SQL completes before queued revocation; delayed old SQL rechecks after the lock and fails; cancelled revocation leaves authority active. Thirty-one live checks cover tombstones, stale identities, private registry access despite default grants, reconnects and CREATE DATABASE. Identical lock keys in separate databases are explicitly shown not to exclude each other.
+Read docs/engineering/SQL-OPERATION-FENCE.md. Experimental scripts and a disposable upstream probe now prove a same-database token revocation barrier: active SQL completes before queued revocation; delayed old SQL rechecks after the lock and fails; cancelled revocation leaves authority active. Thirty-one live checks cover tombstones, stale identities, private registry access despite default grants, reconnects and CREATE DATABASE. Identical lock keys in separate databases are explicitly shown not to exclude each other.
 
 The full Python checkpoint is 94 tests; unchanged Bun checkpoint is 73 tests/408 assertions. Exact disposable cleanup passed. No retained runtime or catalog mutation. This is not integrated into Runtime.sql or worker recovery, and no operator revoke endpoint exists. Next design and test target-database barriers and registration/coordinator crash order before claiming whole-operation fencing or enabling database-stage recovery.
 
 ## Sequential SQL revocation and handoff, latest checkpoint
 
-Read docs/SQL-PAIR-REVOCATION.md. The experimental coordinator passes 28 upstream live checks, including actual SIGKILL between control and target commits, target writes during the gap, retry, tombstones, absent/closed targets and replacement detection. Registry bootstrap is now atomic with privilege revocation; the separate same-database probe passes 34 checks. All 98 Python tests pass; recorded unchanged Bun checkpoint remains 73 tests/408 assertions. Exact disposable cleanup passed.
+Read docs/engineering/SQL-PAIR-REVOCATION.md. The experimental coordinator passes 28 upstream live checks, including actual SIGKILL between control and target commits, target writes during the gap, retry, tombstones, absent/closed targets and replacement detection. Registry bootstrap is now atomic with privilege revocation; the separate same-database probe passes 34 checks. All 98 Python tests pass; recorded unchanged Bun checkpoint remains 73 tests/408 assertions. Exact disposable cleanup passed.
 
 These prototypes are not integrated into runtime SQL or worker recovery and do not authorize replay. Next inventory and guard runtime SQL effects, then address services/Storage and durable reconciliation. Keep unknown later-stage receipts blocked. HANDOFF.md remains the concise entry point, with decisions, research, saved diagrams and a continuation prompt for either assistant.
 
 ## Runtime mutation audit and generation counterexample, latest checkpoint
 
-Read docs/PROVISIONING-MUTATION-MAP.md before integration. Independent review found that an absent-target barrier cannot stop delayed old registration after a newer claim creates the database. The real upstream pair probe now reproduces this counterexample among 29 checks. It remains unresolved; do not treat the count as a complete safety result. HBA file writes and service-driven migrations are additional unguarded boundaries.
+Read docs/engineering/PROVISIONING-MUTATION-MAP.md before integration. Independent review found that an absent-target barrier cannot stop delayed old registration after a newer claim creates the database. The real upstream pair probe now reproduces this counterexample among 29 checks. It remains unresolved; do not treat the count as a complete safety result. HBA file writes and service-driven migrations are additional unguarded boundaries.
 
 A separate live failing regression exposed guard lock output contaminating scalar query results. DO/PERFORM now suppresses guard rows; the same-database probe passes 35 checks. Both disposable probes removed their exact containers. No retained runtime changes or new replay permissions. Next implement generation-bound target admission before connecting SQL evidence to recovery.
 
@@ -137,7 +137,7 @@ Not integrated into runtime provisioning. Next build the explicit guarded execut
 
 ## Actual provisioning SQL adapter, latest checkpoint
 
-Read docs/GUARDED-PROVISIONING-SQL.md. The scoped executor runs real run.provision_environment SQL in a disposable upstream fixture with control and target identity pins, rejects writes after revocation and refuses reuse after any uncertain failure/interruption. A native unterminated SELECT exposed a syntax error; explicit query separation fixes it, including trailing comments. Review corrected BaseException poisoning.
+Read docs/engineering/GUARDED-PROVISIONING-SQL.md. The scoped executor runs real run.provision_environment SQL in a disposable upstream fixture with control and target identity pins, rejects writes after revocation and refuses reuse after any uncertain failure/interruption. A native unterminated SELECT exposed a syntax error; explicit query separation fixes it, including trailing comments. Review corrected BaseException poisoning.
 
 The pair probe now passes 43 checks; all 104 Python tests pass. Exact disposable cleanup passed and no retained runtime was changed. Next integrate the full durable SQL path with exact receipt identities and explicit resume semantics. HBA and service migrations remain separate unresolved effects. The guard does not authorize partial replay.
 
@@ -149,13 +149,13 @@ The services write-ahead marker now precedes shared HBA overwrite/reload; a regr
 
 ## Published resume separated from provisioning, latest checkpoint
 
-Read docs/PUBLISHED-ENVIRONMENT-RESUME.md. Routine published startup now validates existing state and resumes retained containers without rerunning native environment SQL, rewriting REST deadlines or creating missing Storage tenants. Missing containers cannot fall back to creation. Outer shared infrastructure startup and service-owned migrations still have effects.
+Read docs/engineering/PUBLISHED-ENVIRONMENT-RESUME.md. Routine published startup now validates existing state and resumes retained containers without rerunning native environment SQL, rewriting REST deadlines or creating missing Storage tenants. Missing containers cannot fall back to creation. Outer shared infrastructure startup and service-owned migrations still have effects.
 
 All 110 Python tests pass. The retained combined supervisor passes 13 receipt integration checks, including all four environment routes, exact capacity refusal without allocation, unchanged credential reservation file and complete owned shutdown. No pending receipt remains. Independent review found no new must-fix. Next bind exact worker receipt identities to guarded SQL for creation; unknown later-stage replay remains blocked.
 
 ## Receipt-bound durable SQL, latest checkpoint
 
-Read docs/RECEIPT-BOUND-SQL.md. Durable provisioning now validates the exact worker receipt, durable preflight/database stage and current running catalog claim, then routes native environment SQL through GuardedSQL. Close pins captured control/target identities and retires both tokens before the services marker. Direct native provisioning without a receipt is refused. Legacy durable-check now invokes the worker rather than manually bypassing receipts.
+Read docs/engineering/RECEIPT-BOUND-SQL.md. Durable provisioning now validates the exact worker receipt, durable preflight/database stage and current running catalog claim, then routes native environment SQL through GuardedSQL. Close pins captured control/target identities and retires both tokens before the services marker. Direct native provisioning without a receipt is refused. Legacy durable-check now invokes the worker rather than manually bypassing receipts.
 
 All 115 Python tests and 51 disposable upstream checks pass. Actual Runtime.provision wiring uses real temporary records/SQL with simulated host ownership/admission and stops before HBA. The separate retained supervisor rehearsal passes 13 checks, with all four environments responding, no new allocation, no pending receipt and all owned runtimes stopped. Review found no remaining must-fix.
 
@@ -163,7 +163,7 @@ Next verify a fresh full worker-driven Auth/REST/Storage lifecycle with this gua
 
 ## Fresh real worker and services, latest checkpoint
 
-Read docs/FRESH-WORKER-LIFECYCLE.md. A private source snapshot with only literal Docker identity replacements now runs the real worker, guardian ownership, receipts, catalog settlement and guarded native SQL through original Auth/REST/Storage. Fifty-six live checks pass, including actual SDK signup, owner data access, rejected wrong-owner writes, hidden second-user reads and private Storage isolation. Both SQL tokens retire before service startup and the native witness binds the exact settled claim.
+Read docs/engineering/FRESH-WORKER-LIFECYCLE.md. A private source snapshot with only literal Docker identity replacements now runs the real worker, guardian ownership, receipts, catalog settlement and guarded native SQL through original Auth/REST/Storage. Fifty-six live checks pass, including actual SDK signup, owner data access, rejected wrong-owner writes, hidden second-user reads and private Storage isolation. Both SQL tokens retire before service startup and the native witness binds the exact settled claim.
 
 Five fixture containers have combined configured ceilings of 2304 MiB/2.25 CPUs, require 6 GiB initial host headroom and publish no container ports. Fresh worker/effect/operation locks precede exact-ID cleanup; all fixture containers/volumes/network are removed. Private diagnostic snapshots remain ignored. Retained installation resources are not used. Strict SDK probe types pass; prior Python checkpoint115 and unchanged Bun73/408 remain.
 
@@ -171,7 +171,7 @@ The fresh worker lifecycle gate is now covered. Next address shared HBA and serv
 
 ## Complete-file HBA replacement, latest checkpoint
 
-Read docs/ATOMIC-HBA-REPLACEMENT.md. Shared HBA updates now validate stdin byte length and SHA256 in a unique same-directory temporary file, preserve metadata, sync and rename before the separate reload. This closes producer EOF truncation; rename alone was insufficient. Commands are verified against the pinned image's BusyBox tools.
+Read docs/engineering/ATOMIC-HBA-REPLACEMENT.md. Shared HBA updates now validate stdin byte length and SHA256 in a unique same-directory temporary file, preserve metadata, sync and rename before the separate reload. This closes producer EOF truncation; rename alone was insufficient. Commands are verified against the pinned image's BusyBox tools.
 
 Sixteen upstream fault checks pass, including legacy truncation, rejected short/corrupt input and helper SIGKILL before/after rename. The fresh actual worker/SDK lifecycle passes 57 checks after the change. Full Python remains115 passing tests. Exact disposable cleanup passed and no retained runtime was used for these probes. Independent review found no must-fix in this scope.
 
@@ -179,7 +179,7 @@ Next fence stale complete HBA writers and define activation/reconciliation seman
 
 ## Immutable HBA revisions, latest checkpoint
 
-Read docs/ATOMIC-HBA-REPLACEMENT.md. Managed HBA writes now capture full Docker CID and expected whole-file hash into a frozen request, add a fresh UUID header, and compare under a stable container-local nonblocking flock before atomic replacement. Requests are never recaptured/retried after failure. Twenty-six real checks cover competing prepared writes, replay rejection, identical-rule generations and lock-holder death as well as truncation.
+Read docs/engineering/ATOMIC-HBA-REPLACEMENT.md. Managed HBA writes now capture full Docker CID and expected whole-file hash into a frozen request, add a fresh UUID header, and compare under a stable container-local nonblocking flock before atomic replacement. Requests are never recaptured/retried after failure. Twenty-six real checks cover competing prepared writes, replay rejection, identical-rule generations and lock-holder death as well as truncation.
 
 This fences already-prepared stale writes, not an old operation preparing anew after a newer update. Next bind full configuration-operation authority and reconcile activation; unknown service-stage replay stays blocked. Administrator lock replacement/filesystem rollback remain excluded.
 
@@ -189,13 +189,13 @@ Validation: all 118 Python tests and the fresh 57-check real worker/SDK lifecycl
 
 The upstream HBA probe passes36 checks: restrictive file publication alone does not affect new connections; after reload fresh connections are rejected, but an existing session remains usable. Invalid-file parser errors coexist with a true reload-signal acknowledgment. Runtime now checks parser errors and signal success explicitly. These are not full activation or session-revocation guarantees.
 
-All121 Python tests pass. Read docs/ATOMIC-HBA-REPLACEMENT.md and the reviewed, unimplemented HBA-OPERATION-AUTHORITY-DESIGN.md. Next implement immutable operation journals and registry/tombstone semantics only after specifying startup and container-generation reconciliation. Unknown services-stage replay stays blocked.
+All121 Python tests pass. Read docs/engineering/ATOMIC-HBA-REPLACEMENT.md and the reviewed, unimplemented HBA-OPERATION-AUTHORITY-DESIGN.md. Next implement immutable operation journals and registry/tombstone semantics only after specifying startup and container-generation reconciliation. Unknown services-stage replay stays blocked.
 
 Fresh real worker/SDK lifecycle also passes57 checks after reload validation, with exact isolated cleanup. Independent review found no runtime must-fix and tightened invalid-reload evidence wording: immediate continued rejection does not confirm SIGHUP processing.
 
 ## Documentation handoff checkpoint
 
-The concise entry point is now docs/START-HERE.md, linking decisions, reasons, research, saved visuals, measured evidence and open gates. Verified implementation baseline remains155e230. lab/hba_authority.py was started but has not been tested or integrated; preserve and review it as a draft. No runtime work or new validation run occurred during this documentation update. Continue with one active writer in the same checkout, whether Codex or Hermes.
+The concise entry point is now docs/engineering/handoff/START-HERE.md, linking decisions, reasons, research, saved visuals, measured evidence and open gates. Verified implementation baseline remains155e230. lab/hba_authority.py was started but has not been tested or integrated; preserve and review it as a draft. No runtime work or new validation run occurred during this documentation update. Continue with one active writer in the same checkout, whether Codex or Hermes.
 
 ## Isolated HBA authority registry checkpoint
 
@@ -306,7 +306,7 @@ The retained source and recovery targets were not used. Next implement the durab
 
 ## Durable legacy HBA adoption implemented, 2026-09-20
 
-Read docs/HBA-LEGACY-ADOPTION.md. `lab/hba_adoption.py` implements the durable
+Read docs/engineering/HBA-LEGACY-ADOPTION.md. `lab/hba_adoption.py` implements the durable
 adoption operation: exclusive fsynced intent capture of the stopped source
 (exact CID, trusted policy, pgdata mount identity, stopped inventory), fresh
 ownership via the startup gate, conflicting-pin refusal before start, one INIT
@@ -330,7 +330,7 @@ writers are not fenced.
 
 ### Adversarial review and fixes, 2026-09-20
 
-Independent adversarial review (docs/reviews/legacy-adoption-review.md) found
+Independent adversarial review (docs/engineering/reviews/legacy-adoption-review.md) found
 five must-fix defects; all five are fixed with regression tests: resume past the
 source-stopped checkpoint now performs no database work, a preexisting backend
 authority marker refuses adoption before any pin is written, a pin with no
@@ -371,7 +371,7 @@ writers and container-generation migration.
 
 ## Recovery-target writers addressed, 2026-09-20 (Hermes)
 
-Read [TARGET-HBA-WRITERS](TARGET-HBA-WRITERS.md). Every managed database
+Read [TARGET-HBA-WRITERS](../TARGET-HBA-WRITERS.md). Every managed database
 container now has its own authority state: the source uses the installation
 state root, each recovery target uses `<installation state>/targets/<prefix>`
 with its own locks, generation pin, journal and evidence. `lab/hba_runtime.TargetHBA`
@@ -390,11 +390,11 @@ Not done: a full live recovery restore re-run with the owned writer, conversion
 of the storage check probe and the legacy bootstrap scripts, and
 container-generation migration. The remaining raw writers are inventoried with
 explicit dispositions in TARGET-HBA-WRITERS.md. The migration design (not
-implemented) is in [CONTAINER-GENERATION-MIGRATION](CONTAINER-GENERATION-MIGRATION.md).
+implemented) is in [CONTAINER-GENERATION-MIGRATION](../CONTAINER-GENERATION-MIGRATION.md).
 
 ## Server deployment path written, 2026-09-20 (Hermes)
 
-Read [SERVER-DEPLOYMENT](SERVER-DEPLOYMENT.md). `lab/install_server.py` provides
+Read [SERVER-DEPLOYMENT](../../guides/server-deployment.md). `lab/install_server.py` provides
 `check` (read-only preflight), `plan`, `install` and `smoke`; `deploy/sbarbase.service`
 supervises the installation with an `ExecStartPre` preflight; the runbook covers
 prerequisites, HTTPS termination, backup, upgrade per the upstream policy,
@@ -531,7 +531,7 @@ before a combined start, or the preflight will refuse before touching anything.
 ## Adversarial review and fixes, 2026-09-20 (Hermes)
 
 Independent adversarial review:
-[docs/reviews/target-and-deployment-review.md](reviews/target-and-deployment-review.md).
+[docs/engineering/reviews/target-and-deployment-review.md](../reviews/target-and-deployment-review.md).
 Twelve must-fix findings were established and all twelve are fixed, each with a
 regression test where the finding is testable without live containers:
 
@@ -574,8 +574,8 @@ regression test where the finding is testable without live containers:
 
 Suites after the fixes: 271 Python tests, 73 Bun tests/408 assertions. Claims
 that the review judged overstated were corrected in
-[TARGET-HBA-WRITERS](TARGET-HBA-WRITERS.md), [SERVER-DEPLOYMENT](SERVER-DEPLOYMENT.md)
-and [DEPLOYMENT-READINESS](DEPLOYMENT-READINESS.md).
+[TARGET-HBA-WRITERS](../TARGET-HBA-WRITERS.md), [SERVER-DEPLOYMENT](../../guides/server-deployment.md)
+and [DEPLOYMENT-READINESS](../../reference/deployment-readiness.md).
 
 ## User stop and Hermes handoff, 2026-09-20
 
@@ -584,7 +584,7 @@ The user explicitly stopped this Codex implementation to continue with another H
 ## Second deployment-tooling review and the defects it led to, 2026-09-20 (Hermes)
 
 An independent adversarial review of the deployment tooling
-([review 2](reviews/deployment-tooling-review-2.md)) reported 20 must-fix
+([review 2](../reviews/deployment-tooling-review-2.md)) reported 20 must-fix
 defects and falsified 17 claims in the status documents. All 20 are fixed and
 every falsified claim is corrected, with regression tests: the proxy strips
 hop-by-hop, framing and client-supplied forwarding headers and validates its
@@ -735,7 +735,7 @@ tsconfig.json` clean.
 
 ## Administration surface redirect, latest checkpoint
 
-Read [the integration specification](STUDIO-INTEGRATION.md). The per-environment
+Read [the integration specification](../STUDIO-INTEGRATION.md). The per-environment
 administration surface is the original upstream Supabase Studio (pinned, one
 Studio and one postgres-meta per environment), and the home-grown console keeps
 only the platform layer: organizations, projects, environments, connection

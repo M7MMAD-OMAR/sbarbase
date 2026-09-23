@@ -1,6 +1,6 @@
 """Resource tier table for the sbarbase installation.
 
-Design source: docs/RESOURCE-POLICY.md section 3.1 ("One table, one module"),
+Design source: docs/engineering/RESOURCE-POLICY.md section 3.1 ("One table, one module"),
 read at commit 46d8d46 on 2026-09-21. Every value below is copied from that
 table. The table is a policy, not a measurement: section 3.1 says the numbers
 must be measured before they are trusted, and section 7 step 8 is the run that
@@ -19,7 +19,7 @@ Two values the design left open, and the smallest honest choice made here:
   would be an unused invention. It is an open item, not a silent omission.
 
 The Docker mapping this table assumes has been measured, and the measurement
-corrects it. docs/RESOURCE-POLICY.md section 3.1.1 records the reading taken
+corrects it. docs/engineering/RESOURCE-POLICY.md section 3.1.1 records the reading taken
 2026-09-21, raw values in docs/evidence/resource-policy-cgroup-mapping.json:
 --cpu-shares maps to the cgroup v2 cpu.weight sublinearly, so 2048 asks for
 weight 174 and not 800, which makes the shares column below a request and a
@@ -44,7 +44,7 @@ using the experimental row, is an open item.
 from collections import namedtuple
 from pathlib import Path
 
-# Revision id for docs/RESOURCE-POLICY.md section 4.2. No evidence file records
+# Revision id for docs/engineering/RESOURCE-POLICY.md section 4.2. No evidence file records
 # it yet because the evidence increment is not built.
 POLICY_REVISION = 'resource-policy-2026-09-21'
 

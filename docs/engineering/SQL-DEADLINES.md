@@ -11,7 +11,7 @@ Existing Supabase anon (3 seconds) and authenticated (8 seconds) statement setti
 
 ## Live evidence
 
-Command: `bun lab/gateway-overload-check.ts --sql-deadline`, after starting the owned durable runtime. [Fourteen live checks](evidence/sql-deadline-checks.json) passed:
+Command: `bun lab/gateway-overload-check.ts --sql-deadline`, after starting the owned durable runtime. [Fourteen live checks](../evidence/sql-deadline-checks.json) passed:
 
 - An RPC using the service role reported effective statement/transaction settings of 8s/12s.
 - An ordinary 20-second sleep RPC failed after 8008.80 ms with HTTP 500 and PostgreSQL code 57014.

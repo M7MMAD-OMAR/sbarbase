@@ -1,6 +1,6 @@
 # Dedicated management Auth and composed local API
 
-Verified 2026-09-20. [28 live checks](../evidence/upstream-management-checks.json).
+Verified 2026-09-20. [28 live checks](../../evidence/upstream-management-checks.json).
 
 ## Implementation
 
@@ -56,7 +56,7 @@ including Auth route allowlisting and Storage discovery. Six Python tests pass.
 ## Remaining gates
 
 Local operator bootstrap has since been implemented and tested in
-[operator setup](../OPERATOR-SETUP.md). Onboarding UI, invitations and a finished
+[operator setup](../../guides/operator-setup.md). Onboarding UI, invitations and a finished
 management UI are not implemented. The probe creates a temporary private test identity and removes it.
 No user account or password was delivered as a production login. Key mutation
 audit atomicity, quotas, login rate controls, comprehensive drift checks, TLS,

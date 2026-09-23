@@ -1,6 +1,6 @@
 # Sbarbase: implementation record through 2026-09-20
 
-Updated 2026-09-20. Historical implementation record. Start with docs/HANDOFF.md and the final section of docs/RESUME-CHECKPOINT.md for current status; earlier entries below are historical. Workspace: `/home/sbarah/R/Projects/P/sbarbase`. The administration-surface direction changed on 2026-09-21: the per-environment surface is the original upstream Studio, adopted as a pinned component, and the console keeps only the platform layer. See DECISIONS.md and the latest RESUME-CHECKPOINT entry. The design-system sentence further down is therefore history, not live direction.
+Updated 2026-09-20. Historical implementation record. Start with docs/engineering/handoff/HANDOFF.md and the final section of docs/engineering/handoff/RESUME-CHECKPOINT.md for current status; earlier entries below are historical. Workspace: `/home/sbarah/R/Projects/P/sbarbase`. The administration-surface direction changed on 2026-09-21: the per-environment surface is the original upstream Studio, adopted as a pinned component, and the console keeps only the platform layer. See DECISIONS.md and the latest RESUME-CHECKPOINT entry. The design-system sentence further down is therefore history, not live direction.
 
 ## Purpose and firm requirements
 
@@ -22,19 +22,19 @@ Critical open choice: shared canonical NOLOGIN API roles versus namespaced API r
 
 Three independent agent reviews covered component feasibility, adversarial security/operations, and existing implementations. Primary documentation and selected code were inspected; no runtime certification occurred.
 
-- [Foundation review](ARCHITECTURE-REVIEW.md): architecture options and acceptance gates.
-- [Supabase feasibility](reviews/supabase-feasibility.md): Auth/PostgREST limits, role compatibility, Storage/Realtime sharing and a pinned Auth migration scan.
-- [Security and operations](reviews/security-operations.md): isolation, privilege boundaries, recovery, upgrades and HA limitations.
-- [Alternatives](reviews/alternatives-product.md): supabase-multitenant is an adaptation candidate, not endorsed; Supafleet CLI shares database service credentials; Pigsty helps operations; Coolify/Dokploy alone do not establish resource sharing.
-- [Capacity method](reviews/capacity-method.md): reproducible load comparison, not benchmark results.
+- [Foundation review](../ARCHITECTURE-REVIEW.md): architecture options and acceptance gates.
+- [Supabase feasibility](../reviews/supabase-feasibility.md): Auth/PostgREST limits, role compatibility, Storage/Realtime sharing and a pinned Auth migration scan.
+- [Security and operations](../reviews/security-operations.md): isolation, privilege boundaries, recovery, upgrades and HA limitations.
+- [Alternatives](../reviews/alternatives-product.md): supabase-multitenant is an adaptation candidate, not endorsed; Supafleet CLI shares database service credentials; Pigsty helps operations; Coolify/Dokploy alone do not establish resource sharing.
+- [Capacity method](../reviews/capacity-method.md): reproducible load comparison, not benchmark results.
 
 Corrections: no evidence Supabase lacks a sound hierarchy; its self-hosted distribution lacks cloud project management. Separate databases do not isolate CPU, memory or host failure. Container count and daily visits do not determine capacity. A replica is not a backup; native physical PITR restores the cluster, not one database directly.
 
 ## Saved diagrams and lifecycle intent
 
-- [10-project diagram](diagrams/ten-projects.png)
-- [Transfer and restore diagram](diagrams/move-and-restore.png)
-- [Diagram assumptions and generation prompts](diagrams/README.md)
+- [10-project diagram](../../diagrams/ten-projects.png)
+- [Transfer and restore diagram](../../diagrams/move-and-restore.png)
+- [Diagram assumptions and generation prompts](../../diagrams/README.md)
 
 The six/four server distribution is illustrative. The depicted 10-project cap is a proposed pilot policy, not a user-approved permanent limit or measured capacity. Count environments and active workloads too. No promise of 100 projects on one host.
 

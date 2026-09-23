@@ -37,7 +37,7 @@ class RenderingTests(unittest.TestCase):
         self.assertIn('WorkingDirectory=/opt/sbarbase',rendered)
         self.assertIn('ReadWritePaths=/opt/sbarbase',rendered)
         self.assertIn('ExecStart=/usr/bin/python3 /opt/sbarbase/lab/dev.py',rendered)
-        self.assertIn('Documentation=file:/opt/sbarbase/docs/SERVER-DEPLOYMENT.md',rendered)
+        self.assertIn('Documentation=file:/opt/sbarbase/docs/guides/server-deployment.md',rendered)
 
     def test_a_unit_whose_shape_changed_is_not_rewritten_blindly(self):
         broken=install_server.SERVICE_UNIT.read_text().replace('ExecStart=/usr/bin/python3 /opt/sbarbase/lab/dev.py','ExecStart=/bin/true')

@@ -1,0 +1,102 @@
+# Status
+
+The single place for what works, what does not, and every number. Updated 2026-09-23. Current source release: [0.1.0](../../CHANGELOG.md) (2026-09-21), plus the unreleased container generation migration.
+
+Everything below was verified on one development workstation. **Nothing has been run on a real server yet**; a rehearsal on a clean virtual machine is in progress. Nothing here certifies production readiness or security, and no fixed number of projects per server is claimed.
+
+## Test suites, 2026-09-23
+
+Run from the repository root on the development workstation. These suites do not start containers.
+
+| Suite | Command | Result |
+|---|---|---|
+| Python unit tests | `DOCKER_HOST=unix:///var/run/docker.sock /usr/bin/python3 -m unittest discover -s lab -p 'test_*.py'` | 606 tests, OK, none skipped |
+| Bun tests (root) | `bun test` | 88 pass, 0 fail, 549 assertions, 18 files (the 17 in `tests/` plus `website/tests/site.test.ts`) |
+| Website | `cd website && bun run build && bun test` | build OK; 2 pass, 0 fail, 40 assertions |
+| Console typecheck | `bun run typecheck:ui` | passes |
+
+Earlier pages recorded other totals (for example 575 Python and 87 Bun tests at the 0.1.0 release gate). Those were correct for their date and scope; this table replaces them.
+
+## Live evidence
+
+Live probes start real containers and write their results to [docs/evidence](../evidence/). Each file names its own scope; counts from different files overlap and are not additive. The count below is the one recorded in the file.
+
+### Platform and management
+
+| What | Evidence | Checks |
+|---|---|---|
+| Dedicated management Auth, memberships and the composed API | [upstream-management-checks.json](../evidence/upstream-management-checks.json) | 28 |
+| First operator setup, interruption recovery, discovery | [bootstrap-checks.json](../evidence/bootstrap-checks.json) | 18 |
+| Management-issued keys, SDK access, revocation | [connection-checks.json](../evidence/connection-checks.json) | 9 |
+| Console build and static serving | [console-build.json](../evidence/console-build.json), [console-serve.json](../evidence/console-serve.json) | passed; 19 |
+
+### Environments and isolation
+
+| What | Evidence | Checks |
+|---|---|---|
+| Four environments: Auth, RLS, credential and token isolation | [four-environment-component-checks.json](../evidence/four-environment-component-checks.json) | 97 |
+| Same, through the SDK and key gateway | [four-environment-sdk-checks.json](../evidence/four-environment-sdk-checks.json) | 44 |
+| Original Supabase PostgreSQL, two environments, real Auth migrations | [upstream-environment-checks.json](../evidence/upstream-environment-checks.json) | 40 |
+| Durable runtime: persistent worker, volumes, container recreation | [durable-upstream-checks.json](../evidence/durable-upstream-checks.json) | 25 |
+| Shared Storage with database and object recovery rehearsal | [storage-recovery-checks.json](../evidence/storage-recovery-checks.json) | 122 |
+| Fresh closed bootstrap: Auth, REST and shared Storage | [upstream-closed-bootstrap-checks.json](../evidence/upstream-closed-bootstrap-checks.json) | 122 |
+| Connection limit saturation with a neighbour still served | [connection-limit-checks.json](../evidence/connection-limit-checks.json) | 7 |
+| Pressure response on a disposable container | [pressure-response-checks.json](../evidence/pressure-response-checks.json) | 9 |
+
+### Provisioning and crash safety
+
+| What | Evidence | Checks |
+|---|---|---|
+| Fresh worker lifecycle with receipts, leases and SDK checks | [fresh-worker-checks.json](../evidence/fresh-worker-checks.json) | 76 |
+| Native worker SIGKILL after intent / after witness | [worker-hba-crash-after-intent.json](../evidence/worker-hba-crash-after-intent.json), [worker-hba-crash-after-witness.json](../evidence/worker-hba-crash-after-witness.json) | 90 each |
+| Receipt settlement through the real supervisor | [worker-receipt-checks.json](../evidence/worker-receipt-checks.json) | 13 |
+| Supervisor SIGKILL during preflight | [active-preflight-crash-checks.json](../evidence/active-preflight-crash-checks.json) | 25 |
+| Generation migration, five SIGKILL crash points on the disposable fixture | [fresh-worker-generation-crash-all.json](../evidence/fresh-worker-generation-crash-all.json) | 196 |
+| Complete-file HBA replacement | [upstream-atomic-hba-checks.json](../evidence/upstream-atomic-hba-checks.json) | 36 |
+| Partial database interruption, component and upstream | [partial-database-crash-checks.json](../evidence/partial-database-crash-checks.json), [upstream-partial-database-crash-checks.json](../evidence/upstream-partial-database-crash-checks.json) | 64; 65 |
+| Retained source adopted into HBA authority | [retained-source-adoption.json](../evidence/retained-source-adoption.json) | recorded |
+
+### Recovery
+
+| What | Evidence | Checks |
+|---|---|---|
+| Fenced encrypted export | [recovery-export-checks.json](../evidence/recovery-export-checks.json) | 34 |
+| Restore into a separate engine | [independent-database-restore.json](../evidence/independent-database-restore.json) | 49 |
+| Original Auth and REST on the restored copy | [independent-service-checks.json](../evidence/independent-service-checks.json) | 11 |
+| Storage and end-user RLS on the restored copy | [independent-storage-checks.json](../evidence/independent-storage-checks.json), [independent-storage-rls-checks.json](../evidence/independent-storage-rls-checks.json) | 9; 14 |
+| Interrupted pg_restore rolls back cleanly | [recovery-interruption-checks.json](../evidence/recovery-interruption-checks.json) | 38 |
+| SDK through the gateway to the moved environment | [cutover-sdk-checks.json](../evidence/cutover-sdk-checks.json) | 11 |
+| Unaffected neighbours restarted on the source | [cutover-neighbor-checks.json](../evidence/cutover-neighbor-checks.json) | 16 |
+
+### Deployment path (workstation only)
+
+| What | Evidence | Checks |
+|---|---|---|
+| Server acceptance script, end to end, unit installed as root | [server-acceptance-latest.json](../evidence/server-acceptance-latest.json) | 13 |
+| Deployment rehearsal, source and target lifecycle | [deployment-rehearsal.json](../evidence/deployment-rehearsal.json) | 11 |
+| Supervised path under systemd | [supervised-run.json](../evidence/supervised-run.json) | 10 |
+| TLS termination | [tls-termination.json](../evidence/tls-termination.json) | 23 |
+| Recovery target placement | [target-placement-rehearsal.json](../evidence/target-placement-rehearsal.json) | 12 |
+| Pinned images present and matching digests | [pinned-images.json](../evidence/pinned-images.json) | 5 pins |
+
+The itemised server matrix is [deployment readiness](deployment-readiness.md).
+
+## Resources
+
+The configured ceilings for the retained combined placement are 5888 MiB of container memory and 5.75 CPUs, admitted under a 6 GiB and 6 CPU cap plus a 2560 MiB host reserve. These are allocation limits, not measured demand or a hardware recommendation. Sustained mixed load has not been measured, so there is no validated maximum of 10 or 100 projects, and daily visitor counts alone cannot size a server.
+
+## What does not exist yet
+
+- A rehearsal on a real server (a clean-VM rehearsal is in progress).
+- Per-environment Supabase Studio (specified in [the integration specification](../engineering/STUDIO-INTEGRATION.md), not served).
+- Realtime, Edge Functions, the connection pooler and cron.
+- Scheduled or off-host backups, point-in-time recovery, and a general per-environment export command.
+- Automatic recovery of later-stage provisioning failures; they block until an operator reconciles them.
+- Adoption of any upstream release through the update policy; automatic upgrades.
+- Complete project transfer between clients, invitations, MFA and login rate limits.
+- Multi-server placement and coordination.
+- Large or resumable uploads, browser CORS and OAuth providers through the gateway.
+
+## Next step
+
+The attended generation migration of the retained database. Until it runs, the durable container-recreation probe stays disabled and the arrival-driven pressure and mixed SDK load measurements stay blocked.

@@ -6,7 +6,7 @@ Usage:
   /usr/bin/python3 lab/pin_update.py stage --file lab/images.lock.json --component db \
       --tag postgres:17.1 --digest sha256:<64 hex> --note "why this release"
 
-Rules enforced here (see docs/UPSTREAM-UPDATE-POLICY.md):
+Rules enforced here (see docs/engineering/UPSTREAM-UPDATE-POLICY.md):
 - exactly one component changes per invocation;
 - the digest must be a pinned sha256, never a floating tag;
 - a dated entry in docs/upstream/ is created and must be completed before the

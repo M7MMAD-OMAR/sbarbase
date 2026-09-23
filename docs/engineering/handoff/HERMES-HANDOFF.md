@@ -1,8 +1,8 @@
 # Paused handoff for Hermes
 
 Deployment status and the remaining gaps are summarised in
-[DEPLOYMENT-READINESS](DEPLOYMENT-READINESS.md); the server runbook is
-[SERVER-DEPLOYMENT](SERVER-DEPLOYMENT.md).
+[DEPLOYMENT-READINESS](../../reference/deployment-readiness.md); the server runbook is
+[SERVER-DEPLOYMENT](../../guides/server-deployment.md).
 
 The user explicitly stopped Codex implementation on 2026-09-20 to continue with another Hermes agent/model. No new implementation or experiments should run in this Codex task without a new user request. This file is a handoff, not a claim that the platform is complete.
 
@@ -10,7 +10,7 @@ The user explicitly stopped Codex implementation on 2026-09-20 to continue with 
 
 Checkout: `/home/sbarah/R/Projects/P/sbarbase`. Read `~/AGENTS.md` first. Use Bun and `/usr/bin/python3`. Keep credentials and runtime state private. Use one active writer.
 
-Open-source self-hosted platform on original Supabase. Hierarchy: installation > organization > project > environment. Ownership is separate from server placement. Current candidate shares PostgreSQL with separate databases/scoped credentials per environment, original Auth/REST per environment and shared tenant-aware Storage. Independent PostgreSQL remains the fallback. Trusted host operators and SQL authors are assumed. [Reasons and alternatives](DECISIONS.md).
+Open-source self-hosted platform on original Supabase. Hierarchy: installation > organization > project > environment. Ownership is separate from server placement. Current candidate shares PostgreSQL with separate databases/scoped credentials per environment, original Auth/REST per environment and shared tenant-aware Storage. Independent PostgreSQL remains the fallback. Trusted host operators and SQL authors are assumed. [Reasons and alternatives](../../decisions/README.md).
 
 ## Completed and evidenced
 
@@ -18,7 +18,7 @@ Open-source self-hosted platform on original Supabase. Hierarchy: installation >
 - Four retained local environments, including one moved to a separate local recovery target. Auth/RLS/private Storage, export/restore, source fencing and persistent routing were exercised.
 - Source HBA authority integrated into startup and worker provisioning, with exact ownership, generation pins, immutable attempts and durable completion.
 - Latest full Python run: 217 passing tests. Recorded Bun run: 73 tests/408 assertions. Healthy real worker/restart/SDK rehearsal: 76 checks.
-- Latest native worker SIGKILL rehearsals: 90 checks each, after intent registration and after durable applied witness. Counts overlap the healthy baseline. HBA-only reconciliation preserves the unresolved services-stage job and prevents replay. [Exact scope](WORKER-HBA-CRASH.md).
+- Latest native worker SIGKILL rehearsals: 90 checks each, after intent registration and after durable applied witness. Counts overlap the healthy baseline. HBA-only reconciliation preserves the unresolved services-stage job and prevents replay. [Exact scope](../WORKER-HBA-CRASH.md).
 
 ## State at stop
 
@@ -30,7 +30,7 @@ The retained source has no HBA generation pin. Its startup deliberately refuses 
 
 1. DONE 2026-09-20 (Hermes): the durable legacy adoption operation is
    implemented and crash-tested on disposable fixtures
-   ([docs/HBA-LEGACY-ADOPTION.md](HBA-LEGACY-ADOPTION.md)); retained-adoption
+   ([docs/engineering/HBA-LEGACY-ADOPTION.md](../HBA-LEGACY-ADOPTION.md)); retained-adoption
    reconciliation and container-generation migration remain open.
 2. DONE 2026-09-20 (Hermes): retained adoption is reconciled. `sbarbase-durable-db`
    now carries a generation pin; its HBA rules were preserved byte for byte with
@@ -53,4 +53,4 @@ There is no verified capacity guarantee for 10 or 100 projects. Retained configu
 
 ## References and visuals
 
-[Current integration](SOURCE-HBA-INTEGRATION.md), [full handoff/research map](HANDOFF.md), [chronological checkpoint](RESUME-CHECKPOINT.md), [ten-project diagram](diagrams/ten-projects.png), [migration/recovery diagram](diagrams/move-and-restore.png). Pictures show design intent, not completed features or proven capacity. Source links and adversarial reviews are preserved in the repository.
+[Current integration](../SOURCE-HBA-INTEGRATION.md), [full handoff/research map](HANDOFF.md), [chronological checkpoint](RESUME-CHECKPOINT.md), [ten-project diagram](../../diagrams/ten-projects.png), [migration/recovery diagram](../../diagrams/move-and-restore.png). Pictures show design intent, not completed features or proven capacity. Source links and adversarial reviews are preserved in the repository.

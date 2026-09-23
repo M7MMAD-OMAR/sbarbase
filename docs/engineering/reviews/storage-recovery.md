@@ -1,6 +1,6 @@
 # Database and object recovery rehearsal
 
-Recorded 2026-09-20. Eleven additional live checks passed inside the upstream Storage probe; the combined run now totals 122, including previous checks. [Evidence](../evidence/storage-recovery-checks.json). This is a same-cluster, quiescent-fixture rehearsal, not a production backup service or off-host recovery guarantee.
+Recorded 2026-09-20. Eleven additional live checks passed inside the upstream Storage probe; the combined run now totals 122, including previous checks. [Evidence](../../evidence/storage-recovery-checks.json). This is a same-cluster, quiescent-fixture rehearsal, not a production backup service or off-host recovery guarantee.
 
 ## Backup contents and integrity
 

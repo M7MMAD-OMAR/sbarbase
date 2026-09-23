@@ -66,19 +66,19 @@ whole subject of this document.
 | Per-environment ceilings | database `1024m` / `1` CPU, shared Storage `512m` / `0.5`, management Auth `256m` / `0.25`, each environment Auth `256m` / `0.25`, each environment REST `256m` / `0.25` | `lab/durable_runtime.py:188`, `:213`, `:356`, `:311` | Fixed for every environment. No tier, no per-environment override, no quota that spans one environment's containers. Two environments with different value get identical limits. |
 | Environment count guard | at most 4 environments | `lab/durable_runtime.py:278` | A count, not a resource measurement. The lab runner allows 5 (`lab/run.py:170`), so the two guards disagree. |
 | Installation memory ceiling | `MAX_MEMORY = 6*1024**3`, `MAX_CPUS = 6`, `RESERVE = 2*1024**3+512*MIB` | `lab/combined_admission.py:11-13` | Applies to combined source plus target start. The planned placement is 5888 MiB and 5.75 CPUs, so 256 MiB and 0.25 CPU of the ceiling remain. Nothing about a new component (Studio) can be added without exceeding it. |
-| Combined name list | explicit literal list: source db, Storage, management Auth, `auth`+`rest` per environment in `source.values['environments']`, plus target `db`,`auth`,`rest`,`storage` | `lab/combined_admission.py:29-31` | Under-counts anything it is not told about (Studio and postgres-meta are not in it, as `docs/STUDIO-INTEGRATION.md:121-122` records), and over-counts containers that exist but are stopped (`docs/COMBINED-RUNTIME.md:9`). It also requires every listed container to exist, because it inspects each one (`:34`). |
+| Combined name list | explicit literal list: source db, Storage, management Auth, `auth`+`rest` per environment in `source.values['environments']`, plus target `db`,`auth`,`rest`,`storage` | `lab/combined_admission.py:29-31` | Under-counts anything it is not told about (Studio and postgres-meta are not in it, as `docs/engineering/STUDIO-INTEGRATION.md:121-122` records), and over-counts containers that exist but are stopped (`docs/engineering/COMBINED-RUNTIME.md:9`). It also requires every listed container to exist, because it inspects each one (`:34`). |
 | Combined headroom test | `memory > MAX_MEMORY or cpus > MAX_CPUS` then `available < memory+RESERVE` then `host_cpus < cpus+2` | `lab/combined_admission.py:16-22` | Refuses allocation, does not shape it. `host_cpus` is `os.cpu_count()` (`:52`), which reports 24 on this host (`/proc/cpuinfo` has 24 `processor` entries; `docker info` reports `NCPU 24`). |
 | Disk-space admission | memory reserve 2 GiB plus 512 MiB for a new environment; 5 GiB disk reserve plus 1 GiB new-environment allowance on each of the database and object volumes; 10000 free inodes | `lab/resource_admission.py:10-14`, `:32-37` | A whole-filesystem free-space check, not a per-tenant allocation. No environment has a disk quota, and no environment's own size is measured. Btrfs reports no fixed inode pool, handled at `:53-56`. |
-| Volume measurement | `df -Pk` and `df -Pi` executed inside the owned database and Storage containers at their real volume paths | `lab/resource_admission.py:48-58`, `:69-73` | Reads the filesystem the volume sits on. Both volumes are on `/dev/mapper/luks-d5d273a7-4705-47d4-9d9a-59d5fbc8f10c` (btrfs, VERIFIED via `findmnt` and `df -PT /var/lib/docker` this session), so the two numbers are one filesystem counted twice, which `docs/RESOURCE-ADMISSION.md:12` admits. |
+| Volume measurement | `df -Pk` and `df -Pi` executed inside the owned database and Storage containers at their real volume paths | `lab/resource_admission.py:48-58`, `:69-73` | Reads the filesystem the volume sits on. Both volumes are on `/dev/mapper/luks-d5d273a7-4705-47d4-9d9a-59d5fbc8f10c` (btrfs, VERIFIED via `findmnt` and `df -PT /var/lib/docker` this session), so the two numbers are one filesystem counted twice, which `docs/engineering/RESOURCE-ADMISSION.md:12` admits. |
 | Container pressure admission | `cpu_some10 >= 50.0`, `io_full10 >= 20.0`, `memory_full10 >= 1.0` refused; containers `('sbarbase-durable-db','sbarbase-durable-storage')` only | `lab/pressure_admission.py:6-7`, `:36-48` | Admission-time only, one snapshot, before provisioning. Studio, meta, and every per-environment Auth/REST container are outside the tuple, so their stalls are invisible. Not a monitor and not a response. Last recorded snapshot was all zeros with `refusal: null` (`docs/evidence/pressure-snapshot.json`). |
-| PostgreSQL connection budget | `SERVICE_LIMIT = 6`, `ENVIRONMENT_LIMIT = 3*6 = 18`, `SHARED_LIMIT = 12`, `OPERATIONS_RESERVE = 10`; fits when `18*envs + 12 + 10 <= max - superuser_reserved - reserved` | `lab/connection_budget.py:2-5`, `:8-12` | Connection counts only. `docs/CONNECTION-BUDGET.md:22` states this explicitly: not query CPU, memory, lock duration or disk I/O. |
+| PostgreSQL connection budget | `SERVICE_LIMIT = 6`, `ENVIRONMENT_LIMIT = 3*6 = 18`, `SHARED_LIMIT = 12`, `OPERATIONS_RESERVE = 10`; fits when `18*envs + 12 + 10 <= max - superuser_reserved - reserved` | `lab/connection_budget.py:2-5`, `:8-12` | Connection counts only. `docs/engineering/CONNECTION-BUDGET.md:22` states this explicitly: not query CPU, memory, lock duration or disk I/O. |
 | Service pools | Auth `GOTRUE_DB_MAX_POOL_SIZE = 3` (`lab/run.py:130`), PostgREST `PGRST_DB_POOL = 3` (`lab/run.py:137`), Storage metadata and tenant connections 3 each (`lab/durable_runtime.py:210`, `:321`) | as listed | Three connections per service is the real concurrency inside the engine. The gateway cap below is derived from it, but the gateway is not the only client. |
-| Gateway environment admission | 8 requests per environment, 32 per process, no queue | `src/gateway/concurrency.ts:34`, `:46` | In-process only. `docs/GATEWAY-OVERLOAD.md:5` states it is not a distributed rate limiter and cannot terminate work that ignores cancellation. Two gateway processes double the real capacity. |
+| Gateway environment admission | 8 requests per environment, 32 per process, no queue | `src/gateway/concurrency.ts:34`, `:46` | In-process only. `docs/engineering/GATEWAY-OVERLOAD.md:5` states it is not a distributed rate limiter and cannot terminate work that ignores cancellation. Two gateway processes double the real capacity. |
 | Gateway service admission | per-environment per-service counter; REST publishes 3 from `PGRST_DB_POOL` | `src/gateway/handler.ts:116`, `src/gateway/concurrency.ts:43-50`, published at `lab/durable_runtime.py:333` | A concurrency cap, not a rate cap. 3 concurrent 8-second RPCs can still be 3 requests per 8 seconds or 1000 small ones. |
 | Gateway body and time bounds | body limit 1 MiB, `content-length` pre-check, 10 s body read deadline, 15 s upstream fetch deadline, 30 s pre-header deadline, 30 s response deadline | `src/gateway/handler.ts:83-84`, `:92-94`, `:112`; `src/gateway/concurrency.ts:34`, `:74`, `:126` | Per request, not per tenant. Nothing bounds a tenant's request rate or total bytes over time. |
-| Gateway pause lease | in-process exclusive lease, 503 with `retry-after: 1`, `waitForDrain(timeoutMs)` | `src/gateway/concurrency.ts:7-30`, `:39`; entry point `src/gateway/managed.ts:9` | `docs/GATEWAY-DRAIN.md:9`: state is in memory, disappears on restart, other gateway processes are not fenced, and gateway drain is not database quiescence. |
-| SQL execution bounds | per-environment REST login: `statement_timeout = 8s`, `transaction_timeout = 12s`; anon 3 s and authenticated 8 s upstream defaults unchanged | `lab/durable_runtime.py:247`, `:254`; `docs/SQL-DEADLINES.md:7-8` | `docs/SQL-DEADLINES.md:30`: environments still share PostgreSQL CPU, memory and I/O; a SQL author can override `statement_timeout` (verified live in that document), and a function can change `transaction_timeout` itself. |
-| Installer headroom plan | `PLANNED_MIB = 5888`, `RESERVE_MIB = 2560`, `PLANNED_CPUS = 5.75`, `CPU_SPARE = 2`, `MIN_FREE_BYTES = 12 GiB` | `lab/install_server.py:31-38`, arithmetic at `:122-130`, refusal at `:142-145` | The same 5888 and 5.75 exist again in `lab/combined_admission.py` as a sum of names, and again as prose in `docs/SERVER-DEPLOYMENT.md:24`. Three places, one number. |
+| Gateway pause lease | in-process exclusive lease, 503 with `retry-after: 1`, `waitForDrain(timeoutMs)` | `src/gateway/concurrency.ts:7-30`, `:39`; entry point `src/gateway/managed.ts:9` | `docs/engineering/GATEWAY-DRAIN.md:9`: state is in memory, disappears on restart, other gateway processes are not fenced, and gateway drain is not database quiescence. |
+| SQL execution bounds | per-environment REST login: `statement_timeout = 8s`, `transaction_timeout = 12s`; anon 3 s and authenticated 8 s upstream defaults unchanged | `lab/durable_runtime.py:247`, `:254`; `docs/engineering/SQL-DEADLINES.md:7-8` | `docs/engineering/SQL-DEADLINES.md:30`: environments still share PostgreSQL CPU, memory and I/O; a SQL author can override `statement_timeout` (verified live in that document), and a function can change `transaction_timeout` itself. |
+| Installer headroom plan | `PLANNED_MIB = 5888`, `RESERVE_MIB = 2560`, `PLANNED_CPUS = 5.75`, `CPU_SPARE = 2`, `MIN_FREE_BYTES = 12 GiB` | `lab/install_server.py:31-38`, arithmetic at `:122-130`, refusal at `:142-145` | The same 5888 and 5.75 exist again in `lab/combined_admission.py` as a sum of names, and again as prose in `docs/guides/server-deployment.md:24`. Three places, one number. |
 | Raw headroom gates on start | hardcoded 6 GiB `MemAvailable` before starting the durable runtime, the target, or the lab | `lab/durable_runtime.py:183-184`, `lab/target_runtime.py:72-73`, `lab/run.py:149-151` | A fourth reserve constant, unrelated to the other three. Values are read in kB and compared to `6*1024*1024`, so the unit works, but the number is duplicated. |
 | Footprint measurement | `docker stats` sampled into `docs/evidence/source-stage-footprint.json` (9 containers, 279 MiB total, database 94, Storage 117, management Auth 9, each environment Auth 8 to 9 and REST 9 to 10) | `lab/installation_runtime.py:16-38`, `:41-58`; file VERIFIED | Measured usage of the source stage only, sampled immediately before a combined check, and only on the moved-installation path. No tier, no pressure, no per-tenant attribution. |
 
@@ -91,7 +91,7 @@ Auth 256 + REST 256 = 2048 MiB and 2.0 CPUs. Combined 5888 MiB, 5.75 CPUs, which
 is exactly `install_server.PLANNED_MIB` and `PLANNED_CPUS`.
 
 Against `MAX_MEMORY` 6144 MiB and `MAX_CPUS` 6 there are 256 MiB and 0.25 CPU
-left. That is why `docs/STUDIO-INTEGRATION.md:123-126` finds that even a 512 MiB
+left. That is why `docs/engineering/STUDIO-INTEGRATION.md:123-126` finds that even a 512 MiB
 Studio plus a 128 MiB meta at four environments takes the plan to 8448 MiB and
 8.75 CPUs and is refused, not started.
 
@@ -108,11 +108,11 @@ Studio plus a 128 MiB meta at four environments takes the plan to 8448 MiB and
    ceiling; the sum is never checked, and adding Studio to an environment would
    add two more unquoted containers.
 5. Priority classes. Production and experimental environments are identical
-   (`lab/durable_runtime.py:311` takes no tier). `docs/DECISIONS.md:15` says
+   (`lab/durable_runtime.py:311` takes no tier). `docs/decisions/README.md:15` says
    capacity is to be measured before admission, but no class exists to encode
    the result.
 6. Continuous pressure response. `lab/pressure_admission.py` is called once from
-   the provisioning path (`lab/durable_runtime.py:286`). `docs/PRESSURE-ADMISSION.md:16`
+   the provisioning path (`lab/durable_runtime.py:286`). `docs/engineering/PRESSURE-ADMISSION.md:16`
    states it plainly: an admission-time gate, not a continuous monitor or a
    remedy for an existing overloaded tenant. Its container tuple also omits
    every per-environment container. Section 5.2.1 records what has since been
@@ -123,13 +123,13 @@ Studio plus a 128 MiB meta at four environments takes the plan to 8448 MiB and
    `src/gateway/`: not found. The gate counts concurrent requests, so a tenant
    with fast requests can consume the shared engine's CPU and connections at an
    unbounded rate while staying under the concurrency cap. This is the same
-   shape of finding as `docs/SUSTAINED-OVERLOAD.md:22`, which observed accepted
+   shape of finding as `docs/engineering/SUSTAINED-OVERLOAD.md:22`, which observed accepted
    target work waiting long enough to time out and named pool fairness as
    unestablished.
 8. Disk-space fairness. No per-environment quota, no per-environment size
    measurement. A tenant writing objects until the volume fills takes the whole
    installation down, and both volumes are the same btrfs filesystem
-   (VERIFIED, section 1). `docs/RESOURCE-ADMISSION.md:12` already says shared
+   (VERIFIED, section 1). `docs/engineering/RESOURCE-ADMISSION.md:12` already says shared
    filesystems are checked individually and not added together, which
    understates the risk: they are one filesystem.
 9. Memory pressure priority. `MemoryReservation` is 0 (VERIFIED). Under host
@@ -322,7 +322,7 @@ A quota is a derived object, not a new container. PROPOSED values:
 | Disk, soft accounting cap | 10 GiB measured, warning then refusal of new writes is NOT enforceable, see section 6 | 2 GiB |
 | Studio and meta | counted against this quota when running | not available |
 
-The rate figures are PROPOSED starting points. `docs/SUSTAINED-OVERLOAD.md:3`
+The rate figures are PROPOSED starting points. `docs/engineering/SUSTAINED-OVERLOAD.md:3`
 offers 20 RPCs/second at the target and 2/second at the neighbour as an existing
 arrival profile; 20 and 5 are placed around it so the existing probe can measure
 both. They are not calibrated.
@@ -338,7 +338,7 @@ both. They are not calibrated.
 | `MIN_FREE_BYTES` `lab/install_server.py:38` | `12 GiB` | unchanged value, but must be compared against the database and objects volumes separately rather than `/` and `stat -f` on the root (`lab/install_server.py:146` uses `shutil.disk_usage('/')`) |
 | 6 GiB raw `MemAvailable` gates `lab/durable_runtime.py:183`, `lab/target_runtime.py:72`, `lab/run.py:150` | three copies | one function in `lab/resource_policy.py`, called by all three |
 | Count guard | 4 (`lab/durable_runtime.py:278`) and 5 (`lab/run.py:170`) | one constant, plus the resource check. The count is a backstop, not the policy. |
-| Studio and meta always-on | refused, because the plan would exceed the ceiling | PROPOSED: refused by default and started on demand, per `docs/STUDIO-INTEGRATION.md:131-135` option 1. Raising the ceiling instead (option 2 in that document) is an operator capacity decision and is NOT made here. |
+| Studio and meta always-on | refused, because the plan would exceed the ceiling | PROPOSED: refused by default and started on demand, per `docs/engineering/STUDIO-INTEGRATION.md:131-135` option 1. Raising the ceiling instead (option 2 in that document) is an operator capacity decision and is NOT made here. |
 
 ### 3.5 Admission arithmetic change, including the container name list
 
@@ -396,7 +396,7 @@ accepting a container nobody can account for is the defect this change removes.
 
 This section said "one recreation of the retained placement" until the constraint
 was read properly, and that was wrong. Recreating the retained **database**
-container has no supported path. `docs/CONTAINER-GENERATION-MIGRATION.md` records
+container has no supported path. `docs/engineering/CONTAINER-GENERATION-MIGRATION.md` records
 why: the HBA authority registry and its tombstones live in that container's own
 filesystem, so a new container starts with a different identity and the retained
 generation pin refuses it. The document's own words are that the only supported
@@ -434,7 +434,7 @@ follow-up.
 
 `lab/resource_policy.py` is the plan. It must record, in the module, dated
 comments naming the measurement each number came from, in the shape
-`docs/PRESSURE-ADMISSION.md:13` already uses ("experimental conservative policy
+`docs/engineering/PRESSURE-ADMISSION.md:13` already uses ("experimental conservative policy
 constants, not calibrated service objectives"). `lab/install_server.py`'s
 `capacity()` (`:131-147`) must print the composition it was already taught to
 print at `:125`, now including the tier breakdown and the operator headroom, so a
@@ -464,17 +464,17 @@ it must additionally record:
 (`lab/installation_runtime.py:41-58`) must add the same `policy_revision` and one
 entry per container's actual `cpu.weight`, `io.weight`, `memory.current` and
 `memory.peak` read from inside the container, so the footprint stops being memory
-only. `docs/STUDIO-INTEGRATION.md:527-536` already prescribes reading
+only. `docs/engineering/STUDIO-INTEGRATION.md:527-536` already prescribes reading
 `/sys/fs/cgroup/memory.current`, `memory.peak` and `cpu.stat`; this makes the
 tier weights part of the same reading.
 
 ### 4.3 The readiness matrix
 
-`docs/DEPLOYMENT-READINESS.md` has a row for "Combined runtime admission on this
+`docs/reference/deployment-readiness.md` has a row for "Combined runtime admission on this
 host" (`:18`) that quotes `5888 MiB of container limits and 5.75 CPUs`. That row
 must be rewritten to quote the derived constants and to add one new row:
 "Fair distribution and priority classes", with status and its own evidence link.
-`docs/DEPLOYMENT-READINESS.md:41` ("Capacity at 10 or 100 projects | not
+`docs/reference/deployment-readiness.md:41` ("Capacity at 10 or 100 projects | not
 claimed") stays as it is: this change does not make a capacity claim.
 
 `PROJECT.md` (repository root) carries the same numbers in its "Admission checkpoint"
@@ -496,7 +496,7 @@ once the tier flags land. They must be marked superseded at the top of their
 | `docs/evidence/idle-snapshot.json` | per-container `BlockIO`, `CPUPerc` and `PIDs` under the old limits |
 | `docs/evidence/pressure-snapshot.json` | two-container tuple, now wider, and thresholds now per class |
 | `docs/evidence/noisy-neighbor-sql.json` | asserts database limits at `lab/noisy-neighbor-check.py:52-54` (`NanoCpus == 1e9`, `Memory == 1024**3`) and measures a neighbour with no weights in play |
-| `docs/evidence/sdk-load-checks.json` and `docs/evidence/sdk-policy-regression.json` | timings recorded while REST admission was 3 and no tier existed; `docs/SDK-LOAD.md:33` already says the differences are not a controlled comparison, so these stay historical rather than being re-read as a baseline |
+| `docs/evidence/sdk-load-checks.json` and `docs/evidence/sdk-policy-regression.json` | timings recorded while REST admission was 3 and no tier existed; `docs/engineering/SDK-LOAD.md:33` already says the differences are not a controlled comparison, so these stay historical rather than being re-read as a baseline |
 | `docs/evidence/gateway-sustained-checks.json`, `gateway-sustained-first-pass.json`, `gateway-sustained-failure.json` | arrival profile at REST budget 3; if the experimental REST budget becomes 1 these runs no longer describe the configured policy |
 | `docs/evidence/admission-checks.json` | the four-environment count guard checks; unchanged in count, but the resource terms it refused on are now derived |
 
@@ -532,8 +532,8 @@ placement, and the reason is structural rather than a stale file:
   isolated fresh worker check instead. The `probe.json` on this host is therefore
   a leftover, and its first environment resolves to the retired environment
   `e_60332245e3a0426dd242492f`, which is why the overload vehicle dies on its
-  first SQL command (recorded in `docs/plans/2026-09-21-execution-plan.md`).
-- `docs/CONTAINER-GENERATION-MIGRATION.md` records that recreating a retained
+  first SQL command (recorded in `docs/engineering/plans/2026-09-21-execution-plan.md`).
+- `docs/engineering/CONTAINER-GENERATION-MIGRATION.md` records that recreating a retained
   database container has no supported path, and that document is a deferred
   checkpoint rather than an implemented operation.
 
@@ -628,7 +628,7 @@ the existing sustained arrival generator.
   and records the sample series.
 - Hold fixed: the 600 target and 60 neighbour arrival counts, the two-second
   target RPC, the distinct returned integers, the generator's 100 ms jitter
-  bound and 128 pending cap (`docs/SUSTAINED-OVERLOAD.md:5`), and the neighbour
+  bound and 128 pending cap (`docs/engineering/SUSTAINED-OVERLOAD.md:5`), and the neighbour
   acceptance rule that the neighbour must be correct AND fast.
 - Record: the sample series with timestamps, every gate response status, the
   count of target successes and rejections, the neighbour p95, and the exact
@@ -661,7 +661,7 @@ Level 1 of section 7 step 7 is implemented and nothing above it:
 | Level | Design asks | State |
 |---|---|---|
 | 1 | refuse new provisioning with the existing safe capacity reason, and record the event | built: `response()` refuses while the most recent reading is at or over a threshold and appends each crossing to `.lab/pressure-crossings.jsonl`, one JSON object per line, flushed and fsynced |
-| 2 | call the gateway pause lease for each experimental environment over threshold for three consecutive samples | not built: no per-environment class exists in the runtime state, so "experimental" cannot be selected, and the lease is in-process, is lost on restart, and does not prove a paused environment's SQL stopped (`docs/GATEWAY-DRAIN.md`) |
+| 2 | call the gateway pause lease for each experimental environment over threshold for three consecutive samples | not built: no per-environment class exists in the runtime state, so "experimental" cannot be selected, and the lease is in-process, is lost on restart, and does not prove a paused environment's SQL stopped (`docs/engineering/GATEWAY-DRAIN.md`) |
 | 3 | pause every class except `system` and refuse all starts | not built: same reasons, and it stops or restricts work that is already running, which this increment was explicitly not to do |
 
 Every decision returns the list of what is not implemented next to the action, so
@@ -695,7 +695,7 @@ measured on their own; the arrival-driven run is not.
 
 Extend `lab/sdk-load-check.ts`, which already runs one then four workers per
 environment over five operation types for two ten-second phases
-(`docs/SDK-LOAD.md:7`) and already samples pressure mid-phase
+(`docs/engineering/SDK-LOAD.md:7`) and already samples pressure mid-phase
 (`lab/sdk-load-check.ts:38`).
 
 - Reuse the same workload and pacing so the new numbers are comparable to
@@ -713,8 +713,8 @@ environment over five operation types for two ten-second phases
 All three run on one workstation that also runs the generator, and the runtime's
 CPU quota is a fraction of a 24-CPU host. They cannot establish capacity for 10
 or 100 environments, cannot establish a production SLO, and cannot prove
-allocation inside one shared PostgreSQL engine. `docs/NOISY-NEIGHBOR.md:11`,
-`docs/SDK-LOAD.md:27` and `docs/reviews/capacity-method.md:16` all already say a
+allocation inside one shared PostgreSQL engine. `docs/engineering/NOISY-NEIGHBOR.md:11`,
+`docs/engineering/SDK-LOAD.md:27` and `docs/engineering/reviews/capacity-method.md:16` all already say a
 generator on the same machine is not a capacity measurement; that stays true
 after this change.
 
@@ -725,14 +725,14 @@ after this change.
 1. CPU inside PostgreSQL. All environment databases live in one postmaster. A
    tenant's query is a backend process of that container. `--cpu-shares` on the
    container shapes how the engine competes with other containers, not how two
-   backends compete with each other. `docs/CONNECTION-BUDGET.md:22` and
-   `docs/SQL-DEADLINES.md:30` both already refuse to claim this; this policy does
+   backends compete with each other. `docs/engineering/CONNECTION-BUDGET.md:22` and
+   `docs/engineering/SQL-DEADLINES.md:30` both already refuse to claim this; this policy does
    not change that.
 2. Memory inside PostgreSQL. The database container's ceiling is one pool.
    `shared_buffers`, `work_mem` per sort and per hash, and the page cache are
    shared. A tenant with many concurrent sorts can consume the engine's memory
    and cause a neighbour's query to spill or the container to be OOM killed.
-   Per-database memory accounting does not exist in PostgreSQL. `docs/reviews/capacity-method.md:10`
+   Per-database memory accounting does not exist in PostgreSQL. `docs/engineering/reviews/capacity-method.md:10`
    states the work_mem multiplication; the policy cannot bound it.
 3. Disk I/O inside PostgreSQL. `io.weight` on the container sets one weight for
    all of the engine's I/O. The WAL writer, the checkpointer and every tenant's
@@ -745,18 +745,18 @@ after this change.
    provisioning, and the gateway can refuse new uploads for a tenant, but it
    cannot stop a database INSERT from growing. A btrfs qgroup per subvolume would
    be a hard cap at the filesystem layer and is not designed here; it is recorded
-   as `open` in `docs/RESOURCE-ADMISSION.md:20` and stays open.
-5. Isolation from a compromised service credential. `docs/reviews/supabase-feasibility.md:32`
+   as `open` in `docs/engineering/RESOURCE-ADMISSION.md:20` and stays open.
+5. Isolation from a compromised service credential. `docs/engineering/reviews/supabase-feasibility.md:32`
    and `:36`: shared canonical roles mean `ALTER ROLE authenticated` affects the
    cluster, and a compromised cluster administrator reaches every database. The
    `service_role` bypass is scoped to its database connection, but the storage
    process can reach every tenant's configuration. A resource policy does not
    change any of this.
-6. Any guarantee about the host itself. `docs/COMBINED-RUNTIME.md:9` records that
+6. Any guarantee about the host itself. `docs/engineering/COMBINED-RUNTIME.md:9` records that
    unrelated workloads remain outside ownership and are accounted for only
    indirectly through host headroom and pressure. A policy inside the
    installation cannot reserve anything against a process outside it.
-7. Sustained behaviour. `docs/PRESSURE-ADMISSION.md:16` refuses to claim continuous
+7. Sustained behaviour. `docs/engineering/PRESSURE-ADMISSION.md:16` refuses to claim continuous
    response today, and this design only proposes it. Until Experiments B and C
    have run and their artifacts are committed, every statement about continuous
    response is design.
@@ -780,9 +780,9 @@ placement goes.
   `:30-37` inspects `db`, `auth`, `rest`, `storage` for that prefix.
   `docs/evidence/target-placement-rehearsal.json` records that placement starting,
   serving and stopping.
-- Ownership is independent of placement by decision: `docs/DECISIONS.md:8`
+- Ownership is independent of placement by decision: `docs/decisions/README.md:8`
   ("Hierarchy | Installation > organization > project > environment; ownership
-  independent of placement"), restated in `docs/reviews/supabase-feasibility.md:9`
+  independent of placement"), restated in `docs/engineering/reviews/supabase-feasibility.md:9`
   as the second deployment profile, one independent PostgreSQL cluster per
   environment, kept because it "preserves independent canonical roles, permits
   stronger operational separation".
@@ -809,15 +809,15 @@ any of the following, and none of them should be proposed as if they would:
    implement an accounting check but cannot make the kernel refuse a write from
    another process on the same filesystem.
 3. Host-level fairness against processes outside the installation.
-4. The shared canonical role identities (`docs/reviews/supabase-feasibility.md:16`:
+4. The shared canonical role identities (`docs/engineering/reviews/supabase-feasibility.md:16`:
    roles are cluster-global). Forking Auth does not create per-database role
    namespaces in PostgreSQL.
 5. The page cache. It is not accounted to a cgroup in a way that a fork of a
    user-space service can partition.
 
-What a fork would make worse: `docs/DECISIONS.md:7` keeps Supabase for API and
+What a fork would make worse: `docs/decisions/README.md:7` keeps Supabase for API and
 SDK compatibility, `:13` refuses a home-grown administration surface for drift
-reasons, and `docs/reviews/supabase-feasibility.md:7` refuses to rewrite
+reasons, and `docs/engineering/reviews/supabase-feasibility.md:7` refuses to rewrite
 authentication. A fork of the components would trade a resource problem that
 placement already solves for a compatibility problem that placement does not.
 
@@ -825,7 +825,7 @@ placement already solves for a compatibility problem that placement does not.
 
 Ordered so each step is independently landable, testable, and does not depend on
 the next. Paths are exact. All Python runs use `/usr/bin/python3` per
-`/home/sbarah/AGENTS.md` and `docs/DEPLOYMENT-READINESS.md` (`python3` alone is
+`/home/sbarah/AGENTS.md` and `docs/reference/deployment-readiness.md` (`python3` alone is
 the Hermes venv). JavaScript runs use `bun`, never npm.
 
 ### Step 1: one policy module, no behaviour change
@@ -921,7 +921,7 @@ Verify:
 ```
 
 The last command is the real combined check and it must still refuse for the same
-reason it refuses today (`docs/COMBINED-RUNTIME.md:3`: source preflight refuses
+reason it refuses today (`docs/engineering/COMBINED-RUNTIME.md:3`: source preflight refuses
 because the retained legacy source has not been adopted). A refusal for a new
 reason is a defect in this step.
 
@@ -950,7 +950,7 @@ has the headroom the preflight asks for, and stopped afterwards.
 
 Add a per-environment token bucket and a concurrent-response-bytes budget to
 `src/gateway/concurrency.ts` next to the existing counters (`:32-33`), keyed the
-same way so an API key change cannot reset them (`docs/GATEWAY-OVERLOAD.md:21`).
+same way so an API key change cannot reset them (`docs/engineering/GATEWAY-OVERLOAD.md:21`).
 Read the per-class values from the route, not from a constant, so
 `src/gateway/managed.ts:28` can publish them. Keep 429 for a rate refusal and 503
 for a process-wide refusal so existing callers keep their vocabulary.
@@ -991,15 +991,15 @@ which reuse existing machinery:
 - Level 2, `experimental` over threshold for three consecutive samples: call the
   pause lease for each experimental environment. The lease already exists at
   `src/gateway/concurrency.ts:7-30` and is reached through
-  `src/gateway/managed.ts:9`; `docs/GATEWAY-DRAIN.md:3` records that it is
+  `src/gateway/managed.ts:9`; `docs/engineering/GATEWAY-DRAIN.md:3` records that it is
   trusted in-process operator code and not an HTTP endpoint.
 - Level 3, `system` over threshold or `MemAvailable` below `RESERVE`: pause every
   class except `system`, and refuse all new starts.
 
 Honesty requirements inside the responder itself: record that the pause is
-in-process only and disappears on restart (`docs/GATEWAY-DRAIN.md:9`), record
+in-process only and disappears on restart (`docs/engineering/GATEWAY-DRAIN.md:9`), record
 that a paused environment's gateway does not prove its SQL stopped
-(`docs/GATEWAY-DRAIN.md:9`, `docs/REST-CANCELLATION.md:21`), and never resume
+(`docs/engineering/GATEWAY-DRAIN.md:9`, `docs/engineering/REST-CANCELLATION.md:21`), and never resume
 automatically without an explicit operator action or a recorded dwell time.
 
 Verify:
@@ -1028,9 +1028,9 @@ python3 -m json.tool docs/evidence/noisy-neighbor-sql.json
 
 ### Step 9: the documents
 
-Update in one change: `docs/DEPLOYMENT-READINESS.md` (row `:18` and a new
+Update in one change: `docs/reference/deployment-readiness.md` (row `:18` and a new
 fairness row), `PROJECT.md` (the admission checkpoint numbers), a new
-`docs/RESOURCE-POLICY.md` carrying the tier table, the quota table, the derived
+`docs/engineering/RESOURCE-POLICY.md` carrying the tier table, the quota table, the derived
 constants and the measurement status of each, and superseding notes at the top of
 each file listed in section 4.4.
 
@@ -1047,7 +1047,7 @@ cross references.
 
 ### Step 10: the capability and limit check
 
-`docs/DEPLOYMENT-READINESS.md` `:34` records that `deploy/server-acceptance.sh`
+`docs/reference/deployment-readiness.md` `:34` records that `deploy/server-acceptance.sh`
 is the one command that proves the whole path. Before any statement about
 fairness is repeated outside the repository, run it on a real server, because
 every number in this document was produced on one workstation that also runs the
@@ -1062,21 +1062,21 @@ sudo deploy/server-acceptance.sh --rehearse --install-unit --service-user <accou
 - No per-tenant memory, CPU or I/O accounting exists inside PostgreSQL or
   Storage. Searched: `lab/`, `src/`, `tests/`, `docs/` for `work_mem`, `pg_stat_statements`,
   `io.max`, `cpu.max`, `memory-reservation`, `oom`, `quota`. Only
-  `docs/reviews/capacity-method.md:10-11` discusses work_mem as a risk, and
-  `docs/RESOURCE-ADMISSION.md:24` lists tenant disk quotas as still required. Not found.
+  `docs/engineering/reviews/capacity-method.md:10-11` discusses work_mem as a risk, and
+  `docs/engineering/RESOURCE-ADMISSION.md:24` lists tenant disk quotas as still required. Not found.
 - No rate limiter of any kind exists in the gateway. Searched `src/gateway/` and
   `src/http/` for `rate`, `bucket`, `tokens`. Not found.
 - No continuous pressure monitor exists; `lab/pressure_admission.py` is called
   once per provisioning attempt (`lab/durable_runtime.py:286`). VERIFIED absent
   by that single call site.
 - No measured Studio or postgres-meta footprint exists anywhere in
-  `docs/evidence/`; `docs/STUDIO-INTEGRATION.md:506-507` states that upstream
+  `docs/evidence/`; `docs/engineering/STUDIO-INTEGRATION.md:506-507` states that upstream
   publishes no figure and that nothing was started. Not found.
 - No verified cgroup v2 reading of the effective `cpu.weight` or `io.weight` for
   any owned container exists in the evidence. The two containers inspected for
   this document are stopped and report `CpuShares: 0` and `BlkioWeight: 0`.
   Step 3 of section 7 is the first time this gets read.
 - The repository contains no decision row selecting a tier policy. The closest is
-  `docs/DECISIONS.md:15` ("Capacity | Measure peak workloads and reserve recovery
+  `docs/decisions/README.md:15` ("Capacity | Measure peak workloads and reserve recovery
   headroom before admission"), which is the mandate for this document, not an
   answer inside it.

@@ -1,6 +1,6 @@
 """Tier table, launch flags and derived placement arithmetic.
 
-Every expected value in this file is copied from docs/RESOURCE-POLICY.md
+Every expected value in this file is copied from docs/engineering/RESOURCE-POLICY.md
 (sections 3.1, 3.2 and 3.5). The tests name the failure each one can produce.
 """
 from pathlib import Path
@@ -9,7 +9,7 @@ import json
 import unittest
 import resource_policy as policy
 
-# docs/RESOURCE-POLICY.md section 3.1: (class label, shares, weight, cpus,
+# docs/engineering/RESOURCE-POLICY.md section 3.1: (class label, shares, weight, cpus,
 # memory, pids), one tuple per row of the design's table.
 DESIGN_ROWS = {
     'system.db': ('system', 2048, 800, 1, '1024m', 128),
@@ -61,7 +61,7 @@ class TierTableTests(unittest.TestCase):
 
 
 class LaunchFlagTests(unittest.TestCase):
-    """docs/RESOURCE-POLICY.md section 3.2: the exact flags each launch adds."""
+    """docs/engineering/RESOURCE-POLICY.md section 3.2: the exact flags each launch adds."""
 
     def launch(self, tier, memory='256m', cpus=.25, name='sbarbase-durable-probe'):
         import tempfile
@@ -151,7 +151,7 @@ PROC = {
 
 
 class DerivedPlacementTests(unittest.TestCase):
-    """docs/RESOURCE-POLICY.md section 3.5: the counted set is derived, not listed."""
+    """docs/engineering/RESOURCE-POLICY.md section 3.5: the counted set is derived, not listed."""
 
     def setUp(self):
         import socket
@@ -349,7 +349,7 @@ class MaintenanceLabels(unittest.TestCase):
 class BlockIOLimits(unittest.TestCase):
     """The block IO mechanism that binds, since the weight flag was measured not to.
 
-    docs/RESOURCE-POLICY.md section 3.1.1 and
+    docs/engineering/RESOURCE-POLICY.md section 3.1.1 and
     docs/evidence/resource-policy-cgroup-mapping.json carry the measurement.
     """
 

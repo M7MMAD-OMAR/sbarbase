@@ -14,7 +14,7 @@ cluster with a separate database and scoped service logins per environment, runs
 original Auth/REST per environment, and shares one tenant-aware Storage process.
 Independent PostgreSQL is the fallback. Operators are trusted; application
 visitors are not. Each environment is meant to be administered through the
-original upstream Studio (specified in `docs/STUDIO-INTEGRATION.md`, not served
+original upstream Studio (specified in `docs/engineering/STUDIO-INTEGRATION.md`, not served
 yet); the console in `ui/` covers only the platform layer.
 
 Nothing here is production ready. Docs and commits consistently avoid claiming
@@ -40,11 +40,15 @@ bun run build:ui                           # vite, outputs to .lab/ui
 Website (`website/`, own `package.json`, Cloudflare via wrangler; CI in
 `.github/workflows/website.yml` runs only this): `cd website && bun run build && bun test`.
 
-`lab/test_doc_references.py` fails if the operational docs
-(`SERVER-DEPLOYMENT`, `DEPLOYMENT-READINESS`, `INDEPENDENT-RESTORE`,
-`HERMES-HANDOFF`, `UPSTREAM-UPDATE-POLICY`) name a `lab/` or `deploy/` script or a
-`docs/evidence/*.json` file that does not exist. Run it after renaming scripts or
-evidence.
+`lab/test_doc_references.py` fails if the operational docs (the guides,
+`reference/status.md`, `reference/configuration.md`,
+`reference/deployment-readiness.md`, `engineering/INDEPENDENT-RESTORE.md`,
+`engineering/UPSTREAM-UPDATE-POLICY.md` and the agent handoff; the list is its
+`DOCUMENTS` tuple) name a `lab/` or `deploy/` script or a `docs/evidence/*.json`
+file that does not exist. Run it after renaming scripts or evidence.
+`lab/test_docs_links.py` fails on any broken relative Markdown link under `docs/`,
+in `README.md` or here, and on any em or en dash in the docs. Run it after moving
+or renaming a document.
 
 ### Live lab (Docker) commands
 
@@ -93,14 +97,14 @@ Two languages with a clear split:
 - **`ui/`**: React 19 + Vite platform console, built into `.lab/ui` and served by
   the loopback API.
 - **`deploy/`**: systemd unit, TLS proxy and `server-acceptance.sh` for a real
-  server (see `docs/SERVER-DEPLOYMENT.md`).
+  server (see `docs/guides/server-deployment.md`).
 
 Cross-cutting invariants that span both halves:
 
 - Provisioning is crash-oriented: durable effect receipts, exact worker identity,
   and fail-closed startup. Unknown outcomes block replay; never delete pending
   receipts, journals, generation pins or revocations to get past a refusal
-  (`docs/PROVISIONING-RECEIPTS.md`, `docs/SOURCE-HBA-INTEGRATION.md`).
+  (`docs/engineering/PROVISIONING-RECEIPTS.md`, `docs/engineering/SOURCE-HBA-INTEGRATION.md`).
 - Retained containers are checked for image and environment drift before reuse;
   startup never recreates a database as an implicit upgrade. Only
   `lab/migrate-generation.py` may replace a managed database container.
@@ -118,8 +122,14 @@ Cross-cutting invariants that span both halves:
 
 ## Where to orient
 
-`docs/START-HERE.md` (one page), `PROJECT.md` (model and checkpoints),
-`docs/HANDOFF.md` and `docs/HERMES-HANDOFF.md` (current state and next work),
-`docs/DECISIONS.md` (why this design), `docs/plans/` (active execution plans).
-Each subsystem has its own `docs/*.md` with scope and limits; read the relevant
-one before changing that subsystem.
+`docs/README.md` is the docs map. Current state and next step for agents:
+`docs/engineering/handoff/README.md`. What works and every number:
+`docs/reference/status.md`. Terms: `docs/reference/glossary.md`. Design in plain
+words: `docs/explain/`. Why this design: `docs/decisions/README.md`. Active plans:
+`docs/engineering/plans/`. Each subsystem has its own note in
+`docs/engineering/` (indexed by `docs/engineering/README.md`) with scope and
+limits; read the relevant one before changing that subsystem. The chronological
+log is `docs/engineering/checkpoints.md` (formerly `PROJECT.md`).
+`docs/START-HERE.md`, `docs/HANDOFF.md` and `PROJECT.md` are one-line pointers
+kept for old references. `docs/evidence/`, `docs/design/` and `docs/diagrams/`
+stay where they are; code reads and writes `docs/evidence/`.

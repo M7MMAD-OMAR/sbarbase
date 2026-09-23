@@ -19,7 +19,7 @@ retained installation's recreation is a deliberate operator run with its own
 evidence, not something this command performs while the runtime is supervising
 the installation.
 
-Read docs/CONTAINER-GENERATION-MIGRATION.md before running it. An interrupted run
+Read docs/engineering/CONTAINER-GENERATION-MIGRATION.md before running it. An interrupted run
 leaves a private migration record in place; startup refuses until either this
 command finishes the migration or an operator settles the HBA journal it names.
 """

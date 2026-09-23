@@ -423,7 +423,7 @@ class CommandTests(unittest.TestCase):
 
 
 class ReconcileMailTests(unittest.TestCase):
-    """docs/ENVIRONMENT-EMAIL.md section 6.4: the three reconcile properties, cheaply.
+    """docs/engineering/ENVIRONMENT-EMAIL.md section 6.4: the three reconcile properties, cheaply.
 
     No daemon and no container: the reconcile decision is exercised in process
     against the real builder and the real comparison, with every daemon call

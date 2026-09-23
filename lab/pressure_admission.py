@@ -7,7 +7,7 @@ database and Storage container, and a refusal when any ten-second average is at
 or over its threshold. Every caller that already depends on `snapshot()` and
 `refusal()` keeps the same behaviour and the same vocabulary.
 
-The second half is docs/RESOURCE-POLICY.md section 5.2: a bounded repeated
+The second half is docs/engineering/RESOURCE-POLICY.md section 5.2: a bounded repeated
 sampler, a summary of the series it took, and the one response this design can
 support today. Read RESPONSE_SCOPE below before wiring it anywhere. The response
 refuses new admissions while the latest reading is at or over a threshold and
@@ -17,8 +17,8 @@ item 6 with section 7 step 7 of that document is where the design says what is
 still missing.
 
 The measured facts this module reports are the kernel's PSI averages for cpu
-(some), io (full) and memory (full). `docs/PRESSURE-ADMISSION.md` records what
-those signals mean, and `docs/RESOURCE-POLICY.md` section 6.1 item 7 records the
+(some), io (full) and memory (full). `docs/engineering/PRESSURE-ADMISSION.md` records what
+those signals mean, and `docs/engineering/RESOURCE-POLICY.md` section 6.1 item 7 records the
 limit of any statement made from them: this is stall time inside one container's
 cgroup, not utilization, and it says nothing about two tenants inside the shared
 PostgreSQL engine.
@@ -33,7 +33,7 @@ from resource_admission import docker
 THRESHOLDS = {'cpu_some10': 50.0, 'io_full10': 20.0, 'memory_full10': 1.0}
 CONTAINERS = ('sbarbase-durable-db', 'sbarbase-durable-storage')
 
-# Sampling bounds for the repeated series (docs/RESOURCE-POLICY.md 5.2). The
+# Sampling bounds for the repeated series (docs/engineering/RESOURCE-POLICY.md 5.2). The
 # design asks for a sample every 5 seconds; the defaults are that, over a
 # 30-second window. The bounds exist so this cannot turn a measurement into a
 # stress test: at most 120 readings, at most ten minutes, and an interval no
@@ -50,7 +50,7 @@ MAX_SAMPLES = 120
 LEDGER_NAME = 'pressure-crossings.jsonl'
 
 # What the response in this module does, and what it deliberately does not.
-# Section 2 item 6 and section 7 step 7 of docs/RESOURCE-POLICY.md name the
+# Section 2 item 6 and section 7 step 7 of docs/engineering/RESOURCE-POLICY.md name the
 # graduated response the design proposes; only the first level is supported by
 # the machinery that exists today, and the rest is stated as unsupported so no
 # reader can mistake this module for the whole design.
@@ -58,7 +58,7 @@ RESPONSE_SCOPE = {
     'implemented': 'refuse new admissions while the latest reading is at or over a threshold, and record every crossing durably',
     'not_implemented': [
         'stop, kill or restart any running container',
-        'pause or throttle a running environment (the gateway pause lease is in-process, disappears on restart, and does not prove its SQL stopped; docs/GATEWAY-DRAIN.md)',
+        'pause or throttle a running environment (the gateway pause lease is in-process, disappears on restart, and does not prove its SQL stopped; docs/engineering/GATEWAY-DRAIN.md)',
         'change a container CPU quota, CPU weight, block IO limit or memory ceiling at run time',
         'act on a per-class threshold: no per-environment class exists in the runtime state yet, so only the shared thresholds below are evaluated',
     ],

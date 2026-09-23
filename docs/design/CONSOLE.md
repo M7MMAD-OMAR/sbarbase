@@ -3,7 +3,7 @@
 Reference: `console-concept.png`, generated with the built-in image tool on 2026-09-20.
 Scope: the platform-layer surface only. Design-system parity with Studio is withdrawn: each
 environment is administered by the original upstream Studio, which is not ours to specify
-([integration specification](../STUDIO-INTEGRATION.md)).
+([integration specification](../engineering/STUDIO-INTEGRATION.md)).
 
 Primary surface: sidebar, organization selector, project table and creation form.
 Required extensions in the same system: password login, empty/error/loading states,
@@ -42,7 +42,7 @@ New project button, no metrics/charts/hero/illustration. Tool returned 1586 x 99
 
 The platform layer does not administer an environment. It links to that
 environment's Studio, the original upstream application, served on its own
-authenticated route ([integration specification](../STUDIO-INTEGRATION.md),
+authenticated route ([integration specification](../engineering/STUDIO-INTEGRATION.md),
 sections 4 and 5). Anything inside an environment, from tables and SQL to Auth
 users and settings, belongs to Studio and to upstream's own design, which this
 document does not specify.

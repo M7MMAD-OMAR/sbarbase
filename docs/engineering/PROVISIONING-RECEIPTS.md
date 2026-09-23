@@ -20,7 +20,7 @@ The outcome table makes a crash between catalog commit and receipt removal idemp
 - Real harmless subprocesses: nonzero exit after a marker mutation and direct-child SIGKILL both retain a pending receipt; a second launch is refused without repeating the mutation.
 - Publication fsync, existing-file refusal, partial publication, corrupt records and startup bypass guards are tested.
 - Catalog tests cover exact completion, restart after commit, identity/attempt mismatch, refusal and a concurrent explicit retry before receipt consumption.
-- [Eleven live integration checks](evidence/worker-receipt-checks.json) reuse the existing rejected-capacity fixture through the actual combined supervisor. Refusal is committed and consumed; no runtime allocation or private allocation change occurs; all four environments remain reachable and all owned containers stop afterward.
+- [Eleven live integration checks](../evidence/worker-receipt-checks.json) reuse the existing rejected-capacity fixture through the actual combined supervisor. Refusal is committed and consumed; no runtime allocation or private allocation change occurs; all four environments remain reachable and all owned containers stop afterward.
 - Full suites: 72 Python tests; 65 Bun tests, 354 assertions. Worker/receipt strict typing passes. Adversarial review found and closed a runtime-start bypass and a historical-receipt retry race.
 
 The live check verifies known refusal settlement, not a real Docker daemon crash. Earlier automatic recovery evidence predates this stricter gate and does not imply unresolved receipts are automatically resumed now.

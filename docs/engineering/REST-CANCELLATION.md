@@ -2,7 +2,7 @@
 
 ## Observed gap
 
-The [baseline probe](evidence/gateway-cancellation-before.json) observed a real two-second RPC sleeping in PostgreSQL, then aborted its HTTP client. SQL remained active 540 ms after cancellation and disappeared at roughly 1.96 seconds after cancellation. Freeing a gateway slot on client abort therefore did not represent freed database capacity.
+The [baseline probe](../evidence/gateway-cancellation-before.json) observed a real two-second RPC sleeping in PostgreSQL, then aborted its HTTP client. SQL remained active 540 ms after cancellation and disappeared at roughly 1.96 seconds after cancellation. Freeing a gateway slot on client abort therefore did not represent freed database capacity.
 
 ## Implemented mitigation
 
@@ -12,7 +12,7 @@ The HTTP adapter detects the disconnected client and cancels the returned respon
 
 ## Verification
 
-[15 live checks](evidence/gateway-cancellation-checks.json) cover the real composed gateway, PostgREST and PostgreSQL. Three two-second RPCs were observed active before all clients were cancelled. At approximately 542 ms after abort all three remained active, the fourth request received 429, and the neighboring environment returned its correct value. SQL reached zero active fixture queries around 1.98 seconds after abort. Target recovery, cleanup and runtime shutdown completed.
+[15 live checks](../evidence/gateway-cancellation-checks.json) cover the real composed gateway, PostgREST and PostgreSQL. Three two-second RPCs were observed active before all clients were cancelled. At approximately 542 ms after abort all three remained active, the fourth request received 429, and the neighboring environment returned its correct value. SQL reached zero active fixture queries around 1.98 seconds after abort. Target recovery, cleanup and runtime shutdown completed.
 
 Fifty-two unit tests and 269 assertions passed, including retained admission before headers, bounded abandoned-response draining and drain-error recovery. The unchanged non-detached HTTP fixtures still pass 24 lifecycle checks. A read-only independent review found no blocking issue and prompted a defensive drain-error cleanup.
 

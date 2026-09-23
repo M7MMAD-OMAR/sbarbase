@@ -4,7 +4,7 @@ Status: 2026-09-21. Read-only study. No container was started, stopped or create
 `/home/sbarah/R/Projects/P/sbarbase` was modified. `.secrets/` and `.lab/` were not read.
 
 This document is the design record for the administration-surface redirect. The decision itself is
-in [DECISIONS](DECISIONS.md) and the dated entry in [RESUME-CHECKPOINT](RESUME-CHECKPOINT.md).
+in [DECISIONS](../decisions/README.md) and the dated entry in [RESUME-CHECKPOINT](handoff/RESUME-CHECKPOINT.md).
 Nothing described here is implemented yet.
 
 ## 0. Evidence base, and how to read the labels
@@ -95,7 +95,7 @@ Shared meta (one `sbarbase-durable-meta`, one `CRYPTO_KEY`) with one Studio per 
 
 Shared Studio (one process, several environments) is not available in this distribution: it is
 single project, as shown above. Reaching multi-environment from one shared Studio would mean editing
-`apps/studio` and maintaining a fork, which `docs/reviews/alternatives-product.md:50` already treats
+`apps/studio` and maintaining a fork, which `docs/engineering/reviews/alternatives-product.md:50` already treats
 as a third-party project to evaluate and not a drop-in. Risk stated plainly: a fork of the
 administration surface is a permanent maintenance obligation against a fast-moving upstream, and it
 would put every environment's credentials behind one process.
@@ -113,7 +113,7 @@ VERIFIED numbers, recomputed from the sources:
   environment's Auth and REST (256 MiB / 0.25 each, `lab/durable_runtime.py:311`), and the recovery
   target's db/auth/rest/storage.
 - With four environments that is 5888 MiB and 5.75 CPUs, which is exactly the figure in
-  `docs/SERVER-DEPLOYMENT.md:24` and `lab/install_server.py:31-32` (`PLANNED_MIB=5888`,
+  `docs/guides/server-deployment.md:24` and `lab/install_server.py:31-32` (`PLANNED_MIB=5888`,
   `RESERVE_MIB=2560`).
 
 Adding two containers per environment changes it twice over:
@@ -122,7 +122,7 @@ Adding two containers per environment changes it twice over:
    could exceed the ceiling silently. That is a code change, not a policy change.
 2. Even a modest Studio (512 MiB, 0.5 CPU) plus meta (128 MiB, 0.25 CPU) at four environments adds
    2560 MiB and 3 CPUs, taking the placement to 8448 MiB and 8.75 CPUs. That is over both constants
-   and over the installed headroom figure of about 8.8 GiB (`docs/SERVER-DEPLOYMENT.md`, which adds
+   and over the installed headroom figure of about 8.8 GiB (`docs/guides/server-deployment.md`, which adds
    the 2560 MiB reserve).
 
 So under the current constants a per-environment Studio is refused, not started. Three honest
@@ -350,7 +350,7 @@ option, at the cost of a fifth HBA rule and a fifth role per environment.
 (18), and the admission formula `environments*18 + 12 + 10 <= max - superuser_reserved - reserved`.
 `lab/durable_runtime.py:264` applies `ALTER DATABASE <e> CONNECTION LIMIT 18`. A fourth login means
 either borrowing from the same 18 or raising `ENVIRONMENT_LIMIT` to `4*SERVICE_LIMIT = 24` and
-updating the formula and `docs/CONNECTION-BUDGET.md`. meta uses a pool of one connection per
+updating the formula and `docs/engineering/CONNECTION-BUDGET.md`. meta uses a pool of one connection per
 connection string by default (`DEFAULT_POOL_CONFIG`, `max: 1`, VERIFIED), so its real demand is small,
 but the declared limit is what the admission math counts.
 
@@ -450,7 +450,7 @@ R1, recommended: a dedicated admin origin per environment, not a path under the 
   `ui/Connection.tsx` (which already prints `Available services`) is a small, honest change.
 - Terminate TLS in front of it. The shipped `deploy/console-tls-proxy.ts` forwards everything to one
   loopback upstream and deliberately drops client supplied `X-Forwarded-*` and `Host`
-  (`docs/SERVER-DEPLOYMENT.md`), so it needs a second upstream and a host allowlist, or the operator
+  (`docs/guides/server-deployment.md`), so it needs a second upstream and a host allowlist, or the operator
   uses their own proxy or an SSH tunnel.
 
 R2, path mount `/<env>/studio` on the shared gateway: requires widening the route regex, adding a
@@ -464,7 +464,7 @@ origin-only URL building, but it needs the same TLS proxy work as R1 plus DNS or
 it exposes the admin surface to whatever resolves that name. Only with the same gate.
 
 Under all three, do not reach Studio through the data route pattern, and do not publish a container
-port (`docs/SERVER-DEPLOYMENT.md`: the installer creates no published ports).
+port (`docs/guides/server-deployment.md`: the installer creates no published ports).
 
 ## 6. Surfaces whose backing service does not exist
 
@@ -475,7 +475,7 @@ keys for other surfaces are NOT verified.
 
 | Studio surface | Backing service in sbarbase | What happens | Honest plan |
 |---|---|---|---|
-| Realtime inspector | none. `docs/SERVER-DEPLOYMENT.md`: "Realtime, Functions, the connection pooler and cron are not implemented", and `docs/RESUME-CHECKPOINT.md:34` repeats it | empty or erroring page | label it in the console and in the Studio handoff note; hide it if a verified feature key exists |
+| Realtime inspector | none. `docs/guides/server-deployment.md`: "Realtime, Functions, the connection pooler and cron are not implemented", and `docs/engineering/handoff/RESUME-CHECKPOINT.md:34` repeats it | empty or erroring page | label it in the console and in the Studio handoff note; hide it if a verified feature key exists |
 | Logs and Analytics | none. The base compose already sets `ENABLED_FEATURES_LOGS_ALL: "false"` for the same reason (Logflare and Vector are an optional override) | the explorer is already off | keep `false`; this is upstream's own default, so nothing is being hidden that should work |
 | Edge Functions | none, and the self-hosted code asserts `EDGE_FUNCTIONS_MANAGEMENT_FOLDER` | page fails closed | mount an empty read-only directory so it shows an empty list, or leave the variable unset and document the failure. Do not create a folder that implies functions are supported |
 | SQL editor | postgres-meta, present | works, running real SQL as the scoped login | real, but scoped: statements that need superuser or schema ownership (`CREATE EXTENSION`, `ALTER SYSTEM`, role changes) will fail. Say so; do not grant the privilege to make the page look complete |
@@ -510,7 +510,7 @@ What is measured and recorded today (VERIFIED as data, MEASURED when produced):
 `docs/evidence/source-stage-footprint.json` records the source stage's actual resident usage sampled
 with the daemon: 315 MiB across 9 containers at the revision in the checkout, of which
 `sbarbase-durable-db` 101 MiB, `sbarbase-durable-storage` 147 MiB, management Auth 9 MiB, and per
-environment Auth and REST 8 to 10 MiB each. `docs/DEPLOYMENT-READINESS.md` quotes 279 MiB for an
+environment Auth and REST 8 to 10 MiB each. `docs/reference/deployment-readiness.md` quotes 279 MiB for an
 earlier sample, which is the point: this number moves, so it is re-sampled rather than remembered.
 
 The method to measure the new pair on this host (no guess, no container started by this study):
@@ -545,17 +545,17 @@ The method to measure the new pair on this host (no guess, no container started 
 Then, and only then, set container limits for the pair and update, in one change:
 `lab/combined_admission.py` (`MAX_MEMORY`, `MAX_CPUS`, and the container name list, which currently
 omits any name it is not told about), `lab/install_server.py` (`PLANNED_MIB`, `RESERVE_MIB`) and the
-headroom figure in `docs/SERVER-DEPLOYMENT.md`.
+headroom figure in `docs/guides/server-deployment.md`.
 
 ## 9. Pinning and upgrade implications
 
-Under `docs/UPSTREAM-UPDATE-POLICY.md`:
+Under `docs/engineering/UPSTREAM-UPDATE-POLICY.md`:
 
 - Two new components, two new pins, one at a time (rule 5). Studio and postgres-meta are separate
   entries even though they are useless apart.
 - New lock file(s) and every consumer of the pin set:
   `lab/pin_update.py:24` (`LOCKS`), `lab/install_server.py:36` (`LOCKS`, which
-  `lab/pinned_images_check.py` imports), and the pin table in `docs/UPSTREAM-UPDATE-POLICY.md`.
+  `lab/pinned_images_check.py` imports), and the pin table in `docs/engineering/UPSTREAM-UPDATE-POLICY.md`.
   The pin identity is the local image `Id` (`sha256:`), which is what `pin_update.py verify`
   checks, so a tag that moves fails as it should.
 - One dated `docs/upstream/YYYY-MM-DD-<component>-<version>.md` entry per component, with the four
@@ -580,14 +580,14 @@ Checkpoints and evidence this adoption could invalidate (the rule 3 obligation, 
 | `lab/recovery-export.py` (`exact scoped logins exported`, `len(roles)==3`) | the role inventory is exactly three per environment |
 | `lab/recovery-restore-db.py` (lines 66-79, 173: `Unsupported role inventory`, HBA list rebuilt from the same three names) | restore refuses an inventory it does not recognise |
 | `lab/source_fence.py` (`is_fenced` line 14, `prepare_export` line 49) | the fence and the export fence enumerate exactly `auth`, `rest`, `storage` |
-| `lab/provisioning_inspection.py:136` and `docs/PROVISIONING-INSPECTION.md` report (`scoped_roles`) | it counts the three known names; a fourth is invisible to it, which is worse than a failure |
-| `lab/connection_budget.py` and `docs/CONNECTION-BUDGET.md`, `docs/evidence/connection-limit-checks.json` | the per-database limit of 18 and the admission formula assume three service logins |
+| `lab/provisioning_inspection.py:136` and `docs/engineering/PROVISIONING-INSPECTION.md` report (`scoped_roles`) | it counts the three known names; a fourth is invisible to it, which is worse than a failure |
+| `lab/connection_budget.py` and `docs/engineering/CONNECTION-BUDGET.md`, `docs/evidence/connection-limit-checks.json` | the per-database limit of 18 and the admission formula assume three service logins |
 | `lab/combined_admission.py` name list and `docs/evidence/combined-runtime-admission.json` | the placement ceiling would omit the new containers |
-| `docs/SERVER-DEPLOYMENT.md` headroom (about 8.8 GiB) and `docs/evidence/deployment-rehearsal.json` | the installed requirement changes |
+| `docs/guides/server-deployment.md` headroom (about 8.8 GiB) and `docs/evidence/deployment-rehearsal.json` | the installed requirement changes |
 | `docs/evidence/combined-gateway-checks.json` (14 checks) and the smoke route list in `lab/install_server.py:298-311` | if a Studio route is added to discovery or to the smoke output, the counts change |
 | `docs/evidence/source-stage-footprint.json` | the sampled container set grows |
 
-Anything in `docs/RESUME-CHECKPOINT.md` that cites those files inherits the staleness and must be
+Anything in `docs/engineering/handoff/RESUME-CHECKPOINT.md` that cites those files inherits the staleness and must be
 re-stated rather than re-used.
 
 ## 10. Isolation tests that must exist before this is called safe
@@ -660,7 +660,7 @@ neighbour environment's Auth, REST and Storage endpoints still answer, using the
   T11). This is the largest open risk in the whole integration.
 - Whether `supabase_admin`, `authenticator` and other cluster roles beyond `anon`, `authenticated`
   and `service_role` exist in this installation's cluster; the feasibility audit
-  (`docs/reviews/supabase-feasibility.md`) says the distribution's bootstrap creates them, but this
+  (`docs/engineering/reviews/supabase-feasibility.md`) says the distribution's bootstrap creates them, but this
   cluster was not queried.
 - Whether postgres-meta's `/query` with the scoped login is enough for every SQL editor convenience
   and for the advisors, or only for plain SQL.

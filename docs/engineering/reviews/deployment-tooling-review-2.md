@@ -47,7 +47,7 @@ begins with `install_server.preflight()` and returns immediately on any blocker
 
 1. `install_server.state()` (`lab/install_server.py:180-185`) emits the blocker
    *"Owned containers are already running; stop or supervise them instead of installing"* as
-   soon as `docker ps --filter label=io.sbarbase.owner=durable-upstream -q` is non-empty — which
+   soon as `docker ps --filter label=io.sbarbase.owner=durable-upstream -q` is non-empty, which
    is exactly the state `dev.py` under the freshly started unit creates.
 2. If the containers have not been created yet (the rehearsal starts within a second or two of
    `enable --now`, while `dev.py` is still in its settle stage), the rehearsal passes preflight
@@ -90,7 +90,7 @@ range-checked for `@`, `:` or whitespace, so `Host: good.com@evil.com` yields
 
 The committed evidence proves the reflection happens and that the check cannot see it:
 `docs/evidence/tls-termination.json` records `plain HTTP is redirected to HTTPS | status 308
-location https://127.0.0.1:54699/some/path?x=1` — the redirect points at **the HTTP port over
+location https://127.0.0.1:54699/some/path?x=1`, the redirect points at **the HTTP port over
 `https`**, i.e. a dead end, and no check exercises `--public-host` at all.
 
 Minimal fix: make `--public-host` mandatory for the redirect (refuse to serve the HTTP port
@@ -110,7 +110,7 @@ Evidence: `deploy/console-tls-proxy.ts:78-79,111-112`.
 arbitrary `Host` is forwarded to the console as `X-Forwarded-Host`. Any absolute-URL or
 password-reset link the console builds from that header points at the attacker. It is the same
 root cause as finding 2; the fix is the same validation, plus dropping `X-Forwarded-Host`
-entirely (nothing in the console consumes it — the console refuses non-loopback hosts on its own,
+entirely (nothing in the console consumes it; the console refuses non-loopback hosts on its own,
 `lab/console-serve-check.ts:35-36`).
 
 ### 4. Hop-by-hop headers are forwarded while the body and response are re-framed (smuggling)
@@ -192,8 +192,8 @@ Evidence: `lab/install_server.py:356`.
 356|    bun_dir=bun_dir or str(Path(_shutil.which('bun') or '/usr/bin/bun').parent)
 ```
 
-When `which('bun')` fails — routine under `sudo`, whose secure `PATH` usually excludes
-`~/.bun/bin` — the renderer substitutes `/usr/bin`, so the installed unit's `PATH` may omit the
+When `which('bun')` fails, routine under `sudo`, whose secure `PATH` usually excludes
+`~/.bun/bin`, the renderer substitutes `/usr/bin`, so the installed unit's `PATH` may omit the
 real Bun directory. `ExecStartPre` then fails at the preflight inside the service while the
 render is reported as verified. `rendered_unit` refuses an *empty* Bun directory
 (`install_server.py:326`) but not a wrong one. Minimal fix: `raise SystemExit` when
@@ -222,7 +222,7 @@ Evidence: `lab/tls_termination_check.py:137,144`.
 ```
 
 The stub check passes a literal `True`. The port check asserts `proxy_match is not None`, but
-`start()` (`tls_termination_check.py:46-59`) only ever returns a match object — when the pattern
+`start()` (`tls_termination_check.py:46-59`) only ever returns a match object, when the pattern
 does not appear it raises `RuntimeError` after the timeout. Neither check can ever record a
 failure; `docs/DEPLOYMENT-READINESS.md:18` cites "15 checks" as the proof for the TLS story.
 Minimal fix: have `start()` return `(process, match, captured)` with `match` possibly `None` (or
@@ -312,8 +312,8 @@ the retry budget was used as intended.
 
 Evidence: `lab/deployment_rehearsal.py:113-127,194-200`.
 
-`unit_status()` runs `systemd-analyze verify ROOT/deploy/sbarbase.service` — the checkout's
-template — while the rehearsal records it as *'supervisor unit file verifies'* on a host where
+`unit_status()` runs `systemd-analyze verify ROOT/deploy/sbarbase.service`, the checkout's
+template, while the rehearsal records it as *'supervisor unit file verifies'* on a host where
 `/etc/systemd/system/sbarbase.service` is what runs, and `docs/SERVER-DEPLOYMENT.md:122-127` says
 "a green run means the unit was present, enabled and verified". The installed file is never
 verified (it may have been edited, or rendered for a different root/user). Minimal fix: when
@@ -362,18 +362,18 @@ each remaining command) and drop the `|| true` in favour of an explicit check of
 
 ### 20. Lower-severity items established by reading
 
-- `lab/tls_termination_check.py:139` — `free_port()` is called twice and each call closes its
+- `lab/tls_termination_check.py:139`: `free_port()` is called twice and each call closes its
   socket, so both can return the same port; the proxy's second `Bun.serve` then fails and the
   whole check dies with a traceback instead of recording a failure. Bind both sockets before
   choosing.
-- `deploy/console-tls-proxy.ts:44-45` — `Number(values['https-port'] ?? 8443)` accepts `NaN`,
+- `deploy/console-tls-proxy.ts:44-45`: `Number(values['https-port'] ?? 8443)` accepts `NaN`,
   `0` and negatives. Not security-relevant (the process refuses before binding when given a
   bad upstream) but it means `--https-port abc` produces a `Bun.serve` type error rather than a
   clear refusal.
-- `lab/deployment_rehearsal.py:194,237` — `unit_status()` is evaluated twice (once for the
+- `lab/deployment_rehearsal.py:194,237`: `unit_status()` is evaluated twice (once for the
   check, once for the evidence), so the evidence's `unit` block can disagree with the recorded
   checks. Compute it once.
-- `lab/deployment_rehearsal.py:209,226` — `rehearse()` returns `findings, None`; the second
+- `lab/deployment_rehearsal.py:209,226`: `rehearse()` returns `findings, None`; the second
   value is always `None` and every caller ignores it.
 - `lab/test_supervisor_unit.py:70-83` rewrites the tracked `docs/evidence/supervisor-unit.json`
   (a new `run_at`) every time the suite runs, so `bun run test` / the unittest suite leaves a
@@ -389,96 +389,96 @@ each remaining command) and drop the `|| true` in favour of an explicit check of
 
 Each item names the claim and the evidence file that contradicts or fails to support it.
 
-1. **`docs/DEPLOYMENT-READINESS.md:29`** — "HTTPS and network exposure | documented,
+1. **`docs/DEPLOYMENT-READINESS.md:29`**: "HTTPS and network exposure | documented,
    operator-provided | ...; **no TLS termination is implemented or tested here**". Directly
    contradicted by line 18 of the same table ("HTTPS termination | passed on this host, 15
    checks") and by `docs/evidence/tls-termination.json`. One of the two rows is stale; line 29
    is the wrong one.
-2. **`docs/DEPLOYMENT-READINESS.md:27`** — "the deployment rehearsal ... current run records
+2. **`docs/DEPLOYMENT-READINESS.md:27`**: "the deployment rehearsal ... current run records
    `Host headroom insufficient` without starting anything, `docs/evidence/deployment-rehearsal.json`".
    The committed file records `passed: true`, `count: 11`, `command:
    /usr/bin/python3 lab/deployment_rehearsal.py --skip-install --attempts 2 --attempt-delay 20`,
    `started_at 2026-09-20T16:38:46+04:00`, `finished_at 16:39:09`, and a green
    `host preflight passed`. No refusal is recorded anywhere in it. Contradicted by the file it
    cites.
-3. **`docs/DEPLOYMENT-READINESS.md:12`** — "on this host it reports exactly one host-capacity
+3. **`docs/DEPLOYMENT-READINESS.md:12`**: "on this host it reports exactly one host-capacity
    blocker and the retained-installation actions". Run today, `lab/install_server.py check`
    prints `Preflight: 1 blocker(s), 1 action(s)` and the single blocker is
-   *"Retained source has no generation pin"* — a state blocker, not a host-capacity one. The
+   *"Retained source has no generation pin"*, a state blocker, not a host-capacity one. The
    second half of the sentence ("the headroom requirement now names its composition") is
    supported by `lab/install_server.py:122-129` and the `docs/SERVER-DEPLOYMENT.md:23` wording.
-4. **`docs/DEPLOYMENT-READINESS.md:17`** — "5888 MiB of container limits and 5.75 CPUs admitted
+4. **`docs/DEPLOYMENT-READINESS.md:17`**: "5888 MiB of container limits and 5.75 CPUs admitted
    at **9328 MiB available**". `docs/evidence/combined-runtime-admission.json` records
    `available_memory_mib: 8943` (the file was regenerated in commit `4f30866`, the same commit
    that refreshed the rehearsal), and `docs/evidence/deployment-rehearsal.json` records
    `mem_available_mib: 8202`. The 9328 figure appears only in prose
    (`docs/DEPLOYMENT-READINESS.md:17`, `docs/RESUME-CHECKPOINT.md:479`).
-5. **`docs/DEPLOYMENT-READINESS.md:19`** — the rehearsal's bootstrap step is cited to
+5. **`docs/DEPLOYMENT-READINESS.md:19`**: the rehearsal's bootstrap step is cited to
    `docs/evidence/bootstrap-checks.json`. Nothing in the repository writes that path: the
    rehearsal runs `bun lab/bootstrap-check.ts` (`lab/deployment_rehearsal.py:137`), which writes
    `.lab/upstream/bootstrap-verification.json` (`lab/bootstrap-check.ts`, final `Bun.write`).
    The committed `docs/evidence/bootstrap-checks.json` was last committed at 06:48 by `d2d3534`,
    hours before the rehearsal run at 16:38, so it is a copy from an earlier, separate run, not
-   the artifact of the step it is cited for. (Its content — 18 checks, all `passed` — does match
+   the artifact of the step it is cited for. (Its content, 18 checks, all `passed`, does match
    the scope string the script writes, and the rehearsal's own detail line says "18 live operator
    bootstrap checks passed", so the claim is plausible but the citation is wrong.)
-6. **`docs/DEPLOYMENT-READINESS.md:11`** — "7 tests in `lab/test_server_acceptance.py`". The
+6. **`docs/DEPLOYMENT-READINESS.md:11`**: "7 tests in `lab/test_server_acceptance.py`". The
    module defines 8 test methods. (The other test counts cited there are correct: 8 in
    `lab/test_console_build.py`, 6 in `lab/test_pinned_images.py`.)
-7. **`docs/DEPLOYMENT-READINESS.md:15`** — the list of what the 11/11 run proves includes
+7. **`docs/DEPLOYMENT-READINESS.md:15`**: the list of what the 11/11 run proves includes
    "supervised path". The corresponding check in `docs/evidence/deployment-rehearsal.json` is
    green only because it was not required: `"detail": "not required for this run: the supervisor
    was started directly, sbarbase.service is not installed"`, and the file's `unit` block is
    `{"installed": false, "enabled": null, "active": null, "verify": "not-run"}`. Nothing under
    systemd was exercised by that run. (The doc's own next sentence about `--require-unit` is
    accurate; the check list is what overstates.)
-8. **`docs/DEPLOYMENT-READINESS.md:18` / `:21`** — the "15 checks" TLS story rests on two checks
+8. **`docs/DEPLOYMENT-READINESS.md:18` / `:21`**: the "15 checks" TLS story rests on two checks
    that cannot fail (finding 10), and the console static-serving story cites "traversal refusal",
    but `lab/console-serve-check.ts:52-55` sends `fetch(base+'/../src/http/local-server.ts')`,
    which the client normalises to `/src/http/local-server.ts` before it ever leaves the process;
    the request that reaches the server is not a traversal, so the check proves nothing about
    traversal refusal. The `ui-static.ts` allow-list (`/^\/assets\/[A-Za-z0-9_.-]+\.(js|css)$/`)
-   is a real defence — the *check* is the part that cannot fail. (`lab/console-serve-check.ts` is
+   is a real defence; the *check* is the part that cannot fail. (`lab/console-serve-check.ts` is
    outside the file list under review; it is reported here because the document cites it as
    evidence.)
-9. **`docs/DEPLOYMENT-READINESS.md:13` / `docs/SERVER-DEPLOYMENT.md:82`** — "the exact install
+9. **`docs/DEPLOYMENT-READINESS.md:13` / `docs/SERVER-DEPLOYMENT.md:82`**: "the exact install
    commands are recorded". The first recorded command contains the literal placeholder
    `<rendered unit>` (finding 9), so it is not runnable.
-10. **`docs/SERVER-DEPLOYMENT.md:6-7`** — "The full source and target lifecycle rehearsal passes
+10. **`docs/SERVER-DEPLOYMENT.md:6-7`**: "The full source and target lifecycle rehearsal passes
     on the development host (**10 of 10 checks**, `docs/evidence/deployment-rehearsal.json`)".
     The cited file records `count: 11` and eleven check rows. `docs/DEPLOYMENT-READINESS.md:15`
     says 11 of 11 for the same file, so the two documents disagree and this one is wrong.
-11. **`docs/SERVER-DEPLOYMENT.md:31-35`** — "One command on the server covers prerequisites,
+11. **`docs/SERVER-DEPLOYMENT.md:31-35`**: "One command on the server covers prerequisites,
     preflight, the full rehearsal and the acceptance evidence", immediately followed by an
     example that omits `--rehearse`; lines 41-43 and the script's own header
     (`deploy/server-acceptance.sh:6-7`) say that without `--rehearse` it stops after the
     preflight. The example command does not do what the sentence claims.
-12. **`docs/SERVER-DEPLOYMENT.md:103-111`** — the `--install-unit` acceptance path. As shipped it
+12. **`docs/SERVER-DEPLOYMENT.md:103-111`**: the `--install-unit` acceptance path. As shipped it
     cannot exit zero (finding 1), so "it renders and verifies the unit, installs and starts it,
     proves the console and the TLS termination, runs the rehearsal with the unit required, and
     leaves the evidence in one place" is not achievable.
-13. **`docs/SERVER-DEPLOYMENT.md:122-127`** — "fails the ... check when
+13. **`docs/SERVER-DEPLOYMENT.md:122-127`**: "fails the ... check when
     `/etc/systemd/system/sbarbase.service` is not installed, so a green run means the unit was
     present, enabled and verified". The presence/enabled part is right; the "verified" part is
-    not — what is verified is the checkout's template (finding 16).
-14. **`docs/SERVER-DEPLOYMENT.md:178-179`** — "it refuses to start unless the certificate and key
+    not, what is verified is the checkout's template (finding 16).
+14. **`docs/SERVER-DEPLOYMENT.md:178-179`**: "it refuses to start unless the certificate and key
     are regular files, the key is not group or world readable, **and the upstream is loopback (it
     takes the console URL from `.lab/upstream/server.json` when `--upstream` is omitted)**". The
     loopback assertion is applied to the `--upstream` value only
     (`deploy/console-tls-proxy.ts:95`); the value read from `server.json` is returned unvalidated
     (`:83-90,96`). The refusal claim is false in the default (no `--upstream`) configuration, and
     that path is untested.
-15. **`docs/SERVER-DEPLOYMENT.md:164-166`** — the reference termination is "exercised by the test
+15. **`docs/SERVER-DEPLOYMENT.md:164-166`**: the reference termination is "exercised by the test
     suite (`bun lab/tls_termination_check.py`, 15 checks)". `lab/tls_termination_check.py` is a
     Python module run with `/usr/bin/python3` (its own docstring says so); `bun` cannot run it.
     The command as written fails.
-16. **`docs/SERVER-DEPLOYMENT.md:180-181`** — "logs only method, path and status: never bodies,
+16. **`docs/SERVER-DEPLOYMENT.md:180-181`**: "logs only method, path and status: never bodies,
     query strings, cookies or credentials". True of `console.log` in
     `deploy/console-tls-proxy.ts:124,135` and of the check
     (`lab/test_tls_termination.py:36-41`), but the same request's `Host` is forwarded upstream as
     `X-Forwarded-Host` (finding 3), which the sentence's "never ... credentials" rhetoric is
     likely to be read as covering. Record as overstated rather than false.
-17. **`docs/DEPLOYMENT-READINESS.md:14`** — "10 checks" for `docs/evidence/supervised-run.json`:
+17. **`docs/DEPLOYMENT-READINESS.md:14`**: "10 checks" for `docs/evidence/supervised-run.json`:
     matches the file. Correct, but note that one of those ten is the gate check of finding 12,
     which passes on any gate output, and the file's own detail for it is the last journal line
     rather than the matched one.
@@ -498,26 +498,26 @@ Each item names the claim and the evidence file that contradicts or fails to sup
   stated Python figure, and the nine modules touched by this change (69 tests) pass under
   `/usr/bin/python3 -m unittest`. I did not run the full Python discovery or `bun run test`
   (73 tests), because parts of both execute the live checks.
-- **`systemd-analyze verify` passes for the shipped unit** — verified: the read-only test
+- **`systemd-analyze verify` passes for the shipped unit**: verified: the read-only test
   `lab/test_deployment_rehearsal.py:51-55` passes, and it was re-run here.
-- **`docs/evidence/supervisor-unit.json` `passed: true`** — re-derived: running
+- **`docs/evidence/supervisor-unit.json` `passed: true`**: re-derived: running
   `lab/test_supervisor_unit.py:70-83` regenerates the file with the same `verify: "passed"`,
   `applied: false`, `running_as_root: false` (then restored).
 - **The proxy's three direct refusals** (world-readable key, non-loopback `--upstream`, missing
-  `--cert`) — the two that can be exercised without writing a certificate file refuse before
+  `--cert`), the two that can be exercised without writing a certificate file refuse before
   binding (`console-tls-proxy.ts:92` and `:95`), which I reproduced; the world-readable-key case
   is exercised by `lab/tls_termination_check.py:175-181` and recorded in
   `docs/evidence/tls-termination.json`. The **`server.json`-sourced upstream** is *not* refused
-  (finding in 2.14) — that is the falsified part of the claim.
+  (finding in 2.14), that is the falsified part of the claim.
 - **"No secret is printed."** I found no path that prints the bootstrap payload: it is read by
   `install_server.bootstrap_payload` (`:218-224`, `lstat`-guarded, regular file, owner, mode
   0600) and piped on stdin to `lab/bootstrap.py --stdin` (`:257-258`). The only leak I could
   establish is the bootstrap *path* in the rehearsal evidence (finding 17). Contents could still
   be echoed by `lab/bootstrap.py`'s own stderr on failure, which I did not execute.
-- **Pins present and digest-matched on this host** — `docs/evidence/pinned-images.json` records
+- **Pins present and digest-matched on this host**: `docs/evidence/pinned-images.json` records
   5/5 at 15:32. I did not re-inspect the daemon (the check rewrites a tracked file); the
   digest-comparison logic is unit-tested (`lab/test_pinned_images.py`, 6 tests, pass).
-- **The counted check totals** — 15 TLS, 10 supervised, 15 console-serve, 18 bootstrap, 5 pins,
+- **The counted check totals**: 15 TLS, 10 supervised, 15 console-serve, 18 bootstrap, 5 pins,
   11 rehearsal all match the files. The counts are right; what some of the checks *prove* is the
   subject of section 2.
-- **Capacity and load claims** — not claimed by either document; nothing to falsify.
+- **Capacity and load claims**: not claimed by either document; nothing to falsify.

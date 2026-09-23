@@ -7,7 +7,7 @@ Verified 2026-09-20 with two separate disposable installations:
 /usr/bin/python3 lab/fresh-worker-check.py --hba-crash after-witness
 ```
 
-Each run passes 90 checks, including the same 76-check healthy startup, worker, restart, SDK and cleanup baseline. These are overlapping runs, not 180 independent checks. Evidence: [registered intent](evidence/worker-hba-crash-after-intent.json), [durable apply witness](evidence/worker-hba-crash-after-witness.json).
+Each run passes 90 checks, including the same 76-check healthy startup, worker, restart, SDK and cleanup baseline. These are overlapping runs, not 180 independent checks. Evidence: [registered intent](../evidence/worker-hba-crash-after-intent.json), [durable apply witness](../evidence/worker-hba-crash-after-witness.json).
 
 ## What actually dies
 

@@ -18,7 +18,7 @@ All 1,010 measured operations returned correct results without reported errors: 
 | Upload | 22.09 | 14.03 |
 | Download | 7.72 | 7.52 |
 
-[Raw per-operation timings and midpoint pressure snapshots](evidence/sdk-load-checks.json) are retained. Midpoint database/Storage PSI snapshots stayed below configured admission thresholds. They are not peak measurements. A preceding [unpaced 200-operation burst](evidence/sdk-burst-checks.json) also had zero errors, but its concurrent identity p95 was approximately 188 ms and upload p95 approximately 99 ms. The different pacing and very short burst prevent treating those runs as a controlled capacity comparison.
+[Raw per-operation timings and midpoint pressure snapshots](../evidence/sdk-load-checks.json) are retained. Midpoint database/Storage PSI snapshots stayed below configured admission thresholds. They are not peak measurements. A preceding [unpaced 200-operation burst](../evidence/sdk-burst-checks.json) also had zero errors, but its concurrent identity p95 was approximately 188 ms and upload p95 approximately 99 ms. The different pacing and very short burst prevent treating those runs as a controlled capacity comparison.
 
 ## Cleanup and limitations
 
@@ -30,7 +30,7 @@ This does not establish a sustained SLO, arrival-rate capacity, production sizin
 
 Command: `bun lab/sdk-load-check.ts --policy-regression`. The workload and pacing were unchanged: one then four workers per environment, five SDK operation types, two ten-second phases. The durable runtime had REST admission 3, shared environment/process limits, retained REST cancellation slots, and 8s/12s SQL defaults.
 
-[Raw policy-regression evidence](evidence/sdk-policy-regression.json) contains 1,001 correct operations, 201 in the serial phase and 800 in the concurrent phase. There were zero failed operations and no observed SDK rejection. Concurrent p95 values were 2.96 ms read, 12.54 ms insert, 28.18 ms identity, 18.43 ms upload and 7.62 ms download. Timing differences from earlier runs are not a controlled performance comparison. Midpoint pressure snapshots remained below admission thresholds.
+[Raw policy-regression evidence](../evidence/sdk-policy-regression.json) contains 1,001 correct operations, 201 in the serial phase and 800 in the concurrent phase. There were zero failed operations and no observed SDK rejection. Concurrent p95 values were 2.96 ms read, 12.54 ms insert, 28.18 ms identity, 18.43 ms upload and 7.62 ms download. Timing differences from earlier runs are not a controlled performance comparison. Midpoint pressure snapshots remained below admission thresholds.
 
 The new `status` field records a status reported by the SDK where available, not an inferred HTTP success code. Null means the SDK omitted it; zero is the initial value when an operation throws before a response. Correctness is independently validated through returned data and identities. Fixture cleanup, key revocation and owned runtime shutdown completed. Earlier evidence files were not overwritten.
 

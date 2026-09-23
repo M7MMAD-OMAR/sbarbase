@@ -26,7 +26,7 @@ Seventeen unit/integration tests pass with 71 assertions. The management tests u
 
 ## Live probe
 
-`bun lab/management-check.ts` now passes 10 checks against real Supabase Auth and a loopback HTTP server. For this test only, a_stage acts as the management realm and a_prod as the independent application realm. Crossed application tokens and tampered tokens are rejected. Authenticated nonmembers and viewers cannot create projects, actor injection fails, and removing membership immediately blocks the same valid token. Allowed creation writes metadata only. The catalog is ephemeral; synthetic Auth users remain in the isolated lab volume. [Sanitized evidence](evidence/management-checks.json).
+`bun lab/management-check.ts` now passes 10 checks against real Supabase Auth and a loopback HTTP server. For this test only, a_stage acts as the management realm and a_prod as the independent application realm. Crossed application tokens and tampered tokens are rejected. Authenticated nonmembers and viewers cannot create projects, actor injection fails, and removing membership immediately blocks the same valid token. Allowed creation writes metadata only. The catalog is ephemeral; synthetic Auth users remain in the isolated lab volume. [Sanitized evidence](../evidence/management-checks.json).
 
 This supplements the mocked SDK tests above. It does not prove a dedicated management deployment, complete login experience, MFA, production rate limits or session revocation semantics. All owned lab containers were stopped afterward.
 

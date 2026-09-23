@@ -10,9 +10,9 @@ The loopback HTTP adapter explicitly observes stream failures, respects backpres
 
 - 8 supervisor smoke checks passed after the adapter change, including idle worker restart and graceful shutdown.
 - 52 unit tests, 269 assertions passed, including 16 concurrency cases.
-- [24 live HTTP checks](evidence/gateway-http-checks.json): rejection before forwarding, neighbor access, drain, gzip, disconnect, deadline failure and closure with a paused TCP reader, and pre-header timeout/recovery against a transport that never settles.
-- [8 real Supabase overload checks](evidence/gateway-overload-checks.json): eight simultaneous RPCs, ninth rejected, neighbor correctness, drain and recovery.
-- [1,000 SDK regression operations](evidence/sdk-overload-regression.json): reads, inserts, identity checks, private uploads and downloads, with zero failures. Temporary fixtures removed and owned runtime stopped.
+- [24 live HTTP checks](../evidence/gateway-http-checks.json): rejection before forwarding, neighbor access, drain, gzip, disconnect, deadline failure and closure with a paused TCP reader, and pre-header timeout/recovery against a transport that never settles.
+- [8 real Supabase overload checks](../evidence/gateway-overload-checks.json): eight simultaneous RPCs, ninth rejected, neighbor correctness, drain and recovery.
+- [1,000 SDK regression operations](../evidence/sdk-overload-regression.json): reads, inserts, identity checks, private uploads and downloads, with zero failures. Temporary fixtures removed and owned runtime stopped.
 
 These are local, short, bounded tests. They do not prove production capacity, fairness among many environments, hostile project-owner isolation or resource containment inside shared PostgreSQL/Storage. Longer open-loop overload and recovery tests remain necessary.
 

@@ -26,7 +26,7 @@ The historical `durable-check.ts` recreation probe now refuses before catalog or
 
 - Full Python suite: 217 tests. New integration checks cover legacy refusal, retained state without its container, changed identities, creation evidence, active backend authority, one-attempt refusal, inspection errors and expired/missing startup ownership.
 - Bun suite: 73 tests, 408 assertions.
-- [Fresh worker evidence](evidence/fresh-worker-checks.json): 76 live checks using pinned original PostgreSQL/Auth/REST/Storage, real guardian/receipt/SQL/HBA paths, exact startup and worker archives, retired tokens, missing-pin refusal, parent-bound restart under inherited supervisor ownership, unchanged generation, SDK RLS/private-object isolation and exact disposable cleanup.
+- [Fresh worker evidence](../evidence/fresh-worker-checks.json): 76 live checks using pinned original PostgreSQL/Auth/REST/Storage, real guardian/receipt/SQL/HBA paths, exact startup and worker archives, retired tokens, missing-pin refusal, parent-bound restart under inherited supervisor ownership, unchanged generation, SDK RLS/private-object isolation and exact disposable cleanup.
 - The separate 26-check HBA publication/host-death probe and 56-check registry probe remain narrower component evidence. Two additional [actual native worker HBA interruption runs](WORKER-HBA-CRASH.md) now pass 90 checks each, including the overlapping healthy baseline. They preserve unresolved services-stage jobs.
 
 Independent review found no remaining must-fix in the managed source HBA scope. It identified the uncertain-inspection/freshness issue and entry-point ownership/ordering constraints addressed here. No retained source, recovery target or unrelated Docker resource was changed for this rehearsal.

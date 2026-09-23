@@ -22,7 +22,7 @@ binding for every future change, assistant and release.
    - the explicit adopt / defer decision and why.
 3. **Impact analysis over hope.** A change that touches the database bootstrap,
    HBA publication, receipts/witnesses or the provisioning SQL path must state
-   which checkpoints in `docs/RESUME-CHECKPOINT.md` it could invalidate. If a
+   which checkpoints in `docs/engineering/handoff/RESUME-CHECKPOINT.md` it could invalidate. If a
    gate was proven against the old version, say so; do not silently reuse old
    evidence for a new version.
 4. **Full test suite is the adoption gate.** A version is adopted only after:
@@ -57,7 +57,7 @@ Keep this table honest. An out-of-date pin table is treated as a bug.
 
 ### Pending components
 
-Studio and postgres-meta are adopted per environment ([decision](DECISIONS.md)) but
+Studio and postgres-meta are adopted per environment ([decision](../decisions/README.md)) but
 are not pinned yet, because nothing serves them. Each enters this table in its own
 change with its own dated review entry, one component at a time. Two pairs exist and
 one has to be chosen on purpose: the pair already measured on this host is

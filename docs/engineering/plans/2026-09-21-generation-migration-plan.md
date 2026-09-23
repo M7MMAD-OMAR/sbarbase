@@ -1,7 +1,7 @@
 # Plan: the container generation migration
 
 Executable plan for the one deferred piece that everything else waits on
-(`docs/CONTAINER-GENERATION-MIGRATION.md`, status "Not implemented"). Written
+(`docs/engineering/CONTAINER-GENERATION-MIGRATION.md`, status "Not implemented"). Written
 2026-09-21 as the next piece of work, not as a design. The design is the other
 document; this one says what to build, in what order, and what must be true before
 any part of it touches the retained installation.
@@ -12,11 +12,11 @@ Four open items converge here:
 
 1. The retained database container cannot be recreated, so the retained placement
    cannot carry its resource tiers or its block IO limits
-   (`docs/RESOURCE-POLICY.md` section 3.6).
+   (`docs/engineering/RESOURCE-POLICY.md` section 3.6).
 2. `lab/durable-check.ts` is disabled by its own line 8 pending this migration, and
    it is the only writer of `.lab/upstream/probe.json`, the fixture both load
    vehicles read, so the arrival driven and mixed SDK load measurements cannot run
-   (`docs/RESOURCE-POLICY.md` section 5.0).
+   (`docs/engineering/RESOURCE-POLICY.md` section 5.0).
 3. No tier measurement can run on a placement with history, only on a fresh
    disposable one.
 4. The pinned database image can never be changed on a retained installation.
@@ -97,7 +97,7 @@ is reconcilable exactly once, and each with its evidence file:
    `.lab/upstream/probe.json` again.
 4. The two load vehicles run against that regenerated fixture and their evidence
    is committed: the arrival driven pressure experiment and the mixed SDK load.
-5. `docs/CONTAINER-GENERATION-MIGRATION.md` changes status from "Not implemented"
+5. `docs/engineering/CONTAINER-GENERATION-MIGRATION.md` changes status from "Not implemented"
    to the revision that implemented it, with the crash tests named.
 
 ## Explicitly out of scope

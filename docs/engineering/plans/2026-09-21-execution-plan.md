@@ -26,7 +26,7 @@ Verified today, from the code:
 | Placement ceiling | `MAX_MEMORY` 6144 MiB, `MAX_CPUS` 6, `RESERVE` 2560 MiB | `lab/combined_admission.py:11-13` | computed over an explicit container name list (`:29-31`) that does not count any container the list omits |
 | Admission gates | memory and volume headroom, cgroup pressure, connection budget | `lab/resource_admission.py`, `lab/pressure_admission.py`, `lab/connection_budget.py` | evaluated at allocation time only, never continuously |
 | Gateway | in-process admission, no queue, REST cap 3, 1 MiB body cap, 15 s timeout, 408/504 deadlines, per-environment pause leases | `src/gateway/concurrency.ts`, `src/gateway/handler.ts` | no per-tenant rate or bandwidth shaping |
-| SQL bounds | statement_timeout 8 s, transaction_timeout 12 s per login and database | `docs/SQL-DEADLINES.md` | does not bound CPU or IO of an allowed statement |
+| SQL bounds | statement_timeout 8 s, transaction_timeout 12 s per login and database | `docs/engineering/SQL-DEADLINES.md` | does not bound CPU or IO of an allowed statement |
 | Auth email | `GOTRUE_EXTERNAL_EMAIL_ENABLED=true`, `GOTRUE_MAILER_AUTOCONFIRM=true`, and no SMTP variable at all | `lab/run.py:123-130` | no mail is ever sent, so signup is silent and password recovery does not exist |
 | Operator notifications | none. `audit_events` records 211 events, the console renders a safe failure reason | `src/control/catalog.ts`, `ui/Environments.tsx` | the operator must look to learn anything |
 
@@ -39,7 +39,7 @@ The repository states the limit in its own words: "This does not isolate query C
 3. **The placement ceiling list must become derived, not literal.** Evidence: `lab/combined_admission.py:29-31` enumerates the containers it counts by hand, so any new container is invisible to the ceiling check, and that is how the Studio pair would have slipped past it.
 4. **Email is per environment, generic SMTP, disabled by default.** Evidence: each environment already has its own Auth process with its own environment file, so a shared installation-wide mailer would become a cross-environment credential and a cross-environment boundary. Autoconfirm stays true until an environment is given SMTP, so behaviour today does not change.
 5. **Notifications are an outbox in the control catalog, drained by the worker.** Evidence: the worker already holds the exclusive catalog lock and already owns job state, so a separate notifier process would be a second writer against the same SQLite file. A failed notification must never fail the operation it reports.
-6. **Nothing here is claimed as capacity.** Evidence: `docs/NOISY-NEIGHBOR.md` and `docs/SUSTAINED-OVERLOAD.md` record a small latency difference and one failed acceptance, neither of which is a capacity result.
+6. **Nothing here is claimed as capacity.** Evidence: `docs/engineering/NOISY-NEIGHBOR.md` and `docs/engineering/SUSTAINED-OVERLOAD.md` record a small latency difference and one failed acceptance, neither of which is a capacity result.
 
 ## Workstream 1: resource distribution and isolation
 
@@ -49,7 +49,7 @@ Tasks, in order:
 2. `lab/durable_runtime.py:114` `launch()`: pass the weight and IO flags, keeping memory and swap equal and the existing log options. Test: a unit test on the argument list, plus a live check that the running container's `HostConfig` carries the values.
 3. `lab/combined_admission.py`: derive the counted container set from the runtime's own placement instead of the literal list, and add the new containers to the arithmetic. Test: a mixture test that shows a placement omitting a container is refused, and the same placement with it is admitted.
 4. Continuous pressure response: extend `lab/pressure_admission.py` into a sampling loop with a documented threshold and a safe action (refuse new allocations first, then pause leases through the existing gateway drain), and record every crossing. Test: a synthetic crossing produces exactly one recorded event and one action.
-5. Documentation: `docs/RESOURCE-POLICY.md` (new) with the tiers, the arithmetic, the measurement method and the limits. Update `docs/RESOURCE-ADMISSION.md`, `docs/COMBINED-RUNTIME.md`, `docs/DEPLOYMENT-READINESS.md`, `docs/evidence/combined-runtime-admission.json` regeneration, and name the invalidated evidence.
+5. Documentation: `docs/engineering/RESOURCE-POLICY.md` (new) with the tiers, the arithmetic, the measurement method and the limits. Update `docs/engineering/RESOURCE-ADMISSION.md`, `docs/engineering/COMBINED-RUNTIME.md`, `docs/reference/deployment-readiness.md`, `docs/evidence/combined-runtime-admission.json` regeneration, and name the invalidated evidence.
 6. Measurement: extend `lab/noisy-neighbor-check.py` to a three-state neighbour experiment on two environments (baseline, one environment under a bounded CPU and IO workload, recovery), and record worst, best and typical numbers with the fixture and the host state. Report failure if a neighbour's error rate rises or its latency leaves a stated envelope.
 
 ## Workstream 2: per-environment application email
@@ -61,7 +61,7 @@ Tasks, in order:
 3. Secret layout: the per-environment private set gains the mail block next to `auth`, `rest`, `storage`, `jwt`, with the loader that already refuses to log values. Test: a secret-safe error test.
 4. Rate limits and templates: set the upstream limits per environment, name the defaults, and state what unlimited would allow.
 5. Live probe `lab/email-check.py`: start the locally present `public.ecr.aws/supabase/mailpit:v1.30.2` on the runtime's internal network, point one environment's Auth at it, request a password recovery for a disposable identity, and assert the message arrives with the expected recipient and link. Include the isolation assertion: environment A's settings cannot send for environment B, and a deliberately wrong password produces a recorded failure rather than a silence.
-6. Documentation: `docs/ENVIRONMENT-EMAIL.md` (new) with the variable table, the disabled-by-default posture, the operator surface and the failure semantics.
+6. Documentation: `docs/engineering/ENVIRONMENT-EMAIL.md` (new) with the variable table, the disabled-by-default posture, the operator surface and the failure semantics.
 
 ## Workstream 3: operator notifications
 
@@ -73,15 +73,15 @@ Tasks, in order:
 4. Channels: operator email through an installation-level mail path, and a generic webhook with a signed body, a timeout and a bounded retry. A channel failure is recorded as a delivery failure and never propagates into the operation. Test: a deliberately broken channel records a failure, and the provisioning operation it reported still succeeds.
 5. Redaction by construction: the message is built from an allow-list of fields, and a test asserts that a message built from a database connection string, a token or a key cannot carry it.
 6. Rate limiting and dedupe: a repeated condition produces one message per window with a count, and one message when it clears.
-7. Documentation: `docs/OPERATOR-NOTIFICATIONS.md` (new), plus a readiness row and the console surface for the delivery state.
+7. Documentation: `docs/engineering/OPERATOR-NOTIFICATIONS.md` (new), plus a readiness row and the console surface for the delivery state.
 
 ## Files likely to change
 
 - `lab/durable_runtime.py`, `lab/combined_admission.py`, `lab/resource_admission.py`, `lab/pressure_admission.py`, `lab/noisy-neighbor-check.py`, `lab/run.py`, `lab/worker.py`
 - new: `lab/resource_policy.py`, `lab/email-check.py`, `lab/notify.py` and their tests
 - `src/control/catalog.ts`, `src/control/*.ts` as needed for the outbox and the delivery state
-- new docs: `docs/RESOURCE-POLICY.md`, `docs/ENVIRONMENT-EMAIL.md`, `docs/OPERATOR-NOTIFICATIONS.md`
-- updated docs: `docs/RESOURCE-ADMISSION.md`, `docs/PRESSURE-ADMISSION.md`, `docs/COMBINED-RUNTIME.md`, `docs/DEPLOYMENT-READINESS.md`, `docs/OPERATOR-SETUP.md`, `docs/PROJECT.md`, `docs/RESUME-CHECKPOINT.md`
+- new docs: `docs/engineering/RESOURCE-POLICY.md`, `docs/engineering/ENVIRONMENT-EMAIL.md`, `docs/engineering/OPERATOR-NOTIFICATIONS.md`
+- updated docs: `docs/engineering/RESOURCE-ADMISSION.md`, `docs/engineering/PRESSURE-ADMISSION.md`, `docs/engineering/COMBINED-RUNTIME.md`, `docs/reference/deployment-readiness.md`, `docs/guides/operator-setup.md`, `docs/PROJECT.md`, `docs/engineering/handoff/RESUME-CHECKPOINT.md`
 
 ## Verification gates
 
@@ -136,12 +136,12 @@ NOT built, so nobody has to read the design to find out:
    state change, and an event invented from a log line is what the design forbids.
 4. The SMTP provider decision, and nothing else on that subject: the template and
    reauthentication questions are settled from the pinned tag's own source
-   (`docs/ENVIRONMENT-EMAIL.md`, `docs/evidence/auth-templates-source-v2.196.0.json`).
+   (`docs/engineering/ENVIRONMENT-EMAIL.md`, `docs/evidence/auth-templates-source-v2.196.0.json`).
 5. The mail surface is read only. An operator sets, changes or removes a relay
    through the runtime command, and nothing in the console can configure one or
    send a test message.
 6. The retained placement stays grandfathered, and section 3.6 of the resource
-   policy was corrected after reading `docs/CONTAINER-GENERATION-MIGRATION.md`: the
+   policy was corrected after reading `docs/engineering/CONTAINER-GENERATION-MIGRATION.md`: the
    retained database container has no recreation path, because its authority
    registry lives in its own filesystem. The tier contract therefore applies to
    placements created after it, which the fresh worker check exercises, and a tier
@@ -181,7 +181,7 @@ NOT built, so nobody has to read the design to find out:
 
 Everything still open at the end of this workstream converges on one deferred
 piece: the container generation migration
-(`docs/CONTAINER-GENERATION-MIGRATION.md`, whose own heading says "Not
+(`docs/engineering/CONTAINER-GENERATION-MIGRATION.md`, whose own heading says "Not
 implemented"). It is what stops all four of these:
 
 1. Recreating the retained database container, so the retained placement could
@@ -203,7 +203,7 @@ acknowledged, and leave the database refusing startup on any uncertainty.
 the operator command `lab/migrate-generation.py`, and five real SIGKILL crash
 tests inside the disposable fixture, verified by the parent on the landed tree at
 24 checks each plus 196 lifecycle checks. Two deviations from this plan are
-recorded in `docs/CONTAINER-GENERATION-MIGRATION.md`: the fourth crash point has
+recorded in `docs/engineering/CONTAINER-GENERATION-MIGRATION.md`: the fourth crash point has
 no realizable state because the owned publication pipeline requires the pin to
 name the new container and generation before it publishes, and the fifth wording
 holds only in the direction that archives the retired record before the pin
