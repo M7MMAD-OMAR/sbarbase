@@ -1,6 +1,7 @@
 """Keep an OS lock alive in the worker process, including after wrapper exit."""
 import fcntl
 import effect_lease
+import hba_journal
 import os
 import subprocess
 import sys
@@ -37,7 +38,7 @@ lock,lease=exported_lock,exported_lease
 operation=os.open(state/'operation.lock',os.O_CREAT|os.O_RDWR,0o600)
 fcntl.flock(operation,fcntl.LOCK_EX|fcntl.LOCK_NB)
 if args.upstream:
-    try:(state/'hba-operation.json').lstat()
+    try:(state/hba_journal.NAME).lstat()
     except FileNotFoundError:pass
     else:raise SystemExit('Pending HBA operation requires reconciliation before worker startup')
 exported_operation=fcntl.fcntl(operation,fcntl.F_DUPFD_CLOEXEC,10)

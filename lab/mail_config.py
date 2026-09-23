@@ -85,7 +85,6 @@ SCHEMA = (
     ('rate_limit_header', 'optional_header'),
 )
 KEY_ORDER = tuple(key for key, _ in SCHEMA)
-SECRET_KEYS = ('user', 'pass')
 
 
 class MailConfigurationError(Exception):

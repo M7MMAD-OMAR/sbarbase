@@ -238,6 +238,11 @@ def claim(database, limit=20, lease_ms=LEASE_MS):
     """
     now = int(time.time() * 1000)
     claimed = []
+    # An idle step must not take the write lock; the transaction below still re-reads.
+    if not database.execute('''SELECT 1 FROM notification_delivery
+            WHERE (state='pending' AND next_attempt_at<=?) OR (state='claimed' AND claim_at<=?) LIMIT 1''',
+            (now, now - lease_ms)).fetchone():
+        return claimed
     with immediate(database):
         rows = database.execute('''SELECT d.event event,d.channel channel,d.attempts attempts,o.id id,o.kind kind,
             o.severity severity,o.organization organization,o.project project,o.environment environment,
@@ -297,6 +302,8 @@ def settle(database, item, outcome, error=None):
 def prune(database, now=None, limit=500):
     """Bounded retention. A row with any pending or claimed delivery is never removed."""
     now = int(time.time() * 1000) if now is None else now
+    if not database.execute('SELECT 1 FROM notification_outbox WHERE expires_at < ? LIMIT 1', (now,)).fetchone():
+        return 0
     with immediate(database):
         rows = database.execute('''SELECT o.id id FROM notification_outbox o
             WHERE o.expires_at < ? AND NOT EXISTS(SELECT 1 FROM notification_delivery d
@@ -507,8 +514,9 @@ def deliver_email(config, envelope, timeout=None):
         return 'delivered', None
     except smtplib.SMTPResponseException as error:
         code = getattr(error, 'smtp_code', 0)
-        token = 'smtp_temporary_failure' if 400 <= code < 500 else 'smtp_refused'
-        return ('transient' if token == 'smtp_temporary_failure' else 'failed'), token
+        if 400 <= code < 500:
+            return 'transient', 'smtp_temporary_failure'
+        return 'failed', 'smtp_refused'
     except (socket.timeout, TimeoutError):
         return 'transient', 'smtp_timeout'
     except (ConnectionError, OSError, smtplib.SMTPException):
@@ -638,7 +646,7 @@ def drain(database, config, channels, secret, limit=20, lease_ms=LEASE_MS, prune
             else:
                 outcome['failed'] += 1
                 if error != 'channel_disabled':
-                    escalate(database, item, channels, error)
+                    outcome['escalated'] += escalate(database, item, channels, error)
         except Exception as error:
             # The drain's own exceptions never reach the operation that produced the event.
             outcome['errors'].append(type(error).__name__)
