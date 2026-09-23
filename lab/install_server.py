@@ -28,9 +28,15 @@ import pinned_images_check
 ROOT=Path(__file__).resolve().parent.parent
 STATE=ROOT/'.lab'/'upstream'
 PRIVATE=ROOT/'.secrets'/'upstream'
+# The full retained split placement (source plus recovery target). It is the
+# requirement only when the daemon cannot be asked what the next start runs.
 PLANNED_MIB=5888
 RESERVE_MIB=2560
 PLANNED_CPUS=5.75
+# What a start launches when nothing is retained: the database, the shared
+# Storage and the management Auth, at the tier rows the launcher uses. Each
+# environment added later is admitted on its own by the provisioning worker.
+FRESH_TIERS=('system.db','system.storage','system.management-auth')
 MIN_FREE_BYTES=12*1024**3
 LOCKS=('distro-image.lock.json','images.lock.json','storage-image.lock.json')
 
@@ -118,17 +124,59 @@ def combined_stage_measured_mib():
     return value if isinstance(value,int) and value>0 else None
 
 
-def headroom_requirement(moved,measured):
+def mib(value):
+    """Docker's '1024m' style limit as MiB."""
+    units={'k':1/1024,'m':1,'g':1024}
+    return int(float(value[:-1])*units[value[-1].lower()]) if value[-1].lower() in units else int(value)//1024**2
+
+
+def fresh_placement():
+    """(MiB, CPUs) of the containers a start creates when none are retained."""
+    import resource_policy
+    rows=[resource_policy.TIERS[tier] for tier in FRESH_TIERS]
+    return sum(mib(row.memory) for row in rows),sum(row.cpus for row in rows)
+
+
+def planned_placement(inspect=None):
+    """(MiB, CPUs, origin) of what the next start runs, derived from the placement.
+
+    Retained containers are counted at their own limits, the way the combined
+    admission counts them: every source container, plus the current recovery
+    target's when one is recorded. With none retained, the fresh rows. The
+    preflight, the unit's ExecStartPre on every restart and the runtime's own
+    admission therefore state the same figure. A container without a finite limit
+    falls back to the full split placement, the conservative figure.
+    """
+    if inspect is None:
+        def inspect():
+            names=docker('ps','-a','--filter','label=io.sbarbase.owner=durable-upstream','--format','{{.Names}}',check=False).stdout.split()
+            prefix=current_prefix()
+            if prefix:
+                targets=docker('ps','-a','--filter','label=io.sbarbase.owner=recovery-target','--format','{{.Names}}',check=False).stdout.split()
+                names+=[name for name in targets if name.startswith(prefix+'-')]
+            return [json.loads(docker('inspect',name).stdout)[0] for name in names]
+    items=inspect()
+    if not items:
+        memory,cpus=fresh_placement()
+        return memory,cpus,'fresh placement'
+    memory=sum(item.get('HostConfig',{}).get('Memory') or 0 for item in items)
+    nano=[item.get('HostConfig',{}).get('NanoCpus') or 0 for item in items]
+    if any((item.get('HostConfig',{}).get('Memory') or 0)<=0 for item in items) or any(value<=0 for value in nano):
+        return PLANNED_MIB,PLANNED_CPUS,'full split placement (a retained container has no finite limit)'
+    return memory//1024**2,round(sum(nano)/1e9,2),f'retained placement of {len(items)} containers'
+
+
+def headroom_requirement(moved,measured,placement_mib=PLANNED_MIB,origin='placement'):
     """The headroom a start needs, with its composition stated."""
-    needed=PLANNED_MIB+RESERVE_MIB
-    composition=f'{PLANNED_MIB} MiB placement + {RESERVE_MIB} MiB reserve'
+    needed=placement_mib+RESERVE_MIB
+    composition=f'{placement_mib} MiB {origin} + {RESERVE_MIB} MiB reserve'
     if moved and measured:
         needed+=measured
         composition+=f' + {measured} MiB measured for the running source stage'
     return needed,composition
 
 
-def capacity():
+def capacity(reachable=True):
     findings=[]
     memory=int(next(line.split()[1] for line in Path('/proc/meminfo').read_text().splitlines() if line.startswith('MemAvailable:')))
     cpus=os.cpu_count() or 0
@@ -136,12 +184,16 @@ def capacity():
     measured=combined_stage_measured_mib()
     if moved and not measured:
         findings.append(('warning','Combined headroom cannot be stated precisely yet: no source-stage footprint measurement exists, so the requirement is the placement and reserve only'))
-    needed,composition=headroom_requirement(moved,measured)
+    if reachable:
+        placement_mib,placement_cpus,origin=planned_placement()
+    else:
+        placement_mib,placement_cpus,origin=PLANNED_MIB,PLANNED_CPUS,'full split placement (daemon unreachable)'
+    needed,composition=headroom_requirement(moved,measured,placement_mib,origin)
     if memory/1024<needed:
         findings.append(('blocker',f'Host headroom insufficient: {memory//1024} MiB available, plan needs {needed} MiB ({composition})'))
     from combined_admission import cpu_headroom_refused,cores_needed,CPU_OVERCOMMIT,HOST_CPU_RESERVE
-    if cpu_headroom_refused(PLANNED_CPUS,cpus):
-        findings.append(('blocker',f'CPU count insufficient: {cpus} available, plan needs {cores_needed(PLANNED_CPUS)} ({PLANNED_CPUS} CPUs of container ceilings at {CPU_OVERCOMMIT}x overcommit + {HOST_CPU_RESERVE} core kept for the host)'))
+    if cpu_headroom_refused(placement_cpus,cpus):
+        findings.append(('blocker',f'CPU count insufficient: {cpus} available, plan needs {cores_needed(placement_cpus)} ({placement_cpus} CPUs of container ceilings at {CPU_OVERCOMMIT}x overcommit + {HOST_CPU_RESERVE} core kept for the host)'))
     usage=shutil.disk_usage('/')
     if usage.free<MIN_FREE_BYTES:
         findings.append(('blocker',f'Disk free {usage.free//1024**3} GiB below the {MIN_FREE_BYTES//1024**3} GiB minimum'))
@@ -172,6 +224,12 @@ def current_prefix():
     return json.loads(record.read_text()).get('prefix')
 
 
+def never_started(name):
+    """True when Docker created the container but never ran it."""
+    result=docker('inspect','--format','{{.State.StartedAt}}',name,check=False)
+    return result.returncode==0 and result.stdout.strip().startswith('0001-01-01')
+
+
 def state():
     findings=[]
     ignored=run(['git','check-ignore','-q',str(PRIVATE/'runtime.json')],cwd=ROOT,check=False)
@@ -186,7 +244,14 @@ def state():
     if containers or targets:
         findings.append(('action',f'Retained installation detected ({len(containers)} source, {len(targets)} target containers)'))
         if not (STATE/'hba-generation.json').exists():
-            findings.append(('blocker','Retained source has no generation pin: adopt it with lab/adopt-retained.py source'))
+            if containers and not targets and all(never_started(name) for name in containers):
+                # An interrupted first install, not a retained source: Docker created
+                # the containers but none ever ran, so no database was initialized.
+                findings.append(('blocker','An interrupted first install left containers that never started ('+', '.join(sorted(containers))+'); '
+                                 'no database was initialized, so remove them and their volumes with docker rm and docker volume rm, then install again. '
+                                 'Do not adopt them'))
+            else:
+                findings.append(('blocker','Retained source has no generation pin: adopt it with lab/adopt-retained.py source'))
         findings.extend(target_findings(targets,STATE,current_prefix()))
     else:
         findings.append(('action','No installation containers: this is a fresh install'))
@@ -201,7 +266,7 @@ def preflight():
         # daemon would be a guess dressed as a finding.
         unknown=[('info','Pinned images were not inspected and installation containers were not enumerated: '
                          'the Docker daemon was unreachable from this process')]
-        return versions()+daemon_findings+unknown+capacity()
+        return versions()+daemon_findings+unknown+capacity(reachable=False)
     return versions()+daemon_findings+images()+capacity()+state()
 
 

@@ -63,3 +63,37 @@ class StatsParsingTests(unittest.TestCase):
 
 
 if __name__=='__main__':unittest.main()
+
+class DerivedPlacementTests(unittest.TestCase):
+    """The requirement comes from what the next start runs, not from one constant."""
+
+    @staticmethod
+    def item(memory_mib,cpus):
+        return {'HostConfig':{'Memory':memory_mib*1024**2,'NanoCpus':int(cpus*1e9)}}
+
+    def test_an_empty_host_needs_the_three_system_containers_only(self):
+        self.assertEqual(install_server.fresh_placement(),(1792,1.75))
+        memory,cpus,origin=install_server.planned_placement(inspect=lambda:[])
+        self.assertEqual((memory,cpus),(1792,1.75))
+        self.assertEqual(origin,'fresh placement')
+
+    def test_retained_containers_are_counted_at_their_own_limits(self):
+        # The fresh system rows plus two environments of Auth and REST each.
+        items=[self.item(1024,1),self.item(512,.5),self.item(256,.25)]+[self.item(256,.25) for _ in range(4)]
+        memory,cpus,origin=install_server.planned_placement(inspect=lambda:items)
+        self.assertEqual((memory,cpus),(1792+4*256,2.75))
+        self.assertIn('7 containers',origin)
+
+    def test_a_container_without_a_finite_limit_falls_back_to_the_full_placement(self):
+        items=[self.item(1024,1),{'HostConfig':{'Memory':0,'NanoCpus':0}}]
+        memory,cpus,_=install_server.planned_placement(inspect=lambda:items)
+        self.assertEqual((memory,cpus),(install_server.PLANNED_MIB,install_server.PLANNED_CPUS))
+
+    def test_the_stated_composition_names_where_the_figure_came_from(self):
+        needed,composition=install_server.headroom_requirement(False,None,1792,'fresh placement')
+        self.assertEqual(needed,1792+install_server.RESERVE_MIB)
+        self.assertEqual(composition,'1792 MiB fresh placement + 2560 MiB reserve')
+
+    def test_limits_are_parsed_the_way_the_tier_table_writes_them(self):
+        self.assertEqual(install_server.mib('1024m'),1024)
+        self.assertEqual(install_server.mib('2g'),2048)

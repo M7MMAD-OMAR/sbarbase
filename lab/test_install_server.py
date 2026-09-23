@@ -92,3 +92,30 @@ class UnreachableDaemonPreflightTests(unittest.TestCase):
 
 
 if __name__=='__main__':unittest.main()
+
+class InterruptedFirstInstallTests(unittest.TestCase):
+    """Found by the first empty-VM install: a failed first launch was called a retained source."""
+
+    def findings(self,started_at):
+        def docker(*args,**kwargs):
+            if args[:2]==('ps','-a') and 'label=io.sbarbase.owner=durable-upstream' in args:return result(stdout='sbarbase-durable-db\n')
+            if args[:2]==('ps','-a'):return result(stdout='')
+            if args[0]=='ps':return result(stdout='')
+            if args[0]=='inspect':return result(stdout=started_at+'\n')
+            raise AssertionError(args)
+        with tempfile.TemporaryDirectory() as directory, \
+             patch.object(install_server,'STATE',Path(directory)), \
+             patch.object(install_server,'docker',side_effect=docker), \
+             patch.object(install_server,'run',return_value=result(0)):
+            return install_server.state()
+
+    def test_never_started_containers_are_named_as_an_interrupted_install(self):
+        blockers=[detail for kind,detail in self.findings('0001-01-01T00:00:00Z') if kind=='blocker']
+        self.assertEqual(len(blockers),1)
+        self.assertIn('interrupted first install',blockers[0])
+        self.assertIn('Do not adopt them',blockers[0])
+
+    def test_a_container_that_ran_is_still_a_retained_source_to_adopt(self):
+        blockers=[detail for kind,detail in self.findings('2026-09-23T01:14:26Z') if kind=='blocker']
+        self.assertEqual(len(blockers),1)
+        self.assertIn('adopt it with lab/adopt-retained.py source',blockers[0])
