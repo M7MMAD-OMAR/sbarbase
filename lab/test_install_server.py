@@ -119,3 +119,31 @@ class InterruptedFirstInstallTests(unittest.TestCase):
         blockers=[detail for kind,detail in self.findings('2026-09-23T01:14:26Z') if kind=='blocker']
         self.assertEqual(len(blockers),1)
         self.assertIn('adopt it with lab/adopt-retained.py source',blockers[0])
+
+
+class PinnedImagePullTests(unittest.TestCase):
+    """Found by the second empty-VM rehearsal: a 1.7 GB pull hit the 600 s command timeout."""
+
+    def test_a_pull_has_its_own_long_budget_and_shows_progress(self):
+        calls=[]
+        def runner(command,**kwargs):
+            calls.append((command,kwargs));return result(0)
+        install_server.pull_image('db','repo@sha256:x','1/5',runner=runner)
+        command,kwargs=calls[0]
+        self.assertEqual(command,['docker','pull','repo@sha256:x'])
+        self.assertGreaterEqual(kwargs['timeout'],3600)
+        self.assertNotIn('capture_output',kwargs)
+
+    def test_a_timed_out_pull_is_retried_then_named(self):
+        import subprocess
+        attempts=[]
+        def runner(command,**kwargs):
+            attempts.append(command);raise subprocess.TimeoutExpired(command,kwargs['timeout'])
+        with self.assertRaises(SystemExit) as refused:
+            install_server.pull_image('db','repo@sha256:x','1/5',runner=runner)
+        self.assertEqual(len(attempts),install_server.PULL_ATTEMPTS)
+        self.assertIn('Pinned image pull failed for db',str(refused.exception))
+
+    def test_a_retry_that_succeeds_continues_the_install(self):
+        outcomes=iter([result(1),result(0)])
+        install_server.pull_image('db','repo@sha256:x','1/5',runner=lambda command,**kwargs:next(outcomes))

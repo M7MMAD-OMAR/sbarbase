@@ -302,6 +302,25 @@ def npm_install():
         run(['bun','install'],cwd=ROOT)
 
 
+# The distro PostgreSQL image is about 1.7 GB. The first empty-VM rehearsal on a
+# slower link hit the generic 600 second command timeout halfway through it, and
+# the pull printed nothing while it ran. Pulls get their own budget, a retry, and
+# Docker's own progress lines on the terminal.
+PULL_TIMEOUT=3600
+PULL_ATTEMPTS=2
+
+
+def pull_image(label,reference,position,runner=subprocess.run):
+    """Pull one pinned image with progress shown, or stop the install naming it."""
+    for attempt in range(1,PULL_ATTEMPTS+1):
+        print(f'pulling {position} {label} (attempt {attempt} of {PULL_ATTEMPTS}; the first install downloads about 2.4 GB)',flush=True)
+        try:
+            if runner(['docker','pull',reference],text=True,timeout=PULL_TIMEOUT,check=False).returncode==0:return
+        except subprocess.TimeoutExpired:
+            print(f'pull of {label} exceeded {PULL_TIMEOUT} s',flush=True)
+    raise SystemExit('Pinned image pull failed for '+label+'; check the network, then run the install again (pulled images are kept)')
+
+
 def install(bootstrap_file):
     checks=preflight()
     if not report(checks):raise SystemExit('Preflight failed; nothing was installed')
@@ -310,9 +329,10 @@ def install(bootstrap_file):
         PRIVATE.mkdir(mode=0o700,parents=True,exist_ok=True)
         os.chmod(PRIVATE,0o700)
         print('step 1/5  state and secret directories prepared')
-        for label,digest,reference in pinned_images():
-            if docker('image','inspect',digest,check=False).returncode:
-                if docker('pull',reference,check=False).returncode:raise SystemExit('Pinned image pull failed for '+label)
+        missing=[(label,reference) for label,digest,reference in pinned_images()
+                 if docker('image','inspect',digest,check=False).returncode]
+        for number,(label,reference) in enumerate(missing,1):
+            pull_image(label,reference,f'{number}/{len(missing)}')
         for label,digest,reference in pinned_images():
             record,error=pinned_images_check.inspect_image(reference)
             ok,detail=pinned_images_check.evaluate(digest,record)
