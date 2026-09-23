@@ -24,11 +24,14 @@ export class ConcurrencyGate {
    resume:()=>{
     if(this.paused.get(environment)!==lease)throw new Error('Pause lease expired');
     this.paused.delete(environment);
-    for(const done of [...(this.drainWaiters.get(environment)??[])])done();
+    this.notifyDrain(environment);
    },
   };
  }
 
+ private notifyDrain(environment:string) {
+  for(const done of [...(this.drainWaiters.get(environment)??[])])done();
+ }
  private services=new Map<string,number>();
  private active=new Map<string,number>();
  constructor(private perEnvironment=8,private maximum=32,private responseTimeoutMs=30_000,private forwardTimeoutMs=30_000) {
@@ -58,7 +61,7 @@ export class ConcurrencyGate {
    const remaining=(this.active.get(environment)??1)-1;
    if(remaining)this.active.set(environment,remaining);else {
     this.active.delete(environment);
-    for(const done of [...(this.drainWaiters.get(environment)??[])])done();
+    this.notifyDrain(environment);
    }
   };
   try {
