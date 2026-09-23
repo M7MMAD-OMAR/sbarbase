@@ -24,11 +24,13 @@ Current state and next step for a coding agent (Claude Code, Codex, Hermes or an
 - Source release [0.1.0](../../../CHANGELOG.md) (2026-09-21) plus, unreleased, the container generation migration: `lab/migrate-generation.py`, journaled and passing five SIGKILL crash points on the disposable fixture.
 - Both retained databases (source and recovery target) were adopted into the owned HBA authority on 2026-09-20 and carry generation pins.
 - The retained moved environment stays on its recovery target; its source database and scoped logins remain fenced. Resume from the private cutover journal, never by rerunning export or allocation.
-- The deployment path (preflight, installer, systemd unit, acceptance script) passes on the development workstation only. A clean-VM rehearsal is in progress; no real server has been used.
+- The deployment path passes on the development workstation and, from an empty server, in a local Fedora 44 VM with 4 vCPU and 6 GiB: acceptance 12 of 12, first project 13 of 13, reboot survived ([summary](../../evidence/vm-empty-server-rehearsal.json)). Repeat it with `lab/vm-rehearsal.sh`. No real server has been used.
 
 ## Next step
 
-**The attended generation migration of the retained database.** `lab/migrate-generation.py` refuses the retained placement by design; running it there is a deliberate operator action. Until it happens, `lab/durable-check.ts` stays disabled and the arrival-driven pressure and mixed SDK load measurements stay blocked.
+**Follow the [roadmap](../plans/2026-09-23-roadmap.md)**: a real server first (the owner expects one next month), then backups as a feature, Studio per environment and upgrades. Use [CONTRIBUTING.md](../../../CONTRIBUTING.md) for the workflow.
+
+On the workstation, still pending: **the attended generation migration of the retained database.** `lab/migrate-generation.py` refuses the retained placement by design; running it there is a deliberate operator action. Until it happens, `lab/durable-check.ts` stays disabled and the arrival-driven pressure and mixed SDK load measurements stay blocked.
 
 Still open after that: a real-server rehearsal, later-stage crash recovery, service effects, sustained mixed-load capacity, off-host restore, upgrades, complete organization transfer, multi-host coordination, and Realtime, Functions, pooler, cron and per-environment Studio.
 

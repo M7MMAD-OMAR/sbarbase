@@ -123,8 +123,12 @@ Cross-cutting invariants that span both halves:
 ## Where to orient
 
 `docs/README.md` is the docs map. Current state and next step for agents:
-`docs/engineering/handoff/README.md`. What works and every number:
-`docs/reference/status.md`. Terms: `docs/reference/glossary.md`. Design in plain
+`docs/engineering/handoff/README.md`. What to build next, in order:
+`docs/engineering/plans/2026-09-23-roadmap.md`; the change workflow is
+`CONTRIBUTING.md`. What works and every number:
+`docs/reference/status.md`. An empty-server install is rehearsed in a disposable
+local VM with `lab/vm-rehearsal.sh --image <Fedora 44 Cloud qcow2>` (needs about
+9 GiB free on the host for a 6 GiB guest). Terms: `docs/reference/glossary.md`. Design in plain
 words: `docs/explain/`. Why this design: `docs/decisions/README.md`. Active plans:
 `docs/engineering/plans/`. Each subsystem has its own note in
 `docs/engineering/` (indexed by `docs/engineering/README.md`) with scope and
