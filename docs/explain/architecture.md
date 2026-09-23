@@ -15,6 +15,12 @@ Rejected alternatives:
 
 ## How we built it
 
+![Compared with a full stack per project, Sbarbase shares one gateway, one PostgreSQL engine and one Storage process, and runs Auth and REST per environment](../diagrams/full-stack-vs-shared.svg)
+
+![A request goes from the app to the gateway, which checks the key for the environment named in the path and refuses at once with 429 or 503 instead of queueing, then to that environment's Auth or REST and its own database login; files go to shared Storage with a tenant header](../diagrams/request-path.svg)
+
+The full routing, including the management path and the provisioning worker, as text:
+
 ```mermaid
 flowchart TB
   C["App using supabase-js"] -->|"HTTPS"| P["TLS proxy (operator's, or deploy/console-tls-proxy.ts)"]

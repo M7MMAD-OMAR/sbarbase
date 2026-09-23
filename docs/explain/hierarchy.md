@@ -14,28 +14,8 @@ Your server holds clients, each client owns projects, and each project has envir
 
 ## How we built it
 
-```mermaid
-flowchart LR
-  subgraph ownership["Ownership (catalog)"]
-    SRV["Your server"] --> C1["Client: Acme"]
-    SRV --> C2["Client: Beta"]
-    C1 --> P1["Project: shop"]
-    C1 --> P2["Project: blog"]
-    C2 --> P3["Project: app"]
-    P1 --> E1["Environment: production"]
-    P1 --> E2["Environment: staging"]
-    P2 --> E3["Environment: production"]
-    P3 --> E4["Environment: production"]
-  end
-  subgraph placement["Placement (routing records)"]
-    SRC[("Source engine")]
-    TGT[("Restored engine")]
-  end
-  E1 -.-> SRC
-  E2 -.-> SRC
-  E3 -.-> SRC
-  E4 -.->|"moved after restore"| TGT
-```
+![Ownership is a tree of clients, projects and environments in the catalog; placement is a separate routing record, so an environment moved to a restored engine keeps its owner, and a second server is planned, not built](../diagrams/ownership-vs-placement.svg)
+
 
 Operators are members of a client with one of three roles:
 

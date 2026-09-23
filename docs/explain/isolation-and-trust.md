@@ -14,21 +14,8 @@ Each environment gets its own database, its own service logins and its own keys,
 
 ## How we built it
 
-```mermaid
-flowchart TB
-  subgraph untrusted["Untrusted: app visitors"]
-    V["Browser or mobile app with a token"]
-  end
-  subgraph trusted["Trusted: your server's operators"]
-    OP["Operator, SQL author, host shell"]
-  end
-  V -->|"publishable key + token"| GW["Gateway"]
-  GW --> ENV1["Environment A: own Auth, REST, database, logins"]
-  GW --> ENV2["Environment B: own Auth, REST, database, logins"]
-  ENV1 --> SH[("Shared: PostgreSQL engine, Storage process, host")]
-  ENV2 --> SH
-  OP --> SH
-```
+![Untrusted app visitors reach the server only through the TLS proxy and the gateway with a publishable key; trusted operators use the console or the host directly; each environment has its own Auth, REST, database and logins, while the PostgreSQL engine and Storage are shared failure boundaries](../diagrams/trust-boundaries.svg)
+
 
 What is separate per environment:
 

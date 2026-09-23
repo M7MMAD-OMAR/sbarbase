@@ -33,23 +33,8 @@ None of these was installed or benchmarked; the review read their documentation,
 
 ## How we built it
 
-```mermaid
-flowchart LR
-  subgraph today["Common choice today"]
-    S1["Full stack: client A"]
-    S2["Full stack: client B"]
-    S3["Full stack: client C"]
-  end
-  subgraph sbarbase["Sbarbase"]
-    G["Gateway and console"] --> A1["Auth + REST: A prod"]
-    G --> A2["Auth + REST: B prod"]
-    G --> A3["Auth + REST: C prod"]
-    A1 --> PG[("Shared PostgreSQL, one database per environment")]
-    A2 --> PG
-    A3 --> PG
-    G --> ST["Shared Storage, one tenant per environment"]
-  end
-```
+![Left, three full Supabase stacks that each repeat every component; right, Sbarbase with one gateway, Auth and REST per environment, one PostgreSQL engine with a database per environment, and one shared Storage; the shared parts are a shared failure boundary](../diagrams/full-stack-vs-shared.svg)
+
 
 A small control plane in TypeScript (Bun) keeps the catalog of clients, projects and environments and serves the console and the gateway. A Python runtime starts and supervises the pinned upstream containers. The full picture is in [architecture](architecture.md). Code: [src/control/catalog.ts](../../src/control/catalog.ts), [src/gateway/handler.ts](../../src/gateway/handler.ts), [lab/durable_runtime.py](../../lab/durable_runtime.py).
 
