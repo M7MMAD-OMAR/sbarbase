@@ -21,3 +21,16 @@ describe('console port',()=>{
   } finally {server.stop(true);}
  });
 });
+
+describe('request bodies over the real listener',()=>{
+ test('a POST without a body reaches the handler without one',async()=>{
+  const seen:(boolean|string)[]=[];
+  const server=await serveLocal(async request=>{seen.push(request.body===null?true:await request.text());return new Response('ok');});
+  try {
+   await fetch(`http://127.0.0.1:${server.port}/keys`,{method:'POST'});
+   await fetch(`http://127.0.0.1:${server.port}/keys/1`,{method:'DELETE'});
+   await fetch(`http://127.0.0.1:${server.port}/projects`,{method:'POST',body:'{"name":"x"}'});
+   expect(seen).toEqual([true,true,'{"name":"x"}']);
+  } finally {server.stop(true);}
+ });
+});

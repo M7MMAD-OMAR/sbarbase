@@ -37,8 +37,14 @@ export async function serveLocal(fetch:(request:Request)=>Response|Promise<Respo
     outgoing.writeHead(403,{'content-type':'text/plain'});outgoing.end('Invalid host');return;
    }
    const method=incoming.method??'GET';
+   // HTTP/1.1 frames a request body only with Content-Length or Transfer-Encoding.
+   // Attaching the socket stream to every POST gave body-less requests a body, and
+   // the key routes, which refuse any body, answered 400 to the console's key
+   // issuance over the real listener. Found by the empty-VM first-project check.
+   const length=incoming.headers['content-length'];
+   const framed=incoming.headers['transfer-encoding']!==undefined||(length!==undefined&&length!=='0');
    const request=new Request(target,{method,headers,signal:abort.signal,
-    ...(!['GET','HEAD'].includes(method)?{body:Readable.toWeb(incoming) as unknown as ReadableStream<Uint8Array>,duplex:'half'}:{})} as RequestInit);
+    ...(!['GET','HEAD'].includes(method)&&framed?{body:Readable.toWeb(incoming) as unknown as ReadableStream<Uint8Array>,duplex:'half'}:{})} as RequestInit);
    const response=await fetch(request);
    if(abort.signal.aborted){void response.body?.cancel().catch(()=>{});return;}
    const output:Record<string,string|string[]>={};
