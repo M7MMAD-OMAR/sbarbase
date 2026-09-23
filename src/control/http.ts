@@ -1,10 +1,10 @@
 import {Catalog,type MembershipRole} from './catalog';
 import {authenticate,reply,type ManagementIdentity} from './auth';
-import {readFileSync} from 'node:fs';
+import {readJsonCached} from '../http/cached-json';
 import {join} from 'node:path';
 
 /** Runtime state directory, the same tree the runtime writes the catalog in. */
-export const MAIL_STATE_DIRECTORY='.lab/upstream';
+const MAIL_STATE_DIRECTORY='.lab/upstream';
 const MAIL_STATE_FILE='mail-state.json';
 /** The non secret fields lab/mail_config.py `summarize` writes, minus `user` and `pass`.
  * The summary carries those two as the literal markers `set`/`empty`; this route exposes no
@@ -19,13 +19,12 @@ const NOTIFICATION_EVENT_LIMIT=50;
 /** Missing file: nothing was reconciled yet, so every environment is unconfigured.
  * A file that exists and cannot be read is a failure, never a silent unconfigured. */
 function mailEntries(directory:string):Record<string,unknown> {
-  let raw:string;
-  try {raw=readFileSync(join(directory,MAIL_STATE_FILE),'utf8');}
+  let parsed:unknown;
+  try {parsed=readJsonCached(join(directory,MAIL_STATE_FILE));}
   catch(error) {
     if((error as {code?:string}).code==='ENOENT')return {};
     throw error;
   }
-  const parsed:unknown=JSON.parse(raw);
   if(!parsed||typeof parsed!=='object'||Array.isArray(parsed))throw new Error('Invalid mail state');
   return parsed as Record<string,unknown>;
 }

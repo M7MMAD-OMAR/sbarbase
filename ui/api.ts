@@ -4,7 +4,7 @@ export const auth=createClient(location.origin+'/management','sb_publishable_sba
  auth:{persistSession:false,autoRefreshToken:true,detectSessionInUrl:false}});
 export type Organization={id:string;name:string;role:'owner'|'admin'|'viewer'};
 export type Project={id:string;name:string};
-export type Environment=Project&{state?:string;failure?:'capacity_exceeded'|'runtime_failed'};
+export type Environment=Project&{state?:string|null;failure?:'capacity_exceeded'|'runtime_failed'|null};
 export type Api=(path:string,method?:string,body?:unknown,signal?:AbortSignal)=>Promise<any>;
 export function api(token:string):Api {
  return async(path,method='GET',body,signal)=>{

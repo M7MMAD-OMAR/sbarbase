@@ -6,6 +6,8 @@ import {chmodSync} from 'node:fs';
 export type MembershipRole = 'owner' | 'admin' | 'viewer';
 type Project = {id:string;organization:string;name:string};
 type Environment = {id:string;project:string;name:string};
+/** One environment with its provisioning state, so a listing needs no per row request. */
+export type EnvironmentStatus = Environment&{state:string|null;attempt:number|null;failure:ProvisionFailure|null};
 export type ProvisionFailure = 'capacity_exceeded' | 'runtime_failed';
 export type ProvisionJob = {environment:string;runtime:string;actor:string;organization:string;state:string;attempt:number;claim:string|null;failure:ProvisionFailure|null};
 
@@ -74,14 +76,14 @@ const NOTIFICATION_REASONS = [
   'smtp_refused','smtp_temporary_failure','channel_disabled','redaction_refused',
   'operator_request','installation_failed','worker_restart','worker_restart_limit',
   'export_completed','export_failed','restore_verified','restore_failed'] as const;
-export const NOTIFICATION_MAX_ATTEMPTS = 8;
+const NOTIFICATION_MAX_ATTEMPTS = 8;
 const NOTIFICATION_WINDOW_SECONDS:Record<NotificationSeverity,number> = {info:3600,warning:1800,critical:300};
 const NOTIFICATION_BACKOFF_SECONDS = [15,60,300,1800,7200];
 const NOTIFICATION_RETENTION_MS = 30*24*60*60*1000;
 const NOTIFICATION_LEASE_MS = 30000;
 const NOTIFICATION_SUBJECT_PREFIX = 'e_';
 /** Fail closed: a shape here means no bytes leave the process and the delivery settles failed. */
-export const CREDENTIAL_SHAPES:RegExp[] = [
+const CREDENTIAL_SHAPES:RegExp[] = [
   /postgres(ql)?:\/\//i, /sb_publishable_/i, /sb_secret_/i, /password=/i, /apikey/i,
   /authorization:/i, /BEGIN PRIVATE KEY/, /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/,
   /(?<![0-9a-fA-F])[0-9a-fA-F]{64}(?![0-9a-fA-F])/, /[A-Za-z0-9_-]{32,}/,
@@ -89,7 +91,7 @@ export const CREDENTIAL_SHAPES:RegExp[] = [
 /** Catalog identifiers are not credentials. Remove exactly those shapes before scanning,
  * so a uuid or a runtime identifier cannot be mistaken for a key and silence a message. */
 const NOTIFICATION_IDENTIFIER = /e_[a-f0-9]{24}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g;
-export function credentialShape(value:string):boolean {
+function credentialShape(value:string):boolean {
   const normalized = value.replace(NOTIFICATION_IDENTIFIER,'id');
   return CREDENTIAL_SHAPES.some(shape=>shape.test(normalized));
 }
@@ -177,7 +179,11 @@ export class Catalog {
       CREATE INDEX IF NOT EXISTS notification_windows
         ON notification_outbox(dedupe_key,window_until);
       CREATE INDEX IF NOT EXISTS projects_organization ON projects(organization);
-      CREATE INDEX IF NOT EXISTS environments_project ON environments(project);`);
+      CREATE INDEX IF NOT EXISTS environments_project ON environments(project);
+      CREATE INDEX IF NOT EXISTS memberships_actor ON memberships(actor);
+      CREATE INDEX IF NOT EXISTS provision_jobs_state ON provision_jobs(state);
+      CREATE INDEX IF NOT EXISTS notification_outbox_at ON notification_outbox(at);
+      CREATE INDEX IF NOT EXISTS notification_outbox_expiry ON notification_outbox(expires_at);`);
     this.db.transaction(()=>{
       const columns=this.db.query<{name:string},[]>('PRAGMA table_info(provision_jobs)').all();
       if(!columns.some(column=>column.name==='failure'))
@@ -376,10 +382,11 @@ export class Catalog {
       return this.db.query<Project,[string]>('SELECT * FROM projects WHERE organization=? ORDER BY id').all(organization);
     })();
   }
-  listEnvironments(actor:string,project:string):Environment[] {
+  listEnvironments(actor:string,project:string):EnvironmentStatus[] {
     return this.db.transaction(()=>{
       this.project(actor,project,['owner','admin','viewer']);
-      return this.db.query<Environment,[string]>('SELECT * FROM environments WHERE project=? ORDER BY id').all(project);
+      return this.db.query<EnvironmentStatus,[string]>(`SELECT e.id,e.project,e.name,j.state,j.attempt,j.failure
+        FROM environments e LEFT JOIN provision_jobs j ON j.environment=e.id WHERE e.project=? ORDER BY e.id`).all(project);
     })();
   }
   withReadyEnvironment<T>(actor:string,environment:string,write:boolean,operation:(job:ProvisionJob)=>T):T {
@@ -408,6 +415,8 @@ export class Catalog {
     this.db.query("UPDATE provision_jobs SET state='queued',claim=NULL WHERE state='running'").run();
   }
   claimProvision():ProvisionJob|null {
+    // An idle poll must not take the write lock; the transaction below still re-reads.
+    if(!this.db.query("SELECT 1 FROM provision_jobs WHERE state='queued' LIMIT 1").get()) return null;
     return this.db.transaction(()=>{
       const jobs=this.db.query<ProvisionJob,[]>("SELECT * FROM provision_jobs WHERE state='queued' ORDER BY environment").all();
       for(const job of jobs) {

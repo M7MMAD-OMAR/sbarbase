@@ -4,7 +4,7 @@ import {useData,type Api,type Organization,type Project,type Environment} from '
 import {Empty,ErrorMessage,Loading,NameForm,Refresh} from './components';
 const labels:Record<string,string>={queued:'Queued',running:'Provisioning',succeeded:'Provisioned',failed:'Failed',cancelled:'Cancelled'};
 export function Environments({project,organization,request,onBack,onSelect}:{project:Project;organization:Organization;request:Api;onBack:()=>void;onSelect:(environment:Environment)=>void}){
- const result=useData<Environment[]>(async signal=>{const list=await request(`/projects/${project.id}/environments`,'GET',undefined,signal) as {data:Environment[]};return Promise.all(list.data.map(async environment=>({...environment,...await request(`/environments/${environment.id}/provision`,'GET',undefined,signal)})));},[project.id,request]);
+ const result=useData<Environment[]>(async signal=>(await request(`/projects/${project.id}/environments`,'GET',undefined,signal) as {data:Environment[]}).data,[project.id,request]);
  const [creating,setCreating]=useState(false);
  const pending=result.data?.some(item=>['queued','running'].includes(item.state??''));
  useEffect(()=>{if(!pending)return;const timer=setTimeout(result.refresh,3000);return()=>clearTimeout(timer);},[pending,result.data]);

@@ -11,6 +11,7 @@ test('cross-organization authority, last owner and read-only membership boundari
   c.setMember('alice',a,'viewer','viewer');c.setMember('alice',a,'admin','admin');
   const p=c.createProject('admin',a,'P'),e=c.createEnvironment('admin',p,'production');
   expect(c.listEnvironments('viewer',p).map(x=>x.id)).toEqual([e]);
+  expect(c.listEnvironments('viewer',p)).toEqual([{id:e,project:p,name:'production',state:'queued',attempt:0,failure:null}]);
   expect(()=>c.createProject('viewer',a,'Denied')).toThrow('Forbidden');
   expect(()=>c.createEnvironment('viewer',p,'Denied')).toThrow('Forbidden');
   expect(()=>c.listProjects('bob',a)).toThrow('Forbidden');

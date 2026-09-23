@@ -3,6 +3,7 @@ import {createHmac} from 'node:crypto';
 import {Catalog} from '../src/control/catalog';
 import {KeyStore} from '../src/control/keys';
 import {application} from '../src/control/application';
+import {readJsonCached} from '../src/http/cached-json';
 
 export const managementPublishableKey='sb_publishable_sbarbase_local_management';
 export function internalToken(secret:string,role:string) {
@@ -18,9 +19,10 @@ export function openUpstreamApplication() {
  const keys=new KeyStore('.secrets/upstream/managed-keys.sqlite');
  const handler=application(catalog,keys,{auth:management.auth,publishableKey:managementPublishableKey,
   anonymousToken:internalToken(secrets.management.jwt,'anon')},runtime=>{
-  const endpoints=load('.lab/upstream/endpoints.json');
-  // Refresh private configuration and endpoints after provisioning or restart.
-  const current=load('.secrets/upstream/runtime.json');
+  // Refresh private configuration and endpoints after provisioning or restart: the cache
+  // rereads either file as soon as it changes.
+  const endpoints=readJsonCached('.lab/upstream/endpoints.json') as Record<string,any>;
+  const current=readJsonCached('.secrets/upstream/runtime.json') as {environments:Record<string,any>};
   if(!endpoints[runtime]||!current.environments[runtime])return undefined;
   return {...endpoints[runtime],keys:[],anonymousToken:internalToken(current.environments[runtime].jwt,'anon'),enabled:true};
  });
