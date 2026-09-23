@@ -79,5 +79,23 @@
    "commit": "3a046ee"
   }
  ],
- "earlier_run": "A first VM (8 vCPU, 10.5 GiB) found the first seven defects in order and passed 12 of 12 plus 13 of 13 once they were fixed; its evidence is superseded by this run."
+ "earlier_run": "A first VM (8 vCPU, 10.5 GiB) found the first seven defects in order and passed 12 of 12 plus 13 of 13 once they were fixed; its evidence is superseded by this run.",
+ "script_run": {
+  "command": "lab/vm-rehearsal.sh --image Fedora-Cloud-Base-Generic-44-1.7.x86_64.qcow2 --cpus 4 --memory 6144",
+  "commit": "c3e8d27",
+  "fresh_vm": true,
+  "acceptance": {
+   "passed": true,
+   "checks": 12
+  },
+  "first_project": {
+   "passed": true,
+   "checks": 13
+  },
+  "acceptance_seconds_including_first_image_pulls": 874,
+  "reboot": {
+   "passed": true
+  },
+  "note": "The reusable script itself, on a third fresh VM, end to end."
+ }
 }

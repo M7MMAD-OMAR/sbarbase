@@ -2,7 +2,7 @@
 
 From an empty server to a supabase-js call against your first environment. These are the steps an empty-server rehearsal ran, on a clean Fedora 44 virtual machine with 4 CPU cores and 6 GB of memory ([lab/vm-rehearsal.sh](../../lab/vm-rehearsal.sh)). It has not been run on a real server yet, and the HTTPS step at the end has only been checked with a self-signed certificate. Sbarbase is in development: do not put data you cannot lose on it.
 
-Before you start, read [choosing a server](choosing-a-server.md). You need root on a Fedora 44 or Ubuntu 26.04 server with at least 2 cores, 6 GB of memory and 12 GiB of free disk.
+Before you start, read [choosing a server](choosing-a-server.md). You need root on a Fedora 44 or Ubuntu 26.04 server with 4 cores and 8 GB of memory (3 cores is the useful minimum) and 12 GiB of free disk. The rehearsal's 6 GB machine had room for exactly one environment, the one step 6 creates.
 
 ## 1. Install the system packages
 
@@ -61,7 +61,7 @@ sudo deploy/server-acceptance.sh --rehearse --install-unit --first-project \
      --docker-host unix:///var/run/docker.sock --bootstrap-file /home/sbarbase/operator.json
 ```
 
-In order, it checks the prerequisites, builds the console, checks the TLS proxy, installs and starts the `sbarbase` systemd service, pulls the pinned images (about 2.4 GB, with progress), rehearses a start and a clean stop, starts the service again, then creates a project called "First project" with a `production` environment, issues a key, signs a user up with supabase-js through the gateway and revokes the key. It ends with `Server acceptance: PASSED`. Evidence lands in `docs/evidence/`.
+In order, it checks the prerequisites, builds the console, checks the TLS proxy, installs and starts the `sbarbase` systemd service, pulls the pinned images (about 2.4 GB, with progress), rehearses a start and a clean stop, starts the service again, then creates a project called "First project" with a `production` environment, issues a key, signs a user up with supabase-js through the gateway and revokes the key. It ends with `Server acceptance: PASSED`. Evidence lands in `docs/evidence/`. The first project is real: it uses one of the four environments an installation allows for now, and it leaves one test application user in that environment.
 
 A failure names the step and leaves the service as it found it. Fix the cause and run the same command again.
 
