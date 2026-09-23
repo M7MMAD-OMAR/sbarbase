@@ -86,7 +86,10 @@ try {
  // still admits a real asset (a permissive allow-list would fail this one).
  const outside=await uiStatic(new Request(base+'/src/http/local-server.ts'));
  const nested=await uiStatic(new Request(base+'/assets/../index.html'));
- const allowed=await uiStatic(new Request(base+references.filter(reference=>/^\/assets\//.test(reference))[0]));
+ // With no built page there is no asset to admit; record that as a failure instead
+ // of building a request for an undefined path and dying before the evidence is written.
+ const asset=references.find(reference=>/^\/assets\//.test(reference));
+ const allowed=asset===undefined?undefined:await uiStatic(new Request(base+asset));
  record('the static allow-list refuses anything outside build assets',
         outside===undefined&&nested===undefined&&allowed!==undefined&&allowed.status===200,
         `outside ${outside===undefined?'refused':'served'} nested ${nested===undefined?'refused':'served'} asset ${allowed?.status}`);

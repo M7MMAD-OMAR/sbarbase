@@ -89,6 +89,16 @@ class AcceptanceScriptContractTests(unittest.TestCase):
         self.assertIn('supervise_args+=(--service-user "$SERVICE_USER")',self.source)
         self.assertIn('"${supervise_args[@]}"',self.source)
 
+    def test_an_empty_host_builds_the_console_before_the_serving_check_reads_it(self):
+        # Found by the first empty-host run: the serving check ran before anything
+        # had been built and failed with 503 on every page request.
+        build=self.source.index('step "console build"')
+        serving=self.source.index('step "console static-serving check"')
+        self.assertLess(build,serving)
+        section=self.source[build:serving]
+        self.assertIn('bun install --frozen-lockfile',section)
+        self.assertIn('lab/console_build_check.py',section)
+
     def test_bun_dir_is_added_to_path_for_every_step(self):
         self.assertIn('PATH="$BUN_DIR:$PATH"',self.source)
         self.assertIn('export PATH',self.source)

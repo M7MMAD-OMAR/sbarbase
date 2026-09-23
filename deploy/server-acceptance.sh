@@ -149,6 +149,19 @@ if [ "$REHEARSAL" = "0" ]; then
   exit 0
 fi
 
+# The serving check below reads the built page. On an empty host nothing has been
+# built yet, so install the pinned dependencies and build the console first,
+# exactly as the installer does; an existing build is verified, not rebuilt.
+step "console build"
+if [ ! -d node_modules ]; then
+  run_as_installation bun install --frozen-lockfile || fail "bun install --frozen-lockfile failed; the lockfile and package.json disagree or the registry is unreachable"
+fi
+if [ -f .lab/ui/index.html ]; then
+  run_as_installation "$PYTHON" lab/console_build_check.py --verify-only || fail "the existing console build is not intact; see docs/evidence/console-build.json"
+else
+  run_as_installation "$PYTHON" lab/console_build_check.py || fail "console build failed; see docs/evidence/console-build.json"
+fi
+
 step "console static-serving check"
 if ! run_as_installation bun lab/console-serve-check.ts; then
   if [ -f docs/evidence/console-serve.json ]; then
