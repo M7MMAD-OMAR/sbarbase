@@ -64,7 +64,7 @@ The [known gaps](docs/explain/threat-model.md#known-gaps) in the threat model ar
 
 These steps reduce risk; they do not make an installation fully secure. The runbook is the [server deployment guide](docs/guides/server-deployment.md).
 
-- **Firewall.** Allow inbound HTTPS on 443 (and 80 only if you keep the redirect to HTTPS), plus your administration SSH path. Block everything else. The installer publishes no Docker ports; keep it that way. The reference proxy listens on 8443 and 8080 by default, so either pass `--https-port 443 --http-port 80` or map those ports in the firewall.
+- **Firewall.** Allow inbound HTTPS on 443 (and 80 only if you keep the redirect to HTTPS), plus your administration SSH path. Block everything else. The installer publishes no Docker ports; keep it that way. The reference proxy listens on 8443 and 8080 by default, so either pass `--https-port 443 --http-port 80` (binding ports below 1024 needs root or `CAP_NET_BIND_SERVICE`) or map those ports in the firewall.
 - **Console behind TLS.** The console, management API and gateway bind loopback. Reach them only through a TLS terminating proxy, either `deploy/console-tls-proxy.ts` or your own with the same behaviour. Never expose the management Auth endpoint or the provisioning API directly.
 - **Private secrets.** Keep `.secrets/`, `.lab/` and the certificate key readable only by the service account (mode `0600` files in a private directory). The reference proxy refuses a group or world readable key. Never paste secrets into issues, logs or evidence files.
 - **Treat the service account as root.** `deploy/sbarbase.service` runs as a dedicated `sbarbase` user with Docker access, which is root equivalent on the host. Do not log in as it or share it with other software.
