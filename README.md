@@ -36,6 +36,7 @@ A real-server install **has not been rehearsed yet**. The installer, preflight a
 - [Guides](docs/README.md#guides-how-to-do-something): step by step tasks.
 - [Reference](docs/README.md#reference-facts-to-look-up): glossary, status, configuration and API.
 - [Decisions](docs/decisions/README.md): what was chosen, what was rejected and when to reconsider.
+- [Security policy](SECURITY.md): supported versions, how to report a vulnerability privately and an operator hardening checklist.
 - [Changelog](CHANGELOG.md) and [website](https://base.sbarah.com).
 
 ## Contributing

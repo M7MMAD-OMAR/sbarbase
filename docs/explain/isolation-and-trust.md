@@ -55,6 +55,7 @@ Code: [lab/resource_policy.py](../../lab/resource_policy.py) (tiers), [lab/resou
 
 ## Go deeper
 
+- [Threat model](threat-model.md): assets, actors, trust boundaries, the evidence behind each mitigation and the known gaps.
 - [Security and operations review](../engineering/reviews/security-operations.md).
 - [Resource policy](../engineering/RESOURCE-POLICY.md), [resource admission](../engineering/RESOURCE-ADMISSION.md), [pressure admission](../engineering/PRESSURE-ADMISSION.md), [connection budget](../engineering/CONNECTION-BUDGET.md), [noisy neighbour](../engineering/NOISY-NEIGHBOR.md).
 - [Shared Storage review](../engineering/reviews/shared-storage.md) and [atomic HBA replacement](../engineering/ATOMIC-HBA-REPLACEMENT.md).
