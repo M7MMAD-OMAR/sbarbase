@@ -12,6 +12,7 @@ Read these to understand the design. Each page has the same shape: what it is, w
 - [Architecture](explain/architecture.md): the request path and what is shared versus separate.
 - [Hierarchy](explain/hierarchy.md): clients, projects and environments, and why ownership is separate from placement.
 - [Isolation and trust](explain/isolation-and-trust.md): what is a shared failure boundary and who is trusted.
+- [Threat model](explain/threat-model.md): assets, attackers, trust boundaries, the check behind each mitigation and the known gaps.
 - [Recovery](explain/recovery.md): fence, export, restore, verify, switch.
 - [Provisioning](explain/provisioning.md): why a crash never causes work to run twice.
 
