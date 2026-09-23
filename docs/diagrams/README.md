@@ -1,4 +1,25 @@
-# Diagram generation record
+# Diagrams
+
+## Current diagrams
+
+These SVG files are hand-authored and meant to be edited: open one in a text editor, change the label or shape, and keep the claim in its `<title>` and `<desc>` true. Each file is self-contained (its own filters and arrow markers, ids prefixed per file, a paper background so it reads on a dark page, no external fonts or scripts). Coral marks a shared component, and therefore a shared failure boundary; teal marks a service that exists once per environment; a dashed lilac outline marks something planned and not built.
+
+| File | Claim | Used in |
+|---|---|---|
+| [full-stack-vs-shared.svg](full-stack-vs-shared.svg) | A full stack per project repeats every component; Sbarbase shares the gateway, the PostgreSQL engine and Storage, and runs Auth and REST per environment. | [why](../explain/why.md), [architecture](../explain/architecture.md) |
+| [request-path.svg](request-path.svg) | The gateway checks the key for the environment named in the path and refuses with 429 or 503 instead of queueing; each environment reaches only its own database. | [architecture](../explain/architecture.md) |
+| [ownership-vs-placement.svg](ownership-vs-placement.svg) | Ownership (client, project, environment) is recorded apart from placement, so a move keeps the owner; a second server is planned. | [hierarchy](../explain/hierarchy.md) |
+| [restore-flow.svg](restore-flow.svg) | Stop writes, encrypted export, restore and verify on an independent engine, then switch; a failed verification leaves the source fenced and untouched; exporting stops shared Storage. | [recovery](../explain/recovery.md) |
+| [trust-boundaries.svg](trust-boundaries.svg) | Untrusted visitors enter only through the TLS proxy and the gateway; operators are trusted; the engine and Storage are shared. | [isolation and trust](../explain/isolation-and-trust.md) |
+| [docs-map.svg](docs-map.svg) | The four doc sections and the engineering notebook, one purpose each. | [docs README](../README.md) |
+
+To check one after editing, render it with a headless browser (for example `chrome-headless-shell --screenshot --window-size=<viewBox width>,<height>`) and look at the result; keep font sizes between 12 and 15 and leave slack in every box, because viewers without the first fonts in the stack get wider fallbacks.
+
+`administration-surface.svg` (with its rendered `administration-surface.png`) is an earlier corrected drawing of the administration question, described below.
+
+## Historical: generated pictures
+
+`ten-projects.png` and `move-and-restore.png` are historical. They were produced by an image generation tool, predate the current design and wording; the explain pages use the SVGs above instead, and the older engineering notes that cite them are dated records. The record below is kept as their generation history.
 
 Generated with the built-in image generation tool on 2026-09-20. These are proposed architecture diagrams, not a deployed system. They are also not the administration surface: that is the original upstream Studio, one instance per environment ([integration specification](../engineering/STUDIO-INTEGRATION.md)), while these pictures describe the sbarbase platform layer and the data plane.
 
@@ -8,7 +29,7 @@ Organization transfer means ownership and authorization changes for all project 
 
 Recovery must coordinate database state, objects, auth keys, configuration and function artifacts. Temporary recovery disables external jobs. Retaining the old source is not a safe rollback after new destination writes without reconciliation.
 
-## Administration surface, and what these pictures predate
+### Administration surface, and what these pictures predate
 
 The middle band of `ten-projects.png` claims one console owns projects, permissions,
 transfer and backup. That claim is now split: the platform console owns
@@ -23,7 +44,7 @@ A first corrected drawing is committed as `administration-surface.svg` with its
 rendered `administration-surface.png`, which replaces the middle band of the
 ten-project picture for the administration question specifically.
 
-## Prompt 1
+### Prompt 1
 
 Create ONE beautifully clear Arabic technical architecture infographic, landscape 1800x1400 or similar high resolution. Not a photo. Supabase Studio inspired dark UI design: near-black background, charcoal flat panels, subtle gray borders, off-white clear large Arabic typography, restrained mint green #3ECF8E emphasis. No logos or imitation official branding. Exact big title "صبّار بيز: 10 مشاريع". Small subtitle "تصميم مقترح، وليس نظامًا منفذًا".
 Make this understandable to a nontechnical founder. Three visually separated horizontal sections with ample space and large type:
@@ -31,7 +52,7 @@ TOP section heading "الملكية". Two organization panels side by side: "م�
 MIDDLE section heading "التشغيل". One bar "لوحة إدارة واحدة: مشاريع، صلاحيات، نقل، نسخ احتياطي". Under it two server panels: "سيرفر 1" contains one "PostgreSQL مشترك" frame with SIX distinct database icons labeled P01 P02 P03 P04 P05 P06. "سيرفر 2" contains another "PostgreSQL مشترك" frame with FOUR icons labeled P07 P08 P09 P10. Label this distribution "مثال توزيع بعد التوسع، وليس حد سعة". A small note "كل رمز هنا يمثل بيئة إنتاج بقاعدة مستقلة". DO NOT draw ten crossing arrows; same IDs show mapping. P06 deliberately organization B but server1 to show independence.
 BOTTOM section heading "داخل المشروع P03". Simple mini hierarchy: "المشروع P03" branches to "إنتاج" and "تجارب اختيارية". Each environment contains short stacked labels "قاعدة مستقلة" "مفاتيح ومستخدمون" "Auth + REST". Under these a band "بوابة واتصالات مشتركة، وخدمات حسب الحاجة". Footnote readable: "المحرك المشترك خيار قيد اختبار التوافق والعزل". Last capacity pill: "حد تجريبي مقترح: 10 مشاريع للتنصيب، والسعة الفعلية تُقاس لكل سيرفر". No claim zero processes, unlimited projects, guaranteed safety or zero downtime. Arabic right-to-left accurate text, Western digits, no em/en dashes, no text clipping, no excessive dense paragraphs. Hierarchy and containment must be precise.
 
-## Prompt 2
+### Prompt 2
 
 Create ONE accurate polished Arabic infographic, landscape ~1800x1400. Supabase Studio inspired dark charcoal UI, thin gray borders, clean off-white Arabic typography, restrained mint green #3ECF8E, amber for pause/caution. Flat professional diagram, no glow, no logos, no official branding. Title "نقل المشروع واستعادته". Subtitle "عمليات مقترحة داخل نفس تنصيب صبّار بيز". Large readable RTL text, Western digits. Three clearly separated horizontal rows with numbered headings. Use icon cards and clear arrows, no long prose.
 ROW 1 heading "1. نقل الملكية". Show organization "منظمة أ" containing project "P03", arrow to organization "منظمة ب" containing same "P03". Arrow caption "موافقة وصلاحيات". Below single note "نفس البيانات والسيرفر، تتغير العضوية والصلاحيات". Second short note "إلغاء الوصول السابق وتدوير الأسرار عند الحاجة". Explicit whole project transfer including its environments, tiny label "كل بيئات المشروع".

@@ -15,15 +15,8 @@ Recovery takes one environment, stops its writes, exports it encrypted, restores
 
 ## How we built it
 
-```mermaid
-flowchart LR
-  A["Fence: maintenance on, service logins off"] --> B["Export: database, roles, files, signing keys; encrypted"]
-  B --> C["Close the source database"]
-  C --> D["Restore into a fresh pinned engine"]
-  D --> E["Verify: rows, roles, Auth, REST, Storage, RLS, old signed URL"]
-  E --> F["Stage the new placement, then resume routing"]
-  F --> G["Restart unaffected neighbours on the source"]
-```
+![Four steps: stop writes, encrypted export, restore and verify on an independent engine, switch the route; if verification fails the source data is untouched and stays fenced until an operator reopens it, and exporting stops shared Storage for every environment on the engine](../diagrams/restore-flow.svg)
+
 
 1. **Fence.** The environment's routing record is put in maintenance, so the gateway answers `503` instead of forwarding. Its three scoped service logins are switched to `NOLOGIN` and their original state is written to a journal, while the operator can still read and dump.
 2. **Export.** `lab/cutover-export.py` captures the database dump, the scoped logins and their memberships, database grants and settings, file bytes and extended attributes, the Storage tenant configuration and its URL-signing keys. The bundle is encrypted with AES-256-GCM; the key is stored separately, both mode 0600 and out of Git.
