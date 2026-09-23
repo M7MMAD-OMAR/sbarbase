@@ -31,12 +31,8 @@ PRIVATE=ROOT/'.secrets'/'upstream'
 # The full retained split placement (source plus recovery target). It is the
 # requirement only when the daemon cannot be asked what the next start runs.
 PLANNED_MIB=5888
-RESERVE_MIB=2560
+RESERVE_MIB=2560  # resource_policy.START_RESERVE_MIB, which the runtime's start check uses
 PLANNED_CPUS=5.75
-# What a start launches when nothing is retained: the database, the shared
-# Storage and the management Auth, at the tier rows the launcher uses. Each
-# environment added later is admitted on its own by the provisioning worker.
-FRESH_TIERS=('system.db','system.storage','system.management-auth')
 MIN_FREE_BYTES=12*1024**3
 LOCKS=('distro-image.lock.json','images.lock.json','storage-image.lock.json')
 
@@ -124,17 +120,10 @@ def combined_stage_measured_mib():
     return value if isinstance(value,int) and value>0 else None
 
 
-def mib(value):
-    """Docker's '1024m' style limit as MiB."""
-    units={'k':1/1024,'m':1,'g':1024}
-    return int(float(value[:-1])*units[value[-1].lower()]) if value[-1].lower() in units else int(value)//1024**2
-
-
 def fresh_placement():
     """(MiB, CPUs) of the containers a start creates when none are retained."""
     import resource_policy
-    rows=[resource_policy.TIERS[tier] for tier in FRESH_TIERS]
-    return sum(mib(row.memory) for row in rows),sum(row.cpus for row in rows)
+    return resource_policy.start_placement(0)
 
 
 def planned_placement(inspect=None):

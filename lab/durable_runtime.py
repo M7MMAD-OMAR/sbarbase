@@ -223,7 +223,8 @@ class Runtime:
         if self.hba_writer is None or self.hba_writer.startup is None:raise RuntimeError('Explicit startup HBA ownership required')
         self.hba_writer.startup.verify()
         available = int(next(x.split()[1] for x in lab.Path('/proc/meminfo').read_text().splitlines() if x.startswith('MemAvailable:')))
-        if available < 6*1024*1024:
+        placement, _ = resource_policy.start_placement(len(self.values['environments']))
+        if available < (placement + resource_policy.START_RESERVE_MIB) * 1024:
             raise RuntimeError('Insufficient runtime memory headroom')
         if not inspect('network', NETWORK):
             lab.docker('network', 'create', '--internal', '--label', 'io.sbarbase.owner='+OWNER, NETWORK)

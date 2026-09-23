@@ -99,6 +99,28 @@ def container_flags(tier):
             'cpus': entry.cpus, 'memory': entry.memory, 'pids': entry.pids}
 
 
+# What a start launches, row by row: the database, the shared Storage and the
+# management Auth, then Auth and REST for each environment. The installer's
+# preflight and the runtime's own start check both read this, so they cannot
+# state different figures for the same host again (the preflight once said
+# 4352 MiB while the runtime refused below a fixed 6 GiB).
+SYSTEM_ROWS = ('system.db', 'system.storage', 'system.management-auth')
+ENVIRONMENT_ROWS = ('production', 'production')
+START_RESERVE_MIB = 2560
+
+
+def memory_mib(value):
+    """A tier's '1024m' style memory limit in MiB."""
+    units = {'k': 1 / 1024, 'm': 1, 'g': 1024}
+    return int(float(value[:-1]) * units[value[-1].lower()])
+
+
+def start_placement(environments):
+    """(MiB, CPUs) of the containers a start runs for this many environments."""
+    rows = [TIERS[tier] for tier in SYSTEM_ROWS] + [TIERS[tier] for tier in ENVIRONMENT_ROWS] * environments
+    return sum(memory_mib(row.memory) for row in rows), round(sum(row.cpus for row in rows), 2)
+
+
 def known_label(value):
     """True when a container's io.sbarbase.tier label names a class in the table."""
     return value in CLASSES

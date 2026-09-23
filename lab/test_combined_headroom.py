@@ -95,5 +95,17 @@ class DerivedPlacementTests(unittest.TestCase):
         self.assertEqual(composition,'1792 MiB fresh placement + 2560 MiB reserve')
 
     def test_limits_are_parsed_the_way_the_tier_table_writes_them(self):
-        self.assertEqual(install_server.mib('1024m'),1024)
-        self.assertEqual(install_server.mib('2g'),2048)
+        import resource_policy
+        self.assertEqual(resource_policy.memory_mib('1024m'),1024)
+        self.assertEqual(resource_policy.memory_mib('2g'),2048)
+
+    def test_the_runtime_start_check_and_the_preflight_use_one_computation(self):
+        # Found by the second empty-VM rehearsal: the preflight admitted a 6 GB
+        # server at 4352 MiB and the runtime then refused below a fixed 6 GiB.
+        import resource_policy
+        self.assertEqual(resource_policy.start_placement(0),(1792,1.75))
+        self.assertEqual(resource_policy.start_placement(2),(1792+4*256,2.75))
+        self.assertEqual(install_server.RESERVE_MIB,resource_policy.START_RESERVE_MIB)
+        source=(Path(install_server.__file__).parent/'durable_runtime.py').read_text()
+        self.assertIn("resource_policy.start_placement(len(self.values['environments']))",source)
+        self.assertNotIn('6*1024*1024',source)
