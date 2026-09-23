@@ -19,7 +19,7 @@
 # Docker context does not resolve to the daemon the unit will use (a workstation
 # with Docker Desktop, a non-default context, a socket systemd must be told
 # about). The unit itself carries no DOCKER_HOST: on such a host add it to the
-# unit with a drop-in, as docs/SERVER-DEPLOYMENT.md describes.
+# unit with a drop-in, as docs/guides/server-deployment.md describes.
 #
 #   deploy/server-acceptance.sh --rehearse --docker-host unix:///var/run/docker.sock
 #

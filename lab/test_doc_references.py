@@ -2,7 +2,7 @@
 
 A runbook that points at a script that was renamed, or at evidence a run never
 wrote, is worse than no runbook: the operator finds out on the server. These
-checks read both deployment documents, require every path they name to exist,
+checks read the operational documents, require every path they name to exist,
 and require the acceptance handoff copy to agree with the rehearsal it copies.
 """
 import json
@@ -11,12 +11,16 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-# The live operational documents: an operator follows these on a server. Review
-# records and the point-in-time checkpoint are deliberately out of scope, because
-# they must keep saying what was true when they were written.
-DOCUMENTS = (ROOT / 'docs' / 'SERVER-DEPLOYMENT.md', ROOT / 'docs' / 'DEPLOYMENT-READINESS.md',
-             ROOT / 'docs' / 'INDEPENDENT-RESTORE.md', ROOT / 'docs' / 'HERMES-HANDOFF.md',
-             ROOT / 'docs' / 'UPSTREAM-UPDATE-POLICY.md')
+DOCS = ROOT / 'docs'
+# The live operational documents: an operator or the next agent follows these.
+# Review records and the point-in-time checkpoints are deliberately out of scope,
+# because they must keep saying what was true when they were written.
+DOCUMENTS = (DOCS / 'guides' / 'server-deployment.md', DOCS / 'guides' / 'operator-setup.md',
+             DOCS / 'guides' / 'backup-and-restore.md', DOCS / 'guides' / 'upgrades.md',
+             DOCS / 'guides' / 'local-lab.md', DOCS / 'reference' / 'deployment-readiness.md',
+             DOCS / 'reference' / 'status.md', DOCS / 'reference' / 'configuration.md',
+             DOCS / 'engineering' / 'INDEPENDENT-RESTORE.md', DOCS / 'engineering' / 'UPSTREAM-UPDATE-POLICY.md',
+             DOCS / 'engineering' / 'handoff' / 'README.md', DOCS / 'engineering' / 'handoff' / 'HERMES-HANDOFF.md')
 # Not preceded by a word character or a dot, so a runtime path such as
 # .lab/rendered-sbarbase.service is not read as the repository's lab/ directory.
 PATH_PATTERN = re.compile(r'(?<![\w.])((?:lab|deploy)/[A-Za-z0-9_./-]+\.(?:py|ts|sh|service))\b')
@@ -24,7 +28,9 @@ EVIDENCE_PATTERN = re.compile(r'docs/evidence/([a-z0-9-]+)\.json')
 
 
 def documents():
-    return {document.name: document.read_text() for document in DOCUMENTS}
+    # Keyed by the path inside the repository, so two files that share a name
+    # (every README.md) cannot silently replace each other.
+    return {str(document.relative_to(ROOT)): document.read_text() for document in DOCUMENTS}
 
 
 class DocumentReferenceTests(unittest.TestCase):

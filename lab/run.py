@@ -134,7 +134,7 @@ def auth_configuration(e, v, database_host, mail=None):
 
     `mail` is the validated per environment mail configuration, or None. It is
     read once, at process start: the pinned Auth has no reload of the mailer, so a
-    mail change is a container reconcile (docs/ENVIRONMENT-EMAIL.md sections 2.1
+    mail change is a container reconcile (docs/engineering/ENVIRONMENT-EMAIL.md sections 2.1
     and 2.3). The management realm calls this with three arguments on purpose: it
     is the operator's own identity realm and never gains SMTP.
     """

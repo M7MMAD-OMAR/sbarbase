@@ -7,10 +7,10 @@
 fragment carries the exact change instead of applying it. Nothing in it is a
 suggestion about style: every hunk below is required for the per environment mail
 configuration to reach a running environment's Auth process, and for the probe's
-`docs/ENVIRONMENT-EMAIL.md` section 6.2 step 4 (reconcile A only) to exist at all.
+`docs/engineering/ENVIRONMENT-EMAIL.md` section 6.2 step 4 (reconcile A only) to exist at all.
 
-Source of the change: `docs/ENVIRONMENT-EMAIL.md` sections 2.3, 2.6 and 8 steps 5
-and 7. Acceptance criteria: `docs/reviews/three-topics-redteam.md` B-T1, B-T2,
+Source of the change: `docs/engineering/ENVIRONMENT-EMAIL.md` sections 2.3, 2.6 and 8 steps 5
+and 7. Acceptance criteria: `docs/engineering/reviews/three-topics-redteam.md` B-T1, B-T2,
 B-T3, B-T4 and B.5 question 1. Supporting code that already exists in this
 branch: `lab/mail_config.py` (schema, 0600 storage, `load`) and
 `lab/run.py auth_configuration(e, v, database_host, mail=None)`.
@@ -49,7 +49,7 @@ Required change:
 Do **not** change the management realm. `lab/durable_runtime.py:352` keeps its
 three argument call on purpose: the operator's identity realm never gains SMTP,
 and `lab/bootstrap.py` therefore never depends on a working relay
-(`docs/ENVIRONMENT-EMAIL.md` section 1.4).
+(`docs/engineering/ENVIRONMENT-EMAIL.md` section 1.4).
 
 Add the import beside the other local module imports:
 
@@ -67,7 +67,7 @@ Insert directly after the `resume` method (context: `resume` ends with
         """Apply one environment's mail configuration, or remove it with `off`.
 
         Auth reads its SMTP configuration once, at process start
-        (docs/ENVIRONMENT-EMAIL.md section 2.1 rule 4), so a mail change is a
+        (docs/engineering/ENVIRONMENT-EMAIL.md section 2.1 rule 4), so a mail change is a
         container recreate and never a live patch. The comparison below runs in
         both directions on purpose: `launch` compares the desired keys only, so a
         key dropped from the desired dict would keep a stale SMTP value in a
@@ -167,7 +167,7 @@ The four states are the ones `lab/mail_config.py` already names: `unconfigured`
 (no file and no state entry), `applied`, `failed` and `off`. `failed` is written
 by the operator path, because the pinned mailer is synchronous and a send failure
 fails the request that caused it rather than a background job
-(`docs/ENVIRONMENT-EMAIL.md` section 7).
+(`docs/engineering/ENVIRONMENT-EMAIL.md` section 7).
 
 ## What this fragment does not do
 

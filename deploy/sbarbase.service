@@ -1,6 +1,6 @@
 [Unit]
 Description=sbarbase installation supervisor (owned Supabase placement, console and worker)
-Documentation=file:/opt/sbarbase/docs/SERVER-DEPLOYMENT.md
+Documentation=file:/opt/sbarbase/docs/guides/server-deployment.md
 Requires=docker.service
 After=docker.service network-online.target
 Wants=network-online.target

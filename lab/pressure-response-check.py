@@ -1,6 +1,6 @@
 """Bounded pressure response check: real readings, a real crossing, disposable only.
 
-docs/RESOURCE-POLICY.md section 5.2 asks the pressure module to sample
+docs/engineering/RESOURCE-POLICY.md section 5.2 asks the pressure module to sample
 repeatedly, to define a response, and to measure it. This driver is that
 measurement, and it is deliberately narrow:
 

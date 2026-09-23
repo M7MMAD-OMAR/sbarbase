@@ -356,7 +356,7 @@ class Runtime:
         for service, builder, port, suffix in [('auth', lab.auth_configuration, 9999, '/health'), ('rest', lab.rest_configuration, 3000, '/')]:
             name = PREFIX+'-'+e+'-'+service
             # No per-environment class field exists yet, so both environment
-            # services launch under the production row (docs/RESOURCE-POLICY.md 3.2).
+            # services launch under the production row (docs/engineering/RESOURCE-POLICY.md 3.2).
             config = builder(e, v, DB, mail) if service == 'auth' else builder(e, v, DB)
             self.launch(name, service, config, '256m', .25, existing_only=not creating, tier='production')
             endpoints[service] = self.endpoint(name, port)

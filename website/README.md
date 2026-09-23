@@ -23,7 +23,7 @@ The `sbarbase-site` Worker serves only `dist/`. Its custom domain is declared in
 
 ## Content and interactions
 
-- `src/content.ts`: Arabic and English content grounded in `PROJECT.md`, `docs/HANDOFF.md` and `docs/DECISIONS.md`.
+- `src/content.ts`: Arabic and English content grounded in `docs/reference/status.md`, `docs/explain/` and `docs/decisions/README.md`.
 - `src/render.ts`: prerendered pages, accessible controls and architecture diagrams.
 - `src/app.js`: 12-second request walkthrough, pause/replay/seek, hierarchy selection, service paths, architecture comparison and recovery stages.
 - `src/style.css`: charcoal surfaces, white identity and blue diagram accents. No green backgrounds or imagery.

@@ -323,7 +323,7 @@ SERVICE_UNIT_PATH=Path('/etc/systemd/system/sbarbase.service')
 UNIT_ANCHORS=('WorkingDirectory=/opt/sbarbase','User=sbarbase','Group=sbarbase',
               'Environment=HOME=/home/sbarbase','ExecStart=/usr/bin/python3 /opt/sbarbase/lab/dev.py',
               'ExecStartPre=/usr/bin/python3 /opt/sbarbase/lab/install_server.py check',
-              'ReadWritePaths=/opt/sbarbase','Documentation=file:/opt/sbarbase/docs/SERVER-DEPLOYMENT.md')
+              'ReadWritePaths=/opt/sbarbase','Documentation=file:/opt/sbarbase/docs/guides/server-deployment.md')
 
 
 def validate_service_identity(user,home,bun_dir):
@@ -375,7 +375,7 @@ def rendered_unit(root,home,user,bun_dir,text=None):
               'ExecStart=/usr/bin/python3 '+str(root)+'/lab/dev.py',
               'ExecStartPre=/usr/bin/python3 '+str(root)+'/lab/install_server.py check',
               'ReadWritePaths='+str(root),
-              'Documentation=file:'+str(root)+'/docs/SERVER-DEPLOYMENT.md',
+              'Documentation=file:'+str(root)+'/docs/guides/server-deployment.md',
               ':'+str(bun_dir))
     for wanted in expected:
         if wanted not in rendered:

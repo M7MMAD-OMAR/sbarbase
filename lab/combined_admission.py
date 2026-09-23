@@ -19,7 +19,7 @@ name list. The rule, in full:
   `unrecorded_stopped` while it is stopped.
 
 Every counted container must carry a policy tier label and a finite limit per
-resource field, which is the contract docs/RESOURCE-POLICY.md section 3.5 item 3
+resource field, which is the contract docs/engineering/RESOURCE-POLICY.md section 3.5 item 3
 asks for.
 """
 import json

@@ -1,6 +1,6 @@
 # Diagram generation record
 
-Generated with the built-in image generation tool on 2026-09-20. These are proposed architecture diagrams, not a deployed system. They are also not the administration surface: that is the original upstream Studio, one instance per environment ([integration specification](../STUDIO-INTEGRATION.md)), while these pictures describe the sbarbase platform layer and the data plane.
+Generated with the built-in image generation tool on 2026-09-20. These are proposed architecture diagrams, not a deployed system. They are also not the administration surface: that is the original upstream Studio, one instance per environment ([integration specification](../engineering/STUDIO-INTEGRATION.md)), while these pictures describe the sbarbase platform layer and the data plane.
 
 The project count of 10 is a proposed installation pilot cap, not measured hardware capacity. Environments also consume resources; admission must check environment count, active connections, available memory, storage, workload and reserved recovery capacity. Server placement of six and four production environments is illustrative. Multi-server management is a future capability, not an initial deployment requirement.
 

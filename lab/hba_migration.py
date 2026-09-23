@@ -1,6 +1,6 @@
 """Explicit, operator-driven container generation migration.
 
-Design: docs/CONTAINER-GENERATION-MIGRATION.md. This module adds one caller of the
+Design: docs/engineering/CONTAINER-GENERATION-MIGRATION.md. This module adds one caller of the
 owned, single-attempt HBA pipeline; it never adds a second way to publish rules and
 it never resets a registry or re-mints a generation on retry.
 

@@ -338,7 +338,7 @@ class DrainTests(NotificationCase):
                                            "WHERE o.kind='notifier.channel_failed'"), [('email',)])
 
     def test_a_channel_failure_escalates_once_per_six_hours(self):
-        """docs/OPERATOR-NOTIFICATIONS.md section 4: one escalation per channel per six hours.
+        """docs/engineering/OPERATOR-NOTIFICATIONS.md section 4: one escalation per channel per six hours.
 
         The escalation window was the critical severity window (300 seconds), so a channel
         that stayed broken produced roughly 72 escalation messages per six hours instead of
