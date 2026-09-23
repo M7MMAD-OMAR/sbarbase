@@ -15,7 +15,14 @@ function writable(response:ServerResponse) {
 /** Loopback adapter with explicit backpressure and socket failure on truncation.
  * Bun.serve on the current runtime did not reliably fail partial stream bodies.
  */
-export async function serveLocal(fetch:(request:Request)=>Response|Promise<Response>) {
+/** The pinned loopback port from SBARBASE_CONSOLE_PORT, or 0 for an ephemeral one. */
+export function consolePort(value:string|undefined):number {
+ if(value===undefined||value==='')return 0;
+ if(!/^\d{1,5}$/.test(value)||Number(value)<1024||Number(value)>65535)throw new Error('SBARBASE_CONSOLE_PORT must be a port number from 1024 to 65535');
+ return Number(value);
+}
+
+export async function serveLocal(fetch:(request:Request)=>Response|Promise<Response>,port=0) {
  const sockets=new Set<Socket>();
  const server=createServer(async(incoming,outgoing)=>{
   const abort=new AbortController();
@@ -61,7 +68,7 @@ export async function serveLocal(fetch:(request:Request)=>Response|Promise<Respo
  server.on('connection',socket=>{sockets.add(socket);socket.once('close',()=>sockets.delete(socket));});
  server.maxConnections=256;server.maxHeadersCount=100;
  server.headersTimeout=10_000;server.requestTimeout=30_000;server.keepAliveTimeout=5_000;
- await new Promise<void>((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',()=>{server.off('error',reject);resolve();});});
+ await new Promise<void>((resolve,reject)=>{server.once('error',reject);server.listen(port,'127.0.0.1',()=>{server.off('error',reject);resolve();});});
  const address=server.address();if(!address||typeof address==='string')throw new Error('Local listener address unavailable');
  return {port:address.port,connections:()=>sockets.size,stop(force=false){if(force)server.closeAllConnections();server.close();}};
 }
