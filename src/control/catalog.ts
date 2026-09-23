@@ -100,6 +100,9 @@ function credentialShape(value:string):boolean {
  * authentication, never request bodies or application JWTs. Not an HTTP API.
  * Placement and runtime credentials deliberately do not belong to ownership.
  */
+/** Bumped with each step of Catalog.migrate(). */
+export const CATALOG_SCHEMA_VERSION=2;
+
 export class Catalog {
   private db:Database;
   private channels:NotificationChannel[];
@@ -184,11 +187,36 @@ export class Catalog {
       CREATE INDEX IF NOT EXISTS provision_jobs_state ON provision_jobs(state);
       CREATE INDEX IF NOT EXISTS notification_outbox_at ON notification_outbox(at);
       CREATE INDEX IF NOT EXISTS notification_outbox_expiry ON notification_outbox(expires_at);`);
+    this.migrate();
+  }
+  /** One ladder, one transaction, recorded in PRAGMA user_version. A catalog written by a
+   * newer release is refused rather than read with rules it was not written for. */
+  private migrate() {
     this.db.transaction(()=>{
-      const columns=this.db.query<{name:string},[]>('PRAGMA table_info(provision_jobs)').all();
-      if(!columns.some(column=>column.name==='failure'))
-        this.db.exec("ALTER TABLE provision_jobs ADD COLUMN failure TEXT CHECK(failure IS NULL OR failure IN ('capacity_exceeded','runtime_failed'))");
+      const version=this.db.query<{user_version:number},[]>('PRAGMA user_version').get()!.user_version;
+      if(version>CATALOG_SCHEMA_VERSION)throw new Error('Catalog schema is newer than this release');
+      if(version<1) {
+        const columns=this.db.query<{name:string},[]>('PRAGMA table_info(provision_jobs)').all();
+        if(!columns.some(column=>column.name==='failure'))
+          this.db.exec("ALTER TABLE provision_jobs ADD COLUMN failure TEXT CHECK(failure IS NULL OR failure IN ('capacity_exceeded','runtime_failed'))");
+      }
+      if(version<2) {
+        // Project names become unique per organization. A catalog that already holds a
+        // duplicate keeps working: the index waits at version 1 until the names differ, and
+        // createProject and transferProject refuse new duplicates either way.
+        const duplicate=this.db.query('SELECT 1 FROM projects GROUP BY organization,name HAVING count(*)>1 LIMIT 1').get();
+        if(duplicate){this.db.exec('PRAGMA user_version=1');return;}
+        this.db.exec('CREATE UNIQUE INDEX IF NOT EXISTS projects_organization_name ON projects(organization,name)');
+      }
+      this.db.exec(`PRAGMA user_version=${CATALOG_SCHEMA_VERSION}`);
     }).immediate();
+  }
+  schemaVersion():number {
+    return this.db.query<{user_version:number},[]>('PRAGMA user_version').get()!.user_version;
+  }
+  private unusedProjectName(organization:string,name:string,except?:string) {
+    const clash=this.db.query<{id:string},[string,string]>('SELECT id FROM projects WHERE organization=? AND name=?').get(organization,name);
+    if(clash&&clash.id!==except)throw new Error('Name already used');
   }
   private name(value:string) {
     if(typeof value!=='string'||!value.trim()||value.length>100||/[\x00-\x1f]/.test(value))
@@ -362,6 +390,7 @@ export class Catalog {
     const title=this.name(name),id=randomUUID();
     return this.db.transaction(()=>{
       this.require(actor,organization,['owner','admin']);
+      this.unusedProjectName(organization,title);
       this.db.query('INSERT INTO projects VALUES (?,?,?)').run(id,organization,title);
       this.record(actor,'project.created',id,{organization});return id;
     }).immediate();
@@ -370,6 +399,8 @@ export class Catalog {
     const title=this.name(name),id=randomUUID();
     return this.db.transaction(()=>{
       const parent=this.project(actor,project,['owner','admin']);
+      if(this.db.query('SELECT 1 FROM environments WHERE project=? AND name=?').get(project,title))
+        throw new Error('Name already used');
       this.db.query('INSERT INTO environments VALUES (?,?,?)').run(id,project,title);
       this.db.query('INSERT INTO provision_jobs(environment,runtime,actor,organization,state) VALUES (?,?,?,?,?)')
         .run(id,'e_'+randomBytes(12).toString('hex'),actor,parent.organization,'queued');
@@ -533,6 +564,7 @@ export class Catalog {
       const source=this.project(actor,project,['owner']);
       this.require(actor,destination,['owner']);
       if(source.organization===destination) return;
+      this.unusedProjectName(destination,source.name,project);
       const active=this.db.query<{n:number},[string]>("SELECT count(*) n FROM provision_jobs j JOIN environments e ON e.id=j.environment WHERE e.project=? AND j.state='running'").get(project);
       if(active?.n) throw new Error('Provisioning is active');
       this.db.query('UPDATE projects SET organization=? WHERE id=?').run(destination,project);

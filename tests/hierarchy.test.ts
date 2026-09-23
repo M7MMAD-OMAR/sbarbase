@@ -109,3 +109,63 @@ test('a viewer can neither list nor revoke keys, and another organization cannot
     expect(kept).toBeDefined();expect(kept!.revoked_at).toBeNull();
   } finally {catalog.close();keys.close();}
 });
+
+test('names are unique where the hierarchy scopes them, and a clash answers 409',async()=>{
+  const catalog=new Catalog(':memory:');
+  try {
+    const a=catalog.createOrganization('alice','A'),b=catalog.createOrganization('alice','B');
+    const handler=managementHandler(catalog,async request=>request.headers.get('authorization'),'.');
+    const create=(path:string,name:string)=>handler(new Request('http://local/management/v1/'+path,{method:'POST',
+      headers:{authorization:'alice','content-type':'application/json'},body:JSON.stringify({name})}));
+    const first=await create(`organizations/${a}/projects`,'Shop');expect(first.status).toBe(201);
+    const {id:project}=await first.json() as {id:string};
+    expect((await create(`organizations/${a}/projects`,'Shop')).status).toBe(409);
+    // The same name in another organization is a different project.
+    expect((await create(`organizations/${b}/projects`,'Shop')).status).toBe(201);
+    expect((await create(`projects/${project}/environments`,'production')).status).toBe(202);
+    expect((await create(`projects/${project}/environments`,'production')).status).toBe(409);
+    // A move may not create a duplicate in the destination.
+    expect(()=>catalog.transferProject('alice',project,b)).toThrow('Name already used');
+  } finally {catalog.close();}
+});
+
+test('the catalog migrates an older file in place and refuses one written by a newer release',()=>{
+  const directory=mkdtempSync(join(tmpdir(),'sbarbase-schema-'));
+  try {
+    const old=join(directory,'old.db');
+    // The shape a catalog had before the failure column and the version ladder.
+    const legacy=new Database(old);
+    legacy.exec(`CREATE TABLE organizations(id TEXT PRIMARY KEY,name TEXT NOT NULL);
+      CREATE TABLE memberships(organization TEXT NOT NULL REFERENCES organizations(id), actor TEXT NOT NULL,
+        role TEXT NOT NULL CHECK(role IN ('owner','admin','viewer')), PRIMARY KEY(organization,actor));
+      CREATE TABLE projects(id TEXT PRIMARY KEY, organization TEXT NOT NULL REFERENCES organizations(id),name TEXT NOT NULL);
+      CREATE TABLE environments(id TEXT PRIMARY KEY, project TEXT NOT NULL REFERENCES projects(id),name TEXT NOT NULL, UNIQUE(project,name));
+      CREATE TABLE provision_jobs(environment TEXT PRIMARY KEY REFERENCES environments(id),runtime TEXT NOT NULL UNIQUE,
+        actor TEXT NOT NULL,organization TEXT NOT NULL REFERENCES organizations(id),
+        state TEXT NOT NULL CHECK(state IN ('queued','running','succeeded','failed','cancelled')),
+        attempt INTEGER NOT NULL DEFAULT 0,claim TEXT);
+      INSERT INTO organizations VALUES ('o','Old');
+      INSERT INTO memberships VALUES ('o','alice','owner');
+      INSERT INTO projects VALUES ('p','o','Kept');`);
+    legacy.close();
+    const migrated=new Catalog(old);
+    try {
+      expect(migrated.schemaVersion()).toBe(2);
+      expect(migrated.listProjects('alice','o').map(project=>project.name)).toEqual(['Kept']);
+      expect(()=>migrated.createProject('alice','o','Kept')).toThrow('Name already used');
+    } finally {migrated.close();}
+    // Duplicates written before the rule keep the catalog usable at version 1.
+    const duplicated=join(directory,'duplicated.db');
+    const seeded=new Catalog(duplicated);
+    const organization=seeded.createOrganization('alice','D');seeded.close();
+    const raw=new Database(duplicated);
+    raw.exec("DROP INDEX projects_organization_name; PRAGMA user_version=1;");
+    raw.query('INSERT INTO projects VALUES (?,?,?),(?,?,?)').run('x',organization,'Same','y',organization,'Same');
+    raw.close();
+    const reopened=new Catalog(duplicated);
+    try {expect(reopened.schemaVersion()).toBe(1);} finally {reopened.close();}
+    // A newer release's catalog is not read.
+    const newer=new Database(duplicated);newer.exec('PRAGMA user_version=99');newer.close();
+    expect(()=>new Catalog(duplicated)).toThrow('newer than this release');
+  } finally {rmSync(directory,{recursive:true});}
+});
