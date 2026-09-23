@@ -1,5 +1,6 @@
 import {ConcurrencyGate} from './concurrency';
 import {Catalog} from '../control/catalog';
+import type {RuntimeRouting} from '../control/placement';
 import {KeyStore} from '../control/keys';
 import {createGateway,type EnvironmentRoute} from './handler';
 
@@ -8,6 +9,12 @@ const applicationConcurrency=new ConcurrencyGate();
 /** Trusted in-process operator hook. It does not fence upstream SQL or other processes. */
 export function pauseManagedEnvironment(runtime:string) {
  return applicationConcurrency.pause(runtime);
+}
+
+/** A staged placement overrides the installer's endpoints, storage included, so a moved
+ * runtime never keeps its old storage route. */
+export function routeWithPlacement(configured:EnvironmentRoute|undefined,routing:RuntimeRouting) {
+ return configured&&routing.placement?{...configured,...routing.placement,storage:routing.placement.storage}:configured;
 }
 
 /** Runtime configuration comes from the trusted installer, never HTTP input.
@@ -22,8 +29,7 @@ export function managedGateway(catalog:Catalog,keys:KeyStore,resolve:(runtime:st
    const routing=catalog.runtimeRouting(runtime);
    if(routing.maintenance)return Response.json({message:'Environment temporarily paused'},
     {status:503,headers:{'retry-after':'1','cache-control':'no-store'}});
-   const configured=resolve(runtime);
-   const route=configured&&routing.placement?{...configured,...routing.placement,storage:routing.placement.storage}:configured;
+   const route=routeWithPlacement(resolve(runtime),routing);
    if(!route) return Response.json({message:'Environment routing unavailable'},{status:503});
    return await createGateway(new Map([[runtime,route]]),transport,
     (environment,key)=>keys.resolve(environment,key)==='publishable',10_000,concurrency)(request);

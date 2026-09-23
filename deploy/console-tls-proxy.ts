@@ -29,8 +29,8 @@ type Options = {
 const MAX_BODY_DEFAULT = 1024 * 1024;
 // Hop-by-hop headers, plus the framing headers a re-framed body must not carry,
 // plus the client-supplied forwarding headers the proxy itself sets.
-const STRIP_HEADERS = ['host', 'connection', 'upgrade', 'keep-alive', 'te', 'trailer', 'transfer-encoding', 'content-length',
-  'proxy-authorization', 'proxy-authenticate', 'x-forwarded-for', 'x-forwarded-proto', 'x-forwarded-host', 'forwarded'];
+const STRIP_HEADERS = new Set(['host', 'connection', 'upgrade', 'keep-alive', 'te', 'trailer', 'transfer-encoding', 'content-length',
+  'proxy-authorization', 'proxy-authenticate', 'x-forwarded-for', 'x-forwarded-proto', 'x-forwarded-host', 'forwarded']);
 // A host used in a Location header or forwarded to the backend is attacker input
 // unless it is validated: no whitespace, no slashes, no scheme, digits only in a port.
 const VALID_HOST = /^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:\d{1,5})?$/;
@@ -120,7 +120,7 @@ function assertLoopbackUpstream(upstream: string): void {
   }
 }
 
-function securityHeaders(request: Request, publicHost: string): HeadersInit {
+function securityHeaders(request: Request, publicHost: string): Record<string, string> {
   const headers: Record<string, string> = {
     'strict-transport-security': 'max-age=31536000; includeSubDomains',
     'x-content-type-options': 'nosniff',
@@ -153,7 +153,6 @@ if (!Number.isInteger(options.maxBody) || options.maxBody <= 0) {
 }
 assertRegular(options.cert, 'certificate');
 assertPrivate(options.key, 'key');
-assertLoopbackUpstream(options.upstream);
 const upstream = await resolveUpstream(options.upstream);
 // Whatever the source, the upstream must be loopback: the console is never exposed.
 assertLoopbackUpstream(upstream);
@@ -165,19 +164,16 @@ const secure = Bun.serve({
   async fetch(request) {
     const url = new URL(request.url);
     const headers = securityHeaders(request, options.publicHost);
-    let status = 502;
-    const declared = Number(request.headers.get('content-length') ?? '0');
-    if (!['GET', 'HEAD'].includes(request.method) && declared > options.maxBody) {
+    const tooLarge = () => {
       console.log(request.method + ' ' + url.pathname + ' 413');
       return new Response('Request body too large', {status: 413, headers});
-    }
+    };
+    const declared = Number(request.headers.get('content-length') ?? '0');
+    if (!['GET', 'HEAD'].includes(request.method) && declared > options.maxBody) return tooLarge();
     let response: Response;
     try {
       const read = await readBoundedBody(request, options.maxBody);
-      if (read.tooLarge) {
-        console.log(request.method + ' ' + url.pathname + ' 413');
-        return new Response('Request body too large', {status: 413, headers});
-      }
+      if (read.tooLarge) return tooLarge();
       const body = read.body;
       const target = new URL(upstream + url.pathname + url.search);
       const forwarded = await fetch(target, {
@@ -186,13 +182,12 @@ const secure = Bun.serve({
         // forwarding headers are replaced by ours: a spoofed Host or X-Forwarded-*
         // must not reach the console.
         headers: {
-          ...Object.fromEntries([...request.headers].filter(([name]) => !STRIP_HEADERS.includes(name.toLowerCase()))),
-          ...Object.fromEntries(Object.entries(headers)),
+          ...Object.fromEntries([...request.headers].filter(([name]) => !STRIP_HEADERS.has(name.toLowerCase()))),
+          ...headers,
         },
         body,
         redirect: 'manual',
       });
-      status = forwarded.status;
       const output = new Headers(forwarded.headers);
       // The body is re-framed, so the upstream's framing headers go too.
       for (const name of ['content-length', 'transfer-encoding']) output.delete(name);
@@ -201,7 +196,7 @@ const secure = Bun.serve({
     } catch (error) {
       response = new Response('Upstream unavailable', {status: 502, headers});
     }
-    console.log(request.method + ' ' + url.pathname + ' ' + String(status));
+    console.log(request.method + ' ' + url.pathname + ' ' + String(response.status));
     return response;
   },
 });

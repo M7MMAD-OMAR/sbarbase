@@ -2,6 +2,18 @@ import {createClient} from '@supabase/supabase-js';
 
 export type ManagementIdentity = (request:Request)=>Promise<string|null>;
 
+/** The JSON answer every management route gives: never cached, never content sniffed. */
+export function reply(status:number,data:unknown) {
+  return Response.json(data,{status,headers:{'cache-control':'no-store','x-content-type-options':'nosniff'}});
+}
+
+/** The caller's management actor, or the 503 or 401 answer to return instead. */
+export async function authenticate(identify:ManagementIdentity,request:Request):Promise<string|Response> {
+  let actor:string|null;
+  try {actor=await identify(request);} catch {return reply(503,{message:'Authentication unavailable'});}
+  return actor||reply(401,{message:'Authentication required'});
+}
+
 /** A fixed, dedicated management Supabase endpoint, never an application route.
  * Its signing keys and user database must be separate from hosted environments.
  */

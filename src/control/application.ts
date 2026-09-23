@@ -2,7 +2,7 @@ import {Catalog} from './catalog';
 import {KeyStore} from './keys';
 import {managementIdentity} from './auth';
 import {controlHandler} from './handler';
-import {managedGateway} from '../gateway/managed';
+import {managedGateway,routeWithPlacement} from '../gateway/managed';
 import {createGateway,type EnvironmentRoute} from '../gateway/handler';
 
 type ManagementRealm={auth:string;anonymousToken:string;publishableKey:string};
@@ -24,8 +24,7 @@ export function application(catalog:Catalog,keys:KeyStore,realm:ManagementRealm,
  const control=controlHandler(catalog,keys,identity,runtime=>{
   const routing=catalog.runtimeRouting(runtime);
   if(routing.maintenance)throw new Error('Runtime under maintenance');
-  const configured=resolve(runtime);
-  const route=configured&&routing.placement?{...configured,...routing.placement,storage:routing.placement.storage}:configured;
+  const route=routeWithPlacement(resolve(runtime),routing);
   if(!route||!route.enabled)throw new Error('Runtime routing unavailable');
   return route.storage?['auth','rest','storage']:['auth','rest'];
  });

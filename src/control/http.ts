@@ -1,5 +1,5 @@
 import {Catalog,type MembershipRole} from './catalog';
-import type {ManagementIdentity} from './auth';
+import {authenticate,reply,type ManagementIdentity} from './auth';
 import {readFileSync} from 'node:fs';
 import {join} from 'node:path';
 
@@ -53,9 +53,6 @@ function notificationState(catalog:Catalog) {
   return {undelivered,events};
 }
 
-function reply(status:number,data:unknown) {
-  return Response.json(data,{status,headers:{'cache-control':'no-store','x-content-type-options':'nosniff'}});
-}
 class InputError extends Error {}
 async function body(request:Request):Promise<{name:string}> {
   if(request.headers.get('content-type')?.split(';')[0]?.trim()!=='application/json'||!request.body)
@@ -89,17 +86,15 @@ export function managementHandler(catalog:Catalog,identify:ManagementIdentity,ma
     const path=new URL(request.url).pathname;
     if(path==='/management/v1/organizations') {
       if(request.method!=='GET')return reply(405,{message:'Method not allowed'});
-      let actor:string|null;
-      try {actor=await identify(request);}catch{return reply(503,{message:'Authentication unavailable'});}
-      if(!actor)return reply(401,{message:'Authentication required'});
+      const actor=await authenticate(identify,request);
+      if(actor instanceof Response)return actor;
       try{return reply(200,{data:catalog.listOrganizations(actor)});}
       catch{return reply(500,{message:'Management operation failed'});}
     }
     if(path==='/management/v1/notifications') {
       if(request.method!=='GET')return reply(405,{message:'Method not allowed'});
-      let actor:string|null;
-      try {actor=await identify(request);}catch{return reply(503,{message:'Authentication unavailable'});}
-      if(!actor)return reply(401,{message:'Authentication required'});
+      const actor=await authenticate(identify,request);
+      if(actor instanceof Response)return actor;
       try {
         // Installation wide read, so the roles come from the memberships the catalog already
         // holds: an actor who is an owner or admin of any organization may see it.
@@ -111,9 +106,8 @@ export function managementHandler(catalog:Catalog,identify:ManagementIdentity,ma
     const mail=path.match(/^\/management\/v1\/environments\/([a-f0-9-]{36})\/mail$/);
     if(mail) {
       if(request.method!=='GET')return reply(405,{message:'Method not allowed'});
-      let actor:string|null;
-      try {actor=await identify(request);}catch{return reply(503,{message:'Authentication unavailable'});}
-      if(!actor)return reply(401,{message:'Authentication required'});
+      const actor=await authenticate(identify,request);
+      if(actor instanceof Response)return actor;
       const id=mail[1];if(!id) return reply(404,{message:'Unknown route'});
       try {
         // The neighbouring environment routes read the same catalog row to reach the runtime
@@ -132,9 +126,8 @@ export function managementHandler(catalog:Catalog,identify:ManagementIdentity,ma
       (match[1]==='projects'&&match[3]==='environments')||
       (match[1]==='environments'&&match[3]==='provision'))) return reply(404,{message:'Unknown route'});
     if(!['GET','POST'].includes(request.method)||(match[1]==='environments'&&request.method!=='GET')) return reply(405,{message:'Method not allowed'});
-    let actor:string|null;
-    try {actor=await identify(request);} catch {return reply(503,{message:'Authentication unavailable'});}
-    if(!actor) return reply(401,{message:'Authentication required'});
+    const actor=await authenticate(identify,request);
+    if(actor instanceof Response)return actor;
     const id=match[2];if(!id) return reply(404,{message:'Unknown route'});
     try {
       if(match[1]==='environments') {

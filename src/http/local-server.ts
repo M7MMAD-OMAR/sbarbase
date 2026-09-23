@@ -2,6 +2,8 @@ import {createServer,type ServerResponse} from 'node:http';
 import {Readable} from 'node:stream';
 import type {Socket} from 'node:net';
 
+const HOP_BY_HOP=new Set(['connection','keep-alive','proxy-authenticate','proxy-authorization','te','trailer','transfer-encoding','upgrade']);
+
 function writable(response:ServerResponse) {
  return new Promise<void>(resolve=>{
   const done=()=>{response.off('drain',done);response.off('close',done);resolve();};
@@ -32,9 +34,8 @@ export async function serveLocal(fetch:(request:Request)=>Response|Promise<Respo
     ...(!['GET','HEAD'].includes(method)?{body:Readable.toWeb(incoming) as unknown as ReadableStream<Uint8Array>,duplex:'half'}:{})} as RequestInit);
    const response=await fetch(request);
    if(abort.signal.aborted){void response.body?.cancel().catch(()=>{});return;}
-   const excluded=new Set(['connection','keep-alive','proxy-authenticate','proxy-authorization','te','trailer','transfer-encoding','upgrade']);
    const output:Record<string,string|string[]>={};
-   for(const [name,value] of response.headers)if(!excluded.has(name)&&name!=='set-cookie')output[name]=value;
+   for(const [name,value] of response.headers)if(!HOP_BY_HOP.has(name)&&name!=='set-cookie')output[name]=value;
    const cookies=response.headers.getSetCookie();if(cookies.length)output['set-cookie']=cookies;
    outgoing.writeHead(response.status,output);
    if(!response.body||method==='HEAD'){

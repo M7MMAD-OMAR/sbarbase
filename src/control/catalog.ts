@@ -12,32 +12,12 @@ export type ProvisionJob = {environment:string;runtime:string;actor:string;organ
 export type NotificationSeverity = 'info' | 'warning' | 'critical';
 export type NotificationChannel = 'email' | 'webhook';
 export type NotificationOutcome = 'delivered' | 'transient' | 'failed';
-/** Every kind of the inventory that an observable in this catalog can produce today. The
- * last three groups are produced outside the catalog, by the Python producers in
- * lab/notification_producers.py, which write through the same outbox rows. */
-export type NotificationKind =
-  | 'provision.failed' | 'provision.capacity_refused' | 'provision.retry_limit'
-  | 'provision.retried' | 'routing.paused' | 'routing.resumed'
-  | 'membership.owner_changed' | 'project.ownership_changed'
-  | 'notifier.channel_failed' | 'notifier.redaction_refused'
-  | 'installation.started' | 'installation.stopped' | 'installation.start_failed'
-  | 'worker.restart' | 'worker.restart_limit'
-  | 'fence.applied' | 'fence.released'
-  | 'backup.export_completed' | 'backup.export_failed'
-  | 'restore.verified' | 'restore.failed';
+export type NotificationKind = keyof typeof NOTIFICATION_DETAIL_KEYS;
 /** Closed reason enum. The fine admission reason (`memory_headroom` and the rest) is
  * produced by the admission gates. Exit code 75 is the whole protocol a refused child may
  * publish, so a capacity refusal keeps its fine reason by recording the value the producer
  * published, and records `unrecorded` when no producer value reached this point. */
-export type NotificationReason =
-  | 'runtime_failed' | 'retry_limit' | 'retry_requested' | 'owner_changed' | 'ownership_changed'
-  | 'routing_paused' | 'routing_resumed' | 'installation_limit' | 'memory_headroom'
-  | 'disk_headroom' | 'inode_headroom' | 'measurement_unavailable' | 'cpu_some10'
-  | 'io_full10' | 'memory_full10' | 'connection_budget' | 'unrecorded'
-  | 'webhook_unreachable' | 'webhook_timeout' | 'webhook_status'
-  | 'smtp_refused' | 'smtp_temporary_failure' | 'channel_disabled' | 'redaction_refused'
-  | 'operator_request' | 'installation_failed' | 'worker_restart' | 'worker_restart_limit'
-  | 'export_completed' | 'export_failed' | 'restore_verified' | 'restore_failed';
+export type NotificationReason = typeof NOTIFICATION_REASONS[number];
 export type NotificationDetail = Record<string,string|number|boolean>;
 export type NotificationSubject = {organization?:string;project?:string;environment?:string;runtime?:string};
 export type NotificationClaim = {
@@ -59,8 +39,11 @@ export type NotificationSummary = {
   state:string; attempts:number; last_error:string|null;
 };
 
-/** Detail keys are closed per kind: a caller cannot add a field, so it cannot add a secret. */
-const NOTIFICATION_DETAIL_KEYS:Record<NotificationKind,string[]> = {
+/** Every kind of the inventory that an observable in this catalog can produce today. The
+ * last three groups are produced outside the catalog, by the Python producers in
+ * lab/notification_producers.py, which write through the same outbox rows. Detail keys are
+ * closed per kind: a caller cannot add a field, so it cannot add a secret. */
+const NOTIFICATION_DETAIL_KEYS = {
   'provision.failed':['failure','attempt'],
   'provision.capacity_refused':['failure','attempt','reason_source'],
   'provision.retry_limit':['attempt','reason_source'],
@@ -82,15 +65,15 @@ const NOTIFICATION_DETAIL_KEYS:Record<NotificationKind,string[]> = {
   'backup.export_failed':['phase'],
   'restore.verified':['status'],
   'restore.failed':['status'],
-};
-const NOTIFICATION_REASONS:NotificationReason[] = [
+} satisfies Record<string,string[]>;
+const NOTIFICATION_REASONS = [
   'runtime_failed','retry_limit','retry_requested','owner_changed','ownership_changed',
   'routing_paused','routing_resumed','installation_limit','memory_headroom','disk_headroom',
   'inode_headroom','measurement_unavailable','cpu_some10','io_full10','memory_full10',
   'connection_budget','unrecorded','webhook_unreachable','webhook_timeout','webhook_status',
   'smtp_refused','smtp_temporary_failure','channel_disabled','redaction_refused',
   'operator_request','installation_failed','worker_restart','worker_restart_limit',
-  'export_completed','export_failed','restore_verified','restore_failed'];
+  'export_completed','export_failed','restore_verified','restore_failed'] as const;
 export const NOTIFICATION_MAX_ATTEMPTS = 8;
 const NOTIFICATION_WINDOW_SECONDS:Record<NotificationSeverity,number> = {info:3600,warning:1800,critical:300};
 const NOTIFICATION_BACKOFF_SECONDS = [15,60,300,1800,7200];
@@ -222,6 +205,15 @@ export class Catalog {
     if(!project) throw new Error('Forbidden');
     this.require(actor,project.organization,roles);
     return project;
+  }
+  /** An unknown environment answers Forbidden, exactly like one outside the actor's roles. */
+  private environmentProject(actor:string,environment:string,roles:MembershipRole[]):Project {
+    const env=this.db.query<Environment,[string]>('SELECT * FROM environments WHERE id=?').get(environment);
+    if(!env) throw new Error('Forbidden');
+    return this.project(actor,env.project,roles);
+  }
+  private job(environment:string):ProvisionJob|null {
+    return this.db.query<ProvisionJob,[string]>('SELECT * FROM provision_jobs WHERE environment=?').get(environment);
   }
   private record(actor:string,action:string,subject:string,detail:object) {
     this.db.query('INSERT INTO audit_events(actor,action,subject,detail,at) VALUES (?,?,?,?,?)')
@@ -392,10 +384,8 @@ export class Catalog {
   }
   withReadyEnvironment<T>(actor:string,environment:string,write:boolean,operation:(job:ProvisionJob)=>T):T {
     return this.db.transaction(()=>{
-      const env=this.db.query<Environment,[string]>('SELECT * FROM environments WHERE id=?').get(environment);
-      if(!env) throw new Error('Forbidden');
-      this.project(actor,env.project,write?['owner','admin']:['owner','admin','viewer']);
-      const job=this.db.query<ProvisionJob,[string]>('SELECT * FROM provision_jobs WHERE environment=?').get(environment);
+      this.environmentProject(actor,environment,write?['owner','admin']:['owner','admin','viewer']);
+      const job=this.job(environment);
       if(!job||job.state!=='succeeded') throw new Error('Environment is not ready');
       return operation(job);
     }).immediate();
@@ -405,10 +395,8 @@ export class Catalog {
       "SELECT environment FROM provision_jobs WHERE runtime=? AND state='succeeded'").get(runtime);
   }
   getProvision(actor:string,environment:string):ProvisionJob {
-    const env=this.db.query<Environment,[string]>('SELECT * FROM environments WHERE id=?').get(environment);
-    if(!env) throw new Error('Forbidden');
-    this.project(actor,env.project,['owner','admin','viewer']);
-    const job=this.db.query<ProvisionJob,[string]>('SELECT * FROM provision_jobs WHERE environment=?').get(environment);
+    this.environmentProject(actor,environment,['owner','admin','viewer']);
+    const job=this.job(environment);
     if(!job) throw new Error('No provisioning operation');
     return job;
   }
@@ -451,7 +439,7 @@ export class Catalog {
       if(result.changes!==1) throw new Error('Stale provisioning claim');
       this.record('system',success?'provision.succeeded':'provision.failed',environment,success?{}:{failure});
       if(success)return;
-      const job=this.db.query<ProvisionJob,[string]>('SELECT * FROM provision_jobs WHERE environment=?').get(environment);
+      const job=this.job(environment);
       if(!job)return;
       const subject=this.notificationScope(environment,job.organization,job.runtime);
       if(failure==='runtime_failed')
@@ -470,7 +458,7 @@ export class Catalog {
     refusalReason?:NotificationReason) {
     if(![0,75].includes(exitCode))throw new Error('Unresolved provisioning outcome');
     this.db.transaction(()=>{
-      const job=this.db.query<ProvisionJob,[string]>('SELECT * FROM provision_jobs WHERE environment=?').get(environment);
+      const job=this.job(environment);
       if(!job||job.runtime!==runtime||job.attempt<attempt)throw new Error('Provisioning receipt mismatch');
       const success=exitCode===0;
       const prior=this.db.query<{runtime:string;claim:string;exit_code:number},[string,number]>(
@@ -488,7 +476,7 @@ export class Catalog {
   /** Fresh worker/effect/operation ownership and preflight proof are required by the caller. */
   recoverPreflightReceipt(environment:string,runtime:string,claim:string,attempt:number,token:string):'requeued'|'failed' {
     return this.db.transaction(()=>{
-      const job=this.db.query<ProvisionJob,[string]>('SELECT * FROM provision_jobs WHERE environment=?').get(environment);
+      const job=this.job(environment);
       if(!job||job.runtime!==runtime||job.attempt<attempt)throw new Error('Preflight receipt mismatch');
       const prior=this.db.query<{runtime:string;claim:string;receipt_token:string;decision:string},[string,number]>(
         'SELECT runtime,claim,receipt_token,decision FROM provision_recovery_decisions WHERE environment=? AND attempt=?').get(environment,attempt);
@@ -515,14 +503,12 @@ export class Catalog {
   }
   retryProvision(actor:string,environment:string) {
     this.db.transaction(()=>{
-      const env=this.db.query<Environment,[string]>('SELECT * FROM environments WHERE id=?').get(environment);
-      if(!env) throw new Error('Forbidden');
-      const parent=this.project(actor,env.project,['owner','admin']);
+      const parent=this.environmentProject(actor,environment,['owner','admin']);
       const result=this.db.query("UPDATE provision_jobs SET state='queued',actor=?,organization=?,claim=NULL,failure=NULL WHERE environment=? AND state IN ('failed','cancelled')")
         .run(actor,parent.organization,environment);
       if(result.changes!==1) throw new Error('Operation is not retryable');
       this.record(actor,'provision.retried',environment,{});
-      const job=this.db.query<ProvisionJob,[string]>('SELECT * FROM provision_jobs WHERE environment=?').get(environment);
+      const job=this.job(environment);
       if(job)
         this.notify('provision.retried','info','provision.retried|'+environment,
           this.notificationScope(environment,parent.organization,job.runtime),actor,'retry_requested',

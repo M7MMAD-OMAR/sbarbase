@@ -1,8 +1,7 @@
 import {Catalog} from './catalog';
 import {KeyStore} from './keys';
-import type {ManagementIdentity} from './auth';
+import {authenticate,reply,type ManagementIdentity} from './auth';
 
-const reply=(status:number,data:unknown)=>Response.json(data,{status,headers:{'cache-control':'no-store','x-content-type-options':'nosniff'}});
 /** Publishable keys only. Never accepts a client-supplied runtime, role or actor.
  * Raw key material is returned once; list responses contain only metadata.
  */
@@ -16,9 +15,8 @@ export function keyHandler(catalog:Catalog,keys:KeyStore,identify:ManagementIden
   const method=request.method;
   if(action==='connection'&&(method!=='GET'||keyId)||action==='keys'&&
     !(keyId?method==='DELETE':['GET','POST'].includes(method))) return reply(405,{message:'Method not allowed'});
-  let actor:string|null;
-  try {actor=await identify(request);} catch {return reply(503,{message:'Authentication unavailable'});}
-  if(!actor) return reply(401,{message:'Authentication required'});
+  const actor=await authenticate(identify,request);
+  if(actor instanceof Response) return actor;
   if(request.body) return reply(400,{message:'This endpoint does not accept a body'});
   try {
    return catalog.withReadyEnvironment(actor,environment,action==='keys',job=>{
