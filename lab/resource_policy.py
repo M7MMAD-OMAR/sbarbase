@@ -157,7 +157,25 @@ def io_device(path=VOLUME_ROOT, runner=None):
     device = source.split('[')[0].strip()
     if not device.startswith('/dev/') or not Path(device).exists():
         return None
-    return device
+    disk = whole_disk(device)
+    return disk if Path(disk).exists() else None
+
+
+def whole_disk(device, sysfs=Path('/sys/class/block')):
+    """The disk a partition belongs to, or the device itself when it is not a partition.
+
+    The kernel's io.max takes whole disks only: a limit written for a partition
+    such as /dev/vda3 fails with "no such device" and Docker refuses to start the
+    container (exit 125). The first empty-VM install hit exactly that, because a
+    typical server mounts / from a partition, while the development host mounts
+    it from a device-mapper volume, which is a whole device. sysfs marks a
+    partition with a `partition` file and places it under its disk.
+    """
+    import os
+    entry = sysfs / Path(os.path.realpath(device)).name
+    if not (entry / 'partition').exists():
+        return device
+    return '/dev/' + Path(os.path.realpath(entry)).parent.name
 
 
 def device():

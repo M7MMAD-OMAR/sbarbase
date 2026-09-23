@@ -396,6 +396,22 @@ class BlockIOLimits(unittest.TestCase):
         device = source.split('[')[0]
         self.assertEqual(policy.io_device('/', runner=lambda target: device + '[/root]'), device)
 
+    def test_a_partition_is_limited_through_its_whole_disk(self):
+        # Mirrors sysfs: /sys/class/block/vda3 links into the disk's own directory.
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'devices' / 'vda' / 'vda3').mkdir(parents=True)
+            (root / 'devices' / 'vda' / 'vda3' / 'partition').write_text('3')
+            (root / 'devices' / 'dm-0').mkdir(parents=True)
+            sysfs = root / 'class'
+            sysfs.mkdir()
+            (sysfs / 'vda3').symlink_to(root / 'devices' / 'vda' / 'vda3')
+            (sysfs / 'dm-0').symlink_to(root / 'devices' / 'dm-0')
+            self.assertEqual(policy.whole_disk('/dev/vda3', sysfs=sysfs), '/dev/vda')
+            self.assertEqual(policy.whole_disk('/dev/dm-0', sysfs=sysfs), '/dev/dm-0')
+            self.assertEqual(policy.whole_disk('/dev/sdz9', sysfs=sysfs), '/dev/sdz9')
+
     def test_io_device_refuses_a_source_that_is_not_a_block_device(self):
         for source in ('', 'overlay', 'tmpfs', 'none', '/dev/does-not-exist'):
             self.assertIsNone(policy.io_device('/tmp', runner=lambda target, s=source: s), source)
