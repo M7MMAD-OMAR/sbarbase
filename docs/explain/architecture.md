@@ -39,6 +39,8 @@ flowchart TB
 
 **Management path.** Operators log in against a dedicated management Auth realm that is never an application environment's Auth. The control API derives the actor from that login, never from the request body, and applies owner, admin and viewer roles.
 
+**Trust boundary.** Only the TLS proxy faces the network; the loopback server and every container behind it listen on loopback or internal Docker networks, with no published ports. App traffic enters only through the gateway and needs a publishable key; operator traffic goes only through the separate management realm and the control API. The server's operators are trusted, the visitors of the apps are not. What that means for shared components is in [isolation and trust](isolation-and-trust.md).
+
 **Background work.** Creating an environment queues a job. A single provisioning worker, holding an exclusive lock, creates the database and scoped logins, writes the connection rules and starts the services. See [provisioning](provisioning.md).
 
 | Shared | Separate per environment |

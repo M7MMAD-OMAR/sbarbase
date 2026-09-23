@@ -6,15 +6,18 @@ What exists today is a manual, attended procedure. **Scheduled backups and off-h
 
 The simplest backup is a cold copy of everything, taken with all services stopped:
 
-1. Stop the supervisor (`systemctl stop sbarbase.service` on a server, Ctrl+C for `lab/dev.py`), and confirm no `sbarbase-durable-*` container is running with `docker ps`.
-2. Copy the Docker volumes used by the `sbarbase-durable-*` containers (find them with `docker inspect`), plus the checkout's private state directories `.lab/` and `.secrets/`. Keep the copy encrypted and off the server; `.secrets/` holds every generated credential.
-3. Start the supervisor again.
+1. Stop everything: the supervisor (`systemctl stop sbarbase.service` on a server, Ctrl+C for `lab/dev.py`), a runtime started by hand (`/usr/bin/python3 lab/durable_runtime.py stop`) and, if an environment has been moved to a recovery target, that target (`/usr/bin/python3 lab/target_runtime.py stop`).
+2. Confirm with `docker ps` that no `sbarbase-durable-*` and no `sbarbase-restore-*` container is running.
+3. Copy the Docker volumes of **both** the `sbarbase-durable-*` containers and the `sbarbase-restore-*` containers (find them with `docker inspect`), plus the checkout's private state directories `.lab/` and `.secrets/`. A moved environment's data lives only on the `sbarbase-restore-*` volumes, so copying the durable volumes alone misses it. Keep the copy encrypted and off the server; `.secrets/` holds every generated credential.
+4. Start the supervisor again.
 
 This copies the whole server at once. Restoring it restores every environment to that moment; it cannot restore one environment alone. This procedure has not been rehearsed as a restore on a clean host.
 
 ## One environment: encrypted export
 
-`lab/recovery-export.py` writes an encrypted bundle of one environment: its database dump, scoped logins, grants and settings, files with extended attributes, Storage tenant configuration and URL-signing keys. Start the owned runtime first (`/usr/bin/python3 lab/durable_runtime.py up`), then run `/usr/bin/python3 lab/recovery-export.py`. It stops the source services while it captures and leaves them stopped. The ciphertext and its separately stored key are written under `.lab/upstream/` with mode 0600, and `.lab/upstream/recovery-latest.json` points to them.
+`lab/recovery-export.py` writes an encrypted bundle of one environment: its database dump, scoped logins, grants and settings, files with extended attributes, Storage tenant configuration and URL-signing keys. Start the owned runtime first (`/usr/bin/python3 lab/durable_runtime.py up`), then run `/usr/bin/python3 lab/recovery-export.py`.
+
+**Exporting one environment currently takes every environment on that engine offline.** To get a consistent snapshot, the export stops Auth, REST, the management Auth realm and the shared Storage process for the whole source placement, not only for the environment being exported, and it leaves them stopped afterwards. Every app on the server and the console login are unavailable until you start the runtime again. Plan it as a maintenance window. The ciphertext and its separately stored key are written under `.lab/upstream/` with mode 0600, and `.lab/upstream/recovery-latest.json` points to them.
 
 Be aware:
 
@@ -47,6 +50,7 @@ A failed restore leaves its descriptor behind, and a plain rerun refuses. Do not
 ## Limits
 
 - No schedule, no retention policy, no off-host transfer, no point-in-time recovery.
+- Every backup path above means downtime for all environments on the engine, not only the one being saved.
 - Restore has been rehearsed on one host with a test fixture, not on a server with real client data.
 - Once a restored target has accepted writes, going back to the old source is unsafe without reconciliation.
 

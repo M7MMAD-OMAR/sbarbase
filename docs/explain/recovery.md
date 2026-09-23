@@ -17,12 +17,12 @@ Recovery takes one environment, stops its writes, exports it encrypted, restores
 
 ```mermaid
 flowchart LR
-  A["1. Fence: maintenance on, service logins off"] --> B["2. Export: database, roles, files, signing keys; encrypted"]
-  B --> C["3. Close the source database"]
-  C --> D["4. Restore into a fresh pinned engine"]
-  D --> E["5. Verify: rows, roles, Auth, REST, Storage, RLS, old signed URL"]
-  E --> F["6. Stage the new placement, then resume routing"]
-  F --> G["7. Restart unaffected neighbours on the source"]
+  A["Fence: maintenance on, service logins off"] --> B["Export: database, roles, files, signing keys; encrypted"]
+  B --> C["Close the source database"]
+  C --> D["Restore into a fresh pinned engine"]
+  D --> E["Verify: rows, roles, Auth, REST, Storage, RLS, old signed URL"]
+  E --> F["Stage the new placement, then resume routing"]
+  F --> G["Restart unaffected neighbours on the source"]
 ```
 
 1. **Fence.** The environment's routing record is put in maintenance, so the gateway answers `503` instead of forwarding. Its three scoped service logins are switched to `NOLOGIN` and their original state is written to a journal, while the operator can still read and dump.
@@ -31,7 +31,7 @@ flowchart LR
 4. **Restore.** A fresh, pinned PostgreSQL engine with a new administrator password, its own network and its own volume receives the dump in one transaction. Storage metadata and files are rebuilt, and signing keys are re-encrypted under the target's own key while keeping their key IDs.
 5. **Verify.** Table counts and content hashes are compared, scoped roles and grants are checked, original Auth and REST start against the copy, the original user logs in with the original password, reads rows protected by row-level security, and a signed URL issued before the export still downloads the same bytes.
 6. **Switch.** The new placement is staged on the routing record and routing is resumed with a revision check.
-7. **Neighbours.** Unaffected environments restart on the source while the moved environment stays pointed at the target.
+7. **Neighbours.** Because shared Storage had to stop for the export, every environment on the source was offline during it. Unaffected environments now restart on the source while the moved environment stays pointed at the target.
 
 Code: [lab/source_fence.py](../../lab/source_fence.py), [lab/cutover-export.py](../../lab/cutover-export.py), [lab/recovery_bundle.py](../../lab/recovery_bundle.py), [lab/recovery-restore-db.py](../../lab/recovery-restore-db.py), [lab/recovery-check-services.py](../../lab/recovery-check-services.py), [lab/recovery_reconcile.py](../../lab/recovery_reconcile.py), [lab/target_runtime.py](../../lab/target_runtime.py), [src/control/placement.ts](../../src/control/placement.ts). The operator procedure is in [backup and restore](../guides/backup-and-restore.md).
 
@@ -39,7 +39,8 @@ Code: [lab/source_fence.py](../../lab/source_fence.py), [lab/cutover-export.py](
 
 - Exercised on one host with a retained test fixture. The recovery scripts are still fixture-specific and not a general backup product.
 - There are no scheduled backups, no off-host copies and no point-in-time recovery.
-- It is a downtime procedure: maintenance stops new requests, but requests already admitted by a gateway process can still be cut off when services stop.
+- It is a downtime procedure, and not only for the environment being recovered: a consistent export stops the shared Storage process and the other services of the whole source placement, so every environment on that engine, and the console login, is offline until the neighbours are restarted.
+- Maintenance stops new requests, but requests already admitted by a gateway process can still be cut off when services stop.
 - The export bundle is held in memory and capped at 32 MiB; large databases and object stores need a streaming format.
 - Once the target has accepted writes, switching back to the older source is unsafe and needs reconciliation. Automatic resume after the controller itself dies mid-operation is not proven.
 - Vault contents, function artifacts and external object stores are not covered.
