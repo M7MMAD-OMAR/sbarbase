@@ -41,6 +41,12 @@ jobs:
         env:
           DOCKER_HOST: unix:///var/run/docker.sock
         run: /usr/bin/python3 -m unittest discover -s lab -p 'test_*.py'
+      - name: Python unit tests with no Docker daemon
+        # A unit test must not need the daemon. An unreachable endpoint makes any
+        # test that shells out to docker fail here instead of on the next machine.
+        env:
+          DOCKER_HOST: unix:///nonexistent/docker.sock
+        run: /usr/bin/python3 -m unittest discover -s lab -p 'test_*.py'
 
   empty-host-acceptance:
     if: github.event_name == 'workflow_dispatch' && inputs.acceptance
