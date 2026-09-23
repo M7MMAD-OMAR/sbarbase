@@ -9,6 +9,30 @@ rehearsal has been run against it, and the repository describes itself as in
 development. Read "Not in this release" before treating anything as production
 ready.
 
+## [Unreleased]
+
+### Added
+
+- **Container generation migration.** `lab/migrate-generation.py` replaces a
+  managed database container on the same data volume under an fsynced intent
+  record, one checkpoint per phase and an explicit `--reconcile`. Five SIGKILL
+  crash points pass on the disposable fixture
+  (`docs/evidence/fresh-worker-generation-crash-all.json`). It refuses the
+  retained placement: that run is a deliberate attended step and has not happened,
+  so `lab/durable-check.ts` stays disabled and the two blocked load measurements
+  stay blocked.
+
+### Fixed
+
+- The two load vehicles no longer overwrite their own evidence on failure or let
+  cleanup replace the real error, and the SDK vehicle probes its fixture first.
+- `NOTICE` no longer describes Supabase Studio as served; it is planned.
+
+### Notes
+
+- A `LICENSE` file (Apache-2.0) is present in the repository. The 0.1.0 entry
+  below says there is none; that entry is kept as it was released.
+
 ## [0.1.0] - 2026-09-21
 
 The first tagged milestone. It carries the platform's isolation and accounting

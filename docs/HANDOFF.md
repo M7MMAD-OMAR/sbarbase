@@ -1,6 +1,6 @@
 # Sbarbase handoff
 
-**Paused by the user for handoff to another Hermes agent/model.** Start with [HERMES-HANDOFF](HERMES-HANDOFF.md). No further Codex implementation was authorized after this stop.
+**Current state, 2026-09-23:** source release [0.1.0](../CHANGELOG.md) plus the crash-tested container generation migration; the attended migration of the retained database is the next step. Read [START-HERE](START-HERE.md) first. The paragraphs below are the 2026-09-20 snapshot.
 
 For the shortest overview, read [START-HERE](START-HERE.md). Source HBA authority is now [integrated and tested](SOURCE-HBA-INTEGRATION.md), with 76 fresh worker/restart checks. Legacy source adoption, generation migration, recovery-target writers and broader worker recovery remain open. Two [native worker interruption cases](WORKER-HBA-CRASH.md) now pass 90 checks each. Retained legacy startup intentionally refuses; its data and containers were preserved.
 

@@ -1,8 +1,6 @@
 # Sbarbase in one page
 
-**Paused by the user for handoff to another Hermes agent/model.** Start with [HERMES-HANDOFF](HERMES-HANDOFF.md). No further Codex implementation was authorized after this stop.
-
-Updated 2026-09-20. This is the short entry point for Codex or Hermes. Detailed evidence remains in [HANDOFF](HANDOFF.md); older chronological checkpoints can be superseded.
+Updated 2026-09-23. This is the short entry point for any assistant or contributor. Detailed evidence remains in [HANDOFF](HANDOFF.md); older chronological checkpoints can be superseded.
 
 ## Decision
 
@@ -16,7 +14,7 @@ Compatibility is required. Replacing Supabase changes that contract. Schema-only
 
 Four local environments have been exercised, including one restored to a separate local target. Real SDK checks cover Auth, RLS and private Storage access. Provisioning uses durable receipts, exact worker identities and scoped SQL guards. Complete HBA writes reject truncation and stale prepared requests; reload acknowledgment does not prove enforcement or terminate existing sessions.
 
-Recorded checkpoints: 217 Python tests, 73 Bun tests/408 assertions, 76 fresh worker/SDK checks, 51 SQL-pair checks and 36 HBA checks. These have different scopes; Python, Bun and the fresh worker lifecycle were rerun for source HBA integration; other component checkpoints remain recorded evidence. They do not certify production security.
+The 0.1.0 release gates were 575 Python tests and 87 Bun tests, plus the UI typecheck and console build check. Earlier recorded checkpoints: 217 Python tests, 73 Bun tests/408 assertions, 76 fresh worker/SDK checks, 51 SQL-pair checks and 36 HBA checks. These have different scopes; Python, Bun and the fresh worker lifecycle were rerun for source HBA integration; other component checkpoints remain recorded evidence. They do not certify production security.
 
 Configured retained ceilings are 5888 MiB RAM/5.75 CPUs, not measured demand or a hardware recommendation. There is no validated maximum of 10 or 100 projects. Daily visitors alone cannot determine capacity.
 
@@ -26,15 +24,15 @@ Configured retained ceilings are 5888 MiB RAM/5.75 CPUs, not measured demand or 
 - [Architecture review](ARCHITECTURE-REVIEW.md), [Supabase feasibility](reviews/supabase-feasibility.md), [security](reviews/security-operations.md), [alternatives](reviews/alternatives-product.md), [capacity method](reviews/capacity-method.md), [recovery](reviews/storage-recovery.md).
 - [Console concept](design/console-concept.png) and [visual QA](design/CONSOLE-QA.md) record the platform-layer console. Environment administration is the original upstream Studio, so parity with Studio's design system is withdrawn as a goal for our own UI. See [the Studio integration specification](STUDIO-INTEGRATION.md).
 
-## Exact stopping point
+## Current state
 
-Source HBA authority is now integrated into startup and worker provisioning, with exact ownership, generation pins, one-attempt publication and durable completion. The fresh real worker and parent-bound restart pass 76 checks. [Integration scope and next gates](SOURCE-HBA-INTEGRATION.md).
+Released as source version [0.1.0](../CHANGELOG.md) on 2026-09-21: resource tiers with per-device block IO limits, derived placement accounting, pressure sampling with a level 1 admission response, per-environment mail through original Auth, and operator notifications by email or signed webhook. The server installation path (preflight, installer, systemd unit) is rehearsed on the development host only ([readiness](DEPLOYMENT-READINESS.md)).
 
-**The retained legacy source has not been adopted and its startup now refuses.** Preserve it; do not remove state or recreate containers to bypass this gate. The old container-recreation probe is disabled until generation migration exists. Native worker death before apply and after its durable witness now passes two separate 90-check rehearsals; the broader services job stays blocked. Next: [explicit legacy adoption](HBA-LEGACY-ADOPTION-DESIGN.md) and recovery-target coverage. HBA completion alone does not prove activation or authorize later-stage job replay.
+Source HBA authority is integrated into startup and worker provisioning. The retained legacy source was adopted explicitly on 2026-09-20 ([evidence](evidence/retained-source-adoption.json)). The container generation migration is implemented and passes five SIGKILL crash points on the disposable fixture ([design](CONTAINER-GENERATION-MIGRATION.md), [plan](plans/2026-09-21-generation-migration-plan.md)).
 
-Last recorded retained state: owned containers stopped, moved source fenced, target routing paused. Preserve both recovery targets and their volumes. Inspect live state before acting; never switch back blindly to the stale source. Retained runtime resources were not changed for this integration rehearsal.
+**Next step: the attended generation migration of the retained database.** `lab/migrate-generation.py` refuses the retained placement by design; that run is a deliberate operator action. Until it happens, `lab/durable-check.ts` stays disabled and the arrival driven pressure and mixed SDK load measurements stay blocked. Never remove journals, pins, receipts or revocations, and never recreate retained containers to get past a refusal.
 
-Still open: later-stage crash recovery, service effects, sustained mixed-load capacity, remote restore, upgrades, complete organization transfer and multi-host coordination. Realtime, functions, pooler and cron are not completed platform features.
+Still open: a rehearsal on a real server, later-stage crash recovery, service effects, sustained mixed-load capacity, remote restore, upgrades, complete organization transfer and multi-host coordination. Realtime, functions, pooler, cron and the per-environment Studio are not completed platform features.
 
 ## Continue in either assistant
 

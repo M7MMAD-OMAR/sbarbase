@@ -3,8 +3,8 @@ Copyright 2026 Muhammad Omar and contributors.
 
 An independent project by Sbarah, built using original Supabase services.
 Not affiliated with or endorsed by Supabase.
-Supabase Studio and postgres-meta are used as unmodified pinned upstream images
-(Apache-2.0, Supabase) and served per environment; no upstream source is copied
+Supabase Studio and postgres-meta are planned as unmodified pinned upstream images
+(Apache-2.0, Supabase), one per environment; no upstream source is copied
 into the sbarbase code. The platform console is sbarbase's own work and does not
 derive from Studio's.
 Upstream components and dependencies retain their respective licenses.

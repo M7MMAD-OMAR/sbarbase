@@ -1,6 +1,6 @@
 # Sbarbase: start here
 
-Updated 2026-09-20. Workspace: `/home/sbarah/R/Projects/P/sbarbase`.
+Updated 2026-09-23. Current source release: [0.1.0](CHANGELOG.md). The container generation migration is implemented and crash-tested on disposable fixtures; its attended run on the retained database has not happened. [START-HERE](docs/START-HERE.md) holds the current state and next step; the checkpoints below are chronological and can be superseded.
 
 Short continuation brief: [handoff](docs/HANDOFF.md), including saved visuals, rationale and supervisor verification limits.
 
