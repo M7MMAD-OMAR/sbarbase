@@ -21,7 +21,7 @@ databases, not through a full restore or install. Read
 | Bun on PATH (for a system service, add its directory to the unit's `PATH`, e.g. `/home/sbarbase/.bun/bin`) | package manager, console build, gateway checks |
 | `/usr/bin/python3` 3.14 or newer | the lab runtime uses modern f-strings |
 | Git checkout of this repository | state and lock files live in the checkout by default |
-| Headroom: about 9 GiB free before install, and the preflight states the exact figure it needs and refuses below it | `CombinedAdmission` and `ResourceAdmission` measure the host; the requirement is the combined placement (5888 MiB of container limits) plus a 2560 MiB reserve, plus, on an installation that has been moved, the measured cost of the already-running source stage recorded in `docs/evidence/source-stage-footprint.json`. Measured on the development host: 8758 to 8810 MiB, refused with `host_memory_headroom` below it and green at 8900 MiB free. The preflight prints the composition, so a refusal names each term |
+| Headroom: on an empty server 4352 MiB available (1792 MiB for the database, Storage and management Auth containers plus a 2560 MiB reserve) and at least 2 CPU cores; more as environments are added. The preflight states the exact figure and refuses below it | The requirement is derived from the placement the next start runs: on an empty host the three system containers at their tier limits, afterwards every retained container at its own limits (each environment adds 512 MiB and 0.5 CPU of ceilings for its Auth and REST), plus the reserve, plus, on an installation that has been moved, the measured cost of the running source stage (`docs/evidence/source-stage-footprint.json`). CPU ceilings may add up to twice the cores after one core is kept for the host; the cgroup pressure gate refuses new work under real contention. The development host's retained split placement still needs 5888 MiB of limits plus the reserve. The preflight prints the composition, so a refusal names each term |
 | A service account that exists, holding the checkout | the unit runs as that account (`User=`), so `--apply` refuses an account that does not exist instead of installing a unit that cannot start. The shipped default is `sbarbase`; name the server's account with `--service-user`, `--home` and `--bun-dir` (also forwarded by `deploy/server-acceptance.sh`) |
 | Docker socket access for the service user | the supervisor starts and stops owned containers only. The unit reaches the socket its Docker context resolves to; a host whose context points elsewhere (a Docker Desktop socket, for example) must forward `DOCKER_HOST` in the unit, and the preflight names the endpoint it tried when the daemon is unreachable |
 
@@ -121,10 +121,12 @@ one rather than failing obscurely:
    `Docker daemon unreachable from this process (tried <endpoint>)`, and when the
    daemon is unreachable it no longer guesses about pinned images or the existing
    containers.
-3. **The host has the memory.** The combined runtime needs about 8.8 GiB free
-   (5888 MiB of container limits, a 2560 MiB reserve, plus the measured cost of a
-   running source stage); the gate refuses with `host_memory_headroom` rather than
-   half-starting.
+3. **The host has the memory.** The next start needs the limits of the
+   containers it runs plus a 2560 MiB reserve: 4352 MiB on an empty server, more
+   with each environment, 8.8 GiB for the development host's retained split
+   placement. The unit's `ExecStartPre`, the preflight and the runtime admission
+   derive the same figure, and the gate refuses with `host_memory_headroom`
+   rather than half-starting.
 4. **Write access stays inside the checkout.** `ReadWritePaths` names the
    installation root only. A `ReadWritePaths` entry for a directory that does not
    exist makes systemd fail the unit with `226/NAMESPACE` before it runs anything,
@@ -149,9 +151,9 @@ instead:
 /usr/bin/python3 lab/deployment_rehearsal.py --bootstrap-file /path/to/operator.json
 ```
 
-The install itself needs about 8.8 GiB of free memory for the combined runtime:
-the owned runtime refuses to start when the host cannot support the placement
-containers plus the reserve, and names the reason (`host_memory_headroom`) rather
+The install itself needs the placement's memory plus the reserve (4352 MiB on an
+empty server): the owned runtime refuses to start when the host cannot support the
+placement containers plus the reserve, and names the reason (`host_memory_headroom`) rather
 than half-starting. The installer releases the installation operation lock after
 the console build and before it starts the owned runtime, because the runtime
 takes that lock itself and holds it for its lifetime.
@@ -269,11 +271,21 @@ A reference termination ships with the repository and is exercised by the check
 (`/usr/bin/python3 lab/tls_termination_check.py`, 23 checks,
 `docs/evidence/tls-termination.json`). It needs only Bun and a certificate:
 
+Pin the console's loopback port first, so the proxy's upstream survives restarts
+and reboots. Without it the console picks a new ephemeral port at every start:
+
+```
+sudo mkdir -p /etc/systemd/system/sbarbase.service.d
+printf '[Service]\nEnvironment=SBARBASE_CONSOLE_PORT=8787\n' | sudo tee /etc/systemd/system/sbarbase.service.d/console-port.conf
+sudo systemctl daemon-reload && sudo systemctl restart sbarbase
+```
+
 ```
 bun deploy/console-tls-proxy.ts \
     --cert /etc/letsencrypt/live/console.example.com/fullchain.pem \
     --key  /etc/letsencrypt/live/console.example.com/privkey.pem \
     --public-host console.example.com \
+    --upstream http://127.0.0.1:8787 \
     --https-port 8443 --http-port 8080
 ```
 
@@ -335,9 +347,13 @@ The step by step versions are [backup and restore](backup-and-restore.md) and [u
 
 ## Known limits at this revision
 
-- No end-to-end install rehearsal has been run on a real server yet. The
+- No end-to-end install rehearsal has been run on a real server yet. An empty
+  server has been simulated in a local virtual machine (Fedora 44 Cloud, clean
+  clone, `lab/vm-rehearsal.sh`), which found and fixed four defects the
+  development host could not show; see
+  [deployment readiness](../reference/deployment-readiness.md). The
   documented command itself completed end to end on the development host at
-  19:25, 13 of 13, including the unit install as root and its restart
+  7:25 PM, 13 of 13, including the unit install as root and its restart
   (`docs/evidence/server-acceptance-latest.json`); what a server adds is root,
   the service account, a public certificate and the absence of a retained
   installation. The preflight, the runtime startup, adoption and verification are

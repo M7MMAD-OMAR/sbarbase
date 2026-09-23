@@ -20,7 +20,8 @@ Read these to understand the design. Each page has the same shape: what it is, w
 
 ## Guides: how to do something
 
-- [Quickstart](guides/quickstart.md): placeholder until the clean-host rehearsal is recorded.
+- [Quickstart](guides/quickstart.md): from an empty server to a supabase-js call, as rehearsed in a local VM.
+- [Choosing a server](guides/choosing-a-server.md): what to buy, and what the free options really give you.
 - [Local lab](guides/local-lab.md): run the stack on your own machine for evaluation.
 - [Operator setup](guides/operator-setup.md): create the first operator and client.
 - [Server deployment](guides/server-deployment.md): the server runbook and its known gaps.

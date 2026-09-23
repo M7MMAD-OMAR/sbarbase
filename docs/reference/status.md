@@ -2,7 +2,7 @@
 
 The single place for what works, what does not, and every number. Updated 2026-09-23. Current source release: [0.1.0](../../CHANGELOG.md) (2026-09-21), plus the unreleased container generation migration.
 
-Everything below was verified on one development workstation. **Nothing has been run on a real server yet**; a rehearsal on a clean virtual machine is in progress. Nothing here certifies production readiness or security, and no fixed number of projects per server is claimed.
+Everything below was verified on one development workstation, except the empty-server rehearsal, which ran in a local virtual machine. **Nothing has been run on a real server yet.** Nothing here certifies production readiness or security, and no fixed number of projects per server is claimed.
 
 ## Test suites, 2026-09-23
 
@@ -10,8 +10,8 @@ Run from the repository root on the development workstation. These suites do not
 
 | Suite | Command | Result |
 |---|---|---|
-| Python unit tests | `DOCKER_HOST=unix:///var/run/docker.sock /usr/bin/python3 -m unittest discover -s lab -p 'test_*.py'` | 606 tests, OK, none skipped |
-| Bun tests (root) | `bun test` | 88 pass, 0 fail, 549 assertions, 18 files (the 17 in `tests/` plus `website/tests/site.test.ts`) |
+| Python unit tests | `DOCKER_HOST=unix:///var/run/docker.sock /usr/bin/python3 -m unittest discover -s lab -p 'test_*.py'` | 625 tests, OK, none skipped |
+| Bun tests (root) | `bun test` | 93 pass, 0 fail, 562 assertions, 19 files (the 18 in `tests/` plus `website/tests/site.test.ts`) |
 | Website | `cd website && bun run build && bun test` | build OK; 2 pass, 0 fail, 40 assertions |
 | Console typecheck | `bun run typecheck:ui` | passes |
 
@@ -68,6 +68,19 @@ Live probes start real containers and write their results to [docs/evidence](../
 | SDK through the gateway to the moved environment | [cutover-sdk-checks.json](../evidence/cutover-sdk-checks.json) | 11 |
 | Unaffected neighbours restarted on the source | [cutover-neighbor-checks.json](../evidence/cutover-neighbor-checks.json) | 16 |
 
+### Empty server, simulated in a local VM
+
+A disposable Fedora 44 Cloud VM with 4 vCPU and 6 GiB, a clean clone, the one-command acceptance with `--install-unit --first-project`, then a reboot ([lab/vm-rehearsal.sh](../../lab/vm-rehearsal.sh)). Not a real server: no public network or certificate. The runs found ten defects the workstation could not show, all fixed with tests; they are listed in the summary record.
+
+| What | Evidence | Checks |
+|---|---|---|
+| Summary: VM, command, reboot, idle footprint, defects found | [vm-empty-server-rehearsal.json](../evidence/vm-empty-server-rehearsal.json) | recorded |
+| Install, supervised start, console, management realm, operator bootstrap, unit, clean stop | [vm-empty-server-acceptance.json](../evidence/vm-empty-server-acceptance.json) | 12 |
+| First project: login, project, environment provisioned in 10 s, key, supabase-js Auth sign-up, REST and Storage through the gateway, revocation refused with 401 | [vm-empty-server-first-project.json](../evidence/vm-empty-server-first-project.json) | 13 |
+| Reboot: the service and the environment came back without help | [vm-empty-server-rehearsal.json](../evidence/vm-empty-server-rehearsal.json) | passed |
+
+Idle with one environment, the containers used about 250 MiB and the supervisor about 130 MiB. The preflight still reserves container limits (2304 MiB for that placement) plus 2560 MiB for the host; see [choosing a server](../guides/choosing-a-server.md).
+
 ### Deployment path (workstation only)
 
 | What | Evidence | Checks |
@@ -83,11 +96,11 @@ The itemised server matrix is [deployment readiness](deployment-readiness.md).
 
 ## Resources
 
-The configured ceilings for the retained combined placement are 5888 MiB of container memory and 5.75 CPUs, admitted under a 6 GiB and 6 CPU cap plus a 2560 MiB host reserve. These are allocation limits, not measured demand or a hardware recommendation. Sustained mixed load has not been measured, so there is no validated maximum of 10 or 100 projects, and daily visitor counts alone cannot size a server.
+A start needs its containers' memory limits plus a 2560 MiB reserve: 1792 MiB of limits on an empty server and 512 MiB more per environment, and CPU ceilings of at most twice the cores after one core is kept for the host. At most four environments per installation are allowed by a lab guard for now. The configured ceilings for the workstation's retained combined placement are 5888 MiB of container memory and 5.75 CPUs, admitted under a 6 GiB and 6 CPU cap plus a 2560 MiB host reserve. These are allocation limits, not measured demand or a hardware recommendation. Sustained mixed load has not been measured, so there is no validated maximum of 10 or 100 projects, and daily visitor counts alone cannot size a server.
 
 ## What does not exist yet
 
-- A rehearsal on a real server (a clean-VM rehearsal is in progress).
+- A rehearsal on a real server. The empty-server install passed in a local VM only.
 - Per-environment Supabase Studio (specified in [the integration specification](../engineering/STUDIO-INTEGRATION.md), not served).
 - Realtime, Edge Functions, the connection pooler and cron.
 - Scheduled or off-host backups, point-in-time recovery, and a general per-environment export command.
@@ -99,4 +112,4 @@ The configured ceilings for the retained combined placement are 5888 MiB of cont
 
 ## Next step
 
-The attended generation migration of the retained database. Until it runs, the durable container-recreation probe stays disabled and the arrival-driven pressure and mixed SDK load measurements stay blocked.
+The real server: [milestone 1 of the roadmap](../engineering/plans/2026-09-23-roadmap.md). On the workstation, the attended generation migration of the retained database is still pending; until it runs, the durable container-recreation probe stays disabled and the arrival-driven pressure and mixed SDK load measurements stay blocked.

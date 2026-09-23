@@ -13,6 +13,19 @@ ready.
 
 ### Added
 
+- **Empty-server rehearsal in a local VM.** `lab/vm-rehearsal.sh` boots a
+  disposable Fedora 44 Cloud VM, installs from a clean clone with the one-command
+  acceptance, creates a first project and reboots. Passed on 4 vCPU and 6 GiB
+  (`docs/evidence/vm-empty-server-rehearsal.json`). Not a real server.
+- **First project check.** `lab/first-project-check.ts`, and `--first-project` on
+  `deploy/server-acceptance.sh`: login, project, environment, key, supabase-js
+  Auth, REST and Storage through the gateway, and a refused revoked key.
+- `SBARBASE_CONSOLE_PORT` pins the console's loopback port for a TLS proxy.
+- CI for the unit suites, with a manual empty-host acceptance job.
+- Documentation restructured into explain, guides, reference and decisions, with
+  hand-drawn diagrams, a quickstart, a server guide, `SECURITY.md`, a threat
+  model, `CONTRIBUTING.md` and a roadmap.
+
 - **Container generation migration.** `lab/migrate-generation.py` replaces a
   managed database container on the same data volume under an fsynced intent
   record, one checkpoint per phase and an explicit `--reconcile`. Five SIGKILL
@@ -23,6 +36,23 @@ ready.
   stay blocked.
 
 ### Fixed
+
+- Found by the empty-server rehearsal: the acceptance checked the console before
+  building it; block IO limits named a partition, which the kernel rejects, so the
+  database never started on a usual VPS disk layout; body-less POST and DELETE
+  requests got a body over the real listener, so key issuance and revocation
+  answered 400; image pulls ran under a 600 second timeout with no progress; a
+  failed first launch was reported as a retained source to adopt.
+
+### Changed
+
+- The start requirement is derived from the placement a start runs (1792 MiB of
+  limits on an empty server, plus 512 MiB per environment, plus the 2560 MiB
+  reserve), and the preflight, the unit's `ExecStartPre` and the runtime use one
+  computation. It was a fixed 5888 MiB in the preflight and 6 GiB in the runtime.
+- CPU limits are admitted as ceilings: up to twice the cores after one core for
+  the host. The old rule asked for 8 cores.
+- A new environment is refused when the next restart could not admit it.
 
 - The two load vehicles no longer overwrite their own evidence on failure or let
   cleanup replace the real error, and the SDK vehicle probes its fixture first.

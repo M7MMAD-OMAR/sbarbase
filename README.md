@@ -23,8 +23,10 @@ Not built yet: per-environment Supabase Studio (specified, not served), Realtime
 
 ## Try it
 
-A real-server install **has not been rehearsed yet**. The installer, preflight and systemd unit pass on the development workstation, and a rehearsal on a clean virtual machine is in progress. Until it is recorded, there is no quickstart that promises a working server install.
+An install from an empty server has passed in a local virtual machine (Fedora 44, 4 cores, 6 GB): one command installs the service, creates a first project and proves supabase-js works through it, and the service survives a reboot. It **has not been run on a real server yet**.
 
+- [Quickstart](docs/guides/quickstart.md): from an empty server to a supabase-js call, the steps the VM ran.
+- [Choosing a server](docs/guides/choosing-a-server.md): what to buy, what the free options really give you.
 - [Local lab](docs/guides/local-lab.md): run the stack on your own machine for evaluation. Read its safety notes first.
 - [Server deployment](docs/guides/server-deployment.md): the runbook as it stands, with its known gaps.
 - [Operator setup](docs/guides/operator-setup.md): create the first operator account and client.
@@ -41,7 +43,7 @@ A real-server install **has not been rehearsed yet**. The installer, preflight a
 
 ## Contributing
 
-Reproducible isolation, recovery and upgrade tests are the most useful contributions. Read [status](docs/reference/status.md) and the [engineering notes](docs/engineering/README.md) before making claims. Keep credentials, runtime data, private backups and local state out of contributions. A reported experiment is not production certification.
+Read [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow and the [roadmap](docs/engineering/plans/2026-09-23-roadmap.md) for what comes next. Reproducible isolation, recovery and upgrade tests are the most useful contributions. Read [status](docs/reference/status.md) and the [engineering notes](docs/engineering/README.md) before making claims. Keep credentials, runtime data, private backups and local state out of contributions. A reported experiment is not production certification.
 
 ## License
 

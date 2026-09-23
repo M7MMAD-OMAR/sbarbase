@@ -372,8 +372,13 @@ the ceiling. PROPOSED replacement, in one function
    can never disagree.
 5. Keep the rest of the shape: `memory > MAX_MEMORY or cpus > MAX_CPUS` refuses
    `installation_ceiling`; `available < memory + RESERVE` refuses
-   `host_memory_headroom`; `host_cpus < cpus + 2` refuses `host_cpu_headroom`
-   (`:16-22`).
+   `host_memory_headroom`; `host_cpu_headroom` is refused when
+   `cpus > (host_cpus - 1) * 2` or the host has fewer than 2 cores (`:16-22`).
+   Revised 2026-09-23: the original `host_cpus < cpus + 2` summed CPU ceilings
+   against physical cores as if they were memory and refused every 4 core
+   server for mostly idle Auth and REST ceilings. CPU is compressible, so one
+   core stays with the host and the ceilings may add up to twice the rest;
+   actual contention is the pressure gate's job. Memory stays strict.
 6. Add one refusal the current code cannot express: per-environment quota. For
    each `e`, `sum(Memory of e's containers) <= quota[e].memory` and
    `sum(NanoCpus of e's containers) <= quota[e].cpus`. Today nothing stops a

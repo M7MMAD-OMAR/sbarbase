@@ -1,0 +1,83 @@
+{
+ "scope": "Empty-server install simulated in a local virtual machine, not a real server. A disposable Fedora 44 Cloud Base VM (4 vCPU, 6 GiB, 60 GB virtio disk, user-mode network) booted from the stock image with a cloud-init seed; a clean clone of main; the one-command acceptance with --install-unit and --first-project; then a guest reboot. Not public networking, not a public certificate, not sustained load.",
+ "recorded": "2026-09-23",
+ "vm": {
+  "distro": "Fedora 44 Cloud Base 1.7",
+  "vcpus": 4,
+  "memory_mib": 6144,
+  "disk": "60 GB qcow2 overlay, root on /dev/vda3",
+  "python": "3.14.3",
+  "docker": "29.7.2",
+  "bun": "1.3.14",
+  "commit": "0aa0942"
+ },
+ "command": "sudo deploy/server-acceptance.sh --rehearse --install-unit --first-project --service-user sbarbase --home /home/sbarbase --bun-dir /home/sbarbase/.bun/bin --docker-host unix:///var/run/docker.sock --bootstrap-file /home/sbarbase/operator.json",
+ "results": {
+  "acceptance_rehearsal": {
+   "passed": true,
+   "checks": 12,
+   "evidence": "docs/evidence/vm-empty-server-acceptance.json"
+  },
+  "first_project": {
+   "passed": true,
+   "checks": 13,
+   "evidence": "docs/evidence/vm-empty-server-first-project.json",
+   "environment_provisioned_seconds": 10
+  },
+  "reboot": {
+   "passed": true,
+   "detail": "guest rebooted; sbarbase.service active and the console published its address on the first probe; the environment's Auth and REST were running again"
+  },
+  "footprint_idle_one_environment_mib": {
+   "db": 92,
+   "storage": 122,
+   "management_auth": 11,
+   "environment_auth": 10,
+   "environment_rest": 7,
+   "supervisor_processes_approx": 130
+  }
+ },
+ "defects_found_and_fixed": [
+  {
+   "defect": "acceptance ran the console serving check before anything was built (503 on every page, then a crash before evidence)",
+   "commit": "6851e01"
+  },
+  {
+   "defect": "block IO limits named the partition /dev/vda3; the kernel's io.max takes whole disks only, so the database container never started (Docker exit 125)",
+   "commit": "17df8e1"
+  },
+  {
+   "defect": "preflight required 8 cores (message said 7) by summing CPU ceilings against cores",
+   "commit": "a40f2cc"
+  },
+  {
+   "defect": "preflight required the full 5888 MiB split placement plus reserve on an empty host",
+   "commit": "5c8f91e"
+  },
+  {
+   "defect": "a failed first launch was reported as a retained source to adopt",
+   "commit": "5c8f91e"
+  },
+  {
+   "defect": "every body-less POST or DELETE got a body over the real listener, so key issuance and revocation answered 400",
+   "commit": "93f7a79"
+  },
+  {
+   "defect": "the console port was ephemeral at every start, which breaks a TLS proxy after a restart",
+   "commit": "4a1d4f0"
+  },
+  {
+   "defect": "the 1.7 GB image pull ran under a 600 s command timeout with no progress output",
+   "commit": "e853715"
+  },
+  {
+   "defect": "the runtime refused to start below a fixed 6 GiB even after the preflight admitted the host",
+   "commit": "0aa0942"
+  },
+  {
+   "defect": "an environment could pass its admission and leave the service unable to restart after a reboot",
+   "commit": "3a046ee"
+  }
+ ],
+ "earlier_run": "A first VM (8 vCPU, 10.5 GiB) found the first seven defects in order and passed 12 of 12 plus 13 of 13 once they were fixed; its evidence is superseded by this run."
+}

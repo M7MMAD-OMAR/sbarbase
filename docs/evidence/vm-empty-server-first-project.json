@@ -1,0 +1,81 @@
+{
+  "check": "first-project",
+  "recorded": "2026-09-23T02:04:58.602Z",
+  "passed": true,
+  "count": 13,
+  "seconds": 10,
+  "ids": {
+    "organization": "d00202a0-eeb1-415f-887c-6b1849b3c794",
+    "project": "3928588e-aed4-4491-a287-570c54b4b7bd",
+    "environment": "e4680041-797e-450a-967a-1b85c0150ed8",
+    "apiPath": "/e_b278b1a14c1a6ec13d262b32",
+    "keyId": "a6497430-d9b3-4fe7-a756-33c0590b48d4"
+  },
+  "checks": [
+    {
+      "check": "operator logs in through the management Auth realm",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "the operator sees the client created at install",
+      "ok": true,
+      "detail": "status 200"
+    },
+    {
+      "check": "a project is created",
+      "ok": true,
+      "detail": "status 201"
+    },
+    {
+      "check": "an environment is queued for provisioning",
+      "ok": true,
+      "detail": "status 202"
+    },
+    {
+      "check": "the worker provisions the environment",
+      "ok": true,
+      "detail": "state succeeded after 10 s"
+    },
+    {
+      "check": "connection details name the gateway path",
+      "ok": true,
+      "detail": "status 200"
+    },
+    {
+      "check": "a publishable key is issued once",
+      "ok": true,
+      "detail": "status 201"
+    },
+    {
+      "check": "Auth answers through the gateway",
+      "ok": true,
+      "detail": "status 200"
+    },
+    {
+      "check": "an application user can sign up with supabase-js",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "REST answers through the gateway",
+      "ok": true,
+      "detail": "status 200"
+    },
+    {
+      "check": "Storage answers through the gateway with supabase-js",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "the key is revoked",
+      "ok": true,
+      "detail": "status 200"
+    },
+    {
+      "check": "the gateway refuses the revoked key",
+      "ok": true,
+      "detail": "status 401"
+    }
+  ]
+}

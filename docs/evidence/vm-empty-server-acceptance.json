@@ -1,0 +1,128 @@
+{
+ "scope": "Deployment rehearsal: read-only preflight, installation (or an already installed host), supervisor startup, console and management reachability, recorded environment routes, the supervised unit when installed, supervised shutdown and absence of running owned containers. Not sustained load, not multi-host, not HTTPS termination.",
+ "command": "/usr/bin/python3 lab/deployment_rehearsal.py --attempts 3 --require-unit --evidence docs/evidence/server-acceptance-rehearsal.json --bootstrap-file <bootstrap-file>",
+ "host": {
+  "platform": "Linux-6.19.10-300.fc44.x86_64-x86_64-with-glibc2.43",
+  "kernel": "6.19.10-300.fc44.x86_64",
+  "machine": "x86_64",
+  "python": "3.14.3",
+  "docker": "29.7.2",
+  "bun": "1.3.14",
+  "systemd": "systemd 259 (259.5-1.fc44)",
+  "mem_available_mib": 5059,
+  "disk_free_mib": 57456
+ },
+ "pins": [
+  {
+   "component": "distro-image.lock.json:default",
+   "digest": "sha256:b3bfedb107413abb3b8cb0d0874b0414a1dceb3d55bc0c778de6ad22d1f7dc86",
+   "pull": "public.ecr.aws/supabase/postgres@sha256:b3bfedb107413abb3b8cb0d0874b0414a1dceb3d55bc0c778de6ad22d1f7dc86"
+  },
+  {
+   "component": "images.lock.json:db",
+   "digest": "sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73",
+   "pull": "postgres@sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73"
+  },
+  {
+   "component": "images.lock.json:auth",
+   "digest": "sha256:c0c25187a6b835e65a6f6e6c6b39d090e832d40e6de5186f2c038e0411944232",
+   "pull": "public.ecr.aws/supabase/gotrue@sha256:c0c25187a6b835e65a6f6e6c6b39d090e832d40e6de5186f2c038e0411944232"
+  },
+  {
+   "component": "images.lock.json:rest",
+   "digest": "sha256:2f8e7b656f09db697a8875177694b417b35cb76c21370de07fc54e711e902326",
+   "pull": "public.ecr.aws/supabase/postgrest@sha256:2f8e7b656f09db697a8875177694b417b35cb76c21370de07fc54e711e902326"
+  },
+  {
+   "component": "storage-image.lock.json:default",
+   "digest": "sha256:c24fb33cc2fa38d0f9582a30312907fc56da333fb9ba0646833186197e4982f3",
+   "pull": "public.ecr.aws/supabase/storage-api@sha256:c24fb33cc2fa38d0f9582a30312907fc56da333fb9ba0646833186197e4982f3"
+  }
+ ],
+ "unit": {
+  "installed": true,
+  "enabled": "enabled",
+  "active": "inactive",
+  "verify": "passed",
+  "verified_path": "/etc/systemd/system/sbarbase.service",
+  "verify_source": "installed"
+ },
+ "startup": {
+  "attempts_allowed": 3,
+  "attempts_used": 1,
+  "refusals": [],
+  "install_failed": null
+ },
+ "bootstrap_file_used": true,
+ "install_skipped": false,
+ "startup_attempts_allowed": 3,
+ "unit_required": true,
+ "supervisor_log": "/opt/sbarbase/.lab/upstream/rehearsal-supervisor.log",
+ "runtime_diagnostics": "/opt/sbarbase/.lab/upstream/diagnostics",
+ "started_at": "2026-09-23T02:04:14+00:00",
+ "finished_at": "2026-09-23T02:04:37+00:00",
+ "checks": [
+  {
+   "check": "host preflight passed",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "installation steps completed",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "built console page is intact",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "supervisor started and owns the console",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "console serves the built page",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "management identity realm reachable through the console",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "every recorded environment route answered",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "operator bootstrap checks passed against the live management Auth",
+   "ok": true,
+   "detail": "18 live operator bootstrap checks passed."
+  },
+  {
+   "check": "supervisor unit is enabled on this host",
+   "ok": true,
+   "detail": "enabled"
+  },
+  {
+   "check": "the unit systemd runs verifies",
+   "ok": true,
+   "detail": "/etc/systemd/system/sbarbase.service: passed"
+  },
+  {
+   "check": "supervisor shut down cleanly",
+   "ok": true,
+   "detail": "exit 0"
+  },
+  {
+   "check": "no owned container left running",
+   "ok": true,
+   "detail": ""
+  }
+ ],
+ "passed": true,
+ "count": 12
+}
