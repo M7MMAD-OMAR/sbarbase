@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import stat
 import uuid
+import effect_receipt
 import hba_authority as authority
 import hba_target
 
@@ -38,9 +39,7 @@ def publish(state,target,generation):
     fd=os.open(Path(state)/NAME,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
     with os.fdopen(fd,'w',encoding='utf-8') as output:
         output.write(text);output.flush();os.fsync(output.fileno())
-    fd=os.open(state,os.O_RDONLY|os.O_DIRECTORY)
-    try:os.fsync(fd)
-    finally:os.close(fd)
+    effect_receipt.sync_directory(state)
     return record
 
 

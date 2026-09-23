@@ -1,5 +1,6 @@
 """Owned, bounded local component lab. Never manages unrelated containers."""
 import argparse
+import effect_receipt
 import fcntl
 import re
 import json
@@ -40,6 +41,16 @@ def secure_file(path, content):
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, 'w') as f:
         f.write(content)
+
+
+def atomic(path, value):
+    """Replace path with JSON value: private pending file, fsync, rename, fsync the directory."""
+    pending = path.with_suffix('.pending')
+    secure_file(pending, json.dumps(value))
+    with pending.open('rb') as handle:
+        os.fsync(handle.fileno())
+    os.replace(pending, path)
+    effect_receipt.sync_directory(path.parent)
 
 
 def sql(query, database='postgres', check=True):

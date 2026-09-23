@@ -56,19 +56,6 @@ def validate(record):
     return record
 
 
-def _mounts(info):
-    result=[]
-    for mount in sorted(info.get('Mounts') or [],key=lambda item:item.get('Destination','')):
-        result.append({'type':mount.get('Type'),'name':mount.get('Name',''),'source':mount.get('Source',''),
-                       'destination':mount.get('Destination'),'mode':str(mount.get('Mode',''))})
-    # --tmpfs mounts appear only in HostConfig.Tmpfs.
-    seen={m['destination'] for m in result}
-    for destination,spec in sorted((info.get('HostConfig',{}) or {}).get('Tmpfs',{}).items()):
-        if destination in seen:continue
-        result.append({'type':'tmpfs','name':'','source':'','destination':destination,'mode':str(spec)})
-    return sorted(result,key=lambda m:m['destination'])
-
-
 def _volume(mounts):
     pgdata=next(m for m in mounts if m['destination']==PGDATA)
     return pgdata['name'] or pgdata['source']
@@ -76,7 +63,7 @@ def _volume(mounts):
 
 def require_mounts(intent,info):
     """The captured pgdata mount identity must still describe this container."""
-    mounts=_mounts(info)
+    mounts=hba_target.mounts(info)
     if mounts!=intent['mounts'] or _volume(mounts)!=intent['volume']:
         raise RuntimeError('Source mount identity changed since adoption capture')
     return mounts
@@ -123,11 +110,11 @@ def publish_intent(docker,state,*,name,owner,image):
     if info.get('State',{}).get('Running'):raise RuntimeError('Source container is not stopped')
     authority.exact(info.get('Id'),authority.HEX)
     target=hba_target.Target(info['Id'],name,owner,image)
-    mounts=_mounts(info)
+    mounts=hba_target.mounts(info)
     if not any(m['destination']==PGDATA for m in mounts):raise RuntimeError('Adoption pgdata mount missing')
     generation=str(uuid.uuid4())
     pin=Path(state)/hba_generation.NAME
-    if _present(pin):
+    if hba_startup.present(pin):
         existing=hba_generation.load(state)
         if existing['target']!=asdict(target):
             raise RuntimeError('Preexisting generation pin belongs to a different target container')
@@ -166,15 +153,8 @@ def _phase(state,phase):
     return Path(state)/CHECKPOINTS/(phase+'.json')
 
 
-def _present(path):
-    """Only a missing entry is absent; denied or unreadable state stays fatal."""
-    try:os.lstat(path)
-    except FileNotFoundError:return False
-    return True
-
-
 def _done(state,phase):
-    return _present(_phase(state,phase))
+    return hba_startup.present(_phase(state,phase))
 
 
 def read_checkpoint(state,phase):
@@ -199,7 +179,7 @@ def checkpoint(state,phase,payload):
     """Publish one immutable checkpoint; an existing phase is re-bound, never rewritten."""
     path=_phase(state,phase)
     record={'version':1,'phase':phase,**payload}
-    if _present(path):
+    if hba_startup.present(path):
         stored=read_checkpoint(state,phase)
         # A resumed phase may observe a different mode; identity must still match.
         if (authority.canonical({k:v for k,v in stored.items() if k!='mode'})
@@ -207,7 +187,7 @@ def checkpoint(state,phase,payload):
             raise RuntimeError('Conflicting adoption checkpoint')
         return stored
     parent=path.parent
-    if not _present(parent):
+    if not hba_startup.present(parent):
         os.mkdir(parent,0o700)
         effect_receipt.sync_directory(Path(state))
     metadata=os.lstat(parent)
@@ -260,7 +240,7 @@ def execute(docker,state,*,target):
     if intent['target']!=asdict(target):raise RuntimeError('Adoption intent targets a different database')
     pin_path=state/hba_generation.NAME
     pinned=None
-    if _present(pin_path):
+    if hba_startup.present(pin_path):
         pinned=hba_generation.load(state)
         if pinned['target']!=asdict(target) or pinned['generation']!=intent['generation']:
             raise RuntimeError('Preexisting generation pin conflicts with adoption intent')

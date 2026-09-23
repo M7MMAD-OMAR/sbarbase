@@ -13,20 +13,22 @@ import hba_generation
 NAMES=('worker.lock','effect.lock','operation.lock')
 
 
+def present(path):
+    """Only a missing entry is absent; a denied or unreadable path stays fatal."""
+    try:Path(path).lstat()
+    except FileNotFoundError:return False
+    return True
+
+
 def require_clear(state,migration=False):
-    # Only a missing entry is clear. Permission and lookup errors stay fatal.
     for name in ('worker-effect.json',journal.NAME):
-        try:(state/name).lstat()
-        except FileNotFoundError:continue
-        raise RuntimeError('Startup requires prior operation reconciliation')
+        if present(state/name):raise RuntimeError('Startup requires prior operation reconciliation')
     # A generation migration record, torn or whole, blocks every ordinary startup
     # and every repeated migration. Only the migration path may hold it.
-    try:(state/hba_generation.MIGRATION).lstat()
-    except FileNotFoundError:present=False
-    else:present=True
-    if migration and not present:
+    recorded=present(state/hba_generation.MIGRATION)
+    if migration and not recorded:
         raise RuntimeError('Generation migration ownership requires a migration record')
-    if not migration and present:
+    if not migration and recorded:
         raise RuntimeError('Generation migration requires reconciliation')
 
 

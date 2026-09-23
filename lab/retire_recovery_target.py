@@ -24,6 +24,7 @@ import subprocess
 import sys
 from pathlib import Path
 import durable_runtime as runtime
+import effect_receipt
 import hba_runtime
 
 LAB=Path(__file__).resolve().parent
@@ -74,9 +75,7 @@ def retire(record=STATE/'recovery-target.json',history=STATE/'recovery-target-hi
     operation.setdefault('retired_target_descriptors',[]).append({'prefix':prefix,'path':str(target),'status':status,'reason':reason or 'unspecified','at':stamp})
     write(journal,operation)
     record.unlink()
-    handle=os.open(STATE,os.O_RDONLY|os.O_DIRECTORY)
-    try:os.fsync(handle)
-    finally:os.close(handle)
+    effect_receipt.sync_directory(STATE)
     return {'retired':str(target),'prefix':prefix,'previous_status':status,'data_retained':True}
 
 

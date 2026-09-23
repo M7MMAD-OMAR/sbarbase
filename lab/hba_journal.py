@@ -9,6 +9,7 @@ import re
 import stat
 from pathlib import Path
 import atomic_hba
+import effect_receipt
 import hba_authority as authority
 
 
@@ -86,9 +87,7 @@ def publish(path,record):
     descriptor=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
     with os.fdopen(descriptor,'w',encoding='utf-8') as target:
         target.write(text);target.flush();os.fsync(target.fileno())
-    parent=os.open(Path(path).parent,os.O_RDONLY|os.O_DIRECTORY)
-    try:os.fsync(parent)
-    finally:os.close(parent)
+    effect_receipt.sync_directory(Path(path).parent)
 
 
 def begin(docker,path,snapshot,prepared,token,operation):

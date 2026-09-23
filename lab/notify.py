@@ -569,7 +569,7 @@ def load_config(path):
     if config.get('schema') != 1:
         raise ConfigurationError('Unknown notification configuration schema')
     channels = []
-    secret = None
+    webhook_secret = None
     if config.get('email', {}).get('enabled'):
         mail = config['email']
         for field in ('host', 'port', 'from', 'to', 'tls'):
@@ -594,8 +594,6 @@ def load_config(path):
             raise ConfigurationError('Invalid notification webhook secret')
         webhook_secret = secret['webhookSecret']
         channels.append('webhook')
-    else:
-        webhook_secret = None
     if not channels:
         raise ConfigurationError('No notification channel is enabled')
     return config, channels, webhook_secret
@@ -603,10 +601,14 @@ def load_config(path):
 
 # ---------------------------------------------------------------- the drain step
 
+def empty_outcome():
+    return {'claimed': 0, 'delivered': 0, 'deferred': 0, 'failed': 0, 'refused': 0,
+            'escalated': 0, 'pruned': 0, 'errors': []}
+
+
 def drain(database, config, channels, secret, limit=20, lease_ms=LEASE_MS, prune_limit=500):
     """One bounded drain step: claim, render, gate, send, settle, escalate, age out."""
-    outcome = {'claimed': 0, 'delivered': 0, 'deferred': 0, 'failed': 0, 'refused': 0,
-               'escalated': 0, 'pruned': 0, 'errors': []}
+    outcome = empty_outcome()
     for item in claim(database, limit, lease_ms):
         outcome['claimed'] += 1
         channel = item['channel']
@@ -757,8 +759,7 @@ def main(argv=None):
             # stay pending and visible meanwhile. Anything else is a real defect and surfaces.
             if 'locked' not in str(error) and 'busy' not in str(error):
                 raise
-            result = {'claimed': 0, 'delivered': 0, 'deferred': 0, 'failed': 0, 'refused': 0,
-                      'escalated': 0, 'pruned': 0, 'errors': [], 'catalog': 'busy'}
+            result = {**empty_outcome(), 'catalog': 'busy'}
         steps += 1
         if args.json and (args.once or result['claimed']):
             print(json.dumps({'step': steps, 'channels': list(channels), **result}, sort_keys=True),

@@ -47,3 +47,17 @@ def require(docker,target,snapshot,prepared):
         raise RuntimeError('HBA intent targets a different database container')
     actual=observed(docker,target.container_id,target.name,target.owner,target.image)
     if actual!=target.container_id:raise RuntimeError('Captured database identity changed')
+
+
+def mounts(info):
+    """The mount identity of one inspected container, sorted by destination."""
+    result=[]
+    for mount in sorted(info.get('Mounts') or [],key=lambda item:item.get('Destination','')):
+        result.append({'type':mount.get('Type'),'name':mount.get('Name',''),'source':mount.get('Source',''),
+                       'destination':mount.get('Destination'),'mode':str(mount.get('Mode',''))})
+    # --tmpfs mounts appear only in HostConfig.Tmpfs.
+    seen={m['destination'] for m in result}
+    for destination,spec in sorted((info.get('HostConfig',{}) or {}).get('Tmpfs',{}).items()):
+        if destination in seen:continue
+        result.append({'type':'tmpfs','name':'','source':'','destination':destination,'mode':str(spec)})
+    return sorted(result,key=lambda m:m['destination'])

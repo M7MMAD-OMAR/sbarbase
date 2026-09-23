@@ -26,16 +26,7 @@ def provision(environment):
         if len(values['environments']) >= 5:
             raise RuntimeError('Lab admission limit reached')
         values['environments'][environment] = {k: secrets.token_hex(32) for k in ('auth', 'rest', 'jwt')}
-        temp = path.with_suffix('.pending')
-        lab.secure_file(temp, json.dumps(values))
-        with temp.open('rb') as handle:
-            os.fsync(handle.fileno())
-        os.replace(temp, path)
-        directory = os.open(path.parent, os.O_DIRECTORY)
-        try:
-            os.fsync(directory)
-        finally:
-            os.close(directory)
+        lab.atomic(path, values)
     v = values['environments'][environment]
     lab.provision_environment(environment, v)
     hba = ['local all all trust', 'host all postgres 0.0.0.0/0 reject']

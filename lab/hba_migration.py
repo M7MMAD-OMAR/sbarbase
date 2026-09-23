@@ -68,8 +68,6 @@ PHASES=('old-captured','retired-archived','new-captured','generation-minted',
 INTENT_FIELDS={'version','migration','generation','old','volume','inventory','retired_state'}
 RETIRED_STATES=('stopped-will-not-return','absent-verified')
 PLAN_FIELDS={'name','owner','image','tier','memory','cpus','network','env_file','command'}
-IO_FLAGS=({'name':'--device-read-bps','key':'DeviceReadBps'},{'name':'--device-write-bps','key':'DeviceWriteBps'},
-          {'name':'--device-read-iops','key':'DeviceReadIOps'},{'name':'--device-write-iops','key':'DeviceWriteIOps'})
 
 
 def record_directory(state):
@@ -93,15 +91,8 @@ def archive_directory(state,migration):
     return _private_directory(parent/migration,parent,'Generation migration archive')
 
 
-def _present(path):
-    """Only a missing entry is absent; a denied or unreadable path stays fatal."""
-    try:os.lstat(path)
-    except FileNotFoundError:return False
-    return True
-
-
 def present(state):
-    return _present(record_directory(state))
+    return hba_startup.present(record_directory(state))
 
 
 def require_absent(state):
@@ -180,7 +171,7 @@ def _publish_exclusive(path,record,label):
 
 
 def _private_directory(path,parent,label):
-    if not _present(path):
+    if not hba_startup.present(path):
         os.mkdir(path,0o700)
         effect_receipt.sync_directory(parent)
     metadata=path.lstat()
@@ -221,7 +212,7 @@ def checkpoint(state,phase,payload):
     """Publish one immutable checkpoint; an existing phase is re-bound, never rewritten."""
     path=_checkpoint_path(state,phase)
     record=validate_checkpoint({'version':1,'phase':phase,**payload})
-    if _present(path):
+    if hba_startup.present(path):
         stored=read_checkpoint(state,phase)
         if authority.canonical(stored)!=authority.canonical(record):
             raise RuntimeError('Conflicting generation migration checkpoint')
@@ -240,7 +231,7 @@ def read_checkpoint(state,phase):
 
 
 def done(state,phase):
-    return _present(_checkpoint_path(state,phase))
+    return hba_startup.present(_checkpoint_path(state,phase))
 
 
 def _bind(intent,base):
@@ -262,34 +253,12 @@ def _retired_directory(state,intent):
     return archive_directory(state,intent['migration'])
 
 
-def _mounts(info):
-    result=[]
-    for mount in sorted(info.get('Mounts') or [],key=lambda item:item.get('Destination','')):
-        result.append({'type':mount.get('Type'),'name':mount.get('Name',''),'source':mount.get('Source',''),
-                       'destination':mount.get('Destination'),'mode':str(mount.get('Mode',''))})
-    seen={m['destination'] for m in result}
-    for destination,spec in sorted((info.get('HostConfig',{}) or {}).get('Tmpfs',{}).items()):
-        if destination in seen:continue
-        result.append({'type':'tmpfs','name':'','source':'','destination':destination,'mode':str(spec)})
-    return sorted(result,key=lambda m:m['destination'])
-
-
 def _volume(mounts):
     entry=next((m for m in mounts if m['destination']==PGDATA),None)
     if entry is None:raise RuntimeError('pgdata mount missing')
     name=entry['name'] or entry['source']
     if not name:raise RuntimeError('pgdata volume identity unavailable')
     return name
-
-
-def io_placement(info):
-    """The per-device block IO limits Docker recorded for one container."""
-    host=info.get('HostConfig',{}) or {}
-    result={}
-    for item in IO_FLAGS:
-        entries=host.get(item['key']) or []
-        result[item['name']]=sorted((entry.get('Path'),str(entry.get('Rate'))) for entry in entries)
-    return result
 
 
 def verify_absent(docker,intent):
@@ -324,7 +293,7 @@ def retired_identity(docker,intent):
 def _copy_retired(docker,state,intent,source,destination,label):
     """Read one file out of the stopped retired container; a failure is fatal."""
     result=docker('cp',intent['old']['container_id']+':'+source,destination,check=False)
-    if result.returncode or not _present(destination):
+    if result.returncode or not hba_startup.present(destination):
         raise RuntimeError('Retired '+label+' unavailable')
     return destination
 
@@ -373,7 +342,7 @@ def capture_retired(docker,state,intent):
         if stopped.returncode:raise RuntimeError('Retired container could not be stopped')
         info=retired_identity(docker,intent)
         if info.get('State',{}).get('Running'):raise RuntimeError('Retired container is still running')
-    mounts=_mounts(info)
+    mounts=hba_target.mounts(info)
     volume=_volume(mounts)
     if volume!=intent['volume']:
         raise RuntimeError('Retired pgdata volume differs from the recorded volume')
@@ -426,7 +395,7 @@ def create_replacement(docker,state,intent,replacement):
             or info.get('Config',{}).get('Labels',{}).get('io.sbarbase.owner')!=replacement['owner']
             or info.get('Config',{}).get('Labels',{}).get('io.sbarbase.tier')!=flags['label']):
         raise RuntimeError('Replacement container identity changed')
-    mounts=_mounts(info)
+    mounts=hba_target.mounts(info)
     if _volume(mounts)!=intent['volume']:
         raise RuntimeError('Replacement pgdata volume differs from the recorded volume')
     return identifier,mounts
@@ -458,7 +427,7 @@ def initialize_generation(docker,state,intent,minted,new_target):
     generation=minted['generation']
     pin=Path(state)/hba_generation.NAME
     archived=_retired_directory(state,intent)/hba_generation.NAME
-    if _present(pin):
+    if hba_startup.present(pin):
         existing=hba_generation.load(state)
         if not (existing['target']==asdict(new_target) and existing['generation']==generation):
             if existing['target']!=intent['old'] or existing['generation']!=intent['generation']:
@@ -466,9 +435,9 @@ def initialize_generation(docker,state,intent,minted,new_target):
             os.replace(pin,archived)
             effect_receipt.sync_directory(archived.parent)
             effect_receipt.sync_directory(pin.parent)
-    elif not _present(archived):
+    elif not hba_startup.present(archived):
         raise RuntimeError('Retired generation pin is missing')
-    if not _present(pin):
+    if not hba_startup.present(pin):
         saved=hba_generation.validate(_decode_envelope(_read_private(archived,'Retired generation pin'),'Retired generation pin'))
         if saved['generation']!=intent['generation'] or saved['target']!=intent['old']:
             raise RuntimeError('Retired generation pin archive changed')
@@ -501,7 +470,7 @@ def compare_rules(docker,state,intent,captured,minted,desired):
     observed=docker('exec',minted['container_id'],'cat',HBA_PATH).stdout
     if not observed.endswith('\n'):raise RuntimeError('Observed HBA rules are not complete text')
     retired_file=_retired_directory(state,intent)/'retired-pg_hba.conf'
-    retired=retired_file.read_text() if _present(retired_file) else None
+    retired=retired_file.read_text() if hba_startup.present(retired_file) else None
     observed_rules=rules_of(observed)
     retired_rules=rules_of(retired) if retired is not None else None
     same_rules=retired_rules is not None and authority.digest(retired_rules)==authority.digest(observed_rules)
@@ -610,7 +579,7 @@ def migrate(docker,state,*,target,replacement,desired,volume,retired_state='stop
 def pinned(state):
     """The established pin: the retired generation and its last observed container."""
     path=Path(state)/hba_generation.NAME
-    if not _present(path):
+    if not hba_startup.present(path):
         raise RuntimeError('Generation migration requires an established generation pin')
     return hba_generation.load(state)
 
@@ -620,8 +589,3 @@ def require_pin(state,target):
     if record['target']!=asdict(target):
         raise RuntimeError('Generation migration requires the pin of this exact retired container')
     return record
-
-
-def mount_identity(info):
-    """The captured mount identity of one inspected container, for evidence."""
-    return _mounts(info)

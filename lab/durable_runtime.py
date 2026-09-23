@@ -24,6 +24,14 @@ import source_fence
 import mail_config
 import mail_state
 
+MAIL_KEY_PREFIXES = ('GOTRUE_SMTP_', 'GOTRUE_MAILER_', 'GOTRUE_RATE_LIMIT_')
+
+
+def is_mail_key(key):
+    """An Auth setting that belongs to the mail configuration."""
+    return key.startswith(MAIL_KEY_PREFIXES)
+
+
 def hba_content(environments):
     """The desired rule inventory for one set of environment identifiers.
 
@@ -52,17 +60,7 @@ STATE = lab.STATE / 'upstream'
 PRIVATE = lab.PRIVATE / 'upstream'
 
 
-def atomic(path, value):
-    pending = path.with_suffix('.pending')
-    lab.secure_file(pending, json.dumps(value))
-    with pending.open('rb') as handle:
-        os.fsync(handle.fileno())
-    os.replace(pending, path)
-    directory = os.open(path.parent, os.O_DIRECTORY)
-    try:
-        os.fsync(directory)
-    finally:
-        os.close(directory)
+atomic = lab.atomic
 
 
 def inspect(kind, name):
@@ -144,9 +142,7 @@ class Runtime:
             # Auth container restarted with its live SMTP credentials and rate
             # limits, and mail would keep flowing from a configuration that no
             # longer exists (reconcile_mail names the same hazard for its own path).
-            marked = lambda key: (key.startswith('GOTRUE_SMTP_') or key.startswith('GOTRUE_MAILER_')
-                                  or key.startswith('GOTRUE_RATE_LIMIT_'))
-            stale = [key for key in configured if marked(key) and key not in env]
+            stale = [key for key in configured if is_mail_key(key) and key not in env]
             if actual['Image'] != expected or any(configured.get(k) != v for k, v in env.items()) or stale:
                 raise RuntimeError('Runtime drift requires explicit reconciliation')
             mounts = {(m.get('Name'), m['Destination']) for m in actual['Mounts']}
@@ -375,9 +371,9 @@ class Runtime:
 
         Auth reads its SMTP configuration at process start, so a mail change is a
         container recreate and never a live patch. The comparison below runs in
-        both directions on purpose: `launch` compares the desired keys only, so a
-        key dropped from the desired dict would keep a stale SMTP value inside a
-        reused container, and dropping every key is exactly what `off` does.
+        both directions on purpose, as `launch` does for a reused container: a
+        key dropped from the desired dict would otherwise keep a stale SMTP value
+        inside it, and dropping every key is exactly what `off` does.
         The environment database holds all Auth state, so the container process
         loses nothing.
         """
@@ -398,10 +394,8 @@ class Runtime:
             raise RuntimeError('Reconcile requires the retained Auth container')
         mail = None if off else mail_config.load(e)
         desired = lab.auth_configuration(e, self.values['environments'][e], DB, mail)
-        marked = lambda key: (key.startswith('GOTRUE_SMTP_') or key.startswith('GOTRUE_MAILER_')
-                              or key.startswith('GOTRUE_RATE_LIMIT_'))
         configured = dict(entry.split('=', 1) for entry in actual['Config'].get('Env', []) if '=' in entry)
-        if {k: v for k, v in configured.items() if marked(k)} == {k: v for k, v in desired.items() if marked(k)}:
+        if {k: v for k, v in configured.items() if is_mail_key(k)} == {k: v for k, v in desired.items() if is_mail_key(k)}:
             # The recorded state is the four state vocabulary the configuration
             # defines, so an unchanged reconcile records that the configuration is
             # applied. That nothing had to be recreated is a run outcome, and it is
