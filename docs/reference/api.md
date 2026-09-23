@@ -39,7 +39,7 @@ All routes need `Authorization: Bearer <management access token>`. The actor com
 | POST | `/management/v1/environments/{id}/keys` | owner, admin | No body. `201` with a new publishable key, shown once |
 | DELETE | `/management/v1/environments/{id}/keys/{keyId}` | owner, admin | `200 {revoked: true}`, or `404` if not an active key of this environment |
 | GET | `/management/v1/environments/{id}/mail` | member | Non-secret mail state of the environment; no credential field |
-| GET | `/management/v1/notifications` | owner or admin of any client | Undelivered count and recent operator events |
+| GET | `/management/v1/notifications` | owner or admin of any client | Undelivered count and recent operator events of the caller's own clients only. Events that belong to no client (installation start, worker restarts) go to owners and admins of the client created at bootstrap |
 
 Request bodies accept only `name`, at most 4 KiB, read within five seconds. Key and connection routes refuse any body. Responses are not cacheable. There are no routes for creating clients, managing members or transferring projects; those are internal operations.
 

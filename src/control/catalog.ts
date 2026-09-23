@@ -536,6 +536,17 @@ export class Catalog {
       const active=this.db.query<{n:number},[string]>("SELECT count(*) n FROM provision_jobs j JOIN environments e ON e.id=j.environment WHERE e.project=? AND j.state='running'").get(project);
       if(active?.n) throw new Error('Provisioning is active');
       this.db.query('UPDATE projects SET organization=? WHERE id=?').run(destination,project);
+      // A queued job carries the requester's authority in the source organization, so the
+      // move cancels it here, visibly, instead of leaving the claim to find the mismatch. Every
+      // job of the project then names the destination, so later events reach the new owners.
+      const queued=this.db.query<{environment:string},[string]>(
+        "SELECT j.environment environment FROM provision_jobs j JOIN environments e ON e.id=j.environment WHERE e.project=? AND j.state='queued'").all(project);
+      for(const job of queued) {
+        this.db.query("UPDATE provision_jobs SET state='cancelled',claim=NULL WHERE environment=?").run(job.environment);
+        this.record('system','provision.cancelled',job.environment,{reason:'project_transferred'});
+      }
+      this.db.query('UPDATE provision_jobs SET organization=? WHERE environment IN (SELECT id FROM environments WHERE project=?)')
+        .run(destination,project);
       this.record(actor,'project.ownership_changed',project,{from:source.organization,to:destination});
       this.notify('project.ownership_changed','critical','project.ownership_changed|'+project,
         {organization:source.organization,project},actor,'ownership_changed',
@@ -660,15 +671,39 @@ export class Catalog {
       return rows.length;
     }).immediate();
   }
-  /** Read-only delivery state. Already safe fields only: no recipient, no rendered body. */
-  listNotifications(limit=50) {
+  /** Read-only delivery state. Already safe fields only: no recipient, no rendered body.
+   * With an actor, only the events that actor may see: an event belongs to its organization,
+   * or, when a producer recorded only a runtime or an environment, to the organization that
+   * owns it now. Owners and admins of that organization see it. An event that belongs to no
+   * organization (installation start, worker restarts) is shown to owners and admins of the
+   * organization created at installation bootstrap, or of any organization while no
+   * bootstrap is recorded (a lab catalog). Without an actor: every event, for trusted callers. */
+  listNotifications(limit=50,actor?:string) {
     if(!Number.isInteger(limit)||limit<1||limit>500)throw new Error('Invalid notification limit');
-    return this.db.query<NotificationSummary,[number]>(`SELECT o.id id,o.kind kind,o.severity severity,o.at at,
+    const columns=`o.id id,o.kind kind,o.severity severity,o.at at,
       o.last_at last_at,o.occurrences occurrences,o.reason reason,o.window_until window_until,
       o.organization organization,o.project project,o.environment environment,o.runtime runtime,
       d.channel channel,d.state state,d.attempts attempts,d.last_error last_error
-      FROM notification_outbox o JOIN notification_delivery d ON d.event=o.id
-      ORDER BY o.at DESC,d.channel LIMIT ?`).all(limit);
+      FROM notification_outbox o JOIN notification_delivery d ON d.event=o.id`;
+    if(actor===undefined)
+      return this.db.query<NotificationSummary,[number]>(`SELECT ${columns}
+        ORDER BY o.at DESC,d.channel LIMIT ?`).all(limit);
+    this.actor(actor);
+    return this.db.query<NotificationSummary,[string,string,number]>(`WITH scoped AS (SELECT ${columns.replace(
+      'FROM notification_outbox',`,COALESCE(o.organization,
+        (SELECT p.organization FROM provision_jobs j JOIN environments e ON e.id=j.environment
+          JOIN projects p ON p.id=e.project WHERE j.runtime=o.runtime),
+        (SELECT p.organization FROM environments e JOIN projects p ON p.id=e.project WHERE e.id=o.environment),
+        (SELECT p.organization FROM projects p WHERE p.id=o.project)) scope
+      FROM notification_outbox`)}),
+      mine AS (SELECT organization FROM memberships WHERE actor=? AND role IN ('owner','admin'))
+      SELECT id,kind,severity,at,last_at,occurrences,reason,window_until,organization,project,environment,runtime,
+        channel,state,attempts,last_error FROM scoped
+      WHERE scope IN (SELECT organization FROM mine)
+        OR (scope IS NULL AND (
+          (SELECT organization FROM installation_bootstrap WHERE singleton=1) IN (SELECT organization FROM mine)
+          OR (NOT EXISTS (SELECT 1 FROM installation_bootstrap) AND EXISTS (SELECT 1 FROM memberships WHERE actor=? AND role IN ('owner','admin')))))
+      ORDER BY at DESC,channel LIMIT ?`).all(actor,actor,limit);
   }
   close(){this.db.close();}
 }

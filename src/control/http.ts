@@ -46,8 +46,8 @@ function mailEntry(entries:Record<string,unknown>,runtime:string) {
 /** Both halves of the notification state come from one existing catalog read, so no second
  * query touches these rows. An event counts as undelivered while any of its channels has
  * not reached delivered. The rows carry no recipient and no detail payload. */
-function notificationState(catalog:Catalog) {
-  const events=catalog.listNotifications(NOTIFICATION_EVENT_LIMIT);
+function notificationState(catalog:Catalog,actor:string) {
+  const events=catalog.listNotifications(NOTIFICATION_EVENT_LIMIT,actor);
   const undelivered=new Set(events.filter(event=>event.state!=='delivered').map(event=>event.id)).size;
   return {undelivered,events};
 }
@@ -95,11 +95,11 @@ export function managementHandler(catalog:Catalog,identify:ManagementIdentity,ma
       const actor=await authenticate(identify,request);
       if(actor instanceof Response)return actor;
       try {
-        // Installation wide read, so the roles come from the memberships the catalog already
-        // holds: an actor who is an owner or admin of any organization may see it.
+        // Owners and admins only; the catalog then returns just the events of their own
+        // organizations, so one client never reads another client's ids or failure reasons.
         if(!catalog.listOrganizations(actor).some(membership=>NOTIFICATION_ROLES.includes(membership.role)))
           return reply(403,{message:'Forbidden'});
-        return reply(200,{data:notificationState(catalog)});
+        return reply(200,{data:notificationState(catalog,actor)});
       } catch {return reply(500,{message:'Management operation failed'});}
     }
     const mail=path.match(/^\/management\/v1\/environments\/([a-f0-9-]{36})\/mail$/);
