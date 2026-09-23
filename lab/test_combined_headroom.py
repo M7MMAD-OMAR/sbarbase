@@ -109,3 +109,27 @@ class DerivedPlacementTests(unittest.TestCase):
         source=(Path(install_server.__file__).parent/'durable_runtime.py').read_text()
         self.assertIn("resource_policy.start_placement(len(self.values['environments']))",source)
         self.assertNotIn('6*1024*1024',source)
+
+
+class RestartHeadroomTests(unittest.TestCase):
+    """A new environment must not leave the service unable to start after a reboot."""
+
+    def test_a_small_server_admits_what_it_can_restart(self):
+        import resource_policy
+        mib=1024**2
+        # 6 GB guest: about 4800 MiB available while three system containers use 200 MiB.
+        placement,cpus=resource_policy.start_placement(1)
+        self.assertTrue(resource_policy.restart_fits(placement,cpus,4800*mib,200*mib,4))
+        placement,cpus=resource_policy.start_placement(2)
+        self.assertFalse(resource_policy.restart_fits(placement,cpus,4800*mib,200*mib,4))
+
+    def test_cpu_ceilings_are_checked_by_the_same_rule(self):
+        import resource_policy
+        mib=1024**2
+        placement,cpus=resource_policy.start_placement(1)
+        self.assertFalse(resource_policy.restart_fits(placement,cpus,64*1024*mib,0,2))
+        self.assertTrue(resource_policy.restart_fits(placement,cpus,64*1024*mib,0,3))
+
+    def test_the_provisioning_path_refuses_on_restart_headroom(self):
+        source=(Path(install_server.__file__).parent/'durable_runtime.py').read_text()
+        self.assertIn("raise AdmissionLimitError('Restart headroom unavailable')",source)

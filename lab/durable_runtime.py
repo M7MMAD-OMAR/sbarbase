@@ -59,6 +59,25 @@ def hba_content(environments):
     return '\n'.join(lines)+'\n'
 
 
+def available_memory_bytes():
+    return int(next(x.split()[1] for x in lab.Path('/proc/meminfo').read_text().splitlines() if x.startswith('MemAvailable:')))*1024
+
+
+def owned_usage_bytes():
+    """Memory the running owned containers use now, from the daemon."""
+    names = lab.docker('ps', '--filter', 'label=io.sbarbase.owner='+OWNER, '--format', '{{.Names}}').stdout.split()
+    if not names:
+        return 0
+    units = {'B': 1, 'KiB': 1024, 'MiB': 1024**2, 'GiB': 1024**3}
+    total = 0
+    for line in lab.docker('stats', '--no-stream', '--format', '{{.MemUsage}}', *names).stdout.splitlines():
+        match = re.match(r'([\d.]+)(B|KiB|MiB|GiB) /', line.strip())
+        if not match:
+            raise RuntimeError('Container memory usage unreadable')
+        total += int(float(match.group(1))*units[match.group(2)])
+    return total
+
+
 class AdmissionLimitError(RuntimeError):
     pass
 
@@ -323,10 +342,17 @@ class Runtime:
                 raise AdmissionLimitError('Local runtime admission limit reached')
             try:
                 reason = resource_admission.refusal(resource_admission.snapshot())
+                placement, cpus = resource_policy.start_placement(len(self.values['environments']) + int(new_environment))
+                restart = resource_policy.restart_fits(placement, cpus, available_memory_bytes(), owned_usage_bytes(), os.cpu_count() or 0)
             except Exception:
                 raise RuntimeError('Resource measurement unavailable') from None
             if reason:
                 raise AdmissionLimitError('Resource headroom unavailable')
+            # An environment that fits while the placement runs, but whose limits
+            # the next start cannot admit, would leave the service unable to come
+            # back after a reboot. Refuse it now instead.
+            if not restart:
+                raise AdmissionLimitError('Restart headroom unavailable')
             if pressure_admission.refusal(pressure_admission.snapshot()):
                 raise AdmissionLimitError('Runtime pressure exceeds admission threshold')
             limits = self.sql("SELECT current_setting('max_connections'), current_setting('superuser_reserved_connections'), current_setting('reserved_connections');").stdout.strip().split('|')

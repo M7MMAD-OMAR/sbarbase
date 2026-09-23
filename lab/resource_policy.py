@@ -121,6 +121,19 @@ def start_placement(environments):
     return sum(memory_mib(row.memory) for row in rows), round(sum(row.cpus for row in rows), 2)
 
 
+def restart_fits(placement_mib, cpus, available_bytes, in_use_bytes, host_cpus):
+    """True when a start of this placement would pass the start checks.
+
+    A start is checked while the placement is stopped, so the memory it will see
+    is roughly what is available now plus what the running containers use. The
+    CPU rule is the one the combined admission and the preflight apply.
+    """
+    from combined_admission import cpu_headroom_refused
+    if available_bytes + in_use_bytes < (placement_mib + START_RESERVE_MIB) * 1024**2:
+        return False
+    return not cpu_headroom_refused(cpus, host_cpus)
+
+
 def known_label(value):
     """True when a container's io.sbarbase.tier label names a class in the table."""
     return value in CLASSES
