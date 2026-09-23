@@ -31,7 +31,6 @@ PRIVATE=ROOT/'.secrets'/'upstream'
 PLANNED_MIB=5888
 RESERVE_MIB=2560
 PLANNED_CPUS=5.75
-CPU_SPARE=2
 MIN_FREE_BYTES=12*1024**3
 LOCKS=('distro-image.lock.json','images.lock.json','storage-image.lock.json')
 
@@ -140,8 +139,9 @@ def capacity():
     needed,composition=headroom_requirement(moved,measured)
     if memory/1024<needed:
         findings.append(('blocker',f'Host headroom insufficient: {memory//1024} MiB available, plan needs {needed} MiB ({composition})'))
-    if cpus<PLANNED_CPUS+CPU_SPARE:
-        findings.append(('blocker',f'CPU count insufficient: {cpus} available, plan needs {int(PLANNED_CPUS)+CPU_SPARE}'))
+    from combined_admission import cpu_headroom_refused,cores_needed,CPU_OVERCOMMIT,HOST_CPU_RESERVE
+    if cpu_headroom_refused(PLANNED_CPUS,cpus):
+        findings.append(('blocker',f'CPU count insufficient: {cpus} available, plan needs {cores_needed(PLANNED_CPUS)} ({PLANNED_CPUS} CPUs of container ceilings at {CPU_OVERCOMMIT}x overcommit + {HOST_CPU_RESERVE} core kept for the host)'))
     usage=shutil.disk_usage('/')
     if usage.free<MIN_FREE_BYTES:
         findings.append(('blocker',f'Disk free {usage.free//1024**3} GiB below the {MIN_FREE_BYTES//1024**3} GiB minimum'))

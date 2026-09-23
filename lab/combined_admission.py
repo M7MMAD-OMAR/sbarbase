@@ -35,6 +35,26 @@ MIB=1024**2
 MAX_MEMORY=6*1024**3
 MAX_CPUS=6
 RESERVE=2*1024**3+512*MIB
+# CPU limits are ceilings, not reservations: an idle Auth or REST process uses
+# almost none of its quarter CPU, and a busy one is slowed, not killed, when the
+# host is contended. Summing them against physical cores as if they were memory
+# refused every 4 core server for a placement whose containers are mostly idle.
+# So one core stays with the host, the ceilings may add up to twice the rest,
+# and actual contention is caught by the cgroup pressure gate below, which
+# refuses new work when CPU pressure is high whatever the ceilings say.
+HOST_CPU_RESERVE=1
+CPU_OVERCOMMIT=2
+MIN_HOST_CPUS=2
+
+
+def cpu_headroom_refused(cpus,host_cpus):
+    """True when the summed CPU ceilings do not fit the host under the overcommit rule."""
+    return host_cpus<MIN_HOST_CPUS or cpus>(host_cpus-HOST_CPU_RESERVE)*CPU_OVERCOMMIT
+
+
+def cores_needed(cpus):
+    """The smallest core count cpu_headroom_refused admits for these ceilings."""
+    return max(MIN_HOST_CPUS,math.ceil(cpus/CPU_OVERCOMMIT)+HOST_CPU_RESERVE)
 
 # HostConfig fields that must be a positive integer on every counted container.
 FINITE_LIMITS=('Memory','MemorySwap','NanoCpus','CpuShares','BlkioWeight','PidsLimit')
@@ -45,7 +65,7 @@ def refusal(memory,cpus,available,host_cpus):
     if memory<=0 or cpus<=0:return 'unbounded_limits'
     if memory>MAX_MEMORY or cpus>MAX_CPUS:return 'installation_ceiling'
     if available<memory+RESERVE:return 'host_memory_headroom'
-    if host_cpus<cpus+2:return 'host_cpu_headroom'
+    if cpu_headroom_refused(cpus,host_cpus):return 'host_cpu_headroom'
     return None
 
 
