@@ -78,6 +78,15 @@ Live probes start real containers and write their results to [docs/evidence](../
 
 The dump, restore, object copy and verification phases do not exist yet; see [the migration plan](../engineering/plans/2026-09-23-verification-and-migration-plan.md).
 
+### Install with Docker, and daily backups (CI, clean runner)
+
+On a clean GitHub runner with only Docker, CI runs the Docker install on every change ([install with Docker](../guides/docker.md)). Not a real server: no public network, certificate or host reboot.
+
+| What | Evidence | Checks |
+|---|---|---|
+| Build and start, first operator, first project through supabase-js, container restart, clean stop | [docker-install-checks.json](../evidence/docker-install-checks.json) | 15 |
+| Back up one environment while it serves, change rows, users and files, restore, compare with the backup, discard the set-aside state | [docker-backup-restore.json](../evidence/docker-backup-restore.json) | 15 |
+
 ### Empty server, simulated in a local VM
 
 A disposable Fedora 44 Cloud VM with 4 vCPU and 6 GiB, a clean clone, the one-command acceptance with `--install-unit --first-project`, then a reboot ([lab/vm-rehearsal.sh](../../lab/vm-rehearsal.sh)). Not a real server: no public network or certificate. The runs found ten defects the workstation could not show, all fixed with tests; they are listed in the summary record.
@@ -113,7 +122,7 @@ A start needs its containers' memory limits plus a 2560 MiB reserve: 1792 MiB of
 - A rehearsal on a real server. The empty-server install passed in a local VM only.
 - Per-environment Supabase Studio (specified in [the integration specification](../engineering/STUDIO-INTEGRATION.md), not served).
 - Realtime, Edge Functions, the connection pooler and cron.
-- Scheduled or off-host backups, point-in-time recovery, and a general per-environment export command.
+- Automatic copies of the daily backups to another machine (copy them yourself, as the backup guide shows), and point-in-time recovery.
 - Importing a project from Supabase Cloud or a self-hosted stack beyond the read-only inspection.
 - Automatic recovery of later-stage provisioning failures; they block until an operator reconciles them.
 - Adoption of any upstream release through the update policy; automatic upgrades.

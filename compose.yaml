@@ -1,0 +1,30 @@
+# Sbarbase on any Linux host that has Docker. From the checkout:
+#
+#   docker compose up -d --build
+#   docker compose exec sbarbase python3 lab/bootstrap.py
+#
+# The control plane runs in this container and starts the pinned Supabase
+# services as sibling containers through the host's Docker daemon. The checkout
+# is mounted at the same path as on the host, and the host network is used, so
+# paths and loopback addresses mean the same thing inside and outside.
+# See docs/guides/docker.md.
+services:
+  sbarbase:
+    build: .
+    image: sbarbase:local
+    init: true
+    network_mode: host
+    restart: unless-stopped
+    # The supervisor stops every owned service before it exits.
+    stop_grace_period: 3m
+    working_dir: ${SBARBASE_ROOT:-${PWD}}
+    environment:
+      SBARBASE_ROOT: ${SBARBASE_ROOT:-${PWD}}
+      SBARBASE_CONSOLE_PORT: ${SBARBASE_CONSOLE_PORT:-8790}
+      SBARBASE_BACKUP_HOUR: ${SBARBASE_BACKUP_HOUR:-3}
+      SBARBASE_BACKUP_KEEP: ${SBARBASE_BACKUP_KEEP:-7}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Read only: the disk behind Docker's data is where block IO limits apply.
+      - /var/lib/docker:/var/lib/docker:ro
+      - ${SBARBASE_ROOT:-${PWD}}:${SBARBASE_ROOT:-${PWD}}

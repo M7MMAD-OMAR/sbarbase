@@ -15,6 +15,10 @@ ready.
 
 ### Added
 
+- **Install with Docker.** `docker compose up -d --build` on any Linux host with
+  Docker: the image carries Python 3.14, Bun and the Docker CLI, and starts the
+  pinned Supabase services as sibling containers. CI runs build, first operator,
+  first project through supabase-js, restart and a clean stop on a clean machine.
 - **Empty-server rehearsal in a local VM.** `lab/vm-rehearsal.sh` boots a
   disposable Fedora 44 Cloud VM, installs from a clean clone with the one-command
   acceptance, creates a first project and reboots. Passed on 4 vCPU and 6 GiB

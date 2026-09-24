@@ -24,7 +24,19 @@
 
 ## التثبيت
 
-على خادم Fedora فارغ (خطّط لأربع أنوية و8 GB). كل خطوة مشروحة في [البداية السريعة](docs/guides/quickstart.ar.md).
+على أي خادم Linux عليه Docker، ثلاثة أوامر ([التثبيت عبر Docker](docs/guides/docker.ar.md)):
+
+</div>
+
+```bash
+git clone https://github.com/M7MMAD-OMAR/sbarbase /opt/sbarbase && cd /opt/sbarbase
+docker compose up -d --build
+docker compose exec sbarbase python3 lab/bootstrap.py
+```
+
+<div dir="rtl">
+
+من دون Docker Compose، على خادم Fedora فارغ (خطّط لأربع أنوية و8 GB). كل خطوة مشروحة في [البداية السريعة](docs/guides/quickstart.ar.md).
 
 </div>
 

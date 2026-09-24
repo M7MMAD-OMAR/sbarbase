@@ -48,6 +48,61 @@ jobs:
           DOCKER_HOST: unix:///nonexistent/docker.sock
         run: /usr/bin/python3 -m unittest discover -s lab -p 'test_*.py'
 
+  docker-install:
+    # The Docker path from a clean runner: build, start, first operator, first
+    # project through supabase-js, restart, and a clean stop. The host needs
+    # nothing but Docker; Python, Bun and the Docker CLI come from the image.
+    needs: checks
+    runs-on: ubuntu-26.04
+    timeout-minutes: 45
+    env:
+      SBARBASE_CONSOLE_PORT: '8790'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and start
+        run: docker compose up -d --build
+      - name: Wait for the console
+        run: |
+          for i in $(seq 1 180); do
+            curl -fsS -o /dev/null http://127.0.0.1:8790/ && exit 0
+            restarts=$(docker inspect -f '{{.RestartCount}}' "$(docker compose ps -aq sbarbase)")
+            [ "$restarts" = 0 ] || { echo "the control plane restarted $restarts time(s)"; docker compose logs --tail 120; exit 1; }
+            sleep 5
+          done
+          docker compose logs --tail 80; exit 1
+      - name: First operator (generated, never printed)
+        run: |
+          mkdir -p .secrets
+          python3 -c 'import json,secrets;print(json.dumps({"email":"operator@example.com","password":secrets.token_urlsafe(24),"organization":"Docker rehearsal"}))' \
+            | docker compose exec -T sbarbase python3 lab/operator_file.py --stdin "$PWD/.secrets/operator.json"
+          docker compose exec -T sbarbase sh -c 'python3 lab/bootstrap.py --stdin < .secrets/operator.json'
+      - name: First project through supabase-js
+        run: docker compose exec -T sbarbase bun lab/first-project-check.ts "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-first-project.json"
+      - name: Back up, change, restore, compare
+        run: docker compose exec -T sbarbase python3 lab/backup-check.py --evidence "$PWD/docs/evidence/docker-backup-restore.json"
+      - name: Restart and come back
+        run: |
+          docker compose restart
+          for i in $(seq 1 120); do curl -fsS -o /dev/null http://127.0.0.1:8790/ && break; sleep 5; done
+          docker compose exec -T sbarbase python3 lab/install_server.py smoke
+      - name: Clean stop
+        run: |
+          docker compose down
+          test -z "$(docker ps -q --filter label=io.sbarbase.owner)"
+      - name: Logs on failure
+        if: failure()
+        # A throwaway runner: its generated credentials exist only for this run.
+        run: |
+          docker compose logs --tail 200 || true
+          sudo sh -c 'for f in .lab/upstream/diagnostics/*.log; do echo "== $f"; tail -n 40 "$f"; done' || true
+      - name: Keep the evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-install-evidence
+          path: docs/evidence/docker-*.json
+          retention-days: 30
+
   empty-host-acceptance:
     if: github.event_name == 'workflow_dispatch' && inputs.acceptance
     needs: checks

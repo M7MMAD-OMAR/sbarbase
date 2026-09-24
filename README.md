@@ -22,7 +22,15 @@ Sbarbase is an open source, self-hosted layer that runs the original Supabase se
 
 ## Install
 
-On an empty Fedora server (plan on 4 cores and 8 GB). Each step is explained in the [quickstart](docs/guides/quickstart.md).
+On any Linux server with Docker, three commands ([Install with Docker](docs/guides/docker.md)):
+
+```bash
+git clone https://github.com/M7MMAD-OMAR/sbarbase /opt/sbarbase && cd /opt/sbarbase
+docker compose up -d --build
+docker compose exec sbarbase python3 lab/bootstrap.py
+```
+
+Without Docker Compose, on an empty Fedora server (plan on 4 cores and 8 GB). Each step is explained in the [quickstart](docs/guides/quickstart.md).
 
 ```bash
 sudo dnf install -y moby-engine git python3-cryptography && sudo systemctl enable --now docker

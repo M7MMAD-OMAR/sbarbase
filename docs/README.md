@@ -24,6 +24,7 @@ Read these to understand the design. Each page has the same shape: what it is, w
 
 ## Guides: how to do something
 
+- [Install with Docker](guides/docker.md): the shortest path, on any Linux host with Docker.
 - [Quickstart](guides/quickstart.md): from an empty server to a supabase-js call, as rehearsed in a local VM.
 - [Choosing a server](guides/choosing-a-server.md): what to buy, and what the free options really give you.
 - [Local lab](guides/local-lab.md): run the stack on your own machine for evaluation.
