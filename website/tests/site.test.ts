@@ -61,6 +61,9 @@ for(const lang of ['ar','en'] as const){
   expect(html).not.toMatch(/<link rel="(stylesheet|preload|icon)"[^>]+href="(https?:)?\/\//);
   expect(html).not.toMatch(/<(video|source|img)[^>]+(src|poster)="(https?:)?\/\//);
   expect(html).toContain('<video id="explainer" src="/media/explainer.mp4" poster="/media/explainer-poster.jpg" muted playsinline controls preload="metadata"');
+  // captions in both languages, the page's own language on by default, and every media file shipped
+  expect(html).toContain(`<track kind="captions" src="/media/explainer.${lang}.vtt" srclang="${lang}" label="${lang==='ar'?'العربية':'English'}" default>`);
+  for(const f of ['explainer.mp4','explainer-poster.jpg','explainer.ar.vtt','explainer.en.vtt'])expect(()=>readFileSync(new URL(`../public/media/${f}`,import.meta.url))).not.toThrow();
  });
 }
 

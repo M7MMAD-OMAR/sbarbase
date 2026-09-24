@@ -30,7 +30,7 @@ A clean technical page in four parts: a hero (headline, one sentence, a single "
 - `src/app.js`: day and night toggle (remembered per reader), the explainer video playing while on screen (never under reduced motion, never after the reader pauses it), the 12 second request walkthrough (play, pause, seek, five steps), and a copy button per install step.
 - `src/style.css`: tokens for both themes, the diagram ink and card colours, and all motion behind `prefers-reduced-motion: no-preference`.
 - `public/assets`: self-hosted fonts and their licences. The UI uses Noto Sans Arabic and Manrope; `hand.woff2` is Marhey (SIL OFL 1.1, `OFL-Marhey.txt`), used only for text inside the diagrams.
-- `public/media`: `explainer.mp4` and `explainer-poster.jpg`, served same origin. The page references them by these paths; the build does not require them.
+- `public/media`: the explainer film (`explainer.mp4`, 41.5 s, 1920x1080, no sound), its poster and captions (`explainer.ar.vtt`, `explainer.en.vtt`). The film is drawn in code: its source is `film/sbarbase-explainer.html` at the repository root, rendered with `bun render.mjs sbarbase-explainer.html` there.
 
 Everything is readable without JavaScript. The walkthrough is an illustration, not live traffic; it pauses offscreen and in hidden tabs.
 

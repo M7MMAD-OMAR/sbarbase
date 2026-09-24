@@ -173,7 +173,7 @@ export function render(lang:Lang){
 <link rel="alternate" hreflang="ar" href="https://base.sbarah.com/">
 <link rel="alternate" hreflang="en" href="https://base.sbarah.com/en/">
 <link rel="alternate" hreflang="x-default" href="https://base.sbarah.com/">
-<meta property="og:type" content="website"><meta property="og:title" content="${esc(c.title)}"><meta property="og:description" content="${esc(c.description)}"><meta property="og:image" content="https://base.sbarah.com/assets/social.png"><meta property="og:url" content="${url}"><meta property="og:locale" content="${lang==='ar'?'ar':'en_US'}"><meta name="twitter:card" content="summary_large_image">
+<meta property="og:type" content="website"><meta property="og:title" content="${esc(c.title)}"><meta property="og:description" content="${esc(c.description)}"><meta property="og:image" content="https://base.sbarah.com/assets/social.jpg"><meta property="og:url" content="${url}"><meta property="og:locale" content="${lang==='ar'?'ar':'en_US'}"><meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
 <link rel="preload" href="/assets/${lang==='ar'?'arabic':'latin'}.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/style.css">
@@ -201,7 +201,7 @@ ${defs}
 <div class="actions"><a class="button primary" href="#install">${icon('down')}${c.ctaInstall}</a><a class="button" href="${links.docs}" rel="noopener noreferrer">${icon('book')}${c.ctaDocs}</a></div>
 </div>
 <figure class="video">
-<div class="video-frame"><video id="explainer" src="/media/explainer.mp4" poster="/media/explainer-poster.jpg" muted playsinline controls preload="metadata" aria-label="${esc(c.videoLabel)}"></video></div>
+<div class="video-frame"><video id="explainer" src="/media/explainer.mp4" poster="/media/explainer-poster.jpg" muted playsinline controls preload="metadata" aria-label="${esc(c.videoLabel)}"><track kind="captions" src="/media/explainer.ar.vtt" srclang="ar" label="العربية"${lang==='ar'?' default':''}><track kind="captions" src="/media/explainer.en.vtt" srclang="en" label="English"${lang==='en'?' default':''}></video></div>
 <figcaption>${esc(c.videoCaption)}</figcaption>
 </figure>
 </div></section>
