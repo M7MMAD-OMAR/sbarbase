@@ -26,7 +26,11 @@ type Options = {
   maxBody: number;
 };
 
-const MAX_BODY_DEFAULT = 1024 * 1024;
+// Bodies up to this size are read whole before they are forwarded.
+const BUFFERED = 1024 * 1024;
+// The largest upload Sbarbase accepts (SBARBASE_UPLOAD_LIMIT_MB, 50 by default), plus a MiB for
+// the multipart framing around the file.
+const MAX_BODY_DEFAULT = (Number(process.env.SBARBASE_UPLOAD_LIMIT_MB || 50) + 1) * 1024 * 1024;
 // Hop-by-hop headers, plus the framing headers a re-framed body must not carry,
 // plus the client-supplied forwarding headers the proxy itself sets.
 const STRIP_HEADERS = new Set(['host', 'connection', 'upgrade', 'keep-alive', 'te', 'trailer', 'transfer-encoding', 'content-length',
@@ -70,33 +74,57 @@ function parseArguments(argv: string[]): Options {
 /** Read at most `limit` bytes and refuse as soon as the stream passes it.
  *
  * A Content-Length pre-check alone would let a chunked body buffer in full before
- * the refusal; this stops reading at the cap and cancels the rest.
+ * the refusal; this stops reading at the cap and cancels the rest. The first MiB is
+ * read whole, as every API call is small; a larger body (a file upload) is passed on
+ * as it arrives, still failing once it passes the cap, so it is never held in memory.
  */
-async function readBoundedBody(request: Request, limit: number): Promise<{body: ArrayBuffer | undefined; tooLarge: boolean}> {
-  if (['GET', 'HEAD'].includes(request.method)) return {body: undefined, tooLarge: false};
-  if (!request.body) return {body: new ArrayBuffer(0), tooLarge: false};
+async function readBoundedBody(request: Request, limit: number):
+    Promise<{body: ArrayBuffer | ReadableStream<Uint8Array> | undefined; tooLarge: boolean; exceeded: () => boolean}> {
+  let exceeded = false;
+  const result = (body: ArrayBuffer | ReadableStream<Uint8Array> | undefined, tooLarge = false) => ({body, tooLarge, exceeded: () => exceeded});
+  if (['GET', 'HEAD'].includes(request.method)) return result(undefined);
+  if (!request.body) return result(new ArrayBuffer(0));
   const reader = request.body.getReader();
   const chunks: Uint8Array[] = [];
   let size = 0;
-  try {
-    for (;;) {
-      const {done, value} = await reader.read();
-      if (done) break;
-      if (!value) continue;
-      size += value.byteLength;
-      if (size > limit) return {body: undefined, tooLarge: true};
-      chunks.push(value);
+  for (;;) {
+    const {done, value} = await reader.read();
+    if (done) break;
+    if (!value) continue;
+    size += value.byteLength;
+    if (size > limit) {
+      void reader.cancel().catch(() => {});
+      return result(undefined, true);
     }
-  } finally {
-    reader.releaseLock();
+    chunks.push(value);
+    if (size > BUFFERED) {
+      // A file upload: send what arrived, then the rest as it comes.
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) { for (const chunk of chunks) controller.enqueue(chunk); },
+        async pull(controller) {
+          const next = await reader.read();
+          if (next.done) return controller.close();
+          size += next.value.byteLength;
+          if (size > limit) {
+            exceeded = true;
+            void reader.cancel().catch(() => {});
+            return controller.error(new Error('Request body too large'));
+          }
+          controller.enqueue(next.value);
+        },
+        cancel(reason) { return reader.cancel(reason).catch(() => {}); },
+      });
+      return result(stream);
+    }
   }
+  reader.releaseLock();
   const buffer = new Uint8Array(size);
   let offset = 0;
   for (const chunk of chunks) {
     buffer.set(chunk, offset);
     offset += chunk.byteLength;
   }
-  return {body: buffer.buffer, tooLarge: false};
+  return result(buffer.buffer);
 }
 
 
@@ -157,12 +185,49 @@ const upstream = await resolveUpstream(options.upstream);
 // Whatever the source, the upstream must be loopback: the console is never exposed.
 assertLoopbackUpstream(upstream);
 
-const secure = Bun.serve({
+// An environment's Realtime socket. The console listener checks the key and the environment;
+// this proxy only carries the socket across TLS.
+const REALTIME_SOCKET = /^\/[a-z][a-z0-9_]{1,30}\/realtime\/v1\/websocket$/;
+type Bridge = {target: string; upstream?: WebSocket; queue: (string | Uint8Array<ArrayBuffer>)[]};
+const closeCode = (code: number) => (code === 1000 || (code >= 3000 && code <= 4999) ? code : 1011);
+
+const secure = Bun.serve<Bridge>({
   port: options.httpsPort,
   hostname: '127.0.0.1',
   tls: {cert: Bun.file(options.cert), key: Bun.file(options.key)},
-  async fetch(request) {
+  websocket: {
+    open(socket) {
+      const upstreamSocket = new WebSocket(socket.data.target);
+      upstreamSocket.binaryType = 'arraybuffer';
+      socket.data.upstream = upstreamSocket;
+      upstreamSocket.onopen = () => {
+        for (const message of socket.data.queue) upstreamSocket.send(message);
+        socket.data.queue = [];
+      };
+      upstreamSocket.onmessage = event => socket.send(typeof event.data === 'string' ? event.data : new Uint8Array(event.data));
+      upstreamSocket.onclose = event => socket.close(closeCode(event.code), event.reason);
+      upstreamSocket.onerror = () => socket.close(1011, 'Upstream unavailable');
+    },
+    message(socket, message) {
+      const upstreamSocket = socket.data.upstream;
+      if (upstreamSocket?.readyState === WebSocket.OPEN) upstreamSocket.send(message);
+      else if (socket.data.queue.length < 64) socket.data.queue.push(typeof message === 'string' ? message : new Uint8Array(message));
+      else socket.close(1013, 'Upstream not ready');
+    },
+    close(socket) {
+      socket.data.upstream?.close();
+    },
+  },
+  async fetch(request, server) {
     const url = new URL(request.url);
+    if (request.headers.get('upgrade')?.toLowerCase() === 'websocket' && REALTIME_SOCKET.test(url.pathname)) {
+      const target = upstream.replace(/^http:/, 'ws:') + url.pathname + url.search;
+      if (server.upgrade(request, {data: {target, queue: []}})) {
+        console.log('WEBSOCKET ' + url.pathname);
+        return undefined;
+      }
+      return new Response('WebSocket upgrade failed', {status: 400});
+    }
     const headers = securityHeaders(request, options.publicHost);
     const tooLarge = () => {
       console.log(request.method + ' ' + url.pathname + ' 413');
@@ -171,8 +236,10 @@ const secure = Bun.serve({
     const declared = Number(request.headers.get('content-length') ?? '0');
     if (!['GET', 'HEAD'].includes(request.method) && declared > options.maxBody) return tooLarge();
     let response: Response;
+    let exceeded: (() => boolean) | undefined;
     try {
       const read = await readBoundedBody(request, options.maxBody);
+      exceeded = read.exceeded;
       if (read.tooLarge) return tooLarge();
       const body = read.body;
       const target = new URL(upstream + url.pathname + url.search);
@@ -187,13 +254,15 @@ const secure = Bun.serve({
         },
         body,
         redirect: 'manual',
-      });
+        ...(body instanceof ReadableStream ? {duplex: 'half'} : {}),
+      } as RequestInit);
       const output = new Headers(forwarded.headers);
       // The body is re-framed, so the upstream's framing headers go too.
       for (const name of ['content-length', 'transfer-encoding']) output.delete(name);
       for (const [name, value] of Object.entries(headers)) output.set(name, value);
       response = new Response(forwarded.body, {status: forwarded.status, headers: output});
     } catch (error) {
+      if (exceeded?.()) return tooLarge();
       response = new Response('Upstream unavailable', {status: 502, headers});
     }
     console.log(request.method + ' ' + url.pathname + ' ' + String(response.status));

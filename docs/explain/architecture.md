@@ -47,7 +47,7 @@ flowchart TB
   W -->|"pinned containers"| DB
 ```
 
-**Request path.** An app calls `/<environment>/rest/v1/...` with its publishable key. The gateway reads the environment's routing record (is it in maintenance? where does it live?), verifies the key against stored hashes, admits the request if the environment has fewer than its concurrent limit in flight, caps the body at 1 MiB and forwards it to that environment's own PostgREST. Storage requests go to the one shared Storage process with a trusted tenant header naming the environment. Public and signed Storage downloads are the only requests allowed without an API key.
+**Request path.** An app calls `/<environment>/rest/v1/...` with its publishable key. The gateway reads the environment's routing record (is it in maintenance? where does it live?), verifies the key against stored hashes, admits the request if the environment has fewer than its concurrent limit in flight, caps the body at 1 MiB (a Storage file upload streams through up to the upload limit, 50 MiB by default) and forwards it to that environment's own PostgREST. Storage requests go to the one shared Storage process with a trusted tenant header naming the environment. Public and signed Storage downloads are the only requests allowed without an API key.
 
 **Management path.** Operators log in against a dedicated management Auth realm that is never an application environment's Auth. The control API derives the actor from that login, never from the request body, and applies owner, admin and viewer roles.
 
@@ -67,8 +67,8 @@ Code: [src/control/application.ts](../../src/control/application.ts) (routing be
 ## Limits
 
 - Admission is per gateway process, with no queue: an overloaded environment gets `429` and a busy server `503`. Several gateway processes do not share counts.
-- Uploads are buffered up to 1 MiB; large and resumable uploads, browser CORS and OAuth providers are not finished.
-- Realtime, Edge Functions, the pooler, cron and per-environment Studio are not part of the running architecture yet.
+- Uploads stream through up to the upload limit (50 MiB by default); resumable (TUS) uploads are not routed.
+- Realtime and Edge Functions run one container per environment that turns them on; Studio runs per environment on demand. The pooler and cron are not part of the running architecture yet.
 - All processes share one local catalog; there is no multi-server coordination.
 
 ## Go deeper

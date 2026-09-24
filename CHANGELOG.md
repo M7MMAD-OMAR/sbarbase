@@ -15,6 +15,35 @@ ready.
 
 ### Added
 
+- **Edge Functions per environment.** Deploy a Supabase project's
+  `supabase/functions` folder with one command (`lab/functions-deploy.ts`),
+  `_shared` and `verify_jwt` in `config.toml` included, or write a function in
+  the console. Each environment that deploys one gets its own pinned upstream
+  edge-runtime; functions are called through the gateway with
+  `supabase.functions.invoke()`, get `SUPABASE_URL` and the anon and service
+  role keys for their own environment, read secrets set in the console, reach
+  the internet for `npm:` imports, and can take keyless webhooks when
+  `verify_jwt` is off.
+- **Uploads up to 50 MiB, or the limit you set.** File uploads to Storage are
+  passed through the gateway and the TLS proxy as they arrive instead of being
+  capped at 1 MiB. `SBARBASE_UPLOAD_LIMIT_MB` (50 by default, as on Supabase)
+  sets the limit for the gateway, the proxy and Storage together; a change
+  applies at the next start by recreating the shared Storage container. Other
+  API bodies stay at 1 MiB.
+- **Logs and metrics per environment.** Every member sees the last hour of
+  requests through the gateway on the environment's page: totals, client and
+  server errors, median and 95th percentile response times, requests per minute
+  and per service, and the memory and processor use of its own services. Owners
+  and admins also read the last requests and the Auth, REST, Storage and
+  Realtime logs, with keys, tokens and passwords redacted before a line leaves
+  the server. Counts live in memory and start again after a restart.
+- **Realtime per environment.** Owners and admins turn Realtime on for an
+  environment from the console; it runs the pinned upstream Realtime for that
+  environment alone, with its own login, and stops when turned off. supabase-js
+  broadcast, presence and database changes (every `public` table, filtered by
+  row level security) work through the gateway, which checks the key before any
+  socket reaches Realtime. The login holds administrator rights only while
+  Realtime creates its own schema, first start and after an upgrade.
 - **Sign-in settings and OAuth providers per environment.** Owners and admins
   set the site URL, allowed redirect addresses, sign-up and anonymous sign-in,
   and any of 19 providers (Google, GitHub, Apple and others) from the console.

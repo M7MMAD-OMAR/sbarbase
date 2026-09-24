@@ -9,12 +9,24 @@ import {KeyStore} from '../src/control/keys';
 import {application} from '../src/control/application';
 import {readJsonCached} from '../src/http/cached-json';
 import {studioKey,studioProxy,studioUpstream} from '../src/control/studio';
+import {realtimeUpgrade} from '../src/gateway/realtime';
+import {RequestLog} from '../src/gateway/observe';
+import {routeWithPlacement} from '../src/gateway/managed';
+import type {EnvironmentRoute} from '../src/gateway/handler';
 
 export const managementPublishableKey='sb_publishable_sbarbase_local_management';
-export function internalToken(secret:string,role:string) {
+export function internalToken(secret:string,role:string,claims:Record<string,unknown>={}) {
  const encode=(value:unknown)=>Buffer.from(JSON.stringify(value)).toString('base64url');
- const message=encode({alg:'HS256',typ:'JWT'})+'.'+encode({role,iss:'sbarbase-internal'});
+ const message=encode({alg:'HS256',typ:'JWT'})+'.'+encode({role,iss:'sbarbase-internal',...claims});
  return message+'.'+createHmac('sha256',secret).update(message).digest('base64url');
+}
+/** Realtime refuses a token without an expiry. Like Supabase's own anon key it lasts ten years,
+ * and it is minted once per process from the environment's JWT secret. */
+const realtimeTokens=new Map<string,string>();
+export function realtimeToken(secret:string) {
+ let token=realtimeTokens.get(secret);
+ if(!token){const now=Math.floor(Date.now()/1000);token=internalToken(secret,'anon',{iat:now,exp:now+10*365*24*3600});realtimeTokens.set(secret,token);}
+ return token;
 }
 /** Studio sessions the runtime recorded (lab/studio.py): addresses of running Studios, and
  * the network gateway address the internal Studio route listens on. */
@@ -52,15 +64,35 @@ export function openUpstreamApplication() {
  const management=load('.lab/upstream/management.json');
  const catalog=new Catalog('.lab/upstream/control.sqlite');
  const keys=new KeyStore('.secrets/upstream/managed-keys.sqlite');
- const handler=application(catalog,keys,{auth:management.auth,publishableKey:managementPublishableKey,
-  anonymousToken:internalToken(secrets.management.jwt,'anon')},runtime=>{
+ const resolve=(runtime:string):EnvironmentRoute|undefined=>{
   // Refresh private configuration and endpoints after provisioning or restart: the cache
   // rereads either file as soon as it changes.
   const endpoints=readJsonCached('.lab/upstream/endpoints.json') as Record<string,any>;
   const current=readJsonCached('.secrets/upstream/runtime.json') as {environments:Record<string,any>};
   if(!endpoints[runtime]||!current.environments[runtime])return undefined;
-  return {...endpoints[runtime],keys:[],anonymousToken:internalToken(current.environments[runtime].jwt,'anon'),enabled:true};
-  },fetch,studioSessionKey,invitationAccounts(management.auth,internalToken(secrets.management.jwt,'service_role')));
+  const secret=current.environments[runtime].jwt;
+  return {...endpoints[runtime],keys:[],anonymousToken:internalToken(secret,'anon'),enabled:true,
+   ...(endpoints[runtime].realtime?{realtimeToken:realtimeToken(secret)}:{})};
+ };
+ const requests=new RequestLog();
+ const handler=application(catalog,keys,{auth:management.auth,publishableKey:managementPublishableKey,
+  anonymousToken:internalToken(secrets.management.jwt,'anon')},resolve,fetch,studioSessionKey,requests,undefined,
+   invitationAccounts(management.auth,internalToken(secrets.management.jwt,'service_role')));
+ const socket=realtimeUpgrade({
+  route:runtime=>{
+   if(!catalog.runtimeReady(runtime))return undefined;
+   const routing=catalog.runtimeRouting(runtime);
+   return routing.maintenance?'maintenance':routeWithPlacement(resolve(runtime),routing);
+  },
+  verifyKey:(runtime,key)=>keys.resolve(runtime,key)==='publishable'});
+ // Socket openings count in the environment's logs too: 101 when one reaches Realtime.
+ const realtime:typeof socket=(path,headers)=>{
+  const started=performance.now(),decision=socket(path,headers);
+  const runtime=new URL(path,'http://local').pathname.split('/')[1]??'';
+  try{if(resolve(runtime))requests.record(runtime,{method:'GET',service:'realtime',path:'/websocket',
+   status:decision.ok?101:decision.status,ms:performance.now()-started});}catch{}
+  return decision;
+ };
   const studio=studioProxy({key:studioSessionKey,allowed:(actor,runtime)=>catalog.studioAllowed(actor,runtime),
    upstream:runtime=>studioState().sessions?.[runtime]?.url});
   const upstream=studioUpstream({
@@ -72,5 +104,5 @@ export function openUpstreamApplication() {
   // One monitor per process, over the one application gate: a busy environment's operator notice.
   const pressure=new PressureMonitor(applicationConcurrency,(runtime,saturation)=>catalog.environmentSaturated(runtime,saturation));
   pressure.start();
-  return {handler,studio,upstream,catalog,keys,close(){pressure.stop();catalog.close();keys.close();}};
+  return {handler,studio,upstream,realtime,catalog,keys,close(){pressure.stop();catalog.close();keys.close();}};
 }

@@ -306,8 +306,8 @@ before the request reaches the console.
 Its own hardening is part of the checks: the redirect and the forwarded host come
 from `--public-host`, never from the client's `Host` header (an attacker supplied
 host cannot turn the redirect into an open redirect), hop by hop headers are
-stripped before forwarding, and a request body over `--max-body` (1 MiB by
-default) is answered `413` as soon as the stream passes the cap, without
+stripped before forwarding, and a request body over `--max-body` (the upload
+limit plus 1 MiB by default) is answered `413` as soon as the stream passes the cap, without
 buffering it in full. An operator may
 prefer nginx, Caddy or the platform proxy; the checks above state which behaviour
 any replacement must keep.

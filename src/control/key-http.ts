@@ -5,7 +5,7 @@ import {authenticate,reply,type ManagementIdentity} from './auth';
 /** Publishable keys only. Never accepts a client-supplied runtime, role or actor.
  * Raw key material is returned once; list responses contain only metadata.
  */
-export type ServiceDiscovery = (runtime:string)=>readonly ('auth'|'rest'|'storage')[];
+export type ServiceDiscovery = (runtime:string)=>readonly ('auth'|'rest'|'storage'|'realtime'|'functions')[];
 export function keyHandler(catalog:Catalog,keys:KeyStore,identify:ManagementIdentity,services:ServiceDiscovery=()=>['auth','rest']) {
  return async(request:Request):Promise<Response>=>{
   const path=new URL(request.url).pathname;

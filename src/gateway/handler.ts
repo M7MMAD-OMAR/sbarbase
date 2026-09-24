@@ -5,12 +5,22 @@ export type EnvironmentRoute = {
   auth: string;
   rest: string;
   storage?: {url:string;tenantHost:string};
+  /** The environment's own Realtime, when it is turned on, and the Host header naming its tenant. */
+  realtime?: {url:string;tenantHost:string};
+  /** The environment's own Edge Functions runtime, when it is turned on. */
+  functions?: {url:string};
+  /** An anon token Realtime accepts in place of the publishable key: a signed JWT with an expiry. */
+  realtimeToken?: string;
   keys: readonly string[];
   anonymousToken: string;
   enabled: boolean;
   serviceConcurrency?:Partial<Record<'auth'|'rest'|'storage',number>>;
 };
 export type RouteRegistry = ReadonlyMap<string, EnvironmentRoute>;
+// A function sees the caller's own headers (a webhook's signature, for example), less these.
+const FUNCTION_DROPPED=new Set(['host','connection','keep-alive','proxy-connection','te','trailer','transfer-encoding','upgrade',
+  'content-length','forwarded','x-forwarded-for','x-forwarded-host','x-forwarded-proto','x-forwarded-prefix','x-real-ip','authorization']);
+const FUNCTION_NAME=/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 const forwardedHeaders = ['accept','content-type','prefer','range','range-unit','accept-profile','content-profile','x-client-info','x-upsert','cache-control','if-none-match','if-modified-since'];
 function matches(a: string, b: string): boolean {
   const left = Buffer.from(a), right = Buffer.from(b);
@@ -18,6 +28,36 @@ function matches(a: string, b: string): boolean {
 }
 function error(status:number, message:string) {
   return Response.json({message},{status,headers:{'cache-control':'no-store'}});
+}
+
+/** The largest file an application may upload through Storage, in bytes: `SBARBASE_UPLOAD_LIMIT_MB`
+ * (1 to 5120, 50 by default, as on Supabase). The runtime gives Storage the same limit. */
+export function uploadLimit(value=process.env.SBARBASE_UPLOAD_LIMIT_MB):number {
+  const megabytes=value===undefined||value===''?50:Number(value);
+  if(!Number.isInteger(megabytes)||megabytes<1||megabytes>5120)throw new Error('SBARBASE_UPLOAD_LIMIT_MB must be a whole number from 1 to 5120');
+  return megabytes*1024*1024;
+}
+const UPLOAD_LIMIT=uploadLimit();
+class TooLarge extends Error {}
+
+/** Passes an upload through as it arrives, failing it once it passes `limit` bytes or stalls
+ * for `idleMs`. Nothing is held in memory beyond the chunk in flight. */
+function boundedStream(source:ReadableStream<Uint8Array>,limit:number,idleMs:number,onTooLarge:()=>void):ReadableStream<Uint8Array> {
+  const reader=source.getReader();let size=0;
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      let timer:ReturnType<typeof setTimeout>|undefined;
+      try {
+        const item=await Promise.race([reader.read(),new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(new Error('Upload stalled')),idleMs);})]);
+        if(item.done){controller.close();return;}
+        size+=item.value.byteLength;
+        if(size>limit){onTooLarge();void reader.cancel().catch(()=>{});controller.error(new TooLarge('Request too large'));return;}
+        controller.enqueue(item.value);
+      } catch(cause) {void reader.cancel().catch(()=>{});controller.error(cause);}
+      finally {clearTimeout(timer);}
+    },
+    cancel(reason){return reader.cancel(reason).catch(()=>{});},
+  });
 }
 
 // Browser access works as it does on Supabase: any origin may call the API, and what a
@@ -56,18 +96,23 @@ export function withCors(response:Response, request:Request):Response {
  * This boundary binds an API key to an enabled environment before proxying.
  * Storage uses a trusted tenant header; Realtime and OAuth remain pending.
  */
-export function createGateway(registry:RouteRegistry, transport:typeof fetch = fetch, verifyKey?:(environment:string,key:string)=>boolean, bodyReadTimeoutMs=10_000, concurrency=new ConcurrencyGate()) {
-  const handle=gatewayHandler(registry,transport,verifyKey,bodyReadTimeoutMs,concurrency);
+export function createGateway(registry:RouteRegistry, transport:typeof fetch = fetch, verifyKey?:(environment:string,key:string)=>boolean, bodyReadTimeoutMs=10_000, concurrency=new ConcurrencyGate(), uploadBytes=UPLOAD_LIMIT) {
+  const handle=gatewayHandler(registry,transport,verifyKey,bodyReadTimeoutMs,concurrency,uploadBytes);
   return async (request:Request):Promise<Response> => withCors(await handle(request),request);
 }
 
-function gatewayHandler(registry:RouteRegistry, transport:typeof fetch, verifyKey:((environment:string,key:string)=>boolean)|undefined, bodyReadTimeoutMs:number, concurrency:ConcurrencyGate) {
+function gatewayHandler(registry:RouteRegistry, transport:typeof fetch, verifyKey:((environment:string,key:string)=>boolean)|undefined, bodyReadTimeoutMs:number, concurrency:ConcurrencyGate, uploadBytes:number) {
   return async (request:Request):Promise<Response> => {
     const url = new URL(request.url);
-    const match = url.pathname.match(/^\/([a-z][a-z0-9_]{1,30})\/(auth|rest|storage)\/v1(\/.*)?$/);
+    const match = url.pathname.match(/^\/([a-z][a-z0-9_]{1,30})\/(auth|rest|storage|realtime|functions)\/v1(\/.*)?$/);
     if (!match) return error(404,'Unknown route');
     const environment = match[1], service = match[2], path = match[3] || '/';
-    if (!environment || (service !== 'auth' && service !== 'rest' && service !== 'storage')) return error(404,'Unknown route');
+    if (!environment || (service !== 'auth' && service !== 'rest' && service !== 'storage' && service !== 'realtime' && service !== 'functions')) return error(404,'Unknown route');
+    // `/functions/v1/<name>/...`: a name starting with an underscore is the runtime's own.
+    if (service === 'functions' && !FUNCTION_NAME.test(path.split('/')[1] ?? '')) return error(404,'Function not found');
+    // Realtime's HTTP side is its broadcast API; its sockets are proxied by the listener itself
+    // (src/gateway/realtime.ts). Tenant management and the rest of its API are never reachable.
+    if (service === 'realtime' && !(path === '/api/broadcast' && request.method === 'POST')) return error(404,'Unknown route');
     const route = registry.get(environment);
     if (!route || !route.enabled) return error(404,'Unknown route');
     // A browser asks before a cross-origin call; the answer carries no data and needs no key.
@@ -84,6 +129,9 @@ function gatewayHandler(registry:RouteRegistry, transport:typeof fetch, verifyKe
     // return (callback, which Apple posts as a form). Auth checks each one itself.
     const browserAuthStep=service==='auth'&&(readMethod&&/^\/(authorize|verify|callback)$/.test(path)||
       request.method==='POST'&&path==='/callback');
+    // A function may be called without a key (a payment provider's webhook, say): the function's
+    // own verify_jwt setting decides, in the Edge Functions runtime, as on Supabase.
+    const keylessFunction=service==='functions'&&apiKey===null;
     // Public object visibility and signed-token validity are enforced by Storage.
     // No exception exists for writes, listing, signing, or authenticated paths.
     if(apiKey!==null) {
@@ -92,11 +140,12 @@ function gatewayHandler(registry:RouteRegistry, transport:typeof fetch, verifyKe
       try {keyAccepted=verifyKey?verifyKey(environment,apiKey):route.keys.some(key=>matches(key,apiKey));}
       catch {return error(503,'Key verification unavailable');}
       if(!keyAccepted) return error(401,'Invalid API key');
-    } else if(!publicStorageRead&&!browserAuthStep) return error(401,'Invalid API key');
+    } else if(!publicStorageRead&&!browserAuthStep&&!keylessFunction) return error(401,'Invalid API key');
     // Never let a forwarded path or absolute URL choose the upstream host.
     if (path.includes('\\') || /%2f|%5c|%00/i.test(path)) return error(400,'Invalid path');
     if (!['GET','HEAD','POST','PUT','PATCH','DELETE'].includes(request.method)) return error(405,'Method not allowed');
-    const upstream=service==='storage'?route.storage?.url:route[service];
+    const upstream=service==='storage'?route.storage?.url:service==='realtime'?route.realtime?.url:
+      service==='functions'?route.functions?.url:route[service];
     if(!upstream) return error(404,'Service not configured');
     let target:URL;
     try {target=new URL(upstream);} catch {return error(503,'Invalid upstream');}
@@ -104,7 +153,9 @@ function gatewayHandler(registry:RouteRegistry, transport:typeof fetch, verifyKe
     target.pathname = path;
     target.search = url.search;
     const headers = new Headers();
-    for (const name of forwardedHeaders) {
+    if (service === 'functions') {
+      for (const [name,value] of request.headers) if (!FUNCTION_DROPPED.has(name)) headers.set(name,value);
+    } else for (const name of forwardedHeaders) {
       const value = request.headers.get(name);
       if (value !== null) headers.set(name,value);
     }
@@ -116,12 +167,35 @@ function gatewayHandler(registry:RouteRegistry, transport:typeof fetch, verifyKe
     const authorization = request.headers.get('authorization');
     if (authorization && !/^Bearer \S+$/i.test(authorization)) return error(401,'Invalid authorization');
     const bearerIsApiKey = authorization?.toLowerCase().startsWith('bearer ') && apiKey!==null && matches(authorization.slice(7), apiKey);
-    headers.set('authorization', authorization && !bearerIsApiKey ? authorization : `Bearer ${route.anonymousToken}`);
+    if (keylessFunction) {
+      // No key, so no anonymous token either: only the caller's own token, if any, reaches the function.
+      if (authorization) headers.set('authorization',authorization);
+    } else headers.set('authorization', authorization && !bearerIsApiKey ? authorization : `Bearer ${service==='realtime'&&route.realtimeToken?route.realtimeToken:route.anonymousToken}`);
+    if(service==='realtime') {
+     if(!route.realtime||!route.realtimeToken||!/^[a-f0-9]{24}\.realtime$/.test(route.realtime.tenantHost)) return error(503,'Realtime unavailable');
+     headers.set('host',route.realtime.tenantHost);headers.set('apikey',route.realtimeToken);
+    }
     const retainRest=service==='rest'&&route.serviceConcurrency?.rest!==undefined;
     // Upload cancellation still uses the real request below. Once dispatched,
     // REST must settle independently of a disconnected client.
     const admissionRequest=retainRest?{signal:new AbortController().signal}:request;
     return concurrency.run(environment,admissionRequest,async(signal)=>{
+    // A file upload to Storage streams through with its own limit; every other body is small
+    // and read whole first, so a slow client never holds an upstream connection.
+    const upload=(service==='storage'||service==='functions')&&(request.method==='POST'||request.method==='PUT'||request.method==='PATCH')&&!!request.body;
+    if (upload) {
+      if (Number(request.headers.get('content-length')) > uploadBytes) return error(413,'Request too large');
+      let exceeded=false;
+      const stream=boundedStream(request.body!,uploadBytes,bodyReadTimeoutMs*3,()=>{exceeded=true;});
+      try {
+        return await transport(target,{method:request.method,headers,body:stream,duplex:'half',redirect:'manual',decompress:false,
+          signal:AbortSignal.any([signal,request.signal,AbortSignal.timeout(15*60_000)])} as RequestInit);
+      } catch {
+        if (exceeded) return error(413,'Request too large');
+        if (request.signal.aborted) return error(408,'Request cancelled');
+        return error(502,'Upstream unavailable');
+      }
+    }
     let body:Uint8Array<ArrayBuffer> | undefined;
     if (request.body) {
       const limit = 1024*1024;
@@ -153,10 +227,10 @@ function gatewayHandler(registry:RouteRegistry, transport:typeof fetch, verifyKe
     if(request.signal.aborted)return error(408,'Request cancelled');
     try {
       return await transport(target,{method:request.method,headers,body,redirect:'manual',decompress:false,
-        signal:AbortSignal.any([signal,...(retainRest?[]:[request.signal]),AbortSignal.timeout(15_000)])});
+        signal:AbortSignal.any([signal,...(retainRest?[]:[request.signal]),AbortSignal.timeout(service==='functions'?150_000:15_000)])});
     } catch {
       return error(502,'Upstream unavailable');
     }
-    },route.serviceConcurrency?.[service]===undefined?undefined:{service,maximum:route.serviceConcurrency[service],drainOnCancel:retainRest});
+    },service==='realtime'||service==='functions'||route.serviceConcurrency?.[service]===undefined?undefined:{service,maximum:route.serviceConcurrency[service]!,drainOnCancel:retainRest});
   };
 }

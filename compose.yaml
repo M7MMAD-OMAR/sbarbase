@@ -26,6 +26,8 @@ services:
       # The address people and OAuth providers reach this server at, for example
       # https://api.example.com. Auth builds email links and callbacks from it.
       SBARBASE_PUBLIC_URL: ${SBARBASE_PUBLIC_URL:-}
+      # The largest file an application may upload, in MiB (1 to 5120).
+      SBARBASE_UPLOAD_LIMIT_MB: ${SBARBASE_UPLOAD_LIMIT_MB:-50}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       # Read only: the disk behind Docker's data is where block IO limits apply.

@@ -30,6 +30,9 @@ Read these to understand the design. Each page has the same shape: what it is, w
 - [Local lab](guides/local-lab.md): run the stack on your own machine for evaluation.
 - [Operator setup](guides/operator-setup.md): create the first operator and client.
 - [Server deployment](guides/server-deployment.md): the server runbook and its known gaps.
+- [Realtime](guides/realtime.md): database changes, broadcast and presence per environment.
+- [Edge Functions](guides/edge-functions.md): deploy a Supabase functions folder to an environment and call it with supabase-js.
+- [Logs and metrics](guides/logs-and-metrics.md): requests, errors, response times and service logs per environment.
 - [Sign-in settings](guides/sign-in.md): site URL, redirect addresses and OAuth providers (Google, GitHub, Apple and others) per environment.
 - [Supabase Studio](guides/studio.md): open the original Studio for one environment, behind the console login.
 - [Backup and restore](guides/backup-and-restore.md): the manual procedure that exists today.

@@ -7,11 +7,17 @@ import {studioHandler} from './studio';
 import {signInHandler} from './sign-in';
 import {shareHandler} from './share';
 import {invitationHandler,type InvitationAccounts} from './invitations';
+import {realtimeHandler} from './realtime';
+import {observeHandler,type ContainerReader} from './observe';
+import {functionsHandler} from './functions';
+import {RequestLog} from '../gateway/observe';
 
 export function controlHandler(catalog:Catalog,keys:KeyStore,identity:ManagementIdentity,services?:ServiceDiscovery,
- studioKey?:()=>Buffer,accounts?:InvitationAccounts) {
+ studioKey?:()=>Buffer,requests=new RequestLog(),containers?:ContainerReader,accounts?:InvitationAccounts) {
  const metadata=managementHandler(catalog,identity),credentials=keyHandler(catalog,keys,identity,services);
- const studio=studioKey?studioHandler(catalog,identity,studioKey):undefined,signIn=signInHandler(catalog,identity);
+ const studio=studioKey?studioHandler(catalog,identity,studioKey):undefined,signIn=signInHandler(catalog,identity),
+  realtime=realtimeHandler(catalog,identity),observe=observeHandler(catalog,identity,requests,containers),
+  functions=functionsHandler(catalog,identity);
  const share=shareHandler(catalog,identity);
  const invitations=invitationHandler(catalog,identity,accounts);
  return (request:Request)=>{
@@ -20,6 +26,9 @@ export function controlHandler(catalog:Catalog,keys:KeyStore,identity:Management
   if(/\/environments\/[^/]+\/sign-in$/.test(path))return signIn(request);
   if(/\/environments\/[^/]+\/share$/.test(path))return share(request);
   if(path==='/management/invitations/redeem'||/\/organizations\/[^/]+\/invitations(\/|$)/.test(path))return invitations(request);
+  if(/\/environments\/[^/]+\/realtime$/.test(path))return realtime(request);
+  if(/\/environments\/[^/]+\/(metrics|logs)$/.test(path))return observe(request);
+  if(/\/environments\/[^/]+\/(functions|function-secrets)(\/|$)/.test(path))return functions(request);
   return /\/environments\/[^/]+\/(keys|connection)(\/|$)/.test(path)?credentials(request):metadata(request);
  };
 }

@@ -25,7 +25,7 @@ On a server, reach the console through an SSH tunnel (`ssh -L 8790:127.0.0.1:879
 
 The SQL editor sees every row, including rows hidden by row security, like Studio on Supabase does. It cannot change the Auth or Storage schemas, create roles, or reach another environment's database.
 
-Logs, Realtime, Edge Functions and the other pages that need services Sbarbase does not run yet are empty or hidden.
+Studio's Logs, Realtime and Edge Functions pages expect Supabase's own platform services and stay empty or hidden. Use the console for those: [logs and metrics](logs-and-metrics.md), [Realtime](realtime.md) and [Edge Functions](edge-functions.md).
 
 ## How it is kept safe
 

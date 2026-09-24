@@ -1,0 +1,130 @@
+{
+  "check": "functions",
+  "recorded": "2026-09-24T06:18:02Z",
+  "passed": true,
+  "count": 24,
+  "seconds": 8,
+  "scope": "Edge Functions for one environment on a clean GitHub runner, not a real server: a Supabase-style functions folder (with _shared and a config.toml turning verify_jwt off for a webhook) deployed with lab/functions-deploy.ts to the pinned edge-runtime, then called through the gateway with supabase-js, including a function that uses supabase-js from npm with the service role against the environment's own Auth, REST and Storage, a keyless webhook, a secret, a redeploy, the log, a removal and turning the runtime off. Transcribed from the CI docker-install job 107516870518 (run 35963406540, commit 7b087e1).",
+  "checks": [
+    {
+      "check": "operator logs in",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "a provisioned environment exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "Edge Functions start off",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "an owner sets a secret",
+      "ok": true,
+      "detail": "status 200"
+    },
+    {
+      "check": "the deploy command sends every function in the folder",
+      "ok": true,
+      "detail": "deployed stripe-webhook, hello and admin-stats"
+    },
+    {
+      "check": "the first deploy starts the environment's Edge Functions",
+      "ok": true,
+      "detail": "state on after 4 s"
+    },
+    {
+      "check": "the console lists the functions and the webhook without JWT checks",
+      "ok": true,
+      "detail": "admin-stats:true,hello:true,stripe-webhook:false"
+    },
+    {
+      "check": "connection details list Edge Functions",
+      "ok": true,
+      "detail": "auth,rest,storage,functions"
+    },
+    {
+      "check": "supabase-js invokes a function through the gateway",
+      "ok": true,
+      "detail": "{\"message\":\"Hello Sbarbase\",\"greeting\":\"from a secret\",\"hasUrl\":true,\"version\":1}"
+    },
+    {
+      "check": "the function imports from _shared and reads its secret",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "a function uses supabase-js from npm with the service role on the environment's own Auth",
+      "ok": true,
+      "detail": "{\"users\":3,\"usersError\":null,\"buckets\":1,\"bucketsError\":null,\"restStatus\":404}"
+    },
+    {
+      "check": "the same function reaches the environment's own Storage and REST",
+      "ok": true,
+      "detail": "buckets 1, REST 404"
+    },
+    {
+      "check": "a function that checks JWTs refuses a call without a key or token",
+      "ok": true,
+      "detail": "status 401"
+    },
+    {
+      "check": "a webhook without a key reaches a function that does not check JWTs, with its own headers",
+      "ok": true,
+      "detail": "status 200"
+    },
+    {
+      "check": "a wrong key is refused",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "the runtime's internal route is not reachable",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "an unknown function answers 404",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "a browser preflight is answered",
+      "ok": true,
+      "detail": "status 204"
+    },
+    {
+      "check": "a redeploy takes effect without a restart",
+      "ok": true,
+      "detail": "{\"message\":\"Hello again\",\"version\":2}"
+    },
+    {
+      "check": "the Edge Functions log answers",
+      "ok": true,
+      "detail": "status 200, 0 line(s)"
+    },
+    {
+      "check": "a removed function answers 404",
+      "ok": true,
+      "detail": "status 404"
+    },
+    {
+      "check": "the owner turns Edge Functions off",
+      "ok": true,
+      "detail": "status 202"
+    },
+    {
+      "check": "Edge Functions are off again",
+      "ok": true,
+      "detail": "state off"
+    },
+    {
+      "check": "a call answers 404 once they are off",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

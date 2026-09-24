@@ -247,7 +247,11 @@ def wait_healthy(e, timeout=180):
 
 
 def service_names(e):
-    return [f'{PREFIX}-{e}-auth', f'{PREFIX}-{e}-rest']
+    """The environment's own services; Realtime too when the environment runs it."""
+    names = [f'{PREFIX}-{e}-auth', f'{PREFIX}-{e}-rest']
+    if published().get(e, {}).get('realtime'):
+        names.append(f'{PREFIX}-{e}-realtime')
+    return names
 
 
 def start_services(e):
@@ -256,12 +260,17 @@ def start_services(e):
     import durable_runtime
     path = STATE / 'endpoints.json'
     endpoints = json.loads(path.read_text())
-    for service, port in (('auth', 9999), ('rest', 3000)):
+    for service, port in (('auth', 9999), ('rest', 3000), ('realtime', durable_runtime.REALTIME_PORT)):
+        if service == 'realtime' and not endpoints[e].get('realtime'):
+            continue
         item = durable_runtime.inspect('container', f'{PREFIX}-{e}-{service}')
         address = item['NetworkSettings']['Networks'][durable_runtime.NETWORK]['IPAddress'] if item else ''
         if not address:
             raise BackupError(f'{service} has no address after the restore')
-        endpoints[e][service] = f'http://{address}:{port}'
+        if service == 'realtime':
+            endpoints[e]['realtime']['url'] = f'http://{address}:{port}'
+        else:
+            endpoints[e][service] = f'http://{address}:{port}'
     durable_runtime.atomic(path, endpoints)
 
 

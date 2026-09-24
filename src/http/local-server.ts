@@ -1,6 +1,11 @@
 import {createServer,type ServerResponse} from 'node:http';
-import {Readable} from 'node:stream';
-import type {Socket} from 'node:net';
+import {connect,createServer as createTcpServer,type Socket,type Server as TcpServer} from 'node:net';
+
+/** What the listener does with a WebSocket upgrade: connect it to host:port and send `head`,
+ * or answer it with a status. */
+export type UpgradeDecision={ok:true;host:string;port:number;head:string}|{ok:false;status:number;message:string};
+export type Upgrade=(path:string,headers:Headers)=>UpgradeDecision|Promise<UpgradeDecision>;
+const MAX_HEAD=16384;
 
 const HOP_BY_HOP=new Set(['connection','keep-alive','proxy-authenticate','proxy-authorization','te','trailer','transfer-encoding','upgrade']);
 
@@ -22,9 +27,13 @@ export function consolePort(value:string|undefined):number {
  return Number(value);
 }
 
-/** Loopback names, plus a caller's own (`<id>.studio.localhost`), and an explicit bind address. */
+/** Loopback names, plus a caller's own (`<id>.studio.localhost`), and an explicit bind address.
+ * With `upgrade`, WebSocket upgrades it accepts are piped straight to their upstream: Bun's
+ * node:http does not deliver bytes written to an upgraded socket, so a small TCP front reads
+ * each connection's first request head and hands every other connection, byte for byte, to
+ * the HTTP server on a private loopback port. */
 export async function serveLocal(fetch:(request:Request)=>Response|Promise<Response>,port=0,
- options:{host?:string;hostnames?:(name:string)=>boolean}={}) {
+ options:{host?:string;hostnames?:(name:string)=>boolean;upgrade?:Upgrade;isUpgrade?:(path:string)=>boolean}={}) {
  const bind=options.host??'127.0.0.1';
  const sockets=new Set<Socket>();
  const server=createServer(async(incoming,outgoing)=>{
@@ -46,11 +55,25 @@ export async function serveLocal(fetch:(request:Request)=>Response|Promise<Respo
    // issuance over the real listener. Found by the empty-VM first-project check.
    const length=incoming.headers['content-length'];
    const framed=incoming.headers['transfer-encoding']!==undefined||(length!==undefined&&length!=='0');
+   const hasBody=!['GET','HEAD'].includes(method)&&framed;
    const request=new Request(target,{method,headers,signal:abort.signal,
-    ...(!['GET','HEAD'].includes(method)&&framed?{body:Readable.toWeb(incoming) as unknown as ReadableStream<Uint8Array>,duplex:'half'}:{})} as RequestInit);
+    ...(hasBody?{body:requestBody(incoming),duplex:'half'}:{})} as RequestInit);
    const response=await fetch(request);
    if(abort.signal.aborted){void response.body?.cancel().catch(()=>{});return;}
    const output:Record<string,string|string[]>={};
+   // An answer before the body was read in full (a refused upload): the rest of the body is
+   // still on the connection, so it cannot carry another request. Tell the client, drain what
+   // is left for a moment so it reads the answer, then close.
+   if(hasBody&&!incoming.readableEnded){
+    output['connection']='close';outgoing.shouldKeepAlive=false;
+    outgoing.once('finish',()=>{
+     incoming.removeAllListeners('data');
+     // Once the client has sent everything nothing unread is left, so closing cannot cut off
+     // the answer; a client that keeps sending is closed after a second.
+     incoming.once('end',()=>incoming.socket?.destroy());incoming.resume();
+     setTimeout(()=>incoming.socket?.destroy(),1_000).unref();
+    });
+   }
    for(const [name,value] of response.headers)if(!HOP_BY_HOP.has(name)&&name!=='set-cookie')output[name]=value;
    const cookies=response.headers.getSetCookie();if(cookies.length)output['set-cookie']=cookies;
    outgoing.writeHead(response.status,output);
@@ -77,7 +100,91 @@ export async function serveLocal(fetch:(request:Request)=>Response|Promise<Respo
  server.on('connection',socket=>{sockets.add(socket);socket.once('close',()=>sockets.delete(socket));});
  server.maxConnections=256;server.maxHeadersCount=100;
  server.headersTimeout=10_000;server.requestTimeout=30_000;server.keepAliveTimeout=5_000;
+ await new Promise<void>((resolve,reject)=>{server.once('error',reject);
+  // Behind a front, the HTTP server itself listens on a private loopback port.
+  server.listen(options.upgrade?0:port,options.upgrade?'127.0.0.1':bind,()=>{server.off('error',reject);resolve();});});
+ const address=server.address();if(!address||typeof address==='string')throw new Error('Local listener address unavailable');
+ if(!options.upgrade)return {port:address.port,connections:()=>sockets.size,stop(force=false){if(force)server.closeAllConnections();server.close();}};
+ const front=await frontListener(port,bind,address.port,options.upgrade,options.isUpgrade??(()=>false),
+  name=>['127.0.0.1','localhost',bind].includes(name)||!!options.hostnames?.(name));
+ return {port:front.port,connections:()=>front.connections(),stop(force=false){
+  front.stop();if(force)server.closeAllConnections();server.close();}};
+}
+
+/** The request body as a stream. Cancelling it (a handler refusing an upload) stops reading
+ * without destroying the connection, so the handler's answer still reaches the client;
+ * Readable.toWeb destroys the request, which the listener took for a client hanging up. */
+function requestBody(incoming:import('node:http').IncomingMessage):ReadableStream<Uint8Array> {
+ let done=false;
+ return new ReadableStream<Uint8Array>({
+  start(controller){
+   incoming.on('data',(chunk:Buffer)=>{
+    if(done)return;
+    controller.enqueue(new Uint8Array(chunk.buffer,chunk.byteOffset,chunk.byteLength));
+    if((controller.desiredSize??1)<=0)incoming.pause();
+   });
+   incoming.once('end',()=>{if(!done){done=true;controller.close();}});
+   incoming.once('error',error=>{if(!done){done=true;controller.error(error);}});
+   incoming.once('aborted',()=>{if(!done){done=true;controller.error(new Error('Request aborted'));}});
+  },
+  pull(){incoming.resume();},
+  cancel(){done=true;incoming.pause();},
+ },{highWaterMark:4,size:()=>1});
+}
+
+function reply(socket:Socket,status:number,message:string) {
+ const body=JSON.stringify({message});
+ const reason:Record<number,string>={400:'Bad Request',401:'Unauthorized',403:'Forbidden',404:'Not Found'};
+ socket.end(`HTTP/1.1 ${status} ${reason[status]??'Service Unavailable'}\r\ncontent-type: application/json\r\ncache-control: no-store\r\n`+
+  `access-control-allow-origin: *\r\ncontent-length: ${Buffer.byteLength(body)}\r\nconnection: close\r\n\r\n${body}`);
+}
+
+function pipe(a:Socket,b:Socket) {
+ a.pipe(b);b.pipe(a);
+ const close=()=>{a.destroy();b.destroy();};
+ a.once('close',close);b.once('close',close);a.once('error',close);b.once('error',close);
+}
+
+async function frontListener(port:number,bind:string,inner:number,upgrade:Upgrade,isUpgrade:(path:string)=>boolean,
+ hostAllowed:(name:string)=>boolean) {
+ const sockets=new Set<Socket>();
+ const server:TcpServer=createTcpServer(socket=>{
+  sockets.add(socket);socket.once('close',()=>sockets.delete(socket));
+  let buffer=Buffer.alloc(0);
+  const timer=setTimeout(()=>socket.destroy(),10_000);
+  const read=async(chunk:Buffer)=>{
+   buffer=Buffer.concat([buffer,chunk]);
+   const end=buffer.indexOf('\r\n\r\n');
+   if(end<0){if(buffer.length>MAX_HEAD){clearTimeout(timer);socket.off('data',read);reply(socket,400,'Request head too large');}return;}
+   socket.off('data',read);socket.pause();clearTimeout(timer);
+   const lines=buffer.subarray(0,end).toString('latin1').split('\r\n');
+   const [method,target]=(lines[0]??'').split(' ');
+   const headers=new Headers();
+   for(const line of lines.slice(1)){const at=line.indexOf(':');if(at>0)try{headers.append(line.slice(0,at).trim(),line.slice(at+1).trim());}catch{}}
+   const socketUpgrade=method==='GET'&&headers.get('upgrade')?.toLowerCase()==='websocket'&&!!target&&isUpgrade(target);
+   if(!socketUpgrade){
+    const http=connect(inner,'127.0.0.1',()=>{http.write(buffer);pipe(socket,http);socket.resume();});
+    http.once('error',()=>socket.destroy());
+    return;
+   }
+   const hostname=(headers.get('host')??'').replace(/:\d+$/,'');
+   if(!hostAllowed(hostname)){reply(socket,403,'Invalid host');return;}
+   let decision:UpgradeDecision;
+   try{decision=await upgrade(target!,headers);}catch{decision={ok:false,status:503,message:'Realtime unavailable'};}
+   if(!decision.ok){reply(socket,decision.status,decision.message);return;}
+   const head=decision.head;
+   const upstream=connect(decision.port,decision.host,()=>{
+    upstream.write(head);
+    const rest=buffer.subarray(end+4);if(rest.length)upstream.write(rest);
+    pipe(socket,upstream);socket.resume();
+   });
+   upstream.once('error',()=>{if(!socket.destroyed)reply(socket,503,'Realtime unavailable');});
+  };
+  socket.on('data',read);
+  socket.once('error',()=>socket.destroy());
+ });
+ server.maxConnections=1024;
  await new Promise<void>((resolve,reject)=>{server.once('error',reject);server.listen(port,bind,()=>{server.off('error',reject);resolve();});});
  const address=server.address();if(!address||typeof address==='string')throw new Error('Local listener address unavailable');
- return {port:address.port,connections:()=>sockets.size,stop(force=false){if(force)server.closeAllConnections();server.close();}};
+ return {port:address.port,connections:()=>sockets.size,stop(){for(const socket of sockets)socket.destroy();server.close();}};
 }

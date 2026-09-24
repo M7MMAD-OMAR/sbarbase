@@ -1,0 +1,110 @@
+{
+  "check": "observe",
+  "recorded": "2026-09-24T05:09:04Z",
+  "passed": true,
+  "count": 20,
+  "seconds": 4,
+  "scope": "Logs and metrics for one environment on a clean GitHub runner, not a real server: requests made by supabase-js through the gateway (a missing table, a sign-up, a Storage listing, a wrong key), then the environment's request totals, service memory use, the request log and the Auth, REST and Storage logs read through the management API, with no key or token in any answer. Storage logs errors only, so its log was empty. Transcribed from the CI docker-install job 107501652739 (run 35958375878, commit 20572ff).",
+  "checks": [
+    {
+      "check": "operator logs in",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "a provisioned environment exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "an application makes requests through the gateway",
+      "ok": true,
+      "detail": "missing table 404, sign-up ok, buckets ok, wrong key 401"
+    },
+    {
+      "check": "metrics count the new requests",
+      "ok": true,
+      "detail": "18 -> 22"
+    },
+    {
+      "check": "metrics count client errors",
+      "ok": true,
+      "detail": "6 client error(s)"
+    },
+    {
+      "check": "metrics give response times",
+      "ok": true,
+      "detail": "median 1.86 ms, 95% 307.48 ms (unrounded in this run; now whole milliseconds)"
+    },
+    {
+      "check": "metrics split requests by service",
+      "ok": true,
+      "detail": "{\"auth\":8,\"rest\":6,\"storage\":2,\"realtime\":6}"
+    },
+    {
+      "check": "metrics hold an hour of minutes",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "metrics give memory use of Auth and REST",
+      "ok": true,
+      "detail": "auth 8 MiB, rest 9 MiB"
+    },
+    {
+      "check": "the request log shows the missing table",
+      "ok": true,
+      "detail": "22 request(s)"
+    },
+    {
+      "check": "the request log shows the wrong key",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "errors only shows only errors",
+      "ok": true,
+      "detail": "6 error(s)"
+    },
+    {
+      "check": "the auth log answers",
+      "ok": true,
+      "detail": "status 200, 18 line(s)"
+    },
+    {
+      "check": "the Auth log shows the sign-up",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "the rest log answers",
+      "ok": true,
+      "detail": "status 200, 28 line(s)"
+    },
+    {
+      "check": "the storage log answers",
+      "ok": true,
+      "detail": "status 200, 0 line(s)"
+    },
+    {
+      "check": "no key, token or password appears in any answer",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "another environment's name never appears in the Storage log",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "an unknown source is refused",
+      "ok": true,
+      "detail": "status 400"
+    },
+    {
+      "check": "logs need an operator login",
+      "ok": true,
+      "detail": "status 401"
+    }
+  ]
+}

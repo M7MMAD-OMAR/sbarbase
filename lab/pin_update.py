@@ -21,7 +21,7 @@ import sys
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parent.parent
-LOCKS=('lab/images.lock.json','lab/distro-image.lock.json','lab/storage-image.lock.json','lab/studio-image.lock.json')
+LOCKS=('lab/images.lock.json','lab/distro-image.lock.json','lab/storage-image.lock.json','lab/studio-image.lock.json','lab/realtime-image.lock.json','lab/functions-image.lock.json')
 DIGEST=re.compile(r'sha256:[a-f0-9]{64}')
 FLOATING=('latest','main','master','edge','stable')
 

@@ -75,6 +75,22 @@ class RecreateTests(unittest.TestCase):
         self.assertFalse(durable_runtime.settings_only('rest', base, {**base, 'GOTRUE_SITE_URL': 'x'}))
         self.assertFalse(durable_runtime.settings_only('auth', base, dict(base)))
 
+    def test_a_new_upload_limit_recreates_storage_and_nothing_else_does(self):
+        base = {'FILE_SIZE_LIMIT': '1048576', 'ENCRYPTION_KEY': 'k'}
+        self.assertTrue(durable_runtime.settings_only('storage', base, {**base, 'FILE_SIZE_LIMIT': '52428800'}))
+        self.assertFalse(durable_runtime.settings_only('storage', base, {**base, 'ENCRYPTION_KEY': 'other'}))
+        self.assertFalse(durable_runtime.settings_only('storage', base, {**base, 'FILE_SIZE_LIMIT': '52428800', 'ENCRYPTION_KEY': 'x'}))
+        self.assertFalse(durable_runtime.settings_only('rest', base, {**base, 'FILE_SIZE_LIMIT': '52428800'}))
+
+    def test_the_upload_limit_is_50_mib_unless_set(self):
+        with patch.dict(os.environ, {'SBARBASE_UPLOAD_LIMIT_MB': ''}):
+            self.assertEqual(durable_runtime.upload_limit(), 50 * 1024 * 1024)
+        with patch.dict(os.environ, {'SBARBASE_UPLOAD_LIMIT_MB': '500'}):
+            self.assertEqual(durable_runtime.upload_limit(), 500 * 1024 * 1024)
+        for bad in ('0', '5121', '1.5', 'ten'):
+            with patch.dict(os.environ, {'SBARBASE_UPLOAD_LIMIT_MB': bad}), self.assertRaises(RuntimeError):
+                durable_runtime.upload_limit()
+
 
 class ApplyTests(unittest.TestCase):
     def setUp(self):

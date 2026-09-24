@@ -42,7 +42,7 @@ What an operator can set, and where Sbarbase keeps its state. Paths are relative
 | `--https-port` | `8443` | HTTPS listener |
 | `--http-port` | `8080` | Plain HTTP listener that redirects with `308` |
 | `--upstream` | the running loopback server | Where to forward |
-| `--max-body` | 1 MiB | Larger bodies get `413` |
+| `--max-body` | the upload limit plus 1 MiB (51 MiB) | Larger bodies get `413`. Bodies up to 1 MiB are read whole; larger ones (file uploads) are passed on as they arrive |
 
 ## Operator bootstrap file
 
@@ -114,6 +114,7 @@ Set these in `compose.yaml` (Docker) or as `Environment=` lines of the systemd s
 | `SBARBASE_CONSOLE_PORT` | chosen at start | The loopback port of the console and API, for a TLS proxy |
 | `SBARBASE_BACKUP_HOUR` | `3` | Hour (UTC) of the daily backup; `off` stops it |
 | `SBARBASE_BACKUP_KEEP` | `7` | Backups kept per environment |
+| `SBARBASE_UPLOAD_LIMIT_MB` | `50` | The largest file an application may upload to Storage, in MiB (1 to 5120), as Supabase's global file size limit. Larger uploads get `413`. A change applies at the next start, which recreates the shared Storage container; a bucket's own limit can be lower ([evidence](../evidence/docker-upload-checks.json)) |
 
 ## Internal environment variables
 
