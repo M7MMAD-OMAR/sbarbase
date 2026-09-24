@@ -91,7 +91,10 @@ jobs:
           test -z "$(docker ps -q --filter label=io.sbarbase.owner)"
       - name: Logs on failure
         if: failure()
-        run: docker compose logs --tail 200 || true
+        # A throwaway runner: its generated credentials exist only for this run.
+        run: |
+          docker compose logs --tail 200 || true
+          sudo sh -c 'for f in .lab/upstream/diagnostics/*.log; do echo "== $f"; tail -n 40 "$f"; done' || true
       - name: Keep the evidence
         if: always()
         uses: actions/upload-artifact@v4
