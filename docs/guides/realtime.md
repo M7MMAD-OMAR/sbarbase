@@ -35,6 +35,8 @@ When Realtime first starts, and after an upgrade to a newer Realtime, its login 
 
 The socket and the broadcast API go through the same gateway as REST: a wrong or revoked key is refused before anything reaches Realtime. Realtime's own management API is never reachable from outside.
 
+CI turns Realtime on for an environment on a clean machine with every change, has two supabase-js clients exchange a broadcast, share presence and receive a row inserted through REST, checks that a wrong key is refused, and turns it off again ([evidence](../evidence/docker-realtime-checks.json)).
+
 ## Limits
 
 - Realtime works through a TLS proxy only if the proxy passes WebSocket connections. The reference proxy (`deploy/console-tls-proxy.ts`) does.
