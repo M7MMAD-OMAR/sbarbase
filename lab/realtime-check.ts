@@ -101,10 +101,13 @@ select count(*) from pg_publication_tables where pubname = 'supabase_realtime' a
  record('a wrong key never reaches Realtime',await socketRefused(socketUrl+'sb_publishable_wrong'));
  const options={auth:{persistSession:false,autoRefreshToken:false}};
  const first=createClient(url,key,options),second=createClient(url,key,options);
- const received:{broadcast?:unknown;change?:any;presence?:number}={};
+ const received:{broadcast?:unknown;change?:any;presence?:number;listening?:boolean}={};
  const room=first.channel('room-one',{config:{presence:{key:'first'}}})
   .on('broadcast',{event:'hello'},message=>{received.broadcast=message.payload;})
   .on('postgres_changes',{event:'INSERT',schema:'public',table:'realtime_probe'},change=>{received.change=change;})
+  // Realtime confirms the database listener on its own, once its replication slot exists;
+  // SUBSCRIBED only means the channel joined. Changes before that are not delivered, as on Supabase.
+  .on('system',{},message=>{if(message?.extension==='postgres_changes'&&message?.status==='ok'||/Subscribed to PostgreSQL/.test(String(message?.message)))received.listening=true;})
   .on('presence',{event:'sync'},()=>{received.presence=Object.keys(room.presenceState()).length;});
  const firstStatus=await within(subscribed(room),30_000,'first subscribe');
  record('a client subscribes to broadcast, presence and database changes',firstStatus==='SUBSCRIBED',firstStatus);
@@ -117,8 +120,9 @@ select count(*) from pg_publication_tables where pubname = 'supabase_realtime' a
  while(Date.now()<until&&(!received.broadcast||(received.presence??0)<2))await Bun.sleep(200);
  record('a broadcast from one client reaches the other',(received.broadcast as any)?.text==='from the second client');
  record('both clients see each other in presence',(received.presence??0)>=2,`${received.presence??0} present`);
- // Realtime starts reading changes once a subscriber asks; give its poller a moment.
- await Bun.sleep(2000);
+ const listenUntil=Date.now()+30_000;
+ while(Date.now()<listenUntil&&!received.listening)await Bun.sleep(200);
+ record('Realtime confirms it is listening for database changes',!!received.listening);
  const inserted=await second.from('realtime_probe').insert({body:'hello database'});
  record('a visitor inserts a row through REST',!inserted.error,inserted.error?.message??'');
  const changeUntil=Date.now()+20_000;
