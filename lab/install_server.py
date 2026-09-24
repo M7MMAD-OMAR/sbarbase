@@ -34,7 +34,7 @@ PLANNED_MIB=5888
 RESERVE_MIB=2560  # resource_policy.START_RESERVE_MIB, which the runtime's start check uses
 PLANNED_CPUS=5.75
 MIN_FREE_BYTES=12*1024**3
-LOCKS=('distro-image.lock.json','images.lock.json','storage-image.lock.json')
+LOCKS=('distro-image.lock.json','images.lock.json','storage-image.lock.json','studio-image.lock.json')
 
 
 def run(command,*,check=True,stdin=None,env=None,cwd=None):
@@ -310,6 +310,18 @@ def pull_image(label,reference,position,runner=subprocess.run):
     raise SystemExit('Pinned image pull failed for '+label+'; check the network, then run the install again (pulled images are kept)')
 
 
+def ensure_images():
+    """Pull every pinned image that is not local, by digest, then verify each one."""
+    missing=[(label,reference) for label,digest,reference in pinned_images()
+             if docker('image','inspect',digest,check=False).returncode]
+    for number,(label,reference) in enumerate(missing,1):
+        pull_image(label,reference,f'{number}/{len(missing)}')
+    for label,digest,reference in pinned_images():
+        record,error=pinned_images_check.inspect_image(reference)
+        ok,detail=pinned_images_check.evaluate(digest,record)
+        if not ok:raise SystemExit('Pinned image '+label+' did not verify: '+detail)
+
+
 def install(bootstrap_file):
     checks=preflight()
     if not report(checks):raise SystemExit('Preflight failed; nothing was installed')
@@ -318,14 +330,7 @@ def install(bootstrap_file):
         PRIVATE.mkdir(mode=0o700,parents=True,exist_ok=True)
         os.chmod(PRIVATE,0o700)
         print('step 1/5  state and secret directories prepared')
-        missing=[(label,reference) for label,digest,reference in pinned_images()
-                 if docker('image','inspect',digest,check=False).returncode]
-        for number,(label,reference) in enumerate(missing,1):
-            pull_image(label,reference,f'{number}/{len(missing)}')
-        for label,digest,reference in pinned_images():
-            record,error=pinned_images_check.inspect_image(reference)
-            ok,detail=pinned_images_check.evaluate(digest,record)
-            if not ok:raise SystemExit('Pinned image '+label+' did not verify: '+detail)
+        ensure_images()
         print('step 2/5  pinned images present and verified')
         npm_install()
         run(['bun','run','build:ui'],cwd=ROOT)
@@ -529,7 +534,7 @@ def supervise(apply=False,service_user='sbarbase',home=None,bun_dir=None,evidenc
 
 def main():
     parser=argparse.ArgumentParser(description='sbarbase server preflight and installation')
-    parser.add_argument('command',choices=('check','plan','install','smoke','supervise'))
+    parser.add_argument('command',choices=('check','plan','install','images','smoke','supervise'))
     parser.add_argument('--bootstrap-file',help='private 0600 JSON with email, password and organization; write it with lab/operator_file.py')
     parser.add_argument('--apply',action='store_true',help='supervise: install, enable and start the unit (requires root)')
     parser.add_argument('--service-user',default='sbarbase',help='supervise: the account the service runs as')
@@ -553,6 +558,8 @@ def main():
         return
     if args.command=='install':
         install(args.bootstrap_file);return
+    if args.command=='images':
+        ensure_images();print('pinned images present and verified');return
     raise SystemExit(0 if smoke() else 1)
 
 

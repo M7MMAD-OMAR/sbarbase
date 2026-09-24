@@ -24,11 +24,13 @@ Read these to understand the design. Each page has the same shape: what it is, w
 
 ## Guides: how to do something
 
+- [Install with Docker](guides/docker.md): the shortest path, on any Linux host with Docker.
 - [Quickstart](guides/quickstart.md): from an empty server to a supabase-js call, as rehearsed in a local VM.
 - [Choosing a server](guides/choosing-a-server.md): what to buy, and what the free options really give you.
 - [Local lab](guides/local-lab.md): run the stack on your own machine for evaluation.
 - [Operator setup](guides/operator-setup.md): create the first operator and client.
 - [Server deployment](guides/server-deployment.md): the server runbook and its known gaps.
+- [Supabase Studio](guides/studio.md): open the original Studio for one environment, behind the console login.
 - [Backup and restore](guides/backup-and-restore.md): the manual procedure that exists today.
 - [Upgrades](guides/upgrades.md): how a pinned upstream component is changed.
 

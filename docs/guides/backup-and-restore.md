@@ -2,7 +2,40 @@
 
 # Backup and restore
 
-What exists today is a manual, attended procedure. **Scheduled backups and off-host copies are not built.** Nothing in Sbarbase copies your data anywhere on its own; if you need an off-host backup now, you have to arrange it yourself from the steps below. For the design behind this, read [recovery](../explain/recovery.md).
+## Daily backups of every environment
+
+Sbarbase backs up every environment once a day, while it keeps serving, and keeps the last seven backups of each. Nothing needs to be set up. Each backup holds the environment's database (users, password hashes, tables, Storage metadata) and its own Storage files, with a digest of each. A failed backup sends a notification through the operator channels.
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `SBARBASE_BACKUP_HOUR` | `3` | UTC hour of the daily run; `off` turns it off |
+| `SBARBASE_BACKUP_KEEP` | `7` | Backups kept per environment |
+
+Set them in `compose.yaml` (Docker) or in the unit's environment (systemd).
+
+Commands (with Docker, prefix `docker compose exec sbarbase`):
+
+| Task | Command |
+|---|---|
+| Back up one environment now | `python3 lab/backup.py create <environment>` |
+| Back up every environment now | `python3 lab/backup.py create all` |
+| List backups | `python3 lab/backup.py list` |
+| Restore an environment | `python3 lab/backup.py restore <environment> <backup>` |
+| Drop what a restore set aside | `python3 lab/backup.py discard-previous <environment>` |
+
+`<environment>` is the environment id from the console, or its runtime id (`e_...`, the path in its API URL). `<backup>` is the time shown by `list`, such as `20260924T030000Z`.
+
+**Restore** puts one environment back exactly as it was in that backup: rows, users and files written afterwards are gone. Only that environment's Auth and REST pause for the restore; every other environment and the console keep working. The state being replaced is kept aside, not deleted, and any failure during the restore puts it back automatically. When you are satisfied, `discard-previous` removes it.
+
+**Keep a copy off the server.** Backups are written to `.lab/backups/` on this server, with private permissions. A copy elsewhere protects against losing the server, for example:
+
+```bash
+rsync -a --delete /opt/sbarbase/.lab/backups/ backup-host:/srv/sbarbase-backups/
+```
+
+Each backup contains password hashes and every stored file, so keep the copy as private as the server.
+
+CI runs the full cycle on every change: back up while serving, change rows, users and files, restore, check that everything matches the backup, and discard the set-aside state.
 
 ## Whole-server cold backup
 

@@ -65,6 +65,8 @@ const NOTIFICATION_DETAIL_KEYS = {
   'fence.released':['phase'],
   'backup.export_completed':['phase'],
   'backup.export_failed':['phase'],
+  'backup.completed':['environments'],
+  'backup.failed':['failed'],
   'restore.verified':['status'],
   'restore.failed':['status'],
   // Written by the gateway's pressure monitor: docs/engineering/FAIR-SHARE-ADMISSION.md.
@@ -111,6 +113,9 @@ export const ENVIRONMENT_LIMIT=4;
 /** Bumped with each step of Catalog.migrate(). */
 export const CATALOG_SCHEMA_VERSION=3;
 
+export type StudioSession={runtime:string;desired:'running'|'stopped';state:'stopped'|'starting'|'running'|'failed';
+  failure:string|null;updatedAt:number|null};
+
 export class Catalog {
   private db:Database;
   private channels:NotificationChannel[];
@@ -153,6 +158,11 @@ export class Catalog {
         runtime TEXT PRIMARY KEY REFERENCES provision_jobs(runtime),
         revision INTEGER NOT NULL CHECK(revision>0),
         maintenance INTEGER NOT NULL CHECK(maintenance IN (0,1)),placement TEXT);
+      CREATE TABLE IF NOT EXISTS studio_sessions(
+        runtime TEXT PRIMARY KEY REFERENCES provision_jobs(runtime),
+        desired TEXT NOT NULL CHECK(desired IN ('running','stopped')),
+        state TEXT NOT NULL CHECK(state IN ('stopped','starting','running','failed')),
+        failure TEXT, actor TEXT NOT NULL, updated_at INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS audit_events(
         sequence INTEGER PRIMARY KEY AUTOINCREMENT, actor TEXT NOT NULL,
         action TEXT NOT NULL, subject TEXT NOT NULL, detail TEXT NOT NULL, at INTEGER NOT NULL);
@@ -479,6 +489,35 @@ export class Catalog {
       const job=this.job(environment);
       if(!job||job.state!=='succeeded') throw new Error('Environment is not ready');
       return operation(job);
+    }).immediate();
+  }
+  /** Studio for one environment, on demand. Owners and admins ask; the supervisor starts or
+   * stops it (lab/studio.py) and records the outcome in the same row. */
+  studio(actor:string,environment:string):StudioSession {
+    this.environmentProject(actor,environment,['owner','admin']);
+    const job=this.job(environment);
+    if(!job||job.state!=='succeeded')throw new Error('Environment is not ready');
+    const row=this.db.query<{desired:string;state:string;failure:string|null;updated_at:number},[string]>(
+      'SELECT desired,state,failure,updated_at FROM studio_sessions WHERE runtime=?').get(job.runtime);
+    return {runtime:job.runtime,desired:(row?.desired??'stopped') as StudioSession['desired'],
+      state:(row?.state??'stopped') as StudioSession['state'],failure:row?.failure??null,updatedAt:row?.updated_at??null};
+  }
+  /** Whether this actor may use Studio for this runtime right now: owner or admin of it. */
+  studioAllowed(actor:string,runtime:string):boolean {
+    const row=this.db.query<{environment:string},[string]>(
+      "SELECT environment FROM provision_jobs WHERE runtime=? AND state='succeeded'").get(runtime);
+    if(!row)return false;
+    try{this.environmentProject(actor,row.environment,['owner','admin']);return true;}catch{return false;}
+  }
+  requestStudio(actor:string,environment:string,desired:'running'|'stopped'):StudioSession {
+    return this.db.transaction(()=>{
+      const current=this.studio(actor,environment);
+      this.db.query(`INSERT INTO studio_sessions(runtime,desired,state,failure,actor,updated_at) VALUES (?,?,'stopped',NULL,?,?)
+        ON CONFLICT(runtime) DO UPDATE SET desired=excluded.desired,actor=excluded.actor,updated_at=excluded.updated_at,
+        failure=CASE WHEN excluded.desired='running' THEN NULL ELSE studio_sessions.failure END`)
+        .run(current.runtime,desired,actor,Date.now());
+      this.record(actor,desired==='running'?'studio.requested':'studio.stop_requested',environment,{});
+      return this.studio(actor,environment);
     }).immediate();
   }
   runtimeReady(runtime:string):boolean {

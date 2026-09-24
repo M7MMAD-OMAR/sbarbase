@@ -1,5 +1,6 @@
 """Foreground local installation runner. Owns only its children and labelled lab."""
 import collections
+import datetime
 import console_build_check
 import fcntl
 import json
@@ -7,6 +8,8 @@ import notification_producers
 import os
 from pathlib import Path
 import signal
+import sqlite3
+from contextlib import closing
 import subprocess
 import sys
 import threading
@@ -67,11 +70,38 @@ def terminate_group(process, grace=20):
     process.wait()
 
 
+def backup_hour(environment=os.environ):
+    """The UTC hour of the daily backup, or None when SBARBASE_BACKUP_HOUR is 'off'."""
+    value = environment.get('SBARBASE_BACKUP_HOUR', '3').strip()
+    if value == 'off':
+        return None
+    hour = int(value)
+    if not 0 <= hour <= 23:
+        raise ValueError('SBARBASE_BACKUP_HOUR must be 0 to 23 or off')
+    return hour
+
+
+def backup_keep(environment=os.environ):
+    keep = int(environment.get('SBARBASE_BACKUP_KEEP', '7'))
+    if keep < 1:
+        raise ValueError('SBARBASE_BACKUP_KEEP must be at least 1')
+    return keep
+
+
+def backup_due(now, last_day, hour):
+    """Once per UTC day, at or after the configured hour; a start later that day catches up."""
+    return hour is not None and now.hour >= hour and last_day != now.date().isoformat()
+
+
 class Supervisor:
     def __init__(self, stop_event=None, worker_fd=None, catalog=None):
         self.stop_event = stop_event or threading.Event()
         self.server = None
         self.worker = None
+        self.backup = None
+        self.studios = {}
+        self.backup_hour = backup_hour()
+        self.backup_keep = backup_keep()
         self.restarts = collections.deque()
         self.worker_fd = worker_fd
         # The control catalog the operator's installation drains. None selects the
@@ -117,6 +147,73 @@ class Supervisor:
             # state change exists before the event is written.
             self.record_worker_event('worker.restart', 'worker_restart')
 
+    def schedule_backup(self, now=None):
+        """Start the daily backup when it is due, and report it when it ends."""
+        if self.backup is not None:
+            status = child_status(self.backup)
+            if status is None:
+                return
+            terminate_group(self.backup, grace=0)
+            self.backup = None
+            path = STATE/'endpoints.json'
+            count = len(json.loads(path.read_text())) if path.exists() else 0
+            if status == 0:
+                notification_producers.emit('backup.completed', 'info', 'backup.completed|installation', {},
+                                            'system:supervisor', 'export_completed', {'environments': count},
+                                            catalog=self.catalog)
+            else:
+                notification_producers.emit('backup.failed', 'critical', 'backup.failed|installation', {},
+                                            'system:supervisor', 'export_failed', {'failed': status},
+                                            catalog=self.catalog)
+            return
+        now = now or datetime.datetime.now(datetime.UTC)
+        record = STATE/'backup-schedule.json'
+        last = json.loads(record.read_text()).get('day') if record.exists() else None
+        if not backup_due(now, last, self.backup_hour):
+            return
+        # Recorded before the run starts, so a failing backup is reported once, not retried all day.
+        temporary = STATE/'backup-schedule.pending'
+        temporary.write_text(json.dumps({'day': now.date().isoformat(), 'started_at': now.isoformat(timespec='seconds')}))
+        temporary.replace(record)
+        print('Daily backup started.', flush=True)
+        self.backup = self.spawn(['/usr/bin/python3', 'lab/backup.py', 'create', 'all', '--keep', str(self.backup_keep)])
+
+    def studio_requests(self):
+        """(runtime, desired, state, failure) of every Studio row in the catalog."""
+        path = STATE/'control.sqlite'
+        if not path.exists():
+            return []
+        try:
+            with closing(sqlite3.connect(f'file:{path}?mode=ro', uri=True, timeout=2)) as database, database:
+                return database.execute('SELECT runtime, desired, state, failure FROM studio_sessions').fetchall()
+        except sqlite3.Error:
+            return []
+
+    def schedule_studios(self):
+        """Start or stop each environment's Studio as the console asked, one child per environment."""
+        for runtime, process in list(self.studios.items()):
+            if child_status(process) is not None:
+                terminate_group(process, grace=0)
+                del self.studios[runtime]
+        for runtime, desired, state, failure in self.studio_requests():
+            if runtime in self.studios:
+                continue
+            if desired == 'running' and (state == 'stopped' or (state == 'failed' and failure is None)):
+                self.studios[runtime] = self.spawn(['/usr/bin/python3', 'lab/studio.py', 'up', runtime])
+            elif desired == 'stopped' and state in ('running', 'starting', 'failed'):
+                self.studios[runtime] = self.spawn(['/usr/bin/python3', 'lab/studio.py', 'down', runtime])
+
+    def reset_studios(self):
+        """No Studio outlives a restart: browser sessions are gone and the login must close."""
+        subprocess.run(['/usr/bin/python3', 'lab/studio.py', 'reset'], cwd=ROOT, timeout=300, check=False)
+        path = STATE/'control.sqlite'
+        if path.exists():
+            try:
+                with closing(sqlite3.connect(path, timeout=5)) as database, database:
+                    database.execute("UPDATE studio_sessions SET desired='stopped', state='stopped', failure=NULL")
+            except sqlite3.Error:
+                pass
+
     def record_worker_event(self, kind, reason):
         """One supervisor event, from the worker exit the supervisor already recorded."""
         return notification_producers.emit(kind, 'critical' if kind == 'worker.restart_limit' else 'warning',
@@ -125,11 +222,18 @@ class Supervisor:
 
     def run(self):
         try:
+            self.reset_studios()
             self.server = self.spawn(['bun', 'lab/upstream-server.ts'])
             self.start_worker()
             while not self.stop_event.wait(.25):
                 self.check()
+                self.schedule_backup()
+                self.schedule_studios()
         finally:
+            if self.backup:
+                terminate_group(self.backup)
+            for process in self.studios.values():
+                terminate_group(process)
             # Stop new HTTP mutations first, then drain the active worker effect.
             if self.server:
                 terminate_group(self.server)

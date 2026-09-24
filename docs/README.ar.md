@@ -24,11 +24,13 @@
 
 ## الأدلة العملية: كيف تنفّذ مهمة
 
+- [التثبيت عبر Docker](guides/docker.ar.md): أقصر طريق، على أي خادم Linux عليه Docker.
 - [البداية السريعة](guides/quickstart.ar.md): من خادم فارغ إلى استدعاء supabase-js، كما جُرّب في آلة افتراضية محلية.
 - [اختيار خادم](guides/choosing-a-server.ar.md): ماذا تشتري، وماذا تعطيك الخيارات المجانية فعلًا.
 - [المختبر المحلي](guides/local-lab.ar.md): شغّل الحزمة على جهازك لتقييمها.
 - [إعداد المشغّل](guides/operator-setup.ar.md): أنشئ المشغّل الأول والعميل الأول.
 - [النشر على خادم](guides/server-deployment.ar.md): دليل تشغيل الخادم وثغراته المعروفة.
+- [Supabase Studio](guides/studio.ar.md): افتح Studio الأصلي لبيئة واحدة، من خلف تسجيل الدخول إلى الواجهة.
 - [النسخ الاحتياطي والاستعادة](guides/backup-and-restore.ar.md): الإجراء اليدوي المتاح اليوم.
 - [الترقيات](guides/upgrades.ar.md): كيف يُغيَّر مكوّن أصلي مثبّت الإصدار.
 

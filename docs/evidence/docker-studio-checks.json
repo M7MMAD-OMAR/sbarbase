@@ -1,0 +1,120 @@
+{
+  "check": "studio",
+  "recorded": "2026-09-24T02:53:43Z",
+  "passed": true,
+  "count": 22,
+  "seconds": 18,
+  "scope": "Supabase Studio for one environment on a running installation: started on demand through the management API, entered with the console ticket on its own origin, and used through Studio's own API for tables, SQL, users and buckets; refused without the session or with another environment's session; stopped. Transcribed from the CI docker-install job 107473260995 (run 35948924152, commit 19fd36d) on a clean GitHub runner; not a real server.",
+  "checks": [
+    {
+      "check": "operator logs in",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "a provisioned environment exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "Studio is stopped until someone asks for it",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "opening before it runs is refused",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "an owner starts Studio",
+      "ok": true,
+      "detail": "status 202"
+    },
+    {
+      "check": "the supervisor starts Studio and postgres-meta",
+      "ok": true,
+      "detail": "state running"
+    },
+    {
+      "check": "the console issues a one-minute ticket",
+      "ok": true,
+      "detail": "status 201"
+    },
+    {
+      "check": "the environment has its own Studio origin",
+      "ok": true,
+      "detail": "d36a7c6f2c12230b52a7862b.studio.localhost"
+    },
+    {
+      "check": "Studio refuses a browser without the session",
+      "ok": true,
+      "detail": "status 401"
+    },
+    {
+      "check": "Studio refuses a forged session",
+      "ok": true,
+      "detail": "status 401"
+    },
+    {
+      "check": "the ticket opens a session for this origin only",
+      "ok": true,
+      "detail": "status 302"
+    },
+    {
+      "check": "Studio answers behind the session",
+      "ok": true,
+      "detail": "status 200"
+    },
+    {
+      "check": "the project page loads",
+      "ok": true,
+      "detail": "status 200"
+    },
+    {
+      "check": "the table list reads the environment database",
+      "ok": true,
+      "detail": "status 200"
+    },
+    {
+      "check": "the SQL editor sees the environment users despite row security",
+      "ok": true,
+      "detail": "1 user(s)"
+    },
+    {
+      "check": "the SQL editor creates a table and a row",
+      "ok": true,
+      "detail": "status 200"
+    },
+    {
+      "check": "Studio creates a user through the environment Auth",
+      "ok": true,
+      "detail": "status 200"
+    },
+    {
+      "check": "Studio lists the environment buckets through Storage",
+      "ok": true,
+      "detail": "status 200"
+    },
+    {
+      "check": "the session does not open another environment",
+      "ok": true,
+      "detail": "status 401"
+    },
+    {
+      "check": "the owner stops Studio",
+      "ok": true,
+      "detail": "status 202"
+    },
+    {
+      "check": "Studio is stopped again",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "a stopped Studio is not reachable with the old session",
+      "ok": true,
+      "detail": "status 503"
+    }
+  ]
+}

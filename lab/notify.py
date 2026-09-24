@@ -58,7 +58,7 @@ KINDS = frozenset((
     'installation.started', 'installation.stopped', 'installation.start_failed',
     'worker.restart', 'worker.restart_limit',
     'fence.applied', 'fence.released',
-    'backup.export_completed', 'backup.export_failed',
+    'backup.export_completed', 'backup.export_failed', 'backup.completed', 'backup.failed',
     'restore.verified', 'restore.failed', 'environment.saturated'))
 REASONS = frozenset((
     'runtime_failed', 'retry_limit', 'retry_requested', 'owner_changed', 'ownership_changed',
@@ -92,6 +92,8 @@ DETAIL_KEYS = {
     'fence.released': ('phase',),
     'backup.export_completed': ('phase',),
     'backup.export_failed': ('phase',),
+    'backup.completed': ('environments',),
+    'backup.failed': ('failed',),
     'restore.verified': ('status',),
     'restore.failed': ('status',),
     'environment.saturated': ('minutes', 'refused', 'peak', 'guarantee'),
@@ -158,6 +160,10 @@ SUMMARY = {
                                 'Retain the private archive and key; no action required.'),
     'backup.export_failed': ('The environment export failed and the environment may be left fenced.',
                              'Inspect the retained fence record and the private state before retrying.'),
+    'backup.completed': ('The scheduled backup of every environment completed on this host.',
+                         'Copy the backups off this host as the backup guide describes.'),
+    'backup.failed': ('The scheduled backup failed for at least one environment.',
+                      'Run lab/backup.py create all to see which one and why.'),
     'restore.verified': ('The independent database restore verified every recorded check.',
                          'No action required; the target is retained stopped for inspection.'),
     'restore.failed': ('The independent database restore failed or its cleanup did not complete.',

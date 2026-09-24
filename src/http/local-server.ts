@@ -22,7 +22,10 @@ export function consolePort(value:string|undefined):number {
  return Number(value);
 }
 
-export async function serveLocal(fetch:(request:Request)=>Response|Promise<Response>,port=0) {
+/** Loopback names, plus a caller's own (`<id>.studio.localhost`), and an explicit bind address. */
+export async function serveLocal(fetch:(request:Request)=>Response|Promise<Response>,port=0,
+ options:{host?:string;hostnames?:(name:string)=>boolean}={}) {
+ const bind=options.host??'127.0.0.1';
  const sockets=new Set<Socket>();
  const server=createServer(async(incoming,outgoing)=>{
   const abort=new AbortController();
@@ -33,7 +36,7 @@ export async function serveLocal(fetch:(request:Request)=>Response|Promise<Respo
    const headers=new Headers();
    for(let i=0;i<incoming.rawHeaders.length;i+=2)headers.append(incoming.rawHeaders[i]!,incoming.rawHeaders[i+1]!);
    const target=new URL(incoming.url??'/',`http://${incoming.headers.host??'127.0.0.1'}`);
-   if(!['127.0.0.1','localhost'].includes(target.hostname)){
+   if(!['127.0.0.1','localhost',bind].includes(target.hostname)&&!options.hostnames?.(target.hostname)){
     outgoing.writeHead(403,{'content-type':'text/plain'});outgoing.end('Invalid host');return;
    }
    const method=incoming.method??'GET';
@@ -74,7 +77,7 @@ export async function serveLocal(fetch:(request:Request)=>Response|Promise<Respo
  server.on('connection',socket=>{sockets.add(socket);socket.once('close',()=>sockets.delete(socket));});
  server.maxConnections=256;server.maxHeadersCount=100;
  server.headersTimeout=10_000;server.requestTimeout=30_000;server.keepAliveTimeout=5_000;
- await new Promise<void>((resolve,reject)=>{server.once('error',reject);server.listen(port,'127.0.0.1',()=>{server.off('error',reject);resolve();});});
+ await new Promise<void>((resolve,reject)=>{server.once('error',reject);server.listen(port,bind,()=>{server.off('error',reject);resolve();});});
  const address=server.address();if(!address||typeof address==='string')throw new Error('Local listener address unavailable');
  return {port:address.port,connections:()=>sockets.size,stop(force=false){if(force)server.closeAllConnections();server.close();}};
 }

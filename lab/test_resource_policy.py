@@ -18,7 +18,7 @@ DESIGN_ROWS = {
     'production': ('production', 512, 400, .25, '256m', 128),
     'experimental': ('experimental', 128, 100, .25, '256m', 128),
     'operator.studio': ('operator', 1024, 500, .5, '512m', 128),
-    'operator.meta': ('operator', 1024, 500, .25, '128m', 128),
+    'operator.meta': ('operator', 1024, 500, .25, '256m', 128),
     'maintenance': ('maintenance', 512, 400, None, None, 128),
 }
 DESIGN_CLASSES = ('system', 'production', 'experimental', 'operator', 'maintenance')
@@ -412,6 +412,41 @@ class BlockIOLimits(unittest.TestCase):
             self.assertEqual(policy.whole_disk('/dev/vda3', sysfs=sysfs), '/dev/vda')
             self.assertEqual(policy.whole_disk('/dev/dm-0', sysfs=sysfs), '/dev/dm-0')
             self.assertEqual(policy.whole_disk('/dev/sdz9', sysfs=sysfs), '/dev/sdz9')
+
+    def test_a_device_known_to_sysfs_but_absent_from_dev_is_accepted(self):
+        # A control plane in a container sees the host's sysfs but not its /dev.
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            sysfs = Path(directory)
+            (sysfs / 'vdz').mkdir()
+            self.assertTrue(policy.known_block_device('/dev/vdz', sysfs=sysfs))
+            self.assertFalse(policy.known_block_device('/dev/vdy', sysfs=sysfs))
+
+    def test_a_kernel_root_name_resolves_through_the_device_numbers(self):
+        # Inside a container findmnt can report /dev/root, which has no node or sysfs name.
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'devices' / 'sda' / 'sda1').mkdir(parents=True)
+            (root / 'dev-block').mkdir()
+            (root / 'dev-block' / '8:1').symlink_to(root / 'devices' / 'sda' / 'sda1')
+            self.assertEqual(policy.device_by_numbers('8:1', sysfs=root / 'dev-block'), '/dev/sda1')
+            self.assertIsNone(policy.device_by_numbers('8:2', sysfs=root / 'dev-block'))
+            self.assertIsNone(policy.device_by_numbers('0:45', sysfs=root / 'dev-block'))
+            self.assertIsNone(policy.device_by_numbers('../x', sysfs=root / 'dev-block'))
+
+    def test_io_device_falls_back_to_numbers_when_the_name_is_unknown(self):
+        known = {'/dev/sda1', '/dev/sda'}
+        with patch.object(policy, '_findmnt', return_value='/dev/root'), \
+             patch.object(policy, 'numbers', return_value='8:1'), \
+             patch.object(policy, 'device_by_numbers', side_effect=lambda value: '/dev/sda1' if value == '8:1' else None), \
+             patch.object(policy, 'known_block_device', side_effect=lambda device: device in known), \
+             patch.object(policy, 'whole_disk', side_effect=lambda device: '/dev/sda'):
+            self.assertEqual(policy.io_device('/'), '/dev/sda')
+        with patch.object(policy, '_findmnt', return_value='/dev/root'), \
+             patch.object(policy, 'numbers', return_value='0:40'), \
+             patch.object(policy, 'known_block_device', return_value=False):
+            self.assertIsNone(policy.io_device('/'))
 
     def test_io_device_refuses_a_source_that_is_not_a_block_device(self):
         for source in ('', 'overlay', 'tmpfs', 'none', '/dev/does-not-exist'):

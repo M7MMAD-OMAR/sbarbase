@@ -24,6 +24,15 @@ ready.
   crowding out a neighbour, an environment raises one `environment.saturated`
   operator notification. Borrowing alone never does.
 - **Telegram** as a third notification channel beside email and webhook.
+- **Supabase Studio per environment.** Owners and admins start the original,
+  pinned Studio and postgres-meta for one environment from the console, open it
+  on its own address behind the console login, and stop it. Studio signs in with
+  a per-start login that is not a superuser and exists only while it runs. CI
+  uses tables, SQL, users and buckets through it on a clean machine.
+- **Install with Docker.** `docker compose up -d --build` on any Linux host with
+  Docker: the image carries Python 3.14, Bun and the Docker CLI, and starts the
+  pinned Supabase services as sibling containers. CI runs build, first operator,
+  first project through supabase-js, restart and a clean stop on a clean machine.
 - **Empty-server rehearsal in a local VM.** `lab/vm-rehearsal.sh` boots a
   disposable Fedora 44 Cloud VM, installs from a clean clone with the one-command
   acceptance, creates a first project and reboots. Passed on 4 vCPU and 6 GiB
