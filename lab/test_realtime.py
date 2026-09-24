@@ -121,7 +121,7 @@ class ApplyTests(unittest.TestCase):
             self.assertEqual(realtime.apply(E), 1)
         state, failure = self.row()
         self.assertEqual(state, 'failed')
-        self.assertIn('memory', failure)
+        self.assertIn('room', failure)
 
     def test_turning_off_passes_off(self):
         with closing(sqlite3.connect(self.catalog)) as database, database:

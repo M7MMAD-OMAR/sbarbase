@@ -706,6 +706,13 @@ END $$;""", e)
                 placement, cpus = resource_policy.start_placement(len(self.values['environments']), realtime_count() + 1)
                 if not resource_policy.restart_fits(placement, cpus, available_memory_bytes(), owned_usage_bytes(), os.cpu_count() or 0):
                     raise AdmissionLimitError('Restart headroom unavailable')
+                # The connections Realtime adds must fit what the cluster can serve, as Studio's do.
+                available, promised = (int(value) for value in self.sql(
+                    "SELECT current_setting('max_connections')::int - current_setting('superuser_reserved_connections')::int "
+                    "- current_setting('reserved_connections')::int, coalesce(sum(greatest(datconnlimit, 0)), 0) "
+                    "FROM pg_database WHERE datallowconn AND datname <> 'template1';").stdout.strip().split('|'))
+                if promised + connection_budget.REALTIME_CONNECTIONS > available:
+                    raise AdmissionLimitError('Connection headroom unavailable')
             entry = self.realtime_start(e, migrate=True)
         else:
             entry = None

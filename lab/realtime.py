@@ -22,7 +22,7 @@ CATALOG = ROOT / '.lab' / 'upstream' / 'control.sqlite'
 OPERATION_LOCK = ROOT / '.lab' / 'upstream' / 'operation.lock'
 RUNTIME = re.compile(r'e_[a-f0-9]{24}')
 CAPACITY = 75
-FAILURES = {CAPACITY: 'This server does not have the memory to run Realtime for another environment.'}
+FAILURES = {CAPACITY: 'This server does not have the room, in memory or database connections, to run Realtime for another environment.'}
 
 
 def desired(e):

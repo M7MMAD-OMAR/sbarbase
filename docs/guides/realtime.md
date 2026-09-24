@@ -9,7 +9,7 @@ Realtime lets clients listen to database changes, and send broadcast and presenc
 1. Open the environment's page in the console.
 2. Under **Realtime**, press **Turn on Realtime**. It shows **Applying…**, then **On**, usually within a minute.
 
-Only owners and admins of the client see this section. If the server does not have the memory for another Realtime, the section says so and nothing changes; see [choosing a server](choosing-a-server.md).
+Only owners and admins of the client see this section. If the server does not have the memory or the database connections for another Realtime, the section says so and nothing changes; see [choosing a server](choosing-a-server.md).
 
 ## Use it
 
