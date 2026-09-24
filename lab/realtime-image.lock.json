@@ -1,0 +1,7 @@
+{
+  "tag": "public.ecr.aws/supabase/realtime:v2.138.1",
+  "id": "sha256:7a6d995635f747b566079e51b1a1388dded8b2d0dfef1eda5afe98f6c9e5567e",
+  "digests": [
+    "public.ecr.aws/supabase/realtime@sha256:7a6d995635f747b566079e51b1a1388dded8b2d0dfef1eda5afe98f6c9e5567e"
+  ]
+}

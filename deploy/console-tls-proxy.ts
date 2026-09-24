@@ -157,12 +157,49 @@ const upstream = await resolveUpstream(options.upstream);
 // Whatever the source, the upstream must be loopback: the console is never exposed.
 assertLoopbackUpstream(upstream);
 
-const secure = Bun.serve({
+// An environment's Realtime socket. The console listener checks the key and the environment;
+// this proxy only carries the socket across TLS.
+const REALTIME_SOCKET = /^\/[a-z][a-z0-9_]{1,30}\/realtime\/v1\/websocket$/;
+type Bridge = {target: string; upstream?: WebSocket; queue: (string | Uint8Array<ArrayBuffer>)[]};
+const closeCode = (code: number) => (code === 1000 || (code >= 3000 && code <= 4999) ? code : 1011);
+
+const secure = Bun.serve<Bridge>({
   port: options.httpsPort,
   hostname: '127.0.0.1',
   tls: {cert: Bun.file(options.cert), key: Bun.file(options.key)},
-  async fetch(request) {
+  websocket: {
+    open(socket) {
+      const upstreamSocket = new WebSocket(socket.data.target);
+      upstreamSocket.binaryType = 'arraybuffer';
+      socket.data.upstream = upstreamSocket;
+      upstreamSocket.onopen = () => {
+        for (const message of socket.data.queue) upstreamSocket.send(message);
+        socket.data.queue = [];
+      };
+      upstreamSocket.onmessage = event => socket.send(typeof event.data === 'string' ? event.data : new Uint8Array(event.data));
+      upstreamSocket.onclose = event => socket.close(closeCode(event.code), event.reason);
+      upstreamSocket.onerror = () => socket.close(1011, 'Upstream unavailable');
+    },
+    message(socket, message) {
+      const upstreamSocket = socket.data.upstream;
+      if (upstreamSocket?.readyState === WebSocket.OPEN) upstreamSocket.send(message);
+      else if (socket.data.queue.length < 64) socket.data.queue.push(typeof message === 'string' ? message : new Uint8Array(message));
+      else socket.close(1013, 'Upstream not ready');
+    },
+    close(socket) {
+      socket.data.upstream?.close();
+    },
+  },
+  async fetch(request, server) {
     const url = new URL(request.url);
+    if (request.headers.get('upgrade')?.toLowerCase() === 'websocket' && REALTIME_SOCKET.test(url.pathname)) {
+      const target = upstream.replace(/^http:/, 'ws:') + url.pathname + url.search;
+      if (server.upgrade(request, {data: {target, queue: []}})) {
+        console.log('WEBSOCKET ' + url.pathname);
+        return undefined;
+      }
+      return new Response('WebSocket upgrade failed', {status: 400});
+    }
     const headers = securityHeaders(request, options.publicHost);
     const tooLarge = () => {
       console.log(request.method + ' ' + url.pathname + ' 413');

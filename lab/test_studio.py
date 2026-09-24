@@ -32,6 +32,10 @@ class LoginTests(unittest.TestCase):
         self.assertIn(f'host {E} {E}_studio 0.0.0.0/0 scram-sha-256', lines)
         self.assertEqual(lines[-2:], ['host all all 0.0.0.0/0 reject', 'host all all ::/0 reject'])
 
+    def test_the_internal_route_port_is_never_an_ephemeral_port(self):
+        # The host's outbound connections take source ports from 32768 upwards on the same address.
+        self.assertLess(studio.UPSTREAM_PORT, 32768)
+
     def test_the_rule_check_accepts_only_this_database(self):
         with patch.object(studio, 'runtime_sql', return_value=f'{E} {E}_studio'):
             studio.require_rule(E)

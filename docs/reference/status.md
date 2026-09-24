@@ -89,6 +89,7 @@ On a clean GitHub runner with only Docker, CI runs the Docker install on every c
 | Back up one environment while it serves, change rows, users and files, restore, compare with the backup, discard the set-aside state | [docker-backup-restore.json](../evidence/docker-backup-restore.json) | 15 |
 | Supabase Studio for one environment: started on demand, entered with the console ticket, table list, SQL, users and buckets through it, refused without the session or with another environment's session, stopped ([Studio guide](../guides/studio.md)) | [docker-studio-checks.json](../evidence/docker-studio-checks.json) | 22 |
 | Sign-in settings: site URL, redirects and a GitHub provider saved and applied by recreating Auth, a keyless OAuth start and email link, sign-up after the recreate, the provider removed ([sign-in](../guides/sign-in.md)) | [docker-sign-in-checks.json](../evidence/docker-sign-in-checks.json) | 15 |
+| Realtime for one environment: turned on and started by the supervisor, broadcast, presence and a database change between two supabase-js clients through the gateway, the broadcast REST API, a wrong key refused, turned off ([Realtime](../guides/realtime.md)) | [docker-realtime-checks.json](../evidence/docker-realtime-checks.json) | 19 |
 | Upgrade to a newer PostgREST with `lab/upgrade.py`, then a broken version that the supervisor moves back from by itself, with users, identities, buckets and files unchanged ([upgrades](../guides/upgrades.md)) | [docker-upgrade-checks.json](../evidence/docker-upgrade-checks.json) | 10 |
 
 ### Empty server, simulated in a local VM
@@ -124,7 +125,7 @@ A start needs its containers' memory limits plus a 2560 MiB reserve: 1792 MiB of
 ## What does not exist yet
 
 - A rehearsal on a real server. The empty-server install passed in a local VM only.
-- Realtime, Edge Functions, the connection pooler and cron.
+- Edge Functions, the connection pooler and cron.
 - Automatic copies of the daily backups to another machine (copy them yourself, as the backup guide shows), and point-in-time recovery.
 - Importing a project from Supabase Cloud or a self-hosted stack beyond the read-only inspection.
 - Automatic recovery of later-stage provisioning failures; they block until an operator reconciles them.

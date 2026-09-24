@@ -75,4 +75,15 @@ Request bodies accept only `name`, at most 4 KiB, read within five seconds. Key 
 | `503` | Environment in maintenance, server-wide request limit reached, or routing unavailable; `retry-after: 1` where retrying helps |
 | `504` | Upstream deadline exceeded |
 
-Admission limits are per gateway process and have no queue. Realtime and Edge Functions are not routed yet.
+Admission limits are per gateway process and have no queue. Edge Functions are not routed yet.
+
+## Realtime
+
+When an environment has Realtime turned on ([Realtime](../guides/realtime.md)):
+
+| Route | Meaning |
+|---|---|
+| `GET /{runtime}/realtime/v1/websocket?apikey=<publishable key>&vsn=1.0.0` with `Upgrade: websocket` | The Realtime socket supabase-js opens. The key is checked first; Realtime receives the environment's anon token instead |
+| `POST /{runtime}/realtime/v1/api/broadcast` | Broadcast from a server, with the `apikey` header |
+
+With Realtime off, the socket answers `404`. A wrong or revoked key answers `401`. Every other Realtime path answers `404`.

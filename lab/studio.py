@@ -44,7 +44,10 @@ PREFIX = runtime.PREFIX
 STATE_FILE = runtime.STATE / 'studio.json'
 CATALOG = runtime.STATE / 'control.sqlite'
 RUNTIME_ID = re.compile(r'e_[a-f0-9]{24}')
-UPSTREAM_PORT = int(os.environ.get('SBARBASE_STUDIO_UPSTREAM_PORT', '54320'))
+# Below Linux's ephemeral range (32768 to 60999): the host's own outbound connections into the
+# runtime network take source ports from that range on the same address, and one holding this
+# port kept the route from opening for a whole run.
+UPSTREAM_PORT = int(os.environ.get('SBARBASE_STUDIO_UPSTREAM_PORT', '25432'))
 # Studio itself allows longer statements than the data plane: an operator's SQL editor
 # query or a CSV import is not application traffic.
 STATEMENT_TIMEOUT = '60s'
@@ -105,7 +108,7 @@ ALTER ROLE {role} LOGIN;
 """
 
 
-STUDIO_CONNECTIONS = 6
+STUDIO_CONNECTIONS = connection_budget.STUDIO_CONNECTIONS
 
 
 def open_connections(e):
@@ -116,7 +119,7 @@ def open_connections(e):
     available, promised = int(limits[0]), int(limits[1])
     if promised + STUDIO_CONNECTIONS > available:
         raise StudioError('The database has no connections to spare for Studio')
-    runtime_sql(f'ALTER DATABASE {e} CONNECTION LIMIT {connection_budget.ENVIRONMENT_LIMIT + STUDIO_CONNECTIONS};')
+    runtime_sql(f'ALTER DATABASE {e} CONNECTION LIMIT {connection_budget.database_limit(studio=True, realtime=runtime.realtime_on(e))};')
 
 
 def close_login(e):
@@ -125,7 +128,7 @@ def close_login(e):
                 f"ALTER ROLE {role} NOLOGIN; END IF; END $$; "
                 f"SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE usename = '{role}';")
     runtime_sql(f"DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_database WHERE datname = '{e}') THEN "
-                f"EXECUTE 'ALTER DATABASE {e} CONNECTION LIMIT {connection_budget.ENVIRONMENT_LIMIT}'; END IF; END $$;")
+                f"EXECUTE 'ALTER DATABASE {e} CONNECTION LIMIT {connection_budget.database_limit(realtime=runtime.realtime_on(e))}'; END IF; END $$;")
 
 
 def runtime_sql(query, database='postgres'):

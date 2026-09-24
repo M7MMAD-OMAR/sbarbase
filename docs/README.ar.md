@@ -30,6 +30,7 @@
 - [المختبر المحلي](guides/local-lab.ar.md): شغّل الحزمة على جهازك لتقييمها.
 - [إعداد المشغّل](guides/operator-setup.ar.md): أنشئ المشغّل الأول والعميل الأول.
 - [النشر على خادم](guides/server-deployment.ar.md): دليل تشغيل الخادم وثغراته المعروفة.
+- [Realtime](guides/realtime.ar.md): تغييرات قاعدة البيانات والبث والحضور لكل بيئة.
 - [إعدادات تسجيل الدخول](guides/sign-in.ar.md): عنوان الموقع وعناوين إعادة التوجيه ومزوّدو OAuth (Google وGitHub وApple وغيرها) لكل بيئة.
 - [Supabase Studio](guides/studio.ar.md): افتح Studio الأصلي لبيئة واحدة، من خلف تسجيل الدخول إلى الواجهة.
 - [النسخ الاحتياطي والاستعادة](guides/backup-and-restore.ar.md): الإجراء اليدوي المتاح اليوم.
