@@ -39,7 +39,7 @@ file. Nothing here is a production capacity claim.
 | Account and layout the installation runs as | named, validated, refuses a missing account | `--service-user`, `--home` and `--bun-dir` are accepted by `lab/install_server.py supervise` and forwarded by `deploy/server-acceptance.sh`; the installer refuses `--apply` for an account that does not exist (the shipped default is `sbarbase`) and records `service_account: present|missing` in its evidence, so an install never produces a unit that cannot start |
 | HTTPS and network exposure | termination implemented and checked on this host; the public certificate and the production proxy are the operator's | `deploy/console-tls-proxy.ts` and `lab/tls_termination_check.py` (23 checks, `docs/evidence/tls-termination.json`); runbook in `docs/guides/server-deployment.md`. No port is published by the installation itself |
 | Upgrade and rollback | policy plus runbook, no release adopted yet | `docs/engineering/UPSTREAM-UPDATE-POLICY.md`, `docs/guides/server-deployment.md` |
-| Backup and restore | restore evidenced locally, off-host not implemented | `docs/engineering/INDEPENDENT-RESTORE.md`; off-host restore remains out of scope |
+| Backup and restore | restore evidenced locally; encrypted off-host copies to an S3-compatible bucket unit tested against a local fake, not run against a real provider | `docs/engineering/INDEPENDENT-RESTORE.md`, `docs/guides/backup-and-restore.md`, `lab/test_backup_offsite.py` |
 | Capacity at 10 or 100 projects | not claimed | configured ceilings only, no measured peak demand |
 | Realtime, Functions, pooler, cron | not implemented | out of scope for this revision |
 

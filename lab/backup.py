@@ -2,8 +2,11 @@
 
     backup.py create <environment|all> [--keep N]
     backup.py list [<environment>]
-    backup.py restore <environment> <backup>
+    backup.py restore <environment> <backup> [--offsite]
     backup.py discard-previous <environment>
+    backup.py offsite-list
+    backup.py offsite-fetch <backup>
+    backup.py offsite-key <path>
 
 <environment> is the runtime id (``e_`` and 24 hex, the ``apiPath`` of the connection page)
 or the environment's id from the console.
@@ -19,8 +22,11 @@ REST stop; Storage and every other environment keep serving. The current databas
 and the current files are moved aside, not deleted, and any failure puts them back. After a
 successful restore they are kept until ``discard-previous``.
 
-Scope: the backup is written to this host. Copy the directory elsewhere to protect it from
-losing the host; ``docs/guides/backup-and-restore.md`` shows how.
+``create all`` gives every backup of the run one time and also writes the installation manifest
+(``.lab/backups/installation/<UTC time>/``). When ``.lab/upstream/backup-offsite.json`` exists,
+the run is then encrypted and copied to one S3-compatible bucket (``backup_offsite.py``); a failed
+copy is reported and never changes a local backup. ``restore --offsite`` fetches a set that is
+not on this host first. ``docs/guides/backup-and-restore.md`` is the operator's guide.
 """
 import argparse
 import datetime
@@ -339,10 +345,25 @@ def main(argv=None):
     back = sub.add_parser('restore')
     back.add_argument('environment')
     back.add_argument('backup')
+    back.add_argument('--offsite', action='store_true', help='fetch the backup from the off-host target first')
     drop = sub.add_parser('discard-previous')
     drop.add_argument('environment')
+    sub.add_parser('offsite-list')
+    pull = sub.add_parser('offsite-fetch')
+    pull.add_argument('backup')
+    key = sub.add_parser('offsite-key')
+    key.add_argument('path')
     args = parser.parse_args(argv)
     try:
+        if args.command in ('offsite-list', 'offsite-key'):
+            import backup_offsite
+            if args.command == 'offsite-key':
+                path = backup_offsite.new_key(args.path)
+                print(f'wrote a new off-host key to {path} (mode 0600); keep a copy away from this server')
+                return 0
+            for name in backup_offsite.list_remote():
+                print(name)
+            return 0
         if args.command == 'list':
             for e in ([resolve(args.environment)] if args.environment else environments()):
                 for path in complete_backups(e):
@@ -357,19 +378,45 @@ def main(argv=None):
             except BlockingIOError:
                 raise BackupError('Another backup or restore is running')
             if args.command == 'create':
-                targets = environments() if args.environment == 'all' else [resolve(args.environment)]
-                failed = 0
+                every = args.environment == 'all'
+                targets = environments() if every else [resolve(args.environment)]
+                # One time for the whole run, so the run is one set here and off this host.
+                now = datetime.datetime.now(datetime.UTC).replace(microsecond=0)
+                stamp = now.strftime('%Y%m%dT%H%M%SZ')
+                failed, created = 0, []
                 for e in targets:
                     try:
-                        path, manifest = create(e, args.keep)
+                        path, manifest = create(e, args.keep, now=now)
+                        created.append(e)
                         print(f"backup {e} {path.name}: database {manifest['database']['bytes']} B, "
                               f"{manifest['objects']['files']} file(s), {manifest['counts']['auth.users']} user(s)")
                     except BackupError as error:
                         failed += 1
                         print(f'backup {e} failed: {error}', file=sys.stderr)
+                if every:
+                    offsite = None
+                    try:
+                        import backup_offsite as offsite
+                        offsite.write_installation(stamp, created, args.keep)
+                        print(f'installation manifest {stamp} written')
+                    except Exception as error:
+                        failed += 1
+                        reason = str(error) if isinstance(error, BackupError) else type(error).__name__
+                        print(f'installation manifest failed: {reason}', file=sys.stderr)
+                    if offsite is not None:
+                        # The exit code reports the local backups only; a failed copy is notified instead.
+                        offsite.after_run(stamp, created, args.keep)
                 return 1 if failed else 0
+            if args.command == 'offsite-fetch':
+                import backup_offsite
+                placed = backup_offsite.fetch(args.backup)
+                print(f"fetched {args.backup}: {', '.join(placed) or 'nothing new, every backup is already here'}")
+                return 0
             if args.command == 'restore':
                 e = resolve(args.environment)
+                if args.offsite and not (BACKUPS / e / args.backup).exists():
+                    import backup_offsite
+                    backup_offsite.fetch(args.backup)
                 record = restore(e, args.backup)
                 print(f"restored {e} from {args.backup}; the previous state is kept as {record['previous_database']} "
                       f"until: backup.py discard-previous {e}")
@@ -384,4 +431,6 @@ def main(argv=None):
 
 
 if __name__ == '__main__':
+    # backup_offsite imports this module by name; one module keeps one BackupError class.
+    sys.modules['backup'] = sys.modules[__name__]
     sys.exit(main())

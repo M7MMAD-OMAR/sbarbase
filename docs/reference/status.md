@@ -125,7 +125,7 @@ A start needs its containers' memory limits plus a 2560 MiB reserve: 1792 MiB of
 
 - A rehearsal on a real server. The empty-server install passed in a local VM only.
 - Realtime, Edge Functions, the connection pooler and cron.
-- Automatic copies of the daily backups to another machine (copy them yourself, as the backup guide shows), and point-in-time recovery.
+- SSH or rsync targets for the off-host backup copies (S3-compatible buckets only), and point-in-time recovery.
 - Importing a project from Supabase Cloud or a self-hosted stack beyond the read-only inspection.
 - Automatic recovery of later-stage provisioning failures; they block until an operator reconciles them.
 - Adoption of any upstream release through the update policy; unattended upgrades (an operator starts each one with [lab/upgrade.py](../../lab/upgrade.py)).
