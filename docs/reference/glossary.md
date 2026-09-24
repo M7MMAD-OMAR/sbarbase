@@ -1,3 +1,5 @@
+[العربية](glossary.ar.md)
+
 # Glossary
 
 Terms used in the code, the engineering notes and the evidence files, in plain words. User-facing pages say "client" and "your server"; the code says `organization` and `installation`.

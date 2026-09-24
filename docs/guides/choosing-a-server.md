@@ -1,3 +1,5 @@
+[العربية](choosing-a-server.ar.md)
+
 # Choosing a server
 
 What to buy, or borrow for free, to run Sbarbase. Figures come from the empty-server rehearsal in a local VM on 2026-09-23 and from the preflight's own rules; prices were read from the providers' pages the same day and change often, so check them when you order.

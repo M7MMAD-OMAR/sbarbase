@@ -1,3 +1,5 @@
+[العربية](SECURITY.ar.md)
+
 # Security policy
 
 Sbarbase runs many Supabase projects on one server that you can back up, restore and upgrade without fear. It is in development and not production ready. This page says which versions get security fixes, how to report a problem privately, what counts as a vulnerability here and how an operator should harden a server today. The reasoning behind it is in the [threat model](docs/explain/threat-model.md).

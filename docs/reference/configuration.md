@@ -1,3 +1,5 @@
+[العربية](configuration.ar.md)
+
 # Configuration
 
 What an operator can set, and where Sbarbase keeps its state. Paths are relative to the checkout. Sbarbase has no single configuration file: settings live in the files and flags below, and everything else is decided by code and pinned lock files.

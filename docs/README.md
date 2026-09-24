@@ -1,3 +1,5 @@
+[العربية](README.ar.md)
+
 # Sbarbase documentation
 
 Sbarbase runs many Supabase projects on one server that you can back up, restore and upgrade without fear. The docs are split by what you need right now. Start with [why](explain/why.md) if you are new, or with [status](reference/status.md) if you want to know what works.

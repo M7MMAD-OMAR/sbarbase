@@ -1,3 +1,5 @@
+[العربية](backup-and-restore.ar.md)
+
 # Backup and restore
 
 What exists today is a manual, attended procedure. **Scheduled backups and off-host copies are not built.** Nothing in Sbarbase copies your data anywhere on its own; if you need an off-host backup now, you have to arrange it yourself from the steps below. For the design behind this, read [recovery](../explain/recovery.md).

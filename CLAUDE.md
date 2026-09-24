@@ -46,6 +46,11 @@ Website (`website/`, own `package.json`, Cloudflare via wrangler; CI in
 `engineering/UPSTREAM-UPDATE-POLICY.md` and the agent handoff; the list is its
 `DOCUMENTS` tuple) name a `lab/` or `deploy/` script or a `docs/evidence/*.json`
 file that does not exist. Run it after renaming scripts or evidence.
+Reader-facing docs are bilingual: each page in the set listed by
+`lab/test_docs_bilingual.py` has an Arabic sibling `X.ar.md`, and a change to one
+updates the other in the same commit. Terms, voice and page shape are in
+`docs/engineering/ARABIC-DOCS.md`; the Arabic must read as clear, natural UX
+writing, not a literal translation. The engineering notebook stays English only.
 `lab/test_docs_links.py` fails on any broken relative Markdown link under `docs/`,
 in `README.md` or here, and on any em or en dash in the docs. Run it after moving
 or renaming a document.

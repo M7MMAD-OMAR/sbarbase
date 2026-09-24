@@ -1,3 +1,5 @@
+[العربية](deployment-readiness.ar.md)
+
 # Deployment readiness
 
 Assessment 2026-09-20. One page answering "can this be deployed and tested on a

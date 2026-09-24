@@ -21,6 +21,9 @@ DOCUMENTS = (DOCS / 'guides' / 'server-deployment.md', DOCS / 'guides' / 'operat
              DOCS / 'reference' / 'status.md', DOCS / 'reference' / 'configuration.md',
              DOCS / 'engineering' / 'INDEPENDENT-RESTORE.md', DOCS / 'engineering' / 'UPSTREAM-UPDATE-POLICY.md',
              DOCS / 'engineering' / 'handoff' / 'README.md', DOCS / 'engineering' / 'handoff' / 'HERMES-HANDOFF.md')
+# The Arabic versions of the guides and reference pages name the same files.
+DOCUMENTS += tuple(document.with_name(document.name[:-len('.md')] + '.ar.md') for document in DOCUMENTS
+                   if document.parent.name in ('guides', 'reference'))
 # Not preceded by a word character or a dot, so a runtime path such as
 # .lab/rendered-sbarbase.service is not read as the repository's lab/ directory.
 PATH_PATTERN = re.compile(r'(?<![\w.])((?:lab|deploy)/[A-Za-z0-9_./-]+\.(?:py|ts|sh|service))\b')

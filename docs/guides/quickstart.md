@@ -1,3 +1,5 @@
+[العربية](quickstart.ar.md)
+
 # Quickstart
 
 From an empty server to a supabase-js call against your first environment. These are the steps an empty-server rehearsal ran, on a clean Fedora 44 virtual machine with 4 CPU cores and 6 GB of memory ([lab/vm-rehearsal.sh](../../lab/vm-rehearsal.sh)). It has not been run on a real server yet, and the HTTPS step at the end has only been checked with a self-signed certificate. Sbarbase is in development: do not put data you cannot lose on it.

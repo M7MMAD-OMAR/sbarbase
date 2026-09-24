@@ -1,3 +1,5 @@
+[العربية](README.ar.md)
+
 # Decision register
 
 Recorded 2026-09-20. These are concise research conclusions, not production certification. Source details are in the linked reviews.

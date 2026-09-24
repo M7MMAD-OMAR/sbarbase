@@ -1,3 +1,5 @@
+[العربية](threat-model.ar.md)
+
 # Threat model
 
 ## What it is

@@ -1,3 +1,5 @@
+[العربية](architecture.ar.md)
+
 # Architecture
 
 ## What it is

@@ -1,3 +1,5 @@
+[العربية](why.ar.md)
+
 # Why Sbarbase
 
 ## What it is

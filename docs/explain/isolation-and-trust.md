@@ -1,3 +1,5 @@
+[العربية](isolation-and-trust.ar.md)
+
 # Isolation and trust
 
 ## What it is

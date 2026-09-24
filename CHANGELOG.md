@@ -1,3 +1,5 @@
+[العربية](CHANGELOG.ar.md)
+
 # Changelog
 
 All notable changes to sbarbase. The format follows Keep a Changelog and the

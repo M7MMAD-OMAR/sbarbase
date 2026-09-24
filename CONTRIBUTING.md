@@ -1,3 +1,5 @@
+[العربية](CONTRIBUTING.ar.md)
+
 # Contributing
 
 Sbarbase is in development. Its value is operational safety: many Supabase projects on one server that you can back up, restore and upgrade without fear. A change is finished when it is tested at the level its risk needs, the evidence is recorded, and the docs say what it does and what it does not do.
@@ -23,7 +25,7 @@ Every change goes through the same five steps. Small changes pass through them q
 
    A live run writes a JSON file under `docs/evidence/`. Commit it: evidence is how a later reader knows what was true and when.
 4. **Review adversarially.** Runtime changes get a second reviewer, person or agent, whose job is to break the change: crash it half way, run it twice, run it as the wrong user, on a partition instead of a disk, with the port taken. Record what they found and what was fixed. Several defects in this repository were found only this way or only by running the documented command on an empty machine.
-5. **Update the docs in the same change.** The page that explains the area ([docs/README.md](docs/README.md) maps them), the numbers in [docs/reference/status.md](docs/reference/status.md) and the readiness row in [docs/reference/deployment-readiness.md](docs/reference/deployment-readiness.md) when a claim changes. `lab/test_docs_links.py` fails on a broken link or a long dash; `lab/test_doc_references.py` fails when a runbook names a script or evidence file that does not exist.
+5. **Update the docs in the same change.** The page that explains the area ([docs/README.md](docs/README.md) maps them), the numbers in [docs/reference/status.md](docs/reference/status.md) and the readiness row in [docs/reference/deployment-readiness.md](docs/reference/deployment-readiness.md) when a claim changes. The Arabic page (`.ar.md`) is updated in the same change; `lab/test_docs_bilingual.py` checks the pairs. `lab/test_docs_links.py` fails on a broken link or a long dash; `lab/test_doc_references.py` fails when a runbook names a script or evidence file that does not exist.
 
 ## Rules that are not negotiable
 
@@ -35,7 +37,7 @@ Every change goes through the same five steps. Small changes pass through them q
 ## Style
 
 - bun for everything JavaScript (`bun install`, `bun run`, `bun test`), never npm or npx; `/usr/bin/python3` for the Python runtime.
-- English in the repository. No em or en dashes anywhere; use commas, colons or two sentences.
+- English in code, comments and commit messages. Reader-facing documentation is in English and Arabic; see [docs/engineering/ARABIC-DOCS.md](docs/engineering/ARABIC-DOCS.md). No em or en dashes anywhere; use commas, colons or two sentences.
 - Conventional commits: `fix(install): ...`, `feat(console): ...`, `docs: ...`. Stage only the paths of your change.
 - Match the surrounding code: its naming, its comment density, its terseness.
 

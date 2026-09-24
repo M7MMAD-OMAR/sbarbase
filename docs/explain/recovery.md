@@ -1,3 +1,5 @@
+[العربية](recovery.ar.md)
+
 # Recovery
 
 ## What it is

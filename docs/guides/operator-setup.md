@@ -1,3 +1,5 @@
+[العربية](operator-setup.ar.md)
+
 # Operator setup
 
 Create the first operator account and the first client (organization) on your

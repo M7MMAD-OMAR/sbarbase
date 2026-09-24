@@ -1,3 +1,5 @@
+[العربية](README.ar.md)
+
 # Sbarbase
 
 **Many Supabase projects on one server that you can back up, restore and upgrade without fear.**
