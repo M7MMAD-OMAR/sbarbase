@@ -77,18 +77,55 @@ async function body(request:Request):Promise<{name:string}> {
   finally {clearTimeout(timer);reader.releaseLock();}
 }
 
-/** Metadata API only. Organization bootstrap and transfer intentionally remain
- * internal until invitations and complete runtime access revocation are ready.
+/** Metadata API only. Creating an organization is limited to installation operators.
+ * Membership changes and project transfer intentionally remain internal until
+ * invitations and complete runtime access revocation are ready.
  */
 export function managementHandler(catalog:Catalog,identify:ManagementIdentity,mailDirectory=MAIL_STATE_DIRECTORY) {
   return async(request:Request):Promise<Response>=>{
     const path=new URL(request.url).pathname;
     if(path==='/management/v1/organizations') {
+      if(!['GET','POST'].includes(request.method))return reply(405,{message:'Method not allowed'});
+      const actor=await authenticate(identify,request);
+      if(actor instanceof Response)return actor;
+      try {
+        if(request.method==='GET')
+          return reply(200,{data:catalog.listOrganizations(actor),operator:catalog.installationOperator(actor)});
+        // A new client is an installation decision, so only the bootstrap organization's
+        // owners and admins make it; the creator becomes its owner.
+        if(!catalog.installationOperator(actor))return reply(403,{message:'Forbidden'});
+        const input=await body(request);
+        return reply(201,{id:catalog.createOrganization(actor,input.name)});
+      } catch(error) {
+        if(error instanceof InputError||error instanceof Error&&error.message==='Invalid name')
+          return reply(400,{message:'Invalid request'});
+        return reply(500,{message:'Management operation failed'});
+      }
+    }
+    const members=path.match(/^\/management\/v1\/organizations\/([a-f0-9-]{36})\/members$/);
+    if(members) {
       if(request.method!=='GET')return reply(405,{message:'Method not allowed'});
       const actor=await authenticate(identify,request);
       if(actor instanceof Response)return actor;
-      try{return reply(200,{data:catalog.listOrganizations(actor)});}
-      catch{return reply(500,{message:'Management operation failed'});}
+      try {return reply(200,{data:catalog.listMembers(actor,members[1]!)});}
+      catch(error) {
+        if(error instanceof Error&&error.message==='Forbidden')return reply(403,{message:'Forbidden'});
+        return reply(500,{message:'Management operation failed'});
+      }
+    }
+    const retry=path.match(/^\/management\/v1\/environments\/([a-f0-9-]{36})\/retry$/);
+    if(retry) {
+      if(request.method!=='POST')return reply(405,{message:'Method not allowed'});
+      if(request.body)return reply(400,{message:'Invalid request'});
+      const actor=await authenticate(identify,request);
+      if(actor instanceof Response)return actor;
+      try {catalog.retryProvision(actor,retry[1]!);return reply(202,{state:'queued'});}
+      catch(error) {
+        if(error instanceof Error&&error.message==='Forbidden')return reply(403,{message:'Forbidden'});
+        if(error instanceof Error&&['Operation is not retryable','Environment capacity reached'].includes(error.message))
+          return reply(409,{message:error.message});
+        return reply(500,{message:'Management operation failed'});
+      }
     }
     if(path==='/management/v1/notifications') {
       if(request.method!=='GET')return reply(405,{message:'Method not allowed'});

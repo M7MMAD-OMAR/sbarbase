@@ -54,7 +54,9 @@ test('organization discovery is authenticated and reflects current memberships o
   const a=catalog.createOrganization('alice','A'),b=catalog.createOrganization('bob','B');catalog.setMember('alice',a,'bob','viewer');
   const handler=managementHandler(catalog,async request=>request.headers.get('authorization'));
   const call=(actor?:string,method='GET')=>handler(new Request('http://local/management/v1/organizations',{method,headers:actor?{authorization:actor}:{}}));
-  expect((await call()).status).toBe(401);expect((await call('alice','POST')).status).toBe(405);
+  expect((await call()).status).toBe(401);expect((await call('alice','PUT')).status).toBe(405);
+  // No bootstrap is recorded here, so nobody is an installation operator and POST is refused.
+  expect((await call('alice','POST')).status).toBe(403);
   expect((await (await call('alice')).json()).data).toEqual([{id:a,name:'A',role:'owner'}]);
   expect((await (await call('outsider')).json()).data).toEqual([]);
   expect((await (await call('bob')).json()).data).toHaveLength(2);

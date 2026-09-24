@@ -196,3 +196,35 @@ test('the API limit and the runtime guard name the same number',()=>{
   expect(source).toContain(`ENVIRONMENT_LIMIT = ${ENVIRONMENT_LIMIT}\n`);
   expect(source).toContain('> ENVIRONMENT_LIMIT:');
 });
+
+test('installation operators create organizations; owners list members; failed environments retry',async()=>{
+  const catalog=new Catalog(':memory:');
+  try {
+    const home=catalog.initializeInstallation('bootstrap','alice','Installation');
+    const client=catalog.createOrganization('bob','Client');catalog.setMember('bob',client,'carol','viewer');
+    const handler=managementHandler(catalog,async request=>request.headers.get('authorization'),'.');
+    const call=(actor:string,path:string,method='GET',name?:string)=>handler(new Request('http://local/management/v1/'+path,{method,
+      headers:{authorization:actor,...(name===undefined?{}:{'content-type':'application/json'})},...(name===undefined?{}:{body:JSON.stringify({name})})}));
+    expect((await (await call('alice','organizations')).json() as {operator:boolean}).operator).toBe(true);
+    expect((await (await call('bob','organizations')).json() as {operator:boolean}).operator).toBe(false);
+    expect((await call('bob','organizations','POST','Another')).status).toBe(403);
+    const created=await call('alice','organizations','POST','Second client');expect(created.status).toBe(201);
+    const {id}=await created.json() as {id:string};
+    expect(catalog.listOrganizations('alice').map(item=>item.id)).toContain(id);
+    expect(home).not.toBe(id);
+    // Members: owners and admins read, viewers and outsiders do not.
+    const listed=await call('bob',`organizations/${client}/members`);expect(listed.status).toBe(200);
+    expect((await listed.json() as {data:unknown}).data).toEqual([{actor:'bob',role:'owner'},{actor:'carol',role:'viewer'}]);
+    expect((await call('carol',`organizations/${client}/members`)).status).toBe(403);
+    expect((await call('alice',`organizations/${client}/members`)).status).toBe(403);
+    // Retry: only a failed or cancelled job, only by an owner or admin.
+    const project=catalog.createProject('bob',client,'P'),environment=catalog.createEnvironment('bob',project,'production');
+    expect((await call('bob',`environments/${environment}/retry`,'POST')).status).toBe(409);
+    const job=catalog.claimProvision()!;catalog.finishProvision(environment,job.claim!,false);
+    expect((await call('carol',`environments/${environment}/retry`,'POST')).status).toBe(403);
+    expect((await call('alice',`environments/${environment}/retry`,'POST')).status).toBe(403);
+    expect((await call('bob',`environments/${environment}/retry`,'GET')).status).toBe(405);
+    expect((await call('bob',`environments/${environment}/retry`,'POST')).status).toBe(202);
+    expect(catalog.getProvision('bob',environment).state).toBe('queued');
+  } finally {catalog.close();}
+});

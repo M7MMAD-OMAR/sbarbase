@@ -369,6 +369,19 @@ export class Catalog {
       this.record(owner,'installation.initialized',id,{});return id;
     }).immediate();
   }
+  /** Owners and admins of the organization created at bootstrap run the installation: they
+   * may create organizations. Without a recorded bootstrap nobody may, through the API. */
+  installationOperator(actor:string):boolean {
+    this.actor(actor);
+    return !!this.db.query<{role:string},[string]>(`SELECT m.role role FROM installation_bootstrap b
+      JOIN memberships m ON m.organization=b.organization WHERE b.singleton=1 AND m.actor=? AND m.role IN ('owner','admin')`).get(actor);
+  }
+  /** Owners and admins may see who else can act in their organization. */
+  listMembers(actor:string,organization:string):{actor:string;role:MembershipRole}[] {
+    this.require(actor,organization,['owner','admin']);
+    return this.db.query<{actor:string;role:MembershipRole},[string]>(
+      "SELECT actor,role FROM memberships WHERE organization=? ORDER BY CASE role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END,actor").all(organization);
+  }
   listOrganizations(actor:string):{id:string;name:string;role:MembershipRole}[] {
     this.actor(actor);
     return this.db.query<{id:string;name:string;role:MembershipRole},[string]>(

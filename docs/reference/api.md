@@ -24,16 +24,19 @@ Any other `/management/auth/...` path is `404`; a wrong method is `405`.
 
 ## Management API
 
-All routes need `Authorization: Bearer <management access token>`. The actor comes from that token, never from the body. IDs are UUIDs. Errors: `400` invalid input, `401` no valid token, `403` not allowed (also for an unknown ID), `404` unknown route, `405` wrong method, `409` environment not ready, `503` identity check unavailable, `500` sanitized internal error.
+All routes need `Authorization: Bearer <management access token>`. The actor comes from that token, never from the body. IDs are UUIDs. Errors: `400` invalid input, `401` no valid token, `403` not allowed (also for an unknown ID), `404` unknown route, `405` wrong method, `409` conflict (environment not ready, name already used in that client or project, environment limit reached, not retryable), `503` identity check unavailable, `500` sanitized internal error.
 
 | Method | Path | Who | Result |
 |---|---|---|---|
-| GET | `/management/v1/organizations` | any operator | The caller's clients (organizations) with ID, name and role |
+| GET | `/management/v1/organizations` | any operator | The caller's clients (organizations) with ID, name and role, and `operator: true` when the caller may create clients |
+| POST | `/management/v1/organizations` | owner or admin of the client created at bootstrap | Body `{"name": "..."}`. `201` with `{id}`; the caller becomes its owner |
+| GET | `/management/v1/organizations/{id}/members` | owner, admin | Members of that client with their role |
 | GET | `/management/v1/organizations/{id}/projects` | member | Projects of that client |
 | POST | `/management/v1/organizations/{id}/projects` | owner, admin | Body `{"name": "..."}`. `201` with `{id, state: "metadata_only"}` |
 | GET | `/management/v1/projects/{id}/environments` | member | Environments of that project |
 | POST | `/management/v1/projects/{id}/environments` | owner, admin | Body `{"name": "..."}`. `202` with `{id, state: "queued"}`; the worker provisions it |
 | GET | `/management/v1/environments/{id}/provision` | member | Provisioning `state`, `attempt` and `failure` if any |
+| POST | `/management/v1/environments/{id}/retry` | owner, admin | No body. `202 {state: "queued"}` for a failed or cancelled environment; `409` otherwise or at the environment limit |
 | GET | `/management/v1/environments/{id}/connection` | member, when ready | `{environment, apiPath: "/<runtime>", services}` |
 | GET | `/management/v1/environments/{id}/keys` | owner, admin | Key metadata only, never key material |
 | POST | `/management/v1/environments/{id}/keys` | owner, admin | No body. `201` with a new publishable key, shown once |
@@ -41,7 +44,7 @@ All routes need `Authorization: Bearer <management access token>`. The actor com
 | GET | `/management/v1/environments/{id}/mail` | member | Non-secret mail state of the environment; no credential field |
 | GET | `/management/v1/notifications` | owner or admin of any client | Undelivered count and recent operator events of the caller's own clients only. Events that belong to no client (installation start, worker restarts) go to owners and admins of the client created at bootstrap |
 
-Request bodies accept only `name`, at most 4 KiB, read within five seconds. Key and connection routes refuse any body. Responses are not cacheable. There are no routes for creating clients, managing members or transferring projects; those are internal operations.
+Request bodies accept only `name`, at most 4 KiB, read within five seconds. Key and connection routes refuse any body. Responses are not cacheable. There are no routes for changing members or transferring projects; those stay internal until invitations and revocation of a moved environment's keys exist.
 
 ## Application gateway
 
