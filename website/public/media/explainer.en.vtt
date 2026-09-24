@@ -1,37 +1,40 @@
 WEBVTT
 
-00:00.400 --> 00:04.910
+00:00.400 --> 00:04.111
 You have one server, and several apps that use Supabase.
 
-00:04.960 --> 00:08.784
+00:04.653 --> 00:08.401
 A full Supabase for each app fills its memory fast.
 
-00:09.352 --> 00:12.459
+00:09.044 --> 00:11.985
 And one shared project mixes everyone's data.
 
-00:12.508 --> 00:18.563
+00:12.061 --> 00:18.005
 Sbarbase turns the server into one building. Postgres runs once, in the basement.
 
-00:18.882 --> 00:25.382
+00:18.434 --> 00:24.667
 Each client is a floor, each project an apartment, and each environment a window with its own database.
 
-00:25.432 --> 00:30.317
+00:24.717 --> 00:29.377
 One engine for all of them leaves room for many more projects on the same server.
 
-00:30.367 --> 00:36.260
+00:29.470 --> 00:34.934
 Every request carries its environment's key, and the gateway sends it only to its own data.
 
-00:36.310 --> 00:39.768
+00:35.368 --> 00:38.490
 A key from one project never opens another.
 
-00:39.817 --> 00:44.712
-When one project gets busy, it gets its own share, and no more.
+00:38.622 --> 00:42.852
+When one project gets busy, it can use the server's free room.
 
-00:44.762 --> 00:50.350
-Extra requests are told to try again shortly, and the other projects stay fast.
+00:43.372 --> 00:48.708
+But every other project that is active keeps its whole share, so they all stay fast.
 
-00:50.714 --> 00:53.498
+00:49.382 --> 00:53.382
+And if it keeps choking, you get a message telling you to give it more.
+
+00:53.906 --> 00:56.653
 One command installs it on the server you already have.
 
-00:53.605 --> 00:58.164
+00:56.797 --> 01:00.975
 Sbarbase. Many Supabase projects, one server.
