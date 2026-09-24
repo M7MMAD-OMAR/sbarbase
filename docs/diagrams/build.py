@@ -29,6 +29,7 @@ KINDS = {
     'other': ('#EAE2D2', MUTED, 1.2, '4 4'),
     'record': ('#FBE7A8', INK, 1.3, None),
     'warn': ('#F9D9CF', CORAL, 1.8, None),
+    'borrowed': ('#FDEDE6', CORAL, 1.2, '3 2'),
     'planned': ('#EFE9FA', LILAC, 2, '7 5'),
     'zone': ('none', INK, 1.3, '7 5'),
 }
@@ -451,22 +452,25 @@ def key_isolation(lang):
 def load_isolation(lang):
     t = lambda en, ar: pick(lang, en, ar)
     d = Diagram('load-isolation', 900, 520, lang,
-                t('A burst on one environment stays inside its own limits', 'ضغط على بيئة واحدة يبقى داخل حدودها'),
-                t('Environment A receives a burst of requests while environment B has normal traffic. The gateway admits '
-                  'at most 8 requests in flight per environment and 32 per gateway process, with no queue: the ninth '
-                  'concurrent request to A gets 429 at once, and a full gateway answers 503. B has its own count, so its '
-                  'requests are still admitted. Behind the gateway, each environment\'s Auth and REST run in their own '
-                  'containers with CPU, memory and per-device IO limits; each service login is limited to 6 PostgreSQL '
-                  'connections and each environment database to 18; REST statements stop after 8 seconds. Local probes saw the '
-                  'ninth request refused and the neighbour still served. The limits are not calibrated under sustained '
-                  'load, and CPU, memory and IO inside the one PostgreSQL engine remain shared.',
-                  'تتلقى البيئة أ دفعة كبيرة من الطلبات، والبيئة ب حركتها عادية. تقبل البوابة 8 طلبات متزامنة على الأكثر '
-                  'لكل بيئة و32 لكل عملية بوابة، دون طابور: الطلب التاسع المتزامن إلى أ يتلقى 429 فورًا، والبوابة '
-                  'الممتلئة ترد بـ 503. لـ ب عدّادها الخاص، فتُقبل طلباتها. خلف البوابة يعمل Auth وREST لكل بيئة في '
-                  'حاوياتهما بحدود للمعالج والذاكرة والقرص؛ ولكل حساب خدمة 6 اتصالات PostgreSQL على الأكثر، ولقاعدة '
-                  'كل بيئة 18؛ وتتوقف استعلامات REST بعد 8 ثوانٍ. في الفحوص المحلية رُفض الطلب التاسع وبقيت البيئة المجاورة '
-                  'تُخدم. هذه الحدود غير معايرة تحت حمل مستمر، والمعالج والذاكرة والقرص داخل محرك PostgreSQL الواحد '
-                  'تبقى مشتركة.'))
+                t('A busy environment borrows idle room, never its neighbour\'s share',
+                  'البيئة المزدحمة تستعير المكان الفارغ، لا حصة جارتها'),
+                t('Environment A receives a burst of requests while environment B has normal traffic. The gateway has '
+                  '32 slots. Each environment is guaranteed 8. A busy environment may borrow idle slots up to 24, but '
+                  'only while 8 slots stay free for environments within their share. Here A holds its 8 and has borrowed '
+                  '14; B uses 2; the last 8 are kept free. A\'s next request gets 429 and retries shortly; B\'s next request '
+                  'is admitted at once. When B needs more room, A borrows nothing new and its borrowed slots return as '
+                  'its requests finish. After 15 minutes like this the operator gets one notice. Behind the gateway, each '
+                  'environment\'s Auth and REST run in their own containers with CPU, memory and IO limits, and each '
+                  'database has its own connection limits. CPU, memory and IO inside the one PostgreSQL engine remain '
+                  'shared, and the limits are not calibrated under sustained load.',
+                  'تتلقى البيئة أ دفعة كبيرة من الطلبات، والبيئة ب حركتها عادية. في البوابة 32 مكانًا، ولكل بيئة 8 مضمونة. '
+                  'يمكن للبيئة المزدحمة أن تستعير الأماكن الفارغة حتى 24، ما دامت 8 أماكن تبقى فارغة للبيئات التي لم تتجاوز '
+                  'حصتها. هنا تشغل أ أماكنها الثمانية واستعارت 14، وتستخدم ب مكانين، والثمانية الأخيرة محجوزة فارغة. طلب أ '
+                  'التالي يتلقى 429 ويعيد المحاولة بعد قليل، وطلب ب التالي يُقبل فورًا. وحين تحتاج ب مكانًا أكثر لا تستعير أ '
+                  'شيئًا جديدًا، وتعود أماكنها المستعارة كلما انتهى أحد طلباتها. بعد 15 دقيقة على هذه الحال يصل المشغّل '
+                  'تنبيه واحد. خلف البوابة يعمل Auth وREST لكل بيئة في حاوياتهما بحدود للمعالج والذاكرة والقرص، ولكل قاعدة '
+                  'حدود اتصالاتها. المعالج والذاكرة والقرص داخل محرك PostgreSQL الواحد تبقى مشتركة، وهذه الحدود غير معايرة '
+                  'تحت حمل مستمر.'))
     d.text(24, 34, d.title, size=16, weight=700, anchor='start')
     # sources
     d.box(24, 70, 150, 110, 'warn')
@@ -479,21 +483,24 @@ def load_isolation(lang):
         d.arrow(f'M174 {88 + i * 16} L212 {88 + i * 16}', color=CORAL, width=1.3)
     d.arrow('M174 270 L212 270')
     d.arrow('M174 292 L212 292')
-    # gateway
+    # gateway: 32 slots in one row, A's share, A's borrowed slots, B, and the room kept free
     d.box(214, 60, 290, 290, 'shared')
-    d.text(359, 84, t('gateway: a count per environment', 'البوابة: عدّاد لكل بيئة'), weight=700, size=13)
-    d.text(232, 110, t('env A: 8 in flight, full', 'البيئة أ: 8 قيد التنفيذ، ممتلئة'), size=12, anchor='start')
-    for i in range(8):
-        d.box(232 + i * 31, 120, 24, 24, 'warn', rx=4)
-    d.text(232, 170, t('9th request: 429 at once, no queue', 'الطلب التاسع: 429 فورًا، دون طابور'),
-           size=12, anchor='start', weight=700, fill=CORAL_INK)
-    d.text(232, 250, t('env B: 2 of 8 in use', 'البيئة ب: 2 من 8 مستخدمة'), size=12, anchor='start')
-    for i in range(8):
-        d.box(232 + i * 31, 260, 24, 24, 'env' if i < 2 else 'card', rx=4)
-    d.text(232, 310, t('new request: admitted', 'طلب جديد: مقبول'), size=12, anchor='start', weight=700, fill=TEAL_INK)
-    d.text(232, 334, t('whole gateway: 32 in flight, then 503', 'البوابة كلها: 32 قيد التنفيذ، ثم 503'), size=11.5,
-           anchor='start', fill=MUTED)
-    d.arrow('M359 178 L359 209 L116 209', color=CORAL)
+    d.text(359, 84, t('gateway: 32 slots', 'البوابة: 32 مكانًا'), weight=700, size=13)
+    for i in range(32):
+        kind = 'warn' if i < 8 else 'borrowed' if i < 22 else 'env' if i < 24 else 'card'
+        d.box(231 + i * 8, 100, 7, 26, kind, rx=1.5)
+    d.text(231, 144, t('A: its share of 8, plus 14 borrowed', 'أ: حصتها 8، و14 مستعارة'), size=12, anchor='start', fill=CORAL_INK)
+    d.text(231, 163, t('B: 2 in use, within its share of 8', 'ب: 2 مستخدمة، ضمن حصتها 8'), size=12, anchor='start', fill=TEAL_INK)
+    d.text(231, 182, t('last 8: kept free for any share', 'الثمانية الأخيرة: محجوزة لأي حصة'), size=12, anchor='start')
+    d.text(231, 214, t('A asks for more: 429, retry shortly', 'أ تطلب المزيد: 429، أعد المحاولة'), size=12,
+           anchor='start', weight=700, fill=CORAL_INK)
+    d.text(231, 236, t('B asks: admitted at once', 'ب تطلب: تُقبل فورًا'), size=12, anchor='start', weight=700, fill=TEAL_INK)
+    d.lines(231, 264, [t('A never passes 24. When B needs room,', 'أ لا تتجاوز 24. وحين تحتاج ب مكانًا'),
+                       t('A borrows nothing new, and its borrowed', 'لا تستعير أ جديدًا، وتعود أماكنها'),
+                       t('slots return as its requests finish.', 'المستعارة كلما انتهى طلب.')], size=11.5, gap=17, fill=MUTED, anchor='start')
+    d.text(231, 334, t('15 minutes like this: one operator notice', '15 دقيقة هكذا: تنبيه واحد للمشغّل'), size=11.5,
+           anchor='start', weight=700)
+    d.arrow('M226 210 L116 210', color=CORAL)
     d.box(24, 196, 90, 26, 'warn', rx=4)
     d.text(69, 214, '429', size=12.5, weight=700, fill=CORAL_INK)
     # per-environment services
@@ -517,16 +524,17 @@ def load_isolation(lang):
     d.arrow('M710 286 C726 286 730 299 750 299')
     # outcome
     d.box(24, 372, 852, 64, 'card')
-    d.text(450, 396, t('Result: env A is capped at its own limits while env B is still served.',
-                       'النتيجة: البيئة أ محصورة في حدودها، والبيئة ب ما زالت تُخدم.'), size=13.5, weight=700)
-    d.text(450, 420, t('Local probes: the ninth request was refused while the neighbour still answered, and a saturated login did not block its neighbour.',
-                       'في الفحوص المحلية رُفض الطلب التاسع وبقيت البيئة المجاورة تجيب، ولم يعطّل حساب مشبع جارته.'), size=12)
+    d.text(450, 396, t('Result: A uses the idle server, and B is still served at once.',
+                       'النتيجة: أ تستفيد من الخادم الفارغ، وب ما زالت تُخدم فورًا.'), size=13.5, weight=700)
+    d.text(450, 420, t('Local probes measured the fixed share of 8 and a neighbour still served; borrowing is covered by unit tests.',
+                       'قاست الفحوص المحلية الحصة الثابتة 8 وبقاء الجارة تُخدم؛ والاستعارة تغطيها اختبارات الوحدة.'), size=12)
     d.text(24, 462, t('Not calibrated under sustained load: CPU, memory and IO inside the one PostgreSQL engine stay shared, '
                       'so a heavy neighbour can still slow the others.',
                       'غير معايرة تحت حمل مستمر: المعالج والذاكرة والقرص داخل محرك PostgreSQL الواحد تبقى مشتركة، فقد يبطئ '
                       'جار ثقيل البقية.'), size=12, anchor='start', fill=MUTED)
-    d.legend(494, [('warn', t('env A, busy', 'البيئة أ، مشغولة')), ('env', t('env B, or one per environment', 'البيئة ب، أو واحد لكل بيئة')),
-                   ('shared', t('shared', 'مشترك')), ('db', t('environment database', 'قاعدة البيئة'))])
+    d.legend(494, [('warn', t('A, its share', 'أ، حصتها')), ('borrowed', t('A, borrowed', 'أ، مستعار')),
+                   ('env', t('B, or one per environment', 'ب، أو واحد لكل بيئة')), ('card', t('kept free', 'محجوز فارغ')),
+                   ('db', t('environment database', 'قاعدة البيئة'))])
     return d
 
 
