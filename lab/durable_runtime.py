@@ -152,6 +152,13 @@ def realtime_tenant(e):
     return e[2:]
 
 
+def realtime_slot_suffix(e):
+    """Unique per environment, and short enough that Realtime's longest slot name,
+    `supabase_realtime_messages_replication_slot_<suffix>`, stays within PostgreSQL's
+    63 characters: a truncated name makes the pinned Realtime's replication crash."""
+    return e[2:14]
+
+
 def service_token(secret, claims, seconds=300):
     """An HS256 token for one of Realtime's own APIs."""
     now = int(time.time())
@@ -616,7 +623,7 @@ class Runtime:
                 'METRICS_JWT_SECRET': v['realtime_api'], 'SECRET_KEY_BASE': v['realtime_base'], 'APP_NAME': 'realtime',
                 'ERL_AFLAGS': '-proto_dist inet_tcp', 'DNS_NODES': "''", 'RLIMIT_NOFILE': '10000', 'SEED_SELF_HOST': 'false',
                 'RUN_JANITOR': 'true', 'DISABLE_HEALTHCHECK_LOGGING': 'true', 'LOG_LEVEL': 'error', 'REGION': 'local',
-                'SLOT_NAME_SUFFIX': realtime_tenant(e)}
+                'SLOT_NAME_SUFFIX': realtime_slot_suffix(e)}
 
     def realtime_database(self, e, v):
         """The environment's Realtime login and schemas. The login reaches only this database (HBA)."""
