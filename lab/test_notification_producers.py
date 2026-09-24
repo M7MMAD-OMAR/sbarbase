@@ -119,7 +119,7 @@ class FenceProducerTests(ProducerCase):
         self.assertEqual(self.outbox(), [('fence.applied', 'critical', 'operator_request', e)])
         self.assertEqual(self.rows('SELECT action,subject FROM audit_events'), [('fence.applied', e)])
         self.assertEqual(self.rows('SELECT channel,state,attempts FROM notification_delivery ORDER BY channel'),
-                         [('email', 'pending', 0), ('webhook', 'pending', 0)])
+                         [('email', 'pending', 0), ('telegram', 'pending', 0), ('webhook', 'pending', 0)])
 
     def test_an_explicit_rollback_emits_the_released_event(self):
         e = self.environment()

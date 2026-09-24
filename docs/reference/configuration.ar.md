@@ -54,7 +54,7 @@
 
 ## تنبيهات المشغّل
 
-إذا وُجد الملف `.lab/upstream/notifications.json`، يرسل العامل أحداث المشغّل بالبريد، أو بخطاف ويب موقّع، أو بالاثنين:
+إذا وُجد الملف `.lab/upstream/notifications.json`، يرسل العامل أحداث المشغّل بالبريد، أو بخطاف ويب موقّع، أو عبر تيليجرام، أو بأي مزيج منها:
 
 ```json
 {
@@ -62,11 +62,15 @@
   "email": {"enabled": true, "host": "smtp.example.invalid", "port": 587,
             "from": "sbarbase@example.invalid", "to": "operator@example.invalid", "tls": "starttls"},
   "webhook": {"enabled": true, "url": "https://hooks.example.invalid/sbarbase",
-              "secretFile": ".secrets/upstream/notifier.json"}
+              "secretFile": ".secrets/upstream/notifier.json"},
+  "telegram": {"enabled": true, "chatId": "-1001234567890",
+               "tokenFile": ".secrets/upstream/telegram.json"}
 }
 ```
 
-قيمة `tls` واحدة من `none` أو `starttls` أو `tls`. سر توقيع خطاف الويب محفوظ في `.secrets/upstream/notifier.json` بالشكل `{"schema": 1, "webhookSecret": "<64 hex characters>"}`. التصميم الكامل: [تنبيهات المشغّل](../engineering/OPERATOR-NOTIFICATIONS.md).
+قيمة `tls` واحدة من `none` أو `starttls` أو `tls`. سر توقيع خطاف الويب محفوظ في `.secrets/upstream/notifier.json` بالشكل `{"schema": 1, "webhookSecret": "<64 hex characters>"}`. لتيليجرام: أنشئ بوتًا عبر @BotFather، وأضفه إلى محادثتك، وضع رمزه في ملف خاص (صلاحياته 0600) بالشكل `{"schema": 1, "botToken": "<token>"}`. قيمة `chatId` هي رقم المحادثة، أو `@channelname` لقناة عامة. يُقرأ الرمز من هذا الملف فقط، ولا يظهر في أي رسالة. التصميم الكامل: [تنبيهات المشغّل](../engineering/OPERATOR-NOTIFICATIONS.md).
+
+من بين الأحداث: **بيئة ظلت تحتاج أكثر من حصتها.** تضمن البوابة لكل بيئة 8 طلبات في الوقت نفسه، وتسمح للمزدحمة أن تستعير حتى 24 من 32، مع إبقاء الحصة غير المستخدمة لكل مشروع نشط في الدقيقة الأخيرة فارغة (8 على الأقل). الاستعارة وحدها لا تُبلَّغ أبدًا. إذا بقيت البيئة 15 دقيقة متتالية تُرفض عند حدها، أو تزاحم جارة لها، يصلك تنبيه واحد عنها مع ما يجب فعله: ارفع حصتها، أو انقلها إلى محرك قاعدة بيانات خاص بها، أو كبّر الخادم. التصميم: [الحصة العادلة](../engineering/FAIR-SHARE-ADMISSION.md).
 
 ## مجلدات الحالة
 

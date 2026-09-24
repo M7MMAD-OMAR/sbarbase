@@ -43,6 +43,7 @@ Live probes start real containers and write their results to [docs/evidence](../
 | Shared Storage with database and object recovery rehearsal | [storage-recovery-checks.json](../evidence/storage-recovery-checks.json) | 122 |
 | Fresh closed bootstrap: Auth, REST and shared Storage | [upstream-closed-bootstrap-checks.json](../evidence/upstream-closed-bootstrap-checks.json) | 122 |
 | Connection limit saturation with a neighbour still served | [connection-limit-checks.json](../evidence/connection-limit-checks.json) | 7 |
+| A busy environment borrows idle gateway slots, recently active neighbours keep their whole share, and only refusals raise a saturation notice (loopback HTTP, controlled upstream, not Supabase) | [fair-share-checks.json](../evidence/fair-share-checks.json) | 6 |
 | Pressure response on a disposable container | [pressure-response-checks.json](../evidence/pressure-response-checks.json) | 9 |
 
 ### Provisioning and crash safety

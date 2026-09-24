@@ -12,7 +12,7 @@ export type ProvisionFailure = 'capacity_exceeded' | 'runtime_failed';
 export type ProvisionJob = {environment:string;runtime:string;actor:string;organization:string;state:string;attempt:number;claim:string|null;failure:ProvisionFailure|null};
 
 export type NotificationSeverity = 'info' | 'warning' | 'critical';
-export type NotificationChannel = 'email' | 'webhook';
+export type NotificationChannel = 'email' | 'webhook' | 'telegram';
 export type NotificationOutcome = 'delivered' | 'transient' | 'failed';
 export type NotificationKind = keyof typeof NOTIFICATION_DETAIL_KEYS;
 /** Closed reason enum. The fine admission reason (`memory_headroom` and the rest) is
@@ -69,6 +69,8 @@ const NOTIFICATION_DETAIL_KEYS = {
   'backup.failed':['failed'],
   'restore.verified':['status'],
   'restore.failed':['status'],
+  // Written by the gateway's pressure monitor: docs/engineering/FAIR-SHARE-ADMISSION.md.
+  'environment.saturated':['minutes','refused','peak','guarantee'],
 } satisfies Record<string,string[]>;
 const NOTIFICATION_REASONS = [
   'runtime_failed','retry_limit','retry_requested','owner_changed','ownership_changed',
@@ -77,7 +79,8 @@ const NOTIFICATION_REASONS = [
   'connection_budget','unrecorded','webhook_unreachable','webhook_timeout','webhook_status',
   'smtp_refused','smtp_temporary_failure','channel_disabled','redaction_refused',
   'operator_request','installation_failed','worker_restart','worker_restart_limit',
-  'export_completed','export_failed','restore_verified','restore_failed'] as const;
+  'export_completed','export_failed','restore_verified','restore_failed',
+  'environment_saturated','telegram_unreachable','telegram_status'] as const;
 const NOTIFICATION_MAX_ATTEMPTS = 8;
 const NOTIFICATION_WINDOW_SECONDS:Record<NotificationSeverity,number> = {info:3600,warning:1800,critical:300};
 const NOTIFICATION_BACKOFF_SECONDS = [15,60,300,1800,7200];
@@ -108,7 +111,7 @@ function credentialShape(value:string):boolean {
 export const ENVIRONMENT_LIMIT=4;
 
 /** Bumped with each step of Catalog.migrate(). */
-export const CATALOG_SCHEMA_VERSION=2;
+export const CATALOG_SCHEMA_VERSION=3;
 
 export type StudioSession={runtime:string;desired:'running'|'stopped';state:'stopped'|'starting'|'running'|'failed';
   failure:string|null;updatedAt:number|null};
@@ -119,8 +122,8 @@ export class Catalog {
   constructor(path:string,options?:{channels?:NotificationChannel[]}) {
     this.db=new Database(path,{create:true,strict:true});
     if(path!==':memory:') chmodSync(path,0o600);
-    this.channels=options?.channels??['email','webhook'];
-    if(!this.channels.length||this.channels.some(channel=>!['email','webhook'].includes(channel)))
+    this.channels=options?.channels??['email','webhook','telegram'];
+    if(!this.channels.length||this.channels.some(channel=>!['email','webhook','telegram'].includes(channel)))
       throw new Error('Invalid notification channel');
     this.channels=[...new Set(this.channels)];
     this.db.exec(`PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000; PRAGMA journal_mode=DELETE;
@@ -183,7 +186,7 @@ export class Catalog {
         expires_at INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS notification_delivery(
         event TEXT NOT NULL REFERENCES notification_outbox(id),
-        channel TEXT NOT NULL CHECK(channel IN ('email','webhook')),
+        channel TEXT NOT NULL CHECK(channel IN ('email','webhook','telegram')),
         state TEXT NOT NULL CHECK(state IN ('pending','claimed','delivered','failed')),
         attempts INTEGER NOT NULL DEFAULT 0,
         claim TEXT,
@@ -220,10 +223,36 @@ export class Catalog {
         // duplicate keeps working: the index waits at version 1 until the names differ, and
         // createProject and transferProject refuse new duplicates either way.
         const duplicate=this.db.query('SELECT 1 FROM projects GROUP BY organization,name HAVING count(*)>1 LIMIT 1').get();
-        if(duplicate){this.db.exec('PRAGMA user_version=1');return;}
+        if(duplicate){this.db.exec('PRAGMA user_version=1');this.allowTelegramDeliveries();return;}
         this.db.exec('CREATE UNIQUE INDEX IF NOT EXISTS projects_organization_name ON projects(organization,name)');
       }
       this.db.exec(`PRAGMA user_version=${CATALOG_SCHEMA_VERSION}`);
+    }).immediate();
+    this.allowTelegramDeliveries();
+  }
+  /** Version 3: deliveries may use the Telegram channel. SQLite cannot widen a CHECK, so an
+   * older delivery table is rebuilt with its rows, in one transaction. Idempotent, and it also
+   * runs for a catalog held at version 1 by a duplicate project name. */
+  private allowTelegramDeliveries() {
+    const table=this.db.query<{sql:string},[]>("SELECT sql FROM sqlite_master WHERE type='table' AND name='notification_delivery'").get();
+    if(!table||table.sql.includes("'telegram'"))return;
+    this.db.transaction(()=>{
+      this.db.exec(`ALTER TABLE notification_delivery RENAME TO notification_delivery_v2;
+        ${table.sql.replace("CHECK(channel IN ('email','webhook'))","CHECK(channel IN ('email','webhook','telegram'))")};
+        INSERT INTO notification_delivery SELECT * FROM notification_delivery_v2;
+        DROP TABLE notification_delivery_v2;
+        CREATE INDEX IF NOT EXISTS notification_due ON notification_delivery(state,next_attempt_at);`);
+    }).immediate();
+  }
+  /** One operator notice that an environment kept needing more than its share: written by the
+   * gateway's pressure monitor after a run of saturated minutes. The outbox window keeps it to
+   * one message per condition window. Unknown or unready runtimes are ignored. */
+  environmentSaturated(runtime:string,detail:{minutes:number;refused:number;peak:number;guarantee:number}):string|undefined {
+    return this.db.transaction(()=>{
+      const job=this.db.query<ProvisionJob,[string]>('SELECT * FROM provision_jobs WHERE runtime=?').get(runtime);
+      if(!job||!this.runtimeReady(runtime))return undefined;
+      return this.notify('environment.saturated','warning','environment.saturated|'+job.environment,
+        this.notificationScope(job.environment,job.organization,job.runtime),'system:gateway','environment_saturated',detail);
     }).immediate();
   }
   /** Counts the environments that hold or may take a runtime slot: queued, running or ready. */

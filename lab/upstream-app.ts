@@ -1,4 +1,6 @@
 import {readFileSync} from 'node:fs';
+import {PressureMonitor} from '../src/gateway/pressure';
+import {applicationConcurrency} from '../src/gateway/managed';
 import {createHmac} from 'node:crypto';
 import {Catalog} from '../src/control/catalog';
 import {KeyStore} from '../src/control/keys';
@@ -33,12 +35,15 @@ export function openUpstreamApplication() {
   const current=readJsonCached('.secrets/upstream/runtime.json') as {environments:Record<string,any>};
   if(!endpoints[runtime]||!current.environments[runtime])return undefined;
   return {...endpoints[runtime],keys:[],anonymousToken:internalToken(current.environments[runtime].jwt,'anon'),enabled:true};
- },fetch,studioSessionKey);
- const studio=studioProxy({key:studioSessionKey,allowed:(actor,runtime)=>catalog.studioAllowed(actor,runtime),
-  upstream:runtime=>studioState().sessions?.[runtime]?.url});
- const upstream=studioUpstream({
-  endpoints:runtime=>(readJsonCached('.lab/upstream/endpoints.json') as Record<string,any>)[runtime],
-  secret:runtime=>(readJsonCached('.secrets/upstream/runtime.json') as {environments:Record<string,any>}).environments[runtime]?.jwt,
-  active:runtime=>!!studioState().sessions?.[runtime]});
- return {handler,studio,upstream,catalog,keys,close(){catalog.close();keys.close();}};
+  },fetch,studioSessionKey);
+  const studio=studioProxy({key:studioSessionKey,allowed:(actor,runtime)=>catalog.studioAllowed(actor,runtime),
+   upstream:runtime=>studioState().sessions?.[runtime]?.url});
+  const upstream=studioUpstream({
+   endpoints:runtime=>(readJsonCached('.lab/upstream/endpoints.json') as Record<string,any>)[runtime],
+   secret:runtime=>(readJsonCached('.secrets/upstream/runtime.json') as {environments:Record<string,any>}).environments[runtime]?.jwt,
+   active:runtime=>!!studioState().sessions?.[runtime]});
+  // One monitor per process, over the one application gate: a busy environment's operator notice.
+  const pressure=new PressureMonitor(applicationConcurrency,(runtime,saturation)=>catalog.environmentSaturated(runtime,saturation));
+  pressure.start();
+  return {handler,studio,upstream,catalog,keys,close(){pressure.stop();catalog.close();keys.close();}};
 }

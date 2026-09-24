@@ -59,7 +59,7 @@ KINDS = frozenset((
     'worker.restart', 'worker.restart_limit',
     'fence.applied', 'fence.released',
     'backup.export_completed', 'backup.export_failed', 'backup.completed', 'backup.failed',
-    'restore.verified', 'restore.failed'))
+    'restore.verified', 'restore.failed', 'environment.saturated'))
 REASONS = frozenset((
     'runtime_failed', 'retry_limit', 'retry_requested', 'owner_changed', 'ownership_changed',
     'routing_paused', 'routing_resumed', 'installation_limit', 'memory_headroom',
@@ -68,8 +68,9 @@ REASONS = frozenset((
     'webhook_unreachable', 'webhook_timeout', 'webhook_status',
     'smtp_refused', 'smtp_temporary_failure', 'channel_disabled', 'redaction_refused',
     'operator_request', 'installation_failed', 'worker_restart', 'worker_restart_limit',
-    'export_completed', 'export_failed', 'restore_verified', 'restore_failed'))
-CHANNELS = ('email', 'webhook')
+    'export_completed', 'export_failed', 'restore_verified', 'restore_failed',
+    'environment_saturated', 'telegram_unreachable', 'telegram_status'))
+CHANNELS = ('email', 'webhook', 'telegram')
 SEVERITIES = ('info', 'warning', 'critical')
 DETAIL_KEYS = {
     'provision.failed': ('failure', 'attempt'),
@@ -95,6 +96,7 @@ DETAIL_KEYS = {
     'backup.failed': ('failed',),
     'restore.verified': ('status',),
     'restore.failed': ('status',),
+    'environment.saturated': ('minutes', 'refused', 'peak', 'guarantee'),
 }
 REASON_CLASS = {
     'runtime_failed': 'provisioning_outcome', 'retry_limit': 'provisioning_outcome',
@@ -114,6 +116,8 @@ REASON_CLASS = {
     'worker_restart': 'supervisor_lifecycle', 'worker_restart_limit': 'supervisor_lifecycle',
     'export_completed': 'recovery_outcome', 'export_failed': 'recovery_outcome',
     'restore_verified': 'recovery_outcome', 'restore_failed': 'recovery_outcome',
+    'environment_saturated': 'capacity_pressure',
+    'telegram_unreachable': 'channel_outcome', 'telegram_status': 'channel_outcome',
 }
 # Fixed renderer. summary and action are looked up here and interpolate only safe
 # identifiers, a closed reason name and a number. No caller supplies either string.
@@ -164,6 +168,10 @@ SUMMARY = {
                          'No action required; the target is retained stopped for inspection.'),
     'restore.failed': ('The independent database restore failed or its cleanup did not complete.',
                        'Inspect the private stage descriptor and the retained target resources.'),
+    'environment.saturated': (
+        'An environment kept needing more than it could get: for many minutes in a row it was '
+        'refused at its limit, or crowded out a neighbour while it borrowed.',
+        'Raise this environment\'s share, move it to its own database engine, or grow the server.'),
 }
 # Allow-list. The rendered envelope contains exactly these keys, in these positions.
 ENVELOPE_FIELDS = ('schema', 'id', 'delivery', 'kind', 'severity', 'at', 'last_at', 'occurrences',
@@ -563,6 +571,32 @@ def deliver_webhook(config, envelope, secret, timeout=None):
         return 'transient', 'webhook_unreachable'
 
 
+def telegram_text(envelope):
+    return mail_subject(envelope) + '\n\n' + mail_body(envelope)
+
+
+def deliver_telegram(config, envelope, timeout=None):
+    """One Bot API sendMessage. Returns (outcome, error token). Never raises past this point.
+    The bot token comes from its private file through load_config and only ever appears in the
+    request URL, never in the message."""
+    budget = ATTEMPT_TIMEOUT_SECONDS if timeout is None else timeout
+    telegram = config['telegram']
+    body = json.dumps({'chat_id': telegram['chatId'], 'text': telegram_text(envelope),
+                       'disable_web_page_preview': True}).encode('utf-8')
+    base = telegram.get('apiBase', 'https://api.telegram.org')
+    request = urllib.request.Request(base + '/bot' + telegram['token'] + '/sendMessage', data=body, method='POST')
+    request.add_header('content-type', 'application/json')
+    try:
+        with urllib.request.urlopen(request, timeout=budget) as response:
+            response.read(4096)
+            return ('delivered', None) if 200 <= response.status < 300 else ('transient', 'telegram_status')
+    except urllib.error.HTTPError as error:
+        # 429 is Telegram's own rate limit and passes; any other 4xx is a wrong token or chat.
+        return ('transient' if error.code == 429 or error.code >= 500 else 'failed'), 'telegram_status'
+    except (urllib.error.URLError, socket.timeout, TimeoutError, ConnectionError, OSError):
+        return 'transient', 'telegram_unreachable'
+
+
 # ---------------------------------------------------------------- configuration
 
 class ConfigurationError(RuntimeError):
@@ -608,6 +642,22 @@ def load_config(path):
             raise ConfigurationError('Invalid notification webhook secret')
         webhook_secret = secret['webhookSecret']
         channels.append('webhook')
+    if config.get('telegram', {}).get('enabled'):
+        telegram = config['telegram']
+        if not re.fullmatch(r'-?\d{1,20}|@[A-Za-z0-9_]{5,32}', str(telegram.get('chatId', ''))) or 'tokenFile' not in telegram:
+            raise ConfigurationError('Notification Telegram configuration is incomplete')
+        token_path = Path(telegram['tokenFile'])
+        if not token_path.is_absolute():
+            token_path = Path(os.getcwd()) / token_path
+        if token_path.is_symlink() or not token_path.is_file():
+            raise ConfigurationError('Notification Telegram token is unavailable')
+        if token_path.stat().st_mode & 0o077:
+            raise ConfigurationError('Notification Telegram token is not private')
+        token = json.loads(token_path.read_text())
+        if token.get('schema') != 1 or not re.fullmatch(r'\d{5,16}:[A-Za-z0-9_-]{30,64}', str(token.get('botToken', ''))):
+            raise ConfigurationError('Invalid notification Telegram token')
+        config = {**config, 'telegram': {**telegram, 'token': token['botToken']}}
+        channels.append('telegram')
     if not channels:
         raise ConfigurationError('No notification channel is enabled')
     return config, channels, webhook_secret
@@ -642,6 +692,8 @@ def drain(database, config, channels, secret, limit=20, lease_ms=LEASE_MS, prune
                 continue
             if channel == 'email':
                 result, error = deliver_email(config, envelope)
+            elif channel == 'telegram':
+                result, error = deliver_telegram(config, envelope)
             else:
                 result, error = deliver_webhook(config, envelope, secret)
             state = settle(database, item, result, error)

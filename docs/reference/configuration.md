@@ -54,7 +54,7 @@ Application mail (confirmation, recovery) for one environment is switched on by 
 
 ## Operator notifications
 
-If `.lab/upstream/notifications.json` exists, the worker delivers operator events by email, by signed webhook or both:
+If `.lab/upstream/notifications.json` exists, the worker delivers operator events by email, by signed webhook, by Telegram, or any mix:
 
 ```json
 {
@@ -62,11 +62,15 @@ If `.lab/upstream/notifications.json` exists, the worker delivers operator event
   "email": {"enabled": true, "host": "smtp.example.invalid", "port": 587,
             "from": "sbarbase@example.invalid", "to": "operator@example.invalid", "tls": "starttls"},
   "webhook": {"enabled": true, "url": "https://hooks.example.invalid/sbarbase",
-              "secretFile": ".secrets/upstream/notifier.json"}
+              "secretFile": ".secrets/upstream/notifier.json"},
+  "telegram": {"enabled": true, "chatId": "-1001234567890",
+               "tokenFile": ".secrets/upstream/telegram.json"}
 }
 ```
 
-`tls` is `none`, `starttls` or `tls`. The webhook signing secret lives in `.secrets/upstream/notifier.json` as `{"schema": 1, "webhookSecret": "<64 hex characters>"}`. Full design: [operator notifications](../engineering/OPERATOR-NOTIFICATIONS.md).
+`tls` is `none`, `starttls` or `tls`. The webhook signing secret lives in `.secrets/upstream/notifier.json` as `{"schema": 1, "webhookSecret": "<64 hex characters>"}`. For Telegram, create a bot with @BotFather, add it to your chat, and put its token in a private file (mode 0600) as `{"schema": 1, "botToken": "<token>"}`. `chatId` is the chat's number, or `@channelname` for a public channel. The token is read from that file only and never appears in a message. Full design: [operator notifications](../engineering/OPERATOR-NOTIFICATIONS.md).
+
+Among the events: **an environment kept needing more than its share.** The gateway guarantees each environment 8 requests in flight and lets a busy one borrow up to 24 of the 32, leaving free the unused share of every project active in the last minute (and at least 8). Borrowing alone is never reported. After 15 minutes in a row of being refused at its limit, or of crowding out a neighbour, you get one notice for that environment, with what to do: raise its share, move it to its own database engine, or grow the server. Design: [fair share admission](../engineering/FAIR-SHARE-ADMISSION.md).
 
 ## State directories
 

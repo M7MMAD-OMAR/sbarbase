@@ -1,10 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 520" width="900" height="520" role="img" aria-labelledby="loadisa-t loadisa-d" xml:lang="ar" direction="rtl">
-  <title id="loadisa-t">ضغط على بيئة واحدة يبقى داخل حدودها</title>
-  <desc id="loadisa-d">تتلقى البيئة أ دفعة كبيرة من الطلبات، والبيئة ب حركتها عادية. تقبل البوابة 8 طلبات متزامنة على الأكثر لكل بيئة و32 لكل عملية بوابة، دون طابور: الطلب التاسع المتزامن إلى أ يتلقى 429 فورًا، والبوابة الممتلئة ترد بـ 503. لـ ب عدّادها الخاص، فتُقبل طلباتها. خلف البوابة يعمل Auth وREST لكل بيئة في حاوياتهما بحدود للمعالج والذاكرة والقرص؛ ولكل حساب خدمة 6 اتصالات PostgreSQL على الأكثر، ولقاعدة كل بيئة 18؛ وتتوقف استعلامات REST بعد 8 ثوانٍ. في الفحوص المحلية رُفض الطلب التاسع وبقيت البيئة المجاورة تُخدم. هذه الحدود غير معايرة تحت حمل مستمر، والمعالج والذاكرة والقرص داخل محرك PostgreSQL الواحد تبقى مشتركة.</desc>
+  <title id="loadisa-t">البيئة المزدحمة تستعير المكان الفارغ، لا حصة جارتها</title>
+  <desc id="loadisa-d">تتلقى البيئة أ دفعة كبيرة من الطلبات، والبيئة ب حركتها عادية. في البوابة 32 مكانًا، ولكل بيئة 8 مضمونة. يمكن للبيئة المزدحمة أن تستعير الأماكن الفارغة حتى 24، ما دامت تبقى فارغة الحصة غير المستخدمة لكل بيئة نشطة في الدقيقة الأخيرة، و8 أماكن على الأقل. هنا تشغل أ أماكنها الثمانية واستعارت 14، وتستخدم ب مكانين، والثمانية الأخيرة محجوزة فارغة. طلب أ التالي يتلقى 429 ويعيد المحاولة بعد قليل، وطلب ب التالي يُقبل فورًا. وحين تحتاج ب مكانًا أكثر لا تستعير أ شيئًا جديدًا، وتعود أماكنها المستعارة كلما انتهى أحد طلباتها. بعد 15 دقيقة من هذا الرفض يصل المشغّل تنبيه واحد. خلف البوابة يعمل Auth وREST لكل بيئة في حاوياتهما بحدود للمعالج والذاكرة والقرص، ولكل قاعدة حدود اتصالاتها. المعالج والذاكرة والقرص داخل محرك PostgreSQL الواحد تبقى مشتركة، وهذه الحدود غير معايرة تحت حمل مستمر.</desc>
   <defs><marker id="loadisa-i" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#2A2632" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="loadisa-c" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#E06A4B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
   <rect x="0" y="0" width="900" height="520" fill="#F5EFE3"/>
   <g font-family="system-ui, sans-serif" fill="#2A2632" text-anchor="middle">
-  <text x="876" y="34" font-size="16" font-weight="700" text-anchor="start">ضغط على بيئة واحدة يبقى داخل حدودها</text>
+  <text x="876" y="34" font-size="16" font-weight="700" text-anchor="start">البيئة المزدحمة تستعير المكان الفارغ، لا حصة جارتها</text>
   <rect x="726" y="70" width="150" height="110" rx="8" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
   <text x="801" y="96" font-size="13" font-weight="700">البيئة أ</text>
   <text x="801" y="120" font-size="12.5">دفعة كبيرة:</text>
@@ -23,29 +23,49 @@
   <path d="M726 270 L688 270" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#loadisa-i)"/>
   <path d="M726 292 L688 292" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#loadisa-i)"/>
   <rect x="396" y="60" width="290" height="290" rx="8" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
-  <text x="541" y="84" font-size="13" font-weight="700">البوابة: عدّاد لكل بيئة</text>
-  <text x="668" y="110" font-size="12" text-anchor="start">البيئة أ: 8 قيد التنفيذ، ممتلئة</text>
-  <rect x="644" y="120" width="24" height="24" rx="4" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
-  <rect x="613" y="120" width="24" height="24" rx="4" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
-  <rect x="582" y="120" width="24" height="24" rx="4" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
-  <rect x="551" y="120" width="24" height="24" rx="4" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
-  <rect x="520" y="120" width="24" height="24" rx="4" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
-  <rect x="489" y="120" width="24" height="24" rx="4" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
-  <rect x="458" y="120" width="24" height="24" rx="4" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
-  <rect x="427" y="120" width="24" height="24" rx="4" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
-  <text x="668" y="170" font-size="12" font-weight="700" fill="#A8412A" text-anchor="start">الطلب التاسع: 429 فورًا، دون طابور</text>
-  <text x="668" y="250" font-size="12" text-anchor="start">البيئة ب: 2 من 8 مستخدمة</text>
-  <rect x="644" y="260" width="24" height="24" rx="4" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
-  <rect x="613" y="260" width="24" height="24" rx="4" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
-  <rect x="582" y="260" width="24" height="24" rx="4" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
-  <rect x="551" y="260" width="24" height="24" rx="4" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
-  <rect x="520" y="260" width="24" height="24" rx="4" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
-  <rect x="489" y="260" width="24" height="24" rx="4" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
-  <rect x="458" y="260" width="24" height="24" rx="4" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
-  <rect x="427" y="260" width="24" height="24" rx="4" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
-  <text x="668" y="310" font-size="12" font-weight="700" fill="#146B5C" text-anchor="start">طلب جديد: مقبول</text>
-  <text x="668" y="334" font-size="11.5" fill="#5B5465" text-anchor="start">البوابة كلها: 32 قيد التنفيذ، ثم 503</text>
-  <path d="M541 178 L541 209 L784 209" fill="none" stroke="#E06A4B" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#loadisa-c)"/>
+  <text x="541" y="84" font-size="13" font-weight="700">البوابة: 32 مكانًا</text>
+  <rect x="662" y="100" width="7" height="26" rx="1.5" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <rect x="654" y="100" width="7" height="26" rx="1.5" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <rect x="646" y="100" width="7" height="26" rx="1.5" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <rect x="638" y="100" width="7" height="26" rx="1.5" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <rect x="630" y="100" width="7" height="26" rx="1.5" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <rect x="622" y="100" width="7" height="26" rx="1.5" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <rect x="614" y="100" width="7" height="26" rx="1.5" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <rect x="606" y="100" width="7" height="26" rx="1.5" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <rect x="598" y="100" width="7" height="26" rx="1.5" fill="#FDEDE6" stroke="#E06A4B" stroke-width="1.2" stroke-dasharray="3 2"/>
+  <rect x="590" y="100" width="7" height="26" rx="1.5" fill="#FDEDE6" stroke="#E06A4B" stroke-width="1.2" stroke-dasharray="3 2"/>
+  <rect x="582" y="100" width="7" height="26" rx="1.5" fill="#FDEDE6" stroke="#E06A4B" stroke-width="1.2" stroke-dasharray="3 2"/>
+  <rect x="574" y="100" width="7" height="26" rx="1.5" fill="#FDEDE6" stroke="#E06A4B" stroke-width="1.2" stroke-dasharray="3 2"/>
+  <rect x="566" y="100" width="7" height="26" rx="1.5" fill="#FDEDE6" stroke="#E06A4B" stroke-width="1.2" stroke-dasharray="3 2"/>
+  <rect x="558" y="100" width="7" height="26" rx="1.5" fill="#FDEDE6" stroke="#E06A4B" stroke-width="1.2" stroke-dasharray="3 2"/>
+  <rect x="550" y="100" width="7" height="26" rx="1.5" fill="#FDEDE6" stroke="#E06A4B" stroke-width="1.2" stroke-dasharray="3 2"/>
+  <rect x="542" y="100" width="7" height="26" rx="1.5" fill="#FDEDE6" stroke="#E06A4B" stroke-width="1.2" stroke-dasharray="3 2"/>
+  <rect x="534" y="100" width="7" height="26" rx="1.5" fill="#FDEDE6" stroke="#E06A4B" stroke-width="1.2" stroke-dasharray="3 2"/>
+  <rect x="526" y="100" width="7" height="26" rx="1.5" fill="#FDEDE6" stroke="#E06A4B" stroke-width="1.2" stroke-dasharray="3 2"/>
+  <rect x="518" y="100" width="7" height="26" rx="1.5" fill="#FDEDE6" stroke="#E06A4B" stroke-width="1.2" stroke-dasharray="3 2"/>
+  <rect x="510" y="100" width="7" height="26" rx="1.5" fill="#FDEDE6" stroke="#E06A4B" stroke-width="1.2" stroke-dasharray="3 2"/>
+  <rect x="502" y="100" width="7" height="26" rx="1.5" fill="#FDEDE6" stroke="#E06A4B" stroke-width="1.2" stroke-dasharray="3 2"/>
+  <rect x="494" y="100" width="7" height="26" rx="1.5" fill="#FDEDE6" stroke="#E06A4B" stroke-width="1.2" stroke-dasharray="3 2"/>
+  <rect x="486" y="100" width="7" height="26" rx="1.5" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <rect x="478" y="100" width="7" height="26" rx="1.5" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <rect x="470" y="100" width="7" height="26" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="462" y="100" width="7" height="26" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="454" y="100" width="7" height="26" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="446" y="100" width="7" height="26" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="438" y="100" width="7" height="26" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="430" y="100" width="7" height="26" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="422" y="100" width="7" height="26" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="414" y="100" width="7" height="26" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="669" y="144" font-size="12" fill="#A8412A" text-anchor="start">أ: حصتها 8، و14 مستعارة</text>
+  <text x="669" y="163" font-size="12" fill="#146B5C" text-anchor="start">ب: 2 مستخدمة، ضمن حصتها 8</text>
+  <text x="669" y="182" font-size="12" text-anchor="start">الثمانية الأخيرة: محجوزة لـ ب ولمن يستيقظ</text>
+  <text x="669" y="214" font-size="12" font-weight="700" fill="#A8412A" text-anchor="start">أ تطلب المزيد: 429، أعد المحاولة</text>
+  <text x="669" y="236" font-size="12" font-weight="700" fill="#146B5C" text-anchor="start">ب تطلب: تُقبل فورًا</text>
+  <text x="669" y="264" font-size="11.5" fill="#5B5465" text-anchor="start">أ لا تتجاوز 24. وحين تحتاج ب مكانًا</text>
+  <text x="669" y="281" font-size="11.5" fill="#5B5465" text-anchor="start">لا تستعير أ جديدًا، وتعود أماكنها</text>
+  <text x="669" y="298" font-size="11.5" fill="#5B5465" text-anchor="start">المستعارة كلما انتهى طلب.</text>
+  <text x="669" y="334" font-size="11.5" font-weight="700" text-anchor="start">15 دقيقة من الرفض: تنبيه واحد للمشغّل</text>
+  <path d="M674 210 L784 210" fill="none" stroke="#E06A4B" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#loadisa-c)"/>
   <rect x="786" y="196" width="90" height="26" rx="4" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
   <text x="831" y="214" font-size="12.5" font-weight="700" fill="#A8412A" direction="ltr">429</text>
   <rect x="190" y="70" width="170" height="100" rx="8" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
@@ -76,16 +96,18 @@
   <path d="M190 120 C174 120 170 153 150 153" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#loadisa-i)"/>
   <path d="M190 286 C174 286 170 299 150 299" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#loadisa-i)"/>
   <rect x="24" y="372" width="852" height="64" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
-  <text x="450" y="396" font-size="13.5" font-weight="700">النتيجة: البيئة أ محصورة في حدودها، والبيئة ب ما زالت تُخدم.</text>
-  <text x="450" y="420" font-size="12">في الفحوص المحلية رُفض الطلب التاسع وبقيت البيئة المجاورة تجيب، ولم يعطّل حساب مشبع جارته.</text>
+  <text x="450" y="396" font-size="13.5" font-weight="700">النتيجة: أ تستفيد من الخادم الفارغ، وب ما زالت تُخدم فورًا.</text>
+  <text x="450" y="420" font-size="12">قاست الفحوص المحلية الحصة الثابتة 8 وبقاء الجارة تُخدم؛ والاستعارة تغطيها اختبارات الوحدة.</text>
   <text x="876" y="462" font-size="12" fill="#5B5465" text-anchor="start">غير معايرة تحت حمل مستمر: المعالج والذاكرة والقرص داخل محرك PostgreSQL الواحد تبقى مشتركة، فقد يبطئ جار ثقيل البقية.</text>
   <rect x="854" y="483" width="22" height="14" rx="3" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
-  <text x="846" y="494" font-size="12" fill="#5B5465" text-anchor="start">البيئة أ، مشغولة</text>
-  <rect x="693.6" y="483" width="22" height="14" rx="3" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
-  <text x="685.6" y="494" font-size="12" fill="#5B5465" text-anchor="start">البيئة ب، أو واحد لكل بيئة</text>
-  <rect x="469.2" y="483" width="22" height="14" rx="3" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
-  <text x="461.2" y="494" font-size="12" fill="#5B5465" text-anchor="start">مشترك</text>
-  <rect x="379.2" y="483" width="22" height="14" rx="3" fill="#F0C23E" stroke="#2A2632" stroke-width="1.3"/>
-  <text x="371.2" y="494" font-size="12" fill="#5B5465" text-anchor="start">قاعدة البيئة</text>
+  <text x="846" y="494" font-size="12" fill="#5B5465" text-anchor="start">أ، حصتها</text>
+  <rect x="744.8" y="483" width="22" height="14" rx="3" fill="#FDEDE6" stroke="#E06A4B" stroke-width="1.2" stroke-dasharray="3 2"/>
+  <text x="736.8" y="494" font-size="12" fill="#5B5465" text-anchor="start">أ، مستعار</text>
+  <rect x="629.2" y="483" width="22" height="14" rx="3" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <text x="621.2" y="494" font-size="12" fill="#5B5465" text-anchor="start">ب، أو واحد لكل بيئة</text>
+  <rect x="449.6" y="483" width="22" height="14" rx="3" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="441.6" y="494" font-size="12" fill="#5B5465" text-anchor="start">محجوز فارغ</text>
+  <rect x="327.6" y="483" width="22" height="14" rx="3" fill="#F0C23E" stroke="#2A2632" stroke-width="1.3"/>
+  <text x="319.6" y="494" font-size="12" fill="#5B5465" text-anchor="start">قاعدة البيئة</text>
   </g>
 </svg>

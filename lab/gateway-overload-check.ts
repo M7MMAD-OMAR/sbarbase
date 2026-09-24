@@ -2,6 +2,7 @@ import {serveLocal} from '../src/http/local-server';
 import {createClient} from '@supabase/supabase-js';
 import {openUpstreamApplication,internalToken} from './upstream-app';
 import {managedGateway} from '../src/gateway/managed';
+import {ConcurrencyGate} from '../src/gateway/concurrency';
 const sustained=process.argv.includes('--sustained');
 const cancellation=process.argv.includes('--cancellation');
 const deadlineProbe=process.argv.includes('--sql-deadline');
@@ -45,7 +46,9 @@ try{
  }
  const first=fixtures[0]!,second=fixtures[1]!;
  const transport=(async(input,init)=>{if(String(input)===endpoints[first.runtime].rest+'/rpc/'+name)forwarded++;return fetch(input,init);}) as typeof fetch;
- const handler=managedGateway(app.catalog,app.keys,runtime=>({...endpoints[runtime],keys:[],anonymousToken:internalToken(secrets.environments[runtime].jwt,'anon'),enabled:true}),transport);
+ const handler=managedGateway(app.catalog,app.keys,runtime=>({...endpoints[runtime],keys:[],anonymousToken:internalToken(secrets.environments[runtime].jwt,'anon'),enabled:true}),transport,
+  // A fixed share, no borrowing: these checks measure the guaranteed path and its ninth-request refusal.
+  new ConcurrencyGate());
  server=await serveLocal(handler);
  const base=`http://127.0.0.1:${server.port}`;
  const client=(f:typeof first)=>createClient(`${base}/${f.runtime}`,f.token,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false},global:{fetch:(input,init)=>fetch(input,{...init,signal:AbortSignal.timeout(15000)})}});

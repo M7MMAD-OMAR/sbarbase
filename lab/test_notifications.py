@@ -97,6 +97,7 @@ class Receiver:
 
     def __init__(self, hold=False):
         self.requests = []
+        self.paths = []
         self.hold = hold
         self.release = threading.Event()
         outer = self
@@ -105,6 +106,7 @@ class Receiver:
             def do_POST(self):
                 body = self.rfile.read(int(self.headers.get('content-length', 0)))
                 outer.requests.append((dict(self.headers), body))
+                outer.paths.append(self.path)
                 if outer.hold:
                     # Accept the request and never answer it, so the client's own deadline is
                     # the only thing that ends the attempt.
@@ -195,7 +197,7 @@ class EnqueueTransactionTests(NotificationCase):
         self.assertEqual(outbox[0][3], identity['environment'])
         self.assertEqual(self.rows('SELECT channel,state,attempts FROM notification_delivery '
                                    'ORDER BY channel'),
-                         [('email', 'pending', 0), ('webhook', 'pending', 0)])
+                         [('email', 'pending', 0), ('telegram', 'pending', 0), ('webhook', 'pending', 0)])
 
     def test_refused_enqueue_rolls_back_the_state_change_in_the_same_transaction(self):
         """This is the test that catches an enqueue moved outside the transaction.
@@ -226,7 +228,7 @@ class EnqueueTransactionTests(NotificationCase):
                                    "WHERE kind='membership.owner_changed'"), [(2,)])
         self.assertEqual(self.rows("SELECT count(*) FROM notification_delivery d "
                                    "JOIN notification_outbox o ON o.id=d.event "
-                                   "WHERE o.kind='membership.owner_changed'"), [(2,)])
+                                   "WHERE o.kind='membership.owner_changed'"), [(3,)])   # one per channel
 
 
 class DrainTests(NotificationCase):
@@ -237,7 +239,7 @@ class DrainTests(NotificationCase):
     def test_healthy_channel_delivers_once_and_settles_delivered(self):
         receiver = self.receiver()
         result = self.drain(self.webhookConfig(receiver), ['webhook'])
-        self.assertEqual((result['delivered'], result['failed'], result['deferred']), (1, 1, 0))
+        self.assertEqual((result['delivered'], result['failed'], result['deferred']), (1, 2, 0))
         self.assertEqual(len(receiver.requests), 1)
         headers, body = receiver.requests[0]
         envelope = json.loads(body)
@@ -255,7 +257,8 @@ class DrainTests(NotificationCase):
         self.assertEqual(envelope['subject']['environment'], self.identity['environment'])
         self.assertEqual(self.rows('SELECT channel,state,attempts,last_error FROM notification_delivery '
                                    'ORDER BY channel'),
-                         [('email', 'failed', 1, 'channel_disabled'), ('webhook', 'delivered', 1, None)])
+                         [('email', 'failed', 1, 'channel_disabled'), ('telegram', 'failed', 1, 'channel_disabled'),
+                          ('webhook', 'delivered', 1, None)])
 
     def test_a_broken_channel_records_a_failure_and_leaves_the_operation_unchanged(self):
         """The negative control. Silence is a failure of the probe, not a pass."""
@@ -376,7 +379,8 @@ class DrainTests(NotificationCase):
                                    "JOIN notification_outbox o ON o.id=d.event "
                                    'WHERE o.kind=? ORDER BY d.channel',
                                    ('provision.capacity_refused',)),
-                         [('failed', 'redaction_refused'), ('failed', 'redaction_refused')])
+                         [('failed', 'redaction_refused'), ('failed', 'channel_disabled'),
+                          ('failed', 'redaction_refused')])
         # One refusal event per refused event, delivered on every enabled channel.
         self.assertEqual(self.rows("SELECT o.kind,o.reason,d.channel,d.state FROM notification_delivery d "
                                    "JOIN notification_outbox o ON o.id=d.event "
@@ -493,6 +497,60 @@ class VocabularyTests(unittest.TestCase):
         self.assertIn('summary: ' + email['summary'], notify.mail_body(email))
         self.assertIn('summary: ' + notify.stable_summary(email['summary']),
                       notify.mail_body(email).replace(notify.SUPPRESSION_TEMPLATE.format(window=300), ''))
+
+
+class TelegramTests(NotificationCase):
+    TOKEN = '123456789:' + 'A' * 35
+
+    def telegramConfig(self, receiver, mode=0o600):
+        token_file = self.directory / 'telegram.json'
+        token_file.write_text(json.dumps({'schema': 1, 'botToken': self.TOKEN}))
+        os.chmod(token_file, mode)
+        path = self.directory / 'notify-telegram.json'
+        path.write_text(json.dumps({'schema': 1, 'telegram': {
+            'enabled': True, 'chatId': '-1001234567890', 'tokenFile': str(token_file),
+            'apiBase': receiver.url('')}}))
+        os.chmod(path, 0o600)
+        return path
+
+    def test_an_event_reaches_telegram_and_the_token_stays_out_of_the_message(self):
+        self.capacityRefusal()
+        receiver = self.receiver()
+        config, channels, _ = notify.load_config(self.telegramConfig(receiver))
+        self.assertEqual(channels, ['telegram'])
+        database = notify.connect(self.catalog)
+        try:
+            result = notify.drain(database, config, channels, None)
+        finally:
+            database.close()
+        self.assertEqual(result['delivered'], 1)
+        self.assertEqual(receiver.paths, ['/bot' + self.TOKEN + '/sendMessage'])
+        message = json.loads(receiver.requests[0][1])
+        self.assertEqual(message['chat_id'], '-1001234567890')
+        self.assertIn('provision.capacity_refused', message['text'])
+        self.assertNotIn(self.TOKEN.split(':')[1], message['text'])
+        self.assertEqual(self.rows("SELECT state FROM notification_delivery WHERE channel='telegram'"),
+                         [('delivered',)])
+
+    def test_a_non_private_or_malformed_token_is_refused(self):
+        receiver = self.receiver()
+        with self.assertRaises(notify.ConfigurationError):
+            notify.load_config(self.telegramConfig(receiver, 0o644))
+        path = self.telegramConfig(receiver)
+        (self.directory / 'telegram.json').write_text(json.dumps({'schema': 1, 'botToken': 'not-a-token'}))
+        with self.assertRaises(notify.ConfigurationError):
+            notify.load_config(path)
+
+    def test_a_wrong_chat_fails_and_telegram_rate_limits_retry(self):
+        envelope = {'kind': 'k', 'severity': 'warning', 'id': 'i', 'delivery': 'd', 'at': 'a', 'occurrences': 1,
+                    'reason': 'r', 'reason_class': 'c', 'actor': 'system', 'summary': 's', 'action': 'a', 'subject': {}}
+        config = {'telegram': {'chatId': '1', 'token': self.TOKEN, 'apiBase': 'http://127.0.0.1:9'}}
+        for code, outcome in ((400, 'failed'), (429, 'transient'), (502, 'transient')):
+            error = notify.urllib.error.HTTPError('u', code, 'm', {}, None)
+            with patch.object(notify.urllib.request, 'urlopen', side_effect=error):
+                self.assertEqual(notify.deliver_telegram(config, envelope), (outcome, 'telegram_status'))
+        with patch.object(notify.urllib.request, 'urlopen', side_effect=notify.urllib.error.URLError('down')):
+            self.assertEqual(notify.deliver_telegram(config, envelope), ('transient', 'telegram_unreachable'))
 
 
 class ConfigurationTests(NotificationCase):

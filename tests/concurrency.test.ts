@@ -76,11 +76,14 @@ test('separate managed factories share tenant capacity across keys and services'
  const complete:((r:Response)=>void)[]=[];
  const transport=(()=>new Promise<Response>(resolve=>complete.push(resolve))) as typeof fetch;
  const route=()=>({auth:'http://upstream',rest:'http://upstream',storage:{url:'http://upstream',tenantHost:'owned.storage'},keys:[],anonymousToken:'anon',enabled:true});
- const a=managedGateway(catalog,keys,route,transport),b=managedGateway(catalog,keys,route,transport);
+ // One gate shared by both factories, with the application gate's policy but not its process state.
+ const gate=new ConcurrencyGate(8,32,30_000,30_000,{ceiling:24,headroom:8});
+ const a=managedGateway(catalog,keys,route,transport,gate),b=managedGateway(catalog,keys,route,transport,gate);
  const req=(key:string,service='rest')=>new Request(`http://localhost/${job.runtime}/${service}/v1/`,{headers:{apikey:key}});
- const pending=Array.from({length:8},(_,i)=>(i%2?a:b)(req(i%2?first.token:second.token,i%2?'auth':'rest')));
+ // The environment's share is 8; an otherwise idle gateway lends it up to 24.
+ const pending=Array.from({length:24},(_,i)=>(i%2?a:b)(req(i%2?first.token:second.token,i%2?'auth':'rest')));
  try {
-  expect(complete.length).toBe(8);
+  expect(complete.length).toBe(24);
   expect((await a(req(first.token))).status).toBe(429);
   expect((await b(new Request(`http://localhost/${job.runtime}/storage/v1/object/public/bucket/file`))).status).toBe(429);
   expect((await a(req('wrong'))).status).toBe(401);
@@ -214,4 +217,77 @@ test('abandoned REST drain errors release capacity without downstream errors',as
  await response.body!.cancel();source.error(new Error('upstream body failed'));
  await Bun.sleep(0);
  expect((await gate.run('a',request(),empty,budget)).status).toBe(204);
+});
+
+// Borrowing: docs/engineering/FAIR-SHARE-ADMISSION.md
+const hold=(gate:ConcurrencyGate,environment:string)=>{let done!:(r:Response)=>void;
+ const pending=gate.run(environment,request(),()=>new Promise<Response>(resolve=>{done=resolve;}));
+ return async()=>{done?.(new Response(null,{status:204}));await pending;};};
+
+test('a busy environment borrows idle room above its share, up to its ceiling',async()=>{
+ const gate=new ConcurrencyGate(2,8,30_000,30_000,{ceiling:5,headroom:2});
+ const held=[0,1,2,3,4].map(()=>hold(gate,'a'));
+ await Bun.sleep(0);
+ expect((await gate.run('a',request(),empty)).status).toBe(429);   // at its ceiling
+ for(const release of held)await release();
+ expect((await gate.run('a',request(),empty)).status).toBe(204);
+});
+
+test('borrowing stops at the headroom, so a quiet neighbour always finds room at once',async()=>{
+ const gate=new ConcurrencyGate(2,6,30_000,30_000,{ceiling:6,headroom:2});
+ const held=[0,1,2,3].map(()=>hold(gate,'a'));                    // 2 guaranteed + 2 borrowed
+ await Bun.sleep(0);
+ expect((await gate.run('a',request(),empty)).status).toBe(429);   // borrowing would eat the headroom
+ const neighbour=[hold(gate,'b'),hold(gate,'b')];                   // the headroom serves b within its share
+ await Bun.sleep(0);
+ expect((await gate.run('c',request(),empty)).status).toBe(503);   // now the whole gateway is full
+ for(const release of [...held,...neighbour])await release();
+ expect((await gate.run('c',request(),empty)).status).toBe(204);
+});
+
+test('without a borrow policy the share is still the ceiling',async()=>{
+ const gate=new ConcurrencyGate(1,8);
+ const release=hold(gate,'a');await Bun.sleep(0);
+ expect((await gate.run('a',request(),empty)).status).toBe(429);
+ await release();
+});
+
+test('pressure reports refusals and the peak in flight, then starts a new sample',async()=>{
+ const gate=new ConcurrencyGate(1,4,30_000,30_000,{ceiling:2,headroom:1});
+ const first=hold(gate,'a'),second=hold(gate,'a');await Bun.sleep(0);
+ expect((await gate.run('a',request(),empty)).status).toBe(429);
+ expect(gate.pressure().get('a')).toEqual({refused:1,squeezed:0,peak:2,active:2,guarantee:1});
+ await first();await second();
+ expect(gate.pressure().get('a')).toBeUndefined();
+});
+
+test('an invalid borrow policy is refused',()=>{
+ expect(()=>new ConcurrencyGate(4,8,30_000,30_000,{ceiling:3,headroom:1})).toThrow('Invalid borrow policy');
+ expect(()=>new ConcurrencyGate(4,8,30_000,30_000,{ceiling:8,headroom:8})).toThrow('Invalid borrow policy');
+});
+
+test('the unused share of every recently active neighbour is kept free, not only the headroom',async()=>{
+ let clock=0;
+ const gate=new ConcurrencyGate(8,32,30_000,30_000,{ceiling:24,headroom:8,recentMs:60_000},()=>clock);
+ await gate.run('b',request(),empty);await gate.run('c',request(),empty);         // b and c were seen
+ const a=Array.from({length:24},()=>hold(gate,'a'));await Bun.sleep(0);
+ expect(gate.pressure().get('a')!.peak).toBe(16);                                  // 32 minus 8 for b and 8 for c
+ const neighbours=[...Array.from({length:8},()=>hold(gate,'b')),...Array.from({length:8},()=>hold(gate,'c'))];
+ await Bun.sleep(0);
+ expect(gate.pressure().get('c')!.peak).toBe(8);                                   // both got their whole share
+ for(const release of [...a,...neighbours])await release();
+ clock=61_000;                                                                     // b and c have been quiet for a minute
+ const later=Array.from({length:24},()=>hold(gate,'a'));await Bun.sleep(0);
+ expect(gate.pressure().get('a')!.peak).toBe(24);
+ for(const release of later)await release();
+});
+
+test('a neighbour turned away while another borrows is charged to the borrower',async()=>{
+ const gate=new ConcurrencyGate(2,6,30_000,30_000,{ceiling:6,headroom:2,recentMs:60_000},()=>0);
+ const a=Array.from({length:4},()=>hold(gate,'a'));await Bun.sleep(0);             // 2 share + 2 borrowed
+ const waking=[hold(gate,'b'),hold(gate,'c')];await Bun.sleep(0);                  // the headroom
+ expect((await gate.run('d',request(),empty)).status).toBe(503);                  // d is within its share
+ const sample=gate.pressure();
+ expect(sample.get('a')!.squeezed).toBe(1);expect(sample.get('d')?.refused??0).toBe(0);
+ for(const release of [...a,...waking])await release();
 });
