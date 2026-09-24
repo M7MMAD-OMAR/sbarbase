@@ -26,10 +26,11 @@
 //
 // t      dur  scene     viewer notices                                          action
 // 0.0    7.5  stacks    three full Supabase stacks on one server, it sags        stacks draw on one by one, plank bends, cactus worries
-// 7.5    9.5  building  one building: basement Postgres, floors, windows          draws on, windows light with locks, pipes to drums, hierarchy rings
-// 17.0   8.0  requests  paper planes enter the gateway and reach their own window one without a key bounces off
-// 25.0   8.0  night     parcels fly to a cloud at night; morning, one window fails and is restored
-// 33.0   8.5  install   one command types itself, the building lights, the cactus waves, wordmark
+// 7.5   16.3  building  one building: basement Postgres, floors, windows          draws on, windows light with locks, pipes to drums, hierarchy rings
+// 23.8  11.6  requests  paper planes enter the gateway and reach their own window one without a key bounces off
+// 35.4  12.5  night     parcels fly to a cloud at night; morning, one window fails and is restored
+// 47.9  11.4  install   one command types itself, the building lights, the cactus waves, wordmark
+// Scene lengths follow the narration in narration.json; build-voice.ts lays the voice on them.
 // ============================================================
 
 const INK = '#2A2632';
@@ -167,9 +168,9 @@ function sceneBuilding(c, tau, i) { paper(c); zoomAt(c, 1.1, 960, 600);
   // the hierarchy, one ring at a time: a client (floor), a project (apartment), an environment (window)
   const g = G(), ring = (x, y, rx, ry, st, col) => { const u = sm(st, st + .6, tau); if (u <= 0) return; c.save(); c.strokeStyle = col; c.lineWidth = 5; c.setLineDash([16, 12]); c.lineCap = 'round';
     const pts = ellPts(x, y, rx, ry, 0, 80), n = Math.max(2, Math.round(pts.length * u)); c.beginPath(); pts.slice(0, n).forEach((p, q) => q ? c.lineTo(...p) : c.moveTo(...p)); if (u >= 1) c.closePath(); c.stroke(); c.restore(); };
-  ring(g.bx + g.bw / 2, g.floorA.y + g.floorA.h / 2, 390, 150, 7.0, C.mustard);
-  ring(872, 678, 232, 118, 7.8, C.coral);
-  ring(...winC(g.win[0]), 104, 84, 8.6, C.teal);
+  ring(g.bx + g.bw / 2, g.floorA.y + g.floorA.h / 2, 390, 150, 7.4, C.mustard);
+  ring(872, 678, 232, 118, 9.0, C.coral);
+  ring(...winC(g.win[0]), 104, 84, 10.6, C.teal);
   pen(c, tau, i, .8, 23, d => cactus(d, 1640, 900, .82, tau > 2.8 ? 'point' : 'rest')); }
 
 // 3. Requests: paper planes go through the shared gateway to their own window; one without a key is refused
@@ -179,7 +180,7 @@ function sceneRequests(c, tau, i) { paper(c); zoomAt(c, 1.1, 960, 600); stillBui
   pen(c, tau, i, 0, 31, d => dev.forEach(([x, y, kind]) => { if (kind === 'phone') { boxD(d, x - 36, y - 62, 72, 124, '#3B3F6E', { r: 14 }); d.fill(roundRectPath(x - 28, y - 50, 56, 96, 6), C.tealSoft).line([[x - 10, y + 54], [x + 10, y + 54]], { w: 3 }); }
     else { boxD(d, x - 74, y - 54, 148, 96, '#3B3F6E', { r: 8 }); d.fill(roundRectPath(x - 64, y - 44, 128, 76, 4), C.lilacSoft).line([[x - 96, y + 44], [x + 96, y + 44]], { w: 4 }); } }), { still: true });
   g.win.slice(0, 3).forEach(w => glow(c, ...winC(w), 100, '#FFE7A0', .45));
-  const door = [g.booth.x + g.booth.w / 2, g.booth.y + 60], flights = [[.5, 0, 0], [1.5, 1, 2], [2.5, 2, 1], [4.1, 1, -1]];
+  const door = [g.booth.x + g.booth.w / 2, g.booth.y + 60], flights = [[.5, 0, 0], [1.5, 1, 2], [2.5, 2, 1], [6.1, 1, -1]];
   flights.forEach(([st, from, to], k) => { const u = tau - st; if (u < 0) return; const a = dev[from], s0 = [a[0] + 40, a[1] - 40];
     if (u < 1.1) { const t = easeInOutSine(u / 1.1), cc = [(s0[0] + door[0]) / 2, Math.min(s0[1], door[1]) - 160], p = bz(s0, door, cc, t); plane(c, p[0], p[1], bzAng(s0, door, cc, t), 1.1, to < 0 ? '#D9D3E3' : C.paper); return; }
     if (to < 0) { // refused at the door: bounce back and a red cross
@@ -189,7 +190,7 @@ function sceneRequests(c, tau, i) { paper(c); zoomAt(c, 1.1, 960, 600); stillBui
     const w = g.win[to], tgt = winC(w), v = sm(1.3, 2.4, u, easeInOutSine), cc = [door[0] + 120, tgt[1] + 40];
     if (v < 1) { const p = bz(door, tgt, cc, v); plane(c, p[0], p[1], bzAng(door, tgt, cc, v), 1.1); }
     else { const f = 1 - sm(2.4, 3.2, u); glow(c, ...tgt, 150, '#FFF3B8', f * .9); checkMark(c, tgt[0], tgt[1] - 4, 1, sm(2.4, 2.7, u) * f); } });
-  pen(c, tau, i, -9, 41, d => cactus(d, 1640, 900, .82, tau > 5.6 ? 'happy' : 'rest')); }
+  pen(c, tau, i, -9, 41, d => cactus(d, 1640, 900, .82, tau > 4.4 && tau < 7.2 || tau > 9.4 ? 'happy' : 'rest')); }
 
 // 4. Night backups to an off-host cloud; morning, one window breaks and comes back from its parcel
 function sceneNight(c, tau, i) { const k = sm(0, 1.2, tau) * (1 - sm(4.6, 5.6, tau)), g = G();
@@ -235,10 +236,10 @@ function sceneInstall(c, tau, i) { paper(c); const tx = 150, ty = 250, tw = 980,
 
 const TIMELINE = [
   { name: 'stacks', dur: 7.5, fn: sceneStacks },
-  { name: 'building', dur: 9.5, fn: sceneBuilding },
-  { name: 'requests', dur: 8.0, fn: sceneRequests },
-  { name: 'night', dur: 8.0, fn: sceneNight },
-  { name: 'install', dur: 8.5, fn: sceneInstall },
+  { name: 'building', dur: 16.3, fn: sceneBuilding },
+  { name: 'requests', dur: 11.6, fn: sceneRequests },
+  { name: 'night', dur: 12.5, fn: sceneNight },
+  { name: 'install', dur: 11.4, fn: sceneInstall },
 ];
 document.fonts.load('600 40px Hand').then(() => defineFilm({ timeline: TIMELINE, format: { ar: '16:9', width: 1920 } }));
 </script>

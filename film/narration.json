@@ -1,0 +1,15 @@
+{
+  "note": "Voice: fal-ai/minimax/speech-02-hd, voice_id Wise_Woman, speed 1, language_boost Arabic or English. The spoken Arabic spells Supabase and Postgres in Arabic letters; the captions keep the Latin names.",
+  "total": 59.3,
+  "cues": [
+    { "at": 0.3, "file": "01", "ar": "كل تطبيق يحتاج نسخة Supabase كاملة، والخادم يحملها كلها حتى ينحني.", "en": "Every app needs its own full Supabase stack. One server carries them all, and it bends.", "arSpoken": "كل تطبيق يحتاج نسخة سوبابيس كاملة، والخادم يحملها كلها حتى ينحني." },
+    { "at": 7.8, "file": "02", "ar": "صباربيز يجعل الخادم مبنى واحدا، وPostgres يعمل مرة واحدة في الأساس.", "en": "Sbarbase makes the server one building. Postgres runs once, in the basement.", "arSpoken": "صباربيز يجعل الخادم مبنى واحدا، وبوستغريس يعمل مرة واحدة في الأساس." },
+    { "at": 14.6, "file": "03", "ar": "كل عميل طابق، وكل مشروع شقة، وكل بيئة نافذة لها قفلها وقاعدتها.", "en": "Each client is a floor, each project an apartment, each environment a window with its own lock and its own database." },
+    { "at": 24.1, "file": "04", "ar": "تطبيقك يتكلم Supabase كما هو، والبوابة توصل كل طلب إلى بيئته.", "en": "Your app speaks Supabase as usual. The gateway sends each request to its own environment.", "arSpoken": "تطبيقك يتكلم سوبابيس كما هو، والبوابة توصل كل طلب إلى بيئته." },
+    { "at": 30.5, "file": "05", "ar": "والطلب بلا مفتاح صحيح لا يدخل.", "en": "A request without the right key never gets in." },
+    { "at": 35.8, "file": "06", "ar": "كل ليلة تُنسخ كل بيئة مشفّرة خارج الخادم.", "en": "Every night, each environment is backed up, encrypted, off the server." },
+    { "at": 40.8, "file": "07", "ar": "وإن تعطلت بيئة تُستعاد وحدها، ولا تشعر البقية بشيء.", "en": "If one breaks, only it is restored. The others never notice." },
+    { "at": 48.5, "file": "08", "ar": "أمر واحد يثبّت كل شيء.", "en": "One command installs it all." },
+    { "at": 53.3, "file": "09", "ar": "صباربيز. مشاريع Supabase كثيرة، وخادم واحد.", "en": "Sbarbase. Many Supabase projects, one server.", "arSpoken": "صباربيز. مشاريع سوبابيس كثيرة، وخادم واحد." }
+  ]
+}
