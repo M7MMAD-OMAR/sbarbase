@@ -74,13 +74,20 @@ class BilingualDocumentationTests(unittest.TestCase):
         self.assertEqual(drift, [], 'pages whose Arabic code blocks differ from the English ones')
 
     def test_each_page_links_to_its_other_language(self):
-        # English starts with [العربية](X.ar.md), Arabic with [English](X.md).
+        # English starts with [العربية](X.ar.md), Arabic with [English](X.md). The two root READMEs
+        # open with the logo instead, so theirs is an HTML link in the centred header above the first heading.
+        def linked(path):
+            if path.parent == ROOT and path.name.startswith('README'):
+                other = 'README.md' if path.name == 'README.ar.md' else 'README.ar.md'
+                header = path.read_text(encoding='utf-8').split('\n## ', 1)[0]
+                return f'<a href="{other}">' in header
+            return first_line(path).strip() == switch_link(path)
         unlinked = []
         for page in english_pages():
             arabic = arabic_path(page)
-            if first_line(page).strip() != switch_link(page):
+            if not linked(page):
                 unlinked.append(str(page.relative_to(ROOT)))
-            if arabic.exists() and first_line(arabic).strip() != switch_link(arabic):
+            if arabic.exists() and not linked(arabic):
                 unlinked.append(str(arabic.relative_to(ROOT)))
         self.assertEqual(unlinked, [], 'pages whose first line is not the link to the other language')
 

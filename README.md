@@ -18,6 +18,8 @@ Sbarbase is an open source, self-hosted layer that runs the original Supabase se
 - **A busy project stays in its lane.** Each environment gets its own share of requests and database connections, and its services run with their own CPU and memory limits. Extra requests are told to retry; the other projects stay fast.
 - **Your app does not change.** It keeps using supabase-js and SQL.
 
+<p align="center"><img src="docs/diagrams/hierarchy.svg" width="820" alt="Clients, projects and environments on one server"></p>
+
 ## Install
 
 On an empty Fedora server (plan on 4 cores and 8 GB). Each step is explained in the [quickstart](docs/guides/quickstart.md).
