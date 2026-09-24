@@ -28,6 +28,7 @@ import os
 import re
 import secrets
 import sqlite3
+from contextlib import closing
 import sys
 import time
 import urllib.request
@@ -197,7 +198,7 @@ def wait_ready(url, timeout=120):
 
 def display_names(e):
     try:
-        with sqlite3.connect(f'file:{CATALOG}?mode=ro', uri=True) as database:
+        with closing(sqlite3.connect(f'file:{CATALOG}?mode=ro', uri=True)) as database, database:
             row = database.execute('SELECT o.name, e.name FROM provision_jobs j JOIN environments e ON e.id=j.environment '
                                    'JOIN projects p ON p.id=e.project JOIN organizations o ON o.id=p.organization '
                                    'WHERE j.runtime=?', (e,)).fetchone()
@@ -288,7 +289,7 @@ def reset():
 def record(e, state, failure=None):
     """The outcome, in the catalog row the console reads."""
     try:
-        with sqlite3.connect(CATALOG, timeout=5) as database:
+        with closing(sqlite3.connect(CATALOG, timeout=5)) as database, database:
             database.execute('UPDATE studio_sessions SET state=?, failure=?, updated_at=? WHERE runtime=?',
                              (state, failure, int(time.time() * 1000), e))
     except sqlite3.Error:
