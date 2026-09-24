@@ -4,7 +4,9 @@ import type {RuntimeRouting} from '../control/placement';
 import {KeyStore} from '../control/keys';
 import {createGateway,type EnvironmentRoute} from './handler';
 
-const applicationConcurrency=new ConcurrencyGate();
+/** A guaranteed 8 in flight per environment, borrowing up to 24 while 8 of the 32 stay free for
+ * environments within their share (docs/engineering/FAIR-SHARE-ADMISSION.md). */
+export const applicationConcurrency=new ConcurrencyGate(8,32,30_000,30_000,{ceiling:24,headroom:8});
 
 /** Trusted in-process operator hook. It does not fence upstream SQL or other processes. */
 export function pauseManagedEnvironment(runtime:string) {

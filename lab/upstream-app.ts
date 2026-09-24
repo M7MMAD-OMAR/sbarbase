@@ -1,4 +1,6 @@
 import {readFileSync} from 'node:fs';
+import {PressureMonitor} from '../src/gateway/pressure';
+import {applicationConcurrency} from '../src/gateway/managed';
 import {createHmac} from 'node:crypto';
 import {Catalog} from '../src/control/catalog';
 import {KeyStore} from '../src/control/keys';
@@ -26,5 +28,8 @@ export function openUpstreamApplication() {
   if(!endpoints[runtime]||!current.environments[runtime])return undefined;
   return {...endpoints[runtime],keys:[],anonymousToken:internalToken(current.environments[runtime].jwt,'anon'),enabled:true};
  });
- return {handler,catalog,keys,close(){catalog.close();keys.close();}};
+ // One monitor per process, over the one application gate: a busy environment's operator notice.
+ const pressure=new PressureMonitor(applicationConcurrency,(runtime,saturation)=>catalog.environmentSaturated(runtime,saturation));
+ pressure.start();
+ return {handler,catalog,keys,close(){pressure.stop();catalog.close();keys.close();}};
 }
