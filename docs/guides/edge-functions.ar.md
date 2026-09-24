@@ -52,6 +52,8 @@ const { data, error } = await supabase.functions.invoke('hello-world', { body: {
 - السجلات تحت **Logs**، المصدر **Edge Functions**، بجانب الخدمات الأخرى.
 - زر **Turn off Edge Functions** يوقف بيئة التشغيل ويُبقي الكود؛ والتشغيل أو النشر من جديد يعيدها.
 
+ينشر CI مجلد دوال بالأمر أعلاه على جهاز نظيف مع كل تغيير، ويستدعي الدوال عبر البوابة باستخدام supabase-js، ومنها دالة تستخدم supabase-js من npm بصلاحية الخدمة ([الدليل](../evidence/docker-functions-checks.json)).
+
 ## الحدود
 
 - الكود ملفات نصية، حتى 500 ملف و10 MiB في كل نشر. يُحفظ الكود المنشور في `.lab/upstream/functions/` وليس في النسخ الاحتياطية للبيئة بعد: احتفظ بمجلد مشروعك.

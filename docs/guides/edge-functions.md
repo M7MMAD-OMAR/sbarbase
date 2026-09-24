@@ -52,6 +52,8 @@ Add your own under **Secrets** (for example `STRIPE_SECRET_KEY`) and read them w
 - Logs are under **Logs**, source **Edge Functions**, next to the other services.
 - **Turn off Edge Functions** stops the runtime and keeps the code; turning it on or deploying again starts it.
 
+CI deploys a functions folder with the command above on a clean machine with every change, and calls the functions through the gateway with supabase-js, including one that uses supabase-js from npm with the service role ([evidence](../evidence/docker-functions-checks.json)).
+
 ## Limits
 
 - Code is text files, up to 500 files and 10 MiB per deploy. Deployed code lives in `.lab/upstream/functions/` and is not in the environment backups yet: keep your project folder.
