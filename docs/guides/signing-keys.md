@@ -39,4 +39,4 @@ curl -X POST -H "authorization: Bearer $TOKEN" https://your-console/management/v
 - Only owners and admins of the organization can rotate it.
 - Daily backups hold no key, so restoring one keeps the current key. A recovery export does hold one: an export made before a rotation restores with the old key, so rotate again after such a restore if the old key leaked.
 
-CI rotates the key of an environment on a clean machine with every change and checks the old session, refresh token and `service_role` token are refused while a new sign-in works everywhere.
+CI rotates the key of an environment on a clean machine with every change and checks the old session, refresh token and `service_role` token are refused while a new sign-in works everywhere ([evidence](../evidence/docker-signing-checks.json)).

@@ -1,0 +1,100 @@
+{
+  "check": "signing",
+  "recorded": "2026-09-24T08:00:37Z",
+  "passed": true,
+  "count": 18,
+  "seconds": 53,
+  "scope": "Rotation of one environment's JWT signing secret on a clean GitHub runner, not a real server, through the management API and the supervisor with Realtime on: the old session, refresh token and service-role token refused by Auth, REST and Storage, a new sign-in with the same publishable key accepted everywhere (REST answers 404 for a table that does not exist, which means the token was accepted), and Realtime's broadcast API still answering through the gateway. The restart and upgrade checks that follow in the same job ran on the rotated environment. Transcribed from the CI docker-install job 107544524063 (run 35972179055, commit 99418f9).",
+  "checks": [
+    {
+      "check": "operator logs in",
+      "ok": true,
+      "detail": "status 200"
+    },
+    {
+      "check": "a provisioned environment exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "Realtime is on before the rotation",
+      "ok": true,
+      "detail": "state on"
+    },
+    {
+      "check": "the broadcast API answers before the rotation",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "a person is signed in, and Auth, REST and Storage accept their session",
+      "ok": true,
+      "detail": "(200, 404, 200)"
+    },
+    {
+      "check": "Storage accepts a service-role token signed with the current key",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "an owner asks for a new signing key, and a second request waits for the first",
+      "ok": true,
+      "detail": "status 202, then 409"
+    },
+    {
+      "check": "the supervisor rotates it",
+      "ok": true,
+      "detail": "state done"
+    },
+    {
+      "check": "the console shows when, never the key",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "the environment has a new secret",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "the old session is refused by Auth, REST and Storage",
+      "ok": true,
+      "detail": "(403, 401, 400)"
+    },
+    {
+      "check": "a service-role token signed with the old key is refused",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "the old refresh token no longer gives a session",
+      "ok": true,
+      "detail": "status 400"
+    },
+    {
+      "check": "the person signs in again with the same publishable key and password",
+      "ok": true,
+      "detail": "status 200"
+    },
+    {
+      "check": "Auth, REST and Storage accept the new session",
+      "ok": true,
+      "detail": "(200, 404, 200)"
+    },
+    {
+      "check": "Storage accepts a service-role token signed with the new key",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "the broadcast API answers after the rotation",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "Realtime is turned off again",
+      "ok": true,
+      "detail": "state off"
+    }
+  ]
+}
