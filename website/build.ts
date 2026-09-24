@@ -7,5 +7,5 @@ await Bun.write(new URL('./dist/index.html',import.meta.url),render('ar'));
 await Bun.write(new URL('./dist/en/index.html',import.meta.url),render('en'));
 await Bun.write(new URL('./dist/style.css',import.meta.url),Bun.file(new URL('./src/style.css',import.meta.url)));
 await Bun.write(new URL('./dist/app.js',import.meta.url),Bun.file(new URL('./src/app.js',import.meta.url)));
-await Bun.write(new URL('./dist/404.html',import.meta.url),'<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Page not found | Sbarbase</title><link rel="stylesheet" href="/style.css"><body><main class="container section"><h1>Page not found.</h1><p><a href="/">Return to Sbarbase</a></p></main></body></html>');
+await Bun.write(new URL('./dist/404.html',import.meta.url),'<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Page not found | Sbarbase</title><link rel="stylesheet" href="/style.css"><body><main class="section"><div class="wrap"><h1>Page not found.</h1><p class="lede"><a href="/">Return to Sbarbase</a></p></div></main></body></html>');
 console.log('Built Arabic and English pages.');
