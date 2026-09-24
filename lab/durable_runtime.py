@@ -6,6 +6,7 @@ from guarded_sql_executor import GuardedSQL
 import argparse
 import base64
 import fcntl
+import sys
 import hashlib
 import hmac
 import json
@@ -22,6 +23,7 @@ import connection_budget
 import pressure_admission
 import source_fence
 import mail_config
+import auth_settings
 import mail_state
 
 MAIL_KEY_PREFIXES = ('GOTRUE_SMTP_', 'GOTRUE_MAILER_', 'GOTRUE_RATE_LIMIT_')
@@ -101,6 +103,26 @@ UPGRADE_INTENT = STATE / 'upgrade-intent.json'
 # Services that keep no state in their container: Auth and Storage keep theirs in the
 # database and the objects volume. The database is never replaced here.
 REPLACEABLE = ('auth', 'rest', 'storage')
+
+
+def settings_only(component, configured, desired):
+    """True when a retained Auth differs from its desired configuration only in the operator's
+    sign-in settings (lab/auth_settings.py), in either direction."""
+    if component != 'auth':
+        return False
+    changed = {key for key in set(configured) | set(desired) if configured.get(key) != desired.get(key)}
+    # A key the image sets itself and the desired configuration never names is not a change.
+    changed = {key for key in changed if key in desired or auth_settings.owned(key)}
+    return bool(changed) and all(auth_settings.owned(key) for key in changed)
+
+
+def load_settings(e):
+    """The environment's sign-in settings; a file that fails validation is reported and left out."""
+    try:
+        return auth_settings.load(e)
+    except (auth_settings.SettingsError, ValueError, OSError) as error:
+        print(f'Sign-in settings for {e} are not valid ({error}); Auth starts without them.', file=sys.stderr)
+        return None
 
 
 def upgrade_allows(component, image):
@@ -215,7 +237,7 @@ class Runtime:
             # longer exists (reconcile_mail names the same hazard for its own path).
             stale = [key for key in configured if is_mail_key(key) and key not in env]
             if actual['Image'] != expected or any(configured.get(k) != v for k, v in env.items()) or stale:
-                if not upgrade_allows(component, image):
+                if not upgrade_allows(component, image) and not (actual['Image'] == expected and settings_only(component, configured, env)):
                     raise RuntimeError('Runtime drift requires explicit reconciliation')
                 # An upgrade or rollback: replace the stateless container with the pinned
                 # image and the configuration this version computes, keeping its volumes.
@@ -414,7 +436,7 @@ class Runtime:
             name = PREFIX+'-'+e+'-'+service
             # No per-environment class field exists yet, so both environment
             # services launch under the production row (docs/engineering/RESOURCE-POLICY.md 3.2).
-            config = builder(e, v, DB, mail) if service == 'auth' else builder(e, v, DB)
+            config = builder(e, v, DB, mail, load_settings(e)) if service == 'auth' else builder(e, v, DB)
             self.launch(name, service, config, '256m', .25, existing_only=not creating, tier='production')
             endpoints[service] = self.endpoint(name, port)
             self.wait(endpoints[service]+suffix)
@@ -471,7 +493,7 @@ class Runtime:
         if not actual:
             raise RuntimeError('Reconcile requires the retained Auth container')
         mail = None if off else mail_config.load(e)
-        desired = lab.auth_configuration(e, self.values['environments'][e], DB, mail)
+        desired = lab.auth_configuration(e, self.values['environments'][e], DB, mail, load_settings(e))
         configured = dict(entry.split('=', 1) for entry in actual['Config'].get('Env', []) if '=' in entry)
         if {k: v for k, v in configured.items() if is_mail_key(k)} == {k: v for k, v in desired.items() if is_mail_key(k)}:
             # The recorded state is the four state vocabulary the configuration
@@ -484,8 +506,56 @@ class Runtime:
         lab.docker('rm', '-f', name)
         self.launch(name, 'auth', desired, '256m', .25, tier='production')
         self.wait(self.endpoint(name, 9999)+'/health')
+        self.publish_auth(e, name)
         mail_state.record(e, 'off' if off else 'applied', mail)
         print('Environment Auth service recreated to apply the mail configuration.')
+
+    def reconcile_auth(self, e):
+        """Apply one environment's sign-in settings: recreate its Auth with them, as mail does."""
+        effect_receipt.require_settled(STATE)
+        if not re.fullmatch(r'e_[a-f0-9]{24}', e):
+            raise RuntimeError('Invalid environment runtime identifier')
+        if not inspect('container', DB) or not inspect('container', PREFIX+'-storage'):
+            raise RuntimeError('Start the upstream runtime first')
+        path = STATE/'endpoints.json'
+        published = json.loads(path.read_text()) if path.exists() else {}
+        if e not in published or e not in self.values['environments']:
+            raise RuntimeError('Sign-in settings need a published environment')
+        if source_fence.is_fenced(self.sql,e):
+            raise RuntimeError('Environment database is fenced; explicit reconciliation required')
+        name = PREFIX+'-'+e+'-auth'
+        if not inspect('container', name):
+            raise RuntimeError('Sign-in settings need the retained Auth container')
+        settings = auth_settings.load(e)
+        desired = lab.auth_configuration(e, self.values['environments'][e], DB, mail_config.load(e), settings)
+        # The running Auth steps aside rather than going away, so a new one that does not
+        # start leaves the environment exactly as it was.
+        previous = name+'-previous'
+        if inspect('container', previous):
+            lab.docker('rm', '-f', previous)
+        lab.docker('stop', name)
+        lab.docker('rename', name, previous)
+        try:
+            self.launch(name, 'auth', desired, '256m', .25, tier='production')
+            self.wait(self.endpoint(name, 9999)+'/health')
+        except Exception:
+            if inspect('container', name):
+                lab.docker('rm', '-f', name)
+            lab.docker('rename', previous, name)
+            lab.docker('start', name)
+            self.wait(self.endpoint(name, 9999)+'/health')
+            self.publish_auth(e, name)
+            raise
+        lab.docker('rm', '-f', previous)
+        self.publish_auth(e, name)
+
+    def publish_auth(self, e, name):
+        """A recreated Auth may hold a new address; the gateway reads it from here."""
+        path = STATE/'endpoints.json'
+        endpoints = json.loads(path.read_text()) if path.exists() else {}
+        if e in endpoints:
+            endpoints[e]['auth'] = self.endpoint(name, 9999)
+            atomic(path, endpoints)
 
     def management(self):
         """Dedicated identity realm; it has no application REST or Storage route."""
@@ -517,7 +587,7 @@ def stop():
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('command', choices=['up', 'stop', 'provision', 'mail'])
+    parser.add_argument('command', choices=['up', 'stop', 'provision', 'mail', 'auth'])
     parser.add_argument('environment', nargs='?')
     parser.add_argument('--off', action='store_true')
     args = parser.parse_args()
@@ -531,6 +601,9 @@ if __name__ == '__main__':
             with (STATE/'operation.lock').open('a') as lock:
                 fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
                 if args.command=='stop':stop()
+                elif args.command=='auth':
+                    if not args.environment:raise SystemExit('The auth command needs an environment')
+                    Runtime().reconcile_auth(args.environment)
                 elif args.command=='mail':
                     # An operator action, not a worker job: there is no receipt to
                     # inherit, so no HBA preflight runs and no worker runtime is

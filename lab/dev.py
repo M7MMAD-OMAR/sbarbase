@@ -100,6 +100,9 @@ class Supervisor:
         self.worker = None
         self.backup = None
         self.studios = {}
+        # One sign-in apply at a time, and a pause after one that found the runtime busy.
+        self.sign_in = None
+        self.sign_in_after = 0.0
         self.backup_hour = backup_hour()
         self.backup_keep = backup_keep()
         self.restarts = collections.deque()
@@ -203,6 +206,34 @@ class Supervisor:
             elif desired == 'stopped' and state in ('running', 'starting', 'failed'):
                 self.studios[runtime] = self.spawn(['/usr/bin/python3', 'lab/studio.py', 'down', runtime])
 
+    def sign_in_requests(self):
+        """Runtimes whose saved sign-in settings wait to be applied, oldest first."""
+        path = STATE/'control.sqlite'
+        if not path.exists():
+            return []
+        try:
+            with closing(sqlite3.connect(f'file:{path}?mode=ro', uri=True, timeout=2)) as database, database:
+                return [row[0] for row in database.execute("SELECT runtime FROM auth_settings WHERE state='pending' ORDER BY updated_at")]
+        except sqlite3.Error:
+            return []
+
+    def schedule_sign_in(self):
+        """Apply saved sign-in settings (lab/auth_settings.py), one environment at a time."""
+        if self.sign_in is not None:
+            status = child_status(self.sign_in)
+            if status is None:
+                return
+            terminate_group(self.sign_in, grace=0)
+            self.sign_in = None
+            if status == 75:
+                # Another runtime operation held the lock; ask again shortly.
+                self.sign_in_after = time.monotonic() + 5
+        if time.monotonic() < self.sign_in_after:
+            return
+        pending = self.sign_in_requests()
+        if pending:
+            self.sign_in = self.spawn(['/usr/bin/python3', 'lab/auth_settings.py', 'apply', pending[0]])
+
     def reset_studios(self):
         """No Studio outlives a restart: browser sessions are gone and the login must close."""
         subprocess.run(['/usr/bin/python3', 'lab/studio.py', 'reset'], cwd=ROOT, timeout=300, check=False)
@@ -229,11 +260,14 @@ class Supervisor:
                 self.check()
                 self.schedule_backup()
                 self.schedule_studios()
+                self.schedule_sign_in()
         finally:
             if self.backup:
                 terminate_group(self.backup)
             for process in self.studios.values():
                 terminate_group(process)
+            if self.sign_in:
+                terminate_group(self.sign_in)
             # Stop new HTTP mutations first, then drain the active worker effect.
             if self.server:
                 terminate_group(self.server)

@@ -115,6 +115,8 @@ export const CATALOG_SCHEMA_VERSION=3;
 
 export type StudioSession={runtime:string;desired:'running'|'stopped';state:'stopped'|'starting'|'running'|'failed';
   failure:string|null;updatedAt:number|null};
+export type SignInState={runtime:string;revision:number;applied:number|null;
+  state:'unconfigured'|'pending'|'applied'|'failed';failure:string|null;updatedAt:number|null};
 
 export class Catalog {
   private db:Database;
@@ -162,6 +164,11 @@ export class Catalog {
         runtime TEXT PRIMARY KEY REFERENCES provision_jobs(runtime),
         desired TEXT NOT NULL CHECK(desired IN ('running','stopped')),
         state TEXT NOT NULL CHECK(state IN ('stopped','starting','running','failed')),
+        failure TEXT, actor TEXT NOT NULL, updated_at INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS auth_settings(
+        runtime TEXT PRIMARY KEY REFERENCES provision_jobs(runtime),
+        revision INTEGER NOT NULL CHECK(revision>0), applied INTEGER,
+        state TEXT NOT NULL CHECK(state IN ('pending','applied','failed')),
         failure TEXT, actor TEXT NOT NULL, updated_at INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS audit_events(
         sequence INTEGER PRIMARY KEY AUTOINCREMENT, actor TEXT NOT NULL,
@@ -518,6 +525,27 @@ export class Catalog {
         .run(current.runtime,desired,actor,Date.now());
       this.record(actor,desired==='running'?'studio.requested':'studio.stop_requested',environment,{});
       return this.studio(actor,environment);
+    }).immediate();
+  }
+  /** Sign-in settings for one environment. Owners and admins save them; the supervisor applies
+   * the pending revision (lab/auth_settings.py) and records the outcome in the same row. */
+  signIn(actor:string,environment:string):SignInState {
+    this.environmentProject(actor,environment,['owner','admin']);
+    const job=this.job(environment);
+    if(!job||job.state!=='succeeded')throw new Error('Environment is not ready');
+    const row=this.db.query<{revision:number;applied:number|null;state:string;failure:string|null;updated_at:number},[string]>(
+      'SELECT revision,applied,state,failure,updated_at FROM auth_settings WHERE runtime=?').get(job.runtime);
+    return {runtime:job.runtime,revision:row?.revision??0,applied:row?.applied??null,
+      state:(row?.state??'unconfigured') as SignInState['state'],failure:row?.failure??null,updatedAt:row?.updated_at??null};
+  }
+  requestSignIn(actor:string,environment:string,revision:number):SignInState {
+    return this.db.transaction(()=>{
+      const current=this.signIn(actor,environment);
+      this.db.query(`INSERT INTO auth_settings(runtime,revision,applied,state,failure,actor,updated_at) VALUES (?,?,NULL,'pending',NULL,?,?)
+        ON CONFLICT(runtime) DO UPDATE SET revision=excluded.revision,state='pending',failure=NULL,actor=excluded.actor,
+        updated_at=excluded.updated_at`).run(current.runtime,revision,actor,Date.now());
+      this.record(actor,'sign_in.saved',environment,{revision});
+      return this.signIn(actor,environment);
     }).immediate();
   }
   runtimeReady(runtime:string):boolean {
