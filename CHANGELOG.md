@@ -15,6 +15,13 @@ ready.
 
 ### Added
 
+- **Upgrades with an automatic way back.** `lab/upgrade.py start` checks the new
+  version, pulls its images and backs up every environment, then moves the
+  checkout; the restart replaces only the Auth, REST and Storage containers whose
+  pin or configuration changed. If that start fails, the supervisor moves back to
+  the previous version by itself. A version that changes the PostgreSQL image is
+  refused. CI upgrades PostgREST v14.15 to v14.16, then recovers from a broken
+  version, on a clean machine.
 - **Supabase Studio per environment.** Owners and admins start the original,
   pinned Studio and postgres-meta for one environment from the console, open it
   on its own address behind the console login, and stop it. Studio signs in with
