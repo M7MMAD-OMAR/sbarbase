@@ -8,6 +8,7 @@ import {RealtimeSection} from './Realtime';
 import {MetricsSection,LogsSection} from './Observe';
 import {FunctionsSection} from './Functions';
 import {DatabaseSection} from './Database';
+import {SigningSection} from './Signing';
 type Key={id:string;kind:string;created_at:number;revoked_at:number|null};
 type Studio={desired:'running'|'stopped';state:'stopped'|'starting'|'running'|'failed';failure:string|null};
 const studioLabels:Record<string,string>={stopped:'Stopped',starting:'Starting',running:'Running',failed:'Failed'};
@@ -51,6 +52,7 @@ export function Connection({environment,organization,request,onBack}:{environmen
  {canWrite&&<SignInSection path={path} request={request}/>}
  {canWrite&&<RealtimeSection path={path} request={request}/>}
  {canWrite&&<DatabaseSection path={path} request={request}/>}
+ {canWrite&&<SigningSection path={path} request={request}/>}
  {canWrite&&<FunctionsSection path={path} request={request} environmentId={environment.id}/>}
  {canWrite&&<StudioSection path={path} request={request}/>}
  <MetricsSection path={path} request={request}/>

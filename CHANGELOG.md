@@ -15,6 +15,13 @@ ready.
 
 ### Added
 
+- **Rotate an environment's signing key.** Owners and admins press **Rotate
+  signing key** (or `POST .../signing-key/rotate`); the supervisor gives the
+  environment a new JWT secret, recreates its Auth and REST, updates its
+  Storage and Realtime tenants and Edge Functions, and ends every session.
+  Publishable keys keep working. A rotation that stops halfway is finished by
+  the next attempt or start. Also: a restart no longer drops an environment's
+  direct database access from the published state.
 - **Move a project from Supabase in one command.** `lab/import_project.py`
   reads a Supabase project (Cloud, self-hosted, or another environment) and
   copies it into a new, empty environment: the `public` schema with its

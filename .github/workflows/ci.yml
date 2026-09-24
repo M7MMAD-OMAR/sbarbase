@@ -105,6 +105,8 @@ jobs:
         run: docker compose exec -T sbarbase bun lab/database-check.ts "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-database-checks.json"
       - name: Import a Supabase-shaped project into a new environment
         run: docker compose exec -T sbarbase python3 lab/import-check.py "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-import-checks.json"
+      - name: Rotate the environment's signing key
+        run: docker compose exec -T sbarbase python3 lab/signing-check.py "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-signing-checks.json"
       - name: Logs and metrics for the environment
         run: docker compose exec -T sbarbase bun lab/observe-check.ts "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-observe-checks.json"
       - name: Uploads larger than a MiB, then a new upload limit

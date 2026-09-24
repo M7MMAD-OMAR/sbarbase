@@ -53,6 +53,8 @@
 | GET | `/management/v1/environments/{id}/database` | مالك، مدير، عندما تكون جاهزة | حالة الوصول المباشر إلى قاعدة البيانات في `state` و`desired`، وبيانات الاتصال في `connection` (المضيف والمنفذ والمستخدم وقاعدة البيانات)، و`url` بمكان محجوز لكلمة المرور |
 | PUT | `/management/v1/environments/{id}/database` | مالك، مدير، عندما تكون جاهزة | `{"enabled": true\|false}`. يأخذ `202`، والتشغيل يردّ مرة واحدة بكلمة مرور جديدة في `password` و`url` كامل |
 | POST | `/management/v1/environments/{id}/database/password` | مالك، مدير، عندما تكون جاهزة | كلمة مرور جديدة تُعرض مرة واحدة، وتتوقف القديمة. يأخذ `409` إن كان الوصول مطفأً |
+| GET | `/management/v1/environments/{id}/signing-key` | مالك، مدير، عندما تكون جاهزة | حالة مفتاح توقيع JWT في `state` (`never` أو `pending` أو `done` أو `failed`)، و`failure` و`rotatedAt`؛ ولا يردّ بالمفتاح أبدًا |
+| POST | `/management/v1/environments/{id}/signing-key/rotate` | مالك، مدير، عندما تكون جاهزة | مفتاح توقيع جديد ([مفتاح التوقيع](../guides/signing-keys.ar.md)). يأخذ `202`، و`409` إن كان تغيير سابق قيد التنفيذ |
 | GET | `/management/v1/environments/{id}/mail` | عضو | حالة البريد غير السرية للبيئة، بلا أي حقل لبيانات الاعتماد |
 | GET | `/management/v1/notifications` | مالك أو مدير أي عميل | عدد التنبيهات غير المسلّمة وأحدث أحداث المشغّل لعملاء المستدعي وحدهم. الأحداث التي لا تخص عميلًا (بدء التثبيت، إعادة تشغيل العامل) تذهب إلى مالكي ومديري العميل الذي أُنشئ عند الإعداد الأولي |
 

@@ -1,7 +1,7 @@
-"""Turn one environment's Realtime, Edge Functions or direct database access on or off, as the console asked,
-and record the outcome.
+"""Turn one environment's Realtime, Edge Functions or direct database access on or off, or rotate its
+JWT signing secret, as the console asked, and record the outcome.
 
-Usage: /usr/bin/python3 lab/realtime.py apply <environment runtime id> [--service realtime|functions|database]
+Usage: /usr/bin/python3 lab/realtime.py apply <environment runtime id> [--service realtime|functions|database|signing]
 
 The console records the request in the catalog; the supervisor runs this for each pending
 row, one at a time. It calls `durable_runtime.py <service> <runtime> [--off]`, which starts or
@@ -26,13 +26,16 @@ RUNTIME = re.compile(r'e_[a-f0-9]{24}')
 CAPACITY = 75
 # Each service: its catalog table and the name people see.
 SERVICES = {'realtime': ('realtime_settings', 'Realtime'), 'functions': ('functions_settings', 'Edge Functions'),
-            'database': ('database_access', 'Direct database access')}
+            'database': ('database_access', 'Direct database access'), 'signing': ('signing_keys', 'The signing key')}
 
 
 def failure_text(service, code, want):
     label = SERVICES[service][1]
     if code == CAPACITY and service == 'database':
         return 'This server has no database connections to spare for direct access to another environment.'
+    if service == 'signing':
+        return ('The new signing key is not in use everywhere yet. Rotate again to finish, or Sbarbase finishes '
+                'it the next time it starts; until then some requests to this environment may be refused.')
     if code == CAPACITY:
         return f'This server does not have the room, in memory or database connections, to run {label} for another environment.'
     return f"{label} could not be {'started' if want == 'on' else 'stopped'}. The environment keeps working without it."
@@ -47,8 +50,11 @@ def desired(e, service='realtime'):
 def record(e, state, failure=None, service='realtime'):
     try:
         with closing(sqlite3.connect(CATALOG, timeout=5)) as database, database:
+            now = int(time.time() * 1000)
             database.execute(f'UPDATE {SERVICES[service][0]} SET state=?, failure=?, updated_at=? WHERE runtime=?',
-                             (state, failure, int(time.time() * 1000), e))
+                             (state, failure, now, e))
+            if service == 'signing' and state == 'done':
+                database.execute('UPDATE signing_keys SET rotated_at=? WHERE runtime=?', (now, e))
     except sqlite3.Error:
         pass
 
@@ -64,22 +70,22 @@ def busy():
 
 def apply(e, service='realtime'):
     want = desired(e, service)
-    if want not in ('on', 'off'):
+    if want not in (('rotate',) if service == 'signing' else ('on', 'off')):
         return 1
     if busy():
         # Another runtime operation is running; the supervisor asks again shortly.
         return 75
-    command = ['/usr/bin/python3', 'lab/durable_runtime.py', service, e] + ([] if want == 'on' else ['--off'])
+    command = ['/usr/bin/python3', 'lab/durable_runtime.py', service, e] + (['--off'] if want == 'off' else [])
     result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
     if result.returncode:
         record(e, 'failed', failure_text(service, result.returncode, want), service)
         return 1
-    record(e, want, None, service)
+    record(e, 'done' if want == 'rotate' else want, None, service)
     return 0
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="Apply one environment's Realtime, Edge Functions or database access setting")
+    parser = argparse.ArgumentParser(description="Apply one environment's Realtime, Edge Functions or database access setting, or rotate its signing key")
     parser.add_argument('command', choices=('apply',))
     parser.add_argument('environment')
     parser.add_argument('--service', choices=tuple(SERVICES), default='realtime')
