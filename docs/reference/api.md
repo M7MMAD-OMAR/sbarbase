@@ -58,7 +58,8 @@ Request bodies accept only `name`, at most 4 KiB, read within five seconds. Key 
 
 `{runtime}` is the environment's runtime ID returned as `apiPath` above. Point `supabase-js` at `<base URL>/{runtime}` with a publishable key.
 
-- **Methods:** GET, HEAD, POST, PUT, PATCH, DELETE.
+- **Methods:** GET, HEAD, POST, PUT, PATCH, DELETE, and OPTIONS for a browser's preflight.
+- **Browsers:** as on Supabase, a page on any domain may call the API. Every answer, refusals included, carries `Access-Control-Allow-Origin: *` and exposes `Content-Range`; a preflight gets `204` without a key. No cookies or credentials are used, so the API key and the user token still decide everything a call may do.
 - **API key:** the `apikey` header must be an active publishable key of that environment. The only keyless requests are GET or HEAD on Storage `object/public/...` and on `object/sign/...` with exactly one `token` query parameter; Storage itself enforces bucket visibility and signature validity.
 - **Authorization:** a `Bearer` user token is forwarded; if absent (or equal to the API key) the environment's anonymous token is used.
 - **Storage tenant:** chosen by the gateway from the routing record and sent as a trusted header; a client cannot choose it.
@@ -74,4 +75,4 @@ Request bodies accept only `name`, at most 4 KiB, read within five seconds. Key 
 | `503` | Environment in maintenance, server-wide request limit reached, or routing unavailable; `retry-after: 1` where retrying helps |
 | `504` | Upstream deadline exceeded |
 
-Admission limits are per gateway process and have no queue. Realtime, Edge Functions, browser CORS and OAuth provider flows are not routed yet.
+Admission limits are per gateway process and have no queue. Realtime, Edge Functions and OAuth provider flows are not routed yet.

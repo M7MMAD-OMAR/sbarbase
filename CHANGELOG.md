@@ -15,6 +15,17 @@ ready.
 
 ### Added
 
+- **Browser access.** A page on any domain can call Auth, REST and Storage
+  through the gateway, as on Supabase: every answer carries
+  `Access-Control-Allow-Origin: *`, a preflight gets 204 without a key, and no
+  credentials mode is offered. The operator login stays same-origin.
+- **Upgrades with an automatic way back.** `lab/upgrade.py start` checks the new
+  version, pulls its images and backs up every environment, then moves the
+  checkout; the restart replaces only the Auth, REST and Storage containers whose
+  pin or configuration changed. If that start fails, the supervisor moves back to
+  the previous version by itself. A version that changes the PostgreSQL image is
+  refused. CI upgrades PostgREST v14.15 to v14.16, then recovers from a broken
+  version, on a clean machine.
 - **Fair share admission at the gateway.** Each environment is guaranteed 8
   requests in flight; a busy one borrows idle slots up to 24 of 32, while the
   unused share of every environment active in the last minute (at least 8 slots)

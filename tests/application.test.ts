@@ -15,6 +15,8 @@ test('management login surface excludes signup and admin APIs before forwarding'
   expect(calls).toBe(0);
   const allowed=await handler(new Request('http://local/management/auth/v1/token?grant_type=password',{method:'POST',headers:{apikey:'public'}}));
   expect(allowed.status).toBe(200);expect(allowed.headers.get('cache-control')).toBe('no-store');expect(calls).toBe(1);
+  // The operator login is for the console's own origin only.
+  expect(allowed.headers.get('access-control-allow-origin')).toBeNull();
  }finally{catalog.close();keys.close();}
 });
 

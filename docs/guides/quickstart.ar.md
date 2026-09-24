@@ -98,7 +98,7 @@ import {createClient} from '@supabase/supabase-js';
 const supabase = createClient('https://console.example.com/<runtime>', '<publishable key>');
 ```
 
-يعمل Auth وREST وStorage عبر هذا العنوان الواحد. أما Realtime وEdge Functions وCORS للمتصفح ومزودو OAuth فلا يُوجَّهون بعد ([مرجع API](../reference/api.ar.md)).
+يعمل Auth وREST وStorage عبر هذا العنوان الواحد، من خادم أو من صفحة في المتصفح على أي نطاق. أما Realtime وEdge Functions ومزودو OAuth فلا يُوجَّهون بعد ([مرجع API](../reference/api.ar.md)).
 
 للعنوان العام عبر HTTPS، ضع وكيل TLS المرجعي (أو nginx أو Caddy) أمام `127.0.0.1:8787` بشهادة حقيقية، كما يصف [دليل النشر على خادم](server-deployment.ar.md). لا تفتح في الجدار الناري إلا SSH و80 و443.
 

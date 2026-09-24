@@ -95,6 +95,23 @@ DB = PREFIX + '-db'
 NETWORK = PREFIX + '-net'
 STATE = lab.STATE / 'upstream'
 PRIVATE = lab.PRIVATE / 'upstream'
+# Written by lab/upgrade.py for one start after it moves the checkout. It names the exact
+# pinned image of each service that start may replace; nothing else ever replaces one.
+UPGRADE_INTENT = STATE / 'upgrade-intent.json'
+# Services that keep no state in their container: Auth and Storage keep theirs in the
+# database and the objects volume. The database is never replaced here.
+REPLACEABLE = ('auth', 'rest', 'storage')
+
+
+def upgrade_allows(component, image):
+    """True when a recorded upgrade or rollback names exactly this pinned image for this service."""
+    if component not in REPLACEABLE or not UPGRADE_INTENT.exists():
+        return False
+    try:
+        intent = json.loads(UPGRADE_INTENT.read_text())
+    except (OSError, ValueError):
+        return False
+    return isinstance(intent, dict) and isinstance(intent.get('pins'), dict) and intent['pins'].get(component) == image
 
 
 atomic = lab.atomic
@@ -198,7 +215,13 @@ class Runtime:
             # longer exists (reconcile_mail names the same hazard for its own path).
             stale = [key for key in configured if is_mail_key(key) and key not in env]
             if actual['Image'] != expected or any(configured.get(k) != v for k, v in env.items()) or stale:
-                raise RuntimeError('Runtime drift requires explicit reconciliation')
+                if not upgrade_allows(component, image):
+                    raise RuntimeError('Runtime drift requires explicit reconciliation')
+                # An upgrade or rollback: replace the stateless container with the pinned
+                # image and the configuration this version computes, keeping its volumes.
+                lab.docker('rm', '-f', actual['Id'])
+                actual = None
+        if actual:
             mounts = {(m.get('Name'), m['Destination']) for m in actual['Mounts']}
             if any((name, destination) not in mounts for name, destination in volumes):
                 raise RuntimeError('Runtime persistent volume mismatch')

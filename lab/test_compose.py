@@ -22,6 +22,12 @@ class ComposeTests(unittest.TestCase):
         self.assertIn('- /var/run/docker.sock:/var/run/docker.sock', self.compose)
         self.assertIn('- /var/lib/docker:/var/lib/docker:ro', self.compose)
 
+    def test_a_failed_upgrade_is_restarted_on_the_previous_version(self):
+        # lab/upgrade.py moves the checkout back and the supervisor exits 1; the restart
+        # policy is what starts the previous version.
+        self.assertIn('restart: unless-stopped', self.compose)
+        self.assertIn('Restart=on-failure', (ROOT / 'deploy' / 'sbarbase.service').read_text())
+
     def test_a_stop_leaves_time_to_stop_every_service(self):
         self.assertIn('stop_grace_period: 3m', self.compose)
 

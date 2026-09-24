@@ -107,3 +107,39 @@ test('only public and signed Storage reads may omit API keys',async()=>{
  expect((await handler(new Request('http://local/a_prod/storage/v1/object/public/bucket/file',{headers:{apikey:'wrong'}}))).status).toBe(401);
  expect(forwarded).toBe(4);
 });
+
+test('a browser on any origin can call the API, and the key still decides what it may do',async()=>{
+ const {handler,calls}=setup();
+ const origin={origin:'https://app.example.com'};
+ const preflight=await handler(new Request('http://local/a_prod/rest/v1/items',{method:'OPTIONS',
+  headers:{...origin,'access-control-request-method':'POST','access-control-request-headers':'apikey, authorization, content-type, x-my-app'}}));
+ expect(preflight.status).toBe(204);
+ expect(preflight.headers.get('access-control-allow-origin')).toBe('*');
+ expect(preflight.headers.get('access-control-allow-methods')).toContain('PATCH');
+ expect(preflight.headers.get('access-control-allow-headers')).toBe('apikey, authorization, content-type, x-my-app');
+ expect(preflight.headers.get('access-control-allow-credentials')).toBeNull();
+ // A preflight reaches no upstream and needs no key.
+ expect(calls).toHaveLength(0);
+ const odd=await handler(new Request('http://local/a_prod/rest/v1/items',{method:'OPTIONS',headers:{...origin,'access-control-request-headers':'bad header; x=y'}}));
+ expect(odd.headers.get('access-control-allow-headers')).toContain('x-client-info');
+ // Refusals are readable by the page, so supabase-js reports the real status.
+ const refused=await handler(new Request('http://local/a_prod/rest/v1/items',{headers:origin}));
+ expect(refused.status).toBe(401);
+ expect(refused.headers.get('access-control-allow-origin')).toBe('*');
+ // Unknown environments answer 404 to a preflight too.
+ expect((await handler(new Request('http://local/unknown/rest/v1/items',{method:'OPTIONS',headers:origin}))).status).toBe(404);
+});
+
+test('upstream answers carry the gateway browser headers, not the upstream ones',async()=>{
+ const upstream=(async()=>new Response('[1]',{status:206,headers:{'content-range':'0-0/5','access-control-allow-origin':'https://evil.example',
+  'access-control-allow-credentials':'true',vary:'Accept-Encoding'}})) as unknown as typeof fetch;
+ const handler=createGateway(new Map([['a_prod',route]]),upstream);
+ const response=await handler(new Request('http://local/a_prod/rest/v1/items',{headers:{apikey:'key-a',origin:'https://app.example.com'}}));
+ expect(response.status).toBe(206);
+ expect(await response.text()).toBe('[1]');
+ expect(response.headers.get('access-control-allow-origin')).toBe('*');
+ expect(response.headers.get('access-control-allow-credentials')).toBeNull();
+ expect(response.headers.get('access-control-expose-headers')).toContain('content-range');
+ expect(response.headers.get('content-range')).toBe('0-0/5');
+ expect(response.headers.get('vary')).toBe('Accept-Encoding, Origin');
+});
