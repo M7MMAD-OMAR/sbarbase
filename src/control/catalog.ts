@@ -478,6 +478,19 @@ export class Catalog {
     }
     return out;
   }
+  /** An owner changes an existing member's role or removes them. Adding someone new waits for
+   * invitations, so an unknown member is refused here. The last owner cannot be demoted or removed
+   * (setMember), and access ends at once: every management and Studio request re-checks membership. */
+  changeMember(actor:string,organization:string,target:string,role:MembershipRole|null) {
+    this.actor(target);
+    return this.db.transaction(()=>{
+      this.require(actor,organization,['owner']);
+      const current=this.db.query<{role:string},[string,string]>('SELECT role FROM memberships WHERE organization=? AND actor=?').get(organization,target);
+      if(!current)throw new Error('Unknown member');
+      this.setMember(actor,organization,target,role);
+      return this.listMembers(actor,organization);
+    }).immediate();
+  }
   /** Owners and admins may see who else can act in their organization. */
   listMembers(actor:string,organization:string):{actor:string;role:MembershipRole}[] {
     this.require(actor,organization,['owner','admin']);

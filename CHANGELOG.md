@@ -41,6 +41,8 @@ ready.
   crowding out a neighbour, an environment raises one `environment.saturated`
   operator notification. Borrowing alone never does.
 - **Telegram** as a third notification channel beside email and webhook.
+- **Member roles in the console.** An owner changes a member's role or removes
+  them; access ends at the next request. The last owner stays.
 - **Activity.** Owners and admins see what happened in their organization,
   newest first, in the console (`GET /organizations/{id}/audit`). A project
   moved in from another client shows only what happened since it arrived.

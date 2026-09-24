@@ -33,6 +33,8 @@
 | GET | `/management/v1/organizations` | أي مشغّل | عملاء المستدعي (المنظمات) بالمعرّف والاسم والدور، مع `operator: true` إذا كان يحق له إنشاء عملاء |
 | POST | `/management/v1/organizations` | مالك أو مدير العميل الذي أُنشئ عند الإعداد الأولي | الجسم `{"name": "..."}`. يعيد `201` مع `{id}`، ويصبح المستدعي مالكه |
 | GET | `/management/v1/organizations/{id}/members` | مالك، مدير | أعضاء ذلك العميل مع أدوارهم |
+| PUT | `/management/v1/organizations/{id}/members/{member}` | مالك | الجسم `{"role": "owner"|"admin"|"viewer"}` لعضو موجود. يُرجع `404` لمن ليس عضوًا (إضافة الأشخاص تنتظر الدعوات)، و`409` إذا بقيت المنظمة بلا مالك |
+| DELETE | `/management/v1/organizations/{id}/members/{member}` | مالك | يزيل العضو، وينتهي وصوله إلى الإدارة وStudio من الطلب التالي. يُرجع `409` للمالك الأخير |
 | GET | `/management/v1/organizations/{id}/projects` | عضو | مشاريع ذلك العميل |
 | POST | `/management/v1/organizations/{id}/projects` | مالك، مدير | الجسم `{"name": "..."}`. يعيد `201` مع `{id, state: "metadata_only"}` |
 | GET | `/management/v1/projects/{id}/environments` | عضو | بيئات ذلك المشروع |

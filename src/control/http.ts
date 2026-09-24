@@ -102,6 +102,29 @@ export function managementHandler(catalog:Catalog,identify:ManagementIdentity,ma
         return reply(500,{message:'Management operation failed'});
       }
     }
+    const member=path.match(/^\/management\/v1\/organizations\/([a-f0-9-]{36})\/members\/([A-Za-z0-9._@:+-]{1,200})$/);
+    if(member) {
+      if(!['PUT','DELETE'].includes(request.method))return reply(405,{message:'Method not allowed'});
+      const actor=await authenticate(identify,request);
+      if(actor instanceof Response)return actor;
+      try {
+        let role:MembershipRole|null=null;
+        if(request.method==='PUT') {
+          let input:unknown;
+          try{input=await request.json();}catch{return reply(400,{message:'Invalid request'});}
+          const value=input&&typeof input==='object'&&!Array.isArray(input)&&Object.keys(input).length===1?(input as {role?:unknown}).role:undefined;
+          if(typeof value!=='string'||!['owner','admin','viewer'].includes(value))return reply(400,{message:'Invalid request'});
+          role=value as MembershipRole;
+        }
+        return reply(200,{data:catalog.changeMember(actor,member[1]!,decodeURIComponent(member[2]!),role)});
+      } catch(error) {
+        const message=error instanceof Error?error.message:'';
+        if(message==='Forbidden')return reply(403,{message:'Forbidden'});
+        if(message==='Unknown member')return reply(404,{message:'Unknown member'});
+        if(message==='Last owner cannot be removed')return reply(409,{message});
+        return reply(500,{message:'Management operation failed'});
+      }
+    }
     const members=path.match(/^\/management\/v1\/organizations\/([a-f0-9-]{36})\/members$/);
     if(members) {
       if(request.method!=='GET')return reply(405,{message:'Method not allowed'});

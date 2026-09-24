@@ -33,6 +33,8 @@ All routes need `Authorization: Bearer <management access token>`. The actor com
 | GET | `/management/v1/organizations` | any operator | The caller's clients (organizations) with ID, name and role, and `operator: true` when the caller may create clients |
 | POST | `/management/v1/organizations` | owner or admin of the client created at bootstrap | Body `{"name": "..."}`. `201` with `{id}`; the caller becomes its owner |
 | GET | `/management/v1/organizations/{id}/members` | owner, admin | Members of that client with their role |
+| PUT | `/management/v1/organizations/{id}/members/{member}` | owner | Body `{"role": "owner"|"admin"|"viewer"}` for an existing member. `404` for someone who is not a member (adding people waits for invitations); `409` when it would leave no owner |
+| DELETE | `/management/v1/organizations/{id}/members/{member}` | owner | Removes the member; their management and Studio access ends at the next request. `409` for the last owner |
 | GET | `/management/v1/organizations/{id}/projects` | member | Projects of that client |
 | POST | `/management/v1/organizations/{id}/projects` | owner, admin | Body `{"name": "..."}`. `201` with `{id, state: "metadata_only"}` |
 | GET | `/management/v1/projects/{id}/environments` | member | Environments of that project |

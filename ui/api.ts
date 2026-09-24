@@ -13,6 +13,7 @@ const conflicts:Record<string,string>={
  'Operation is not retryable':'Only a failed or cancelled environment can be retried.',
  'Environment is not ready':'This environment is not provisioned yet.',
  'Studio is not running':'Studio is not running yet. Start it first.',
+ 'Last owner cannot be removed':'An organization needs at least one owner. Make someone else an owner first.',
  'Shares exceed gateway capacity':'The gateway has no free share left. Lower another environment\'s share first.'};
 export function api(token:string):Api {
  return async(path,method='GET',body,signal)=>{
