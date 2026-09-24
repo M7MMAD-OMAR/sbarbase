@@ -1,77 +1,39 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 400" width="900" height="400" role="img" aria-labelledby="dm-title dm-desc">
-  <title id="dm-title">Map of the Sbarbase documentation</title>
-  <desc id="dm-desc">Four sections, each with one purpose. Explain: why it works this way. Guides: how to do something. Reference: facts to look up, including status and the glossary. Decisions: each choice, its alternative and when to reconsider it. Below them sits the engineering notebook, the dated notes written while building each mechanism, which the explain pages link to when you want to go deeper.</desc>
-  <defs>
-    <filter id="dm-wob" x="-4%" y="-4%" width="108%" height="108%" color-interpolation-filters="sRGB">
-      <feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="9" result="noise"/>
-      <feDisplacementMap in="SourceGraphic" in2="noise" scale="3.2" xChannelSelector="R" yChannelSelector="G" result="wobbled"/>
-      <feDropShadow in="wobbled" dx="0" dy="2" stdDeviation="1.3" flood-color="#2B1E10" flood-opacity="0.22"/>
-    </filter>
-    <marker id="dm-ah" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
-      <path d="M1 1 L9 5 L1 9" fill="none" stroke="#2A2632" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-    </marker>
-  </defs>
-  <rect x="0" y="0" width="900" height="400" fill="#FFFBF1"/>
-
-  <g font-family="'Marker Felt','Comic Neue','Segoe Print','Patrick Hand',cursive,sans-serif" font-size="13" fill="#2A2632" text-anchor="middle">
-    <text x="20" y="30" font-size="15" font-weight="700" text-anchor="start">Where to read what</text>
-    <text x="880" y="30" font-size="12" fill="#5B5465" text-anchor="end">new here? start with explain/why.md</text>
-
-    <g filter="url(#dm-wob)">
-      <rect x="20" y="52" width="200" height="150" rx="8" fill="#BFE3D8" stroke="#2A2632" stroke-width="1.6" transform="rotate(-1.2 120 127)"/>
-      <rect x="240" y="52" width="200" height="150" rx="8" fill="#F0C23E" stroke="#2A2632" stroke-width="1.6" transform="rotate(0.9 340 127)"/>
-      <rect x="460" y="52" width="200" height="150" rx="8" fill="#F7D3D4" stroke="#2A2632" stroke-width="1.6" transform="rotate(-0.7 560 127)"/>
-      <rect x="680" y="52" width="200" height="150" rx="8" fill="#B7A2E6" stroke="#2A2632" stroke-width="1.6" transform="rotate(1.1 780 127)"/>
-    </g>
-
-    <text x="120" y="84" font-size="15" font-weight="700">explain</text>
-    <text x="120" y="106">why it works this way</text>
-    <g font-size="12" fill="#3F3A47">
-      <text x="120" y="138">why, architecture,</text>
-      <text x="120" y="155">hierarchy, trust,</text>
-      <text x="120" y="172">recovery, provisioning</text>
-    </g>
-
-    <text x="340" y="84" font-size="15" font-weight="700">guides</text>
-    <text x="340" y="106">how to do something</text>
-    <g font-size="12" fill="#3F3A47">
-      <text x="340" y="138">local lab, operator setup,</text>
-      <text x="340" y="155">server deployment,</text>
-      <text x="340" y="172">backup, upgrades</text>
-    </g>
-
-    <text x="560" y="84" font-size="15" font-weight="700">reference</text>
-    <text x="560" y="106">facts to look up</text>
-    <g font-size="12" fill="#3F3A47">
-      <text x="560" y="138">status: what works,</text>
-      <text x="560" y="155">glossary, configuration,</text>
-      <text x="560" y="172">API, readiness</text>
-    </g>
-
-    <text x="780" y="84" font-size="15" font-weight="700">decisions</text>
-    <text x="780" y="106">why this design</text>
-    <g font-size="12" fill="#3F3A47">
-      <text x="780" y="138">each choice,</text>
-      <text x="780" y="155">the alternative, and</text>
-      <text x="780" y="172">when to reconsider it</text>
-    </g>
-
-    <!-- go deeper -->
-    <path d="M120 206 C118 230 124 244 122 262" stroke="#2A2632" stroke-width="1.5" fill="none" marker-end="url(#dm-ah)"/>
-    <text x="130" y="238" font-size="12" text-anchor="start">go deeper</text>
-
-    <!-- notebook shelf -->
-    <g filter="url(#dm-wob)">
-      <rect x="40" y="272" width="22" height="46" rx="2" fill="#1F8A78" stroke="#2A2632" stroke-width="1.2"/>
-      <rect x="64" y="280" width="18" height="38" rx="2" fill="#E06A4B" stroke="#2A2632" stroke-width="1.2"/>
-      <rect x="84" y="268" width="24" height="50" rx="2" fill="#F0C23E" stroke="#2A2632" stroke-width="1.2"/>
-      <rect x="110" y="276" width="20" height="42" rx="2" fill="#B7A2E6" stroke="#2A2632" stroke-width="1.2"/>
-      <rect x="132" y="284" width="16" height="34" rx="2" fill="#F7D3D4" stroke="#2A2632" stroke-width="1.2" transform="rotate(8 140 318)"/>
-      <rect x="20" y="318" width="860" height="14" rx="3" fill="#B7734A" stroke="#2A2632" stroke-width="1.4"/>
-    </g>
-    <text x="190" y="284" font-size="15" font-weight="700" text-anchor="start">engineering notebook</text>
-    <text x="190" y="306" font-size="12.5" text-anchor="start">dated notes written while building each mechanism: designs, crash tests, reviews, plans, checkpoints</text>
-    <text x="450" y="358" font-size="12" fill="#5B5465">precise and dated, some superseded by later notes; read one when an explain page sends you there</text>
-    <text x="450" y="380" font-size="12" fill="#5B5465">also kept alongside: evidence (probe JSON), diagrams, the console design record</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 344" width="900" height="344" role="img" aria-labelledby="docsmae-t docsmae-d" xml:lang="en">
+  <title id="docsmae-t">Where to read what</title>
+  <desc id="docsmae-d">Four sections, each with one purpose. Explain: why it works this way. Guides: how to do something. Reference: facts to look up, including status and the glossary. Decisions: each choice, its alternative and when to reconsider it. Below them sits the engineering notebook, the dated notes written while building each mechanism, which the explain pages link to when you want to go deeper.</desc>
+  <defs><marker id="docsmae-i" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#2A2632" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="docsmae-c" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#E06A4B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+  <rect x="0" y="0" width="900" height="344" fill="#F5EFE3"/>
+  <g font-family="system-ui, sans-serif" fill="#2A2632" text-anchor="middle">
+  <text x="24" y="34" font-size="16" font-weight="700" text-anchor="start">Where to read what</text>
+  <text x="24" y="58" font-size="12.5" fill="#5B5465" text-anchor="start">New here? Start with explain/why.md</text>
+  <rect x="24" y="76" width="204" height="150" rx="8" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <text x="126" y="104" font-size="15" font-weight="700">explain</text>
+  <text x="126" y="126" font-size="12.5" font-weight="600" fill="#146B5C">why it works this way</text>
+  <text x="126" y="160" font-size="12.5">why, architecture,</text>
+  <text x="126" y="180" font-size="12.5">hierarchy, trust,</text>
+  <text x="126" y="200" font-size="12.5">recovery, provisioning</text>
+  <rect x="240" y="76" width="204" height="150" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="342" y="104" font-size="15" font-weight="700">guides</text>
+  <text x="342" y="126" font-size="12.5" font-weight="600" fill="#A8412A">how to do something</text>
+  <text x="342" y="160" font-size="12.5">quickstart, server,</text>
+  <text x="342" y="180" font-size="12.5">operator setup, backup,</text>
+  <text x="342" y="200" font-size="12.5">upgrades</text>
+  <rect x="456" y="76" width="204" height="150" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="558" y="104" font-size="15" font-weight="700">reference</text>
+  <text x="558" y="126" font-size="12.5" font-weight="600" fill="#A8412A">facts to look up</text>
+  <text x="558" y="160" font-size="12.5">status: what works,</text>
+  <text x="558" y="180" font-size="12.5">glossary, configuration,</text>
+  <text x="558" y="200" font-size="12.5">API, readiness</text>
+  <rect x="672" y="76" width="204" height="150" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="774" y="104" font-size="15" font-weight="700">decisions</text>
+  <text x="774" y="126" font-size="12.5" font-weight="600" fill="#A8412A">why this design</text>
+  <text x="774" y="160" font-size="12.5">each choice,</text>
+  <text x="774" y="180" font-size="12.5">its alternative, and when</text>
+  <text x="774" y="200" font-size="12.5">to reconsider it</text>
+  <rect x="24" y="250" width="852" height="74" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="450" y="274" font-size="13" font-weight="700">go deeper: the engineering notebook (English only)</text>
+  <text x="450" y="296" font-size="12.5">dated notes written while building each mechanism: designs, crash tests, reviews, plans, checkpoints</text>
+  <text x="450" y="314" font-size="12" fill="#5B5465">also kept alongside: evidence (probe JSON), diagrams, the console design record</text>
+  <path d="M450 226 L450 248" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 4" marker-end="url(#docsmae-i)"/>
   </g>
 </svg>

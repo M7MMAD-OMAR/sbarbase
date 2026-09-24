@@ -1,3 +1,5 @@
+[العربية](recovery.ar.md)
+
 # Recovery
 
 ## What it is
@@ -15,7 +17,9 @@ Recovery takes one environment, stops its writes, exports it encrypted, restores
 
 ## How we built it
 
-![Four steps: stop writes, encrypted export, restore and verify on an independent engine, switch the route; if verification fails the source data is untouched and stays fenced until an operator reopens it, and exporting stops shared Storage for every environment on the engine](../diagrams/restore-flow.svg)
+![Five steps: stop writes, encrypted export, restore into an independent engine, verify, switch the route; if verification fails the source data is untouched and stays fenced until an operator reopens it, and exporting stops shared Storage for every environment on the engine](../diagrams/restore-flow.svg)
+
+*Verify before switching. Exporting still stops shared Storage for every environment on the engine.*
 
 
 1. **Fence.** The environment's routing record is put in maintenance, so the gateway answers `503` instead of forwarding. Its three scoped service logins are switched to `NOLOGIN` and their original state is written to a journal, while the operator can still read and dump.

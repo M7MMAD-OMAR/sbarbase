@@ -1,3 +1,5 @@
+[العربية](provisioning.ar.md)
+
 # Provisioning
 
 ## What it is
@@ -11,6 +13,12 @@ Provisioning is the background work that turns "create environment" into a runni
 **Rejected alternative: idempotent retry.** "Just run it again, it is idempotent" assumes every step can detect its own partial result. Several cannot (a database created but not yet closed to other logins, a reload that was sent but not confirmed), and guessing wrong on a shared engine can hurt a neighbour.
 
 ## How we built it
+
+![Five steps: queue a job, one worker claims it, it writes an effect receipt to disk, runs the fenced effect, records the outcome and consumes the receipt; after a crash a completed receipt is settled, an interruption proven to precede any change is requeued, and an unknown outcome stops for an operator](../diagrams/provisioning.svg)
+
+*Record first, act, then settle. An unknown outcome never runs twice on a guess.*
+
+The same exchange as a sequence:
 
 ```mermaid
 sequenceDiagram

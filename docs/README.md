@@ -1,8 +1,12 @@
+[العربية](README.ar.md)
+
 # Sbarbase documentation
 
 Sbarbase runs many Supabase projects on one server that you can back up, restore and upgrade without fear. The docs are split by what you need right now. Start with [why](explain/why.md) if you are new, or with [status](reference/status.md) if you want to know what works.
 
 ![Map of the docs: explain for why it works this way, guides for how to do something, reference for facts to look up, decisions for why this design, and the engineering notebook for dated notes when you want to go deeper](diagrams/docs-map.svg)
+
+*Four sections, one purpose each, and the engineering notebook underneath.*
 
 Words used throughout: a **client** (called an organization in the code) owns **projects**; each project has **environments** such as production and staging. "Your server" is what the code calls the installation. The environment is the unit of isolation, move and restore. Unfamiliar terms are in the [glossary](reference/glossary.md).
 

@@ -1,3 +1,5 @@
+[العربية](docker.ar.md)
+
 # Install with Docker
 
 The shortest path: any Linux server with Docker Engine and the Compose plugin. Python, Bun and the Docker CLI come inside the Sbarbase image, so the host's own Python version does not matter. CI runs this exact path on a clean machine on every change: build, start, first operator, a first project used through supabase-js, a restart, and a clean stop.

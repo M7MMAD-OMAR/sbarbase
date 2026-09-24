@@ -1,3 +1,5 @@
+[العربية](README.ar.md)
+
 # Local component laboratory
 
 This is an isolated compatibility experiment, not the Sbarbase product or a production deployment. It initially compares three environment databases on one PostgreSQL 17 instance with original Supabase Auth and PostgREST services. Storage, Realtime, functions, UI, recovery and upgrade gates remain separate work.

@@ -1,108 +1,63 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 910 430" width="910" height="430" role="img" aria-labelledby="rp-title rp-desc">
-  <title id="rp-title">The path of one app request through Sbarbase</title>
-  <desc id="rp-desc">An app using supabase-js sends a request with its API key to the gateway, on a path that names one environment. The gateway refuses if that environment is in maintenance, checks the key against that environment's stored key hashes, admits the request only if the environment is under its concurrent limit, and caps the body at 1 MiB. There is no queue: it refuses at once with 429 when the environment is full, and 503 when the whole gateway is full or the environment is paused. Admitted requests go to that environment's own Auth or REST, which reach only its own database through its own service login inside the shared PostgreSQL engine. File requests go to the shared Storage process with a trusted tenant header, and Storage reaches the environment database through that environment's storage login.</desc>
-  <defs>
-    <filter id="rp-wob" x="-4%" y="-4%" width="108%" height="108%" color-interpolation-filters="sRGB">
-      <feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="9" result="noise"/>
-      <feDisplacementMap in="SourceGraphic" in2="noise" scale="3.2" xChannelSelector="R" yChannelSelector="G" result="wobbled"/>
-      <feDropShadow in="wobbled" dx="0" dy="2" stdDeviation="1.3" flood-color="#2B1E10" flood-opacity="0.22"/>
-    </filter>
-    <marker id="rp-ah" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
-      <path d="M1 1 L9 5 L1 9" fill="none" stroke="#2A2632" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-    </marker>
-    <marker id="rp-ahc" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
-      <path d="M1 1 L9 5 L1 9" fill="none" stroke="#E06A4B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-    </marker>
-  </defs>
-  <rect x="0" y="0" width="910" height="430" fill="#FFFBF1"/>
-
-  <g font-family="'Marker Felt','Comic Neue','Segoe Print','Patrick Hand',cursive,sans-serif" font-size="13" fill="#2A2632" text-anchor="middle">
-    <text x="20" y="28" font-size="15" font-weight="700" text-anchor="start">One request, left to right</text>
-
-    <g filter="url(#rp-wob)">
-      <!-- app -->
-      <rect x="20" y="126" width="128" height="66" rx="8" fill="#FFFDF7" stroke="#2A2632" stroke-width="1.6" transform="rotate(-1.2 84 159)"/>
-      <!-- gateway -->
-      <rect x="222" y="54" width="232" height="182" rx="9" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
-      <!-- refusal note -->
-      <rect x="192" y="296" width="292" height="80" rx="6" fill="#F7D3D4" stroke="#2A2632" stroke-width="1.3" transform="rotate(0.8 338 336)"/>
-      <!-- per-environment services -->
-      <rect x="512" y="64" width="156" height="40" rx="6" fill="#BFE3D8" stroke="#2A2632" stroke-width="1.4"/>
-      <rect x="512" y="124" width="156" height="40" rx="6" fill="#BFE3D8" stroke="#2A2632" stroke-width="1.4"/>
-      <!-- shared storage -->
-      <rect x="512" y="226" width="156" height="54" rx="6" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
-      <!-- shared engine -->
-      <rect x="722" y="40" width="172" height="330" rx="10" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
-      <rect x="736" y="92" width="144" height="80" rx="6" fill="#F0C23E" stroke="#2A2632" stroke-width="1.4" transform="rotate(-0.8 808 132)"/>
-      <rect x="736" y="200" width="144" height="40" rx="6" fill="#E9E1D0" stroke="#2A2632" stroke-width="1.1"/>
-      <rect x="736" y="252" width="144" height="40" rx="6" fill="#E9E1D0" stroke="#2A2632" stroke-width="1.1"/>
-    </g>
-
-    <!-- app -->
-    <text x="84" y="154" font-weight="700">your app</text>
-    <text x="84" y="175" font-size="12" font-family="ui-monospace,Menlo,Consolas,monospace">supabase-js</text>
-
-    <!-- gateway -->
-    <text x="338" y="78" font-size="15" font-weight="700">gateway</text>
-    <g font-size="12.5" text-anchor="start">
-      <text x="236" y="104">1. path names the environment</text>
-      <text x="236" y="125">2. in maintenance? refuse</text>
-      <text x="236" y="146">3. key valid for it? else 401</text>
-      <text x="236" y="167">4. room under its limit?</text>
-      <text x="236" y="188">5. body cap 1 MiB</text>
-    </g>
-    <text x="338" y="218" font-weight="700" fill="#B2472C">no queue: refuse at once</text>
-
-    <!-- refusal -->
-    <g font-size="12.5">
-      <text x="338" y="320">429: this environment is at</text>
-      <text x="338" y="336">its concurrent limit</text>
-      <text x="338" y="358">503: gateway full, or environment paused</text>
-    </g>
-    <path d="M338 238 C334 256 342 274 338 290" stroke="#E06A4B" stroke-width="1.6" fill="none" marker-end="url(#rp-ahc)"/>
-    <text x="348" y="270" font-size="12" fill="#B2472C" text-anchor="start">refused</text>
-
-    <!-- services -->
-    <text x="590" y="89">Auth, env A</text>
-    <text x="590" y="149">REST, env A</text>
-    <text x="590" y="249" font-weight="700">shared Storage</text>
-    <text x="590" y="268" font-size="12">tenant-aware</text>
-    <text x="590" y="300" font-size="12">files, with a trusted</text>
-    <text x="590" y="316" font-size="12">tenant header</text>
-
-    <!-- engine -->
-    <text x="808" y="62" font-weight="700">shared PostgreSQL</text>
-    <text x="808" y="79" font-weight="700">engine</text>
-    <text x="808" y="118">database, env A</text>
-    <text x="808" y="140" font-size="12">reached only by</text>
-    <text x="808" y="156" font-size="12">env A's own logins</text>
-    <text x="808" y="225" font-size="12" fill="#5B5465">database, env B</text>
-    <text x="808" y="277" font-size="12" fill="#5B5465">database, env C</text>
-    <text x="808" y="322" font-size="12">connection rules:</text>
-    <text x="808" y="338" font-size="12">one login, one database</text>
-
-    <!-- arrows -->
-    <g stroke="#2A2632" stroke-width="1.5" fill="none" marker-end="url(#rp-ah)">
-      <path d="M150 158 C170 152 196 162 218 156"/>
-      <path d="M456 100 C476 96 490 86 508 84"/>
-      <path d="M456 136 C476 138 490 144 508 144"/>
-      <path d="M456 206 C480 216 488 250 508 252"/>
-      <path d="M670 84 C694 84 708 108 732 110"/>
-      <path d="M670 144 C694 144 708 138 732 138"/>
-      <path d="M670 240 C700 230 706 178 732 164"/>
-    </g>
-    <text x="184" y="134" font-size="12">request</text>
-    <text x="184" y="148" font-size="12">+ API key</text>
-    <text x="483" y="122" font-size="12">admitted</text>
-    <text x="696" y="72" font-size="12">SQL</text>
-    <text x="700" y="202" font-size="12" text-anchor="end">its storage login</text>
-
-    <!-- key -->
-    <g filter="url(#rp-wob)">
-      <rect x="20" y="394" width="22" height="16" rx="3" fill="#F6C7B6" stroke="#E06A4B" stroke-width="1.6"/>
-      <rect x="256" y="394" width="22" height="16" rx="3" fill="#BFE3D8" stroke="#2A2632" stroke-width="1.2"/>
-    </g>
-    <text x="52" y="407" font-size="12" text-anchor="start">shared by every environment</text>
-    <text x="288" y="407" font-size="12" text-anchor="start">one per environment (env A shown)</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 470" width="900" height="470" role="img" aria-labelledby="requese-t requese-d" xml:lang="en">
+  <title id="requese-t">One request, from app to database</title>
+  <desc id="requese-d">An app using supabase-js sends a request with its publishable key over HTTPS to the TLS proxy, then to the gateway, on a path that names one environment. The gateway refuses if the environment is in maintenance, checks the key against that environment, admits the request only if the environment is under its concurrent limit, and caps the body at 1 MiB. There is no queue: it refuses at once with 429 when the environment is full and 503 when the gateway is full or the environment paused. Admitted requests reach that environment's own Auth or REST, which reach only its own database through its own login inside the shared PostgreSQL engine. File requests go to the shared Storage process with a tenant header.</desc>
+  <defs><marker id="requese-i" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#2A2632" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="requese-c" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#E06A4B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+  <rect x="0" y="0" width="900" height="470" fill="#F5EFE3"/>
+  <g font-family="system-ui, sans-serif" fill="#2A2632" text-anchor="middle">
+  <text x="24" y="34" font-size="16" font-weight="700" text-anchor="start">One request, from app to database</text>
+  <rect x="24" y="150" width="124" height="66" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="86" y="178" font-size="13" font-weight="700">your app</text>
+  <text x="86" y="200" font-size="12" font-family="ui-monospace, Menlo, Consolas, monospace">supabase-js</text>
+  <text x="86" y="240" font-size="12" fill="#5B5465">request and</text>
+  <text x="86" y="256" font-size="12" fill="#5B5465">publishable key</text>
+  <rect x="174" y="150" width="104" height="66" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="226" y="178" font-size="13" font-weight="700">TLS proxy</text>
+  <text x="226" y="200" font-size="12">HTTPS</text>
+  <rect x="304" y="64" width="244" height="236" rx="8" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
+  <text x="426" y="90" font-size="15" font-weight="700">gateway</text>
+  <text x="320" y="120" font-size="13" text-anchor="start">1. path names the environment</text>
+  <text x="320" y="145" font-size="13" text-anchor="start">2. in maintenance? refuse</text>
+  <text x="320" y="170" font-size="13" text-anchor="start">3. key valid for it? else 401</text>
+  <text x="320" y="195" font-size="13" text-anchor="start">4. room under its limit?</text>
+  <text x="320" y="220" font-size="13" text-anchor="start">5. body up to 1 MiB</text>
+  <text x="426" y="280" font-size="13" font-weight="700" fill="#A8412A">no queue: refuse at once</text>
+  <rect x="304" y="332" width="244" height="70" rx="8" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <text x="426" y="360" font-size="12.5">429: environment at its limit</text>
+  <text x="426" y="384" font-size="12.5">503: gateway full, or paused</text>
+  <path d="M426 300 L426 328" fill="none" stroke="#E06A4B" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#requese-c)"/>
+  <rect x="584" y="80" width="150" height="42" rx="8" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <text x="659" y="106" font-size="13">Auth, env A</text>
+  <rect x="584" y="138" width="150" height="42" rx="8" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <text x="659" y="164" font-size="13">REST, env A</text>
+  <rect x="584" y="222" width="150" height="64" rx="8" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
+  <text x="659" y="248" font-size="13" font-weight="700">Storage</text>
+  <text x="659" y="268" font-size="11.5">shared, tenant header</text>
+  <rect x="760" y="50" width="124" height="352" rx="8" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
+  <text x="822" y="76" font-size="13" font-weight="700">PostgreSQL</text>
+  <text x="822" y="94" font-size="12">shared engine</text>
+  <rect x="772" y="112" width="100" height="90" rx="8" fill="#F0C23E" stroke="#2A2632" stroke-width="1.3"/>
+  <text x="822" y="138" font-size="12.5">database</text>
+  <text x="822" y="158" font-size="12.5">env A</text>
+  <text x="822" y="178" font-size="12.5">own logins</text>
+  <rect x="772" y="222" width="100" height="40" rx="8" fill="#EAE2D2" stroke="#5B5465" stroke-width="1.2" stroke-dasharray="4 4"/>
+  <text x="822" y="247" font-size="12.5" fill="#5B5465">env B</text>
+  <rect x="772" y="276" width="100" height="40" rx="8" fill="#EAE2D2" stroke="#5B5465" stroke-width="1.2" stroke-dasharray="4 4"/>
+  <text x="822" y="301" font-size="12.5" fill="#5B5465">env C</text>
+  <text x="822" y="350" font-size="12">one login,</text>
+  <text x="822" y="367" font-size="12">one database</text>
+  <path d="M148 183 L172 183" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#requese-i)"/>
+  <path d="M278 183 L302 183" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#requese-i)"/>
+  <path d="M548 110 C566 110 566 101 582 101" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#requese-i)"/>
+  <path d="M548 150 C566 150 566 159 582 159" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#requese-i)"/>
+  <path d="M548 240 C566 240 566 254 582 254" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#requese-i)"/>
+  <path d="M734 101 C752 101 752 140 770 140" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#requese-i)"/>
+  <path d="M734 159 C752 159 752 160 770 160" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#requese-i)"/>
+  <path d="M734 254 C752 254 752 186 770 186" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 4" marker-end="url(#requese-i)"/>
+  <rect x="24" y="435" width="22" height="14" rx="3" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
+  <text x="54" y="446" font-size="12" fill="#5B5465" text-anchor="start">shared by every environment</text>
+  <rect x="254.8" y="435" width="22" height="14" rx="3" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <text x="284.8" y="446" font-size="12" fill="#5B5465" text-anchor="start">one per environment (env A shown)</text>
+  <rect x="524.0" y="435" width="22" height="14" rx="3" fill="#F0C23E" stroke="#2A2632" stroke-width="1.3"/>
+  <text x="554.0" y="446" font-size="12" fill="#5B5465" text-anchor="start">environment database</text>
   </g>
 </svg>

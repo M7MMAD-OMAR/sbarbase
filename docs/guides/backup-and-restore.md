@@ -1,3 +1,5 @@
+[العربية](backup-and-restore.ar.md)
+
 # Backup and restore
 
 ## Daily backups of every environment

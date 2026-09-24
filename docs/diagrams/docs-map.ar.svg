@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 344" width="900" height="344" role="img" aria-labelledby="docsmaa-t docsmaa-d" xml:lang="ar" direction="rtl">
+  <title id="docsmaa-t">أين تقرأ ماذا</title>
+  <desc id="docsmaa-d">أربعة أقسام، لكل منها غرض واحد. الشروح: لماذا يعمل بهذه الطريقة. الأدلة العملية: كيف تنفّذ مهمة. المرجع: حقائق تبحث عنها، ومنها الحالة والمسرد. القرارات: كل خيار وبديله ومتى نعيد النظر فيه. وتحتها الدفتر الهندسي: ملاحظات مؤرخة كُتبت أثناء بناء كل آلية، تحيل إليها صفحات الشروح حين تريد التعمق.</desc>
+  <defs><marker id="docsmaa-i" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#2A2632" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="docsmaa-c" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#E06A4B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+  <rect x="0" y="0" width="900" height="344" fill="#F5EFE3"/>
+  <g font-family="system-ui, sans-serif" fill="#2A2632" text-anchor="middle">
+  <text x="876" y="34" font-size="16" font-weight="700" text-anchor="start">أين تقرأ ماذا</text>
+  <text x="876" y="58" font-size="12.5" fill="#5B5465" text-anchor="start">جديد هنا؟ ابدأ بصفحة لماذا صباربيز</text>
+  <rect x="672" y="76" width="204" height="150" rx="8" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <text x="774" y="104" font-size="15" font-weight="700">الشروح</text>
+  <text x="774" y="126" font-size="12.5" font-weight="600" fill="#146B5C">لماذا يعمل هكذا</text>
+  <text x="774" y="160" font-size="12.5">لماذا، البنية،</text>
+  <text x="774" y="180" font-size="12.5">الهرمية، الثقة،</text>
+  <text x="774" y="200" font-size="12.5">الاستعادة، التجهيز</text>
+  <rect x="456" y="76" width="204" height="150" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="558" y="104" font-size="15" font-weight="700">الأدلة العملية</text>
+  <text x="558" y="126" font-size="12.5" font-weight="600" fill="#A8412A">كيف تنفّذ مهمة</text>
+  <text x="558" y="160" font-size="12.5">البداية السريعة، الخادم،</text>
+  <text x="558" y="180" font-size="12.5">إعداد المشغّل، النسخ</text>
+  <text x="558" y="200" font-size="12.5">الاحتياطي، الترقيات</text>
+  <rect x="240" y="76" width="204" height="150" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="342" y="104" font-size="15" font-weight="700">المرجع</text>
+  <text x="342" y="126" font-size="12.5" font-weight="600" fill="#A8412A">حقائق تبحث عنها</text>
+  <text x="342" y="160" font-size="12.5">الحالة: ما الذي يعمل،</text>
+  <text x="342" y="180" font-size="12.5">المسرد، الإعدادات،</text>
+  <text x="342" y="200" font-size="12.5">API، الجاهزية</text>
+  <rect x="24" y="76" width="204" height="150" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="126" y="104" font-size="15" font-weight="700">القرارات</text>
+  <text x="126" y="126" font-size="12.5" font-weight="600" fill="#A8412A">لماذا هذا التصميم</text>
+  <text x="126" y="160" font-size="12.5">كل خيار،</text>
+  <text x="126" y="180" font-size="12.5">وبديله، ومتى</text>
+  <text x="126" y="200" font-size="12.5">نعيد النظر فيه</text>
+  <rect x="24" y="250" width="852" height="74" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="450" y="274" font-size="13" font-weight="700">للتعمق: الدفتر الهندسي (بالإنجليزية فقط)</text>
+  <text x="450" y="296" font-size="12.5">ملاحظات مؤرخة كُتبت أثناء بناء كل آلية: تصاميم واختبارات انهيار ومراجعات وخطط</text>
+  <text x="450" y="314" font-size="12" fill="#5B5465">وبجانبها: الأدلة (ملفات JSON)، والرسوم، وسجل تصميم لوحة الإدارة</text>
+  <path d="M450 226 L450 248" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 4" marker-end="url(#docsmaa-i)"/>
+  </g>
+</svg>

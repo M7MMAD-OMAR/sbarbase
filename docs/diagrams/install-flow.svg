@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 510" width="900" height="510" role="img" aria-labelledby="instale-t instale-d" xml:lang="en">
+  <title id="instale-t">Quickstart: from an empty server to a supabase-js call</title>
+  <desc id="instale-d">Eight steps. 1, install Docker, Git and Python 3.14. 2, create the sbarbase service account and its checkout. 3, install the pinned Bun for that account. 4, write the first operator's credentials to a private file. 5, run the preflight check until it reports 0 blockers. 6, one acceptance command checks prerequisites, builds the console, checks the TLS proxy, installs the systemd unit, pulls the pinned images, rehearses a start and a clean stop, and creates a first project with a production environment and a supabase-js sign-up through the gateway, ending with Server acceptance: PASSED. 7, open the console over an SSH tunnel. 8, point your app at the HTTPS address. Rehearsed in a local Fedora 44 virtual machine, not yet on a real server.</desc>
+  <defs><marker id="instale-i" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#2A2632" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="instale-c" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#E06A4B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+  <rect x="0" y="0" width="900" height="510" fill="#F5EFE3"/>
+  <g font-family="system-ui, sans-serif" fill="#2A2632" text-anchor="middle">
+  <text x="24" y="34" font-size="16" font-weight="700" text-anchor="start">Quickstart: from an empty server to a supabase-js call</text>
+  <rect x="24" y="60" width="204" height="88" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <circle cx="44" cy="80" r="11" fill="#2A2632"/>
+  <text x="44" y="84.5" font-size="12.5" font-weight="700" fill="#FFFBF1">1</text>
+  <text x="62" y="85" font-size="13" font-weight="700" text-anchor="start">system packages</text>
+  <text x="126" y="112" font-size="12.5">Docker, Git,</text>
+  <text x="126" y="131" font-size="12.5">Python 3.14</text>
+  <path d="M228 104 L238 104" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#instale-i)"/>
+  <rect x="240" y="60" width="204" height="88" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <circle cx="260" cy="80" r="11" fill="#2A2632"/>
+  <text x="260" y="84.5" font-size="12.5" font-weight="700" fill="#FFFBF1">2</text>
+  <text x="278" y="85" font-size="13" font-weight="700" text-anchor="start">service account</text>
+  <text x="342" y="112" font-size="12.5">user sbarbase and</text>
+  <text x="342" y="131" font-size="12.5">the checkout</text>
+  <path d="M444 104 L454 104" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#instale-i)"/>
+  <rect x="456" y="60" width="204" height="88" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <circle cx="476" cy="80" r="11" fill="#2A2632"/>
+  <text x="476" y="84.5" font-size="12.5" font-weight="700" fill="#FFFBF1">3</text>
+  <text x="494" y="85" font-size="13" font-weight="700" text-anchor="start">install Bun</text>
+  <text x="558" y="112" font-size="12.5">the pinned version,</text>
+  <text x="558" y="131" font-size="12.5">for that account</text>
+  <path d="M660 104 L670 104" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#instale-i)"/>
+  <rect x="672" y="60" width="204" height="88" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <circle cx="692" cy="80" r="11" fill="#2A2632"/>
+  <text x="692" y="84.5" font-size="12.5" font-weight="700" fill="#FFFBF1">4</text>
+  <text x="710" y="85" font-size="13" font-weight="700" text-anchor="start">operator file</text>
+  <text x="774" y="112" font-size="12.5">private, mode 600;</text>
+  <text x="774" y="131" font-size="12.5">no password in args</text>
+  <path d="M774 148 L774 162 L126 162 L126 176" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#instale-i)"/>
+  <rect x="24" y="178" width="204" height="88" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <circle cx="44" cy="198" r="11" fill="#2A2632"/>
+  <text x="44" y="202.5" font-size="12.5" font-weight="700" fill="#FFFBF1">5</text>
+  <text x="62" y="203" font-size="13" font-weight="700" text-anchor="start">preflight check</text>
+  <text x="126" y="230" font-size="12">must end with</text>
+  <text x="126" y="249" font-size="12">Preflight: 0 blocker(s)</text>
+  <path d="M228 222 L238 222" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#instale-i)"/>
+  <rect x="240" y="178" width="636" height="164" rx="8" fill="#FBE7A8" stroke="#2A2632" stroke-width="1.3"/>
+  <circle cx="260" cy="198" r="11" fill="#2A2632"/>
+  <text x="260" y="202.5" font-size="12.5" font-weight="700" fill="#FFFBF1">6</text>
+  <text x="278" y="203" font-size="13" font-weight="700" text-anchor="start">one acceptance command, in order</text>
+  <text x="262" y="232" font-size="12.5" text-anchor="start">1. check prerequisites</text>
+  <text x="262" y="254" font-size="12.5" text-anchor="start">2. build the console</text>
+  <text x="262" y="276" font-size="12.5" text-anchor="start">3. check the TLS proxy</text>
+  <text x="262" y="298" font-size="12.5" text-anchor="start">4. install the systemd unit</text>
+  <text x="572" y="232" font-size="12.5" text-anchor="start">5. pull pinned images (about 2.4 GB)</text>
+  <text x="572" y="254" font-size="12.5" text-anchor="start">6. rehearse a start and a clean stop</text>
+  <text x="572" y="276" font-size="12.5" text-anchor="start">7. first project, production environment</text>
+  <text x="572" y="298" font-size="12.5" text-anchor="start">8. supabase-js sign-up through the gateway</text>
+  <text x="558" y="330" font-size="12.5" font-weight="700" fill="#146B5C" font-family="ui-monospace, Menlo, Consolas, monospace">Server acceptance: PASSED</text>
+  <path d="M450 342 C450 356 234 352 234 368" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#instale-i)"/>
+  <path d="M666 342 C666 356 666 352 666 368" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#instale-i)"/>
+  <rect x="24" y="370" width="420" height="70" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <circle cx="44" cy="390" r="11" fill="#2A2632"/>
+  <text x="44" y="394.5" font-size="12.5" font-weight="700" fill="#FFFBF1">7</text>
+  <text x="62" y="395" font-size="13" font-weight="700" text-anchor="start">console over an SSH tunnel</text>
+  <text x="234" y="422" font-size="12.5">loopback only, on a pinned port</text>
+  <rect x="456" y="370" width="420" height="70" rx="8" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <circle cx="476" cy="390" r="11" fill="#2A2632"/>
+  <text x="476" y="394.5" font-size="12.5" font-weight="700" fill="#FFFBF1">8</text>
+  <text x="494" y="395" font-size="13" font-weight="700" text-anchor="start">your app over HTTPS</text>
+  <text x="666" y="422" font-size="12.5">TLS proxy in front, then supabase-js</text>
+  <text x="24" y="470" font-size="12.5" text-anchor="start">Rehearsed in a local Fedora 44 virtual machine (4 cores, 6 GB); not yet run on a real server.</text>
+  <text x="24" y="490" font-size="12.5" fill="#5B5465" text-anchor="start">A failure names its step and leaves the service as it found it; run the same command again.</text>
+  </g>
+</svg>

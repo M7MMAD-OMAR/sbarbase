@@ -1,0 +1,292 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>sbarbase explainer</title>
+<style>
+  @font-face{font-family:"Hand";src:url(hand.woff2) format("woff2");font-weight:300 700}
+  body{margin:0;background:#111;color:#ccc;font:13px/1.4 ui-monospace,Menlo,monospace;display:flex;flex-direction:column;align-items:center;gap:10px;padding:12px}
+  canvas#c{width:min(96vw,960px);height:auto;background:#000}
+  .bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:center}
+  button{background:#222;color:#ddd;border:1px solid #444;padding:4px 10px;cursor:pointer;font:inherit}
+  input[type=range]{width:320px}
+</style>
+<canvas id="c" width="1920" height="1080"></canvas>
+<script src="core.js"></script>
+<script src="timing.js"></script>
+<script>
+'use strict';
+// ============================================================
+// SBARBASE, HOW IT WORKS. A narrated explainer drawn by hand on paper, 16:9, 24 fps, about a minute.
+// No words in the drawing except technical labels (Postgres, Auth, REST, gateway, Storage, RAM);
+// the voice carries the meaning (narration.json, voice/), and the scene lengths come from it (timing.js).
+// Look: brush-pen ink with gouache fills on warm paper. Scenery draws itself once and holds still; the
+// cactus (sabbar) boils slightly so it feels alive. One metaphor carries the film:
+//   server = one building, client = a floor, project = an apartment, environment = a lit window with
+//   its own key and its own database drum in the shared Postgres basement; the gateway is the front
+//   booth; requests are paper planes carrying their environment's key.
+// Font: Marhey (SIL OFL 1.1, OFL-Marhey.txt) for labels.
+//
+// scene     viewer notices                                                  the three points it makes
+// problem   one server, three apps; full stacks fill the RAM; one shared    why this is needed
+//           project mixes every app's rows in one database
+// building  one building: Postgres once in the basement, floors, windows,   one server, a clear hierarchy,
+//           a drum per window; little RAM used, a spare window lights up    room for more (speed)
+// keys      planes carry their window's key and reach only their own drum;  no data mixing
+//           Shop's key aimed at Blog's window is refused at the door
+// load      a burst for one window fills its slots; extras turn back with   one busy project does not
+//           a retry sign; Blog's steady planes keep landing                 slow the others
+// install   one command types itself, the building lights, the wordmark
+// ============================================================
+
+const INK = '#2A2632';
+usePalette(makePalette({ paper: '#F5EFE3', paperBand: 'rgba(0,0,0,0)', ink: INK, light: '#FFFBF1', blush: '#EC9197',
+  night: '#1D2158', accents: ['#E06A4B', '#1F8A78', '#F0C23E', '#B7A2E6'], guide: 'rgba(42,38,50,.25)' }));
+const C = { coral: '#E06A4B', coralSoft: '#F6C7B6', teal: '#1F8A78', tealSoft: '#BFE3D8', mustard: '#F0C23E', mustardSoft: '#FBE7A6',
+  lilac: '#B7A2E6', lilacSoft: '#E6DDF7', pink: '#F7D3D4', paper: '#FFFBF1', cactus: '#3E9E6E', pot: '#B7734A', potRim: '#C98458', lit: '#FFE9A0', dark: '#3B3F6E' };
+
+// ---------- small geometry and marks ----------
+const RP = (x, y, w, h) => [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
+function dense(pts, close = true, step = 14) { const out = [], n = pts.length, segs = close ? n : n - 1;
+  for (let k = 0; k < segs; k++) { const a = pts[k], b = pts[(k + 1) % n], m = Math.max(1, Math.round(Math.hypot(b[0] - a[0], b[1] - a[1]) / step));
+    for (let j = 0; j < m; j++) out.push([lerp(a[0], b[0], j / m), lerp(a[1], b[1], j / m)]); }
+  if (close) out.push(pts[0]); else out.push(pts[n - 1]); return out; }
+function label(c, text, x, y, o = {}) { const { size = 34, color = INK, al = 1, align = 'center', weight = 600, font = 'Hand' } = o; if (al <= 0) return;
+  c.save(); c.globalAlpha *= al; c.fillStyle = color; c.textAlign = align; c.textBaseline = 'middle'; c.font = `${weight} ${size}px ${font}, "Comic Sans MS", sans-serif`; c.fillText(text, x, y); c.restore(); }
+// a box that draws itself: body colour, then its outline, then an optional label
+function boxD(d, x, y, w, h, fill, o = {}) { const { lw = 3.4, text, size = 30, tc = INK, r = 10 } = o;
+  d.fill(roundRectPath(x, y, w, h, r), fill).line(dense(RP(x, y, w, h)), { w: lw, smooth: false });
+  if (text) d.mark((c, k) => label(c, text, x + w / 2, y + h / 2 + 1, { size, color: tc, al: k }), .06); return d; }
+function lockMark(c, x, y, s, k, col = INK) { if (k <= 0) return; c.save(); c.globalAlpha *= k; c.translate(x, y); c.scale(s * (0.6 + .4 * easeOutBack(k)), s * (0.6 + .4 * easeOutBack(k)));
+  c.fillStyle = C.mustard; c.strokeStyle = col; c.lineWidth = 3; c.beginPath(); c.arc(0, -10, 10, Math.PI, 0); c.stroke();
+  c.beginPath(); c.roundRect(-14, -10, 28, 22, 4); c.fill(); c.stroke(); c.fillStyle = col; c.beginPath(); c.arc(0, 0, 3, 0, TAU); c.fill(); c.restore(); }
+function checkMark(c, x, y, s, k, col = C.teal) { if (k <= 0) return; c.save(); c.strokeStyle = col; c.lineWidth = 7 * s; c.lineCap = 'round'; c.lineJoin = 'round';
+  const P = [[-20, 0], [-6, 14], [22, -16]].map(([a, b]) => [x + a * s, y + b * s]), L1 = Math.hypot(14, 14), L2 = Math.hypot(28, 30), L = (L1 + L2) * k;
+  c.beginPath(); c.moveTo(...P[0]); if (L <= L1) c.lineTo(lerp(P[0][0], P[1][0], L / L1), lerp(P[0][1], P[1][1], L / L1)); else { c.lineTo(...P[1]); const u = (L - L1) / L2; c.lineTo(lerp(P[1][0], P[2][0], u), lerp(P[1][1], P[2][1], u)); } c.stroke(); c.restore(); }
+function crossMark(c, x, y, s, k, col = C.coral) { if (k <= 0) return; c.save(); c.strokeStyle = col; c.lineWidth = 8 * s; c.lineCap = 'round'; const a = Math.min(1, k * 2), b = clamp(k * 2 - 1, 0, 1);
+  c.beginPath(); c.moveTo(x - 18 * s, y - 18 * s); c.lineTo(x - 18 * s + 36 * s * a, y - 18 * s + 36 * s * a); c.stroke();
+  if (b > 0) { c.beginPath(); c.moveTo(x + 18 * s, y - 18 * s); c.lineTo(x + 18 * s - 36 * s * b, y - 18 * s + 36 * s * b); c.stroke(); } c.restore(); }
+function plane(c, x, y, ang, s, col = C.paper, al = 1) { if (al <= 0) return; c.save(); c.globalAlpha *= al; c.translate(x, y); c.rotate(ang); c.scale(s, s);
+  c.fillStyle = col; c.strokeStyle = INK; c.lineWidth = 3; c.lineJoin = 'round';
+  c.beginPath(); c.moveTo(30, 0); c.lineTo(-24, -18); c.lineTo(-12, 0); c.lineTo(-24, 18); c.closePath(); c.fill(); c.stroke();
+  c.beginPath(); c.moveTo(30, 0); c.lineTo(-12, 0); c.stroke(); c.restore(); }
+function parcel(c, x, y, s, al = 1) { if (al <= 0) return; c.save(); c.globalAlpha *= al; c.translate(x, y); c.scale(s, s); c.fillStyle = C.coral; c.strokeStyle = INK; c.lineWidth = 3;
+  c.beginPath(); c.roundRect(-22, -18, 44, 36, 5); c.fill(); c.stroke(); c.strokeStyle = C.mustard; c.lineWidth = 5; c.beginPath(); c.moveTo(0, -18); c.lineTo(0, 18); c.moveTo(-22, 0); c.lineTo(22, 0); c.stroke();
+  c.strokeStyle = INK; c.lineWidth = 2; c.beginPath(); c.roundRect(-22, -18, 44, 36, 5); c.stroke(); c.restore(); }
+const zoomAt = (c, z, x, y) => { c.translate(x, y); c.scale(z, z); c.translate(-x, -y); };
+const bz = (a, b, cc, t) => [lerp(lerp(a[0], cc[0], t), lerp(cc[0], b[0], t), t), lerp(lerp(a[1], cc[1], t), lerp(cc[1], b[1], t), t)];
+const bzAng = (a, b, cc, t) => { const p = bz(a, b, cc, Math.max(0, t - .01)), q = bz(a, b, cc, Math.min(1, t + .01)); return Math.atan2(q[1] - p[1], q[0] - p[0]); };
+
+// ---------- the cactus: whole drawings per pose, drawn on with the pen ----------
+// pose: 'rest' | 'point' | 'wave' | 'worry' | 'happy'; wave angle w in radians for the raised arm
+function cactus(d, x, y, s, pose = 'rest', w = 0) {
+  const P = (px, py) => [x + px * s, y + py * s], M = pts => pts.map(p => P(...p));
+  const pot = M([[-70, -84], [70, -84], [55, 0], [-55, 0]]), rim = M([[-80, -104], [80, -104], [80, -80], [-80, -80]]);
+  const body = M([[-44, -96], [-48, -190], [-40, -262], [-18, -300], [0, -306], [18, -300], [40, -262], [48, -190], [44, -96]]);
+  d.fill(polyPath(pot), C.pot).line(dense(pot), { w: 3.4, smooth: false }).fill(polyPath(rim), C.potRim).line(dense(rim), { w: 3.4, smooth: false });
+  d.fill(splinePath(body), C.cactus).line(body, { close: true, w: 3.6 });
+  // near arm (towards the building, on the left): rest bends up, point reaches out, wave rises
+  const near = pose === 'point' ? M([[-44, -170], [-96, -196], [-150, -228], [-164, -218], [-104, -176], [-46, -146]])
+    : M([[-44, -160], [-86, -160], [-94, -206], [-78, -214], [-70, -180], [-46, -182]]);
+  d.fill(splinePath(near), C.cactus).line(near, { close: true, w: 3.2 });
+  const far = (pose === 'wave' ? [[44, -170], [92, -178 - 30 * Math.sin(w)], [110 + 20 * Math.sin(w), -236], [96 + 20 * Math.sin(w), -246], [80, -196], [44, -196]]
+    : pose === 'happy' ? [[44, -170], [96, -190], [118, -246], [102, -254], [84, -206], [44, -196]]
+    : [[44, -150], [84, -150], [92, -196], [76, -204], [68, -170], [44, -172]]).map(p => P(...p));
+  d.fill(splinePath(far), C.cactus).line(far, { close: true, w: 3.2 });
+  d.lines([[[-20, -140], [-26, -146]], [[22, -118], [28, -124]], [[0, -236], [0, -246]], [[-26, -250], [-32, -256]], [[24, -210], [30, -216]]].map(M), { w: 2.2, color: '#DDF2E6', dur: .03, stagger: .01 });
+  // flower
+  d.mark((c, k) => { c.save(); c.globalAlpha *= k; c.fillStyle = C.pink; c.strokeStyle = C.paper; c.lineWidth = 2; [[0, -318, 13], [-14, -308, 11], [14, -308, 11], [-8, -296, 10], [8, -296, 10]].forEach(([a, b, r]) => { const [px, py] = P(a, b); c.beginPath(); c.arc(px, py, r * s, 0, TAU); c.fill(); c.stroke(); });
+    const [fx, fy] = P(0, -306); c.fillStyle = C.mustard; c.beginPath(); c.arc(fx, fy, 6 * s, 0, TAU); c.fill(); c.restore(); }, .1);
+  // face
+  d.mark((c, k) => { c.save(); c.globalAlpha *= k; c.fillStyle = INK; c.strokeStyle = INK; c.lineWidth = 3.2 * s; c.lineCap = 'round';
+    const [lx, ly] = P(-16, -216), [rx, ry] = P(16, -216);
+    if (pose === 'happy') { c.beginPath(); c.arc(lx, ly + 3 * s, 7 * s, Math.PI * 1.1, Math.PI * 1.9); c.stroke(); c.beginPath(); c.arc(rx, ry + 3 * s, 7 * s, Math.PI * 1.1, Math.PI * 1.9); c.stroke(); }
+    else if (pose === 'worry') { c.fillStyle = C.paper; [lx, rx].forEach(ex => { c.beginPath(); c.arc(ex, ly, 8 * s, 0, TAU); c.fill(); c.stroke(); }); c.fillStyle = INK; [lx, rx].forEach(ex => { c.beginPath(); c.arc(ex + 1.5 * s, ly + 1 * s, 3.4 * s, 0, TAU); c.fill(); }); }
+    else { [lx, rx].forEach(ex => { c.beginPath(); c.ellipse(ex, ly, 4.6 * s, 5.4 * s, 0, 0, TAU); c.fill(); }); }
+    c.fillStyle = C.blushCol || '#F29BA0'; c.globalAlpha *= .85; const [ax, ay] = P(-28, -200), [bx, by] = P(28, -200); c.beginPath(); c.arc(ax, ay, 7 * s, 0, TAU); c.arc(bx, by, 7 * s, 0, TAU); c.fill(); c.globalAlpha /= .85;
+    const [mx, my] = P(0, -198); c.beginPath();
+    if (pose === 'worry') { c.arc(mx, my + 6 * s, 5 * s, 0, TAU); c.stroke(); } else { c.arc(mx, my - 2 * s, 8 * s, Math.PI * .2, Math.PI * .8); c.stroke(); }
+    c.restore(); }, .15);
+  return d; }
+
+// ---------- the building: one server holding every environment ----------
+// coordinates for a 1920 x 1080 frame; the building is centred a little left of the middle
+function G() { const bx = 640, bw = 660, top = 170, gy = 800;
+  const win = [{ x: 690, y: 616, w: 150, h: 120, floor: 'A' }, { x: 900, y: 616, w: 150, h: 120, floor: 'A' }, { x: 1080, y: 360, w: 150, h: 120, floor: 'B' }, { x: 870, y: 360, w: 150, h: 120, floor: 'B', spare: true }];
+  const drums = [{ x: 700 }, { x: 850 }, { x: 1000 }, { x: 1150 }].map(d => ({ ...d, y: 852, w: 110, h: 84 }));
+  return { bx, bw, top, gy, win, drums, booth: { x: 440, y: 690, w: 150, h: 110 }, shed: { x: 1330, y: 712, w: 150, h: 88 }, floorA: { y: 556, h: 244 }, floorB: { y: 300, h: 244 } }; }
+const winC = w => [w.x + w.w / 2, w.y + w.h / 2];
+
+function buildingD(d, o = {}) { const g = G(), { bx, bw, top, gy } = g, { lit = [1, 1, 1], locks = [1, 1, 1], ground = true } = o;
+  // basement: the one shared Postgres engine, and a drum per environment
+  boxD(d, bx, gy + 8, bw, 160, C.coralSoft, { lw: 3.6 }); d.mark((c, k) => label(c, 'Postgres', bx + bw / 2, gy + 34, { size: 30, al: k }), .06);
+  g.drums.forEach((dr, k) => { d.fill(roundRectPath(dr.x, dr.y, dr.w, dr.h, 14), k === 3 ? '#EDE4D0' : C.mustard).line(dense(RP(dr.x, dr.y, dr.w, dr.h)), { w: 3, smooth: false });
+    d.line([[dr.x + 4, dr.y + 22], [dr.x + dr.w / 2, dr.y + 30], [dr.x + dr.w - 4, dr.y + 22]], { w: 2.4 }); });
+  // the ground and the two floors (a floor is a client; its apartments are projects)
+  if (ground) d.line([[120, gy + 4], [960, gy + 2], [1800, gy + 5]], { w: 3.6 });
+  boxD(d, bx, g.floorA.y, bw, g.floorA.h, C.mustardSoft, { lw: 3.6, r: 4 });
+  boxD(d, bx, g.floorB.y, bw, g.floorB.h, C.lilacSoft, { lw: 3.6, r: 4 });
+  const roof = [[bx - 20, g.floorB.y], [bx + bw / 2, top], [bx + bw + 20, g.floorB.y]]; d.fill(polyPath(roof), '#EDE4D0').line(dense(roof, true), { w: 3.6, smooth: false });
+  // apartments: Shop on floor A (two environments), Blog on floor B (one, and room to grow)
+  boxD(d, 668, 580, 408, 196, C.paper, { lw: 2.8, r: 8 }); boxD(d, 850, 324, 408, 196, C.paper, { lw: 2.8, r: 8 });
+  // windows: environments; a lit window has its own lock
+  g.win.forEach((w, k) => { const on = w.spare ? 0 : (lit[k] ?? 0);
+    d.fill(roundRectPath(w.x, w.y, w.w, w.h, 6), w.spare ? '#E7E0D3' : mix('#DCD6E8', C.lit, on));
+    d.line(dense(RP(w.x, w.y, w.w, w.h)), { w: 3.2, smooth: false, ...(w.spare ? { color: '#8E879A' } : {}) });
+    d.line([[w.x + w.w / 2, w.y + 4], [w.x + w.w / 2, w.y + w.h - 4]], { w: 2.4, ...(w.spare ? { color: '#8E879A' } : {}) });
+    if (!w.spare) d.mark((c, kk) => lockMark(c, w.x + w.w - 8, w.y + w.h + 2, .9, Math.min(kk, locks[k] ?? 0)), .04); });
+  // the gateway booth, shared, where every request comes in
+  const b = g.booth; boxD(d, b.x, b.y, b.w, b.h, C.coralSoft, { lw: 3.4 }); const aw = [[b.x - 14, b.y + 6], [b.x + b.w / 2, b.y - 34], [b.x + b.w + 14, b.y + 6]];
+  d.fill(polyPath(aw), C.coral).line(dense(aw, true), { w: 3.2, smooth: false }).mark((c, k) => label(c, 'gateway', b.x + b.w / 2, b.y + 44, { size: 26, al: k }), .06);
+  d.line(dense(RP(b.x + 50, b.y + 64, 50, 46), false), { w: 2.8, smooth: false });
+  // Storage, shared, a tenant per environment
+  const s = g.shed; boxD(d, s.x, s.y, s.w, s.h, C.coralSoft, { lw: 3.2, text: 'Storage', size: 26 });
+  return d; }
+// dotted pipes from each lit window down to its own drum
+function pipes(c, k) { if (k <= 0) return; const g = G(); c.save(); c.strokeStyle = C.teal; c.lineWidth = 3; c.setLineDash([2, 10]); c.lineCap = 'round';
+  [[0, 0], [1, 1], [2, 2]].forEach(([wi, di], j) => { const u = clamp(k * 3 - j, 0, 1); if (u <= 0) return; const w = g.win[wi], dr = g.drums[di];
+    const a = [w.x + 20, w.y + w.h + 6], b = [dr.x + dr.w / 2, dr.y - 6], m = [a[0], (a[1] + b[1]) / 2]; c.beginPath(); c.moveTo(...a);
+    const n = 30; for (let q = 1; q <= n * u; q++) { const t = q / n; c.lineTo(...bz(a, b, [lerp(a[0], b[0], .1), m[1] + 40], t)); } c.stroke(); }); c.restore(); }
+
+// cached still building for the scenes that start with it already built
+const cache = {};
+function stillBuilding(c) { if (!cache.b) { cache.b = layer(); const g = cache.b.getContext('2d'); resetT(g); const d = doodle({ start: -30, seed: 7, speed: 1500, gap: .02 }); buildingD(d); d.draw(g, 0); pipes(g, 1); } c.drawImage(cache.b, 0, 0, W, H); }
+
+// ---------- scenes ----------
+// Every scene reads its cue times from timing.js, so the picture follows the voice.
+const TS = n => { const s = TIMING.scenes.find(x => x.name === n); return { q: s.cues, e: s.cues.map((a, k) => a + s.lens[k]) }; };
+function stack(d, x, base) { const w = 230; let y = base;
+  [['Postgres', C.mustard, 92], ['Storage', C.pink, 58], ['REST', C.tealSoft, 58], ['Auth', C.tealSoft, 58], ['Studio', C.lilac, 58]].forEach(([t, col, h]) => { y -= h + 6; boxD(d, x - w / 2, y, w, h, col, { text: t, size: 28 }); }); return d; }
+// the one ordinary server everything runs on
+function serverD(d, x, y, w, h) { boxD(d, x, y, w, h, C.dark, { r: 14, lw: 4 });
+  [0, 1, 2].forEach(k => { const yy = y + 26 + k * (h - 40) / 3; d.fill(roundRectPath(x + 22, yy, w - 110, (h - 40) / 3 - 14, 5), '#565A8A'); });
+  return d; }
+function leds(c, x, y, h, tau) { [0, 1, 2].forEach(k => { const on = Math.sin(tau * 5 + k * 2.1) > -.3; c.save(); c.fillStyle = on ? '#9BE3B8' : '#4E7D66'; c.beginPath(); c.arc(x, y + 44 + k * (h - 40) / 3, 7, 0, TAU); c.fill(); c.restore(); }); }
+function phone(d, x, y, col) { boxD(d, x - 36, y - 62, 72, 124, '#3B3F6E', { r: 14 }); d.fill(roundRectPath(x - 28, y - 50, 56, 96, 6), col).line([[x - 10, y + 54], [x + 10, y + 54]], { w: 3 }); return d; }
+// memory: a vertical gauge that fills; teal while there is room, coral when it overflows
+function ramBar(c, x, y, w, h, level, al = 1) { if (al <= 0) return; c.save(); c.globalAlpha *= al;
+  c.fillStyle = C.paper; c.strokeStyle = INK; c.lineWidth = 4; c.beginPath(); c.roundRect(x, y, w, h, 12); c.fill();
+  const f = Math.min(1, level), col = mix(C.teal, C.coral, clamp((level - .55) / .35, 0, 1)); c.save(); c.beginPath(); c.roundRect(x, y, w, h, 12); c.clip();
+  c.fillStyle = col; c.fillRect(x, y + h * (1 - f), w, h * f); c.restore(); c.beginPath(); c.roundRect(x, y, w, h, 12); c.stroke();
+  if (level > 1) { const o = level - 1; c.fillStyle = C.coral; c.beginPath(); c.ellipse(x + w / 2, y - 8, w * .7, 14 + 60 * o, 0, Math.PI, TAU); c.fill(); c.stroke();
+    [-.3, .1, .4].forEach((dx, k) => { const u = ((c.__t || 0) * .9 + k * .33) % 1; c.beginPath(); c.arc(x + w / 2 + dx * w, y + u * h * .5, 6, 0, TAU); c.fill(); }); }
+  label(c, 'RAM', x + w / 2, y + h + 34, { size: 30 }); c.restore(); }
+function keyMark(c, x, y, s, col, al = 1) { if (al <= 0) return; c.save(); c.globalAlpha *= al; c.translate(x, y); c.scale(s, s); c.fillStyle = col; c.strokeStyle = INK; c.lineWidth = 3;
+  c.beginPath(); c.arc(-10, 0, 10, 0, TAU); c.fill(); c.stroke(); c.beginPath(); c.moveTo(0, -3); c.lineTo(24, -3); c.lineTo(24, 8); c.lineTo(18, 8); c.lineTo(18, 3); c.lineTo(0, 3); c.closePath(); c.fill(); c.stroke();
+  c.fillStyle = INK; c.beginPath(); c.arc(-10, 0, 3, 0, TAU); c.fill(); c.restore(); }
+function retryMark(c, x, y, s, k) { if (k <= 0) return; c.save(); c.globalAlpha *= k; c.strokeStyle = '#B98A12'; c.fillStyle = '#B98A12'; c.lineWidth = 5 * s; c.lineCap = 'round';
+  c.beginPath(); c.arc(x, y, 18 * s, -Math.PI * .1, Math.PI * 1.45); c.stroke(); const a = Math.PI * 1.45, px = x + Math.cos(a) * 18 * s, py = y + Math.sin(a) * 18 * s;
+  c.beginPath(); c.moveTo(px + 11 * s, py - 2 * s); c.lineTo(px - 3 * s, py - 9 * s); c.lineTo(px - 1 * s, py + 8 * s); c.closePath(); c.fill(); c.restore(); }
+const KEYC = [C.coral, C.mustard, C.teal];   // one key per environment; the two Shop windows are one project
+
+// 1. The problem: one server, several apps. A full stack each fills the memory; one shared project mixes the data.
+function sceneProblem(c, tau, i) { paper(c); const { q, e } = TS('problem'); c.__t = tau;
+  const sx = 700, sy = 660, sw = 520, sh = 170, apps = [[250, 330, C.coralSoft, C.coral], [250, 560, C.tealSoft, C.teal], [250, 790, C.lilacSoft, C.lilac]];
+  pen(c, tau, i, q[0], 3, d => serverD(d, sx, sy, sw, sh), { still: true, speed: 2600 }); if (tau > q[0] + .6) leds(c, sx + sw - 50, sy, sh, tau);
+  apps.forEach(([x, y, col], k) => pen(c, tau, i, q[0] + 1.2 + k * .5, 5 + k, d => phone(d, x, y, col), { still: true, speed: 2600 }));
+  // dotted links from each app to the server
+  c.save(); c.setLineDash([2, 12]); c.lineCap = 'round'; c.lineWidth = 4; apps.forEach(([x, y, , col], k) => { const u = sm(q[0] + 2 + k * .3, q[0] + 2.8 + k * .3, tau); if (u <= 0) return; c.strokeStyle = col;
+    const a = [x + 50, y], b = [sx, sy + 40 + k * 45]; c.beginPath(); c.moveTo(...a); c.lineTo(lerp(a[0], b[0], u), lerp(a[1], b[1], u)); c.stroke(); }); c.restore();
+  // a full stack per app, and the memory fills and overflows
+  const gone = sm(q[2] - .3, q[2] + .3, tau);
+  if (tau > q[1] && gone < 1) { c.save(); c.globalAlpha = 1 - gone; [[800, 0], [960, 1], [1120, 2]].forEach(([x, k]) => { c.save(); c.translate(x, sy - 4); c.scale(.6, .6); c.translate(-x, -(sy - 4));
+      if (tau > q[1] + 2.4) c.translate(Math.sin(tau * 24 + k) * 4, 0); pen(c, tau, i, q[1] + k * .55, 11 + k, d => stack(d, x, sy - 4), { still: true, speed: 3000 }); c.restore(); }); c.restore(); }
+  ramBar(c, 1420, 300, 70, 520, sm(q[1] + .3, e[1] - .2, tau) * 1.18, sm(q[1] - .2, q[1] + .3, tau) * (1 - gone));
+  // one shared project: every app's rows pour into one database and mix
+  if (tau > q[2] - .2) { const k = sm(q[2] - .2, q[2] + .4, tau), dx = 960, dy = 520; c.save(); c.globalAlpha = k;
+    c.fillStyle = C.mustard; c.strokeStyle = INK; c.lineWidth = 4; c.beginPath(); c.roundRect(dx - 130, dy - 100, 260, 200, 26); c.fill(); c.stroke(); c.beginPath(); c.moveTo(dx - 126, dy - 64); c.quadraticCurveTo(dx, dy - 40, dx + 126, dy - 64); c.stroke(); c.restore();
+    const r = rng(4); for (let n = 0; n < 42; n++) { const app = n % 3, t0 = q[2] + .1 + (n / 42) * 1.6, u = sm(t0, t0 + .7, tau); if (u <= 0) continue; const [ax, ay, , col] = apps[app];
+      const hx = dx - 90 + r() * 180, hy = dy - 40 + r() * 110, jx = Math.sin(tau * 3 + n) * 6, jy = Math.cos(tau * 2.6 + n * 1.7) * 6, p = bz([ax + 60, ay], [hx, hy], [(ax + hx) / 2, Math.min(ay, hy) - 140], easeInOutSine(u));
+      c.save(); c.fillStyle = col; c.strokeStyle = INK; c.lineWidth = 2; c.beginPath(); c.arc(p[0] + jx * u, p[1] + jy * u, 11, 0, TAU); c.fill(); c.stroke(); c.restore(); }
+    crossMark(c, 1150, 380, 1.3, sm(q[2] + 1.9, q[2] + 2.3, tau)); }
+  pen(c, tau, i, q[0] + 2, 21, d => cactus(d, 1720, 900, .78, tau > q[1] + 2.2 ? 'worry' : 'rest')); }
+
+// 2. One building: Postgres once in the basement, clients on floors, projects as apartments, environments as windows
+function sceneBuilding(c, tau, i) { paper(c); zoomAt(c, 1.1, 960, 600); const { q, e } = TS('building'), g = G();
+  const L = t => sm(t, t + .4, tau), lit = [L(q[0] + 4), L(q[0] + 4.5), L(q[0] + 5)], locks = [L(q[0] + 4.3), L(q[0] + 4.8), L(q[0] + 5.3)];
+  pen(c, tau, i, q[0], 5, d => buildingD(d, { lit, locks }), { still: true, speed: 2600 });
+  pipes(c, sm(q[1] + 4.2, q[1] + 5.4, tau));
+  lit.forEach((k, j) => { if (k > 0) glow(c, ...winC(g.win[j]), 110, '#FFE7A0', k * .5); });
+  const ring = (x, y, rx, ry, st, col) => { const u = sm(st, st + .6, tau); if (u <= 0) return; c.save(); c.strokeStyle = col; c.lineWidth = 5; c.setLineDash([16, 12]); c.lineCap = 'round'; c.globalAlpha = 1 - sm(e[1] + .3, e[1] + .9, tau);
+    const pts = ellPts(x, y, rx, ry, 0, 80), n = Math.max(2, Math.round(pts.length * u)); c.beginPath(); pts.slice(0, n).forEach((p, k) => k ? c.lineTo(...p) : c.moveTo(...p)); if (u >= 1) c.closePath(); c.stroke(); c.restore(); };
+  ring(g.bx + g.bw / 2, g.floorA.y + g.floorA.h / 2, 390, 150, q[1] + .2, C.mustard);
+  ring(872, 678, 232, 118, q[1] + 1.6, C.coral);
+  ring(...winC(g.win[0]), 104, 84, q[1] + 3.1, C.teal);
+  // room for more: little memory used, and the spare window lights up as a new environment
+  ramBar(c, 170, 330, 60, 440, sm(q[2], q[2] + 1.2, tau) * .34 + sm(q[2] + 2.4, q[2] + 3, tau) * .06, sm(q[2] - .2, q[2] + .3, tau));
+  const spare = sm(q[2] + 2.4, q[2] + 3, tau); if (spare > 0) { const w = g.win[3]; c.save(); c.globalAlpha = spare; c.fillStyle = C.lit; c.beginPath(); c.roundRect(w.x, w.y, w.w, w.h, 6); c.fill(); c.strokeStyle = INK; c.lineWidth = 3.2; c.stroke();
+    c.beginPath(); c.moveTo(w.x + w.w / 2, w.y + 4); c.lineTo(w.x + w.w / 2, w.y + w.h - 4); c.stroke(); c.restore(); glow(c, ...winC(w), 110, '#FFE7A0', spare * .5); lockMark(c, w.x + w.w - 8, w.y + w.h + 2, .9, spare); }
+  pen(c, tau, i, q[0] + .6, 23, d => cactus(d, 1640, 900, .82, tau > q[2] + 2.6 ? 'happy' : tau > q[1] ? 'point' : 'rest')); }
+
+// shared by the request scenes: the building, the devices on the left, a plane from a device to the door
+const DEV = [[210, 470, 'phone'], [190, 640, 'laptop'], [230, 790, 'phone']];
+function devices(c, tau, i) { pen(c, tau, i, -9, 31, d => DEV.forEach(([x, y, kind]) => { if (kind === 'phone') phone(d, x, y, C.tealSoft);
+  else { boxD(d, x - 74, y - 54, 148, 96, '#3B3F6E', { r: 8 }); d.fill(roundRectPath(x - 64, y - 44, 128, 76, 4), C.lilacSoft).line([[x - 96, y + 44], [x + 96, y + 44]], { w: 4 }); } }), { still: true }); }
+const DOOR = () => { const g = G(); return [g.booth.x + g.booth.w / 2, g.booth.y + 60]; };
+function toDoor(c, from, u, col, key) { const a = DEV[from], s0 = [a[0] + 40, a[1] - 40], d = DOOR(), cc = [(s0[0] + d[0]) / 2, Math.min(s0[1], d[1]) - 150], t = easeInOutSine(u), p = bz(s0, d, cc, t);
+  plane(c, p[0], p[1], bzAng(s0, d, cc, t), 1.05, col); keyMark(c, p[0] - 30, p[1] + 22, .7, key); }
+function toWindow(c, to, u, col, key) { const d = DOOR(), tgt = winC(G().win[to]), cc = [d[0] + 120, tgt[1] + 40], t = easeInOutSine(u), p = bz(d, tgt, cc, t);
+  plane(c, p[0], p[1], bzAng(d, tgt, cc, t), 1.05, col); keyMark(c, p[0] - 30, p[1] + 22, .7, key); }
+function bounce(c, u, col, key) { const d = DOOR(), p = [lerp(d[0], d[0] - 170, easeOut(u)), d[1] - 90 * Math.sin(u * Math.PI) + 60 * u]; plane(c, p[0], p[1], Math.PI + .6 * u, 1.05, col, 1 - sm(.7, 1, u)); keyMark(c, p[0] + 26, p[1] + 20, .7, key, 1 - sm(.7, 1, u)); }
+// the drum under each window, lit when its own request reaches it
+function drumFlash(c, j, k) { if (k <= 0) return; const dr = G().drums[j]; glow(c, dr.x + dr.w / 2, dr.y + dr.h / 2, 120, '#FFF0A8', k * .9); }
+
+// 3. Keys: each request carries its environment's key and reaches only its own data; a key from another project is refused
+function sceneKeys(c, tau, i) { paper(c); zoomAt(c, 1.1, 960, 600); stillBuilding(c); devices(c, tau, i); const { q } = TS('keys'), g = G();
+  g.win.slice(0, 3).forEach((w, j) => { glow(c, ...winC(w), 100, '#FFE7A0', .4); keyMark(c, w.x + 26, w.y - 14, .8, KEYC[j], sm(q[0] + .2 + j * .25, q[0] + .5 + j * .25, tau)); });
+  [[q[0] + .9, 1, 0], [q[0] + 2.9, 0, 2]].forEach(([st, from, to]) => { const u = tau - st; if (u < 0) return; const key = KEYC[to];
+    if (u < 1.1) return toDoor(c, from, u / 1.1, C.paper, key);
+    checkMark(c, DOOR()[0], DOOR()[1] - 112, .9, sm(1.1, 1.4, u) * (1 - sm(1.8, 2.1, u)));
+    const v = sm(1.3, 2.4, u); if (v < 1) return toWindow(c, to, v, C.paper, key);
+    const f = 1 - sm(3.6, 4.4, u); glow(c, ...winC(g.win[to]), 150, '#FFF3B8', f * .9); drumFlash(c, to, sm(2.4, 2.8, u) * f); checkMark(c, ...winC(g.win[to]), 1, sm(2.4, 2.7, u) * f); });
+  // Shop's key aimed at Blog's window: refused at the door, and Blog's lock holds
+  const u = tau - (q[1] + .1); if (u > 0) { const key = KEYC[0];
+    if (u < 1.1) { toDoor(c, 2, u / 1.1, '#D9D3E3', key); c.save(); c.setLineDash([6, 12]); c.strokeStyle = C.coral; c.lineWidth = 3; c.globalAlpha = .6; const d = DOOR(), t = winC(g.win[2]); c.beginPath(); c.moveTo(...d); c.quadraticCurveTo(d[0] + 120, t[1] + 40, ...t); c.stroke(); c.restore(); }
+    else { bounce(c, sm(1.1, 1.9, u), '#D9D3E3', key); crossMark(c, DOOR()[0] + 4, DOOR()[1] - 110, 1.1, sm(1.1, 1.5, u)); const w = g.win[2], sh = Math.sin(u * 30) * 4 * (1 - sm(1.2, 1.8, u)); c.save(); c.translate(sh, 0); lockMark(c, w.x + w.w - 8, w.y + w.h + 2, 1.3, 1); c.restore(); } }
+  pen(c, tau, i, -9, 41, d => cactus(d, 1640, 900, .82, u > 1.1 ? 'happy' : 'rest')); }
+
+// 4. Load: a burst for one environment takes its own share and no more; the rest are told to retry; the neighbour stays fast
+const SLOTS = 4, SERVE = 2.2;
+let _burst = null;
+function burst(q) { if (_burst) return _burst; const list = [];
+  for (let n = 0; n < 18; n++) { const st = q[0] + .3 + n * .3, door = st + 1; list.push({ st, door, from: n % 3 }); }
+  list.forEach(p => { const busy = list.filter(o => o !== p && o.ok && o.door <= p.door && p.door < o.door + 1.1 + SERVE).length; p.ok = busy < SLOTS; });
+  return _burst = list; }
+function sceneLoad(c, tau, i) { paper(c); zoomAt(c, 1.1, 960, 600); stillBuilding(c); devices(c, tau, i); const { q, e } = TS('load'), g = G(), list = burst(q), key = KEYC[0];
+  g.win.slice(0, 3).forEach((w, j) => glow(c, ...winC(w), 100, '#FFE7A0', .4));
+  // the busy environment's share: a meter of slots above its window
+  const w0 = g.win[0], used = list.filter(p => p.ok && tau >= p.door && tau < p.door + 1.1 + SERVE).length;
+  for (let s = 0; s < SLOTS; s++) { c.save(); c.fillStyle = s < used ? C.coral : C.paper; c.strokeStyle = INK; c.lineWidth = 2.6; c.beginPath(); c.roundRect(w0.x + 4 + s * 37, w0.y - 30, 30, 18, 4); c.fill(); c.stroke(); c.restore(); }
+  if (used >= SLOTS) glow(c, ...winC(w0), 140, '#FFB38A', .55);
+  list.forEach(p => { const u = tau - p.st; if (u < 0) return;
+    if (u < 1) return toDoor(c, p.from, u, C.coralSoft, key);
+    if (!p.ok) { bounce(c, sm(1, 1.8, u), C.coralSoft, key); retryMark(c, DOOR()[0] - 40, DOOR()[1] - 120, 1, sm(1, 1.2, u) * (1 - sm(1.7, 2, u))); return; }
+    const v = sm(1, 2.1, u); if (v < 1) toWindow(c, 0, v, C.coralSoft, key); });
+  // the neighbour keeps its pace: a steady request every so often, served at once
+  for (let n = 0; n < 9; n++) { const st = q[0] + .1 + n * 1.25, u = tau - st; if (u < 0) continue; const k2 = KEYC[2];
+    if (u < 1) { toDoor(c, (n + 1) % 3, u, C.paper, k2); continue; }
+    const v = sm(1, 1.9, u); if (v < 1) { toWindow(c, 2, v, C.paper, k2); continue; }
+    const f = 1 - sm(2.4, 2.9, u); if (f > 0) { glow(c, ...winC(g.win[2]), 140, '#FFF3B8', f * .8); checkMark(c, ...winC(g.win[2]), 1, sm(1.9, 2.1, u) * f); } }
+  pen(c, tau, i, -9, 51, d => cactus(d, 1640, 900, .82, tau > q[1] + 1.5 ? 'happy' : 'rest')); }
+
+// 5. One command installs it on the server you have; the building lights; the cactus waves; the wordmark
+const CMD = ['$ sudo deploy/server-acceptance.sh --rehearse \\', '    --install-unit --first-project', '', 'Server acceptance: PASSED'];
+function sceneInstall(c, tau, i) { paper(c); const { q } = TS('install'), tx = 150, ty = 250, tw = 980, th = 380;
+  pen(c, tau, i, 0, 71, d => { d.fill(roundRectPath(tx, ty, tw, th, 18), '#211E29').line(dense(RP(tx, ty, tw, th)), { w: 4, smooth: false }); }, { still: true });
+  if (tau > .3) { c.save(); ['#E06A4B', '#F0C23E', '#3E9E6E'].forEach((col, k) => { c.fillStyle = col; c.beginPath(); c.arc(tx + 36 + k * 30, ty + 32, 9, 0, TAU); c.fill(); }); c.restore(); }
+  const typed = Math.floor(sm(.4, 2.3, tau, t => t) * (CMD[0].length + CMD[1].length));
+  c.save(); c.font = '500 30px ui-monospace, "DejaVu Sans Mono", Menlo, monospace'; c.fillStyle = '#F3ECDC'; c.textBaseline = 'middle';
+  c.fillText(CMD[0].slice(0, typed), tx + 36, ty + 110); if (typed > CMD[0].length) c.fillText(CMD[1].slice(0, typed - CMD[0].length), tx + 36, ty + 160);
+  if (tau < 2.4 && Math.floor(tau * 2.5) % 2 === 0) { const line = typed > CMD[0].length ? 1 : 0, txt = line ? CMD[1].slice(0, typed - CMD[0].length) : CMD[0].slice(0, typed); c.fillRect(tx + 38 + c.measureText(txt).width, ty + (line ? 142 : 92), 16, 34); }
+  if (tau > 2.5) { c.fillStyle = '#9BE3B8'; c.globalAlpha = sm(2.5, 2.8, tau); c.fillText(CMD[3], tx + 36, ty + 250); } c.restore();
+  checkMark(c, tx + tw - 70, ty + th - 70, 1.3, sm(2.6, 3, tau), '#9BE3B8');
+  c.save(); c.translate(1260, 190); c.scale(.52, .52); c.translate(-440, 0);
+  const lit = [sm(3, 3.3, tau), sm(3.3, 3.6, tau), sm(3.6, 3.9, tau)];
+  pen(c, tau, i, 2.6, 81, d => buildingD(d, { lit, locks: lit, ground: false }), { still: true, speed: 5200 });
+  c.restore();
+  pen(c, tau, i, 3.2, 91, d => cactus(d, 1760, 820, .62, 'wave', tau * 5));
+  const wm = sm(q[1], q[1] + 1, tau); if (wm > 0) { const word = 'sbarbase', n = Math.ceil(word.length * wm); label(c, word.slice(0, n), CX - 300, 850, { size: 120, weight: 700, align: 'left' });
+    c.save(); c.strokeStyle = C.coral; c.lineWidth = 6; c.lineCap = 'round'; c.globalAlpha = sm(q[1] + .8, q[1] + 1.2, tau); c.beginPath(); c.moveTo(CX - 290, 918); c.quadraticCurveTo(CX, 940, CX + 250, 912); c.stroke(); c.restore(); } }
+
+const FN = { problem: sceneProblem, building: sceneBuilding, keys: sceneKeys, load: sceneLoad, install: sceneInstall };
+const TIMELINE = TIMING.scenes.map(s => ({ name: s.name, dur: s.dur, fn: FN[s.name] }));
+document.fonts.load('600 40px Hand').then(() => defineFilm({ timeline: TIMELINE, format: { ar: '16:9', width: 1920 } }));
+</script>

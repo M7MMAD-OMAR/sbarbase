@@ -31,7 +31,10 @@ EXTERNAL = re.compile(r'^(?:[a-z][a-z0-9+.-]*:|//)', re.IGNORECASE)
 
 def markdown_files():
     files = [path for path in sorted(DOCS.rglob('*.md')) if EVIDENCE not in path.parents]
-    return files + [ROOT / 'README.md', ROOT / 'CLAUDE.md']
+    # The Arabic siblings outside docs/ (docs/engineering/ARABIC-DOCS.md) are checked too.
+    arabic = [ROOT / name for name in ('README.ar.md', 'SECURITY.ar.md', 'CONTRIBUTING.ar.md',
+                                       'CHANGELOG.ar.md', 'lab/README.ar.md')]
+    return files + [ROOT / 'README.md', ROOT / 'CLAUDE.md'] + [path for path in arabic if path.exists()]
 
 
 def prose_lines(text):

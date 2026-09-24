@@ -1,3 +1,5 @@
+[العربية](server-deployment.ar.md)
+
 # Server deployment
 
 Runbook for deploying a sbarbase installation to a Linux server. Status:

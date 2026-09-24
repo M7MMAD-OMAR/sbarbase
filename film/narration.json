@@ -1,0 +1,20 @@
+{
+  "note": "Voice: fal-ai/minimax/speech-02-hd, voice_id Wise_Woman, language_boost Arabic or English, speed 1 unless a cue gives its own. The spoken Arabic (arSpoken) spells Supabase and Postgres in Arabic letters; the captions keep the Latin names. Cues follow each other with a short breath; each scene starts just before its first cue.",
+  "gap": 0.25,
+  "lead": 0.4,
+  "tail": 1.4,
+  "cues": [
+    { "file": "01", "scene": "problem", "en": "You have one server, and several apps that use Supabase.", "ar": "عندك خادم واحد، وعدة تطبيقات تستخدم Supabase.", "arSpoken": "عندك خادم واحد، وعدة تطبيقات تستخدم سوبابيس." },
+    { "file": "02", "scene": "problem", "en": "A full Supabase for each app fills its memory fast.", "ar": "نسخة Supabase كاملة لكل تطبيق تملأ ذاكرته بسرعة.", "arSpoken": "نسخة سوبابيس كاملة لكل تطبيق تملأ ذاكرته بسرعة.", "arSpeed": 1.15 },
+    { "file": "03", "scene": "problem", "en": "And one shared project mixes everyone's data.", "ar": "ومشروع واحد مشترك يخلط بيانات الجميع.", "arSpeed": 1.12 },
+    { "file": "04", "scene": "building", "en": "Sbarbase turns the server into one building. Postgres runs once, in the basement.", "ar": "صباربيز يجعل الخادم مبنى واحدا، وPostgres يعمل مرة واحدة في الأساس.", "arSpoken": "صباربيز يجعل الخادم مبنى واحدا، وبوستغريس يعمل مرة واحدة في الأساس." },
+    { "file": "05", "scene": "building", "en": "Each client is a floor, each project an apartment, and each environment a window with its own database.", "ar": "كل عميل طابق، وكل مشروع شقة، وكل بيئة نافذة لها قاعدة بياناتها.", "enSpeed": 1.08 },
+    { "file": "06", "scene": "building", "en": "One engine for all of them leaves room for many more projects on the same server.", "ar": "محرك واحد للجميع يترك مكانا لمشاريع أكثر.", "arSpeed": 1.12 },
+    { "file": "07", "scene": "keys", "en": "Every request carries its environment's key, and the gateway sends it only to its own data.", "ar": "كل طلب يحمل مفتاح بيئته، والبوابة توصله إلى بياناته فقط." },
+    { "file": "08", "scene": "keys", "en": "A key from one project never opens another.", "ar": "ومفتاح مشروع لا يفتح مشروعا آخر أبدا.", "arSpeed": 1.12 },
+    { "file": "09", "scene": "load", "en": "When one project gets busy, it gets its own share, and no more.", "ar": "وحين يزدحم مشروع، يأخذ حصته فقط، ولا أكثر." },
+    { "file": "10", "scene": "load", "en": "Extra requests are told to try again shortly, and the other projects stay fast.", "ar": "الطلبات الزائدة يُطلب منها المحاولة بعد قليل، وتبقى المشاريع الأخرى سريعة." },
+    { "file": "11", "scene": "install", "en": "One command installs it on the server you already have.", "ar": "أمر واحد يثبّته على خادمك الحالي." },
+    { "file": "12", "scene": "install", "en": "Sbarbase. Many Supabase projects, one server.", "ar": "صباربيز. مشاريع Supabase كثيرة، وخادم واحد.", "arSpoken": "صباربيز. مشاريع سوبابيس كثيرة، وخادم واحد." }
+  ]
+}

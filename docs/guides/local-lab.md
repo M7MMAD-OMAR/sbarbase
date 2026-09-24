@@ -1,3 +1,5 @@
+[العربية](local-lab.ar.md)
+
 # Local lab
 
 Run Sbarbase on your own Linux machine to evaluate it. The full instructions live next to the code in [lab/README.md](../../lab/README.md); this page is the short version and the safety notes you should read first.

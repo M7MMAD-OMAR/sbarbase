@@ -1,3 +1,5 @@
+[العربية](CONSOLE-QA.ar.md)
+
 # Console implementation and verification
 
 Verified 2026-09-20. This is the historical verification record of the platform-layer console, not production release approval. The goal of bringing this console toward Studio parity is withdrawn: environment administration is served as the original upstream Studio ([integration specification](../engineering/STUDIO-INTEGRATION.md)), so the fidelity ledger below is history rather than a target. The captures are platform-layer captures and predate the redirect.

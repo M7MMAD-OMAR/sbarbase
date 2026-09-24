@@ -1,3 +1,5 @@
+[العربية](api.ar.md)
+
 # API
 
 Routes served by the loopback server (`lab/upstream-server.ts`). Paths starting with `/management/` are the management API; everything else is the application gateway. Read from the code on 2026-09-23; the code is authoritative:

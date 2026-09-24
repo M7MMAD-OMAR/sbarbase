@@ -1,3 +1,5 @@
+[العربية](threat-model.ar.md)
+
 # Threat model
 
 ## What it is
@@ -15,6 +17,8 @@ Sbarbase puts many Supabase projects on one server. Sharing a server is only wor
 ## How we built it
 
 ![Application visitors reach only the TLS proxy, then the console or the gateway; each environment is its own boundary, and the shared engine and Storage are shared failure boundaries](../diagrams/trust-boundaries.svg)
+
+*Trust boundaries: untrusted visitors enter only through the TLS proxy and the gateway.*
 
 ### Assets
 

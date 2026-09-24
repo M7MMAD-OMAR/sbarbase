@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 470" width="900" height="470" role="img" aria-labelledby="requesa-t requesa-d" xml:lang="ar" direction="rtl">
+  <title id="requesa-t">طلب واحد، من التطبيق إلى قاعدة البيانات</title>
+  <desc id="requesa-d">يرسل تطبيق يستخدم supabase-js طلبًا بمفتاحه العام عبر HTTPS إلى وكيل TLS ثم إلى البوابة، على مسار يسمّي بيئة واحدة. ترفض البوابة إن كانت البيئة في الصيانة، وتتحقق من المفتاح لتلك البيئة، ولا تقبل الطلب إلا إن كانت البيئة تحت حدها من الطلبات المتزامنة، وتحد حجم الطلب بـ 1 MiB. لا طابور: ترفض فورًا بـ 429 إن امتلأت البيئة، وبـ 503 إن امتلأت البوابة أو توقفت البيئة. يصل الطلب المقبول إلى Auth أو REST الخاصين بتلك البيئة، ولا يصلان إلا إلى قاعدتها بحساب دخولها داخل محرك PostgreSQL المشترك. وتذهب طلبات الملفات إلى عملية Storage المشتركة مع ترويسة المستأجر.</desc>
+  <defs><marker id="requesa-i" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#2A2632" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="requesa-c" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#E06A4B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+  <rect x="0" y="0" width="900" height="470" fill="#F5EFE3"/>
+  <g font-family="system-ui, sans-serif" fill="#2A2632" text-anchor="middle">
+  <text x="876" y="34" font-size="16" font-weight="700" text-anchor="start">طلب واحد، من التطبيق إلى قاعدة البيانات</text>
+  <rect x="752" y="150" width="124" height="66" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="814" y="178" font-size="13" font-weight="700">تطبيقك</text>
+  <text x="814" y="200" font-size="12" font-family="ui-monospace, Menlo, Consolas, monospace" direction="ltr">supabase-js</text>
+  <text x="814" y="240" font-size="12" fill="#5B5465">طلب مع</text>
+  <text x="814" y="256" font-size="12" fill="#5B5465">المفتاح العام</text>
+  <rect x="622" y="150" width="104" height="66" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="674" y="178" font-size="13" font-weight="700">وكيل TLS</text>
+  <text x="674" y="200" font-size="12" direction="ltr">HTTPS</text>
+  <rect x="352" y="64" width="244" height="236" rx="8" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
+  <text x="474" y="90" font-size="15" font-weight="700">البوابة</text>
+  <text x="580" y="120" font-size="13" text-anchor="start">1. المسار يحدد البيئة</text>
+  <text x="580" y="145" font-size="13" text-anchor="start">2. في الصيانة؟ رفض</text>
+  <text x="580" y="170" font-size="13" text-anchor="start">3. المفتاح صالح لها؟ وإلا 401</text>
+  <text x="580" y="195" font-size="13" text-anchor="start">4. هل تتسع لطلب آخر؟</text>
+  <text x="580" y="220" font-size="13" text-anchor="start">5. حجم الطلب حتى 1 MiB</text>
+  <text x="474" y="280" font-size="13" font-weight="700" fill="#A8412A">لا طابور: الرفض فوري</text>
+  <rect x="352" y="332" width="244" height="70" rx="8" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <text x="474" y="360" font-size="12.5">429: البيئة بلغت حدها</text>
+  <text x="474" y="384" font-size="12.5">503: البوابة ممتلئة أو البيئة متوقفة</text>
+  <path d="M474 300 L474 328" fill="none" stroke="#E06A4B" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#requesa-c)"/>
+  <rect x="166" y="80" width="150" height="42" rx="8" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <text x="241" y="106" font-size="13">Auth للبيئة أ</text>
+  <rect x="166" y="138" width="150" height="42" rx="8" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <text x="241" y="164" font-size="13">REST للبيئة أ</text>
+  <rect x="166" y="222" width="150" height="64" rx="8" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
+  <text x="241" y="248" font-size="13" font-weight="700" direction="ltr">Storage</text>
+  <text x="241" y="268" font-size="11.5">مشترك، بترويسة المستأجر</text>
+  <rect x="16" y="50" width="124" height="352" rx="8" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
+  <text x="78" y="76" font-size="13" font-weight="700" direction="ltr">PostgreSQL</text>
+  <text x="78" y="94" font-size="12">محرك مشترك</text>
+  <rect x="28" y="112" width="100" height="90" rx="8" fill="#F0C23E" stroke="#2A2632" stroke-width="1.3"/>
+  <text x="78" y="138" font-size="12.5">قاعدة</text>
+  <text x="78" y="158" font-size="12.5">البيئة أ</text>
+  <text x="78" y="178" font-size="12.5">بحساباتها</text>
+  <rect x="28" y="222" width="100" height="40" rx="8" fill="#EAE2D2" stroke="#5B5465" stroke-width="1.2" stroke-dasharray="4 4"/>
+  <text x="78" y="247" font-size="12.5" fill="#5B5465">البيئة ب</text>
+  <rect x="28" y="276" width="100" height="40" rx="8" fill="#EAE2D2" stroke="#5B5465" stroke-width="1.2" stroke-dasharray="4 4"/>
+  <text x="78" y="301" font-size="12.5" fill="#5B5465">البيئة ج</text>
+  <text x="78" y="350" font-size="12">حساب واحد</text>
+  <text x="78" y="367" font-size="12">لقاعدة واحدة</text>
+  <path d="M752 183 L728 183" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#requesa-i)"/>
+  <path d="M622 183 L598 183" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#requesa-i)"/>
+  <path d="M352 110 C334 110 334 101 318 101" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#requesa-i)"/>
+  <path d="M352 150 C334 150 334 159 318 159" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#requesa-i)"/>
+  <path d="M352 240 C334 240 334 254 318 254" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#requesa-i)"/>
+  <path d="M166 101 C148 101 148 140 130 140" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#requesa-i)"/>
+  <path d="M166 159 C148 159 148 160 130 160" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#requesa-i)"/>
+  <path d="M166 254 C148 254 148 186 130 186" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 4" marker-end="url(#requesa-i)"/>
+  <rect x="854" y="435" width="22" height="14" rx="3" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
+  <text x="846" y="446" font-size="12" fill="#5B5465" text-anchor="start">مشترك بين كل البيئات</text>
+  <rect x="668.0" y="435" width="22" height="14" rx="3" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <text x="660.0" y="446" font-size="12" fill="#5B5465" text-anchor="start">واحد لكل بيئة (البيئة أ ظاهرة)</text>
+  <rect x="418.0" y="435" width="22" height="14" rx="3" fill="#F0C23E" stroke="#2A2632" stroke-width="1.3"/>
+  <text x="410.0" y="446" font-size="12" fill="#5B5465" text-anchor="start">قاعدة البيئة</text>
+  </g>
+</svg>

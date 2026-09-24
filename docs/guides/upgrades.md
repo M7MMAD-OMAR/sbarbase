@@ -1,3 +1,5 @@
+[العربية](upgrades.ar.md)
+
 # Upgrades
 
 Sbarbase runs pinned upstream Supabase images. Upgrading means changing one pin, deliberately, with a written review and the full test gate. **No upstream release has been adopted through this process yet, and there are no automatic upgrades.** The binding rules are in the [upstream update policy](../engineering/UPSTREAM-UPDATE-POLICY.md); this page is the operator's view.

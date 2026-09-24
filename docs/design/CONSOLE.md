@@ -1,3 +1,5 @@
+[العربية](CONSOLE.ar.md)
+
 # Console visual specification
 
 Reference: `console-concept.png`, generated with the built-in image tool on 2026-09-20.

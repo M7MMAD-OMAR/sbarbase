@@ -1,91 +1,66 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 440" width="900" height="440" role="img" aria-labelledby="rf-title rf-desc">
-  <title id="rf-title">Restoring one environment: verify on an independent engine before switching</title>
-  <desc id="rf-desc">Four steps. 1, stop writes: the gateway puts the environment in maintenance and its service logins are disabled. 2, encrypted export of the database, logins, files and signing keys, after which the source database is closed. 3, restore into a fresh pinned engine on the same host and verify rows, row-level security, the original login and an old signed URL. 4, switch the routing record to the new engine. If verification fails, the source data is untouched but stays fenced, and an operator reopens it deliberately; nothing reopens it automatically. Exporting stops the shared Storage process and the other services of the source, so every environment on that engine is offline until they are restarted.</desc>
-  <defs>
-    <filter id="rf-wob" x="-4%" y="-4%" width="108%" height="108%" color-interpolation-filters="sRGB">
-      <feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="9" result="noise"/>
-      <feDisplacementMap in="SourceGraphic" in2="noise" scale="3.2" xChannelSelector="R" yChannelSelector="G" result="wobbled"/>
-      <feDropShadow in="wobbled" dx="0" dy="2" stdDeviation="1.3" flood-color="#2B1E10" flood-opacity="0.22"/>
-    </filter>
-    <marker id="rf-ah" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
-      <path d="M1 1 L9 5 L1 9" fill="none" stroke="#2A2632" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-    </marker>
-    <marker id="rf-ahc" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
-      <path d="M1 1 L9 5 L1 9" fill="none" stroke="#E06A4B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-    </marker>
-  </defs>
-  <rect x="0" y="0" width="900" height="440" fill="#FFFBF1"/>
-
-  <g font-family="'Marker Felt','Comic Neue','Segoe Print','Patrick Hand',cursive,sans-serif" font-size="13" fill="#2A2632" text-anchor="middle">
-    <text x="20" y="30" font-size="15" font-weight="700" text-anchor="start">Restore one environment: verify before switching</text>
-
-    <g filter="url(#rf-wob)">
-      <rect x="20" y="66" width="170" height="136" rx="7" fill="#FFFDF7" stroke="#2A2632" stroke-width="1.6" transform="rotate(-1.2 105 134)"/>
-      <rect x="250" y="66" width="170" height="136" rx="7" fill="#FFFDF7" stroke="#2A2632" stroke-width="1.6" transform="rotate(1 335 134)"/>
-      <rect x="480" y="66" width="170" height="136" rx="7" fill="#FFFDF7" stroke="#2A2632" stroke-width="1.6" transform="rotate(-0.8 565 134)"/>
-      <rect x="710" y="66" width="170" height="136" rx="7" fill="#BFE3D8" stroke="#2A2632" stroke-width="1.6" transform="rotate(1.2 795 134)"/>
-      <circle cx="105" cy="66" r="15" fill="#F0C23E" stroke="#2A2632" stroke-width="1.5"/>
-      <circle cx="335" cy="66" r="15" fill="#F0C23E" stroke="#2A2632" stroke-width="1.5"/>
-      <circle cx="565" cy="66" r="15" fill="#F0C23E" stroke="#2A2632" stroke-width="1.5"/>
-      <circle cx="795" cy="66" r="15" fill="#F0C23E" stroke="#2A2632" stroke-width="1.5"/>
-    </g>
-    <g font-size="14" font-weight="700">
-      <text x="105" y="71">1</text><text x="335" y="71">2</text><text x="565" y="71">3</text><text x="795" y="71">4</text>
-    </g>
-
-    <text x="105" y="106" font-weight="700">stop writes</text>
-    <g font-size="12">
-      <text x="105" y="130">gateway maintenance</text>
-      <text x="105" y="148">(apps get 503)</text>
-      <text x="105" y="172">service logins off</text>
-      <text x="105" y="188">(database fence)</text>
-    </g>
-
-    <text x="335" y="106" font-weight="700">encrypted export</text>
-    <g font-size="12">
-      <text x="335" y="130">database and logins,</text>
-      <text x="335" y="146">files, signing keys</text>
-      <text x="335" y="170">then the source</text>
-      <text x="335" y="186">database is closed</text>
-    </g>
-
-    <text x="565" y="106" font-weight="700">restore and verify</text>
-    <g font-size="12">
-      <text x="565" y="130">fresh pinned engine,</text>
-      <text x="565" y="146">independent of the source</text>
-      <text x="565" y="170">check rows, RLS, login,</text>
-      <text x="565" y="186">an old signed URL</text>
-    </g>
-
-    <text x="795" y="106" font-weight="700">switch the route</text>
-    <g font-size="12">
-      <text x="795" y="130">routing record points</text>
-      <text x="795" y="146">at the new engine</text>
-      <text x="795" y="170">revision checked,</text>
-      <text x="795" y="186">then routing resumes</text>
-    </g>
-
-    <g stroke="#2A2632" stroke-width="1.6" fill="none" marker-end="url(#rf-ah)">
-      <path d="M194 136 C210 132 228 140 246 136"/>
-      <path d="M424 136 C440 132 458 140 476 136"/>
-      <path d="M654 136 C670 132 688 140 706 136"/>
-    </g>
-    <text x="220" y="124" font-size="12">fenced</text>
-    <text x="450" y="124" font-size="12">bundle</text>
-    <text x="680" y="124" font-size="12">verified</text>
-
-    <!-- failure return -->
-    <path d="M565 206 C566 256 470 264 335 264 C200 264 106 256 105 210" stroke="#E06A4B" stroke-width="1.6" fill="none" stroke-dasharray="6 5" marker-end="url(#rf-ahc)"/>
-    <text x="335" y="288" font-size="13" font-weight="700" fill="#B2472C">verification fails: source data untouched, still fenced</text>
-    <text x="335" y="306" font-size="12" fill="#B2472C">an operator reopens it deliberately; nothing reopens it automatically</text>
-
-    <!-- shared storage warning -->
-    <g filter="url(#rf-wob)">
-      <rect x="20" y="330" width="860" height="62" rx="8" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
-    </g>
-    <text x="450" y="355" font-weight="700">exporting stops shared Storage and the source's other services</text>
-    <text x="450" y="376" font-size="12.5">every environment on that engine is offline until its neighbours are restarted</text>
-
-    <text x="450" y="420" font-size="12" fill="#5B5465">a downtime procedure, exercised on one host with a retained test fixture; no off-host copies yet</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 480" width="900" height="480" role="img" aria-labelledby="restore-t restore-d" xml:lang="en">
+  <title id="restore-t">Restore one environment: verify before switching</title>
+  <desc id="restore-d">Five steps. 1, stop writes: the gateway puts the environment in maintenance and its service logins are disabled, with their state kept in a journal. 2, encrypted export of the database, logins, files and signing keys, after which the source database is closed. 3, restore into a fresh pinned engine with its own network and volume. 4, verify rows and hashes, roles, the original login, row-level security and an old signed URL. 5, switch the routing record to the new engine with a revision check. If verification fails, the source data is untouched but stays fenced, and an operator reopens it deliberately. Exporting stops the shared Storage process and the other services of the source, so every environment on that engine is offline until they are restarted. Scheduled and off-host backups are planned, not built.</desc>
+  <defs><marker id="restore-i" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#2A2632" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="restore-c" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#E06A4B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+  <rect x="0" y="0" width="900" height="480" fill="#F5EFE3"/>
+  <g font-family="system-ui, sans-serif" fill="#2A2632" text-anchor="middle">
+  <text x="24" y="34" font-size="16" font-weight="700" text-anchor="start">Restore one environment: verify before switching</text>
+  <rect x="24" y="62" width="160" height="110" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <circle cx="44" cy="82" r="11" fill="#2A2632"/>
+  <text x="44" y="86.5" font-size="12.5" font-weight="700" fill="#FFFBF1">1</text>
+  <text x="62" y="87" font-size="13" font-weight="700" text-anchor="start">stop writes</text>
+  <text x="104" y="116" font-size="12">maintenance: 503</text>
+  <text x="104" y="134" font-size="12">service logins off,</text>
+  <text x="104" y="152" font-size="12">state in a journal</text>
+  <path d="M184 117 L196 117" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#restore-i)"/>
+  <rect x="198" y="62" width="160" height="110" rx="8" fill="#FBE7A8" stroke="#2A2632" stroke-width="1.3"/>
+  <circle cx="218" cy="82" r="11" fill="#2A2632"/>
+  <text x="218" y="86.5" font-size="12.5" font-weight="700" fill="#FFFBF1">2</text>
+  <text x="236" y="87" font-size="13" font-weight="700" text-anchor="start">encrypted export</text>
+  <text x="278" y="116" font-size="12">database, logins,</text>
+  <text x="278" y="134" font-size="12">files, signing keys;</text>
+  <text x="278" y="152" font-size="12">source then closed</text>
+  <path d="M358 117 L370 117" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#restore-i)"/>
+  <rect x="372" y="62" width="160" height="110" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <circle cx="392" cy="82" r="11" fill="#2A2632"/>
+  <text x="392" y="86.5" font-size="12.5" font-weight="700" fill="#FFFBF1">3</text>
+  <text x="410" y="87" font-size="13" font-weight="700" text-anchor="start">restore</text>
+  <text x="452" y="116" font-size="12">a fresh engine,</text>
+  <text x="452" y="134" font-size="12">pinned, with its own</text>
+  <text x="452" y="152" font-size="12">network and volume</text>
+  <path d="M532 117 L544 117" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#restore-i)"/>
+  <rect x="546" y="62" width="160" height="110" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <circle cx="566" cy="82" r="11" fill="#2A2632"/>
+  <text x="566" y="86.5" font-size="12.5" font-weight="700" fill="#FFFBF1">4</text>
+  <text x="584" y="87" font-size="13" font-weight="700" text-anchor="start">verify</text>
+  <text x="626" y="116" font-size="12">rows, hashes, roles,</text>
+  <text x="626" y="134" font-size="12">original login, RLS,</text>
+  <text x="626" y="152" font-size="12">an old signed URL</text>
+  <path d="M706 117 L718 117" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#restore-i)"/>
+  <rect x="720" y="62" width="160" height="110" rx="8" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <circle cx="740" cy="82" r="11" fill="#2A2632"/>
+  <text x="740" y="86.5" font-size="12.5" font-weight="700" fill="#FFFBF1">5</text>
+  <text x="758" y="87" font-size="13" font-weight="700" text-anchor="start">switch the route</text>
+  <text x="800" y="116" font-size="12">routing record points</text>
+  <text x="800" y="134" font-size="12">at the new engine,</text>
+  <text x="800" y="152" font-size="12">revision checked</text>
+  <path d="M626 172 L626 204" fill="none" stroke="#E06A4B" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#restore-c)"/>
+  <rect x="372" y="206" width="504" height="62" rx="8" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <text x="624" y="230" font-size="12.5" font-weight="700">verification fails: source data untouched, still fenced</text>
+  <text x="624" y="252" font-size="12.5">an operator reopens it deliberately; nothing reopens it automatically</text>
+  <rect x="24" y="290" width="852" height="62" rx="8" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
+  <text x="450" y="315" font-size="13" font-weight="700">Exporting stops shared Storage and the source's other services:</text>
+  <text x="450" y="337" font-size="12.5">every environment on that engine is offline until its neighbours are restarted.</text>
+  <rect x="24" y="368" width="852" height="38" rx="8" fill="#EFE9FA" stroke="#B7A2E6" stroke-width="2" stroke-dasharray="7 5"/>
+  <text x="450" y="392" font-size="12.5">planned: scheduled, off-host backups, and an online backup of one environment</text>
+  <text x="24" y="430" font-size="12.5" fill="#5B5465" text-anchor="start">A downtime procedure, exercised on one host with a retained test fixture.</text>
+  <rect x="24" y="447" width="22" height="14" rx="3" fill="#FBE7A8" stroke="#2A2632" stroke-width="1.3"/>
+  <text x="54" y="458" font-size="12" fill="#5B5465" text-anchor="start">encrypted artifact</text>
+  <rect x="197.2" y="447" width="22" height="14" rx="3" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
+  <text x="227.2" y="458" font-size="12" fill="#5B5465" text-anchor="start">shared: affects every environment</text>
+  <rect x="466.40000000000003" y="447" width="22" height="14" rx="3" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <text x="496.40000000000003" y="458" font-size="12" fill="#5B5465" text-anchor="start">stops for an operator</text>
+  <rect x="658.8000000000001" y="447" width="22" height="14" rx="3" fill="#EFE9FA" stroke="#B7A2E6" stroke-width="2" stroke-dasharray="7 5"/>
+  <text x="688.8000000000001" y="458" font-size="12" fill="#5B5465" text-anchor="start">planned</text>
   </g>
 </svg>

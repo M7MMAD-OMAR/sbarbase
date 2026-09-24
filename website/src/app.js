@@ -1,6 +1,7 @@
 // Interactions for the prerendered page. Everything is readable without this
-// script; it only adds the walkthrough, the toggles and the motion. Motion is
-// skipped when the reader prefers reduced motion.
+// script; it adds the theme toggle, the request
+// walkthrough and the copy buttons. The explainer starts only when the reader
+// presses play, because it speaks. Motion is skipped under reduced motion.
 const $=(s,root=document)=>root.querySelector(s);
 const $$=(s,root=document)=>[...root.querySelectorAll(s)];
 const data=JSON.parse($('#page-data')?.textContent||'{}');
@@ -9,33 +10,22 @@ const press=(buttons,active)=>buttons.forEach(b=>b.setAttribute('aria-pressed',S
 
 // Day and night. An explicit choice is remembered for this reader only.
 const root=document.documentElement;
+const themeButton=$('#theme');
+const isDark=()=>root.dataset.theme?root.dataset.theme==='dark':matchMedia('(prefers-color-scheme: dark)').matches;
 try{const saved=localStorage.getItem('sbarbase-theme');if(saved==='light'||saved==='dark')root.dataset.theme=saved;}catch{}
-$('#theme')?.addEventListener('click',()=>{
- const dark=root.dataset.theme?root.dataset.theme==='dark':matchMedia('(prefers-color-scheme: dark)').matches;
- root.dataset.theme=dark?'light':'dark';
+const syncTheme=()=>themeButton?.setAttribute('aria-pressed',String(isDark()));
+syncTheme();
+themeButton?.addEventListener('click',()=>{
+ root.dataset.theme=isDark()?'light':'dark';syncTheme();
  try{localStorage.setItem('sbarbase-theme',root.dataset.theme);}catch{}
 });
 
-// Sheets settle as they arrive; the current section is marked in the top bar.
+// The current section is marked in the top bar.
 const navLinks=new Map($$('.topbar nav a').map(a=>[a.getAttribute('href').slice(1),a]));
 const seen=new IntersectionObserver(entries=>{for(const e of entries){
- if(e.isIntersecting&&!reduced&&!e.target.classList.contains('in')){e.target.classList.add('reveal','in');}
  const link=navLinks.get(e.target.id);if(link&&e.isIntersecting)navLinks.forEach(a=>a.classList.toggle('current',a===link));
 }},{rootMargin:'-35% 0px -55% 0px'});
-$$('main .sheet').forEach(s=>seen.observe(s));
-
-// Today versus Sbarbase, and the environment slider.
-const compare=$('.compare');
-if(compare){
- const views=$$('.segmented button',compare);
- views.forEach(b=>b.addEventListener('click',()=>{compare.dataset.view=b.dataset.view;press(views,b);}));
- const range=$('#env-range'),out=$('#env-count'),r=data.rules;
- range?.addEventListener('input',()=>{
-  const n=Number(range.value);compare.dataset.count=String(n);out.textContent=String(n);
-  $('#n-containers').textContent=String(r.systemContainers+n*r.perEnvironmentContainers);
-  $('#n-memory').textContent=String(r.systemMib+n*r.perEnvironmentMib);
- });
-}
+$$('main section[id]').forEach(s=>seen.observe(s));
 
 // The request walkthrough: twelve seconds, five steps, a packet along the wires.
 const walk=$('.walk');
@@ -76,46 +66,10 @@ if(walk){
  document.addEventListener('visibilitychange',()=>{if(document.hidden)setRunning(false);});
 }
 
-// Hierarchy: explain a level, and move an environment between servers (FLIP).
-const hier=$('.hier');
-if(hier){
- $$('[data-level]',hier).forEach(b=>b.addEventListener('click',()=>{
-  const i=Number(b.dataset.level);hier.dataset.level=String(i);
-  $('#level-name').textContent=data.levels[i][0];$('#level-text').textContent=data.levels[i][1];
- }));
- const move=$('#move'),chip=$('[data-env="a"]',hier),one=$('#server-1'),two=$('#server-2');
- move?.addEventListener('click',()=>{
-  const first=chip.getBoundingClientRect();
-  const away=chip.parentElement===one;(away?two:one).appendChild(chip);
-  move.textContent=away?data.moveBack:data.moveAction;
-  if(reduced)return;
-  const last=chip.getBoundingClientRect();
-  chip.animate([{transform:`translate(${first.left-last.left}px,${first.top-last.top}px) rotate(-6deg)`},{transform:'none'}],{duration:650,easing:'cubic-bezier(.3,1.3,.5,1)'});
- });
-}
-
-// Isolation: what each part shares, or keeps to itself.
-const parts=$$('.part');
-parts.forEach(b=>b.addEventListener('click',()=>{
- const p=data.parts[Number(b.dataset.part)];press(parts,b);
- $('#part-name').textContent=p[0];$('#part-text').textContent=p[2];
-}));
-
-// Recovery: four steps, the parcel follows.
-const rec=$('.rec');
-if(rec){
- const buttons=$$('[data-rec]',rec);
- buttons.forEach(b=>b.addEventListener('click',()=>{
-  const i=Number(b.dataset.rec);rec.dataset.step=String(i);press(buttons,b);
-  $('#rec-text').textContent=data.recSteps[i][1];
- }));
-}
-
-// Copy the install command.
-const copy=$('#copy');
-copy?.addEventListener('click',async()=>{
- const label=$('span',copy);
- try{await navigator.clipboard.writeText(copy.dataset.copy);label.textContent=data.copied;}
- catch{const range=document.createRange();range.selectNodeContents($('.terminal code'));const sel=getSelection();sel.removeAllRanges();sel.addRange(range);}
+// Copy an install step. Falls back to selecting that step's command.
+$$('.copy').forEach(button=>button.addEventListener('click',async()=>{
+ const label=$('span',button);
+ try{await navigator.clipboard.writeText(button.dataset.copy);label.textContent=data.copied;}
+ catch{const code=$('code',button.parentElement);const range=document.createRange();range.selectNodeContents(code);const sel=getSelection();sel.removeAllRanges();sel.addRange(range);}
  setTimeout(()=>{label.textContent=data.copy;},2000);
-});
+}));

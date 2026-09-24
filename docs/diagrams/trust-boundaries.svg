@@ -1,111 +1,66 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 480" width="900" height="480" role="img" aria-labelledby="tb-title tb-desc">
-  <title id="tb-title">Trust boundaries: untrusted app visitors enter only through the TLS proxy</title>
-  <desc id="tb-desc">App visitors are untrusted. Their browsers and mobile apps reach the server only over HTTPS through the TLS proxy, the one part facing the network, and then the gateway, which requires a publishable key. Trusted operators reach the console and control API through the same proxy with a management login, and may also use the host shell and SQL directly. Behind the proxy everything listens on loopback or internal Docker networks. Each environment has its own Auth, REST, database, logins and keys. The PostgreSQL engine and the Storage process are shared, drawn in coral, so they are shared failure boundaries.</desc>
-  <defs>
-    <filter id="tb-wob" x="-4%" y="-4%" width="108%" height="108%" color-interpolation-filters="sRGB">
-      <feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="9" result="noise"/>
-      <feDisplacementMap in="SourceGraphic" in2="noise" scale="3.2" xChannelSelector="R" yChannelSelector="G" result="wobbled"/>
-      <feDropShadow in="wobbled" dx="0" dy="2" stdDeviation="1.3" flood-color="#2B1E10" flood-opacity="0.22"/>
-    </filter>
-    <marker id="tb-ah" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
-      <path d="M1 1 L9 5 L1 9" fill="none" stroke="#2A2632" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-    </marker>
-    <marker id="tb-ahl" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
-      <path d="M1 1 L9 5 L1 9" fill="none" stroke="#6A55A8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-    </marker>
-  </defs>
-  <rect x="0" y="0" width="900" height="480" fill="#FFFBF1"/>
-
-  <g font-family="'Marker Felt','Comic Neue','Segoe Print','Patrick Hand',cursive,sans-serif" font-size="13" fill="#2A2632" text-anchor="middle">
-
-    <g filter="url(#tb-wob)">
-      <!-- the host -->
-      <rect x="250" y="20" width="634" height="414" rx="12" fill="#FFFDF7" stroke="#2A2632" stroke-width="1.8"/>
-      <!-- untrusted zone -->
-      <rect x="12" y="60" width="148" height="150" rx="10" fill="#F7D3D4" stroke="#2A2632" stroke-width="1.4" transform="rotate(-1 86 135)"/>
-      <rect x="24" y="118" width="124" height="76" rx="6" fill="#FFFDF7" stroke="#2A2632" stroke-width="1.3"/>
-      <!-- trusted zone -->
-      <rect x="12" y="236" width="148" height="198" rx="10" fill="#E7DEF7" stroke="#6A55A8" stroke-width="1.4" transform="rotate(0.8 86 335)"/>
-      <rect x="24" y="296" width="124" height="44" rx="6" fill="#FFFDF7" stroke="#2A2632" stroke-width="1.3"/>
-      <rect x="24" y="360" width="124" height="58" rx="6" fill="#FFFDF7" stroke="#2A2632" stroke-width="1.3"/>
-      <!-- proxy on the wall -->
-      <rect x="208" y="148" width="120" height="120" rx="8" fill="#F0C23E" stroke="#2A2632" stroke-width="1.6" transform="rotate(-1.2 268 208)"/>
-      <!-- gateway and console -->
-      <rect x="376" y="108" width="148" height="64" rx="7" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
-      <rect x="376" y="236" width="148" height="80" rx="7" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
-      <!-- per-environment boundaries -->
-      <rect x="580" y="92" width="290" height="56" rx="8" fill="#BFE3D8" stroke="#1F8A78" stroke-width="2"/>
-      <rect x="580" y="160" width="290" height="56" rx="8" fill="#BFE3D8" stroke="#1F8A78" stroke-width="2"/>
-      <!-- shared engines -->
-      <rect x="560" y="346" width="150" height="70" rx="8" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
-      <rect x="724" y="346" width="146" height="70" rx="8" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
-    </g>
-
-    <!-- host labels -->
-    <text x="600" y="44" font-size="15" font-weight="700">your server (host)</text>
-    <text x="600" y="64" font-size="12" fill="#5B5465">behind the proxy: loopback and internal Docker networks, no published ports</text>
-
-    <!-- zones -->
-    <text x="86" y="84" font-weight="700" fill="#B2472C">untrusted</text>
-    <text x="86" y="102" font-size="12">app visitors</text>
-    <text x="86" y="142">browser or</text>
-    <text x="86" y="160">mobile app</text>
-    <text x="86" y="180" font-size="12" fill="#5B5465">with a user token</text>
-
-    <text x="86" y="260" font-weight="700" fill="#4B3A86">trusted</text>
-    <text x="86" y="278" font-size="12">your operators</text>
-    <text x="86" y="323">operator browser</text>
-    <text x="86" y="384">host shell,</text>
-    <text x="86" y="402">SQL author</text>
-
-    <!-- proxy -->
-    <text x="268" y="188" font-weight="700">TLS proxy</text>
-    <text x="268" y="212" font-size="12">the only part</text>
-    <text x="268" y="228" font-size="12">facing the</text>
-    <text x="268" y="244" font-size="12">network</text>
-
-    <!-- gateway and console -->
-    <text x="450" y="134" font-weight="700">gateway</text>
-    <text x="450" y="154" font-size="12">publishable key</text>
-    <text x="450" y="260" font-weight="700">console and</text>
-    <text x="450" y="277" font-weight="700">control API</text>
-    <text x="450" y="298" font-size="12">management login</text>
-
-    <!-- environments -->
-    <text x="725" y="114" font-weight="700">environment A</text>
-    <text x="725" y="134" font-size="12">own Auth, REST, database, logins, keys</text>
-    <text x="725" y="182" font-weight="700">environment B</text>
-    <text x="725" y="202" font-size="12">own Auth, REST, database, logins, keys</text>
-
-    <!-- shared -->
-    <text x="635" y="372" font-weight="700">PostgreSQL</text>
-    <text x="635" y="389" font-weight="700">engine</text>
-    <text x="635" y="406" font-size="12">shared by all</text>
-    <text x="797" y="372" font-weight="700">Storage</text>
-    <text x="797" y="389" font-weight="700">process</text>
-    <text x="797" y="406" font-size="12">every tenant's files</text>
-
-    <!-- arrows -->
-    <g stroke="#2A2632" stroke-width="1.5" fill="none" marker-end="url(#tb-ah)">
-      <path d="M150 156 C172 160 190 176 206 184"/>
-      <path d="M150 316 C176 306 196 262 210 248"/>
-      <path d="M330 186 C346 180 354 146 372 142"/>
-      <path d="M330 232 C346 240 354 270 372 274"/>
-      <path d="M526 130 C546 126 560 120 576 120"/>
-      <path d="M526 146 C546 156 560 184 576 186"/>
-      <path d="M526 164 C560 250 770 250 794 342"/>
-      <path d="M660 218 C656 260 640 300 636 342"/>
-    </g>
-    <path d="M150 400 C300 406 450 398 556 390" stroke="#6A55A8" stroke-width="1.5" fill="none" marker-end="url(#tb-ahl)"/>
-    <text x="183" y="150" font-size="12">HTTPS</text>
-    <text x="186" y="336" font-size="12">HTTPS</text>
-    <text x="348" y="148" font-size="12">apps</text>
-    <text x="344" y="298" font-size="12">operators</text>
-    <text x="792" y="290" font-size="12" text-anchor="start">files,</text><text x="792" y="306" font-size="12" text-anchor="start">tenant header</text>
-    <text x="632" y="290" font-size="12" text-anchor="end">own logins</text>
-    <text x="376" y="392" font-size="12" fill="#4B3A86">direct host and SQL access</text>
-
-    <!-- caption -->
-    <text x="450" y="462" font-size="13" font-weight="700" fill="#B2472C">coral = shared: a failure there reaches every environment; not built for mutually hostile customers</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 490" width="900" height="490" role="img" aria-labelledby="trustbe-t trustbe-d" xml:lang="en">
+  <title id="trustbe-t">Who is trusted, and what is shared</title>
+  <desc id="trustbe-d">App visitors are untrusted. Their browsers and mobile apps reach the server only over HTTPS through the TLS proxy, the one part facing the network, and then the gateway, which requires a publishable key. Trusted operators reach the console and control API through the same proxy with a management login, and may also use the host shell and SQL directly. Behind the proxy everything listens on loopback or internal Docker networks. Each environment has its own Auth, REST, database, logins and keys. The PostgreSQL engine and the Storage process are shared, so they are shared failure boundaries.</desc>
+  <defs><marker id="trustbe-i" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#2A2632" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="trustbe-c" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#E06A4B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+  <rect x="0" y="0" width="900" height="490" fill="#F5EFE3"/>
+  <g font-family="system-ui, sans-serif" fill="#2A2632" text-anchor="middle">
+  <text x="24" y="34" font-size="16" font-weight="700" text-anchor="start">Who is trusted, and what is shared</text>
+  <rect x="24" y="76" width="176" height="100" rx="8" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <text x="112" y="100" font-size="13" font-weight="700" fill="#A8412A">untrusted</text>
+  <text x="112" y="122" font-size="12.5">app visitors</text>
+  <text x="112" y="140" font-size="12.5">browser or mobile app</text>
+  <text x="112" y="158" font-size="12.5">with a user token</text>
+  <rect x="24" y="250" width="176" height="100" rx="8" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <text x="112" y="274" font-size="13" font-weight="700" fill="#146B5C">trusted</text>
+  <text x="112" y="296" font-size="12.5">your operators</text>
+  <text x="112" y="314" font-size="12.5">operator browser</text>
+  <text x="112" y="332" font-size="12.5">host shell, SQL author</text>
+  <rect x="232" y="50" width="644" height="380" rx="8" fill="none" stroke="#2A2632" stroke-width="1.3" stroke-dasharray="7 5"/>
+  <text x="248" y="72" font-size="13" font-weight="700" text-anchor="start">your server (host)</text>
+  <text x="248" y="92" font-size="12" fill="#5B5465" text-anchor="start">behind the proxy: loopback and internal Docker networks, no published ports</text>
+  <rect x="250" y="150" width="118" height="124" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="309" y="176" font-size="13" font-weight="700">TLS proxy</text>
+  <text x="309" y="202" font-size="12">the only part</text>
+  <text x="309" y="220" font-size="12">facing the</text>
+  <text x="309" y="238" font-size="12">network</text>
+  <rect x="400" y="112" width="172" height="58" rx="8" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
+  <text x="486" y="136" font-size="13" font-weight="700">gateway</text>
+  <text x="486" y="156" font-size="12">publishable key</text>
+  <rect x="400" y="256" width="172" height="58" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="486" y="280" font-size="12.5" font-weight="700">console, control API</text>
+  <text x="486" y="300" font-size="12">management login</text>
+  <rect x="590" y="108" width="270" height="50" rx="8" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <text x="725" y="128" font-size="12.5" font-weight="700">environment A</text>
+  <text x="725" y="147" font-size="11.5">own Auth, REST, database, logins, keys</text>
+  <rect x="590" y="168" width="270" height="50" rx="8" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <text x="725" y="188" font-size="12.5" font-weight="700">environment B</text>
+  <text x="725" y="207" font-size="11.5">own Auth, REST, database, logins, keys</text>
+  <rect x="590" y="248" width="128" height="66" rx="8" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
+  <text x="654" y="272" font-size="12.5" font-weight="700">PostgreSQL</text>
+  <text x="654" y="294" font-size="12">shared by all</text>
+  <rect x="732" y="248" width="128" height="66" rx="8" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
+  <text x="796" y="272" font-size="12.5" font-weight="700">Storage</text>
+  <text x="796" y="294" font-size="12">every tenant's files</text>
+  <path d="M200 126 C226 126 222 180 248 184" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#trustbe-i)"/>
+  <path d="M200 300 C226 300 222 246 248 242" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#trustbe-i)"/>
+  <text x="254" y="140" font-size="11" fill="#5B5465" text-anchor="start">HTTPS</text>
+  <text x="254" y="292" font-size="11" fill="#5B5465" text-anchor="start">HTTPS</text>
+  <path d="M368 190 C384 190 382 141 398 141" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#trustbe-i)"/>
+  <path d="M368 236 C384 236 382 285 398 285" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#trustbe-i)"/>
+  <path d="M572 132 L588 132" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#trustbe-i)"/>
+  <path d="M572 152 C582 152 578 192 588 192" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#trustbe-i)"/>
+  <path d="M725 218 L725 234 L654 234 L654 246" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#trustbe-i)"/>
+  <text x="736" y="238" font-size="11" fill="#5B5465" text-anchor="start">own logins</text>
+  <path d="M572 162 L580 162 L580 340 L796 340 L796 316" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 4" marker-end="url(#trustbe-i)"/>
+  <text x="668" y="356" font-size="11.5" fill="#5B5465">files, tenant header</text>
+  <path d="M112 350 L112 406 L654 406 L654 316" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="2 5" marker-end="url(#trustbe-i)"/>
+  <text x="380" y="400" font-size="11.5" fill="#5B5465">direct host and SQL access</text>
+  <text x="24" y="452" font-size="12.5" text-anchor="start">Shared parts: a failure there reaches every environment. Not built for mutually hostile customers.</text>
+  <rect x="24" y="461" width="22" height="14" rx="3" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
+  <text x="54" y="472" font-size="12" fill="#5B5465" text-anchor="start">shared</text>
+  <rect x="120.4" y="461" width="22" height="14" rx="3" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <text x="150.4" y="472" font-size="12" fill="#5B5465" text-anchor="start">one per environment, or trusted</text>
+  <rect x="376.79999999999995" y="461" width="22" height="14" rx="3" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <text x="406.79999999999995" y="472" font-size="12" fill="#5B5465" text-anchor="start">untrusted</text>
   </g>
 </svg>

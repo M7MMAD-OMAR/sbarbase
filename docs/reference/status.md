@@ -1,3 +1,5 @@
+[العربية](status.ar.md)
+
 # Status
 
 The single place for what works, what does not, and every number. Updated 2026-09-24. Current source release: [0.1.0](../../CHANGELOG.md) (2026-09-21), plus the unreleased container generation migration.
