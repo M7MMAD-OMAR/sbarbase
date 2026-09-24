@@ -187,13 +187,39 @@ def io_device(path=VOLUME_ROOT, runner=None):
     while not probe.exists() and probe != probe.parent:
         probe = probe.parent
     source = run(str(probe))
-    if not source:
-        return None
-    device = source.split('[')[0].strip()
+    device = source.split('[')[0].strip() if source else ''
     if not device.startswith('/dev/') or not known_block_device(device):
-        return None
+        # A name the kernel invented for the root device, such as /dev/root, has no
+        # node or sysfs entry of its own, notably inside a container. The device
+        # numbers still lead to the real disk through /sys/dev/block.
+        device = device_by_numbers(numbers(str(probe)) if runner is None else '')
+        if device is None:
+            return None
     disk = whole_disk(device)
     return disk if known_block_device(disk) else None
+
+
+def _numbers(target):
+    import subprocess
+    result = subprocess.run(['findmnt', '-no', 'MAJ:MIN', '--target', target],
+                            capture_output=True, text=True)
+    return result.stdout.strip() if result.returncode == 0 else ''
+
+
+numbers = _numbers
+
+
+def device_by_numbers(value, sysfs=Path('/sys/dev/block')):
+    """/dev/<name> for a MAJ:MIN pair the kernel lists, or None."""
+    import os
+    import re
+    if not re.fullmatch(r'\d+:\d+', value or '') or value.startswith('0:'):
+        # Major 0 is an anonymous device (btrfs subvolume, overlay): no disk to limit.
+        return None
+    entry = sysfs / value
+    if not entry.exists():
+        return None
+    return '/dev/' + Path(os.path.realpath(entry)).name
 
 
 def known_block_device(device, sysfs=Path('/sys/class/block')):
