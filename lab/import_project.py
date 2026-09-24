@@ -264,6 +264,12 @@ def ensure_developer(e):
 def run_import(e, settings, dry_run=False):
     report = {'environment': e, 'started_at': datetime.datetime.now(datetime.UTC).isoformat(timespec='seconds'), 'steps': []}
     step = lambda text: (report['steps'].append(text), print(text, flush=True))
+    if not dry_run:
+        # Checked before the source is touched: an import only ever fills a new environment.
+        counts = target_rows(e, "SELECT (SELECT count(*) FROM pg_tables WHERE schemaname = 'public'), (SELECT count(*) FROM auth.users), "
+                                "(SELECT count(*) FROM storage.objects), (SELECT count(*) FROM storage.buckets)")[0]
+        if any(int(value) for value in counts):
+            raise ImportError_('the target environment is not empty; create a new environment to import into')
     source = Source(settings['database_url'])
     try:
         facts = import_inspect.gather(source.query)
@@ -277,10 +283,6 @@ def run_import(e, settings, dry_run=False):
             raise ImportError_('the source cannot be imported: ' + '; '.join(assessment['refusals']))
         if dry_run:
             return report
-        counts = target_rows(e, "SELECT (SELECT count(*) FROM pg_tables WHERE schemaname = 'public'), (SELECT count(*) FROM auth.users), "
-                                "(SELECT count(*) FROM storage.objects), (SELECT count(*) FROM storage.buckets)")[0]
-        if any(int(value) for value in counts):
-            raise ImportError_('the target environment is not empty; create a new environment to import into')
         if (facts['objects'] or {}).get('count') and not settings.get('api_url'):
             raise ImportError_('the source has Storage objects: give api_url and service_role_key to copy them')
         ensure_developer(e)
@@ -331,6 +333,27 @@ def run_import(e, settings, dry_run=False):
         if triggers:
             target_sql(e, '\n'.join(row[2] + ';' for row in triggers), role=role)
         step(f'triggers on auth and storage recreated: {len(triggers)}')
+
+        # Storage's own row level security lives on storage.objects and storage.buckets, outside
+        # `public`: the source's policies there decide who reads each file.
+        have = {(row[0], row[1]) for row in target_rows(e, "SELECT tablename, policyname FROM pg_policies WHERE schemaname IN ('storage','auth')")}
+        policies = []
+        for table_schema, table, name, permissive, roles, command, using, check in source.query(
+                "SELECT schemaname, tablename, policyname, permissive, array_to_string(roles, ','), cmd, coalesce(qual, ''), "
+                "coalesce(with_check, '') FROM pg_policies WHERE schemaname IN ('storage','auth')"):
+            if (table, name) in have:
+                continue
+            quoted = '"' + name.replace('"', '""') + '"'
+            known = [role for role in roles.split(',') if role in ('public', 'anon', 'authenticated', 'service_role')]
+            if not known:
+                report.setdefault('skipped_policies', []).append(f'{table_schema}.{table}: {name}')
+                continue
+            targets = ', '.join(role if role == 'public' else f'"{role}"' for role in known)
+            policies.append(f'CREATE POLICY {quoted} ON {table_schema}.{table} AS {permissive} FOR {command} TO {targets}'
+                            + (f' USING ({using})' if using else '') + (f' WITH CHECK ({check})' if check else '') + ';')
+        if policies:
+            target_sql(e, '\n'.join(policies), role=role)
+        step(f'policies on storage and auth recreated: {len(policies)}')
         target_sql(e, "NOTIFY pgrst, 'reload schema';")
 
         mismatches = []
