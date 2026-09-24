@@ -14,6 +14,7 @@ import datetime
 import http.client
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -75,9 +76,12 @@ def main():
         record('the settings are private', config_file.exists() and config_file.stat().st_mode & 0o077 == 0)
 
         made = run('lab/backup.py', 'create', e)
-        record('a backup copies itself off the server', made.returncode == 0 and 'copied 1 backup(s) off the server' in made.stdout,
-               (made.stdout + made.stderr).strip().replace('\n', '; ')[:240])
         stamp = backup.complete_backups(e)[-1].name
+        copied = re.search(r'copied (\d+) backup\(s\) off the server', made.stdout)
+        # Earlier backups not copied yet go too, so the count can be more than one.
+        record('a backup copies itself off the server', made.returncode == 0 and copied and int(copied.group(1)) >= 1
+               and stamp in run('lab/offsite.py', 'list', e).stdout,
+               (made.stdout + made.stderr).strip().replace('\n', '; ')[:240])
         listed = run('lab/offsite.py', 'list', e)
         record('the copy is listed in the bucket', f'{e}  {stamp}' in listed.stdout, listed.stdout.strip()[:200])
         config = offsite.load_config()
