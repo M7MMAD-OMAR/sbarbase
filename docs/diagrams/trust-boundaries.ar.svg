@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 490" width="900" height="490" role="img" aria-labelledby="trustba-t trustba-d" xml:lang="ar" direction="rtl">
+  <title id="trustba-t">من الموثوق، وما المشترك</title>
+  <desc id="trustba-d">زوار التطبيقات غير موثوقين. لا تصل متصفحاتهم وتطبيقاتهم الجوالة إلى الخادم إلا عبر HTTPS من خلال وكيل TLS، الجزء الوحيد المواجه للشبكة، ثم البوابة التي تطلب مفتاحًا عامًا. والمشغّلون موثوقون: يصلون إلى لوحة الإدارة وواجهة الإدارة عبر الوكيل نفسه بدخول الإدارة، ويمكنهم استخدام سطر أوامر الخادم وSQL مباشرة. خلف الوكيل تستمع كل الخدمات على عناوين محلية أو شبكات Docker داخلية. لكل بيئة Auth وREST وقاعدة بيانات وحسابات دخول ومفاتيح خاصة بها. محرك PostgreSQL وعملية Storage مشتركان، فهما حدود فشل مشتركة.</desc>
+  <defs><marker id="trustba-i" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#2A2632" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="trustba-c" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#E06A4B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+  <rect x="0" y="0" width="900" height="490" fill="#F5EFE3"/>
+  <g font-family="system-ui, sans-serif" fill="#2A2632" text-anchor="middle">
+  <text x="876" y="34" font-size="16" font-weight="700" text-anchor="start">من الموثوق، وما المشترك</text>
+  <rect x="700" y="76" width="176" height="100" rx="8" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <text x="788" y="100" font-size="13" font-weight="700" fill="#A8412A">غير موثوقين</text>
+  <text x="788" y="122" font-size="12.5">زوار التطبيقات</text>
+  <text x="788" y="140" font-size="12.5">متصفح أو تطبيق جوال</text>
+  <text x="788" y="158" font-size="12.5">برمز المستخدم</text>
+  <rect x="700" y="250" width="176" height="100" rx="8" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <text x="788" y="274" font-size="13" font-weight="700" fill="#146B5C">موثوقون</text>
+  <text x="788" y="296" font-size="12.5">المشغّلون</text>
+  <text x="788" y="314" font-size="12.5">متصفح المشغّل</text>
+  <text x="788" y="332" font-size="12.5">سطر الأوامر وSQL</text>
+  <rect x="24" y="50" width="644" height="380" rx="8" fill="none" stroke="#2A2632" stroke-width="1.3" stroke-dasharray="7 5"/>
+  <text x="652" y="72" font-size="13" font-weight="700" text-anchor="start">خادمك</text>
+  <text x="652" y="92" font-size="12" fill="#5B5465" text-anchor="start">خلف الوكيل: عناوين محلية وشبكات Docker داخلية، بلا منافذ منشورة</text>
+  <rect x="532" y="150" width="118" height="124" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="591" y="176" font-size="13" font-weight="700">وكيل TLS</text>
+  <text x="591" y="202" font-size="12">الجزء الوحيد</text>
+  <text x="591" y="220" font-size="12">المواجه</text>
+  <text x="591" y="238" font-size="12">للشبكة</text>
+  <rect x="328" y="112" width="172" height="58" rx="8" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
+  <text x="414" y="136" font-size="13" font-weight="700">البوابة</text>
+  <text x="414" y="156" font-size="12">مفتاح عام</text>
+  <rect x="328" y="256" width="172" height="58" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="414" y="280" font-size="12.5" font-weight="700">لوحة الإدارة وواجهتها</text>
+  <text x="414" y="300" font-size="12">دخول الإدارة</text>
+  <rect x="40" y="108" width="270" height="50" rx="8" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <text x="175" y="128" font-size="12.5" font-weight="700">البيئة أ</text>
+  <text x="175" y="147" font-size="11.5">Auth وREST وقاعدة وحسابات ومفاتيح خاصة</text>
+  <rect x="40" y="168" width="270" height="50" rx="8" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <text x="175" y="188" font-size="12.5" font-weight="700">البيئة ب</text>
+  <text x="175" y="207" font-size="11.5">Auth وREST وقاعدة وحسابات ومفاتيح خاصة</text>
+  <rect x="182" y="248" width="128" height="66" rx="8" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
+  <text x="246" y="272" font-size="12.5" font-weight="700">محرك PostgreSQL</text>
+  <text x="246" y="294" font-size="12">مشترك بين الجميع</text>
+  <rect x="40" y="248" width="128" height="66" rx="8" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
+  <text x="104" y="272" font-size="12.5" font-weight="700">عملية Storage</text>
+  <text x="104" y="294" font-size="12">ملفات كل المستأجرين</text>
+  <path d="M700 126 C674 126 678 180 652 184" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#trustba-i)"/>
+  <path d="M700 300 C674 300 678 246 652 242" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#trustba-i)"/>
+  <text x="646" y="140" font-size="11" fill="#5B5465" direction="ltr" text-anchor="end">HTTPS</text>
+  <text x="646" y="292" font-size="11" fill="#5B5465" direction="ltr" text-anchor="end">HTTPS</text>
+  <path d="M532 190 C516 190 518 141 502 141" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#trustba-i)"/>
+  <path d="M532 236 C516 236 518 285 502 285" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#trustba-i)"/>
+  <path d="M328 132 L312 132" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#trustba-i)"/>
+  <path d="M328 152 C318 152 322 192 312 192" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#trustba-i)"/>
+  <path d="M175 218 L175 234 L246 234 L246 246" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#trustba-i)"/>
+  <text x="164" y="238" font-size="11" fill="#5B5465" text-anchor="start">بحساباتها</text>
+  <path d="M328 162 L320 162 L320 340 L104 340 L104 316" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 4" marker-end="url(#trustba-i)"/>
+  <text x="232" y="356" font-size="11.5" fill="#5B5465">الملفات، بترويسة المستأجر</text>
+  <path d="M788 350 L788 406 L246 406 L246 316" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="2 5" marker-end="url(#trustba-i)"/>
+  <text x="520" y="400" font-size="11.5" fill="#5B5465">وصول مباشر إلى الخادم وSQL</text>
+  <text x="876" y="452" font-size="12.5" text-anchor="start">الأجزاء المشتركة: عطلها يصل إلى كل البيئات. التصميم ليس لعملاء يعادي بعضهم بعضًا.</text>
+  <rect x="854" y="461" width="22" height="14" rx="3" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
+  <text x="846" y="472" font-size="12" fill="#5B5465" text-anchor="start">مشترك</text>
+  <rect x="764.0" y="461" width="22" height="14" rx="3" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <text x="756.0" y="472" font-size="12" fill="#5B5465" text-anchor="start">لكل بيئة، أو موثوق</text>
+  <rect x="590.8" y="461" width="22" height="14" rx="3" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <text x="582.8" y="472" font-size="12" fill="#5B5465" text-anchor="start">غير موثوق</text>
+  </g>
+</svg>

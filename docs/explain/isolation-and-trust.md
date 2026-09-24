@@ -18,6 +18,16 @@ Each environment gets its own database, its own service logins and its own keys,
 
 ![Untrusted app visitors reach the server only through the TLS proxy and the gateway with a publishable key; trusted operators use the console or the host directly; each environment has its own Auth, REST, database and logins, while the PostgreSQL engine and Storage are shared failure boundaries](../diagrams/trust-boundaries.svg)
 
+*Only the TLS proxy faces the network; the engine and Storage are shared failure boundaries.*
+
+![A request with project A's key on environment A's path reaches A's REST and database A; the same key on environment B's path gets 401 at the gateway; and a login that tries another environment's database is refused by PostgreSQL's connection rules](../diagrams/key-isolation.svg)
+
+*No data mixing: A's key, tokens and logins open only A's database.*
+
+![A burst on environment A fills its 8 gateway slots and the ninth request gets 429 at once, while environment B still has free slots and is served; behind the gateway each environment has its own containers with CPU, memory and IO limits, and its own connection limits in the shared engine](../diagrams/load-isolation.svg)
+
+*A burst on one environment is refused at its own limits while the others are still served. The limits are not calibrated under sustained load.*
+
 
 What is separate per environment:
 

@@ -37,6 +37,8 @@ None of these was installed or benchmarked; the review read their documentation,
 
 ![Left, three full Supabase stacks that each repeat every component; right, Sbarbase with one gateway, Auth and REST per environment, one PostgreSQL engine with a database per environment, and one shared Storage; the shared parts are a shared failure boundary](../diagrams/full-stack-vs-shared.svg)
 
+*One engine and one Storage instead of a full stack per app leaves room for more projects on the same server.*
+
 
 A small control plane in TypeScript (Bun) keeps the catalog of clients, projects and environments and serves the console and the gateway. A Python runtime starts and supervises the pinned upstream containers. The full picture is in [architecture](architecture.md). Code: [src/control/catalog.ts](../../src/control/catalog.ts), [src/gateway/handler.ts](../../src/gateway/handler.ts), [lab/durable_runtime.py](../../lab/durable_runtime.py).
 

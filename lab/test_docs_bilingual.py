@@ -44,6 +44,13 @@ def fenced_blocks(text):
     return blocks
 
 
+def switch_link(path):
+    """The first line a page must carry: a link to the same page in the other language."""
+    if path.name.endswith('.ar.md'):
+        return f"[English]({path.name[:-len('.ar.md')]}.md)"
+    return f'[العربية]({arabic_path(path).name})'
+
+
 def first_line(path):
     return path.read_text(encoding='utf-8').splitlines()[0] if path.exists() else ''
 
@@ -67,20 +74,25 @@ class BilingualDocumentationTests(unittest.TestCase):
         self.assertEqual(drift, [], 'pages whose Arabic code blocks differ from the English ones')
 
     def test_each_page_links_to_its_other_language(self):
+        # English starts with [العربية](X.ar.md), Arabic with [English](X.md).
         unlinked = []
         for page in english_pages():
             arabic = arabic_path(page)
-            if f']({arabic.name})' not in first_line(page):
+            if first_line(page).strip() != switch_link(page):
                 unlinked.append(str(page.relative_to(ROOT)))
-            if arabic.exists() and f']({page.name})' not in first_line(arabic):
+            if arabic.exists() and first_line(arabic).strip() != switch_link(arabic):
                 unlinked.append(str(arabic.relative_to(ROOT)))
-        self.assertEqual(unlinked, [], 'pages whose first line does not link to the other language')
+        self.assertEqual(unlinked, [], 'pages whose first line is not the link to the other language')
 
 
 class CheckerSelfTests(unittest.TestCase):
     def test_fenced_blocks_are_extracted_in_order(self):
         text = 'a\n```bash\none\n```\nb\n~~~\ntwo\nthree\n~~~\n'
         self.assertEqual(fenced_blocks(text), ['one', 'two\nthree'])
+
+    def test_switch_link_points_to_the_other_language(self):
+        self.assertEqual(switch_link(DOCS / 'guides' / 'quickstart.md'), '[العربية](quickstart.ar.md)')
+        self.assertEqual(switch_link(DOCS / 'guides' / 'quickstart.ar.md'), '[English](quickstart.md)')
 
     def test_arabic_path_keeps_the_directory(self):
         self.assertEqual(arabic_path(DOCS / 'guides' / 'quickstart.md'), DOCS / 'guides' / 'quickstart.ar.md')

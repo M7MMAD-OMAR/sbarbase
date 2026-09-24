@@ -20,7 +20,6 @@ Continuity notes for coding agents are in [handoff](handoff/README.md). The chro
 - [EFFECT-GUARDIAN](EFFECT-GUARDIAN.md): parent-bound guardian with a deadline and group cleanup.
 - [NATIVE-OUTCOME-RECOVERY](NATIVE-OUTCOME-RECOVERY.md): completion witness that recovers a lost acknowledgment.
 - [PREFLIGHT-RECOVERY](PREFLIGHT-RECOVERY.md): bounded requeue of interruptions proven to be before any mutation.
-- [PREFLIGHT-RECOVERY-WIP](PREFLIGHT-RECOVERY-WIP.md): pointer left from the unfinished snapshot.
 - [ACTIVE-PREFLIGHT-CRASH](ACTIVE-PREFLIGHT-CRASH.md): a real supervisor SIGKILL during preflight.
 - [PROVISIONING-INSPECTION](PROVISIONING-INSPECTION.md): the read-only inspector for unresolved effects.
 - [PROVISIONING-MUTATION-MAP](PROVISIONING-MUTATION-MAP.md): every mutation boundary and the SQL integration gate.
@@ -96,4 +95,4 @@ Continuity notes for coding agents are in [handoff](handoff/README.md). The chro
 
 ## Plans
 
-- [plans](plans/README.md): working plans and design drafts, including the [execution plan](plans/2026-09-21-execution-plan.md) and the [generation migration plan](plans/2026-09-21-generation-migration-plan.md).
+- [plans](plans/README.md): working plans, led by the [roadmap](plans/2026-09-23-roadmap.md) and the [verification and migration plan](plans/2026-09-23-verification-and-migration-plan.md).

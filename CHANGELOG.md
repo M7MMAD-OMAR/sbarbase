@@ -199,7 +199,7 @@ Stated here rather than left to be discovered:
 - **The container generation migration is deferred**, so a retained database
   container cannot be recreated. The tier contract therefore applies to placements
   created after it, and the retained placement on a development host stays
-  grandfathered. `docs/engineering/plans/2026-09-21-generation-migration-plan.md` is the plan.
+  grandfathered. `docs/engineering/CONTAINER-GENERATION-MIGRATION.md` is the plan.
 - **Two measurements are blocked, not merely unrun**: the arrival driven pressure
   experiment and the mixed SDK load. Their only fixture generator,
   `lab/durable-check.ts`, is disabled pending that migration, and its fixture on a

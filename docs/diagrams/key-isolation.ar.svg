@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 470" width="900" height="470" role="img" aria-labelledby="keyisoa-t keyisoa-d" xml:lang="ar" direction="rtl">
+  <title id="keyisoa-t">مفتاح المشروع أ لا يصل إلى بيانات المشروع ب</title>
+  <desc id="keyisoa-d">ثلاثة صفوف. الأول: طلب على مسار البيئة أ بمفتاح أ العام؛ تجد البوابة المفتاح بين بصمات مفاتيح أ المخزنة، فتمرره إلى REST الخاص بـ أ، الذي يدخل إلى القاعدة أ بحساب أ الخاص. الثاني: المفتاح نفسه على مسار البيئة ب؛ ليس من مفاتيح ب، فترد البوابة بـ 401 ولا تمرر شيئًا. ورمز المستخدم الذي وقّعه Auth الخاص بـ أ غير صالح عند ب أيضًا، لأن لـ Auth ب سر توقيع خاصًا. الثالث، في العمق: حتى حساب خدمة يحاول القاعدة الخطأ يرفضه PostgreSQL، لأن قواعد الاتصال تسمّي أزواج الحساب والقاعدة بدقة، وصلاحية CONNECT على كل قاعدة ممنوحة لحساباتها وحدها.</desc>
+  <defs><marker id="keyisoa-i" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#2A2632" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="keyisoa-c" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#E06A4B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+  <rect x="0" y="0" width="900" height="470" fill="#F5EFE3"/>
+  <g font-family="system-ui, sans-serif" fill="#2A2632" text-anchor="middle">
+  <text x="876" y="34" font-size="16" font-weight="700" text-anchor="start">مفتاح المشروع أ لا يصل إلى بيانات المشروع ب</text>
+  <rect x="24" y="60" width="176" height="326" rx="8" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
+  <text x="112" y="84" font-size="12.5" font-weight="700">محرك PostgreSQL</text>
+  <text x="112" y="102" font-size="12">مشترك</text>
+  <rect x="40" y="116" width="144" height="70" rx="8" fill="#F0C23E" stroke="#2A2632" stroke-width="1.3"/>
+  <text x="112" y="142" font-size="12.5">القاعدة أ</text>
+  <text x="112" y="162" font-size="12.5">لحسابات أ وحدها</text>
+  <rect x="40" y="290" width="144" height="70" rx="8" fill="#F0C23E" stroke="#2A2632" stroke-width="1.3"/>
+  <text x="112" y="316" font-size="12.5">القاعدة ب</text>
+  <text x="112" y="336" font-size="12.5">لحسابات ب وحدها</text>
+  <text x="876" y="70" font-size="12" font-weight="700" fill="#146B5C" text-anchor="start">مسموح</text>
+  <text x="876" y="196" font-size="12" font-weight="700" fill="#A8412A" text-anchor="start">مرفوض عند البوابة</text>
+  <text x="876" y="300" font-size="12" font-weight="700" fill="#A8412A" text-anchor="start">مرفوض في PostgreSQL</text>
+  <rect x="726" y="80" width="150" height="60" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="801" y="104" font-size="12.5" font-weight="600">تطبيق بمفتاح أ</text>
+  <text x="801" y="124" font-size="11.5" font-family="ui-monospace, Menlo, Consolas, monospace" direction="ltr">/envA/rest/v1</text>
+  <rect x="500" y="80" width="190" height="60" rx="8" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
+  <text x="595" y="104" font-size="13" font-weight="700">البوابة</text>
+  <text x="595" y="124" font-size="12">المفتاح من بصمات أ</text>
+  <rect x="304" y="80" width="160" height="60" rx="8" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <text x="384" y="104" font-size="13" font-weight="600">REST للبيئة أ</text>
+  <text x="384" y="124" font-size="11.5">بحساب REST الخاص بـ أ</text>
+  <path d="M726 110 L692 110" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#keyisoa-i)"/>
+  <path d="M500 110 L466 110" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#keyisoa-i)"/>
+  <path d="M304 110 C250 110 240 151 186 151" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#keyisoa-i)"/>
+  <rect x="726" y="206" width="150" height="60" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="801" y="230" font-size="12.5" font-weight="600">تطبيق بمفتاح أ</text>
+  <text x="801" y="250" font-size="11.5" font-family="ui-monospace, Menlo, Consolas, monospace" direction="ltr">/envB/rest/v1</text>
+  <rect x="500" y="206" width="190" height="60" rx="8" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
+  <text x="595" y="230" font-size="13" font-weight="700">البوابة</text>
+  <text x="595" y="250" font-size="12">ليس من مفاتيح ب</text>
+  <rect x="304" y="206" width="160" height="60" rx="8" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <text x="384" y="230" font-size="12.5" font-weight="700">401، ولا يمر شيء</text>
+  <text x="384" y="250" font-size="12">بيانات ب لا تُمس</text>
+  <path d="M726 236 L692 236" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#keyisoa-i)"/>
+  <path d="M500 236 L466 236" fill="none" stroke="#E06A4B" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#keyisoa-c)"/>
+  <text x="690" y="164" font-size="12" fill="#5B5465" text-anchor="start">ورمز مستخدم من Auth الخاص بـ أ غير صالح عند ب: لكل Auth سر توقيع خاص.</text>
+  <rect x="726" y="310" width="150" height="60" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="801" y="334" font-size="12.5" font-weight="600">حساب REST لـ أ</text>
+  <text x="801" y="354" font-size="12">يحاول القاعدة ب</text>
+  <rect x="304" y="310" width="386" height="60" rx="8" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <text x="497" y="334" font-size="12.5" font-weight="700">قواعد الاتصال: حساب واحد لقاعدة واحدة</text>
+  <text x="497" y="354" font-size="12">صلاحية CONNECT لحساباتها وحدها</text>
+  <path d="M726 340 L692 340" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#keyisoa-i)"/>
+  <path d="M304 340 C250 340 240 325 200 325" fill="none" stroke="#E06A4B" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 4" marker-end="url(#keyisoa-c)"/>
+  <text x="252" y="318" font-size="11.5" fill="#A8412A">رفض</text>
+  <text x="876" y="414" font-size="12" fill="#5B5465" text-anchor="start">ولكل بيئة أيضًا مستأجر Storage ومفاتيح توقيع خاصة. المشغّلون وكتّاب SQL الموثوقون خارج هذا الحد.</text>
+  <rect x="854" y="435" width="22" height="14" rx="3" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <text x="846" y="446" font-size="12" fill="#5B5465" text-anchor="start">واحد لكل بيئة</text>
+  <rect x="712.8" y="435" width="22" height="14" rx="3" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
+  <text x="704.8" y="446" font-size="12" fill="#5B5465" text-anchor="start">مشترك</text>
+  <rect x="622.8" y="435" width="22" height="14" rx="3" fill="#F0C23E" stroke="#2A2632" stroke-width="1.3"/>
+  <text x="614.8" y="446" font-size="12" fill="#5B5465" text-anchor="start">قاعدة البيئة</text>
+  <rect x="488.0" y="435" width="22" height="14" rx="3" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <text x="480.0" y="446" font-size="12" fill="#5B5465" text-anchor="start">مرفوض</text>
+  </g>
+</svg>

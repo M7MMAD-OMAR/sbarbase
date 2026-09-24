@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 510" width="900" height="510" role="img" aria-labelledby="instala-t instala-d" xml:lang="ar" direction="rtl">
+  <title id="instala-t">البداية السريعة: من خادم فارغ إلى استدعاء supabase-js</title>
+  <desc id="instala-d">ثماني خطوات. 1، ثبّت Docker وGit وPython 3.14. 2، أنشئ حساب الخدمة sbarbase ونسخة المستودع. 3، ثبّت Bun بالإصدار المثبّت لذلك الحساب. 4، اكتب بيانات المشغّل الأول في ملف خاص. 5، شغّل فحص الخادم حتى يعطي 0 عوائق. 6، أمر استلام واحد يفحص المتطلبات، ويبني لوحة الإدارة، ويفحص وكيل TLS، ويثبّت وحدة systemd، ويسحب الصور المثبّتة، ويجرب تشغيلًا وإيقافًا نظيفًا، وينشئ أول مشروع ببيئة إنتاج ويسجّل مستخدمًا بـ supabase-js عبر البوابة، وينتهي بـ Server acceptance: PASSED. 7، افتح لوحة الإدارة عبر نفق SSH. 8، وجّه تطبيقك إلى عنوان HTTPS. جُرّب في جهاز افتراضي محلي بنظام Fedora 44، ولم يُجرّب على خادم حقيقي بعد.</desc>
+  <defs><marker id="instala-i" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#2A2632" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="instala-c" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#E06A4B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+  <rect x="0" y="0" width="900" height="510" fill="#F5EFE3"/>
+  <g font-family="system-ui, sans-serif" fill="#2A2632" text-anchor="middle">
+  <text x="876" y="34" font-size="16" font-weight="700" text-anchor="start">البداية السريعة: من خادم فارغ إلى استدعاء supabase-js</text>
+  <rect x="672" y="60" width="204" height="88" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <circle cx="856" cy="80" r="11" fill="#2A2632"/>
+  <text x="856" y="84.5" font-size="12.5" font-weight="700" fill="#FFFBF1">1</text>
+  <text x="838" y="85" font-size="13" font-weight="700" text-anchor="start">حزم النظام</text>
+  <text x="774" y="112" font-size="12.5">Docker وGit</text>
+  <text x="774" y="131" font-size="12.5">وPython 3.14</text>
+  <path d="M672 104 L662 104" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#instala-i)"/>
+  <rect x="456" y="60" width="204" height="88" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <circle cx="640" cy="80" r="11" fill="#2A2632"/>
+  <text x="640" y="84.5" font-size="12.5" font-weight="700" fill="#FFFBF1">2</text>
+  <text x="622" y="85" font-size="13" font-weight="700" text-anchor="start">حساب الخدمة</text>
+  <text x="558" y="112" font-size="12.5">المستخدم sbarbase</text>
+  <text x="558" y="131" font-size="12.5">ونسخة المستودع</text>
+  <path d="M456 104 L446 104" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#instala-i)"/>
+  <rect x="240" y="60" width="204" height="88" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <circle cx="424" cy="80" r="11" fill="#2A2632"/>
+  <text x="424" y="84.5" font-size="12.5" font-weight="700" fill="#FFFBF1">3</text>
+  <text x="406" y="85" font-size="13" font-weight="700" text-anchor="start">تثبيت Bun</text>
+  <text x="342" y="112" font-size="12.5">بالإصدار المثبّت</text>
+  <text x="342" y="131" font-size="12.5">لذلك الحساب</text>
+  <path d="M240 104 L230 104" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#instala-i)"/>
+  <rect x="24" y="60" width="204" height="88" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <circle cx="208" cy="80" r="11" fill="#2A2632"/>
+  <text x="208" y="84.5" font-size="12.5" font-weight="700" fill="#FFFBF1">4</text>
+  <text x="190" y="85" font-size="13" font-weight="700" text-anchor="start">ملف المشغّل</text>
+  <text x="126" y="112" font-size="12.5">ملف خاص بصلاحية 600</text>
+  <text x="126" y="131" font-size="12.5">بلا كلمة مرور في الأوامر</text>
+  <path d="M126 148 L126 162 L774 162 L774 176" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#instala-i)"/>
+  <rect x="672" y="178" width="204" height="88" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <circle cx="856" cy="198" r="11" fill="#2A2632"/>
+  <text x="856" y="202.5" font-size="12.5" font-weight="700" fill="#FFFBF1">5</text>
+  <text x="838" y="203" font-size="13" font-weight="700" text-anchor="start">فحص الخادم</text>
+  <text x="774" y="230" font-size="12">ينتهي بعبارة</text>
+  <text x="774" y="249" font-size="12" direction="ltr">Preflight: 0 blocker(s)</text>
+  <path d="M672 222 L662 222" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#instala-i)"/>
+  <rect x="24" y="178" width="636" height="164" rx="8" fill="#FBE7A8" stroke="#2A2632" stroke-width="1.3"/>
+  <circle cx="640" cy="198" r="11" fill="#2A2632"/>
+  <text x="640" y="202.5" font-size="12.5" font-weight="700" fill="#FFFBF1">6</text>
+  <text x="622" y="203" font-size="13" font-weight="700" text-anchor="start">أمر استلام واحد، بالترتيب</text>
+  <text x="638" y="232" font-size="12.5" text-anchor="start">1. يفحص المتطلبات</text>
+  <text x="638" y="254" font-size="12.5" text-anchor="start">2. يبني لوحة الإدارة</text>
+  <text x="638" y="276" font-size="12.5" text-anchor="start">3. يفحص وكيل TLS</text>
+  <text x="638" y="298" font-size="12.5" text-anchor="start">4. يثبّت وحدة systemd</text>
+  <text x="328" y="232" font-size="12.5" text-anchor="start">5. يسحب الصور المثبّتة (نحو 2.4 GB)</text>
+  <text x="328" y="254" font-size="12.5" text-anchor="start">6. يجرّب تشغيلًا وإيقافًا نظيفًا</text>
+  <text x="328" y="276" font-size="12.5" text-anchor="start">7. أول مشروع ببيئة إنتاج</text>
+  <text x="328" y="298" font-size="12.5" text-anchor="start">8. تسجيل بـ supabase-js عبر البوابة</text>
+  <text x="342" y="330" font-size="12.5" font-weight="700" fill="#146B5C" font-family="ui-monospace, Menlo, Consolas, monospace" direction="ltr">Server acceptance: PASSED</text>
+  <path d="M450 342 C450 356 666 352 666 368" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#instala-i)"/>
+  <path d="M234 342 C234 356 234 352 234 368" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#instala-i)"/>
+  <rect x="456" y="370" width="420" height="70" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <circle cx="856" cy="390" r="11" fill="#2A2632"/>
+  <text x="856" y="394.5" font-size="12.5" font-weight="700" fill="#FFFBF1">7</text>
+  <text x="838" y="395" font-size="13" font-weight="700" text-anchor="start">لوحة الإدارة عبر نفق SSH</text>
+  <text x="666" y="422" font-size="12.5">على العنوان المحلي فقط، بمنفذ ثابت</text>
+  <rect x="24" y="370" width="420" height="70" rx="8" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <circle cx="424" cy="390" r="11" fill="#2A2632"/>
+  <text x="424" y="394.5" font-size="12.5" font-weight="700" fill="#FFFBF1">8</text>
+  <text x="406" y="395" font-size="13" font-weight="700" text-anchor="start">تطبيقك عبر HTTPS</text>
+  <text x="234" y="422" font-size="12.5">وكيل TLS في الواجهة، ثم supabase-js</text>
+  <text x="876" y="470" font-size="12.5" text-anchor="start">جُرّب في جهاز افتراضي محلي بنظام Fedora 44 (4 أنوية، 6 GB)، ولم يُشغَّل على خادم حقيقي بعد.</text>
+  <text x="876" y="490" font-size="12.5" fill="#5B5465" text-anchor="start">عند الفشل تُذكر الخطوة وتبقى الخدمة كما كانت؛ أعد تشغيل الأمر نفسه.</text>
+  </g>
+</svg>

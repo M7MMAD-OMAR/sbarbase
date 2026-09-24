@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 470" width="900" height="470" role="img" aria-labelledby="hierara-t hierara-d" xml:lang="ar" direction="rtl">
+  <title id="hierara-t">العملاء والمشاريع والبيئات على خادم واحد</title>
+  <desc id="hierara-d">على اليسار شجرة الملكية في الفهرس: العميل أ يملك مشروع المتجر وله بيئتا الإنتاج والتجربة، والعميل ب يملك مشروع المدونة وله بيئة الإنتاج. وعلى اليمين مكان التشغيل: على خادمك محرك PostgreSQL مشترك واحد فيه قاعدة بيانات منفصلة لكل بيئة. سجل التوجيه يربط كل بيئة بمكان تشغيلها، فنقل البيئة يغيّر هذا السجل وحده، ويبقى مالكها ومعرّفاتها ومفاتيحها كما هي. ويعمل كل ذلك على خادم عادي واحد.</desc>
+  <defs><marker id="hierara-i" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#2A2632" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="hierara-c" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#E06A4B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+  <rect x="0" y="0" width="900" height="470" fill="#F5EFE3"/>
+  <g font-family="system-ui, sans-serif" fill="#2A2632" text-anchor="middle">
+  <text x="876" y="34" font-size="16" font-weight="700" text-anchor="start">العملاء والمشاريع والبيئات على خادم واحد</text>
+  <text x="876" y="72" font-size="12.5" font-weight="600" fill="#5B5465" text-anchor="start">من يملكها (الفهرس)</text>
+  <text x="404" y="72" font-size="12.5" font-weight="600" fill="#5B5465" text-anchor="start">أين تعمل (سجلات التوجيه)</text>
+  <rect x="752" y="110" width="124" height="44" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="814" y="137" font-size="13" font-weight="700">العميل أ</text>
+  <rect x="590" y="110" width="132" height="44" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="656" y="137" font-size="13">مشروع: المتجر</text>
+  <path d="M752 132 L722 132" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="752" y="250" width="124" height="44" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="814" y="277" font-size="13" font-weight="700">العميل ب</text>
+  <rect x="590" y="250" width="132" height="44" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="656" y="277" font-size="13">مشروع: المدونة</text>
+  <path d="M752 272 L722 272" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="436" y="86" width="124" height="40" rx="8" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <text x="498" y="111" font-size="13">الإنتاج</text>
+  <rect x="436" y="138" width="124" height="40" rx="8" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <text x="498" y="163" font-size="13">التجربة</text>
+  <rect x="436" y="252" width="124" height="40" rx="8" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <text x="498" y="277" font-size="13">الإنتاج</text>
+  <path d="M590 132 C575 132 575 106 560 106" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M590 132 C575 132 575 158 560 158" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M590 272 L560 272" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="876" y="346" font-size="12.5" text-anchor="start">البيئة هي وحدة العزل والنسخ الاحتياطي</text>
+  <text x="876" y="363" font-size="12.5" text-anchor="start">والنقل والاستعادة.</text>
+  <text x="876" y="384" font-size="12" fill="#5B5465" text-anchor="start">في الكود: العميل هو organization،</text>
+  <text x="876" y="400" font-size="12" fill="#5B5465" text-anchor="start">وخادمك هو installation.</text>
+  <rect x="24" y="86" width="380" height="236" rx="8" fill="none" stroke="#2A2632" stroke-width="1.3" stroke-dasharray="7 5"/>
+  <text x="388" y="108" font-size="13" font-weight="700" text-anchor="start">خادمك</text>
+  <rect x="40" y="120" width="348" height="186" rx="8" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
+  <text x="214" y="142" font-size="13" font-weight="700">محرك PostgreSQL مشترك واحد</text>
+  <rect x="60" y="156" width="308" height="38" rx="8" fill="#F0C23E" stroke="#2A2632" stroke-width="1.3"/>
+  <text x="214" y="180" font-size="13">قاعدة: المتجر، الإنتاج</text>
+  <rect x="60" y="204" width="308" height="38" rx="8" fill="#F0C23E" stroke="#2A2632" stroke-width="1.3"/>
+  <text x="214" y="228" font-size="13">قاعدة: المتجر، التجربة</text>
+  <rect x="60" y="252" width="308" height="38" rx="8" fill="#F0C23E" stroke="#2A2632" stroke-width="1.3"/>
+  <text x="214" y="276" font-size="13">قاعدة: المدونة، الإنتاج</text>
+  <path d="M436 106 C402 106 402 175 370 175" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 4" marker-end="url(#hierara-i)"/>
+  <path d="M436 158 C402 158 402 223 370 223" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 4" marker-end="url(#hierara-i)"/>
+  <path d="M436 272 C402 272 402 271 370 271" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 4" marker-end="url(#hierara-i)"/>
+  <text x="214" y="352" font-size="12.5" font-weight="600">خادم عادي واحد، دون حاجة إلى خادم ثانٍ</text>
+  <text x="876" y="426" font-size="12.5" text-anchor="start">نقل بيئة يغيّر سجل توجيهها وحده؛ ويبقى مالكها ومعرّفاتها ومفاتيحها كما هي.</text>
+  <rect x="854" y="445" width="22" height="14" rx="3" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <text x="846" y="456" font-size="12" fill="#5B5465" text-anchor="start">واحدة لكل بيئة</text>
+  <rect x="706.4" y="445" width="22" height="14" rx="3" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
+  <text x="698.4" y="456" font-size="12" fill="#5B5465" text-anchor="start">مشترك</text>
+  <rect x="616.4" y="445" width="22" height="14" rx="3" fill="#F0C23E" stroke="#2A2632" stroke-width="1.3"/>
+  <text x="608.4" y="456" font-size="12" fill="#5B5465" text-anchor="start">قاعدة البيئة</text>
+  </g>
+</svg>
