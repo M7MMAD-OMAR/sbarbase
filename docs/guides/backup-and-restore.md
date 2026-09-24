@@ -22,20 +22,62 @@ Commands (with Docker, prefix `docker compose exec sbarbase`):
 | List backups | `python3 lab/backup.py list` |
 | Restore an environment | `python3 lab/backup.py restore <environment> <backup>` |
 | Drop what a restore set aside | `python3 lab/backup.py discard-previous <environment>` |
+| List the sets on the off-host target | `python3 lab/backup.py offsite-list` |
+| Bring one set back from the target | `python3 lab/backup.py offsite-fetch <backup>` |
+| Restore from the target | `python3 lab/backup.py restore <environment> <backup> --offsite` |
 
 `<environment>` is the environment id from the console, or its runtime id (`e_...`, the path in its API URL). `<backup>` is the time shown by `list`, such as `20260924T030000Z`.
 
 **Restore** puts one environment back exactly as it was in that backup: rows, users and files written afterwards are gone. Only that environment's Auth and REST pause for the restore; every other environment and the console keep working. The state being replaced is kept aside, not deleted, and any failure during the restore puts it back automatically. When you are satisfied, `discard-previous` removes it.
 
-**Keep a copy off the server.** Backups are written to `.lab/backups/` on this server, with private permissions. A copy elsewhere protects against losing the server, for example:
+CI runs the full cycle on every change: back up while serving, change rows, users and files, restore, check that everything matches the backup, and discard the set-aside state.
+
+**The installation manifest.** Each daily run also writes `.lab/backups/installation/<backup>/`: the pinned images, the routing of every environment, the catalog's clients, projects, environments, memberships and jobs, the operator settings, and the names of the files in `.secrets/`. It holds no secret value: it is built from lists of allowed fields, and a webhook address is reduced to its host. It carries a digest and is kept as long as the environment backups. On a new server it tells you which pins and secrets the backups need.
+
+## Encrypted copies off the server
+
+Backups are written to `.lab/backups/` on this server. To keep a copy elsewhere, point Sbarbase at one S3-compatible bucket (Amazon S3, Cloudflare R2, Backblaze B2, MinIO and others). After each daily run, the run's backups and its installation manifest are packed into one file, encrypted with AES-256-GCM, and uploaded as `<prefix><backup>.sbb`. The target keeps as many sets as `SBARBASE_BACKUP_KEEP`; older sets under the same prefix are deleted, and other objects are never touched.
+
+1. Create the encryption key. Sbarbase never creates one on its own:
+
+   ```bash
+   python3 lab/backup.py offsite-key .secrets/upstream/offsite-key.json
+   ```
+
+   The file is mode 0600. **Keep a copy of it away from this server**: without it no copy can be decrypted, and anyone with it and the bucket can read every backup.
+2. Put the bucket's access key in a 0600 file, for example `.secrets/upstream/offsite-s3.json`:
+
+   ```json
+   {"schema": 1, "accessKeyId": "<access key id>", "secretAccessKey": "<secret access key>"}
+   ```
+
+   Give that key only list, read, write and delete rights on the bucket.
+3. Write `.lab/upstream/backup-offsite.json`:
+
+   ```json
+   {
+     "schema": 1,
+     "s3": {"endpoint": "https://s3.eu-central-1.amazonaws.com", "region": "eu-central-1",
+            "bucket": "example-backups", "prefix": "sbarbase/",
+            "credentialsFile": ".secrets/upstream/offsite-s3.json"},
+     "keyFile": ".secrets/upstream/offsite-key.json"
+   }
+   ```
+
+   The endpoint must use `https`. Paths are relative to the checkout.
+
+The next daily run copies itself. A copy that fails (the bucket is unreachable, the key file is missing or readable by others) sends a `backup.failed` notification and prints the reason; the local backups are never changed or removed, and nothing is deleted on the target. The run can then report both a completed backup and a failed copy.
+
+Only the daily run (`create all`) is copied; a backup of one environment taken by hand stays on this server.
+
+**Restore from the target**, on this server or on a new one with the same environment published. A new server needs the three files above first: the configuration, the credentials file and your copy of the key.
 
 ```bash
-rsync -a --delete /opt/sbarbase/.lab/backups/ backup-host:/srv/sbarbase-backups/
+python3 lab/backup.py offsite-list
+python3 lab/backup.py restore <environment> <backup> --offsite
 ```
 
-Each backup contains password hashes and every stored file, so keep the copy as private as the server.
-
-CI runs the full cycle on every change: back up while serving, change rows, users and files, restore, check that everything matches the backup, and discard the set-aside state.
+The set is downloaded, its authentication tag is checked before anything is unpacked, and each backup is checked against its digests before `restore` uses it. A backup already on this server is kept as it is.
 
 ## Whole-server cold backup
 
@@ -84,8 +126,12 @@ A failed restore leaves its descriptor behind, and a plain rerun refuses. Do not
 
 ## Limits
 
-- No schedule, no retention policy, no off-host transfer, no point-in-time recovery.
-- Every backup path above means downtime for all environments on the engine, not only the one being saved.
+- The daily backup, its retention and the off-host copy are described at the top of this page. The limits in this list apply to it too: no point-in-time recovery.
+- The cold backup and the encrypted export above mean downtime for all environments on the engine, not only the one being saved.
+- The off-host copy speaks S3 only; SSH or rsync targets are not built. It is tested against a local fake bucket, not yet against a real provider.
+- One set is one upload, so a set larger than the provider's single upload limit (5 GiB on Amazon S3) fails. The set is written encrypted to this server before the upload, so the disk needs room for it.
+- Retention on the target is by count, not by age.
+- Restoring from the target needs the environment already published on that server. Database roles shared by the whole engine are not in the set.
 - Restore has been rehearsed on one host with a test fixture, not on a server with real client data.
 - Once a restored target has accepted writes, going back to the old source is unsafe without reconciliation.
 

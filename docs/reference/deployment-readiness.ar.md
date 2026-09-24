@@ -37,7 +37,7 @@
 | الحساب والتخطيط اللذان يعمل بهما التثبيت | مسمّيان ومتحقق منهما، ويُرفض الحساب المفقود | يقبل `lab/install_server.py supervise` الخيارات `--service-user` و`--home` و`--bun-dir`، ويمرّرها `deploy/server-acceptance.sh`. يرفض المثبّت `--apply` لحساب غير موجود (الافتراضي المرفق `sbarbase`)، ويسجّل `service_account: present|missing` في أدلته، فلا ينتج التثبيت أبدًا وحدة عاجزة عن البدء |
 | HTTPS والتعرض للشبكة | الإنهاء منفّذ ومفحوص على هذا الخادم؛ الشهادة العامة ووكيل الإنتاج من شأن المشغّل | `deploy/console-tls-proxy.ts` و`lab/tls_termination_check.py` (23 فحصًا، `docs/evidence/tls-termination.json`)؛ دليل التشغيل في `docs/guides/server-deployment.md`. التثبيت نفسه لا ينشر أي منفذ |
 | الترقية والتراجع | سياسة ودليل تشغيل، ولم يُعتمد أي إصدار بعد | `docs/engineering/UPSTREAM-UPDATE-POLICY.md` و`docs/guides/server-deployment.md` |
-| النسخ الاحتياطي والاستعادة | الاستعادة ثابتة بالأدلة محليًا، والاستعادة خارج الخادم غير منفّذة | `docs/engineering/INDEPENDENT-RESTORE.md`؛ الاستعادة خارج الخادم ما زالت خارج النطاق |
+| النسخ الاحتياطي والاستعادة | الاستعادة ثابتة بالأدلة محليًا؛ النسخ المشفّرة إلى حاوية متوافقة مع S3 مختبرة باختبارات الوحدات على حاوية وهمية محلية، ولم تُشغَّل على مزوّد حقيقي | `docs/engineering/INDEPENDENT-RESTORE.md`، `docs/guides/backup-and-restore.md`، `lab/test_backup_offsite.py` |
 | السعة عند 10 مشاريع أو 100 | غير مدّعاة | حدود مضبوطة فقط، بلا قياس لذروة الطلب |
 | Realtime وFunctions والمجمّع وcron | غير منفّذة | خارج نطاق هذه المراجعة |
 

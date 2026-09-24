@@ -72,6 +72,22 @@ If `.lab/upstream/notifications.json` exists, the worker delivers operator event
 
 Among the events: **an environment kept needing more than its share.** The gateway guarantees each environment 8 requests in flight and lets a busy one borrow up to 24 of the 32, leaving free the unused share of every project active in the last minute (and at least 8). Borrowing alone is never reported. After 15 minutes in a row of being refused at its limit, or of crowding out a neighbour, you get one notice for that environment, with what to do: raise its share, move it to its own database engine, or grow the server. Design: [fair share admission](../engineering/FAIR-SHARE-ADMISSION.md).
 
+## Off-host backup copies
+
+If `.lab/upstream/backup-offsite.json` exists, each daily backup run is encrypted and copied to one S3-compatible bucket:
+
+```json
+{
+  "schema": 1,
+  "s3": {"endpoint": "https://s3.eu-central-1.amazonaws.com", "region": "eu-central-1",
+         "bucket": "example-backups", "prefix": "sbarbase/",
+         "credentialsFile": ".secrets/upstream/offsite-s3.json"},
+  "keyFile": ".secrets/upstream/offsite-key.json"
+}
+```
+
+`endpoint` must be `https` (plain `http` only on loopback). `prefix` may hold letters, digits, `.`, `_`, `-` and `/`. `credentialsFile` is a 0600 file `{"schema": 1, "accessKeyId": "...", "secretAccessKey": "..."}`. `keyFile` is a 0600 file `{"schema": 1, "key": "<64 hex characters>"}`, created only on request with `python3 lab/backup.py offsite-key PATH`. Both files are refused when they are symlinks or readable by group or others. Retention follows `SBARBASE_BACKUP_KEEP`. Setup and limits: [backup and restore](../guides/backup-and-restore.md).
+
 ## State directories
 
 Both are ignored by Git. Never print `.secrets/`, and never delete either to get past a refusal.
@@ -82,6 +98,7 @@ Both are ignored by Git. Never print `.secrets/`, and never delete either to get
 | `.lab/upstream/server.json` | URL and PID of the running loopback server |
 | `.lab/upstream/*.json` | Operation journals, recovery descriptors and probe outputs |
 | `.lab/ui/` | The built console |
+| `.lab/backups/` | Daily backups per environment, and the installation manifest of each run under `installation/` |
 | `.secrets/upstream/runtime.json` | Generated credentials of the owned runtime |
 | `.secrets/upstream/managed-keys.sqlite` | Hashed publishable key metadata |
 | `.secrets/upstream/bootstrap.json` | Operator setup journal (no password) |
