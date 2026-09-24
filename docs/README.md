@@ -31,6 +31,7 @@ Read these to understand the design. Each page has the same shape: what it is, w
 - [Operator setup](guides/operator-setup.md): create the first operator and client.
 - [Server deployment](guides/server-deployment.md): the server runbook and its known gaps.
 - [Realtime](guides/realtime.md): database changes, broadcast and presence per environment.
+- [Move from Supabase](guides/move-from-supabase.md): copy a Supabase project, users and files into a new environment with one command.
 - [Database access](guides/database-access.md): a PostgreSQL connection string per environment for migrations, psql and ORMs.
 - [Edge Functions](guides/edge-functions.md): deploy a Supabase functions folder to an environment and call it with supabase-js.
 - [Logs and metrics](guides/logs-and-metrics.md): requests, errors, response times and service logs per environment.

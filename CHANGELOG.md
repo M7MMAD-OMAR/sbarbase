@@ -15,6 +15,13 @@ ready.
 
 ### Added
 
+- **Move a project from Supabase in one command.** `lab/import_project.py`
+  reads a Supabase project (Cloud, self-hosted, or another environment) and
+  copies it into a new, empty environment: the `public` schema with its
+  policies and the source's own grants, users with their password hashes,
+  every row, buckets and files with their owners, and triggers on
+  `auth.users` and `storage.objects`, then compares counts before reporting
+  success. `--dry-run` only inspects.
 - **Encrypted off-site backup copies.** `lab/offsite.py configure` takes S3
   settings (Cloudflare R2, Backblaze B2, AWS S3, MinIO) and a passphrase on
   stdin; from then on each daily backup is encrypted on the server

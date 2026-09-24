@@ -132,7 +132,7 @@ A start needs its containers' memory limits plus a 2560 MiB reserve: 1792 MiB of
 - A rehearsal on a real server. The empty-server install passed in a local VM only.
 - The connection pooler and cron. `SUPABASE_DB_URL` inside Edge Functions.
 - Point-in-time recovery, and rebuilding a whole lost server from the off-site copies in one step (each environment's copy restores; the installation's own state does not travel with it yet).
-- Importing a project from Supabase Cloud or a self-hosted stack beyond the read-only inspection.
+- Importing schemas other than `public`, Vault secrets and cron jobs from a Supabase project (the [import](../guides/move-from-supabase.md) moves `public`, users, rows and files).
 - Automatic recovery of later-stage provisioning failures; they block until an operator reconciles them.
 - Adoption of any upstream release through the update policy; unattended upgrades (an operator starts each one with [lab/upgrade.py](../../lab/upgrade.py)).
 - Complete project transfer between clients, invitations, MFA and login rate limits.
