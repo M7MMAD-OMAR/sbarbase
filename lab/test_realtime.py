@@ -79,6 +79,8 @@ class RuntimeTests(unittest.TestCase):
         self.assertNotRegex(created, r'CREATE ROLE \S+ [^;]*SUPERUSER')
         self.assertIn('NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS', created)
         self.assertIn('WITH INHERIT FALSE, SET TRUE', created)
+        self.assertIn(f'GRANT SET ON PARAMETER log_min_messages TO {E}_realtime', created)
+        self.assertNotIn('ALTER SYSTEM', created)
 
     def test_a_failed_start_still_takes_the_superuser_away(self):
         with patch.object(self.runtime, 'launch', side_effect=RuntimeError('Docker operation run failed; exit 125')):

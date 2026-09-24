@@ -633,7 +633,9 @@ ALTER ROLE {role} LOGIN INHERIT REPLICATION NOSUPERUSER NOCREATEDB NOCREATEROLE 
   CONNECTION LIMIT {connection_budget.REALTIME_CONNECTIONS} PASSWORD '{v['realtime']}';
 GRANT CONNECT, CREATE, TEMPORARY ON DATABASE {e} TO {role};
 GRANT anon, authenticated, service_role TO {role} WITH INHERIT FALSE, SET TRUE;
-GRANT supabase_realtime_admin TO {role};""")
+GRANT supabase_realtime_admin TO {role};
+-- Realtime quiets its change poller's own logging; only that one setting is granted.
+GRANT SET ON PARAMETER log_min_messages TO {role}, supabase_realtime_admin;""")
         self.sql(f"""CREATE SCHEMA IF NOT EXISTS _realtime AUTHORIZATION {role};
 CREATE SCHEMA IF NOT EXISTS realtime AUTHORIZATION {role};
 DO $$ BEGIN
