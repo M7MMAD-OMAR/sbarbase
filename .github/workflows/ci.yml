@@ -82,6 +82,29 @@ jobs:
         run: docker compose exec -T sbarbase python3 lab/backup-check.py --evidence "$PWD/docs/evidence/docker-backup-restore.json"
       - name: Studio for the environment, behind the console login
         run: docker compose exec -T sbarbase bun lab/studio-check.ts "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-studio-checks.json"
+      - name: Upgrade, then a broken upgrade that moves back by itself
+        run: |
+          versions=$(python3 lab/upgrade-check.py candidates)
+          eval "$versions"
+          phase() {
+            for i in $(seq 1 120); do
+              p=$(sudo jq -r .phase .lab/upgrades/state.json 2>/dev/null || true)
+              [ "$p" = "$1" ] && curl -fsS -o /dev/null http://127.0.0.1:8790/ && return 0
+              case "$p" in failed|rollback_failed) break ;; esac
+              sleep 5
+            done
+            echo "upgrade phase: $p (expected $1)"; docker compose logs --tail 120; return 1
+          }
+          docker compose exec -T sbarbase python3 lab/upgrade-check.py before "$good" "$bad"
+          docker compose exec -T sbarbase python3 lab/upgrade.py start --to "$good"
+          docker compose restart
+          phase confirmed
+          docker compose exec -T sbarbase python3 lab/upgrade-check.py after upgraded
+          docker compose exec -T sbarbase python3 lab/upgrade.py start --to "$bad"
+          docker compose restart
+          phase rolled_back
+          docker compose exec -T sbarbase python3 lab/upgrade.py status
+          docker compose exec -T sbarbase python3 lab/upgrade-check.py after rolled-back --evidence "$PWD/docs/evidence/docker-upgrade-checks.json"
       - name: Restart and come back
         run: |
           docker compose restart

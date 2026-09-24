@@ -259,6 +259,16 @@ def run_stage(command, stop_event, timeout=180, pass_fds=(), env=None):
         terminate_group(process, grace=2)
 
 
+def upgrade_outcome(started):
+    """Confirms a pending upgrade or rollback, or moves a failed upgrade back (lab/upgrade.py)."""
+    try:
+        import upgrade
+        return upgrade.after_start(started)
+    except Exception as error:
+        print(f'Upgrade bookkeeping failed: {error}', file=sys.stderr)
+        return False
+
+
 def main():
     if sys.argv[1:]:
         if sys.argv[1:] in (['--help'], ['-h']):
@@ -301,6 +311,7 @@ def main():
             # durable: that is the state change this event records. A stage that fails
             # leaves no durable start, and no event is emitted for it here.
             notify_installation('installation.started')
+            upgrade_outcome(True)
             if not stop_event.is_set():
                 Supervisor(stop_event, worker_lock.fileno()).run()
         except InterruptedError:
@@ -310,6 +321,9 @@ def main():
             # path owns no durable state change to emit from. The runtime's own refusal, if
             # there was one, is emitted where its 0600 diagnostic is written.
             print(str(error), file=sys.stderr)
+            if upgrade_outcome(False):
+                print('The new version did not start, so the checkout moved back to the previous version. '
+                      'It starts again on that version; lab/upgrade.py status shows the outcome.', file=sys.stderr)
             raise SystemExit(1)
         finally:
             if started:
