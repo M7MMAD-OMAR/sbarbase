@@ -55,6 +55,7 @@ def main():
     parser.add_argument('--endpoint', required=True)
     parser.add_argument('--bucket', required=True)
     parser.add_argument('--evidence', default='docs/evidence/offsite-checks.json')
+    parser.add_argument('--peer', default='minio', help='the S3-compatible storage the check runs against')
     args = parser.parse_args()
     key_id, secret = os.environ['OFFSITE_KEY_ID'], os.environ['OFFSITE_SECRET']
     try:
@@ -62,7 +63,7 @@ def main():
         record('the storage has a bucket for the copies', status in (200, 409), f'status {status}')
         environments = backup.environments()
         if not record('a published environment exists', bool(environments)):
-            return finish(args.evidence)
+            return finish(args.evidence, args.peer)
         e = environments[0]
         passphrase = 'ci ' + os.urandom(12).hex()
         settings = {'endpoint': args.endpoint, 'bucket': args.bucket, 'region': 'us-east-1', 'access_key_id': key_id,
@@ -109,15 +110,15 @@ def main():
         # The storage is throwaway; later backups on this installation stay local.
         (ROOT / '.secrets' / 'offsite.json').unlink(missing_ok=True)
         offsite.RECORD.unlink(missing_ok=True)
-    return finish(args.evidence)
+    return finish(args.evidence, args.peer)
 
 
-def finish(evidence):
+def finish(evidence, peer='minio'):
     passed = bool(checks) and all(row['ok'] for row in checks)
     Path(evidence).write_text(json.dumps({
         'check': 'offsite', 'recorded': datetime.datetime.now(datetime.UTC).isoformat(timespec='seconds'), 'passed': passed,
         'count': len(checks), 'seconds': round(time.time() - started),
-        'scope': 'Encrypted off-site copies for one environment on a running installation, against a throwaway MinIO as the '
+        'scope': f'Encrypted off-site copies for one environment on a running installation, against a throwaway {peer} as the '
                  'S3-compatible storage: configured from stdin, a backup copied off the server by itself, only ciphertext in the '
                  'bucket, the local backup removed, a wrong passphrase refused, the copy fetched and restored.',
         'checks': checks}, indent=2) + '\n')
