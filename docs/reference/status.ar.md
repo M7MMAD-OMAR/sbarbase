@@ -91,6 +91,7 @@
 | إعدادات تسجيل الدخول: حفظ عنوان الموقع وعناوين إعادة التوجيه ومزوّد GitHub وتطبيقها بإعادة إنشاء Auth، وبدء OAuth ورابط بريد دون مفتاح، وإنشاء حساب بعد إعادة الإنشاء، ثم إزالة المزوّد ([تسجيل الدخول](../guides/sign-in.ar.md)) | [docker-sign-in-checks.json](../evidence/docker-sign-in-checks.json) | 15 |
 | Realtime لبيئة واحدة: تشغيله وبدؤه من المشرف، والبث والحضور وتغيير في قاعدة البيانات بين عميلين من supabase-js عبر البوابة، وواجهة البث REST، ورفض مفتاح خاطئ، ثم إطفاؤه ([Realtime](../guides/realtime.ar.md)) | [docker-realtime-checks.json](../evidence/docker-realtime-checks.json) | 19 |
 | السجلات والمقاييس لبيئة واحدة: عدّ الطلبات عبر البوابة مع الأخطاء وأزمنة الاستجابة واستهلاك الخدمات للذاكرة، وقراءة سجل الطلبات وسجلات Auth وREST وStorage عبر واجهة الإدارة، دون أي مفتاح أو رمز في أي رد ([السجلات والمقاييس](../guides/logs-and-metrics.ar.md)) | [docker-observe-checks.json](../evidence/docker-observe-checks.json) | 20 |
+| الرفع: ملف بحجم 20 MiB عبر البوابة ثم تنزيله مطابقًا بايتًا ببايت، وقبول ملف أصغر قليلًا من حد 50 MiB ورفض ملف أكبر منه، ثم الأمر نفسه بعد أن أعاد `SBARBASE_UPLOAD_LIMIT_MB` جديد إنشاء Storage | [docker-upload-checks.json](../evidence/docker-upload-checks.json) | 20 |
 | ترقية إلى PostgREST أحدث عبر `lab/upgrade.py`، ثم إصدار معطوب يعود منه المشرف وحده، مع بقاء المستخدمين والهويات وحاويات Storage والملفات كما هي ([الترقيات](../guides/upgrades.ar.md)) | [docker-upgrade-checks.json](../evidence/docker-upgrade-checks.json) | 10 |
 
 ### خادم فارغ، بمحاكاة في آلة افتراضية محلية
