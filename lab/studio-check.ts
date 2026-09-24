@@ -97,12 +97,19 @@ try {
  const page=await studio(host,'/project/default',{cookie});
  record('the project page loads',page.status===200&&page.text.includes('<'),`status ${page.status}`);
  const tables=await studio(host,'/api/platform/pg-meta/default/tables?included_schemas=public',{cookie});
- record('the table list reads the environment database',tables.status===200&&tables.text.startsWith('['),`status ${tables.status}`);
+ record('the table list reads the environment database',tables.status===200&&tables.text.startsWith('['),`status ${tables.status}${tables.status===200?'':' '+tables.text.slice(0,300)}`);
  const users=await studio(host,'/api/platform/pg-meta/default/query',{method:'POST',cookie,body:{query:'select count(*)::int as n from auth.users'}});
  const count=users.status===200?(JSON.parse(users.text)[0]?.n??-1):-1;
- record('the SQL editor sees the environment users despite row security',count>=1,`${count} user(s)`);
+ record('the SQL editor sees the environment users despite row security',count>=1,`${count} user(s)${users.status===200?'':' '+users.text.slice(0,300)}`);
  const created=await studio(host,'/api/platform/pg-meta/default/query',{method:'POST',cookie,body:{query:'create table if not exists public.studio_probe(id bigint generated always as identity primary key, note text); insert into public.studio_probe(note) values (\'from studio\') returning note'}});
- record('the SQL editor creates a table and a row',created.status===200&&created.text.includes('from studio'),`status ${created.status}`);
+ record('the SQL editor creates a table and a row',created.status===200&&created.text.includes('from studio'),`status ${created.status}${created.status===200?'':' '+created.text.slice(0,300)}`);
+ if(tables.status!==200||created.status!==200){
+  // What postgres-meta itself said, so a failure names its cause. It never logs the password.
+  for(const name of [`sbarbase-durable-e_${host.split(".")[0]}-meta`,`sbarbase-durable-e_${host.split(".")[0]}-studio`]){
+   const logs=Bun.spawnSync(['docker','logs','--tail','30',name]);
+   console.log(`== ${name}\n${logs.stdout.toString()}${logs.stderr.toString()}`);
+  }
+ }
  const email=`studio-${crypto.randomUUID().slice(0,8)}@example.com`;
  const user=await studio(host,'/api/platform/auth/default/users',{method:'POST',cookie,body:{email,password:crypto.randomUUID(),email_confirm:true}});
  record('Studio creates a user through the environment Auth',user.status===200&&user.text.includes(email),`status ${user.status}`);
