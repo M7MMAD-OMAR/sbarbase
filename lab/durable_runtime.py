@@ -136,6 +136,21 @@ def settings_only(component, configured, desired):
     return bool(changed) and all(owned(key) for key in changed)
 
 
+# The one key each service reads the environment's JWT signing secret from.
+SIGNING_KEYS = {'auth': 'GOTRUE_JWT_SECRET', 'rest': 'PGRST_JWT_SECRET'}
+
+
+def signing_only(component, configured, desired):
+    """True when a retained Auth or REST differs from its desired configuration in its signing
+    secret (a rotation, `Runtime.rotate_signing`), and otherwise not at all or only as
+    `settings_only` allows."""
+    key = SIGNING_KEYS.get(component)
+    if key is None or configured.get(key) == desired.get(key):
+        return False
+    patched = {**configured, key: desired.get(key)}
+    return all(patched.get(k) == v for k, v in desired.items()) or settings_only(component, patched, desired)
+
+
 def load_settings(e):
     """The environment's sign-in settings; a file that fails validation is reported and left out."""
     try:
@@ -329,7 +344,7 @@ class Runtime:
     def sql(self, query, database='postgres', check=True):
         return lab.docker('exec', '-i', DB, 'psql', '-X', '-v', 'ON_ERROR_STOP=1', '-U', 'supabase_admin', '-d', database, '-qAt', data=query, check=check)
 
-    def launch(self, name, component, env, memory, cpus, volumes=(), command=(), existing_only=False, tier=None, binds=()):
+    def launch(self, name, component, env, memory, cpus, volumes=(), command=(), existing_only=False, tier=None, binds=(), rotating=False):
         image = self.pins[component]['id']
         actual = inspect('container', name)
         if existing_only and not actual:
@@ -345,7 +360,9 @@ class Runtime:
             # longer exists (reconcile_mail names the same hazard for its own path).
             stale = [key for key in configured if is_mail_key(key) and key not in env]
             if actual['Image'] != expected or any(configured.get(k) != v for k, v in env.items()) or stale:
-                if not upgrade_allows(component, image) and not (actual['Image'] == expected and settings_only(component, configured, env)):
+                # A new signing secret is accepted only while its environment has a recorded rotation.
+                if not upgrade_allows(component, image) and not (actual['Image'] == expected and (
+                        settings_only(component, configured, env) or (rotating and signing_only(component, configured, env)))):
                     raise RuntimeError('Runtime drift requires explicit reconciliation')
                 # An upgrade or rollback: replace the stateless container with the pinned
                 # image and the configuration this version computes, keeping its volumes.
@@ -540,6 +557,9 @@ class Runtime:
 
     def activate_services(self,e,v,*,creating):
         endpoints = {}
+        # A rotation recorded in runtime.json and not finished yet, whether it runs now or was
+        # interrupted: every service that holds the signing secret takes the new one.
+        rotating = not creating and bool(v.get('jwt_rotating'))
         # This environment's own mail configuration, read once per invocation.
         # mail_config.load returns None when the environment has no mail file,
         # and the builder then returns exactly the dict it returned before.
@@ -549,7 +569,7 @@ class Runtime:
             # No per-environment class field exists yet, so both environment
             # services launch under the production row (docs/engineering/RESOURCE-POLICY.md 3.2).
             config = builder(e, v, DB, mail, load_settings(e)) if service == 'auth' else builder(e, v, DB)
-            self.launch(name, service, config, '256m', .25, existing_only=not creating, tier='production')
+            self.launch(name, service, config, '256m', .25, existing_only=not creating, tier='production', rotating=rotating)
             endpoints[service] = self.endpoint(name, port)
             self.wait(endpoints[service]+suffix)
         if creating:effect_receipt.native_stage(STATE,e,'storage')
@@ -566,6 +586,11 @@ class Runtime:
                 raise RuntimeError('Storage tenant registration failed')
         elif status != 200:
             raise RuntimeError('Storage tenant lookup failed')
+        elif rotating:
+            payload = {'anonKey': token(v['jwt'], 'anon'), 'serviceKey': token(v['jwt'], 'service_role'), 'jwtSecret': v['jwt']}
+            status, _ = http(admin+'/tenants/'+e, 'PATCH', json.dumps(payload).encode(), headers)
+            if status not in (200, 204):
+                raise RuntimeError('Storage tenant update failed')
         public = self.endpoint(PREFIX+'-storage', 5000)
         self.wait(public+'/bucket', {'authorization': 'Bearer '+token(v['jwt'], 'service_role'), 'x-forwarded-host': e+'.storage.internal'})
         if self.sql("SELECT to_regclass('storage.objects') IS NOT NULL AND to_regprocedure('auth.uid()') IS NOT NULL;", e).stdout.strip() != 't':
@@ -579,11 +604,43 @@ class Runtime:
         if previous and not creating:
             # Realtime was turned on for this environment: bring it back, and let it run its
             # schema migrations again only when its pinned image changed.
-            endpoints['realtime'] = self.realtime_start(e, migrate=previous.get('migrated') != self.pins['realtime']['id'])
+            endpoints['realtime'] = self.realtime_start(e, migrate=rotating or previous.get('migrated') != self.pins['realtime']['id'])
         if all_endpoints.get(e, {}).get('functions') and not creating:
             endpoints['functions'] = self.functions_start(e)
+        # Direct database access is the developer login's own state, not a service to restart.
+        if all_endpoints.get(e, {}).get('database') and not creating:
+            endpoints['database'] = all_endpoints[e]['database']
         all_endpoints[e] = endpoints
         atomic(path, all_endpoints)
+        if rotating:
+            # A refresh token would otherwise give a leaked session a new token signed with the new key.
+            self.sql('UPDATE auth.refresh_tokens SET revoked = true WHERE NOT revoked; DELETE FROM auth.sessions;', e)
+            v.pop('jwt_rotating', None)
+            atomic(self.path, self.values)
+
+    def rotate_signing(self, e):
+        """Give one environment a new JWT signing secret. Every token signed with the old one stops
+        working and every session ends: people sign in again, and Studio and Edge Functions get new keys. Publishable and secret API
+        keys are not JWTs and keep working. The new secret and a rotation mark are written first,
+        so a rotation that stops halfway is finished by the next start (`activate_services`)."""
+        effect_receipt.require_settled(STATE)
+        if not re.fullmatch(r'e_[a-f0-9]{24}', e):
+            raise RuntimeError('Invalid environment runtime identifier')
+        if not inspect('container', DB) or not inspect('container', PREFIX+'-storage'):
+            raise RuntimeError('Start the upstream runtime first')
+        if e not in published_endpoints() or e not in self.values['environments']:
+            raise RuntimeError('Rotation needs a published environment')
+        if source_fence.is_fenced(self.sql, e):
+            raise RuntimeError('Environment database is fenced; explicit reconciliation required')
+        for service in ('auth', 'rest'):
+            if not inspect('container', PREFIX+'-'+e+'-'+service):
+                raise RuntimeError('Rotation needs the retained service containers')
+        v = self.values['environments'][e]
+        if not v.get('jwt_rotating'):
+            v['jwt'] = secrets.token_hex(32)
+            v['jwt_rotating'] = True
+            atomic(self.path, self.values)
+        self.activate_services(e, v, creating=False)
 
     def reconcile_mail(self, e, off=False):
         """Apply one environment's mail configuration, or remove it with `off`.
@@ -1010,7 +1067,7 @@ def stop():
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('command', choices=['up', 'stop', 'provision', 'mail', 'auth', 'realtime', 'functions', 'database'])
+    parser.add_argument('command', choices=['up', 'stop', 'provision', 'mail', 'auth', 'realtime', 'functions', 'database', 'signing'])
     parser.add_argument('environment', nargs='?')
     parser.add_argument('--off', action='store_true')
     args = parser.parse_args()
@@ -1030,6 +1087,13 @@ if __name__ == '__main__':
                 elif args.command=='database':
                     if not args.environment:raise SystemExit('The database command needs an environment')
                     Runtime().database_turn(args.environment, on=not args.off)
+                elif args.command=='signing':
+                    if not args.environment:raise SystemExit('The signing command needs an environment')
+                    Runtime().rotate_signing(args.environment)
+                    if studio_running(args.environment):
+                        # A running Studio holds keys signed with the old secret; it starts again with new ones.
+                        import studio
+                        studio.up(args.environment)
                 elif args.command=='functions':
                     if not args.environment:raise SystemExit('The functions command needs an environment')
                     Runtime().functions_turn(args.environment, on=not args.off)

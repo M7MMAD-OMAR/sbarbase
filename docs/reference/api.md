@@ -53,6 +53,8 @@ All routes need `Authorization: Bearer <management access token>`. The actor com
 | GET | `/management/v1/environments/{id}/database` | owner, admin, when ready | Direct database access `state` and `desired`, the `connection` (host, port, user, database) and a `url` with a password placeholder |
 | PUT | `/management/v1/environments/{id}/database` | owner, admin, when ready | `{"enabled": true\|false}`. `202`; turning it on answers a new `password` and full `url` once |
 | POST | `/management/v1/environments/{id}/database/password` | owner, admin, when ready | A new password, answered once; the old one stops working. `409` while access is off |
+| GET | `/management/v1/environments/{id}/signing-key` | owner, admin, when ready | The JWT signing key's `state` (`never`, `pending`, `done`, `failed`), `failure` and `rotatedAt`; never the key |
+| POST | `/management/v1/environments/{id}/signing-key/rotate` | owner, admin, when ready | A new signing key ([signing key](../guides/signing-keys.md)). `202`; `409` while a rotation is pending |
 | GET | `/management/v1/environments/{id}/mail` | member | Non-secret mail state of the environment; no credential field |
 | GET | `/management/v1/notifications` | owner or admin of any client | Undelivered count and recent operator events of the caller's own clients only. Events that belong to no client (installation start, worker restarts) go to owners and admins of the client created at bootstrap |
 

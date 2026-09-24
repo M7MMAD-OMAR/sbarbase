@@ -116,6 +116,8 @@ export const CATALOG_SCHEMA_VERSION=3;
 export type StudioSession={runtime:string;desired:'running'|'stopped';state:'stopped'|'starting'|'running'|'failed';
   failure:string|null;updatedAt:number|null};
 export type RealtimeState={runtime:string;desired:'on'|'off';state:'off'|'pending'|'on'|'failed';failure:string|null;updatedAt:number|null};
+/** The environment's JWT signing secret: never rotated, a rotation waiting or failed, or the last one done. */
+export type SigningState={runtime:string;state:'never'|'pending'|'done'|'failed';failure:string|null;rotatedAt:number|null;updatedAt:number|null};
 export type SignInState={runtime:string;revision:number;applied:number|null;
   state:'unconfigured'|'pending'|'applied'|'failed';failure:string|null;updatedAt:number|null};
 
@@ -186,6 +188,11 @@ export class Catalog {
         desired TEXT NOT NULL CHECK(desired IN ('on','off')),
         state TEXT NOT NULL CHECK(state IN ('off','pending','on','failed')),
         failure TEXT, actor TEXT NOT NULL, updated_at INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS signing_keys(
+        runtime TEXT PRIMARY KEY REFERENCES provision_jobs(runtime),
+        desired TEXT NOT NULL CHECK(desired IN ('rotate')),
+        state TEXT NOT NULL CHECK(state IN ('pending','done','failed')),
+        failure TEXT, actor TEXT NOT NULL, updated_at INTEGER NOT NULL, rotated_at INTEGER);
       CREATE TABLE IF NOT EXISTS audit_events(
         sequence INTEGER PRIMARY KEY AUTOINCREMENT, actor TEXT NOT NULL,
         action TEXT NOT NULL, subject TEXT NOT NULL, detail TEXT NOT NULL, at INTEGER NOT NULL);
@@ -628,6 +635,27 @@ export class Catalog {
         updated_at=excluded.updated_at`).run(current.runtime,on?'on':'off',actor,Date.now());
       this.record(actor,on?'database.access_requested':'database.access_stop_requested',environment,{});
       return this.databaseAccess(actor,environment);
+    }).immediate();
+  }
+  /** The environment's JWT signing secret. A rotation is a request the supervisor applies
+   * (lab/realtime.py, lab/durable_runtime.py `rotate_signing`); the secret itself never reaches the catalog. */
+  signing(actor:string,environment:string):SigningState {
+    this.environmentProject(actor,environment,['owner','admin']);
+    const job=this.job(environment);
+    if(!job||job.state!=='succeeded')throw new Error('Environment is not ready');
+    const row=this.db.query<{state:SigningState['state'];failure:string|null;rotated_at:number|null;updated_at:number},[string]>(
+      'SELECT state,failure,rotated_at,updated_at FROM signing_keys WHERE runtime=?').get(job.runtime);
+    return {runtime:job.runtime,state:row?.state??'never',failure:row?.failure??null,rotatedAt:row?.rotated_at??null,updatedAt:row?.updated_at??null};
+  }
+  requestSigningRotation(actor:string,environment:string):SigningState {
+    return this.db.transaction(()=>{
+      const current=this.signing(actor,environment);
+      if(current.state==='pending')throw new Error('Signing key rotation in progress');
+      this.db.query(`INSERT INTO signing_keys(runtime,desired,state,failure,actor,updated_at) VALUES (?,'rotate','pending',NULL,?,?)
+        ON CONFLICT(runtime) DO UPDATE SET state='pending',failure=NULL,actor=excluded.actor,updated_at=excluded.updated_at`)
+        .run(current.runtime,actor,Date.now());
+      this.record(actor,'signing.rotation_requested',environment,{});
+      return this.signing(actor,environment);
     }).immediate();
   }
   /** Records a deploy or a removal in the audit log. */
