@@ -94,6 +94,7 @@ alter table public.realtime_probe enable row level security;
 drop policy if exists probe_read on public.realtime_probe; create policy probe_read on public.realtime_probe for select to anon using (true);
 drop policy if exists probe_write on public.realtime_probe; create policy probe_write on public.realtime_probe for insert to anon with check (true);
 grant select, insert on public.realtime_probe to anon;
+notify pgrst, 'reload schema';
 select count(*) from pg_publication_tables where pubname = 'supabase_realtime' and tablename = 'realtime_probe';`)});
  record('a new public table is published to Realtime',sql.exitCode===0&&sql.stdout.toString().trim().endsWith('1'),sql.stderr.toString().slice(0,200));
 
@@ -127,6 +128,11 @@ select count(*) from pg_publication_tables where pubname = 'supabase_realtime' a
   body:JSON.stringify({messages:[{topic:'room-one',event:'hello',payload:{text:'from the REST API'}}]})});
  record('the broadcast REST API answers through the gateway',rest.status===202||rest.status===200,`status ${rest.status}`);
  await first.removeAllChannels();await second.removeAllChannels();
+ if(checks.some(row=>!row.ok)){
+  // What Realtime itself said, before turning it off removes its container. It never logs secrets.
+  const logs=Bun.spawnSync(['docker','logs','--tail','120',`sbarbase-durable-${runtime}-realtime`]);
+  console.log(`== sbarbase-durable-${runtime}-realtime\n${logs.stdout.toString()}${logs.stderr.toString()}`);
+ }
 
  const off=await call('PUT',path,{enabled:false});
  record('the owner turns Realtime off',off.status===202,`status ${off.status}`);
