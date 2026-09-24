@@ -324,7 +324,7 @@ class TargetTests(Fixture):
             rows = database.execute('SELECT kind, severity, dedupe_key FROM notification_outbox').fetchall()
         self.assertEqual(rows, [('backup.failed', 'critical', 'backup.offsite_failed|installation')])
 
-    def test_the_daily_run_shares_one_time_writes_the_manifest_and_exits_on_local_results_only(self):
+    def test_the_daily_run_shares_one_time_writes_the_manifest_and_exits_3_when_only_the_copy_failed(self):
         server = self.serve()
         server.fail.add('PUT')
 
@@ -334,7 +334,8 @@ class TargetTests(Fixture):
 
         with patch.object(backup, 'create', create), patch.object(notification_producers, 'emit') as emit, \
                 contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()) as error:
-            self.assertEqual(backup.main(['create', 'all']), 0)
+            # Local backups are fine; 3 tells the supervisor the failed copy was already reported.
+            self.assertEqual(backup.main(['create', 'all']), backup.OFFSITE_FAILED)
         self.assertIn('off-host copy', error.getvalue())
         self.assertEqual(emit.call_args.args[0], 'backup.failed')
         stamps = {path.name for e in (E1, E2, 'installation') for path in (self.backups / e).iterdir()}

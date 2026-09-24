@@ -334,6 +334,10 @@ def environments():
     return sorted(e for e in published() if RUNTIME.fullmatch(e))
 
 
+# Exit code of `create all` when every local backup succeeded but the off-host copy failed
+# and was already reported as backup.failed.
+OFFSITE_FAILED = 3
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description='Per-environment backup and restore')
     sub = parser.add_subparsers(dest='command', required=True)
@@ -393,6 +397,7 @@ def main(argv=None):
                     except BackupError as error:
                         failed += 1
                         print(f'backup {e} failed: {error}', file=sys.stderr)
+                copied = None
                 if every:
                     offsite = None
                     try:
@@ -404,9 +409,10 @@ def main(argv=None):
                         reason = str(error) if isinstance(error, BackupError) else type(error).__name__
                         print(f'installation manifest failed: {reason}', file=sys.stderr)
                     if offsite is not None:
-                        # The exit code reports the local backups only; a failed copy is notified instead.
-                        offsite.after_run(stamp, created, args.keep)
-                return 1 if failed else 0
+                        # A failed copy is notified by after_run itself; exit 3 then tells the
+                        # supervisor not to also report the run as completed.
+                        copied = offsite.after_run(stamp, created, args.keep)
+                return 1 if failed else OFFSITE_FAILED if copied is False else 0
             if args.command == 'offsite-fetch':
                 import backup_offsite
                 placed = backup_offsite.fetch(args.backup)

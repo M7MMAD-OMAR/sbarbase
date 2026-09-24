@@ -237,6 +237,18 @@ class InstallationProducerTests(ProducerCase):
             dev.terminate_group(supervisor.server, grace=0)
         self.assertEqual(self.outbox(), [('worker.restart_limit', 'critical', 'worker_restart_limit', None)])
 
+    def test_a_run_whose_only_failure_was_the_off_host_copy_is_not_reported_as_completed(self):
+        # backup.py already raised backup.failed for the copy and exits 3; a 'completed' notice
+        # from the supervisor would contradict it. Exit 0 still reports completed.
+        for code, expected in ((3, []), (0, [('backup.completed', 'info', 'export_completed', None)])):
+            supervisor = dev.Supervisor(catalog=self.catalog)
+            supervisor.backup = subprocess.Popen(['/usr/bin/python3', '-c', f'raise SystemExit({code})'],
+                                                 start_new_session=True)
+            supervisor.backup.wait(timeout=5)
+            supervisor.schedule_backup()
+            self.assertIsNone(supervisor.backup)
+            self.assertEqual(self.outbox(), expected)
+
     def test_a_failed_start_emits_only_for_a_start_not_a_stop(self):
         self.assertIsNotNone(installation_runtime_start_failed(self.catalog))
         self.assertEqual(self.outbox(), [('installation.start_failed', 'critical', 'installation_failed', None)])

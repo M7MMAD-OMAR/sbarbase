@@ -160,6 +160,10 @@ class Supervisor:
             self.backup = None
             path = STATE/'endpoints.json'
             count = len(json.loads(path.read_text())) if path.exists() else 0
+            if status == 3:
+                # Local backups succeeded; the off-host copy failed and backup.py already
+                # reported that as backup.failed, so a 'completed' notice would contradict it.
+                return
             if status == 0:
                 notification_producers.emit('backup.completed', 'info', 'backup.completed|installation', {},
                                             'system:supervisor', 'export_completed', {'environments': count},
