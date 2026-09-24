@@ -71,13 +71,13 @@ Live probes start real containers and write their results to [docs/evidence](../
 | SDK through the gateway to the moved environment | [cutover-sdk-checks.json](../evidence/cutover-sdk-checks.json) | 11 |
 | Unaffected neighbours restarted on the source | [cutover-neighbor-checks.json](../evidence/cutover-neighbor-checks.json) | 16 |
 
-### Import from Supabase (phase 0 only)
+### Import from Supabase (inspection)
 
 | What | Evidence | Checks |
 |---|---|---|
 | Read-only inspection of a source database: refusals, warnings and manual steps before any dump, on the pinned image as the `postgres` role | [import-inspect-checks.json](../evidence/import-inspect-checks.json) | 6 |
 
-The dump, restore, object copy and verification phases do not exist yet; see [the migration plan](../engineering/plans/2026-09-23-verification-and-migration-plan.md).
+The full import (schema, users, rows, files, verification) is `lab/import_project.py`; its end-to-end run is in the Docker table below.
 
 ### Install with Docker, daily backups, Studio and upgrades (CI, clean runner)
 
@@ -95,6 +95,7 @@ On a clean GitHub runner with only Docker, CI runs the Docker install on every c
 | Edge Functions for one environment: a Supabase functions folder deployed with one command, called with supabase-js, a function using supabase-js from npm with the service role on its own Auth, REST and Storage, a keyless webhook, a secret, a redeploy, a removal, turned off ([Edge Functions](../guides/edge-functions.md)) | [docker-functions-checks.json](../evidence/docker-functions-checks.json) | 24 |
 | Logs and metrics for one environment: requests through the gateway counted with errors, response times and service memory use, the request log and the Auth, REST and Storage logs read through the management API, no key or token in any answer ([logs and metrics](../guides/logs-and-metrics.md)) | [docker-observe-checks.json](../evidence/docker-observe-checks.json) | 20 |
 | Uploads: a 20 MiB file through the gateway and back byte for byte, a file just under the 50 MiB limit accepted and one just over it refused, then the same after a new `SBARBASE_UPLOAD_LIMIT_MB` recreated Storage | [docker-upload-checks.json](../evidence/docker-upload-checks.json) | 20 |
+| Import into a new environment from another environment standing in for a Supabase project: the user signs in with the old password, row level security, a private file with its Storage policy and a sign-up trigger carry over, a second import into the full environment is refused ([move from Supabase](../guides/move-from-supabase.md)) | [docker-import-checks.json](../evidence/docker-import-checks.json) | 12 |
 | Upgrade to a newer PostgREST with `lab/upgrade.py`, then a broken version that the supervisor moves back from by itself, with users, identities, buckets and files unchanged ([upgrades](../guides/upgrades.md)) | [docker-upgrade-checks.json](../evidence/docker-upgrade-checks.json) | 10 |
 
 ### Empty server, simulated in a local VM

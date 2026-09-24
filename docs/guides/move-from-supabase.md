@@ -46,6 +46,8 @@ What moves, in order:
 
 People sign in again once: sessions do not move. Everything else, including their passwords, does.
 
+CI runs an import on a clean machine with every change, from another environment standing in for a Supabase project: the user signs in with the old password, reads only their own row, downloads their own private file, a new sign-up runs the imported trigger, and a second import into the full environment is refused ([evidence](../evidence/docker-import-checks.json)). It is not a run against Supabase Cloud.
+
 ## Limits
 
 - The target must be a new, empty environment. A failed import leaves it to be deleted and created again; it is never half-repaired.

@@ -71,13 +71,13 @@
 | SDK عبر البوابة إلى البيئة المنقولة | [cutover-sdk-checks.json](../evidence/cutover-sdk-checks.json) | 11 |
 | الجيران غير المتأثرين أعيد تشغيلهم على المصدر | [cutover-neighbor-checks.json](../evidence/cutover-neighbor-checks.json) | 16 |
 
-### الاستيراد من Supabase (المرحلة 0 فقط)
+### الاستيراد من Supabase (الفحص)
 
 | ماذا | الدليل | الفحوص |
 |---|---|---|
 | فحص قاعدة بيانات المصدر للقراءة فقط: حالات الرفض والتحذيرات والخطوات اليدوية قبل أي تفريغ، على الصورة مثبّتة الإصدار وبدور `postgres` | [import-inspect-checks.json](../evidence/import-inspect-checks.json) | 6 |
 
-مراحل التفريغ والاستعادة ونسخ الملفات والتحقق لا وجود لها بعد؛ انظر [خطة الترحيل](../engineering/plans/2026-09-23-verification-and-migration-plan.md).
+الاستيراد الكامل (المخطط والمستخدمون والصفوف والملفات والتحقق) هو `lab/import_project.py`؛ وتشغيله من البداية إلى النهاية في جدول Docker أدناه.
 
 ### التثبيت عبر Docker والنسخ الاحتياطي اليومي وStudio والترقيات (CI، جهاز نظيف)
 
@@ -95,6 +95,7 @@
 | Edge Functions لبيئة واحدة: نشر مجلد دوال Supabase بأمر واحد، واستدعاؤها بـ supabase-js، ودالة تستخدم supabase-js من npm بصلاحية الخدمة على Auth وREST وStorage الخاصة ببيئتها، وخطاف ويب دون مفتاح، وسر، وإعادة نشر، وحذف، ثم الإطفاء ([Edge Functions](../guides/edge-functions.ar.md)) | [docker-functions-checks.json](../evidence/docker-functions-checks.json) | 24 |
 | السجلات والمقاييس لبيئة واحدة: عدّ الطلبات عبر البوابة مع الأخطاء وأزمنة الاستجابة واستهلاك الخدمات للذاكرة، وقراءة سجل الطلبات وسجلات Auth وREST وStorage عبر واجهة الإدارة، دون أي مفتاح أو رمز في أي رد ([السجلات والمقاييس](../guides/logs-and-metrics.ar.md)) | [docker-observe-checks.json](../evidence/docker-observe-checks.json) | 20 |
 | الرفع: ملف بحجم 20 MiB عبر البوابة ثم تنزيله مطابقًا بايتًا ببايت، وقبول ملف أصغر قليلًا من حد 50 MiB ورفض ملف أكبر منه، ثم الأمر نفسه بعد أن أعاد `SBARBASE_UPLOAD_LIMIT_MB` جديد إنشاء Storage | [docker-upload-checks.json](../evidence/docker-upload-checks.json) | 20 |
+| الاستيراد إلى بيئة جديدة من بيئة أخرى تقوم مقام مشروع Supabase: يسجّل المستخدم الدخول بكلمة مروره القديمة، وينتقل أمان مستوى الصفوف والملف الخاص مع سياسة Storage الخاصة به ومشغّل التسجيل، ويُرفض استيراد ثانٍ إلى البيئة الممتلئة ([الانتقال من Supabase](../guides/move-from-supabase.ar.md)) | [docker-import-checks.json](../evidence/docker-import-checks.json) | 12 |
 | ترقية إلى PostgREST أحدث عبر `lab/upgrade.py`، ثم إصدار معطوب يعود منه المشرف وحده، مع بقاء المستخدمين والهويات وحاويات Storage والملفات كما هي ([الترقيات](../guides/upgrades.ar.md)) | [docker-upgrade-checks.json](../evidence/docker-upgrade-checks.json) | 10 |
 
 ### خادم فارغ، بمحاكاة في آلة افتراضية محلية
