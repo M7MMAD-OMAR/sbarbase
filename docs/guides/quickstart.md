@@ -98,7 +98,7 @@ import {createClient} from '@supabase/supabase-js';
 const supabase = createClient('https://console.example.com/<runtime>', '<publishable key>');
 ```
 
-Auth, REST and Storage work through that one address. Realtime, Edge Functions, browser CORS and OAuth providers are not routed yet ([API reference](../reference/api.md)).
+Auth, REST and Storage work through that one address, from a server or from a browser page on any domain. Realtime, Edge Functions and OAuth providers are not routed yet ([API reference](../reference/api.md)).
 
 For the public HTTPS address, put the reference TLS proxy (or nginx or Caddy) in front of `127.0.0.1:8787` with a real certificate, as the [server deployment runbook](server-deployment.md) describes. Open only SSH, 80 and 443 in the firewall.
 

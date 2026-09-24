@@ -41,6 +41,8 @@ export function application(catalog:Catalog,keys:KeyStore,realm:ManagementRealm,
    if(!methods[route].includes(request.method))return Response.json({message:'Method not allowed'},{status:405});
    const response=await login(request);
    const headers=new Headers(response.headers);headers.set('cache-control','no-store');
+   // The operator login is for the console on this origin only; no other page may call it.
+   for(const name of [...headers.keys()])if(name.startsWith('access-control-'))headers.delete(name);
    headers.set('x-content-type-options','nosniff');
    return new Response(response.body,{status:response.status,headers});
   }

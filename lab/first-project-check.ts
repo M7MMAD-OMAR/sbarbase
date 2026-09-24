@@ -6,7 +6,8 @@
 // logs in as the operator from the 0600 bootstrap file, creates a project and a
 // production environment through the management API, waits for the worker to
 // provision it, issues a publishable key and uses supabase-js through the
-// gateway: Auth settings, a sign-up, the REST schema and Storage. It then revokes
+// gateway: Auth settings, a sign-up, the REST schema, Storage and a browser's
+// cross-origin preflight. It then revokes
 // the key and requires the gateway to refuse it. The password is read from the
 // file and never printed or written; evidence holds identifiers and results only.
 // The project and environment are kept, as a first project would be.
@@ -91,6 +92,14 @@ try {
  record('REST answers through the gateway',schema.status===200,`status ${schema.status}`);
  const buckets=await app.storage.listBuckets();
  record('Storage answers through the gateway with supabase-js',!buckets.error,buckets.error?.message??'');
+ // What a browser on the application's own domain sends before and with a call.
+ const origin='https://app.example.com';
+ const preflight=await fetch(`${url}/rest/v1/`,{method:'OPTIONS',headers:{origin,'access-control-request-method':'GET',
+  'access-control-request-headers':'apikey, authorization, x-client-info'}});
+ record('a browser on another domain is allowed to call the API',preflight.status===204&&preflight.headers.get('access-control-allow-origin')==='*'&&
+  (preflight.headers.get('access-control-allow-headers')??'').includes('apikey'),`status ${preflight.status}`);
+ const browser=await fetch(`${url}/rest/v1/`,{headers:{apikey:key!,origin}});
+ record('the browser can read the answer',browser.status===200&&browser.headers.get('access-control-allow-origin')==='*',`status ${browser.status}`);
 
  const revoked=await call('DELETE',`/environments/${ids.environment}/keys/${ids.keyId}`);
  record('the key is revoked',revoked.status===200,`status ${revoked.status}`);

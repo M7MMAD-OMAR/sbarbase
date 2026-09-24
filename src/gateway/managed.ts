@@ -2,7 +2,7 @@ import {ConcurrencyGate} from './concurrency';
 import {Catalog} from '../control/catalog';
 import type {RuntimeRouting} from '../control/placement';
 import {KeyStore} from '../control/keys';
-import {createGateway,type EnvironmentRoute} from './handler';
+import {createGateway,withCors,type EnvironmentRoute} from './handler';
 
 /** A guaranteed 8 in flight per environment, borrowing up to 24 while 8 of the 32 stay free for
  * environments within their share (docs/engineering/FAIR-SHARE-ADMISSION.md). */
@@ -23,7 +23,9 @@ export function routeWithPlacement(configured:EnvironmentRoute|undefined,routing
  * Resolve on every request so routing does not outlive its control-plane state.
  */
 export function managedGateway(catalog:Catalog,keys:KeyStore,resolve:(runtime:string)=>EnvironmentRoute|undefined,transport:typeof fetch=fetch, concurrency=applicationConcurrency) {
- return async(request:Request):Promise<Response>=>{
+ // Its own refusals carry the browser headers too, so a page sees the status, not a network error.
+ return async(request:Request):Promise<Response>=>withCors(await route(request),request);
+ async function route(request:Request):Promise<Response> {
   const runtime=new URL(request.url).pathname.split('/')[1];
   try {
    if(!runtime||!catalog.runtimeReady(runtime))
@@ -38,5 +40,5 @@ export function managedGateway(catalog:Catalog,keys:KeyStore,resolve:(runtime:st
   } catch {
    return Response.json({message:'Environment routing unavailable'},{status:503});
   }
- };
+ }
 }
