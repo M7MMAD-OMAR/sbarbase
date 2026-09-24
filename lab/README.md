@@ -24,6 +24,8 @@ The shared Storage probe also invokes `lab/storage-sdk-check.ts` over stdin to t
 
 The Storage probe now rehearses encrypted database+object recovery using `storage_restore_probe.py` and the fixed `storage-files.cjs` helper. It requires Python cryptography. Ciphertext and its separate key remain in ignored local directories, not in the handoff. See [scope](../docs/engineering/reviews/storage-recovery.md).
 
+Import inspection: `/usr/bin/python3 lab/import_inspect.py --reference <reading.json>` reads a source Supabase database (connection string on standard input, never as an argument) in a read-only session and reports what an import would refuse, warn about or leave manual. `--capture-reference` takes the reading of an Sbarbase environment to compare against. Phase 0 only: it dumps, copies and allocates nothing.
+
 ## Retained runtime configuration
 
 `run.py` resolves the requested image pin to its Docker image config identity and

@@ -68,6 +68,14 @@ Live probes start real containers and write their results to [docs/evidence](../
 | SDK through the gateway to the moved environment | [cutover-sdk-checks.json](../evidence/cutover-sdk-checks.json) | 11 |
 | Unaffected neighbours restarted on the source | [cutover-neighbor-checks.json](../evidence/cutover-neighbor-checks.json) | 16 |
 
+### Import from Supabase (phase 0 only)
+
+| What | Evidence | Checks |
+|---|---|---|
+| Read-only inspection of a source database: refusals, warnings and manual steps before any dump, on the pinned image as the `postgres` role | [import-inspect-checks.json](../evidence/import-inspect-checks.json) | 6 |
+
+The dump, restore, object copy and verification phases do not exist yet; see [the migration plan](../engineering/plans/2026-09-23-verification-and-migration-plan.md).
+
 ### Empty server, simulated in a local VM
 
 A disposable Fedora 44 Cloud VM with 4 vCPU and 6 GiB, a clean clone, the one-command acceptance with `--install-unit --first-project`, then a reboot ([lab/vm-rehearsal.sh](../../lab/vm-rehearsal.sh)). Not a real server: no public network or certificate. The runs found ten defects the workstation could not show, all fixed with tests; they are listed in the summary record.
@@ -104,6 +112,7 @@ A start needs its containers' memory limits plus a 2560 MiB reserve: 1792 MiB of
 - Per-environment Supabase Studio (specified in [the integration specification](../engineering/STUDIO-INTEGRATION.md), not served).
 - Realtime, Edge Functions, the connection pooler and cron.
 - Scheduled or off-host backups, point-in-time recovery, and a general per-environment export command.
+- Importing a project from Supabase Cloud or a self-hosted stack beyond the read-only inspection.
 - Automatic recovery of later-stage provisioning failures; they block until an operator reconciles them.
 - Adoption of any upstream release through the update policy; automatic upgrades.
 - Complete project transfer between clients, invitations, MFA and login rate limits.

@@ -106,7 +106,7 @@ Each step names the check that closes it. Steps inside a block can run in parall
 
 **Block D: import, built on the backup work (roadmap milestone 2)**
 7. Build milestone 2's online per-environment backup first; import phases 1, 3, 4 and 6 are the same machinery pointed at a foreign source.
-8. `sbarbase import --dry-run` (phase 0 only) against a disposable Supabase Cloud free project and a vanilla compose stack. Commit the reports as evidence.
+8. **Started 2026-09-23:** phase 0 exists as `lab/import_inspect.py` and passed against the pinned image ([evidence](../../evidence/import-inspect-checks.json)); still to do against a Supabase Cloud free project and a vanilla compose stack with Storage. `sbarbase import --dry-run` (phase 0 only) against a disposable Supabase Cloud free project and a vanilla compose stack. Commit the reports as evidence.
 9. Full import from a vanilla compose stack in the VM rehearsal (`lab/vm-rehearsal.sh`), seeded with users, RLS tables and objects. Check: phase 6 passes and a user signs in with their old password.
 10. Full import from a disposable Supabase Cloud project, with and without the legacy JWT secret. Check: the same, and the report states which key case applied.
 11. Write `docs/guides/migrate-from-supabase.md` from the rehearsal, the way the quickstart was written from the VM run.
