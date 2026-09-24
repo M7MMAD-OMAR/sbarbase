@@ -34,7 +34,7 @@ PLANNED_MIB=5888
 RESERVE_MIB=2560  # resource_policy.START_RESERVE_MIB, which the runtime's start check uses
 PLANNED_CPUS=5.75
 MIN_FREE_BYTES=12*1024**3
-LOCKS=('distro-image.lock.json','images.lock.json','storage-image.lock.json')
+LOCKS=('distro-image.lock.json','images.lock.json','storage-image.lock.json','studio-image.lock.json')
 
 
 def run(command,*,check=True,stdin=None,env=None,cwd=None):

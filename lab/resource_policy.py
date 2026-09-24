@@ -60,7 +60,8 @@ TIERS = {
     'production': Tier('production', 512, 400, .25, '256m', 128),
     'experimental': Tier('experimental', 128, 100, .25, '256m', 128),
     'operator.studio': Tier('operator', 1024, 500, .5, '512m', 128),
-    'operator.meta': Tier('operator', 1024, 500, .25, '128m', 128),
+    # Measured idle at 111 MiB for postgres-meta v0.99.0 (and Studio at 205 MiB), 2026-09-24.
+    'operator.meta': Tier('operator', 1024, 500, .25, '256m', 128),
     'maintenance': Tier('maintenance', 512, 400, None, None, 128),
 }
 

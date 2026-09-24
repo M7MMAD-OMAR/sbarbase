@@ -80,6 +80,8 @@ jobs:
         run: docker compose exec -T sbarbase bun lab/first-project-check.ts "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-first-project.json"
       - name: Back up, change, restore, compare
         run: docker compose exec -T sbarbase python3 lab/backup-check.py --evidence "$PWD/docs/evidence/docker-backup-restore.json"
+      - name: Studio for the environment, behind the console login
+        run: docker compose exec -T sbarbase bun lab/studio-check.ts "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-studio-checks.json"
       - name: Restart and come back
         run: |
           docker compose restart

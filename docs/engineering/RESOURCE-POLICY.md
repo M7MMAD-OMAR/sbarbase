@@ -162,7 +162,7 @@ can enumerate by class instead of by hardcoded name.
 | `system` | management Auth | 1024 | 500 | 0.25 | 256m | equal | 128 |
 | `production` | environment Auth, environment REST | 512 | 400 | 0.25 | 256m | equal | 128 |
 | `experimental` | environment Auth, environment REST | 128 | 100 | 0.25 | 256m | equal | 128 |
-| `operator` | Studio, postgres-meta, on demand | 1024 | 500 | 0.5 / 0.25 | 512m / 128m | equal | 128 |
+| `operator` | Studio, postgres-meta, on demand | 1024 | 500 | 0.5 / 0.25 | 512m / 256m (meta measured idle at 111 MiB, 2026-09-24) | equal | 128 |
 | `maintenance` | recovery target db/auth/rest/storage, export helpers | 512 | 400 | unchanged from today | unchanged | equal | 128 / 64 |
 
 Notes that matter:

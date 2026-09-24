@@ -14,8 +14,8 @@ cluster with a separate database and scoped service logins per environment, runs
 original Auth/REST per environment, and shares one tenant-aware Storage process.
 Independent PostgreSQL is the fallback. Operators are trusted; application
 visitors are not. Each environment is meant to be administered through the
-original upstream Studio (specified in `docs/engineering/STUDIO-INTEGRATION.md`, not served
-yet); the console in `ui/` covers only the platform layer.
+original upstream Studio, started on demand (`lab/studio.py`, `src/control/studio.ts`,
+`docs/guides/studio.md`); the console in `ui/` covers only the platform layer.
 
 Nothing here is production ready. Docs and commits consistently avoid claiming
 production readiness, fixed project capacity or automatic later-stage recovery;

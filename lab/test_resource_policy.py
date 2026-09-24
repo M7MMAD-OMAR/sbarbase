@@ -18,7 +18,7 @@ DESIGN_ROWS = {
     'production': ('production', 512, 400, .25, '256m', 128),
     'experimental': ('experimental', 128, 100, .25, '256m', 128),
     'operator.studio': ('operator', 1024, 500, .5, '512m', 128),
-    'operator.meta': ('operator', 1024, 500, .25, '128m', 128),
+    'operator.meta': ('operator', 1024, 500, .25, '256m', 128),
     'maintenance': ('maintenance', 512, 400, None, None, 128),
 }
 DESIGN_CLASSES = ('system', 'production', 'experimental', 'operator', 'maintenance')

@@ -12,7 +12,7 @@ type ManagementRealm={auth:string;anonymousToken:string;publishableKey:string};
  * or signup is exposed. Intended for a loopback server until edge controls exist.
  */
 export function application(catalog:Catalog,keys:KeyStore,realm:ManagementRealm,
- resolve:(runtime:string)=>EnvironmentRoute|undefined,transport:typeof fetch=fetch) {
+ resolve:(runtime:string)=>EnvironmentRoute|undefined,transport:typeof fetch=fetch,studioKey?:()=>Buffer) {
  const auth=new URL(realm.auth);
  if(!['http:','https:'].includes(auth.protocol)||auth.username||auth.password||auth.search||auth.hash||auth.pathname!=='/')
   throw new Error('Invalid management Auth endpoint');
@@ -27,7 +27,7 @@ export function application(catalog:Catalog,keys:KeyStore,realm:ManagementRealm,
   const route=routeWithPlacement(resolve(runtime),routing);
   if(!route||!route.enabled)throw new Error('Runtime routing unavailable');
   return route.storage?['auth','rest','storage']:['auth','rest'];
- });
+ },studioKey);
  const gateway=managedGateway(catalog,keys,resolve,transport);
  const login=createGateway(new Map([['management',{
   auth:realm.auth,rest:realm.auth,keys:[realm.publishableKey],anonymousToken:realm.anonymousToken,enabled:true

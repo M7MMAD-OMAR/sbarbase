@@ -8,6 +8,8 @@ import notification_producers
 import os
 from pathlib import Path
 import signal
+import sqlite3
+from contextlib import closing
 import subprocess
 import sys
 import threading
@@ -97,6 +99,7 @@ class Supervisor:
         self.server = None
         self.worker = None
         self.backup = None
+        self.studios = {}
         self.backup_hour = backup_hour()
         self.backup_keep = backup_keep()
         self.restarts = collections.deque()
@@ -175,6 +178,42 @@ class Supervisor:
         print('Daily backup started.', flush=True)
         self.backup = self.spawn(['/usr/bin/python3', 'lab/backup.py', 'create', 'all', '--keep', str(self.backup_keep)])
 
+    def studio_requests(self):
+        """(runtime, desired, state, failure) of every Studio row in the catalog."""
+        path = STATE/'control.sqlite'
+        if not path.exists():
+            return []
+        try:
+            with closing(sqlite3.connect(f'file:{path}?mode=ro', uri=True, timeout=2)) as database, database:
+                return database.execute('SELECT runtime, desired, state, failure FROM studio_sessions').fetchall()
+        except sqlite3.Error:
+            return []
+
+    def schedule_studios(self):
+        """Start or stop each environment's Studio as the console asked, one child per environment."""
+        for runtime, process in list(self.studios.items()):
+            if child_status(process) is not None:
+                terminate_group(process, grace=0)
+                del self.studios[runtime]
+        for runtime, desired, state, failure in self.studio_requests():
+            if runtime in self.studios:
+                continue
+            if desired == 'running' and (state == 'stopped' or (state == 'failed' and failure is None)):
+                self.studios[runtime] = self.spawn(['/usr/bin/python3', 'lab/studio.py', 'up', runtime])
+            elif desired == 'stopped' and state in ('running', 'starting', 'failed'):
+                self.studios[runtime] = self.spawn(['/usr/bin/python3', 'lab/studio.py', 'down', runtime])
+
+    def reset_studios(self):
+        """No Studio outlives a restart: browser sessions are gone and the login must close."""
+        subprocess.run(['/usr/bin/python3', 'lab/studio.py', 'reset'], cwd=ROOT, timeout=300, check=False)
+        path = STATE/'control.sqlite'
+        if path.exists():
+            try:
+                with closing(sqlite3.connect(path, timeout=5)) as database, database:
+                    database.execute("UPDATE studio_sessions SET desired='stopped', state='stopped', failure=NULL")
+            except sqlite3.Error:
+                pass
+
     def record_worker_event(self, kind, reason):
         """One supervisor event, from the worker exit the supervisor already recorded."""
         return notification_producers.emit(kind, 'critical' if kind == 'worker.restart_limit' else 'warning',
@@ -183,14 +222,18 @@ class Supervisor:
 
     def run(self):
         try:
+            self.reset_studios()
             self.server = self.spawn(['bun', 'lab/upstream-server.ts'])
             self.start_worker()
             while not self.stop_event.wait(.25):
                 self.check()
                 self.schedule_backup()
+                self.schedule_studios()
         finally:
             if self.backup:
                 terminate_group(self.backup)
+            for process in self.studios.values():
+                terminate_group(process)
             # Stop new HTTP mutations first, then drain the active worker effect.
             if self.server:
                 terminate_group(self.server)

@@ -54,7 +54,9 @@ def hba_content(environments):
     for e in environments:
         if not re.fullmatch(r'e_[a-f0-9]{24}', e):
             raise RuntimeError('Invalid runtime inventory')
-        lines += [f'host {e} {e}_{role} 0.0.0.0/0 scram-sha-256' for role in ('auth', 'rest', 'storage')]
+        # The studio login exists only while an operator runs Studio for this environment
+        # (lab/studio.py); outside that it is NOLOGIN, so the rule admits nobody.
+        lines += [f'host {e} {e}_{role} 0.0.0.0/0 scram-sha-256' for role in ('auth', 'rest', 'storage', 'studio')]
     lines += ['host all all 0.0.0.0/0 reject', 'host all all ::/0 reject']
     return '\n'.join(lines)+'\n'
 
