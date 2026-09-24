@@ -15,7 +15,7 @@ DOCS = ROOT / 'docs'
 # The live operational documents: an operator or the next agent follows these.
 # Review records and the point-in-time checkpoints are deliberately out of scope,
 # because they must keep saying what was true when they were written.
-DOCUMENTS = (DOCS / 'guides' / 'server-deployment.md', DOCS / 'guides' / 'operator-setup.md',
+DOCUMENTS = (DOCS / 'guides' / 'server-deployment.md', DOCS / 'guides' / 'operator-setup.md', DOCS / 'guides' / 'cli.md',
              DOCS / 'guides' / 'backup-and-restore.md', DOCS / 'guides' / 'upgrades.md',
              DOCS / 'guides' / 'local-lab.md', DOCS / 'reference' / 'deployment-readiness.md',
              DOCS / 'reference' / 'status.md', DOCS / 'reference' / 'configuration.md',
