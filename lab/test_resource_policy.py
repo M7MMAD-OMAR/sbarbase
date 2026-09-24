@@ -413,6 +413,15 @@ class BlockIOLimits(unittest.TestCase):
             self.assertEqual(policy.whole_disk('/dev/dm-0', sysfs=sysfs), '/dev/dm-0')
             self.assertEqual(policy.whole_disk('/dev/sdz9', sysfs=sysfs), '/dev/sdz9')
 
+    def test_a_device_known_to_sysfs_but_absent_from_dev_is_accepted(self):
+        # A control plane in a container sees the host's sysfs but not its /dev.
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            sysfs = Path(directory)
+            (sysfs / 'vdz').mkdir()
+            self.assertTrue(policy.known_block_device('/dev/vdz', sysfs=sysfs))
+            self.assertFalse(policy.known_block_device('/dev/vdy', sysfs=sysfs))
+
     def test_io_device_refuses_a_source_that_is_not_a_block_device(self):
         for source in ('', 'overlay', 'tmpfs', 'none', '/dev/does-not-exist'):
             self.assertIsNone(policy.io_device('/tmp', runner=lambda target, s=source: s), source)

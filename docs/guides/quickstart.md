@@ -2,6 +2,8 @@
 
 From an empty server to a supabase-js call against your first environment. These are the steps an empty-server rehearsal ran, on a clean Fedora 44 virtual machine with 4 CPU cores and 6 GB of memory ([lab/vm-rehearsal.sh](../../lab/vm-rehearsal.sh)). It has not been run on a real server yet, and the HTTPS step at the end has only been checked with a self-signed certificate. Sbarbase is in development: do not put data you cannot lose on it.
 
+With Docker on the server, [Install with Docker](docker.md) is shorter and does not depend on the host's Python. This page is the systemd path.
+
 Before you start, read [choosing a server](choosing-a-server.md). You need root on a Fedora 44 or Ubuntu 26.04 server with 4 cores and 8 GB of memory (3 cores is the useful minimum) and 12 GiB of free disk. The rehearsal's 6 GB machine had room for exactly one environment, the one step 6 creates.
 
 ## 1. Install the system packages

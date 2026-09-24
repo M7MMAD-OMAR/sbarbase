@@ -190,10 +190,22 @@ def io_device(path=VOLUME_ROOT, runner=None):
     if not source:
         return None
     device = source.split('[')[0].strip()
-    if not device.startswith('/dev/') or not Path(device).exists():
+    if not device.startswith('/dev/') or not known_block_device(device):
         return None
     disk = whole_disk(device)
-    return disk if Path(disk).exists() else None
+    return disk if known_block_device(disk) else None
+
+
+def known_block_device(device, sysfs=Path('/sys/class/block')):
+    """A device node this process can see, or one the kernel lists in sysfs.
+
+    The control plane may run in a container that has the Docker socket but not
+    the host's /dev. sysfs still lists the host's block devices there, and the
+    daemon, which resolves the device on the host, rejects a name it cannot find
+    before any container starts.
+    """
+    import os
+    return Path(device).exists() or (sysfs / Path(os.path.realpath(device)).name).exists()
 
 
 def whole_disk(device, sysfs=Path('/sys/class/block')):

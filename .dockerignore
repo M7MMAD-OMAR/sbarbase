@@ -1,0 +1,3 @@
+# The image copies only its start script; the checkout is mounted at run time.
+*
+!deploy/container/start.sh

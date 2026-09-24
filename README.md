@@ -25,6 +25,7 @@ Not built yet: per-environment Supabase Studio (specified, not served), Realtime
 
 An install from an empty server has passed in a local virtual machine (Fedora 44, 4 cores, 6 GB; plan on 4 cores and 8 GB for a real one): one command installs the service, creates a first project and proves supabase-js works through it, and the service survives a reboot. It **has not been run on a real server yet**.
 
+- [Install with Docker](docs/guides/docker.md): the shortest path, on any Linux host with Docker. CI runs it from a clean machine on every change.
 - [Quickstart](docs/guides/quickstart.md): from an empty server to a supabase-js call, the steps the VM ran.
 - [Choosing a server](docs/guides/choosing-a-server.md): what to buy, what the free options really give you.
 - [Local lab](docs/guides/local-lab.md): run the stack on your own machine for evaluation. Read its safety notes first.
