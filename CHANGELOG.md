@@ -21,7 +21,19 @@ ready.
   `deploy/server-acceptance.sh`: login, project, environment, key, supabase-js
   Auth, REST and Storage through the gateway, and a refused revoked key.
 - `SBARBASE_CONSOLE_PORT` pins the console's loopback port for a TLS proxy.
-- CI for the unit suites, with a manual empty-host acceptance job.
+- CI for the unit suites, with a manual empty-host acceptance job. The Python
+  suite also runs against an unreachable Docker endpoint, so a unit test that
+  needs the daemon fails in review.
+- **Import inspection (phase 0).** `lab/import_inspect.py` reads a Supabase
+  source read-only and reports what an import would refuse, warn about or leave
+  manual (`docs/evidence/import-inspect-checks.json`). The import itself does not
+  exist yet.
+- Management API: create an organization (owners and admins of the bootstrap
+  organization), list an organization's members, retry a failed or cancelled
+  environment; the console has matching screens.
+- The control catalog records its schema version and refuses one written by a
+  newer release.
+- A recovery export records the owning organization, project and environment.
 - Documentation restructured into explain, guides, reference and decisions, with
   hand-drawn diagrams, a quickstart, a server guide, `SECURITY.md`, a threat
   model, `CONTRIBUTING.md` and a roadmap.
@@ -43,6 +55,12 @@ ready.
   requests got a body over the real listener, so key issuance and revocation
   answered 400; image pulls ran under a 600 second timeout with no progress; a
   failed first launch was reported as a retained source to adopt.
+- An owner or admin of any organization could read every organization's
+  notifications, including their ids and failure reasons. Each caller now sees
+  only their own organizations' events.
+- CI was red on a host whose root filesystem is a partition: a test still
+  expected the partition where the runtime correctly names the whole disk.
+- Five admission unit tests called Docker for real and failed without a daemon.
 
 ### Changed
 
@@ -53,6 +71,11 @@ ready.
 - CPU limits are admitted as ceilings: up to twice the cores after one core for
   the host. The old rule asked for 8 cores.
 - A new environment is refused when the next restart could not admit it.
+- Project names are unique within an organization and environment names within
+  a project; a clash answers 409, not 500. The API refuses an environment past
+  the installation limit with 409 before queueing it.
+- Moving a project cancels its queued jobs in the move and points its jobs at the
+  destination, so later events name the new owners.
 
 - The two load vehicles no longer overwrite their own evidence on failure or let
   cleanup replace the real error, and the SDK vehicle probes its fixture first.

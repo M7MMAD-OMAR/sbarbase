@@ -26,6 +26,8 @@ Current state and next step for a coding agent (Claude Code, Codex, Hermes or an
 - The retained moved environment stays on its recovery target; its source database and scoped logins remain fenced. Resume from the private cutover journal, never by rerunning export or allocation.
 - The deployment path passes on the development workstation and, from an empty server, in a local Fedora 44 VM with 4 vCPU and 6 GiB: acceptance 12 of 12, first project 13 of 13, reboot survived ([summary](../../evidence/vm-empty-server-rehearsal.json)). Repeat it with `lab/vm-rehearsal.sh`. No real server has been used.
 
+- 2026-09-24: the [verification and migration plan](../plans/2026-09-23-verification-and-migration-plan.md) records the hierarchy follow-ups (most done, each with tests), the competitor comparison and the import design; import phase 0 exists as `lab/import_inspect.py`.
+
 ## Next step
 
 **Follow the [roadmap](../plans/2026-09-23-roadmap.md)**: a real server first (the owner expects one next month), then backups as a feature, Studio per environment and upgrades. Use [CONTRIBUTING.md](../../../CONTRIBUTING.md) for the workflow.

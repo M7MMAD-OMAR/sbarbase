@@ -1,21 +1,21 @@
 # Status
 
-The single place for what works, what does not, and every number. Updated 2026-09-23. Current source release: [0.1.0](../../CHANGELOG.md) (2026-09-21), plus the unreleased container generation migration.
+The single place for what works, what does not, and every number. Updated 2026-09-24. Current source release: [0.1.0](../../CHANGELOG.md) (2026-09-21), plus the unreleased container generation migration.
 
 Everything below was verified on one development workstation, except the empty-server rehearsal, which ran in a local virtual machine. **Nothing has been run on a real server yet.** Nothing here certifies production readiness or security, and no fixed number of projects per server is claimed.
 
-## Test suites, 2026-09-23
+## Test suites, 2026-09-24
 
-Run from the repository root on the development workstation. These suites do not start containers.
+Run from the repository root in a clean container with Python 3.14 and `cryptography`, as root. These suites do not start containers; they also pass with no Docker daemon reachable, which CI now checks.
 
 | Suite | Command | Result |
 |---|---|---|
-| Python unit tests | `DOCKER_HOST=unix:///var/run/docker.sock /usr/bin/python3 -m unittest discover -s lab -p 'test_*.py'` | 625 tests, OK, none skipped |
-| Bun tests (root) | `bun test` | 93 pass, 0 fail, 562 assertions, 19 files (the 18 in `tests/` plus `website/tests/site.test.ts`) |
+| Python unit tests | `DOCKER_HOST=unix:///var/run/docker.sock /usr/bin/python3 -m unittest discover -s lab -p 'test_*.py'` | 642 tests, OK; 4 skipped as root or where `/usr/bin/python3` is older than 3.14, each with its reason; none skipped on CI |
+| Bun tests (root) | `bun test` | 101 pass, 0 fail, 620 assertions, 20 files (the 19 in `tests/` plus `website/tests/site.test.ts`) |
 | Website | `cd website && bun run build && bun test` | build OK; 2 pass, 0 fail, 40 assertions |
 | Console typecheck | `bun run typecheck:ui` | passes |
 
-Earlier pages recorded other totals (for example 575 Python and 87 Bun tests at the 0.1.0 release gate). Those were correct for their date and scope; this table replaces them.
+Earlier pages recorded other totals (for example 575 Python and 87 Bun tests at the 0.1.0 release gate, and 625 and 93 on the workstation on 2026-09-23). Those were correct for their date and scope; this table replaces them.
 
 ## Live evidence
 
