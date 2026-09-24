@@ -676,6 +676,13 @@ END $$;""", e)
             if migrate:
                 self.sql(f"ALTER ROLE {e}_realtime NOSUPERUSER; "
                          f"SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE usename = '{e}_realtime';")
+        if migrate:
+            # Closing those sessions can leave a Realtime process holding a dead connection (a
+            # database-change listener that never hears another row). A restart opens every
+            # connection again as the ordinary login.
+            lab.docker('restart', '-t', '10', name)
+            base = self.endpoint(name, REALTIME_PORT)
+            wait_ready(base+'/healthcheck', failure='Realtime did not start', attempts=REALTIME_BOOT_SECONDS*2)
         return {'url': base, 'tenantHost': realtime_tenant(e)+'.realtime', 'migrated': self.pins['realtime']['id']}
 
     def realtime_grants(self, e):

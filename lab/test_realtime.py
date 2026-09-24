@@ -66,17 +66,23 @@ class RuntimeTests(unittest.TestCase):
 
     def test_the_login_is_a_superuser_only_while_realtime_migrates(self):
         with patch.object(self.runtime, 'launch'), patch.object(self.runtime, 'endpoint', return_value='http://10.0.0.5:4000'), \
-             patch.object(durable_runtime, 'wait_ready'), patch.object(self.runtime, 'realtime_register') as register:
+             patch.object(durable_runtime, 'wait_ready'), patch.object(self.runtime, 'realtime_register') as register, \
+             patch.object(durable_runtime.lab, 'docker', side_effect=lambda *args, **kw: self.statements.append(('docker', *args))) as docker:
             entry = self.runtime.realtime_start(E, migrate=True)
         register.assert_called_once()
-        self.assertTrue(any(f'GRANT ALL ON ALL TABLES IN SCHEMA realtime TO {E}_realtime' in s for s in self.statements))
-        granted = [i for i, s in enumerate(self.statements) if f'ALTER ROLE {E}_realtime SUPERUSER' in s]
-        revoked = [i for i, s in enumerate(self.statements) if f'ALTER ROLE {E}_realtime NOSUPERUSER' in s]
+        # Realtime restarts after the rights are gone, so no connection opened as a superuser survives.
+        restarts = [i for i, s in enumerate(self.statements) if isinstance(s, tuple) and 'restart' in s]
+        self.assertEqual(len(restarts), 1)
+        docker.assert_called_once_with('restart', '-t', '10', f'sbarbase-durable-{E}-realtime')
+        self.assertTrue(any(isinstance(s, str) and f'GRANT ALL ON ALL TABLES IN SCHEMA realtime TO {E}_realtime' in s for s in self.statements))
+        granted = [i for i, s in enumerate(self.statements) if isinstance(s, str) and f'ALTER ROLE {E}_realtime SUPERUSER' in s]
+        revoked = [i for i, s in enumerate(self.statements) if isinstance(s, str) and f'ALTER ROLE {E}_realtime NOSUPERUSER' in s]
         self.assertEqual((len(granted), len(revoked)), (1, 1))
         self.assertLess(granted[0], revoked[0])
         self.assertIn('pg_terminate_backend', self.statements[revoked[0]])
+        self.assertLess(revoked[0], restarts[0])
         self.assertEqual(entry, {'url': 'http://10.0.0.5:4000', 'tenantHost': 'a' * 24 + '.realtime', 'migrated': 'sha256:rt'})
-        created = next(s for s in self.statements if 'CREATE ROLE' in s and '_realtime' in s)
+        created = next(s for s in self.statements if isinstance(s, str) and 'CREATE ROLE' in s and '_realtime' in s)
         self.assertNotRegex(created, r'CREATE ROLE \S+ [^;]*SUPERUSER')
         self.assertIn('NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS', created)
         self.assertIn('WITH INHERIT FALSE, SET TRUE', created)
