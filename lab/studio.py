@@ -44,7 +44,10 @@ PREFIX = runtime.PREFIX
 STATE_FILE = runtime.STATE / 'studio.json'
 CATALOG = runtime.STATE / 'control.sqlite'
 RUNTIME_ID = re.compile(r'e_[a-f0-9]{24}')
-UPSTREAM_PORT = int(os.environ.get('SBARBASE_STUDIO_UPSTREAM_PORT', '54320'))
+# Below Linux's ephemeral range (32768 to 60999): the host's own outbound connections into the
+# runtime network take source ports from that range on the same address, and one holding this
+# port kept the route from opening for a whole run.
+UPSTREAM_PORT = int(os.environ.get('SBARBASE_STUDIO_UPSTREAM_PORT', '25432'))
 # Studio itself allows longer statements than the data plane: an operator's SQL editor
 # query or a CSV import is not application traffic.
 STATEMENT_TIMEOUT = '60s'
