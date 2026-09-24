@@ -21,6 +21,8 @@ services:
     environment:
       SBARBASE_ROOT: ${SBARBASE_ROOT:-${PWD}}
       SBARBASE_CONSOLE_PORT: ${SBARBASE_CONSOLE_PORT:-8790}
+      SBARBASE_BACKUP_HOUR: ${SBARBASE_BACKUP_HOUR:-3}
+      SBARBASE_BACKUP_KEEP: ${SBARBASE_BACKUP_KEEP:-7}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       # Read only: the disk behind Docker's data is where block IO limits apply.

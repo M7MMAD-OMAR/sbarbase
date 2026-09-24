@@ -65,6 +65,8 @@ const NOTIFICATION_DETAIL_KEYS = {
   'fence.released':['phase'],
   'backup.export_completed':['phase'],
   'backup.export_failed':['phase'],
+  'backup.completed':['environments'],
+  'backup.failed':['failed'],
   'restore.verified':['status'],
   'restore.failed':['status'],
 } satisfies Record<string,string[]>;

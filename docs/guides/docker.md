@@ -35,6 +35,7 @@ The console and the API listen on loopback only. Publish them through the TLS pr
 | Stop everything cleanly | `docker compose down` |
 | Start again | `docker compose up -d` |
 | Update the code | `git pull && docker compose up -d --build` |
+| Back up / restore | see [backup and restore](backup-and-restore.md); daily backups run on their own |
 
 `restart: unless-stopped` brings Sbarbase back after a reboot once Docker itself starts at boot (`systemctl enable docker`). Data lives in Docker volumes and in the checkout's `.lab/` and `.secrets/` folders; `docker compose down` keeps all of it.
 
