@@ -1,0 +1,72 @@
+{
+  "probe": ".github/workflows/ci.yml docker-install (lab/first-project-check.ts inside the container, then docker compose restart, install_server.py smoke, docker compose down)",
+  "run_at": "2026-09-24T02:14:15Z",
+  "source": "https://github.com/M7MMAD-OMAR/sbarbase/actions/runs/35946158322",
+  "commit": "c2d51528b89a3a566f8f6e94f42e4e317d981b52",
+  "host": "GitHub-hosted ubuntu-26.04 runner, clean, Docker only; control plane in the sbarbase image through compose.yaml",
+  "scope": "Install with Docker from a clean runner: build and start, first operator, a first project used through supabase-js, a container restart after which the environment answers again, and a clean stop with no owned container left. Transcribed from the job log of the cited run. Not a real server: no public network, certificate or host reboot.",
+  "checks": [
+    {
+      "check": "operator logs in through the management Auth realm",
+      "passed": true
+    },
+    {
+      "check": "the operator sees the client created at install",
+      "passed": true
+    },
+    {
+      "check": "a project is created",
+      "passed": true
+    },
+    {
+      "check": "an environment is queued for provisioning",
+      "passed": true
+    },
+    {
+      "check": "the worker provisions the environment",
+      "passed": true
+    },
+    {
+      "check": "connection details name the gateway path",
+      "passed": true
+    },
+    {
+      "check": "a publishable key is issued once",
+      "passed": true
+    },
+    {
+      "check": "Auth answers through the gateway",
+      "passed": true
+    },
+    {
+      "check": "an application user can sign up with supabase-js",
+      "passed": true
+    },
+    {
+      "check": "REST answers through the gateway",
+      "passed": true
+    },
+    {
+      "check": "Storage answers through the gateway with supabase-js",
+      "passed": true
+    },
+    {
+      "check": "the key is revoked",
+      "passed": true
+    },
+    {
+      "check": "the gateway refuses the revoked key",
+      "passed": true
+    },
+    {
+      "check": "after docker compose restart the console, management Auth and the environment Auth and REST answer",
+      "passed": true
+    },
+    {
+      "check": "docker compose down leaves no owned container running",
+      "passed": true
+    }
+  ],
+  "count": 15,
+  "passed": true
+}

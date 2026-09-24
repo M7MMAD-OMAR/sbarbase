@@ -1,0 +1,72 @@
+{
+  "probe": "lab/backup-check.py",
+  "run_at": "2026-09-24T02:14:15Z",
+  "source": "https://github.com/M7MMAD-OMAR/sbarbase/actions/runs/35946158322",
+  "commit": "c2d51528b89a3a566f8f6e94f42e4e317d981b52",
+  "host": "GitHub-hosted ubuntu-26.04 runner, clean, Docker only; control plane in the sbarbase image through compose.yaml",
+  "scope": "Per-environment backup and in-place restore on one running installation: database rows, auth users and Storage files return exactly to the backup, while other environments keep running. Backups stay on the host. Transcribed from the job log of the cited run.",
+  "checks": [
+    {
+      "check": "a published environment exists",
+      "passed": true
+    },
+    {
+      "check": "a bucket is created through Storage",
+      "passed": true
+    },
+    {
+      "check": "an object is uploaded through Storage",
+      "passed": true
+    },
+    {
+      "check": "backup completes while the environment serves",
+      "passed": true
+    },
+    {
+      "check": "backup holds the uploaded file",
+      "passed": true
+    },
+    {
+      "check": "backup verifies against its digests",
+      "passed": true
+    },
+    {
+      "check": "the environment changed after the backup",
+      "passed": true
+    },
+    {
+      "check": "restore completes and Auth answers again",
+      "passed": true
+    },
+    {
+      "check": "rows are exactly those at backup time",
+      "passed": true
+    },
+    {
+      "check": "a row written after the backup is gone",
+      "passed": true
+    },
+    {
+      "check": "a file deleted after the backup is back",
+      "passed": true
+    },
+    {
+      "check": "a file written after the backup is gone",
+      "passed": true
+    },
+    {
+      "check": "other environments were never stopped",
+      "passed": true
+    },
+    {
+      "check": "the state set aside by the restore is discarded on request",
+      "passed": true
+    },
+    {
+      "check": "no previous database remains",
+      "passed": true
+    }
+  ],
+  "count": 15,
+  "passed": true
+}
