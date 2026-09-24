@@ -119,7 +119,8 @@ export type StudioSession={runtime:string;desired:'running'|'stopped';state:'sto
 export type SignInState={runtime:string;revision:number;applied:number|null;
   state:'unconfigured'|'pending'|'applied'|'failed';failure:string|null;updatedAt:number|null};
 
-export type GatewayShareState={share:number;default:number;ceiling:number;total:number;allocated:number};
+/** `total` and `allocated` describe the whole installation, so only installation operators get them. */
+export type GatewayShareState={share:number;default:number;ceiling:number;operator:boolean;total?:number;allocated?:number};
 
 export class Catalog {
   private db:Database;
@@ -533,20 +534,23 @@ export class Catalog {
       return this.studio(actor,environment);
     }).immediate();
   }
-  /** An environment's guaranteed share of the application gateway, what the whole gateway has,
-   * and how much of it the ready environments already hold. Any member may read it. */
+  /** An environment's guaranteed share of the application gateway. Members of its organization
+   * read the share; installation operators also see the whole gateway and its allocation, which
+   * spans every client, so no client learns another's. */
   gatewayShareState(actor:string,environment:string):GatewayShareState {
-    this.environmentProject(actor,environment,['owner','admin','viewer']);
+    const operator=this.installationOperator(actor);
+    if(!operator)this.environmentProject(actor,environment,['owner','admin','viewer']);
     const job=this.job(environment);
     if(!job||job.state!=='succeeded')throw new Error('Environment is not ready');
-    return {share:this.gatewayShare(job.runtime)??GATEWAY.share,default:GATEWAY.share,ceiling:GATEWAY.ceiling,
-      total:GATEWAY.total,allocated:this.allocatedShares()};
+    const share={share:this.gatewayShare(job.runtime)??GATEWAY.share,default:GATEWAY.share,ceiling:GATEWAY.ceiling,operator};
+    return operator?{...share,total:GATEWAY.total,allocated:this.allocatedShares()}:share;
   }
-  /** Owners and admins change one environment's share. Refused when the shares of all ready
-   * environments would exceed the gateway, so every guarantee can hold at once. */
+  /** Only installation operators change a share: an organization is a client, and room given
+   * to one client is room taken from another. Refused when the shares of all ready environments
+   * would exceed the gateway, so every guarantee can hold at once. */
   setGatewayShare(actor:string,environment:string,share:number):GatewayShareState {
     return this.db.transaction(()=>{
-      this.environmentProject(actor,environment,['owner','admin']);
+      if(!this.installationOperator(actor))throw new Error('Forbidden');
       if(!Number.isSafeInteger(share)||share<1||share>GATEWAY.ceiling)throw new Error('Invalid share');
       const job=this.job(environment);
       if(!job||job.state!=='succeeded')throw new Error('Environment is not ready');

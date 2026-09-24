@@ -42,9 +42,10 @@ ready.
   operator notification. Borrowing alone never does.
 - **Telegram** as a third notification channel beside email and webhook.
 - **A gateway share per environment.** The console's environment page shows each
-  environment's guaranteed share and the installation's allocation; owners and
-  admins raise or lower it, and the gateway applies it at the next request. A
-  raise that would exceed the gateway's 32 is refused.
+  environment's guaranteed share. Installation operators raise or lower it and
+  see the installation's allocation; a client organization sees only its own
+  share. The gateway applies a change at the next request, and a raise that
+  would exceed the gateway's 32 is refused.
 - **Supabase Studio per environment.** Owners and admins start the original,
   pinned Studio and postgres-meta for one environment from the console, open it
   on its own address behind the console login, and stop it. Studio signs in with

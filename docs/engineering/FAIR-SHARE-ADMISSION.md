@@ -87,9 +87,10 @@ takes room from someone else and is the operator's decision.
 ## Per environment shares (implemented)
 
 The share is no longer one number for all. `gateway_shares` in the catalog holds a share per
-ready environment (default 8). The console's environment page shows it with the installation's
-allocation, and owners and admins change it (`GET`/`PUT /management/v1/environments/{id}/share`,
-`src/control/share.ts`). The gate asks the catalog on each request (`ConcurrencyGate.useShares`),
+ready environment (default 8). The console's environment page shows it. Only installation
+operators (owners and admins of the bootstrap organization) change it, and only they see the
+installation's allocation: an organization is a client, and room given to one client is room
+taken from another (`GET`/`PUT /management/v1/environments/{id}/share`, `src/control/share.ts`). The gate asks the catalog on each request (`ConcurrencyGate.useShares`),
 so a change applies to the next request without a restart; a lookup that fails falls back to the
 default. A raised share is refused when the shares of all ready environments would exceed the
 gateway's 32, so every guarantee can hold at once. Creating an environment later is not blocked by
