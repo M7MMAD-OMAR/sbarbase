@@ -129,7 +129,7 @@ push.
   retained upstream catalog today (52 pause, 51 resume, 49 stage).
 - Cutover journal: `.lab/upstream/cutover-operation.json`, phase recorded as
   `target-stopped-routing-paused` and later `target-services-verified-routing-paused`
-  (docs/engineering/handoff/RESUME-CHECKPOINT.md:15, docs/engineering/INDEPENDENT-RESTORE.md:100).
+  (docs/engineering/INDEPENDENT-RESTORE.md:100).
 
 Durable today: routing changes are durable in `audit_events` and `runtime_routing`;
 database fences are durable only as private JSON records. Missing: a push on both, and a
@@ -754,7 +754,7 @@ the path.
   ids, RLS policy text.
 - Any raw SQL, any upstream response body, any stack trace, any exception message.
 - Any private filesystem path to a credential file. The lesson is recorded in
-  docs/engineering/handoff/RESUME-CHECKPOINT.md:717-718: "the recorded-command redaction missed the
+  the resume checkpoint log (since removed; in the repository history): "the recorded-command redaction missed the
   `--bootstrap-file=PATH` form, which leaked the private path into committed evidence."
   Message templates never carry a path to `.secrets/` or to a bootstrap file; the
   diagnostic path exception in section 6.1 is limited to `.lab/upstream/diagnostics/`, which

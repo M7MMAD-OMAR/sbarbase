@@ -22,7 +22,7 @@ binding for every future change, assistant and release.
    - the explicit adopt / defer decision and why.
 3. **Impact analysis over hope.** A change that touches the database bootstrap,
    HBA publication, receipts/witnesses or the provisioning SQL path must state
-   which checkpoints in `docs/engineering/handoff/RESUME-CHECKPOINT.md` it could invalidate. If a
+   which checkpoints in `docs/engineering/checkpoints.md` it could invalidate. If a
    gate was proven against the old version, say so; do not silently reuse old
    evidence for a new version.
 4. **Full test suite is the adoption gate.** A version is adopted only after:

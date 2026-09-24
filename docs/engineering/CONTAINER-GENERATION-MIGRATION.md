@@ -116,3 +116,25 @@ Three deviations from this document, each deliberate and each visible in the cod
   would break readers that glob that directory.
 - The pin replacement moves the retired pin's exact bytes into that archive
   instead of unlinking them, so the retirement stays byte-auditable.
+
+## What remains
+
+The attended run on the retained database has not happened. `lab/migrate-generation.py`
+refuses the retained placement by design, so it is a deliberate operator action.
+Its acceptance, carried over from the 2026-09-21 plan (removed 2026-09-24):
+
+1. Before the run, take a row-count snapshot of the environment databases and
+   archive the pin.
+2. The retained database container is recreated once, carrying `io.sbarbase.tier`
+   and the per-device block IO limits, with its authority rules preserved (or the
+   difference stated) and its data intact; compare the row counts afterwards and
+   read the tier and IO limits back.
+3. `lab/durable-check.ts` is re-enabled, and its acceptance run writes
+   `.lab/upstream/probe.json` again.
+4. The two load vehicles run against that regenerated fixture and their evidence
+   is committed: the arrival driven pressure experiment and the mixed SDK load
+   (`docs/engineering/RESOURCE-POLICY.md` section 5.0).
+
+Out of scope: automatic detection of a changed container, silent re-pinning,
+migration across hosts, concurrent migrations of several databases, power-loss
+guarantees, and any migration while the runtime is supervising the installation.

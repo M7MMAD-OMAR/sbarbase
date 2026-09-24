@@ -1156,7 +1156,7 @@ the exact words of the disabled default.
 
 **Step 11. Update the pin table's coverage.**
 Files: `docs/engineering/UPSTREAM-UPDATE-POLICY.md` if the mailer pin row needs its Notes column filled,
-`PROJECT.md` (the evidence row).
+`docs/engineering/checkpoints.md` (the evidence row).
 Verify: `/usr/bin/python3 -m unittest lab/test_doc_references.py` and a read of the pin table
 against `lab/pin_update.py show`.
 
@@ -1172,7 +1172,7 @@ against `lab/pin_update.py show`.
 8. The read route returns the shape in section 5.3 and no credential field.
 9. The console renders the four states.
 10. The operator section exists and the doc reference test passes.
-11. The pin table and PROJECT.md agree with `pin_update.py show`.
+11. The pin table and `docs/engineering/checkpoints.md` agree with `pin_update.py show`.
 
 ## 9. Open items, and what is deliberately not in this increment
 

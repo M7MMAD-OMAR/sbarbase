@@ -4,7 +4,7 @@ Status: 2026-09-21. Read-only study. No container was started, stopped or create
 `/home/sbarah/R/Projects/P/sbarbase` was modified. `.secrets/` and `.lab/` were not read.
 
 This document is the design record for the administration-surface redirect. The decision itself is
-in [DECISIONS](../decisions/README.md) and the dated entry in [RESUME-CHECKPOINT](handoff/RESUME-CHECKPOINT.md).
+in [DECISIONS](../decisions/README.md) and the dated entries in [checkpoints](checkpoints.md).
 Nothing described here is implemented yet.
 
 ## 0. Evidence base, and how to read the labels
@@ -475,7 +475,7 @@ keys for other surfaces are NOT verified.
 
 | Studio surface | Backing service in sbarbase | What happens | Honest plan |
 |---|---|---|---|
-| Realtime inspector | none. `docs/guides/server-deployment.md`: "Realtime, Functions, the connection pooler and cron are not implemented", and `docs/engineering/handoff/RESUME-CHECKPOINT.md:34` repeats it | empty or erroring page | label it in the console and in the Studio handoff note; hide it if a verified feature key exists |
+| Realtime inspector | none. `docs/guides/server-deployment.md`: "Realtime, Functions, the connection pooler and cron are not implemented" | empty or erroring page | label it in the console and in the Studio handoff note; hide it if a verified feature key exists |
 | Logs and Analytics | none. The base compose already sets `ENABLED_FEATURES_LOGS_ALL: "false"` for the same reason (Logflare and Vector are an optional override) | the explorer is already off | keep `false`; this is upstream's own default, so nothing is being hidden that should work |
 | Edge Functions | none, and the self-hosted code asserts `EDGE_FUNCTIONS_MANAGEMENT_FOLDER` | page fails closed | mount an empty read-only directory so it shows an empty list, or leave the variable unset and document the failure. Do not create a folder that implies functions are supported |
 | SQL editor | postgres-meta, present | works, running real SQL as the scoped login | real, but scoped: statements that need superuser or schema ownership (`CREATE EXTENSION`, `ALTER SYSTEM`, role changes) will fail. Say so; do not grant the privilege to make the page look complete |
@@ -587,7 +587,7 @@ Checkpoints and evidence this adoption could invalidate (the rule 3 obligation, 
 | `docs/evidence/combined-gateway-checks.json` (14 checks) and the smoke route list in `lab/install_server.py:298-311` | if a Studio route is added to discovery or to the smoke output, the counts change |
 | `docs/evidence/source-stage-footprint.json` | the sampled container set grows |
 
-Anything in `docs/engineering/handoff/RESUME-CHECKPOINT.md` that cites those files inherits the staleness and must be
+Anything in `docs/engineering/checkpoints.md` that cites those files inherits the staleness and must be
 re-stated rather than re-used.
 
 ## 10. Isolation tests that must exist before this is called safe

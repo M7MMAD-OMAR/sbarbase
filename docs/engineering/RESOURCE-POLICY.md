@@ -482,7 +482,7 @@ must be rewritten to quote the derived constants and to add one new row:
 `docs/reference/deployment-readiness.md:41` ("Capacity at 10 or 100 projects | not
 claimed") stays as it is: this change does not make a capacity claim.
 
-`PROJECT.md` (repository root) carries the same numbers in its "Admission checkpoint"
+`PROJECT.md` (repository root, now `docs/engineering/checkpoints.md`) carried the same numbers in its "Admission checkpoint"
 (`:59-73`) and "Continue safely" sections, including "the upstream Storage probe
 uses 2560 MiB/2.5 CPUs" and "The durable upstream experiment uses 2816 MiB/2.75
 CPUs at two environments". Those sentences must be re-derived or deleted, not
@@ -537,7 +537,10 @@ placement, and the reason is structural rather than a stale file:
   isolated fresh worker check instead. The `probe.json` on this host is therefore
   a leftover, and its first environment resolves to the retired environment
   `e_60332245e3a0426dd242492f`, which is why the overload vehicle dies on its
-  first SQL command (recorded in `docs/engineering/plans/2026-09-21-execution-plan.md`).
+  first SQL command. Two more defects in that vehicle must be fixed before it runs
+  again: its cleanup throws `Overload fixture cleanup incomplete`, which masks the
+  real error, and it writes `docs/evidence/gateway-sustained-failure.json` whatever
+  the outcome, so a run that dies in setup replaces committed evidence.
 - `docs/engineering/CONTAINER-GENERATION-MIGRATION.md` records that recreating a retained
   database container has no supported path, and that document is a deferred
   checkpoint rather than an implemented operation.
@@ -1034,7 +1037,7 @@ python3 -m json.tool docs/evidence/noisy-neighbor-sql.json
 ### Step 9: the documents
 
 Update in one change: `docs/reference/deployment-readiness.md` (row `:18` and a new
-fairness row), `PROJECT.md` (the admission checkpoint numbers), a new
+fairness row), `docs/engineering/checkpoints.md` (the admission checkpoint numbers), a new
 `docs/engineering/RESOURCE-POLICY.md` carrying the tier table, the quota table, the derived
 constants and the measurement status of each, and superseding notes at the top of
 each file listed in section 4.4.

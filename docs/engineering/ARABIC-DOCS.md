@@ -15,8 +15,9 @@ page under `docs/guides/`, `docs/explain/` and `docs/reference/`,
 one of those directories needs its Arabic sibling or the test fails.
 
 The engineering notebook (`docs/engineering/`, including this note), the
-checkpoints log, evidence, the image prompts in `docs/diagrams/README.md` and the
-one-line pointer files stay English only. They change daily and are read by the
+checkpoints log, evidence and `docs/diagrams/README.md` stay English only.
+Diagrams are the exception: each one has an Arabic variant `X.ar.svg` for the
+Arabic pages. They change daily and are read by the
 people and agents building the system.
 
 ## Page shape

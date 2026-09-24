@@ -1,8 +1,8 @@
 # Sbarbase: start here
 
-Updated 2026-09-23. Current source release: [0.1.0](../../CHANGELOG.md). The container generation migration is implemented and crash-tested on disposable fixtures; its attended run on the retained database has not happened. [START-HERE](handoff/START-HERE.md) holds the current state and next step; the checkpoints below are chronological and can be superseded.
+Updated 2026-09-23. Current source release: [0.1.0](../../CHANGELOG.md). The container generation migration is implemented and crash-tested on disposable fixtures; its attended run on the retained database has not happened. The [agent handoff](handoff/README.md) holds the current state and next step; the checkpoints below are chronological and can be superseded.
 
-Short continuation brief: [handoff](handoff/HANDOFF.md), including saved visuals, rationale and supervisor verification limits.
+The earlier handoff snapshots named below were removed on 2026-09-24 and remain in the repository history; their mentions are kept as plain text.
 
 ## Product and current decision
 
@@ -42,9 +42,9 @@ Local SQLite stores experimental control metadata and hashed API keys; applicati
 
 ## Research and saved diagrams
 
-[Decisions and alternatives](../decisions/README.md), [architecture review](ARCHITECTURE-REVIEW.md), independent [feasibility](reviews/supabase-feasibility.md), [security](reviews/security-operations.md), [alternative products](reviews/alternatives-product.md), [capacity method](reviews/capacity-method.md). Detailed implementation: [control plane](CONTROL-PLANE.md), [provisioning](PROVISIONING.md). Earlier [session record](handoff/SESSION-RECORD.md) is historical; this page takes precedence.
+[Decisions and alternatives](../decisions/README.md), [architecture review](ARCHITECTURE-REVIEW.md), independent [feasibility](reviews/supabase-feasibility.md), [security](reviews/security-operations.md), [alternative products](reviews/alternatives-product.md), [capacity method](reviews/capacity-method.md). Detailed implementation: [control plane](CONTROL-PLANE.md), [provisioning](PROVISIONING.md). The earlier session record is historical; this page takes precedence.
 
-Saved images: [10 projects](../diagrams/ten-projects.png), [transfer/restore](../diagrams/move-and-restore.png), [assumptions](../diagrams/README.md). Their 10-project cap and two-server layout are illustrative, not measured limits or implemented features.
+Saved images at the time (since removed): a 10-project picture and a transfer/restore picture. Their 10-project cap and two-server layout are illustrative, not measured limits or implemented features.
 
 ## Continue safely in Codex or Hermes
 
@@ -78,7 +78,7 @@ New allocations now check cgroup CPU, I/O and memory pressure for the owned data
 
 ## Documentation handoff checkpoint
 
-The [compact handoff](handoff/HANDOFF.md) indexes decisions, research and saved diagrams. The [resume checkpoint](handoff/RESUME-CHECKPOINT.md) records unfinished gateway/HTTP changes, the unsupported Bun connection-counting call, evidence boundaries and exact next steps. Read it before treating older next-step paragraphs or evidence as current.
+The compact handoff indexed decisions, research and saved diagrams. The resume checkpoint recorded unfinished gateway/HTTP changes, the unsupported Bun connection-counting call, evidence boundaries and exact next steps. Read it before treating older next-step paragraphs or evidence as current.
 
 ## Gateway overload checkpoint
 
@@ -114,7 +114,7 @@ A [selected-environment encrypted export](RECOVERY-EXPORT.md) now includes scope
 
 ## Documentation checkpoint for continuation
 
-[Current resume state](handoff/RESUME-CHECKPOINT.md) supersedes older next-step text. The latest export includes ICU locale metadata and table hashes. The independent database restore consumer is an uncommitted draft and failed resource preflight before target creation because the source is intentionally stopped. No independent restore success is claimed. Saved diagrams, research, decisions and unfinished source are included in the development handoff ZIP; private backup artifacts and keys are excluded.
+The resume state of that time superseded older next-step text. The latest export includes ICU locale metadata and table hashes. The independent database restore consumer is an uncommitted draft and failed resource preflight before target creation because the source is intentionally stopped. No independent restore success is claimed. Saved diagrams, research, decisions and unfinished source are included in the development handoff ZIP; private backup artifacts and keys are excluded.
 
 ## Independent database restore checkpoint
 
@@ -182,7 +182,7 @@ Normal dev.py now supervises source neighbors and moved target through a combine
 
 ## Documentation handoff checkpoint
 
-Consolidated [HANDOFF.md](handoff/HANDOFF.md) with current decisions, alternatives, source research, saved diagrams and a portable continuation prompt. [RESUME-CHECKPOINT.md](handoff/RESUME-CHECKPOINT.md) records the nine-check idle-supervisor SIGKILL/restart pass and two unresolved review findings: process-group identity after reaping and HTTP readiness polling. Latest recorded Python suite: 64 tests. Supervisor implementation remains uncommitted and explicitly unfinished. No production or 10/100-project capacity claim is made.
+Consolidated HANDOFF.md with current decisions, alternatives, source research, saved diagrams and a portable continuation prompt. RESUME-CHECKPOINT.md recorded the nine-check idle-supervisor SIGKILL/restart pass and two unresolved review findings: process-group identity after reaping and HTTP readiness polling. Latest recorded Python suite: 64 tests. Supervisor implementation remains uncommitted and explicitly unfinished. No production or 10/100-project capacity claim is made.
 
 ## Supervisor crash and ownership checkpoint
 
