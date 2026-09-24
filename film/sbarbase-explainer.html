@@ -32,8 +32,9 @@
 //           a drum per window; little RAM used, a spare window lights up    room for more (speed)
 // keys      planes carry their window's key and reach only their own drum;  no data mixing
 //           Shop's key aimed at Blog's window is refused at the door
-// load      a burst for one window fills its slots; extras turn back with   one busy project does not
-//           a retry sign; Blog's steady planes keep landing                 slow the others
+// load      a burst fills its share and borrows idle slots; when Blog and   a busy project uses free room,
+//           staging wake up they keep their share, it gives room back, the  never its neighbours' share;
+//           extras turn back with a retry sign; a message card arrives      the operator hears if it chokes
 // install   one command types itself, the building lights, the wordmark
 // ============================================================
 
@@ -243,29 +244,51 @@ function sceneKeys(c, tau, i) { paper(c); zoomAt(c, 1.1, 960, 600); stillBuildin
     else { bounce(c, sm(1.1, 1.9, u), '#D9D3E3', key); crossMark(c, DOOR()[0] + 4, DOOR()[1] - 110, 1.1, sm(1.1, 1.5, u)); const w = g.win[2], sh = Math.sin(u * 30) * 4 * (1 - sm(1.2, 1.8, u)); c.save(); c.translate(sh, 0); lockMark(c, w.x + w.w - 8, w.y + w.h + 2, 1.3, 1); c.restore(); } }
   pen(c, tau, i, -9, 41, d => cactus(d, 1640, 900, .82, u > 1.1 ? 'happy' : 'rest')); }
 
-// 4. Load: a burst for one environment takes its own share and no more; the rest are told to retry; the neighbour stays fast
-const SLOTS = 4, SERVE = 2.2;
-let _burst = null;
-function burst(q) { if (_burst) return _burst; const list = [];
-  for (let n = 0; n < 18; n++) { const st = q[0] + .3 + n * .3, door = st + 1; list.push({ st, door, from: n % 3 }); }
-  list.forEach(p => { const busy = list.filter(o => o !== p && o.ok && o.door <= p.door && p.door < o.door + 1.1 + SERVE).length; p.ok = busy < SLOTS; });
-  return _burst = list; }
-function sceneLoad(c, tau, i) { paper(c); zoomAt(c, 1.1, 960, 600); stillBuilding(c); devices(c, tau, i); const { q, e } = TS('load'), g = G(), list = burst(q), key = KEYC[0];
-  g.win.slice(0, 3).forEach((w, j) => glow(c, ...winC(w), 100, '#FFE7A0', .4));
-  // the busy environment's share: a meter of slots above its window
-  const w0 = g.win[0], used = list.filter(p => p.ok && tau >= p.door && tau < p.door + 1.1 + SERVE).length;
-  for (let s = 0; s < SLOTS; s++) { c.save(); c.fillStyle = s < used ? C.coral : C.paper; c.strokeStyle = INK; c.lineWidth = 2.6; c.beginPath(); c.roundRect(w0.x + 4 + s * 37, w0.y - 30, 30, 18, 4); c.fill(); c.stroke(); c.restore(); }
-  if (used >= SLOTS) glow(c, ...winC(w0), 140, '#FFB38A', .55);
-  list.forEach(p => { const u = tau - p.st; if (u < 0) return;
-    if (u < 1) return toDoor(c, p.from, u, C.coralSoft, key);
-    if (!p.ok) { bounce(c, sm(1, 1.8, u), C.coralSoft, key); retryMark(c, DOOR()[0] - 40, DOOR()[1] - 120, 1, sm(1, 1.2, u) * (1 - sm(1.7, 2, u))); return; }
-    const v = sm(1, 2.1, u); if (v < 1) toWindow(c, 0, v, C.coralSoft, key); });
-  // the neighbour keeps its pace: a steady request every so often, served at once
-  for (let n = 0; n < 9; n++) { const st = q[0] + .1 + n * 1.25, u = tau - st; if (u < 0) continue; const k2 = KEYC[2];
-    if (u < 1) { toDoor(c, (n + 1) % 3, u, C.paper, k2); continue; }
-    const v = sm(1, 1.9, u); if (v < 1) { toWindow(c, 2, v, C.paper, k2); continue; }
-    const f = 1 - sm(2.4, 2.9, u); if (f > 0) { glow(c, ...winC(g.win[2]), 140, '#FFF3B8', f * .8); checkMark(c, ...winC(g.win[2]), 1, sm(1.9, 2.1, u) * f); } }
-  pen(c, tau, i, -9, 51, d => cactus(d, 1640, 900, .82, tau > q[1] + 1.5 ? 'happy' : 'rest')); }
+// 4. Load: a busy environment borrows the idle room; when its neighbours become active they keep
+// their whole share and it gives the borrowed room back; if it keeps choking, the operator hears.
+// The gateway rule of src/gateway/concurrency.ts on small numbers: share 4, ceiling 10, 14 in all,
+// 4 kept free, and the unused share of every recently active neighbour kept free too.
+const LOAD = { share: 4, ceiling: 10, total: 14, headroom: 4 };
+let _load = null;
+function loadPlan(q) { if (_load) return _load; const list = [], FLY = .9;
+  for (let t = q[0] + .2; t < q[2] + 2.6; t += .3) list.push({ env: 0, st: t, from: list.length % 3, hold: 1.8 });
+  for (let t = q[1] + .1; t < q[2] + 3; t += .85) list.push({ env: 2, st: t, from: 1, hold: .8 });
+  for (let t = q[1] + .5; t < q[2] + 3; t += 1.1) list.push({ env: 1, st: t, from: 2, hold: .8 });
+  list.forEach(p => { p.door = p.st + 1; p.end = p.door + FLY + p.hold; });
+  list.sort((a, b) => a.door - b.door); const seen = {};
+  list.forEach(p => { const active = e => list.filter(o => o.ok && o.env === e && o.door <= p.door && p.door < o.end).length, count = active(p.env);
+    const used = [0, 1, 2].reduce((n, e) => n + active(e), 0); seen[p.env] = p.door;
+    if (count < LOAD.share) p.ok = used < LOAD.total;
+    else if (count >= LOAD.ceiling) p.ok = false;
+    else { const reserve = Math.max(LOAD.headroom, [0, 1, 2].filter(e => e !== p.env && seen[e] !== undefined && p.door - seen[e] < 3)
+      .reduce((n, e) => n + Math.max(0, LOAD.share - active(e)), 0)); p.ok = LOAD.total - used > reserve; } });
+  return _load = list; }
+function meter(c, w, used, share, cells, col, s = 1) { for (let k = 0; k < cells; k++) { const x = w.x + 2 + k * 15 * s, y = w.y - 30, borrowed = k >= share;
+  c.save(); c.fillStyle = k < used ? (borrowed ? C.coralSoft : col) : C.paper; c.strokeStyle = INK; c.lineWidth = 2.2; if (borrowed) c.setLineDash([4, 3]);
+  c.beginPath(); c.roundRect(x, y, 12 * s, 18, 3); c.fill(); c.stroke(); c.restore(); } }
+function bell(c, x, y, s, k) { if (k <= 0) return; c.save(); c.globalAlpha *= k; c.translate(x, y); c.scale(s, s); c.fillStyle = C.mustard; c.strokeStyle = INK; c.lineWidth = 3;
+  c.beginPath(); c.moveTo(-16, 10); c.quadraticCurveTo(-14, -18, 0, -20); c.quadraticCurveTo(14, -18, 16, 10); c.closePath(); c.fill(); c.stroke();
+  c.beginPath(); c.arc(0, 14, 5, 0, TAU); c.fill(); c.stroke(); c.restore(); }
+function sceneLoad(c, tau, i) { paper(c); zoomAt(c, 1.1, 960, 600); stillBuilding(c); devices(c, tau, i); const { q } = TS('load'), g = G(), list = loadPlan(q);
+  g.win.slice(0, 3).forEach(w => glow(c, ...winC(w), 100, '#FFE7A0', .4));
+  const inUse = e => list.filter(p => p.ok && p.env === e && tau >= p.door && tau < p.end).length;
+  meter(c, g.win[0], inUse(0), LOAD.share, LOAD.ceiling, C.coral);
+  meter(c, g.win[1], inUse(1), LOAD.share, LOAD.share, C.mustard);
+  meter(c, g.win[2], inUse(2), LOAD.share, LOAD.share, C.teal);
+  list.forEach(p => { const u = tau - p.st; if (u < 0 || tau > p.end) return; const key = KEYC[p.env], col = p.env === 0 ? C.coralSoft : C.paper;
+    if (u < 1) return toDoor(c, p.from, u, col, key);
+    if (!p.ok) { bounce(c, sm(1, 1.8, u), col, key); retryMark(c, DOOR()[0] - 40, DOOR()[1] - 120, 1, sm(1, 1.2, u) * (1 - sm(1.7, 2, u))); return; }
+    const v = sm(1, 1.9, u); if (v < 1) return toWindow(c, p.env, v, col, key);
+    if (p.env) checkMark(c, ...winC(g.win[p.env]), .8, sm(1.9, 2.1, u) * (1 - sm(2.4, 2.7, u))); });
+  // the notice: a message card slides in for the operator
+  const n = sm(q[2] + .4, q[2] + 1.1, tau, easeOutBack); if (n > 0) { const x = lerp(1900, 1380, n), y = 120; c.save();
+    c.fillStyle = C.paper; c.strokeStyle = INK; c.lineWidth = 4; c.beginPath(); c.roundRect(x, y, 380, 130, 22); c.fill(); c.stroke(); c.restore();
+    bell(c, x + 58, y + 62, 1.3, 1); keyMark(c, x + 128, y + 66, 1, KEYC[0]);
+    for (let k = 0; k < 5; k++) { c.save(); c.fillStyle = k < 4 ? C.coral : C.coralSoft; c.strokeStyle = INK; c.lineWidth = 2; if (k >= 4) c.setLineDash([4, 3]);
+      c.beginPath(); c.roundRect(x + 180 + k * 26, y + 50, 20, 30, 4); c.fill(); c.stroke(); c.restore(); }
+    c.save(); c.strokeStyle = C.teal; c.lineWidth = 6; c.lineCap = 'round'; const ax = x + 330, ay = y + 65, k2 = sm(q[2] + 1.1, q[2] + 1.5, tau);
+    if (k2 > 0) { c.globalAlpha = k2; c.beginPath(); c.moveTo(ax - 14, ay); c.lineTo(ax + 14, ay); c.moveTo(ax, ay - 14); c.lineTo(ax, ay + 14); c.stroke(); } c.restore(); }
+  pen(c, tau, i, -9, 51, d => cactus(d, 1640, 900, .82, tau > q[2] + 1.2 ? 'point' : tau > q[1] ? 'happy' : 'rest')); }
 
 // 5. One command installs it on the server you have; the building lights; the cactus waves; the wordmark
 const CMD = ['$ sudo deploy/server-acceptance.sh --rehearse \\', '    --install-unit --first-project', '', 'Server acceptance: PASSED'];

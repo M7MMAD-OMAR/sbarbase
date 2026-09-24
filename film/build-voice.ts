@@ -5,7 +5,7 @@
 // Cues follow each other with a short breath, timed by the longer of the two languages, so neither
 // language has a long silence; the check below fails when one would.
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 type Cue = { file: string; scene: string; ar: string; en: string };
@@ -19,6 +19,8 @@ const round = (t: number) => Math.round(t * 1000) / 1000;
 const stamp = (t: number) => { const m = Math.floor(t / 60), s = t - m * 60; return `${String(m).padStart(2, '0')}:${s.toFixed(3).padStart(6, '0')}`; };
 // each recording, with the silence the voice service leaves at its start and end trimmed off
 const trimmed = path.join(here, 'out', 'voice', 'trimmed');
+const missing = LANGS.flatMap(lang => spec.cues.filter(c => !existsSync(path.join(here, 'voice', lang, `${c.file}.mp3`))).map(c => `voice/${lang}/${c.file}.mp3`));
+if (missing.length) throw new Error(`record these first (see narration.json): ${missing.join(', ')}`);
 const clip = (lang: string, c: Cue) => path.join(trimmed, lang, `${c.file}.wav`);
 for (const lang of LANGS) { mkdirSync(path.join(trimmed, lang), { recursive: true });
   for (const c of spec.cues) run('ffmpeg', ['-v', 'error', '-y', '-i', path.join(here, 'voice', lang, `${c.file}.mp3`), '-af',
