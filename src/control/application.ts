@@ -4,6 +4,8 @@ import {managementIdentity} from './auth';
 import {controlHandler} from './handler';
 import {managedGateway,routeWithPlacement} from '../gateway/managed';
 import {createGateway,type EnvironmentRoute} from '../gateway/handler';
+import {observedGateway,RequestLog} from '../gateway/observe';
+import type {ContainerReader} from './observe';
 
 type ManagementRealm={auth:string;anonymousToken:string;publishableKey:string};
 
@@ -12,7 +14,8 @@ type ManagementRealm={auth:string;anonymousToken:string;publishableKey:string};
  * or signup is exposed. Intended for a loopback server until edge controls exist.
  */
 export function application(catalog:Catalog,keys:KeyStore,realm:ManagementRealm,
- resolve:(runtime:string)=>EnvironmentRoute|undefined,transport:typeof fetch=fetch,studioKey?:()=>Buffer) {
+ resolve:(runtime:string)=>EnvironmentRoute|undefined,transport:typeof fetch=fetch,studioKey?:()=>Buffer,
+ requests=new RequestLog(),containers?:ContainerReader) {
  const auth=new URL(realm.auth);
  if(!['http:','https:'].includes(auth.protocol)||auth.username||auth.password||auth.search||auth.hash||auth.pathname!=='/')
   throw new Error('Invalid management Auth endpoint');
@@ -27,8 +30,11 @@ export function application(catalog:Catalog,keys:KeyStore,realm:ManagementRealm,
   const route=routeWithPlacement(resolve(runtime),routing);
   if(!route||!route.enabled)throw new Error('Runtime routing unavailable');
   return [...(route.storage?['auth','rest','storage'] as const:['auth','rest'] as const),...(route.realtime?['realtime'] as const:[])];
- },studioKey);
- const gateway=managedGateway(catalog,keys,resolve,transport);
+ },studioKey,requests,containers);
+ // Each environment's answers are counted for its logs and metrics (src/gateway/observe.ts).
+ const gateway=observedGateway(managedGateway(catalog,keys,resolve,transport),requests,runtime=>{
+  try{return !!resolve(runtime);}catch{return false;}
+ });
  const login=createGateway(new Map([['management',{
   auth:realm.auth,rest:realm.auth,keys:[realm.publishableKey],anonymousToken:realm.anonymousToken,enabled:true
  }]]),transport);
