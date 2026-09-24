@@ -49,6 +49,8 @@ It is not a superuser, cannot create roles or databases, and cannot reach anothe
 - PostgreSQL then checks the password (SCRAM). Turning access off closes the login and every session it has open.
 - Traffic is not encrypted by the listener; the SSH tunnel encrypts it. `SBARBASE_DATABASE_BIND` can expose the listener on another address, but do that only on a network you trust ([configuration](../reference/configuration.md)).
 
+CI turns access on for an environment on a clean machine with every change, runs a Supabase-style migration through the listener, and checks the refusals, a password reset and turning it off ([evidence](../evidence/docker-database-checks.json)).
+
 ## Limits
 
 - One login per environment, with up to 10 connections; there is no connection pooler yet.
