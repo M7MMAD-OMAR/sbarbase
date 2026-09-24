@@ -1,52 +1,60 @@
-[English](README.md)
+<p align="center"><img src="docs/assets/sbarbase-mark.svg" width="96" height="96" alt="صباربيز"></p>
 
-# صباربيز
+<h1 align="center">صباربيز</h1>
 
-**مشاريع Supabase كثيرة على خادم واحد، تنسخها احتياطيًا وتستعيدها وترقّيها دون خوف.**
+<p align="center" dir="rtl"><b>مشاريع Supabase كثيرة. خادم واحد.</b><br>Supabase الأصلي لكل عميل، على خادم تملكه.</p>
 
-صباربيز طبقة إدارة مفتوحة المصدر تستضيفها بنفسك، تشغّل خدمات Supabase الأصلية دون تعديل (PostgreSQL وAuth وPostgREST وStorage) لعدة مشاريع على خادم واحد. تقسّم الخادم إلى عملاء، وكل عميل إلى مشاريع، وكل مشروع إلى بيئات مثل الإنتاج والتجربة. البيئة هي الوحدة التي تُعزل وتُنقل وتُستعاد.
+<p align="center" dir="rtl"><a href="README.md">English</a> · <a href="https://base.sbarah.com/">الموقع</a> · <a href="docs/README.ar.md">الوثائق</a> · <a href="docs/guides/quickstart.ar.md">البداية السريعة</a></p>
 
-**قيد التطوير. إصدار المصدر الحالي: [0.1.0](CHANGELOG.ar.md).** ليس جاهزًا للإنتاج، ولا يعد بعدد ثابت من المشاريع لكل خادم.
+<p align="center" dir="rtl"><a href="https://base.sbarah.com/#explainer"><img src="docs/assets/explainer.jpg" width="720" alt="شاهد الفيديو الشارح"></a><br><sub>دقيقة واحدة بصوت عربي: كيف يعمل صباربيز.</sub></p>
 
-## لمن صُمّم
+<div dir="rtl">
 
-لمطوّر أو وكالة صغيرة تشغّل تطبيقات Supabase لعدة عملاء، وتريدها على خادم واحد تتحكم فيه، دون تشغيل حزمة Supabase كاملة ومنفصلة لكل تطبيق، ودون التخلي عن حزم Supabase الأصلية للتطوير وعن SQL.
+## ما هو
 
-## ما يعمل اليوم وما لا يعمل
+صباربيز طبقة مفتوحة المصدر تستضيفها بنفسك، تشغّل خدمات Supabase الأصلية (PostgreSQL وAuth وPostgREST وStorage) لمشاريع كثيرة على خادم واحد.
 
-تحققنا منه على جهاز تطوير، لا على خادم إنتاج:
+- **عميل، ثم مشروع، ثم بيئة.** لكل بيئة (الإنتاج، التجربة) قاعدة بياناتها وحسابات دخولها وAuth وREST ومفاتيحها.
+- **مشترك حيث يكون آمنًا.** محرك PostgreSQL واحد وStorage واحد يعرف المستأجرين يخدمان كل البيئات.
+- **تطبيقك لا يتغير.** يبقى على supabase-js وSQL، والبوابة توصل كل طلب إلى بيئته.
+- **بيئة واحدة في كل مرة.** تصدّر بيئة واحدة وتستعيدها وتنقلها دون أن تمس غيرها.
 
-- لوحة إدارة وواجهة إدارة برمجية للعملاء والمشاريع والبيئات وتفاصيل الاتصال والمفاتيح العامة المحصورة وحالة التجهيز.
-- خدمات Supabase الأصلية لكل بيئة: قاعدة بيانات منفصلة وحسابات دخول محصورة على PostgreSQL مشترك، وAuth وPostgREST أصليان لكل بيئة، وStorage واحد مشترك يعرف المستأجرين، وكلها خلف بوابة مفاتيح API بقبول محدود.
-- تجهيز مصمم لتحمّل الانهيار، يرفض إعادة تنفيذ عمل نتيجته مجهولة.
-- تصدير مشفّر لبيئة واحدة واستعادتها إلى محرك قاعدة بيانات منفصل على الخادم نفسه.
+## التثبيت
 
-لم يُبنَ بعد: Supabase Studio لكل بيئة (موصوف ولا يُقدَّم)، وRealtime، وEdge Functions، ومجمّع الاتصالات، وcron، والنسخ الاحتياطية المجدولة أو خارج الخادم، والترقيات التلقائية، والتشغيل على عدة خوادم، والسعة المقيسة. القائمة الكاملة، مع كل رقم والأدلة وراءه، في [الحالة](docs/reference/status.ar.md).
+على خادم Fedora فارغ (خطّط لأربع أنوية و8 GB). كل خطوة مشروحة في [البداية السريعة](docs/guides/quickstart.ar.md).
 
-## جرّبه
+</div>
 
-نجح التثبيت من خادم فارغ في آلة افتراضية محلية (Fedora 44، أربع أنوية، 6 GB؛ خطّط لأربع أنوية و8 GB على خادم حقيقي): أمر واحد يثبّت الخدمة، وينشئ أول مشروع، ويثبت أن supabase-js يعمل من خلاله، وتبقى الخدمة عاملة بعد إعادة التشغيل. **لم يُشغَّل على خادم حقيقي بعد**.
+```bash
+sudo dnf install -y moby-engine git python3-cryptography && sudo systemctl enable --now docker
+sudo useradd -m sbarbase && sudo usermod -aG docker sbarbase && sudo install -d -o sbarbase -g sbarbase /opt/sbarbase && sudo -u sbarbase git clone https://github.com/M7MMAD-OMAR/sbarbase /opt/sbarbase
+sudo -u sbarbase -H bash -c 'curl -fsSL https://bun.sh/install | bash -s bun-v1.3.14'
+cd /opt/sbarbase && sudo -u sbarbase /usr/bin/python3 lab/operator_file.py /home/sbarbase/operator.json
+sudo deploy/server-acceptance.sh --rehearse --install-unit --first-project --service-user sbarbase --home /home/sbarbase --bun-dir /home/sbarbase/.bun/bin --bootstrap-file /home/sbarbase/operator.json
+```
 
-- [البداية السريعة](docs/guides/quickstart.ar.md): من خادم فارغ إلى استدعاء supabase-js، بالخطوات التي نفّذتها الآلة الافتراضية.
-- [اختيار خادم](docs/guides/choosing-a-server.ar.md): ماذا تشتري، وماذا تعطيك الخيارات المجانية فعلًا.
-- [المختبر المحلي](docs/guides/local-lab.ar.md): شغّل الحزمة على جهازك لتقييمها. اقرأ ملاحظات السلامة فيه أولًا.
-- [النشر على خادم](docs/guides/server-deployment.ar.md): دليل التشغيل كما هو اليوم، مع ثغراته المعروفة.
-- [إعداد المشغّل](docs/guides/operator-setup.ar.md): أنشئ حساب المشغّل الأول والعميل الأول.
+<div dir="rtl">
+
+الأمر الأخير يثبّت الخدمة، وينشئ أول مشروع، ويتأكد أن supabase-js يعمل من خلاله، وأن الخدمة تعود بعد إعادة تشغيل الخادم.
 
 ## الوثائق
 
-- [خريطة الوثائق](docs/README.ar.md): أين تجد كل شيء.
-- [الشروح](docs/README.md#explain-why-it-works-this-way): لماذا وُجد صباربيز وكيف بُني.
-- [الأدلة العملية](docs/README.md#guides-how-to-do-something): مهام خطوة بخطوة.
-- [المرجع](docs/README.md#reference-facts-to-look-up): المسرد والحالة والإعدادات وواجهة API.
-- [القرارات](docs/decisions/README.ar.md): ما اخترناه، وما رفضناه، ومتى نعيد النظر.
-- [سياسة الأمان](SECURITY.ar.md): الإصدارات المدعومة، وكيف تبلّغ عن ثغرة بسرية، وقائمة تحصين للمشغّل.
-- [سجل التغييرات](CHANGELOG.ar.md) و[الموقع](https://base.sbarah.com).
+| | |
+|---|---|
+| [الشروح](docs/README.ar.md) | لماذا وُجد وكيف بُني، مع رسوم توضيحية |
+| [الأدلة العملية](docs/README.ar.md) | البداية السريعة، اختيار خادم، النسخ الاحتياطي والاستعادة، الترقيات |
+| [المرجع](docs/README.ar.md) | المسرد والإعدادات وواجهة API والحالة |
+| [القرارات](docs/decisions/README.ar.md) | ما اخترناه وما رفضناه ولماذا |
+| [الأمان](SECURITY.ar.md) · [المساهمة](CONTRIBUTING.ar.md) · [سجل التغييرات](CHANGELOG.ar.md) | |
 
-## المساهمة
+كل صفحة موجهة للقارئ متوفرة بالعربية والإنجليزية، وفي أعلاها رابط إلى اللغة الأخرى.
 
-اقرأ [دليل المساهمة](CONTRIBUTING.ar.md) لتعرف سير العمل، و[خارطة الطريق](docs/engineering/plans/2026-09-23-roadmap.md) لتعرف ما التالي. أنفع المساهمات اختبارات عزل واستعادة وترقية يمكن تكرارها. اقرأ [الحالة](docs/reference/status.ar.md) و[الملاحظات الهندسية](docs/engineering/README.md) قبل أن تدّعي شيئًا. أبقِ بيانات الاعتماد وبيانات التشغيل والنسخ الاحتياطية الخاصة والحالة المحلية خارج مساهماتك. التجربة المُبلَّغ عنها ليست شهادة جاهزية للإنتاج.
+## الحالة
+
+قيد التطوير. نجح التثبيت في آلة افتراضية محلية، ولم يُجرَّب على خادم حقيقي بعد، وليس جاهزًا للإنتاج. ما يعمل، مع كل رقم، في [الحالة](docs/reference/status.ar.md).
 
 ## الترخيص
 
-مصدر صباربيز مرخّص بـApache-2.0. تحتفظ Supabase وPostgreSQL والاعتماديات الأخرى بتراخيصها. خطوط الموقع المضمّنة تحمل إشعارات رخصة SIL Open Font License الخاصة بها.
+Apache-2.0. تحتفظ Supabase وPostgreSQL والاعتماديات الأخرى بتراخيصها.
+
+</div>
