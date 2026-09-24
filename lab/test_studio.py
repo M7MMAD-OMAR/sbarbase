@@ -74,9 +74,13 @@ class LifecycleTests(unittest.TestCase):
 
     def test_a_start_records_the_session_and_passes_no_superuser(self):
         launched = []
+        waited = []
         with patch.object(studio, 'launch', side_effect=lambda name, tier, env, image: launched.append(env) or '10.0.0.' + str(len(launched))), \
-             patch.object(studio, 'wait_ready'):
+             patch.object(studio, 'wait_ready', side_effect=lambda url, **options: waited.append(url)):
             session = studio.up(E)
+        # postgres-meta, then Studio, then the console's route to Auth and Storage.
+        self.assertEqual(waited, ['http://10.0.0.1:8080/', 'http://10.0.0.2:3000/api/platform/profile',
+                                  f'http://172.18.0.1:{studio.UPSTREAM_PORT}/'])
         self.assertEqual(session['url'], 'http://10.0.0.2:3000')
         meta, ui = launched
         self.assertEqual(meta['PG_META_DB_USER'], f'{E}_studio')
@@ -89,6 +93,16 @@ class LifecycleTests(unittest.TestCase):
         self.assertEqual(state['upstream'], {'host': '172.18.0.1', 'port': studio.UPSTREAM_PORT})
         # The session password is never written to disk.
         self.assertNotIn(meta['PG_META_DB_PASSWORD'], studio.STATE_FILE.read_text())
+
+    def test_a_route_that_never_opens_stops_studio_again(self):
+        def wait(url, **options):
+            if url.endswith(f':{studio.UPSTREAM_PORT}/'):
+                raise studio.StudioError('The Studio route to Auth and Storage did not become ready')
+        with patch.object(studio, 'launch', side_effect=['10.0.0.1', '10.0.0.2']), patch.object(studio, 'wait_ready', side_effect=wait):
+            with self.assertRaisesRegex(studio.StudioError, 'route'):
+                studio.up(E)
+        self.assertEqual(self.removed[-2:], list(studio.names(E)))
+        self.assertNotIn(E, json.loads(studio.STATE_FILE.read_text())['sessions'])
 
     def test_an_unpublished_or_invalid_environment_is_refused_before_any_change(self):
         with self.assertRaises(studio.StudioError):
