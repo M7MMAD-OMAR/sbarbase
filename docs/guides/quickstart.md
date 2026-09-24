@@ -6,6 +6,10 @@ From an empty server to a supabase-js call against your first environment. These
 
 Before you start, read [choosing a server](choosing-a-server.md). You need root on a Fedora 44 or Ubuntu 26.04 server with 4 cores and 8 GB of memory (3 cores is the useful minimum) and 12 GiB of free disk. The rehearsal's 6 GB machine had room for exactly one environment, the one step 6 creates.
 
+![Eight steps: system packages, the service account and checkout, Bun, the operator file, the preflight check, one acceptance command that installs, rehearses and creates a first project, then the console over an SSH tunnel and your app over HTTPS](../diagrams/install-flow.svg)
+
+*The whole path at a glance, as rehearsed in a local virtual machine; not yet run on a real server.*
+
 ## 1. Install the system packages
 
 On Fedora 44:

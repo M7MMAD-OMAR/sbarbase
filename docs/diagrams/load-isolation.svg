@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 520" width="900" height="520" role="img" aria-labelledby="loadise-t loadise-d" xml:lang="en">
+  <title id="loadise-t">A burst on one environment stays inside its own limits</title>
+  <desc id="loadise-d">Environment A receives a burst of requests while environment B has normal traffic. The gateway admits at most 8 requests in flight per environment and 32 per gateway process, with no queue: the ninth concurrent request to A gets 429 at once, and a full gateway answers 503. B has its own count, so its requests are still admitted. Behind the gateway, each environment's Auth and REST run in their own containers with CPU, memory and per-device IO limits; each service login is limited to 6 PostgreSQL connections and each environment database to 18; statements have an 8 second default limit. Local probes saw the ninth request refused and the neighbour still served. The limits are not calibrated under sustained load, and CPU, memory and IO inside the one PostgreSQL engine remain shared.</desc>
+  <defs><marker id="loadise-i" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#2A2632" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="loadise-c" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#E06A4B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+  <rect x="0" y="0" width="900" height="520" fill="#F5EFE3"/>
+  <g font-family="system-ui, sans-serif" fill="#2A2632" text-anchor="middle">
+  <text x="24" y="34" font-size="16" font-weight="700" text-anchor="start">A burst on one environment stays inside its own limits</text>
+  <rect x="24" y="70" width="150" height="110" rx="8" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <text x="99" y="96" font-size="13" font-weight="700">env A</text>
+  <text x="99" y="120" font-size="12.5">a burst:</text>
+  <text x="99" y="138" font-size="12.5">many requests</text>
+  <text x="99" y="156" font-size="12.5">at once</text>
+  <rect x="24" y="236" width="150" height="90" rx="8" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <text x="99" y="262" font-size="13" font-weight="700">env B</text>
+  <text x="99" y="286" font-size="12.5">normal traffic</text>
+  <text x="99" y="304" font-size="12.5">a few requests</text>
+  <path d="M174 88 L212 88" fill="none" stroke="#E06A4B" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#loadise-c)"/>
+  <path d="M174 104 L212 104" fill="none" stroke="#E06A4B" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#loadise-c)"/>
+  <path d="M174 120 L212 120" fill="none" stroke="#E06A4B" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#loadise-c)"/>
+  <path d="M174 136 L212 136" fill="none" stroke="#E06A4B" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#loadise-c)"/>
+  <path d="M174 152 L212 152" fill="none" stroke="#E06A4B" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#loadise-c)"/>
+  <path d="M174 168 L212 168" fill="none" stroke="#E06A4B" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#loadise-c)"/>
+  <path d="M174 270 L212 270" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#loadise-i)"/>
+  <path d="M174 292 L212 292" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#loadise-i)"/>
+  <rect x="214" y="60" width="290" height="290" rx="8" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
+  <text x="359" y="84" font-size="13" font-weight="700">gateway: a count per environment</text>
+  <text x="232" y="110" font-size="12" text-anchor="start">env A: 8 in flight, full</text>
+  <rect x="232" y="120" width="24" height="24" rx="4" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <rect x="263" y="120" width="24" height="24" rx="4" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <rect x="294" y="120" width="24" height="24" rx="4" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <rect x="325" y="120" width="24" height="24" rx="4" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <rect x="356" y="120" width="24" height="24" rx="4" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <rect x="387" y="120" width="24" height="24" rx="4" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <rect x="418" y="120" width="24" height="24" rx="4" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <rect x="449" y="120" width="24" height="24" rx="4" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <text x="232" y="170" font-size="12" font-weight="700" fill="#A8412A" text-anchor="start">9th request: 429 at once, no queue</text>
+  <text x="232" y="250" font-size="12" text-anchor="start">env B: 2 of 8 in use</text>
+  <rect x="232" y="260" width="24" height="24" rx="4" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <rect x="263" y="260" width="24" height="24" rx="4" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <rect x="294" y="260" width="24" height="24" rx="4" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="325" y="260" width="24" height="24" rx="4" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="356" y="260" width="24" height="24" rx="4" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="387" y="260" width="24" height="24" rx="4" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="418" y="260" width="24" height="24" rx="4" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="449" y="260" width="24" height="24" rx="4" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="232" y="310" font-size="12" font-weight="700" fill="#146B5C" text-anchor="start">new request: admitted</text>
+  <text x="232" y="334" font-size="11.5" fill="#5B5465" text-anchor="start">whole gateway: 32 in flight, then 503</text>
+  <path d="M359 178 L359 209 L116 209" fill="none" stroke="#E06A4B" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#loadise-c)"/>
+  <rect x="24" y="196" width="90" height="26" rx="4" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <text x="69" y="214" font-size="12.5" font-weight="700" fill="#A8412A">429</text>
+  <rect x="540" y="70" width="170" height="100" rx="8" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <text x="625" y="94" font-size="12.5" font-weight="700">Auth, REST: env A</text>
+  <text x="625" y="118" font-size="12">own containers:</text>
+  <text x="625" y="135" font-size="12">CPU, memory and</text>
+  <text x="625" y="152" font-size="12">IO limits</text>
+  <rect x="540" y="236" width="170" height="100" rx="8" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <text x="625" y="260" font-size="12.5" font-weight="700">Auth, REST: env B</text>
+  <text x="625" y="284" font-size="12">own containers:</text>
+  <text x="625" y="301" font-size="12">CPU, memory and</text>
+  <text x="625" y="318" font-size="12">IO limits</text>
+  <path d="M504 120 L538 120" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#loadise-i)"/>
+  <path d="M504 286 L538 286" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#loadise-i)"/>
+  <rect x="740" y="60" width="136" height="290" rx="8" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
+  <text x="808" y="84" font-size="12.5" font-weight="700">PostgreSQL</text>
+  <text x="808" y="102" font-size="12">one engine</text>
+  <rect x="752" y="116" width="112" height="74" rx="8" fill="#F0C23E" stroke="#2A2632" stroke-width="1.3"/>
+  <text x="808" y="138" font-size="11.5">database A</text>
+  <text x="808" y="155" font-size="11.5">18 connections</text>
+  <text x="808" y="172" font-size="11.5">6 per login</text>
+  <rect x="752" y="262" width="112" height="74" rx="8" fill="#F0C23E" stroke="#2A2632" stroke-width="1.3"/>
+  <text x="808" y="284" font-size="11.5">database B</text>
+  <text x="808" y="301" font-size="11.5">18 connections</text>
+  <text x="808" y="318" font-size="11.5">6 per login</text>
+  <text x="808" y="214" font-size="11.5" fill="#5B5465">statement limit</text>
+  <text x="808" y="231" font-size="11.5" fill="#5B5465">8 s by default</text>
+  <path d="M710 120 C726 120 730 153 750 153" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#loadise-i)"/>
+  <path d="M710 286 C726 286 730 299 750 299" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#loadise-i)"/>
+  <rect x="24" y="372" width="852" height="64" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="450" y="396" font-size="13.5" font-weight="700">Result: env A is capped at its own limits while env B is still served.</text>
+  <text x="450" y="420" font-size="12">Local probes: the ninth request was refused while the neighbour still answered, and a saturated login did not block its neighbour.</text>
+  <text x="24" y="462" font-size="12" fill="#5B5465" text-anchor="start">Not calibrated under sustained load: CPU, memory and IO inside the one PostgreSQL engine stay shared, so a heavy neighbour can still slow the others.</text>
+  <rect x="24" y="483" width="22" height="14" rx="3" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <text x="54" y="494" font-size="12" fill="#5B5465" text-anchor="start">env A, busy</text>
+  <rect x="152.4" y="483" width="22" height="14" rx="3" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <text x="182.4" y="494" font-size="12" fill="#5B5465" text-anchor="start">env B, or one per environment</text>
+  <rect x="396.0" y="483" width="22" height="14" rx="3" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
+  <text x="426.0" y="494" font-size="12" fill="#5B5465" text-anchor="start">shared</text>
+  <rect x="492.4" y="483" width="22" height="14" rx="3" fill="#F0C23E" stroke="#2A2632" stroke-width="1.3"/>
+  <text x="522.4" y="494" font-size="12" fill="#5B5465" text-anchor="start">environment database</text>
+  </g>
+</svg>

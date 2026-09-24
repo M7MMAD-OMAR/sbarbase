@@ -16,7 +16,9 @@ Your server holds clients, each client owns projects, and each project has envir
 
 ## How we built it
 
-![Ownership is a tree of clients, projects and environments in the catalog; placement is a separate routing record, so an environment moved to a restored engine keeps its owner, and a second server is planned, not built](../diagrams/ownership-vs-placement.svg)
+![Client A owns the Shop project with production and staging environments, and Client B owns the Blog project with a production environment; on your server one shared PostgreSQL engine holds a separate database for each environment, linked by its routing record](../diagrams/hierarchy.svg)
+
+*Ownership lives in the catalog; where each environment runs is a routing record on one ordinary server.*
 
 
 Operators are members of a client with one of three roles:

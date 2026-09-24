@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 476" width="900" height="476" role="img" aria-labelledby="fullsta-t fullsta-d" xml:lang="ar" direction="rtl">
+  <title id="fullsta-t">حزمة كاملة لكل مشروع، مقارنة بصباربيز</title>
+  <desc id="fullsta-d">على اليسار ثلاثة مشاريع، يشغّل كل منها حزمة كاملة خاصة به: Studio وAuth وREST وStorage وPostgres وبوابة وسجلات. وعلى اليمين صباربيز: بوابة واحدة، وAuth وREST منفصلان لكل بيئة، ومحرك PostgreSQL واحد فيه قاعدة بيانات لكل بيئة بحسابات دخولها الخاصة، وعملية Storage واحدة مشتركة تعرف المستأجرين. الأجزاء المشتركة حدود فشل مشتركة. Studio لكل بيئة مخطط وغير مبني.</desc>
+  <defs><marker id="fullsta-i" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#2A2632" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="fullsta-c" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#E06A4B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+  <rect x="0" y="0" width="900" height="476" fill="#F5EFE3"/>
+  <g font-family="system-ui, sans-serif" fill="#2A2632" text-anchor="middle">
+  <text x="876" y="40" font-size="15" font-weight="700" text-anchor="start">حزمة كاملة لكل مشروع</text>
+  <rect x="766" y="64" width="110" height="28" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="821" y="83" font-size="12.5" direction="ltr">Studio</text>
+  <rect x="766" y="98" width="110" height="28" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="821" y="117" font-size="12.5" direction="ltr">Auth</text>
+  <rect x="766" y="132" width="110" height="28" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="821" y="151" font-size="12.5" direction="ltr">REST</text>
+  <rect x="766" y="166" width="110" height="28" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="821" y="185" font-size="12.5" direction="ltr">Storage</text>
+  <rect x="766" y="200" width="110" height="28" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="821" y="219" font-size="12.5" direction="ltr">Postgres</text>
+  <rect x="766" y="234" width="110" height="28" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="821" y="253" font-size="12.5">بوابة، سجلات</text>
+  <text x="821" y="290" font-size="12.5" font-weight="700">المشروع 1</text>
+  <rect x="644" y="64" width="110" height="28" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="699" y="83" font-size="12.5" direction="ltr">Studio</text>
+  <rect x="644" y="98" width="110" height="28" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="699" y="117" font-size="12.5" direction="ltr">Auth</text>
+  <rect x="644" y="132" width="110" height="28" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="699" y="151" font-size="12.5" direction="ltr">REST</text>
+  <rect x="644" y="166" width="110" height="28" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="699" y="185" font-size="12.5" direction="ltr">Storage</text>
+  <rect x="644" y="200" width="110" height="28" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="699" y="219" font-size="12.5" direction="ltr">Postgres</text>
+  <rect x="644" y="234" width="110" height="28" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="699" y="253" font-size="12.5">بوابة، سجلات</text>
+  <text x="699" y="290" font-size="12.5" font-weight="700">المشروع 2</text>
+  <rect x="522" y="64" width="110" height="28" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="577" y="83" font-size="12.5" direction="ltr">Studio</text>
+  <rect x="522" y="98" width="110" height="28" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="577" y="117" font-size="12.5" direction="ltr">Auth</text>
+  <rect x="522" y="132" width="110" height="28" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="577" y="151" font-size="12.5" direction="ltr">REST</text>
+  <rect x="522" y="166" width="110" height="28" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="577" y="185" font-size="12.5" direction="ltr">Storage</text>
+  <rect x="522" y="200" width="110" height="28" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="577" y="219" font-size="12.5" direction="ltr">Postgres</text>
+  <rect x="522" y="234" width="110" height="28" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="577" y="253" font-size="12.5">بوابة، سجلات</text>
+  <text x="577" y="290" font-size="12.5" font-weight="700">المشروع 3</text>
+  <text x="876" y="330" font-size="12.5" fill="#5B5465" text-anchor="start">كل جزء يتكرر، ويُرقّى</text>
+  <text x="876" y="347" font-size="12.5" fill="#5B5465" text-anchor="start">ويُنسخ احتياطيًا لكل مشروع.</text>
+  <path d="M490 56 L490 380" fill="none" stroke="#C9BFAE" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="460" y="40" font-size="15" font-weight="700" text-anchor="start">صباربيز: محركات مشتركة</text>
+  <rect x="24" y="60" width="436" height="34" rx="8" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
+  <text x="242" y="82" font-size="13">بوابة واحدة وواجهة إدارة واحدة</text>
+  <rect x="370" y="110" width="90" height="30" rx="8" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <text x="415" y="130" font-size="12">Auth، البيئة أ</text>
+  <rect x="370" y="148" width="90" height="30" rx="8" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <text x="415" y="168" font-size="12">REST، البيئة أ</text>
+  <path d="M415 178 L415 226" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#fullsta-i)"/>
+  <rect x="272" y="110" width="90" height="30" rx="8" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <text x="317" y="130" font-size="12">Auth، البيئة ب</text>
+  <rect x="272" y="148" width="90" height="30" rx="8" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <text x="317" y="168" font-size="12">REST، البيئة ب</text>
+  <path d="M317 178 L317 226" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#fullsta-i)"/>
+  <rect x="174" y="110" width="90" height="30" rx="8" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <text x="219" y="130" font-size="12">Auth، البيئة ج</text>
+  <rect x="174" y="148" width="90" height="30" rx="8" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <text x="219" y="168" font-size="12">REST، البيئة ج</text>
+  <path d="M219 178 L219 226" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#fullsta-i)"/>
+  <rect x="174" y="196" width="286" height="132" rx="8" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
+  <text x="317" y="216" font-size="12.5" font-weight="700">محرك PostgreSQL واحد</text>
+  <rect x="366" y="228" width="86" height="84" rx="8" fill="#F0C23E" stroke="#2A2632" stroke-width="1.3"/>
+  <text x="409" y="262" font-size="12">قاعدة أ</text>
+  <text x="409" y="282" font-size="12">بحساباتها</text>
+  <rect x="274" y="228" width="86" height="84" rx="8" fill="#F0C23E" stroke="#2A2632" stroke-width="1.3"/>
+  <text x="317" y="262" font-size="12">قاعدة ب</text>
+  <text x="317" y="282" font-size="12">بحساباتها</text>
+  <rect x="182" y="228" width="86" height="84" rx="8" fill="#F0C23E" stroke="#2A2632" stroke-width="1.3"/>
+  <text x="225" y="262" font-size="12">قاعدة ج</text>
+  <text x="225" y="282" font-size="12">بحساباتها</text>
+  <rect x="24" y="110" width="136" height="218" rx="8" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
+  <text x="92" y="190" font-size="12.5" direction="ltr">Storage</text>
+  <text x="92" y="210" font-size="12.5">عملية واحدة،</text>
+  <text x="92" y="230" font-size="12.5">مستأجر لكل</text>
+  <text x="92" y="250" font-size="12.5">بيئة</text>
+  <path d="M242 94 L242 102 L92 102 L92 108" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 4" marker-end="url(#fullsta-i)"/>
+  <text x="80" y="98" font-size="11.5" fill="#5B5465" text-anchor="start">الملفات</text>
+  <rect x="24" y="344" width="436" height="36" rx="8" fill="#EFE9FA" stroke="#B7A2E6" stroke-width="2" stroke-dasharray="7 5"/>
+  <text x="242" y="367" font-size="12.5">Studio لكل بيئة: مخطط وغير مبني</text>
+  <text x="876" y="408" font-size="12" text-anchor="start">يعمل PostgreSQL وStorage مرة واحدة، فيتسع الخادم نفسه لمشاريع أكثر.</text>
+  <text x="876" y="426" font-size="12" text-anchor="start">وكل بيئة إضافية تضيف Auth وREST صغيرين (أقل من 20 MiB في الخمول، في عينة محلية واحدة).</text>
+  <rect x="854" y="447" width="22" height="14" rx="3" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
+  <text x="846" y="458" font-size="12" fill="#5B5465" text-anchor="start">مشترك: حد فشل مشترك</text>
+  <rect x="674.4" y="447" width="22" height="14" rx="3" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <text x="666.4" y="458" font-size="12" fill="#5B5465" text-anchor="start">واحد لكل بيئة</text>
+  <rect x="533.2" y="447" width="22" height="14" rx="3" fill="#EFE9FA" stroke="#B7A2E6" stroke-width="2" stroke-dasharray="7 5"/>
+  <text x="525.2" y="458" font-size="12" fill="#5B5465" text-anchor="start">مخطط</text>
+  </g>
+</svg>

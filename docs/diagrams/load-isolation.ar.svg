@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 520" width="900" height="520" role="img" aria-labelledby="loadisa-t loadisa-d" xml:lang="ar" direction="rtl">
+  <title id="loadisa-t">ضغط على بيئة واحدة يبقى داخل حدودها</title>
+  <desc id="loadisa-d">تتلقى البيئة أ دفعة كبيرة من الطلبات، والبيئة ب حركتها عادية. تقبل البوابة 8 طلبات متزامنة على الأكثر لكل بيئة و32 لكل عملية بوابة، دون طابور: الطلب التاسع المتزامن إلى أ يتلقى 429 فورًا، والبوابة الممتلئة ترد بـ 503. لـ ب عدّادها الخاص، فتُقبل طلباتها. خلف البوابة يعمل Auth وREST لكل بيئة في حاوياتهما بحدود للمعالج والذاكرة والقرص؛ ولكل حساب خدمة 6 اتصالات PostgreSQL على الأكثر، ولقاعدة كل بيئة 18؛ ومهلة الاستعلام الافتراضية 8 ثوانٍ. في الفحوص المحلية رُفض الطلب التاسع وبقيت البيئة المجاورة تُخدم. هذه الحدود غير معايرة تحت حمل مستمر، والمعالج والذاكرة والقرص داخل محرك PostgreSQL الواحد تبقى مشتركة.</desc>
+  <defs><marker id="loadisa-i" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#2A2632" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="loadisa-c" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#E06A4B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+  <rect x="0" y="0" width="900" height="520" fill="#F5EFE3"/>
+  <g font-family="system-ui, sans-serif" fill="#2A2632" text-anchor="middle">
+  <text x="876" y="34" font-size="16" font-weight="700" text-anchor="start">ضغط على بيئة واحدة يبقى داخل حدودها</text>
+  <rect x="726" y="70" width="150" height="110" rx="8" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <text x="801" y="96" font-size="13" font-weight="700">البيئة أ</text>
+  <text x="801" y="120" font-size="12.5">دفعة كبيرة:</text>
+  <text x="801" y="138" font-size="12.5">طلبات كثيرة</text>
+  <text x="801" y="156" font-size="12.5">في وقت واحد</text>
+  <rect x="726" y="236" width="150" height="90" rx="8" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <text x="801" y="262" font-size="13" font-weight="700">البيئة ب</text>
+  <text x="801" y="286" font-size="12.5">حركة عادية</text>
+  <text x="801" y="304" font-size="12.5">طلبات قليلة</text>
+  <path d="M726 88 L688 88" fill="none" stroke="#E06A4B" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#loadisa-c)"/>
+  <path d="M726 104 L688 104" fill="none" stroke="#E06A4B" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#loadisa-c)"/>
+  <path d="M726 120 L688 120" fill="none" stroke="#E06A4B" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#loadisa-c)"/>
+  <path d="M726 136 L688 136" fill="none" stroke="#E06A4B" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#loadisa-c)"/>
+  <path d="M726 152 L688 152" fill="none" stroke="#E06A4B" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#loadisa-c)"/>
+  <path d="M726 168 L688 168" fill="none" stroke="#E06A4B" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#loadisa-c)"/>
+  <path d="M726 270 L688 270" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#loadisa-i)"/>
+  <path d="M726 292 L688 292" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#loadisa-i)"/>
+  <rect x="396" y="60" width="290" height="290" rx="8" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
+  <text x="541" y="84" font-size="13" font-weight="700">البوابة: عدّاد لكل بيئة</text>
+  <text x="668" y="110" font-size="12" text-anchor="start">البيئة أ: 8 قيد التنفيذ، ممتلئة</text>
+  <rect x="644" y="120" width="24" height="24" rx="4" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <rect x="613" y="120" width="24" height="24" rx="4" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <rect x="582" y="120" width="24" height="24" rx="4" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <rect x="551" y="120" width="24" height="24" rx="4" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <rect x="520" y="120" width="24" height="24" rx="4" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <rect x="489" y="120" width="24" height="24" rx="4" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <rect x="458" y="120" width="24" height="24" rx="4" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <rect x="427" y="120" width="24" height="24" rx="4" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <text x="668" y="170" font-size="12" font-weight="700" fill="#A8412A" text-anchor="start">الطلب التاسع: 429 فورًا، دون طابور</text>
+  <text x="668" y="250" font-size="12" text-anchor="start">البيئة ب: 2 من 8 مستخدمة</text>
+  <rect x="644" y="260" width="24" height="24" rx="4" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <rect x="613" y="260" width="24" height="24" rx="4" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <rect x="582" y="260" width="24" height="24" rx="4" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="551" y="260" width="24" height="24" rx="4" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="520" y="260" width="24" height="24" rx="4" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="489" y="260" width="24" height="24" rx="4" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="458" y="260" width="24" height="24" rx="4" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="427" y="260" width="24" height="24" rx="4" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="668" y="310" font-size="12" font-weight="700" fill="#146B5C" text-anchor="start">طلب جديد: مقبول</text>
+  <text x="668" y="334" font-size="11.5" fill="#5B5465" text-anchor="start">البوابة كلها: 32 قيد التنفيذ، ثم 503</text>
+  <path d="M541 178 L541 209 L784 209" fill="none" stroke="#E06A4B" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#loadisa-c)"/>
+  <rect x="786" y="196" width="90" height="26" rx="4" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <text x="831" y="214" font-size="12.5" font-weight="700" fill="#A8412A" direction="ltr">429</text>
+  <rect x="190" y="70" width="170" height="100" rx="8" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <text x="275" y="94" font-size="12.5" font-weight="700">Auth وREST: البيئة أ</text>
+  <text x="275" y="118" font-size="12">حاوياتها الخاصة:</text>
+  <text x="275" y="135" font-size="12">حدود للمعالج والذاكرة</text>
+  <text x="275" y="152" font-size="12">والقرص</text>
+  <rect x="190" y="236" width="170" height="100" rx="8" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <text x="275" y="260" font-size="12.5" font-weight="700">Auth وREST: البيئة ب</text>
+  <text x="275" y="284" font-size="12">حاوياتها الخاصة:</text>
+  <text x="275" y="301" font-size="12">حدود للمعالج والذاكرة</text>
+  <text x="275" y="318" font-size="12">والقرص</text>
+  <path d="M396 120 L362 120" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#loadisa-i)"/>
+  <path d="M396 286 L362 286" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#loadisa-i)"/>
+  <rect x="24" y="60" width="136" height="290" rx="8" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
+  <text x="92" y="84" font-size="12.5" font-weight="700" direction="ltr">PostgreSQL</text>
+  <text x="92" y="102" font-size="12">محرك واحد</text>
+  <rect x="36" y="116" width="112" height="74" rx="8" fill="#F0C23E" stroke="#2A2632" stroke-width="1.3"/>
+  <text x="92" y="138" font-size="11.5">القاعدة أ</text>
+  <text x="92" y="155" font-size="11.5">18 اتصالًا</text>
+  <text x="92" y="172" font-size="11.5">6 لكل حساب</text>
+  <rect x="36" y="262" width="112" height="74" rx="8" fill="#F0C23E" stroke="#2A2632" stroke-width="1.3"/>
+  <text x="92" y="284" font-size="11.5">القاعدة ب</text>
+  <text x="92" y="301" font-size="11.5">18 اتصالًا</text>
+  <text x="92" y="318" font-size="11.5">6 لكل حساب</text>
+  <text x="92" y="214" font-size="11.5" fill="#5B5465">مهلة الاستعلام</text>
+  <text x="92" y="231" font-size="11.5" fill="#5B5465">8 ث افتراضيًا</text>
+  <path d="M190 120 C174 120 170 153 150 153" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#loadisa-i)"/>
+  <path d="M190 286 C174 286 170 299 150 299" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#loadisa-i)"/>
+  <rect x="24" y="372" width="852" height="64" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="450" y="396" font-size="13.5" font-weight="700">النتيجة: البيئة أ محصورة في حدودها، والبيئة ب ما زالت تُخدم.</text>
+  <text x="450" y="420" font-size="12">في الفحوص المحلية رُفض الطلب التاسع وبقيت البيئة المجاورة تجيب، ولم يعطّل حساب مشبع جارته.</text>
+  <text x="876" y="462" font-size="12" fill="#5B5465" text-anchor="start">غير معايرة تحت حمل مستمر: المعالج والذاكرة والقرص داخل محرك PostgreSQL الواحد تبقى مشتركة، فقد يبطئ جار ثقيل البقية.</text>
+  <rect x="854" y="483" width="22" height="14" rx="3" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <text x="846" y="494" font-size="12" fill="#5B5465" text-anchor="start">البيئة أ، مشغولة</text>
+  <rect x="693.6" y="483" width="22" height="14" rx="3" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <text x="685.6" y="494" font-size="12" fill="#5B5465" text-anchor="start">البيئة ب، أو واحد لكل بيئة</text>
+  <rect x="469.2" y="483" width="22" height="14" rx="3" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
+  <text x="461.2" y="494" font-size="12" fill="#5B5465" text-anchor="start">مشترك</text>
+  <rect x="379.2" y="483" width="22" height="14" rx="3" fill="#F0C23E" stroke="#2A2632" stroke-width="1.3"/>
+  <text x="371.2" y="494" font-size="12" fill="#5B5465" text-anchor="start">قاعدة البيئة</text>
+  </g>
+</svg>
