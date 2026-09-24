@@ -107,8 +107,8 @@ provisioning state. Read only, without signing in.`,
  backup:`sbarbase backup now [<environment>] [--keep N]
 
 Runs lab/backup.py create for one environment, or for every environment when none is named.
---keep defaults to SBARBASE_BACKUP_KEEP when it is set, so a manual backup prunes like the
-daily one.`,
+--keep defaults to SBARBASE_BACKUP_KEEP, read from this shell or from the installed unit, so a
+manual backup prunes like the daily one. When neither sets it, lab/backup.py keeps 7.`,
  backups:`sbarbase backups list [<environment>]
 
 Runs lab/backup.py list.`,
@@ -528,11 +528,23 @@ async function share(deps:Deps,parsed:Parsed) {
 
 // ---- Delegations -----------------------------------------------------------------------
 
+/** The number of backups the daily run keeps: this shell's SBARBASE_BACKUP_KEEP, or on a
+ * systemd install the unit's, which a shell under sudo does not inherit. */
+async function dailyKeep(deps:Deps):Promise<string|undefined> {
+ if(deps.env.SBARBASE_BACKUP_KEEP)return positiveInteger(deps.env.SBARBASE_BACKUP_KEEP,'SBARBASE_BACKUP_KEEP');
+ if(deps.inContainer||!existsSync(deps.unitPath))return undefined;
+ let shown:{code:number;stdout:string};
+ try {shown=await deps.capture(['systemctl','show','--property','Environment',UNIT]);} catch {return undefined;}
+ const value=shown.code===0?shown.stdout.match(/(?:^Environment=|[\s"])SBARBASE_BACKUP_KEEP=([^\s"]*)/m)?.[1]:undefined;
+ return value?positiveInteger(value,'SBARBASE_BACKUP_KEEP in the unit'):undefined;
+}
+
 async function backup(deps:Deps,parsed:Parsed) {
  if(parsed.args[0]!=='now')throw new Usage('Use: sbarbase backup now [<environment>]');
  arity(parsed,1,2);
  const target=parsed.args[1]===undefined||parsed.args[1]==='all'?'all':backupTarget(deps,parsed.args[1]);
- const keep=positiveInteger(parsed.flags['--keep'],'--keep')??positiveInteger(deps.env.SBARBASE_BACKUP_KEEP,'SBARBASE_BACKUP_KEEP');
+ const keep=positiveInteger(parsed.flags['--keep'],'--keep')??await dailyKeep(deps);
+ if(!keep)deps.err('SBARBASE_BACKUP_KEEP is not set here, so lab/backup.py keeps its default of 7 backups per environment.');
  return deps.run([PYTHON,'lab/backup.py','create',target,...(keep?['--keep',keep]:[])]);
 }
 

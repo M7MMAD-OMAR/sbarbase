@@ -48,13 +48,13 @@ type Call={url:string;method:string;headers:Record<string,string>;body?:string};
 
 /** Deps with every external effect recorded: children, HTTP, prompts and output. */
 function harness(root:string,options:{routes?:(call:Call)=>Response|undefined;tty?:boolean;answers?:string[];
- stdin?:string;env?:Record<string,string>;container?:boolean;unit?:boolean;code?:number}={}) {
+ stdin?:string;env?:Record<string,string>;container?:boolean;unit?:boolean;code?:number;unitEnvironment?:string}={}) {
  const runs:string[][]=[],calls:Call[]=[],out:string[]=[],err:string[]=[],prompts:{question:string;secret:boolean}[]=[];
  const answers=[...(options.answers??[])];
  const deps:Deps={
   root,env:options.env??{},
   run:async argv=>{runs.push(argv);return options.code??0;},
-  capture:async argv=>{runs.push(argv);return {code:0,stdout:'active\n'};},
+  capture:async argv=>{runs.push(argv);return {code:0,stdout:argv[1]==='show'?options.unitEnvironment??'Environment=\n':'active\n'};},
   fetch:(async(input:RequestInfo|URL,init?:RequestInit)=>{
    const call={url:String(input),method:init?.method??'GET',headers:Object.fromEntries(new Headers(init?.headers).entries()),
     body:typeof init?.body==='string'?init.body:undefined};
@@ -407,4 +407,23 @@ test('share: a member who is not an installation operator is told so in plain wo
   routes:()=>Response.json({message:'Forbidden'},{status:403})});
  expect(await main(['share',production,'8','--password-stdin'],run.deps)).toBe(EXIT.failed);
  expect(run.err.join('\n')).toContain('no permission');
+});
+
+test('backup now keeps as many backups as the daily run, reading the unit when the shell has no setting',async()=>{
+ const {root}=installation();
+ const unit=harness(root,{unit:true,unitEnvironment:'Environment=HOME=/home/sbarbase "PATH=/usr/bin:/bin" SBARBASE_BACKUP_KEEP=14\n'});
+ expect(await main(['backup','now'],unit.deps)).toBe(0);
+ expect(unit.runs).toEqual([['systemctl','show','--property','Environment','sbarbase.service'],
+  ['/usr/bin/python3','lab/backup.py','create','all','--keep','14']]);
+ const shell=harness(root,{unit:true,env:{SBARBASE_BACKUP_KEEP:'9'}});
+ await main(['backup','now'],shell.deps);
+ expect(shell.runs).toEqual([['/usr/bin/python3','lab/backup.py','create','all','--keep','9']]);
+ const unset=harness(root,{unit:true});
+ await main(['backup','now'],unset.deps);
+ expect(unset.runs.at(-1)).toEqual(['/usr/bin/python3','lab/backup.py','create','all']);
+ expect(unset.err.join('\n')).toContain('default of 7');
+ const container=harness(root,{container:true,unit:true});
+ await main(['backup','now'],container.deps);
+ expect(container.runs).toEqual([['/usr/bin/python3','lab/backup.py','create','all']]);
+ expect(await main(['backup','now'],harness(root,{unit:true,unitEnvironment:'Environment=SBARBASE_BACKUP_KEEP=zero\n'}).deps)).toBe(EXIT.usage);
 });

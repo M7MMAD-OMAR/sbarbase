@@ -5,15 +5,26 @@
 set -eu
 here=$(dirname "$(readlink -f "$0")")
 root=$(dirname "$here")
+# sudo resets PATH and may keep the caller's HOME, so bun is looked for in order: SBARBASE_BUN,
+# PATH, the running account's own home, then the PATH the installed unit gives the service.
 bun=${SBARBASE_BUN:-}
 if [ -z "$bun" ]; then
   bun=$(command -v bun 2>/dev/null || true)
 fi
-if [ -z "$bun" ] && [ -x "${HOME:-/nonexistent}/.bun/bin/bun" ]; then
-  bun=$HOME/.bun/bin/bun
+if [ -z "$bun" ]; then
+  for home in "${HOME:-}" "$(getent passwd "$(id -u)" 2>/dev/null | cut -d: -f6)"; do
+    if [ -n "$home" ] && [ -x "$home/.bun/bin/bun" ]; then
+      bun=$home/.bun/bin/bun
+      break
+    fi
+  done
+fi
+if [ -z "$bun" ] && [ -r /etc/systemd/system/sbarbase.service ]; then
+  unit_path=$(sed -n 's/^Environment=PATH=//p' /etc/systemd/system/sbarbase.service | head -n 1)
+  bun=$(PATH=$unit_path command -v bun 2>/dev/null || true)
 fi
 if [ -z "$bun" ]; then
-  echo 'sbarbase: bun is not on PATH; set SBARBASE_BUN to the bun binary' >&2
+  echo 'sbarbase: bun was not found; set SBARBASE_BUN to the bun binary' >&2
   exit 1
 fi
 cd "$root"

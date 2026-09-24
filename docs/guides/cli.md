@@ -6,7 +6,7 @@
 
 ## Run it
 
-The command is `deploy/sbarbase` in the installation directory. It runs `lab/sbarbase.ts` with Bun from that directory, wherever you call it from. Run it as the service account, which owns the state:
+The command is `deploy/sbarbase` in the installation directory. It runs `lab/sbarbase.ts` with Bun from that directory, wherever you call it from. It finds Bun on the PATH, in the running account's `~/.bun/bin`, or on the PATH the installed unit gives the service; `SBARBASE_BUN` names it outright. Run it as the service account, which owns the state:
 
 ```bash
 sudo -u sbarbase /opt/sbarbase/deploy/sbarbase status
@@ -57,7 +57,7 @@ It exits 0 when the console runs and every published environment answers, and 1 
 
 ### backup now, backups list, restore
 
-These run `lab/backup.py`, described in [backup and restore](backup-and-restore.md). Without an environment, `backup now` backs up every environment. When `SBARBASE_BACKUP_KEEP` is set, a manual backup keeps as many backups as the daily one; `--keep N` overrides it.
+These run `lab/backup.py`, described in [backup and restore](backup-and-restore.md). Without an environment, `backup now` backs up every environment. A manual backup keeps as many backups as the daily one: it reads `SBARBASE_BACKUP_KEEP` from your shell or, on a systemd install, from the unit, and `--keep N` overrides it. When neither sets it, `lab/backup.py` keeps 7.
 
 `restore` asks you to type the backup time before it replaces anything, and says what is lost. At no terminal, as in a script, it refuses unless you pass `--yes`. What the restore sets aside is removed with `lab/backup.py discard-previous`.
 
