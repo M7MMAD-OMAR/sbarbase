@@ -1,5 +1,6 @@
 """Adoption intent validation, checkpoint resume, refusal and review-fix paths."""
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock,patch
@@ -217,6 +218,7 @@ class AdoptionTests(unittest.TestCase):
         self.assertEqual(adoption.read_checkpoint(self.state,'generation-initialized')['mode'],'dispatched-after-pin')
 
     # MF-3: an unreadable checkpoint is not absent, and must not replay the HBA stage.
+    @unittest.skipIf(os.geteuid()==0,'root reads a mode 000 file, so an unreadable checkpoint cannot be made')
     def test_unreadable_checkpoint_blocks_instead_of_replaying_hba(self):
         record=self.intent();generation=record['generation']
         content='local all all trust\n'

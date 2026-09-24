@@ -59,6 +59,11 @@ def hba_content(environments):
     return '\n'.join(lines)+'\n'
 
 
+# The installation-wide environment guard. src/control/catalog.ts ENVIRONMENT_LIMIT mirrors it
+# so the API refuses before queueing; tests/hierarchy.test.ts checks the two agree.
+ENVIRONMENT_LIMIT = 4
+
+
 def available_memory_bytes():
     return int(next(x.split()[1] for x in lab.Path('/proc/meminfo').read_text().splitlines() if x.startswith('MemAvailable:')))*1024
 
@@ -338,7 +343,7 @@ class Runtime:
         new_environment = e not in self.values['environments']
         if new_environment or os.environ.get('SBARBASE_EFFECT_TOKEN'):
             # With management Auth: at most four environments, 3840 MiB/3.75 CPUs.
-            if len(self.values['environments']) + int(new_environment) > 4:
+            if len(self.values['environments']) + int(new_environment) > ENVIRONMENT_LIMIT:
                 raise AdmissionLimitError('Local runtime admission limit reached')
             try:
                 reason = resource_admission.refusal(resource_admission.snapshot())

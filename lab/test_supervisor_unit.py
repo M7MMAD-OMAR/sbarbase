@@ -1,5 +1,6 @@
 """The supervisor unit must be rendered, verified and installed, never hand-edited."""
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -205,7 +206,7 @@ class InstallGuardTests(unittest.TestCase):
         evidence=json.loads(target.read_text())
         self.assertEqual(evidence['verify'],'passed')
         self.assertFalse(evidence['applied'])
-        self.assertFalse(evidence['running_as_root'])
+        self.assertEqual(evidence['running_as_root'],os.geteuid()==0)
         self.assertNotIn('/opt/sbarbase',evidence['rendered'])
         self.assertIn('Not a substitute for the server acceptance run',evidence['scope'])
         self.assertNotIn('<rendered unit>',evidence['install_commands'][0])

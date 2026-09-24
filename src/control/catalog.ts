@@ -100,6 +100,14 @@ function credentialShape(value:string):boolean {
  * authentication, never request bodies or application JWTs. Not an HTTP API.
  * Placement and runtime credentials deliberately do not belong to ownership.
  */
+/** Environments one installation may hold. Mirrors ENVIRONMENT_LIMIT in lab/durable_runtime.py,
+ * which stays the enforcing check; this one refuses before a job is queued, so the request
+ * answers 409 instead of queueing work the worker must then refuse. */
+export const ENVIRONMENT_LIMIT=4;
+
+/** Bumped with each step of Catalog.migrate(). */
+export const CATALOG_SCHEMA_VERSION=2;
+
 export class Catalog {
   private db:Database;
   private channels:NotificationChannel[];
@@ -184,11 +192,41 @@ export class Catalog {
       CREATE INDEX IF NOT EXISTS provision_jobs_state ON provision_jobs(state);
       CREATE INDEX IF NOT EXISTS notification_outbox_at ON notification_outbox(at);
       CREATE INDEX IF NOT EXISTS notification_outbox_expiry ON notification_outbox(expires_at);`);
+    this.migrate();
+  }
+  /** One ladder, one transaction, recorded in PRAGMA user_version. A catalog written by a
+   * newer release is refused rather than read with rules it was not written for. */
+  private migrate() {
     this.db.transaction(()=>{
-      const columns=this.db.query<{name:string},[]>('PRAGMA table_info(provision_jobs)').all();
-      if(!columns.some(column=>column.name==='failure'))
-        this.db.exec("ALTER TABLE provision_jobs ADD COLUMN failure TEXT CHECK(failure IS NULL OR failure IN ('capacity_exceeded','runtime_failed'))");
+      const version=this.db.query<{user_version:number},[]>('PRAGMA user_version').get()!.user_version;
+      if(version>CATALOG_SCHEMA_VERSION)throw new Error('Catalog schema is newer than this release');
+      if(version<1) {
+        const columns=this.db.query<{name:string},[]>('PRAGMA table_info(provision_jobs)').all();
+        if(!columns.some(column=>column.name==='failure'))
+          this.db.exec("ALTER TABLE provision_jobs ADD COLUMN failure TEXT CHECK(failure IS NULL OR failure IN ('capacity_exceeded','runtime_failed'))");
+      }
+      if(version<2) {
+        // Project names become unique per organization. A catalog that already holds a
+        // duplicate keeps working: the index waits at version 1 until the names differ, and
+        // createProject and transferProject refuse new duplicates either way.
+        const duplicate=this.db.query('SELECT 1 FROM projects GROUP BY organization,name HAVING count(*)>1 LIMIT 1').get();
+        if(duplicate){this.db.exec('PRAGMA user_version=1');return;}
+        this.db.exec('CREATE UNIQUE INDEX IF NOT EXISTS projects_organization_name ON projects(organization,name)');
+      }
+      this.db.exec(`PRAGMA user_version=${CATALOG_SCHEMA_VERSION}`);
     }).immediate();
+  }
+  /** Counts the environments that hold or may take a runtime slot: queued, running or ready. */
+  private requireEnvironmentCapacity() {
+    const held=this.db.query<{n:number},[]>("SELECT count(*) n FROM provision_jobs WHERE state IN ('queued','running','succeeded')").get()!.n;
+    if(held>=ENVIRONMENT_LIMIT)throw new Error('Environment capacity reached');
+  }
+  schemaVersion():number {
+    return this.db.query<{user_version:number},[]>('PRAGMA user_version').get()!.user_version;
+  }
+  private unusedProjectName(organization:string,name:string,except?:string) {
+    const clash=this.db.query<{id:string},[string,string]>('SELECT id FROM projects WHERE organization=? AND name=?').get(organization,name);
+    if(clash&&clash.id!==except)throw new Error('Name already used');
   }
   private name(value:string) {
     if(typeof value!=='string'||!value.trim()||value.length>100||/[\x00-\x1f]/.test(value))
@@ -331,6 +369,19 @@ export class Catalog {
       this.record(owner,'installation.initialized',id,{});return id;
     }).immediate();
   }
+  /** Owners and admins of the organization created at bootstrap run the installation: they
+   * may create organizations. Without a recorded bootstrap nobody may, through the API. */
+  installationOperator(actor:string):boolean {
+    this.actor(actor);
+    return !!this.db.query<{role:string},[string]>(`SELECT m.role role FROM installation_bootstrap b
+      JOIN memberships m ON m.organization=b.organization WHERE b.singleton=1 AND m.actor=? AND m.role IN ('owner','admin')`).get(actor);
+  }
+  /** Owners and admins may see who else can act in their organization. */
+  listMembers(actor:string,organization:string):{actor:string;role:MembershipRole}[] {
+    this.require(actor,organization,['owner','admin']);
+    return this.db.query<{actor:string;role:MembershipRole},[string]>(
+      "SELECT actor,role FROM memberships WHERE organization=? ORDER BY CASE role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END,actor").all(organization);
+  }
   listOrganizations(actor:string):{id:string;name:string;role:MembershipRole}[] {
     this.actor(actor);
     return this.db.query<{id:string;name:string;role:MembershipRole},[string]>(
@@ -362,6 +413,7 @@ export class Catalog {
     const title=this.name(name),id=randomUUID();
     return this.db.transaction(()=>{
       this.require(actor,organization,['owner','admin']);
+      this.unusedProjectName(organization,title);
       this.db.query('INSERT INTO projects VALUES (?,?,?)').run(id,organization,title);
       this.record(actor,'project.created',id,{organization});return id;
     }).immediate();
@@ -370,6 +422,9 @@ export class Catalog {
     const title=this.name(name),id=randomUUID();
     return this.db.transaction(()=>{
       const parent=this.project(actor,project,['owner','admin']);
+      if(this.db.query('SELECT 1 FROM environments WHERE project=? AND name=?').get(project,title))
+        throw new Error('Name already used');
+      this.requireEnvironmentCapacity();
       this.db.query('INSERT INTO environments VALUES (?,?,?)').run(id,project,title);
       this.db.query('INSERT INTO provision_jobs(environment,runtime,actor,organization,state) VALUES (?,?,?,?,?)')
         .run(id,'e_'+randomBytes(12).toString('hex'),actor,parent.organization,'queued');
@@ -513,6 +568,7 @@ export class Catalog {
   retryProvision(actor:string,environment:string) {
     this.db.transaction(()=>{
       const parent=this.environmentProject(actor,environment,['owner','admin']);
+      this.requireEnvironmentCapacity();
       const result=this.db.query("UPDATE provision_jobs SET state='queued',actor=?,organization=?,claim=NULL,failure=NULL WHERE environment=? AND state IN ('failed','cancelled')")
         .run(actor,parent.organization,environment);
       if(result.changes!==1) throw new Error('Operation is not retryable');
@@ -533,9 +589,21 @@ export class Catalog {
       const source=this.project(actor,project,['owner']);
       this.require(actor,destination,['owner']);
       if(source.organization===destination) return;
+      this.unusedProjectName(destination,source.name,project);
       const active=this.db.query<{n:number},[string]>("SELECT count(*) n FROM provision_jobs j JOIN environments e ON e.id=j.environment WHERE e.project=? AND j.state='running'").get(project);
       if(active?.n) throw new Error('Provisioning is active');
       this.db.query('UPDATE projects SET organization=? WHERE id=?').run(destination,project);
+      // A queued job carries the requester's authority in the source organization, so the
+      // move cancels it here, visibly, instead of leaving the claim to find the mismatch. Every
+      // job of the project then names the destination, so later events reach the new owners.
+      const queued=this.db.query<{environment:string},[string]>(
+        "SELECT j.environment environment FROM provision_jobs j JOIN environments e ON e.id=j.environment WHERE e.project=? AND j.state='queued'").all(project);
+      for(const job of queued) {
+        this.db.query("UPDATE provision_jobs SET state='cancelled',claim=NULL WHERE environment=?").run(job.environment);
+        this.record('system','provision.cancelled',job.environment,{reason:'project_transferred'});
+      }
+      this.db.query('UPDATE provision_jobs SET organization=? WHERE environment IN (SELECT id FROM environments WHERE project=?)')
+        .run(destination,project);
       this.record(actor,'project.ownership_changed',project,{from:source.organization,to:destination});
       this.notify('project.ownership_changed','critical','project.ownership_changed|'+project,
         {organization:source.organization,project},actor,'ownership_changed',
@@ -660,15 +728,39 @@ export class Catalog {
       return rows.length;
     }).immediate();
   }
-  /** Read-only delivery state. Already safe fields only: no recipient, no rendered body. */
-  listNotifications(limit=50) {
+  /** Read-only delivery state. Already safe fields only: no recipient, no rendered body.
+   * With an actor, only the events that actor may see: an event belongs to its organization,
+   * or, when a producer recorded only a runtime or an environment, to the organization that
+   * owns it now. Owners and admins of that organization see it. An event that belongs to no
+   * organization (installation start, worker restarts) is shown to owners and admins of the
+   * organization created at installation bootstrap, or of any organization while no
+   * bootstrap is recorded (a lab catalog). Without an actor: every event, for trusted callers. */
+  listNotifications(limit=50,actor?:string) {
     if(!Number.isInteger(limit)||limit<1||limit>500)throw new Error('Invalid notification limit');
-    return this.db.query<NotificationSummary,[number]>(`SELECT o.id id,o.kind kind,o.severity severity,o.at at,
+    const columns=`o.id id,o.kind kind,o.severity severity,o.at at,
       o.last_at last_at,o.occurrences occurrences,o.reason reason,o.window_until window_until,
       o.organization organization,o.project project,o.environment environment,o.runtime runtime,
       d.channel channel,d.state state,d.attempts attempts,d.last_error last_error
-      FROM notification_outbox o JOIN notification_delivery d ON d.event=o.id
-      ORDER BY o.at DESC,d.channel LIMIT ?`).all(limit);
+      FROM notification_outbox o JOIN notification_delivery d ON d.event=o.id`;
+    if(actor===undefined)
+      return this.db.query<NotificationSummary,[number]>(`SELECT ${columns}
+        ORDER BY o.at DESC,d.channel LIMIT ?`).all(limit);
+    this.actor(actor);
+    return this.db.query<NotificationSummary,[string,string,number]>(`WITH scoped AS (SELECT ${columns.replace(
+      'FROM notification_outbox',`,COALESCE(o.organization,
+        (SELECT p.organization FROM provision_jobs j JOIN environments e ON e.id=j.environment
+          JOIN projects p ON p.id=e.project WHERE j.runtime=o.runtime),
+        (SELECT p.organization FROM environments e JOIN projects p ON p.id=e.project WHERE e.id=o.environment),
+        (SELECT p.organization FROM projects p WHERE p.id=o.project)) scope
+      FROM notification_outbox`)}),
+      mine AS (SELECT organization FROM memberships WHERE actor=? AND role IN ('owner','admin'))
+      SELECT id,kind,severity,at,last_at,occurrences,reason,window_until,organization,project,environment,runtime,
+        channel,state,attempts,last_error FROM scoped
+      WHERE scope IN (SELECT organization FROM mine)
+        OR (scope IS NULL AND (
+          (SELECT organization FROM installation_bootstrap WHERE singleton=1) IN (SELECT organization FROM mine)
+          OR (NOT EXISTS (SELECT 1 FROM installation_bootstrap) AND EXISTS (SELECT 1 FROM memberships WHERE actor=? AND role IN ('owner','admin')))))
+      ORDER BY at DESC,channel LIMIT ?`).all(actor,actor,limit);
   }
   close(){this.db.close();}
 }

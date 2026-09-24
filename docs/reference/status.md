@@ -1,21 +1,21 @@
 # Status
 
-The single place for what works, what does not, and every number. Updated 2026-09-23. Current source release: [0.1.0](../../CHANGELOG.md) (2026-09-21), plus the unreleased container generation migration.
+The single place for what works, what does not, and every number. Updated 2026-09-24. Current source release: [0.1.0](../../CHANGELOG.md) (2026-09-21), plus the unreleased container generation migration.
 
 Everything below was verified on one development workstation, except the empty-server rehearsal, which ran in a local virtual machine. **Nothing has been run on a real server yet.** Nothing here certifies production readiness or security, and no fixed number of projects per server is claimed.
 
-## Test suites, 2026-09-23
+## Test suites, 2026-09-24
 
-Run from the repository root on the development workstation. These suites do not start containers.
+Run from the repository root in a clean container with Python 3.14 and `cryptography`, as root. These suites do not start containers; they also pass with no Docker daemon reachable, which CI now checks.
 
 | Suite | Command | Result |
 |---|---|---|
-| Python unit tests | `DOCKER_HOST=unix:///var/run/docker.sock /usr/bin/python3 -m unittest discover -s lab -p 'test_*.py'` | 625 tests, OK, none skipped |
-| Bun tests (root) | `bun test` | 93 pass, 0 fail, 562 assertions, 19 files (the 18 in `tests/` plus `website/tests/site.test.ts`) |
+| Python unit tests | `DOCKER_HOST=unix:///var/run/docker.sock /usr/bin/python3 -m unittest discover -s lab -p 'test_*.py'` | 642 tests, OK; 4 skipped as root or where `/usr/bin/python3` is older than 3.14, each with its reason; none skipped on CI |
+| Bun tests (root) | `bun test` | 101 pass, 0 fail, 620 assertions, 20 files (the 19 in `tests/` plus `website/tests/site.test.ts`) |
 | Website | `cd website && bun run build && bun test` | build OK; 2 pass, 0 fail, 40 assertions |
 | Console typecheck | `bun run typecheck:ui` | passes |
 
-Earlier pages recorded other totals (for example 575 Python and 87 Bun tests at the 0.1.0 release gate). Those were correct for their date and scope; this table replaces them.
+Earlier pages recorded other totals (for example 575 Python and 87 Bun tests at the 0.1.0 release gate, and 625 and 93 on the workstation on 2026-09-23). Those were correct for their date and scope; this table replaces them.
 
 ## Live evidence
 
@@ -68,6 +68,14 @@ Live probes start real containers and write their results to [docs/evidence](../
 | SDK through the gateway to the moved environment | [cutover-sdk-checks.json](../evidence/cutover-sdk-checks.json) | 11 |
 | Unaffected neighbours restarted on the source | [cutover-neighbor-checks.json](../evidence/cutover-neighbor-checks.json) | 16 |
 
+### Import from Supabase (phase 0 only)
+
+| What | Evidence | Checks |
+|---|---|---|
+| Read-only inspection of a source database: refusals, warnings and manual steps before any dump, on the pinned image as the `postgres` role | [import-inspect-checks.json](../evidence/import-inspect-checks.json) | 6 |
+
+The dump, restore, object copy and verification phases do not exist yet; see [the migration plan](../engineering/plans/2026-09-23-verification-and-migration-plan.md).
+
 ### Empty server, simulated in a local VM
 
 A disposable Fedora 44 Cloud VM with 4 vCPU and 6 GiB, a clean clone, the one-command acceptance with `--install-unit --first-project`, then a reboot ([lab/vm-rehearsal.sh](../../lab/vm-rehearsal.sh)). Not a real server: no public network or certificate. The runs found ten defects the workstation could not show, all fixed with tests; they are listed in the summary record.
@@ -96,7 +104,7 @@ The itemised server matrix is [deployment readiness](deployment-readiness.md).
 
 ## Resources
 
-A start needs its containers' memory limits plus a 2560 MiB reserve: 1792 MiB of limits on an empty server and 512 MiB more per environment, and CPU ceilings of at most twice the cores after one core is kept for the host. At most four environments per installation are allowed by a lab guard for now. The configured ceilings for the workstation's retained combined placement are 5888 MiB of container memory and 5.75 CPUs, admitted under a 6 GiB and 6 CPU cap plus a 2560 MiB host reserve. These are allocation limits, not measured demand or a hardware recommendation. Sustained mixed load has not been measured, so there is no validated maximum of 10 or 100 projects, and daily visitor counts alone cannot size a server.
+A start needs its containers' memory limits plus a 2560 MiB reserve: 1792 MiB of limits on an empty server and 512 MiB more per environment, and CPU ceilings of at most twice the cores after one core is kept for the host. At most four environments per installation are allowed by a lab guard for now; the management API refuses the fifth with 409 before queueing it, and the runtime guard still enforces it. The configured ceilings for the workstation's retained combined placement are 5888 MiB of container memory and 5.75 CPUs, admitted under a 6 GiB and 6 CPU cap plus a 2560 MiB host reserve. These are allocation limits, not measured demand or a hardware recommendation. Sustained mixed load has not been measured, so there is no validated maximum of 10 or 100 environments, and daily visitor counts alone cannot size a server.
 
 ## What does not exist yet
 
@@ -104,6 +112,7 @@ A start needs its containers' memory limits plus a 2560 MiB reserve: 1792 MiB of
 - Per-environment Supabase Studio (specified in [the integration specification](../engineering/STUDIO-INTEGRATION.md), not served).
 - Realtime, Edge Functions, the connection pooler and cron.
 - Scheduled or off-host backups, point-in-time recovery, and a general per-environment export command.
+- Importing a project from Supabase Cloud or a self-hosted stack beyond the read-only inspection.
 - Automatic recovery of later-stage provisioning failures; they block until an operator reconciles them.
 - Adoption of any upstream release through the update policy; automatic upgrades.
 - Complete project transfer between clients, invitations, MFA and login rate limits.

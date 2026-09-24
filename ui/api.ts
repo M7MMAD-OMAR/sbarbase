@@ -6,12 +6,22 @@ export type Organization={id:string;name:string;role:'owner'|'admin'|'viewer'};
 export type Project={id:string;name:string};
 export type Environment=Project&{state?:string|null;failure?:'capacity_exceeded'|'runtime_failed'|null};
 export type Api=(path:string,method?:string,body?:unknown,signal?:AbortSignal)=>Promise<any>;
+/** The 409 answers the management API gives, in the words the console shows. */
+const conflicts:Record<string,string>={
+ 'Name already used':'That name is already used here. Choose another name.',
+ 'Environment capacity reached':'This installation has reached its environment limit. Ask the installation owner to review capacity.',
+ 'Operation is not retryable':'Only a failed or cancelled environment can be retried.',
+ 'Environment is not ready':'This environment is not provisioned yet.'};
 export function api(token:string):Api {
  return async(path,method='GET',body,signal)=>{
   const response=await fetch('/management/v1'+path,{method,signal,headers:{authorization:'Bearer '+token,...(body===undefined?{}:{'content-type':'application/json'})},
    ...(body===undefined?{}:{body:JSON.stringify(body)})});
   if(response.status===401){void auth.auth.signOut({scope:'local'});throw new Error('Your session expired. Sign in again.');}
-  if(!response.ok)throw new Error(response.status===403?'You no longer have permission for this action.':response.status===409?'This environment is not provisioned yet.':'The request failed. Refresh and try again.');
+  if(response.status===409){
+   const message=await response.json().then(value=>(value as {message?:string}).message).catch(()=>undefined);
+   throw new Error(conflicts[message??'']??'This environment is not provisioned yet.');
+  }
+  if(!response.ok)throw new Error(response.status===403?'You no longer have permission for this action.':'The request failed. Refresh and try again.');
   return response.json();
  };
 }

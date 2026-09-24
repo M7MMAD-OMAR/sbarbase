@@ -5,6 +5,7 @@ describes is on main and its evidence is committed under `docs/evidence/`.
 
 | Date | File | Topic | Status |
 |---|---|---|---|
+| 2026-09-23 | [verification-and-migration-plan](2026-09-23-verification-and-migration-plan.md) | verification run, hierarchy follow-ups, competitors, `sbarbase import` design, ordered steps | proposal |
 | 2026-09-21 | [execution-plan](2026-09-21-execution-plan.md) | resource distribution, environment email, operator notifications | in progress |
 | 2026-09-21 | [RESOURCE-POLICY](../RESOURCE-POLICY.md) | tiers, weights, IO limits, derived placement arithmetic, measurement method | built, uncalibrated; two measurements blocked (sections 3.6, 5.0) |
 | 2026-09-21 | [ENVIRONMENT-EMAIL](../ENVIRONMENT-EMAIL.md) | per-environment SMTP through original Auth, probe with Mailpit | built and probed; the provider decision is open |

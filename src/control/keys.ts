@@ -3,6 +3,8 @@ import {createHash, randomBytes, randomUUID} from 'node:crypto';
 import {chmodSync} from 'node:fs';
 
 export type KeyKind = 'publishable' | 'secret';
+/** `environment` holds the opaque runtime id (`e_<24 hex>`), not the catalog's environment
+ * UUID: the gateway resolves keys by runtime, and a project move keeps it. */
 export type KeyRecord = {id:string;environment:string;kind:KeyKind;created_at:number;revoked_at:number|null};
 const digest=(token:string)=>createHash('sha256').update(token).digest('hex');
 

@@ -14,6 +14,28 @@ ROOT=Path(__file__).resolve().parent.parent
 SCRIPT=ROOT/'deploy'/'server-acceptance.sh'
 
 
+def host_python_is_modern():
+    try:
+        result=subprocess.run(['/usr/bin/python3','-c','import sys;print(sys.version_info>=(3,14))'],capture_output=True,text=True,timeout=30)
+    except OSError:
+        return False
+    return result.stdout.strip()=='True'
+
+
+def docker_answers():
+    try:
+        return subprocess.run(['docker','info'],capture_output=True,timeout=30).returncode==0
+    except (OSError,subprocess.TimeoutExpired):
+        return False
+
+
+# The script checks /usr/bin/python3 and then the Docker daemon before it reads any
+# argument's file, so a refusal that comes later can only be observed on a host that
+# passes both checks.
+MODERN_PYTHON=host_python_is_modern()
+DOCKER=docker_answers()
+
+
 def run(*args,env=None):
     environment=dict(os.environ)
     if env:environment.update(env)
@@ -42,6 +64,7 @@ class ServerAcceptanceTests(unittest.TestCase):
         self.assertNotEqual(result.returncode,0)
         self.assertIn('is not on PATH',result.stderr)
 
+    @unittest.skipUnless(MODERN_PYTHON and DOCKER,'this host lacks /usr/bin/python3 3.14 or a Docker daemon')
     def test_a_world_readable_bootstrap_file_is_refused(self):
         with tempfile.TemporaryDirectory() as directory:
             path=Path(directory)/'operator.json'
@@ -65,6 +88,7 @@ class ServerAcceptanceTests(unittest.TestCase):
             self.assertNotIn(leak,source)
         self.assertIn('contents never printed',source)
 
+    @unittest.skipUnless(MODERN_PYTHON and DOCKER,'this host lacks /usr/bin/python3 3.14 or a Docker daemon')
     def test_the_prerequisite_step_passes_on_this_host_so_preflight_speaks_next(self):
         result=run()
         output=result.stdout+result.stderr
@@ -186,6 +210,7 @@ class AcceptanceScriptContractTests(unittest.TestCase):
         self.assertIn("REPO_OWNER=\"$(stat -c '%U' \"$REPO_ROOT\")\"",self.source)
         self.assertIn('using the checkout owner',self.source)
 
+    @unittest.skipIf(os.geteuid()==0,'this run is root, so the wrapper switches user instead')
     def test_the_wrapper_runs_the_command_directly_when_the_run_is_not_root(self):
         lines=self.source.splitlines()
         start=next(i for i,line in enumerate(lines) if line.startswith('run_as_installation()'))

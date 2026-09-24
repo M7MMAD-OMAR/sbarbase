@@ -1,0 +1,63 @@
+{
+  "probe": "lab/import_inspect.py",
+  "run_at": "2026-09-24T00:07:53+00:00",
+  "scope": "Import phase 0 (read-only inspection) against one disposable container of the pinned database image (supabase/postgres 17.6.1.166, image id sha256:b3bfedb1...dc86) seeded with a custom role, a pg_cron job, a Vault secret, one auth user and a table in the Realtime publication. GoTrue and Storage did not run, so the reference has no Storage migrations. Not a Supabase Cloud project and not a full import: nothing was dumped, copied or allocated.",
+  "checks": [
+    {
+      "check": "read as the postgres role (the role a Supabase Cloud connection string uses) on the pinned image",
+      "passed": true
+    },
+    {
+      "check": "source with a Vault secret refused before any dump",
+      "passed": true
+    },
+    {
+      "check": "custom role, pg_cron job, populated Realtime publication reported as warnings",
+      "passed": true
+    },
+    {
+      "check": "Storage never migrated reported as a warning, not a refusal",
+      "passed": true
+    },
+    {
+      "check": "same source importable once the vault is empty",
+      "passed": true
+    },
+    {
+      "check": "reports contain neither the connection password nor the secret value",
+      "passed": true
+    }
+  ],
+  "count": 6,
+  "passed": true,
+  "refused_run": {
+    "importable": false,
+    "refusals": [
+      "1 Vault secret(s): their root key is not in a dump; provide it or empty the vault first"
+    ],
+    "warnings": [
+      "Storage never ran on the source: there are no buckets or objects to copy",
+      "extension pg_cron: scheduled jobs would not run; they are imported disabled",
+      "1 custom role(s) (reporting) will be renamed per environment, with grants and policies rewritten; their passwords are not carried",
+      "1 cron job(s) will be imported disabled",
+      "Realtime publications are kept but inactive: Sbarbase does not run Realtime yet"
+    ]
+  },
+  "clean_run": {
+    "importable": true,
+    "refusals": [],
+    "warnings": [
+      "Storage never ran on the source: there are no buckets or objects to copy",
+      "extension pg_cron: scheduled jobs would not run; they are imported disabled",
+      "1 custom role(s) (reporting) will be renamed per environment, with grants and policies rewritten; their passwords are not carried",
+      "1 cron job(s) will be imported disabled",
+      "Realtime publications are kept but inactive: Sbarbase does not run Realtime yet"
+    ]
+  },
+  "source_summary": {
+    "auth_users": 1,
+    "buckets": null,
+    "objects": null,
+    "app_migrations": null
+  }
+}
