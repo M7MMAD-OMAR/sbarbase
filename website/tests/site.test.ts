@@ -59,7 +59,7 @@ test('the rules match the runtime admission policy',()=>{
  expect(policy).toContain('START_RESERVE_MIB = 2560');
  expect(policy).toContain("SYSTEM_ROWS = ('system.db', 'system.storage', 'system.management-auth')");
  const runtime=readFileSync(new URL('../../lab/durable_runtime.py',import.meta.url),'utf8');
- expect(runtime).toContain('> 4:');
+ expect(Number(runtime.match(/^ENVIRONMENT_LIMIT = (\d+)$/m)![1])).toBe(rules.maxEnvironments);
 });
 
 test('every stylesheet and script font is self hosted',()=>{
