@@ -68,6 +68,14 @@ sudo deploy/server-acceptance.sh --rehearse --install-unit --first-project --ser
 
 قيد التطوير. نجح التثبيت في آلة افتراضية محلية، ولم يُجرَّب على خادم حقيقي بعد، وليس جاهزًا للإنتاج. ما يعمل، مع كل رقم، في [الحالة](docs/reference/status.ar.md).
 
+## الدعم
+
+صباربيز مجاني ويُبنى بشكل مفتوح. إن كان مفيدًا لك، يمكنك دعم تطويره:
+
+<a href="https://www.buymeacoffee.com/m7mmadomar"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="ادعمني بفنجان قهوة" width="217" height="60"></a>
+
+والإبلاغ عن شيء لا يعمل لا يقل قيمة عن ذلك؛ التفاصيل في [المساهمة](CONTRIBUTING.ar.md).
+
 ## الترخيص
 
 Apache-2.0. تحتفظ Supabase وPostgreSQL والاعتماديات الأخرى بتراخيصها.

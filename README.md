@@ -58,6 +58,14 @@ Every reader-facing page is in English and Arabic, with a link to the other lang
 
 In development. The install has passed in a local virtual machine, not yet on a real server, and it is not production ready. What works, with every number, is in [status](docs/reference/status.md).
 
+## Support
+
+Sbarbase is free and built in the open. If it is useful to you, you can support its development:
+
+<a href="https://www.buymeacoffee.com/m7mmadomar"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy me a coffee" width="217" height="60"></a>
+
+A report of something that does not work is worth as much; see [Contributing](CONTRIBUTING.md).
+
 ## License
 
 Apache-2.0. Supabase, PostgreSQL and other dependencies keep their own licenses.
