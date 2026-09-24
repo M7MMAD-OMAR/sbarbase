@@ -15,6 +15,13 @@ ready.
 
 ### Added
 
+- **Direct database access per environment.** Owners and admins turn on a
+  developer login and get a PostgreSQL connection string, with the password
+  shown once, for `psql`, `pg_dump`, `supabase db push --db-url`, Prisma or
+  Drizzle over an SSH tunnel. The login works like a project's `postgres`
+  user within its own database, including triggers on `auth.users` and
+  Storage policies, but is not a superuser. A loopback listener (port 6543)
+  passes on only developer logins to their own database.
 - **Edge Functions per environment.** Deploy a Supabase project's
   `supabase/functions` folder with one command (`lab/functions-deploy.ts`),
   `_shared` and `verify_jwt` in `config.toml` included, or write a function in

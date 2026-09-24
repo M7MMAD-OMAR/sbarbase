@@ -97,6 +97,8 @@ Set these in `compose.yaml` (Docker) or as `Environment=` lines of the systemd s
 | `SBARBASE_CONSOLE_PORT` | chosen at start | The loopback port of the console and API, for a TLS proxy |
 | `SBARBASE_BACKUP_HOUR` | `3` | Hour (UTC) of the daily backup; `off` stops it |
 | `SBARBASE_BACKUP_KEEP` | `7` | Backups kept per environment |
+| `SBARBASE_DATABASE_PORT` | `6543` | Port of the direct database access listener ([database access](../guides/database-access.md)); `off` turns it off |
+| `SBARBASE_DATABASE_BIND` | `127.0.0.1` | Address that listener binds. Keep loopback and use an SSH tunnel; another address sends database traffic unencrypted |
 | `SBARBASE_UPLOAD_LIMIT_MB` | `50` | The largest file an application may upload to Storage, in MiB (1 to 5120), as Supabase's global file size limit. Larger uploads get `413`. A change applies at the next start, which recreates the shared Storage container; a bucket's own limit can be lower ([evidence](../evidence/docker-upload-checks.json)) |
 
 ## Internal environment variables

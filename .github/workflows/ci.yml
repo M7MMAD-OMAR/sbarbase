@@ -88,6 +88,8 @@ jobs:
         run: docker compose exec -T sbarbase bun lab/realtime-check.ts "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-realtime-checks.json"
       - name: Edge Functions from a Supabase functions folder
         run: docker compose exec -T sbarbase bun lab/functions-check.ts "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-functions-checks.json"
+      - name: Direct database access and a migration
+        run: docker compose exec -T sbarbase bun lab/database-check.ts "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-database-checks.json"
       - name: Logs and metrics for the environment
         run: docker compose exec -T sbarbase bun lab/observe-check.ts "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-observe-checks.json"
       - name: Uploads larger than a MiB, then a new upload limit

@@ -50,6 +50,9 @@
 | PUT | `/management/v1/environments/{id}/functions/{name}` | مالك، مدير، عندما تكون جاهزة | النشر: `{"files": {"index.ts": "..."}, "shared"?: {...}, "verify_jwt"?: bool}`، ملفات نصية بمسارات نسبية، حتى 500 ملف و10 MiB. يأخذ `201`، وأول نشر يشغّل Edge Functions |
 | DELETE | `/management/v1/environments/{id}/functions/{name}` | مالك، مدير، عندما تكون جاهزة | يحذف الدالة، و`404` إن لم تكن موجودة |
 | PUT | `/management/v1/environments/{id}/function-secrets` | مالك، مدير، عندما تكون جاهزة | `{"secrets": {"NAME": "value" \| null}}`، و`null` يحذف. الأسماء من `A-Z` والأرقام و`_`، ولا تبدأ بـ `SUPABASE_` أو `SB_`. يردّ بالأسماء فقط |
+| GET | `/management/v1/environments/{id}/database` | مالك، مدير، عندما تكون جاهزة | حالة الوصول المباشر إلى قاعدة البيانات في `state` و`desired`، وبيانات الاتصال في `connection` (المضيف والمنفذ والمستخدم وقاعدة البيانات)، و`url` بمكان محجوز لكلمة المرور |
+| PUT | `/management/v1/environments/{id}/database` | مالك، مدير، عندما تكون جاهزة | `{"enabled": true\|false}`. يأخذ `202`، والتشغيل يردّ مرة واحدة بكلمة مرور جديدة في `password` و`url` كامل |
+| POST | `/management/v1/environments/{id}/database/password` | مالك، مدير، عندما تكون جاهزة | كلمة مرور جديدة تُعرض مرة واحدة، وتتوقف القديمة. يأخذ `409` إن كان الوصول مطفأً |
 | GET | `/management/v1/environments/{id}/mail` | عضو | حالة البريد غير السرية للبيئة، بلا أي حقل لبيانات الاعتماد |
 | GET | `/management/v1/notifications` | مالك أو مدير أي عميل | عدد التنبيهات غير المسلّمة وأحدث أحداث المشغّل لعملاء المستدعي وحدهم. الأحداث التي لا تخص عميلًا (بدء التثبيت، إعادة تشغيل العامل) تذهب إلى مالكي ومديري العميل الذي أُنشئ عند الإعداد الأولي |
 

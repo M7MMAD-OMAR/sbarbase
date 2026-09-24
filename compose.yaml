@@ -28,6 +28,9 @@ services:
       SBARBASE_PUBLIC_URL: ${SBARBASE_PUBLIC_URL:-}
       # The largest file an application may upload, in MiB (1 to 5120).
       SBARBASE_UPLOAD_LIMIT_MB: ${SBARBASE_UPLOAD_LIMIT_MB:-50}
+      # Direct database access for migrations (loopback only by default; reach it over SSH).
+      SBARBASE_DATABASE_PORT: ${SBARBASE_DATABASE_PORT:-6543}
+      SBARBASE_DATABASE_BIND: ${SBARBASE_DATABASE_BIND:-127.0.0.1}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       # Read only: the disk behind Docker's data is where block IO limits apply.

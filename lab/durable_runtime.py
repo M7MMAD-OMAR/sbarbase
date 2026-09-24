@@ -59,7 +59,8 @@ def hba_content(environments):
         # The studio login exists only while an operator runs Studio for this environment
         # (lab/studio.py); outside that it is NOLOGIN, so the rule admits nobody.
         # Realtime's login exists once the environment turns Realtime on (docs/engineering/REALTIME.md).
-        lines += [f'host {e} {e}_{role} 0.0.0.0/0 scram-sha-256' for role in ('auth', 'rest', 'storage', 'studio', 'realtime')]
+        # The developer login exists once an owner turns direct database access on, and is NOLOGIN while it is off.
+        lines += [f'host {e} {e}_{role} 0.0.0.0/0 scram-sha-256' for role in ('auth', 'rest', 'storage', 'studio', 'realtime', 'developer')]
     lines += ['host all all 0.0.0.0/0 reject', 'host all all ::/0 reject']
     return '\n'.join(lines)+'\n'
 
@@ -168,6 +169,27 @@ def realtime_on(e):
 
 def realtime_count():
     return sum(1 for entry in published_endpoints().values() if isinstance(entry, dict) and entry.get('realtime'))
+
+
+def direct_on(e):
+    """Whether this environment's developer login may connect (direct database access)."""
+    return bool(published_endpoints().get(e, {}).get('database'))
+
+
+def studio_running(e):
+    path = STATE/'studio.json'
+    try:
+        return e in (json.loads(path.read_text()).get('sessions', {}) if path.exists() else {})
+    except (OSError, ValueError):
+        return False
+
+
+def current_database_limit(e, *, studio=None, realtime=None, direct=None):
+    """The environment database's connection limit for the logins it runs now; a caller that is
+    changing one of them names its new value and the others are read from the published state."""
+    return connection_budget.database_limit(studio=studio_running(e) if studio is None else studio,
+                                            realtime=realtime_on(e) if realtime is None else realtime,
+                                            direct=direct_on(e) if direct is None else direct)
 
 
 def functions_on(e):
@@ -398,6 +420,8 @@ class Runtime:
         else:
             raise RuntimeError('Database readiness timed out')
         self.hba_writer.ready(launched_cid,created=created)
+        # Where direct database access connects (src/http/database-proxy.ts); the address changes only with the container.
+        atomic(STATE/'database.json', {'host': self.endpoint(DB, 5432).split('//')[1].split(':')[0], 'port': 5432})
         if self.sql("SELECT 1 FROM pg_roles WHERE rolname='storage_control';").stdout.strip() != '1':
             self.sql(f"CREATE ROLE storage_control LOGIN NOINHERIT PASSWORD '{self.values['storage_control']}';")
         if self.sql("SELECT 1 FROM pg_database WHERE datname='storage_metadata';").stdout.strip() != '1':
@@ -696,8 +720,7 @@ DO $$ BEGIN
     CREATE PUBLICATION supabase_realtime FOR TABLES IN SCHEMA public;
   END IF;
 END $$;""", e)
-        studio_running = e in (json.loads((STATE/'studio.json').read_text()).get('sessions', {}) if (STATE/'studio.json').exists() else {})
-        self.sql(f'ALTER DATABASE {e} CONNECTION LIMIT {connection_budget.database_limit(studio=studio_running, realtime=True)};')
+        self.sql(f'ALTER DATABASE {e} CONNECTION LIMIT {current_database_limit(e, realtime=True)};')
 
     def realtime_start(self, e, migrate):
         """Run the environment's Realtime. With `migrate`, its login is a superuser only while Realtime
@@ -760,6 +783,88 @@ GRANT ALL ON ALL SEQUENCES IN SCHEMA _realtime TO {role};""", e)
             status = error.code
         if status not in (200, 201):
             raise RuntimeError('Realtime tenant registration failed')
+
+    def developer_sql(self, e, password):
+        """The environment's developer login: what a project's own `postgres` user does on Supabase,
+        within one database. It may create and change anything in `public`, and, as a member of
+        the environment's Auth and Storage logins, add triggers on `auth.users` and policies on
+        `storage.objects`. It is not a superuser and cannot reach another environment's database."""
+        role = f'{e}_developer'
+        members = ', '.join(f'{e}_{service}' for service in ('auth', 'storage')) + ', anon, authenticated, service_role'
+        return f"""
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{role}') THEN
+    CREATE ROLE {role} NOLOGIN;
+  END IF;
+END $$;
+ALTER ROLE {role} NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION INHERIT BYPASSRLS
+  CONNECTION LIMIT {connection_budget.DIRECT_CONNECTIONS} PASSWORD {sql_literal(password)};
+ALTER ROLE {role} IN DATABASE {e} SET search_path TO public, extensions;
+GRANT CONNECT, TEMPORARY ON DATABASE {e} TO {role};
+GRANT {members} TO {role};
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{e}_studio') THEN
+    EXECUTE 'GRANT {e}_studio TO {role}';
+  END IF;
+END $$;
+ALTER ROLE {role} LOGIN;
+"""
+
+    def developer_grants_sql(self, e):
+        role = f'{e}_developer'
+        return f"""GRANT USAGE, CREATE ON SCHEMA public, extensions TO {role};
+GRANT ALL ON ALL TABLES IN SCHEMA public TO {role};
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO {role};
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO {role};
+ALTER DEFAULT PRIVILEGES FOR ROLE {role} IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES FOR ROLE {role} IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES FOR ROLE {role} IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO anon, authenticated, service_role;"""
+
+    def database_turn(self, e, on):
+        """Turn one environment's direct database access on (with the password the console saved) or off."""
+        effect_receipt.require_settled(STATE)
+        if not re.fullmatch(r'e_[a-f0-9]{24}', e):
+            raise RuntimeError('Invalid environment runtime identifier')
+        if not inspect('container', DB):
+            raise RuntimeError('Start the upstream runtime first')
+        endpoints = published_endpoints()
+        if e not in endpoints or e not in self.values['environments']:
+            raise RuntimeError('Database access needs a published environment')
+        if source_fence.is_fenced(self.sql, e):
+            raise RuntimeError('Environment database is fenced; explicit reconciliation required')
+        role = f'{e}_developer'
+        if on:
+            if self.sql(f"SELECT count(*) FROM pg_hba_file_rules WHERE '{role}' = ANY(user_name) AND error IS NULL;").stdout.strip() != '1':
+                raise RuntimeError('Database access rule not published; restart Sbarbase once')
+            try:
+                password = json.loads((PRIVATE/'database'/f'{e}.json').read_text())['password']
+            except (OSError, ValueError, KeyError):
+                raise RuntimeError('No developer password was saved') from None
+            if not isinstance(password, str) or not re.fullmatch(r'[A-Za-z0-9_-]{24,128}', password):
+                raise RuntimeError('The saved developer password is not valid')
+            if not direct_on(e):
+                available, promised = (int(value) for value in self.sql(
+                    "SELECT current_setting('max_connections')::int - current_setting('superuser_reserved_connections')::int "
+                    "- current_setting('reserved_connections')::int, coalesce(sum(greatest(datconnlimit, 0)), 0) "
+                    "FROM pg_database WHERE datallowconn AND datname <> 'template1';").stdout.strip().split('|'))
+                if promised + connection_budget.DIRECT_CONNECTIONS > available:
+                    raise AdmissionLimitError('Connection headroom unavailable')
+            self.sql(self.developer_sql(e, password))
+            self.sql(self.developer_grants_sql(e), e)
+            self.sql(f'ALTER DATABASE {e} CONNECTION LIMIT {current_database_limit(e, direct=True)};')
+            # A new password closes the sessions that signed in with the old one.
+            self.sql(f"SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE usename = '{role}' AND backend_start < now() - interval '1 second';")
+        else:
+            self.sql(f"DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{role}') THEN "
+                     f"ALTER ROLE {role} NOLOGIN; END IF; END $$; "
+                     f"SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE usename = '{role}';")
+            self.sql(f'ALTER DATABASE {e} CONNECTION LIMIT {current_database_limit(e, direct=False)};')
+        endpoints = published_endpoints()
+        if on:
+            endpoints[e]['database'] = {'user': role, 'database': e}
+        else:
+            endpoints[e].pop('database', None)
+        atomic(STATE/'endpoints.json', endpoints)
 
     def functions_configuration(self, e, v):
         """The main service's settings: where the code and secrets are, the keys functions get, and
@@ -867,8 +972,7 @@ GRANT ALL ON ALL SEQUENCES IN SCHEMA _realtime TO {role};""", e)
                      f"ALTER ROLE {e}_realtime NOLOGIN; END IF; END $$; "
                      f"SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE usename = '{e}_realtime';")
             self.sql(f"SELECT count(pg_drop_replication_slot(slot_name)) FROM pg_replication_slots WHERE database = '{e}' AND NOT active;")
-            studio_running = e in (json.loads((STATE/'studio.json').read_text()).get('sessions', {}) if (STATE/'studio.json').exists() else {})
-            self.sql(f'ALTER DATABASE {e} CONNECTION LIMIT {connection_budget.database_limit(studio=studio_running)};')
+            self.sql(f'ALTER DATABASE {e} CONNECTION LIMIT {current_database_limit(e, realtime=False)};')
         endpoints = published_endpoints()
         if entry:
             endpoints[e]['realtime'] = entry
@@ -906,7 +1010,7 @@ def stop():
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('command', choices=['up', 'stop', 'provision', 'mail', 'auth', 'realtime', 'functions'])
+    parser.add_argument('command', choices=['up', 'stop', 'provision', 'mail', 'auth', 'realtime', 'functions', 'database'])
     parser.add_argument('environment', nargs='?')
     parser.add_argument('--off', action='store_true')
     args = parser.parse_args()
@@ -923,6 +1027,9 @@ if __name__ == '__main__':
                 elif args.command=='realtime':
                     if not args.environment:raise SystemExit('The realtime command needs an environment')
                     Runtime().realtime_turn(args.environment, on=not args.off)
+                elif args.command=='database':
+                    if not args.environment:raise SystemExit('The database command needs an environment')
+                    Runtime().database_turn(args.environment, on=not args.off)
                 elif args.command=='functions':
                     if not args.environment:raise SystemExit('The functions command needs an environment')
                     Runtime().functions_turn(args.environment, on=not args.off)
