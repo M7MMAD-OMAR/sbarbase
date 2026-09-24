@@ -11,20 +11,28 @@ const request=()=>new Request('http://localhost/');
 const empty=async()=>new Response(null,{status:204});
 const hold=(gate:ConcurrencyGate,environment:string)=>{let done!:(r:Response)=>void;
  const pending=gate.run(environment,request(),()=>new Promise<Response>(resolve=>{done=resolve;}));
- return async()=>{done(new Response(null,{status:204}));await pending;};};
+ return async()=>{done?.(new Response(null,{status:204}));await pending;};};
 
 test('a run of saturated minutes reports once, a calm minute resets the run',async()=>{
  const gate=new ConcurrencyGate(1,4,30_000,30_000,{ceiling:2,headroom:1});
  const reports:[string,Saturation][]=[];
  const monitor=new PressureMonitor(gate,(runtime,s)=>reports.push([runtime,s]),3);
- const releases=[hold(gate,'busy'),hold(gate,'busy')];await Bun.sleep(0);   // borrowing: peak 2 > share 1
- await gate.run('busy',request(),empty);                                  // and one 429
- monitor.sample();monitor.sample();expect(reports).toEqual([]);
- monitor.sample();
- expect(reports).toEqual([['busy',{minutes:3,refused:1,peak:2,guarantee:1}]]);
+ const releases=[hold(gate,'busy'),hold(gate,'busy')];await Bun.sleep(0);   // at its ceiling of 2
+ for(let minute=0;minute<3;minute++){await gate.run('busy',request(),empty);monitor.sample();}   // refused each minute
+ expect(reports).toEqual([['busy',{minutes:3,refused:3,peak:2,guarantee:1}]]);
+ await gate.run('busy',request(),empty);monitor.sample();                   // a new run starts
  for(const release of releases)await release();
- await gate.run('busy',request(),empty);monitor.sample();                  // within its share: calm
+ monitor.sample();monitor.sample();                                         // calm minutes end it
  expect(reports.length).toBe(1);
+});
+
+test('borrowing an idle server, however long, never notifies',async()=>{
+ const gate=new ConcurrencyGate(2,32,30_000,30_000,{ceiling:24,headroom:8});
+ const reports:unknown[]=[];const monitor=new PressureMonitor(gate,(...args)=>reports.push(args),2);
+ const held=Array.from({length:20},()=>hold(gate,'busy'));await Bun.sleep(0);
+ for(let minute=0;minute<5;minute++)monitor.sample();
+ expect(reports).toEqual([]);
+ for(const release of held)await release();
 });
 
 test('a quiet environment within its share is never reported',async()=>{

@@ -163,8 +163,8 @@ SUMMARY = {
     'restore.failed': ('The independent database restore failed or its cleanup did not complete.',
                        'Inspect the private stage descriptor and the retained target resources.'),
     'environment.saturated': (
-        'An environment kept needing more than its guaranteed share of the gateway: it borrowed '
-        'idle room or was told to retry for many minutes in a row.',
+        'An environment kept needing more than it could get: for many minutes in a row it was '
+        'refused at its limit, or crowded out a neighbour while it borrowed.',
         'Raise this environment\'s share, move it to its own database engine, or grow the server.'),
 }
 # Allow-list. The rendered envelope contains exactly these keys, in these positions.

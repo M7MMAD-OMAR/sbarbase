@@ -1,9 +1,12 @@
-/** Borrowing above an environment's guaranteed share: up to `ceiling` in flight, and only while
- * `headroom` slots of the whole gateway stay free for environments still within their share.
- * See docs/engineering/FAIR-SHARE-ADMISSION.md. */
-export type BorrowPolicy={ceiling:number;headroom:number};
-/** What one environment did since the last sample: 429s it received and its peak in flight. */
-export type EnvironmentPressure={refused:number;peak:number;active:number;guarantee:number};
+/** Borrowing above an environment's guaranteed share, up to `ceiling` in flight. A borrow is
+ * admitted only while the free slots exceed both `headroom` (room for an environment waking from
+ * idle) and the unused share of every other environment that asked for a slot in the last
+ * `recentMs`. See docs/engineering/FAIR-SHARE-ADMISSION.md. */
+export type BorrowPolicy={ceiling:number;headroom:number;recentMs?:number};
+/** What one environment did since the last sample. `refused`: 429s at its share or ceiling (not
+ * service caps). `squeezed`: neighbours within their share turned away while it was borrowing.
+ * `peak`: the most it had in flight. */
+export type EnvironmentPressure={refused:number;squeezed:number;peak:number;active:number;guarantee:number};
 
 /** In-process admission only. No queue and no per-key bypass of tenant limits. */
 export class ConcurrencyGate {
@@ -42,30 +45,43 @@ export class ConcurrencyGate {
  private services=new Map<string,number>();
  private active=new Map<string,number>();
  private refused=new Map<string,number>();
+ private squeezed=new Map<string,number>();
  private peaks=new Map<string,number>();
+ private seen=new Map<string,number>();
  /** Without a borrow policy the guarantee is also the ceiling, as before. */
- constructor(private perEnvironment=8,private maximum=32,private responseTimeoutMs=30_000,private forwardTimeoutMs=30_000,private borrow?:BorrowPolicy) {
+ constructor(private perEnvironment=8,private maximum=32,private responseTimeoutMs=30_000,private forwardTimeoutMs=30_000,private borrow?:BorrowPolicy,private now:()=>number=Date.now) {
   if(![perEnvironment,maximum,responseTimeoutMs,forwardTimeoutMs].every(value=>Number.isSafeInteger(value)&&value>0))
    throw new Error('Invalid concurrency limits');
   if(borrow&&!(Number.isSafeInteger(borrow.ceiling)&&Number.isSafeInteger(borrow.headroom)&&borrow.ceiling>=perEnvironment
-   &&borrow.ceiling<=maximum&&borrow.headroom>=0&&borrow.headroom<maximum))
+   &&borrow.ceiling<=maximum&&borrow.headroom>=0&&borrow.headroom<maximum&&(borrow.recentMs===undefined||(Number.isSafeInteger(borrow.recentMs)&&borrow.recentMs>0))))
    throw new Error('Invalid borrow policy');
  }
  /** Per environment pressure since the previous call, then starts a new sample. */
  pressure():Map<string,EnvironmentPressure> {
   const out=new Map<string,EnvironmentPressure>();
-  for(const environment of new Set([...this.refused.keys(),...this.peaks.keys(),...this.active.keys()])){
+  for(const environment of new Set([...this.refused.keys(),...this.squeezed.keys(),...this.peaks.keys(),...this.active.keys()])){
    const active=this.active.get(environment)??0;
-   out.set(environment,{refused:this.refused.get(environment)??0,peak:Math.max(this.peaks.get(environment)??0,active),active,guarantee:this.perEnvironment});
+   out.set(environment,{refused:this.refused.get(environment)??0,squeezed:this.squeezed.get(environment)??0,
+    peak:Math.max(this.peaks.get(environment)??0,active),active,guarantee:this.perEnvironment});
   }
-  this.refused.clear();this.peaks.clear();
+  this.refused.clear();this.squeezed.clear();this.peaks.clear();
   return out;
  }
- private admission(count:number,serviceFull:boolean):0|429|503 {
+ /** Slots a borrow must leave free: the waking headroom, or the unused shares of the other
+  * environments seen recently, whichever is larger. */
+ private reserve(environment:string,now:number) {
+  const recent=now-(this.borrow?.recentMs??60_000);let unused=0;
+  for(const [other,at] of this.seen){
+   if(at<recent){this.seen.delete(other);continue;}
+   if(other!==environment)unused+=Math.max(0,this.perEnvironment-(this.active.get(other)??0));
+  }
+  return Math.max(this.borrow?.headroom??0,unused);
+ }
+ private admission(environment:string,count:number,serviceFull:boolean,now:number):0|429|503 {
   if(serviceFull)return 429;
   if(count<this.perEnvironment)return this.total>=this.maximum?503:0;
   if(!this.borrow||count>=this.borrow.ceiling)return 429;
-  return this.total>=this.maximum-this.borrow.headroom?429:0;
+  return this.maximum-this.total>this.reserve(environment,now)?0:429;
  }
  async run(environment:string,request:Pick<Request,'signal'>,forward:(signal:AbortSignal)=>Promise<Response>,budget?:{service:string;maximum:number;drainOnCancel?:boolean}):Promise<Response> {
   if(this.paused.has(environment))return Response.json({message:'Environment temporarily paused'},{status:503,headers:{'retry-after':'1','cache-control':'no-store'}});
@@ -75,8 +91,13 @@ export class ConcurrencyGate {
   const serviceKey=budget?JSON.stringify([environment,budget.service]):undefined;
   const serviceCount=serviceKey?this.services.get(serviceKey)??0:0;
   const count=this.active.get(environment)??0;
-  const status=this.admission(count,!!budget&&serviceCount>=budget.maximum);
-  if(status===429)this.refused.set(environment,(this.refused.get(environment)??0)+1);
+  const now=this.now();this.seen.set(environment,now);
+  const serviceFull=!!budget&&serviceCount>=budget.maximum;
+  const status=this.admission(environment,count,serviceFull,now);
+  if(status===429&&!serviceFull)this.refused.set(environment,(this.refused.get(environment)??0)+1);
+  // A neighbour within its share found the gateway full: charge it to whoever is borrowing.
+  if(status===503)for(const [other,active] of this.active)
+   if(active>this.perEnvironment)this.squeezed.set(other,(this.squeezed.get(other)??0)+1);
   if(status)return Response.json({message:'Request capacity unavailable. Retry later.'},{status,
    headers:{'retry-after':'1','cache-control':'no-store'}});
   this.active.set(environment,count+1);this.total++;

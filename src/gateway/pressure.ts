@@ -2,8 +2,9 @@ import type {ConcurrencyGate} from './concurrency';
 
 export type Saturation={minutes:number;refused:number;peak:number;guarantee:number};
 
-/** Samples a gate once a minute. An environment is saturated in a minute when it received any
- * 429, or when it borrowed above its guaranteed share. After `minutes` saturated minutes in a
+/** Samples a gate once a minute. An environment is saturated in a minute when it was refused at
+ * its share or ceiling, or when a neighbour within its share was turned away while it borrowed.
+ * Borrowing idle room alone is the intended behaviour and never counts. After `minutes` saturated minutes in a
  * row it reports once, with the run's refusals and peak, and starts counting again. A minute
  * without saturation ends the run. docs/engineering/FAIR-SHARE-ADMISSION.md */
 export class PressureMonitor {
@@ -15,10 +16,10 @@ export class PressureMonitor {
  sample() {
   const seen=new Set<string>();
   for(const [runtime,pressure] of this.gate.pressure()){
-   if(!(pressure.refused>0||pressure.peak>pressure.guarantee))continue;
+   if(!(pressure.refused>0||pressure.squeezed>0))continue;
    seen.add(runtime);
    const run=this.runs.get(runtime)??{minutes:0,refused:0,peak:0,guarantee:pressure.guarantee};
-   run.minutes++;run.refused+=pressure.refused;run.peak=Math.max(run.peak,pressure.peak);
+   run.minutes++;run.refused+=pressure.refused+pressure.squeezed;run.peak=Math.max(run.peak,pressure.peak);
    if(run.minutes>=this.minutes){
     this.runs.delete(runtime);
     try {this.report(runtime,{...run});}catch {/* a notice must never take the gateway down */}
