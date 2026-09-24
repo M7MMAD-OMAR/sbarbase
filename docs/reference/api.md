@@ -65,14 +65,14 @@ Request bodies accept only `name`, at most 4 KiB, read within five seconds. Key 
 - **API key:** the `apikey` header must be an active publishable key of that environment. The only keyless requests are GET or HEAD on Storage `object/public/...` and on `object/sign/...` with exactly one `token` query parameter, where Storage itself enforces bucket visibility and signature validity; and the Auth steps a browser reaches by a link or a redirect: GET `verify`, GET `authorize`, and GET or POST `callback`, which Auth checks itself.
 - **Authorization:** a `Bearer` user token is forwarded; if absent (or equal to the API key) the environment's anonymous token is used.
 - **Storage tenant:** chosen by the gateway from the routing record and sent as a trusted header; a client cannot choose it.
-- **Body:** at most 1 MiB, read within ten seconds.
+- **Body:** at most 1 MiB, read within ten seconds. A file upload to Storage (POST or PUT) is passed on as it arrives, up to the upload limit (`SBARBASE_UPLOAD_LIMIT_MB`, 50 MiB by default), and fails if it stalls for thirty seconds.
 
 | Status | Meaning |
 |---|---|
 | `401` | Missing or invalid API key, or a malformed `Authorization` header |
 | `404` | Unknown environment, route or unconfigured service |
 | `408` | Request cancelled by the client |
-| `413` | Body over 1 MiB |
+| `413` | Body over 1 MiB, or an upload over the upload limit |
 | `429` | This environment has too many requests in flight; retry later |
 | `503` | Environment in maintenance, server-wide request limit reached, or routing unavailable; `retry-after: 1` where retrying helps |
 | `504` | Upstream deadline exceeded |

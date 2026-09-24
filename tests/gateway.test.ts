@@ -158,3 +158,35 @@ test('a browser following an email link or an OAuth redirect reaches Auth withou
   expect((await handler(new Request('http://local'+path,{method}))).status).toBe(401);
  expect(calls).toHaveLength(4);
 });
+test('a Storage upload streams through up to the upload limit; other bodies stay small',async()=>{
+ const storageRoute={...route,storage:{url:'http://shared-storage:5000',tenantHost:'a_prod.storage.internal'}};
+ let received=0,streamed=false;
+ const transport=(async(_url:URL,init:RequestInit)=>{
+  streamed=init.body instanceof ReadableStream;
+  if(streamed){const reader=(init.body as ReadableStream<Uint8Array>).getReader();
+   while(true){const item=await reader.read();if(item.done)break;received+=item.value.byteLength;}}
+  return Response.json({Key:'ok'});
+ }) as unknown as typeof fetch;
+ const handler=createGateway(new Map([['a_prod',storageRoute]]),transport,undefined,10_000,undefined,4*1024*1024);
+ const chunked=(bytes:number)=>new ReadableStream<Uint8Array>({start(controller){
+  for(let sent=0;sent<bytes;sent+=256*1024)controller.enqueue(new Uint8Array(Math.min(256*1024,bytes-sent)));controller.close();}});
+ const upload=(bytes:number,headers:Record<string,string>={})=>handler(new Request('http://local/a_prod/storage/v1/object/photos/a.jpg',
+  {method:'POST',headers:{apikey:'key-a','content-type':'image/jpeg',...headers},body:chunked(bytes),duplex:'half'} as RequestInit));
+ const ok=await upload(3*1024*1024);
+ expect(ok.status).toBe(200);expect(streamed).toBe(true);expect(received).toBe(3*1024*1024);
+ // Declared too large: refused before anything is sent. Undeclared: refused once the stream passes the limit.
+ received=0;
+ expect((await upload(1024,{'content-length':String(5*1024*1024)})).status).toBe(413);
+ expect(received).toBe(0);
+ expect((await upload(5*1024*1024)).status).toBe(413);
+ expect(received).toBeLessThanOrEqual(4*1024*1024);
+ const rest=await handler(new Request('http://local/a_prod/rest/v1/items',{method:'POST',headers:{apikey:'key-a'},body:chunked(2*1024*1024),duplex:'half'} as RequestInit));
+ expect(rest.status).toBe(413);
+});
+test('the upload limit comes from SBARBASE_UPLOAD_LIMIT_MB',async()=>{
+ const {uploadLimit}=await import('../src/gateway/handler');
+ expect(uploadLimit(undefined)).toBe(50*1024*1024);
+ expect(uploadLimit('')).toBe(50*1024*1024);
+ expect(uploadLimit('200')).toBe(200*1024*1024);
+ for(const bad of ['0','5121','1.5','ten','-1'])expect(()=>uploadLimit(bad)).toThrow();
+});

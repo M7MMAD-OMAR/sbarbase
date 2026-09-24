@@ -88,6 +88,16 @@ jobs:
         run: docker compose exec -T sbarbase bun lab/realtime-check.ts "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-realtime-checks.json"
       - name: Logs and metrics for the environment
         run: docker compose exec -T sbarbase bun lab/observe-check.ts "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-observe-checks.json"
+      - name: Uploads larger than a MiB, then a new upload limit
+        run: |
+          docker compose exec -T sbarbase bun lab/upload-check.ts "$PWD/.secrets/operator.json" --limit-mb 50 --evidence "$PWD/docs/evidence/docker-upload-checks.json"
+          # A new limit applies at the next start by recreating the shared Storage container.
+          SBARBASE_UPLOAD_LIMIT_MB=64 docker compose up -d
+          for i in $(seq 1 120); do curl -fsS -o /dev/null http://127.0.0.1:8790/ && break; sleep 5; done
+          docker compose exec -T sbarbase sh -c 'test "$SBARBASE_UPLOAD_LIMIT_MB" = 64'
+          docker compose exec -T sbarbase bun lab/upload-check.ts "$PWD/.secrets/operator.json" --limit-mb 64 --append --evidence "$PWD/docs/evidence/docker-upload-checks.json"
+          SBARBASE_UPLOAD_LIMIT_MB=50 docker compose up -d
+          for i in $(seq 1 120); do curl -fsS -o /dev/null http://127.0.0.1:8790/ && break; sleep 5; done
       - name: Upgrade, then a broken upgrade that moves back by itself
         run: |
           versions=$(python3 lab/upgrade-check.py candidates)

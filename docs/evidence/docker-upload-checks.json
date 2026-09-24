@@ -1,0 +1,110 @@
+{
+  "check": "upload",
+  "recorded": "2026-09-24T05:52:24Z",
+  "passed": true,
+  "count": 20,
+  "seconds": 32,
+  "scope": "File uploads larger than a MiB on a clean GitHub runner, not a real server, through the gateway to the shared Storage with supabase-js: a 20 MiB file uploaded and downloaded byte for byte, a file just under the 50 MiB default limit accepted and one just over it refused with the next request unaffected; then the same with a 64 MiB limit after a restart that recreated the Storage container. Transcribed from the CI docker-install job 107511100370 (run 35961375429, commit f308654).",
+  "checks": [
+    {
+      "check": "operator logs in",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "a provisioned environment exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "an application user signs in",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "a private bucket exists for the check",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "a 20 MiB file uploads through the gateway",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "the 20 MiB file downloads byte for byte",
+      "ok": true,
+      "detail": "20971520 bytes"
+    },
+    {
+      "check": "a 49 MiB file, under the 50 MiB limit, uploads",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "a 51 MiB file, over the limit, is refused",
+      "ok": true,
+      "detail": "413 Request too large"
+    },
+    {
+      "check": "the next request after a refusal answers promptly",
+      "ok": true,
+      "detail": "998 ms"
+    },
+    {
+      "check": "the refused file is not stored",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "after SBARBASE_UPLOAD_LIMIT_MB=64 and a restart that recreated Storage: operator logs in",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "after SBARBASE_UPLOAD_LIMIT_MB=64 and a restart that recreated Storage: a provisioned environment exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "after SBARBASE_UPLOAD_LIMIT_MB=64 and a restart that recreated Storage: an application user signs in",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "after SBARBASE_UPLOAD_LIMIT_MB=64 and a restart that recreated Storage: a private bucket exists for the check",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "after SBARBASE_UPLOAD_LIMIT_MB=64 and a restart that recreated Storage: a 20 MiB file uploads through the gateway",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "after SBARBASE_UPLOAD_LIMIT_MB=64 and a restart that recreated Storage: the 20 MiB file downloads byte for byte",
+      "ok": true,
+      "detail": "20971520 bytes"
+    },
+    {
+      "check": "after SBARBASE_UPLOAD_LIMIT_MB=64 and a restart that recreated Storage: a 63 MiB file, under the 64 MiB limit, uploads",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "after SBARBASE_UPLOAD_LIMIT_MB=64 and a restart that recreated Storage: a 65 MiB file, over the limit, is refused",
+      "ok": true,
+      "detail": "413 Request too large"
+    },
+    {
+      "check": "after SBARBASE_UPLOAD_LIMIT_MB=64 and a restart that recreated Storage: the next request after a refusal answers promptly",
+      "ok": true,
+      "detail": "997 ms"
+    },
+    {
+      "check": "after SBARBASE_UPLOAD_LIMIT_MB=64 and a restart that recreated Storage: the refused file is not stored",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

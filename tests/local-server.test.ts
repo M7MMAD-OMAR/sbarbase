@@ -34,3 +34,22 @@ describe('request bodies over the real listener',()=>{
   } finally {server.stop(true);}
  });
 });
+test('a refused upload answers with its own status and does not hold up the next request',async()=>{
+ // A handler that refuses without reading the body (declared too large), and one that stops
+ // reading part way (the gateway's upload limit). Neither may turn into a 200, and the unread
+ // rest of the body must not stall the client's next request on the same connection.
+ for(const cancel of [false,true]) {
+  const server=await serveLocal(async request=>{
+   if(request.method==='POST'){if(cancel)void request.body?.cancel();return new Response('too large',{status:413});}
+   return new Response('ok');
+  },0);
+  try {
+   const first=await fetch(`http://127.0.0.1:${server.port}/upload`,{method:'POST',body:new Uint8Array(8*1024*1024),signal:AbortSignal.timeout(8000)});
+   expect([first.status,await first.text(),first.headers.get('connection')]).toEqual([413,'too large','close']);
+   const started=Date.now();
+   const next=await fetch(`http://127.0.0.1:${server.port}/list`,{signal:AbortSignal.timeout(8000)});
+   expect(await next.text()).toBe('ok');
+   expect(Date.now()-started).toBeLessThan(3000);
+  } finally {server.stop(true);}
+ }
+},30000);

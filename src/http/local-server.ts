@@ -1,5 +1,4 @@
 import {createServer,type ServerResponse} from 'node:http';
-import {Readable} from 'node:stream';
 import {connect,createServer as createTcpServer,type Socket,type Server as TcpServer} from 'node:net';
 
 /** What the listener does with a WebSocket upgrade: connect it to host:port and send `head`,
@@ -56,11 +55,25 @@ export async function serveLocal(fetch:(request:Request)=>Response|Promise<Respo
    // issuance over the real listener. Found by the empty-VM first-project check.
    const length=incoming.headers['content-length'];
    const framed=incoming.headers['transfer-encoding']!==undefined||(length!==undefined&&length!=='0');
+   const hasBody=!['GET','HEAD'].includes(method)&&framed;
    const request=new Request(target,{method,headers,signal:abort.signal,
-    ...(!['GET','HEAD'].includes(method)&&framed?{body:Readable.toWeb(incoming) as unknown as ReadableStream<Uint8Array>,duplex:'half'}:{})} as RequestInit);
+    ...(hasBody?{body:requestBody(incoming),duplex:'half'}:{})} as RequestInit);
    const response=await fetch(request);
    if(abort.signal.aborted){void response.body?.cancel().catch(()=>{});return;}
    const output:Record<string,string|string[]>={};
+   // An answer before the body was read in full (a refused upload): the rest of the body is
+   // still on the connection, so it cannot carry another request. Tell the client, drain what
+   // is left for a moment so it reads the answer, then close.
+   if(hasBody&&!incoming.readableEnded){
+    output['connection']='close';outgoing.shouldKeepAlive=false;
+    outgoing.once('finish',()=>{
+     incoming.removeAllListeners('data');
+     // Once the client has sent everything nothing unread is left, so closing cannot cut off
+     // the answer; a client that keeps sending is closed after a second.
+     incoming.once('end',()=>incoming.socket?.destroy());incoming.resume();
+     setTimeout(()=>incoming.socket?.destroy(),1_000).unref();
+    });
+   }
    for(const [name,value] of response.headers)if(!HOP_BY_HOP.has(name)&&name!=='set-cookie')output[name]=value;
    const cookies=response.headers.getSetCookie();if(cookies.length)output['set-cookie']=cookies;
    outgoing.writeHead(response.status,output);
@@ -96,6 +109,27 @@ export async function serveLocal(fetch:(request:Request)=>Response|Promise<Respo
   name=>['127.0.0.1','localhost',bind].includes(name)||!!options.hostnames?.(name));
  return {port:front.port,connections:()=>front.connections(),stop(force=false){
   front.stop();if(force)server.closeAllConnections();server.close();}};
+}
+
+/** The request body as a stream. Cancelling it (a handler refusing an upload) stops reading
+ * without destroying the connection, so the handler's answer still reaches the client;
+ * Readable.toWeb destroys the request, which the listener took for a client hanging up. */
+function requestBody(incoming:import('node:http').IncomingMessage):ReadableStream<Uint8Array> {
+ let done=false;
+ return new ReadableStream<Uint8Array>({
+  start(controller){
+   incoming.on('data',(chunk:Buffer)=>{
+    if(done)return;
+    controller.enqueue(new Uint8Array(chunk.buffer,chunk.byteOffset,chunk.byteLength));
+    if((controller.desiredSize??1)<=0)incoming.pause();
+   });
+   incoming.once('end',()=>{if(!done){done=true;controller.close();}});
+   incoming.once('error',error=>{if(!done){done=true;controller.error(error);}});
+   incoming.once('aborted',()=>{if(!done){done=true;controller.error(new Error('Request aborted'));}});
+  },
+  pull(){incoming.resume();},
+  cancel(){done=true;incoming.pause();},
+ },{highWaterMark:4,size:()=>1});
 }
 
 function reply(socket:Socket,status:number,message:string) {

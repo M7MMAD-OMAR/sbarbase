@@ -106,15 +106,33 @@ UPGRADE_INTENT = STATE / 'upgrade-intent.json'
 REPLACEABLE = ('auth', 'rest', 'storage', 'realtime')
 
 
+# Operator settings of a stateless service that a restart may apply by recreating it.
+TUNABLE = {'storage': frozenset({'FILE_SIZE_LIMIT'})}
+
+
+def upload_limit():
+    """The largest upload in bytes, from SBARBASE_UPLOAD_LIMIT_MB (1 to 5120, 50 by default).
+    The gateway reads the same variable (src/gateway/handler.ts `uploadLimit`)."""
+    value = os.environ.get('SBARBASE_UPLOAD_LIMIT_MB', '').strip() or '50'
+    if not value.isdigit() or not 1 <= int(value) <= 5120:
+        raise RuntimeError('SBARBASE_UPLOAD_LIMIT_MB must be a whole number from 1 to 5120')
+    return int(value) * 1024 * 1024
+
+
 def settings_only(component, configured, desired):
     """True when a retained Auth differs from its desired configuration only in the operator's
-    sign-in settings (lab/auth_settings.py), in either direction."""
-    if component != 'auth':
+    sign-in settings (lab/auth_settings.py), or a retained Storage only in its upload limit,
+    in either direction."""
+    if component == 'auth':
+        owned = auth_settings.owned
+    elif component in TUNABLE:
+        owned = TUNABLE[component].__contains__
+    else:
         return False
     changed = {key for key in set(configured) | set(desired) if configured.get(key) != desired.get(key)}
     # A key the image sets itself and the desired configuration never names is not a change.
-    changed = {key for key in changed if key in desired or auth_settings.owned(key)}
-    return bool(changed) and all(auth_settings.owned(key) for key in changed)
+    changed = {key for key in changed if key in desired or owned(key)}
+    return bool(changed) and all(owned(key) for key in changed)
 
 
 def load_settings(e):
@@ -366,7 +384,7 @@ class Runtime:
             'MULTI_TENANT': 'true', 'MULTITENANT_DATABASE_URL': f"postgres://storage_control:{self.values['storage_control']}@{DB}:5432/storage_metadata",
             'ENCRYPTION_KEY': self.values['encryption'], 'ADMIN_API_KEYS': self.values['storage_admin'], 'DB_INSTALL_ROLES': 'false',
             'STORAGE_BACKEND': 'file', 'GLOBAL_S3_BUCKET': 'sbarbase-lab', 'FILE_STORAGE_BACKEND_PATH': '/tmp/storage-data', 'REGION': 'local',
-            'FILE_SIZE_LIMIT': '1048576', 'DATABASE_MAX_CONNECTIONS': '3', 'MULTITENANT_DATABASE_MAX_CONNECTIONS': '3',
+            'FILE_SIZE_LIMIT': str(upload_limit()), 'DATABASE_MAX_CONNECTIONS': '3', 'MULTITENANT_DATABASE_MAX_CONNECTIONS': '3',
             'PG_QUEUE_ENABLE': 'false', 'ENABLE_IMAGE_TRANSFORMATION': 'false', 'S3_PROTOCOL_ENABLED': 'false',
             'X_FORWARDED_HOST_REGEXP': r'^(e_[a-f0-9]{24})\.storage\.internal$', 'LOG_LEVEL': 'error'},
             '512m', .5, [(PREFIX+'-objects', '/tmp/storage-data')], tier='system.storage')
