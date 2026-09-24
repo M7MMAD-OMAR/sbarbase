@@ -53,6 +53,8 @@ Every file is encrypted on this server before it leaves (AES-256-GCM, the key de
 
 A fetched backup is checked against its manifest and then restored with `backup.py restore` as usual. An upgrade's own safety backup stays local (`backup.py create all --local-only`), so storage that cannot be reached never blocks an upgrade.
 
+CI runs this cycle on a clean machine with every change against a throwaway MinIO: a backup copied by itself, only ciphertext in the bucket, a wrong passphrase refused, the copy fetched and restored ([evidence](../evidence/docker-offsite-checks.json)).
+
 CI runs the full cycle on every change: back up while serving, change rows, users and files, restore, check that everything matches the backup, and discard the set-aside state.
 
 ## Whole-server cold backup
