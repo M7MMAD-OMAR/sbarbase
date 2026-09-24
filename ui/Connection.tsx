@@ -4,6 +4,7 @@ import {useData,type Api,type Organization,type Environment} from './api';
 import {mailDetails,mailState,type MailEntry} from './mail';
 import {ErrorMessage,Loading,Empty,Refresh} from './components';
 import {SignInSection} from './SignIn';
+import {RealtimeSection} from './Realtime';
 type Key={id:string;kind:string;created_at:number;revoked_at:number|null};
 type Studio={desired:'running'|'stopped';state:'stopped'|'starting'|'running'|'failed';failure:string|null};
 const studioLabels:Record<string,string>={stopped:'Stopped',starting:'Starting',running:'Running',failed:'Failed'};
@@ -45,6 +46,7 @@ export function Connection({environment,organization,request,onBack}:{environmen
  <ErrorMessage message={info.error}/>{info.error&&<Refresh onClick={info.refresh}/>} {info.loading?<Loading/>:info.data&&<section className="details"><h2>Connection</h2><label htmlFor="project-url">Project URL</label><div className="form-row"><input id="project-url" readOnly value={location.origin+info.data.apiPath}/><button onClick={()=>copy(location.origin+info.data!.apiPath)}><Copy aria-hidden="true"/>Copy URL</button></div><p className="small muted">Available services: {info.data.services.join(', ')}</p></section>}
  <section className="details"><h2>Email</h2><ErrorMessage message={mail.error}/>{mail.error&&<Refresh onClick={mail.refresh}/>} {mail.loading?<Loading/>:<><p><span className={'state '+mailView.state}>{mailView.label}</span></p><p className="muted small">{mailView.text}</p>{mailRows.map(row=><p className="small" key={row.label}><span className="muted">{row.label}: </span>{row.value}</p>)}</>}</section>
  {canWrite&&<SignInSection path={path} request={request}/>}
+ {canWrite&&<RealtimeSection path={path} request={request}/>}
  {canWrite&&<StudioSection path={path} request={request}/>}
  <section className="keys-section"><div className="page-heading"><div><h2>Publishable keys</h2><p className="muted small">Use these in your application. Row level security still applies.</p></div>{canWrite&&<button className="primary" onClick={issue} disabled={busy||!!raw}><Plus aria-hidden="true"/>Create key</button>}</div>
  <ErrorMessage message={error||keys.error}/>{raw&&<div className="new-key"><label htmlFor="new-key">Save this key now. It is only shown once.</label><textarea id="new-key" readOnly value={raw}/><div className="form-row"><button onClick={()=>copy(raw)}><Copy aria-hidden="true"/>Copy key</button><button onClick={()=>{setRaw('');setCopied('');}}>I have saved this key</button></div></div>}

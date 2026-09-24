@@ -34,7 +34,7 @@ INTENT = runtime.UPGRADE_INTENT
 DATABASE_LOCK = 'distro-image.lock.json'
 # Which lock entry each replaceable service runs, as durable_runtime reads them.
 SERVICES = {'auth': ('images.lock.json', 'auth'), 'rest': ('images.lock.json', 'rest'),
-            'storage': ('storage-image.lock.json', None)}
+            'storage': ('storage-image.lock.json', None), 'realtime': ('realtime-image.lock.json', None)}
 DEFAULT_TARGET = 'origin/main'
 RESTART = 'docker compose up -d --build   (or: sudo systemctl restart sbarbase)'
 
@@ -78,7 +78,10 @@ def pins_at(commit):
     pins = {}
     for service, (name, key) in SERVICES.items():
         lock = lock_at(commit, name)
-        entry = lock if key is None else (lock or {}).get(key)
+        if lock is None:
+            # That version does not run this service at all (Realtime before it existed).
+            continue
+        entry = lock if key is None else lock.get(key)
         if not isinstance(entry, dict) or not isinstance(entry.get('id'), str):
             raise UpgradeError(f'Version {commit[:12]} has no pin for {service}')
         pins[service] = entry['id']

@@ -103,6 +103,8 @@ class Supervisor:
         # One sign-in apply at a time, and a pause after one that found the runtime busy.
         self.sign_in = None
         self.sign_in_after = 0.0
+        self.realtime = None
+        self.realtime_after = 0.0
         self.backup_hour = backup_hour()
         self.backup_keep = backup_keep()
         self.restarts = collections.deque()
@@ -234,6 +236,33 @@ class Supervisor:
         if pending:
             self.sign_in = self.spawn(['/usr/bin/python3', 'lab/auth_settings.py', 'apply', pending[0]])
 
+    def realtime_requests(self):
+        """Runtimes whose Realtime should be turned on or off, oldest first."""
+        path = STATE/'control.sqlite'
+        if not path.exists():
+            return []
+        try:
+            with closing(sqlite3.connect(f'file:{path}?mode=ro', uri=True, timeout=2)) as database, database:
+                return [row[0] for row in database.execute("SELECT runtime FROM realtime_settings WHERE state='pending' ORDER BY updated_at")]
+        except sqlite3.Error:
+            return []
+
+    def schedule_realtime(self):
+        """Turn an environment's Realtime on or off (lab/realtime.py), one environment at a time."""
+        if self.realtime is not None:
+            status = child_status(self.realtime)
+            if status is None:
+                return
+            terminate_group(self.realtime, grace=0)
+            self.realtime = None
+            if status == 75:
+                self.realtime_after = time.monotonic() + 5
+        if time.monotonic() < self.realtime_after:
+            return
+        pending = self.realtime_requests()
+        if pending:
+            self.realtime = self.spawn(['/usr/bin/python3', 'lab/realtime.py', 'apply', pending[0]])
+
     def reset_studios(self):
         """No Studio outlives a restart: browser sessions are gone and the login must close."""
         subprocess.run(['/usr/bin/python3', 'lab/studio.py', 'reset'], cwd=ROOT, timeout=300, check=False)
@@ -261,6 +290,7 @@ class Supervisor:
                 self.schedule_backup()
                 self.schedule_studios()
                 self.schedule_sign_in()
+                self.schedule_realtime()
         finally:
             if self.backup:
                 terminate_group(self.backup)
@@ -268,6 +298,8 @@ class Supervisor:
                 terminate_group(process)
             if self.sign_in:
                 terminate_group(self.sign_in)
+            if self.realtime:
+                terminate_group(self.realtime)
             # Stop new HTTP mutations first, then drain the active worker effect.
             if self.server:
                 terminate_group(self.server)

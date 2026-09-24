@@ -59,10 +59,9 @@ export function settingsFromInput(input:unknown,current:SignInSettings|null):Sig
   if(!raw||typeof raw!=='object'||Array.isArray(raw))throw new SettingsError(name);
   const entry=raw as Record<string,unknown>;
   if(Object.keys(entry).some(key=>!['enabled','client_id','secret','url'].includes(key)))throw new SettingsError(name);
-  const enabled=entry.enabled??false,client=entry.client_id??'',url=entry.url??'';
-  let secret=entry.secret??'';
-  if(typeof enabled!=='boolean'||typeof client!=='string'||typeof secret!=='string'||typeof url!=='string')throw new SettingsError(name);
-  if(!secret)secret=current?.providers[name]?.secret??'';
+  const enabled:unknown=entry.enabled??false,client:unknown=entry.client_id??'',url:unknown=entry.url??'',given:unknown=entry.secret??'';
+  if(typeof enabled!=='boolean'||typeof client!=='string'||typeof given!=='string'||typeof url!=='string')throw new SettingsError(name);
+  const secret=given||(current?.providers[name]?.secret??'');
   if(client.length>512||secret.length>4096||/\s/.test(client+secret))throw new SettingsError(name);
   if(enabled&&(!client||!secret))throw new SettingsError(name);
   if(url){if(!(name in PROVIDER_URL))throw new SettingsError(name);webAddress(url,name);}

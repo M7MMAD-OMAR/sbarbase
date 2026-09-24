@@ -5,6 +5,10 @@ export type EnvironmentRoute = {
   auth: string;
   rest: string;
   storage?: {url:string;tenantHost:string};
+  /** The environment's own Realtime, when it is turned on, and the Host header naming its tenant. */
+  realtime?: {url:string;tenantHost:string};
+  /** An anon token Realtime accepts in place of the publishable key: a signed JWT with an expiry. */
+  realtimeToken?: string;
   keys: readonly string[];
   anonymousToken: string;
   enabled: boolean;
@@ -64,10 +68,13 @@ export function createGateway(registry:RouteRegistry, transport:typeof fetch = f
 function gatewayHandler(registry:RouteRegistry, transport:typeof fetch, verifyKey:((environment:string,key:string)=>boolean)|undefined, bodyReadTimeoutMs:number, concurrency:ConcurrencyGate) {
   return async (request:Request):Promise<Response> => {
     const url = new URL(request.url);
-    const match = url.pathname.match(/^\/([a-z][a-z0-9_]{1,30})\/(auth|rest|storage)\/v1(\/.*)?$/);
+    const match = url.pathname.match(/^\/([a-z][a-z0-9_]{1,30})\/(auth|rest|storage|realtime)\/v1(\/.*)?$/);
     if (!match) return error(404,'Unknown route');
     const environment = match[1], service = match[2], path = match[3] || '/';
-    if (!environment || (service !== 'auth' && service !== 'rest' && service !== 'storage')) return error(404,'Unknown route');
+    if (!environment || (service !== 'auth' && service !== 'rest' && service !== 'storage' && service !== 'realtime')) return error(404,'Unknown route');
+    // Realtime's HTTP side is its broadcast API; its sockets are proxied by the listener itself
+    // (src/gateway/realtime.ts). Tenant management and the rest of its API are never reachable.
+    if (service === 'realtime' && !(path === '/api/broadcast' && request.method === 'POST')) return error(404,'Unknown route');
     const route = registry.get(environment);
     if (!route || !route.enabled) return error(404,'Unknown route');
     // A browser asks before a cross-origin call; the answer carries no data and needs no key.
@@ -96,7 +103,7 @@ function gatewayHandler(registry:RouteRegistry, transport:typeof fetch, verifyKe
     // Never let a forwarded path or absolute URL choose the upstream host.
     if (path.includes('\\') || /%2f|%5c|%00/i.test(path)) return error(400,'Invalid path');
     if (!['GET','HEAD','POST','PUT','PATCH','DELETE'].includes(request.method)) return error(405,'Method not allowed');
-    const upstream=service==='storage'?route.storage?.url:route[service];
+    const upstream=service==='storage'?route.storage?.url:service==='realtime'?route.realtime?.url:route[service];
     if(!upstream) return error(404,'Service not configured');
     let target:URL;
     try {target=new URL(upstream);} catch {return error(503,'Invalid upstream');}
@@ -116,7 +123,11 @@ function gatewayHandler(registry:RouteRegistry, transport:typeof fetch, verifyKe
     const authorization = request.headers.get('authorization');
     if (authorization && !/^Bearer \S+$/i.test(authorization)) return error(401,'Invalid authorization');
     const bearerIsApiKey = authorization?.toLowerCase().startsWith('bearer ') && apiKey!==null && matches(authorization.slice(7), apiKey);
-    headers.set('authorization', authorization && !bearerIsApiKey ? authorization : `Bearer ${route.anonymousToken}`);
+    headers.set('authorization', authorization && !bearerIsApiKey ? authorization : `Bearer ${service==='realtime'&&route.realtimeToken?route.realtimeToken:route.anonymousToken}`);
+    if(service==='realtime') {
+     if(!route.realtime||!route.realtimeToken||!/^[a-f0-9]{24}\.realtime$/.test(route.realtime.tenantHost)) return error(503,'Realtime unavailable');
+     headers.set('host',route.realtime.tenantHost);headers.set('apikey',route.realtimeToken);
+    }
     const retainRest=service==='rest'&&route.serviceConcurrency?.rest!==undefined;
     // Upload cancellation still uses the real request below. Once dispatched,
     // REST must settle independently of a disconnected client.
@@ -157,6 +168,6 @@ function gatewayHandler(registry:RouteRegistry, transport:typeof fetch, verifyKe
     } catch {
       return error(502,'Upstream unavailable');
     }
-    },route.serviceConcurrency?.[service]===undefined?undefined:{service,maximum:route.serviceConcurrency[service],drainOnCancel:retainRest});
+    },service==='realtime'||route.serviceConcurrency?.[service]===undefined?undefined:{service,maximum:route.serviceConcurrency[service]!,drainOnCancel:retainRest});
   };
 }

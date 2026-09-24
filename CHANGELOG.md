@@ -15,6 +15,13 @@ ready.
 
 ### Added
 
+- **Realtime per environment.** Owners and admins turn Realtime on for an
+  environment from the console; it runs the pinned upstream Realtime for that
+  environment alone, with its own login, and stops when turned off. supabase-js
+  broadcast, presence and database changes (every `public` table, filtered by
+  row level security) work through the gateway, which checks the key before any
+  socket reaches Realtime. The login holds administrator rights only while
+  Realtime creates its own schema, first start and after an upgrade.
 - **Sign-in settings and OAuth providers per environment.** Owners and admins
   set the site URL, allowed redirect addresses, sign-up and anonymous sign-in,
   and any of 19 providers (Google, GitHub, Apple and others) from the console.

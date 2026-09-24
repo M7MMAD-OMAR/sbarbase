@@ -58,7 +58,8 @@ def hba_content(environments):
             raise RuntimeError('Invalid runtime inventory')
         # The studio login exists only while an operator runs Studio for this environment
         # (lab/studio.py); outside that it is NOLOGIN, so the rule admits nobody.
-        lines += [f'host {e} {e}_{role} 0.0.0.0/0 scram-sha-256' for role in ('auth', 'rest', 'storage', 'studio')]
+        # Realtime's login exists once the environment turns Realtime on (docs/engineering/REALTIME.md).
+        lines += [f'host {e} {e}_{role} 0.0.0.0/0 scram-sha-256' for role in ('auth', 'rest', 'storage', 'studio', 'realtime')]
     lines += ['host all all 0.0.0.0/0 reject', 'host all all ::/0 reject']
     return '\n'.join(lines)+'\n'
 
@@ -102,7 +103,7 @@ PRIVATE = lab.PRIVATE / 'upstream'
 UPGRADE_INTENT = STATE / 'upgrade-intent.json'
 # Services that keep no state in their container: Auth and Storage keep theirs in the
 # database and the objects volume. The database is never replaced here.
-REPLACEABLE = ('auth', 'rest', 'storage')
+REPLACEABLE = ('auth', 'rest', 'storage', 'realtime')
 
 
 def settings_only(component, configured, desired):
@@ -123,6 +124,41 @@ def load_settings(e):
     except (auth_settings.SettingsError, ValueError, OSError) as error:
         print(f'Sign-in settings for {e} are not valid ({error}); Auth starts without them.', file=sys.stderr)
         return None
+
+
+REALTIME_PORT = 4000
+REALTIME_BOOT_SECONDS = 180
+
+
+def published_endpoints():
+    path = STATE/'endpoints.json'
+    try:
+        return json.loads(path.read_text()) if path.exists() else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def realtime_on(e):
+    """Whether this environment runs its own Realtime."""
+    return bool(published_endpoints().get(e, {}).get('realtime'))
+
+
+def realtime_count():
+    return sum(1 for entry in published_endpoints().values() if isinstance(entry, dict) and entry.get('realtime'))
+
+
+def realtime_tenant(e):
+    """Realtime reads its tenant from the first label of the Host header; the 24 hex digits keep it a plain name."""
+    return e[2:]
+
+
+def service_token(secret, claims, seconds=300):
+    """An HS256 token for one of Realtime's own APIs."""
+    now = int(time.time())
+    encode = lambda value: base64.urlsafe_b64encode(json.dumps(value, separators=(',', ':')).encode()).rstrip(b'=').decode()
+    message = encode({'alg': 'HS256', 'typ': 'JWT'}) + '.' + encode({**claims, 'iat': now, 'exp': now + seconds})
+    signature = base64.urlsafe_b64encode(hmac.new(secret.encode(), message.encode(), hashlib.sha256).digest()).rstrip(b'=').decode()
+    return message + '.' + signature
 
 
 def upgrade_allows(component, image):
@@ -167,9 +203,9 @@ def http(url, method='GET', body=None, headers=None):
         return response.status, response.read()
 
 
-def wait_ready(url, headers=None, failure='Runtime readiness timed out'):
-    """Poll for up to thirty seconds until url answers 200, then raise failure."""
-    for _ in range(60):
+def wait_ready(url, headers=None, failure='Runtime readiness timed out', attempts=60):
+    """Poll every half second, thirty seconds by default, until url answers 200, then raise failure."""
+    for _ in range(attempts):
         try:
             if http(url, headers=headers)[0] == 200:
                 return
@@ -202,7 +238,8 @@ class Runtime:
         if subprocess.run(['git', 'check-ignore', '-q', str(PRIVATE/'runtime.json')], cwd=lab.ROOT).returncode:
             raise RuntimeError('Runtime secrets must be ignored')
         self.pins = json.loads((lab.ROOT/'lab/images.lock.json').read_text())
-        for component, filename in [('db', 'distro-image.lock.json'), ('storage', 'storage-image.lock.json')]:
+        for component, filename in [('db', 'distro-image.lock.json'), ('storage', 'storage-image.lock.json'),
+                                    ('realtime', 'realtime-image.lock.json')]:
             self.pins[component] = json.loads((lab.ROOT/'lab'/filename).read_text())
         self.hba_writer = (hba_runtime.SourceHBA(lab.docker,STATE,DB,OWNER,self.pins['db']['id'],startup=startup,operation_fd=operation_fd)
                            if startup is not None or operation_fd is not None else None)
@@ -294,7 +331,7 @@ class Runtime:
         if self.hba_writer is None or self.hba_writer.startup is None:raise RuntimeError('Explicit startup HBA ownership required')
         self.hba_writer.startup.verify()
         available = int(next(x.split()[1] for x in lab.Path('/proc/meminfo').read_text().splitlines() if x.startswith('MemAvailable:')))
-        placement, _ = resource_policy.start_placement(len(self.values['environments']))
+        placement, _ = resource_policy.start_placement(len(self.values['environments']), realtime_count())
         if available < (placement + resource_policy.START_RESERVE_MIB) * 1024:
             raise RuntimeError('Insufficient runtime memory headroom')
         if not inspect('network', NETWORK):
@@ -394,7 +431,7 @@ class Runtime:
                 raise AdmissionLimitError('Local runtime admission limit reached')
             try:
                 reason = resource_admission.refusal(resource_admission.snapshot())
-                placement, cpus = resource_policy.start_placement(len(self.values['environments']) + int(new_environment))
+                placement, cpus = resource_policy.start_placement(len(self.values['environments']) + int(new_environment), realtime_count())
                 restart = resource_policy.restart_fits(placement, cpus, available_memory_bytes(), owned_usage_bytes(), os.cpu_count() or 0)
             except Exception:
                 raise RuntimeError('Resource measurement unavailable') from None
@@ -463,6 +500,11 @@ class Runtime:
         if creating:effect_receipt.native_stage(STATE,e,'publication')
         path = STATE/'endpoints.json'
         all_endpoints = json.loads(path.read_text()) if path.exists() else {}
+        previous = all_endpoints.get(e, {}).get('realtime')
+        if previous and not creating:
+            # Realtime was turned on for this environment: bring it back, and let it run its
+            # schema migrations again only when its pinned image changed.
+            endpoints['realtime'] = self.realtime_start(e, migrate=previous.get('migrated') != self.pins['realtime']['id'])
         all_endpoints[e] = endpoints
         atomic(path, all_endpoints)
 
@@ -557,6 +599,131 @@ class Runtime:
             endpoints[e]['auth'] = self.endpoint(name, 9999)
             atomic(path, endpoints)
 
+    def realtime_values(self, e):
+        """Realtime's own credentials for this environment, generated once and kept with the others."""
+        v = self.values['environments'][e]
+        missing = {'realtime': 32, 'realtime_api': 32, 'realtime_base': 64, 'realtime_enc': 8}
+        if any(key not in v for key in missing):
+            for key, size in missing.items():
+                v.setdefault(key, secrets.token_hex(size))
+            atomic(self.path, self.values)
+        return v
+
+    def realtime_configuration(self, e, v):
+        return {'PORT': str(REALTIME_PORT), 'DB_HOST': DB, 'DB_PORT': '5432', 'DB_NAME': e, 'DB_USER': f'{e}_realtime',
+                'DB_PASSWORD': v['realtime'], 'DB_AFTER_CONNECT_QUERY': 'SET search_path TO _realtime', 'DB_POOL_SIZE': '2',
+                'DB_ENC_KEY': v['realtime_enc'], 'DB_IP_VERSION': 'ipv4', 'API_JWT_SECRET': v['realtime_api'],
+                'METRICS_JWT_SECRET': v['realtime_api'], 'SECRET_KEY_BASE': v['realtime_base'], 'APP_NAME': 'realtime',
+                'ERL_AFLAGS': '-proto_dist inet_tcp', 'DNS_NODES': "''", 'RLIMIT_NOFILE': '10000', 'SEED_SELF_HOST': 'false',
+                'RUN_JANITOR': 'true', 'DISABLE_HEALTHCHECK_LOGGING': 'true', 'LOG_LEVEL': 'error', 'REGION': 'local',
+                'SLOT_NAME_SUFFIX': realtime_tenant(e)}
+
+    def realtime_database(self, e, v):
+        """The environment's Realtime login and schemas. The login reaches only this database (HBA)."""
+        role = f'{e}_realtime'
+        self.sql(f"""DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'supabase_realtime_admin') THEN
+    CREATE ROLE supabase_realtime_admin NOINHERIT NOLOGIN NOREPLICATION;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{role}') THEN
+    CREATE ROLE {role} LOGIN INHERIT REPLICATION;
+  END IF;
+END $$;
+ALTER ROLE {role} LOGIN INHERIT REPLICATION NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS
+  CONNECTION LIMIT {connection_budget.REALTIME_CONNECTIONS} PASSWORD '{v['realtime']}';
+GRANT CONNECT, CREATE, TEMPORARY ON DATABASE {e} TO {role};
+GRANT anon, authenticated, service_role TO {role} WITH INHERIT FALSE, SET TRUE;
+GRANT supabase_realtime_admin TO {role};""")
+        self.sql(f"""CREATE SCHEMA IF NOT EXISTS _realtime AUTHORIZATION {role};
+CREATE SCHEMA IF NOT EXISTS realtime AUTHORIZATION {role};
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
+    CREATE PUBLICATION supabase_realtime FOR TABLES IN SCHEMA public;
+  END IF;
+END $$;""", e)
+        studio_running = e in (json.loads((STATE/'studio.json').read_text()).get('sessions', {}) if (STATE/'studio.json').exists() else {})
+        self.sql(f'ALTER DATABASE {e} CONNECTION LIMIT {connection_budget.database_limit(studio=studio_running, realtime=True)};')
+
+    def realtime_start(self, e, migrate):
+        """Run the environment's Realtime. With `migrate`, its login is a superuser only while Realtime
+        creates its own schema and tenant, the way upstream expects, and loses it before this returns."""
+        v = self.realtime_values(e)
+        name = PREFIX+'-'+e+'-realtime'
+        if migrate:
+            self.realtime_database(e, v)
+            if inspect('container', name):
+                lab.docker('rm', '-f', name)
+            self.sql(f'ALTER ROLE {e}_realtime SUPERUSER;')
+        try:
+            self.launch(name, 'realtime', self.realtime_configuration(e, v), '320m', .25, tier='production.realtime')
+            base = self.endpoint(name, REALTIME_PORT)
+            wait_ready(base+'/healthcheck', failure='Realtime did not start', attempts=REALTIME_BOOT_SECONDS*2)
+            if migrate:
+                self.realtime_register(e, v, base)
+        finally:
+            if migrate:
+                self.sql(f"ALTER ROLE {e}_realtime NOSUPERUSER; "
+                         f"SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE usename = '{e}_realtime';")
+        return {'url': base, 'tenantHost': realtime_tenant(e)+'.realtime', 'migrated': self.pins['realtime']['id']}
+
+    def realtime_register(self, e, v, base):
+        """Create the environment's tenant; Realtime runs its tenant migrations as it does so."""
+        tenant = realtime_tenant(e)
+        headers = {'authorization': 'Bearer '+service_token(v['realtime_api'], {'role': 'service_role'}), 'content-type': 'application/json'}
+        status, _ = http(f'{base}/api/tenants/{tenant}', 'DELETE', headers=headers)
+        if status not in (200, 204, 404):
+            raise RuntimeError('Realtime tenant reset failed')
+        body = {'tenant': {'name': tenant, 'external_id': tenant, 'jwt_secret': v['jwt'], 'extensions': [{'type': 'postgres_cdc_rls', 'settings': {
+            'db_host': DB, 'db_name': e, 'db_user': f'{e}_realtime', 'db_password': v['realtime'], 'db_port': '5432',
+            'region': 'local', 'poll_interval_ms': 100, 'poll_max_record_bytes': 1048576, 'publication': 'supabase_realtime',
+            'slot_name': 'supabase_realtime_replication_slot', 'ssl_enforced': False}}]}}
+        request = urllib.request.Request(f'{base}/api/tenants', data=json.dumps(body).encode(), method='POST', headers=headers)
+        try:
+            with urllib.request.urlopen(request, timeout=REALTIME_BOOT_SECONDS) as response:
+                status = response.status
+        except urllib.error.HTTPError as error:
+            status = error.code
+        if status not in (200, 201):
+            raise RuntimeError('Realtime tenant registration failed')
+
+    def realtime_turn(self, e, on):
+        """Turn one environment's Realtime on or off: an operator action from the console."""
+        effect_receipt.require_settled(STATE)
+        if not re.fullmatch(r'e_[a-f0-9]{24}', e):
+            raise RuntimeError('Invalid environment runtime identifier')
+        if not inspect('container', DB) or not inspect('container', PREFIX+'-storage'):
+            raise RuntimeError('Start the upstream runtime first')
+        endpoints = published_endpoints()
+        if e not in endpoints or e not in self.values['environments']:
+            raise RuntimeError('Realtime needs a published environment')
+        if source_fence.is_fenced(self.sql,e):
+            raise RuntimeError('Environment database is fenced; explicit reconciliation required')
+        name = PREFIX+'-'+e+'-realtime'
+        if on:
+            if self.sql(f"SELECT count(*) FROM pg_hba_file_rules WHERE '{e}_realtime' = ANY(user_name) AND error IS NULL;").stdout.strip() != '1':
+                raise RuntimeError('Realtime access rule not published; restart Sbarbase once')
+            if not realtime_on(e):
+                placement, cpus = resource_policy.start_placement(len(self.values['environments']), realtime_count() + 1)
+                if not resource_policy.restart_fits(placement, cpus, available_memory_bytes(), owned_usage_bytes(), os.cpu_count() or 0):
+                    raise AdmissionLimitError('Restart headroom unavailable')
+            entry = self.realtime_start(e, migrate=True)
+        else:
+            entry = None
+            if inspect('container', name):
+                lab.docker('rm', '-f', name)
+            self.sql(f"DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{e}_realtime') THEN "
+                     f"ALTER ROLE {e}_realtime NOLOGIN; END IF; END $$; "
+                     f"SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE usename = '{e}_realtime';")
+            self.sql(f"SELECT count(pg_drop_replication_slot(slot_name)) FROM pg_replication_slots WHERE database = '{e}' AND NOT active;")
+            studio_running = e in (json.loads((STATE/'studio.json').read_text()).get('sessions', {}) if (STATE/'studio.json').exists() else {})
+            self.sql(f'ALTER DATABASE {e} CONNECTION LIMIT {connection_budget.database_limit(studio=studio_running)};')
+        endpoints = published_endpoints()
+        if entry:
+            endpoints[e]['realtime'] = entry
+        else:
+            endpoints[e].pop('realtime', None)
+        atomic(STATE/'endpoints.json', endpoints)
+
     def management(self):
         """Dedicated identity realm; it has no application REST or Storage route."""
         values = self.values['management']
@@ -587,7 +754,7 @@ def stop():
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('command', choices=['up', 'stop', 'provision', 'mail', 'auth'])
+    parser.add_argument('command', choices=['up', 'stop', 'provision', 'mail', 'auth', 'realtime'])
     parser.add_argument('environment', nargs='?')
     parser.add_argument('--off', action='store_true')
     args = parser.parse_args()
@@ -601,6 +768,9 @@ if __name__ == '__main__':
             with (STATE/'operation.lock').open('a') as lock:
                 fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
                 if args.command=='stop':stop()
+                elif args.command=='realtime':
+                    if not args.environment:raise SystemExit('The realtime command needs an environment')
+                    Runtime().realtime_turn(args.environment, on=not args.off)
                 elif args.command=='auth':
                     if not args.environment:raise SystemExit('The auth command needs an environment')
                     Runtime().reconcile_auth(args.environment)

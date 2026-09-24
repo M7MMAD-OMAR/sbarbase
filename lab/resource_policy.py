@@ -58,6 +58,8 @@ TIERS = {
     'system.storage': Tier('system', 2048, 800, .5, '512m', 128),
     'system.management-auth': Tier('system', 1024, 500, .25, '256m', 128),
     'production': Tier('production', 512, 400, .25, '256m', 128),
+    # One Realtime per environment that turns it on (docs/engineering/REALTIME.md).
+    'production.realtime': Tier('production', 512, 400, .25, '320m', 128),
     'experimental': Tier('experimental', 128, 100, .25, '256m', 128),
     'operator.studio': Tier('operator', 1024, 500, .5, '512m', 128),
     # Measured idle at 111 MiB for postgres-meta v0.99.0 (and Studio at 205 MiB), 2026-09-24.
@@ -101,11 +103,14 @@ def container_flags(tier):
 
 
 # What a start launches, row by row: the database, the shared Storage and the
-# management Auth, then Auth and REST for each environment. The installer's
+# management Auth, then Auth and REST for each environment, and Realtime for each
+# environment that turned it on. The installer's
 # preflight and the runtime's own start check both read this, so they cannot
 # state different figures for the same host again (the preflight once said
 # 4352 MiB while the runtime refused below a fixed 6 GiB).
 SYSTEM_ROWS = ('system.db', 'system.storage', 'system.management-auth')
+# Realtime runs only for the environments that turn it on, one container each.
+REALTIME_ROW = 'production.realtime'
 ENVIRONMENT_ROWS = ('production', 'production')
 START_RESERVE_MIB = 2560
 
@@ -116,9 +121,10 @@ def memory_mib(value):
     return int(float(value[:-1]) * units[value[-1].lower()])
 
 
-def start_placement(environments):
-    """(MiB, CPUs) of the containers a start runs for this many environments."""
+def start_placement(environments, realtime=0):
+    """(MiB, CPUs) of the containers a start runs for this many environments, `realtime` of them with Realtime."""
     rows = [TIERS[tier] for tier in SYSTEM_ROWS] + [TIERS[tier] for tier in ENVIRONMENT_ROWS] * environments
+    rows += [TIERS[REALTIME_ROW]] * realtime
     return sum(memory_mib(row.memory) for row in rows), round(sum(row.cpus for row in rows), 2)
 
 
@@ -151,6 +157,7 @@ IO_LIMITS = {
     'system.storage': ('256mb', '256mb', 6000, 4000),
     'system.management-auth': ('64mb', '64mb', 2000, 2000),
     'production': ('64mb', '32mb', 2000, 1000),
+    'production.realtime': ('64mb', '32mb', 2000, 1000),
     'experimental': ('16mb', '8mb', 500, 250),
     'operator.studio': ('64mb', '32mb', 2000, 1000),
     'operator.meta': ('32mb', '16mb', 1000, 500),

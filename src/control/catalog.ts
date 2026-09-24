@@ -115,6 +115,7 @@ export const CATALOG_SCHEMA_VERSION=3;
 
 export type StudioSession={runtime:string;desired:'running'|'stopped';state:'stopped'|'starting'|'running'|'failed';
   failure:string|null;updatedAt:number|null};
+export type RealtimeState={runtime:string;desired:'on'|'off';state:'off'|'pending'|'on'|'failed';failure:string|null;updatedAt:number|null};
 export type SignInState={runtime:string;revision:number;applied:number|null;
   state:'unconfigured'|'pending'|'applied'|'failed';failure:string|null;updatedAt:number|null};
 
@@ -169,6 +170,11 @@ export class Catalog {
         runtime TEXT PRIMARY KEY REFERENCES provision_jobs(runtime),
         revision INTEGER NOT NULL CHECK(revision>0), applied INTEGER,
         state TEXT NOT NULL CHECK(state IN ('pending','applied','failed')),
+        failure TEXT, actor TEXT NOT NULL, updated_at INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS realtime_settings(
+        runtime TEXT PRIMARY KEY REFERENCES provision_jobs(runtime),
+        desired TEXT NOT NULL CHECK(desired IN ('on','off')),
+        state TEXT NOT NULL CHECK(state IN ('off','pending','on','failed')),
         failure TEXT, actor TEXT NOT NULL, updated_at INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS audit_events(
         sequence INTEGER PRIMARY KEY AUTOINCREMENT, actor TEXT NOT NULL,
@@ -546,6 +552,28 @@ export class Catalog {
         updated_at=excluded.updated_at`).run(current.runtime,revision,actor,Date.now());
       this.record(actor,'sign_in.saved',environment,{revision});
       return this.signIn(actor,environment);
+    }).immediate();
+  }
+  /** Realtime for one environment. Owners and admins turn it on or off; the supervisor applies
+   * it (lab/realtime.py) and records the outcome in the same row. */
+  realtime(actor:string,environment:string):RealtimeState {
+    this.environmentProject(actor,environment,['owner','admin']);
+    const job=this.job(environment);
+    if(!job||job.state!=='succeeded')throw new Error('Environment is not ready');
+    const row=this.db.query<{desired:string;state:string;failure:string|null;updated_at:number},[string]>(
+      'SELECT desired,state,failure,updated_at FROM realtime_settings WHERE runtime=?').get(job.runtime);
+    return {runtime:job.runtime,desired:(row?.desired??'off') as RealtimeState['desired'],state:(row?.state??'off') as RealtimeState['state'],
+      failure:row?.failure??null,updatedAt:row?.updated_at??null};
+  }
+  requestRealtime(actor:string,environment:string,on:boolean):RealtimeState {
+    return this.db.transaction(()=>{
+      const current=this.realtime(actor,environment);
+      if(current.state==='pending')throw new Error('Realtime change in progress');
+      this.db.query(`INSERT INTO realtime_settings(runtime,desired,state,failure,actor,updated_at) VALUES (?,?,'pending',NULL,?,?)
+        ON CONFLICT(runtime) DO UPDATE SET desired=excluded.desired,state='pending',failure=NULL,actor=excluded.actor,
+        updated_at=excluded.updated_at`).run(current.runtime,on?'on':'off',actor,Date.now());
+      this.record(actor,on?'realtime.requested':'realtime.stop_requested',environment,{});
+      return this.realtime(actor,environment);
     }).immediate();
   }
   runtimeReady(runtime:string):boolean {
