@@ -86,7 +86,7 @@
 |---|---|---|
 | البناء والتشغيل، أول مشغّل، أول مشروع عبر supabase-js، إعادة تشغيل الحاوية، إيقاف نظيف | [docker-install-checks.json](../evidence/docker-install-checks.json) | 15 |
 | نسخ بيئة واحدة وهي تعمل، تغيير الصفوف والمستخدمين والملفات، الاستعادة، المقارنة مع النسخة، حذف الحالة المحفوظة جانبًا | [docker-backup-restore.json](../evidence/docker-backup-restore.json) | 15 |
-| Supabase Studio لبيئة واحدة: يُشغَّل عند الطلب، ويُدخل إليه بتذكرة الواجهة، وتُستخدم عبره قائمة الجداول وSQL والمستخدمون والحاويات، ويُرفض دون الجلسة أو بجلسة بيئة أخرى، ثم يُوقف ([دليل Studio](../guides/studio.ar.md)) | [docker-studio-checks.json](../evidence/docker-studio-checks.json) | COUNT |
+| Supabase Studio لبيئة واحدة: يُشغَّل عند الطلب، ويُدخل إليه بتذكرة الواجهة، وتُستخدم عبره قائمة الجداول وSQL والمستخدمون والحاويات، ويُرفض دون الجلسة أو بجلسة بيئة أخرى، ثم يُوقف ([دليل Studio](../guides/studio.ar.md)) | [docker-studio-checks.json](../evidence/docker-studio-checks.json) | 22 |
 
 ### خادم فارغ، بمحاكاة في آلة افتراضية محلية
 

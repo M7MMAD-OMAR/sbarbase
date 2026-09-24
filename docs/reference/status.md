@@ -86,7 +86,7 @@ On a clean GitHub runner with only Docker, CI runs the Docker install on every c
 |---|---|---|
 | Build and start, first operator, first project through supabase-js, container restart, clean stop | [docker-install-checks.json](../evidence/docker-install-checks.json) | 15 |
 | Back up one environment while it serves, change rows, users and files, restore, compare with the backup, discard the set-aside state | [docker-backup-restore.json](../evidence/docker-backup-restore.json) | 15 |
-| Supabase Studio for one environment: started on demand, entered with the console ticket, table list, SQL, users and buckets through it, refused without the session or with another environment's session, stopped ([Studio guide](../guides/studio.md)) | [docker-studio-checks.json](../evidence/docker-studio-checks.json) | COUNT |
+| Supabase Studio for one environment: started on demand, entered with the console ticket, table list, SQL, users and buckets through it, refused without the session or with another environment's session, stopped ([Studio guide](../guides/studio.md)) | [docker-studio-checks.json](../evidence/docker-studio-checks.json) | 22 |
 
 ### Empty server, simulated in a local VM
 
