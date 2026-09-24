@@ -70,9 +70,24 @@ EMPTY_SHA256 = hashlib.sha256(b'').hexdigest()
 # ---------------------------------------------------------------- installation manifest
 
 def origin(url):
-    """Scheme and host of a URL: a webhook path can itself be a credential."""
+    """Scheme, host and port of a URL only: a path or user part can itself be a credential."""
     parts = urlsplit(str(url))
-    return f'{parts.scheme}://{parts.hostname}' if parts.scheme and parts.hostname else ''
+    if not parts.scheme or not parts.hostname:
+        return ''
+    try:
+        port = f':{parts.port}' if parts.port else ''
+    except ValueError:
+        port = ''
+    return f'{parts.scheme}://{parts.hostname}{port}'
+
+
+def read_json(path):
+    """A settings file as JSON, or 'invalid': a broken file must not fail the daily backup."""
+    try:
+        value = json.loads(path.read_text())
+    except (OSError, ValueError):
+        return 'invalid'
+    return value if isinstance(value, dict) else 'invalid'
 
 
 def catalog_rows(path):
@@ -104,7 +119,9 @@ def routing(endpoints):
 def notification_settings(path):
     if not path.is_file() or path.is_symlink():
         return None
-    config = json.loads(path.read_text())
+    config = read_json(path)
+    if config == 'invalid':
+        return config
     email, webhook, telegram = (config.get(name) or {} for name in ('email', 'webhook', 'telegram'))
     return {
         'email': {field: email.get(field) for field in ('enabled', 'host', 'port', 'from', 'to', 'tls')},
@@ -128,11 +145,12 @@ def installation_manifest(stamp, runtimes, environ=os.environ):
     offsite = config_path()
     offsite_settings = None
     if offsite.is_file() and not offsite.is_symlink():
-        raw = json.loads(offsite.read_text())
-        s3 = raw.get('s3') or {}
-        offsite_settings = {'s3': {field: s3.get(field) for field in ('endpoint', 'region', 'bucket', 'prefix',
-                                                                      'credentialsFile')},
-                            'keyFile': raw.get('keyFile')}
+        raw = read_json(offsite)
+        s3 = raw.get('s3') if raw != 'invalid' and isinstance(raw.get('s3'), dict) else {}
+        offsite_settings = 'invalid' if raw == 'invalid' else {
+            's3': {'endpoint': origin(s3.get('endpoint', '')),
+                   **{field: s3.get(field) for field in ('region', 'bucket', 'prefix', 'credentialsFile')}},
+            'keyFile': raw.get('keyFile')}
     return {
         'version': 1, 'kind': 'installation', 'created_at': stamp, 'environments': sorted(runtimes),
         'pins': {name: json.loads((backup.ROOT / 'lab' / name).read_text())
@@ -248,8 +266,11 @@ def load_key(path):
 
 
 def new_key(path):
-    """Write a new key file on the operator's explicit request; never over an existing file."""
-    path = Path(path)
+    """Write a new key file on the operator's explicit request; never over an existing file.
+
+    A relative path is resolved against the checkout, as ``keyFile`` in the configuration is.
+    """
+    path = resolve_path(path)
     if path.exists() or path.is_symlink():
         raise BackupError(f'{path} already exists; a key is never overwritten')
     if not path.parent.is_dir():

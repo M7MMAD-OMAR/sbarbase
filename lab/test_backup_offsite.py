@@ -197,7 +197,7 @@ class ManifestTests(Fixture):
                                                  'storage-image.lock.json', 'studio-image.lock.json'})
         self.assertEqual(manifest['catalog']['provision_jobs'][0]['runtime'], E1)
         self.assertNotIn('claim', manifest['catalog']['provision_jobs'][0])
-        self.assertEqual(manifest['routing'][E1]['storage'], {'url': 'http://10.0.0.4', 'tenantHost': E1})
+        self.assertEqual(manifest['routing'][E1]['storage'], {'url': 'http://10.0.0.4:5000', 'tenantHost': E1})
         self.assertEqual(manifest['settings'], {'SBARBASE_BACKUP_KEEP': '7'})
         self.assertEqual(manifest['notifications']['webhook']['origin'], 'https://hooks.example.invalid')
         self.assertEqual(oct((path / 'installation.json').stat().st_mode & 0o777), '0o600')
@@ -340,6 +340,27 @@ class TargetTests(Fixture):
         stamps = {path.name for e in (E1, E2, 'installation') for path in (self.backups / e).iterdir()}
         self.assertEqual(len(stamps), 1)
         self.assertTrue((self.backups / 'installation' / stamps.pop() / 'manifest.json').is_file())
+
+    def test_a_broken_settings_file_is_recorded_as_invalid_and_does_not_fail_the_manifest(self):
+        (self.state / 'notifications.json').write_text('{broken')
+        (self.state / 'backup-offsite.json').write_text(json.dumps(
+            {'schema': 1, 's3': {'endpoint': f'https://user:{SENTINEL}@s3.example.invalid/x'}}))
+        path = offsite.write_installation('20260924T030000Z', [E1], environ={})
+        text = (path / 'installation.json').read_text()
+        self.assertNotIn(SENTINEL, text)
+        manifest = json.loads(text)
+        self.assertEqual(manifest['notifications'], 'invalid')
+        self.assertEqual(manifest['offsite']['s3']['endpoint'], 'https://s3.example.invalid')
+
+    def test_the_command_line_refuses_without_a_traceback(self):
+        existing = self.root / 'existing.json'
+        existing.write_text('{}')
+        result = subprocess.run(['/usr/bin/python3', str(ROOT / 'lab' / 'backup.py'), 'offsite-key', str(existing)],
+                                capture_output=True, text=True, timeout=60)
+        self.assertEqual(result.returncode, 1)
+        self.assertTrue(result.stderr.startswith('refused:'), result.stderr)
+        self.assertNotIn('Traceback', result.stderr)
+        self.assertEqual(existing.read_text(), '{}')
 
     def test_without_configuration_nothing_is_attempted(self):
         self.run_set('20260924T030000Z')

@@ -394,16 +394,18 @@ def main(argv=None):
                         failed += 1
                         print(f'backup {e} failed: {error}', file=sys.stderr)
                 if every:
-                    import backup_offsite
+                    offsite = None
                     try:
-                        backup_offsite.write_installation(stamp, created, args.keep)
+                        import backup_offsite as offsite
+                        offsite.write_installation(stamp, created, args.keep)
                         print(f'installation manifest {stamp} written')
                     except Exception as error:
                         failed += 1
                         reason = str(error) if isinstance(error, BackupError) else type(error).__name__
                         print(f'installation manifest failed: {reason}', file=sys.stderr)
-                    # The exit code reports the local backups only; a failed copy is notified instead.
-                    backup_offsite.after_run(stamp, created, args.keep)
+                    if offsite is not None:
+                        # The exit code reports the local backups only; a failed copy is notified instead.
+                        offsite.after_run(stamp, created, args.keep)
                 return 1 if failed else 0
             if args.command == 'offsite-fetch':
                 import backup_offsite
@@ -429,4 +431,6 @@ def main(argv=None):
 
 
 if __name__ == '__main__':
+    # backup_offsite imports this module by name; one module keeps one BackupError class.
+    sys.modules['backup'] = sys.modules[__name__]
     sys.exit(main())
