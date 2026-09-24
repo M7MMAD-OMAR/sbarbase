@@ -52,7 +52,7 @@ try {
  if(!record('the operator sees the client created at install',organizations.status===200&&!!organization?.id,`status ${organizations.status}`))await finish();
  ids.organization=organization.id;
 
- const project=await call('POST',`/organizations/${organization.id}/projects`,{name:'First project'});
+ const project=await call('POST',`/organizations/${organization.id}/projects`,{name:`First project ${new Date().toISOString().slice(0,19)}`});
  if(!record('a project is created',project.status===201&&!!project.json?.id,`status ${project.status}`))await finish();
  ids.project=project.json.id;
 

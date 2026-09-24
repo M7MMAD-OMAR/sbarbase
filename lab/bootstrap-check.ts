@@ -55,13 +55,20 @@ try {
  const organizations=await fetch(base+'/management/v1/organizations',{headers});const list=await organizations.json();
  check('operator discovers owned organization and role',organizations.ok&&list.data.length===1&&list.data[0].id===recovered.organization&&list.data[0].role==='owner');
  check('unauthenticated organization discovery rejected',(await fetch(base+'/management/v1/organizations')).status===401);
- check('public organization bootstrap is unavailable',(await fetch(base+'/management/v1/organizations',{method:'POST',headers,body:JSON.stringify({name:'unauthorized-bootstrap'})})).status===405);
+ check('organization creation without a session is refused',(await fetch(base+'/management/v1/organizations',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:'unauthorized-bootstrap'})})).status===401);
+ check('the bootstrapped owner is reported as the installation operator',list.operator===true);
  const project=await fetch(base+`/management/v1/organizations/${recovered.organization}/projects`,{method:'POST',headers,body:JSON.stringify({name:'First project'})});
  check('bootstrapped owner creates first project through API',project.status===201);
  const stranger=catalog.createOrganization('unrelated-fixture','Unrelated');
  const filtered=await (await fetch(base+'/management/v1/organizations',{headers})).json();
  check('organization discovery excludes another owner organization',filtered.data.length===1&&filtered.data.every((item:{id:string})=>item.id!==stranger));
  check('operator cannot create project in unrelated organization',(await fetch(base+`/management/v1/organizations/${stranger}/projects`,{method:'POST',headers,body:JSON.stringify({name:'Denied'})})).status===403);
+ // Creating a client is an installation decision: the bootstrap owner may, the owner of
+ // another client may not.
+ const second=await fetch(base+'/management/v1/organizations',{method:'POST',headers,body:JSON.stringify({name:'Second client'})});
+ const client=second.status===201?(await second.json()).id:undefined;
+ check('installation operator creates a client through API',!!client&&catalog.listOrganizations(recovered.actor).some(item=>item.id===client&&item.role==='owner'));
+ check('owner of another client is not an installation operator',!catalog.installationOperator('unrelated-fixture'));
  console.log(`${checks.length} live operator bootstrap checks passed.`);
 }finally {
  server?.stop(true);catalog.close();keys.close();
