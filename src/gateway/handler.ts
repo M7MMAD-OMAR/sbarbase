@@ -24,6 +24,36 @@ function error(status:number, message:string) {
   return Response.json({message},{status,headers:{'cache-control':'no-store'}});
 }
 
+/** The largest file an application may upload through Storage, in bytes: `SBARBASE_UPLOAD_LIMIT_MB`
+ * (1 to 5120, 50 by default, as on Supabase). The runtime gives Storage the same limit. */
+export function uploadLimit(value=process.env.SBARBASE_UPLOAD_LIMIT_MB):number {
+  const megabytes=value===undefined||value===''?50:Number(value);
+  if(!Number.isInteger(megabytes)||megabytes<1||megabytes>5120)throw new Error('SBARBASE_UPLOAD_LIMIT_MB must be a whole number from 1 to 5120');
+  return megabytes*1024*1024;
+}
+const UPLOAD_LIMIT=uploadLimit();
+class TooLarge extends Error {}
+
+/** Passes an upload through as it arrives, failing it once it passes `limit` bytes or stalls
+ * for `idleMs`. Nothing is held in memory beyond the chunk in flight. */
+function boundedStream(source:ReadableStream<Uint8Array>,limit:number,idleMs:number,onTooLarge:()=>void):ReadableStream<Uint8Array> {
+  const reader=source.getReader();let size=0;
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      let timer:ReturnType<typeof setTimeout>|undefined;
+      try {
+        const item=await Promise.race([reader.read(),new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(new Error('Upload stalled')),idleMs);})]);
+        if(item.done){controller.close();return;}
+        size+=item.value.byteLength;
+        if(size>limit){onTooLarge();void reader.cancel().catch(()=>{});controller.error(new TooLarge('Request too large'));return;}
+        controller.enqueue(item.value);
+      } catch(cause) {void reader.cancel().catch(()=>{});controller.error(cause);}
+      finally {clearTimeout(timer);}
+    },
+    cancel(reason){return reader.cancel(reason).catch(()=>{});},
+  });
+}
+
 // Browser access works as it does on Supabase: any origin may call the API, and what a
 // call may do is decided by its API key and user token, never by the page's origin. No
 // cookie is ever read here, so no credentials mode is offered.
@@ -60,12 +90,12 @@ export function withCors(response:Response, request:Request):Response {
  * This boundary binds an API key to an enabled environment before proxying.
  * Storage uses a trusted tenant header; Realtime and OAuth remain pending.
  */
-export function createGateway(registry:RouteRegistry, transport:typeof fetch = fetch, verifyKey?:(environment:string,key:string)=>boolean, bodyReadTimeoutMs=10_000, concurrency=new ConcurrencyGate()) {
-  const handle=gatewayHandler(registry,transport,verifyKey,bodyReadTimeoutMs,concurrency);
+export function createGateway(registry:RouteRegistry, transport:typeof fetch = fetch, verifyKey?:(environment:string,key:string)=>boolean, bodyReadTimeoutMs=10_000, concurrency=new ConcurrencyGate(), uploadBytes=UPLOAD_LIMIT) {
+  const handle=gatewayHandler(registry,transport,verifyKey,bodyReadTimeoutMs,concurrency,uploadBytes);
   return async (request:Request):Promise<Response> => withCors(await handle(request),request);
 }
 
-function gatewayHandler(registry:RouteRegistry, transport:typeof fetch, verifyKey:((environment:string,key:string)=>boolean)|undefined, bodyReadTimeoutMs:number, concurrency:ConcurrencyGate) {
+function gatewayHandler(registry:RouteRegistry, transport:typeof fetch, verifyKey:((environment:string,key:string)=>boolean)|undefined, bodyReadTimeoutMs:number, concurrency:ConcurrencyGate, uploadBytes:number) {
   return async (request:Request):Promise<Response> => {
     const url = new URL(request.url);
     const match = url.pathname.match(/^\/([a-z][a-z0-9_]{1,30})\/(auth|rest|storage|realtime)\/v1(\/.*)?$/);
@@ -133,6 +163,22 @@ function gatewayHandler(registry:RouteRegistry, transport:typeof fetch, verifyKe
     // REST must settle independently of a disconnected client.
     const admissionRequest=retainRest?{signal:new AbortController().signal}:request;
     return concurrency.run(environment,admissionRequest,async(signal)=>{
+    // A file upload to Storage streams through with its own limit; every other body is small
+    // and read whole first, so a slow client never holds an upstream connection.
+    const upload=service==='storage'&&(request.method==='POST'||request.method==='PUT')&&!!request.body;
+    if (upload) {
+      if (Number(request.headers.get('content-length')) > uploadBytes) return error(413,'Request too large');
+      let exceeded=false;
+      const stream=boundedStream(request.body!,uploadBytes,bodyReadTimeoutMs*3,()=>{exceeded=true;});
+      try {
+        return await transport(target,{method:request.method,headers,body:stream,duplex:'half',redirect:'manual',decompress:false,
+          signal:AbortSignal.any([signal,request.signal,AbortSignal.timeout(15*60_000)])} as RequestInit);
+      } catch {
+        if (exceeded) return error(413,'Request too large');
+        if (request.signal.aborted) return error(408,'Request cancelled');
+        return error(502,'Upstream unavailable');
+      }
+    }
     let body:Uint8Array<ArrayBuffer> | undefined;
     if (request.body) {
       const limit = 1024*1024;

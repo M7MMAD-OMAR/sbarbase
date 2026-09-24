@@ -15,6 +15,12 @@ ready.
 
 ### Added
 
+- **Uploads up to 50 MiB, or the limit you set.** File uploads to Storage are
+  passed through the gateway and the TLS proxy as they arrive instead of being
+  capped at 1 MiB. `SBARBASE_UPLOAD_LIMIT_MB` (50 by default, as on Supabase)
+  sets the limit for the gateway, the proxy and Storage together; a change
+  applies at the next start by recreating the shared Storage container. Other
+  API bodies stay at 1 MiB.
 - **Logs and metrics per environment.** Every member sees the last hour of
   requests through the gateway on the environment's page: totals, client and
   server errors, median and 95th percentile response times, requests per minute
