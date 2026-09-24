@@ -15,6 +15,11 @@ ready.
 
 ### Added
 
+- **Supabase Studio per environment.** Owners and admins start the original,
+  pinned Studio and postgres-meta for one environment from the console, open it
+  on its own address behind the console login, and stop it. Studio signs in with
+  a per-start login that is not a superuser and exists only while it runs. CI
+  uses tables, SQL, users and buckets through it on a clean machine.
 - **Install with Docker.** `docker compose up -d --build` on any Linux host with
   Docker: the image carries Python 3.14, Bun and the Docker CLI, and starts the
   pinned Supabase services as sibling containers. CI runs build, first operator,

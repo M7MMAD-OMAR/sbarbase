@@ -5,7 +5,11 @@ Status: 2026-09-21. Read-only study. No container was started, stopped or create
 
 This document is the design record for the administration-surface redirect. The decision itself is
 in [DECISIONS](../decisions/README.md) and the dated entries in [checkpoints](checkpoints.md).
-Nothing described here is implemented yet.
+Update 2026-09-24: the on-demand path is implemented. Studio and postgres-meta start per environment
+through the management API, are served on `<id>.studio.localhost` behind a signed console session, and
+use a per-start `<e>_studio` login (not a superuser, BYPASSRLS, read only on `auth` and `storage`). Code:
+`lab/studio.py`, `src/control/studio.ts`; check: `lab/studio-check.ts` in the CI Docker job; operator
+guide: [Studio](../guides/studio.md). Sections below remain the original study.
 
 ## 0. Evidence base, and how to read the labels
 
