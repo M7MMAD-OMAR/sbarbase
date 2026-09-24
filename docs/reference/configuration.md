@@ -70,7 +70,7 @@ If `.lab/upstream/notifications.json` exists, the worker delivers operator event
 
 `tls` is `none`, `starttls` or `tls`. The webhook signing secret lives in `.secrets/upstream/notifier.json` as `{"schema": 1, "webhookSecret": "<64 hex characters>"}`. For Telegram, create a bot with @BotFather, add it to your chat, and put its token in a private file (mode 0600) as `{"schema": 1, "botToken": "<token>"}`. `chatId` is the chat's number, or `@channelname` for a public channel. The token is read from that file only and never appears in a message. Full design: [operator notifications](../engineering/OPERATOR-NOTIFICATIONS.md).
 
-Among the events: **an environment kept needing more than its share.** The gateway guarantees each environment 8 requests in flight and lets a busy one borrow up to 24 while the server has idle room. After 15 minutes in a row of borrowing or of being told to retry, you get one notice for that environment, with what to do: raise its share, move it to its own database engine, or grow the server. Design: [fair share admission](../engineering/FAIR-SHARE-ADMISSION.md).
+Among the events: **an environment kept needing more than its share.** The gateway guarantees each environment 8 requests in flight and lets a busy one borrow up to 24 of the 32, leaving free the unused share of every project active in the last minute (and at least 8). Borrowing alone is never reported. After 15 minutes in a row of being refused at its limit, or of crowding out a neighbour, you get one notice for that environment, with what to do: raise its share, move it to its own database engine, or grow the server. Design: [fair share admission](../engineering/FAIR-SHARE-ADMISSION.md).
 
 ## State directories
 

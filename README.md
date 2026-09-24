@@ -15,7 +15,7 @@ Sbarbase is an open source, self-hosted layer that runs the original Supabase se
 - **One ordinary server.** No second machine and no cloud service needed. Clients hold projects, projects hold environments (production, staging).
 - **No data mixing.** Each environment has its own database, its own logins and its own keys. A key from one project never opens another.
 - **Fast, with room to grow.** One PostgreSQL engine and one Storage serve every environment, instead of a full Supabase stack per app, so the same server holds more projects.
-- **A busy project stays in its lane.** Each environment gets its own share of requests and database connections, and its services run with their own CPU and memory limits. Extra requests are told to retry; the other projects stay fast.
+- **A busy project uses the free room, never its neighbours' share.** Each environment has a guaranteed share of the gateway, and a busy one may borrow what the others are not using. Every project that was active in the last minute keeps its whole share. If one keeps choking, you get a message by email, webhook or Telegram.
 - **Your app does not change.** It keeps using supabase-js and SQL.
 
 <p align="center"><img src="docs/diagrams/hierarchy.svg" width="820" alt="Clients, projects and environments on one server"></p>

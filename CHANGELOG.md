@@ -15,6 +15,15 @@ ready.
 
 ### Added
 
+- **Fair share admission at the gateway.** Each environment is guaranteed 8
+  requests in flight; a busy one borrows idle slots up to 24 of 32, while the
+  unused share of every environment active in the last minute (at least 8 slots)
+  stays free. Checked over loopback HTTP (`docs/evidence/fair-share-checks.json`),
+  not against Supabase or under sustained load.
+- **Saturation notice.** After 15 minutes in a row of refusals at its limit, or of
+  crowding out a neighbour, an environment raises one `environment.saturated`
+  operator notification. Borrowing alone never does.
+- **Telegram** as a third notification channel beside email and webhook.
 - **Empty-server rehearsal in a local VM.** `lab/vm-rehearsal.sh` boots a
   disposable Fedora 44 Cloud VM, installs from a clean clone with the one-command
   acceptance, creates a first project and reboots. Passed on 4 vCPU and 6 GiB
@@ -66,6 +75,11 @@ ready.
 
 ### Changed
 
+- The control catalog schema is now version 3: the delivery table accepts the
+  Telegram channel. The migration is one way; an older release refuses a catalog
+  this release has opened.
+- The application gateway lends idle slots instead of refusing every request
+  above 8 per environment; the overload probe keeps measuring the fixed share.
 - The start requirement is derived from the placement a start runs (1792 MiB of
   limits on an empty server, plus 512 MiB per environment, plus the 2560 MiB
   reserve), and the preflight, the unit's `ExecStartPre` and the runtime use one

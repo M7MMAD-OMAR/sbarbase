@@ -456,18 +456,18 @@ def load_isolation(lang):
                   'البيئة المزدحمة تستعير المكان الفارغ، لا حصة جارتها'),
                 t('Environment A receives a burst of requests while environment B has normal traffic. The gateway has '
                   '32 slots. Each environment is guaranteed 8. A busy environment may borrow idle slots up to 24, but '
-                  'only while 8 slots stay free for environments within their share. Here A holds its 8 and has borrowed '
+                  'only while the unused share of every environment active in the last minute, and at least 8 slots, stay free. Here A holds its 8 and has borrowed '
                   '14; B uses 2; the last 8 are kept free. A\'s next request gets 429 and retries shortly; B\'s next request '
                   'is admitted at once. When B needs more room, A borrows nothing new and its borrowed slots return as '
-                  'its requests finish. After 15 minutes like this the operator gets one notice. Behind the gateway, each '
+                  'its requests finish. After 15 minutes of such refusals the operator gets one notice. Behind the gateway, each '
                   'environment\'s Auth and REST run in their own containers with CPU, memory and IO limits, and each '
                   'database has its own connection limits. CPU, memory and IO inside the one PostgreSQL engine remain '
                   'shared, and the limits are not calibrated under sustained load.',
                   'تتلقى البيئة أ دفعة كبيرة من الطلبات، والبيئة ب حركتها عادية. في البوابة 32 مكانًا، ولكل بيئة 8 مضمونة. '
-                  'يمكن للبيئة المزدحمة أن تستعير الأماكن الفارغة حتى 24، ما دامت 8 أماكن تبقى فارغة للبيئات التي لم تتجاوز '
-                  'حصتها. هنا تشغل أ أماكنها الثمانية واستعارت 14، وتستخدم ب مكانين، والثمانية الأخيرة محجوزة فارغة. طلب أ '
+                  'يمكن للبيئة المزدحمة أن تستعير الأماكن الفارغة حتى 24، ما دامت تبقى فارغة الحصة غير المستخدمة لكل بيئة '
+                  'نشطة في الدقيقة الأخيرة، و8 أماكن على الأقل. هنا تشغل أ أماكنها الثمانية واستعارت 14، وتستخدم ب مكانين، والثمانية الأخيرة محجوزة فارغة. طلب أ '
                   'التالي يتلقى 429 ويعيد المحاولة بعد قليل، وطلب ب التالي يُقبل فورًا. وحين تحتاج ب مكانًا أكثر لا تستعير أ '
-                  'شيئًا جديدًا، وتعود أماكنها المستعارة كلما انتهى أحد طلباتها. بعد 15 دقيقة على هذه الحال يصل المشغّل '
+                  'شيئًا جديدًا، وتعود أماكنها المستعارة كلما انتهى أحد طلباتها. بعد 15 دقيقة من هذا الرفض يصل المشغّل '
                   'تنبيه واحد. خلف البوابة يعمل Auth وREST لكل بيئة في حاوياتهما بحدود للمعالج والذاكرة والقرص، ولكل قاعدة '
                   'حدود اتصالاتها. المعالج والذاكرة والقرص داخل محرك PostgreSQL الواحد تبقى مشتركة، وهذه الحدود غير معايرة '
                   'تحت حمل مستمر.'))
@@ -491,14 +491,14 @@ def load_isolation(lang):
         d.box(231 + i * 8, 100, 7, 26, kind, rx=1.5)
     d.text(231, 144, t('A: its share of 8, plus 14 borrowed', 'أ: حصتها 8، و14 مستعارة'), size=12, anchor='start', fill=CORAL_INK)
     d.text(231, 163, t('B: 2 in use, within its share of 8', 'ب: 2 مستخدمة، ضمن حصتها 8'), size=12, anchor='start', fill=TEAL_INK)
-    d.text(231, 182, t('last 8: kept free for any share', 'الثمانية الأخيرة: محجوزة لأي حصة'), size=12, anchor='start')
+    d.text(231, 182, t('last 8: kept free for B and waking envs', 'الثمانية الأخيرة: محجوزة لـ ب ولمن يستيقظ'), size=12, anchor='start')
     d.text(231, 214, t('A asks for more: 429, retry shortly', 'أ تطلب المزيد: 429، أعد المحاولة'), size=12,
            anchor='start', weight=700, fill=CORAL_INK)
     d.text(231, 236, t('B asks: admitted at once', 'ب تطلب: تُقبل فورًا'), size=12, anchor='start', weight=700, fill=TEAL_INK)
     d.lines(231, 264, [t('A never passes 24. When B needs room,', 'أ لا تتجاوز 24. وحين تحتاج ب مكانًا'),
                        t('A borrows nothing new, and its borrowed', 'لا تستعير أ جديدًا، وتعود أماكنها'),
                        t('slots return as its requests finish.', 'المستعارة كلما انتهى طلب.')], size=11.5, gap=17, fill=MUTED, anchor='start')
-    d.text(231, 334, t('15 minutes like this: one operator notice', '15 دقيقة هكذا: تنبيه واحد للمشغّل'), size=11.5,
+    d.text(231, 334, t('15 minutes refused: one operator notice', '15 دقيقة من الرفض: تنبيه واحد للمشغّل'), size=11.5,
            anchor='start', weight=700)
     d.arrow('M226 210 L116 210', color=CORAL)
     d.box(24, 196, 90, 26, 'warn', rx=4)

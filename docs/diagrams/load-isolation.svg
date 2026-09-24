@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 520" width="900" height="520" role="img" aria-labelledby="loadise-t loadise-d" xml:lang="en">
   <title id="loadise-t">A busy environment borrows idle room, never its neighbour's share</title>
-  <desc id="loadise-d">Environment A receives a burst of requests while environment B has normal traffic. The gateway has 32 slots. Each environment is guaranteed 8. A busy environment may borrow idle slots up to 24, but only while 8 slots stay free for environments within their share. Here A holds its 8 and has borrowed 14; B uses 2; the last 8 are kept free. A's next request gets 429 and retries shortly; B's next request is admitted at once. When B needs more room, A borrows nothing new and its borrowed slots return as its requests finish. After 15 minutes like this the operator gets one notice. Behind the gateway, each environment's Auth and REST run in their own containers with CPU, memory and IO limits, and each database has its own connection limits. CPU, memory and IO inside the one PostgreSQL engine remain shared, and the limits are not calibrated under sustained load.</desc>
+  <desc id="loadise-d">Environment A receives a burst of requests while environment B has normal traffic. The gateway has 32 slots. Each environment is guaranteed 8. A busy environment may borrow idle slots up to 24, but only while the unused share of every environment active in the last minute, and at least 8 slots, stay free. Here A holds its 8 and has borrowed 14; B uses 2; the last 8 are kept free. A's next request gets 429 and retries shortly; B's next request is admitted at once. When B needs more room, A borrows nothing new and its borrowed slots return as its requests finish. After 15 minutes of such refusals the operator gets one notice. Behind the gateway, each environment's Auth and REST run in their own containers with CPU, memory and IO limits, and each database has its own connection limits. CPU, memory and IO inside the one PostgreSQL engine remain shared, and the limits are not calibrated under sustained load.</desc>
   <defs><marker id="loadise-i" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#2A2632" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="loadise-c" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#E06A4B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
   <rect x="0" y="0" width="900" height="520" fill="#F5EFE3"/>
   <g font-family="system-ui, sans-serif" fill="#2A2632" text-anchor="middle">
@@ -58,13 +58,13 @@
   <rect x="479" y="100" width="7" height="26" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
   <text x="231" y="144" font-size="12" fill="#A8412A" text-anchor="start">A: its share of 8, plus 14 borrowed</text>
   <text x="231" y="163" font-size="12" fill="#146B5C" text-anchor="start">B: 2 in use, within its share of 8</text>
-  <text x="231" y="182" font-size="12" text-anchor="start">last 8: kept free for any share</text>
+  <text x="231" y="182" font-size="12" text-anchor="start">last 8: kept free for B and waking envs</text>
   <text x="231" y="214" font-size="12" font-weight="700" fill="#A8412A" text-anchor="start">A asks for more: 429, retry shortly</text>
   <text x="231" y="236" font-size="12" font-weight="700" fill="#146B5C" text-anchor="start">B asks: admitted at once</text>
   <text x="231" y="264" font-size="11.5" fill="#5B5465" text-anchor="start">A never passes 24. When B needs room,</text>
   <text x="231" y="281" font-size="11.5" fill="#5B5465" text-anchor="start">A borrows nothing new, and its borrowed</text>
   <text x="231" y="298" font-size="11.5" fill="#5B5465" text-anchor="start">slots return as its requests finish.</text>
-  <text x="231" y="334" font-size="11.5" font-weight="700" text-anchor="start">15 minutes like this: one operator notice</text>
+  <text x="231" y="334" font-size="11.5" font-weight="700" text-anchor="start">15 minutes refused: one operator notice</text>
   <path d="M226 210 L116 210" fill="none" stroke="#E06A4B" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#loadise-c)"/>
   <rect x="24" y="196" width="90" height="26" rx="4" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
   <text x="69" y="214" font-size="12.5" font-weight="700" fill="#A8412A">429</text>
