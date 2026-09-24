@@ -122,6 +122,8 @@ export type SignInState={runtime:string;revision:number;applied:number|null;
 /** `total` and `allocated` describe the whole installation, so only installation operators get them. */
 export type GatewayShareState={share:number;default:number;ceiling:number;operator:boolean;total?:number;allocated?:number};
 
+export type AuditEvent={at:number;actor:string;action:string;kind:'organization'|'project'|'environment';subject:string;detail:Record<string,string|number|boolean>};
+
 export class Catalog {
   private db:Database;
   private channels:NotificationChannel[];
@@ -428,6 +430,53 @@ export class Catalog {
     this.actor(actor);
     return !!this.db.query<{role:string},[string]>(`SELECT m.role role FROM installation_bootstrap b
       JOIN memberships m ON m.organization=b.organization WHERE b.singleton=1 AND m.actor=? AND m.role IN ('owner','admin')`).get(actor);
+  }
+  /** What happened in one organization, newest first, for its owners and admins. An event is
+   * shown when its subject belongs to the organization now: the organization itself, one of its
+   * projects, or an environment or runtime of those projects. A project moved in from another
+   * client shows only what happened since it arrived, so no client reads another's history.
+   * Detail keeps numbers, booleans and short names (roles, phases, failures); identifiers of
+   * other organizations never pass. */
+  auditEvents(actor:string,organization:string,limit=100):AuditEvent[] {
+    this.require(actor,organization,['owner','admin']);
+    if(!Number.isSafeInteger(limit)||limit<1||limit>500)throw new Error('Invalid limit');
+    const projects=this.db.query<{id:string;name:string},[string]>('SELECT id,name FROM projects WHERE organization=?').all(organization);
+    const environments=this.db.query<{id:string;name:string;project:string;runtime:string|null},[string]>(`SELECT e.id id,e.name name,
+      e.project project,j.runtime runtime FROM environments e JOIN projects p ON p.id=e.project LEFT JOIN provision_jobs j ON j.environment=e.id
+      WHERE p.organization=?`).all(organization);
+    const since=new Map<string,number>();
+    for(const project of projects){
+      const arrivals=this.db.query<{sequence:number;detail:string},[string]>(
+        "SELECT sequence,detail FROM audit_events WHERE action='project.ownership_changed' AND subject=? ORDER BY sequence DESC").all(project.id);
+      const arrived=arrivals.find(row=>{try{return JSON.parse(row.detail).to===organization;}catch{return false;}});
+      since.set(project.id,arrived?.sequence??0);
+    }
+    const subjects=new Map<string,{kind:AuditEvent['kind'];name:string;project?:string}>([[organization,{kind:'organization',name:''}]]);
+    for(const project of projects)subjects.set(project.id,{kind:'project',name:project.name,project:project.id});
+    for(const environment of environments){
+      const project=projects.find(item=>item.id===environment.project)!;
+      const entry={kind:'environment' as const,name:project.name+' / '+environment.name,project:project.id};
+      subjects.set(environment.id,entry);if(environment.runtime)subjects.set(environment.runtime,entry);
+    }
+    const ids=[...subjects.keys()];
+    const rows=this.db.query<{sequence:number;actor:string;action:string;subject:string;detail:string;at:number},string[]>(
+      `SELECT sequence,actor,action,subject,detail,at FROM audit_events WHERE subject IN (${ids.map(()=>'?').join(',')})
+       ORDER BY sequence DESC LIMIT 2000`).all(...ids);
+    const out:AuditEvent[]=[];
+    for(const row of rows){
+      const subject=subjects.get(row.subject)!;
+      if(subject.project&&row.sequence<(since.get(subject.project)??0))continue;
+      let raw:Record<string,unknown>={};try{raw=JSON.parse(row.detail);}catch{}
+      const detail:Record<string,string|number|boolean>={};
+      for(const [key,value] of Object.entries(raw)){
+        if(row.action==='project.ownership_changed')continue;
+        if(typeof value==='number'||typeof value==='boolean')detail[key]=value;
+        else if(typeof value==='string'&&(/^[a-z_]{1,40}$/.test(value)||(key==='target'&&value.length<=200)))detail[key]=value;
+      }
+      out.push({at:row.at,actor:row.actor,action:row.action,kind:subject.kind,subject:subject.name,detail});
+      if(out.length>=limit)break;
+    }
+    return out;
   }
   /** Owners and admins may see who else can act in their organization. */
   listMembers(actor:string,organization:string):{actor:string;role:MembershipRole}[] {
@@ -736,6 +785,8 @@ export class Catalog {
       // A queued job carries the requester's authority in the source organization, so the
       // move cancels it here, visibly, instead of leaving the claim to find the mismatch. Every
       // job of the project then names the destination, so later events reach the new owners.
+      // The move is recorded first, so everything it causes follows it in the audit sequence.
+      this.record(actor,'project.ownership_changed',project,{from:source.organization,to:destination});
       const queued=this.db.query<{environment:string},[string]>(
         "SELECT j.environment environment FROM provision_jobs j JOIN environments e ON e.id=j.environment WHERE e.project=? AND j.state='queued'").all(project);
       for(const job of queued) {
@@ -744,7 +795,6 @@ export class Catalog {
       }
       this.db.query('UPDATE provision_jobs SET organization=? WHERE environment IN (SELECT id FROM environments WHERE project=?)')
         .run(destination,project);
-      this.record(actor,'project.ownership_changed',project,{from:source.organization,to:destination});
       this.notify('project.ownership_changed','critical','project.ownership_changed|'+project,
         {organization:source.organization,project},actor,'ownership_changed',
         {from:source.organization,to:destination});

@@ -41,6 +41,9 @@ ready.
   crowding out a neighbour, an environment raises one `environment.saturated`
   operator notification. Borrowing alone never does.
 - **Telegram** as a third notification channel beside email and webhook.
+- **Activity.** Owners and admins see what happened in their organization,
+  newest first, in the console (`GET /organizations/{id}/audit`). A project
+  moved in from another client shows only what happened since it arrived.
 - **A gateway share per environment.** The console's environment page shows each
   environment's guaranteed share. Installation operators raise or lower it and
   see the installation's allocation; a client organization sees only its own

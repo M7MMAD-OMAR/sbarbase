@@ -45,6 +45,9 @@ All routes need `Authorization: Bearer <management access token>`. The actor com
 | DELETE | `/management/v1/environments/{id}/keys/{keyId}` | owner, admin | `200 {revoked: true}`, or `404` if not an active key of this environment |
 | GET | `/management/v1/environments/{id}/mail` | member | Non-secret mail state of the environment; no credential field |
 | GET | `/management/v1/notifications` | owner or admin of any client | Undelivered count and recent operator events of the caller's own clients only. Events that belong to no client (installation start, worker restarts) go to owners and admins of the client created at bootstrap |
+| GET | `/management/v1/organizations/{id}/audit` | owner, admin | What happened in that client, newest first (up to 100): time, actor, action, subject name and a short detail. A project moved in from another client shows only what happened since it arrived |
+| GET | `/management/v1/environments/{id}/share` | member | The environment's guaranteed gateway share, the default and the ceiling; installation operators also get `total` and `allocated` |
+| PUT | `/management/v1/environments/{id}/share` | installation operator | Body `{"share": n}`, 1 to 24. `409` when the shares of all ready environments would exceed 32. Applies at the next request |
 
 Request bodies accept only `name`, at most 4 KiB, read within five seconds. Key and connection routes refuse any body. Responses are not cacheable. There are no routes for changing members or transferring projects; those stay internal until invitations and revocation of a moved environment's keys exist.
 
@@ -71,7 +74,7 @@ Request bodies accept only `name`, at most 4 KiB, read within five seconds. Key 
 | `404` | Unknown environment, route or unconfigured service |
 | `408` | Request cancelled by the client |
 | `413` | Body over 1 MiB |
-| `429` | This environment has too many requests in flight; retry later |
+| `429` | This environment is at its share and cannot borrow more right now, or at its ceiling; retry later |
 | `503` | Environment in maintenance, server-wide request limit reached, or routing unavailable; `retry-after: 1` where retrying helps |
 | `504` | Upstream deadline exceeded |
 

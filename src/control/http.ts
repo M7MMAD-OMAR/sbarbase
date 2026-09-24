@@ -113,6 +113,17 @@ export function managementHandler(catalog:Catalog,identify:ManagementIdentity,ma
         return reply(500,{message:'Management operation failed'});
       }
     }
+    const audit=path.match(/^\/management\/v1\/organizations\/([a-f0-9-]{36})\/audit$/);
+    if(audit) {
+      if(request.method!=='GET')return reply(405,{message:'Method not allowed'});
+      const actor=await authenticate(identify,request);
+      if(actor instanceof Response)return actor;
+      try {return reply(200,{data:catalog.auditEvents(actor,audit[1]!)});}
+      catch(error) {
+        if(error instanceof Error&&error.message==='Forbidden')return reply(403,{message:'Forbidden'});
+        return reply(500,{message:'Management operation failed'});
+      }
+    }
     const retry=path.match(/^\/management\/v1\/environments\/([a-f0-9-]{36})\/retry$/);
     if(retry) {
       if(request.method!=='POST')return reply(405,{message:'Method not allowed'});
