@@ -98,6 +98,22 @@ class LifecycleTests(unittest.TestCase):
         self.assertEqual(self.statements, [])
 
 
+class ReadinessTests(unittest.TestCase):
+    def test_postgres_meta_counts_as_ready_on_any_reply_and_studio_only_on_200(self):
+        import urllib.error
+        refusal = urllib.error.HTTPError('http://meta:8080/', 404, 'Not Found', {}, None)
+        with patch.object(studio.urllib.request, 'urlopen', side_effect=[OSError('refused'), refusal]), patch.object(studio.time, 'sleep'):
+            studio.wait_ready('http://meta:8080/', any_answer=True, what='postgres-meta')
+        with patch.object(studio.urllib.request, 'urlopen', side_effect=refusal), patch.object(studio.time, 'sleep'), \
+             patch.object(studio.time, 'monotonic', side_effect=[0, 0, 1000]):
+            with self.assertRaisesRegex(studio.StudioError, 'Studio did not become ready'):
+                studio.wait_ready('http://studio:3000/api/platform/profile')
+
+    def test_studio_is_recorded_running_only_after_postgres_meta_answers(self):
+        self.assertLess(Path(studio.__file__).read_text().index("what='postgres-meta'"),
+                        Path(studio.__file__).read_text().index("/api/platform/profile')"))
+
+
 class ScheduleTests(unittest.TestCase):
     def test_the_supervisor_starts_stops_and_never_loops_on_a_failure(self):
         import dev

@@ -31,6 +31,7 @@ import sqlite3
 from contextlib import closing
 import sys
 import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -183,17 +184,22 @@ def launch(name, tier, env, image):
     return address
 
 
-def wait_ready(url, timeout=120):
+def wait_ready(url, timeout=120, any_answer=False, what='Studio'):
+    """Waits for a 200, or with any_answer for any HTTP reply: postgres-meta answers its root
+    without a database connection, so a reply means it listens."""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         try:
             with urllib.request.urlopen(url, timeout=5) as response:
-                if response.status == 200:
+                if response.status == 200 or any_answer:
                     return
+        except urllib.error.HTTPError:
+            if any_answer:
+                return
         except Exception:
             pass
         time.sleep(2)
-    raise StudioError('Studio did not become ready')
+    raise StudioError(f'{what} did not become ready')
 
 
 def display_names(e):
@@ -247,6 +253,7 @@ def up(e):
             'SUPABASE_PUBLIC_URL': 'http://localhost', 'SUPABASE_ANON_KEY': anon, 'SUPABASE_SERVICE_KEY': service,
             'AUTH_JWT_SECRET': values['jwt'], 'ENABLED_FEATURES_LOGS_ALL': 'false', 'NEXT_TELEMETRY_DISABLED': '1'},
             image['studio'])
+        wait_ready(f'http://{meta_address}:8080/', any_answer=True, what='postgres-meta')
         wait_ready(f'http://{studio_address}:3000/api/platform/profile')
     except BaseException:
         remove(studio)
