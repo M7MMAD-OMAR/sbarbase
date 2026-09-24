@@ -11,7 +11,7 @@ Every member of the client sees **Usage** on the environment's page:
 - **Requests** through the API in the last hour, and how many were client errors (4xx) or server errors (5xx).
 - **Response time**, the median and the 95th percentile, measured at the gateway.
 - A chart of requests per minute, with errors in red, and the count per service (Auth, REST, Storage, Realtime).
-- **Memory and processor** use of the environment's own Auth, REST and Realtime services right now.
+- **Memory and processor** use of the environment's own Auth, REST, Realtime and Edge Functions services right now.
 
 The gateway counts requests in memory. A restart of Sbarbase starts the counts again, and nothing older than an hour is kept.
 
@@ -20,7 +20,7 @@ The gateway counts requests in memory. A restart of Sbarbase starts the counts a
 Owners and admins also see **Logs**. Choose a source:
 
 - **Requests:** the last 500 requests through the API: time, method, service, path, status and time taken. The query string is never kept, so filters, tokens and keys in it are never shown.
-- **Auth, REST, Storage, Realtime:** the last 200 lines the original service wrote, as it wrote them. Storage is shared by every environment, so only lines naming this environment are shown.
+- **Auth, REST, Storage, Realtime, Edge Functions:** the last 200 lines the original service wrote, as it wrote them. Storage is shared by every environment, so only lines naming this environment are shown.
 
 **Errors only** keeps failed requests, or lines that look like errors or warnings.
 

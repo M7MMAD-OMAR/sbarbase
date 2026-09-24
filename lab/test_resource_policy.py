@@ -17,6 +17,7 @@ DESIGN_ROWS = {
     'system.management-auth': ('system', 1024, 500, .25, '256m', 128),
     'production': ('production', 512, 400, .25, '256m', 128),
     'production.realtime': ('production', 512, 400, .25, '320m', 128),
+    'production.functions': ('production', 512, 400, .5, '384m', 256),
     'experimental': ('experimental', 128, 100, .25, '256m', 128),
     'operator.studio': ('operator', 1024, 500, .5, '512m', 128),
     'operator.meta': ('operator', 1024, 500, .25, '256m', 128),

@@ -1,0 +1,7 @@
+{
+  "tag": "public.ecr.aws/supabase/edge-runtime:v1.77.0",
+  "id": "sha256:5f555406dc0705d775323c58e27e856cca7b5b8d0ab726cc6a30b11fcfc7c6b3",
+  "digests": [
+    "public.ecr.aws/supabase/edge-runtime@sha256:5f555406dc0705d775323c58e27e856cca7b5b8d0ab726cc6a30b11fcfc7c6b3"
+  ]
+}

@@ -90,6 +90,7 @@ On a clean GitHub runner with only Docker, CI runs the Docker install on every c
 | Supabase Studio for one environment: started on demand, entered with the console ticket, table list, SQL, users and buckets through it, refused without the session or with another environment's session, stopped ([Studio guide](../guides/studio.md)) | [docker-studio-checks.json](../evidence/docker-studio-checks.json) | 22 |
 | Sign-in settings: site URL, redirects and a GitHub provider saved and applied by recreating Auth, a keyless OAuth start and email link, sign-up after the recreate, the provider removed ([sign-in](../guides/sign-in.md)) | [docker-sign-in-checks.json](../evidence/docker-sign-in-checks.json) | 15 |
 | Realtime for one environment: turned on and started by the supervisor, broadcast, presence and a database change between two supabase-js clients through the gateway, the broadcast REST API, a wrong key refused, turned off ([Realtime](../guides/realtime.md)) | [docker-realtime-checks.json](../evidence/docker-realtime-checks.json) | 19 |
+| Edge Functions for one environment: a Supabase functions folder deployed with one command, called with supabase-js, a function using supabase-js from npm with the service role on its own Auth, REST and Storage, a keyless webhook, a secret, a redeploy, a removal, turned off ([Edge Functions](../guides/edge-functions.md)) | [docker-functions-checks.json](../evidence/docker-functions-checks.json) | 24 |
 | Logs and metrics for one environment: requests through the gateway counted with errors, response times and service memory use, the request log and the Auth, REST and Storage logs read through the management API, no key or token in any answer ([logs and metrics](../guides/logs-and-metrics.md)) | [docker-observe-checks.json](../evidence/docker-observe-checks.json) | 20 |
 | Uploads: a 20 MiB file through the gateway and back byte for byte, a file just under the 50 MiB limit accepted and one just over it refused, then the same after a new `SBARBASE_UPLOAD_LIMIT_MB` recreated Storage | [docker-upload-checks.json](../evidence/docker-upload-checks.json) | 20 |
 | Upgrade to a newer PostgREST with `lab/upgrade.py`, then a broken version that the supervisor moves back from by itself, with users, identities, buckets and files unchanged ([upgrades](../guides/upgrades.md)) | [docker-upgrade-checks.json](../evidence/docker-upgrade-checks.json) | 10 |
@@ -127,7 +128,7 @@ A start needs its containers' memory limits plus a 2560 MiB reserve: 1792 MiB of
 ## What does not exist yet
 
 - A rehearsal on a real server. The empty-server install passed in a local VM only.
-- Edge Functions, the connection pooler and cron.
+- The connection pooler and cron. `SUPABASE_DB_URL` inside Edge Functions.
 - Automatic copies of the daily backups to another machine (copy them yourself, as the backup guide shows), and point-in-time recovery.
 - Importing a project from Supabase Cloud or a self-hosted stack beyond the read-only inspection.
 - Automatic recovery of later-stage provisioning failures; they block until an operator reconciles them.

@@ -98,7 +98,7 @@ import {createClient} from '@supabase/supabase-js';
 const supabase = createClient('https://console.example.com/<runtime>', '<publishable key>');
 ```
 
-Auth, REST and Storage work through that one address, from a server or from a browser page on any domain. Realtime is turned on per environment ([Realtime](realtime.md)) and OAuth providers are set per environment ([sign-in](sign-in.md)); Edge Functions are not routed yet ([API reference](../reference/api.md)).
+Auth, REST and Storage work through that one address, from a server or from a browser page on any domain. Realtime is turned on per environment ([Realtime](realtime.md)) and OAuth providers are set per environment ([sign-in](sign-in.md)); Edge Functions deploy per environment from a Supabase functions folder ([Edge Functions](edge-functions.md)).
 
 For the public HTTPS address, put the reference TLS proxy (or nginx or Caddy) in front of `127.0.0.1:8787` with a real certificate, as the [server deployment runbook](server-deployment.md) describes. Open only SSH, 80 and 443 in the firewall.
 

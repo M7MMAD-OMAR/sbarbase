@@ -25,7 +25,7 @@
 
 يرى محرر SQL كل الصفوف، ومنها الصفوف التي يخفيها أمان الصفوف، كما يفعل Studio على Supabase. لا يستطيع تغيير مخططات Auth وStorage، ولا إنشاء أدوار، ولا الوصول إلى قاعدة بيانات بيئة أخرى.
 
-صفحات السجلات وRealtime وEdge Functions، وغيرها من الصفحات التي تحتاج خدمات لا يشغّلها صباربيز بعد، فارغة أو مخفية.
+صفحات السجلات وRealtime وEdge Functions في Studio تنتظر خدمات منصة Supabase نفسها، فتبقى فارغة أو مخفية. استخدم لوحة الإدارة لها: [السجلات والمقاييس](logs-and-metrics.ar.md) و[Realtime](realtime.ar.md) و[Edge Functions](edge-functions.ar.md).
 
 ## كيف يبقى آمنًا
 

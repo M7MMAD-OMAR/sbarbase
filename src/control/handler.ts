@@ -7,19 +7,22 @@ import {studioHandler} from './studio';
 import {signInHandler} from './sign-in';
 import {realtimeHandler} from './realtime';
 import {observeHandler,type ContainerReader} from './observe';
+import {functionsHandler} from './functions';
 import {RequestLog} from '../gateway/observe';
 
 export function controlHandler(catalog:Catalog,keys:KeyStore,identity:ManagementIdentity,services?:ServiceDiscovery,
  studioKey?:()=>Buffer,requests=new RequestLog(),containers?:ContainerReader) {
  const metadata=managementHandler(catalog,identity),credentials=keyHandler(catalog,keys,identity,services);
  const studio=studioKey?studioHandler(catalog,identity,studioKey):undefined,signIn=signInHandler(catalog,identity),
-  realtime=realtimeHandler(catalog,identity),observe=observeHandler(catalog,identity,requests,containers);
+  realtime=realtimeHandler(catalog,identity),observe=observeHandler(catalog,identity,requests,containers),
+  functions=functionsHandler(catalog,identity);
  return (request:Request)=>{
   const path=new URL(request.url).pathname;
   if(studio&&/\/environments\/[^/]+\/studio(\/|$)/.test(path))return studio(request);
   if(/\/environments\/[^/]+\/sign-in$/.test(path))return signIn(request);
   if(/\/environments\/[^/]+\/realtime$/.test(path))return realtime(request);
   if(/\/environments\/[^/]+\/(metrics|logs)$/.test(path))return observe(request);
+  if(/\/environments\/[^/]+\/(functions|function-secrets)(\/|$)/.test(path))return functions(request);
   return /\/environments\/[^/]+\/(keys|connection)(\/|$)/.test(path)?credentials(request):metadata(request);
  };
 }

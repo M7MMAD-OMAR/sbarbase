@@ -29,7 +29,7 @@ export function application(catalog:Catalog,keys:KeyStore,realm:ManagementRealm,
   if(routing.maintenance)throw new Error('Runtime under maintenance');
   const route=routeWithPlacement(resolve(runtime),routing);
   if(!route||!route.enabled)throw new Error('Runtime routing unavailable');
-  return [...(route.storage?['auth','rest','storage'] as const:['auth','rest'] as const),...(route.realtime?['realtime'] as const:[])];
+  return [...(route.storage?['auth','rest','storage'] as const:['auth','rest'] as const),...(route.realtime?['realtime'] as const:[]),...(route.functions?['functions'] as const:[])];
  },studioKey,requests,containers);
  // Each environment's answers are counted for its logs and metrics (src/gateway/observe.ts).
  const gateway=observedGateway(managedGateway(catalog,keys,resolve,transport),requests,runtime=>{

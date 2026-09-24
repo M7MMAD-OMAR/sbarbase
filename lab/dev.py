@@ -103,8 +103,10 @@ class Supervisor:
         # One sign-in apply at a time, and a pause after one that found the runtime busy.
         self.sign_in = None
         self.sign_in_after = 0.0
-        self.realtime = None
-        self.realtime_after = 0.0
+        # Realtime and Edge Functions: one change at a time for each, and a pause after one that
+        # found the runtime busy.
+        self.toggles = {'realtime': None, 'functions': None}
+        self.toggles_after = {'realtime': 0.0, 'functions': 0.0}
         self.backup_hour = backup_hour()
         self.backup_keep = backup_keep()
         self.restarts = collections.deque()
@@ -236,32 +238,34 @@ class Supervisor:
         if pending:
             self.sign_in = self.spawn(['/usr/bin/python3', 'lab/auth_settings.py', 'apply', pending[0]])
 
-    def realtime_requests(self):
-        """Runtimes whose Realtime should be turned on or off, oldest first."""
+    def toggle_requests(self, service):
+        """Runtimes whose Realtime or Edge Functions should be turned on or off, oldest first."""
         path = STATE/'control.sqlite'
         if not path.exists():
             return []
+        table = {'realtime': 'realtime_settings', 'functions': 'functions_settings'}[service]
         try:
             with closing(sqlite3.connect(f'file:{path}?mode=ro', uri=True, timeout=2)) as database, database:
-                return [row[0] for row in database.execute("SELECT runtime FROM realtime_settings WHERE state='pending' ORDER BY updated_at")]
+                return [row[0] for row in database.execute(f"SELECT runtime FROM {table} WHERE state='pending' ORDER BY updated_at")]
         except sqlite3.Error:
             return []
 
-    def schedule_realtime(self):
-        """Turn an environment's Realtime on or off (lab/realtime.py), one environment at a time."""
-        if self.realtime is not None:
-            status = child_status(self.realtime)
-            if status is None:
-                return
-            terminate_group(self.realtime, grace=0)
-            self.realtime = None
-            if status == 75:
-                self.realtime_after = time.monotonic() + 5
-        if time.monotonic() < self.realtime_after:
-            return
-        pending = self.realtime_requests()
-        if pending:
-            self.realtime = self.spawn(['/usr/bin/python3', 'lab/realtime.py', 'apply', pending[0]])
+    def schedule_toggles(self):
+        """Turn an environment's Realtime or Edge Functions on or off (lab/realtime.py), one at a time for each."""
+        for service, process in self.toggles.items():
+            if process is not None:
+                status = child_status(process)
+                if status is None:
+                    continue
+                terminate_group(process, grace=0)
+                self.toggles[service] = None
+                if status == 75:
+                    self.toggles_after[service] = time.monotonic() + 5
+            if time.monotonic() < self.toggles_after[service]:
+                continue
+            pending = self.toggle_requests(service)
+            if pending:
+                self.toggles[service] = self.spawn(['/usr/bin/python3', 'lab/realtime.py', 'apply', pending[0], '--service', service])
 
     def reset_studios(self):
         """No Studio outlives a restart: browser sessions are gone and the login must close."""
@@ -290,7 +294,7 @@ class Supervisor:
                 self.schedule_backup()
                 self.schedule_studios()
                 self.schedule_sign_in()
-                self.schedule_realtime()
+                self.schedule_toggles()
         finally:
             if self.backup:
                 terminate_group(self.backup)
@@ -298,8 +302,9 @@ class Supervisor:
                 terminate_group(process)
             if self.sign_in:
                 terminate_group(self.sign_in)
-            if self.realtime:
-                terminate_group(self.realtime)
+            for process in self.toggles.values():
+                if process:
+                    terminate_group(process)
             # Stop new HTTP mutations first, then drain the active worker effect.
             if self.server:
                 terminate_group(self.server)

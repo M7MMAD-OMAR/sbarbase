@@ -43,8 +43,13 @@ All routes need `Authorization: Bearer <management access token>`. The actor com
 | GET | `/management/v1/environments/{id}/keys` | owner, admin | Key metadata only, never key material |
 | POST | `/management/v1/environments/{id}/keys` | owner, admin | No body. `201` with a new publishable key, shown once |
 | DELETE | `/management/v1/environments/{id}/keys/{keyId}` | owner, admin | `200 {revoked: true}`, or `404` if not an active key of this environment |
-| GET | `/management/v1/environments/{id}/metrics` | member, when ready | Last hour at the gateway: `window` (`requests`, `clientErrors`, `serverErrors`, `p50` and `p95` in ms, `services` counts), `perMinute` (60 rows), `since`, and `services` (memory and processor use of Auth, REST and Realtime). In memory; empty after a restart ([logs and metrics](../guides/logs-and-metrics.md)) |
-| GET | `/management/v1/environments/{id}/logs?source=requests\|auth\|rest\|storage\|realtime&lines=1-1000&errors=1` | owner, admin, when ready | `requests`: the last gateway requests, newest first, without query strings. Other sources: `lines`, the service's last lines, oldest first, with keys, tokens and passwords replaced by `[redacted]`; Storage lines only when they name this environment. `503` when Docker cannot be reached |
+| GET | `/management/v1/environments/{id}/metrics` | member, when ready | Last hour at the gateway: `window` (`requests`, `clientErrors`, `serverErrors`, `p50` and `p95` in ms, `services` counts), `perMinute` (60 rows), `since`, and `services` (memory and processor use of Auth, REST, Realtime and Edge Functions). In memory; empty after a restart ([logs and metrics](../guides/logs-and-metrics.md)) |
+| GET | `/management/v1/environments/{id}/logs?source=requests\|auth\|rest\|storage\|realtime\|functions&lines=1-1000&errors=1` | owner, admin, when ready | `requests`: the last gateway requests, newest first, without query strings. Other sources: `lines`, the service's last lines, oldest first, with keys, tokens and passwords replaced by `[redacted]`; Storage lines only when they name this environment. `503` when Docker cannot be reached |
+| GET | `/management/v1/environments/{id}/functions` | owner, admin, when ready | Edge Functions `state` and `desired` (as for Realtime), the deployed `functions` with `verify_jwt`, `updated_at`, `size` and `path`, and the names of the `secrets` (never their values) |
+| PUT | `/management/v1/environments/{id}/functions` | owner, admin, when ready | `{"enabled": true\|false}`. `202`; the supervisor starts or stops the environment's runtime |
+| PUT | `/management/v1/environments/{id}/functions/{name}` | owner, admin, when ready | Deploy: `{"files": {"index.ts": "..."}, "shared"?: {...}, "verify_jwt"?: bool}`, text files at relative paths, at most 500 files and 10 MiB. `201`; the first deploy turns Edge Functions on |
+| DELETE | `/management/v1/environments/{id}/functions/{name}` | owner, admin, when ready | Removes the function; `404` if there is none |
+| PUT | `/management/v1/environments/{id}/function-secrets` | owner, admin, when ready | `{"secrets": {"NAME": "value" \| null}}`; `null` removes. Names are `A-Z`, digits and `_`, not starting `SUPABASE_` or `SB_`. Answers the names only |
 | GET | `/management/v1/environments/{id}/mail` | member | Non-secret mail state of the environment; no credential field |
 | GET | `/management/v1/notifications` | owner or admin of any client | Undelivered count and recent operator events of the caller's own clients only. Events that belong to no client (installation start, worker restarts) go to owners and admins of the client created at bootstrap |
 
@@ -77,7 +82,7 @@ Request bodies accept only `name`, at most 4 KiB, read within five seconds. Key 
 | `503` | Environment in maintenance, server-wide request limit reached, or routing unavailable; `retry-after: 1` where retrying helps |
 | `504` | Upstream deadline exceeded |
 
-Admission limits are per gateway process and have no queue. Edge Functions are not routed yet.
+Admission limits are per gateway process and have no queue.
 
 ## Realtime
 
@@ -89,3 +94,13 @@ When an environment has Realtime turned on ([Realtime](../guides/realtime.md)):
 | `POST /{runtime}/realtime/v1/api/broadcast` | Broadcast from a server, with the `apikey` header |
 
 With Realtime off, the socket answers `404`. A wrong or revoked key answers `401`. Every other Realtime path answers `404`.
+
+## Edge Functions
+
+When an environment has functions deployed ([Edge Functions](../guides/edge-functions.md)):
+
+| Route | Meaning |
+|---|---|
+| `ANY /{runtime}/functions/v1/{name}[/...]` | Runs the function. With an `apikey`, the key is checked as for every service; without one, only a function deployed with `verify_jwt` off runs, and the caller's own headers reach it |
+
+A name is letters, digits, `-` and `_`, at most 64, starting with a letter or digit; anything else, an unknown function or Edge Functions turned off answers `404`. A function that checks JWTs answers `401` to a missing or invalid token. The deadline is 150 seconds; bodies stream up to the upload limit.

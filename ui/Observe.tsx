@@ -6,7 +6,7 @@ type Minute={minute:number;requests:number;clientErrors:number;serverErrors:numb
 type Metrics={since:number|null;window:{minutes:number;requests:number;clientErrors:number;serverErrors:number;p50:number|null;p95:number|null;
  services:Record<string,number>};perMinute:Minute[];services:{service:string;cpuPercent:number|null;memoryBytes:number|null;memoryLimitBytes:number|null}[]};
 type RequestRow={at:number;method:string;service:string;path:string;status:number;ms:number};
-const SOURCES=[['requests','Requests'],['auth','Auth'],['rest','REST'],['storage','Storage'],['realtime','Realtime']] as const;
+const SOURCES=[['requests','Requests'],['auth','Auth'],['rest','REST'],['storage','Storage'],['realtime','Realtime'],['functions','Edge Functions']] as const;
 
 function mebibytes(value:number|null){return value===null?'unknown':`${Math.round(value/1024/1024)} MiB`;}
 function percent(part:number,total:number){return total?`${Math.round(part/total*1000)/10}%`:'0%';}

@@ -15,6 +15,15 @@ ready.
 
 ### Added
 
+- **Edge Functions per environment.** Deploy a Supabase project's
+  `supabase/functions` folder with one command (`lab/functions-deploy.ts`),
+  `_shared` and `verify_jwt` in `config.toml` included, or write a function in
+  the console. Each environment that deploys one gets its own pinned upstream
+  edge-runtime; functions are called through the gateway with
+  `supabase.functions.invoke()`, get `SUPABASE_URL` and the anon and service
+  role keys for their own environment, read secrets set in the console, reach
+  the internet for `npm:` imports, and can take keyless webhooks when
+  `verify_jwt` is off.
 - **Uploads up to 50 MiB, or the limit you set.** File uploads to Storage are
   passed through the gateway and the TLS proxy as they arrive instead of being
   capped at 1 MiB. `SBARBASE_UPLOAD_LIMIT_MB` (50 by default, as on Supabase)
