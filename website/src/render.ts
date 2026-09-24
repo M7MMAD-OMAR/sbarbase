@@ -201,7 +201,7 @@ ${defs}
 <div class="actions"><a class="button primary" href="#install">${icon('down')}${c.ctaInstall}</a><a class="button" href="${links.docs}" rel="noopener noreferrer">${icon('book')}${c.ctaDocs}</a></div>
 </div>
 <figure class="video">
-<div class="video-frame"><video id="explainer" src="/media/explainer.mp4" poster="/media/explainer-poster.jpg" muted playsinline controls preload="metadata" aria-label="${esc(c.videoLabel)}"><track kind="captions" src="/media/explainer.ar.vtt" srclang="ar" label="العربية"${lang==='ar'?' default':''}><track kind="captions" src="/media/explainer.en.vtt" srclang="en" label="English"${lang==='en'?' default':''}></video></div>
+<div class="video-frame"><video id="explainer" src="/media/explainer.${lang}.mp4" poster="/media/explainer-poster.jpg" playsinline controls preload="metadata" aria-label="${esc(c.videoLabel)}"><track kind="captions" src="/media/explainer.${lang}.vtt" srclang="${lang}" label="${lang==='ar'?'العربية':'English'}"></video></div>
 <figcaption>${esc(c.videoCaption)}</figcaption>
 </figure>
 </div></section>

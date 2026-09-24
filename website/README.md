@@ -27,10 +27,10 @@ A clean technical page in four parts: a hero (headline, one sentence, a single "
 
 - `src/content.ts`: the short Arabic and English copy, the links, and the five install commands exactly as `docs/guides/quickstart.md` runs them.
 - `src/render.ts`: the prerendered pages and both diagrams as inline SVG. The hierarchy figure and the request figure are written left to right and mirrored for Arabic, so they read in the reader's direction.
-- `src/app.js`: day and night toggle (remembered per reader), the explainer video playing while on screen (never under reduced motion, never after the reader pauses it), the 12 second request walkthrough (play, pause, seek, five steps), and a copy button per install step.
+- `src/app.js`: day and night toggle (remembered per reader), the 12 second request walkthrough (play, pause, seek, five steps), and a copy button per install step.
 - `src/style.css`: tokens for both themes, the diagram ink and card colours, and all motion behind `prefers-reduced-motion: no-preference`.
 - `public/assets`: self-hosted fonts and their licences. The UI uses Noto Sans Arabic and Manrope; `hand.woff2` is Marhey (SIL OFL 1.1, `OFL-Marhey.txt`), used only for text inside the diagrams.
-- `public/media`: the explainer film (`explainer.mp4`, 41.5 s, 1920x1080, no sound), its poster and captions (`explainer.ar.vtt`, `explainer.en.vtt`). The film is drawn in code: its source is `film/sbarbase-explainer.html` at the repository root, rendered with `bun render.mjs sbarbase-explainer.html` there.
+- `public/media`: the narrated explainer film, one file per language (`explainer.ar.mp4`, `explainer.en.mp4`, 59 s, 1920x1080), its poster and captions timed to the voice (`explainer.ar.vtt`, `explainer.en.vtt`, off by default). The film is drawn in code in `film/` at the repository root: `bun render.mjs sbarbase-explainer.html` renders the picture and `bun build-voice.ts` lays the recorded narration (`film/voice/`, texts in `film/narration.json`) on it and writes these files.
 
 Everything is readable without JavaScript. The walkthrough is an illustration, not live traffic; it pauses offscreen and in hidden tabs.
 

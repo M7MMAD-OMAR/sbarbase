@@ -1,28 +1,28 @@
 WEBVTT
 
-00:00.300 --> 00:07.400
+00:00.300 --> 00:07.106
 Every app needs its own full Supabase stack. One server carries them all, and it bends.
 
-00:07.600 --> 00:12.000
+00:07.800 --> 00:12.853
 Sbarbase makes the server one building. Postgres runs once, in the basement.
 
-00:12.000 --> 00:17.000
+00:14.600 --> 00:23.369
 Each client is a floor, each project an apartment, each environment a window with its own lock and its own database.
 
-00:17.100 --> 00:21.000
+00:24.100 --> 00:30.349
 Your app speaks Supabase as usual. The gateway sends each request to its own environment.
 
-00:21.000 --> 00:24.900
+00:30.500 --> 00:35.042
 A request without the right key never gets in.
 
-00:25.100 --> 00:29.500
+00:35.800 --> 00:39.576
 Every night, each environment is backed up, encrypted, off the server.
 
-00:29.500 --> 00:32.900
+00:40.800 --> 00:46.248
 If one breaks, only it is restored. The others never notice.
 
-00:33.100 --> 00:37.500
+00:48.500 --> 00:51.301
 One command installs it all.
 
-00:37.500 --> 00:41.500
+00:53.300 --> 00:58.957
 Sbarbase. Many Supabase projects, one server.

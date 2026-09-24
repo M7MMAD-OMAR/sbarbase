@@ -1,6 +1,7 @@
 // Interactions for the prerendered page. Everything is readable without this
-// script; it adds the theme toggle, the explainer video's scroll play, the request
-// walkthrough and the copy buttons. Motion is skipped under reduced motion.
+// script; it adds the theme toggle, the request
+// walkthrough and the copy buttons. The explainer starts only when the reader
+// presses play, because it speaks. Motion is skipped under reduced motion.
 const $=(s,root=document)=>root.querySelector(s);
 const $$=(s,root=document)=>[...root.querySelectorAll(s)];
 const data=JSON.parse($('#page-data')?.textContent||'{}');
@@ -25,19 +26,6 @@ const seen=new IntersectionObserver(entries=>{for(const e of entries){
  const link=navLinks.get(e.target.id);if(link&&e.isIntersecting)navLinks.forEach(a=>a.classList.toggle('current',a===link));
 }},{rootMargin:'-35% 0px -55% 0px'});
 $$('main section[id]').forEach(s=>seen.observe(s));
-
-// The explainer plays while it is on screen and pauses when it leaves. Never
-// under reduced motion, and never again once the reader pauses it themselves.
-const video=$('#explainer');
-if(video&&!reduced){
- let userPaused=false,auto=false;
- video.addEventListener('pause',()=>{if(!auto&&!document.hidden)userPaused=true;auto=false;});
- video.addEventListener('play',()=>{userPaused=false;});
- new IntersectionObserver(([e])=>{
-  if(e.isIntersecting){if(!userPaused&&video.paused)video.play().catch(()=>{});}
-  else if(!video.paused){auto=true;video.pause();}
- },{threshold:.5}).observe(video);
-}
 
 // The request walkthrough: twelve seconds, five steps, a packet along the wires.
 const walk=$('.walk');
