@@ -1,0 +1,16 @@
+{
+  "studio": {
+    "tag": "public.ecr.aws/supabase/studio:2026.09.07-sha-7996410",
+    "id": "sha256:94a2a9d2906e8b4109e55159a62e241c3044709a492913ea8edd34b14973d288",
+    "digests": [
+      "public.ecr.aws/supabase/studio@sha256:94a2a9d2906e8b4109e55159a62e241c3044709a492913ea8edd34b14973d288"
+    ]
+  },
+  "meta": {
+    "tag": "public.ecr.aws/supabase/postgres-meta:v0.99.0",
+    "id": "sha256:9a079ac1c94d89629262822a4bd1902d5b1be4adb464e5a0a8fd078aaed72158",
+    "digests": [
+      "public.ecr.aws/supabase/postgres-meta@sha256:9a079ac1c94d89629262822a4bd1902d5b1be4adb464e5a0a8fd078aaed72158"
+    ]
+  }
+}
