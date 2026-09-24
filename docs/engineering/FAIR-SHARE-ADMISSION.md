@@ -61,7 +61,7 @@ query inside the one PostgreSQL engine still shares that engine's CPU, memory an
 
 Evidence: [unit tests](../../tests/concurrency.test.ts) and a
 [real loopback HTTP probe](../evidence/fair-share-checks.json) (`bun lab/fair-share-check.ts`,
-six checks, no containers). Not measured against Supabase services or under sustained load.
+seven checks, no containers). Not measured against Supabase services or under sustained load.
 
 ## The saturation notice (implemented)
 
@@ -84,6 +84,18 @@ The message says what to do: raise this environment's share, move it to its own 
 engine, or grow the server. The platform does not do any of these by itself, because each one
 takes room from someone else and is the operator's decision.
 
+## Per environment shares (implemented)
+
+The share is no longer one number for all. `gateway_shares` in the catalog holds a share per
+ready environment (default 8). The console's environment page shows it with the installation's
+allocation, and owners and admins change it (`GET`/`PUT /management/v1/environments/{id}/share`,
+`src/control/share.ts`). The gate asks the catalog on each request (`ConcurrencyGate.useShares`),
+so a change applies to the next request without a restart; a lookup that fails falls back to the
+default. A raised share is refused when the shares of all ready environments would exceed the
+gateway's 32, so every guarantee can hold at once. Creating an environment later is not blocked by
+this; the page shows the allocation, and the operator lowers a share if it has run over. The
+ceiling stays 24, or the share itself when that is higher. Every change is an audit event.
+
 ## Telegram channel (implemented)
 
 A third channel beside email and webhook. `lab/notify.py` sends the same text as the email
@@ -100,5 +112,4 @@ The same redaction gate runs on the rendered text before any byte leaves.
   hard `--cpus` becomes the ceiling and can rise above today's 0.25 once measured.
 - **Database connections:** a guaranteed connection count per environment plus a shared
   borrowable pool, which needs a pooler; the connection pooler is itself unbuilt.
-- **Per environment shares in the catalog,** so the operator can raise one environment's
-  guarantee from the console when a saturation notice arrives.
+

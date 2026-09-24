@@ -43,7 +43,7 @@
 | Storage مشترك مع تجربة لاستعادة قاعدة البيانات والملفات | [storage-recovery-checks.json](../evidence/storage-recovery-checks.json) | 122 |
 | تهيئة أولية جديدة مغلقة: Auth وREST وStorage المشترك | [upstream-closed-bootstrap-checks.json](../evidence/upstream-closed-bootstrap-checks.json) | 122 |
 | تشبّع حد الاتصالات مع استمرار خدمة الجار | [connection-limit-checks.json](../evidence/connection-limit-checks.json) | 7 |
-| بيئة مزدحمة تستعير أماكن البوابة الفارغة، وتبقى الحصة كاملة لكل جارة نشطة مؤخرًا، ولا يُطلق تنبيه التشبّع إلا الرفض (HTTP محلي، وخادم خلفي مضبوط، لا Supabase) | [fair-share-checks.json](../evidence/fair-share-checks.json) | 6 |
+| بيئة مزدحمة تستعير أماكن البوابة الفارغة، وتبقى الحصة كاملة لكل جارة نشطة مؤخرًا، ولا يُطلق تنبيه التشبّع إلا الرفض (HTTP محلي، وخادم خلفي مضبوط، لا Supabase) | [fair-share-checks.json](../evidence/fair-share-checks.json) | 7 |
 | الاستجابة للضغط على حاوية مؤقتة | [pressure-response-checks.json](../evidence/pressure-response-checks.json) | 9 |
 
 ### التجهيز والأمان عند الانهيار
