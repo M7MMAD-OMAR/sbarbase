@@ -22,7 +22,7 @@ One command moves an installation to a newer Sbarbase version, and a restart sta
 
 On the restart, only Auth, REST and Storage containers whose pinned image or configuration changed are replaced. They keep no data of their own: users, rows and files stay in the database and the file volume, which are never touched. If that start fails, the supervisor moves the checkout back, exits, and the restart policy brings up the previous version with its previous images. `status` then says `rolled_back`, and the backups taken before the upgrade are there if you need them.
 
-CI runs this on a clean machine with every change: a real upgrade to a newer PostgREST, then a broken version that never starts, which Sbarbase moves back from by itself, with users, files and buckets compared before and after.
+CI runs this on a clean machine with every change: a real upgrade to a newer PostgREST, then a broken version that never starts, which Sbarbase moves back from by itself, with users, files and buckets compared before and after ([evidence](../evidence/docker-upgrade-checks.json)).
 
 ## Changing a pinned upstream version
 

@@ -78,7 +78,7 @@
 
 مراحل التفريغ والاستعادة ونسخ الملفات والتحقق لا وجود لها بعد؛ انظر [خطة الترحيل](../engineering/plans/2026-09-23-verification-and-migration-plan.md).
 
-### التثبيت عبر Docker والنسخ الاحتياطي اليومي وStudio (CI، جهاز نظيف)
+### التثبيت عبر Docker والنسخ الاحتياطي اليومي وStudio والترقيات (CI، جهاز نظيف)
 
 على جهاز GitHub نظيف ليس عليه غير Docker، يشغّل CI التثبيت عبر Docker مع كل تغيير ([التثبيت عبر Docker](../guides/docker.ar.md)). ليس خادمًا حقيقيًا: لا شبكة عامة ولا شهادة ولا إعادة تشغيل للجهاز.
 
@@ -87,6 +87,7 @@
 | البناء والتشغيل، أول مشغّل، أول مشروع عبر supabase-js، إعادة تشغيل الحاوية، إيقاف نظيف | [docker-install-checks.json](../evidence/docker-install-checks.json) | 15 |
 | نسخ بيئة واحدة وهي تعمل، تغيير الصفوف والمستخدمين والملفات، الاستعادة، المقارنة مع النسخة، حذف الحالة المحفوظة جانبًا | [docker-backup-restore.json](../evidence/docker-backup-restore.json) | 15 |
 | Supabase Studio لبيئة واحدة: يُشغَّل عند الطلب، ويُدخل إليه بتذكرة الواجهة، وتُستخدم عبره قائمة الجداول وSQL والمستخدمون والحاويات، ويُرفض دون الجلسة أو بجلسة بيئة أخرى، ثم يُوقف ([دليل Studio](../guides/studio.ar.md)) | [docker-studio-checks.json](../evidence/docker-studio-checks.json) | 22 |
+| ترقية إلى PostgREST أحدث عبر `lab/upgrade.py`، ثم إصدار معطوب يعود منه المشرف وحده، مع بقاء المستخدمين والهويات وحاويات Storage والملفات كما هي ([الترقيات](../guides/upgrades.ar.md)) | [docker-upgrade-checks.json](../evidence/docker-upgrade-checks.json) | 10 |
 
 ### خادم فارغ، بمحاكاة في آلة افتراضية محلية
 
