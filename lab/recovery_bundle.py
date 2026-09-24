@@ -2,6 +2,8 @@
 import base64
 import json
 import secrets
+import sqlite3
+from pathlib import Path
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 MAX_PAYLOAD = 32 * 1024 * 1024
@@ -27,3 +29,24 @@ def open_bundle(envelope, key):
     if len(nonce) != 12:
         raise ValueError('Invalid recovery nonce')
     return json.loads(AESGCM(key).decrypt(nonce, ciphertext, AAD))
+
+
+def catalog_ownership(catalog, runtime):
+    """Which organization, project and environment own a runtime, read from the control catalog.
+
+    Recorded in an export so a restore on another installation can re-link the environment to
+    its project instead of arriving as a bare runtime. Read-only. None when the catalog is
+    absent or does not know the runtime; the export still proceeds, and says so.
+    """
+    path = Path(catalog)
+    if not path.is_file():
+        return None
+    with sqlite3.connect('file:' + str(path) + '?mode=ro', uri=True) as database:
+        row = database.execute(
+            'SELECT o.id, o.name, p.id, p.name, e.id, e.name FROM provision_jobs j '
+            'JOIN environments e ON e.id=j.environment JOIN projects p ON p.id=e.project '
+            'JOIN organizations o ON o.id=p.organization WHERE j.runtime=?', (runtime,)).fetchone()
+    if row is None:
+        return None
+    return {'organization': {'id': row[0], 'name': row[1]}, 'project': {'id': row[2], 'name': row[3]},
+            'environment': {'id': row[4], 'name': row[5]}}

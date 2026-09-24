@@ -15,7 +15,7 @@ import durable_runtime as runtime
 import notification_producers
 import run as lab
 import source_fence
-from recovery_bundle import seal, open_bundle, MAX_PAYLOAD
+from recovery_bundle import seal, open_bundle, MAX_PAYLOAD, catalog_ownership
 
 # The catalog the operator's own installation drains. None means the default upstream
 # path; a test patches it to a private temporary catalog.
@@ -167,7 +167,7 @@ def main(cutover=False):
                 if json.loads(remaining.stdout)[0]['Config']['Labels'].get('io.sbarbase.owner')!='recovery-export':raise RuntimeError('Snapshot helper ownership changed')
                 lab.docker('rm','-f',helper_name)
         check('objects and metadata captured',len(files)>0)
-        payload={'format':2,'environment':e,'images':target.pins,'database':base64.b64encode(dump).decode(),'database_sha256':hashlib.sha256(dump).hexdigest(),'database_metadata':database,'table_snapshots':snapshots,'database_acl':acl,'roles':roles,'memberships':memberships,'settings':settings,'canonical_defaults':defaults,'credentials':target.values['environments'][e],'storage_tenant':tenant,'storage_jwks':jwks,'files':files,'scope':'Quiescent local file-backed environment. No Vault/function/external-object-store state. Source address in tenant config must be rebound on isolated target.'}
+        payload={'format':2,'environment':e,'images':target.pins,'database':base64.b64encode(dump).decode(),'database_sha256':hashlib.sha256(dump).hexdigest(),'database_metadata':database,'table_snapshots':snapshots,'database_acl':acl,'roles':roles,'memberships':memberships,'settings':settings,'canonical_defaults':defaults,'credentials':target.values['environments'][e],'storage_tenant':tenant,'storage_jwks':jwks,'files':files,'ownership':catalog_ownership(runtime.STATE/'control.sqlite',e),'scope':'Quiescent local file-backed environment. No Vault/function/external-object-store state. Source address in tenant config must be rebound on isolated target.'}
         if signed_fixture is not None:payload['signed_url_fixture']=signed_fixture
         key=secrets.token_bytes(32);envelope=seal(payload,key)
         check('authenticated bundle round trip matches',open_bundle(envelope,key)==payload)

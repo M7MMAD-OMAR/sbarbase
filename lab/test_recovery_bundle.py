@@ -2,7 +2,10 @@
 import base64
 import unittest
 from cryptography.exceptions import InvalidTag
-from recovery_bundle import seal, open_bundle
+from recovery_bundle import seal, open_bundle, catalog_ownership
+import sqlite3
+import tempfile
+from pathlib import Path
 
 class RecoveryBundleTests(unittest.TestCase):
     def test_roundtrip_and_wrong_key(self):
@@ -11,6 +14,19 @@ class RecoveryBundleTests(unittest.TestCase):
         self.assertEqual(open_bundle(envelope,b'a'*32),payload)
         self.assertNotIn('private',str(envelope))
         with self.assertRaises(InvalidTag):open_bundle(envelope,b'b'*32)
+
+    def test_ownership_names_the_hierarchy_of_a_runtime(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)/'control.sqlite'
+            with sqlite3.connect(path) as database:
+                database.executescript("""CREATE TABLE organizations(id TEXT,name TEXT);CREATE TABLE projects(id TEXT,organization TEXT,name TEXT);
+                  CREATE TABLE environments(id TEXT,project TEXT,name TEXT);CREATE TABLE provision_jobs(environment TEXT,runtime TEXT);
+                  INSERT INTO organizations VALUES ('o','Client');INSERT INTO projects VALUES ('p','o','Shop');
+                  INSERT INTO environments VALUES ('v','p','production');INSERT INTO provision_jobs VALUES ('v','e_'||printf('%024d',0));""")
+            self.assertEqual(catalog_ownership(path,'e_'+'0'*24),{'organization':{'id':'o','name':'Client'},
+                'project':{'id':'p','name':'Shop'},'environment':{'id':'v','name':'production'}})
+            self.assertIsNone(catalog_ownership(path,'e_'+'1'*24))
+            self.assertIsNone(catalog_ownership(Path(directory)/'absent.sqlite','e_'+'0'*24))
 
     def test_corruption_and_format_rejected(self):
         envelope=seal({'database':'payload'},b'a'*32)
