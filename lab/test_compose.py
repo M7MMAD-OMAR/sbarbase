@@ -32,6 +32,8 @@ class ComposeTests(unittest.TestCase):
         self.assertIn('oven/bun:1.3.14', dockerfile)
         start = (ROOT / 'deploy/container/start.sh').read_text()
         self.assertIn('exec /usr/bin/python3 lab/dev.py', start)
+        # A clean host has none of the pinned images; the supervisor does not pull them.
+        self.assertLess(start.index('install_server.py images'), start.index('lab/dev.py'))
 
 
 if __name__ == '__main__':

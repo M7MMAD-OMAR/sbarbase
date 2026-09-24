@@ -65,7 +65,8 @@ jobs:
         run: |
           for i in $(seq 1 180); do
             curl -fsS -o /dev/null http://127.0.0.1:8790/ && exit 0
-            docker compose ps --status exited | grep -q sbarbase && { docker compose logs --tail 80; exit 1; }
+            restarts=$(docker inspect -f '{{.RestartCount}}' "$(docker compose ps -aq sbarbase)")
+            [ "$restarts" = 0 ] || { echo "the control plane restarted $restarts time(s)"; docker compose logs --tail 120; exit 1; }
             sleep 5
           done
           docker compose logs --tail 80; exit 1
