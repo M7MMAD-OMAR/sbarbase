@@ -85,6 +85,7 @@
 | `.secrets/upstream/runtime.json` | بيانات الاعتماد المولّدة للخدمات التي يملكها صباربيز |
 | `.secrets/upstream/managed-keys.sqlite` | بصمات المفاتيح العامة وبياناتها الوصفية |
 | `.secrets/upstream/bootstrap.json` | سجل عملية إعداد المشغّل (بلا كلمة مرور) |
+| `.secrets/offsite.json` | إعدادات النسخ خارج الخادم، ومفتاح التخزين وعبارة المرور ([النسخ الاحتياطي والاستعادة](../guides/backup-and-restore.ar.md#نسخ-خارج-الخادم)) |
 | `.secrets/upstream/<runtime>-auth.json` | إعدادات تسجيل الدخول لبيئة، ومنها أسرار المزوّدين، تكتبها اللوحة ([تسجيل الدخول](../guides/sign-in.ar.md)) |
 
 ## إعدادات المشغّل

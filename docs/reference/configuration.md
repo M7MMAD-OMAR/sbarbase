@@ -85,6 +85,7 @@ Both are ignored by Git. Never print `.secrets/`, and never delete either to get
 | `.secrets/upstream/runtime.json` | Generated credentials of the owned runtime |
 | `.secrets/upstream/managed-keys.sqlite` | Hashed publishable key metadata |
 | `.secrets/upstream/bootstrap.json` | Operator setup journal (no password) |
+| `.secrets/offsite.json` | Off-site copy settings, the storage key and the passphrase ([backup and restore](../guides/backup-and-restore.md#copies-off-the-server)) |
 | `.secrets/upstream/<runtime>-auth.json` | An environment's sign-in settings, including provider secrets, written by the console ([sign-in](../guides/sign-in.md)) |
 
 ## Operator settings

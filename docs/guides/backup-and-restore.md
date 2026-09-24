@@ -27,13 +27,31 @@ Commands (with Docker, prefix `docker compose exec sbarbase`):
 
 **Restore** puts one environment back exactly as it was in that backup: rows, users and files written afterwards are gone. Only that environment's Auth and REST pause for the restore; every other environment and the console keep working. The state being replaced is kept aside, not deleted, and any failure during the restore puts it back automatically. When you are satisfied, `discard-previous` removes it.
 
-**Keep a copy off the server.** Backups are written to `.lab/backups/` on this server, with private permissions. A copy elsewhere protects against losing the server, for example:
+## Copies off the server
+
+Backups are written to `.lab/backups/` on this server. To survive losing the server, let Sbarbase copy each new backup, encrypted, to S3-compatible storage: Cloudflare R2 (10 GB free), Backblaze B2, AWS S3, Wasabi or your own MinIO.
+
+1. Create a bucket and an access key that can read, write, list and delete in it.
+2. Give Sbarbase the settings once. They are read from stdin, never from the command line, and kept in `.secrets/offsite.json`:
 
 ```bash
-rsync -a --delete /opt/sbarbase/.lab/backups/ backup-host:/srv/sbarbase-backups/
+python3 lab/offsite.py configure <<'JSON'
+{"endpoint": "https://<account>.r2.cloudflarestorage.com", "bucket": "my-backups", "region": "auto",
+ "access_key_id": "…", "secret_access_key": "…", "passphrase": "a long phrase only you know", "keep": 30}
+JSON
 ```
 
-Each backup contains password hashes and every stored file, so keep the copy as private as the server.
+It proves the settings by writing, reading and deleting a test object. From then on the daily backup copies each new backup by itself and keeps the newest 30 per environment in the bucket; a failed copy is reported like a failed backup.
+
+Every file is encrypted on this server before it leaves (AES-256-GCM, the key derived from your passphrase), so the storage provider never sees your data. **Keep the passphrase somewhere other than this server**: without it the copies cannot be read, by you or anyone.
+
+| Task | Command |
+|---|---|
+| Copy what is not copied yet | `python3 lab/offsite.py push` |
+| List the copies in the bucket | `python3 lab/offsite.py list` |
+| Bring a copy back to this server | `python3 lab/offsite.py fetch <environment> <backup>` |
+
+A fetched backup is checked against its manifest and then restored with `backup.py restore` as usual. An upgrade's own safety backup stays local (`backup.py create all --local-only`), so storage that cannot be reached never blocks an upgrade.
 
 CI runs the full cycle on every change: back up while serving, change rows, users and files, restore, check that everything matches the backup, and discard the set-aside state.
 

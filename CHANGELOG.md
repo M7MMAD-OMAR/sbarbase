@@ -15,6 +15,11 @@ ready.
 
 ### Added
 
+- **Encrypted off-site backup copies.** `lab/offsite.py configure` takes S3
+  settings (Cloudflare R2, Backblaze B2, AWS S3, MinIO) and a passphrase on
+  stdin; from then on each daily backup is encrypted on the server
+  (AES-256-GCM in chunks) and copied to the bucket, the newest 30 per
+  environment are kept, and `fetch` brings one back for `backup.py restore`.
 - **Direct database access per environment.** Owners and admins turn on a
   developer login and get a PostgreSQL connection string, with the password
   shown once, for `psql`, `pg_dump`, `supabase db push --db-url`, Prisma or

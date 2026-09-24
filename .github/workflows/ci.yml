@@ -80,6 +80,15 @@ jobs:
         run: docker compose exec -T sbarbase bun lab/first-project-check.ts "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-first-project.json"
       - name: Back up, change, restore, compare
         run: docker compose exec -T sbarbase python3 lab/backup-check.py --evidence "$PWD/docs/evidence/docker-backup-restore.json"
+      - name: Encrypted off-site copy to S3-compatible storage, fetched and restored
+        # A throwaway MinIO stands in for R2, B2 or S3; its credentials exist only for this run.
+        run: |
+          key=ci$(openssl rand -hex 8); secret=$(openssl rand -hex 24)
+          docker run -d --name offsite-minio -p 127.0.0.1:9100:9000 -e MINIO_ROOT_USER="$key" -e MINIO_ROOT_PASSWORD="$secret" minio/minio:latest server /data
+          for i in $(seq 1 60); do curl -fsS -o /dev/null http://127.0.0.1:9100/minio/health/live && break; sleep 1; done
+          docker compose exec -T -e OFFSITE_KEY_ID="$key" -e OFFSITE_SECRET="$secret" sbarbase python3 lab/offsite-check.py \
+            --endpoint http://127.0.0.1:9100 --bucket sbarbase-ci --evidence "$PWD/docs/evidence/docker-offsite-checks.json"
+          docker rm -f offsite-minio
       - name: Studio for the environment, behind the console login
         run: docker compose exec -T sbarbase bun lab/studio-check.ts "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-studio-checks.json"
       - name: Sign-in settings and an OAuth provider

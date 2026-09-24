@@ -19,8 +19,8 @@ REST stop; Storage and every other environment keep serving. The current databas
 and the current files are moved aside, not deleted, and any failure puts them back. After a
 successful restore they are kept until ``discard-previous``.
 
-Scope: the backup is written to this host. Copy the directory elsewhere to protect it from
-losing the host; ``docs/guides/backup-and-restore.md`` shows how.
+Scope: the backup is written to this host. With ``lab/offsite.py`` configured, each new backup
+is also copied, encrypted, to S3-compatible storage off the host; ``docs/guides/backup-and-restore.md``.
 """
 import argparse
 import datetime
@@ -343,6 +343,7 @@ def main(argv=None):
     make = sub.add_parser('create')
     make.add_argument('environment')
     make.add_argument('--keep', type=int, default=DEFAULT_KEEP)
+    make.add_argument('--local-only', action='store_true', help='do not copy the new backups off the server')
     listing = sub.add_parser('list')
     listing.add_argument('environment', nargs='?')
     back = sub.add_parser('restore')
@@ -376,6 +377,15 @@ def main(argv=None):
                     except BackupError as error:
                         failed += 1
                         print(f'backup {e} failed: {error}', file=sys.stderr)
+                # With off-site copies configured (lab/offsite.py), each new backup leaves the server too.
+                import offsite
+                if offsite.load_config() and not args.local_only:
+                    try:
+                        copied = offsite.push(targets)
+                        print(f'copied {len(copied)} backup(s) off the server')
+                    except Exception as error:
+                        failed += 1
+                        print(f'off-site copy failed: {error}', file=sys.stderr)
                 return 1 if failed else 0
             if args.command == 'restore':
                 e = resolve(args.environment)
