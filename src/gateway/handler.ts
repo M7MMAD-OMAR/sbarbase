@@ -20,11 +20,48 @@ function error(status:number, message:string) {
   return Response.json({message},{status,headers:{'cache-control':'no-store'}});
 }
 
+// Browser access works as it does on Supabase: any origin may call the API, and what a
+// call may do is decided by its API key and user token, never by the page's origin. No
+// cookie is ever read here, so no credentials mode is offered.
+const CORS_METHODS='GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS';
+const CORS_HEADERS='authorization, apikey, content-type, accept, accept-profile, content-profile, prefer, range, range-unit, '+
+  'x-client-info, x-upsert, x-supabase-api-version, cache-control, if-none-match, if-modified-since';
+const CORS_EXPOSED='content-range, content-profile, content-location, preference-applied, location, etag, x-supabase-api-version';
+const REQUESTED_HEADERS=/^[A-Za-z0-9-]+(\s*,\s*[A-Za-z0-9-]+)*$/;
+
+function corsHeaders(headers:Headers, request:Request) {
+  for(const name of [...headers.keys()])if(name.startsWith('access-control-'))headers.delete(name);
+  headers.set('access-control-allow-origin','*');
+  headers.set('access-control-expose-headers',CORS_EXPOSED);
+  if(request.method==='OPTIONS') {
+    const requested=request.headers.get('access-control-request-headers')??'';
+    headers.set('access-control-allow-methods',CORS_METHODS);
+    // A page may send its own headers too (supabase-js global headers); the gateway
+    // still forwards only the headers it knows, so reflecting them grants nothing.
+    headers.set('access-control-allow-headers',requested.length<=2048&&REQUESTED_HEADERS.test(requested)?requested:CORS_HEADERS);
+    headers.set('access-control-max-age','86400');
+  }
+  const vary=headers.get('vary');
+  if(!vary?.toLowerCase().split(/\s*,\s*/).includes('origin'))headers.set('vary',vary?vary+', Origin':'Origin');
+}
+
+/** Adds the browser access headers to every gateway answer, the upstream's and its own. */
+export function withCors(response:Response, request:Request):Response {
+  const headers=new Headers(response.headers);
+  corsHeaders(headers,request);
+  return new Response(response.body,{status:response.status,statusText:response.statusText,headers});
+}
+
 /** Auth validates user JWTs; PostgREST validates JWTs and applies RLS.
  * This boundary binds an API key to an enabled environment before proxying.
- * Storage uses a trusted tenant header; Realtime, browser CORS and OAuth remain pending.
+ * Storage uses a trusted tenant header; Realtime and OAuth remain pending.
  */
 export function createGateway(registry:RouteRegistry, transport:typeof fetch = fetch, verifyKey?:(environment:string,key:string)=>boolean, bodyReadTimeoutMs=10_000, concurrency=new ConcurrencyGate()) {
+  const handle=gatewayHandler(registry,transport,verifyKey,bodyReadTimeoutMs,concurrency);
+  return async (request:Request):Promise<Response> => withCors(await handle(request),request);
+}
+
+function gatewayHandler(registry:RouteRegistry, transport:typeof fetch, verifyKey:((environment:string,key:string)=>boolean)|undefined, bodyReadTimeoutMs:number, concurrency:ConcurrencyGate) {
   return async (request:Request):Promise<Response> => {
     const url = new URL(request.url);
     const match = url.pathname.match(/^\/([a-z][a-z0-9_]{1,30})\/(auth|rest|storage)\/v1(\/.*)?$/);
@@ -33,6 +70,8 @@ export function createGateway(registry:RouteRegistry, transport:typeof fetch = f
     if (!environment || (service !== 'auth' && service !== 'rest' && service !== 'storage')) return error(404,'Unknown route');
     const route = registry.get(environment);
     if (!route || !route.enabled) return error(404,'Unknown route');
+    // A browser asks before a cross-origin call; the answer carries no data and needs no key.
+    if (request.method === 'OPTIONS') return new Response(null,{status:204,headers:{'cache-control':'no-store'}});
     const apiKey = request.headers.get('apikey');
     const readMethod=request.method==='GET'||request.method==='HEAD';
     const signedTokens=url.searchParams.getAll('token');

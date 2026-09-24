@@ -130,7 +130,7 @@ A start needs its containers' memory limits plus a 2560 MiB reserve: 1792 MiB of
 - Adoption of any upstream release through the update policy; unattended upgrades (an operator starts each one with [lab/upgrade.py](../../lab/upgrade.py)).
 - Complete project transfer between clients, invitations, MFA and login rate limits.
 - Multi-server placement and coordination.
-- Large or resumable uploads, browser CORS and OAuth providers through the gateway.
+- Large or resumable uploads, and OAuth providers through the gateway.
 
 ## Next step
 

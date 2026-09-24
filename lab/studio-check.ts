@@ -112,9 +112,9 @@ try {
  }
  const email=`studio-${crypto.randomUUID().slice(0,8)}@example.com`;
  const user=await studio(host,'/api/platform/auth/default/users',{method:'POST',cookie,body:{email,password:crypto.randomUUID(),email_confirm:true}});
- record('Studio creates a user through the environment Auth',user.status===200&&user.text.includes(email),`status ${user.status}`);
+ record('Studio creates a user through the environment Auth',user.status===200&&user.text.includes(email),`status ${user.status}${user.status===200?'':' '+user.text.slice(0,300)}`);
  const buckets=await studio(host,'/api/platform/storage/default/buckets',{cookie});
- record('Studio lists the environment buckets through Storage',buckets.status===200&&buckets.text.startsWith('['),`status ${buckets.status}`);
+ record('Studio lists the environment buckets through Storage',buckets.status===200&&buckets.text.startsWith('['),`status ${buckets.status}${buckets.status===200?'':' '+buckets.text.slice(0,300)}`);
  const other='f'.repeat(24)+'.studio.localhost';
  const elsewhere=await studio(other,'/api/platform/profile',{cookie});
  record('the session does not open another environment',elsewhere.status===401,`status ${elsewhere.status}`);
