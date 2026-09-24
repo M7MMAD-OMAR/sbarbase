@@ -15,7 +15,8 @@ const RECENT=500,MINUTES=60,MAX_PATH=200,MAX_ENVIRONMENTS=2000,DURATIONS_PER_MIN
 function percentile(values:number[],fraction:number):number|null {
  if(!values.length)return null;
  const sorted=[...values].sort((a,b)=>a-b);
- return sorted[Math.min(sorted.length-1,Math.ceil(fraction*sorted.length)-1)]!;
+ // Whole milliseconds, as the console shows them.
+ return Math.round(sorted[Math.min(sorted.length-1,Math.ceil(fraction*sorted.length)-1)]!);
 }
 
 export class RequestLog {

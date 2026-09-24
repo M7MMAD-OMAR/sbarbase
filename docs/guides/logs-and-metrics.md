@@ -26,6 +26,8 @@ Owners and admins also see **Logs**. Choose a source:
 
 Before a line leaves the server, keys, tokens, passwords, signed JWTs, OAuth codes and database passwords are replaced with `[redacted]`. Service logs can still name users' email addresses and your tables, which is why viewers do not see them.
 
+CI uses an environment through supabase-js on a clean machine with every change, then reads its usage and every log source and checks that no key or token appears in any answer ([evidence](../evidence/docker-observe-checks.json)).
+
 ## From a script
 
 The same data is available through the management API with an operator token:
