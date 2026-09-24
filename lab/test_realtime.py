@@ -68,6 +68,7 @@ class RuntimeTests(unittest.TestCase):
              patch.object(durable_runtime, 'wait_ready'), patch.object(self.runtime, 'realtime_register') as register:
             entry = self.runtime.realtime_start(E, migrate=True)
         register.assert_called_once()
+        self.assertTrue(any(f'GRANT ALL ON ALL TABLES IN SCHEMA realtime TO {E}_realtime' in s for s in self.statements))
         granted = [i for i, s in enumerate(self.statements) if f'ALTER ROLE {E}_realtime SUPERUSER' in s]
         revoked = [i for i, s in enumerate(self.statements) if f'ALTER ROLE {E}_realtime NOSUPERUSER' in s]
         self.assertEqual((len(granted), len(revoked)), (1, 1))

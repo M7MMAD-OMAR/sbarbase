@@ -660,11 +660,24 @@ END $$;""", e)
             wait_ready(base+'/healthcheck', failure='Realtime did not start', attempts=REALTIME_BOOT_SECONDS*2)
             if migrate:
                 self.realtime_register(e, v, base)
+                # What the migrations created or found belongs to the roles upstream picks; the
+                # login keeps working on Realtime's own schema once it is no longer a superuser.
+                self.realtime_grants(e)
         finally:
             if migrate:
                 self.sql(f"ALTER ROLE {e}_realtime NOSUPERUSER; "
                          f"SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE usename = '{e}_realtime';")
         return {'url': base, 'tenantHost': realtime_tenant(e)+'.realtime', 'migrated': self.pins['realtime']['id']}
+
+    def realtime_grants(self, e):
+        role = f'{e}_realtime'
+        self.sql(f"""GRANT USAGE, CREATE ON SCHEMA realtime TO {role};
+GRANT ALL ON ALL TABLES IN SCHEMA realtime TO {role};
+GRANT ALL ON ALL SEQUENCES IN SCHEMA realtime TO {role};
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA realtime TO {role};
+GRANT USAGE, CREATE ON SCHEMA _realtime TO {role};
+GRANT ALL ON ALL TABLES IN SCHEMA _realtime TO {role};
+GRANT ALL ON ALL SEQUENCES IN SCHEMA _realtime TO {role};""", e)
 
     def realtime_register(self, e, v, base):
         """Create the environment's tenant; Realtime runs its tenant migrations as it does so."""
