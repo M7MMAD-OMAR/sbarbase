@@ -79,6 +79,11 @@ function gatewayHandler(registry:RouteRegistry, transport:typeof fetch, verifyKe
       /^\/object\/public\/[^/]+\/.+/.test(path)||
       /^\/object\/sign\/[^/]+\/.+/.test(path)&&signedTokens.length===1&&
         !!signedTokens[0]&&signedTokens[0].length<=8192);
+    // A browser reaches these by following a link or a redirect, so it cannot send a key:
+    // an email link (verify), the start of an OAuth sign-in (authorize) and the provider's
+    // return (callback, which Apple posts as a form). Auth checks each one itself.
+    const browserAuthStep=service==='auth'&&(readMethod&&/^\/(authorize|verify|callback)$/.test(path)||
+      request.method==='POST'&&path==='/callback');
     // Public object visibility and signed-token validity are enforced by Storage.
     // No exception exists for writes, listing, signing, or authenticated paths.
     if(apiKey!==null) {
@@ -87,7 +92,7 @@ function gatewayHandler(registry:RouteRegistry, transport:typeof fetch, verifyKe
       try {keyAccepted=verifyKey?verifyKey(environment,apiKey):route.keys.some(key=>matches(key,apiKey));}
       catch {return error(503,'Key verification unavailable');}
       if(!keyAccepted) return error(401,'Invalid API key');
-    } else if(!publicStorageRead) return error(401,'Invalid API key');
+    } else if(!publicStorageRead&&!browserAuthStep) return error(401,'Invalid API key');
     // Never let a forwarded path or absolute URL choose the upstream host.
     if (path.includes('\\') || /%2f|%5c|%00/i.test(path)) return error(400,'Invalid path');
     if (!['GET','HEAD','POST','PUT','PATCH','DELETE'].includes(request.method)) return error(405,'Method not allowed');

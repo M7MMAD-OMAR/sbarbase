@@ -85,10 +85,22 @@ Both are ignored by Git. Never print `.secrets/`, and never delete either to get
 | `.secrets/upstream/runtime.json` | Generated credentials of the owned runtime |
 | `.secrets/upstream/managed-keys.sqlite` | Hashed publishable key metadata |
 | `.secrets/upstream/bootstrap.json` | Operator setup journal (no password) |
+| `.secrets/upstream/<runtime>-auth.json` | An environment's sign-in settings, including provider secrets, written by the console ([sign-in](../guides/sign-in.md)) |
+
+## Operator settings
+
+Set these in `compose.yaml` (Docker) or as `Environment=` lines of the systemd service.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `SBARBASE_PUBLIC_URL` | `http://localhost` | The address people and OAuth providers reach this server at, such as `https://api.example.com`. Auth builds email links and OAuth callbacks from it. A change applies at the next start |
+| `SBARBASE_CONSOLE_PORT` | chosen at start | The loopback port of the console and API, for a TLS proxy |
+| `SBARBASE_BACKUP_HOUR` | `3` | Hour (UTC) of the daily backup; `off` stops it |
+| `SBARBASE_BACKUP_KEEP` | `7` | Backups kept per environment |
 
 ## Internal environment variables
 
-Variables named `SBARBASE_*` (for example `SBARBASE_WORKER_FD`, `SBARBASE_EFFECT_TOKEN`) pass lock descriptors and tokens between Sbarbase's own processes. They are not operator settings; do not set them by hand.
+Other variables named `SBARBASE_*` (for example `SBARBASE_WORKER_FD`, `SBARBASE_EFFECT_TOKEN`) pass lock descriptors and tokens between Sbarbase's own processes. They are not operator settings; do not set them by hand.
 
 ## Not configurable yet
 

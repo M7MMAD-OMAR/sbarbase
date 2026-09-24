@@ -15,6 +15,12 @@ ready.
 
 ### Added
 
+- **Sign-in settings and OAuth providers per environment.** Owners and admins
+  set the site URL, allowed redirect addresses, sign-up and anonymous sign-in,
+  and any of 19 providers (Google, GitHub, Apple and others) from the console.
+  Saving recreates only that environment's Auth, keeping the previous one if the
+  new one does not start. Email links and OAuth steps reach Auth without a key,
+  as on Supabase. `SBARBASE_PUBLIC_URL` sets the address links and callbacks use.
 - **Browser access.** A page on any domain can call Auth, REST and Storage
   through the gateway, as on Supabase: every answer carries
   `Access-Control-Allow-Origin: *`, a preflight gets 204 without a key, and no

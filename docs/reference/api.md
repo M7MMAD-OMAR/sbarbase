@@ -60,7 +60,7 @@ Request bodies accept only `name`, at most 4 KiB, read within five seconds. Key 
 
 - **Methods:** GET, HEAD, POST, PUT, PATCH, DELETE, and OPTIONS for a browser's preflight.
 - **Browsers:** as on Supabase, a page on any domain may call the API. Every answer, refusals included, carries `Access-Control-Allow-Origin: *` and exposes `Content-Range`; a preflight gets `204` without a key. No cookies or credentials are used, so the API key and the user token still decide everything a call may do.
-- **API key:** the `apikey` header must be an active publishable key of that environment. The only keyless requests are GET or HEAD on Storage `object/public/...` and on `object/sign/...` with exactly one `token` query parameter; Storage itself enforces bucket visibility and signature validity.
+- **API key:** the `apikey` header must be an active publishable key of that environment. The only keyless requests are GET or HEAD on Storage `object/public/...` and on `object/sign/...` with exactly one `token` query parameter, where Storage itself enforces bucket visibility and signature validity; and the Auth steps a browser reaches by a link or a redirect: GET `verify`, GET `authorize`, and GET or POST `callback`, which Auth checks itself.
 - **Authorization:** a `Bearer` user token is forwarded; if absent (or equal to the API key) the environment's anonymous token is used.
 - **Storage tenant:** chosen by the gateway from the routing record and sent as a trusted header; a client cannot choose it.
 - **Body:** at most 1 MiB, read within ten seconds.
@@ -75,4 +75,4 @@ Request bodies accept only `name`, at most 4 KiB, read within five seconds. Key 
 | `503` | Environment in maintenance, server-wide request limit reached, or routing unavailable; `retry-after: 1` where retrying helps |
 | `504` | Upstream deadline exceeded |
 
-Admission limits are per gateway process and have no queue. Realtime, Edge Functions and OAuth provider flows are not routed yet.
+Admission limits are per gateway process and have no queue. Realtime and Edge Functions are not routed yet.
