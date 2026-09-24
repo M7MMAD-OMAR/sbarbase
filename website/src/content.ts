@@ -38,7 +38,7 @@ export const content={
 
   badge:'Open source · in development',
   headline:'Many Supabase projects. One server.',
-  intro:'Original Supabase for every client, each environment kept apart, all on a machine you own.',
+  intro:'Original Supabase for every client, on one machine you own.',
   ctaInstall:'Install',ctaDocs:'Docs',
   videoLabel:'Explainer video',
   videoCaption:'The idea in one short video.',
@@ -53,10 +53,10 @@ export const content={
   howTitle:'One request, start to finish.',
   steps:[
    'Your app calls its environment with a key.',
-   'The gateway checks the path, the key and the room.',
-   'That environment\'s own Auth or REST takes it.',
+   'The gateway checks path, key and room.',
+   'Its own Auth or REST takes it.',
    'It reaches only its own database.',
-   'The answer returns. No other environment sees it.',
+   'The answer returns, unseen by others.',
   ],
   legend:{shared:'shared',own:'per environment',db:'database'},
   labels:{gateway:'gateway',db:'database',auth:'Auth',rest:'REST',store:'Storage'},
@@ -67,10 +67,10 @@ export const content={
   installTitle:'From an empty server.',
   installSteps:[
    ['Prepare the server','Fedora 44. On Ubuntu 26.04, use docker.io.'],
-   ['Create the service user and clone',''],
+   ['Create the user and clone',''],
    ['Install Bun',''],
-   ['Write the operator file','It asks for your email, organization and password.'],
-   ['Install and create your first project',''],
+   ['Write the operator file','Asks for email, organization and password.'],
+   ['Install and create a project',''],
   ] as [string,string][],
   needs:['4 cores','8 GB','x86-64','Fedora 44 or Ubuntu 26.04'],
   needsLabel:'Server',
@@ -78,7 +78,7 @@ export const content={
   installLinks:{quickstart:'Quickstart',docs:'Docs',server:'Choosing a server',repo:'GitHub'},
 
   docs:'Docs',security:'Security',license:'License',home:'sbarah.com',
-  trademark:'Supabase is a trademark of Supabase, Inc. Sbarbase is not affiliated with Supabase.',
+  trademark:'Supabase is a trademark of Supabase, Inc. Sbarbase is not affiliated.',
  },
  ar:{
   dir:'rtl',lang:'ar',
@@ -120,10 +120,10 @@ export const content={
   installTitle:'من خادم فارغ.',
   installSteps:[
    ['جهّز الخادم','على Fedora 44. أما على Ubuntu 26.04 فاستخدم docker.io'],
-   ['أنشئ مستخدم الخدمة وانسخ المستودع',''],
+   ['أنشئ المستخدم وانسخ المستودع',''],
    ['ثبّت Bun',''],
-   ['اكتب ملف المشغّل','يسألك عن بريدك واسم المؤسسة وكلمة المرور.'],
-   ['ثبّت وأنشئ مشروعك الأول',''],
+   ['اكتب ملف المشغّل','يسأل عن البريد والمؤسسة وكلمة المرور.'],
+   ['ثبّت وأنشئ مشروعا',''],
   ] as [string,string][],
   needs:['4 أنوية','8 GB','x86-64','Fedora 44 أو Ubuntu 26.04'],
   needsLabel:'الخادم',
@@ -131,6 +131,6 @@ export const content={
   installLinks:{quickstart:'البدء السريع',docs:'التوثيق',server:'اختيار الخادم',repo:'GitHub'},
 
   docs:'التوثيق',security:'الأمان',license:'الرخصة',home:'sbarah.com',
-  trademark:'Supabase علامة تجارية لشركة Supabase Inc، وصباربيز غير تابع لها.',
+  trademark:'Supabase علامة تجارية لشركة \u2066Supabase, Inc.\u2069، وصباربيز غير تابع لها.',
  },
 };
