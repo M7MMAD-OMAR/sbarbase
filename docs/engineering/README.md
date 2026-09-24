@@ -9,6 +9,7 @@ Continuity notes for coding agents are in [handoff](handoff/README.md). The chro
 - [ARCHITECTURE-REVIEW](ARCHITECTURE-REVIEW.md): the original foundation review, options and acceptance gates.
 - [CONTROL-PLANE](CONTROL-PLANE.md): catalog roles, management HTTP, management Auth and key issuance.
 - [PERSISTENT-ROUTING](PERSISTENT-ROUTING.md): routing records, maintenance flag, revisions and placement.
+- [EDGE-FUNCTIONS](EDGE-FUNCTIONS.md): one edge-runtime per environment, its mounts and networks, deploy versions and the gateway path.
 - [REALTIME](REALTIME.md): one Realtime per environment, its login and its superuser window, and the socket path through the gateway.
 - [STUDIO-INTEGRATION](STUDIO-INTEGRATION.md): specification for one upstream Studio per environment (on-demand path implemented; see the update at its top).
 - [DESIGN-REFERENCE-SUPABASE](DESIGN-REFERENCE-SUPABASE.md): Supabase dashboard screenshots used as a visual reference.

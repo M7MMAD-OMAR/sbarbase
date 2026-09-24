@@ -43,8 +43,13 @@
 | GET | `/management/v1/environments/{id}/keys` | مالك، مدير | البيانات الوصفية للمفاتيح فقط، ولا يُعاد المفتاح نفسه أبدًا |
 | POST | `/management/v1/environments/{id}/keys` | مالك، مدير | بلا جسم. يعيد `201` مع مفتاح عام جديد يظهر مرة واحدة |
 | DELETE | `/management/v1/environments/{id}/keys/{keyId}` | مالك، مدير | يعيد `200 {revoked: true}`، أو `404` إذا لم يكن مفتاحًا فعّالًا لهذه البيئة |
-| GET | `/management/v1/environments/{id}/metrics` | عضو، عندما تكون جاهزة | آخر ساعة عند البوابة: `window` (`requests` و`clientErrors` و`serverErrors`، و`p50` و`p95` بالميلي ثانية، وعدد الطلبات لكل خدمة في `services`)، و`perMinute` (60 صفًا)، و`since`، و`services` (استهلاك الذاكرة والمعالج لـ Auth وREST وRealtime). في الذاكرة، وتفرغ بعد إعادة التشغيل ([السجلات والمقاييس](../guides/logs-and-metrics.ar.md)) |
-| GET | `/management/v1/environments/{id}/logs?source=requests\|auth\|rest\|storage\|realtime&lines=1-1000&errors=1` | مالك، مدير، عندما تكون جاهزة | `requests`: آخر طلبات البوابة، الأحدث أولًا، بلا نصوص الاستعلام. المصادر الأخرى: `lines`، آخر أسطر الخدمة، الأقدم أولًا، مع استبدال المفاتيح والرموز وكلمات المرور بـ `[redacted]`؛ وأسطر Storage فقط إن ذكرت هذه البيئة. `503` إذا تعذّر الوصول إلى Docker |
+| GET | `/management/v1/environments/{id}/metrics` | عضو، عندما تكون جاهزة | آخر ساعة عند البوابة: `window` (`requests` و`clientErrors` و`serverErrors`، و`p50` و`p95` بالميلي ثانية، وعدد الطلبات لكل خدمة في `services`)، و`perMinute` (60 صفًا)، و`since`، و`services` (استهلاك الذاكرة والمعالج لـ Auth وREST وRealtime وEdge Functions). في الذاكرة، وتفرغ بعد إعادة التشغيل ([السجلات والمقاييس](../guides/logs-and-metrics.ar.md)) |
+| GET | `/management/v1/environments/{id}/logs?source=requests\|auth\|rest\|storage\|realtime\|functions&lines=1-1000&errors=1` | مالك، مدير، عندما تكون جاهزة | `requests`: آخر طلبات البوابة، الأحدث أولًا، بلا نصوص الاستعلام. المصادر الأخرى: `lines`، آخر أسطر الخدمة، الأقدم أولًا، مع استبدال المفاتيح والرموز وكلمات المرور بـ `[redacted]`؛ وأسطر Storage فقط إن ذكرت هذه البيئة. `503` إذا تعذّر الوصول إلى Docker |
+| GET | `/management/v1/environments/{id}/functions` | مالك، مدير، عندما تكون جاهزة | حالة Edge Functions في `state` و`desired` (كما في Realtime)، والدوال المنشورة في `functions` مع `verify_jwt` و`updated_at` و`size` و`path`، وأسماء الأسرار في `secrets` (لا قيمها أبدًا) |
+| PUT | `/management/v1/environments/{id}/functions` | مالك، مدير، عندما تكون جاهزة | `{"enabled": true\|false}`. يأخذ `202`، ويشغّل المشرف بيئة تشغيل البيئة أو يوقفها |
+| PUT | `/management/v1/environments/{id}/functions/{name}` | مالك، مدير، عندما تكون جاهزة | النشر: `{"files": {"index.ts": "..."}, "shared"?: {...}, "verify_jwt"?: bool}`، ملفات نصية بمسارات نسبية، حتى 500 ملف و10 MiB. يأخذ `201`، وأول نشر يشغّل Edge Functions |
+| DELETE | `/management/v1/environments/{id}/functions/{name}` | مالك، مدير، عندما تكون جاهزة | يحذف الدالة، و`404` إن لم تكن موجودة |
+| PUT | `/management/v1/environments/{id}/function-secrets` | مالك، مدير، عندما تكون جاهزة | `{"secrets": {"NAME": "value" \| null}}`، و`null` يحذف. الأسماء من `A-Z` والأرقام و`_`، ولا تبدأ بـ `SUPABASE_` أو `SB_`. يردّ بالأسماء فقط |
 | GET | `/management/v1/environments/{id}/mail` | عضو | حالة البريد غير السرية للبيئة، بلا أي حقل لبيانات الاعتماد |
 | GET | `/management/v1/notifications` | مالك أو مدير أي عميل | عدد التنبيهات غير المسلّمة وأحدث أحداث المشغّل لعملاء المستدعي وحدهم. الأحداث التي لا تخص عميلًا (بدء التثبيت، إعادة تشغيل العامل) تذهب إلى مالكي ومديري العميل الذي أُنشئ عند الإعداد الأولي |
 
@@ -77,7 +82,7 @@
 | `503` | البيئة في الصيانة، أو بلغ الخادم حده الكلي للطلبات، أو التوجيه غير متاح. يُرسل `retry-after: 1` حين تفيد إعادة المحاولة |
 | `504` | تجاوزت الخدمة الأصلية مهلتها |
 
-حدود القبول تخص كل عملية بوابة وحدها، ولا طابور لها. لا تُوجَّه بعدُ طلبات Edge Functions.
+حدود القبول تخص كل عملية بوابة وحدها، ولا طابور لها.
 
 ## Realtime
 
@@ -89,3 +94,13 @@
 | `POST /{runtime}/realtime/v1/api/broadcast` | البث من خادم، مع الترويسة `apikey` |
 
 إذا كان Realtime مطفأً يأخذ الاتصال الرد `404`. المفتاح الخاطئ أو الملغى يأخذ `401`. وكل مسار آخر في Realtime يأخذ `404`.
+
+## Edge Functions
+
+عندما تكون لبيئة دوال منشورة ([Edge Functions](../guides/edge-functions.ar.md)):
+
+| المسار | المعنى |
+|---|---|
+| `ANY /{runtime}/functions/v1/{name}[/...]` | يشغّل الدالة. مع `apikey` يُفحص المفتاح كما في كل خدمة؛ ودونه لا تعمل إلا دالة منشورة مع إطفاء `verify_jwt`، وتصلها ترويسات المستدعي كما هي |
+
+الاسم حروف وأرقام و`-` و`_`، حتى 64، ويبدأ بحرف أو رقم؛ وأي اسم آخر، أو دالة مجهولة، أو Edge Functions مطفأة، يأخذ `404`. الدالة التي تفحص JWT تردّ بـ `401` على رمز مفقود أو غير صالح. المهلة 150 ثانية، وتمر الأجسام كما تصل حتى حد الرفع.

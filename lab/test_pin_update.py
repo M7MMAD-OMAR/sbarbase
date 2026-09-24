@@ -23,6 +23,8 @@ class PinTests(unittest.TestCase):
             {'studio':{'tag':'studio:2026.09.07','id':'sha256:'+'e'*64},'meta':{'tag':'postgres-meta:v0.99.0','id':'sha256:'+'f'*64}}))
         (self.root/'lab'/'realtime-image.lock.json').write_text(json.dumps(
             {'tag':'realtime:v2.138.1','id':'sha256:'+'1'*64}))
+        (self.root/'lab'/'functions-image.lock.json').write_text(json.dumps(
+            {'tag':'edge-runtime:v1.77.0','id':'sha256:'+'2'*64}))
         self.patches=[patch.object(pin_update,'ROOT',self.root)]
         for item in self.patches:item.start();self.addCleanup(item.stop)
 

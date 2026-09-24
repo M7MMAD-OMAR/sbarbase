@@ -60,6 +60,9 @@ TIERS = {
     'production': Tier('production', 512, 400, .25, '256m', 128),
     # One Realtime per environment that turns it on (docs/engineering/REALTIME.md).
     'production.realtime': Tier('production', 512, 400, .25, '320m', 128),
+    # One Edge Functions runtime per environment that turns it on (docs/engineering/EDGE-FUNCTIONS.md):
+    # the main service and the workers it runs, each worker held to 150 MiB.
+    'production.functions': Tier('production', 512, 400, .5, '384m', 256),
     'experimental': Tier('experimental', 128, 100, .25, '256m', 128),
     'operator.studio': Tier('operator', 1024, 500, .5, '512m', 128),
     # Measured idle at 111 MiB for postgres-meta v0.99.0 (and Studio at 205 MiB), 2026-09-24.
@@ -111,6 +114,7 @@ def container_flags(tier):
 SYSTEM_ROWS = ('system.db', 'system.storage', 'system.management-auth')
 # Realtime runs only for the environments that turn it on, one container each.
 REALTIME_ROW = 'production.realtime'
+FUNCTIONS_ROW = 'production.functions'
 ENVIRONMENT_ROWS = ('production', 'production')
 START_RESERVE_MIB = 2560
 
@@ -121,10 +125,11 @@ def memory_mib(value):
     return int(float(value[:-1]) * units[value[-1].lower()])
 
 
-def start_placement(environments, realtime=0):
-    """(MiB, CPUs) of the containers a start runs for this many environments, `realtime` of them with Realtime."""
+def start_placement(environments, realtime=0, functions=0):
+    """(MiB, CPUs) of the containers a start runs for this many environments, `realtime` of them with
+    Realtime and `functions` of them with Edge Functions."""
     rows = [TIERS[tier] for tier in SYSTEM_ROWS] + [TIERS[tier] for tier in ENVIRONMENT_ROWS] * environments
-    rows += [TIERS[REALTIME_ROW]] * realtime
+    rows += [TIERS[REALTIME_ROW]] * realtime + [TIERS[FUNCTIONS_ROW]] * functions
     return sum(memory_mib(row.memory) for row in rows), round(sum(row.cpus for row in rows), 2)
 
 
@@ -158,6 +163,7 @@ IO_LIMITS = {
     'system.management-auth': ('64mb', '64mb', 2000, 2000),
     'production': ('64mb', '32mb', 2000, 1000),
     'production.realtime': ('64mb', '32mb', 2000, 1000),
+    'production.functions': ('64mb', '32mb', 2000, 1000),
     'experimental': ('16mb', '8mb', 500, 250),
     'operator.studio': ('64mb', '32mb', 2000, 1000),
     'operator.meta': ('32mb', '16mb', 1000, 500),

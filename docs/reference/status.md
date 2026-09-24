@@ -127,7 +127,7 @@ A start needs its containers' memory limits plus a 2560 MiB reserve: 1792 MiB of
 ## What does not exist yet
 
 - A rehearsal on a real server. The empty-server install passed in a local VM only.
-- Edge Functions, the connection pooler and cron.
+- The connection pooler and cron. `SUPABASE_DB_URL` inside Edge Functions.
 - Automatic copies of the daily backups to another machine (copy them yourself, as the backup guide shows), and point-in-time recovery.
 - Importing a project from Supabase Cloud or a self-hosted stack beyond the read-only inspection.
 - Automatic recovery of later-stage provisioning failures; they block until an operator reconciles them.

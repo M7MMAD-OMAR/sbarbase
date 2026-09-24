@@ -107,7 +107,7 @@ class DerivedPlacementTests(unittest.TestCase):
         self.assertEqual(resource_policy.start_placement(2),(1792+4*256,2.75))
         self.assertEqual(install_server.RESERVE_MIB,resource_policy.START_RESERVE_MIB)
         source=(Path(install_server.__file__).parent/'durable_runtime.py').read_text()
-        self.assertIn("resource_policy.start_placement(len(self.values['environments']), realtime_count())",source)
+        self.assertIn("resource_policy.start_placement(len(self.values['environments']), realtime_count(), functions_count())",source)
         self.assertNotIn('6*1024*1024',source)
 
 

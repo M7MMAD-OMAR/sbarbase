@@ -176,6 +176,11 @@ export class Catalog {
         desired TEXT NOT NULL CHECK(desired IN ('on','off')),
         state TEXT NOT NULL CHECK(state IN ('off','pending','on','failed')),
         failure TEXT, actor TEXT NOT NULL, updated_at INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS functions_settings(
+        runtime TEXT PRIMARY KEY REFERENCES provision_jobs(runtime),
+        desired TEXT NOT NULL CHECK(desired IN ('on','off')),
+        state TEXT NOT NULL CHECK(state IN ('off','pending','on','failed')),
+        failure TEXT, actor TEXT NOT NULL, updated_at INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS audit_events(
         sequence INTEGER PRIMARY KEY AUTOINCREMENT, actor TEXT NOT NULL,
         action TEXT NOT NULL, subject TEXT NOT NULL, detail TEXT NOT NULL, at INTEGER NOT NULL);
@@ -575,6 +580,33 @@ export class Catalog {
       this.record(actor,on?'realtime.requested':'realtime.stop_requested',environment,{});
       return this.realtime(actor,environment);
     }).immediate();
+  }
+  /** Edge Functions for one environment, kept like Realtime: owners and admins turn the runtime
+   * on or off, deploying a function turns it on, and the supervisor applies it (lab/realtime.py). */
+  functions(actor:string,environment:string):RealtimeState {
+    this.environmentProject(actor,environment,['owner','admin']);
+    const job=this.job(environment);
+    if(!job||job.state!=='succeeded')throw new Error('Environment is not ready');
+    const row=this.db.query<{desired:string;state:string;failure:string|null;updated_at:number},[string]>(
+      'SELECT desired,state,failure,updated_at FROM functions_settings WHERE runtime=?').get(job.runtime);
+    return {runtime:job.runtime,desired:(row?.desired??'off') as RealtimeState['desired'],state:(row?.state??'off') as RealtimeState['state'],
+      failure:row?.failure??null,updatedAt:row?.updated_at??null};
+  }
+  requestFunctions(actor:string,environment:string,on:boolean):RealtimeState {
+    return this.db.transaction(()=>{
+      const current=this.functions(actor,environment);
+      if(current.state==='pending')throw new Error('Edge Functions change in progress');
+      this.db.query(`INSERT INTO functions_settings(runtime,desired,state,failure,actor,updated_at) VALUES (?,?,'pending',NULL,?,?)
+        ON CONFLICT(runtime) DO UPDATE SET desired=excluded.desired,state='pending',failure=NULL,actor=excluded.actor,
+        updated_at=excluded.updated_at`).run(current.runtime,on?'on':'off',actor,Date.now());
+      this.record(actor,on?'functions.requested':'functions.stop_requested',environment,{});
+      return this.functions(actor,environment);
+    }).immediate();
+  }
+  /** Records a deploy or a removal in the audit log. */
+  recordFunction(actor:string,environment:string,action:'functions.deployed'|'functions.deleted'|'functions.secrets_changed',detail:object) {
+    this.environmentProject(actor,environment,['owner','admin']);
+    this.record(actor,action,environment,detail);
   }
   runtimeReady(runtime:string):boolean {
     return !!this.db.query<{environment:string},[string]>(

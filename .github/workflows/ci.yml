@@ -86,6 +86,8 @@ jobs:
         run: docker compose exec -T sbarbase bun lab/sign-in-check.ts "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-sign-in-checks.json"
       - name: Realtime for the environment
         run: docker compose exec -T sbarbase bun lab/realtime-check.ts "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-realtime-checks.json"
+      - name: Edge Functions from a Supabase functions folder
+        run: docker compose exec -T sbarbase bun lab/functions-check.ts "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-functions-checks.json"
       - name: Logs and metrics for the environment
         run: docker compose exec -T sbarbase bun lab/observe-check.ts "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-observe-checks.json"
       - name: Uploads larger than a MiB, then a new upload limit
@@ -135,7 +137,7 @@ jobs:
         # A throwaway runner: its generated credentials exist only for this run.
         run: |
           docker compose logs --tail 200 || true
-          for c in $(docker ps -aq --filter name=-realtime); do echo "== $(docker inspect -f '{{.Name}}' $c)"; docker logs --tail 80 $c 2>&1; done || true
+          for c in $(docker ps -aq --filter name=-realtime) $(docker ps -aq --filter name=-functions); do echo "== $(docker inspect -f '{{.Name}}' $c)"; docker logs --tail 80 $c 2>&1; done || true
           sudo sh -c 'for f in .lab/upstream/diagnostics/*.log; do echo "== $f"; tail -n 40 "$f"; done' || true
       - name: Keep the evidence
         if: always()

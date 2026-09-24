@@ -6,7 +6,7 @@ import type {RequestLog} from '../gateway/observe';
  *
  * GET `/environments/{id}/metrics`: the gateway's totals for the last hour, and the memory
  * and processor use of the environment's own services. Any member may read it.
- * GET `/environments/{id}/logs?source=requests|auth|rest|storage|realtime[&errors=1][&lines=N]`:
+ * GET `/environments/{id}/logs?source=requests|auth|rest|storage|realtime|functions[&errors=1][&lines=N]`:
  * the gateway's last requests, or the last lines a service wrote. Owners and admins only,
  * because service logs name users and tables.
  *
@@ -14,7 +14,7 @@ import type {RequestLog} from '../gateway/observe';
  * every environment, so only lines naming this environment's tenant are shown. Tokens, keys,
  * passwords and signed JWTs are replaced with `[redacted]` before a line leaves the server. */
 
-export const SOURCES=['requests','auth','rest','storage','realtime'] as const;
+export const SOURCES=['requests','auth','rest','storage','realtime','functions'] as const;
 export type Source=typeof SOURCES[number];
 export type ContainerStats={service:string;cpuPercent:number|null;memoryBytes:number|null;memoryLimitBytes:number|null};
 export type ContainerReader={
@@ -123,7 +123,7 @@ export function observeHandler(catalog:Catalog,identify:ManagementIdentity,log:R
    return reply(500,{message:'Management operation failed'});
   }
   if(kind==='metrics'){
-   const containers=(['auth','rest','realtime'] as const).map(service=>containerName(runtime,service));
+   const containers=(['auth','rest','realtime','functions'] as const).map(service=>containerName(runtime,service));
    let cached=statsCache.get(runtime);
    if(!cached||Date.now()-cached.at>10_000){
     cached={at:Date.now(),value:reader.stats(containers).catch(()=>[] as ContainerStats[])};

@@ -34,7 +34,8 @@ INTENT = runtime.UPGRADE_INTENT
 DATABASE_LOCK = 'distro-image.lock.json'
 # Which lock entry each replaceable service runs, as durable_runtime reads them.
 SERVICES = {'auth': ('images.lock.json', 'auth'), 'rest': ('images.lock.json', 'rest'),
-            'storage': ('storage-image.lock.json', None), 'realtime': ('realtime-image.lock.json', None)}
+            'storage': ('storage-image.lock.json', None), 'realtime': ('realtime-image.lock.json', None),
+            'functions': ('functions-image.lock.json', None)}
 DEFAULT_TARGET = 'origin/main'
 RESTART = 'docker compose up -d --build   (or: sudo systemctl restart sbarbase)'
 

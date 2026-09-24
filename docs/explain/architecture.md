@@ -68,7 +68,7 @@ Code: [src/control/application.ts](../../src/control/application.ts) (routing be
 
 - Admission is per gateway process, with no queue: an overloaded environment gets `429` and a busy server `503`. Several gateway processes do not share counts.
 - Uploads stream through up to the upload limit (50 MiB by default); resumable (TUS) uploads are not routed.
-- Realtime, Edge Functions, the pooler, cron and per-environment Studio are not part of the running architecture yet.
+- Realtime and Edge Functions run one container per environment that turns them on; Studio runs per environment on demand. The pooler and cron are not part of the running architecture yet.
 - All processes share one local catalog; there is no multi-server coordination.
 
 ## Go deeper

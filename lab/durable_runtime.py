@@ -103,7 +103,7 @@ PRIVATE = lab.PRIVATE / 'upstream'
 UPGRADE_INTENT = STATE / 'upgrade-intent.json'
 # Services that keep no state in their container: Auth and Storage keep theirs in the
 # database and the objects volume. The database is never replaced here.
-REPLACEABLE = ('auth', 'rest', 'storage', 'realtime')
+REPLACEABLE = ('auth', 'rest', 'storage', 'realtime', 'functions')
 
 
 # Operator settings of a stateless service that a restart may apply by recreating it.
@@ -146,6 +146,11 @@ def load_settings(e):
 
 REALTIME_PORT = 4000
 REALTIME_BOOT_SECONDS = 180
+FUNCTIONS_PORT = 9000
+FUNCTIONS_BOOT_SECONDS = 60
+# Edge Functions reach the internet (npm: and jsr: imports, other APIs) through their own network;
+# every other service stays on the internal one.
+EGRESS = PREFIX + '-egress'
 
 
 def published_endpoints():
@@ -163,6 +168,25 @@ def realtime_on(e):
 
 def realtime_count():
     return sum(1 for entry in published_endpoints().values() if isinstance(entry, dict) and entry.get('realtime'))
+
+
+def functions_on(e):
+    """Whether this environment runs its own Edge Functions."""
+    return bool(published_endpoints().get(e, {}).get('functions'))
+
+
+def functions_count():
+    return sum(1 for entry in published_endpoints().values() if isinstance(entry, dict) and entry.get('functions'))
+
+
+def functions_code(e):
+    """Deployed function code, written by the console (src/control/functions.ts)."""
+    return STATE/'functions'/e
+
+
+def functions_private(e):
+    """The environment's function secrets, written by the console; never in the code folder."""
+    return PRIVATE/'functions'/e
 
 
 def realtime_tenant(e):
@@ -264,7 +288,7 @@ class Runtime:
             raise RuntimeError('Runtime secrets must be ignored')
         self.pins = json.loads((lab.ROOT/'lab/images.lock.json').read_text())
         for component, filename in [('db', 'distro-image.lock.json'), ('storage', 'storage-image.lock.json'),
-                                    ('realtime', 'realtime-image.lock.json')]:
+                                    ('realtime', 'realtime-image.lock.json'), ('functions', 'functions-image.lock.json')]:
             self.pins[component] = json.loads((lab.ROOT/'lab'/filename).read_text())
         self.hba_writer = (hba_runtime.SourceHBA(lab.docker,STATE,DB,OWNER,self.pins['db']['id'],startup=startup,operation_fd=operation_fd)
                            if startup is not None or operation_fd is not None else None)
@@ -283,7 +307,7 @@ class Runtime:
     def sql(self, query, database='postgres', check=True):
         return lab.docker('exec', '-i', DB, 'psql', '-X', '-v', 'ON_ERROR_STOP=1', '-U', 'supabase_admin', '-d', database, '-qAt', data=query, check=check)
 
-    def launch(self, name, component, env, memory, cpus, volumes=(), command=(), existing_only=False, tier=None):
+    def launch(self, name, component, env, memory, cpus, volumes=(), command=(), existing_only=False, tier=None, binds=()):
         image = self.pins[component]['id']
         actual = inspect('container', name)
         if existing_only and not actual:
@@ -327,6 +351,8 @@ class Runtime:
             if not inspect('volume', volume):
                 lab.docker('volume', 'create', '--label', 'io.sbarbase.owner='+OWNER, volume)
             args += ['-v', volume+':'+destination]
+        for source, destination in binds:
+            args += ['-v', f'{source}:{destination}:ro']
         return lab.docker(*args, image, *command).stdout.strip(),True
 
     def endpoint(self, name, port):
@@ -356,7 +382,7 @@ class Runtime:
         if self.hba_writer is None or self.hba_writer.startup is None:raise RuntimeError('Explicit startup HBA ownership required')
         self.hba_writer.startup.verify()
         available = int(next(x.split()[1] for x in lab.Path('/proc/meminfo').read_text().splitlines() if x.startswith('MemAvailable:')))
-        placement, _ = resource_policy.start_placement(len(self.values['environments']), realtime_count())
+        placement, _ = resource_policy.start_placement(len(self.values['environments']), realtime_count(), functions_count())
         if available < (placement + resource_policy.START_RESERVE_MIB) * 1024:
             raise RuntimeError('Insufficient runtime memory headroom')
         if not inspect('network', NETWORK):
@@ -456,7 +482,7 @@ class Runtime:
                 raise AdmissionLimitError('Local runtime admission limit reached')
             try:
                 reason = resource_admission.refusal(resource_admission.snapshot())
-                placement, cpus = resource_policy.start_placement(len(self.values['environments']) + int(new_environment), realtime_count())
+                placement, cpus = resource_policy.start_placement(len(self.values['environments']) + int(new_environment), realtime_count(), functions_count())
                 restart = resource_policy.restart_fits(placement, cpus, available_memory_bytes(), owned_usage_bytes(), os.cpu_count() or 0)
             except Exception:
                 raise RuntimeError('Resource measurement unavailable') from None
@@ -530,6 +556,8 @@ class Runtime:
             # Realtime was turned on for this environment: bring it back, and let it run its
             # schema migrations again only when its pinned image changed.
             endpoints['realtime'] = self.realtime_start(e, migrate=previous.get('migrated') != self.pins['realtime']['id'])
+        if all_endpoints.get(e, {}).get('functions') and not creating:
+            endpoints['functions'] = self.functions_start(e)
         all_endpoints[e] = endpoints
         atomic(path, all_endpoints)
 
@@ -733,6 +761,76 @@ GRANT ALL ON ALL SEQUENCES IN SCHEMA _realtime TO {role};""", e)
         if status not in (200, 201):
             raise RuntimeError('Realtime tenant registration failed')
 
+    def functions_configuration(self, e, v):
+        """The main service's settings: where the code and secrets are, the keys functions get, and
+        the addresses of this environment's own services on the internal network."""
+        ten_years = 10 * 365 * 24 * 3600
+        return {'SB_FUNCTIONS_DIR': '/home/deno/functions', 'SB_SECRETS_FILE': '/run/sbarbase/secrets.json',
+                'SB_SELF_URL': f'http://{PREFIX}-{e}-functions:{FUNCTIONS_PORT}', 'SB_JWT_SECRET': v['jwt'],
+                'SUPABASE_ANON_KEY': service_token(v['jwt'], {'role': 'anon', 'iss': 'sbarbase'}, ten_years),
+                'SUPABASE_SERVICE_ROLE_KEY': service_token(v['jwt'], {'role': 'service_role', 'iss': 'sbarbase'}, ten_years),
+                'SB_AUTH_URL': f'http://{PREFIX}-{e}-auth:9999', 'SB_REST_URL': f'http://{PREFIX}-{e}-rest:3000',
+                'SB_STORAGE_URL': f'http://{PREFIX}-storage:5000', 'SB_STORAGE_HOST': f'{e}.storage.internal'}
+
+    def functions_start(self, e):
+        """Run the environment's Edge Functions: a fresh container of the pinned edge-runtime, with
+        this environment's code and secrets mounted read-only and nothing of any other environment."""
+        v = self.values['environments'][e]
+        name = PREFIX+'-'+e+'-functions'
+        code, private = functions_code(e), functions_private(e)
+        code.mkdir(parents=True, exist_ok=True)
+        private.mkdir(mode=0o700, parents=True, exist_ok=True)
+        if not (private/'secrets.json').exists():
+            lab.secure_file(private/'secrets.json', '{}')
+        if not inspect('network', EGRESS):
+            lab.docker('network', 'create', '--label', 'io.sbarbase.owner='+OWNER, EGRESS)
+        if inspect('container', name):
+            lab.docker('rm', '-f', name)
+        self.launch(name, 'functions', self.functions_configuration(e, v), '384m', .5, tier='production.functions',
+                    binds=[(lab.ROOT/'lab'/'functions'/'main', '/home/deno/main'), (code, '/home/deno/functions'), (private, '/run/sbarbase')],
+                    command=('start', '--main-service', '/home/deno/main', '-p', str(FUNCTIONS_PORT)))
+        lab.docker('network', 'connect', EGRESS, name)
+        base = self.endpoint(name, FUNCTIONS_PORT)
+        # A name no function can have: the main service answers 404 once it serves.
+        for _ in range(FUNCTIONS_BOOT_SECONDS * 2):
+            try:
+                if http(base+'/-')[0] == 404:
+                    break
+            except OSError:
+                pass
+            time.sleep(.5)
+        else:
+            raise RuntimeError('Edge Functions did not start')
+        return {'url': base, 'image': self.pins['functions']['id']}
+
+    def functions_turn(self, e, on):
+        """Turn one environment's Edge Functions on or off: an operator action from the console."""
+        effect_receipt.require_settled(STATE)
+        if not re.fullmatch(r'e_[a-f0-9]{24}', e):
+            raise RuntimeError('Invalid environment runtime identifier')
+        if not inspect('container', DB) or not inspect('container', PREFIX+'-storage'):
+            raise RuntimeError('Start the upstream runtime first')
+        endpoints = published_endpoints()
+        if e not in endpoints or e not in self.values['environments']:
+            raise RuntimeError('Edge Functions need a published environment')
+        name = PREFIX+'-'+e+'-functions'
+        if on:
+            if not functions_on(e):
+                placement, cpus = resource_policy.start_placement(len(self.values['environments']), realtime_count(), functions_count() + 1)
+                if not resource_policy.restart_fits(placement, cpus, available_memory_bytes(), owned_usage_bytes(), os.cpu_count() or 0):
+                    raise AdmissionLimitError('Restart headroom unavailable')
+            entry = self.functions_start(e)
+        else:
+            entry = None
+            if inspect('container', name):
+                lab.docker('rm', '-f', name)
+        endpoints = published_endpoints()
+        if entry:
+            endpoints[e]['functions'] = entry
+        else:
+            endpoints[e].pop('functions', None)
+        atomic(STATE/'endpoints.json', endpoints)
+
     def realtime_turn(self, e, on):
         """Turn one environment's Realtime on or off: an operator action from the console."""
         effect_receipt.require_settled(STATE)
@@ -750,7 +848,7 @@ GRANT ALL ON ALL SEQUENCES IN SCHEMA _realtime TO {role};""", e)
             if self.sql(f"SELECT count(*) FROM pg_hba_file_rules WHERE '{e}_realtime' = ANY(user_name) AND error IS NULL;").stdout.strip() != '1':
                 raise RuntimeError('Realtime access rule not published; restart Sbarbase once')
             if not realtime_on(e):
-                placement, cpus = resource_policy.start_placement(len(self.values['environments']), realtime_count() + 1)
+                placement, cpus = resource_policy.start_placement(len(self.values['environments']), realtime_count() + 1, functions_count())
                 if not resource_policy.restart_fits(placement, cpus, available_memory_bytes(), owned_usage_bytes(), os.cpu_count() or 0):
                     raise AdmissionLimitError('Restart headroom unavailable')
                 # The connections Realtime adds must fit what the cluster can serve, as Studio's do.
@@ -808,7 +906,7 @@ def stop():
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('command', choices=['up', 'stop', 'provision', 'mail', 'auth', 'realtime'])
+    parser.add_argument('command', choices=['up', 'stop', 'provision', 'mail', 'auth', 'realtime', 'functions'])
     parser.add_argument('environment', nargs='?')
     parser.add_argument('--off', action='store_true')
     args = parser.parse_args()
@@ -825,6 +923,9 @@ if __name__ == '__main__':
                 elif args.command=='realtime':
                     if not args.environment:raise SystemExit('The realtime command needs an environment')
                     Runtime().realtime_turn(args.environment, on=not args.off)
+                elif args.command=='functions':
+                    if not args.environment:raise SystemExit('The functions command needs an environment')
+                    Runtime().functions_turn(args.environment, on=not args.off)
                 elif args.command=='auth':
                     if not args.environment:raise SystemExit('The auth command needs an environment')
                     Runtime().reconcile_auth(args.environment)
