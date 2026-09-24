@@ -119,7 +119,7 @@ def open_connections(e):
     available, promised = int(limits[0]), int(limits[1])
     if promised + STUDIO_CONNECTIONS > available:
         raise StudioError('The database has no connections to spare for Studio')
-    runtime_sql(f'ALTER DATABASE {e} CONNECTION LIMIT {connection_budget.database_limit(studio=True, realtime=runtime.realtime_on(e))};')
+    runtime_sql(f'ALTER DATABASE {e} CONNECTION LIMIT {runtime.current_database_limit(e, studio=True)};')
 
 
 def close_login(e):
@@ -128,7 +128,7 @@ def close_login(e):
                 f"ALTER ROLE {role} NOLOGIN; END IF; END $$; "
                 f"SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE usename = '{role}';")
     runtime_sql(f"DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_database WHERE datname = '{e}') THEN "
-                f"EXECUTE 'ALTER DATABASE {e} CONNECTION LIMIT {connection_budget.database_limit(realtime=runtime.realtime_on(e))}'; END IF; END $$;")
+                f"EXECUTE 'ALTER DATABASE {e} CONNECTION LIMIT {runtime.current_database_limit(e, studio=False)}'; END IF; END $$;")
 
 
 def runtime_sql(query, database='postgres'):

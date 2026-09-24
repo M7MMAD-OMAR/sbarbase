@@ -4,6 +4,8 @@ import {openUpstreamApplication,studioState} from './upstream-app';
 import {studioRuntime} from '../src/control/studio';
 import {isRealtimeSocket} from '../src/gateway/realtime';
 import {readFileSync,unlinkSync} from 'node:fs';
+import {databaseListen,databaseProxy} from '../src/http/database-proxy';
+import {readJsonCached} from '../src/http/cached-json';
 
 // Local experimental API only. No remote bind or default production exposure.
 // A server puts the TLS proxy in front of this listener, and the proxy is started
@@ -31,10 +33,16 @@ const studioTimer=setInterval(async()=>{
  try{internal=await serveLocal(app.upstream,at.port,{host:at.host});internalAt=want;}
  catch(error){console.error('Studio internal route unavailable:',(error as Error).message);}
 },2000);
+// Direct database access (migrations, psql, an ORM): developer logins only, to their own database.
+const databaseAt=databaseListen();
+const database=databaseAt?await databaseProxy({...databaseAt,log:line=>console.log(line),target:()=>{
+ try{const value=readJsonCached('.lab/upstream/database.json') as {host?:string;port?:number};
+  return value.host&&value.port?{host:value.host,port:value.port}:undefined;}catch{return undefined;}
+}}).catch(error=>{console.error('Direct database access unavailable:',(error as Error).message);return undefined;}):undefined;
 await Bun.write('.lab/upstream/server.json',JSON.stringify({url:`http://127.0.0.1:${server.port}`,pid:process.pid}));
 console.log(`Local Sbarbase API: http://127.0.0.1:${server.port}`);
 function stop(){
- clearInterval(studioTimer);internal?.stop(true);server.stop(true);app.close();
+ clearInterval(studioTimer);internal?.stop(true);database?.stop();server.stop(true);app.close();
  try {if(JSON.parse(readFileSync('.lab/upstream/server.json','utf8')).pid===process.pid)unlinkSync('.lab/upstream/server.json');}catch {}
  process.exit(0);
 }

@@ -34,7 +34,37 @@ CI runs the full cycle on every change: back up while serving, change rows, user
 
 **The installation manifest.** Each daily run also writes `.lab/backups/installation/<backup>/`: the pinned images, the routing of every environment, the catalog's clients, projects, environments, memberships and jobs, the operator settings, and the names of the files in `.secrets/`. It holds no secret value: it is built from lists of allowed fields, and a webhook address is reduced to its host. It carries a digest and is kept as long as the environment backups. On a new server it tells you which pins and secrets the backups need.
 
-## Encrypted copies off the server
+There are two independent ways to copy backups off the server, described below. Configure one of them.
+
+## Copies off the server
+
+Backups are written to `.lab/backups/` on this server. To survive losing the server, let Sbarbase copy each new backup, encrypted, to S3-compatible storage: Cloudflare R2 (10 GB free), Backblaze B2, AWS S3, Wasabi or your own MinIO.
+
+1. Create a bucket and an access key that can read, write, list and delete in it.
+2. Give Sbarbase the settings once. They are read from stdin, never from the command line, and kept in `.secrets/offsite.json`:
+
+```bash
+python3 lab/offsite.py configure <<'JSON'
+{"endpoint": "https://<account>.r2.cloudflarestorage.com", "bucket": "my-backups", "region": "auto",
+ "access_key_id": "…", "secret_access_key": "…", "passphrase": "a long phrase only you know", "keep": 30}
+JSON
+```
+
+It proves the settings by writing, reading and deleting a test object. From then on the daily backup copies each new backup by itself and keeps the newest 30 per environment in the bucket; a failed copy is reported like a failed backup.
+
+Every file is encrypted on this server before it leaves (AES-256-GCM, the key derived from your passphrase), so the storage provider never sees your data. **Keep the passphrase somewhere other than this server**: without it the copies cannot be read, by you or anyone.
+
+| Task | Command |
+|---|---|
+| Copy what is not copied yet | `python3 lab/offsite.py push` |
+| List the copies in the bucket | `python3 lab/offsite.py list` |
+| Bring a copy back to this server | `python3 lab/offsite.py fetch <environment> <backup>` |
+
+A fetched backup is checked against its manifest and then restored with `backup.py restore` as usual. An upgrade's own safety backup stays local (`backup.py create all --local-only`), so storage that cannot be reached never blocks an upgrade.
+
+CI runs this cycle on a clean machine with every change against a throwaway MinIO: a backup copied by itself, only ciphertext in the bucket, a wrong passphrase refused, the copy fetched and restored ([evidence](../evidence/docker-offsite-checks.json)).
+
+## Encrypted run sets off the server
 
 Backups are written to `.lab/backups/` on this server. To keep a copy elsewhere, point Sbarbase at one S3-compatible bucket (Amazon S3, Cloudflare R2, Backblaze B2, MinIO and others). After each daily run, the run's backups and its installation manifest are packed into one file, encrypted with AES-256-GCM, and uploaded as `<prefix><backup>.sbb`. The target keeps as many sets as `SBARBASE_BACKUP_KEEP`; older sets under the same prefix are deleted, and other objects are never touched.
 

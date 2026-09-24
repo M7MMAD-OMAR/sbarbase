@@ -10,6 +10,8 @@ import {invitationHandler,type InvitationAccounts} from './invitations';
 import {realtimeHandler} from './realtime';
 import {observeHandler,type ContainerReader} from './observe';
 import {functionsHandler} from './functions';
+import {databaseHandler} from './database';
+import {signingHandler} from './signing';
 import {RequestLog} from '../gateway/observe';
 
 export function controlHandler(catalog:Catalog,keys:KeyStore,identity:ManagementIdentity,services?:ServiceDiscovery,
@@ -17,7 +19,8 @@ export function controlHandler(catalog:Catalog,keys:KeyStore,identity:Management
  const metadata=managementHandler(catalog,identity),credentials=keyHandler(catalog,keys,identity,services);
  const studio=studioKey?studioHandler(catalog,identity,studioKey):undefined,signIn=signInHandler(catalog,identity),
   realtime=realtimeHandler(catalog,identity),observe=observeHandler(catalog,identity,requests,containers),
-  functions=functionsHandler(catalog,identity);
+  functions=functionsHandler(catalog,identity),database=databaseHandler(catalog,identity),
+  signing=signingHandler(catalog,identity);
  const share=shareHandler(catalog,identity);
  const invitations=invitationHandler(catalog,identity,accounts);
  return (request:Request)=>{
@@ -29,6 +32,8 @@ export function controlHandler(catalog:Catalog,keys:KeyStore,identity:Management
   if(/\/environments\/[^/]+\/realtime$/.test(path))return realtime(request);
   if(/\/environments\/[^/]+\/(metrics|logs)$/.test(path))return observe(request);
   if(/\/environments\/[^/]+\/(functions|function-secrets)(\/|$)/.test(path))return functions(request);
+  if(/\/environments\/[^/]+\/database(\/password)?$/.test(path))return database(request);
+  if(/\/environments\/[^/]+\/signing-key(\/rotate)?$/.test(path))return signing(request);
   return /\/environments\/[^/]+\/(keys|connection)(\/|$)/.test(path)?credentials(request):metadata(request);
  };
 }

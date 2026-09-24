@@ -23,10 +23,12 @@ and the current files are moved aside, not deleted, and any failure puts them ba
 successful restore they are kept until ``discard-previous``.
 
 ``create all`` gives every backup of the run one time and also writes the installation manifest
-(``.lab/backups/installation/<UTC time>/``). When ``.lab/upstream/backup-offsite.json`` exists,
-the run is then encrypted and copied to one S3-compatible bucket (``backup_offsite.py``); a failed
-copy is reported and never changes a local backup. ``restore --offsite`` fetches a set that is
-not on this host first. ``docs/guides/backup-and-restore.md`` is the operator's guide.
+(``.lab/backups/installation/<UTC time>/``). Two independent ways copy backups off this host, each
+active only when configured: ``lab/offsite.py`` copies each new backup, encrypted, to S3-compatible
+storage, and ``.lab/upstream/backup-offsite.json`` makes ``backup_offsite.py`` copy the daily run
+as one encrypted set. A failed copy is reported and never changes a local backup. ``restore
+--offsite`` fetches a ``backup_offsite.py`` set that is not on this host first.
+``docs/guides/backup-and-restore.md`` is the operator's guide.
 """
 import argparse
 import datetime
@@ -353,6 +355,7 @@ def main(argv=None):
     make = sub.add_parser('create')
     make.add_argument('environment')
     make.add_argument('--keep', type=int, default=DEFAULT_KEEP)
+    make.add_argument('--local-only', action='store_true', help='do not copy the new backups off the server')
     listing = sub.add_parser('list')
     listing.add_argument('environment', nargs='?')
     back = sub.add_parser('restore')
@@ -417,10 +420,19 @@ def main(argv=None):
                         failed += 1
                         reason = str(error) if isinstance(error, BackupError) else type(error).__name__
                         print(f'installation manifest failed: {reason}', file=sys.stderr)
-                    if offsite is not None:
+                    if offsite is not None and not args.local_only:
                         # A failed copy is notified by after_run itself; exit 3 then tells the
                         # supervisor not to also report the run as completed.
                         copied = offsite.after_run(stamp, created, args.keep)
+                # With off-site copies configured (lab/offsite.py), each new backup leaves the server too.
+                import offsite
+                if offsite.load_config() and not args.local_only:
+                    try:
+                        pushed = offsite.push(targets)
+                        print(f'copied {len(pushed)} backup(s) off the server')
+                    except Exception as error:
+                        failed += 1
+                        print(f'off-site copy failed: {error}', file=sys.stderr)
                 return 1 if failed else OFFSITE_FAILED if copied is False else 0
             if args.command == 'offsite-fetch':
                 import backup_offsite

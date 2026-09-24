@@ -56,6 +56,11 @@ All routes need `Authorization: Bearer <management access token>`. The actor com
 | PUT | `/management/v1/environments/{id}/functions/{name}` | owner, admin, when ready | Deploy: `{"files": {"index.ts": "..."}, "shared"?: {...}, "verify_jwt"?: bool}`, text files at relative paths, at most 500 files and 10 MiB. `201`; the first deploy turns Edge Functions on |
 | DELETE | `/management/v1/environments/{id}/functions/{name}` | owner, admin, when ready | Removes the function; `404` if there is none |
 | PUT | `/management/v1/environments/{id}/function-secrets` | owner, admin, when ready | `{"secrets": {"NAME": "value" \| null}}`; `null` removes. Names are `A-Z`, digits and `_`, not starting `SUPABASE_` or `SB_`. Answers the names only |
+| GET | `/management/v1/environments/{id}/database` | owner, admin, when ready | Direct database access `state` and `desired`, the `connection` (host, port, user, database) and a `url` with a password placeholder |
+| PUT | `/management/v1/environments/{id}/database` | owner, admin, when ready | `{"enabled": true\|false}`. `202`; turning it on answers a new `password` and full `url` once |
+| POST | `/management/v1/environments/{id}/database/password` | owner, admin, when ready | A new password, answered once; the old one stops working. `409` while access is off |
+| GET | `/management/v1/environments/{id}/signing-key` | owner, admin, when ready | The JWT signing key's `state` (`never`, `pending`, `done`, `failed`), `failure` and `rotatedAt`; never the key |
+| POST | `/management/v1/environments/{id}/signing-key/rotate` | owner, admin, when ready | A new signing key ([signing key](../guides/signing-keys.md)). `202`; `409` while a rotation is pending |
 | GET | `/management/v1/environments/{id}/mail` | member | Non-secret mail state of the environment; no credential field |
 | GET | `/management/v1/notifications` | owner or admin of any client | Undelivered count and recent operator events of the caller's own clients only. Events that belong to no client (installation start, worker restarts) go to owners and admins of the client created at bootstrap |
 | GET | `/management/v1/organizations/{id}/audit` | owner, admin | What happened in that client, newest first (up to 100): time, actor, action, subject name and a short detail. A project moved in from another client shows only what happened since it arrived |

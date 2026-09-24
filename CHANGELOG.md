@@ -15,6 +15,32 @@ ready.
 
 ### Added
 
+- **Rotate an environment's signing key.** Owners and admins press **Rotate
+  signing key** (or `POST .../signing-key/rotate`); the supervisor gives the
+  environment a new JWT secret, recreates its Auth and REST, updates its
+  Storage and Realtime tenants and Edge Functions, and ends every session.
+  Publishable keys keep working. A rotation that stops halfway is finished by
+  the next attempt or start. Also: a restart no longer drops an environment's
+  direct database access from the published state.
+- **Move a project from Supabase in one command.** `lab/import_project.py`
+  reads a Supabase project (Cloud, self-hosted, or another environment) and
+  copies it into a new, empty environment: the `public` schema with its
+  policies and the source's own grants, users with their password hashes,
+  every row, buckets and files with their owners, and triggers on
+  `auth.users` and `storage.objects`, then compares counts before reporting
+  success. `--dry-run` only inspects.
+- **Encrypted off-site backup copies.** `lab/offsite.py configure` takes S3
+  settings (Cloudflare R2, Backblaze B2, AWS S3, MinIO) and a passphrase on
+  stdin; from then on each daily backup is encrypted on the server
+  (AES-256-GCM in chunks) and copied to the bucket, the newest 30 per
+  environment are kept, and `fetch` brings one back for `backup.py restore`.
+- **Direct database access per environment.** Owners and admins turn on a
+  developer login and get a PostgreSQL connection string, with the password
+  shown once, for `psql`, `pg_dump`, `supabase db push --db-url`, Prisma or
+  Drizzle over an SSH tunnel. The login works like a project's `postgres`
+  user within its own database, including triggers on `auth.users` and
+  Storage policies, but is not a superuser. A loopback listener (port 6543)
+  passes on only developer logins to their own database.
 - **Edge Functions per environment.** Deploy a Supabase project's
   `supabase/functions` folder with one command (`lab/functions-deploy.ts`),
   `_shared` and `verify_jwt` in `config.toml` included, or write a function in

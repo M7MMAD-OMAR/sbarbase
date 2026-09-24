@@ -1,0 +1,70 @@
+{
+  "check": "offsite",
+  "recorded": "2026-09-24T07:02:22Z",
+  "passed": true,
+  "count": 12,
+  "seconds": 6,
+  "scope": "Encrypted off-site copies for one environment on a clean GitHub runner, not a real server, against a throwaway MinIO (quay.io/minio/minio, which checks SigV4 signatures) as the S3-compatible storage: configured from stdin, a backup copied off the server by itself, only ciphertext in the bucket, the local backup removed, a wrong passphrase refused, the copy fetched and restored. Real cloud storage (R2, B2, S3) was not contacted. Transcribed from the CI docker-install job 107528408924 (run 35967111703, commit 9b649c7).",
+  "checks": [
+    {
+      "check": "the storage has a bucket for the copies",
+      "ok": true,
+      "detail": "status 200"
+    },
+    {
+      "check": "a published environment exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "off-site copies are configured and proven with a test object",
+      "ok": true,
+      "detail": "off-site copies go to sbarbase-ci/sbarbase and keep 5 per environment"
+    },
+    {
+      "check": "the settings are private",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "a backup copies itself off the server",
+      "ok": true,
+      "detail": "database 166208 B, 1 file(s), 1 user(s); copied 2 backup(s) off the server (an earlier backup not yet copied went too)"
+    },
+    {
+      "check": "the copy is listed in the bucket",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "the storage holds only ciphertext",
+      "ok": true,
+      "detail": "166252 bytes stored for 166208 bytes of dump"
+    },
+    {
+      "check": "a wrong passphrase cannot read the copy",
+      "ok": true,
+      "detail": "The file does not decrypt: a wrong passphrase, or a damaged or truncated copy"
+    },
+    {
+      "check": "a failed fetch leaves nothing behind",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "the copy comes back and matches its manifest",
+      "ok": true,
+      "detail": "database 166208 B, 1 file(s)"
+    },
+    {
+      "check": "the fetched backup restores the environment",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "a backup already off the server is not copied again",
+      "ok": true,
+      "detail": "copied 0 backup(s) off the server"
+    }
+  ]
+}

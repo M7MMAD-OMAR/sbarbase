@@ -59,7 +59,8 @@ def hba_content(environments):
         # The studio login exists only while an operator runs Studio for this environment
         # (lab/studio.py); outside that it is NOLOGIN, so the rule admits nobody.
         # Realtime's login exists once the environment turns Realtime on (docs/engineering/REALTIME.md).
-        lines += [f'host {e} {e}_{role} 0.0.0.0/0 scram-sha-256' for role in ('auth', 'rest', 'storage', 'studio', 'realtime')]
+        # The developer login exists once an owner turns direct database access on, and is NOLOGIN while it is off.
+        lines += [f'host {e} {e}_{role} 0.0.0.0/0 scram-sha-256' for role in ('auth', 'rest', 'storage', 'studio', 'realtime', 'developer')]
     lines += ['host all all 0.0.0.0/0 reject', 'host all all ::/0 reject']
     return '\n'.join(lines)+'\n'
 
@@ -135,6 +136,21 @@ def settings_only(component, configured, desired):
     return bool(changed) and all(owned(key) for key in changed)
 
 
+# The one key each service reads the environment's JWT signing secret from.
+SIGNING_KEYS = {'auth': 'GOTRUE_JWT_SECRET', 'rest': 'PGRST_JWT_SECRET'}
+
+
+def signing_only(component, configured, desired):
+    """True when a retained Auth or REST differs from its desired configuration in its signing
+    secret (a rotation, `Runtime.rotate_signing`), and otherwise not at all or only as
+    `settings_only` allows."""
+    key = SIGNING_KEYS.get(component)
+    if key is None or configured.get(key) == desired.get(key):
+        return False
+    patched = {**configured, key: desired.get(key)}
+    return all(patched.get(k) == v for k, v in desired.items()) or settings_only(component, patched, desired)
+
+
 def load_settings(e):
     """The environment's sign-in settings; a file that fails validation is reported and left out."""
     try:
@@ -168,6 +184,27 @@ def realtime_on(e):
 
 def realtime_count():
     return sum(1 for entry in published_endpoints().values() if isinstance(entry, dict) and entry.get('realtime'))
+
+
+def direct_on(e):
+    """Whether this environment's developer login may connect (direct database access)."""
+    return bool(published_endpoints().get(e, {}).get('database'))
+
+
+def studio_running(e):
+    path = STATE/'studio.json'
+    try:
+        return e in (json.loads(path.read_text()).get('sessions', {}) if path.exists() else {})
+    except (OSError, ValueError):
+        return False
+
+
+def current_database_limit(e, *, studio=None, realtime=None, direct=None):
+    """The environment database's connection limit for the logins it runs now; a caller that is
+    changing one of them names its new value and the others are read from the published state."""
+    return connection_budget.database_limit(studio=studio_running(e) if studio is None else studio,
+                                            realtime=realtime_on(e) if realtime is None else realtime,
+                                            direct=direct_on(e) if direct is None else direct)
 
 
 def functions_on(e):
@@ -307,7 +344,7 @@ class Runtime:
     def sql(self, query, database='postgres', check=True):
         return lab.docker('exec', '-i', DB, 'psql', '-X', '-v', 'ON_ERROR_STOP=1', '-U', 'supabase_admin', '-d', database, '-qAt', data=query, check=check)
 
-    def launch(self, name, component, env, memory, cpus, volumes=(), command=(), existing_only=False, tier=None, binds=()):
+    def launch(self, name, component, env, memory, cpus, volumes=(), command=(), existing_only=False, tier=None, binds=(), rotating=False):
         image = self.pins[component]['id']
         actual = inspect('container', name)
         if existing_only and not actual:
@@ -323,7 +360,9 @@ class Runtime:
             # longer exists (reconcile_mail names the same hazard for its own path).
             stale = [key for key in configured if is_mail_key(key) and key not in env]
             if actual['Image'] != expected or any(configured.get(k) != v for k, v in env.items()) or stale:
-                if not upgrade_allows(component, image) and not (actual['Image'] == expected and settings_only(component, configured, env)):
+                # A new signing secret is accepted only while its environment has a recorded rotation.
+                if not upgrade_allows(component, image) and not (actual['Image'] == expected and (
+                        settings_only(component, configured, env) or (rotating and signing_only(component, configured, env)))):
                     raise RuntimeError('Runtime drift requires explicit reconciliation')
                 # An upgrade or rollback: replace the stateless container with the pinned
                 # image and the configuration this version computes, keeping its volumes.
@@ -398,6 +437,8 @@ class Runtime:
         else:
             raise RuntimeError('Database readiness timed out')
         self.hba_writer.ready(launched_cid,created=created)
+        # Where direct database access connects (src/http/database-proxy.ts); the address changes only with the container.
+        atomic(STATE/'database.json', {'host': self.endpoint(DB, 5432).split('//')[1].split(':')[0], 'port': 5432})
         if self.sql("SELECT 1 FROM pg_roles WHERE rolname='storage_control';").stdout.strip() != '1':
             self.sql(f"CREATE ROLE storage_control LOGIN NOINHERIT PASSWORD '{self.values['storage_control']}';")
         if self.sql("SELECT 1 FROM pg_database WHERE datname='storage_metadata';").stdout.strip() != '1':
@@ -516,6 +557,9 @@ class Runtime:
 
     def activate_services(self,e,v,*,creating):
         endpoints = {}
+        # A rotation recorded in runtime.json and not finished yet, whether it runs now or was
+        # interrupted: every service that holds the signing secret takes the new one.
+        rotating = not creating and bool(v.get('jwt_rotating'))
         # This environment's own mail configuration, read once per invocation.
         # mail_config.load returns None when the environment has no mail file,
         # and the builder then returns exactly the dict it returned before.
@@ -525,7 +569,7 @@ class Runtime:
             # No per-environment class field exists yet, so both environment
             # services launch under the production row (docs/engineering/RESOURCE-POLICY.md 3.2).
             config = builder(e, v, DB, mail, load_settings(e)) if service == 'auth' else builder(e, v, DB)
-            self.launch(name, service, config, '256m', .25, existing_only=not creating, tier='production')
+            self.launch(name, service, config, '256m', .25, existing_only=not creating, tier='production', rotating=rotating)
             endpoints[service] = self.endpoint(name, port)
             self.wait(endpoints[service]+suffix)
         if creating:effect_receipt.native_stage(STATE,e,'storage')
@@ -542,6 +586,11 @@ class Runtime:
                 raise RuntimeError('Storage tenant registration failed')
         elif status != 200:
             raise RuntimeError('Storage tenant lookup failed')
+        elif rotating:
+            payload = {'anonKey': token(v['jwt'], 'anon'), 'serviceKey': token(v['jwt'], 'service_role'), 'jwtSecret': v['jwt']}
+            status, _ = http(admin+'/tenants/'+e, 'PATCH', json.dumps(payload).encode(), headers)
+            if status not in (200, 204):
+                raise RuntimeError('Storage tenant update failed')
         public = self.endpoint(PREFIX+'-storage', 5000)
         self.wait(public+'/bucket', {'authorization': 'Bearer '+token(v['jwt'], 'service_role'), 'x-forwarded-host': e+'.storage.internal'})
         if self.sql("SELECT to_regclass('storage.objects') IS NOT NULL AND to_regprocedure('auth.uid()') IS NOT NULL;", e).stdout.strip() != 't':
@@ -555,11 +604,43 @@ class Runtime:
         if previous and not creating:
             # Realtime was turned on for this environment: bring it back, and let it run its
             # schema migrations again only when its pinned image changed.
-            endpoints['realtime'] = self.realtime_start(e, migrate=previous.get('migrated') != self.pins['realtime']['id'])
+            endpoints['realtime'] = self.realtime_start(e, migrate=rotating or previous.get('migrated') != self.pins['realtime']['id'])
         if all_endpoints.get(e, {}).get('functions') and not creating:
             endpoints['functions'] = self.functions_start(e)
+        # Direct database access is the developer login's own state, not a service to restart.
+        if all_endpoints.get(e, {}).get('database') and not creating:
+            endpoints['database'] = all_endpoints[e]['database']
         all_endpoints[e] = endpoints
         atomic(path, all_endpoints)
+        if rotating:
+            # A refresh token would otherwise give a leaked session a new token signed with the new key.
+            self.sql('UPDATE auth.refresh_tokens SET revoked = true WHERE NOT revoked; DELETE FROM auth.sessions;', e)
+            v.pop('jwt_rotating', None)
+            atomic(self.path, self.values)
+
+    def rotate_signing(self, e):
+        """Give one environment a new JWT signing secret. Every token signed with the old one stops
+        working and every session ends: people sign in again, and Studio and Edge Functions get new keys. Publishable and secret API
+        keys are not JWTs and keep working. The new secret and a rotation mark are written first,
+        so a rotation that stops halfway is finished by the next start (`activate_services`)."""
+        effect_receipt.require_settled(STATE)
+        if not re.fullmatch(r'e_[a-f0-9]{24}', e):
+            raise RuntimeError('Invalid environment runtime identifier')
+        if not inspect('container', DB) or not inspect('container', PREFIX+'-storage'):
+            raise RuntimeError('Start the upstream runtime first')
+        if e not in published_endpoints() or e not in self.values['environments']:
+            raise RuntimeError('Rotation needs a published environment')
+        if source_fence.is_fenced(self.sql, e):
+            raise RuntimeError('Environment database is fenced; explicit reconciliation required')
+        for service in ('auth', 'rest'):
+            if not inspect('container', PREFIX+'-'+e+'-'+service):
+                raise RuntimeError('Rotation needs the retained service containers')
+        v = self.values['environments'][e]
+        if not v.get('jwt_rotating'):
+            v['jwt'] = secrets.token_hex(32)
+            v['jwt_rotating'] = True
+            atomic(self.path, self.values)
+        self.activate_services(e, v, creating=False)
 
     def reconcile_mail(self, e, off=False):
         """Apply one environment's mail configuration, or remove it with `off`.
@@ -696,8 +777,7 @@ DO $$ BEGIN
     CREATE PUBLICATION supabase_realtime FOR TABLES IN SCHEMA public;
   END IF;
 END $$;""", e)
-        studio_running = e in (json.loads((STATE/'studio.json').read_text()).get('sessions', {}) if (STATE/'studio.json').exists() else {})
-        self.sql(f'ALTER DATABASE {e} CONNECTION LIMIT {connection_budget.database_limit(studio=studio_running, realtime=True)};')
+        self.sql(f'ALTER DATABASE {e} CONNECTION LIMIT {current_database_limit(e, realtime=True)};')
 
     def realtime_start(self, e, migrate):
         """Run the environment's Realtime. With `migrate`, its login is a superuser only while Realtime
@@ -760,6 +840,88 @@ GRANT ALL ON ALL SEQUENCES IN SCHEMA _realtime TO {role};""", e)
             status = error.code
         if status not in (200, 201):
             raise RuntimeError('Realtime tenant registration failed')
+
+    def developer_sql(self, e, password):
+        """The environment's developer login: what a project's own `postgres` user does on Supabase,
+        within one database. It may create and change anything in `public`, and, as a member of
+        the environment's Auth and Storage logins, add triggers on `auth.users` and policies on
+        `storage.objects`. It is not a superuser and cannot reach another environment's database."""
+        role = f'{e}_developer'
+        members = ', '.join(f'{e}_{service}' for service in ('auth', 'storage')) + ', anon, authenticated, service_role'
+        return f"""
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{role}') THEN
+    CREATE ROLE {role} NOLOGIN;
+  END IF;
+END $$;
+ALTER ROLE {role} NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION INHERIT BYPASSRLS
+  CONNECTION LIMIT {connection_budget.DIRECT_CONNECTIONS} PASSWORD {sql_literal(password)};
+ALTER ROLE {role} IN DATABASE {e} SET search_path TO public, extensions;
+GRANT CONNECT, TEMPORARY ON DATABASE {e} TO {role};
+GRANT {members} TO {role};
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{e}_studio') THEN
+    EXECUTE 'GRANT {e}_studio TO {role}';
+  END IF;
+END $$;
+ALTER ROLE {role} LOGIN;
+"""
+
+    def developer_grants_sql(self, e):
+        role = f'{e}_developer'
+        return f"""GRANT USAGE, CREATE ON SCHEMA public, extensions TO {role};
+GRANT ALL ON ALL TABLES IN SCHEMA public TO {role};
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO {role};
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO {role};
+ALTER DEFAULT PRIVILEGES FOR ROLE {role} IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES FOR ROLE {role} IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES FOR ROLE {role} IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO anon, authenticated, service_role;"""
+
+    def database_turn(self, e, on):
+        """Turn one environment's direct database access on (with the password the console saved) or off."""
+        effect_receipt.require_settled(STATE)
+        if not re.fullmatch(r'e_[a-f0-9]{24}', e):
+            raise RuntimeError('Invalid environment runtime identifier')
+        if not inspect('container', DB):
+            raise RuntimeError('Start the upstream runtime first')
+        endpoints = published_endpoints()
+        if e not in endpoints or e not in self.values['environments']:
+            raise RuntimeError('Database access needs a published environment')
+        if source_fence.is_fenced(self.sql, e):
+            raise RuntimeError('Environment database is fenced; explicit reconciliation required')
+        role = f'{e}_developer'
+        if on:
+            if self.sql(f"SELECT count(*) FROM pg_hba_file_rules WHERE '{role}' = ANY(user_name) AND error IS NULL;").stdout.strip() != '1':
+                raise RuntimeError('Database access rule not published; restart Sbarbase once')
+            try:
+                password = json.loads((PRIVATE/'database'/f'{e}.json').read_text())['password']
+            except (OSError, ValueError, KeyError):
+                raise RuntimeError('No developer password was saved') from None
+            if not isinstance(password, str) or not re.fullmatch(r'[A-Za-z0-9_-]{24,128}', password):
+                raise RuntimeError('The saved developer password is not valid')
+            if not direct_on(e):
+                available, promised = (int(value) for value in self.sql(
+                    "SELECT current_setting('max_connections')::int - current_setting('superuser_reserved_connections')::int "
+                    "- current_setting('reserved_connections')::int, coalesce(sum(greatest(datconnlimit, 0)), 0) "
+                    "FROM pg_database WHERE datallowconn AND datname <> 'template1';").stdout.strip().split('|'))
+                if promised + connection_budget.DIRECT_CONNECTIONS > available:
+                    raise AdmissionLimitError('Connection headroom unavailable')
+            self.sql(self.developer_sql(e, password))
+            self.sql(self.developer_grants_sql(e), e)
+            self.sql(f'ALTER DATABASE {e} CONNECTION LIMIT {current_database_limit(e, direct=True)};')
+            # A new password closes the sessions that signed in with the old one.
+            self.sql(f"SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE usename = '{role}' AND backend_start < now() - interval '1 second';")
+        else:
+            self.sql(f"DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{role}') THEN "
+                     f"ALTER ROLE {role} NOLOGIN; END IF; END $$; "
+                     f"SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE usename = '{role}';")
+            self.sql(f'ALTER DATABASE {e} CONNECTION LIMIT {current_database_limit(e, direct=False)};')
+        endpoints = published_endpoints()
+        if on:
+            endpoints[e]['database'] = {'user': role, 'database': e}
+        else:
+            endpoints[e].pop('database', None)
+        atomic(STATE/'endpoints.json', endpoints)
 
     def functions_configuration(self, e, v):
         """The main service's settings: where the code and secrets are, the keys functions get, and
@@ -867,8 +1029,7 @@ GRANT ALL ON ALL SEQUENCES IN SCHEMA _realtime TO {role};""", e)
                      f"ALTER ROLE {e}_realtime NOLOGIN; END IF; END $$; "
                      f"SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE usename = '{e}_realtime';")
             self.sql(f"SELECT count(pg_drop_replication_slot(slot_name)) FROM pg_replication_slots WHERE database = '{e}' AND NOT active;")
-            studio_running = e in (json.loads((STATE/'studio.json').read_text()).get('sessions', {}) if (STATE/'studio.json').exists() else {})
-            self.sql(f'ALTER DATABASE {e} CONNECTION LIMIT {connection_budget.database_limit(studio=studio_running)};')
+            self.sql(f'ALTER DATABASE {e} CONNECTION LIMIT {current_database_limit(e, realtime=False)};')
         endpoints = published_endpoints()
         if entry:
             endpoints[e]['realtime'] = entry
@@ -906,7 +1067,7 @@ def stop():
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('command', choices=['up', 'stop', 'provision', 'mail', 'auth', 'realtime', 'functions'])
+    parser.add_argument('command', choices=['up', 'stop', 'provision', 'mail', 'auth', 'realtime', 'functions', 'database', 'signing'])
     parser.add_argument('environment', nargs='?')
     parser.add_argument('--off', action='store_true')
     args = parser.parse_args()
@@ -923,6 +1084,16 @@ if __name__ == '__main__':
                 elif args.command=='realtime':
                     if not args.environment:raise SystemExit('The realtime command needs an environment')
                     Runtime().realtime_turn(args.environment, on=not args.off)
+                elif args.command=='database':
+                    if not args.environment:raise SystemExit('The database command needs an environment')
+                    Runtime().database_turn(args.environment, on=not args.off)
+                elif args.command=='signing':
+                    if not args.environment:raise SystemExit('The signing command needs an environment')
+                    Runtime().rotate_signing(args.environment)
+                    if studio_running(args.environment):
+                        # A running Studio holds keys signed with the old secret; it starts again with new ones.
+                        import studio
+                        studio.up(args.environment)
                 elif args.command=='functions':
                     if not args.environment:raise SystemExit('The functions command needs an environment')
                     Runtime().functions_turn(args.environment, on=not args.off)

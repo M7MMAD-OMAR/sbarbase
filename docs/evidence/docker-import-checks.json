@@ -1,0 +1,70 @@
+{
+  "check": "import",
+  "recorded": "2026-09-24T07:29:53Z",
+  "passed": true,
+  "count": 12,
+  "seconds": 23,
+  "scope": "Import of a Supabase-shaped project into a new environment on a clean GitHub runner, not a real server: the source is another environment read through its developer login and gateway, as a Supabase project is through its postgres user and API; the imported user signs in with the old password, row level security, a private file with its Storage policy and a sign-up trigger on auth.users carry over, and a second import into the full environment is refused. Not a Supabase Cloud project. Transcribed from the CI docker-install job 107535197021 (run 35969253029, commit 3a662ad); environment identifiers shortened to e_….",
+  "checks": [
+    {
+      "check": "operator logs in",
+      "ok": true,
+      "detail": "status 200"
+    },
+    {
+      "check": "a provisioned source environment exists",
+      "ok": true,
+      "detail": "e_…"
+    },
+    {
+      "check": "the source has a user with a protected row and a private file",
+      "ok": true,
+      "detail": "signup 200, row 201, file 200"
+    },
+    {
+      "check": "a new environment is provisioned for the import",
+      "ok": true,
+      "detail": "state succeeded"
+    },
+    {
+      "check": "the import runs to the end and verifies its counts",
+      "ok": true,
+      "detail": "manual steps listed (SMTP and email templates, site URL and redirects, Edge Functions listed only, new publishable keys); imported"
+    },
+    {
+      "check": "the imported user signs in with the old password",
+      "ok": true,
+      "detail": "status 200"
+    },
+    {
+      "check": "row level security came along: the user reads their own row",
+      "ok": true,
+      "detail": "200 [{'body': 'imported note'}]"
+    },
+    {
+      "check": "and a visitor reads none",
+      "ok": true,
+      "detail": "401 permission denied for table notes"
+    },
+    {
+      "check": "the user downloads their own file, byte for byte",
+      "ok": true,
+      "detail": "status 200"
+    },
+    {
+      "check": "a visitor cannot download it",
+      "ok": true,
+      "detail": "status 400"
+    },
+    {
+      "check": "a new sign-up runs the imported trigger on auth.users",
+      "ok": true,
+      "detail": "profiles 2 → 3"
+    },
+    {
+      "check": "a second import into the now full environment is refused",
+      "ok": true,
+      "detail": "refused: the target environment is not empty; create a new environment to import into"
+    }
+  ]
+}

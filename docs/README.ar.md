@@ -31,6 +31,9 @@
 - [إعداد المشغّل](guides/operator-setup.ar.md): أنشئ المشغّل الأول والعميل الأول.
 - [النشر على خادم](guides/server-deployment.ar.md): دليل تشغيل الخادم وثغراته المعروفة.
 - [Realtime](guides/realtime.ar.md): تغييرات قاعدة البيانات والبث والحضور لكل بيئة.
+- [النقل من Supabase](guides/move-from-supabase.ar.md): انسخ مشروع Supabase ومستخدميه وملفاته إلى بيئة جديدة بأمر واحد.
+- [الوصول إلى قاعدة البيانات](guides/database-access.ar.md): سلسلة اتصال PostgreSQL لكل بيئة للترحيلات وpsql وأدوات ORM.
+- [مفتاح التوقيع](guides/signing-keys.ar.md): غيّر مفتاح توقيع JWT لبيئة متى احتمل أنه تسرّب.
 - [Edge Functions](guides/edge-functions.ar.md): انشر مجلد دوال Supabase إلى بيئة واستدعِه عبر supabase-js.
 - [السجلات والمقاييس](guides/logs-and-metrics.ar.md): الطلبات والأخطاء وأزمنة الاستجابة وسجلات الخدمات لكل بيئة.
 - [إعدادات تسجيل الدخول](guides/sign-in.ar.md): عنوان الموقع وعناوين إعادة التوجيه ومزوّدو OAuth (Google وGitHub وApple وغيرها) لكل بيئة.
