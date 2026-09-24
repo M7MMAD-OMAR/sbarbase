@@ -88,3 +88,62 @@ test('repeated bad tokens are rate limited for the minute',async()=>{
  clock.t+=60_000;expect((await redeem({token:'x'})).status).toBe(400);
  catalog.close();
 });
+
+test('a removed or demoted inviter cannot come back through a link they made (review finding 1)',async()=>{
+ const {catalog,org,sessions,redeem,invite}=setup();
+ const {token}=await invite('bob','bob@example.com','admin');                   // admin bob invites himself
+ catalog.changeMember('alice',org,'bob',null);                                  // then is removed
+ sessions.set('s-bob',{id:'bob',email:'bob@example.com'});
+ expect((await redeem({token},'s-bob')).status).toBe(400);
+ expect(()=>catalog.listProjects('bob',org)).toThrow('Forbidden');
+ catalog.setMember('alice',org,'olga','owner');
+ const owned=await invite('olga','alt@example.com','owner');
+ catalog.changeMember('alice',org,'olga','viewer');
+ expect((await redeem({token:owned.token,password:'long enough password'})).status).toBe(400);
+ catalog.close();
+});
+
+test('a new owner by invitation raises the critical owner notice (finding 2)',async()=>{
+ const {catalog,redeem,invite}=setup();
+ const {token}=await invite('alice','fred@example.com','owner');
+ expect((await redeem({token,password:'long enough password'})).status).toBe(201);
+ const db=(catalog as unknown as {db:Database}).db;
+ expect(db.query("SELECT severity FROM notification_outbox WHERE kind='membership.owner_changed'").all()).toEqual([{severity:'critical'}]);
+ catalog.close();
+});
+
+test('junk never blocks a valid invitation, and a large body is refused unread (findings 3 and 4)',async()=>{
+ const clock={t:0};const {catalog,redeem,invite}=setup(clock);
+ const {token}=await invite('alice','gina@example.com','viewer');
+ for(let k=0;k<25;k++)await redeem({token:'x'});
+ expect((await redeem({token,password:'long enough password'})).status).toBe(201);
+ const big=await redeem({token:'y'.repeat(20_000)});
+ expect([400,429]).toContain(big.status);
+ catalog.close();
+});
+
+test('the realm refusing a password is not mistaken for an existing account (finding 6)',async()=>{
+ const catalog=new Catalog(':memory:');const org=catalog.createOrganization('alice','A');
+ const handler=invitationHandler(catalog,async request=>request.headers.get('authorization'),{create:async()=>'weak',session:async()=>null});
+ const {token}=catalog.createInvitation('alice',org,'h@example.com','viewer');
+ const answer=await handler(new Request('http://local/management/invitations/redeem',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({token,password:'long enough password'})}));
+ expect(answer.status).toBe(400);expect((await answer.json()).message).toBe('Choose a stronger password');
+ catalog.close();
+});
+
+test('a preview shows what the link offers without joining (finding 7)',async()=>{
+ const {catalog,org,redeem,invite}=setup();
+ const {token}=await invite('alice','ivy@example.com','viewer');
+ const preview=await redeem({token,preview:true});
+ expect((await preview.json()).data).toEqual({organization:'A',role:'viewer',email:'ivy@example.com'});
+ expect(catalog.listMembers('alice',org).some(member=>member.actor==='u-ivy')).toBe(false);
+ catalog.close();
+});
+
+test('only owners invite into the bootstrap organization (finding 7)',()=>{
+ const catalog=new Catalog(':memory:');
+ const operators=catalog.initializeInstallation('op','alice','Operators');catalog.setMember('alice',operators,'bob','admin');
+ expect(()=>catalog.createInvitation('bob',operators,'j@example.com','viewer')).toThrow('Forbidden');
+ expect(catalog.createInvitation('alice',operators,'j@example.com','viewer').token).toBeString();
+ catalog.close();
+});

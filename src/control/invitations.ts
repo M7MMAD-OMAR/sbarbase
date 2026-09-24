@@ -5,18 +5,27 @@ import {authenticate,reply,type ManagementIdentity} from './auth';
  * service role token stays inside the implementation (lab/upstream-app.ts); none of these
  * answers ever carries it. docs/engineering/INVITATIONS.md */
 export type InvitationAccounts={
- /** Creates a confirmed account, or says one already exists for that email. */
- create(email:string,password:string):Promise<{id:string}|'exists'>;
+ /** Creates a confirmed account, or says one already exists for that email, or that the
+  * realm refused the password. */
+ create(email:string,password:string):Promise<{id:string}|'exists'|'weak'>;
  /** The id and email behind a session token, or null. */
  session(token:string):Promise<{id:string;email:string}|null>;
 };
 
 const INVALID={message:'This invitation is not valid'};
-const MIN_PASSWORD=12,MAX_PASSWORD=256,FAILURES_PER_MINUTE=20;
+const MIN_PASSWORD=12,MAX_PASSWORD=256,FAILURES_PER_MINUTE=20,MAX_BODY=8192;
 
+/** A small JSON object body, read with a size bound: the redeem route answers anyone. */
 async function json(request:Request):Promise<Record<string,unknown>|null> {
- try{const value=await request.json();return value&&typeof value==='object'&&!Array.isArray(value)?value as Record<string,unknown>:null;}
- catch{return null;}
+ const declared=Number(request.headers.get('content-length')??'0');
+ if(!Number.isFinite(declared)||declared>MAX_BODY||!request.body)return null;
+ const reader=request.body.getReader(),chunks:Uint8Array[]=[];let size=0;
+ try {
+  while(true){const part=await reader.read();if(part.done)break;size+=part.value.length;
+   if(size>MAX_BODY){void reader.cancel().catch(()=>{});return null;}chunks.push(part.value);}
+  const value=JSON.parse(Buffer.concat(chunks).toString('utf8'));
+  return value&&typeof value==='object'&&!Array.isArray(value)?value as Record<string,unknown>:null;
+ } catch{return null;}
 }
 
 /** Owners and admins invite, list and cancel under `/management/v1/organizations/{id}/invitations`;
@@ -30,10 +39,12 @@ export function invitationHandler(catalog:Catalog,identify:ManagementIdentity,ac
   if(path==='/management/invitations/redeem') {
    if(request.method!=='POST')return reply(405,{message:'Method not allowed'});
    if(!accounts)return reply(503,{message:'Invitations are unavailable'});
-   if(limited())return reply(429,{message:'Too many attempts. Wait a minute and try again.'});
    const input=await json(request);
    const invitation=typeof input?.token==='string'?catalog.invitationFor(input.token):undefined;
-   if(!invitation)return failed();
+   // Only failures are limited, so noise from anyone never blocks a valid invitation.
+   if(!invitation)return limited()?reply(429,{message:'Too many attempts. Wait a minute and try again.'}):failed();
+   if(input?.preview===true){const offer=catalog.invitationPreview(invitation.id);
+    return offer?reply(200,{data:{...offer,email:invitation.email}}):failed();}
    try {
     const header=request.headers.get('authorization');
     if(header&&/^Bearer \S+$/i.test(header)&&header.length<=8192) {
@@ -47,6 +58,7 @@ export function invitationHandler(catalog:Catalog,identify:ManagementIdentity,ac
     if(typeof password!=='string'||password.length<MIN_PASSWORD||password.length>MAX_PASSWORD)
      return reply(400,{message:`Choose a password of at least ${MIN_PASSWORD} characters`});
     const created=await accounts.create(invitation.email,password);
+    if(created==='weak')return reply(400,{message:'Choose a stronger password'});
     if(created==='exists')return reply(409,{message:'An account exists for this email. Sign in, then open the invitation link again.',email:invitation.email});
     const joined=catalog.acceptInvitation(invitation.id,created.id);
     return reply(201,{data:{organization:joined.organization,role:joined.role,email:invitation.email}});

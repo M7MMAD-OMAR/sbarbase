@@ -40,13 +40,22 @@ export function AcceptInvitation({token,onSignIn}:{token:string;onSignIn:()=>voi
  </div><div className="auth-footer"><ThemeControl/></div></section></main>;
 }
 
-/** Signed in with an invitation link open: join with the current session, once. */
-export function useJoinWithSession(session:Session|null,onJoined:()=>void):string {
- const [message,setMessage]=useState('');
- useEffect(()=>{const token=inviteToken();if(!session||!token)return;
-  void redeem({token},session.access_token).then(result=>{clear();
-   if(result.status===200){setMessage('');onJoined();}
-   else setMessage(result.status===400?'This invitation is not valid for the account you are signed in with.':result.message);});
- },[session?.access_token]);
- return message;
+/** Signed in with an invitation link open: show what it offers and join only when the person
+ * confirms, so a link someone sends cannot add them to an organization silently. */
+export function JoinInvitation({session,onJoined}:{session:Session;onJoined:()=>void}){
+ const [offer,setOffer]=useState<{organization:string;role:string;email:string}>(),[message,setMessage]=useState(''),[busy,setBusy]=useState(false);
+ const token=inviteToken();
+ useEffect(()=>{if(!token)return;
+  void fetch('/management/invitations/redeem',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({token,preview:true})})
+   .then(async response=>{const value=await response.json().catch(()=>({})) as {data?:{organization:string;role:string;email:string};message?:string};
+    if(response.ok&&value.data)setOffer(value.data);else{clear();setMessage(value.message??'This invitation is not valid.');}})
+   .catch(()=>setMessage('Unable to reach the server. Try again.'));},[token]);
+ async function join(){setBusy(true);const result=await redeem({token},session.access_token);clear();setOffer(undefined);setBusy(false);
+  if(result.status===200)onJoined();
+  else setMessage(result.status===400?'This invitation is not valid for the account you are signed in with.':result.message);}
+ if(message)return <p className="error" role="alert">{message}</p>;
+ if(!offer)return null;
+ return <section className="details" aria-labelledby="join-title"><h2 id="join-title">Join {offer.organization}?</h2>
+  <p className="muted small">This invitation, sent to {offer.email}, adds you to {offer.organization} as {offer.role}.</p>
+  <div className="form-row"><button className="primary" disabled={busy} onClick={()=>void join()}>Join as {offer.role}</button><button disabled={busy} onClick={()=>{clear();setOffer(undefined);}}>Not now</button></div></section>;
 }

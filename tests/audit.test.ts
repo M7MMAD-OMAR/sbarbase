@@ -34,6 +34,7 @@ test('a project moved to another client shows there only from its arrival, witho
  expect(shopEvents.map(e=>e.action)).toEqual(['environment.created','provision.cancelled','project.ownership_changed']);   // not its creation in A
  expect(shopEvents[2]!.detail).toEqual({});
  expect(JSON.stringify(ofB)).not.toContain(a);
+ expect(ofB.every(e=>['alice','bob','outside'].includes(e.actor)||e.actor.startsWith('system'))).toBe(true);
  const ofA=(await (await call(a,'alice')).json()).data as {subject:string}[];
  expect(ofA.some(e=>e.subject.startsWith('Shop'))).toBe(false);
  catalog.close();

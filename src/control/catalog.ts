@@ -488,7 +488,8 @@ export class Catalog {
         if(typeof value==='number'||typeof value==='boolean')detail[key]=value;
         else if(typeof value==='string'&&(/^[a-z_]{1,40}$/.test(value)||(key==='target'&&value.length<=200)))detail[key]=value;
       }
-      out.push({at:row.at,actor:row.actor,action:row.action,kind:subject.kind,subject:subject.name,detail});
+      const member=row.actor.startsWith('system')||!!this.db.query('SELECT 1 FROM memberships WHERE organization=? AND actor=?').get(organization,row.actor);
+      out.push({at:row.at,actor:member?row.actor:'outside',action:row.action,kind:subject.kind,subject:subject.name,detail});
       if(out.length>=limit)break;
     }
     return out;
@@ -503,6 +504,12 @@ export class Catalog {
       const current=this.db.query<{role:string},[string,string]>('SELECT role FROM memberships WHERE organization=? AND actor=?').get(organization,target);
       if(!current)throw new Error('Unknown member');
       this.setMember(actor,organization,target,role);
+      // Invitations carry their inviter's authority. When that authority drops, what they
+      // issued goes with it, so nobody returns through a link they made before.
+      const rank={owner:0,admin:1,viewer:2} as const;
+      if(role===null||rank[role]>rank[current.role as MembershipRole])
+        this.db.query('UPDATE invitations SET cancelled_at=? WHERE organization=? AND inviter=? AND used_at IS NULL AND cancelled_at IS NULL')
+          .run(Date.now(),organization,target);
       return this.listMembers(actor,organization);
     }).immediate();
   }
@@ -515,6 +522,9 @@ export class Catalog {
     return this.db.transaction(()=>{
       const own=this.require(actor,organization,['owner','admin']);
       if(role==='owner'&&own!=='owner')throw new Error('Forbidden');
+      // Members of the bootstrap organization are installation operators, so only its owners
+      // bring anyone into it.
+      if(own!=='owner'&&this.installationBootstrap()?.organization===organization)throw new Error('Forbidden');
       const id=randomUUID(),token=randomBytes(32).toString('base64url'),now=Date.now(),expires_at=now+INVITATION_TTL_MS;
       this.db.query(`INSERT INTO invitations(id,organization,email,role,token_hash,inviter,created_at,expires_at)
         VALUES (?,?,?,?,?,?,?,?)`).run(id,organization,address,role,tokenHash(token),actor,now,expires_at);
@@ -546,20 +556,31 @@ export class Catalog {
       `SELECT id,organization,email,role FROM invitations WHERE token_hash=? AND used_at IS NULL AND cancelled_at IS NULL
        AND expires_at>?`).get(tokenHash(token),Date.now())??undefined;
   }
+  /** What a pending invitation offers, for the confirmation the console shows before joining. */
+  invitationPreview(id:string):{organization:string;role:MembershipRole}|undefined {
+    return this.db.query<{organization:string;role:MembershipRole},[string]>(
+      'SELECT o.name organization,i.role role FROM invitations i JOIN organizations o ON o.id=i.organization WHERE i.id=?').get(id)??undefined;
+  }
   /** Adds the membership and marks the invitation used, once. An existing member keeps the
    * higher of the two roles. */
   acceptInvitation(id:string,actor:string):{organization:string;role:MembershipRole} {
     this.actor(actor);
     return this.db.transaction(()=>{
-      const row=this.db.query<{organization:string;role:MembershipRole},[string,number]>(
-        `SELECT organization,role FROM invitations WHERE id=? AND used_at IS NULL AND cancelled_at IS NULL AND expires_at>?`).get(id,Date.now());
+      const row=this.db.query<{organization:string;role:MembershipRole;inviter:string},[string,number]>(
+        `SELECT organization,role,inviter FROM invitations WHERE id=? AND used_at IS NULL AND cancelled_at IS NULL AND expires_at>?`).get(id,Date.now());
       if(!row)throw new Error('Invalid invitation');
+      // The inviter must still be able to grant this role now, not only when they invited.
+      const inviter=this.db.query<{role:MembershipRole},[string,string]>('SELECT role FROM memberships WHERE organization=? AND actor=?').get(row.organization,row.inviter);
+      if(!inviter||inviter.role==='viewer'||(row.role==='owner'&&inviter.role!=='owner'))throw new Error('Invalid invitation');
       const rank={owner:0,admin:1,viewer:2} as const;
       const current=this.db.query<{role:MembershipRole},[string,string]>('SELECT role FROM memberships WHERE organization=? AND actor=?').get(row.organization,actor);
       const role=current&&rank[current.role]<rank[row.role]?current.role:row.role;
       this.db.query(`INSERT INTO memberships VALUES (?,?,?) ON CONFLICT(organization,actor) DO UPDATE SET role=excluded.role`).run(row.organization,actor,role);
       this.db.query('UPDATE invitations SET used_at=?,used_by=? WHERE id=?').run(Date.now(),actor,id);
       this.record(actor,'invitation.accepted',row.organization,{role});
+      if(role==='owner'&&current?.role!=='owner')
+        this.notify('membership.owner_changed','critical','membership.owner_changed|'+row.organization+'|'+actor,
+          {organization:row.organization},actor,'owner_changed',{target:actor,role});
       return {organization:row.organization,role};
     }).immediate();
   }

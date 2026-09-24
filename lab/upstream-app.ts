@@ -30,7 +30,12 @@ export function invitationAccounts(url:string,serviceRole:string):InvitationAcco
  return {
   async create(email,password) {
    const {data,error}=await admin.auth.admin.createUser({email,password,email_confirm:true,app_metadata:{sbarbase_invited:true}});
-   if(error){if(error.status===422||/already/i.test(error.message))return 'exists';throw new Error('Account creation failed');}
+   if(error){
+    // Only these codes mean the email is taken; other 422s are validation, never 'exists'.
+    if(['email_exists','user_already_exists'].includes(error.code??''))return 'exists';
+    if(error.code==='weak_password')return 'weak';
+    throw new Error('Account creation failed');
+   }
    return {id:data.user.id};
   },
   async session(token) {
