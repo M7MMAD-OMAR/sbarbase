@@ -23,17 +23,15 @@ The `sbarbase-site` Worker serves only `dist/`. Its custom domain is declared in
 
 ## Content and interactions
 
-- `src/content.ts`: Arabic and English content grounded in `docs/reference/status.md`, `docs/explain/` and `docs/decisions/README.md`.
-- `src/render.ts`: prerendered pages, accessible controls and architecture diagrams.
-- `src/app.js`: 12-second request walkthrough, pause/replay/seek, hierarchy selection, service paths, architecture comparison and recovery stages.
-- `src/style.css`: charcoal surfaces, white identity and blue diagram accents. No green backgrounds or imagery.
-- `public/assets`: self-hosted fonts, font licenses and brand assets.
+The design is paper cutout: torn sheets with tape on a scribbled wall by day and a starry navy wall by night, hand lettering, and a paper cactus (sabbar) as the mascot. It follows the drawings in `docs/diagrams/`, so the site and the docs look like one thing.
 
-The walkthrough is illustrative, not live traffic. Autoplay pauses offscreen and in hidden tabs. Reduced-motion preference disables automatic playback and CSS motion. `?t=4` freezes a deterministic walkthrough frame for visual review. Links and all core explanations render without JavaScript.
+- `src/content.ts`: Arabic and English copy, grounded in `docs/reference/status.md`, `docs/explain/`, the roadmap and `docs/evidence/vm-empty-server-rehearsal.json`. The admission figures the environment slider uses are in `rules`, and a test checks them against `lab/resource_policy.py`.
+- `src/render.ts`: prerendered pages and every drawing as inline SVG. The request figure is written left to right and mirrored for Arabic, so the flow reads in the reader's direction.
+- `src/app.js`: day and night toggle (remembered per reader), the today versus Sbarbase comparison with an environment slider, the 12 second request walkthrough (play, pause, seek, steps), clients, projects and environments with an environment moving between servers, what is shared versus per environment, the recovery steps, and copying the install command.
+- `src/style.css`: the palette (paper, mustard, coral for shared parts, teal for per environment parts, lilac, navy), the torn edge as an SVG filter on a static layer, and all motion behind `prefers-reduced-motion: no-preference`.
+- `public/assets`: self-hosted fonts and their licences. `hand.woff2` is Marhey (SIL OFL 1.1, `OFL-Marhey.txt`), subset to Arabic and Latin; body text keeps Noto Sans Arabic and Manrope.
 
-The environment databases shown share a PostgreSQL engine. Separate databases do not establish hostile-operator isolation. Four recorded local environments are evidence scope, not a capacity guarantee. Planned services and production work are labeled separately.
-
-Per-environment administration is planned as the original upstream Supabase Studio, one process per environment, with the sbarbase console kept as the platform layer above it. Studio is not implemented, so the site presents it under planned work only.
+Everything is readable without JavaScript. The walkthrough is an illustration, not live traffic; it pauses offscreen and in hidden tabs. Planned work (Studio per environment, moving between servers, scheduled backups) is labelled as planned wherever it appears, and the page says plainly that the install was rehearsed in a virtual machine, not on a real server.
 
 ## GitHub and Cloudflare
 

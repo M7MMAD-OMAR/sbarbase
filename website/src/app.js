@@ -1,25 +1,121 @@
-const data=JSON.parse(document.querySelector('#page-data').textContent);
-const reduced=matchMedia('(prefers-reduced-motion: reduce)');
-const player=document.querySelector('.request-player');
-const play=document.querySelector('#play');
-const progress=document.querySelector('#progress');
-const packet=document.querySelector('.packet');
-const routes=['M300 64V104','M300 158V182Q300 194 288 194H162Q150 194 150 207V229','M150 285V330Q150 342 163 342H300V358'];
-const path=document.createElementNS('http://www.w3.org/2000/svg','path');
-let playing=!reduced.matches,position=0,lastTime=0,visible=true,stage=-1;
-function setPlayback(value){playing=value;play.setAttribute('aria-pressed',String(playing));play.setAttribute('aria-label',playing?data.pause:data.play);play.innerHTML=playing?'<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 5v14M16 5v14"/></svg>':'<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m8 5 11 7-11 7Z"/></svg>';player.classList.toggle('paused',!playing);document.body.classList.toggle('motion-paused',!playing);}
-function paint(){const next=Math.min(3,Math.floor(position/3000));if(stage!==next){stage=next;player.dataset.stage=String(stage);document.querySelector('#request-description').textContent=data.stageNotes[stage];document.querySelector('.step-counter').textContent=`0${stage+1} / 04`;path.setAttribute('d',routes[Math.min(stage,2)]);}progress.value=String(position);document.querySelector('.play-time').textContent=`0:${String(Math.floor(position/1000)).padStart(2,'0')} / 0:12`;const point=path.getPointAtLength((position%3000)/3000*path.getTotalLength());packet.setAttribute('cx',String(point.x));packet.setAttribute('cy',String(point.y));packet.style.opacity=stage===3?'0':'.95';}
-function tick(now){if(lastTime&&playing&&visible&&!document.hidden){position=(position+Math.min(now-lastTime,100))%12000;paint();}lastTime=now;requestAnimationFrame(tick);}
-play.addEventListener('click',()=>setPlayback(!playing));
-progress.addEventListener('input',()=>{setPlayback(false);position=Number(progress.value);paint();});
-document.querySelector('.replay').addEventListener('click',()=>{position=0;paint();setPlayback(!reduced.matches);});
-reduced.addEventListener('change',()=>{if(reduced.matches)setPlayback(false);});
-new IntersectionObserver(([entry])=>{visible=entry.isIntersecting;},{threshold:.15}).observe(player);
-setPlayback(playing);paint();requestAnimationFrame(tick);
-const levelButtons=[...document.querySelectorAll('[data-level]')];
-levelButtons.forEach(button=>button.addEventListener('click',()=>{const level=Number(button.dataset.level);levelButtons.forEach(b=>{const active=b===button;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));});document.querySelector('#level-title').textContent=data.levels[level][1];document.querySelector('#level-description').textContent=data.levels[level][2];}));
-const tabs=[...document.querySelectorAll('button[data-service]')];tabs.forEach(button=>button.addEventListener('click',()=>{const index=Number(button.dataset.service);tabs.forEach(b=>{b.classList.toggle('active',b===button);b.setAttribute('aria-pressed',String(b===button));});document.querySelector('.architecture-panel').dataset.service=String(index);document.querySelector('.service-explanation').textContent=data.serviceNotes[index];}));
-const steps=[...document.querySelectorAll('[data-recovery]')];steps.forEach(button=>button.addEventListener('click',()=>{const index=Number(button.dataset.recovery);steps.forEach(b=>{b.classList.toggle('active',b===button);b.setAttribute('aria-pressed',String(b===button));});document.querySelector('.recovery-description').textContent=data.recoverStages[index][1];}));
-document.querySelector('#compare').addEventListener('click',event=>{const button=event.currentTarget;const shared=button.getAttribute('aria-pressed')!=='true';button.setAttribute('aria-pressed',String(shared));document.querySelector('.comparison').dataset.shared=String(shared);document.querySelector('#compare-title').textContent=shared?data.compareAfter:data.compareBefore;});
-// Deterministic playback frames for visual review, without changing normal behavior.
-const seek=new URL(location.href).searchParams.get('t');if(seek!==null){setPlayback(false);position=Math.max(0,Math.min(11999,Number(seek)*1000||0));paint();}
+// Interactions for the prerendered page. Everything is readable without this
+// script; it only adds the walkthrough, the toggles and the motion. Motion is
+// skipped when the reader prefers reduced motion.
+const $=(s,root=document)=>root.querySelector(s);
+const $$=(s,root=document)=>[...root.querySelectorAll(s)];
+const data=JSON.parse($('#page-data')?.textContent||'{}');
+const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const press=(buttons,active)=>buttons.forEach(b=>b.setAttribute('aria-pressed',String(b===active)));
+
+// Day and night. An explicit choice is remembered for this reader only.
+const root=document.documentElement;
+try{const saved=localStorage.getItem('sbarbase-theme');if(saved==='light'||saved==='dark')root.dataset.theme=saved;}catch{}
+$('#theme')?.addEventListener('click',()=>{
+ const dark=root.dataset.theme?root.dataset.theme==='dark':matchMedia('(prefers-color-scheme: dark)').matches;
+ root.dataset.theme=dark?'light':'dark';
+ try{localStorage.setItem('sbarbase-theme',root.dataset.theme);}catch{}
+});
+
+// Sheets settle as they arrive; the current section is marked in the top bar.
+const navLinks=new Map($$('.topbar nav a').map(a=>[a.getAttribute('href').slice(1),a]));
+const seen=new IntersectionObserver(entries=>{for(const e of entries){
+ if(e.isIntersecting&&!reduced&&!e.target.classList.contains('in')){e.target.classList.add('reveal','in');}
+ const link=navLinks.get(e.target.id);if(link&&e.isIntersecting)navLinks.forEach(a=>a.classList.toggle('current',a===link));
+}},{rootMargin:'-35% 0px -55% 0px'});
+$$('main .sheet').forEach(s=>seen.observe(s));
+
+// Today versus Sbarbase, and the environment slider.
+const compare=$('.compare');
+if(compare){
+ const views=$$('.segmented button',compare);
+ views.forEach(b=>b.addEventListener('click',()=>{compare.dataset.view=b.dataset.view;press(views,b);}));
+ const range=$('#env-range'),out=$('#env-count'),r=data.rules;
+ range?.addEventListener('input',()=>{
+  const n=Number(range.value);compare.dataset.count=String(n);out.textContent=String(n);
+  $('#n-containers').textContent=String(r.systemContainers+n*r.perEnvironmentContainers);
+  $('#n-memory').textContent=String(r.systemMib+n*r.perEnvironmentMib);
+ });
+}
+
+// The request walkthrough: twelve seconds, five steps, a packet along the wires.
+const walk=$('.walk');
+if(walk){
+ const STEP=2400,TOTAL=STEP*5;
+ const wires=['#w1','#w2','#w3'].map(id=>$(id,walk));
+ const packet=$('.packet',walk),checks=$$('.check',walk),seek=$('#walk-seek'),play=$('#walk-play');
+ const stepButtons=$$('.walk-steps button',walk);
+ const gate=(()=>{const a=wires[0].getPointAtLength(wires[0].getTotalLength()),b=wires[1].getPointAtLength(0);return {x:(a.x+b.x)/2,y:(a.y+b.y)/2};})();
+ const along=(wire,f)=>wire.getPointAtLength(wire.getTotalLength()*Math.min(1,Math.max(0,f)));
+ const ease=f=>f<.5?2*f*f:1-Math.pow(-2*f+2,2)/2;
+ let time=0,running=false,last=0,step=-1;
+ function draw(t){
+  const s=Math.min(4,Math.floor(t/STEP)),f=ease((t-s*STEP)/STEP);let p;
+  if(s===0)p=along(wires[0],f);
+  else if(s===1){const a=along(wires[0],1);p={x:a.x+(gate.x-a.x)*f,y:a.y+(gate.y-a.y)*f};}
+  else if(s===2)p=along(wires[1],f);
+  else if(s===3)p=along(wires[2],f);
+  else{const k=f*3;p=k<1?along(wires[2],1-k):k<2?along(wires[1],2-k):along(wires[0],3-k);}
+  packet.setAttribute('cx',p.x.toFixed(1));packet.setAttribute('cy',p.y.toFixed(1));
+  checks.forEach((c,i)=>c.classList.toggle('on',t>=STEP+(i+.5)*STEP/4));
+  if(s!==step){step=s;press(stepButtons,stepButtons[s]);walk.dataset.step=String(s);}
+  seek.value=String(Math.round(t));
+ }
+ function frame(now){if(!running)return;time+=now-last;last=now;if(time>=TOTAL)time=0;draw(time);requestAnimationFrame(frame);}
+ function setRunning(on){
+  running=on&&!reduced;walk.classList.toggle('playing',running);play.setAttribute('aria-pressed',String(running));
+  play.setAttribute('aria-label',running?data.pause:data.play);
+  if(running){last=performance.now();requestAnimationFrame(frame);}
+ }
+ play.addEventListener('click',()=>setRunning(!running));
+ $('#walk-replay').addEventListener('click',()=>{time=0;draw(0);setRunning(true);});
+ seek.addEventListener('input',()=>{setRunning(false);walk.classList.add('stepped');time=Number(seek.value);draw(time);});
+ stepButtons.forEach((b,i)=>b.addEventListener('click',()=>{setRunning(false);walk.classList.add('stepped');time=i*STEP+STEP*.999;draw(time);}));
+ draw(0);
+ if(reduced){setRunning(false);walk.classList.add('stepped');}
+ else new IntersectionObserver(([e])=>{if(e.isIntersecting&&!walk.classList.contains('stepped'))setRunning(true);else if(!e.isIntersecting)setRunning(false);},{threshold:.35}).observe(walk);
+ document.addEventListener('visibilitychange',()=>{if(document.hidden)setRunning(false);});
+}
+
+// Hierarchy: explain a level, and move an environment between servers (FLIP).
+const hier=$('.hier');
+if(hier){
+ $$('[data-level]',hier).forEach(b=>b.addEventListener('click',()=>{
+  const i=Number(b.dataset.level);hier.dataset.level=String(i);
+  $('#level-name').textContent=data.levels[i][0];$('#level-text').textContent=data.levels[i][1];
+ }));
+ const move=$('#move'),chip=$('[data-env="a"]',hier),one=$('#server-1'),two=$('#server-2');
+ move?.addEventListener('click',()=>{
+  const first=chip.getBoundingClientRect();
+  const away=chip.parentElement===one;(away?two:one).appendChild(chip);
+  move.textContent=away?data.moveBack:data.moveAction;
+  if(reduced)return;
+  const last=chip.getBoundingClientRect();
+  chip.animate([{transform:`translate(${first.left-last.left}px,${first.top-last.top}px) rotate(-6deg)`},{transform:'none'}],{duration:650,easing:'cubic-bezier(.3,1.3,.5,1)'});
+ });
+}
+
+// Isolation: what each part shares, or keeps to itself.
+const parts=$$('.part');
+parts.forEach(b=>b.addEventListener('click',()=>{
+ const p=data.parts[Number(b.dataset.part)];press(parts,b);
+ $('#part-name').textContent=p[0];$('#part-text').textContent=p[2];
+}));
+
+// Recovery: four steps, the parcel follows.
+const rec=$('.rec');
+if(rec){
+ const buttons=$$('[data-rec]',rec);
+ buttons.forEach(b=>b.addEventListener('click',()=>{
+  const i=Number(b.dataset.rec);rec.dataset.step=String(i);press(buttons,b);
+  $('#rec-text').textContent=data.recSteps[i][1];
+ }));
+}
+
+// Copy the install command.
+const copy=$('#copy');
+copy?.addEventListener('click',async()=>{
+ const label=$('span',copy);
+ try{await navigator.clipboard.writeText(copy.dataset.copy);label.textContent=data.copied;}
+ catch{const range=document.createRange();range.selectNodeContents($('.terminal code'));const sel=getSelection();sel.removeAllRanges();sel.addRange(range);}
+ setTimeout(()=>{label.textContent=data.copy;},2000);
+});
