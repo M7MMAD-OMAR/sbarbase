@@ -171,7 +171,8 @@ SUMMARY = {
     'environment.saturated': (
         'An environment kept needing more than it could get: for many minutes in a row it was '
         'refused at its limit, or crowded out a neighbour while it borrowed.',
-        'Raise this environment\'s share, move it to its own database engine, or grow the server.'),
+        'Raise its gateway share on the environment page in the console, move it to its own database '
+        'engine, or grow the server.'),
 }
 # Allow-list. The rendered envelope contains exactly these keys, in these positions.
 ENVELOPE_FIELDS = ('schema', 'id', 'delivery', 'kind', 'severity', 'at', 'last_at', 'occurrences',

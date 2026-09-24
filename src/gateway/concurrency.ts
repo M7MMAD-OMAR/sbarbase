@@ -56,13 +56,23 @@ export class ConcurrencyGate {
    &&borrow.ceiling<=maximum&&borrow.headroom>=0&&borrow.headroom<maximum&&(borrow.recentMs===undefined||(Number.isSafeInteger(borrow.recentMs)&&borrow.recentMs>0))))
    throw new Error('Invalid borrow policy');
  }
+ private shareOf?:(environment:string)=>number|undefined;
+ /** Per environment shares from a trusted source, the catalog in production. An answer that is
+  * not a whole number from 1 to the gateway's maximum, or a lookup that throws, means the default. */
+ useShares(shareOf:(environment:string)=>number|undefined) {this.shareOf=shareOf;}
+ private guarantee(environment:string):number {
+  try {
+   const share=this.shareOf?.(environment);
+   return share!==undefined&&Number.isSafeInteger(share)&&share>=1&&share<=this.maximum?share:this.perEnvironment;
+  } catch {return this.perEnvironment;}
+ }
  /** Per environment pressure since the previous call, then starts a new sample. */
  pressure():Map<string,EnvironmentPressure> {
   const out=new Map<string,EnvironmentPressure>();
   for(const environment of new Set([...this.refused.keys(),...this.squeezed.keys(),...this.peaks.keys(),...this.active.keys()])){
    const active=this.active.get(environment)??0;
    out.set(environment,{refused:this.refused.get(environment)??0,squeezed:this.squeezed.get(environment)??0,
-    peak:Math.max(this.peaks.get(environment)??0,active),active,guarantee:this.perEnvironment});
+    peak:Math.max(this.peaks.get(environment)??0,active),active,guarantee:this.guarantee(environment)});
   }
   this.refused.clear();this.squeezed.clear();this.peaks.clear();
   return out;
@@ -73,14 +83,15 @@ export class ConcurrencyGate {
   const recent=now-(this.borrow?.recentMs??60_000);let unused=0;
   for(const [other,at] of this.seen){
    if(at<recent){this.seen.delete(other);continue;}
-   if(other!==environment)unused+=Math.max(0,this.perEnvironment-(this.active.get(other)??0));
+   if(other!==environment)unused+=Math.max(0,this.guarantee(other)-(this.active.get(other)??0));
   }
   return Math.max(this.borrow?.headroom??0,unused);
  }
  private admission(environment:string,count:number,serviceFull:boolean,now:number):0|429|503 {
   if(serviceFull)return 429;
-  if(count<this.perEnvironment)return this.total>=this.maximum?503:0;
-  if(!this.borrow||count>=this.borrow.ceiling)return 429;
+  const share=this.guarantee(environment);
+  if(count<share)return this.total>=this.maximum?503:0;
+  if(!this.borrow||count>=Math.max(this.borrow.ceiling,share))return 429;
   return this.maximum-this.total>this.reserve(environment,now)?0:429;
  }
  async run(environment:string,request:Pick<Request,'signal'>,forward:(signal:AbortSignal)=>Promise<Response>,budget?:{service:string;maximum:number;drainOnCancel?:boolean}):Promise<Response> {
@@ -97,7 +108,7 @@ export class ConcurrencyGate {
   if(status===429&&!serviceFull)this.refused.set(environment,(this.refused.get(environment)??0)+1);
   // A neighbour within its share found the gateway full: charge it to whoever is borrowing.
   if(status===503)for(const [other,active] of this.active)
-   if(active>this.perEnvironment)this.squeezed.set(other,(this.squeezed.get(other)??0)+1);
+   if(active>this.guarantee(other))this.squeezed.set(other,(this.squeezed.get(other)??0)+1);
   if(status)return Response.json({message:'Request capacity unavailable. Retry later.'},{status,
    headers:{'retry-after':'1','cache-control':'no-store'}});
   this.active.set(environment,count+1);this.total++;

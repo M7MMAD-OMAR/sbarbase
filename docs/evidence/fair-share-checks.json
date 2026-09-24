@@ -1,12 +1,13 @@
 {
-  "scope": "Real loopback HTTP through the gateway handler with a controlled Bun upstream that holds requests, using the application policy: share 8, ceiling 24, 32 in total, 8 kept free, neighbours seen in the last minute keep their unused share. Not Supabase or PostgreSQL, not sustained load, no Docker services started.",
+  "scope": "Real loopback HTTP through the gateway handler with a controlled Bun upstream that holds requests, using the application policy: share 8, ceiling 24, 32 in total, 8 kept free, neighbours seen in the last minute keep their unused share, and a share raised for one environment through useShares. Not Supabase or PostgreSQL, not sustained load, no Docker services started.",
   "checks": [
     "a busy environment alone borrows up to its ceiling of 24 over HTTP",
     "a quiet neighbour waking up gets its whole share at once from the room kept free",
     "with two recently active neighbours the busy one borrows only up to 16",
     "both recent neighbours still get their whole share while it borrows",
     "two minutes refused at the ceiling produce one saturation notice",
-    "borrowing without refusals produces no notice"
+    "borrowing without refusals produces no notice",
+    "a raised share is reserved and served at once while another borrows"
   ],
-  "count": 6
+  "count": 7
 }

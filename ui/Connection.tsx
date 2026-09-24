@@ -31,6 +31,22 @@ function StudioSection({path,request}:{path:string;request:Api}){
  :<button className="primary" disabled={busy||waiting} onClick={()=>void change('POST')}><Play aria-hidden="true"/>{waiting?'Starting…':'Start Studio'}</button>}</div>
  <p className="small muted">Studio opens at its own address on this console's port. From another computer, reach the console through an SSH tunnel to the server.</p></>}</section>;
 }
+type Share={share:number;default:number;ceiling:number;total:number;allocated:number};
+/** The environment's guaranteed share of the gateway. Owners and admins change it when a saturation notice arrives. */
+function ShareSection({path,request,canWrite}:{path:string;request:Api;canWrite:boolean}){
+ const share=useData<{data:Share}>(signal=>request(path+'/share','GET',undefined,signal),[path,request]);
+ const [value,setValue]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[saved,setSaved]=useState('');
+ const current=share.data?.data;
+ useEffect(()=>{if(current)setValue(String(current.share));},[current?.share]);
+ async function save(){setBusy(true);setError('');setSaved('');
+  try{await request(path+'/share','PUT',{share:Number(value)});share.refresh();setSaved('Saved. It applies to the next request.');}
+  catch(e){setError((e as Error).message);}finally{setBusy(false);}}
+ return <section className="details"><h2>Gateway share</h2><p className="muted small">Requests this environment can always run at once. When the server has idle room it may borrow more, up to {current?.ceiling??24}; neighbours that are active keep their own share.</p>
+ <ErrorMessage message={error||share.error}/>{share.loading?<Loading/>:current&&<><p><strong>{current.share}</strong> <span className="muted small">requests at a time{current.share===current.default?' (default)':''}. {current.allocated} of {current.total} allocated across the installation.</span></p>
+ {canWrite&&<div className="form-row"><label className="sr-only" htmlFor="share">Share</label><input id="share" type="number" min={1} max={current.ceiling} value={value} onChange={event=>setValue(event.target.value)}/>
+ <button className="primary" disabled={busy||!value||Number(value)===current.share} onClick={()=>void save()}>Save share</button></div>}
+ <p className="small muted" role="status">{saved}</p></>}</section>;
+}
 export function Connection({environment,organization,request,onBack}:{environment:Environment;organization:Organization;request:Api;onBack:()=>void}){
  const path=`/environments/${environment.id}`,canWrite=organization.role!=='viewer';
  const info=useData<{apiPath:string;services:string[]}>(signal=>request(path+'/connection','GET',undefined,signal),[environment.id,request]);
@@ -46,6 +62,7 @@ export function Connection({environment,organization,request,onBack}:{environmen
  <section className="details"><h2>Email</h2><ErrorMessage message={mail.error}/>{mail.error&&<Refresh onClick={mail.refresh}/>} {mail.loading?<Loading/>:<><p><span className={'state '+mailView.state}>{mailView.label}</span></p><p className="muted small">{mailView.text}</p>{mailRows.map(row=><p className="small" key={row.label}><span className="muted">{row.label}: </span>{row.value}</p>)}</>}</section>
  {canWrite&&<SignInSection path={path} request={request}/>}
  {canWrite&&<StudioSection path={path} request={request}/>}
+ <ShareSection path={path} request={request} canWrite={canWrite}/>
  <section className="keys-section"><div className="page-heading"><div><h2>Publishable keys</h2><p className="muted small">Use these in your application. Row level security still applies.</p></div>{canWrite&&<button className="primary" onClick={issue} disabled={busy||!!raw}><Plus aria-hidden="true"/>Create key</button>}</div>
  <ErrorMessage message={error||keys.error}/>{raw&&<div className="new-key"><label htmlFor="new-key">Save this key now. It is only shown once.</label><textarea id="new-key" readOnly value={raw}/><div className="form-row"><button onClick={()=>copy(raw)}><Copy aria-hidden="true"/>Copy key</button><button onClick={()=>{setRaw('');setCopied('');}}>I have saved this key</button></div></div>}
  <p className="small muted" role="status">{copied}</p>{!canWrite?<Empty>An organization owner or admin can manage keys.</Empty>:keys.loading?<Loading/>:keys.data?.data.length?<div className="table-wrap"><table><thead><tr><th>Key ID</th><th>Created</th><th>Status</th><th>Action</th></tr></thead><tbody>{keys.data.data.map(key=><tr key={key.id}><td><code>{key.id.slice(0,8)}</code></td><td>{new Date(key.created_at).toLocaleDateString()}</td><td>{key.revoked_at?'Revoked':'Active'}</td><td>{!key.revoked_at&&(confirm===key.id?<div className="confirm"><span>Revoke this key?</span><button className="danger" disabled={busy} onClick={()=>revoke(key.id)}>Confirm revoke</button><button onClick={()=>setConfirm(undefined)}>Cancel</button></div>:<button disabled={busy} onClick={()=>setConfirm(key.id)}>Revoke</button>)}</td></tr>)}</tbody></table></div>:!keys.error&&<Empty>No publishable keys yet.</Empty>}</section></>;

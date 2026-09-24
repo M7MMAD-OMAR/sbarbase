@@ -1,4 +1,5 @@
 import {Database} from 'bun:sqlite';
+import {GATEWAY} from '../gateway/shares';
 import {validatePlacement,type RuntimePlacement,type RuntimeRouting} from './placement';
 import {randomUUID,randomBytes} from 'node:crypto';
 import {chmodSync} from 'node:fs';
@@ -118,6 +119,8 @@ export type StudioSession={runtime:string;desired:'running'|'stopped';state:'sto
 export type SignInState={runtime:string;revision:number;applied:number|null;
   state:'unconfigured'|'pending'|'applied'|'failed';failure:string|null;updatedAt:number|null};
 
+export type GatewayShareState={share:number;default:number;ceiling:number;total:number;allocated:number};
+
 export class Catalog {
   private db:Database;
   private channels:NotificationChannel[];
@@ -165,6 +168,9 @@ export class Catalog {
         desired TEXT NOT NULL CHECK(desired IN ('running','stopped')),
         state TEXT NOT NULL CHECK(state IN ('stopped','starting','running','failed')),
         failure TEXT, actor TEXT NOT NULL, updated_at INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS gateway_shares(
+        runtime TEXT PRIMARY KEY REFERENCES provision_jobs(runtime),
+        share INTEGER NOT NULL CHECK(share>=1), actor TEXT NOT NULL, updated_at INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS auth_settings(
         runtime TEXT PRIMARY KEY REFERENCES provision_jobs(runtime),
         revision INTEGER NOT NULL CHECK(revision>0), applied INTEGER,
@@ -526,6 +532,40 @@ export class Catalog {
       this.record(actor,desired==='running'?'studio.requested':'studio.stop_requested',environment,{});
       return this.studio(actor,environment);
     }).immediate();
+  }
+  /** An environment's guaranteed share of the application gateway, what the whole gateway has,
+   * and how much of it the ready environments already hold. Any member may read it. */
+  gatewayShareState(actor:string,environment:string):GatewayShareState {
+    this.environmentProject(actor,environment,['owner','admin','viewer']);
+    const job=this.job(environment);
+    if(!job||job.state!=='succeeded')throw new Error('Environment is not ready');
+    return {share:this.gatewayShare(job.runtime)??GATEWAY.share,default:GATEWAY.share,ceiling:GATEWAY.ceiling,
+      total:GATEWAY.total,allocated:this.allocatedShares()};
+  }
+  /** Owners and admins change one environment's share. Refused when the shares of all ready
+   * environments would exceed the gateway, so every guarantee can hold at once. */
+  setGatewayShare(actor:string,environment:string,share:number):GatewayShareState {
+    return this.db.transaction(()=>{
+      this.environmentProject(actor,environment,['owner','admin']);
+      if(!Number.isSafeInteger(share)||share<1||share>GATEWAY.ceiling)throw new Error('Invalid share');
+      const job=this.job(environment);
+      if(!job||job.state!=='succeeded')throw new Error('Environment is not ready');
+      const current=this.gatewayShare(job.runtime)??GATEWAY.share;
+      if(share>current&&this.allocatedShares()-current+share>GATEWAY.total)throw new Error('Shares exceed gateway capacity');
+      this.db.query(`INSERT INTO gateway_shares(runtime,share,actor,updated_at) VALUES (?,?,?,?)
+        ON CONFLICT(runtime) DO UPDATE SET share=excluded.share,actor=excluded.actor,updated_at=excluded.updated_at`)
+        .run(job.runtime,share,actor,Date.now());
+      this.record(actor,'gateway.share_changed',environment,{from:current,to:share});
+      return this.gatewayShareState(actor,environment);
+    }).immediate();
+  }
+  /** The recorded share of one runtime, for the gateway; undefined means the default. */
+  gatewayShare(runtime:string):number|undefined {
+    return this.db.query<{share:number},[string]>('SELECT share FROM gateway_shares WHERE runtime=?').get(runtime)?.share;
+  }
+  private allocatedShares():number {
+    return this.db.query<{n:number},[number]>(`SELECT coalesce(sum(coalesce(g.share,?)),0) n FROM provision_jobs j
+      LEFT JOIN gateway_shares g ON g.runtime=j.runtime WHERE j.state='succeeded'`).get(GATEWAY.share)!.n;
   }
   /** Sign-in settings for one environment. Owners and admins save them; the supervisor applies
    * the pending revision (lab/auth_settings.py) and records the outcome in the same row. */

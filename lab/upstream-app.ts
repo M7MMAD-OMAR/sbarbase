@@ -42,6 +42,8 @@ export function openUpstreamApplication() {
    endpoints:runtime=>(readJsonCached('.lab/upstream/endpoints.json') as Record<string,any>)[runtime],
    secret:runtime=>(readJsonCached('.secrets/upstream/runtime.json') as {environments:Record<string,any>}).environments[runtime]?.jwt,
    active:runtime=>!!studioState().sessions?.[runtime]});
+  // The gate reads each environment's share from the catalog, so a change applies at the next request.
+  applicationConcurrency.useShares(runtime=>catalog.gatewayShare(runtime));
   // One monitor per process, over the one application gate: a busy environment's operator notice.
   const pressure=new PressureMonitor(applicationConcurrency,(runtime,saturation)=>catalog.environmentSaturated(runtime,saturation));
   pressure.start();

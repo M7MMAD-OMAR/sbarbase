@@ -41,9 +41,13 @@ try {
  check('two minutes refused at the ceiling produce one saturation notice',reports.length===1&&reports[0]![0]==='shop'&&reports[0]![1].minutes===2);
  await burst('shop',20);monitor.sample();monitor.sample();await drain();
  check('borrowing without refusals produces no notice',reports.length===1);
+ gate.useShares(env=>env==='blog'?12:undefined);                     // the operator raised blog's share
+ const busy=await burst('shop',24),raisedShare=await burst('blog',12);
+ check('a raised share is reserved and served at once while another borrows',busy.admitted===12&&raisedShare.admitted===12&&raisedShare.full===0);
+ await drain();gate.useShares(()=>undefined);
 } finally {
  while(waiting.length)waiting.shift()!();
  proxy.stop(true);upstream.stop(true);
 }
-await Bun.write('docs/evidence/fair-share-checks.json',JSON.stringify({scope:'Real loopback HTTP through the gateway handler with a controlled Bun upstream that holds requests, using the application policy: share 8, ceiling 24, 32 in total, 8 kept free, neighbours seen in the last minute keep their unused share. Not Supabase or PostgreSQL, not sustained load, no Docker services started.',checks,count:checks.length},null,2)+'\n');
+await Bun.write('docs/evidence/fair-share-checks.json',JSON.stringify({scope:'Real loopback HTTP through the gateway handler with a controlled Bun upstream that holds requests, using the application policy: share 8, ceiling 24, 32 in total, 8 kept free, neighbours seen in the last minute keep their unused share, and a share raised for one environment through useShares. Not Supabase or PostgreSQL, not sustained load, no Docker services started.',checks,count:checks.length},null,2)+'\n');
 console.log(`${checks.length} fair share checks passed`);

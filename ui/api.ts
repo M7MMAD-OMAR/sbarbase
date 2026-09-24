@@ -12,7 +12,8 @@ const conflicts:Record<string,string>={
  'Environment capacity reached':'This installation has reached its environment limit. Ask the installation owner to review capacity.',
  'Operation is not retryable':'Only a failed or cancelled environment can be retried.',
  'Environment is not ready':'This environment is not provisioned yet.',
- 'Studio is not running':'Studio is not running yet. Start it first.'};
+ 'Studio is not running':'Studio is not running yet. Start it first.',
+ 'Shares exceed gateway capacity':'The gateway has no free share left. Lower another environment\'s share first.'};
 export function api(token:string):Api {
  return async(path,method='GET',body,signal)=>{
   const response=await fetch('/management/v1'+path,{method,signal,headers:{authorization:'Bearer '+token,...(body===undefined?{}:{'content-type':'application/json'})},
