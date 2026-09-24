@@ -72,7 +72,10 @@ drop policy if exists upload_check_read on storage.objects; create policy upload
  const over=await client.storage.from(bucket).upload('over.bin',randomBytes((limit+1)*MiB),{contentType:'application/octet-stream'});
  const status=(over.error as any)?.statusCode??(over.error as any)?.status;
  record(`a ${limit+1} MiB file, over the limit, is refused`,!!over.error,`${status??''} ${over.error?.message??'accepted'}`);
+ // The refusal comes before the body was read; the next call must not wait behind the rest of it.
+ const after=Date.now();
  const listed=await client.storage.from(bucket).list();
+ record('the next request after a refusal answers promptly',Date.now()-after<5000,`${Date.now()-after} ms`);
  record('the refused file is not stored',!listed.data?.some(item=>item.name==='over.bin'),listed.data?.map(item=>item.name).join(','));
 } catch(error) {
  record('upload check ran to the end',false,(error as Error).message);
