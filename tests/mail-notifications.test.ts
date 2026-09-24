@@ -104,7 +104,7 @@ test('the notifications route reports the undelivered count from the catalog rea
     expect(response.headers.get('cache-control')).toBe('no-store');
     const body=await response.json() as {data:{undelivered:number;events:{kind:string;severity:string;state:string;id:string}[]}};
     expect(body.data.undelivered).toBe(1);
-    expect(body.data.events.length).toBe(2);
+    expect(body.data.events.length).toBe(3);   // one delivery per channel: email, webhook, telegram
     expect(body.data.events.every(event=>event.kind==='membership.owner_changed')).toBe(true);
     expect(body.data.events.some(event=>event.severity==='critical')).toBe(true);
     // The catalog holds no recipient and no rendered body, so neither can appear here.
