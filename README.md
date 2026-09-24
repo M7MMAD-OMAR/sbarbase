@@ -12,10 +12,11 @@
 
 Sbarbase is an open source, self-hosted layer that runs the original Supabase services (PostgreSQL, Auth, PostgREST, Storage) for many projects on one server.
 
-- **Client > project > environment.** Each environment (production, staging) gets its own database, logins, Auth, REST and keys.
-- **Shared where it is safe.** One PostgreSQL engine and one tenant-aware Storage serve every environment.
-- **Your app does not change.** It keeps using supabase-js and SQL; a gateway sends each request to its own environment.
-- **One environment at a time.** Export, restore and move a single environment without touching the others.
+- **One ordinary server.** No second machine and no cloud service needed. Clients hold projects, projects hold environments (production, staging).
+- **No data mixing.** Each environment has its own database, its own logins and its own keys. A key from one project never opens another.
+- **Fast, with room to grow.** One PostgreSQL engine and one Storage serve every environment, instead of a full Supabase stack per app, so the same server holds more projects.
+- **A busy project stays in its lane.** Each environment gets its own share of requests and database connections, and its services run with their own CPU and memory limits. Extra requests are told to retry; the other projects stay fast.
+- **Your app does not change.** It keeps using supabase-js and SQL.
 
 ## Install
 
@@ -36,7 +37,7 @@ The last command installs the service, creates a first project, proves supabase-
 | | |
 |---|---|
 | [Explanations](docs/README.md#explain-why-it-works-this-way) | why it exists and how it is built, with diagrams |
-| [Guides](docs/README.md#guides-how-to-do-something) | quickstart, choosing a server, backup and restore, upgrades |
+| [Guides](docs/README.md#guides-how-to-do-something) | quickstart, choosing a server, upgrades, backup and restore |
 | [Reference](docs/README.md#reference-facts-to-look-up) | glossary, configuration, API, status |
 | [Decisions](docs/decisions/README.md) | what was chosen, what was rejected, and why |
 | [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md) · [Changelog](CHANGELOG.md) | |
