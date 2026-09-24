@@ -41,6 +41,10 @@ ready.
   crowding out a neighbour, an environment raises one `environment.saturated`
   operator notification. Borrowing alone never does.
 - **Telegram** as a third notification channel beside email and webhook.
+- **Invitations.** Owners and admins invite someone by email and role; the
+  console shows a one-time link that lasts 7 days. The invitee chooses a password
+  and joins, or signs in first if they already have an account. Unit tested with
+  a fake management Auth, not yet against the live one.
 - **Member roles in the console.** An owner changes a member's role or removes
   them; access ends at the next request. The last owner stays.
 - **Activity.** Owners and admins see what happened in their organization,

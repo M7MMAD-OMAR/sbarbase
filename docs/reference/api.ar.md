@@ -35,6 +35,10 @@
 | GET | `/management/v1/organizations/{id}/members` | مالك، مدير | أعضاء ذلك العميل مع أدوارهم |
 | PUT | `/management/v1/organizations/{id}/members/{member}` | مالك | الجسم `{"role": "owner"|"admin"|"viewer"}` لعضو موجود. يُرجع `404` لمن ليس عضوًا (إضافة الأشخاص تنتظر الدعوات)، و`409` إذا بقيت المنظمة بلا مالك |
 | DELETE | `/management/v1/organizations/{id}/members/{member}` | مالك | يزيل العضو، وينتهي وصوله إلى الإدارة وStudio من الطلب التالي. يُرجع `409` للمالك الأخير |
+| GET | `/management/v1/organizations/{id}/invitations` | مالك، مدير | الدعوات المعلّقة: البريد والدور ومن دعا وموعد الانتهاء، دون الرمز أبدًا |
+| POST | `/management/v1/organizations/{id}/invitations` | مالك، مدير | الجسم `{"email": "...", "role": "..."}`، ولا يدعو المدير مالكًا. يُرجع `201` مع `{id, token, expires_at}`؛ يُعرض الرمز مرة واحدة ويصلح 7 أيام |
+| DELETE | `/management/v1/organizations/{id}/invitations/{invitation}` | مالك، مدير | يلغي دعوة معلّقة |
+| POST | `/management/invitations/redeem` | كل من يحمل الرمز | الجسم `{"token": "...", "password": "..."}` ينشئ الحساب (كلمة مرور من 12 حرفًا أو أكثر) وينضم؛ ومع جلسة للبريد المدعو يكفي `{"token": "..."}`. يُرجع `400 This invitation is not valid` لأي رمز مجهول أو مستعمل أو ملغى أو منتهٍ، و`409` إن وُجد حساب وعليه تسجيل الدخول أولًا، و`429` بعد 20 محاولة فاشلة في دقيقة |
 | GET | `/management/v1/organizations/{id}/projects` | عضو | مشاريع ذلك العميل |
 | POST | `/management/v1/organizations/{id}/projects` | مالك، مدير | الجسم `{"name": "..."}`. يعيد `201` مع `{id, state: "metadata_only"}` |
 | GET | `/management/v1/projects/{id}/environments` | عضو | بيئات ذلك المشروع |

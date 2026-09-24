@@ -50,6 +50,7 @@ Continuity notes for coding agents are in [handoff](handoff/README.md). The chro
 
 - [GATEWAY-OVERLOAD](GATEWAY-OVERLOAD.md): per-environment and total admission, streaming.
 - [FAIR-SHARE-ADMISSION](FAIR-SHARE-ADMISSION.md): a guaranteed share plus borrowed room, and the saturation notice.
+- [INVITATIONS](INVITATIONS.md): inviting people into an organization, and the only path that creates a management account.
 - [GATEWAY-DRAIN](GATEWAY-DRAIN.md): in-process pause lease and drain.
 - [REST-CANCELLATION](REST-CANCELLATION.md): REST cancellation and retained admission.
 - [SUSTAINED-OVERLOAD](SUSTAINED-OVERLOAD.md): sustained arrival probe and service admission.

@@ -1,4 +1,6 @@
 import {readFileSync} from 'node:fs';
+import {createClient} from '@supabase/supabase-js';
+import type {InvitationAccounts} from '../src/control/invitations';
 import {PressureMonitor} from '../src/gateway/pressure';
 import {applicationConcurrency} from '../src/gateway/managed';
 import {createHmac} from 'node:crypto';
@@ -19,6 +21,24 @@ export function internalToken(secret:string,role:string) {
 export function studioState():{upstream?:{host:string;port:number};sessions:Record<string,{url:string}>} {
  try{return readJsonCached('.lab/upstream/studio.json') as any;}catch{return {sessions:{}};}
 }
+/** Account operations for invitations through the management realm's admin API. The service
+ * role token is made here, from the private runtime secret, and never leaves this process.
+ * docs/engineering/INVITATIONS.md */
+export function invitationAccounts(url:string,serviceRole:string):InvitationAccounts {
+ const admin=createClient(url,serviceRole,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false},
+  global:{fetch:(input,init)=>fetch(input,{...init,redirect:'error',signal:AbortSignal.timeout(10_000)})}});
+ return {
+  async create(email,password) {
+   const {data,error}=await admin.auth.admin.createUser({email,password,email_confirm:true,app_metadata:{sbarbase_invited:true}});
+   if(error){if(error.status===422||/already/i.test(error.message))return 'exists';throw new Error('Account creation failed');}
+   return {id:data.user.id};
+  },
+  async session(token) {
+   const {data,error}=await admin.auth.getUser(token);
+   return error||!data.user?.id||!data.user.email?null:{id:data.user.id,email:data.user.email};
+  },
+ };
+}
 export function openUpstreamApplication() {
  const load=(path:string)=>JSON.parse(readFileSync(path,'utf8'));
  let key:Buffer|undefined;
@@ -35,7 +55,7 @@ export function openUpstreamApplication() {
   const current=readJsonCached('.secrets/upstream/runtime.json') as {environments:Record<string,any>};
   if(!endpoints[runtime]||!current.environments[runtime])return undefined;
   return {...endpoints[runtime],keys:[],anonymousToken:internalToken(current.environments[runtime].jwt,'anon'),enabled:true};
-  },fetch,studioSessionKey);
+  },fetch,studioSessionKey,invitationAccounts(management.auth,internalToken(secrets.management.jwt,'service_role')));
   const studio=studioProxy({key:studioSessionKey,allowed:(actor,runtime)=>catalog.studioAllowed(actor,runtime),
    upstream:runtime=>studioState().sessions?.[runtime]?.url});
   const upstream=studioUpstream({

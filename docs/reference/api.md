@@ -35,6 +35,10 @@ All routes need `Authorization: Bearer <management access token>`. The actor com
 | GET | `/management/v1/organizations/{id}/members` | owner, admin | Members of that client with their role |
 | PUT | `/management/v1/organizations/{id}/members/{member}` | owner | Body `{"role": "owner"|"admin"|"viewer"}` for an existing member. `404` for someone who is not a member (adding people waits for invitations); `409` when it would leave no owner |
 | DELETE | `/management/v1/organizations/{id}/members/{member}` | owner | Removes the member; their management and Studio access ends at the next request. `409` for the last owner |
+| GET | `/management/v1/organizations/{id}/invitations` | owner, admin | Pending invitations: email, role, inviter, expiry; never the token |
+| POST | `/management/v1/organizations/{id}/invitations` | owner, admin | Body `{"email": "...", "role": "..."}`; an admin cannot invite an owner. `201` with `{id, token, expires_at}`; the token is shown once and lasts 7 days |
+| DELETE | `/management/v1/organizations/{id}/invitations/{invitation}` | owner, admin | Cancels a pending invitation |
+| POST | `/management/invitations/redeem` | anyone with the token | Body `{"token": "...", "password": "..."}` creates the account (password of 12 characters or more) and joins; with a session for the invited email, `{"token": "..."}` joins. `400 This invitation is not valid` for any unknown, used, cancelled or expired token; `409` when an account exists and must sign in first; `429` after 20 failures in a minute |
 | GET | `/management/v1/organizations/{id}/projects` | member | Projects of that client |
 | POST | `/management/v1/organizations/{id}/projects` | owner, admin | Body `{"name": "..."}`. `201` with `{id, state: "metadata_only"}` |
 | GET | `/management/v1/projects/{id}/environments` | member | Environments of that project |

@@ -1,7 +1,7 @@
 import {Database} from 'bun:sqlite';
 import {GATEWAY} from '../gateway/shares';
 import {validatePlacement,type RuntimePlacement,type RuntimeRouting} from './placement';
-import {randomUUID,randomBytes} from 'node:crypto';
+import {randomUUID,randomBytes,createHash} from 'node:crypto';
 import {chmodSync} from 'node:fs';
 
 export type MembershipRole = 'owner' | 'admin' | 'viewer';
@@ -124,6 +124,15 @@ export type GatewayShareState={share:number;default:number;ceiling:number;operat
 
 export type AuditEvent={at:number;actor:string;action:string;kind:'organization'|'project'|'environment';subject:string;detail:Record<string,string|number|boolean>};
 
+const INVITATION_TTL_MS=7*24*60*60*1000;
+const tokenHash=(token:string)=>createHash('sha256').update(token).digest('hex');
+/** A plain email address, lower case; enough to bind an invitation, not a full RFC parser. */
+export function invitationEmail(value:string):string {
+  const email=typeof value==='string'?value.trim().toLowerCase():'';
+  if(email.length>254||!/^[^\s@"<>()\[\],;:\\]+@[a-z0-9.-]+\.[a-z]{2,}$/.test(email))throw new Error('Invalid email');
+  return email;
+}
+
 export class Catalog {
   private db:Database;
   private channels:NotificationChannel[];
@@ -171,6 +180,11 @@ export class Catalog {
         desired TEXT NOT NULL CHECK(desired IN ('running','stopped')),
         state TEXT NOT NULL CHECK(state IN ('stopped','starting','running','failed')),
         failure TEXT, actor TEXT NOT NULL, updated_at INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS invitations(
+        id TEXT PRIMARY KEY, organization TEXT NOT NULL REFERENCES organizations(id),
+        email TEXT NOT NULL, role TEXT NOT NULL CHECK(role IN ('owner','admin','viewer')),
+        token_hash TEXT NOT NULL UNIQUE, inviter TEXT NOT NULL, created_at INTEGER NOT NULL,
+        expires_at INTEGER NOT NULL, used_at INTEGER, used_by TEXT, cancelled_at INTEGER);
       CREATE TABLE IF NOT EXISTS gateway_shares(
         runtime TEXT PRIMARY KEY REFERENCES provision_jobs(runtime),
         share INTEGER NOT NULL CHECK(share>=1), actor TEXT NOT NULL, updated_at INTEGER NOT NULL);
@@ -293,11 +307,12 @@ export class Catalog {
       throw new Error('Invalid actor');
     return value;
   }
-  private require(actor:string,organization:string,roles:MembershipRole[]) {
+  private require(actor:string,organization:string,roles:MembershipRole[]):MembershipRole {
     this.actor(actor);
     const membership=this.db.query<{role:MembershipRole},[string,string]>(
       'SELECT role FROM memberships WHERE organization=? AND actor=?').get(organization,actor);
     if(!membership||!roles.includes(membership.role)) throw new Error('Forbidden');
+    return membership.role;
   }
   private project(actor:string,id:string,roles:MembershipRole[]):Project {
     const project=this.db.query<Project,[string]>('SELECT * FROM projects WHERE id=?').get(id);
@@ -489,6 +504,63 @@ export class Catalog {
       if(!current)throw new Error('Unknown member');
       this.setMember(actor,organization,target,role);
       return this.listMembers(actor,organization);
+    }).immediate();
+  }
+  /** An invitation to one organization for one email and role (docs/engineering/INVITATIONS.md).
+   * Owners invite any role; admins invite admins and viewers. The token is returned once and only
+   * its SHA-256 is kept. */
+  createInvitation(actor:string,organization:string,email:string,role:MembershipRole):{id:string;token:string;expires_at:number} {
+    const address=invitationEmail(email);
+    if(!['owner','admin','viewer'].includes(role))throw new Error('Invalid role');
+    return this.db.transaction(()=>{
+      const own=this.require(actor,organization,['owner','admin']);
+      if(role==='owner'&&own!=='owner')throw new Error('Forbidden');
+      const id=randomUUID(),token=randomBytes(32).toString('base64url'),now=Date.now(),expires_at=now+INVITATION_TTL_MS;
+      this.db.query(`INSERT INTO invitations(id,organization,email,role,token_hash,inviter,created_at,expires_at)
+        VALUES (?,?,?,?,?,?,?,?)`).run(id,organization,address,role,tokenHash(token),actor,now,expires_at);
+      this.record(actor,'invitation.created',organization,{role});
+      return {id,token,expires_at};
+    }).immediate();
+  }
+  /** Pending invitations, never their tokens. Owners and admins. */
+  listInvitations(actor:string,organization:string):{id:string;email:string;role:MembershipRole;inviter:string;expires_at:number}[] {
+    this.require(actor,organization,['owner','admin']);
+    return this.db.query<{id:string;email:string;role:MembershipRole;inviter:string;expires_at:number},[string,number]>(
+      `SELECT id,email,role,inviter,expires_at FROM invitations WHERE organization=? AND used_at IS NULL AND cancelled_at IS NULL
+       AND expires_at>? ORDER BY created_at DESC`).all(organization,Date.now());
+  }
+  cancelInvitation(actor:string,organization:string,id:string) {
+    return this.db.transaction(()=>{
+      this.require(actor,organization,['owner','admin']);
+      const result=this.db.query(`UPDATE invitations SET cancelled_at=? WHERE id=? AND organization=? AND used_at IS NULL
+        AND cancelled_at IS NULL`).run(Date.now(),id,organization);
+      if(result.changes!==1)throw new Error('Unknown invitation');
+      this.record(actor,'invitation.cancelled',organization,{});
+    }).immediate();
+  }
+  /** The pending invitation a token names, or undefined for any token that is unknown, used,
+   * cancelled or expired; the caller answers all of those the same way. No authentication. */
+  invitationFor(token:string):{id:string;organization:string;email:string;role:MembershipRole}|undefined {
+    if(typeof token!=='string'||!/^[A-Za-z0-9_-]{43}$/.test(token))return undefined;
+    return this.db.query<{id:string;organization:string;email:string;role:MembershipRole},[string,number]>(
+      `SELECT id,organization,email,role FROM invitations WHERE token_hash=? AND used_at IS NULL AND cancelled_at IS NULL
+       AND expires_at>?`).get(tokenHash(token),Date.now())??undefined;
+  }
+  /** Adds the membership and marks the invitation used, once. An existing member keeps the
+   * higher of the two roles. */
+  acceptInvitation(id:string,actor:string):{organization:string;role:MembershipRole} {
+    this.actor(actor);
+    return this.db.transaction(()=>{
+      const row=this.db.query<{organization:string;role:MembershipRole},[string,number]>(
+        `SELECT organization,role FROM invitations WHERE id=? AND used_at IS NULL AND cancelled_at IS NULL AND expires_at>?`).get(id,Date.now());
+      if(!row)throw new Error('Invalid invitation');
+      const rank={owner:0,admin:1,viewer:2} as const;
+      const current=this.db.query<{role:MembershipRole},[string,string]>('SELECT role FROM memberships WHERE organization=? AND actor=?').get(row.organization,actor);
+      const role=current&&rank[current.role]<rank[row.role]?current.role:row.role;
+      this.db.query(`INSERT INTO memberships VALUES (?,?,?) ON CONFLICT(organization,actor) DO UPDATE SET role=excluded.role`).run(row.organization,actor,role);
+      this.db.query('UPDATE invitations SET used_at=?,used_by=? WHERE id=?').run(Date.now(),actor,id);
+      this.record(actor,'invitation.accepted',row.organization,{role});
+      return {organization:row.organization,role};
     }).immediate();
   }
   /** Owners and admins may see who else can act in their organization. */
