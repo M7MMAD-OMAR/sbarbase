@@ -71,13 +71,13 @@ Live probes start real containers and write their results to [docs/evidence](../
 | SDK through the gateway to the moved environment | [cutover-sdk-checks.json](../evidence/cutover-sdk-checks.json) | 11 |
 | Unaffected neighbours restarted on the source | [cutover-neighbor-checks.json](../evidence/cutover-neighbor-checks.json) | 16 |
 
-### Import from Supabase (phase 0 only)
+### Import from Supabase (inspection)
 
 | What | Evidence | Checks |
 |---|---|---|
 | Read-only inspection of a source database: refusals, warnings and manual steps before any dump, on the pinned image as the `postgres` role | [import-inspect-checks.json](../evidence/import-inspect-checks.json) | 6 |
 
-The dump, restore, object copy and verification phases do not exist yet; see [the migration plan](../engineering/plans/2026-09-23-verification-and-migration-plan.md).
+The full import (schema, users, rows, files, verification) is `lab/import_project.py`; its end-to-end run is in the Docker table below.
 
 ### Install with Docker, daily backups, Studio and upgrades (CI, clean runner)
 
@@ -90,9 +90,12 @@ On a clean GitHub runner with only Docker, CI runs the Docker install on every c
 | Supabase Studio for one environment: started on demand, entered with the console ticket, table list, SQL, users and buckets through it, refused without the session or with another environment's session, stopped ([Studio guide](../guides/studio.md)) | [docker-studio-checks.json](../evidence/docker-studio-checks.json) | 22 |
 | Sign-in settings: site URL, redirects and a GitHub provider saved and applied by recreating Auth, a keyless OAuth start and email link, sign-up after the recreate, the provider removed ([sign-in](../guides/sign-in.md)) | [docker-sign-in-checks.json](../evidence/docker-sign-in-checks.json) | 15 |
 | Realtime for one environment: turned on and started by the supervisor, broadcast, presence and a database change between two supabase-js clients through the gateway, the broadcast REST API, a wrong key refused, turned off ([Realtime](../guides/realtime.md)) | [docker-realtime-checks.json](../evidence/docker-realtime-checks.json) | 19 |
+| Encrypted off-site copies: configured from stdin, a backup copied to S3-compatible storage (a throwaway MinIO) by itself, only ciphertext stored, a wrong passphrase refused, the copy fetched and restored ([backup and restore](../guides/backup-and-restore.md#copies-off-the-server)) | [docker-offsite-checks.json](../evidence/docker-offsite-checks.json) | 12 |
+| Direct database access: a developer login turned on, a PostgreSQL client through the listener running a Supabase-style migration (policy, trigger on `auth.users`, Storage policy), the superuser and other databases refused, a password reset, turned off ([database access](../guides/database-access.md)) | [docker-database-checks.json](../evidence/docker-database-checks.json) | 16 |
 | Edge Functions for one environment: a Supabase functions folder deployed with one command, called with supabase-js, a function using supabase-js from npm with the service role on its own Auth, REST and Storage, a keyless webhook, a secret, a redeploy, a removal, turned off ([Edge Functions](../guides/edge-functions.md)) | [docker-functions-checks.json](../evidence/docker-functions-checks.json) | 24 |
 | Logs and metrics for one environment: requests through the gateway counted with errors, response times and service memory use, the request log and the Auth, REST and Storage logs read through the management API, no key or token in any answer ([logs and metrics](../guides/logs-and-metrics.md)) | [docker-observe-checks.json](../evidence/docker-observe-checks.json) | 20 |
 | Uploads: a 20 MiB file through the gateway and back byte for byte, a file just under the 50 MiB limit accepted and one just over it refused, then the same after a new `SBARBASE_UPLOAD_LIMIT_MB` recreated Storage | [docker-upload-checks.json](../evidence/docker-upload-checks.json) | 20 |
+| Import into a new environment from another environment standing in for a Supabase project: the user signs in with the old password, row level security, a private file with its Storage policy and a sign-up trigger carry over, a second import into the full environment is refused ([move from Supabase](../guides/move-from-supabase.md)) | [docker-import-checks.json](../evidence/docker-import-checks.json) | 12 |
 | Upgrade to a newer PostgREST with `lab/upgrade.py`, then a broken version that the supervisor moves back from by itself, with users, identities, buckets and files unchanged ([upgrades](../guides/upgrades.md)) | [docker-upgrade-checks.json](../evidence/docker-upgrade-checks.json) | 10 |
 
 ### Empty server, simulated in a local VM
@@ -129,8 +132,8 @@ A start needs its containers' memory limits plus a 2560 MiB reserve: 1792 MiB of
 
 - A rehearsal on a real server. The empty-server install passed in a local VM only.
 - The connection pooler and cron. `SUPABASE_DB_URL` inside Edge Functions.
-- Automatic copies of the daily backups to another machine (copy them yourself, as the backup guide shows), and point-in-time recovery.
-- Importing a project from Supabase Cloud or a self-hosted stack beyond the read-only inspection.
+- Point-in-time recovery, and rebuilding a whole lost server from the off-site copies in one step (each environment's copy restores; the installation's own state does not travel with it yet).
+- Importing schemas other than `public`, Vault secrets and cron jobs from a Supabase project (the [import](../guides/move-from-supabase.md) moves `public`, users, rows and files).
 - Automatic recovery of later-stage provisioning failures; they block until an operator reconciles them.
 - Adoption of any upstream release through the update policy; unattended upgrades (an operator starts each one with [lab/upgrade.py](../../lab/upgrade.py)).
 - Complete project transfer between clients, invitations, MFA and login rate limits.

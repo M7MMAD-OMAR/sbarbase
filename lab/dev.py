@@ -105,8 +105,8 @@ class Supervisor:
         self.sign_in_after = 0.0
         # Realtime and Edge Functions: one change at a time for each, and a pause after one that
         # found the runtime busy.
-        self.toggles = {'realtime': None, 'functions': None}
-        self.toggles_after = {'realtime': 0.0, 'functions': 0.0}
+        self.toggles = {'realtime': None, 'functions': None, 'database': None}
+        self.toggles_after = {'realtime': 0.0, 'functions': 0.0, 'database': 0.0}
         self.backup_hour = backup_hour()
         self.backup_keep = backup_keep()
         self.restarts = collections.deque()
@@ -239,11 +239,11 @@ class Supervisor:
             self.sign_in = self.spawn(['/usr/bin/python3', 'lab/auth_settings.py', 'apply', pending[0]])
 
     def toggle_requests(self, service):
-        """Runtimes whose Realtime or Edge Functions should be turned on or off, oldest first."""
+        """Runtimes whose Realtime, Edge Functions or database access should be turned on or off, oldest first."""
         path = STATE/'control.sqlite'
         if not path.exists():
             return []
-        table = {'realtime': 'realtime_settings', 'functions': 'functions_settings'}[service]
+        table = {'realtime': 'realtime_settings', 'functions': 'functions_settings', 'database': 'database_access'}[service]
         try:
             with closing(sqlite3.connect(f'file:{path}?mode=ro', uri=True, timeout=2)) as database, database:
                 return [row[0] for row in database.execute(f"SELECT runtime FROM {table} WHERE state='pending' ORDER BY updated_at")]
@@ -251,7 +251,7 @@ class Supervisor:
             return []
 
     def schedule_toggles(self):
-        """Turn an environment's Realtime or Edge Functions on or off (lab/realtime.py), one at a time for each."""
+        """Turn an environment's Realtime, Edge Functions or database access on or off (lab/realtime.py), one at a time for each."""
         for service, process in self.toggles.items():
             if process is not None:
                 status = child_status(process)

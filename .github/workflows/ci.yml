@@ -80,6 +80,19 @@ jobs:
         run: docker compose exec -T sbarbase bun lab/first-project-check.ts "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-first-project.json"
       - name: Back up, change, restore, compare
         run: docker compose exec -T sbarbase python3 lab/backup-check.py --evidence "$PWD/docs/evidence/docker-backup-restore.json"
+      - name: Encrypted off-site copy to S3-compatible storage, fetched and restored
+        # A throwaway S3-compatible store stands in for R2, B2 or S3; its credentials exist only for this run.
+        run: |
+          key=ci$(openssl rand -hex 8); secret=$(openssl rand -hex 24)
+          # MinIO from its own registry; S3Mock if that is unavailable (it does not check signatures,
+          # which the unit tests cover against the AWS worked example).
+          if docker run -d --name offsite-s3 -p 127.0.0.1:9100:9000 -e MINIO_ROOT_USER="$key" -e MINIO_ROOT_PASSWORD="$secret" \
+              quay.io/minio/minio:latest server /data; then peer=minio; else
+            docker run -d --name offsite-s3 -p 127.0.0.1:9100:9090 adobe/s3mock:latest; peer=s3mock; fi
+          for i in $(seq 1 90); do curl -sS -o /dev/null http://127.0.0.1:9100/ && break; sleep 1; done
+          docker compose exec -T -e OFFSITE_KEY_ID="$key" -e OFFSITE_SECRET="$secret" sbarbase python3 lab/offsite-check.py \
+            --endpoint http://127.0.0.1:9100 --bucket sbarbase-ci --peer "$peer" --evidence "$PWD/docs/evidence/docker-offsite-checks.json"
+          docker rm -f offsite-s3
       - name: Studio for the environment, behind the console login
         run: docker compose exec -T sbarbase bun lab/studio-check.ts "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-studio-checks.json"
       - name: Sign-in settings and an OAuth provider
@@ -88,6 +101,10 @@ jobs:
         run: docker compose exec -T sbarbase bun lab/realtime-check.ts "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-realtime-checks.json"
       - name: Edge Functions from a Supabase functions folder
         run: docker compose exec -T sbarbase bun lab/functions-check.ts "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-functions-checks.json"
+      - name: Direct database access and a migration
+        run: docker compose exec -T sbarbase bun lab/database-check.ts "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-database-checks.json"
+      - name: Import a Supabase-shaped project into a new environment
+        run: docker compose exec -T sbarbase python3 lab/import-check.py "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-import-checks.json"
       - name: Logs and metrics for the environment
         run: docker compose exec -T sbarbase bun lab/observe-check.ts "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-observe-checks.json"
       - name: Uploads larger than a MiB, then a new upload limit

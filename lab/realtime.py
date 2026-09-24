@@ -1,6 +1,7 @@
-"""Turn one environment's Realtime or Edge Functions on or off, as the console asked, and record the outcome.
+"""Turn one environment's Realtime, Edge Functions or direct database access on or off, as the console asked,
+and record the outcome.
 
-Usage: /usr/bin/python3 lab/realtime.py apply <environment runtime id> [--service realtime|functions]
+Usage: /usr/bin/python3 lab/realtime.py apply <environment runtime id> [--service realtime|functions|database]
 
 The console records the request in the catalog; the supervisor runs this for each pending
 row, one at a time. It calls `durable_runtime.py <service> <runtime> [--off]`, which starts or
@@ -24,11 +25,14 @@ OPERATION_LOCK = ROOT / '.lab' / 'upstream' / 'operation.lock'
 RUNTIME = re.compile(r'e_[a-f0-9]{24}')
 CAPACITY = 75
 # Each service: its catalog table and the name people see.
-SERVICES = {'realtime': ('realtime_settings', 'Realtime'), 'functions': ('functions_settings', 'Edge Functions')}
+SERVICES = {'realtime': ('realtime_settings', 'Realtime'), 'functions': ('functions_settings', 'Edge Functions'),
+            'database': ('database_access', 'Direct database access')}
 
 
 def failure_text(service, code, want):
     label = SERVICES[service][1]
+    if code == CAPACITY and service == 'database':
+        return 'This server has no database connections to spare for direct access to another environment.'
     if code == CAPACITY:
         return f'This server does not have the room, in memory or database connections, to run {label} for another environment.'
     return f"{label} could not be {'started' if want == 'on' else 'stopped'}. The environment keeps working without it."
@@ -75,7 +79,7 @@ def apply(e, service='realtime'):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="Apply one environment's Realtime or Edge Functions setting")
+    parser = argparse.ArgumentParser(description="Apply one environment's Realtime, Edge Functions or database access setting")
     parser.add_argument('command', choices=('apply',))
     parser.add_argument('environment')
     parser.add_argument('--service', choices=tuple(SERVICES), default='realtime')

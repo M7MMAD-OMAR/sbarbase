@@ -7,6 +7,7 @@ import {SignInSection} from './SignIn';
 import {RealtimeSection} from './Realtime';
 import {MetricsSection,LogsSection} from './Observe';
 import {FunctionsSection} from './Functions';
+import {DatabaseSection} from './Database';
 type Key={id:string;kind:string;created_at:number;revoked_at:number|null};
 type Studio={desired:'running'|'stopped';state:'stopped'|'starting'|'running'|'failed';failure:string|null};
 const studioLabels:Record<string,string>={stopped:'Stopped',starting:'Starting',running:'Running',failed:'Failed'};
@@ -49,6 +50,7 @@ export function Connection({environment,organization,request,onBack}:{environmen
  <section className="details"><h2>Email</h2><ErrorMessage message={mail.error}/>{mail.error&&<Refresh onClick={mail.refresh}/>} {mail.loading?<Loading/>:<><p><span className={'state '+mailView.state}>{mailView.label}</span></p><p className="muted small">{mailView.text}</p>{mailRows.map(row=><p className="small" key={row.label}><span className="muted">{row.label}: </span>{row.value}</p>)}</>}</section>
  {canWrite&&<SignInSection path={path} request={request}/>}
  {canWrite&&<RealtimeSection path={path} request={request}/>}
+ {canWrite&&<DatabaseSection path={path} request={request}/>}
  {canWrite&&<FunctionsSection path={path} request={request} environmentId={environment.id}/>}
  {canWrite&&<StudioSection path={path} request={request}/>}
  <MetricsSection path={path} request={request}/>

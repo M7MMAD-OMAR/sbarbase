@@ -166,7 +166,8 @@ def pull(commit):
 
 def back_up():
     """Backs up every environment before anything moves; the backups stay afterwards."""
-    result = subprocess.run(['/usr/bin/python3', 'lab/backup.py', 'create', 'all'], cwd=ROOT, text=True)
+    # Local only: an unreachable off-site storage must not block an upgrade that has its backups.
+    result = subprocess.run(['/usr/bin/python3', 'lab/backup.py', 'create', 'all', '--local-only'], cwd=ROOT, text=True)
     if result.returncode:
         raise UpgradeError('The backup before the upgrade failed; nothing was changed')
 

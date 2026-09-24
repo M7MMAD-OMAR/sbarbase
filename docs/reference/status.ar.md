@@ -71,13 +71,13 @@
 | SDK عبر البوابة إلى البيئة المنقولة | [cutover-sdk-checks.json](../evidence/cutover-sdk-checks.json) | 11 |
 | الجيران غير المتأثرين أعيد تشغيلهم على المصدر | [cutover-neighbor-checks.json](../evidence/cutover-neighbor-checks.json) | 16 |
 
-### الاستيراد من Supabase (المرحلة 0 فقط)
+### الاستيراد من Supabase (الفحص)
 
 | ماذا | الدليل | الفحوص |
 |---|---|---|
 | فحص قاعدة بيانات المصدر للقراءة فقط: حالات الرفض والتحذيرات والخطوات اليدوية قبل أي تفريغ، على الصورة مثبّتة الإصدار وبدور `postgres` | [import-inspect-checks.json](../evidence/import-inspect-checks.json) | 6 |
 
-مراحل التفريغ والاستعادة ونسخ الملفات والتحقق لا وجود لها بعد؛ انظر [خطة الترحيل](../engineering/plans/2026-09-23-verification-and-migration-plan.md).
+الاستيراد الكامل (المخطط والمستخدمون والصفوف والملفات والتحقق) هو `lab/import_project.py`؛ وتشغيله من البداية إلى النهاية في جدول Docker أدناه.
 
 ### التثبيت عبر Docker والنسخ الاحتياطي اليومي وStudio والترقيات (CI، جهاز نظيف)
 
@@ -90,9 +90,12 @@
 | Supabase Studio لبيئة واحدة: يُشغَّل عند الطلب، ويُدخل إليه بتذكرة الواجهة، وتُستخدم عبره قائمة الجداول وSQL والمستخدمون والحاويات، ويُرفض دون الجلسة أو بجلسة بيئة أخرى، ثم يُوقف ([دليل Studio](../guides/studio.ar.md)) | [docker-studio-checks.json](../evidence/docker-studio-checks.json) | 22 |
 | إعدادات تسجيل الدخول: حفظ عنوان الموقع وعناوين إعادة التوجيه ومزوّد GitHub وتطبيقها بإعادة إنشاء Auth، وبدء OAuth ورابط بريد دون مفتاح، وإنشاء حساب بعد إعادة الإنشاء، ثم إزالة المزوّد ([تسجيل الدخول](../guides/sign-in.ar.md)) | [docker-sign-in-checks.json](../evidence/docker-sign-in-checks.json) | 15 |
 | Realtime لبيئة واحدة: تشغيله وبدؤه من المشرف، والبث والحضور وتغيير في قاعدة البيانات بين عميلين من supabase-js عبر البوابة، وواجهة البث REST، ورفض مفتاح خاطئ، ثم إطفاؤه ([Realtime](../guides/realtime.ar.md)) | [docker-realtime-checks.json](../evidence/docker-realtime-checks.json) | 19 |
+| النسخ المشفّرة خارج الخادم: الإعداد من stdin، ونسخة احتياطية تُنسخ وحدها إلى تخزين متوافق مع S3 (‏MinIO مؤقت)، ولا يُخزَّن إلا نص مشفّر، ورفض عبارة مرور خاطئة، وإعادة النسخة واستعادتها ([النسخ الاحتياطي والاستعادة](../guides/backup-and-restore.ar.md#نسخ-خارج-الخادم)) | [docker-offsite-checks.json](../evidence/docker-offsite-checks.json) | 12 |
+| الوصول المباشر إلى قاعدة البيانات: تشغيل حساب المطوّر، وعميل PostgreSQL عبر المنفذ يشغّل ترحيلًا بأسلوب Supabase (سياسة، ومشغّل على `auth.users`، وسياسة Storage)، ورفض المستخدم الخارق وقواعد البيانات الأخرى، وتجديد كلمة المرور، ثم الإطفاء ([الوصول إلى قاعدة البيانات](../guides/database-access.ar.md)) | [docker-database-checks.json](../evidence/docker-database-checks.json) | 16 |
 | Edge Functions لبيئة واحدة: نشر مجلد دوال Supabase بأمر واحد، واستدعاؤها بـ supabase-js، ودالة تستخدم supabase-js من npm بصلاحية الخدمة على Auth وREST وStorage الخاصة ببيئتها، وخطاف ويب دون مفتاح، وسر، وإعادة نشر، وحذف، ثم الإطفاء ([Edge Functions](../guides/edge-functions.ar.md)) | [docker-functions-checks.json](../evidence/docker-functions-checks.json) | 24 |
 | السجلات والمقاييس لبيئة واحدة: عدّ الطلبات عبر البوابة مع الأخطاء وأزمنة الاستجابة واستهلاك الخدمات للذاكرة، وقراءة سجل الطلبات وسجلات Auth وREST وStorage عبر واجهة الإدارة، دون أي مفتاح أو رمز في أي رد ([السجلات والمقاييس](../guides/logs-and-metrics.ar.md)) | [docker-observe-checks.json](../evidence/docker-observe-checks.json) | 20 |
 | الرفع: ملف بحجم 20 MiB عبر البوابة ثم تنزيله مطابقًا بايتًا ببايت، وقبول ملف أصغر قليلًا من حد 50 MiB ورفض ملف أكبر منه، ثم الأمر نفسه بعد أن أعاد `SBARBASE_UPLOAD_LIMIT_MB` جديد إنشاء Storage | [docker-upload-checks.json](../evidence/docker-upload-checks.json) | 20 |
+| الاستيراد إلى بيئة جديدة من بيئة أخرى تقوم مقام مشروع Supabase: يسجّل المستخدم الدخول بكلمة مروره القديمة، وينتقل أمان مستوى الصفوف والملف الخاص مع سياسة Storage الخاصة به ومشغّل التسجيل، ويُرفض استيراد ثانٍ إلى البيئة الممتلئة ([الانتقال من Supabase](../guides/move-from-supabase.ar.md)) | [docker-import-checks.json](../evidence/docker-import-checks.json) | 12 |
 | ترقية إلى PostgREST أحدث عبر `lab/upgrade.py`، ثم إصدار معطوب يعود منه المشرف وحده، مع بقاء المستخدمين والهويات وحاويات Storage والملفات كما هي ([الترقيات](../guides/upgrades.ar.md)) | [docker-upgrade-checks.json](../evidence/docker-upgrade-checks.json) | 10 |
 
 ### خادم فارغ، بمحاكاة في آلة افتراضية محلية
@@ -129,8 +132,8 @@
 
 - تجربة على خادم حقيقي. نجح التثبيت على خادم فارغ في آلة افتراضية محلية فقط.
 - مجمّع الاتصالات وcron، و`SUPABASE_DB_URL` داخل Edge Functions.
-- نسخ النسخ اليومية تلقائيًا إلى جهاز آخر (انسخها بنفسك كما يشرح دليل النسخ الاحتياطي)، والاستعادة إلى نقطة زمنية.
-- استيراد مشروع من Supabase Cloud أو من حزمة مستضافة ذاتيًا أبعد من الفحص للقراءة فقط.
+- الاستعادة إلى نقطة زمنية، وإعادة بناء خادم مفقود كله من النسخ الخارجية بخطوة واحدة (نسخة كل بيئة تُستعاد، أما حالة التثبيت نفسها فلا تنتقل معها بعد).
+- استيراد مخططات غير `public`، وأسرار Vault، ومهام cron من مشروع Supabase (أما [الاستيراد](../guides/move-from-supabase.ar.md) فينقل `public` والمستخدمين والصفوف والملفات).
 - التعافي التلقائي من إخفاقات التجهيز في المراحل المتأخرة؛ تمنع المتابعة حتى يطابقها المشغّل.
 - اعتماد أي إصدار من الأصل عبر سياسة التحديث؛ والترقيات دون تدخل (يبدأ المشغّل كل ترقية بنفسه عبر [lab/upgrade.py](../../lab/upgrade.py)).
 - النقل الكامل للمشروع بين العملاء، والدعوات، وMFA، وتحديد معدل محاولات الدخول.

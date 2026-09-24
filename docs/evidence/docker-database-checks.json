@@ -1,0 +1,90 @@
+{
+  "check": "database",
+  "recorded": "2026-09-24T06:36:07Z",
+  "passed": true,
+  "count": 16,
+  "seconds": 8,
+  "scope": "Direct database access for one environment on a clean GitHub runner, not a real server: turned on through the management API, Bun's PostgreSQL client through the loopback listener running a Supabase-style migration (a table with row level security, a trigger on auth.users, a Storage policy), the result seen through supabase-js, the superuser, another database and a wrong password refused, a password reset, and access turned off. Transcribed from the CI docker-install job 107521371588 (run 35964853556, commit 1b3760f); environment identifiers shortened to e_….",
+  "checks": [
+    {
+      "check": "operator logs in",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "a provisioned environment exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "direct access starts off",
+      "ok": true,
+      "detail": "postgresql://e_…_developer:[YOUR-PASSWORD]@127.0.0.1:6543/e_…"
+    },
+    {
+      "check": "an owner turns it on and sees the password once",
+      "ok": true,
+      "detail": "status 202"
+    },
+    {
+      "check": "the supervisor opens the developer login",
+      "ok": true,
+      "detail": "on"
+    },
+    {
+      "check": "the password is never shown again",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "a PostgreSQL client connects as the developer login to its own database",
+      "ok": true,
+      "detail": "user e_…_developer, database e_…"
+    },
+    {
+      "check": "a Supabase-style migration runs: a table with a policy, a trigger on auth.users and a Storage policy",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "the trigger created a profile at sign-up, readable through the API",
+      "ok": true,
+      "detail": "1 row(s)"
+    },
+    {
+      "check": "the superuser is refused at the listener",
+      "ok": true,
+      "detail": "Only an environment developer login (e_…_developer) can connect here"
+    },
+    {
+      "check": "another database is refused at the listener",
+      "ok": true,
+      "detail": "The developer login connects to its own database, e_…"
+    },
+    {
+      "check": "a wrong password is refused by PostgreSQL",
+      "ok": true,
+      "detail": "password authentication failed for user \"e_…_developer\""
+    },
+    {
+      "check": "a new password is issued and applied",
+      "ok": true,
+      "detail": "status 202 on"
+    },
+    {
+      "check": "the old password stops working and the new one works",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "the owner turns access off",
+      "ok": true,
+      "detail": "off"
+    },
+    {
+      "check": "the developer login cannot connect once access is off",
+      "ok": true,
+      "detail": "role \"e_…_developer\" is not permitted to log in"
+    }
+  ]
+}
