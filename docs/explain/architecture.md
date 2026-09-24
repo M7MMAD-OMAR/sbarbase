@@ -19,7 +19,7 @@ Rejected alternatives:
 
 ![Compared with a full stack per project, Sbarbase shares one gateway, one PostgreSQL engine and one Storage process, and runs Auth and REST per environment](../diagrams/full-stack-vs-shared.svg)
 
-*PostgreSQL and Storage run once; each environment adds only its own small Auth and REST.*
+*PostgreSQL and Storage run once; each environment adds its own database, a Storage tenant and a small Auth and REST.*
 
 ![A request goes from the app through the TLS proxy to the gateway, which checks the key for the environment named in the path and refuses at once with 429 or 503 instead of queueing, then to that environment's Auth or REST and its own database login; files go to shared Storage with a tenant header](../diagrams/request-path.svg)
 

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 520" width="900" height="520" role="img" aria-labelledby="loadise-t loadise-d" xml:lang="en">
   <title id="loadise-t">A burst on one environment stays inside its own limits</title>
-  <desc id="loadise-d">Environment A receives a burst of requests while environment B has normal traffic. The gateway admits at most 8 requests in flight per environment and 32 per gateway process, with no queue: the ninth concurrent request to A gets 429 at once, and a full gateway answers 503. B has its own count, so its requests are still admitted. Behind the gateway, each environment's Auth and REST run in their own containers with CPU, memory and per-device IO limits; each service login is limited to 6 PostgreSQL connections and each environment database to 18; statements have an 8 second default limit. Local probes saw the ninth request refused and the neighbour still served. The limits are not calibrated under sustained load, and CPU, memory and IO inside the one PostgreSQL engine remain shared.</desc>
+  <desc id="loadise-d">Environment A receives a burst of requests while environment B has normal traffic. The gateway admits at most 8 requests in flight per environment and 32 per gateway process, with no queue: the ninth concurrent request to A gets 429 at once, and a full gateway answers 503. B has its own count, so its requests are still admitted. Behind the gateway, each environment's Auth and REST run in their own containers with CPU, memory and per-device IO limits; each service login is limited to 6 PostgreSQL connections and each environment database to 18; REST statements stop after 8 seconds. Local probes saw the ninth request refused and the neighbour still served. The limits are not calibrated under sustained load, and CPU, memory and IO inside the one PostgreSQL engine remain shared.</desc>
   <defs><marker id="loadise-i" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#2A2632" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="loadise-c" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#E06A4B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
   <rect x="0" y="0" width="900" height="520" fill="#F5EFE3"/>
   <g font-family="system-ui, sans-serif" fill="#2A2632" text-anchor="middle">
@@ -71,8 +71,8 @@
   <text x="808" y="284" font-size="11.5">database B</text>
   <text x="808" y="301" font-size="11.5">18 connections</text>
   <text x="808" y="318" font-size="11.5">6 per login</text>
-  <text x="808" y="214" font-size="11.5" fill="#5B5465">statement limit</text>
-  <text x="808" y="231" font-size="11.5" fill="#5B5465">8 s by default</text>
+  <text x="808" y="214" font-size="11.5" fill="#5B5465">REST statements</text>
+  <text x="808" y="231" font-size="11.5" fill="#5B5465">stop after 8 s</text>
   <path d="M710 120 C726 120 730 153 750 153" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#loadise-i)"/>
   <path d="M710 286 C726 286 730 299 750 299" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#loadise-i)"/>
   <rect x="24" y="372" width="852" height="64" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>

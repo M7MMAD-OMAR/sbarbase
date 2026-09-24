@@ -1,8 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 476" width="900" height="476" role="img" aria-labelledby="fullste-t fullste-d" xml:lang="en">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 494" width="900" height="494" role="img" aria-labelledby="fullste-t fullste-d" xml:lang="en">
   <title id="fullste-t">A full stack per project, compared with Sbarbase</title>
   <desc id="fullste-d">Left: three projects, each running its own full stack of Studio, Auth, REST, Storage, Postgres, gateway and logs. Right: Sbarbase runs one gateway, a separate Auth and REST per environment, one PostgreSQL engine holding one database per environment with its own logins, and one shared tenant-aware Storage process. The shared parts are a shared failure boundary. A per-environment Studio is planned, not built.</desc>
   <defs><marker id="fullste-i" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#2A2632" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="fullste-c" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#E06A4B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
-  <rect x="0" y="0" width="900" height="476" fill="#F5EFE3"/>
+  <rect x="0" y="0" width="900" height="494" fill="#F5EFE3"/>
   <g font-family="system-ui, sans-serif" fill="#2A2632" text-anchor="middle">
   <text x="24" y="40" font-size="15" font-weight="700" text-anchor="start">A full stack per project</text>
   <rect x="24" y="64" width="110" height="28" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
@@ -86,12 +86,13 @@
   <rect x="440" y="344" width="436" height="36" rx="8" fill="#EFE9FA" stroke="#B7A2E6" stroke-width="2" stroke-dasharray="7 5"/>
   <text x="658" y="367" font-size="12.5">Studio per environment: planned, not built</text>
   <text x="24" y="408" font-size="12" text-anchor="start">PostgreSQL and Storage run once, so the same server has room for more projects.</text>
-  <text x="24" y="426" font-size="12" text-anchor="start">Each extra environment adds its own small Auth and REST (under 20 MiB idle in one local sample).</text>
-  <rect x="24" y="447" width="22" height="14" rx="3" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
-  <text x="54" y="458" font-size="12" fill="#5B5465" text-anchor="start">shared: a shared failure boundary</text>
-  <rect x="293.20000000000005" y="447" width="22" height="14" rx="3" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
-  <text x="323.20000000000005" y="458" font-size="12" fill="#5B5465" text-anchor="start">one per environment</text>
-  <rect x="472.80000000000007" y="447" width="22" height="14" rx="3" fill="#EFE9FA" stroke="#B7A2E6" stroke-width="2" stroke-dasharray="7 5"/>
-  <text x="502.80000000000007" y="458" font-size="12" fill="#5B5465" text-anchor="start">planned</text>
+  <text x="24" y="426" font-size="12" text-anchor="start">Each extra environment adds its own database in the engine and a small Auth and REST (under 20 MiB idle in one</text>
+  <text x="24" y="444" font-size="12" text-anchor="start">local sample); the preflight still reserves 512 MiB of limits per environment, and a lab guard allows four for now.</text>
+  <rect x="24" y="465" width="22" height="14" rx="3" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
+  <text x="54" y="476" font-size="12" fill="#5B5465" text-anchor="start">shared: a shared failure boundary</text>
+  <rect x="293.20000000000005" y="465" width="22" height="14" rx="3" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <text x="323.20000000000005" y="476" font-size="12" fill="#5B5465" text-anchor="start">one per environment</text>
+  <rect x="472.80000000000007" y="465" width="22" height="14" rx="3" fill="#EFE9FA" stroke="#B7A2E6" stroke-width="2" stroke-dasharray="7 5"/>
+  <text x="502.80000000000007" y="476" font-size="12" fill="#5B5465" text-anchor="start">planned</text>
   </g>
 </svg>

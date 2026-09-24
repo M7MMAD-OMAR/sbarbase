@@ -241,7 +241,7 @@ def request_path(lang):
 
 def full_stack(lang):
     t = lambda en, ar: pick(lang, en, ar)
-    d = Diagram('full-stack-vs-shared', 900, 476, lang,
+    d = Diagram('full-stack-vs-shared', 900, 494, lang,
                 t('A full stack per project, compared with Sbarbase', 'حزمة كاملة لكل مشروع، مقارنة بصباربيز'),
                 t('Left: three projects, each running its own full stack of Studio, Auth, REST, Storage, Postgres, '
                   'gateway and logs. Right: Sbarbase runs one gateway, a separate Auth and REST per environment, one '
@@ -288,10 +288,12 @@ def full_stack(lang):
     d.text(658, 367, t('Studio per environment: planned, not built', 'Studio لكل بيئة: مخطط وغير مبني'), size=12.5)
     d.lines(24, 408, [t('PostgreSQL and Storage run once, so the same server has room for more projects.',
                          'يعمل PostgreSQL وStorage مرة واحدة، فيتسع الخادم نفسه لمشاريع أكثر.'),
-                       t('Each extra environment adds its own small Auth and REST (under 20 MiB idle in one local sample).',
-                         'وكل بيئة إضافية تضيف Auth وREST صغيرين (أقل من 20 MiB في الخمول، في عينة محلية واحدة).')],
+                       t('Each extra environment adds its own database in the engine and a small Auth and REST (under 20 MiB idle in one',
+                         'وكل بيئة إضافية تضيف قاعدتها في المحرك وAuth وREST صغيرين، أقل من 20 MiB في الخمول في عينة محلية واحدة.'),
+                       t('local sample); the preflight still reserves 512 MiB of limits per environment, and a lab guard allows four for now.',
+                         'ومع ذلك يحجز فحص الخادم 512 MiB من الحدود لكل بيئة، ويسمح حارس المختبر بأربع بيئات حاليًا.')],
             size=12, gap=18, anchor='start')
-    d.legend(458, [('shared', t('shared: a shared failure boundary', 'مشترك: حد فشل مشترك')),
+    d.legend(476, [('shared', t('shared: a shared failure boundary', 'مشترك: حد فشل مشترك')),
                    ('env', t('one per environment', 'واحد لكل بيئة')), ('planned', t('planned', 'مخطط'))])
     return d
 
@@ -455,14 +457,14 @@ def load_isolation(lang):
                   'concurrent request to A gets 429 at once, and a full gateway answers 503. B has its own count, so its '
                   'requests are still admitted. Behind the gateway, each environment\'s Auth and REST run in their own '
                   'containers with CPU, memory and per-device IO limits; each service login is limited to 6 PostgreSQL '
-                  'connections and each environment database to 18; statements have an 8 second default limit. Local probes saw the '
+                  'connections and each environment database to 18; REST statements stop after 8 seconds. Local probes saw the '
                   'ninth request refused and the neighbour still served. The limits are not calibrated under sustained '
                   'load, and CPU, memory and IO inside the one PostgreSQL engine remain shared.',
                   'تتلقى البيئة أ دفعة كبيرة من الطلبات، والبيئة ب حركتها عادية. تقبل البوابة 8 طلبات متزامنة على الأكثر '
                   'لكل بيئة و32 لكل عملية بوابة، دون طابور: الطلب التاسع المتزامن إلى أ يتلقى 429 فورًا، والبوابة '
                   'الممتلئة ترد بـ 503. لـ ب عدّادها الخاص، فتُقبل طلباتها. خلف البوابة يعمل Auth وREST لكل بيئة في '
                   'حاوياتهما بحدود للمعالج والذاكرة والقرص؛ ولكل حساب خدمة 6 اتصالات PostgreSQL على الأكثر، ولقاعدة '
-                  'كل بيئة 18؛ ومهلة الاستعلام الافتراضية 8 ثوانٍ. في الفحوص المحلية رُفض الطلب التاسع وبقيت البيئة المجاورة '
+                  'كل بيئة 18؛ وتتوقف استعلامات REST بعد 8 ثوانٍ. في الفحوص المحلية رُفض الطلب التاسع وبقيت البيئة المجاورة '
                   'تُخدم. هذه الحدود غير معايرة تحت حمل مستمر، والمعالج والذاكرة والقرص داخل محرك PostgreSQL الواحد '
                   'تبقى مشتركة.'))
     d.text(24, 34, d.title, size=16, weight=700, anchor='start')
@@ -510,7 +512,7 @@ def load_isolation(lang):
     d.lines(808, 138, [t('database A', 'القاعدة أ'), t('18 connections', '18 اتصالًا'), t('6 per login', '6 لكل حساب')], size=11.5, gap=17)
     d.box(752, 262, 112, 74, 'db')
     d.lines(808, 284, [t('database B', 'القاعدة ب'), t('18 connections', '18 اتصالًا'), t('6 per login', '6 لكل حساب')], size=11.5, gap=17)
-    d.lines(808, 214, [t('statement limit', 'مهلة الاستعلام'), t('8 s by default', '8 ث افتراضيًا')], size=11.5, gap=17, fill=MUTED)
+    d.lines(808, 214, [t('REST statements', 'استعلامات REST'), t('stop after 8 s', 'تتوقف بعد 8 ث')], size=11.5, gap=17, fill=MUTED)
     d.arrow('M710 120 C726 120 730 153 750 153')
     d.arrow('M710 286 C726 286 730 299 750 299')
     # outcome

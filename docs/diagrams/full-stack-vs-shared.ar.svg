@@ -1,8 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 476" width="900" height="476" role="img" aria-labelledby="fullsta-t fullsta-d" xml:lang="ar" direction="rtl">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 494" width="900" height="494" role="img" aria-labelledby="fullsta-t fullsta-d" xml:lang="ar" direction="rtl">
   <title id="fullsta-t">حزمة كاملة لكل مشروع، مقارنة بصباربيز</title>
   <desc id="fullsta-d">على اليسار ثلاثة مشاريع، يشغّل كل منها حزمة كاملة خاصة به: Studio وAuth وREST وStorage وPostgres وبوابة وسجلات. وعلى اليمين صباربيز: بوابة واحدة، وAuth وREST منفصلان لكل بيئة، ومحرك PostgreSQL واحد فيه قاعدة بيانات لكل بيئة بحسابات دخولها الخاصة، وعملية Storage واحدة مشتركة تعرف المستأجرين. الأجزاء المشتركة حدود فشل مشتركة. Studio لكل بيئة مخطط وغير مبني.</desc>
   <defs><marker id="fullsta-i" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#2A2632" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="fullsta-c" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#E06A4B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
-  <rect x="0" y="0" width="900" height="476" fill="#F5EFE3"/>
+  <rect x="0" y="0" width="900" height="494" fill="#F5EFE3"/>
   <g font-family="system-ui, sans-serif" fill="#2A2632" text-anchor="middle">
   <text x="876" y="40" font-size="15" font-weight="700" text-anchor="start">حزمة كاملة لكل مشروع</text>
   <rect x="766" y="64" width="110" height="28" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
@@ -86,12 +86,13 @@
   <rect x="24" y="344" width="436" height="36" rx="8" fill="#EFE9FA" stroke="#B7A2E6" stroke-width="2" stroke-dasharray="7 5"/>
   <text x="242" y="367" font-size="12.5">Studio لكل بيئة: مخطط وغير مبني</text>
   <text x="876" y="408" font-size="12" text-anchor="start">يعمل PostgreSQL وStorage مرة واحدة، فيتسع الخادم نفسه لمشاريع أكثر.</text>
-  <text x="876" y="426" font-size="12" text-anchor="start">وكل بيئة إضافية تضيف Auth وREST صغيرين (أقل من 20 MiB في الخمول، في عينة محلية واحدة).</text>
-  <rect x="854" y="447" width="22" height="14" rx="3" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
-  <text x="846" y="458" font-size="12" fill="#5B5465" text-anchor="start">مشترك: حد فشل مشترك</text>
-  <rect x="674.4" y="447" width="22" height="14" rx="3" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
-  <text x="666.4" y="458" font-size="12" fill="#5B5465" text-anchor="start">واحد لكل بيئة</text>
-  <rect x="533.2" y="447" width="22" height="14" rx="3" fill="#EFE9FA" stroke="#B7A2E6" stroke-width="2" stroke-dasharray="7 5"/>
-  <text x="525.2" y="458" font-size="12" fill="#5B5465" text-anchor="start">مخطط</text>
+  <text x="876" y="426" font-size="12" text-anchor="start">وكل بيئة إضافية تضيف قاعدتها في المحرك وAuth وREST صغيرين، أقل من 20 MiB في الخمول في عينة محلية واحدة.</text>
+  <text x="876" y="444" font-size="12" text-anchor="start">ومع ذلك يحجز فحص الخادم 512 MiB من الحدود لكل بيئة، ويسمح حارس المختبر بأربع بيئات حاليًا.</text>
+  <rect x="854" y="465" width="22" height="14" rx="3" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
+  <text x="846" y="476" font-size="12" fill="#5B5465" text-anchor="start">مشترك: حد فشل مشترك</text>
+  <rect x="674.4" y="465" width="22" height="14" rx="3" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <text x="666.4" y="476" font-size="12" fill="#5B5465" text-anchor="start">واحد لكل بيئة</text>
+  <rect x="533.2" y="465" width="22" height="14" rx="3" fill="#EFE9FA" stroke="#B7A2E6" stroke-width="2" stroke-dasharray="7 5"/>
+  <text x="525.2" y="476" font-size="12" fill="#5B5465" text-anchor="start">مخطط</text>
   </g>
 </svg>

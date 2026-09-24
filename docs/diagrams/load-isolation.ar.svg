@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 520" width="900" height="520" role="img" aria-labelledby="loadisa-t loadisa-d" xml:lang="ar" direction="rtl">
   <title id="loadisa-t">ضغط على بيئة واحدة يبقى داخل حدودها</title>
-  <desc id="loadisa-d">تتلقى البيئة أ دفعة كبيرة من الطلبات، والبيئة ب حركتها عادية. تقبل البوابة 8 طلبات متزامنة على الأكثر لكل بيئة و32 لكل عملية بوابة، دون طابور: الطلب التاسع المتزامن إلى أ يتلقى 429 فورًا، والبوابة الممتلئة ترد بـ 503. لـ ب عدّادها الخاص، فتُقبل طلباتها. خلف البوابة يعمل Auth وREST لكل بيئة في حاوياتهما بحدود للمعالج والذاكرة والقرص؛ ولكل حساب خدمة 6 اتصالات PostgreSQL على الأكثر، ولقاعدة كل بيئة 18؛ ومهلة الاستعلام الافتراضية 8 ثوانٍ. في الفحوص المحلية رُفض الطلب التاسع وبقيت البيئة المجاورة تُخدم. هذه الحدود غير معايرة تحت حمل مستمر، والمعالج والذاكرة والقرص داخل محرك PostgreSQL الواحد تبقى مشتركة.</desc>
+  <desc id="loadisa-d">تتلقى البيئة أ دفعة كبيرة من الطلبات، والبيئة ب حركتها عادية. تقبل البوابة 8 طلبات متزامنة على الأكثر لكل بيئة و32 لكل عملية بوابة، دون طابور: الطلب التاسع المتزامن إلى أ يتلقى 429 فورًا، والبوابة الممتلئة ترد بـ 503. لـ ب عدّادها الخاص، فتُقبل طلباتها. خلف البوابة يعمل Auth وREST لكل بيئة في حاوياتهما بحدود للمعالج والذاكرة والقرص؛ ولكل حساب خدمة 6 اتصالات PostgreSQL على الأكثر، ولقاعدة كل بيئة 18؛ وتتوقف استعلامات REST بعد 8 ثوانٍ. في الفحوص المحلية رُفض الطلب التاسع وبقيت البيئة المجاورة تُخدم. هذه الحدود غير معايرة تحت حمل مستمر، والمعالج والذاكرة والقرص داخل محرك PostgreSQL الواحد تبقى مشتركة.</desc>
   <defs><marker id="loadisa-i" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#2A2632" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="loadisa-c" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#E06A4B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
   <rect x="0" y="0" width="900" height="520" fill="#F5EFE3"/>
   <g font-family="system-ui, sans-serif" fill="#2A2632" text-anchor="middle">
@@ -71,8 +71,8 @@
   <text x="92" y="284" font-size="11.5">القاعدة ب</text>
   <text x="92" y="301" font-size="11.5">18 اتصالًا</text>
   <text x="92" y="318" font-size="11.5">6 لكل حساب</text>
-  <text x="92" y="214" font-size="11.5" fill="#5B5465">مهلة الاستعلام</text>
-  <text x="92" y="231" font-size="11.5" fill="#5B5465">8 ث افتراضيًا</text>
+  <text x="92" y="214" font-size="11.5" fill="#5B5465">استعلامات REST</text>
+  <text x="92" y="231" font-size="11.5" fill="#5B5465">تتوقف بعد 8 ث</text>
   <path d="M190 120 C174 120 170 153 150 153" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#loadisa-i)"/>
   <path d="M190 286 C174 286 170 299 150 299" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#loadisa-i)"/>
   <rect x="24" y="372" width="852" height="64" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
