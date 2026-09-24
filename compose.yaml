@@ -23,6 +23,9 @@ services:
       SBARBASE_CONSOLE_PORT: ${SBARBASE_CONSOLE_PORT:-8790}
       SBARBASE_BACKUP_HOUR: ${SBARBASE_BACKUP_HOUR:-3}
       SBARBASE_BACKUP_KEEP: ${SBARBASE_BACKUP_KEEP:-7}
+      # The address people and OAuth providers reach this server at, for example
+      # https://api.example.com. Auth builds email links and callbacks from it.
+      SBARBASE_PUBLIC_URL: ${SBARBASE_PUBLIC_URL:-}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       # Read only: the disk behind Docker's data is where block IO limits apply.

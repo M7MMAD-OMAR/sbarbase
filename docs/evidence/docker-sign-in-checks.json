@@ -1,0 +1,85 @@
+{
+  "check": "sign-in",
+  "recorded": "2026-09-24T03:43:50Z",
+  "passed": true,
+  "count": 15,
+  "seconds": 5,
+  "scope": "Sign-in settings for one environment on a clean GitHub runner, not a real server: a site URL, redirect addresses and a GitHub provider with a placeholder client saved through the management API and applied by recreating that environment's Auth; a keyless OAuth start and email link through the gateway as a browser sends them; the provider removed again. No real provider was contacted. Transcribed from the CI docker-install job 107483836458 (run 35952386382, commit 5607847).",
+  "checks": [
+    {
+      "check": "operator logs in",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "a provisioned environment exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "a publishable key is issued for the check",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "an environment starts with the default sign-in settings",
+      "ok": true,
+      "detail": "status 200"
+    },
+    {
+      "check": "an unsafe site URL is refused",
+      "ok": true,
+      "detail": "status 400"
+    },
+    {
+      "check": "an owner saves a site URL, redirects and GitHub",
+      "ok": true,
+      "detail": "status 202"
+    },
+    {
+      "check": "the provider secret is never sent back",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "the supervisor recreates Auth with the settings",
+      "ok": true,
+      "detail": "state applied"
+    },
+    {
+      "check": "Auth offers GitHub sign-in",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "a browser starts a GitHub sign-in without a key",
+      "ok": true,
+      "detail": "status 302"
+    },
+    {
+      "check": "GitHub is told this environment's callback address",
+      "ok": true,
+      "detail": "http://localhost/e_bc6daf6541900dc1753e9c1f/auth/v1/callback"
+    },
+    {
+      "check": "an email link reaches Auth without a key and returns to the application",
+      "ok": true,
+      "detail": "status 303"
+    },
+    {
+      "check": "email sign-up still works after the recreate",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "the owner removes the provider",
+      "ok": true,
+      "detail": "status 202"
+    },
+    {
+      "check": "GitHub sign-in is gone once applied",
+      "ok": true,
+      "detail": "state applied"
+    }
+  ]
+}

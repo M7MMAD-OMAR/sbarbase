@@ -143,3 +143,18 @@ test('upstream answers carry the gateway browser headers, not the upstream ones'
  expect(response.headers.get('content-range')).toBe('0-0/5');
  expect(response.headers.get('vary')).toBe('Accept-Encoding, Origin');
 });
+
+test('a browser following an email link or an OAuth redirect reaches Auth without a key, and only there',async()=>{
+ const {handler,calls}=setup();
+ for(const [method,path] of [['GET','/a_prod/auth/v1/verify?token=t&type=signup'],['GET','/a_prod/auth/v1/authorize?provider=github'],
+  ['GET','/a_prod/auth/v1/callback?code=c&state=s'],['POST','/a_prod/auth/v1/callback']] as const)
+  expect((await handler(new Request('http://local'+path,{method,body:method==='POST'?'code=c':undefined}))).status).toBe(200);
+ expect(calls).toHaveLength(4);
+ expect(calls[0]!.url).toBe('http://auth:9999/verify?token=t&type=signup');
+ // The anonymous token stands in for the missing key, as it does for a keyed call.
+ expect(new Headers(calls[1]!.options.headers).get('authorization')).toBe('Bearer anon-a');
+ for(const [method,path] of [['POST','/a_prod/auth/v1/verify'],['GET','/a_prod/auth/v1/user'],['GET','/a_prod/auth/v1/admin/users'],
+  ['GET','/a_prod/rest/v1/authorize'],['DELETE','/a_prod/auth/v1/callback']] as const)
+  expect((await handler(new Request('http://local'+path,{method}))).status).toBe(401);
+ expect(calls).toHaveLength(4);
+});

@@ -265,6 +265,15 @@ def up(e):
     state['sessions'][e] = {'url': f'http://{studio_address}:3000',
                             'started_at': datetime.datetime.now(datetime.UTC).isoformat(timespec='seconds')}
     save_state(state)
+    # The console opens Studio's internal route to Auth and Storage when it sees the state
+    # above, within a couple of seconds. Studio counts as running only once that route
+    # answers, so its first user or bucket page never meets a closed port.
+    try:
+        wait_ready(f"http://{state['upstream']['host']}:{UPSTREAM_PORT}/", timeout=30, any_answer=True,
+                   what='The Studio route to Auth and Storage')
+    except StudioError:
+        down(e)
+        raise
     return state['sessions'][e]
 
 

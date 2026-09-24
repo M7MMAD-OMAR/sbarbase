@@ -129,7 +129,7 @@ def provision_environment(e, credentials, checkpoint=lambda phase: None, executo
     checkpoint('permissions')
 
 
-def auth_configuration(e, v, database_host, mail=None):
+def auth_configuration(e, v, database_host, mail=None, settings=None):
     """The environment's Auth environment. Without mail the dict is unchanged, byte for byte.
 
     `mail` is the validated per environment mail configuration, or None. It is
@@ -147,6 +147,10 @@ def auth_configuration(e, v, database_host, mail=None):
         'GOTRUE_JWT_DEFAULT_GROUP_NAME': 'authenticated', 'GOTRUE_JWT_ADMIN_ROLES': 'service_role',
         'GOTRUE_EXTERNAL_EMAIL_ENABLED': 'true', 'GOTRUE_MAILER_AUTOCONFIRM': 'true',
         'GOTRUE_DB_MAX_POOL_SIZE': '3', 'GOTRUE_DB_NAMESPACE': 'auth'}
+    # The public address, and the environment's own sign-in settings when it has them
+    # (lab/auth_settings.py). Without either, the values above stay as they are.
+    import auth_settings
+    config.update(auth_settings.configuration(e, settings))
     if mail is None:
         return config
     config.update({
