@@ -42,4 +42,4 @@ The client secret is written to a private file on the server and handed to that 
 
 Email links and OAuth steps reach Auth without an API key, as they do on Supabase, because a browser following a link cannot send one. Only those steps are open: `verify`, `authorize` and `callback`.
 
-CI saves a GitHub provider on a clean machine with every change, starts a GitHub sign-in and opens an email link the way a browser does, and checks that email sign-up still works afterwards. No real provider is contacted there, so the first real sign-in with your provider is the one to try yourself.
+CI saves a GitHub provider on a clean machine with every change, starts a GitHub sign-in and opens an email link the way a browser does, and checks that email sign-up still works afterwards ([evidence](../evidence/docker-sign-in-checks.json)). No real provider is contacted there, so the first real sign-in with your provider is the one to try yourself.
