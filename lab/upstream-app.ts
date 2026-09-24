@@ -8,6 +8,7 @@ import {application} from '../src/control/application';
 import {readJsonCached} from '../src/http/cached-json';
 import {studioKey,studioProxy,studioUpstream} from '../src/control/studio';
 import {realtimeUpgrade} from '../src/gateway/realtime';
+import {RequestLog} from '../src/gateway/observe';
 import {routeWithPlacement} from '../src/gateway/managed';
 import type {EnvironmentRoute} from '../src/gateway/handler';
 
@@ -48,15 +49,24 @@ export function openUpstreamApplication() {
   return {...endpoints[runtime],keys:[],anonymousToken:internalToken(secret,'anon'),enabled:true,
    ...(endpoints[runtime].realtime?{realtimeToken:realtimeToken(secret)}:{})};
  };
+ const requests=new RequestLog();
  const handler=application(catalog,keys,{auth:management.auth,publishableKey:managementPublishableKey,
-  anonymousToken:internalToken(secrets.management.jwt,'anon')},resolve,fetch,studioSessionKey);
- const realtime=realtimeUpgrade({
+  anonymousToken:internalToken(secrets.management.jwt,'anon')},resolve,fetch,studioSessionKey,requests);
+ const socket=realtimeUpgrade({
   route:runtime=>{
    if(!catalog.runtimeReady(runtime))return undefined;
    const routing=catalog.runtimeRouting(runtime);
    return routing.maintenance?'maintenance':routeWithPlacement(resolve(runtime),routing);
   },
   verifyKey:(runtime,key)=>keys.resolve(runtime,key)==='publishable'});
+ // Socket openings count in the environment's logs too: 101 when one reaches Realtime.
+ const realtime:typeof socket=(path,headers)=>{
+  const started=performance.now(),decision=socket(path,headers);
+  const runtime=new URL(path,'http://local').pathname.split('/')[1]??'';
+  try{if(resolve(runtime))requests.record(runtime,{method:'GET',service:'realtime',path:'/websocket',
+   status:decision.ok?101:decision.status,ms:performance.now()-started});}catch{}
+  return decision;
+ };
   const studio=studioProxy({key:studioSessionKey,allowed:(actor,runtime)=>catalog.studioAllowed(actor,runtime),
    upstream:runtime=>studioState().sessions?.[runtime]?.url});
   const upstream=studioUpstream({

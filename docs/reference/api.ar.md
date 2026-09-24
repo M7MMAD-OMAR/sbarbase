@@ -43,6 +43,8 @@
 | GET | `/management/v1/environments/{id}/keys` | مالك، مدير | البيانات الوصفية للمفاتيح فقط، ولا يُعاد المفتاح نفسه أبدًا |
 | POST | `/management/v1/environments/{id}/keys` | مالك، مدير | بلا جسم. يعيد `201` مع مفتاح عام جديد يظهر مرة واحدة |
 | DELETE | `/management/v1/environments/{id}/keys/{keyId}` | مالك، مدير | يعيد `200 {revoked: true}`، أو `404` إذا لم يكن مفتاحًا فعّالًا لهذه البيئة |
+| GET | `/management/v1/environments/{id}/metrics` | عضو، عندما تكون جاهزة | آخر ساعة عند البوابة: `window` (`requests` و`clientErrors` و`serverErrors`، و`p50` و`p95` بالميلي ثانية، وعدد الطلبات لكل خدمة في `services`)، و`perMinute` (60 صفًا)، و`since`، و`services` (استهلاك الذاكرة والمعالج لـ Auth وREST وRealtime). في الذاكرة، وتفرغ بعد إعادة التشغيل ([السجلات والمقاييس](../guides/logs-and-metrics.ar.md)) |
+| GET | `/management/v1/environments/{id}/logs?source=requests\|auth\|rest\|storage\|realtime&lines=1-1000&errors=1` | مالك، مدير، عندما تكون جاهزة | `requests`: آخر طلبات البوابة، الأحدث أولًا، بلا نصوص الاستعلام. المصادر الأخرى: `lines`، آخر أسطر الخدمة، الأقدم أولًا، مع استبدال المفاتيح والرموز وكلمات المرور بـ `[redacted]`؛ وأسطر Storage فقط إن ذكرت هذه البيئة. `503` إذا تعذّر الوصول إلى Docker |
 | GET | `/management/v1/environments/{id}/mail` | عضو | حالة البريد غير السرية للبيئة، بلا أي حقل لبيانات الاعتماد |
 | GET | `/management/v1/notifications` | مالك أو مدير أي عميل | عدد التنبيهات غير المسلّمة وأحدث أحداث المشغّل لعملاء المستدعي وحدهم. الأحداث التي لا تخص عميلًا (بدء التثبيت، إعادة تشغيل العامل) تذهب إلى مالكي ومديري العميل الذي أُنشئ عند الإعداد الأولي |
 

@@ -43,6 +43,8 @@ All routes need `Authorization: Bearer <management access token>`. The actor com
 | GET | `/management/v1/environments/{id}/keys` | owner, admin | Key metadata only, never key material |
 | POST | `/management/v1/environments/{id}/keys` | owner, admin | No body. `201` with a new publishable key, shown once |
 | DELETE | `/management/v1/environments/{id}/keys/{keyId}` | owner, admin | `200 {revoked: true}`, or `404` if not an active key of this environment |
+| GET | `/management/v1/environments/{id}/metrics` | member, when ready | Last hour at the gateway: `window` (`requests`, `clientErrors`, `serverErrors`, `p50` and `p95` in ms, `services` counts), `perMinute` (60 rows), `since`, and `services` (memory and processor use of Auth, REST and Realtime). In memory; empty after a restart ([logs and metrics](../guides/logs-and-metrics.md)) |
+| GET | `/management/v1/environments/{id}/logs?source=requests\|auth\|rest\|storage\|realtime&lines=1-1000&errors=1` | owner, admin, when ready | `requests`: the last gateway requests, newest first, without query strings. Other sources: `lines`, the service's last lines, oldest first, with keys, tokens and passwords replaced by `[redacted]`; Storage lines only when they name this environment. `503` when Docker cannot be reached |
 | GET | `/management/v1/environments/{id}/mail` | member | Non-secret mail state of the environment; no credential field |
 | GET | `/management/v1/notifications` | owner or admin of any client | Undelivered count and recent operator events of the caller's own clients only. Events that belong to no client (installation start, worker restarts) go to owners and admins of the client created at bootstrap |
 

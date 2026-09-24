@@ -86,6 +86,8 @@ jobs:
         run: docker compose exec -T sbarbase bun lab/sign-in-check.ts "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-sign-in-checks.json"
       - name: Realtime for the environment
         run: docker compose exec -T sbarbase bun lab/realtime-check.ts "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-realtime-checks.json"
+      - name: Logs and metrics for the environment
+        run: docker compose exec -T sbarbase bun lab/observe-check.ts "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-observe-checks.json"
       - name: Upgrade, then a broken upgrade that moves back by itself
         run: |
           versions=$(python3 lab/upgrade-check.py candidates)

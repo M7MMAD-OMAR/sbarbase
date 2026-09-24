@@ -15,6 +15,13 @@ ready.
 
 ### Added
 
+- **Logs and metrics per environment.** Every member sees the last hour of
+  requests through the gateway on the environment's page: totals, client and
+  server errors, median and 95th percentile response times, requests per minute
+  and per service, and the memory and processor use of its own services. Owners
+  and admins also read the last requests and the Auth, REST, Storage and
+  Realtime logs, with keys, tokens and passwords redacted before a line leaves
+  the server. Counts live in memory and start again after a restart.
 - **Realtime per environment.** Owners and admins turn Realtime on for an
   environment from the console; it runs the pinned upstream Realtime for that
   environment alone, with its own login, and stops when turned off. supabase-js

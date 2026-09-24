@@ -5,6 +5,7 @@ import {mailDetails,mailState,type MailEntry} from './mail';
 import {ErrorMessage,Loading,Empty,Refresh} from './components';
 import {SignInSection} from './SignIn';
 import {RealtimeSection} from './Realtime';
+import {MetricsSection,LogsSection} from './Observe';
 type Key={id:string;kind:string;created_at:number;revoked_at:number|null};
 type Studio={desired:'running'|'stopped';state:'stopped'|'starting'|'running'|'failed';failure:string|null};
 const studioLabels:Record<string,string>={stopped:'Stopped',starting:'Starting',running:'Running',failed:'Failed'};
@@ -48,6 +49,8 @@ export function Connection({environment,organization,request,onBack}:{environmen
  {canWrite&&<SignInSection path={path} request={request}/>}
  {canWrite&&<RealtimeSection path={path} request={request}/>}
  {canWrite&&<StudioSection path={path} request={request}/>}
+ <MetricsSection path={path} request={request}/>
+ {canWrite&&<LogsSection path={path} request={request}/>}
  <section className="keys-section"><div className="page-heading"><div><h2>Publishable keys</h2><p className="muted small">Use these in your application. Row level security still applies.</p></div>{canWrite&&<button className="primary" onClick={issue} disabled={busy||!!raw}><Plus aria-hidden="true"/>Create key</button>}</div>
  <ErrorMessage message={error||keys.error}/>{raw&&<div className="new-key"><label htmlFor="new-key">Save this key now. It is only shown once.</label><textarea id="new-key" readOnly value={raw}/><div className="form-row"><button onClick={()=>copy(raw)}><Copy aria-hidden="true"/>Copy key</button><button onClick={()=>{setRaw('');setCopied('');}}>I have saved this key</button></div></div>}
  <p className="small muted" role="status">{copied}</p>{!canWrite?<Empty>An organization owner or admin can manage keys.</Empty>:keys.loading?<Loading/>:keys.data?.data.length?<div className="table-wrap"><table><thead><tr><th>Key ID</th><th>Created</th><th>Status</th><th>Action</th></tr></thead><tbody>{keys.data.data.map(key=><tr key={key.id}><td><code>{key.id.slice(0,8)}</code></td><td>{new Date(key.created_at).toLocaleDateString()}</td><td>{key.revoked_at?'Revoked':'Active'}</td><td>{!key.revoked_at&&(confirm===key.id?<div className="confirm"><span>Revoke this key?</span><button className="danger" disabled={busy} onClick={()=>revoke(key.id)}>Confirm revoke</button><button onClick={()=>setConfirm(undefined)}>Cancel</button></div>:<button disabled={busy} onClick={()=>setConfirm(key.id)}>Revoke</button>)}</td></tr>)}</tbody></table></div>:!keys.error&&<Empty>No publishable keys yet.</Empty>}</section></>;
