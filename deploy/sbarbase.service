@@ -4,6 +4,9 @@ Documentation=file:/opt/sbarbase/docs/guides/server-deployment.md
 Requires=docker.service
 After=docker.service network-online.target
 Wants=network-online.target
+# Never stop restarting: after a failed upgrade the upgrade guard (first ExecStartPre below)
+# may need several starts to go back, and a start limit would leave the unit failed first.
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
@@ -14,9 +17,20 @@ Environment=HOME=/home/sbarbase
 # A system service does not inherit a user-local Bun; the supervisor and its
 # preflight both need it on PATH.
 Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/sbarbase/.bun/bin
+# Tells lab/dev.py that the upgrade guard below already ran for this start.
+Environment=SBARBASE_GUARDED=1
+# First, before any code of the version the checkout holds: the upgrade guard
+# (lab/upgrade_guard.py). It runs the copy an upgrade took from the version it left
+# when there is one, counts the start while an upgrade waits for its health checks,
+# and moves the checkout back when that version keeps failing, before the lines
+# below read it. Paths are relative: WorkingDirectory applies here too.
+ExecStartPre=/bin/sh -c 'if [ -f .lab/upgrades/guard.py ]; then exec /usr/bin/python3 .lab/upgrades/guard.py; fi; exec /usr/bin/python3 lab/upgrade_guard.py'
 # Preflight refuses on insufficient headroom, missing pins or pending authority state.
 ExecStartPre=/usr/bin/python3 /opt/sbarbase/lab/install_server.py check
 ExecStart=/usr/bin/python3 /opt/sbarbase/lab/dev.py
+# Covers every ExecStartPre: the guard's way back runs bun install before the
+# preflight, which the 90 second default does not leave room for.
+TimeoutStartSec=600
 # dev.py stops the owned runtime on SIGTERM; allow its 90 second budget.
 TimeoutStopSec=150
 KillMode=mixed

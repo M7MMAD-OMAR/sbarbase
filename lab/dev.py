@@ -14,6 +14,7 @@ import subprocess
 import sys
 import threading
 import time
+import traceback
 import updates
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -23,6 +24,14 @@ STATE = ROOT / '.lab/upstream'
 # (RestartForceExitStatus= in deploy/sbarbase.service), Docker's `restart: unless-stopped` on
 # any exit. Neither restarts a clean exit 0, so this is never 0.
 RESTART_FOR_UPGRADE = 42
+# Read without importing lab/upgrade.py, so a start can tell that an upgrade is pending even
+# when that module (the new version's code) cannot be imported.
+UPGRADE_STATE = ROOT / '.lab/upgrades/state.json'
+# Before an upgrade or rollback from the console moves the checkout, the supervisor drains
+# itself: the worker claims no new job and exits once the one in hand settled (the marker
+# 'worker-drain' in STATE, read by lab/worker.ts), and nothing else new starts. When that
+# takes longer than this, the request fails and nothing moves.
+DRAIN_SECONDS = 600
 
 
 def notify_installation(kind, catalog=None):
@@ -134,6 +143,9 @@ class Supervisor:
         self.updates_since = None
         self.updates_after = 0.0
         self.restart_for_upgrade = False
+        # An upgrade or rollback waiting for the supervisor to drain (see DRAIN_SECONDS): the
+        # child it runs once everything settled, and until when it waits.
+        self.drain = None
 
     def spawn(self, command):
         return subprocess.Popen(['/usr/bin/python3','lab/parent_bound.py',str(os.getpid()),*command], cwd=ROOT, start_new_session=True)
@@ -154,11 +166,26 @@ class Supervisor:
                                        env=dict(os.environ, SBARBASE_WORKER_FD=str(self.worker_fd)))
         self.descriptor()
 
+    def drain_marker(self):
+        return STATE / 'worker-drain'
+
+    def paused(self):
+        """True while an upgrade or rollback is prepared or runs. Children already running finish
+        and are reaped; nothing new starts that the moving checkout could leave half done, or
+        that would run the new version's scripts under this old supervisor: no provisioning job,
+        Studio, sign-in or toggle apply, and no backup."""
+        return self.drain is not None or (self.update is not None and self.update['kind'] != 'check')
+
     def check(self):
         if child_status(self.server) is not None:
             raise RuntimeError('Local API exited; stopping the installation')
         if self.worker is not None and child_status(self.worker) is not None:
             terminate_group(self.worker, grace=0)
+            if self.paused():
+                # Drained for an update: it stopped claiming jobs and exited on purpose.
+                self.worker = None
+                self.descriptor()
+                return
             now = time.monotonic()
             while self.restarts and now-self.restarts[0] > 60:
                 self.restarts.popleft()
@@ -197,9 +224,9 @@ class Supervisor:
                                             'system:supervisor', 'export_failed', {'failed': status},
                                             catalog=self.catalog)
             return
-        if self.update is not None and self.update['kind'] != 'check':
-            # An upgrade or rollback runs: it takes its own backup first, and the daily one
-            # starts after it (or on the new version), never at the same time.
+        if self.paused():
+            # An upgrade or rollback is prepared or runs: it takes its own backup first, and the
+            # daily one starts after it (or on the new version), never at the same time.
             return
         now = now or datetime.datetime.now(datetime.UTC)
         record = STATE/'backup-schedule.json'
@@ -252,6 +279,9 @@ class Supervisor:
             terminate_group(self.update['process'], grace=0)
             job, self.update = self.update, None
             self.update_finished(job, status, moment)
+            return
+        if self.drain is not None:
+            self.continue_drain(moment)
             return
         import upgrade
         state = upgrade.load_state()
@@ -306,7 +336,57 @@ class Supervisor:
                 updates.finish_request(request, 'failed', reason, moment)
                 return
             command = ['/usr/bin/python3', 'lab/upgrade.py', 'rollback']
-        self.start_update(kind, request, moment, command, state)
+        self.begin_drain(kind, request, moment, command, state)
+
+    def begin_drain(self, kind, request, moment, command, state):
+        """Before an upgrade or rollback moves the checkout, this supervisor quiesces itself: the
+        worker finishes the job in hand and claims no other, running children finish, nothing new
+        starts (paused), and no operation record may be left unsettled. Only then does the child
+        run, so no effect is in flight when the checkout moves and no script of the new version
+        is started by this old supervisor. A marker is written only for a worker that runs."""
+        if request is not None:
+            request = updates.update_request(request, state='running', started_at=updates.stamp(moment)) or request
+        if self.worker is not None:
+            marker = self.drain_marker()
+            marker.write_text('{}')
+        self.drain = {'kind': kind, 'request': request, 'command': command, 'state': state,
+                      'until': time.monotonic() + DRAIN_SECONDS}
+        print('Finishing provisioning and other work before the '
+              + ('update.' if kind == 'apply' else 'rollback.'), flush=True)
+        self.continue_drain(moment)
+
+    def idle(self):
+        """Nothing is in flight that moving the checkout could interrupt: the worker stopped, no
+        Studio, sign-in, toggle or backup child runs, and no operation record (a provisioning
+        receipt, an HBA journal or migration) waits to be settled."""
+        if self.worker is not None or self.backup is not None or self.sign_in is not None or self.studios:
+            return False
+        if any(process is not None for process in self.toggles.values()):
+            return False
+        import upgrade
+        return not any(upgrade.present(upgrade.UPSTREAM / name) for name in upgrade.UNSETTLED)
+
+    def continue_drain(self, moment):
+        job = self.drain
+        if self.idle():
+            self.drain = None
+            self.start_update(job['kind'], job['request'], moment, job['command'], job['state'])
+            return
+        if time.monotonic() < job['until']:
+            return
+        self.drain = None
+        detail = (f'Provisioning or another operation did not finish within {DRAIN_SECONDS // 60} minutes, '
+                  'so nothing was changed. Try again later.')
+        print(f"The {'update' if job['kind'] == 'apply' else 'rollback'} did not go ahead: {detail}", flush=True)
+        if job['request'] is not None:
+            updates.finish_request(job['request'], 'failed', detail, moment)
+        self.resume_work()
+
+    def resume_work(self):
+        """After an upgrade or rollback that did not go ahead: provisioning continues."""
+        self.drain_marker().unlink(missing_ok=True)
+        if self.worker is None and self.confirm is None and self.worker_fd is not None:
+            self.start_worker()
 
     def start_update(self, kind, request, moment, command=None, state=None):
         previous = None
@@ -348,6 +428,7 @@ class Supervisor:
             print(f"The {'update' if kind == 'apply' else 'rollback'} did not go ahead: {detail}", flush=True)
             if request is not None:
                 updates.finish_request(request, 'failed', detail, moment)
+            self.resume_work()
             return
         if kind == 'apply':
             detail = f"The checkout moved to Sbarbase {(request or {}).get('version', 'the new version')}. Sbarbase restarts on it now."
@@ -377,6 +458,8 @@ class Supervisor:
             if child_status(process) is not None:
                 terminate_group(process, grace=0)
                 del self.studios[runtime]
+        if self.paused():
+            return
         for runtime, desired, state, failure in self.studio_requests():
             if runtime in self.studios:
                 continue
@@ -407,7 +490,7 @@ class Supervisor:
             if status == 75:
                 # Another runtime operation held the lock; ask again shortly.
                 self.sign_in_after = time.monotonic() + 5
-        if time.monotonic() < self.sign_in_after:
+        if time.monotonic() < self.sign_in_after or self.paused():
             return
         pending = self.sign_in_requests()
         if pending:
@@ -437,7 +520,7 @@ class Supervisor:
                 self.toggles[service] = None
                 if status == 75:
                     self.toggles_after[service] = time.monotonic() + 5
-            if time.monotonic() < self.toggles_after[service]:
+            if time.monotonic() < self.toggles_after[service] or self.paused():
                 continue
             pending = self.toggle_requests(service)
             if pending:
@@ -465,6 +548,9 @@ class Supervisor:
             self.reset_studios()
             self.settle_updates()
             self.publish_current()
+            # A drain left by the process before (an update that moved the checkout, or a crash)
+            # must not keep this worker from claiming jobs.
+            self.drain_marker().unlink(missing_ok=True)
             self.server = self.spawn(['bun', 'lab/upstream-server.ts'])
             if self.confirm is None:
                 self.start_worker()
@@ -528,7 +614,7 @@ def run_stage(command, stop_event, timeout=180, pass_fds=(), env=None):
         terminate_group(process, grace=2)
 
 
-def upgrade_outcome(started, catalog=None):
+def upgrade_outcome(started, catalog=None, reason=None):
     """Confirms a pending upgrade or rollback, or moves a failed upgrade back (lab/upgrade.py),
     then emits the notification that outcome earns (lab/updates.py announce_outcome). The
     automatic way back has restored the control state by then, so its event lands in the
@@ -536,7 +622,7 @@ def upgrade_outcome(started, catalog=None):
     try:
         import upgrade
         before = upgrade.load_state()
-        result = upgrade.after_start(started)
+        result = upgrade.after_start(started, reason)
     except Exception as error:
         print(f'Upgrade bookkeeping failed: {error}', file=sys.stderr)
         return False
@@ -547,25 +633,90 @@ def upgrade_outcome(started, catalog=None):
     return result
 
 
+def upgrade_confirmed(catalog=None):
+    """Records that a pending upgrade or rollback passed its health checks. True only once that
+    is saved: until then the hold stays, the worker does not start, and the supervisor tries
+    again on its next round (lab/upgrade_health.Confirmation)."""
+    try:
+        import upgrade
+        before = upgrade.load_state()
+        upgrade.after_start(True)
+        after = upgrade.load_state()
+    except Exception as error:
+        print(f'The upgrade confirmation was not saved: {error}', file=sys.stderr, flush=True)
+        return False
+    if isinstance(after, dict) and after.get('phase') in upgrade.PENDING:
+        return False
+    try:
+        updates.announce_outcome(before, after, catalog=catalog)
+    except Exception as error:
+        print(f'Upgrade notification failed: {error}', file=sys.stderr)
+    return True
+
+
+def upgrade_pending():
+    """Whether state.json says an upgrade or rollback waits for confirmation, read directly."""
+    try:
+        state = json.loads(UPGRADE_STATE.read_text())
+    except (OSError, ValueError):
+        return False
+    return isinstance(state, dict) and state.get('phase') in ('applied', 'rolling_back')
+
+
 def upgrade_prepare():
     """True when this start confirms a pending upgrade or rollback (lab/upgrade.py before_start).
 
-    A control state snapshot that cannot be taken is a failed start, so the way back runs
-    before the new version touched anything. Any other bookkeeping failure leaves the start
-    ungated, as it was before health-gated confirmation existed.
+    A control state snapshot that cannot be taken, or a checkout that is not the version being
+    confirmed, is a failed start, so the way back runs before the new version touched anything.
+    Any other bookkeeping failure is a failed start too while an upgrade is pending (an untrusted
+    version must never run ungated), and leaves the start ungated otherwise, as it was before
+    health-gated confirmation existed.
     """
     try:
         import upgrade
-    except Exception as error:
-        print(f'Upgrade bookkeeping failed: {error}', file=sys.stderr)
-        return False
-    try:
         return upgrade.before_start()
-    except upgrade.UpgradeError as error:
-        raise RuntimeError(f'The pending upgrade cannot start: {error}') from None
     except Exception as error:
+        if error.__class__.__name__ == 'UpgradeError':
+            raise RuntimeError(f'The pending upgrade cannot start: {error}') from None
+        if upgrade_pending():
+            raise RuntimeError(f'The pending upgrade cannot start: its bookkeeping failed ({error.__class__.__name__}: {error})') from None
         print(f'Upgrade bookkeeping failed: {error}', file=sys.stderr)
         return False
+
+
+def upgrade_close_attempt():
+    """A start that stopped cleanly before its verdict closes its attempt (lab/upgrade.py
+    close_attempt), so the next start's guard does not take the stop for a crash."""
+    try:
+        import upgrade
+        upgrade.close_attempt()
+    except Exception as error:
+        print(f'Upgrade bookkeeping failed: {error}', file=sys.stderr)
+
+
+def checkout_head():
+    result = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=ROOT, capture_output=True, text=True)
+    return result.stdout.strip() if result.returncode == 0 else None
+
+
+def run_guard(environment=os.environ):
+    """The upgrade guard (lab/upgrade_guard.py) is the first step of every start. The systemd
+    unit and the container's start script run it before this process (and say so with
+    SBARBASE_GUARDED=1); a start from a terminal runs it here, before taking any lock, since the
+    guard takes the supervisor lock itself. When it moved the checkout back, nothing more of
+    this version runs: the process exits so the previous version starts."""
+    if environment.get('SBARBASE_GUARDED') == '1':
+        return
+    copy = ROOT / '.lab' / 'upgrades' / 'guard.py'
+    script = copy if copy.is_file() else ROOT / 'lab' / 'upgrade_guard.py'
+    before = checkout_head()
+    if subprocess.run(['/usr/bin/python3', str(script), str(ROOT)], cwd=ROOT).returncode:
+        raise SystemExit('The upgrade guard stopped this start; its reason is above.')
+    if checkout_head() != before:
+        print('The upgrade guard moved the checkout back to the previous version. Under systemd or Docker '
+              'Sbarbase starts again by itself; in a terminal, start it again: /usr/bin/python3 lab/dev.py',
+              file=sys.stderr, flush=True)
+        raise SystemExit(RESTART_FOR_UPGRADE)
 
 
 def upgrade_confirmation(supervisor):
@@ -573,7 +724,7 @@ def upgrade_confirmation(supervisor):
     import upgrade_health
     return upgrade_health.Confirmation(
         lambda: upgrade_health.check(STATE, supervisor.server.pid if supervisor.server else None),
-        lambda: upgrade_outcome(True, supervisor.catalog))
+        lambda: upgrade_confirmed(supervisor.catalog))
 
 
 def main():
@@ -599,6 +750,8 @@ def main():
             raise SystemExit('Stop the existing manual worker before starting the runner.')
         started = False
         restart = False
+        gated = False
+        failed = False
         try:
             # Before the settle stage, which may open and migrate the control catalog.
             gated = upgrade_prepare()
@@ -633,16 +786,31 @@ def main():
                 restart = getattr(supervisor, 'restart_for_upgrade', False)
         except InterruptedError:
             print('Local installation startup cancelled.', file=sys.stderr)
-        except RuntimeError as error:
+        except KeyboardInterrupt:
+            # Ctrl+C normally arrives as the stop event above; either way it is a stop, not a
+            # failure, so it never takes the way back.
+            print('Local installation stopped.', file=sys.stderr)
+        except BaseException as error:
+            # Every failure of this start, not only the RuntimeError its own stages raise: an
+            # exception in new startup code (a TypeError, an ImportError, a Studio reset that
+            # timed out) must take the way back too, never leave the start restarting with
+            # application traffic held.
             # No event here: a stage failure is a return code and a stderr line, and this
             # path owns no durable state change to emit from. The runtime's own refusal, if
             # there was one, is emitted where its 0600 diagnostic is written.
-            print(str(error), file=sys.stderr)
-            if upgrade_outcome(False):
+            failed = True
+            if not isinstance(error, (RuntimeError, SystemExit)):
+                traceback.print_exc()
+            detail = str(error) or error.__class__.__name__
+            print(detail, file=sys.stderr)
+            if upgrade_outcome(False, reason=detail):
                 print('The new version did not start, so the checkout moved back to the previous version. '
                       'It starts again on that version; lab/upgrade.py status shows the outcome.', file=sys.stderr)
             raise SystemExit(1)
         finally:
+            if gated and not failed:
+                # Stopped before the health checks decided (a stop signal, Ctrl+C): not a crash.
+                upgrade_close_attempt()
             if started:
                 result = run_stage(['/usr/bin/python3', 'lab/installation_runtime.py', 'stop'], threading.Event(), timeout=90)
                 if result:
@@ -662,4 +830,7 @@ def main():
 
 
 if __name__ == '__main__':
+    if not sys.argv[1:]:
+        # Before main() takes any lock: the guard takes the supervisor lock itself (run_guard).
+        run_guard()
     main()

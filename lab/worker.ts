@@ -1,4 +1,4 @@
-import {closeSync} from 'node:fs';
+import {closeSync,existsSync} from 'node:fs';
 import {settleWorkerReceipt} from './worker-receipt';
 import {spawnWorkerEffect} from './worker-effect';
 import {Catalog} from '../src/control/catalog';
@@ -14,12 +14,17 @@ let activeEffect:ReturnType<typeof spawnWorkerEffect>|null=null;
 const stop=()=>{stopping=true;activeEffect?.kill('SIGTERM');};
 process.on('SIGTERM',stop);process.on('SIGINT',stop);
 const lockPath=upstream?'.lab/upstream/worker.lock':'.lab/worker.lock';
+// Written by the supervisor before an update moves the checkout (lab/dev.py begin_drain): claim
+// nothing new and exit once the job in hand has settled. A signal cannot ask for that, since
+// SIGTERM stops the active effect as well.
+const drainPath=upstream?'.lab/upstream/worker-drain':'.lab/worker-drain';
 try {
  const operationFd=Number(process.env.SBARBASE_OPERATION_FD);
  if(!Number.isInteger(operationFd)||operationFd<3)throw new Error('Missing operation ownership');
  try{settleWorkerReceipt(catalog,lockPath,true);}finally{closeSync(operationFd);}
  if(!settleOnly)catalog.recoverProvisioning();
  while(!settleOnly&&!stopping) {
+  if(watch&&existsSync(drainPath))break;
   const job=catalog.claimProvision();
   if(!job) {if(!watch)break;await Bun.sleep(500);continue;}
   const command=upstream?['/usr/bin/python3','lab/durable_runtime.py','provision',job.runtime]:['/usr/bin/python3','lab/provision.py',job.runtime];

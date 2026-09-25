@@ -45,6 +45,20 @@ class RenderingTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             install_server.rendered_unit(ROOT,Path('/srv/x'),'sbarbase','/srv/x/.bun/bin',text=broken)
 
+    def test_the_upgrade_guard_stays_first_in_a_rendered_unit(self):
+        rendered=self.render()
+        self.assertIn(install_server.GUARD_LINE,rendered)
+        self.assertLess(rendered.index(install_server.GUARD_LINE),rendered.index('lab/install_server.py check'))
+        shipped=install_server.SERVICE_UNIT.read_text()
+        for broken in (shipped.replace(install_server.GUARD_LINE+'\n',''),
+                       shipped.replace('Environment=SBARBASE_GUARDED=1\n','')):
+            with self.assertRaises(SystemExit):
+                install_server.rendered_unit(ROOT,Path('/srv/x'),'sbarbase','/srv/x/.bun/bin',text=broken)
+        preflight='ExecStartPre=/usr/bin/python3 /opt/sbarbase/lab/install_server.py check'
+        swapped=shipped.replace(install_server.GUARD_LINE,'@guard@').replace(preflight,install_server.GUARD_LINE).replace('@guard@',preflight)
+        with self.assertRaisesRegex(SystemExit,'before the upgrade guard'):
+            install_server.rendered_unit(ROOT,Path('/srv/x'),'sbarbase','/srv/x/.bun/bin',text=swapped)
+
     def test_a_missing_bun_directory_is_refused(self):
         with self.assertRaises(SystemExit):
             install_server.rendered_unit(ROOT,Path('/srv/x'),'sbarbase','')

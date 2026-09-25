@@ -14,6 +14,7 @@ from unittest.mock import patch
 
 import durable_runtime
 import upgrade
+import upgrade_guard
 
 
 
@@ -35,7 +36,8 @@ class Repository:
                       'images.lock.json': {'db': pin('postgres:17', '2'), 'auth': pin('gotrue:v1', '3'), 'rest': pin('postgrest:v1', '4')},
                       'storage-image.lock.json': pin('storage:v1', '5'),
                       'studio-image.lock.json': {'studio': pin('studio:1', '6'), 'meta': pin('meta:1', '7')}}
-        self.commit('first')
+        # `start` copies the guard of the version it leaves; every version here ships one.
+        self.commit('first', {'lab/upgrade_guard.py': Path(upgrade_guard.__file__).read_text()})
 
     def git(self, *args):
         return subprocess.run(['git', *args], cwd=self.root, check=True, capture_output=True, text=True).stdout.strip()
@@ -306,9 +308,14 @@ class ControlStateTests(Checkout):
         with (self.snapshot() / 'control.sqlite').open('ab') as handle:
             handle.write(b'x')
         self.assertFalse(upgrade.after_start(False))
-        self.assertEqual(upgrade.load_state()['phase'], 'rollback_failed')
+        state = upgrade.load_state()
+        self.assertEqual(state['phase'], 'rollback_failed')
+        self.assertIn('restore from the backups', state['failure'])
         self.assertEqual(contents(self.catalog), (9, 8))
-        self.assertEqual(self.head(), self.second)
+        # The checkout moved back before the restore was tried: the failed version is never what
+        # the next (ungated) start runs. The previous version refuses a catalog newer than it opens.
+        self.assertEqual(self.head(), self.first)
+        self.assertFalse(upgrade.before_start())
 
     def test_a_snapshot_that_cannot_be_taken_on_start_moves_back_with_nothing_touched(self):
         upgrade.start(self.second)
@@ -358,6 +365,94 @@ class ControlStateTests(Checkout):
         self.assertEqual((self.head(), contents(self.catalog)), (base, (2, 9)))
         self.assertNotIn('restored', upgrade.load_state())
 
+    def test_a_confirmation_that_cannot_be_saved_keeps_the_hold(self):
+        import dev
+        upgrade.start(self.second)
+        upgrade.before_start()
+        with patch.object(upgrade, 'save_state', side_effect=OSError('read-only file system')):
+            with self.assertRaises(OSError):
+                upgrade.after_start(True)
+            with patch.object(dev.updates, 'announce_outcome') as announce:
+                self.assertFalse(dev.upgrade_confirmed())
+            announce.assert_not_called()
+        self.assertEqual(upgrade.load_state()['phase'], 'applied')
+        self.assertTrue(upgrade.HOLD.exists())
+        self.assertTrue(upgrade.INTENT.exists())
+        with patch.object(dev.updates, 'announce_outcome') as announce:
+            self.assertTrue(dev.upgrade_confirmed())
+        self.assertEqual(announce.call_args.args[1]['phase'], 'confirmed')
+        self.assertFalse(upgrade.HOLD.exists())
+
+    def test_a_way_back_that_fails_keeps_what_it_already_recorded(self):
+        upgrade.start(self.second)
+        upgrade.before_start()
+        store(self.catalog, 9, 8)
+        with patch.object(upgrade, 'checkout', side_effect=upgrade.UpgradeError('git checkout failed')):
+            self.assertFalse(upgrade.after_start(False, 'Runtime startup failed'))
+        state = upgrade.load_state()
+        # Resumable, never rollback_failed with the failed version checked out.
+        self.assertEqual((state['phase'], state['moved_back'], state['restore_pending']), ('rolling_back', False, True))
+        self.assertEqual((state['automatic'], state['reason']), (True, 'Runtime startup failed'))
+        self.assertTrue(state['rollback_at'])
+        self.assertNotIn('restored', state)
+        self.assertEqual((self.head(), contents(self.catalog)), (self.second, (9, 8)))
+        with self.assertRaisesRegex(upgrade.UpgradeError, 'did not finish'):
+            upgrade.before_start()
+        # The next start's guard completes it before anything else runs.
+        self.assertEqual(upgrade_guard.guard(upgrade.layout(), install=lambda layout: None), 0)
+        state = upgrade.load_state()
+        self.assertEqual((self.head(), contents(self.catalog)), (self.first, (2, 3)))
+        self.assertEqual((state['phase'], state['restored']), ('rolling_back', state['snapshot']))
+        self.assertTrue(upgrade.before_start())
+
+    def test_status_says_why_the_automatic_way_back_ran(self):
+        import io
+        upgrade.start(self.second)
+        upgrade.before_start()
+        upgrade.after_start(False, 'The new version did not become healthy within 120 s: e rest answered HTTP 503\nmore')
+        upgrade.after_start(True)
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            upgrade.status()
+        text = output.getvalue()
+        self.assertIn('rolled_back: back on the previous version (automatic)\n', text)
+        self.assertIn('why back The new version did not become healthy within 120 s: e rest answered HTTP 503\n', text)
+        self.assertNotIn('did not start', text)
+        self.assertNotIn('more', text)
+
+    def confirmed_upgrade(self):
+        upgrade.start(self.second)
+        upgrade.before_start()
+        upgrade.after_start(True)
+
+    def test_a_version_without_a_schema_ladder_opens_only_the_baseline_catalog(self):
+        """The first commit has no CATALOG_SCHEMA_VERSION: it never wrote user_version, so the
+        only catalog it is known to open is at 0, and a migrated one refuses the rollback."""
+        self.confirmed_upgrade()
+        self.assertRegex(upgrade.rollback_refusal(), 'control catalog is at schema 2.*opens only up to 0')
+        store(self.catalog, 0, 3)
+        self.assertIsNone(upgrade.rollback_refusal())
+        upgrade.rollback()
+        self.assertEqual(self.head(), self.first)
+
+    def test_a_key_store_newer_than_the_previous_version_refuses_the_rollback(self):
+        store(self.catalog, 0, 3)
+        self.confirmed_upgrade()
+        store(self.keys, 1, 1)
+        self.assertRegex(upgrade.rollback_refusal(), 'key store is at schema 1.*opens only up to 0')
+        with self.assertRaisesRegex(upgrade.UpgradeError, 'forward only'):
+            upgrade.rollback()
+        self.assertEqual(self.head(), self.second)
+
+    def test_a_previous_version_that_cannot_be_read_refuses_the_rollback(self):
+        store(self.catalog, 0, 3)
+        self.confirmed_upgrade()
+        state = upgrade.load_state()
+        upgrade.save_state({**state, 'from': 'f' * 40})
+        self.assertIn('cannot be read', upgrade.rollback_refusal())
+        self.assertIsNone(upgrade.catalog_support('f' * 40))
+        self.assertEqual(upgrade.catalog_support(self.first), 0)
+
     def test_pending_records_a_running_backup_or_another_upgrade_refuse_before_anything_moves(self):
         for name in ('worker-effect.json', 'hba-operation.json', 'hba-migration'):
             (self.upstream / name).write_text('{}')
@@ -387,6 +482,29 @@ class ControlStateTests(Checkout):
         upgrade.HOLD.write_text('{}')
         self.assertFalse(upgrade.after_start(True))
         self.assertFalse(upgrade.HOLD.exists())
+
+    def test_the_probe_token_lives_exactly_as_long_as_the_hold(self):
+        upgrade.start(self.second)
+        self.assertFalse(upgrade.probe_token().exists())
+        upgrade.before_start()
+        token = upgrade.probe_token().read_text()
+        self.assertRegex(token, r'^[A-Za-z0-9_-]{43}$')
+        self.assertEqual(stat.S_IMODE(upgrade.probe_token().stat().st_mode), 0o600)
+        # Every gated start gets a fresh one.
+        upgrade.before_start()
+        self.assertNotEqual(upgrade.probe_token().read_text(), token)
+        upgrade.after_start(True)
+        self.assertFalse(upgrade.probe_token().exists())
+        # A token left by a crash goes with its stale marker.
+        upgrade.probe_token().write_text(token)
+        self.assertFalse(upgrade.before_start())
+        self.assertFalse(upgrade.probe_token().exists())
+
+    def test_the_way_back_removes_the_probe_token(self):
+        upgrade.start(self.second)
+        upgrade.before_start()
+        self.assertTrue(upgrade.after_start(False))
+        self.assertFalse(upgrade.probe_token().exists())
 
     def test_old_snapshots_are_pruned_but_never_the_current_one(self):
         upgrade.start(self.second)

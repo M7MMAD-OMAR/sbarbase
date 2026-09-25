@@ -13,6 +13,10 @@ const digest=(token:string)=>createHash('sha256').update(token).digest('hex');
  */
 export class KeyStore {
   private db:Database;
+  /** While an upgrade waits for its health checks, the supervisor's probe presents a per-start
+   * token as its key (src/gateway/hold-bypass.ts). Asked only when no stored key matched, so the
+   * store is read on every probe exactly as for an application. */
+  confirmationProbe?:(environment:string,token:string)=>boolean;
   constructor(path:string) {
     this.db=new Database(path,{create:true,strict:true});
     if(path!==':memory:') chmodSync(path,0o600);
@@ -37,7 +41,12 @@ export class KeyStore {
     const row=this.db.query<{kind:KeyKind},[string,string]>(
       'SELECT kind FROM api_keys WHERE environment=? AND digest=? AND revoked_at IS NULL'
     ).get(environment,digest(token));
-    return row?.kind ?? null;
+    if(row)return row.kind;
+    return this.confirmationProbe?.(environment,token)?'publishable':null;
+  }
+  /** Reads the store; throws when it cannot. For `GET /health`, which confirms an upgrade. */
+  check() {
+    this.db.query('SELECT count(*) AS n FROM api_keys').get();
   }
   revoke(environment:string,id:string):boolean {
     return this.db.query('UPDATE api_keys SET revoked_at=? WHERE id=? AND environment=? AND revoked_at IS NULL')
