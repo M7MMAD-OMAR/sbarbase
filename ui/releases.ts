@@ -6,7 +6,8 @@
 export type UpdateClass='safe'|'rebuild'|'manual';
 export type UpdateSettings={check:boolean;automatic:boolean;window:{start:string;end:string}};
 export type UpdatePhase='applied'|'confirmed'|'rolling_back'|'rolled_back'|'rollback_failed'|'failed';
-export type UpdateRecord={phase:UpdatePhase;from:string;to:string;version?:string;startedAt:string;finishedAt?:string;automatic:boolean;failure?:string};
+/** `automatic`: the way back happened by itself. `trigger`: who started the upgrade. */
+export type UpdateRecord={phase:UpdatePhase;from:string;to:string;version?:string;startedAt:string;finishedAt?:string;automatic:boolean;failure?:string;trigger?:'cli'|'console'|'automatic'};
 export type UpdateRequest={kind:'apply'|'rollback'|'check';version?:string;state:'requested'|'running'|'done'|'failed';requestedAt:string;detail?:string};
 export type AvailableRelease={version:string;tag:string;commit:string;class:UpdateClass;signed:boolean;reasons:string[];notes:{en:string;ar:string};changes:{label:string;before:string;after:string}[]};
 export type UpdatesView={

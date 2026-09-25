@@ -3,6 +3,7 @@ import type {KeyStore} from './keys';
 import {authenticate,reply,type ManagementIdentity} from './auth';
 import {readJsonCached} from '../http/cached-json';
 import {join} from 'node:path';
+import {UPDATES_DIRECTORY,requestUpdate,saveSettings,updatesView,validateSettings,type UpdateRequestKind} from './updates';
 
 /** Runtime state directory, the same tree the runtime writes the catalog in. */
 const MAIL_STATE_DIRECTORY='.lab/upstream';
@@ -99,11 +100,13 @@ function refusal(error:unknown):Response {
   return reply(500,{message:'Management operation failed'});
 }
 
-/** Metadata API. Creating an organization and re-linking a restored environment are limited
- * to installation operators. Moving a project and deleting an environment revoke the API keys
- * of the runtimes involved, so both need the key store and refuse without it.
+/** Metadata API. Creating an organization, re-linking a restored environment and the updates
+ * routes are limited to installation operators. Moving a project and deleting an environment
+ * revoke the API keys of the runtimes involved, so both need the key store and refuse without it.
+ * `updatesDirectory` and `checkout` place the update channel's files (src/control/updates.ts).
  */
-export function managementHandler(catalog:Catalog,identify:ManagementIdentity,mailDirectory=MAIL_STATE_DIRECTORY,keys?:KeyStore) {
+export function managementHandler(catalog:Catalog,identify:ManagementIdentity,mailDirectory=MAIL_STATE_DIRECTORY,keys?:KeyStore,
+  updatesDirectory=UPDATES_DIRECTORY,checkout='.') {
   return async(request:Request):Promise<Response>=>{
     const path=new URL(request.url).pathname;
     const item=path.match(/^\/management\/v1\/(organizations|projects|environments)\/([a-f0-9-]{36})$/);
@@ -232,6 +235,37 @@ export function managementHandler(catalog:Catalog,identify:ManagementIdentity,ma
         if(error instanceof Error&&error.message==='Forbidden')return reply(403,{message:'Forbidden'});
         if(error instanceof Error&&['Operation is not retryable','Environment capacity reached'].includes(error.message))
           return reply(409,{message:error.message});
+        return reply(500,{message:'Management operation failed'});
+      }
+    }
+    const update=path.match(/^\/management\/v1\/updates(\/check|\/apply|\/rollback|\/settings)?$/);
+    if(update) {
+      // The installation's own version: only its operators (the bootstrap organization's owners
+      // and admins) see or change it. The supervisor carries out what is asked (lab/updates.py).
+      const action=update[1]??'';
+      if(request.method!==(action===''?'GET':action==='/settings'?'PUT':'POST'))return reply(405,{message:'Method not allowed'});
+      const actor=await authenticate(identify,request);
+      if(actor instanceof Response)return actor;
+      try {
+        if(!catalog.installationOperator(actor))return reply(403,{message:'Forbidden'});
+        if(action==='')return reply(200,{data:updatesView(updatesDirectory,checkout)});
+        if(action==='/settings') {
+          const settings=validateSettings(await body(request,['check','automatic','window']));
+          if(typeof settings==='string')return reply(400,{message:settings});
+          return reply(200,{data:saveSettings(settings,updatesDirectory)});
+        }
+        let version:string|undefined;
+        if(action==='/apply') {
+          const input=await body(request,['version']);
+          if(typeof input.version!=='string'||!/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(input.version))
+            return reply(400,{message:'Name the release version to install.'});
+          version=input.version;
+        } else if(request.body)return reply(400,{message:'Invalid request'});
+        const refused=requestUpdate(action.slice(1) as UpdateRequestKind,version,updatesDirectory,checkout);
+        return refused?reply(409,{message:refused}):reply(202,{state:'requested'});
+      } catch(error) {
+        if(error instanceof InputError)return reply(400,{message:'Invalid request'});
+        if(error instanceof Error&&error.message==='Forbidden')return reply(403,{message:'Forbidden'});
         return reply(500,{message:'Management operation failed'});
       }
     }
