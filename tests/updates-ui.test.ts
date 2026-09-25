@@ -1,8 +1,8 @@
 import {test,expect,describe} from 'bun:test';
 import {readFileSync} from 'node:fs';
 import {join} from 'node:path';
-import {CLASS_WORDS,STAGE_TEXT,availableText,banners,busy,classifyStatus,describeWindow,dismiss,formatClock,formatWhen,installState,parseClock,readDismissed,
- releaseNotes,resumeKind,settingsKey,startWatch,stepWatch,toClock24,watchStage,windowError,type UpdatesView,type Watch} from '../ui/releases';
+import {ACKNOWLEDGEMENT,CLASS_WORDS,STAGE_TEXT,availableText,banners,busy,classifyStatus,describeWindow,dismiss,formatClock,formatWhen,installState,installable,parseClock,readDismissed,
+ releaseNotes,resumeKind,settingsKey,startWatch,stepWatch,toClock24,watchStage,windowError,zoneText,type UpdatesView,type Watch} from '../ui/releases';
 
 const ui=join(import.meta.dir,'..','ui');
 const app=readFileSync(join(ui,'App.tsx'),'utf8');
@@ -13,8 +13,8 @@ const api=readFileSync(join(ui,'api.ts'),'utf8');
 const release={version:'0.2.0',tag:'v0.2.0',commit:'b'.repeat(40),class:'safe' as const,signed:true,reasons:['Only PostgREST changes.'],
  notes:{en:'Faster REST.',ar:'واجهة REST أسرع.'},changes:[{label:'PostgREST',before:'v12',after:'v13'}]};
 function view(change:Partial<UpdatesView>={}):UpdatesView{
- return {current:{version:'0.1.0',commit:'a'.repeat(40)},available:release,refusals:[],checkedAt:'2026-09-25T10:00:00Z',checkError:null,
-  settings:{check:true,automatic:false,window:{start:'02:00',end:'05:00'}},last:null,request:null,canRollback:false,...change};
+ return {current:{version:'0.1.0',commit:'a'.repeat(40)},available:release,refusals:[],skipped:[],newest:null,checkedAt:'2026-09-25T10:00:00Z',checkError:null,
+  settings:{check:true,automatic:false,window:{start:'02:00',end:'05:00'}},timezone:{name:'UTC',offset:'+00:00'},last:null,request:null,canRollback:false,...change};
 }
 const at=(minutes:number)=>1_000_000+minutes*60_000;
 
@@ -43,6 +43,8 @@ describe('twelve hour clock',()=>{
  test('malformed values are refused, and the window is described in server time',()=>{
   for(const value of ['24:00','7:00','12:60','','noon'])expect(parseClock(value)).toBeUndefined();
   expect(describeWindow({start:'23:00',end:'03:30'})).toBe('Every day from 11:00 PM to 3:30 AM, server time.');
+  expect(describeWindow({start:'03:00',end:'05:00'},{name:'Asia/Dubai',offset:'+04:00'})).toBe('Every day from 3:00 AM to 5:00 AM, server time (Asia/Dubai, UTC+04:00).');
+  expect(describeWindow({start:'03:00',end:'05:00'},{name:'UTC',offset:'+00:00'})).toBe('Every day from 3:00 AM to 5:00 AM, server time (UTC).');
   expect(windowError({start:'02:00',end:'02:00'})).not.toBe('');
   expect(windowError({start:'02:00',end:'bad'})).not.toBe('');
   expect(windowError({start:'23:00',end:'01:00'})).toBe('');
@@ -51,6 +53,15 @@ describe('twelve hour clock',()=>{
   const text=formatWhen('2026-09-25T15:04:00Z','en-US').replace(/\s/g,' ');
   expect(text).toMatch(/\d{1,2}:04 (AM|PM)/);
   expect(formatWhen(null)).toBe('Never');
+ });
+ test('the server time zone is named as the supervisor reports it',()=>{
+  expect(zoneText({name:'UTC',offset:'+00:00'})).toBe('UTC');
+  expect(zoneText({name:'Asia/Dubai',offset:'+04:00'})).toBe('Asia/Dubai, UTC+04:00');
+  // A fixed offset in TZ has no name of its own, only an abbreviation like "+04".
+  expect(zoneText({name:'+04',offset:'+04:00'})).toBe('UTC+04:00');
+  expect(zoneText({name:'America/St_Johns',offset:'-02:30'})).toBe('America/St_Johns, UTC-02:30');
+  expect(zoneText({name:'Europe/London',offset:'+00:00'})).toBe('Europe/London, UTC');
+  expect(page).toContain('describeWindow(form.window,timezone)');
  });
 });
 
@@ -73,6 +84,10 @@ describe('release wording',()=>{
   expect(availableText({version:'1.2.0',class:'safe'})).toBe('Sbarbase 1.2.0 ready to install.');
   expect(availableText({version:'1.2.0',class:'rebuild'})).toBe('Sbarbase 1.2.0 needs a manual rebuild.');
   expect(availableText({version:'1.2.0',class:'manual'})).toBe('Sbarbase 1.2.0 needs a manual migration.');
+  expect(availableText({version:'1.2.0',class:'attended'})).toBe('Sbarbase 1.2.0 ready to install after you confirm.');
+  expect(CLASS_WORDS.attended.explanation).toContain('never installed automatically');
+  expect(CLASS_WORDS.attended.explanation).toContain('backups taken before the update');
+  expect(CLASS_WORDS.safe.explanation).not.toContain('pinned service images only');
   for(const words of Object.values(CLASS_WORDS)){expect(words.label.length).toBeGreaterThan(0);expect(words.explanation.length).toBeGreaterThan(40);}
  });
  test('notes follow the console language and fall back to English',()=>{
@@ -136,6 +151,23 @@ describe('install button',()=>{
   expect(busy(view({request:{kind:'check',state:'running',requestedAt:'r'}}))).toBe(false);
   expect(busy(view({last:{phase:'applied',from:'a',to:'b',startedAt:'s',automatic:false}}))).toBe(true);
   expect(installState(view({available:{...release,signed:false,class:'manual'}})).reasons).toHaveLength(2);
+ });
+ test('a release that migrates environment databases is offered, behind an acknowledgement',()=>{
+  expect(installState(view({available:{...release,class:'attended'}}))).toEqual({enabled:true,reasons:[]});
+  expect(['safe','attended','rebuild','manual'].map(value=>installable(value as never))).toEqual([true,true,false,false]);
+  expect(page).toContain('disabled={release.class===\'attended\'&&!acknowledged}');
+  expect(page).toContain('{ACKNOWLEDGEMENT}');
+  expect(page).toContain("run('apply',release.version,release.class==='attended'&&acknowledged)");
+  expect(ACKNOWLEDGEMENT).toContain('backups taken before');
+ });
+ test('releases passed over are shown as information and never disable the install',()=>{
+  const passed=view({skipped:['v0.3.0 was passed over: v0.3.0 is not signed'],
+   newest:{version:'0.3.0',tag:'v0.3.0',class:'safe',signed:false,reasons:['v0.3.0 is not signed']}});
+  expect(installState(passed)).toEqual({enabled:true,reasons:[]});
+  expect(page).toContain('<Skipped notes={view.skipped}/>');
+  expect(page).toContain('<Newest release={view.newest}');
+  // With nothing to install, the newest release still shows instead of "No newer release".
+  expect(page).toContain(':view.newest?null:<section className="details"><h2>No newer release</h2>');
  });
 });
 
@@ -241,7 +273,7 @@ describe('wiring',()=>{
   expect(app).toContain("{operator&&<UpdateBanners");
   expect(app).toContain("setOperator(Boolean(organizations.data.operator))");
   expect(api).toContain("'/management/v1/updates'+path");
-  for(const route of ["send('/check','POST')","send('/apply','POST',{version})","send('/rollback','POST')","send('/settings','PUT',settings)"])expect(api).toContain(route);
+  for(const route of ["send('/check','POST')","send('/apply','POST',acknowledged?{version,acknowledged:true}:{version})","send('/rollback','POST')","send('/settings','PUT',settings)"])expect(api).toContain(route);
   // Every poll has its own deadline, so a proxy that never answers cannot stall the watch.
   expect(page).toContain('client.get(AbortSignal.timeout(10000))');
   expect(api).toContain('AbortSignal.timeout(10000)');

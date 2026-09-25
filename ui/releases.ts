@@ -3,19 +3,28 @@
  * Nothing here touches the network, the DOM or storage at module scope, so the Bun tests
  * import it directly. The shapes mirror GET /management/v1/updates.
  */
-export type UpdateClass='safe'|'rebuild'|'manual';
+/** `attended`: the release changes the Auth, Storage or Realtime image, which migrate each
+ * environment database when they start. The operator installs it after acknowledging that a
+ * way back may need the backups; it is never installed automatically. */
+export type UpdateClass='safe'|'attended'|'rebuild'|'manual';
 export type UpdateSettings={check:boolean;automatic:boolean;window:{start:string;end:string}};
 export type UpdatePhase='applied'|'confirmed'|'rolling_back'|'rolled_back'|'rollback_failed'|'failed';
 /** `automatic`: the way back happened by itself. `trigger`: who started the upgrade. */
 export type UpdateRecord={phase:UpdatePhase;from:string;to:string;version?:string;startedAt:string;finishedAt?:string;automatic:boolean;failure?:string;trigger?:'cli'|'console'|'automatic'};
 export type UpdateRequest={kind:'apply'|'rollback'|'check';version?:string;state:'requested'|'running'|'done'|'failed';requestedAt:string;detail?:string};
 export type AvailableRelease={version:string;tag:string;commit:string;class:UpdateClass;signed:boolean;reasons:string[];notes:{en:string;ar:string};changes:{label:string;before:string;after:string}[]};
+/** The newest release the check passed over (unsigned, a manual migration, or out of reach of
+ * this version), with why. Information only: it never blocks the release on offer. */
+export type NewestRelease={version:string;tag:string;class:UpdateClass|null;signed:boolean;reasons:string[]};
+/** The zone of the server clock the maintenance window is read in. */
+export type ServerZone={name:string;offset:string};
 export type UpdatesView={
  current:{version:string;commit:string};
  available:null|AvailableRelease;
  refusals:string[];
+ skipped:string[];newest:null|NewestRelease;
  checkedAt:string|null;checkError:string|null;
- settings:UpdateSettings;
+ settings:UpdateSettings;timezone:ServerZone;
  last:null|UpdateRecord;
  request:null|UpdateRequest;
  canRollback:boolean;
@@ -28,7 +37,9 @@ export const BACKUP_GUIDE='https://github.com/M7MMAD-OMAR/sbarbase/blob/main/doc
  * the class never depends on colour alone. */
 export const CLASS_WORDS:Record<UpdateClass,{label:string;status:string;explanation:string}>={
  safe:{label:'Safe',status:'ready to install',
-  explanation:'This release changes Sbarbase itself and the pinned service images only. It can be installed from here, and it returns to this version by itself if it does not start healthy.'},
+  explanation:'This release changes Sbarbase itself and service images that do not change your environment databases. It can be installed from here, and it returns to this version by itself if it does not start healthy.'},
+ attended:{label:'Needs your confirmation',status:'ready to install after you confirm',
+  explanation:'This release updates Auth, Storage or Realtime, which change each environment database when they start. It can be installed from here once you confirm. If it then returns to this version, environment data may need restoring from the backups taken before the update. It is never installed automatically.'},
  rebuild:{label:'Needs a rebuild',status:'needs a manual rebuild',
   explanation:'This release changes the container image or the systemd unit. A restart alone would not pick that up, so it is installed on the server, not from here.'},
  manual:{label:'Needs a migration',status:'needs a manual migration',
@@ -88,12 +99,18 @@ export function dismiss(storage:KeyStore|undefined,key:string):string[]{
  return next;
 }
 
-/** Whether "Install update" is offered, and why not when it is not. */
+/** Whether a class installs from the console: safe, and attended after the acknowledgement. */
+export function installable(value:UpdateClass):boolean{return value==='safe'||value==='attended';}
+/** What the operator must acknowledge before an `attended` release is sent. */
+export const ACKNOWLEDGEMENT='I understand that if this update returns to the current version, environment data may need restoring from the backups taken before it.';
+
+/** Whether "Install update" is offered, and why not when it is not. Notes about releases the
+ * check passed over never disable it. */
 export function installState(view:UpdatesView|undefined):{enabled:boolean;reasons:string[]}{
  const release=view?.available;
  if(!view||!release)return {enabled:false,reasons:['No newer release is available.']};
  const reasons:string[]=[];
- if(release.class!=='safe')reasons.push('Only a safe release installs from the console.');
+ if(!installable(release.class))reasons.push('This release installs on the server, not from the console.');
  if(!release.signed)reasons.push('This release is not signed by a Sbarbase release key.');
  if(view.refusals.length)reasons.push('The server cannot apply it right now.');
  if(busy(view))reasons.push('Another update request is still in progress.');
@@ -124,8 +141,15 @@ export function formatClock(value:string):string{
  const time=parseClock(value);
  return time?`${time.hour}:${String(time.minute).padStart(2,'0')} ${time.period}`:value;
 }
-export function describeWindow(window:{start:string;end:string}):string{
- return `Every day from ${formatClock(window.start)} to ${formatClock(window.end)}, server time.`;
+/** The server's zone in words: "UTC", "Asia/Dubai, UTC+04:00", or "UTC+04:00" when the
+ * server knows only the offset. */
+export function zoneText(zone:ServerZone):string{
+ const offset=zone.offset==='+00:00'||zone.offset==='-00:00'?'':zone.offset;
+ const named=!/^(UTC|GMT|Z|[+-][\d:]*)$/.test(zone.name);
+ return named?`${zone.name}, UTC${offset}`:`UTC${offset}`;
+}
+export function describeWindow(window:{start:string;end:string},zone?:ServerZone):string{
+ return `Every day from ${formatClock(window.start)} to ${formatClock(window.end)}, server time`+(zone?` (${zoneText(zone)}).`:'.');
 }
 /** The saved settings by value. The form resets to them only when this changes, not on
  * every poll that hands over an equal object. */
