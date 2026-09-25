@@ -43,7 +43,7 @@ export function invitationAccounts(url:string,serviceRole:string,request:typeof 
  // API gateway serves (every call answered 404 until the first live invitation run).
  const auth=new AuthClient({url:url.replace(/\/+$/,''),headers:{Authorization:`Bearer ${serviceRole}`,apikey:serviceRole},
   persistSession:false,autoRefreshToken:false,detectSessionInUrl:false,
-  fetch:(input,init)=>request(input,{...init,redirect:'error',signal:AbortSignal.timeout(10_000)})});
+  fetch:((input,init)=>request(input,{...init,redirect:'error',signal:AbortSignal.timeout(10_000)})) as typeof fetch});
  return {
   async create(email,password) {
    const {data,error}=await auth.admin.createUser({email,password,email_confirm:true,app_metadata:{sbarbase_invited:true}});
