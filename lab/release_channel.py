@@ -8,18 +8,26 @@ and remotes stay as they are.
 
 What a release needs is read from the diff between the running commit and the release,
 not from what the manifest claims:
-  safe      a restart picks everything up (code, dependencies, Auth, REST, Storage pins)
-  rebuild   the container image, the compose file or the installed service unit changes,
-            which a restart does not pick up
+  safe      a restart picks everything up (code, dependencies, and the PostgREST, Edge
+            Functions and Studio pins, none of which changes an environment database)
+  attended  the Auth, Storage or Realtime pin changes: each runs its own schema migrations in
+            the environment databases when it starts, and the previous image may not run on
+            the migrated schema. The operator may install it after an explicit warning; it is
+            never installed automatically
+  rebuild   the container image, the compose file, the installed service unit or the TLS
+            proxy changes, which a restart of Sbarbase does not pick up
   manual    the PostgreSQL image changes (lab/migrate-generation.py) or the manifest
             declares a data migration
 """
+import contextlib
 import datetime
+import fcntl
 import json
 import os
 import re
 import shutil
 import subprocess
+import time
 from pathlib import Path
 
 import install_server
@@ -29,6 +37,10 @@ ROOT = lab.ROOT
 CANONICAL = 'https://github.com/M7MMAD-OMAR/sbarbase.git'
 SIGNERS = ROOT / 'deploy' / 'release-signers'
 AVAILABLE = lab.STATE / 'upgrades' / 'available.json'
+# Held while a check or a start fetches and reads releases, so two runs never write the same
+# private ref at once. Created on first use, never at import.
+LOCK = lab.STATE / 'upgrades' / 'channel.lock'
+LOCK_WAIT = 300
 NAMESPACE = 'refs/sbarbase-releases/tags/'
 MANIFEST = 'release.json'
 DATABASE_LOCK = 'distro-image.lock.json'
@@ -40,6 +52,20 @@ REBUILD = {'Dockerfile': 'the container image definition',
            'deploy/container/start.sh': 'the start script baked into the container image',
            'compose.yaml': 'the container configuration',
            'deploy/sbarbase.service': 'the installed systemd unit'}
+# The TLS proxy runs as its own unit the operator installed (sbarbase-tls.service in the
+# deployment guide and the VM rehearsal), which an update never restarts. It imports only
+# Node built-ins, so this file is everything it runs.
+PROXY = {'deploy/console-tls-proxy.ts': 'the console TLS proxy'}
+PROXY_UNIT = 'sbarbase-tls.service'
+# Pinned services that run their own schema migrations in each environment database when they
+# start (lab/durable_runtime.py): Auth (GoTrue) its auth schema, Storage its storage schema
+# per tenant, and Realtime its realtime schema (realtime_start(migrate=...) runs them again
+# whenever the pin changes). PostgREST only reads the schema, Edge Functions have no database
+# connection of their own, and Studio with postgres-meta only inspects; the images.lock.json
+# `db` entry is a lab probe image, overridden by distro-image.lock.json in the runtime.
+MIGRATING = {('images.lock.json', 'auth'): 'Auth', ('storage-image.lock.json', 'default'): 'Storage',
+             ('realtime-image.lock.json', 'default'): 'Realtime'}
+CLASSES = ('safe', 'attended', 'rebuild', 'manual')
 SEMVER = re.compile(r'(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?')
 TIMEOUT = 120
 
@@ -64,6 +90,29 @@ def git(*args, check=True, network=False):
     if check and result.returncode:
         raise ReleaseError(f"git {args[0]} failed: {result.stderr.strip()}")
     return result
+
+
+@contextlib.contextmanager
+def exclusive(wait=None):
+    """One check or start at a time reads and writes the private release refs. A run that
+    cannot take the lock within LOCK_WAIT seconds fails; it never reads a ref another run is
+    writing."""
+    path = Path(LOCK)
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    deadline = time.monotonic() + (LOCK_WAIT if wait is None else wait)
+    with path.open('a') as handle:
+        while True:
+            try:
+                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.monotonic() >= deadline:
+                    raise ReleaseError('Another release check or update is reading the release source; try again in a moment')
+                time.sleep(0.2)
+        try:
+            yield
+        finally:
+            fcntl.flock(handle, fcntl.LOCK_UN)
 
 
 def parse(version):
@@ -122,6 +171,14 @@ def fetch_release(tag, where=None):
     return ref
 
 
+def object_of(ref):
+    """The object id a ref names, read once; everything after works on that id."""
+    oid = git('rev-parse', '--verify', '-q', ref, check=False).stdout.strip()
+    if not re.fullmatch(r'[0-9a-f]{40}|[0-9a-f]{64}', oid):
+        raise ReleaseError(f'{ref} names no object')
+    return oid
+
+
 def signers_configured(signers):
     try:
         lines = Path(signers).read_text().splitlines()
@@ -130,24 +187,30 @@ def signers_configured(signers):
     return any(line.strip() and not line.lstrip().startswith('#') for line in lines)
 
 
-def verify(ref, signers=None):
+def verify(ref, signers=None, name=None):
     """None when ref is an annotated tag signed by a key in the signers file; else why not.
 
-    Fails closed: no signers file or no key in it, a lightweight or unsigned tag, a key
-    that is not listed, and a tag object whose own name is not the ref's name.
+    `ref` may be a ref or an object id; it is resolved once and every step reads that one
+    object. `name` is the release tag the object must call itself (by default the last part
+    of the ref). Fails closed: no signers file or no key in it, a lightweight or unsigned
+    tag, a key that is not listed, and a tag object whose own name is not the expected one.
     """
     signers = Path(signers or SIGNERS)
-    tag = ref.rsplit('/', 1)[-1]
+    tag = name or ref.rsplit('/', 1)[-1]
     if not signers_configured(signers):
         return f'No release signing key is listed in {signers.name}; every release is refused until one is'
     if not shutil.which('ssh-keygen'):
         # Still refused, but for the real reason: a container image built before
         # openssh-client was added to it cannot check any signature.
         return 'ssh-keygen is not installed, so no release signature can be checked; rebuild the container image'
-    kind =git('cat-file', '-t', ref, check=False).stdout.strip()
+    try:
+        oid = object_of(ref)
+    except ReleaseError:
+        return f'{tag} is not an annotated, signed tag'
+    kind = git('cat-file', '-t', oid, check=False).stdout.strip()
     if kind != 'tag':
         return f'{tag} is not an annotated, signed tag'
-    header = git('cat-file', '-p', ref).stdout.split('\n\n', 1)[0].splitlines()
+    header = git('cat-file', '-p', oid).stdout.split('\n\n', 1)[0].splitlines()
     fields = dict(line.split(' ', 1) for line in header if ' ' in line)
     # A signed tag object replayed under another name would carry its own name inside.
     if fields.get('tag') != tag:
@@ -155,7 +218,7 @@ def verify(ref, signers=None):
     if fields.get('type') != 'commit':
         return f'{tag} does not point at a commit'
     result = git('-c', 'gpg.format=ssh', '-c', f'gpg.ssh.allowedSignersFile={signers}', '-c', 'gpg.minTrustLevel=fully',
-                 'verify-tag', ref, check=False)
+                 'verify-tag', oid, check=False)
     output = result.stdout + result.stderr
     # The exit code alone is not trusted across git versions: a key that is not listed
     # still prints a good signature, followed by "No principal matched".
@@ -234,8 +297,24 @@ def changes(current, target):
     return rows
 
 
+def migrating(current, target):
+    """Why moving between two commits changes environment databases as services start: one
+    sentence per Auth, Storage or Realtime pin that differs."""
+    reasons = []
+    for (name, entry), service in MIGRATING.items():
+        before, after = entries(lock_at(current, name)).get(entry, {}), entries(lock_at(target, name)).get(entry, {})
+        if before.get('id') != after.get('id'):
+            reasons.append(f"lab/{name} changes the {service} image ({before.get('tag', 'none')} -> {after.get('tag', 'none')}); "
+                           f'{service} migrates each environment database when it starts, so going back may need the '
+                           'environment backups taken before the upgrade')
+    return reasons
+
+
 def classify(current, target, release=None):
-    """('safe' | 'rebuild' | 'manual', reasons) for moving from one commit to another."""
+    """('safe' | 'attended' | 'rebuild' | 'manual', reasons) for moving from one commit to another.
+
+    The most demanding class wins (manual, then rebuild, then attended); the reasons list
+    every finding, so a release that needs a rebuild and also migrates says both."""
     if release is None:
         try:
             release = manifest(target)
@@ -253,9 +332,16 @@ def classify(current, target, release=None):
     for path, what in REBUILD.items():
         if path in changed:
             rebuild.append(f'{path} changes ({what}); a restart does not pick it up')
+    for path, what in PROXY.items():
+        if path in changed:
+            rebuild.append(f'{path} changes ({what}); it runs as its own unit, {PROXY_UNIT}, which an update does not '
+                           'restart: restart that unit after the update')
+    attended = migrating(current, target)
     if manual:
-        return 'manual', manual + rebuild
-    return ('rebuild', rebuild) if rebuild else ('safe', [])
+        return 'manual', manual + rebuild + attended
+    if rebuild:
+        return 'rebuild', rebuild + attended
+    return ('attended', attended) if attended else ('safe', [])
 
 
 def current_version():
@@ -282,21 +368,23 @@ def now():
 def examine(tag, current, where=None, signers=None):
     """Fetches and reads one release against the running checkout.
 
-    Returns (details, refusals). The commit comes from the fetched tag itself, never from
-    the listing, and the manifest is read from that same commit.
+    Returns (details, blockers): blockers are what makes this release itself impossible to
+    install here (no valid signature, a manual migration). The private ref is read exactly
+    once: its object id is verified, and that same id is peeled to the commit whose manifest
+    and diff are read, so nothing that moves the ref afterwards changes what was checked.
     """
-    ref = fetch_release(tag, where)
-    refusal = verify(ref, signers)
-    commit = commit_of(ref)
+    oid = object_of(fetch_release(tag, where))
+    refusal = verify(oid, signers, name=tag)
+    commit = commit_of(oid)
     release = manifest(commit, tag)
     kind, reasons = classify(current['commit'], commit, release)
     details = {'version': release['version'], 'tag': tag, 'commit': commit, 'class': kind, 'reasons': reasons,
                'notes': release['notes'], 'changes': changes(current['commit'], commit), 'signed': refusal is None,
                'minimum_from': release['minimum_from'], 'migrations': release['migrations']}
-    refusals = [refusal] if refusal else []
+    blockers = [refusal] if refusal else []
     if kind == 'manual':
-        refusals.append(f'{tag} cannot be applied as an upgrade: ' + '; '.join(reasons))
-    return details, refusals
+        blockers.append(f'{tag} cannot be applied as an upgrade: ' + '; '.join(reasons))
+    return details, blockers
 
 
 def unreachable(details, current):
@@ -307,37 +395,61 @@ def unreachable(details, current):
             f"{current['version']}, so an earlier release has to be applied first")
 
 
-def check(where=None, channel='stable', signers=None):
-    """The whole check: the newest release this installation can move to, and what it takes.
+def left_behind(details, current):
+    """Why moving to the release would drop commits of this checkout, or None. The checkout
+    may only move forward to a release that contains everything it runs."""
+    result = git('merge-base', '--is-ancestor', current['commit'], details['commit'], check=False)
+    if result.returncode == 0:
+        return None
+    if result.returncode == 1:
+        count = git('rev-list', '--count', f"{details['commit']}..{current['commit']}", check=False).stdout.strip() or 'some'
+        return (f"This checkout has {count} commit(s) that {details['tag']} does not contain; installing it would leave "
+                'them behind. Merge them upstream or move them to a branch of their own first')
+    return f"Whether {details['tag']} contains this checkout could not be read ({result.stderr.strip() or 'git merge-base failed'})"
 
-    A release whose minimum_from this version does not meet is named in refusals and the
-    next older one is offered instead. A release that is not signed is still reported,
-    with signed false and the reason in refusals, so the console can say why it cannot
-    be applied.
+
+def summary(release, details, reasons):
+    """What the check says about a release it passed over."""
+    return {'version': release['version'], 'tag': release['tag'], 'class': (details or {}).get('class'),
+            'signed': bool((details or {}).get('signed')), 'reasons': reasons}
+
+
+def check(where=None, channel='stable', signers=None):
+    """The whole check: the newest release this installation can install, and what it takes.
+
+    Walks down from the newest release to the newest one that is signed, not manual and
+    reachable from this version (minimum_from). Releases passed over on the way are named in
+    `skipped`, and the newest of them in `newest`, so the console can say that a newer
+    release exists and why it is not offered. `refusals` names only problems with installing
+    the offered release (and an unreachable source); a note about another release never
+    blocks this one.
     """
     current = current_version()
-    result = {'current': current, 'available': None, 'refusals': [], 'checked_at': now()}
+    result = {'current': current, 'available': None, 'refusals': [], 'skipped': [], 'newest': None, 'checked_at': now()}
     try:
         releases = list_releases(where, channel)
     except ReleaseError as error:
         result['refusals'].append(f'The release source could not be read: {error}')
         return result
-    skipped = []
-    for release in reversed(releases):
-        if key(release['version']) <= key(current['version']):
+    with exclusive():
+        for release in reversed(releases):
+            if key(release['version']) <= key(current['version']):
+                break
+            details = None
+            try:
+                details, reasons = examine(release['tag'], current, where, signers)
+            except ReleaseError as error:
+                reasons = [str(error)]
+            if details is not None and not reasons and unreachable(details, current):
+                reasons = [unreachable(details, current)]
+            if reasons:
+                result['skipped'].append(f"{release['tag']} was passed over: " + '; '.join(reasons))
+                if result['newest'] is None:
+                    result['newest'] = summary(release, details, reasons)
+                continue
+            behind = left_behind(details, current)
+            result.update(available=details, refusals=[behind] if behind else [])
             break
-        try:
-            details, refusals = examine(release['tag'], current, where, signers)
-        except ReleaseError as error:
-            skipped.append(f"{release['tag']} was skipped: {error}")
-            continue
-        reason = unreachable(details, current)
-        if reason:
-            skipped.append(reason)
-            continue
-        result.update(available=details, refusals=skipped + refusals)
-        return result
-    result['refusals'] = skipped
     return result
 
 
@@ -353,20 +465,29 @@ def prepare(tag, allow=(), where=None, signers=None):
     """Everything `upgrade.py start --release` needs before it moves the checkout.
 
     Refuses an unsigned release, one that is not newer than this checkout, one whose
-    minimum_from this checkout does not meet, a `manual` release always, and a `rebuild`
-    release unless the operator allowed it.
+    minimum_from this checkout does not meet, one that does not contain every commit of this
+    checkout, a `manual` release always, a `rebuild` release unless the operator allowed it,
+    and one that migrates environment databases (`attended`) unless the operator allowed that.
     """
     if tag_version(tag) is None:
         raise ReleaseError(f'{tag!r} is not a release tag (vMAJOR.MINOR.PATCH)')
     current = current_version()
     if key(tag_version(tag)) <= key(current['version']):
         raise ReleaseError(f"{tag} is not newer than this installation ({current['version']})")
-    details, refusals = examine(tag, current, where, signers)
-    if unreachable(details, current):
-        refusals.append(unreachable(details, current))
+    with exclusive():
+        details, refusals = examine(tag, current, where, signers)
+    for reason in (unreachable(details, current), left_behind(details, current)):
+        if reason:
+            refusals.append(reason)
     if details['class'] == 'rebuild' and 'rebuild' not in allow:
         refusals.append(f'{tag} needs a rebuild: ' + '; '.join(details['reasons'])
                         + '. Pass --allow-class rebuild to apply it, then rebuild')
+    if details['class'] in ('attended', 'rebuild') and 'attended' not in allow:
+        migrations = migrating(current['commit'], details['commit'])
+        if migrations:
+            refusals.append(f'{tag} updates services that migrate environment databases: ' + '; '.join(migrations)
+                            + '. If it moves back, environment data may need restoring from the backups taken before the '
+                            'upgrade. Pass --allow-class attended to apply it')
     if refusals:
         raise ReleaseError('\n'.join(refusals))
     return details
