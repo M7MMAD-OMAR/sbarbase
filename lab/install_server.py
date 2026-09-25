@@ -128,33 +128,37 @@ def fresh_placement():
     return resource_policy.start_placement(0)
 
 
-def planned_placement(inspect=None):
+def planned_placement(inspect=None,targets=None):
     """(MiB, CPUs, origin) of what the next start runs, derived from the placement.
 
-    Retained containers are counted at their own limits, the way the combined
-    admission counts them: every source container, plus the current recovery
-    target's when one is recorded. With none retained, the fresh rows. The
-    preflight, the unit's ExecStartPre on every restart and the runtime's own
-    admission therefore state the same figure. A container without a finite limit
-    falls back to the full split placement, the conservative figure.
+    Retained source containers are counted at their own limits, the way the
+    combined admission counts them; with none retained, the fresh rows. The
+    current recovery target's containers are added by
+    resource_policy.restart_placement from resource_policy.recovery_target_items,
+    the same computation the runtime's restart check uses, so on an installation
+    that moved an environment both count the target. A container without a finite
+    limit falls back to the full split placement, the conservative figure.
     """
+    import resource_policy
     if inspect is None:
         def inspect():
             names=docker('ps','-a','--filter','label=io.sbarbase.owner=durable-upstream','--format','{{.Names}}',check=False).stdout.split()
-            prefix=current_prefix()
-            if prefix:
-                targets=docker('ps','-a','--filter','label=io.sbarbase.owner=recovery-target','--format','{{.Names}}',check=False).stdout.split()
-                names+=[name for name in targets if name.startswith(prefix+'-')]
             return [json.loads(docker('inspect',name).stdout)[0] for name in names]
+    if targets is None:
+        def targets():return resource_policy.recovery_target_items(STATE,docker)
+    unbounded=(PLANNED_MIB,PLANNED_CPUS,'full split placement (a retained container has no finite limit)')
     items=inspect()
-    if not items:
-        memory,cpus=fresh_placement()
-        return memory,cpus,'fresh placement'
-    memory=sum(item.get('HostConfig',{}).get('Memory') or 0 for item in items)
-    nano=[item.get('HostConfig',{}).get('NanoCpus') or 0 for item in items]
-    if any((item.get('HostConfig',{}).get('Memory') or 0)<=0 for item in items) or any(value<=0 for value in nano):
-        return PLANNED_MIB,PLANNED_CPUS,'full split placement (a retained container has no finite limit)'
-    return memory//1024**2,round(sum(nano)/1e9,2),f'retained placement of {len(items)} containers'
+    if items:
+        source=resource_policy.retained_limits(items)
+        if source is None:return unbounded
+        origin=f'retained placement of {len(items)} containers'
+    else:
+        source=fresh_placement();origin='fresh placement'
+    target_items=targets()
+    try:memory,cpus=resource_policy.restart_placement(source,target_items)
+    except resource_policy.ResourcePolicyError:return unbounded
+    if target_items:origin+=f' plus {len(target_items)} recovery target containers'
+    return memory,cpus,origin
 
 
 def headroom_requirement(moved,measured,placement_mib=PLANNED_MIB,origin='placement'):
@@ -210,9 +214,8 @@ def target_findings(target_names,state,current_prefix):
 
 
 def current_prefix():
-    record=STATE/'recovery-target.json'
-    if not record.exists():return None
-    return json.loads(record.read_text()).get('prefix')
+    import resource_policy
+    return resource_policy.recovery_target_prefix(STATE)
 
 
 def never_started(name):

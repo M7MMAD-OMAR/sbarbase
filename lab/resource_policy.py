@@ -42,6 +42,7 @@ worked example in section 3.2. Making the class configurable, and therefore
 using the experimental row, is an open item.
 """
 from collections import namedtuple
+import json
 from pathlib import Path
 
 # Revision id for docs/engineering/RESOURCE-POLICY.md section 4.2. No evidence file records
@@ -131,6 +132,66 @@ def start_placement(environments, realtime=0, functions=0):
     rows = [TIERS[tier] for tier in SYSTEM_ROWS] + [TIERS[tier] for tier in ENVIRONMENT_ROWS] * environments
     rows += [TIERS[REALTIME_ROW]] * realtime + [TIERS[FUNCTIONS_ROW]] * functions
     return sum(memory_mib(row.memory) for row in rows), round(sum(row.cpus for row in rows), 2)
+
+
+RECOVERY_TARGET_OWNER = 'recovery-target'
+
+
+def retained_limits(items):
+    """(MiB, CPUs) of retained containers at their own limits, from `docker inspect` records.
+
+    None when any of them has no finite memory or CPU limit, so a caller never
+    sums an unbounded container as if it were small.
+    """
+    memory = [(item.get('HostConfig') or {}).get('Memory') or 0 for item in items]
+    nano = [(item.get('HostConfig') or {}).get('NanoCpus') or 0 for item in items]
+    if any(value <= 0 for value in memory + nano):
+        return None
+    return sum(memory) // 1024**2, round(sum(nano) / 1e9, 2)
+
+
+def recovery_target_prefix(state):
+    """The current recovery target's container prefix, or None when none is recorded."""
+    record = Path(state) / 'recovery-target.json'
+    if not record.exists():
+        return None
+    prefix = json.loads(record.read_text()).get('prefix')
+    return prefix if isinstance(prefix, str) and prefix else None
+
+
+def recovery_target_items(state, docker):
+    """`docker inspect` records of the current recovery target's containers, running or stopped.
+
+    The one listing the preflight and the runtime's restart check both read. A
+    moved installation starts these beside the source placement under the
+    combined admission, so the next start runs them too. Historical targets are
+    not counted: the runtime does not start them. With no recorded target this
+    makes no Docker call at all.
+    """
+    prefix = recovery_target_prefix(state)
+    if prefix is None:
+        return []
+    names = docker('ps', '-a', '--filter', 'label=io.sbarbase.owner=' + RECOVERY_TARGET_OWNER,
+                   '--format', '{{.Names}}').stdout.split()
+    return [json.loads(docker('inspect', name).stdout)[0] for name in names if name.startswith(prefix + '-')]
+
+
+def restart_placement(source, target_items=()):
+    """(MiB, CPUs) the next start runs: the source placement plus the current
+    recovery target's containers at their own limits.
+
+    `source` is (MiB, CPUs) of the source placement: the policy rows for the
+    runtime's checks, the retained containers for the preflight. The target part
+    is computed here for both, so on an installation that moved an environment
+    the two figures count the same containers. Raises ResourcePolicyError when a
+    target container has no finite limit.
+    """
+    if not target_items:
+        return source
+    target = retained_limits(target_items)
+    if target is None:
+        raise ResourcePolicyError('unbounded_recovery_target')
+    return source[0] + target[0], round(source[1] + target[1], 2)
 
 
 def restart_fits(placement_mib, cpus, available_bytes, in_use_bytes, host_cpus):

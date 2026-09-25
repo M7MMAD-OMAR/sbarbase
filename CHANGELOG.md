@@ -185,6 +185,10 @@ ready.
 - CPU limits are admitted as ceilings: up to twice the cores after one core for
   the host. The old rule asked for 8 cores.
 - A new environment is refused when the next restart could not admit it.
+  On an installation that moved an environment, that check and the preflight
+  now count the current recovery target's containers in one computation; the
+  check used to count the source placement only, and a running target's memory
+  is now counted as in use rather than twice.
 - Project names are unique within an organization and environment names within
   a project; a clash answers 409, not 500. The API refuses an environment past
   the installation limit with 409 before queueing it.

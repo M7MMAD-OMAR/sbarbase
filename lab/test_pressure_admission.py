@@ -42,7 +42,7 @@ class PressureTests(unittest.TestCase):
         target=runtime.Runtime.__new__(runtime.Runtime)
         target.values={'environments':{}}
         self.good[pressure.CONTAINERS[0]]['cpu_some10']=75.0
-        with patch.object(runtime, 'inspect', return_value={'owned':True}), patch.object(runtime, 'owned_usage_bytes', return_value=0), patch.object(runtime.resource_policy, 'restart_fits', return_value=True), patch.object(resource_admission, 'snapshot'), patch.object(resource_admission, 'refusal', return_value=None), patch.object(pressure, 'snapshot', return_value=self.good), patch.object(runtime, 'atomic') as persist:
+        with patch.object(runtime, 'inspect', return_value={'owned':True}), patch.object(runtime, 'owned_usage_bytes', return_value=0), patch.object(runtime.resource_policy, 'restart_fits', return_value=True), patch.object(runtime, 'recovery_target_items', return_value=[]), patch.object(resource_admission, 'snapshot'), patch.object(resource_admission, 'refusal', return_value=None), patch.object(pressure, 'snapshot', return_value=self.good), patch.object(runtime, 'atomic') as persist:
             with self.assertRaises(runtime.AdmissionLimitError):
                 target.provision('e_'+'c'*24)
             self.assertEqual(target.values['environments'], {})
