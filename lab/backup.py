@@ -298,7 +298,11 @@ def mark_moved(stamp):
     failed) is never marked, and its run is pruned like any other."""
     if not STAMP.fullmatch(str(stamp)):
         raise BackupError('Not a backup run time')
-    runs = sorted((moved_runs() or set()) | {stamp})[-MOVED_KEPT:]
+    known = moved_runs()
+    # The first record (or one replacing a damaged record) starts from every upgrade run there
+    # is: until now each of them counted, and the first mark must not strip their protection.
+    earlier = upgrade_run_times() if known is None else known
+    runs = sorted(earlier | {stamp})[-MOVED_KEPT:]
     private_dir(BACKUPS)
     partial = moved_record().with_suffix('.pending')
     write_private(partial, json.dumps({'runs': runs}) + '\n')
