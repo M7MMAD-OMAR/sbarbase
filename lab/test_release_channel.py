@@ -351,7 +351,15 @@ class StartReleaseTests(Fixture):
         self.pulled = []
         # upgrade.main changes into its checkout; come back before the directory goes.
         self.addCleanup(os.chdir, os.getcwd())
-        for item in (patch.object(upgrade, 'ROOT', self.checkout), patch.object(upgrade, 'STATE_FILE', state / 'upgrades' / 'state.json'),
+        upgrades, upstream = state / 'upgrades', state / 'upstream'
+        upstream.mkdir(parents=True)
+        # Every path an upgrade touches points into this test's own directory, never the real .lab.
+        for item in (patch.object(upgrade, 'ROOT', self.checkout), patch.object(upgrade, 'UPGRADES', upgrades),
+                     patch.object(upgrade, 'STATE_FILE', upgrades / 'state.json'), patch.object(upgrade, 'LOCK', upgrades / 'upgrade.lock'),
+                     patch.object(upgrade, 'SNAPSHOTS', upgrades / 'snapshots'), patch.object(upgrade, 'HOLD', upgrades / 'hold'),
+                     patch.object(upgrade, 'UPSTREAM', upstream), patch.object(upgrade, 'KEY_STORE', state / 'secrets' / 'managed-keys.sqlite'),
+                     patch.object(upgrade, 'SUPERVISOR_LOCK', upstream / 'supervisor.lock'),
+                     patch.object(upgrade, 'BACKUP_LOCK', upstream / 'backup.lock'),
                      patch.object(upgrade, 'INTENT', state / 'upgrade-intent.json'),
                      patch.object(upgrade, 'pull', side_effect=self.pulled.append), patch.object(upgrade, 'back_up'),
                      patch.object(upgrade, 'install_dependencies')):
