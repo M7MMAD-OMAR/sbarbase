@@ -14,6 +14,8 @@ services:
     image: sbarbase:local
     init: true
     network_mode: host
+    # Any exit restarts it, including the exit 42 with which the supervisor stops after
+    # an update or rollback from the console moved the checkout (lab/dev.py).
     restart: unless-stopped
     # The supervisor stops every owned service before it exits.
     stop_grace_period: 3m

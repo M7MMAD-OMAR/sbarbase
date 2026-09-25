@@ -14,9 +14,15 @@ import subprocess
 import sys
 import threading
 import time
+import updates
 
 ROOT = Path(__file__).resolve().parents[1]
 STATE = ROOT / '.lab/upstream'
+# The exit status after an upgrade or rollback moved the checkout: the service manager starts
+# Sbarbase again on the version the checkout now holds. systemd restarts on it
+# (RestartForceExitStatus= in deploy/sbarbase.service), Docker's `restart: unless-stopped` on
+# any exit. Neither restarts a clean exit 0, so this is never 0.
+RESTART_FOR_UPGRADE = 42
 
 
 def notify_installation(kind, catalog=None):
@@ -119,6 +125,15 @@ class Supervisor:
         # console runs: no worker, backup, Studio, sign-in or toggle may leave an effect that
         # the way back, which restores the control state, would no longer know about.
         self.confirm = None
+        # The update channel (lab/updates.py): at most one child at a time (a check, an upgrade or
+        # a rollback), what runs now as last published, when this supervisor began scheduling
+        # updates, a pause after the scheduling itself failed, and whether this process exits
+        # with RESTART_FOR_UPGRADE once it has stopped.
+        self.update = None
+        self.current = None
+        self.updates_since = None
+        self.updates_after = 0.0
+        self.restart_for_upgrade = False
 
     def spawn(self, command):
         return subprocess.Popen(['/usr/bin/python3','lab/parent_bound.py',str(os.getpid()),*command], cwd=ROOT, start_new_session=True)
@@ -182,6 +197,10 @@ class Supervisor:
                                             'system:supervisor', 'export_failed', {'failed': status},
                                             catalog=self.catalog)
             return
+        if self.update is not None and self.update['kind'] != 'check':
+            # An upgrade or rollback runs: it takes its own backup first, and the daily one
+            # starts after it (or on the new version), never at the same time.
+            return
         now = now or datetime.datetime.now(datetime.UTC)
         record = STATE/'backup-schedule.json'
         last = json.loads(record.read_text()).get('day') if record.exists() else None
@@ -193,6 +212,151 @@ class Supervisor:
         temporary.replace(record)
         print('Daily backup started.', flush=True)
         self.backup = self.spawn(['/usr/bin/python3', 'lab/backup.py', 'create', 'all', '--keep', str(self.backup_keep)])
+
+    def spawn_logged(self, command, log):
+        """Like spawn, with the child's output in a private log that is read when it ends. A file,
+        never a pipe: a pipe nobody drains fills up and stops the child."""
+        log.parent.mkdir(parents=True, exist_ok=True)
+        descriptor = os.open(log, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(descriptor, 'w') as handle:
+            return subprocess.Popen(['/usr/bin/python3', 'lab/parent_bound.py', str(os.getpid()), *command], cwd=ROOT,
+                                    start_new_session=True, stdout=handle, stderr=subprocess.STDOUT,
+                                    env=dict(os.environ, PYTHONUNBUFFERED='1'))
+
+    def publish_current(self):
+        """What runs now and whether the console may offer a rollback (lab/updates.py)."""
+        try:
+            import upgrade
+            self.current = updates.publish_current(upgrade.load_state())
+        except Exception as error:
+            print(f'Update status could not be recorded: {error}', file=sys.stderr, flush=True)
+
+    def settle_updates(self):
+        """A request the previous process left running or never picked up (lab/updates.py settle)."""
+        try:
+            import upgrade
+            updates.settle(upgrade.load_state())
+        except Exception as error:
+            print(f'Update requests could not be settled: {error}', file=sys.stderr, flush=True)
+
+    def schedule_updates(self, moment=None):
+        """Checks for a newer release, carries out the console's requests and the automatic
+        updates, one child at a time. Runs only once a pending upgrade is confirmed."""
+        moment = moment or updates.now()
+        if self.updates_since is None:
+            self.updates_since = moment
+        if self.update is not None:
+            status = child_status(self.update['process'])
+            if status is None:
+                return
+            terminate_group(self.update['process'], grace=0)
+            job, self.update = self.update, None
+            self.update_finished(job, status, moment)
+            return
+        import upgrade
+        state = upgrade.load_state()
+        request = updates.read_request()
+        if request is not None and request.get('state') != 'requested':
+            # Finished, or running without a child of this process: it cannot be followed.
+            final = request.get('state') in updates.FINAL
+            updates.finish_request(request, request['state'] if final else 'failed',
+                                   request.get('detail') if final else updates.MESSAGES['interrupted'], moment)
+            return
+        if request is not None:
+            self.start_request(request, state, moment)
+            return
+        settings, document = updates.load_settings(), updates.read('available.json')
+        if settings['check'] and updates.check_due(updates.read('check.json'), moment, self.updates_since, document, self.current):
+            self.start_update('check', None, moment)
+            return
+        release = updates.automatic_release(settings, document, self.current, state, updates.ledger(), moment,
+                                            self.backup is not None)
+        if release is not None and updates.blocked() is None:
+            # Remembered before the request exists: whatever happens next, it is tried once.
+            updates.remember('attempted', release['version'])
+            if updates.create_request('apply', release['version'], release.get('tag'), 'automatic', moment):
+                print(f"Automatic update to Sbarbase {release['version']} requested.", flush=True)
+
+    def start_request(self, request, state, moment):
+        """Carries out one request, after checking it again: the file is never trusted."""
+        kind = request.get('kind')
+        if kind == 'check':
+            self.start_update('check', request, moment)
+            return
+        if self.backup is not None:
+            # The daily backup runs; the upgrade starts after it.
+            return
+        if kind == 'apply':
+            document = updates.read('available.json')
+            refusal = updates.apply_refusal(request.get('version'), document, self.current, state)
+            if refusal is None and not str(document['available'].get('tag', '')).startswith('v'):
+                refusal = updates.MESSAGES['nothing']
+            if refusal:
+                updates.finish_request(request, 'failed', refusal, moment)
+                return
+            # The tag the check verified, not one the request names; upgrade.py verifies it again.
+            trigger = 'automatic' if request.get('trigger') == 'automatic' else 'console'
+            command = ['/usr/bin/python3', 'lab/upgrade.py', 'start', '--release', document['available']['tag'],
+                       '--trigger', trigger]
+        else:
+            possible, reason = updates.rollback_verdict(state)
+            if not possible:
+                updates.finish_request(request, 'failed', reason, moment)
+                return
+            command = ['/usr/bin/python3', 'lab/upgrade.py', 'rollback']
+        self.start_update(kind, request, moment, command, state)
+
+    def start_update(self, kind, request, moment, command=None, state=None):
+        previous = None
+        if kind == 'check':
+            command = ['/usr/bin/python3', 'lab/upgrade.py', 'channel', '--json']
+            try:
+                previous = updates.path('available.json').read_bytes()
+            except OSError:
+                previous = None
+        if request is not None:
+            request = updates.update_request(request, state='running', started_at=updates.stamp(moment)) or request
+        print({'check': 'Checking for a newer Sbarbase release.', 'apply': 'Update to a newer Sbarbase release started.',
+               'rollback': 'Rollback to the previous Sbarbase version started.'}[kind], flush=True)
+        self.update = {'kind': kind, 'request': request, 'previous': previous, 'state': state,
+                       'process': self.spawn_logged(command, updates.path(kind + '.log'))}
+
+    def update_finished(self, job, status, moment):
+        """Records how a check, an upgrade or a rollback ended. After an upgrade or rollback that
+        moved the checkout, this process stops and exits with RESTART_FOR_UPGRADE."""
+        kind, request = job['kind'], job['request']
+        try:
+            output = updates.path(kind + '.log').read_text(errors='replace')
+        except OSError:
+            output = ''
+        # The child's output goes to the journal once it ended (the log file is replaced each run).
+        for line in output.splitlines()[-40:]:
+            print('  ' + line, flush=True)
+        if kind == 'check':
+            error, document = updates.finish_check(status, output, job['previous'], moment, self.current)
+            if error is None:
+                updates.announce_available(document, self.current, catalog=self.catalog)
+            else:
+                print('The update check did not finish: ' + error, flush=True)
+            if request is not None:
+                updates.finish_request(request, 'failed' if error else 'done', error, moment)
+            return
+        if status != 0:
+            detail = updates.meaningful(output)
+            print(f"The {'update' if kind == 'apply' else 'rollback'} did not go ahead: {detail}", flush=True)
+            if request is not None:
+                updates.finish_request(request, 'failed', detail, moment)
+            return
+        if kind == 'apply':
+            detail = f"The checkout moved to Sbarbase {(request or {}).get('version', 'the new version')}. Sbarbase restarts on it now."
+        else:
+            updates.remember('rolled_back', updates.label(job['state']))
+            detail = 'The checkout moved back to the previous version. Sbarbase restarts on it now.'
+        if request is not None:
+            updates.finish_request(request, 'done', detail, moment)
+        print(detail, flush=True)
+        self.restart_for_upgrade = True
+        self.stop_event.set()
 
     def studio_requests(self):
         """(runtime, desired, state, failure) of every Studio row in the catalog."""
@@ -297,6 +461,8 @@ class Supervisor:
     def run(self):
         try:
             self.reset_studios()
+            self.settle_updates()
+            self.publish_current()
             self.server = self.spawn(['bun', 'lab/upstream-server.ts'])
             if self.confirm is None:
                 self.start_worker()
@@ -310,11 +476,22 @@ class Supervisor:
                         continue
                     self.confirm = None
                     self.start_worker()
+                    # Confirmed: the console may now offer a rollback.
+                    self.publish_current()
                 self.schedule_backup()
                 self.schedule_studios()
                 self.schedule_sign_in()
                 self.schedule_toggles()
+                if time.monotonic() >= self.updates_after:
+                    try:
+                        self.schedule_updates()
+                    except Exception as error:
+                        # The update channel never stops the installation; it pauses and tries again.
+                        print(f'Update scheduling failed: {error}', file=sys.stderr, flush=True)
+                        self.updates_after = time.monotonic() + 60
         finally:
+            if self.update:
+                terminate_group(self.update['process'])
             if self.backup:
                 terminate_group(self.backup)
             for process in self.studios.values():
@@ -349,14 +526,23 @@ def run_stage(command, stop_event, timeout=180, pass_fds=(), env=None):
         terminate_group(process, grace=2)
 
 
-def upgrade_outcome(started):
-    """Confirms a pending upgrade or rollback, or moves a failed upgrade back (lab/upgrade.py)."""
+def upgrade_outcome(started, catalog=None):
+    """Confirms a pending upgrade or rollback, or moves a failed upgrade back (lab/upgrade.py),
+    then emits the notification that outcome earns (lab/updates.py announce_outcome). The
+    automatic way back has restored the control state by then, so its event lands in the
+    catalog the previous version opens."""
     try:
         import upgrade
-        return upgrade.after_start(started)
+        before = upgrade.load_state()
+        result = upgrade.after_start(started)
     except Exception as error:
         print(f'Upgrade bookkeeping failed: {error}', file=sys.stderr)
         return False
+    try:
+        updates.announce_outcome(before, upgrade.load_state(), catalog=catalog)
+    except Exception as error:
+        print(f'Upgrade notification failed: {error}', file=sys.stderr)
+    return result
 
 
 def upgrade_prepare():
@@ -385,7 +571,7 @@ def upgrade_confirmation(supervisor):
     import upgrade_health
     return upgrade_health.Confirmation(
         lambda: upgrade_health.check(STATE, supervisor.server.pid if supervisor.server else None),
-        lambda: upgrade_outcome(True))
+        lambda: upgrade_outcome(True, supervisor.catalog))
 
 
 def main():
@@ -410,6 +596,7 @@ def main():
         except BlockingIOError:
             raise SystemExit('Stop the existing manual worker before starting the runner.')
         started = False
+        restart = False
         try:
             # Before the settle stage, which may open and migrate the control catalog.
             gated = upgrade_prepare()
@@ -441,6 +628,7 @@ def main():
                     # passed raises RuntimeError below, and the way back runs.
                     supervisor.confirm = upgrade_confirmation(supervisor)
                 supervisor.run()
+                restart = getattr(supervisor, 'restart_for_upgrade', False)
         except InterruptedError:
             print('Local installation startup cancelled.', file=sys.stderr)
         except RuntimeError as error:
@@ -462,6 +650,13 @@ def main():
                     # that is the durable state change. emit() never raises, so the
                     # installation's exit status is unaffected.
                     notify_installation('installation.stopped')
+    if restart:
+        # After the owned runtime stopped and the locks are released: the service manager
+        # starts the version the checkout moved to.
+        print('Sbarbase moved to another version and stopped so it can start on it. Under systemd or '
+              'Docker it starts again by itself; in a terminal, start it again: /usr/bin/python3 lab/dev.py',
+              file=sys.stderr, flush=True)
+        raise SystemExit(RESTART_FOR_UPGRADE)
 
 
 if __name__ == '__main__':

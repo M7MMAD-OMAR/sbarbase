@@ -59,7 +59,8 @@ KINDS = frozenset((
     'worker.restart', 'worker.restart_limit',
     'fence.applied', 'fence.released',
     'backup.export_completed', 'backup.export_failed', 'backup.completed', 'backup.failed',
-    'restore.verified', 'restore.failed', 'environment.saturated'))
+    'restore.verified', 'restore.failed', 'environment.saturated',
+    'update.available', 'update.applied', 'update.rolled_back', 'update.rollback_failed'))
 REASONS = frozenset((
     'runtime_failed', 'retry_limit', 'retry_requested', 'owner_changed', 'ownership_changed',
     'routing_paused', 'routing_resumed', 'installation_limit', 'memory_headroom',
@@ -69,7 +70,8 @@ REASONS = frozenset((
     'smtp_refused', 'smtp_temporary_failure', 'channel_disabled', 'redaction_refused',
     'operator_request', 'installation_failed', 'worker_restart', 'worker_restart_limit',
     'export_completed', 'export_failed', 'restore_verified', 'restore_failed',
-    'environment_saturated', 'telegram_unreachable', 'telegram_status'))
+    'environment_saturated', 'telegram_unreachable', 'telegram_status',
+    'update_available', 'update_applied', 'update_rolled_back', 'update_rollback_failed'))
 CHANNELS = ('email', 'webhook', 'telegram')
 SEVERITIES = ('info', 'warning', 'critical')
 DETAIL_KEYS = {
@@ -97,6 +99,12 @@ DETAIL_KEYS = {
     'restore.verified': ('status',),
     'restore.failed': ('status',),
     'environment.saturated': ('minutes', 'refused', 'peak', 'guarantee'),
+    # The update channel (lab/updates.py). `version` is a release version, or a 12 character
+    # commit for an upgrade that did not come from the release channel.
+    'update.available': ('version', 'class'),
+    'update.applied': ('version', 'trigger'),
+    'update.rolled_back': ('version',),
+    'update.rollback_failed': ('version',),
 }
 REASON_CLASS = {
     'runtime_failed': 'provisioning_outcome', 'retry_limit': 'provisioning_outcome',
@@ -118,6 +126,8 @@ REASON_CLASS = {
     'restore_verified': 'recovery_outcome', 'restore_failed': 'recovery_outcome',
     'environment_saturated': 'capacity_pressure',
     'telegram_unreachable': 'channel_outcome', 'telegram_status': 'channel_outcome',
+    'update_available': 'upgrade_outcome', 'update_applied': 'upgrade_outcome',
+    'update_rolled_back': 'upgrade_outcome', 'update_rollback_failed': 'upgrade_outcome',
 }
 # Fixed renderer. summary and action are looked up here and interpolate only safe
 # identifiers, a closed reason name and a number. No caller supplies either string.
@@ -173,6 +183,15 @@ SUMMARY = {
         'refused at its limit, or crowded out a neighbour while it borrowed.',
         'Raise its gateway share on the environment page in the console, move it to its own database '
         'engine, or grow the server.'),
+    'update.available': ('A newer signed Sbarbase release is available for this installation.',
+                         'Read what it changes on the Updates page of the console, then install it.'),
+    'update.applied': ('Sbarbase moved to a new version, which started and passed its health checks.',
+                       'No action required; the backups taken before the upgrade stay.'),
+    'update.rolled_back': ('A new Sbarbase version did not pass its health checks, so the installation moved back '
+                           'to the previous version and restored its control state.',
+                           'Run lab/upgrade.py status to see why; this version is not installed automatically again.'),
+    'update.rollback_failed': ('An upgrade failed and the way back to the previous version failed too.',
+                               'Run lab/upgrade.py status, then restore from the backups taken before the upgrade.'),
 }
 # Allow-list. The rendered envelope contains exactly these keys, in these positions.
 ENVELOPE_FIELDS = ('schema', 'id', 'delivery', 'kind', 'severity', 'at', 'last_at', 'occurrences',

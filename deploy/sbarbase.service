@@ -22,6 +22,10 @@ TimeoutStopSec=150
 KillMode=mixed
 Restart=on-failure
 RestartSec=10
+# After an update or rollback from the console moved the checkout, dev.py stops cleanly
+# and exits 42 (RESTART_FOR_UPGRADE) so the new version starts. on-failure already
+# restarts it; this keeps it so if the restart policy above ever changes.
+RestartForceExitStatus=42
 # The supervisor needs Docker access; keep it out of the docker group only if an
 # equivalent socket permission already applies to this user.
 SupplementaryGroups=docker

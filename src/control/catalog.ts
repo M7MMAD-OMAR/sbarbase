@@ -72,6 +72,11 @@ const NOTIFICATION_DETAIL_KEYS = {
   'restore.failed':['status'],
   // Written by the gateway's pressure monitor: docs/engineering/FAIR-SHARE-ADMISSION.md.
   'environment.saturated':['minutes','refused','peak','guarantee'],
+  // Written by the supervisor's update channel: lab/updates.py.
+  'update.available':['version','class'],
+  'update.applied':['version','trigger'],
+  'update.rolled_back':['version'],
+  'update.rollback_failed':['version'],
 } satisfies Record<string,string[]>;
 const NOTIFICATION_REASONS = [
   'runtime_failed','retry_limit','retry_requested','owner_changed','ownership_changed',
@@ -81,7 +86,8 @@ const NOTIFICATION_REASONS = [
   'smtp_refused','smtp_temporary_failure','channel_disabled','redaction_refused',
   'operator_request','installation_failed','worker_restart','worker_restart_limit',
   'export_completed','export_failed','restore_verified','restore_failed',
-  'environment_saturated','telegram_unreachable','telegram_status'] as const;
+  'environment_saturated','telegram_unreachable','telegram_status',
+  'update_available','update_applied','update_rolled_back','update_rollback_failed'] as const;
 const NOTIFICATION_MAX_ATTEMPTS = 8;
 const NOTIFICATION_WINDOW_SECONDS:Record<NotificationSeverity,number> = {info:3600,warning:1800,critical:300};
 const NOTIFICATION_BACKOFF_SECONDS = [15,60,300,1800,7200];

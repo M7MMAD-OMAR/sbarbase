@@ -214,6 +214,10 @@ enabled.
 | `notifier.channel_failed` | critical | a channel failed permanently, sent on the remaining channels |
 | `membership.owner_changed` | critical | last owner demoted or removed, or owner membership changed |
 | `project.ownership_changed` | critical | `project.ownership_changed` |
+| `update.available` | info | a check found a newer release; once per version (`lab/updates.py` keeps a ledger past the dedupe window) |
+| `update.applied` | info | a pending upgrade passed its health checks and was confirmed |
+| `update.rolled_back` | warning | a new version failed its start and the automatic way back moved the checkout (emitted after the control state snapshot is restored) |
+| `update.rollback_failed` | critical | an upgrade and its way back both failed |
 
 ## 2. Durable outbox design
 
