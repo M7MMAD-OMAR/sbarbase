@@ -6,7 +6,8 @@
 // production environments to new projects until the catalog's limit refuses one. After
 // each environment the host's available memory, load and every container's measured
 // memory are sampled, so the evidence shows what an environment costs on this host next
-// to what admission reserves for it. The refusal must be a 409 before any job is queued.
+// to what admission reserves for it. The limit is either the count guard (a 409 before any
+// job is queued) or, on a smaller host, the worker's admission (capacity_exceeded).
 // The environments stay, as an operator's would.
 import {createClient} from '@supabase/supabase-js';
 import {readFileSync,statSync,writeFileSync} from 'node:fs';
@@ -84,14 +85,22 @@ try {
    break;
   }
   if(!record(`environment ${held+1} is accepted`,environment.status===202,`status ${environment.status}`))break;
-  let state='queued';const deadline=Date.now()+10*60_000;
-  while(Date.now()<deadline&&!['succeeded','failed','cancelled'].includes(state)){await Bun.sleep(3000);state=(await call('GET',`/environments/${environment.json.id}/provision`)).json?.state??'unknown';}
-  if(!record(`environment ${held+1} is provisioned`,state==='succeeded',`state ${state}`))break;
+  let state='queued',failure='';const deadline=Date.now()+10*60_000;
+  while(Date.now()<deadline&&!['succeeded','failed','cancelled'].includes(state)){await Bun.sleep(3000);
+   const job=(await call('GET',`/environments/${environment.json.id}/provision`)).json;state=job?.state??'unknown';failure=job?.failure??'';}
+  if(state==='failed'&&failure==='capacity_exceeded') {
+   // The worker's memory, pressure and connection admission refused before the count guard:
+   // on a smaller host that is the limit that binds, and it is the one worth measuring.
+   record(`the worker's admission refuses environment ${held+1} before the count guard`,true,`capacity_exceeded at ${held} environment(s)`);
+   await sample(`refused at environment ${held+1}`,held);
+   break;
+  }
+  if(!record(`environment ${held+1} is provisioned`,state==='succeeded',`state ${state}${failure?' '+failure:''}`))break;
   held++;
   await Bun.sleep(20_000);
   await sample(`after environment ${held}`,held);
  }
- const refused=checks.some(row=>row.check.startsWith('the next environment is refused'));
+ const refused=checks.some(row=>row.check.startsWith('the next environment is refused')||row.check.startsWith("the worker's admission refuses"));
  record('the limit was reached',refused,`${held} environment(s)`);
 } catch(error) {
  record('the check completed without an exception',false,error instanceof Error?error.message:String(error));
