@@ -1,6 +1,6 @@
 // First project check: what a new operator does after installing, end to end.
 //
-// Usage: bun lab/first-project-check.ts <operator.json> [--evidence PATH]
+// Usage: bun lab/first-project-check.ts <operator.json> [--evidence PATH] [--base URL]
 //
 // Against the running installation (the URL in .lab/upstream/server.json), it
 // logs in as the operator from the 0600 bootstrap file, creates a project and a
@@ -10,7 +10,8 @@
 // cross-origin preflight. It then revokes
 // the key and requires the gateway to refuse it. The password is read from the
 // file and never printed or written; evidence holds identifiers and results only.
-// The project and environment are kept, as a first project would be.
+// The project and environment are kept, as a first project would be. --base runs
+// the same path through a public URL instead, such as the TLS proxy in front.
 import {createClient} from '@supabase/supabase-js';
 import {readFileSync,statSync,writeFileSync} from 'node:fs';
 
@@ -19,10 +20,11 @@ const args=process.argv.slice(2);
 const operatorPath=args[0];
 const evidenceAt=args.indexOf('--evidence');
 const evidencePath=evidenceAt>=0?args[evidenceAt+1]:'docs/evidence/first-project-check.json';
-if(!operatorPath||!evidencePath){console.error('usage: bun lab/first-project-check.ts <operator.json> [--evidence PATH]');process.exit(2);}
+if(!operatorPath||!evidencePath){console.error('usage: bun lab/first-project-check.ts <operator.json> [--evidence PATH] [--base URL]');process.exit(2);}
 if((statSync(operatorPath).mode&0o077)!==0){console.error('the operator file must be private (mode 600)');process.exit(2);}
 const operator=JSON.parse(readFileSync(operatorPath,'utf8')) as {email:string;password:string};
-const base=(JSON.parse(readFileSync('.lab/upstream/server.json','utf8')) as {url:string}).url;
+const baseAt=args.indexOf('--base');
+const base=baseAt>=0?args[baseAt+1]!.replace(/\/$/,''):(JSON.parse(readFileSync('.lab/upstream/server.json','utf8')) as {url:string}).url;
 
 type Check={check:string;ok:boolean;detail:string};
 const checks:Check[]=[];
@@ -32,7 +34,7 @@ const ids:Record<string,string>={};
 
 async function finish(){
  const passed=checks.length>0&&checks.every(row=>row.ok);
- writeFileSync(evidencePath,JSON.stringify({check:'first-project',recorded:new Date().toISOString(),passed,count:checks.length,
+ writeFileSync(evidencePath,JSON.stringify({check:'first-project',recorded:new Date().toISOString(),through:baseAt>=0?new URL(base).origin:'loopback',passed,count:checks.length,
   seconds:Math.round((Date.now()-started)/1000),ids,checks},null,2)+'\n');
  console.log(`evidence: ${evidencePath}\nfirst project check: ${passed?'passed':'failed'}`);
  process.exit(passed?0:1);
