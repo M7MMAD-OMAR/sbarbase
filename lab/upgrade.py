@@ -15,22 +15,55 @@ and exits, and the restart policy starts the previous version again.
 A version that changes the PostgreSQL image is refused: replacing the database container
 is lab/migrate-generation.py's job, never an upgrade's. Every environment is backed up
 before anything moves, and those backups stay after the upgrade.
+
+The control state (every SQLite store a release may migrate: the control catalog and the key
+store) is snapshotted before the checkout moves, and again when the new version starts, before
+anything opens it. Until the new version passes its health checks (lab/upgrade_health.py) the
+gateway holds application traffic, and the way back restores that snapshot, so nothing is
+lost. After confirmation the fix is forward only: `rollback` then keeps the control state as it
+is, and refuses when the previous version cannot read its catalog.
 """
 import argparse
+import contextlib
 import datetime
+import fcntl
+import hashlib
 import json
 import os
+import re
+import shutil
+import sqlite3
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import durable_runtime as runtime
+import hba_generation
+import hba_journal
 import install_server
 import run as lab
 
 ROOT = lab.ROOT
-STATE_FILE = lab.STATE / 'upgrades' / 'state.json'
+UPGRADES = lab.STATE / 'upgrades'
+STATE_FILE = UPGRADES / 'state.json'
+# Held for the whole of a start or rollback. Not the installation operation lock: the running
+# provisioning worker holds that one for its lifetime, and `start` runs while Sbarbase serves.
+LOCK = UPGRADES / 'upgrade.lock'
+SNAPSHOTS = UPGRADES / 'snapshots'
+KEEP_SNAPSHOTS = 3
+# Present while a new version waits for its health checks: the gateway holds application
+# traffic (src/gateway/hold.ts). It counts only while the state below says a start is pending.
+HOLD = UPGRADES / 'hold'
+PENDING = ('applied', 'rolling_back')
 INTENT = runtime.UPGRADE_INTENT
+UPSTREAM = runtime.STATE
+# The key store lives with the secrets (lab/upstream-app.ts); it holds key digests only.
+KEY_STORE = runtime.PRIVATE / 'managed-keys.sqlite'
+SUPERVISOR_LOCK = UPSTREAM / 'supervisor.lock'
+BACKUP_LOCK = UPSTREAM / 'backup.lock'
+# Records that must be reconciled before anything moves (the same set hba_startup refuses).
+UNSETTLED = ('worker-effect.json', hba_journal.NAME, hba_generation.MIGRATION)
 DATABASE_LOCK = 'distro-image.lock.json'
 # Which lock entry each replaceable service runs, as durable_runtime reads them.
 SERVICES = {'auth': ('images.lock.json', 'auth'), 'rest': ('images.lock.json', 'rest'),
@@ -127,6 +160,180 @@ def now():
     return datetime.datetime.now(datetime.UTC).isoformat(timespec='seconds')
 
 
+@contextlib.contextmanager
+def exclusive(path, refusal, wait=0):
+    """Holds an exclusive flock on path, waiting up to `wait` seconds, or raises UpgradeError."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open('a') as handle:
+        until = time.monotonic() + wait
+        while True:
+            try:
+                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.monotonic() >= until:
+                    raise UpgradeError(refusal) from None
+                time.sleep(.2)
+        yield
+
+
+def held(path):
+    """True while another process holds an flock on path; probes without keeping it."""
+    try:
+        with path.open('r') as handle:
+            try:
+                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                return True
+            fcntl.flock(handle, fcntl.LOCK_UN)
+    except FileNotFoundError:
+        pass
+    return False
+
+
+def present(path):
+    """Only a missing entry is absent; a denied or unreadable path counts as present."""
+    try:
+        path.lstat()
+    except FileNotFoundError:
+        return False
+    return True
+
+
+def sync_directory(path):
+    handle = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(handle)
+    finally:
+        os.close(handle)
+
+
+def sha256(path):
+    value = hashlib.sha256()
+    with path.open('rb') as handle:
+        for block in iter(lambda: handle.read(1 << 20), b''):
+            value.update(block)
+    return value.hexdigest()
+
+
+def stores():
+    """(home, path) of every SQLite store a release may migrate: each one directly under
+    .lab/upstream (the control catalog) and the key store."""
+    found = [('upstream', path) for path in sorted(UPSTREAM.glob('*.sqlite')) if path.is_file()]
+    if KEY_STORE.is_file():
+        found.append(('keys', KEY_STORE))
+    return found
+
+
+def homes():
+    return {'upstream': UPSTREAM, 'keys': KEY_STORE.parent}
+
+
+def snapshot(commit):
+    """A consistent copy of the control state, taken with SQLite's backup API (consistent while a
+    running process has the stores open), into SNAPSHOTS/<commit>-<UTC time>/ with a manifest.
+    The directory gets its name only once complete; returns that name."""
+    SNAPSHOTS.mkdir(parents=True, exist_ok=True)
+    os.chmod(UPGRADES, 0o700)
+    os.chmod(SNAPSHOTS, 0o700)
+    name = f"{commit[:12]}-{datetime.datetime.now(datetime.UTC).strftime('%Y%m%dT%H%M%S%fZ')}"
+    partial = SNAPSHOTS / (name + '.partial')
+    partial.mkdir(mode=0o700)
+    files = []
+    try:
+        for home, path in stores():
+            copy = partial / path.name
+            os.close(os.open(copy, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600))
+            with contextlib.closing(sqlite3.connect(f'file:{path}?mode=ro', uri=True, timeout=30)) as source, \
+                    contextlib.closing(sqlite3.connect(copy)) as target:
+                source.backup(target)
+                version = target.execute('PRAGMA user_version').fetchone()[0]
+            with copy.open('rb') as handle:
+                os.fsync(handle.fileno())
+            files.append({'home': home, 'file': path.name, 'bytes': copy.stat().st_size,
+                          'sha256': sha256(copy), 'user_version': version})
+        lab.atomic(partial / 'manifest.json', {'from': commit, 'taken_at': now(), 'files': files})
+        sync_directory(partial)
+        os.replace(partial, SNAPSHOTS / name)
+        sync_directory(SNAPSHOTS)
+    except (OSError, sqlite3.Error) as error:
+        shutil.rmtree(partial, ignore_errors=True)
+        raise UpgradeError(f'The control state snapshot failed ({error.__class__.__name__}: {error})') from None
+    return name
+
+
+def prune_snapshots(keep=KEEP_SNAPSHOTS):
+    """Keeps the newest few snapshots and always the one the upgrade state points at."""
+    if not SNAPSHOTS.is_dir():
+        return
+    protected = (load_state() or {}).get('snapshot')
+    complete, partial = [], []
+    for path in SNAPSHOTS.iterdir():
+        if path.name.endswith('.partial'):
+            partial.append(path)
+        elif (path / 'manifest.json').is_file():
+            complete.append(path)
+    complete.sort(key=lambda path: (path / 'manifest.json').stat().st_mtime_ns, reverse=True)
+    for path in complete[keep:] + partial:
+        if path.name != protected:
+            shutil.rmtree(path, ignore_errors=True)
+
+
+def restore_snapshot(name):
+    """Puts every store back as the snapshot has it. Every file is verified first, all or nothing;
+    each store is then replaced atomically (private temporary file, fsync, rename). Callers make
+    sure nothing has the stores open: the supervisor is not running."""
+    folder = SNAPSHOTS / name if isinstance(name, str) and name else None
+    try:
+        manifest = json.loads((folder / 'manifest.json').read_text())
+    except (TypeError, OSError, ValueError):
+        raise UpgradeError('The control state snapshot of this upgrade is missing; nothing was restored') from None
+    places = homes()
+    for item in manifest['files']:
+        copy = folder / item['file']
+        if item.get('home') not in places or '/' in item['file'] or not copy.is_file() \
+                or copy.stat().st_size != item['bytes'] or sha256(copy) != item['sha256']:
+            raise UpgradeError(f"The control state snapshot does not match its manifest ({item['file']}); nothing was restored")
+    for item in manifest['files']:
+        target = places[item['home']] / item['file']
+        pending = target.with_name(target.name + '.upgrade-restore')
+        pending.unlink(missing_ok=True)
+        descriptor = os.open(pending, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(descriptor, 'wb') as handle, (folder / item['file']).open('rb') as source:
+            shutil.copyfileobj(source, handle)
+            handle.flush()
+            os.fsync(handle.fileno())
+        if target.exists():
+            # Keep the owner and mode of the store it replaces (root in Docker, another owner outside).
+            current = target.stat()
+            if os.geteuid() == 0:
+                os.chown(pending, current.st_uid, current.st_gid)
+            os.chmod(pending, current.st_mode & 0o777)
+        # A leftover rollback journal would be played back into the restored file: remove it first.
+        for suffix in ('-journal', '-wal', '-shm'):
+            target.with_name(target.name + suffix).unlink(missing_ok=True)
+        os.replace(pending, target)
+        sync_directory(target.parent)
+
+
+def catalog_version():
+    """The control catalog's schema version now, or None without a catalog."""
+    path = UPSTREAM / 'control.sqlite'
+    if not path.is_file():
+        return None
+    try:
+        with contextlib.closing(sqlite3.connect(f'file:{path}?mode=ro', uri=True, timeout=30)) as database:
+            return database.execute('PRAGMA user_version').fetchone()[0]
+    except sqlite3.Error as error:
+        raise UpgradeError(f'The control catalog cannot be read ({error})') from None
+
+
+def catalog_support(commit):
+    """The newest catalog schema a version opens, or None when that version does not check it."""
+    found = re.search(r'CATALOG_SCHEMA_VERSION\s*=\s*(\d+)', git('show', f'{commit}:src/control/catalog.ts', check=False))
+    return int(found.group(1)) if found else None
+
+
 def plan(target_ref):
     current = git('rev-parse', 'HEAD')
     target = resolve(target_ref)
@@ -139,8 +346,13 @@ def plan(target_ref):
     if (database[0] or {}).get('id') != (database[1] or {}).get('id'):
         refusals.append('This version changes the PostgreSQL image; that needs lab/migrate-generation.py, not an upgrade')
     state = load_state()
-    if state and state.get('phase') in ('applied', 'rolling_back'):
+    if state and state.get('phase') in PENDING:
         refusals.append(f"The last {'upgrade' if state['phase'] == 'applied' else 'rollback'} has not started yet; restart Sbarbase first")
+    for name in UNSETTLED:
+        if present(UPSTREAM / name):
+            refusals.append(f'A pending operation record ({name}) must be settled or reconciled first')
+    if held(BACKUP_LOCK):
+        refusals.append('A backup or restore is running; wait for it to finish')
     ahead = git('rev-list', '--count', f'{current}..{target}', check=False) or '?'
     behind = git('rev-list', '--count', f'{target}..{current}', check=False) or '?'
     return {'current': current, 'target': target, 'ahead': ahead, 'behind': behind,
@@ -205,6 +417,11 @@ def install_dependencies():
 
 
 def start(target_ref):
+    with exclusive(LOCK, 'Another upgrade or rollback is running'):
+        apply(target_ref)
+
+
+def apply(target_ref):
     details = plan(target_ref)
     report(details, target_ref)
     if details['refusals']:
@@ -213,9 +430,16 @@ def start(target_ref):
     pins = pins_at(target)
     pull(target)
     back_up()
+    # Proves the control state can be copied before anything moves. The new version takes a
+    # fresh one when it starts (before_start), which is the one the way back restores.
+    try:
+        taken = snapshot(details['current'])
+    except UpgradeError as error:
+        raise UpgradeError(f'{error}; nothing was changed') from None
     record = {'phase': 'applied', 'from': details['current'], 'to': target, 'started_at': now(),
-              'changes': details['changes'], 'automatic': False}
+              'changes': details['changes'], 'automatic': False, 'snapshot': taken}
     save_state(record)
+    prune_snapshots()
     try:
         checkout(target, {'pins': pins, 'from': details['current'], 'to': target})
     except UpgradeError as error:
@@ -229,16 +453,71 @@ def start(target_ref):
 
 
 def rollback(automatic=False):
+    # The automatic way back runs inside the supervisor, which already holds its own lock; it
+    # waits a little for the upgrade lock rather than failing on a moment's overlap.
+    with exclusive(LOCK, 'Another upgrade or rollback is running', wait=30 if automatic else 0):
+        go_back(automatic)
+
+
+def go_back(automatic):
     state = load_state()
     if not state or state.get('phase') not in ('applied', 'confirmed'):
         raise UpgradeError('There is no upgrade to roll back')
     source = state['from']
+    # Before confirmation the new version may have migrated the control state, and nothing it
+    # did is trusted: the snapshot it took on start goes back. A version that never started
+    # (no `attempted_at`) touched nothing, and restoring would drop what the running version
+    # wrote since `start`.
+    restore = state['phase'] == 'applied' and bool(state.get('attempted_at'))
+    if state['phase'] == 'confirmed':
+        # After confirmation the fix is forward only: later writes stay, so the catalog must be
+        # one the previous version can still open.
+        supported, current = catalog_support(source), catalog_version()
+        if supported is not None and current is not None and current > supported:
+            raise UpgradeError(f'The control catalog is at schema {current}, and {source[:12]} opens only up to {supported}. '
+                               'After a confirmed upgrade the fix is forward only: move to a newer version, or restore from '
+                               'the backups taken before the upgrade (lab/backup.py list). Nothing was changed')
     pins = pins_at(source)
     pull(source)
-    state.update({'phase': 'rolling_back', 'automatic': automatic, 'rollback_at': now()})
-    save_state(state)
-    checkout(source, {'pins': pins, 'from': state['to'], 'to': source})
+    guard = contextlib.nullcontext() if automatic or not restore else \
+        exclusive(SUPERVISOR_LOCK, 'Sbarbase is running; stop it first (sudo systemctl stop sbarbase, or docker compose stop), '
+                                   'then roll back, so the control state can be put back safely')
+    with guard:
+        if restore:
+            restore_snapshot(state.get('snapshot'))
+            state['restored'] = state['snapshot']
+        state.update({'phase': 'rolling_back', 'automatic': automatic, 'rollback_at': now()})
+        save_state(state)
+        checkout(source, {'pins': pins, 'from': state['to'], 'to': source})
     print(f'The checkout is back at {source[:12]}.' + ('' if automatic else f' Restart Sbarbase now:\n  {RESTART}'))
+
+
+def before_start():
+    """Called by the supervisor after taking its locks and before anything opens the control
+    state. Returns True when this start confirms a pending upgrade or rollback, which the
+    supervisor then does only after its health checks pass (lab/upgrade_health.py).
+
+    On the first start of a new version it snapshots the control state again, so the way back
+    keeps everything the previous version wrote until the restart, and records that the new
+    version was attempted. Later starts of the same version keep that snapshot: the catalog may
+    already be migrated. A snapshot that fails raises UpgradeError, and the caller moves back
+    before the new version touched anything.
+    """
+    state = load_state()
+    if not state or state.get('phase') not in PENDING:
+        # A marker without a pending start is stale (a crash, or an older release that never
+        # removes it): clear it so it can never hold traffic.
+        HOLD.unlink(missing_ok=True)
+        return False
+    if state['phase'] == 'applied' and not state.get('attempted_at'):
+        with exclusive(LOCK, 'Another upgrade or rollback is running', wait=30):
+            taken = snapshot(state['from'])
+            state.update({'snapshot': taken, 'attempted_at': now()})
+            save_state(state)
+        prune_snapshots()
+    UPGRADES.mkdir(parents=True, exist_ok=True)
+    lab.atomic(HOLD, {'phase': state['phase'], 'since': now()})
+    return True
 
 
 def after_start(started):
@@ -248,24 +527,29 @@ def after_start(started):
     the restart policy brings up the previous version.
     """
     state = load_state()
-    if not state or state.get('phase') not in ('applied', 'rolling_back'):
+    if not state or state.get('phase') not in PENDING:
+        HOLD.unlink(missing_ok=True)
         return False
-    if started:
-        state.update({'phase': 'confirmed' if state['phase'] == 'applied' else 'rolled_back', 'finished_at': now()})
-        save_state(state)
-        INTENT.unlink(missing_ok=True)
-        return False
-    if state['phase'] == 'applied':
-        try:
-            rollback(automatic=True)
-        except (UpgradeError, SystemExit) as error:
-            state.update({'phase': 'rollback_failed', 'failure': str(error), 'finished_at': now()})
+    try:
+        if started:
+            state.update({'phase': 'confirmed' if state['phase'] == 'applied' else 'rolled_back', 'finished_at': now()})
             save_state(state)
+            INTENT.unlink(missing_ok=True)
             return False
-        return True
-    state.update({'phase': 'rollback_failed', 'failure': 'The previous version did not start either', 'finished_at': now()})
-    save_state(state)
-    return False
+        if state['phase'] == 'applied':
+            try:
+                rollback(automatic=True)
+            except (UpgradeError, SystemExit, OSError) as error:
+                state.update({'phase': 'rollback_failed', 'failure': str(error), 'finished_at': now()})
+                save_state(state)
+                return False
+            return True
+        state.update({'phase': 'rollback_failed', 'failure': 'The previous version did not start either', 'finished_at': now()})
+        save_state(state)
+        return False
+    finally:
+        # The version that starts next writes its own marker if it has a start to confirm.
+        HOLD.unlink(missing_ok=True)
 
 
 def status():
@@ -273,9 +557,9 @@ def status():
     if not state:
         print('No upgrade has run on this installation.')
         return
-    words = {'applied': 'waiting for a restart onto the new version',
-             'confirmed': 'the new version started',
-             'rolling_back': 'waiting for a restart onto the previous version',
+    words = {'applied': 'waiting for the new version to start and pass its health checks',
+             'confirmed': 'the new version started and passed its health checks',
+             'rolling_back': 'waiting for the previous version to start and pass its health checks',
              'rolled_back': 'back on the previous version' + (' (automatic, the new version did not start)' if state.get('automatic') else ''),
              'rollback_failed': 'the previous version did not start; restore from the backups taken before the upgrade',
              'failed': 'the upgrade stopped before the checkout moved; nothing changed'}
@@ -283,7 +567,10 @@ def status():
     print(f"result   {state['phase']}: {words.get(state['phase'], '')}")
     if state.get('failure'):
         print('reason   ' + state['failure'])
-    print(f"now at   {git('rev-parse', 'HEAD')[:12]}")
+    if state.get('snapshot'):
+        restored = ' (restored on the way back)' if state.get('restored') == state['snapshot'] else ''
+        print(f"control  snapshot {SNAPSHOTS.relative_to(ROOT) if SNAPSHOTS.is_relative_to(ROOT) else SNAPSHOTS}/{state['snapshot']}{restored}")
+    print(f"now at  {git('rev-parse', 'HEAD')[:12]}")
 
 
 def main(argv=None):

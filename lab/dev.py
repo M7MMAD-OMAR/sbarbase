@@ -114,6 +114,11 @@ class Supervisor:
         # The control catalog the operator's installation drains. None selects the
         # default upstream path; a test passes a private temporary catalog.
         self.catalog = catalog
+        # While an upgrade waits for its health checks (lab/upgrade_health.Confirmation): polled
+        # each turn, True once confirmed, RuntimeError past its deadline. Until then only the
+        # console runs: no worker, backup, Studio, sign-in or toggle may leave an effect that
+        # the way back, which restores the control state, would no longer know about.
+        self.confirm = None
 
     def spawn(self, command):
         return subprocess.Popen(['/usr/bin/python3','lab/parent_bound.py',str(os.getpid()),*command], cwd=ROOT, start_new_session=True)
@@ -137,7 +142,7 @@ class Supervisor:
     def check(self):
         if child_status(self.server) is not None:
             raise RuntimeError('Local API exited; stopping the installation')
-        if child_status(self.worker) is not None:
+        if self.worker is not None and child_status(self.worker) is not None:
             terminate_group(self.worker, grace=0)
             now = time.monotonic()
             while self.restarts and now-self.restarts[0] > 60:
@@ -293,9 +298,18 @@ class Supervisor:
         try:
             self.reset_studios()
             self.server = self.spawn(['bun', 'lab/upstream-server.ts'])
-            self.start_worker()
+            if self.confirm is None:
+                self.start_worker()
+            else:
+                # supervisor.json names the server, which the health check and wait-console read.
+                self.descriptor()
             while not self.stop_event.wait(.25):
                 self.check()
+                if self.confirm is not None:
+                    if not self.confirm.poll():
+                        continue
+                    self.confirm = None
+                    self.start_worker()
                 self.schedule_backup()
                 self.schedule_studios()
                 self.schedule_sign_in()
@@ -345,6 +359,35 @@ def upgrade_outcome(started):
         return False
 
 
+def upgrade_prepare():
+    """True when this start confirms a pending upgrade or rollback (lab/upgrade.py before_start).
+
+    A control state snapshot that cannot be taken is a failed start, so the way back runs
+    before the new version touched anything. Any other bookkeeping failure leaves the start
+    ungated, as it was before health-gated confirmation existed.
+    """
+    try:
+        import upgrade
+    except Exception as error:
+        print(f'Upgrade bookkeeping failed: {error}', file=sys.stderr)
+        return False
+    try:
+        return upgrade.before_start()
+    except upgrade.UpgradeError as error:
+        raise RuntimeError(f'The pending upgrade cannot start: {error}') from None
+    except Exception as error:
+        print(f'Upgrade bookkeeping failed: {error}', file=sys.stderr)
+        return False
+
+
+def upgrade_confirmation(supervisor):
+    """Confirms the pending upgrade from inside the supervisor once its health checks pass."""
+    import upgrade_health
+    return upgrade_health.Confirmation(
+        lambda: upgrade_health.check(STATE, supervisor.server.pid if supervisor.server else None),
+        lambda: upgrade_outcome(True))
+
+
 def main():
     if sys.argv[1:]:
         if sys.argv[1:] in (['--help'], ['-h']):
@@ -368,6 +411,8 @@ def main():
             raise SystemExit('Stop the existing manual worker before starting the runner.')
         started = False
         try:
+            # Before the settle stage, which may open and migrate the control catalog.
+            gated = upgrade_prepare()
             if run_stage(['/usr/bin/python3','lab/worker.py','--upstream','--settle-only'],stop_event,
                          pass_fds=(worker_lock.fileno(),),env=dict(os.environ,SBARBASE_WORKER_FD=str(worker_lock.fileno()))):
                 raise RuntimeError('Provisioning receipt requires reconciliation before startup')
@@ -387,9 +432,15 @@ def main():
             # durable: that is the state change this event records. A stage that fails
             # leaves no durable start, and no event is emitted for it here.
             notify_installation('installation.started')
-            upgrade_outcome(True)
+            if not gated:
+                upgrade_outcome(True)
             if not stop_event.is_set():
-                Supervisor(stop_event, worker_lock.fileno()).run()
+                supervisor = Supervisor(stop_event, worker_lock.fileno())
+                if gated:
+                    # Confirmed only once the console and every environment answer; a deadline
+                    # passed raises RuntimeError below, and the way back runs.
+                    supervisor.confirm = upgrade_confirmation(supervisor)
+                supervisor.run()
         except InterruptedError:
             print('Local installation startup cancelled.', file=sys.stderr)
         except RuntimeError as error:
