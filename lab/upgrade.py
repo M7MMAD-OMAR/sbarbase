@@ -781,7 +781,7 @@ def status():
              'rolling_back': 'waiting for the previous version to start and pass its health checks',
              'rolled_back': 'back on the previous version' + (' (automatic)' if state.get('automatic') else ''),
              'rollback_failed': 'the previous version did not start; restore from the backups taken before the upgrade',
-             'failed': 'the upgrade stopped before the checkout moved; nothing changed'}
+             'failed': 'the upgrade stopped before the new version ran; the checkout is on the previous version'}
     print(f"upgrade  {state['from'][:12]} -> {state['to'][:12]}, started {state['started_at']}")
     print(f"result   {state['phase']}: {words.get(state['phase'], '')}")
     if state.get('automatic') and state.get('reason'):

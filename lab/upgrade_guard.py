@@ -382,10 +382,13 @@ def guard(layout, install=bun_install):
             raise Refused(f'The way back did not finish ({error.__class__.__name__}: {error}); '
                           'the next start tries again') from None
         if crashed or record['attempts'] > MAX_ATTEMPTS:
-            state.update({'phase': 'rollback_failed', 'finished_at': now(),
-                          'failure': 'The previous version did not pass its health checks either'})
+            # An open attempt only says that start never finished: it may have ended in the
+            # preflight, before the previous version's supervisor ran at all.
+            failure = ('The previous version did not finish a start either' if crashed else
+                       f'The previous version did not pass its health checks in {MAX_ATTEMPTS} starts either')
+            state.update({'phase': 'rollback_failed', 'finished_at': now(), 'failure': failure})
             save(state)
-            say(state['failure'] + '; it starts without them')
+            say(failure + '; it starts without the health checks now')
             return 0
         state['guard'] = {**record, 'open': True}
         save(state)

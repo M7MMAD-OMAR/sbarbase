@@ -115,7 +115,7 @@ class GuardTests(Checkout):
         self.assertEqual(self.guard(), 0)  # that attempt died too
         state = self.state()
         self.assertEqual((state['phase'], self.head()), ('rollback_failed', self.first))
-        self.assertIn('did not pass its health checks either', state['failure'])
+        self.assertIn('did not finish a start either', state['failure'])
         self.assertEqual(self.guard(), 0)
         self.assertEqual(self.head(), self.first)
 
