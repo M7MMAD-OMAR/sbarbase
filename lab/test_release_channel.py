@@ -491,7 +491,7 @@ class StartReleaseTests(Fixture):
                      patch.object(upgrade, 'SUPERVISOR_LOCK', upstream / 'supervisor.lock'),
                      patch.object(upgrade, 'BACKUP_LOCK', upstream / 'backup.lock'),
                      patch.object(upgrade, 'INTENT', state / 'upgrade-intent.json'),
-                     patch.object(upgrade, 'pull', side_effect=self.pulled.append), patch.object(upgrade, 'back_up'),
+                     patch.object(upgrade, 'pull', side_effect=self.pulled.append), patch.object(upgrade, 'back_up', return_value=None),
                      patch.object(upgrade, 'install_dependencies')):
             item.start()
             self.addCleanup(item.stop)

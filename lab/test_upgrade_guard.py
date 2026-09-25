@@ -7,6 +7,7 @@ import io
 import json
 import os
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -19,6 +20,9 @@ import dev
 import upgrade
 import upgrade_guard
 from test_upgrade import Checkout, contents, locked, store
+
+# The real probe, before any test replaces it.
+GIT_RUNNING = upgrade_guard.git_running
 
 
 def no_install(layout):
@@ -174,19 +178,21 @@ class GuardTests(Checkout):
                 upgrade.start(self.second)
                 upgrade.before_start()
                 store(self.catalog, 9, 8)
-                real = upgrade.checkout
+                real, calls = upgrade.move_back, []
 
-                def checkout(commit, intent):
+                def move_back(commit, intent, state):
+                    calls.append(commit)
                     if point == 'before the move':
                         raise Crash()
-                    real(commit, intent)
+                    real(commit, intent, state)
                     if point == 'after the move':
                         raise Crash()
                 restore = patch.object(upgrade_guard, 'restore_snapshot', side_effect=Crash()) \
                     if point == 'in the restore' else contextlib.nullcontext()
-                with patch.object(upgrade, 'checkout', checkout), restore:
+                with patch.object(upgrade, 'move_back', move_back), restore:
                     with self.assertRaises(Crash):
                         upgrade.after_start(False, 'Runtime startup failed')
+                self.assertEqual(calls, [self.first])
                 self.assertEqual(self.state()['phase'], 'rolling_back')
                 self.never_ungated_on_the_failed_version()
                 with self.assertRaises(upgrade.UpgradeError):
@@ -219,7 +225,7 @@ class GuardTests(Checkout):
         failures = {
             'the pull of the previous images': lambda: patch.object(upgrade, 'pull', side_effect=upgrade.UpgradeError('pull failed')),
             'the upgrade lock': lambda: locked(upgrade.LOCK),
-            'the checkout': lambda: patch.object(upgrade, 'checkout', side_effect=upgrade.UpgradeError('checkout failed')),
+            'the checkout': lambda: patch.object(upgrade, 'move_back', side_effect=upgrade.UpgradeError('checkout failed')),
             'the dependencies': lambda: patch.object(upgrade, 'install_dependencies', side_effect=upgrade.UpgradeError('bun')),
             'the restore': lambda: patch.object(upgrade_guard, 'restore_snapshot', side_effect=OSError('disk')),
         }
@@ -296,6 +302,290 @@ class GuardTests(Checkout):
         self.assertEqual((self.repo.root / 'lab' / 'upgrade_guard.py').read_text(), '# the new version\n')
 
 
+class ForcedMoveTests(Checkout):
+    """The way back moves the checkout whatever the tree holds, proves it did, and never refuses
+    for good. Crash points are injected into the move itself."""
+
+    def setUp(self):
+        super().setUp()
+        self.catalog = self.upstream / 'control.sqlite'
+        self.keys = self.secrets / 'managed-keys.sqlite'
+        store(self.catalog, 2, 3)
+        store(self.keys, 0, 1)
+        self.edited = self.repo.root / 'lab' / 'images.lock.json'
+        # No test looks at the machine's real processes: other agents run git here too.
+        probe = patch.object(upgrade_guard, 'git_running', return_value=False)
+        probe.start()
+        self.addCleanup(probe.stop)
+
+    guard = GuardTests.guard
+    state = GuardTests.state
+    guard_status = GuardTests.guard_status
+
+    def tidy(self):
+        return self.repo.git('status', '--porcelain', '--untracked-files=no') == ''
+
+    def asides(self):
+        return {path.relative_to(folder).as_posix(): path.read_text()
+                for folder in upgrade.UPGRADES.glob('aside-*') for path in folder.rglob('*') if path.is_file()}
+
+    def rolling_back_with_an_edit(self):
+        """The state go_back saved before the old, plain checkout refused a local edit."""
+        upgrade.start(self.second)
+        upgrade.after_start(True)
+        state = self.state()
+        upgrade_guard.begin_way_back(state, False, None)
+        state['way_back'] = upgrade.way_back(state)
+        upgrade.save_state(state)
+        self.edited.write_text('{"ports": "local"}')
+
+    def test_a_way_back_blocked_by_a_local_edit_sets_it_aside_and_finishes(self):
+        self.rolling_back_with_an_edit()
+        self.assertEqual(self.guard(), 0)
+        state = self.state()
+        self.assertEqual((self.head(), state['phase'], state['moved_back']), (self.first, 'rolling_back', True))
+        self.assertTrue(self.tidy())
+        self.assertEqual(self.asides(), {'lab/images.lock.json': '{"ports": "local"}'})
+        self.assertEqual(stat.S_IMODE(next(upgrade.UPGRADES.glob('aside-*')).stat().st_mode), 0o700)
+        self.assertTrue(upgrade.before_start())
+
+    def test_an_operator_rollback_that_raced_an_edit_moves_it_aside(self):
+        """The refusal comes first; a change made between it and the move is set aside, not fatal."""
+        store(self.catalog, 0, 3)  # a catalog the first version opens
+        upgrade.start(self.second)
+        upgrade.after_start(True)
+        real = upgrade.pull
+
+        def edit_then_pull(commit):
+            self.edited.write_text('{"late": true}')
+            return real(commit)
+        with patch.object(upgrade, 'pull', edit_then_pull):
+            upgrade.rollback()
+        self.assertEqual((self.head(), self.state()['moved_back']), (self.first, True))
+        self.assertEqual(self.asides(), {'lab/images.lock.json': '{"late": true}'})
+
+    def test_a_crash_at_each_point_of_the_forced_move_is_finished_by_the_next_start(self):
+        real_git, real_aside = upgrade_guard.git, upgrade_guard.set_aside
+
+        def aside_then_crash(*args):
+            real_aside(*args)
+            raise Crash()
+
+        def checkout_then_crash(layout, *args, **options):
+            result = real_git(layout, *args, **options)
+            if args[:3] == ('checkout', '-q', '-f'):
+                raise Crash()
+            return result
+
+        def install_crashes(layout):
+            raise Crash()
+        points = {
+            'after the copy, before the checkout': (patch.object(upgrade_guard, 'set_aside', aside_then_crash), no_install),
+            'after the checkout, before it is verified': (patch.object(upgrade_guard, 'git', checkout_then_crash), no_install),
+            'after the move, before moved_back is saved': (contextlib.nullcontext(), install_crashes),
+        }
+        for name, (point, install) in points.items():
+            with self.subTest(name):
+                self.setUp()
+                self.rolling_back_with_an_edit()
+                with point, self.assertRaises(Crash):
+                    upgrade_guard.guard(upgrade.layout(), install=install)
+                self.assertEqual(self.state()['moved_back'], False)
+                self.assertEqual(self.guard(), 0)
+                self.assertEqual((self.head(), self.state()['moved_back']), (self.first, True))
+                self.assertTrue(self.tidy())
+                # The first copy is the operator's edit; a retry never overwrites it.
+                self.assertEqual(self.asides(), {'lab/images.lock.json': '{"ports": "local"}'})
+
+    def test_a_half_written_tree_whose_head_never_moved_is_put_back(self):
+        """A checkout killed after it wrote some files, before the index and HEAD moved: the plain
+        `git checkout <from>` was a no-op, and the half-written tree ran ungated as `failed`."""
+        def half(commit, intent):
+            self.edited.write_text(self.repo.git('show', f'{commit}:lab/images.lock.json'))
+            raise Crash()
+        with patch.object(upgrade, 'checkout', half), self.assertRaises(Crash):
+            upgrade.start(self.second)
+        self.assertEqual((self.head(), self.state()['moved']), (self.first, False))
+        self.assertFalse(self.tidy())
+        self.assertEqual(self.guard(), 0)
+        self.assertEqual((self.head(), self.state()['phase']), (self.first, 'failed'))
+        self.assertTrue(self.tidy())
+        self.assertIn('postgrest:v1', self.edited.read_text())
+
+    def test_a_stale_index_lock_is_cleared_only_when_no_git_process_holds_it(self):
+        with patch.object(upgrade, 'checkout', side_effect=Crash()), self.assertRaises(Crash):
+            upgrade.start(self.second)
+        lock = self.repo.root / '.git' / 'index.lock'
+        lock.write_text('')
+        with patch.object(upgrade_guard, 'git_running', return_value=True):
+            with self.assertRaisesRegex(upgrade_guard.Refused, 'the next start tries again'):
+                self.guard()
+        self.assertTrue(lock.exists())
+        self.assertEqual(self.state()['move_failures'], 1)
+        self.assertEqual(self.guard(), 0)
+        self.assertFalse(lock.exists())
+        self.assertEqual((self.head(), self.state()['phase']), (self.first, 'failed'))
+        self.assertNotIn('move_failures', self.state())
+
+    def test_the_git_process_probe_finds_a_git_working_in_the_checkout(self):
+        # A git that waits on its input, working in this checkout. Only the positive answer is
+        # checked: whether other processes on this machine count depends on who runs them.
+        process = subprocess.Popen(['git', 'cat-file', '--batch'], cwd=self.repo.root, stdin=subprocess.PIPE,
+                                   stdout=subprocess.DEVNULL)
+        try:
+            self.assertTrue(GIT_RUNNING(self.repo.root))
+        finally:
+            process.stdin.close()
+            process.wait()
+
+    def test_a_failed_move_back_in_start_is_left_for_the_guard_not_recorded_failed(self):
+        """apply() used to ignore a failed move back and record `failed`, so the moved checkout ran
+        without its gate."""
+        with patch.object(upgrade, 'install_dependencies', side_effect=upgrade.UpgradeError('No space left on device')):
+            with self.assertRaisesRegex(upgrade.UpgradeError, 'Moving the checkout back failed too'):
+                upgrade.start(self.second)
+        state = self.state()
+        self.assertEqual((state['phase'], state['moved']), ('applied', False))
+        self.assertEqual(self.head(), self.first)  # moved, verified, only the dependencies failed
+        self.assertEqual(self.guard(), 0)
+        self.assertEqual((self.head(), self.state()['phase']), (self.first, 'failed'))
+
+    def test_a_crash_during_the_move_back_of_start_is_finished_by_the_next_start(self):
+        with patch.object(upgrade, 'install_dependencies', side_effect=upgrade.UpgradeError('bun install failed')), \
+                patch.object(upgrade, 'move_back', side_effect=Crash()), self.assertRaises(Crash):
+            upgrade.start(self.second)
+        self.assertEqual((self.head(), self.state()['phase'], self.state()['moved']), (self.second, 'applied', False))
+        self.assertEqual(self.guard(), 0)
+        self.assertEqual((self.head(), self.state()['phase']), (self.first, 'failed'))
+        self.assertTrue(self.tidy())
+
+    @unittest.skipIf(os.geteuid() == 0, 'root writes through the permissions this test takes away')
+    def test_a_move_back_that_cannot_write_the_tree_is_redone_once_it_can(self):
+        """The reviewer's case: the dependencies fail and the same condition stops the move back."""
+        folder = self.repo.root / 'lab'
+
+        def failing():
+            os.chmod(folder, 0o555)
+            raise upgrade.UpgradeError('bun install failed for this version')
+        self.addCleanup(os.chmod, folder, 0o755)
+        with patch.object(upgrade, 'install_dependencies', side_effect=failing), \
+                self.assertRaisesRegex(upgrade.UpgradeError, 'Moving the checkout back failed too'):
+            upgrade.start(self.second)
+        self.assertEqual((self.state()['phase'], self.state()['moved']), ('applied', False))
+        os.chmod(folder, 0o755)
+        self.assertEqual(self.guard(), 0)
+        self.assertEqual((self.head(), self.state()['phase']), (self.first, 'failed'))
+        self.assertTrue(self.tidy())
+
+    def test_a_move_that_keeps_failing_stays_stopped_rather_than_start_the_failed_version(self):
+        upgrade.start(self.second)
+        self.guard()
+        self.guard()  # died: the way back begins
+        self.repo.git('checkout', '-q', '--detach', self.second)
+        state = self.state()
+        state.update({'moved_back': False, 'restored': None, 'guard': None})
+        upgrade.save_state(state)
+        with patch.object(upgrade_guard, 'force_checkout', side_effect=OSError(28, 'No space left on device')):
+            for attempt in range(1, upgrade_guard.MAX_ATTEMPTS):
+                with self.assertRaisesRegex(upgrade_guard.Refused, 'the next start tries again'):
+                    self.guard()
+                self.assertEqual(self.state()['move_failures'], attempt)
+            with contextlib.redirect_stderr(io.StringIO()) as said:
+                self.assertEqual(self.guard(), upgrade_guard.STUCK)
+            self.assertEqual(said.getvalue().count('\n'), 1)
+            self.assertIn('stays stopped', said.getvalue())
+            self.assertEqual(self.guard(), upgrade_guard.STUCK)
+        state = self.state()
+        self.assertEqual((state['phase'], self.head()), ('rolling_back', self.second))
+        self.assertIn('No space left on device', state['stuck']['reason'])
+        with contextlib.redirect_stdout(io.StringIO()) as shown:
+            upgrade.status()
+        self.assertIn('stuck', shown.getvalue())
+        self.never_ungated_on_the_failed_version()
+        # Once the cause is gone, the next start finishes the way back.
+        self.assertEqual(self.guard(), 0)
+        state = self.state()
+        self.assertEqual((self.head(), state['phase'], contents(self.catalog)), (self.first, 'rolling_back', (2, 3)))
+        self.assertNotIn('stuck', state)
+
+    never_ungated_on_the_failed_version = GuardTests.never_ungated_on_the_failed_version
+
+    def test_a_way_back_that_reached_the_previous_version_ends_there_when_the_rest_keeps_failing(self):
+        upgrade.start(self.second)
+        self.guard()
+        upgrade.before_start()
+        store(self.catalog, 9, 8)
+        def failing(layout):
+            raise upgrade_guard.Refused('bun install failed for the previous version')
+        # The attempt is still open: the way back begins, and the previous version's
+        # dependencies fail on every start.
+        for _ in range(upgrade_guard.MAX_ATTEMPTS - 1):
+            with self.assertRaises(upgrade_guard.Refused):
+                upgrade_guard.guard(upgrade.layout(), install=failing)
+        self.assertEqual(upgrade_guard.guard(upgrade.layout(), install=failing), 0)
+        state = self.state()
+        self.assertEqual((state['phase'], self.head()), ('rollback_failed', self.first))
+        self.assertIn('bun install failed', state['failure'])
+        self.assertEqual((state['restored'], contents(self.catalog)), (state['snapshot'], (2, 3)))
+        self.assertEqual(state['notices'][-1], {'was': 'rolling_back', 'phase': 'rollback_failed'})
+
+    def test_an_operator_rollback_that_cannot_move_keeps_the_confirmed_version(self):
+        self.rolling_back_with_an_edit()
+        self.repo.git('checkout', '--', '.')
+        upgrade.INTENT.parent.mkdir(parents=True, exist_ok=True)
+        upgrade.INTENT.write_text(json.dumps(self.state()['way_back']))
+        with patch.object(upgrade_guard, 'force_checkout', side_effect=upgrade_guard.Refused('checkout failed')):
+            for _ in range(upgrade_guard.MAX_ATTEMPTS - 1):
+                with self.assertRaises(upgrade_guard.Refused):
+                    self.guard()
+            self.assertEqual(self.guard(), 0)
+        state = self.state()
+        self.assertEqual((state['phase'], self.head()), ('confirmed', self.second))
+        self.assertIn('stays on the confirmed version', state['rollback_failure'])
+        self.assertFalse(upgrade.INTENT.exists(), "the previous version's pins must not reach the confirmed version")
+
+    def test_a_stuck_move_back_of_start_logs_one_line_per_retry(self):
+        with patch.object(upgrade, 'checkout', side_effect=Crash()), self.assertRaises(Crash):
+            upgrade.start(self.second)
+        with patch.object(upgrade_guard, 'force_checkout', side_effect=OSError(13, 'Permission denied')), \
+                patch.object(upgrade_guard, 'head', return_value='0' * 40):
+            for _ in range(upgrade_guard.MAX_ATTEMPTS - 1):
+                with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(upgrade_guard.Refused):
+                    self.guard()
+            with contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(self.guard(), upgrade_guard.STUCK)
+            # Every retry after that, every STUCK_WAIT: one line.
+            for _ in range(2):
+                with contextlib.redirect_stderr(io.StringIO()) as said:
+                    self.assertEqual(self.guard(), upgrade_guard.STUCK)
+                self.assertEqual(said.getvalue().count('\n'), 1, said.getvalue())
+        self.assertEqual(self.state()['phase'], 'applied')
+
+    def test_a_way_back_from_an_older_record_is_never_taken_for_a_confirmed_one(self):
+        self.rolling_back_with_an_edit()
+        state = self.state()
+        state.pop('back_from')
+        upgrade.save_state(state)
+        self.repo.git('checkout', '--', '.')
+        with patch.object(upgrade_guard, 'force_checkout', side_effect=upgrade_guard.Refused('checkout failed')):
+            for _ in range(upgrade_guard.MAX_ATTEMPTS - 1):
+                with self.assertRaises(upgrade_guard.Refused):
+                    self.guard()
+            self.assertEqual(self.guard(), upgrade_guard.STUCK)
+
+    def test_main_waits_before_it_exits_on_stuck_unless_a_terminal_started_it(self):
+        with patch.object(upgrade_guard, 'guard', return_value=upgrade_guard.STUCK), \
+                patch.object(upgrade_guard.time, 'sleep') as sleep:
+            with patch.dict(os.environ, {'SBARBASE_GUARD_WAIT': ''}):
+                self.assertEqual(upgrade_guard.main([str(self.repo.root)]), 1)
+            sleep.assert_called_once_with(upgrade_guard.STUCK_WAIT)
+            sleep.reset_mock()
+            with patch.dict(os.environ, {'SBARBASE_GUARD_WAIT': '0'}):
+                self.assertEqual(upgrade_guard.main([str(self.repo.root)]), 1)
+            sleep.assert_not_called()
+        self.assertLess(upgrade_guard.STUCK_WAIT, 600, 'inside the unit TimeoutStartSec')
+
+
 class StandaloneTests(unittest.TestCase):
     def test_the_guard_uses_the_standard_library_only(self):
         tree = ast.parse(Path(upgrade_guard.__file__).read_text())
@@ -362,6 +652,8 @@ class DevGuardTests(unittest.TestCase):
         self.assertEqual(stopped.exception.code, dev.RESTART_FOR_UPGRADE)
         self.assertEqual(run.call_args.args[0][0], '/usr/bin/python3')
         self.assertTrue(run.call_args.args[0][1].endswith('guard.py'))
+        # A terminal gets the guard's line at once, without the wait before a service restart.
+        self.assertEqual(run.call_args.kwargs['env']['SBARBASE_GUARD_WAIT'], '0')
         with patch.object(dev.subprocess, 'run', return_value=subprocess.CompletedProcess([], 1)):
             with self.assertRaisesRegex(SystemExit, 'guard stopped'):
                 dev.run_guard({})

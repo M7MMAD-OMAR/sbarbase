@@ -71,6 +71,52 @@ class RetentionTests(Fixture):
         # oldest upgrade is an ordinary backup again and was pruned with the others.
         self.assertEqual(names, ['20260903T100000Z', '20260905T100000Z', '20260907T100000Z', '20260908T030000Z', '20260909T030000Z'])
 
+    def test_only_upgrades_that_moved_the_checkout_keep_their_backups(self):
+        """Failed tries (the backup ran, then the snapshot or the move failed) used to take the
+        protected slots, and the backups of the upgrades that really moved were pruned."""
+        moved = ['20260901T100000Z', '20260903T100000Z']
+        failed = ['20260904T100000Z', '20260905T100000Z', '20260906T100000Z']
+        for stamp in moved:
+            self.complete(stamp, reason='upgrade')
+            backup.mark_moved(stamp)
+        for stamp in failed:
+            self.complete(stamp, reason='upgrade')
+        for day in range(1, 10):
+            self.complete(f'202609{day:02d}T030000Z')
+        self.assertEqual(backup.moved_runs(), set(moved))
+        self.assertEqual(backup.upgrade_runs(), set(moved))
+        # A run under way counts until it ends, moved or not.
+        self.assertEqual(backup.upgrade_runs(current='20260909T100000Z'), {*moved, '20260909T100000Z'})
+        backup.prune(E, 2)
+        self.assertEqual([path.name for path in backup.complete_backups(E)],
+                         [*moved, '20260908T030000Z', '20260909T030000Z'])
+        self.assertEqual(oct(backup.moved_record().stat().st_mode & 0o777), '0o600')
+        with self.assertRaises(backup.BackupError):
+            backup.mark_moved('../elsewhere')
+
+    def test_a_damaged_record_of_moved_upgrades_keeps_every_upgrade_run(self):
+        for stamp in ('20260901T100000Z', '20260902T100000Z'):
+            self.complete(stamp, reason='upgrade')
+        backup.private_dir(self.backups)
+        backup.moved_record().write_text('{')
+        self.assertIsNone(backup.moved_runs())
+        self.assertEqual(backup.upgrade_runs(), {'20260901T100000Z', '20260902T100000Z'})
+        # Replacing it keeps them too.
+        self.complete('20260903T100000Z', reason='upgrade')
+        backup.mark_moved('20260903T100000Z')
+        self.assertEqual(backup.upgrade_runs(), {'20260901T100000Z', '20260902T100000Z', '20260903T100000Z'})
+
+    def test_the_first_mark_keeps_the_upgrade_runs_taken_before_the_record_existed(self):
+        legacy = ['20260901T100000Z', '20260902T100000Z', '20260903T100000Z']
+        for stamp in legacy:
+            self.complete(stamp, reason='upgrade')
+        self.complete('20260904T100000Z', reason='upgrade')
+        backup.mark_moved('20260904T100000Z')
+        self.assertEqual(backup.upgrade_runs(), {*legacy[1:], '20260904T100000Z'})
+        # From then on a try that did not move is an ordinary run.
+        self.complete('20260905T100000Z', reason='upgrade')
+        self.assertEqual(backup.upgrade_runs(), {*legacy[1:], '20260904T100000Z'})
+
     def test_an_upgrade_run_under_way_counts_among_the_last_ones_read_once_for_the_run(self):
         upgrades = ['20260901T100000Z', '20260903T100000Z', '20260905T100000Z']
         for stamp in upgrades:

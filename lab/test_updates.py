@@ -745,6 +745,12 @@ class RollbackVerdictTests(Checkout):
         with patch('builtins.print'):
             self.assertEqual(upgrade.main(['rollback', '--check']), 0)
         self.assertEqual(self.head(), target)
+        # A local edit to a tracked file: the console is told why, in a sentence, before anything moves.
+        (self.repo.root / 'src/control/catalog.ts').write_text('edited on the server\n')
+        possible, reason = updates.rollback_verdict(upgrade.load_state())
+        self.assertFalse(possible)
+        self.assertEqual(reason, 'The checkout has local changes to tracked files (src/control/catalog.ts), which a '
+                                 'rollback would move aside. Commit or discard them on the server first. Nothing was changed.')
 
 
 if __name__ == '__main__':

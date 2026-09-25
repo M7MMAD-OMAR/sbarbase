@@ -14,7 +14,7 @@ Recorded 2026-09-25. Built from the [update channel plan](plans/2026-09-25-updat
 | `lab/dev.py` | Wiring: `upgrade_prepare`, the gated start, `Supervisor.schedule_updates`, `RESTART_FOR_UPGRADE = 42` |
 | `src/control/updates.ts`, `src/control/http.ts` | The console's side: `GET /management/v1/updates`, `PUT .../settings`, `POST .../check`, `.../apply`, `.../rollback`, for the installation operator only |
 | `src/gateway/hold.ts`, `src/http/health.ts`, `lab/upstream-server.ts` | The traffic hold and the loopback `/health` |
-| `ui/Updates.tsx`, `ui/releases.ts` | The notice, the Updates page, the progress view and the settings form. Release notes follow `document.documentElement.lang`, which the console sets to `en` only, so the Arabic notes are not shown yet |
+| `ui/Updates.tsx`, `ui/releases.ts` | The notice, the Updates page, the progress view and the settings form. The console is English only, so release notes follow the browser's preferred language instead (`navigator.languages`: Arabic when it comes before English, else English) |
 | `deploy/sbarbase.service`, `compose.yaml`, `Dockerfile` | `RestartForceExitStatus=42`; `restart: unless-stopped`; `openssh-client` for `ssh-keygen`, `tzdata` so `TZ` may name a zone |
 | `deploy/release-signers`, `release.json` | Allowed signers (no key yet); the manifest of the running version |
 
@@ -32,12 +32,13 @@ Every turn of the supervisor follows the child, the drain and `request.json`; th
 
 ## The upgrade state
 
-`.lab/upgrades/state.json` holds the last upgrade: `from`, `to`, `phase`, `started_at`, `snapshot`, `trigger` (`cli`, `console`, `automatic`), `automatic` (the way back happened by itself), for a channel release `release: {version, tag, class, signed}` (in the first record `start` saves), `retryable` when the new version's first start found a record the previous version left unsettled (the way back that follows does not rule the version out for automatic mode), and `notices` for outcomes the guard recorded (see [Notifications](#notifications)).
+`.lab/upgrades/state.json` holds the last upgrade: `from`, `to`, `phase`, `started_at`, `snapshot`, `trigger` (`cli`, `console`, `automatic`), `automatic` (the way back happened by itself), for a channel release `release: {version, tag, class, signed}` (in the first record `start` saves), `retryable` when the new version's first start found a record the previous version left unsettled (the way back that follows does not rule the version out for automatic mode), and `notices` for outcomes the guard recorded (see [Notifications](#notifications)). The move itself adds `backup` (the time of the backup run `start` took), `back_from` (the phase a way back left), `move_failures`, `stuck` and `rollback_failure` (see [Moving the checkout](#moving-the-checkout)).
 
 | From | Event | To |
 |---|---|---|
-| none | `start` passed its refusals, pulled, recorded its point of no return (`outcome.json`), backed up (`--reason upgrade`, so pruning keeps the last three such runs) and took the first snapshot | `applied` |
-| `applied` | the checkout move or `bun install` failed; the checkout is put back | `failed` |
+| none | `start` passed its refusals, pulled, recorded its point of no return (`outcome.json`), backed up (`--reason upgrade`; pruning keeps the last three such runs whose try moved the checkout) and took the first snapshot | `applied` |
+| `applied` | the checkout move or `bun install` failed; the checkout is moved back (forced and verified, see [Moving the checkout](#moving-the-checkout)) with the previous version's dependencies | `failed` |
+| `applied` | that move back failed too: nothing more is saved, so `moved` stays false | `applied`, until the next start's guard moves back and records `failed` |
 | `applied` | first start of the new version (`before_start`): a fresh snapshot replaces the first one, `attempted_at` is set | `applied` |
 | `applied` | a health round passed | `confirmed` |
 | `applied` | a start stage failed, or no round passed by the deadline: snapshot restored (only if `attempted_at`), checkout moved back | `rolling_back` (`automatic: true`) |
@@ -116,9 +117,36 @@ The hold (`src/gateway/hold.ts`) is the marker **and** a pending phase in `state
 - A store the new version created that is not in the manifest is left in place.
 - After confirmation nothing is restored. `rollback` keeps the control state and refuses when the catalog's `user_version` is newer than the `CATALOG_SCHEMA_VERSION` the previous commit's `src/control/catalog.ts` declares (no refusal when that commit declares none).
 
+## Moving the checkout
+
+Every way back to the previous version (the move back when `start` fails, an operator's rollback, the automatic way back in `after_start`, and the guard's own) goes through one move, `upgrade_guard.force_checkout` (`upgrade.move_back` wraps it with the intent and `bun install`). Only the forward move of `start` stays a plain checkout, since `plan()` just found the tree clean.
+
+1. A `.git/index.lock` left by a git process that was killed is removed, only while the caller holds `upgrade.lock` and no git process can be using the checkout (`git_running`: one whose working directory is in the checkout, or cannot be read).
+2. Every tracked file that differs from HEAD (staged or not, evidence included) and every untracked file the target would overwrite is copied to `.lab/upgrades/aside-<time>/` (0700), one folder per upgrade or way back. A copy already there is never overwritten: the first is the operator's own edit, a later one may be a half-written tree. A copy that fails stops the move before anything is overwritten.
+3. `git checkout -q -f --detach <commit>`.
+4. HEAD must be the commit and the tracked tree clean before anything is recorded; the files git rewrote get the checkout's owner.
+
+A plain checkout used to fail here in two ways: a local edit made the way back refuse on every later start, with the unit restarting forever; and a `start` killed after it wrote part of the tree, before HEAD moved, made `git checkout <from>` a no-op, so the half-written tree was recorded `failed` and ran ungated.
+
+**Before it gets there.** An operator's `rollback`, and so the console's rollback verdict, refuses a checkout with local changes to tracked files outside `docs/evidence/` (`upgrade.rollback_refusal`), naming up to three of them: a change made on purpose, such as a port in `compose.yaml`, should not move aside from a button. The automatic way back never refuses on it: the version it leaves is failing, and the changes go aside.
+
+**When the move keeps failing.** The guard counts failed moves (and restores after them) in `move_failures`. The next starts try again, up to `MAX_ATTEMPTS`; then the outcome is terminal (`cannot_move`), chosen as the least harmful start:
+
+| The checkout holds | Recorded | The start |
+|---|---|---|
+| the previous version, clean | `failed` (the move back of `start`) or `rollback_failed` (a way back, the snapshot restored first when it is due; a restore that fails says so) | goes on, ungated, on the previous version |
+| the confirmed version, clean, after an operator's rollback of it (`back_from: confirmed`, which `begin_way_back` records) | `confirmed` again with `rollback_failure`; the previous version's intent is removed | goes on, on the version that passed its health checks |
+| anything else (the failed version, a half-written tree, a way back from an older record without `back_from`) | `stuck: {at, reason}`, the phase stays pending | does not go on |
+
+No exit status of an `ExecStartPre` stops systemd from restarting (`RestartPreventExitStatus` applies to the main process only), and Docker's `unless-stopped` restarts any exit, so staying stopped is the guard's own doing: it prints one line, releases its locks, waits `STUCK_WAIT` (300 seconds, inside the unit's `TimeoutStartSec` of 600) and exits 1. Each restart tries the move once more, so the installation comes back by itself once the cause (a full disk, wrong ownership) is gone. A start from a terminal (`lab/dev.py run_guard`, `SBARBASE_GUARD_WAIT=0`) gets the line without the wait. `upgrade.py status` shows the stuck reason.
+
+**The supervisor after a failed child.** A nonzero exit of an apply or rollback child does not prove that nothing moved. Before it resumes provisioning, the supervisor checks the upgrade state and HEAD against the commit it started on (`Supervisor.unsettled`); when the state is pending or HEAD differs or cannot be read, it fails the request with a sentence saying Sbarbase restarts, stops and exits with 42, and the guard settles the checkout first. Whether the child got there comes from the state too (`Supervisor.moved_for_good`): an apply with `applied`, `moved` and HEAD at `to`, or a rollback with its way back done, counts as done even when the child exited nonzero (it could not write its outcome, say). The request is then `done`, the automatic try is not spent, and the supervisor restarts as after a clean exit.
+
+**Backups of an upgrade.** `back_up` returns the run's time, which `start` records as `backup` and marks in `.lab/backups/upgrade-moved.json` (`backup.mark_moved`) once the checkout moved. Only marked runs count toward `UPGRADE_RUNS_KEPT`, so failed tries no longer take the protected slots. Before any run was marked, and with a damaged record, every upgrade run counts, as before; the first mark (or one replacing a damaged record) starts from every upgrade run there is, so no earlier upgrade loses its protection, and failed tries from before it keep theirs until newer upgrades push them out.
+
 ## Trust model
 
-- **Source:** `https://github.com/M7MMAD-OMAR/sbarbase.git`, or `SBARBASE_RELEASE_SOURCE`. Never the local `origin`. Network Git runs with `GIT_TERMINAL_PROMPT=0` and a 120 second timeout.
+- **Source:** `https://github.com/M7MMAD-OMAR/sbarbase.git`, or `SBARBASE_RELEASE_SOURCE` (which `compose.yaml` passes into the container; empty means the canonical repository). Never the local `origin`. Network Git runs with `GIT_TERMINAL_PROMPT=0` and a 120 second timeout.
 - **Listing is a hint:** `git ls-remote --tags` names candidates (`vMAJOR.MINOR.PATCH`, pre-releases only with `--preview`, which the console and the supervisor never pass). One tag at a time is fetched with `--no-tags --no-write-fetch-head` into `refs/sbarbase-releases/tags/`, so the operator's branches, tags and remotes stay as they are.
 - **Verification fails closed:** no key in the signers file, no `ssh-keygen`, a lightweight tag, a tag object whose own `tag` header differs from the fetched name (a replayed signed tag), a tag not pointing at a commit, or `git verify-tag` with `gpg.format=ssh`, `gpg.ssh.allowedSignersFile` and `gpg.minTrustLevel=fully` that does not print a good signature or prints "No principal matched" (the exit code alone is not trusted across Git versions). An unsigned release is still reported, with `signed: false` and the reason in the refusals, so the console can say why.
 - **Signers come from the running checkout:** `deploy/release-signers` at `ROOT`. A key a version does not list is not trusted by it, and a local edit to that file blocks upgrades as a local change.
@@ -165,7 +193,7 @@ The guard (`lab/upgrade_guard.py`) imports nothing from `lab/`, so a way back or
 
 ## Tests
 
-Workstation, 2026-09-25: `lab/test_release_channel.py`, `lab/test_updates.py`, `lab/test_upgrade.py` (which also holds the older upgrade tests) and `lab/test_upgrade_health.py`, 86 tests, OK; `tests/hold.test.ts`, `tests/updates-routes.test.ts` and `tests/updates-ui.test.ts`, 42 pass; after the console moved to the supervisor's install verdict, 54 pass. After the supervisor's side took on the verdict, the outcome record and the point of no return, the four Python files above with `lab/test_upgrade_guard.py` and `lab/test_upgrade_drain.py` hold 160 tests, OK, and the whole Python suite 978, OK. The existing CI job and `lab/vm-milestones.sh upgrade` exercise `start --to` only.
+Workstation, 2026-09-25: `lab/test_release_channel.py`, `lab/test_updates.py`, `lab/test_upgrade.py` (which also holds the older upgrade tests) and `lab/test_upgrade_health.py`, 86 tests, OK; `tests/hold.test.ts`, `tests/updates-routes.test.ts` and `tests/updates-ui.test.ts`, 42 pass; after the console moved to the supervisor's install verdict, 54 pass. After the supervisor's side took on the verdict, the outcome record and the point of no return, the four Python files above with `lab/test_upgrade_guard.py` and `lab/test_upgrade_drain.py` hold 160 tests, OK, and the whole Python suite 978, OK. After the forced and verified way back, the terminal outcomes of the guard, the supervisor's settling after a failed child and the backup marking, those six files hold 183 tests and `lab/test_backup.py` 20, OK, the whole Python suite 1004, OK, and `bun test` 293 pass. The existing CI job and `lab/vm-milestones.sh upgrade` exercise `start --to` only.
 
 Pending acceptance, from the plan: the CI upgrade check gains a release that migrates the catalog and then fails (returns with nothing lost), a release that starts but fails health (returns), and an unsigned tag (refused); and the VM rehearsal of a real bump and back passes before automatic updates are described as ready.
 
@@ -176,7 +204,11 @@ Pending acceptance, from the plan: the CI upgrade check gains a release that mig
 - A way back that lands on a version older than the channel confirms its start without a health round or hold, and cannot deliver the `update.*` notifications.
 - `lab/install_server.py supervise`, with or without `--apply`, rewrites the tracked `docs/evidence/supervisor-unit.json`. On this version that does not block an upgrade: `plan()` ignores changes under `docs/evidence/` and `set_aside_evidence` copies them to `.lab/upgrades/evidence-<time>/` before the move. An installation whose `lab/upgrade.py` has no `set_aside_evidence` (it landed on 2026-09-25) still refuses; the workaround is to copy `docs/evidence/` aside and run `git checkout -- docs/evidence` as the service account once.
 - The health round does not cover Realtime, Edge Functions or Studio, and one passing round confirms: a version that passes and then misbehaves is not moved back by itself.
-- Console changes made during the confirmation window (at most about two minutes from the console's start) are dropped by the snapshot restore if the way back runs, including provisioning jobs requested then. Database schema changes a newer Auth or Storage made at start are not undone.
+- During the confirmation window (at most about two minutes from the console's start) management changes are refused with 409 by the hold, so the snapshot restore has none to drop; what passes (reads, sign-in, "roll back", "check now", the update settings) is nothing the snapshot restores. Database schema changes a newer Auth or Storage made at start are not undone.
 - An automatic try that passed its point of no return and then failed (its backup, for example) spends that version for good, even when the cause passes by itself; only the tries before that point are repeated.
 - The record of how a child ended (`outcome.json`) holds the last run only; the supervisor moves what matters (a spent try) into the ledger when the child ends or at its next start, before another child can replace it.
-- `SBARBASE_RELEASE_SOURCE` is not passed into the container by `compose.yaml`. The `sbarbase` command has no `channel` or `--release`.
+- The `sbarbase` command has no `channel` or `--release`.
+- The forced move, the terminal outcomes and the stuck wait live in the guard, and the way back runs the copy of the guard taken from the version the upgrade left (`.lab/upgrades/guard.py`). So they protect upgrades started from a version that has them; an upgrade started from an older version is still moved back by that version's guard, plain checkout and all.
+- The console's rollback verdict is judged at start, after confirmation and when the upgrade record changes, not when a file changes: after a local edit the page may still offer "Roll back", and the supervisor refuses the request with the local changes sentence when it picks it up.
+- A guard that cannot even write `state.json` (a full or read-only disk) records nothing, so it cannot count its failures and the service manager's restarts loop until the disk is writable.
+- A stale `.git/index.lock` is removed only when no git process could be using the checkout; a git process of another user whose working directory the service account cannot read counts as one, so on a host where root runs git elsewhere the lock waits for the operator.
