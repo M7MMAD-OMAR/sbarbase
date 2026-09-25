@@ -14,7 +14,12 @@ const conflicts:Record<string,string>={
  'Environment is not ready':'This environment is not provisioned yet.',
  'Studio is not running':'Studio is not running yet. Start it first.',
  'Last owner cannot be removed':'An organization needs at least one owner. Make someone else an owner first.',
- 'Shares exceed gateway capacity':'The gateway has no free share left. Lower another environment\'s share first.'};
+ 'Shares exceed gateway capacity':'The gateway has no free share left. Lower another environment\'s share first.',
+ 'Organization has projects':'Delete or move this organization\'s projects first.',
+ 'Project has environments':'Delete this project\'s environments first.',
+ 'Installation organization cannot be deleted':'This organization runs the installation and cannot be deleted.',
+ 'Provisioning is active':'Wait until provisioning finishes.',
+ 'Environment services are still on':'Turn off Studio, Realtime, Edge Functions and database access for this environment first, and wait for changes in progress to finish.'};
 export function api(token:string):Api {
  return async(path,method='GET',body,signal)=>{
   const response=await fetch('/management/v1'+path,{method,signal,headers:{authorization:'Bearer '+token,...(body===undefined?{}:{'content-type':'application/json'})},
