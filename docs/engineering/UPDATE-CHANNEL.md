@@ -22,6 +22,8 @@ Recorded 2026-09-25. Built from the [update channel plan](plans/2026-09-25-updat
 
 The console process cannot upgrade: `upgrade.py start` moves the checkout under the running console, and only the supervisor can stop everything and exit so the service manager starts the new code. So the console writes a request and the supervisor carries it out, checking everything again itself. The console never runs Git and never trusts the request file: the supervisor re-derives the refusal from `available.json`, takes the tag from there rather than from the request, and `upgrade.py start --release` fetches and verifies the tag again from the source and moves to the verified commit, never to a ref.
 
+The supervisor is also the one authority on whether a release can be installed now. It publishes that verdict in `current.json`, and the console answers an apply and draws its Install button from it rather than judging the class, the signature, the refusals or the phase again (see [The console's side](#the-consoles-side)).
+
 After an apply or rollback child exits 0, the supervisor finishes the request, stops its children and the owned runtime, releases its locks and exits with 42. systemd restarts it through `Restart=on-failure` and, explicitly, `RestartForceExitStatus=42`; Docker through `restart: unless-stopped`. Neither restarts a clean exit 0, which is why the code is not 0. A failed start exits 1, which both also restart.
 
 Only one update child runs at a time (a check, an apply or a rollback), spawned through `lab/parent_bound.py` with its output in `.lab/upgrades/<kind>.log`, copied to the journal once it ends. A failure of the scheduling itself pauses it for 60 seconds and never stops the installation.
@@ -60,7 +62,17 @@ Only one update child runs at a time (a check, an apply or a rollback), spawned 
 | `running` | the supervisor started again and the upgrade state shows it went through | `done` |
 | `running` | otherwise, at the next start or with no child to follow | `failed` (`interrupted`) |
 
-A final request is copied to `last-request.json` and the slot freed. An apply request waits while the daily backup runs. The refusal sentences are shared word for word between `lab/updates.py` `MESSAGES` and `src/control/updates.ts` `UPDATE_MESSAGES`; `lab/test_updates.py` keeps them in step.
+A final request is copied to `last-request.json` and the slot freed. An apply request waits while the daily backup runs. The refusal and settings sentences are shared word for word between `lab/updates.py` `MESSAGES` and `src/control/updates.ts` `UPDATE_MESSAGES`: `lab/test_updates.py` checks that each Python sentence is in the TypeScript, and `tests/updates-routes.test.ts` that each TypeScript one is in `lab/updates.py`. The console's own sentences for a verdict not written yet are `CONSOLE_MESSAGES`, not shared.
+
+## The console's side
+
+`src/control/updates.ts` and the routes in `src/control/http.ts` serve the installation operator only (403 for anyone else), and every refusal ends in `refusal()`, which answers an `UpdateRefusal` with its own sentence (400 for input, 409 for state).
+
+- **`GET /management/v1/updates`** reads `current.json`, `available.json`, `state.json`, `request.json` (else `last-request.json`), `check.json` and `settings.json` once each, through `readJsonCached`, so an unchanged file costs one stat. The running version is `current.json`, else the checkout's `release.json` without a commit. `available.json` is shown as it is: the supervisor moves a result made on another commit aside.
+- **`install`** is `null` when nothing is on offer. Otherwise it is `{possible, reason, acknowledgement}` from the supervisor's `apply` verdict about that very version, with three console cases: no verdict at all (the supervisor has not finished starting), a verdict about another version or none (not judged yet), and an apply or rollback request under way (the `busy` sentence). The page shows `reason` as it is and asks for the acknowledgement when the verdict does.
+- **`POST .../apply`** with `{version, acknowledged?}` refuses (409) when there is no verdict, when it is `null` (`nothing`), names another version (`other`), says `possible: false` (its `reason`), or asks for the acknowledgement and the body does not carry `acknowledged: true` (`acknowledge`). The request takes the tag from the verdict. The only check the console keeps is the request slot: the hard link that fails while another request exists (`busy`).
+- **`POST .../rollback`** answers with the `rollback` verdict, as in [canRollback](#canrollback). **`POST .../check`** only asks. **`PUT .../settings`** validates as the supervisor does and returns the zone beside the saved settings.
+- **The console** (`ui/Updates.tsx`, `ui/releases.ts`) keeps the update state in `UpdatesProvider`, read only by the banner and the Updates page, so a 2 second poll during a watched upgrade does not render the whole console again. `openRequest(view)` names the apply or rollback under way (a request not finished, or an `applied` or `rolling_back` phase): the page is busy while there is one and, loaded meanwhile, resumes watching it.
 
 ## Confirmation gate and hold
 
@@ -72,7 +84,7 @@ While gated, `Supervisor.run` starts only the console. The worker, the daily bac
 - A round is: the console's `/health` (which reads the catalog schema; `server.json` must name the server this supervisor started), the management Auth `/health`, and for each routed runtime (provisioned, not deleted, not in maintenance, not moved) Auth `/health`, REST `/`, and Storage `/bucket` with a `service_role` token and the tenant host. All must answer 200.
 - A passing round calls `upgrade_outcome(True)`: phase to `confirmed` or `rolled_back`, intent and marker removed, the outcome notification emitted; then the worker starts and `current.json` is published again. The deadline raises `RuntimeError`, `main` calls `upgrade_outcome(False)`, and the process exits 1.
 
-The hold (`src/gateway/hold.ts`) is the marker **and** a pending phase in `state.json`, re-read at most once a second. Anything else fails open, including an unreadable state, so a stale marker can never wedge an installation. Held: everything except `/management/` gets `503` with `Retry-After: 5`; Realtime socket upgrades get 503; the direct database listener gets no target. Not held: the console's static files, `/management/`, Studio hosts and `/health`, which also reports `held`.
+The hold (`src/gateway/hold.ts`) is the marker **and** a pending phase in `state.json`, re-read at most once a second. Anything else fails open, including an unreadable state, so a stale marker can never wedge an installation. Held: everything except `/management/` gets `503` with `Retry-After: 5`; Realtime socket upgrades get 503; the direct database listener gets no target. Under `/management/`, reads, the management Auth realm (sign-in, refresh, sign-out), "roll back", "check now" and the update settings pass, since the snapshot restores none of what they write; every other management change gets 409 with a sentence saying changes are paused, because the way back would drop it silently. The supervisor's own probe through the gateway passes (`src/gateway/hold-bypass.ts`). Not held: the console's static files, Studio hosts and `/health`, which also reports `held`. When nothing is held, a request costs one cached `held()` answer and nothing else.
 
 ## Snapshot scope and restore rules
 
@@ -128,7 +140,7 @@ An operator's rollback earns no notification; every way back, requested or autom
 
 ## Tests
 
-Workstation, 2026-09-25: `lab/test_release_channel.py`, `lab/test_updates.py`, `lab/test_upgrade.py` (which also holds the older upgrade tests) and `lab/test_upgrade_health.py`, 86 tests, OK; `tests/hold.test.ts`, `tests/updates-routes.test.ts` and `tests/updates-ui.test.ts`, 42 pass. The existing CI job and `lab/vm-milestones.sh upgrade` exercise `start --to` only.
+Workstation, 2026-09-25: `lab/test_release_channel.py`, `lab/test_updates.py`, `lab/test_upgrade.py` (which also holds the older upgrade tests) and `lab/test_upgrade_health.py`, 86 tests, OK; `tests/hold.test.ts`, `tests/updates-routes.test.ts` and `tests/updates-ui.test.ts`, 42 pass; after the console moved to the supervisor's install verdict, 54 pass. The existing CI job and `lab/vm-milestones.sh upgrade` exercise `start --to` only.
 
 Pending acceptance, from the plan: the CI upgrade check gains a release that migrates the catalog and then fails (returns with nothing lost), a release that starts but fails health (returns), and an unsigned tag (refused); and the VM rehearsal of a real bump and back passes before automatic updates are described as ready.
 
