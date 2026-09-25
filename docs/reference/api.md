@@ -77,6 +77,24 @@ All routes need `Authorization: Bearer <management access token>`. The actor com
 
 Request bodies accept exactly the fields listed for the route, at most 4 KiB, read within five seconds. Key and connection routes and every `DELETE` refuse any body. Responses are not cacheable. A move revokes API keys but does not rotate the environments' JWT signing key or direct database password; rotate them ([signing key](../guides/signing-keys.md)) when people of the old client must lose every kind of access. Deleting an environment does not free its slot in the worker's environment limit, because its runtime is kept.
 
+## Updates
+
+The update channel's routes ([upgrades](../guides/upgrades.md)), in [src/control/http.ts](../../src/control/http.ts) and [src/control/updates.ts](../../src/control/updates.ts). Only the installation operator (an owner or admin of the client created at bootstrap) may call them; anyone else gets `403`. The console only reads and asks: the supervisor carries out each request after judging it again, and publishes its verdicts in `.lab/upgrades/current.json`.
+
+| Method | Path | Result |
+|---|---|---|
+| GET | `/management/v1/updates` | `{data}` with `current` (`version`, `commit`), `available` (the release on offer: `version`, `tag`, `commit`, `class` of `safe`, `attended`, `rebuild` or `manual`, `signed`, `reasons`, `notes` in `en` and `ar`, `changes`) or `null`, `refusals`, `skipped` and `newest` (newer releases the check passed over), `checkedAt`, `checkError`, `settings`, `timezone` (`name`, `offset`), `last` (the last upgrade and its phase), `request` (the one under way, else the last finished), `install` (`possible`, `reason`, `acknowledgement`, or `null` when nothing is on offer) and `canRollback` |
+| PUT | `/management/v1/updates/settings` | Body `{"check": bool, "automatic": bool, "window": {"start": "HH:MM", "end": "HH:MM"}}`, 24-hour server local time. `200` with the saved `data` and the `timezone`. `400` with a sentence for invalid settings, and when `automatic` is on without `check` |
+| POST | `/management/v1/updates/check` | No body. `202 {state: "requested"}`: the supervisor runs one check |
+| POST | `/management/v1/updates/apply` | Body `{"version": "X.Y.Z", "acknowledged"?: bool}`. `202 {state: "requested"}`. `400` without a valid version. `409` with a sentence when the supervisor has not judged the release yet, nothing is on offer, the version is not the one on offer, its verdict says it cannot be installed now (with the verdict's reason), or it is an `attended` release and `acknowledged` is not `true` |
+| POST | `/management/v1/updates/rollback` | No body. `202 {state: "requested"}`, or `409` with the reason when the last upgrade cannot be rolled back |
+
+Every request route answers `409` with "Another update request is still in progress" while another request holds the slot. While a new version waits for its health checks, reads, the management sign-in, `check`, `settings` and `rollback` pass; every other management change answers `409` with a sentence saying changes are paused, and application routes answer `503` with `Retry-After: 5`. The supervisor's own health probe passes the hold on REST and Auth only, with a per-start token and never with `x-forwarded-*` headers ([src/gateway/hold-bypass.ts](../../src/gateway/hold-bypass.ts)).
+
+## Loopback health
+
+`GET /health` (or `HEAD`) on the loopback listener, for `127.0.0.1` or `localhost` only, needs no token. It answers `200 {"status": "ok", "held": bool}` once the process serves and both the control catalog and the key store read, and `503 {"status": "unavailable"}` otherwise; any other method is `405`. `held` says whether application traffic is held for an update. The supervisor's health round after an update starts with this route ([src/http/health.ts](../../src/http/health.ts)).
+
 ## Application gateway
 
 ```

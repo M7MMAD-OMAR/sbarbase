@@ -43,7 +43,9 @@ The console and the API listen on loopback only. Publish them through the TLS pr
 
 ## Updates
 
-The console's Updates page shows a newer signed release, and installs a safe one with one click ([upgrades](upgrades.md)). The supervisor backs up every environment, moves the checkout, stops cleanly and exits with code 42. `restart: unless-stopped` starts the container again on any exit, with the same image, and the new version then holds application traffic until its health checks pass. If they do not pass, it moves back by itself and the container restarts once more on the previous version.
+The console's Updates page shows a newer signed release, installs a safe one with one click, and installs one that changes Auth, Storage or Realtime after you confirm a warning ([upgrades](upgrades.md)). The supervisor lets running work finish, backs up every environment, moves the checkout, stops cleanly and exits with code 42. `restart: unless-stopped` starts the container again on any exit, with the same image. The container's start script runs the upgrade guard first, before anything else, and the new version then holds application traffic until its health checks pass. If they do not pass, it moves back by itself and the container restarts once more on the previous version; the guard also moves back after 3 failed starts or a start that died halfway.
+
+Two settings in `compose.yaml` concern updates. `TZ` sets the container's time zone, which the maintenance window of automatic updates is read in (UTC when unset; the image carries the time zone database, so a name such as `Asia/Dubai` works). `SBARBASE_RELEASE_SOURCE` points the update check at a mirror; leave it empty for the canonical repository.
 
 A plain restart reuses the image and the container `compose.yaml` created. A release whose class is "needs a rebuild" changes one of them, so it is installed on the server, and the container is rebuilt:
 
@@ -52,7 +54,7 @@ docker compose exec sbarbase python3 lab/upgrade.py start --release vX.Y.Z --all
 docker compose up -d --build
 ```
 
-Do not update with `git pull`: that skips the backup, the control snapshot and the way back. The first move onto the version with the update channel is a rebuild too; the [upgrades guide](upgrades.md) has the steps. The update channel has unit tests only so far: its live CI cases and VM rehearsal have not run yet.
+Do not update with `git pull`: that skips the backup, the control snapshot and the way back. The first move onto the version with the update channel is a rebuild too; the [upgrades guide](upgrades.md) has the steps. The update channel has unit tests only so far: nothing about it has run live or in the rehearsal VM yet.
 
 ## How it fits together
 

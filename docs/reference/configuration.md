@@ -90,24 +90,30 @@ If `.lab/upstream/backup-offsite.json` exists, each daily backup run is encrypte
 
 ## Update channel
 
-The console's update settings, requests and the upgrade record live in `.lab/upgrades/`, private to the service account: the directory is 0700, and the JSON files are 0600 and each replaced atomically. The console writes only `settings.json` and `request.json`; the supervisor writes the rest ([upgrades](../guides/upgrades.md)).
+The update settings, requests and the upgrade record live in `.lab/upgrades/`, private to the service account: the directory is 0700, and the JSON files are 0600 and each replaced atomically. The console writes only `settings.json` and `request.json`; the supervisor and `lab/upgrade.py` write the rest ([upgrades](../guides/upgrades.md)).
 
 | Path | Holds |
 |---|---|
 | `.lab/upgrades/settings.json` | The operator's settings: `check` (default on), `automatic` (default off) and the maintenance `window` in server local time (default 3:00 AM to 5:00 AM, stored as `"03:00"` and `"05:00"`). A missing or damaged file means the defaults |
-| `.lab/upgrades/request.json` | The one request under way (`apply`, `rollback` or `check`), created only when none exists; the supervisor checks it again before acting |
+| `.lab/upgrades/request.json` | The one request under way (`apply`, `rollback` or `check`, with `acknowledged` for an attended release), created only when none exists; the supervisor judges it again before acting |
 | `.lab/upgrades/last-request.json` | The last finished request, for the console's progress view |
-| `.lab/upgrades/available.json` | The last check's result: the running version, the newest release it can move to, its class, notes and refusals |
+| `.lab/upgrades/current.json` | The supervisor's word to the console: the running version, the `rollback` verdict, the `apply` verdict for the release on offer (can it be installed now, the reason, whether it needs the acknowledgement), `pending` while an upgrade or rollback waits, and the `timezone` the window is read in |
+| `.lab/upgrades/available.json` | The last check's result: the running version, the release on offer with its class, notes and refusals, and the newer releases passed over with the reason |
+| `.lab/upgrades/available.previous.json` | A check result made on another version, moved aside so the console never offers the release just installed |
 | `.lab/upgrades/check.json` | When the last check ran, its error and the count of failures in a row (for the backoff) |
-| `.lab/upgrades/ledger.json` | Versions already announced, tried automatically and rolled back, so each is announced once and never retried automatically |
-| `.lab/upgrades/current.json` | What runs now and whether the console may offer a rollback, written by the supervisor |
-| `.lab/upgrades/state.json` | The last upgrade: from, to, phase (`applied`, `confirmed`, `rolling_back`, `rolled_back`, `rollback_failed`, `failed`), who started it and its snapshot |
+| `.lab/upgrades/outcome.json` | How the last update child the supervisor ran ended (passed its point of no return, changed anything, refusals, error), for the request's detail and the automatic tries |
+| `.lab/upgrades/ledger.json` | Per version: announced, automatic tries, whether a try was spent past its point of no return, and rolled back |
+| `.lab/upgrades/state.json` | The last upgrade: from, to, phase (`applied`, `confirmed`, `rolling_back`, `rolled_back`, `rollback_failed`, `failed`), who started it, its snapshot, the guard's attempt count, why it went back, and notices the next start sends |
 | `.lab/upgrades/snapshots/` | Control state snapshots (catalog and key store) with a manifest; the newest three are kept, plus the one the last upgrade names |
+| `.lab/upgrades/guard.py` | The start guard of the version the last upgrade left, which every start runs first (see [the start guard](../guides/upgrades.md#the-start-guard)) |
 | `.lab/upgrades/hold` | Present while a new version waits for its health checks; the gateway holds application traffic only while `state.json` also says a start is pending |
+| `.lab/upgrades/probe-token` | A random token for this start's health checks through the gateway, 0600; it exists only while the hold does |
 | `.lab/upgrades/evidence-<time>/` | Evidence written on this server, copied aside before the checkout moved |
-| `.lab/upgrades/upgrade.lock`, `check.log`, `apply.log`, `rollback.log` | The lock one upgrade or rollback holds, and the output of the last child of each kind |
+| `.lab/upgrades/upgrade.lock`, `channel.lock`, `check.log`, `apply.log`, `rollback.log` | The lock one upgrade or rollback holds, the lock of one release check or fetch, and the output of the last child of each kind |
+| `.lab/upstream/worker-drain` | Present while the supervisor drains before an update: the worker claims no new job |
+| `.lab/upstream/upgrade-intent.json` | Which pinned images the next start may replace, written by an upgrade or a way back |
 
-`SBARBASE_RELEASE_SOURCE` names the Git repository the release check reads (a URL or a path); by default the canonical repository over HTTPS. Signatures are checked against `deploy/release-signers` of the running checkout whatever the source. `compose.yaml` does not pass it into the container; with Docker, add it to its `environment` list.
+`SBARBASE_RELEASE_SOURCE` names the Git repository the release check reads (a URL or a path); by default the canonical repository over HTTPS. Signatures are checked against `deploy/release-signers` of the running checkout whatever the source. `TZ` sets the zone the maintenance window is read in; `compose.yaml` passes both into the container (see [operator settings](#operator-settings)).
 
 ## State directories
 
@@ -135,7 +141,9 @@ Set these in `compose.yaml` (Docker) or as `Environment=` lines of the systemd s
 | `SBARBASE_PUBLIC_URL` | `http://localhost` | The address people and OAuth providers reach this server at, such as `https://api.example.com`. Auth builds email links and OAuth callbacks from it. A change applies at the next start |
 | `SBARBASE_CONSOLE_PORT` | chosen at start | The loopback port of the console and API, for a TLS proxy |
 | `SBARBASE_BACKUP_HOUR` | `3` | Hour (UTC) of the daily backup; `off` stops it |
-| `SBARBASE_BACKUP_KEEP` | `7` | Backups kept per environment |
+| `SBARBASE_BACKUP_KEEP` | `7` | Backups kept per environment. Backups taken for an upgrade are not counted: those of the last 3 upgrades are always kept |
+| `TZ` | UTC in the container | The zone the maintenance window of automatic updates is read in, for example `Asia/Dubai`. Outside Docker the server's own zone applies |
+| `SBARBASE_RELEASE_SOURCE` | the canonical repository | Where the update check reads signed releases: a mirror's Git URL or path |
 | `SBARBASE_DATABASE_PORT` | `6543` | Port of the direct database access listener ([database access](../guides/database-access.md)); `off` turns it off |
 | `SBARBASE_DATABASE_BIND` | `127.0.0.1` | Address that listener binds. Keep loopback and use an SSH tunnel; another address sends database traffic unencrypted |
 | `SBARBASE_UPLOAD_LIMIT_MB` | `50` | The largest file an application may upload to Storage, in MiB (1 to 5120), as Supabase's global file size limit. Larger uploads get `413`. A change applies at the next start, which recreates the shared Storage container; a bucket's own limit can be lower ([evidence](../evidence/docker-upload-checks.json)) |
