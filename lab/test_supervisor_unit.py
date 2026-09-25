@@ -59,6 +59,22 @@ class RenderingTests(unittest.TestCase):
         with self.assertRaisesRegex(SystemExit,'before the upgrade guard'):
             install_server.rendered_unit(ROOT,Path('/srv/x'),'sbarbase','/srv/x/.bun/bin',text=swapped)
 
+    def test_the_leftover_stop_runs_between_the_guard_and_the_preflight(self):
+        rendered=self.render()
+        self.assertLess(rendered.index(install_server.GUARD_LINE),rendered.index(install_server.LEFTOVER_LINE))
+        self.assertLess(rendered.index(install_server.LEFTOVER_LINE),rendered.index('lab/install_server.py check'))
+        # Relative and skipped when the file is absent: the installed unit outlives a way back.
+        self.assertIn("if [ -f lab/leftover_runtime.py ]",install_server.LEFTOVER_LINE)
+        self.assertTrue((ROOT/'lab'/'leftover_runtime.py').is_file())
+        shipped=install_server.SERVICE_UNIT.read_text()
+        with self.assertRaises(SystemExit):
+            install_server.rendered_unit(ROOT,Path('/srv/x'),'sbarbase','/srv/x/.bun/bin',
+                                         text=shipped.replace(install_server.LEFTOVER_LINE+'\n',''))
+        preflight='ExecStartPre=/usr/bin/python3 /opt/sbarbase/lab/install_server.py check'
+        late=shipped.replace(install_server.LEFTOVER_LINE+'\n','').replace(preflight,preflight+'\n'+install_server.LEFTOVER_LINE)
+        with self.assertRaisesRegex(SystemExit,'between the upgrade guard and the preflight'):
+            install_server.rendered_unit(ROOT,Path('/srv/x'),'sbarbase','/srv/x/.bun/bin',text=late)
+
     def test_a_missing_bun_directory_is_refused(self):
         with self.assertRaises(SystemExit):
             install_server.rendered_unit(ROOT,Path('/srv/x'),'sbarbase','')

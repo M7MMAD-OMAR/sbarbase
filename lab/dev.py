@@ -851,6 +851,24 @@ def run_guard(environment=os.environ):
         raise SystemExit(RESTART_FOR_UPGRADE)
 
 
+def settle_leftover():
+    """Stops an owned runtime a killed supervisor left running, as this process's own stop does
+    (lab/leftover_runtime.py), before anything of this start runs: a start with it still up reads
+    the memory it holds as taken and may refuse. Runs with supervisor.lock and worker.lock held,
+    which prove no other supervisor or worker owns it. The systemd unit already ran it before
+    the preflight; this covers the container's start script (baked into the image, so it gets
+    this through the checkout without a rebuild) and a terminal start. When it declines (pending
+    authority state, a held effect lock) the start goes on as it did before, and the settle stage
+    or the runtime's own ownership check refuses it; a stop that fails refuses the start."""
+    import leftover_runtime
+    try:
+        outcome, reason = leftover_runtime.settle(STATE, caller_holds=('supervisor.lock', 'worker.lock'))
+    except leftover_runtime.StopFailed as error:
+        raise SystemExit(str(error))
+    if outcome == 'decline':
+        print(reason, file=sys.stderr, flush=True)
+
+
 def upgrade_confirmation(supervisor):
     """Confirms the pending upgrade from inside the supervisor once its health checks pass."""
     import upgrade_health
@@ -880,6 +898,9 @@ def main():
             fcntl.flock(worker_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             raise SystemExit('Stop the existing manual worker before starting the runner.')
+        # Outside the try below: refusing here is not a failed start of this version, so it
+        # never takes an upgrade's way back.
+        settle_leftover()
         started = False
         restart = False
         gated = False

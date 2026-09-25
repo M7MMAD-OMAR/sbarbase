@@ -4,7 +4,7 @@
 
 Sbarbase tells you in the console when a newer signed release exists. A safe release installs with one click, and a release that changes environment databases installs after you confirm a warning. An update from the console, or an automatic one, first lets running work finish; every upgrade backs up your environments. Application traffic waits until the new version passes its health checks, and Sbarbase returns to the previous version by itself if it does not. You can also let safe releases install themselves inside a maintenance window. That is off by default.
 
-Nothing here is production ready. The update channel (the release check, the console page, one-click install, automatic updates, the start guard and the drain) was built on 2026-09-25 and so far is covered by unit tests only. **Nothing about it has run live or in the rehearsal VM yet.** The CI job now includes three cases for it (a release that migrates the control catalog and then fails, one that fails its health checks, an unsigned tag), but no run of them is recorded. The upgrade runs recorded in CI and in the rehearsal VM used the command line path (`start --to`), not the channel, the console or automatic updates; see [what has been run](#what-has-been-run).
+Nothing here is production ready. The update channel (the release check, the console page, one-click install, automatic updates, the start guard and the drain) was built on 2026-09-25 and is covered by unit tests and by three CI cases, which passed on 2026-09-25 on a clean CI machine, not a real server ([evidence](../evidence/docker-upgrade-checks.json), 45 of 45 checks): a version that migrates the control catalog and then stops, one whose PostgREST never answers and one that never passes its health checks each moved back by themselves, with the catalog snapshot restored and application traffic held with 503 while the health checks waited, and an unsigned tag and a tag signed by an unlisted key were refused with nothing moved. Those runs moved the checkout with `lab/upgrade.py` from the command line, not the console or automatic updates. **Nothing about the channel has run in the rehearsal VM or on a real server yet**; see [what has been run](#what-has-been-run).
 
 ## Where you see an update
 
@@ -34,7 +34,7 @@ If the new version does not become healthy, the page says so and Sbarbase is bac
 2. **Drain.** The provisioning worker stops claiming new jobs, and the supervisor waits until the job in hand, any Studio, sign-in, Realtime, Edge Functions, database access or signing key change, and the daily backup have finished, and no operation record is left to settle. Nothing new starts meanwhile. If that takes longer than 10 minutes, the request fails, nothing moves, and provisioning continues.
 3. **Checks.** `lab/upgrade.py start --release <tag>` fetches the release tag again, verifies its signature and computes its class again from the source. It refuses, with nothing changed, when the checkout has local changes to tracked files, when the release does not contain every commit the checkout runs, when the release changes the PostgreSQL image, when an earlier upgrade has not finished starting, when an operation record still needs settling, or when a backup or restore is running. Evidence the acceptance and the live checks wrote under `docs/evidence/` is not a local change: it is copied to `.lab/upgrades/evidence-<time>/` before the checkout moves.
 4. **Images.** It pulls every image the new version pins, so a missing download never stops a running installation. Everything up to here changes nothing.
-5. **Backup.** It backs up every environment on this server ([backup and restore](backup-and-restore.md)). The start of this step is the point of no return for an automatic try. Backups taken for an upgrade are marked as such. Once the checkout has moved, the run is also recorded in `.lab/backups/upgrade-moved.json`: the backups of the last 3 upgrades that moved the checkout are kept whatever their age, and they do not count against `SBARBASE_BACKUP_KEEP`. A try that stopped before the move keeps ordinary backups.
+5. **Backup.** It backs up every environment on this server and Storage's shared `storage_metadata` database ([backup and restore](backup-and-restore.md)), all under one run time. The start of this step is the point of no return for an automatic try. Backups taken for an upgrade are marked as such. Once the checkout has moved, the run is also recorded in `.lab/backups/upgrade-moved.json`: the backups of the last 3 upgrades that moved the checkout are kept whatever their age, and they do not count against `SBARBASE_BACKUP_KEEP`. A try that stopped before the move keeps ordinary backups.
 6. **Control snapshot and guard.** It copies the control state (the control catalog, every SQLite store directly under `.lab/upstream/`, and the key store `.secrets/upstream/managed-keys.sqlite`) into `.lab/upgrades/snapshots/`, and copies this version's start guard to `.lab/upgrades/guard.py` (see [the start guard](#the-start-guard)).
 7. **The move.** It moves the checkout to the release commit and installs its dependencies.
 8. **Restart.** The supervisor stops the console and the owned containers cleanly, then exits with code 42. systemd (`RestartForceExitStatus=42` in the unit) and Docker (`restart: unless-stopped`) start it again. From the command line you restart it yourself.
@@ -77,6 +77,8 @@ A move that keeps failing is tried again by the next starts. After 3 failed move
 
 After an update child fails in a way that may have left the checkout between two versions, the supervisor does not resume provisioning on it: it fails the request, says Sbarbase restarts, and exits so the guard settles the checkout first. A way back the guard takes is announced by the next start that can send notifications. The systemd unit sets `StartLimitIntervalSec=0`, so systemd never stops restarting while the guard needs several starts, and `TimeoutStartSec=600`, because a way back reinstalls the previous version's dependencies before the preflight runs.
 
+A supervisor that is killed rather than stopped (SIGKILL, the OOM killer), during the health checks or at any other time, leaves the owned containers running, since Docker owns them and not the service. After the guard, the next start stops them the way the supervisor's own stop does, keeping every container and volume (`lab/leftover_runtime.py`, the unit's second `ExecStartPre`, and again in the supervisor after it takes its locks). It refuses instead, and names why, when a live supervisor or worker still holds its lock or a provisioning receipt or HBA journal waits for reconciliation. A unit installed before that line existed still refuses at the preflight until the unit is reinstalled ([server deployment](server-deployment.md)).
+
 ## The four classes
 
 The class is computed from the difference between the commit you run and the release commit, not taken from what the release says about itself. A release can only make itself stricter, by declaring a data migration.
@@ -90,7 +92,14 @@ The class is computed from the difference between the commit you run and the rel
 
 ### Releases that need your confirmation
 
-Auth, Storage and Realtime each run their own schema migrations in every environment database when they start, and the previous image may not run on the migrated schema. The way back restores the control state only, not environment databases. So if such an update returns to the previous version, **environment data may need restoring from the backups taken before the upgrade**. Storage also migrates its shared `storage_metadata` database, which holds every environment's Storage settings; the per-environment backups do not include it. That is why this class installs only after an explicit acknowledgement, and never automatically.
+Auth, Storage and Realtime each run their own schema migrations in every environment database when they start, and the previous image may not run on the migrated schema. The way back restores the control state only, not environment databases. So if such an update returns to the previous version, **environment data may need restoring from the backups taken before the upgrade**. Storage also migrates its shared `storage_metadata` database, which holds every environment's Storage settings; the backup before the upgrade holds it too, beside the environments. That is why this class installs only after an explicit acknowledgement, and never automatically.
+
+To undo such an update completely after the way back, restore the run taken before it, with Sbarbase running on the previous version. `python3 lab/backup.py list` marks that run "before an upgrade". Restore each environment first, then `storage_metadata`, whose restore restarts Storage last so it starts on registrations that match the restored environments:
+
+```
+python3 lab/backup.py restore <environment> <backup>     # once per environment
+python3 lab/backup.py restore-storage <backup>           # Storage pauses for every environment meanwhile
+```
 
 ### Releases that need a rebuild
 
@@ -147,14 +156,14 @@ The check reads the canonical repository over HTTPS, not your `origin`. To read 
 - It is offered only when the previous version can still open the control catalog and the key store. If the update migrated them to a schema the previous version does not know, it is refused with the reason, and the way forward is a newer version, or the backups taken before the upgrade.
 - It is offered only for the last update, and not while another request is under way.
 - It is refused, from the page or the command line, while tracked files outside `docs/evidence/` have local changes, because the way back would move them aside; the refusal names them. Commit or discard them on the server first. The automatic way back never refuses for this: it sets the changes aside.
-- Going back does not undo a change a newer Auth, Storage or Realtime made to the environment databases when it started (see [releases that need your confirmation](#releases-that-need-your-confirmation)). If the previous version does not run on it, restore the backups taken before the upgrade.
+- Going back does not undo a change a newer Auth, Storage or Realtime made to the environment databases when it started (see [releases that need your confirmation](#releases-that-need-your-confirmation)). If the previous version does not run on it, restore the backups taken before the upgrade: the environments, then `storage_metadata`.
 
 `python3 lab/upgrade.py rollback --check` says whether a rollback would go ahead, and why not, without changing anything.
 
 ## What is kept and what can be lost
 
 - **Before confirmation the control state goes back complete.** Application traffic is held, so no application write lands on the new version; management changes are refused with `409` rather than accepted and then dropped; and the control state goes back to the snapshot the new version took when it started.
-- **Environment databases are not part of that snapshot.** For a safe release nothing in them changes as the new version starts. For a release that needs your confirmation, the Auth, Storage or Realtime migrations stay after a way back, and `storage_metadata` is in no per-environment backup.
+- **Environment databases are not part of that snapshot.** For a safe release nothing in them changes as the new version starts. For a release that needs your confirmation, the Auth, Storage or Realtime migrations stay after a way back, in the environments and in `storage_metadata`, until you restore both from the run taken before the upgrade.
 - **After confirmation the fix is forward only.** The backups taken before the upgrade stay in `.lab/backups/`, and those of the last 3 upgrades that moved the checkout are kept out of pruning. A rollback keeps what was written since confirmation, or refuses when it cannot.
 - **Database image changes never go through an upgrade.** They are refused, and belong to `lab/migrate-generation.py`.
 - **Local edits are never discarded.** A local change to a tracked file outside `docs/evidence/` blocks an upgrade and an operator's rollback until you commit or discard it yourself. A way back that runs anyway (the automatic one, or the guard's) copies local changes to `.lab/upgrades/aside-<time>/`, and evidence to `.lab/upgrades/evidence-<time>/`, before it overwrites the checkout.
@@ -163,18 +172,18 @@ The check reads the canonical repository over HTTPS, not your `origin`. To read 
 
 With Docker, put `docker compose exec sbarbase` before each `python3` command.
 
-| Task | Command |
-|---|---|
-| The newest signed release, its class and what it changes | `python3 lab/upgrade.py channel` (`--json` for the full result, `--preview` to include pre-releases) |
-| Install a signed release | `python3 lab/upgrade.py start --release vX.Y.Z` |
-| Install one that needs your confirmation | add `--allow-class attended` |
-| Install one that needs a rebuild | add `--allow-class rebuild`, then rebuild as above |
-| Move to any commit or tag, without signature check or class | `python3 lab/upgrade.py start --to <tag or commit>` (default `origin/main`) |
-| See what `--to` would change, without changing anything | `python3 lab/upgrade.py check --to <tag or commit>` |
-| Restart onto it | `docker compose up -d --build` (or `sudo systemctl restart sbarbase`) |
-| See the outcome | `python3 lab/upgrade.py status` |
-| Would a rollback go ahead? | `python3 lab/upgrade.py rollback --check` |
-| Go back to the version before | `python3 lab/upgrade.py rollback`, then restart the same way |
+| Task | Command | With the `sbarbase` command |
+|---|---|---|
+| The newest signed release, its class and what it changes | `python3 lab/upgrade.py channel` (`--json` for the full result, `--preview` to include pre-releases) | `sbarbase upgrade channel` (`--json`; no `--preview`) |
+| Install a signed release | `python3 lab/upgrade.py start --release vX.Y.Z` | `sbarbase upgrade start --release vX.Y.Z` |
+| Install one that needs your confirmation | add `--allow-class attended` | the same |
+| Install one that needs a rebuild | add `--allow-class rebuild`, then rebuild as above | the same |
+| Move to any commit or tag, without signature check or class | `python3 lab/upgrade.py start --to <tag or commit>` (default `origin/main`) | `sbarbase upgrade start --to <tag or commit>` |
+| See what `--to` would change, without changing anything | `python3 lab/upgrade.py check --to <tag or commit>` | `sbarbase upgrade check --to <tag or commit>` |
+| Restart onto it | `docker compose up -d --build` (or `sudo systemctl restart sbarbase`) | |
+| See the outcome | `python3 lab/upgrade.py status` | `sbarbase upgrade status` |
+| Would a rollback go ahead? | `python3 lab/upgrade.py rollback --check` | `sbarbase upgrade rollback --check` |
+| Go back to the version before | `python3 lab/upgrade.py rollback`, then restart the same way | `sbarbase upgrade rollback` |
 
 `start --to` is an operator's explicit choice: it is not signature checked and not classified. It still refuses a PostgreSQL image change, backs up first and has the same way back.
 
@@ -184,7 +193,7 @@ A `rollback` from the command line while a new version is still waiting for its 
 
 To go back to earlier pins after the automatic way back, when `rollback` says there is no upgrade to roll back, upgrade to the earlier version: `python3 lab/upgrade.py start --to <earlier commit>`, then restart. It backs up first, like any upgrade.
 
-The `sbarbase` command runs `check`, `start`, `status` and `rollback` with `--to` ([the sbarbase command](cli.md)); it does not offer `channel`, `--release` or `--allow-class` yet.
+The `sbarbase` command passes each of these to `lab/upgrade.py` as separate arguments ([the sbarbase command](cli.md)). It refuses before running anything when a release is not a plain `vX.Y.Z` tag, when `--allow-class` names anything but `rebuild` or `attended`, or when an option does not fit the subcommand; give `--allow-class` twice for a release that needs both.
 
 ## Moving onto the first version with the update channel
 
@@ -200,7 +209,8 @@ The new version's first start takes the control snapshot, holds traffic and runs
 
 - Unit tests on the workstation on 2026-09-25: 201 Python tests in `lab/test_release_channel.py`, `lab/test_updates.py`, `lab/test_upgrade.py`, `lab/test_upgrade_health.py`, `lab/test_upgrade_guard.py`, `lab/test_upgrade_drain.py` and `lab/test_upgrade_check.py` (the upgrade file also holds the older upgrade tests), and 58 Bun tests for the hold, the probe past it, the updates routes and the console page. All pass.
 - The rehearsal VM ran the command line cycle on 2026-09-25: an upgrade to a newer PostgREST with `start --to`, a broken version that moved back by itself, and a return to the installed pins, with users unchanged at each step ([evidence](../evidence/vm-upgrade-checks.json), [return](../evidence/vm-upgrade-return.json)). CI records the same `start --to` cycle on a clean machine, with users, files and buckets compared before and after ([evidence](../evidence/docker-upgrade-checks.json)).
-- Not run yet: the three CI cases for the channel (they are in the CI job, but no run is recorded), the VM rehearsal of a real bump and back through the channel, the start guard, the drain, and an `attended` release. Until those pass, automatic updates are not described as ready.
+- The three CI cases for the channel passed on 2026-09-25 (CI run 36195831433, 45 of 45 checks, [evidence](../evidence/docker-upgrade-checks.json)), on a clean CI machine with test data: a confirmed upgrade; a version that migrates the control catalog and then stops, moved back with the catalog schema back from 4 to 3; one whose PostgREST never answers; one that never passes its health checks, with application traffic answered 503 during the window; and tags that are unsigned or signed by an unlisted key, refused with nothing moved.
+- Not run yet: the VM rehearsal of a real bump and back through the channel, the start guard, the drain, and an `attended` release. Until those pass, automatic updates are not described as ready.
 
 ## For maintainers: cutting a signed release
 
@@ -254,11 +264,11 @@ Startup never recreates a database container as an implicit upgrade. A managed d
 
 ## Limits
 
-- The update channel has unit tests only. Its CI cases have no recorded run, nothing about it has run in the rehearsal VM, and no upgrade has run on a server with real client data; the rehearsal VM held test users only.
-- **After the supervisor is killed while a new version waits for its health checks, under systemd, the service can stay down.** The owned containers keep running when the process dies. The guard moves the checkout back on the next start, but the preflight (`lab/install_server.py check`) then refuses because owned containers are already running, and systemd keeps retrying without getting past it. This follows from the code and has not been rehearsed. `journalctl -u sbarbase` shows the preflight refusal. No recovery procedure for this case has been rehearsed yet.
+- Beyond unit tests, the update channel has run only in its CI cases, on a clean CI machine ([evidence](../evidence/docker-upgrade-checks.json)). Nothing about it has run in the rehearsal VM, and no upgrade has run on a server with real client data; the rehearsal VM held test users only.
+- A supervisor killed while a new version waits for its health checks (or at any other time) leaves the owned containers running. The next start stops them before the preflight, as described [above](#the-start-guard), unless a live supervisor or worker holds its lock or a receipt or journal waits for reconciliation: then it refuses with that reason, and `journalctl -u sbarbase` shows it. This is unit tested only; no kill has been rehearsed. A unit installed before that step existed still refuses at the preflight: reinstall it with `supervise --apply`, or run `/usr/bin/python3 lab/leftover_runtime.py` once as the service account.
 - When Sbarbase stops after an update moved the checkout, the final stop of the owned runtime runs the stop script of the moved checkout, not the one of the version that started it.
 - The health checks cover the console, the management Auth, each environment's Auth, REST and Storage, and REST and Auth through the gateway. Realtime, Edge Functions and Studio are not checked. A version that passes the checks and then misbehaves is not moved back by itself: use **Roll back** or `rollback`.
-- A release that needs your confirmation may leave environment databases migrated after a way back, and Storage's shared `storage_metadata` database is in no per-environment backup.
+- A release that needs your confirmation may leave the environment databases and Storage's shared `storage_metadata` migrated after a way back. Undoing that is a restore you run by hand from the backups taken before the upgrade; the way back does not do it. The `storage_metadata` restore stops Storage for every environment while it runs, and it is unit tested only. If the previous Storage image cannot start on the migrated `storage_metadata`, the previous version does not start (`rollback_failed`), and the restore then needs the database container running, which no command here starts for you.
 - The first move onto the version with the update channel needs a rebuild and the command line (above). A way back that lands on a version older than the channel has no guard, no health checks and no hold, and cannot deliver the `update.*` notifications.
 - `lab/install_server.py supervise`, with or without `--apply`, rewrites the tracked `docs/evidence/supervisor-unit.json`. On a version with the update channel that does not block an upgrade: it is copied aside with the other evidence. An installation whose `lab/upgrade.py` has no `set_aside_evidence` (it landed on 2026-09-25) still refuses when its evidence files changed. Copy `docs/evidence/` somewhere, run `git checkout -- docs/evidence` as the service account once, then upgrade.
 - Automatic updates install only safe releases. A release that needs your confirmation, a rebuild or a migration always waits for you.

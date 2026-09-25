@@ -25,6 +25,13 @@ Environment=SBARBASE_GUARDED=1
 # and moves the checkout back when that version keeps failing, before the lines
 # below read it. Paths are relative: WorkingDirectory applies here too.
 ExecStartPre=/bin/sh -c 'if [ -f .lab/upgrades/guard.py ]; then exec /usr/bin/python3 .lab/upgrades/guard.py; fi; exec /usr/bin/python3 lab/upgrade_guard.py'
+# Second: an owned runtime a killed supervisor left running (Docker, not this unit's cgroup,
+# owns its containers) is stopped as the supervisor's own stop does, volumes kept, unless a
+# live supervisor or worker holds its lock or pending authority state needs reconciliation
+# (lab/leftover_runtime.py). Otherwise the preflight below refuses on the running containers
+# and the service stays down. A checkout the guard moved back to a version without that file
+# skips the step.
+ExecStartPre=/bin/sh -c 'if [ -f lab/leftover_runtime.py ]; then exec /usr/bin/python3 lab/leftover_runtime.py; fi'
 # Preflight refuses on insufficient headroom, missing pins or pending authority state.
 ExecStartPre=/usr/bin/python3 /opt/sbarbase/lab/install_server.py check
 ExecStart=/usr/bin/python3 /opt/sbarbase/lab/dev.py

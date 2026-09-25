@@ -496,11 +496,16 @@ SERVICE_UNIT_PATH=Path('/etc/systemd/system/sbarbase.service')
 # paths only, so rendering never changes it, and a rendered unit must still carry it.
 GUARD_LINE=("ExecStartPre=/bin/sh -c 'if [ -f .lab/upgrades/guard.py ]; then exec /usr/bin/python3 .lab/upgrades/guard.py; fi; "
             "exec /usr/bin/python3 lab/upgrade_guard.py'")
+# Second, before the preflight: stops an owned runtime a killed supervisor left running
+# (lab/leftover_runtime.py). Relative too, and skipped by a checkout without that file, since
+# the installed unit outlives a way back to an older version.
+LEFTOVER_LINE=("ExecStartPre=/bin/sh -c 'if [ -f lab/leftover_runtime.py ]; then "
+               "exec /usr/bin/python3 lab/leftover_runtime.py; fi'")
 UNIT_ANCHORS=('WorkingDirectory=/opt/sbarbase','User=sbarbase','Group=sbarbase',
               'Environment=HOME=/home/sbarbase','ExecStart=/usr/bin/python3 /opt/sbarbase/lab/dev.py',
               'ExecStartPre=/usr/bin/python3 /opt/sbarbase/lab/install_server.py check',
               'ReadWritePaths=/opt/sbarbase','Documentation=file:/opt/sbarbase/docs/guides/server-deployment.md',
-              GUARD_LINE,'Environment=SBARBASE_GUARDED=1','StartLimitIntervalSec=0')
+              GUARD_LINE,LEFTOVER_LINE,'Environment=SBARBASE_GUARDED=1','StartLimitIntervalSec=0')
 
 
 def validate_service_identity(user,home,bun_dir):
@@ -553,13 +558,18 @@ def rendered_unit(root,home,user,bun_dir,text=None):
               'ExecStartPre=/usr/bin/python3 '+str(root)+'/lab/install_server.py check',
               'ReadWritePaths='+str(root),
               'Documentation=file:'+str(root)+'/docs/guides/server-deployment.md',
-              ':'+str(bun_dir),GUARD_LINE,'Environment=SBARBASE_GUARDED=1')
+              ':'+str(bun_dir),GUARD_LINE,LEFTOVER_LINE,'Environment=SBARBASE_GUARDED=1')
     for wanted in expected:
         if wanted not in rendered:
             raise SystemExit('Rendered unit does not carry '+repr(wanted)+'; refusing it')
     # The guard must come first: a failing preflight is one of the starts it has to count.
-    if rendered.index(GUARD_LINE)>rendered.index('ExecStartPre=/usr/bin/python3 '+str(root)+'/lab/install_server.py check'):
+    preflight=rendered.index('ExecStartPre=/usr/bin/python3 '+str(root)+'/lab/install_server.py check')
+    if rendered.index(GUARD_LINE)>preflight:
         raise SystemExit('Rendered unit runs the preflight before the upgrade guard; refusing it')
+    # Then the leftover stop, after the guard (which may move the checkout, and whose way back
+    # needs no runtime) and before the preflight, which refuses on running owned containers.
+    if not rendered.index(GUARD_LINE)<rendered.index(LEFTOVER_LINE)<preflight:
+        raise SystemExit('Rendered unit does not stop a leftover runtime between the upgrade guard and the preflight; refusing it')
     return rendered
 
 

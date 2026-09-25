@@ -320,6 +320,220 @@ class RestoreTests(Fixture):
         self.assertEqual(calls, [])
 
 
+class StorageMetadataTests(Fixture):
+    """Storage's shared storage_metadata database is backed up with every run and restored like an
+    environment's database, so a release that changes the Storage pin can be undone completely."""
+    OTHER = 'e_' + 'b' * 24
+
+    def storage(self, stamp, tenants=(E,), reason=None):
+        path = backup.private_dir(self.backups / backup.STORAGE / stamp)
+        (path / 'database.dump').write_bytes(b'storage-' + stamp.encode())
+        manifest = {'version': 1, 'kind': 'storage_metadata', 'created_at': stamp,
+                    'database': {'file': 'database.dump', 'name': 'storage_metadata',
+                                 'bytes': (path / 'database.dump').stat().st_size,
+                                 'sha256': backup.digest(path / 'database.dump')},
+                    'counts': {'tenants': len(tenants)}, 'tenants': sorted(tenants)}
+        if reason:
+            manifest['reason'] = reason
+        (path / 'manifest.json').write_text(json.dumps(manifest))
+        return path
+
+    def test_the_dump_is_taken_inside_the_snapshot_its_tenants_came_from(self):
+        import datetime
+        import io
+        other = self.OTHER
+        sessions, written, dumped = [], [], []
+
+        class Session:
+            def __init__(self, argv, **kwargs):
+                sessions.append(list(argv))
+                self.stdin = io.StringIO()
+                self.stdin.close = lambda: written.append(self.stdin.getvalue())
+                self.stdout = io.StringIO(f'00000003-0000002B-1\n2|{E},{other}\n')
+                self.done = False
+
+            def poll(self):
+                return 0 if self.done else None
+
+            def wait(self, timeout=None):
+                self.done = True
+                return 0
+
+        def run(argv, **kwargs):
+            dumped.append(list(argv))
+        with patch.object(backup.subprocess, 'Popen', Session), patch.object(backup, 'run', run), \
+                patch.object(backup, 'storage_image', return_value='sha256:storage'):
+            now = datetime.datetime(2026, 9, 25, 3, tzinfo=datetime.UTC)
+            path, manifest = backup.create_storage(now=now, reason='upgrade')
+            with self.assertRaisesRegex(backup.BackupError, 'already exists'):
+                backup.create_storage(now=now)
+            with self.assertRaisesRegex(backup.BackupError, 'reason'):
+                backup.create_storage(now=now.replace(hour=4), reason='whim')
+        self.assertEqual(path, self.backups / 'storage' / '20260925T030000Z')
+        # psql and pg_dump both reach storage_metadata, and the dump reads the exported snapshot.
+        self.assertEqual(sessions[0][-1], 'storage_metadata')
+        self.assertIn('FROM tenants', written[0])
+        self.assertTrue(written[0].rstrip().endswith('COMMIT;'), 'the snapshot is released after the dump')
+        self.assertEqual(dumped[0][-2:], ['-d', 'storage_metadata'])
+        self.assertIn('--snapshot=00000003-0000002B-1', dumped[0])
+        self.assertEqual(manifest['counts'], {'tenants': 2})
+        self.assertEqual(manifest['tenants'], [E, other])
+        self.assertEqual(manifest['reason'], 'upgrade')
+        # Its own manifest; the run counts among the upgrades, like its environment backups.
+        self.assertEqual(backup.verify_storage(path)['kind'], 'storage_metadata')
+        self.assertEqual(backup.upgrade_runs(), {'20260925T030000Z'})
+
+    def test_a_changed_an_incomplete_or_a_misplaced_backup_is_refused(self):
+        path = self.storage('20260901T030000Z')
+        self.assertEqual(backup.verify_storage(path)['tenants'], [E])
+        (path / 'database.dump').write_bytes(b'tampered')
+        with self.assertRaisesRegex(backup.BackupError, 'digest'):
+            backup.verify_storage(path)
+        with self.assertRaisesRegex(backup.BackupError, 'incomplete'):
+            backup.verify_storage(backup.private_dir(self.backups / 'storage' / '20260902T030000Z'))
+        with self.assertRaisesRegex(backup.BackupError, 'Not a Storage'):
+            backup.verify_storage(self.complete('20260903T030000Z'))
+        # An environment backup placed in the storage folder is not taken for one.
+        misplaced = backup.private_dir(self.backups / 'storage' / '20260904T030000Z')
+        environment = self.complete('20260904T030000Z')
+        for name in ('database.dump', 'manifest.json'):
+            (misplaced / name).write_bytes((environment / name).read_bytes())
+        with self.assertRaisesRegex(backup.BackupError, 'another format'):
+            backup.verify_storage(misplaced)
+
+    def recorder(self, fail_on=None, restored=None):
+        calls = []
+
+        def run(argv, **kwargs):
+            calls.append(('run', tuple(argv)))
+            if fail_on and fail_on in argv:
+                raise backup.BackupError('injected')
+
+        def sql(query, database='postgres'):
+            calls.append(('sql', query))
+            if 'datconnlimit' in query:
+                return '6|{acl}'
+            if 'coalesce(datacl' in query:
+                return '{acl}'
+            if 'FROM tenants' in query:
+                return restored if restored is not None else f'1|{E}'
+            return ''
+        return calls, run, sql
+
+    def restore(self, calls, run, sql, name='20260901T030000Z'):
+        starts = []
+
+        def start_storage():
+            starts.append('start')
+            calls.append(('start',))
+            return '10.0.0.9'
+        with patch.object(backup, 'run', run), patch.object(backup, 'sql', sql), \
+                patch.object(backup, 'start_storage', start_storage), \
+                patch.object(backup, 'wait_storage', lambda address: calls.append(('wait', address))):
+            return backup.restore_storage(name), starts
+
+    def test_a_successful_restore_stops_storage_keeps_the_previous_database_and_records_it(self):
+        path = self.storage('20260901T030000Z')
+        calls, run, sql = self.recorder()
+        record, starts = self.restore(calls, run, sql)
+        self.assertEqual(calls[0], ('run', ('docker', 'stop', 'sbarbase-durable-storage')))
+        statements = ' '.join(call[1] for call in calls if call[0] == 'sql')
+        self.assertIn('ALTER DATABASE storage_metadata RENAME TO storage_metadata_pre_', statements)
+        self.assertIn('ALTER DATABASE storage_metadata CONNECTION LIMIT 6', statements)
+        self.assertNotIn('DROP DATABASE', statements)
+        restores = [call[1] for call in calls if call[0] == 'run' and 'pg_restore' in call[1]]
+        self.assertEqual(restores[0][-2:], ('-d', 'postgres'))
+        self.assertIn('--create', restores[0])
+        self.assertEqual(starts, ['start'])
+        self.assertEqual(calls[-1], ('wait', '10.0.0.9'))
+        self.assertTrue(record['previous_database'].startswith('storage_metadata_pre_'))
+        self.assertTrue(any(item.name.startswith('restore-') for item in path.iterdir()))
+
+    def test_a_failed_restore_puts_the_original_back_and_starts_storage_again(self):
+        self.storage('20260901T030000Z')
+        calls, run, sql = self.recorder(fail_on='pg_restore')
+        with self.assertRaisesRegex(backup.BackupError, 'injected'):
+            self.restore(calls, run, sql)
+        statements = ' '.join(call[1] for call in calls if call[0] == 'sql')
+        self.assertIn('DROP DATABASE IF EXISTS storage_metadata WITH (FORCE)', statements)
+        self.assertRegex(statements, r'ALTER DATABASE storage_metadata_pre_\w+ RENAME TO storage_metadata;')
+        self.assertEqual(calls[-1], ('start',))
+
+    def test_registrations_that_do_not_match_the_backup_roll_back(self):
+        self.storage('20260901T030000Z')
+        calls, run, sql = self.recorder(restored=f'2|{E},{self.OTHER}')
+        with self.assertRaisesRegex(backup.BackupError, 'registrations'):
+            self.restore(calls, run, sql)
+        statements = ' '.join(call[1] for call in calls if call[0] == 'sql')
+        self.assertIn('DROP DATABASE IF EXISTS storage_metadata WITH (FORCE)', statements)
+        self.assertEqual(calls[-1], ('start',))
+
+    def test_a_backup_that_misses_an_environment_published_now_is_refused_before_anything_stops(self):
+        (self.state / 'endpoints.json').write_text(json.dumps({E: {'auth': 'a'}, self.OTHER: {'auth': 'b'}}))
+        self.storage('20260901T030000Z', tenants=(E,))
+        calls, run, sql = self.recorder()
+        with self.assertRaisesRegex(backup.BackupError, self.OTHER):
+            self.restore(calls, run, sql)
+        self.assertEqual(calls, [])
+
+    def test_storage_is_published_again_for_every_environment_after_its_restart(self):
+        import durable_runtime
+        (self.state / 'endpoints.json').write_text(json.dumps({
+            E: {'auth': 'a', 'storage': {'url': 'http://10.0.0.4:5000', 'tenantHost': E + '.storage.internal'}},
+            self.OTHER: {'auth': 'b'}}))
+        started = []
+        container = {'NetworkSettings': {'Networks': {durable_runtime.NETWORK: {'IPAddress': '10.0.0.9'}}}}
+        with patch.object(backup, 'run', lambda argv, **kwargs: started.append(list(argv))), \
+                patch.object(durable_runtime, 'inspect', return_value=container):
+            self.assertEqual(backup.start_storage(), '10.0.0.9')
+        self.assertEqual(started, [['docker', 'start', 'sbarbase-durable-storage']])
+        endpoints = json.loads((self.state / 'endpoints.json').read_text())
+        self.assertEqual(endpoints[E]['storage'], {'url': 'http://10.0.0.9:5000', 'tenantHost': E + '.storage.internal'})
+        self.assertNotIn('storage', endpoints[self.OTHER])
+
+    def test_every_run_backs_it_up_and_a_failure_fails_the_run(self):
+        import backup_offsite
+        import offsite
+        seen = []
+
+        def create(e, keep, now, reason, protected):
+            return self.complete(now.strftime('%Y%m%dT%H%M%SZ')), {'database': {'bytes': 1}, 'objects': {'files': 0},
+                                                                   'counts': {'auth.users': 1}}
+
+        def create_storage(keep, now, reason, protected):
+            seen.append((keep, now.strftime('%Y%m%dT%H%M%SZ'), reason))
+            if len(seen) == 2:
+                raise backup.BackupError('dump failed')
+            return self.storage(now.strftime('%Y%m%dT%H%M%SZ')), {'database': {'bytes': 1}, 'counts': {'tenants': 1}}
+        with patch.object(backup, 'create', create), patch.object(backup, 'create_storage', create_storage), \
+                patch.object(backup_offsite, 'write_installation'), patch.object(offsite, 'load_config', return_value=None), \
+                patch('sys.stderr'), patch('builtins.print'):
+            self.assertEqual(backup.main(['create', 'all', '--reason', 'upgrade', '--local-only']), 0)
+            self.assertEqual(backup.main(['create', 'all', '--local-only']), 1)
+            # One environment only: Storage's shared database belongs to the whole run.
+            self.assertEqual(backup.main(['create', E, '--local-only']), 0)
+        self.assertEqual(len(seen), 2)
+        self.assertEqual(seen[0][2], 'upgrade')
+        self.assertIsNone(seen[1][2])
+
+    def test_listing_and_discarding_what_a_restore_set_aside(self):
+        import contextlib
+        import io
+        self.storage('20260901T030000Z', reason='upgrade')
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(backup.main(['list']), 0)
+        self.assertIn('storage_metadata  20260901T030000Z', out.getvalue())
+        self.assertIn('before an upgrade', out.getvalue())
+        dropped = []
+
+        def sql(query, database='postgres'):
+            dropped.append(query)
+            return 'storage_metadata_pre_20260901t030000z\n' if query.startswith('SELECT') else ''
+        with patch.object(backup, 'sql', sql), contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(backup.main(['discard-previous', 'storage']), 0)
+        self.assertEqual(dropped[-1], 'DROP DATABASE storage_metadata_pre_20260901t030000z WITH (FORCE);')
+
+
 if __name__ == '__main__':
     unittest.main()
 

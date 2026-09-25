@@ -39,7 +39,7 @@ docker compose exec sbarbase deploy/sbarbase status
 | إضافة بيئة | `sbarbase add-environment <project> <name>` | واجهة الإدارة البرمجية، كما تفعل لوحة الإدارة |
 | تدوير مفتاح عام | `sbarbase rotate-key <environment>` | واجهة المفاتيح، كما تفعل لوحة الإدارة |
 | حصة البوابة | `sbarbase share <environment> [<n>]` | واجهة الإدارة البرمجية، كما تفعل لوحة الإدارة |
-| الترقية | `sbarbase upgrade [check\|start\|status\|rollback]` | `lab/upgrade.py` |
+| الترقية | `sbarbase upgrade [check\|start\|status\|rollback\|channel]` | `lab/upgrade.py` |
 | Studio | `sbarbase studio start\|stop <environment>` | واجهة الإدارة البرمجية، ثم يشغّل المشرف `lab/studio.py` |
 | السجلات | `sbarbase logs [supervisor\|auth\|rest\|storage\|database]` | `journalctl` أو `docker logs` |
 
@@ -77,7 +77,15 @@ docker compose exec sbarbase deploy/sbarbase status
 
 ### الأمر upgrade
 
-يشغّل `sbarbase upgrade` الأمر `lab/upgrade.py check`، ولا يغيّر شيئًا. أما `upgrade start` و`upgrade status` و`upgrade rollback` فتشغّل الأوامر الفرعية نفسها في `lab/upgrade.py`، ويختار `--to REF` الإصدار. تشرح [الترقيات](upgrades.ar.md) كل خطوة.
+يشغّل `sbarbase upgrade` الأمر `lab/upgrade.py check`، ولا يغيّر شيئًا. أما `upgrade start` و`upgrade status` و`upgrade rollback` فتشغّل الأوامر الفرعية نفسها في `lab/upgrade.py`، ويختار `--to REF` الإصدار. وتصل إلى قناة الإصدارات بالطريقة نفسها:
+
+| المهمة | الأمر |
+|---|---|
+| أحدث إصدار موقّع وما يحتاجه | `sbarbase upgrade channel [--json]` |
+| الانتقال إلى إصدار متحقق منه | `sbarbase upgrade start --release vX.Y.Z [--allow-class rebuild\|attended]` |
+| هل سيمضي التراجع | `sbarbase upgrade rollback --check` |
+
+يجب أن يكون الإصدار وسمًا بسيطًا على شكل `vX.Y.Z`، وأن يسمّي `--allow-class` إما `rebuild` أو `attended`؛ وأعطه مرتين لإصدار يحتاج الاثنين. وأي شيء آخر، أو خيار لا يناسب الأمر الفرعي، يُرفض قبل أن يعمل `lab/upgrade.py`. تشرح [الترقيات](upgrades.ar.md) كل خطوة.
 
 ### الأمر logs
 

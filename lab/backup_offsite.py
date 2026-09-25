@@ -5,8 +5,8 @@ pinned images, the routing, the catalog's organizations, projects, environments,
 jobs, the operator settings, and the names of the secret files. It is built from allow-lists, so
 a column or a key that is not named here never reaches it, and it holds no secret value.
 
-An off-host copy is one object per daily run: a tar of that run's environment backups and its
-installation manifest, encrypted with AES-256-GCM under a key the operator keeps in a private
+An off-host copy is one object per daily run: a tar of that run's environment backups, its
+Storage metadata backup and its installation manifest, encrypted with AES-256-GCM under a key the operator keeps in a private
 file, and uploaded to one S3-compatible bucket. The client signs requests with AWS Signature
 Version 4 using the Python standard library only, so a host needs no extra tool and the tests run
 the same code against a loopback server. A failed copy never changes or removes a local backup.
@@ -59,11 +59,12 @@ CATALOG_COLUMNS = {
 }
 ENVIRONMENT_FILES = ('database.dump', 'objects.tar', 'manifest.json')
 INSTALLATION_FILES = ('installation.json', 'manifest.json')
+STORAGE_FILES = ('database.dump', 'manifest.json')
 MAGIC = b'SBBKUP1\n'
 NONCE = 12
 TAG = 16
 SUFFIX = '.sbb'
-MEMBER = re.compile(r'(e_[a-f0-9]{24}|installation)/(\d{8}T\d{6}Z)(?:/([a-z]+\.[a-z]+))?')
+MEMBER = re.compile(r'(e_[a-f0-9]{24}|installation|storage)/(\d{8}T\d{6}Z)(?:/([a-z]+\.[a-z]+))?')
 EMPTY_SHA256 = hashlib.sha256(b'').hexdigest()
 
 
@@ -373,6 +374,9 @@ def pack(stamp, runtimes, key, handle):
     """Tar one run's backups straight into the cipher; no plaintext copy is written."""
     writer = Encrypting(handle, key, stamp)
     folders = [(e, ENVIRONMENT_FILES) for e in sorted(runtimes)]
+    # A run taken before Storage metadata was backed up has no such folder.
+    if (backup.BACKUPS / backup.STORAGE / stamp / 'manifest.json').is_file():
+        folders.append((backup.STORAGE, STORAGE_FILES))
     if (backup.BACKUPS / INSTALLATION / stamp / 'manifest.json').is_file():
         folders.append((INSTALLATION, INSTALLATION_FILES))
     with tarfile.open(fileobj=writer, mode='w|', format=tarfile.PAX_FORMAT) as archive:
@@ -395,7 +399,7 @@ def unpack(path, key, stamp, staging):
             match = MEMBER.fullmatch(member.name)
             allowed = match and match[2] == stamp and (
                 member.isdir() if match[3] is None else member.isfile() and match[3] in (
-                    INSTALLATION_FILES if match[1] == INSTALLATION else ENVIRONMENT_FILES))
+                    {INSTALLATION: INSTALLATION_FILES, backup.STORAGE: STORAGE_FILES}.get(match[1], ENVIRONMENT_FILES)))
             if not allowed:
                 raise BackupError('Off-host set holds an unexpected entry')
             archive.extract(member, staging, filter='data')
@@ -609,6 +613,8 @@ def fetch(stamp):
             try:
                 if folder.name == INSTALLATION:
                     verify_installation(target)
+                elif folder.name == backup.STORAGE:
+                    backup.verify_storage(target)
                 else:
                     backup.verify(folder.name, target)
             except Exception:

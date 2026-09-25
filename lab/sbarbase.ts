@@ -70,6 +70,10 @@ Commands
                                       issue a new publishable key, show it once, then revoke the old one
   upgrade [check|start|status|rollback] [--to REF]
                                       lab/upgrade.py; without a subcommand it runs check
+  upgrade channel [--json]            the newest signed release, and what it takes
+  upgrade start --release vX.Y.Z [--allow-class rebuild|attended]
+                                      move onto a verified release from the channel
+  upgrade rollback --check            only say whether a rollback would refuse, and why
   studio start|stop <environment>     ask for Studio through the management API; the supervisor runs it
   share <environment> [<n>]           show an environment's gateway share, or set it (operators only)
   logs [supervisor|auth|rest|storage|database] [<environment>] [--lines N] [--follow]
@@ -139,8 +143,15 @@ worker provisions it; follow it with sbarbase environments.`,
 Signs in, issues a new publishable key through the key API, prints it once on standard output,
 then revokes the old key. With more than one active key, name the one to revoke with --revoke.`,
  upgrade:`sbarbase upgrade [check|start|status|rollback] [--to REF]
+sbarbase upgrade channel [--json]
+sbarbase upgrade start --release vX.Y.Z [--allow-class rebuild|attended]
+sbarbase upgrade rollback --check
 
-Runs lab/upgrade.py. Without a subcommand it runs check, which changes nothing.`,
+Runs lab/upgrade.py. Without a subcommand it runs check, which changes nothing. channel
+shows the newest signed release and what it takes. start --release moves onto a verified
+release from the channel; a release that needs a rebuild or changes Auth, Storage or
+Realtime is refused unless --allow-class names that class (repeat it for both). rollback
+--check only says whether a rollback would refuse, and why.`,
  studio:`sbarbase studio start|stop <environment>
 
 Signs in and asks for Studio through the management API, as the console's Studio button does.
@@ -159,15 +170,18 @@ and database are shared by every environment. --lines defaults to 100.`,
 };
 
 type Parsed={command:string;args:string[];flags:Record<string,string|boolean>};
-const VALUE_FLAGS=new Set(['--email','--operator-file','--keep','--to','--revoke','--lines']);
-const BOOLEAN_FLAGS=new Set(['--json','--yes','--password-stdin','--follow','--help']);
+const VALUE_FLAGS=new Set(['--email','--operator-file','--keep','--to','--revoke','--lines','--release','--allow-class']);
+const BOOLEAN_FLAGS=new Set(['--json','--yes','--password-stdin','--follow','--help','--check']);
+/** Given more than once, these keep every value (joined with commas) instead of the last one:
+ * a release that needs a rebuild and also migrates needs both classes allowed. */
+const REPEATABLE=new Set(['--allow-class']);
 const ALIASES:Record<string,string>={'-h':'--help','-y':'--yes','-f':'--follow','-n':'--lines'};
 const ALLOWED:Record<string,string[]>={
  status:['--json'],environments:['--json'],backup:['--keep'],backups:[],restore:['--yes'],
  relink:['--email','--operator-file','--password-stdin'],
  'add-environment':['--email','--operator-file','--password-stdin'],
  'rotate-key':['--email','--operator-file','--password-stdin','--revoke'],
- upgrade:['--to'],studio:['--email','--operator-file','--password-stdin'],share:['--email','--operator-file','--password-stdin'],logs:['--lines','--follow'],help:[],
+ upgrade:['--to','--release','--allow-class','--json','--check'],studio:['--email','--operator-file','--password-stdin'],share:['--email','--operator-file','--password-stdin'],logs:['--lines','--follow'],help:[],
 };
 
 export function parse(argv:string[]):Parsed {
@@ -182,7 +196,8 @@ export function parse(argv:string[]):Parsed {
   if(!VALUE_FLAGS.has(name))throw new Usage(`Unknown option ${given}`);
   const value=inline??argv[++index];
   if(value===undefined||value==='')throw new Usage(`${name} needs a value`);
-  flags[name]=value;
+  const earlier=flags[name];
+  flags[name]=REPEATABLE.has(name)&&typeof earlier==='string'?`${earlier},${value}`:value;
  }
  const command=args.shift()??'help';
  if(!(command in ALLOWED))throw new Usage(`Unknown command ${command}`);
@@ -614,13 +629,37 @@ async function relink(deps:Deps,parsed:Parsed) {
  });
 }
 
+const RELEASE=/^v\d+\.\d+\.\d+$/;
+const ALLOWED_CLASSES=['rebuild','attended'];
+
+/** Every value is checked here before it reaches lab/upgrade.py, and passed as its own
+ * argument: a tag or a class is never interpolated into anything a shell reads. */
 async function upgrade(deps:Deps,parsed:Parsed) {
  arity(parsed,0,1);
  const action=parsed.args[0]??'check';
- if(!['check','start','status','rollback'].includes(action))throw new Usage('upgrade takes check, start, status or rollback');
- const to=parsed.flags['--to'];
+ if(!['check','start','status','rollback','channel'].includes(action))
+  throw new Usage('upgrade takes check, start, status, rollback or channel');
+ const {'--to':to,'--release':release,'--allow-class':allow,'--json':json,'--check':check}=parsed.flags;
  if(to!==undefined&&!['check','start'].includes(action))throw new Usage('--to applies to check and start');
- return deps.run([PYTHON,'lab/upgrade.py',action,...(typeof to==='string'?['--to',to]:[])]);
+ if(release!==undefined&&action!=='start')throw new Usage('--release applies to start');
+ if(release!==undefined&&to!==undefined)throw new Usage('Give --release or --to, not both');
+ if(allow!==undefined&&release===undefined)throw new Usage('--allow-class applies to start --release');
+ if(json!==undefined&&action!=='channel')throw new Usage('--json applies to channel');
+ if(check!==undefined&&action!=='rollback')throw new Usage('--check applies to rollback');
+ const argv=[PYTHON,'lab/upgrade.py',action];
+ if(typeof to==='string')argv.push('--to',to);
+ if(typeof release==='string') {
+  if(!RELEASE.test(release))throw new Usage('--release takes a release tag such as v1.2.3');
+  argv.push('--release',release);
+ }
+ if(typeof allow==='string') {
+  const classes=[...new Set(allow.split(','))];
+  if(classes.some(value=>!ALLOWED_CLASSES.includes(value)))throw new Usage('--allow-class takes rebuild or attended');
+  for(const value of classes)argv.push('--allow-class',value);
+ }
+ if(json)argv.push('--json');
+ if(check)argv.push('--check');
+ return deps.run(argv);
 }
 
 async function logs(deps:Deps,parsed:Parsed) {

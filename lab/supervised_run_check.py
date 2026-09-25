@@ -62,6 +62,7 @@ Environment=HOME={Path.home()}
 Environment=PATH={os.environ.get('PATH','/usr/local/bin:/usr/bin:/bin')}
 Environment=SBARBASE_GUARDED=1
 {docker_lines}{install_server.GUARD_LINE}
+{install_server.LEFTOVER_LINE}
 ExecStartPre=/usr/bin/python3 {ROOT}/lab/install_server.py check
 ExecStart=/usr/bin/python3 {ROOT}/lab/dev.py
 Restart=no
