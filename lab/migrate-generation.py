@@ -42,9 +42,16 @@ def docker(*args,data=None,check=True):
     return subprocess.run(['docker',*args],input=data,text=True,capture_output=True,check=check,timeout=300)
 
 
-def refuse_retained(name,owner):
+def refuse_retained(name,owner,*,attended=False,confirmed=None):
+    """The retained placement is refused unless an attended run names it exactly."""
+    if attended!=(confirmed is not None):
+        raise RuntimeError('An attended retained migration needs both --attended-retained and --confirm-retained')
     if owner in REFUSED_OWNERS or name.startswith(REFUSED_PREFIXES):
-        raise RuntimeError('Retained placement migration is a deliberate operator run; this command refuses it')
+        if not attended:
+            raise RuntimeError('Retained placement migration is a deliberate operator run; this command refuses it')
+        if confirmed!=name:
+            raise RuntimeError('The confirmed name does not match the pinned retained container')
+    return True
 
 
 def desired_rules(path,runtime_path):
@@ -91,20 +98,22 @@ def main():
     parser.add_argument('--retired',choices=('stopped','absent'),default='stopped')
     parser.add_argument('--assert-retired-will-not-return',action='store_true',dest='assertion')
     parser.add_argument('--reconcile',action='store_true')
+    parser.add_argument('--attended-retained',action='store_true',dest='attended')
+    parser.add_argument('--confirm-retained',dest='confirmed')
     options=parser.parse_args()
     state=Path(options.state)
     desired=desired_rules(options.inventory,options.inventory_runtime)
     if options.reconcile:
         intent=hba_migration.load(state)
         old=hba_target.Target(**intent['old'])
-        refuse_retained(old.name,old.owner)
+        refuse_retained(old.name,old.owner,attended=options.attended,confirmed=options.confirmed)
         completed=hba_migration.execute(docker,state,replacement=plan_for(old,options),desired=desired)
         print(json.dumps({'reconciled':True,'completed':completed,'migration':intent['migration'],
                           'retired_generation':intent['generation']}))
         return
     pin=hba_migration.pinned(state)
     old=hba_target.Target(**pin['target'])
-    refuse_retained(old.name,old.owner)
+    refuse_retained(old.name,old.owner,attended=options.attended,confirmed=options.confirmed)
     if options.assertion and options.retired!='stopped':
         raise RuntimeError('The retirement assertion applies to a stopped container only')
     if options.retired=='stopped' and not options.assertion:
