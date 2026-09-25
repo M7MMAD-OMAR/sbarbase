@@ -20,7 +20,8 @@
     "pg_dumpall_sha256": "24cb336247b9ab485b51cf75a43aa4af4dc859034fff297e231903ac35b0b6bf",
     "pg_dumpall_includes_fenced_database": true,
     "pin_copy_sha256": "3dca198dc2803fe8c5345f0bba41430a9ff325c592109abafc68c991d475da85",
-    "after_cold_volume_tar_sha256": "a99fd44e147a1eeccf3ee5098aac4baddab9dbd9527779aedc3cff1b18de0080"
+    "after_cold_volume_tar_sha256": "a99fd44e147a1eeccf3ee5098aac4baddab9dbd9527779aedc3cff1b18de0080",
+    "restore_note": "The cold volume tar is the faithful backup. The pg_dumpall was taken after allowing connections to the fenced database on the scratch copy, so restoring that dump would make the exported environment connectable again; restore from the tar, or re-fence after a dump restore."
   },
   "migration": {
     "id": "0b01f97e-1f31-4f5b-bfa7-c312180ab854",
