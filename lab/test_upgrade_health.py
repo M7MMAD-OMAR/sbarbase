@@ -1,6 +1,8 @@
 """Health-gated upgrade confirmation: the probes, their deadline, and the supervisor's gate."""
 import concurrent.futures
+import contextlib
 import json
+import sqlite3
 import tempfile
 import threading
 import unittest
@@ -48,7 +50,7 @@ class ProbeTests(unittest.TestCase):
         return answer
 
     def test_every_service_is_probed_directly_never_through_the_gateway(self):
-        healthy, detail = upgrade_health.check(self.state, 42, self.secrets, self.get())
+        healthy, detail = upgrade_health.check(self.state, 42, self.secrets, self.get(), {RUNTIME})
         self.assertTrue(healthy, detail)
         self.assertEqual([url for url, _ in self.asked], [
             'http://127.0.0.1:4000/health', 'http://10.0.0.2:9999/health', 'http://10.0.0.3:9999/health',
@@ -58,20 +60,41 @@ class ProbeTests(unittest.TestCase):
         self.assertTrue(storage['authorization'].startswith('Bearer '))
 
     def test_one_failing_service_or_a_stale_console_record_fails_the_round_without_secrets(self):
-        healthy, detail = upgrade_health.check(self.state, 42, self.secrets, self.get({'http://10.0.0.4:3000/': 503}))
+        healthy, detail = upgrade_health.check(self.state, 42, self.secrets, self.get({'http://10.0.0.4:3000/': 503}), {RUNTIME})
         self.assertEqual((healthy, detail), (False, f'{RUNTIME} rest answered HTTP 503'))
         # A server.json left by an earlier run names another process.
-        healthy, detail = upgrade_health.check(self.state, 43, self.secrets, self.get())
+        healthy, detail = upgrade_health.check(self.state, 43, self.secrets, self.get(), {RUNTIME})
         self.assertFalse(healthy)
         self.assertIn('does not name the console', detail)
-        healthy, detail = upgrade_health.check(self.state, 42, {'environments': {}}, self.get())
+        healthy, detail = upgrade_health.check(self.state, 42, {'environments': {}}, self.get(), {RUNTIME})
         self.assertEqual((healthy, detail), (False, 'health probes unavailable (KeyError)'))
 
         def refused(url, headers):
             raise ConnectionRefusedError('refused')
-        healthy, detail = upgrade_health.check(self.state, 42, self.secrets, refused)
+        healthy, detail = upgrade_health.check(self.state, 42, self.secrets, refused, {RUNTIME})
         self.assertEqual((healthy, detail), (False, 'console did not answer (ConnectionRefusedError)'))
         self.assertNotIn('x' * 64, detail)
+
+    def test_only_runtimes_the_gateway_serves_are_probed(self):
+        other, deleted, moved = ('e_' + digit * 24 for digit in '234')
+        endpoints = json.loads((self.state / 'endpoints.json').read_text())
+        for e in (other, deleted, moved):
+            endpoints[e] = {'auth': f'http://{e}:9999', 'rest': f'http://{e}:3000'}
+        (self.state / 'endpoints.json').write_text(json.dumps(endpoints))
+        with contextlib.closing(sqlite3.connect(self.state / 'control.sqlite')) as database, database:
+            database.executescript('CREATE TABLE provision_jobs(runtime TEXT, state TEXT);'
+                                   'CREATE TABLE deleted_runtimes(runtime TEXT);'
+                                   'CREATE TABLE runtime_routing(runtime TEXT, maintenance INTEGER, placement TEXT);')
+            database.executemany('INSERT INTO provision_jobs VALUES (?,?)',
+                                 [(RUNTIME, 'succeeded'), (other, 'queued'), (deleted, 'succeeded'), (moved, 'succeeded')])
+            database.execute('INSERT INTO deleted_runtimes VALUES (?)', (deleted,))
+            database.execute("INSERT INTO runtime_routing VALUES (?, 0, '{}')", (moved,))
+        self.assertEqual(upgrade_health.routed(self.state), {RUNTIME})
+        healthy, detail = upgrade_health.check(self.state, 42, self.secrets, self.get())
+        self.assertTrue(healthy, detail)
+        self.assertFalse(any(e in url for url, _ in self.asked for e in (other, deleted, moved)))
+        (self.state / 'control.sqlite').unlink()
+        self.assertEqual(upgrade_health.check(self.state, 42, self.secrets, self.get())[0], False)
 
 
 class ConfirmationTests(unittest.TestCase):
@@ -97,6 +120,15 @@ class ConfirmationTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'within 120 s: storage answered HTTP 500'):
             gate.poll()
         self.assertEqual(confirmed, [])
+
+    def test_the_deadline_starts_when_the_console_exists_not_when_the_gate_is_made(self):
+        clock, confirmed = Clock(), []
+        gate = upgrade_health.Confirmation(lambda: (True, 'ok'), lambda: confirmed.append(True),
+                                           deadline=120, clock=clock, submit=done)
+        clock.now = 300  # a slow Studio reset before the server spawned
+        self.assertFalse(gate.poll())
+        self.assertTrue(gate.poll())
+        self.assertEqual(confirmed, [True])
 
     def test_a_probe_that_hangs_does_not_block_the_deadline(self):
         clock, release = Clock(), threading.Event()

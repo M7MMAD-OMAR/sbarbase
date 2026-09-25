@@ -7,7 +7,9 @@ The probes go straight to the upstream services, never through the gateway, whic
 application traffic until confirmation.
 """
 import concurrent.futures
+import contextlib
 import json
+import sqlite3
 import threading
 import time
 import urllib.error
@@ -37,7 +39,19 @@ def read(path):
         return None
 
 
-def probes(state, server_pid, secrets):
+def routed(state):
+    """Runtimes the gateway serves from their published endpoints: provisioned, not deleted, not
+    paused for maintenance and not moved to another placement. endpoints.json can still list a
+    deleted or moved runtime, and its old address answering nothing must not fail an upgrade."""
+    path = state / 'control.sqlite'
+    with contextlib.closing(sqlite3.connect(f'file:{path}?mode=ro', uri=True, timeout=5)) as database:
+        return {row[0] for row in database.execute(
+            "SELECT runtime FROM provision_jobs WHERE state='succeeded' AND runtime IS NOT NULL "
+            "AND runtime NOT IN (SELECT runtime FROM deleted_runtimes) "
+            "AND runtime NOT IN (SELECT runtime FROM runtime_routing WHERE maintenance=1 OR placement IS NOT NULL)")}
+
+
+def probes(state, server_pid, secrets, serving=None):
     """(name, url, headers) of every probe, or raises ValueError naming what is missing."""
     server = read(state / 'server.json')
     if not isinstance(server, dict) or not isinstance(server.get('url'), str):
@@ -49,7 +63,10 @@ def probes(state, server_pid, secrets):
     management = read(state / 'management.json')
     if isinstance(management, dict) and management.get('auth'):
         found.append(('management auth', management['auth'] + '/health', None))
+    serving = routed(state) if serving is None else serving
     for e, item in sorted((read(state / 'endpoints.json') or {}).items()):
+        if e not in serving:
+            continue
         found.append((f'{e} auth', item['auth'] + '/health', None))
         found.append((f'{e} rest', item['rest'] + '/', None))
         storage = item.get('storage')
@@ -66,13 +83,13 @@ def private_values():
     return json.loads((runtime.PRIVATE / 'runtime.json').read_text())
 
 
-def check(state, server_pid, secrets=None, get=fetch):
+def check(state, server_pid, secrets=None, get=fetch, serving=None):
     """(healthy, detail) for one round of probes. Never raises; detail never holds a secret."""
     try:
-        rows = probes(state, server_pid, secrets if secrets is not None else private_values())
+        rows = probes(state, server_pid, secrets if secrets is not None else private_values(), serving)
     except ValueError as error:
         return False, f'health probes unavailable: {error}'
-    except (OSError, KeyError, TypeError, AttributeError) as error:
+    except (OSError, KeyError, TypeError, AttributeError, sqlite3.Error) as error:
         return False, f'health probes unavailable ({error.__class__.__name__})'
     for name, url, headers in rows:
         try:
@@ -100,19 +117,23 @@ def background(function):
 
 class Confirmation:
     """Polled once per supervisor turn while an upgrade waits. poll() returns True once a round
-    passed (after calling confirmed), False while waiting, and raises RuntimeError past the
-    deadline so the supervisor stops and the way back runs."""
+    passed (after calling confirmed), False while waiting, and raises RuntimeError once the
+    deadline passed without a passing round, so the supervisor stops and the way back runs."""
 
     def __init__(self, probe, confirmed, deadline=DEADLINE, interval=INTERVAL, clock=time.monotonic, submit=background):
         self.probe, self.confirmed, self.clock, self.submit = probe, confirmed, clock, submit
         self.interval = interval
         self.deadline = deadline
-        self.until = clock() + deadline
-        self.next = clock()
+        # The clock starts at the first poll, once the console process exists: the supervisor's
+        # setup before it (the Studio reset) must not use up the deadline.
+        self.until = self.next = None
         self.pending = None
         self.detail = 'no health probe has finished yet'
 
     def poll(self):
+        if self.until is None:
+            self.next = self.clock()
+            self.until = self.next + self.deadline
         if self.pending is not None and self.pending.done():
             try:
                 healthy, self.detail = self.pending.result()

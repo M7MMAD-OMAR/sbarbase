@@ -188,6 +188,9 @@ def held(path):
             fcntl.flock(handle, fcntl.LOCK_UN)
     except FileNotFoundError:
         pass
+    except PermissionError:
+        # A lock this user cannot even open cannot be shown free.
+        return True
     return False
 
 
