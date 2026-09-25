@@ -172,18 +172,18 @@ sudo systemctl restart sbarbase
 
 مع Docker ضع `docker compose exec sbarbase` قبل كل أمر `python3`.
 
-| المهمة | الأمر |
-|---|---|
-| أحدث إصدار موقّع، وصنفه، وما يغيّره | `python3 lab/upgrade.py channel` (`--json` للنتيجة كاملة، و`--preview` لتضمين الإصدارات التجريبية) |
-| تثبيت إصدار موقّع | `python3 lab/upgrade.py start --release vX.Y.Z` |
-| تثبيت إصدار يحتاج تأكيدك | أضف `--allow-class attended` |
-| تثبيت إصدار يحتاج إعادة بناء | أضف `--allow-class rebuild`، ثم أعد البناء كما في الأعلى |
-| الانتقال إلى أي إيداع أو وسم، دون تحقق من التوقيع ولا تصنيف | `python3 lab/upgrade.py start --to <tag or commit>` (الافتراضي `origin/main`) |
-| معرفة ما سيغيّره `--to`، دون تغيير أي شيء | `python3 lab/upgrade.py check --to <tag or commit>` |
-| إعادة التشغيل عليه | `docker compose up -d --build` (أو `sudo systemctl restart sbarbase`) |
-| معرفة النتيجة | `python3 lab/upgrade.py status` |
-| هل سيمضي التراجع؟ | `python3 lab/upgrade.py rollback --check` |
-| العودة إلى الإصدار السابق | `python3 lab/upgrade.py rollback`، ثم إعادة التشغيل بالطريقة نفسها |
+| المهمة | الأمر | بالأمر `sbarbase` |
+|---|---|---|
+| أحدث إصدار موقّع، وصنفه، وما يغيّره | `python3 lab/upgrade.py channel` (`--json` للنتيجة كاملة، و`--preview` لتضمين الإصدارات التجريبية) | `sbarbase upgrade channel` (`--json`؛ ولا يوجد `--preview`) |
+| تثبيت إصدار موقّع | `python3 lab/upgrade.py start --release vX.Y.Z` | `sbarbase upgrade start --release vX.Y.Z` |
+| تثبيت إصدار يحتاج تأكيدك | أضف `--allow-class attended` | بالطريقة نفسها |
+| تثبيت إصدار يحتاج إعادة بناء | أضف `--allow-class rebuild`، ثم أعد البناء كما في الأعلى | بالطريقة نفسها |
+| الانتقال إلى أي إيداع أو وسم، دون تحقق من التوقيع ولا تصنيف | `python3 lab/upgrade.py start --to <tag or commit>` (الافتراضي `origin/main`) | `sbarbase upgrade start --to <tag or commit>` |
+| معرفة ما سيغيّره `--to`، دون تغيير أي شيء | `python3 lab/upgrade.py check --to <tag or commit>` | `sbarbase upgrade check --to <tag or commit>` |
+| إعادة التشغيل عليه | `docker compose up -d --build` (أو `sudo systemctl restart sbarbase`) | |
+| معرفة النتيجة | `python3 lab/upgrade.py status` | `sbarbase upgrade status` |
+| هل سيمضي التراجع؟ | `python3 lab/upgrade.py rollback --check` | `sbarbase upgrade rollback --check` |
+| العودة إلى الإصدار السابق | `python3 lab/upgrade.py rollback`، ثم إعادة التشغيل بالطريقة نفسها | `sbarbase upgrade rollback` |
 
 الأمر `start --to` اختيار صريح من المشغّل: لا يتحقق من توقيع ولا يصنّف. لكنه يرفض تغيير صورة PostgreSQL، ويأخذ نسخة احتياطية أولًا، وله العودة نفسها.
 
@@ -193,7 +193,7 @@ sudo systemctl restart sbarbase
 
 إذا أردت الرجوع إلى تثبيتات أقدم بعد عودة تلقائية، وقال `rollback` إنه لا توجد ترقية للتراجع عنها، فرقِّ إلى الإصدار الأقدم نفسه: `python3 lab/upgrade.py start --to <earlier commit>`، ثم أعد التشغيل. يأخذ نسخة احتياطية أولًا مثل أي ترقية.
 
-ينفّذ الأمر `sbarbase` كلًّا من `check` و`start` و`status` و`rollback` مع `--to` ([الأمر sbarbase](cli.ar.md))، ولا يقدّم `channel` ولا `--release` ولا `--allow-class` بعد.
+يمرّر الأمر `sbarbase` كل واحد من هذه إلى `lab/upgrade.py` في وسائط منفصلة ([الأمر sbarbase](cli.ar.md)). ويرفض قبل أن يشغّل أي شيء إذا لم يكن الإصدار وسمًا بسيطًا على شكل `vX.Y.Z`، أو إذا سمّى `--allow-class` شيئًا غير `rebuild` أو `attended`، أو إذا لم يناسب خيارٌ الأمرَ الفرعي؛ وأعطِ `--allow-class` مرتين لإصدار يحتاج الاثنين.
 
 ## الانتقال إلى أول إصدار فيه قناة التحديث
 

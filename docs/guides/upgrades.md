@@ -172,18 +172,18 @@ The check reads the canonical repository over HTTPS, not your `origin`. To read 
 
 With Docker, put `docker compose exec sbarbase` before each `python3` command.
 
-| Task | Command |
-|---|---|
-| The newest signed release, its class and what it changes | `python3 lab/upgrade.py channel` (`--json` for the full result, `--preview` to include pre-releases) |
-| Install a signed release | `python3 lab/upgrade.py start --release vX.Y.Z` |
-| Install one that needs your confirmation | add `--allow-class attended` |
-| Install one that needs a rebuild | add `--allow-class rebuild`, then rebuild as above |
-| Move to any commit or tag, without signature check or class | `python3 lab/upgrade.py start --to <tag or commit>` (default `origin/main`) |
-| See what `--to` would change, without changing anything | `python3 lab/upgrade.py check --to <tag or commit>` |
-| Restart onto it | `docker compose up -d --build` (or `sudo systemctl restart sbarbase`) |
-| See the outcome | `python3 lab/upgrade.py status` |
-| Would a rollback go ahead? | `python3 lab/upgrade.py rollback --check` |
-| Go back to the version before | `python3 lab/upgrade.py rollback`, then restart the same way |
+| Task | Command | With the `sbarbase` command |
+|---|---|---|
+| The newest signed release, its class and what it changes | `python3 lab/upgrade.py channel` (`--json` for the full result, `--preview` to include pre-releases) | `sbarbase upgrade channel` (`--json`; no `--preview`) |
+| Install a signed release | `python3 lab/upgrade.py start --release vX.Y.Z` | `sbarbase upgrade start --release vX.Y.Z` |
+| Install one that needs your confirmation | add `--allow-class attended` | the same |
+| Install one that needs a rebuild | add `--allow-class rebuild`, then rebuild as above | the same |
+| Move to any commit or tag, without signature check or class | `python3 lab/upgrade.py start --to <tag or commit>` (default `origin/main`) | `sbarbase upgrade start --to <tag or commit>` |
+| See what `--to` would change, without changing anything | `python3 lab/upgrade.py check --to <tag or commit>` | `sbarbase upgrade check --to <tag or commit>` |
+| Restart onto it | `docker compose up -d --build` (or `sudo systemctl restart sbarbase`) | |
+| See the outcome | `python3 lab/upgrade.py status` | `sbarbase upgrade status` |
+| Would a rollback go ahead? | `python3 lab/upgrade.py rollback --check` | `sbarbase upgrade rollback --check` |
+| Go back to the version before | `python3 lab/upgrade.py rollback`, then restart the same way | `sbarbase upgrade rollback` |
 
 `start --to` is an operator's explicit choice: it is not signature checked and not classified. It still refuses a PostgreSQL image change, backs up first and has the same way back.
 
@@ -193,7 +193,7 @@ A `rollback` from the command line while a new version is still waiting for its 
 
 To go back to earlier pins after the automatic way back, when `rollback` says there is no upgrade to roll back, upgrade to the earlier version: `python3 lab/upgrade.py start --to <earlier commit>`, then restart. It backs up first, like any upgrade.
 
-The `sbarbase` command runs `check`, `start`, `status` and `rollback` with `--to` ([the sbarbase command](cli.md)); it does not offer `channel`, `--release` or `--allow-class` yet.
+The `sbarbase` command passes each of these to `lab/upgrade.py` as separate arguments ([the sbarbase command](cli.md)). It refuses before running anything when a release is not a plain `vX.Y.Z` tag, when `--allow-class` names anything but `rebuild` or `attended`, or when an option does not fit the subcommand; give `--allow-class` twice for a release that needs both.
 
 ## Moving onto the first version with the update channel
 

@@ -240,6 +240,43 @@ test('upgrade delegates to lab/upgrade.py and defaults to check',async()=>{
  expect(await main(['upgrade','sideways'],harness(root).deps)).toBe(EXIT.usage);
 });
 
+test('upgrade reaches the release channel: channel, start --release and rollback --check',async()=>{
+ const {root}=installation();
+ const run=harness(root);
+ await main(['upgrade','channel'],run.deps);
+ await main(['upgrade','channel','--json'],run.deps);
+ await main(['upgrade','start','--release','v1.2.3'],run.deps);
+ await main(['upgrade','start','--release=v10.0.12','--allow-class','attended'],run.deps);
+ // Repeated, deduplicated, each passed as its own argument.
+ await main(['upgrade','start','--release','v1.3.0','--allow-class','rebuild','--allow-class','attended','--allow-class','rebuild'],run.deps);
+ await main(['upgrade','rollback','--check'],run.deps);
+ const upgrade=['/usr/bin/python3','lab/upgrade.py'];
+ expect(run.runs).toEqual([[...upgrade,'channel'],[...upgrade,'channel','--json'],
+  [...upgrade,'start','--release','v1.2.3'],
+  [...upgrade,'start','--release','v10.0.12','--allow-class','attended'],
+  [...upgrade,'start','--release','v1.3.0','--allow-class','rebuild','--allow-class','attended'],
+  [...upgrade,'rollback','--check']]);
+});
+
+test('upgrade refuses a release that is not a plain tag and flags that do not fit',async()=>{
+ const {root}=installation();
+ for(const argv of [
+  ['upgrade','start','--release','1.2.3'],['upgrade','start','--release','v1.2'],['upgrade','start','--release','v1.2.3-rc1'],
+  ['upgrade','start','--release','v1.2.3;rm -rf /'],['upgrade','start','--release','v1.2.3\n'],['upgrade','start','--release','--json'],
+  ['upgrade','start','--release','v1.2.3','--allow-class','manual'],['upgrade','start','--release','v1.2.3','--allow-class','rebuild,safe'],
+  ['upgrade','start','--release','v1.2.3','--to','origin/main'],['upgrade','start','--allow-class','attended'],
+  ['upgrade','check','--release','v1.2.3'],['upgrade','channel','--release','v1.2.3'],
+  ['upgrade','status','--json'],['upgrade','check','--check'],['upgrade','channel','--check'],['upgrade','rollback','--json'],
+  ['upgrade','channel','extra'],
+ ]) {
+  const run=harness(root);
+  expect(await main(argv,run.deps)).toBe(EXIT.usage);
+  expect(run.runs).toEqual([]);
+ }
+ expect(()=>parse(['status','--release','v1.2.3'])).toThrow('does not apply');
+ expect(()=>parse(['upgrade','rollback','--check=1'])).toThrow('takes no value');
+});
+
 test('logs: journalctl for the supervisor, docker logs for a service, a hint inside the container',async()=>{
  const {root,runtime}=installation();
  const systemd=harness(root,{unit:true});

@@ -39,7 +39,7 @@ docker compose exec sbarbase deploy/sbarbase status
 | Add an environment | `sbarbase add-environment <project> <name>` | the management API, as the console |
 | Rotate a publishable key | `sbarbase rotate-key <environment>` | the key API, as the console |
 | Gateway share | `sbarbase share <environment> [<n>]` | the management API, as the console |
-| Upgrade | `sbarbase upgrade [check\|start\|status\|rollback]` | `lab/upgrade.py` |
+| Upgrade | `sbarbase upgrade [check\|start\|status\|rollback\|channel]` | `lab/upgrade.py` |
 | Studio | `sbarbase studio start\|stop <environment>` | the management API; the supervisor runs `lab/studio.py` |
 | Logs | `sbarbase logs [supervisor\|auth\|rest\|storage\|database]` | `journalctl` or `docker logs` |
 
@@ -77,7 +77,15 @@ These sign in to the management API with your own operator account, exactly as t
 
 ### upgrade
 
-`sbarbase upgrade` runs `lab/upgrade.py check`, which changes nothing. `upgrade start`, `upgrade status` and `upgrade rollback` run the same subcommands of `lab/upgrade.py`, and `--to REF` picks the version. [Upgrades](upgrades.md) explains each step.
+`sbarbase upgrade` runs `lab/upgrade.py check`, which changes nothing. `upgrade start`, `upgrade status` and `upgrade rollback` run the same subcommands of `lab/upgrade.py`, and `--to REF` picks the version. The release channel is reached the same way:
+
+| Task | Command |
+|---|---|
+| The newest signed release and what it takes | `sbarbase upgrade channel [--json]` |
+| Move onto a verified release | `sbarbase upgrade start --release vX.Y.Z [--allow-class rebuild\|attended]` |
+| Whether a rollback would go ahead | `sbarbase upgrade rollback --check` |
+
+A release must be a plain `vX.Y.Z` tag and `--allow-class` names `rebuild` or `attended`; give it twice for a release that needs both. Anything else, or an option that does not fit the subcommand, is refused before `lab/upgrade.py` runs. [Upgrades](upgrades.md) explains each step.
 
 ### logs
 
