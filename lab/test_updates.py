@@ -426,6 +426,27 @@ class SupervisorTests(Private):
         self.turn(at(0, 55))
         self.assertEqual(len(self.spawned), 1)
 
+    def test_the_daily_backup_that_follows_a_failed_try_does_not_spend_it(self):
+        # The default window (3:00 AM to 5:00 AM) overlaps the default daily backup hour: the daily
+        # backup waits while the try runs and starts as soon as it ended.
+        self.put('settings.json', {'check': True, 'automatic': True, 'window': {'start': '03:00', 'end': '05:00'}})
+        self.put('available.json', document())
+        self.put('check.json', {'attempted_at': updates.stamp(at(3)), 'error': None, 'failures': 0})
+        self.outcome = (1, 'git fetch failed: Could not resolve host\nNothing was changed\n')
+        self.turn(at(3, 0))
+        self.turn(at(3, 0))
+        self.turn(at(3, 1))
+        self.assertEqual(self.get('last-request.json')['state'], 'failed')
+        (self.backups / ('e_' + 'a' * 24) / at(3, 2).astimezone(datetime.UTC).strftime('%Y%m%dT%H%M%SZ')).mkdir(parents=True)
+        self.turn(at(3, 5))
+        self.assertEqual(updates.ledger()['tries']['0.2.0']['ended'], updates.stamp(at(3, 1)))
+        # A console request replacing the last request later changes nothing about that bound.
+        self.put('last-request.json', {'id': 'x', 'kind': 'check', 'trigger': 'console', 'state': 'done',
+                                       'requested_at': updates.stamp(at(3, 6)), 'finished_at': updates.stamp(at(3, 7))})
+        self.turn(at(3, 10))
+        self.assertEqual(updates.ledger()['attempted'], [])
+        self.assertEqual(updates.read_request()['trigger'], 'automatic')
+
     def test_a_network_failure_before_the_backup_does_not_spend_the_automatic_attempt(self):
         self.put('settings.json', {'check': True, 'automatic': True, 'window': {'start': '23:00', 'end': '01:00'}})
         self.put('available.json', document())
@@ -488,6 +509,16 @@ class NotificationTests(ProducerCase):
         self.assertIsNone(updates.announce_available(document(commit='d' * 40), CURRENT, catalog=self.catalog))
         self.assertEqual(self.outbox(), [('update.available', 'info', 'update_available', None)])
         self.assertEqual(self.details(), [{'class': 'safe', 'version': '0.2.0'}])
+
+    def test_a_newer_signed_release_passed_over_is_announced_and_an_unsigned_one_is_not(self):
+        checked = {**document(), 'newest': {'version': '0.4.0', 'tag': 'v0.4.0', 'class': 'manual', 'signed': True, 'reasons': ['x']}}
+        self.assertIsNotNone(updates.announce_available(checked, CURRENT, catalog=self.catalog))
+        self.assertEqual(self.details(), [{'class': 'safe', 'version': '0.2.0'}, {'class': 'manual', 'version': '0.4.0'}])
+        self.assertIsNone(updates.announce_available(checked, CURRENT, catalog=self.catalog))
+        quiet = {**document(available=False), 'available': None,
+                 'newest': {'version': '0.5.0', 'tag': 'v0.5.0', 'class': 'safe', 'signed': False, 'reasons': ['x']}}
+        self.assertIsNone(updates.announce_available(quiet, CURRENT, catalog=self.catalog))
+        self.assertEqual(len(self.details()), 2)
 
     def test_an_announcement_the_catalog_did_not_take_is_tried_again(self):
         document_ = document(release(version='0.3.0', tag='v0.3.0'))

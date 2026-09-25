@@ -52,9 +52,9 @@ REBUILD = {'Dockerfile': 'the container image definition',
            'deploy/container/start.sh': 'the start script baked into the container image',
            'compose.yaml': 'the container configuration',
            'deploy/sbarbase.service': 'the installed systemd unit'}
-# The TLS proxy runs as its own unit the operator installed (sbarbase-tls.service in the
-# deployment guide and the VM rehearsal), which an update never restarts. It imports only
-# Node built-ins, so this file is everything it runs.
+# The TLS proxy runs as its own unit the operator installs (lab/vm-milestones.sh calls it
+# sbarbase-tls.service; a server may name it otherwise), which an update never restarts. It
+# imports only Node built-ins, so this file is everything it runs.
 PROXY = {'deploy/console-tls-proxy.ts': 'the console TLS proxy'}
 PROXY_UNIT = 'sbarbase-tls.service'
 # Pinned services that run their own schema migrations in each environment database when they
@@ -334,8 +334,8 @@ def classify(current, target, release=None):
             rebuild.append(f'{path} changes ({what}); a restart does not pick it up')
     for path, what in PROXY.items():
         if path in changed:
-            rebuild.append(f'{path} changes ({what}); it runs as its own unit, {PROXY_UNIT}, which an update does not '
-                           'restart: restart that unit after the update')
+            rebuild.append(f'{path} changes ({what}); it runs as its own unit (named {PROXY_UNIT} in the VM rehearsal), '
+                           'which an update does not restart: restart that unit after the update')
     attended = migrating(current, target)
     if manual:
         return 'manual', manual + rebuild + attended
@@ -431,6 +431,9 @@ def check(where=None, channel='stable', signers=None):
     except ReleaseError as error:
         result['refusals'].append(f'The release source could not be read: {error}')
         return result
+    # With no signing key listed every release is refused for that one reason: naming the newest
+    # is enough, and fetching every older one would only repeat it.
+    keyless = not signers_configured(Path(signers or SIGNERS))
     with exclusive():
         for release in reversed(releases):
             if key(release['version']) <= key(current['version']):
@@ -446,6 +449,8 @@ def check(where=None, channel='stable', signers=None):
                 result['skipped'].append(f"{release['tag']} was passed over: " + '; '.join(reasons))
                 if result['newest'] is None:
                     result['newest'] = summary(release, details, reasons)
+                if keyless:
+                    break
                 continue
             behind = left_behind(details, current)
             result.update(available=details, refusals=[behind] if behind else [])

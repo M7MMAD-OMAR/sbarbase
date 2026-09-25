@@ -50,6 +50,12 @@ export function availableText(release:Pick<AvailableRelease,'version'|'class'>){
  return `Sbarbase ${release.version} ${CLASS_WORDS[release.class].status}.`;
 }
 
+/** The one line the banner states for a newer signed release this installation cannot install. */
+export function newestText(release:Pick<NewestRelease,'version'|'class'>){
+ return release.class==='manual'?`Sbarbase ${release.version} needs a manual migration.`
+  :`Sbarbase ${release.version} is released, but this installation cannot install it yet.`;
+}
+
 /** Release notes in the console's language, falling back to English. */
 export function releaseNotes(notes:{en:string;ar:string},language:string){
  return language.toLowerCase().startsWith('ar')&&notes.ar.trim()?{text:notes.ar,language:'ar'}:{text:notes.en,language:'en'};
@@ -57,6 +63,7 @@ export function releaseNotes(notes:{en:string;ar:string},language:string){
 
 export type Banner=
  |{kind:'available';key:string;version:string;class:UpdateClass;dismissible:true}
+ |{kind:'newest';key:string;version:string;class:UpdateClass|null;dismissible:true}
  |{kind:'confirmed';key:string;version:string;dismissible:true}
  |{kind:'rolled_back';key:string;dismissible:true}
  |{kind:'rollback_failed';key:string;dismissible:false};
@@ -81,6 +88,11 @@ export function banners(view:UpdatesView|undefined,dismissed:readonly string[]):
  if(release){
   const key=`available:${release.version}`;
   if(!dismissed.includes(key))shown.push({kind:'available',key,version:release.version,class:release.class,dismissible:true});
+ } else if(view.newest?.signed){
+  // Nothing can be installed, but a newer signed release exists (a manual migration, or one
+  // this version cannot reach yet). An unsigned one stays quiet.
+  const key=`available:${view.newest.version}`;
+  if(!dismissed.includes(key))shown.push({kind:'newest',key,version:view.newest.version,class:view.newest.class,dismissible:true});
  }
  return shown;
 }

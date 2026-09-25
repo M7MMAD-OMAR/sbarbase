@@ -273,6 +273,7 @@ class ChannelTests(Fixture):
         kind, reasons = self.classify('0.2.0', **{'deploy/console-tls-proxy.ts': 'export {}\n'})
         self.assertEqual(kind, 'rebuild')
         self.assertIn('sbarbase-tls.service', reasons[0])
+        self.assertIn('restart that unit', reasons[0])
 
     def test_image_compose_and_unit_changes_need_a_rebuild(self):
         kind, reasons = self.classify('0.2.0', Dockerfile='FROM ubuntu:26.10\n')
@@ -333,6 +334,18 @@ class ChannelTests(Fixture):
         self.assertEqual((newest['version'], newest['tag'], newest['class'], newest['signed']), ('0.2.0', 'v0.2.0', 'safe', False))
         self.assertIn('not signed by a key', newest['reasons'][0])
         self.assertIn('v0.2.0 was passed over', result['skipped'][0])
+
+    def test_with_no_key_listed_only_the_newest_release_is_named(self):
+        self.releases.release('0.2.0')
+        self.releases.release('0.3.0')
+        empty = self.releases.base / 'empty-signers'
+        empty.write_text((ROOT / 'deploy' / 'release-signers').read_text())
+        result = channel.check(signers=empty)
+        self.assertIsNone(result['available'])
+        self.assertEqual(len(result['skipped']), 1)
+        self.assertEqual(result['newest']['version'], '0.3.0')
+        self.assertIn('No release signing key', result['newest']['reasons'][0])
+        self.assertNotIn('refs/sbarbase-releases/tags/v0.2.0', self.local('for-each-ref', '--format=%(refname)', 'refs/sbarbase-releases'))
 
     def test_the_check_walks_down_to_the_newest_release_it_can_install(self):
         self.releases.release('0.2.0')

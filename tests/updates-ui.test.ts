@@ -1,7 +1,7 @@
 import {test,expect,describe} from 'bun:test';
 import {readFileSync} from 'node:fs';
 import {join} from 'node:path';
-import {ACKNOWLEDGEMENT,CLASS_WORDS,STAGE_TEXT,availableText,banners,busy,classifyStatus,describeWindow,dismiss,formatClock,formatWhen,installState,installable,parseClock,readDismissed,
+import {ACKNOWLEDGEMENT,CLASS_WORDS,STAGE_TEXT,availableText,banners,newestText,busy,classifyStatus,describeWindow,dismiss,formatClock,formatWhen,installState,installable,parseClock,readDismissed,
  releaseNotes,resumeKind,settingsKey,startWatch,stepWatch,toClock24,watchStage,windowError,zoneText,type UpdatesView,type Watch} from '../ui/releases';
 
 const ui=join(import.meta.dir,'..','ui');
@@ -115,6 +115,17 @@ describe('banners',()=>{
   expect(banners(view({available:null,last:{...last,phase:'applied'}}),[])).toEqual([]);
   const confirmed=banners(view({available:null,last:{...last,phase:'confirmed'}}),[])[0]!;
   expect(banners(view({available:null,last:{...last,phase:'confirmed'}}),[confirmed.key])).toEqual([]);
+ });
+ test('with nothing installable, a newer signed release still earns a notice; an unsigned one does not',()=>{
+  const manual={version:'0.4.0',tag:'v0.4.0',class:'manual' as const,signed:true,reasons:['It changes the PostgreSQL image']};
+  expect(banners(view({available:null,newest:manual}),[])).toEqual([{kind:'newest',key:'available:0.4.0',version:'0.4.0',class:'manual',dismissible:true}]);
+  expect(banners(view({available:null,newest:manual}),['available:0.4.0'])).toEqual([]);
+  expect(banners(view({available:null,newest:{...manual,signed:false}}),[])).toEqual([]);
+  // A release on offer is the notice; the newest one is on the page.
+  expect(banners(view({newest:manual}),[]).map(banner=>banner.kind)).toEqual(['available']);
+  expect(newestText(manual)).toBe('Sbarbase 0.4.0 needs a manual migration.');
+  expect(newestText({version:'0.4.0',class:'safe'})).toBe('Sbarbase 0.4.0 is released, but this installation cannot install it yet.');
+  expect(page).toContain("banner.kind==='newest'");
  });
  test('a failed way back is critical, first and cannot be dismissed',()=>{
   const failed=view({last:{phase:'rollback_failed',from:'a',to:'b',startedAt:'s',automatic:true}});

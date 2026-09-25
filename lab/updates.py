@@ -18,7 +18,8 @@ Files, all in .lab/upgrades, private (0600), each replaced atomically:
                      {announced, attempted, rolled_back, tries}. `attempted` is a try that went
                      ahead (it started the backup or moved the checkout) and `rolled_back` a way
                      back: automatic mode never retries either. `tries` counts automatic tries
-                     that stopped before that point: {version: {count, last}}
+                     that stopped before that point: {version: {count, last, ended?}}, `ended`
+                     being when the last try's request finished
   current.json       what runs now and whether the console may roll back, written by the
                      supervisor: {version, commit, written_at, rollback: {started_at, possible, reason},
                      timezone: {name, offset}}, the zone of the clock the maintenance window uses
@@ -195,7 +196,9 @@ def ledger():
     record = {name: [item for item in value.get(name) or [] if isinstance(item, str)]
               for name in ('announced', 'attempted', 'rolled_back')}
     tries = value.get('tries') if isinstance(value.get('tries'), dict) else {}
-    record['tries'] = {version: {'count': item['count'], 'last': item['last']} for version, item in tries.items()
+    record['tries'] = {version: {'count': item['count'], 'last': item['last'],
+                                 **({'ended': item['ended']} if isinstance(item.get('ended'), str) else {})}
+                       for version, item in tries.items()
                        if isinstance(item, dict) and isinstance(item.get('count'), int) and isinstance(item.get('last'), str)}
     return record
 
@@ -221,36 +224,60 @@ def begin_automatic(version, moment=None):
     return count + 1
 
 
-def backed_up_since(moment):
-    """Whether lab/backup.py started a backup at or after `moment`: its directories are named
-    by the UTC time the run started (YYYYMMDDTHHMMSSZ), and one appears before anything is
-    copied into it."""
+def backed_up_since(moment, until=None):
+    """Whether lab/backup.py started a backup at or after `moment` (and before `until`): its
+    directories are named by the UTC time the run started (YYYYMMDDTHHMMSSZ), and one appears
+    before anything is copied into it."""
     since = moment.astimezone(datetime.UTC).strftime('%Y%m%dT%H%M%SZ')
+    before = until.astimezone(datetime.UTC).strftime('%Y%m%dT%H%M%SZ') if until else None
     try:
         folders = [folder for folder in BACKUPS.iterdir() if folder.is_dir()]
     except OSError:
         return False
     for folder in folders:
         try:
-            if any(re.fullmatch(r'\d{8}T\d{6}Z', item.name) and item.name >= since for item in folder.iterdir()):
+            if any(re.fullmatch(r'\d{8}T\d{6}Z', item.name) and item.name >= since and (before is None or item.name < before)
+                   for item in folder.iterdir()):
                 return True
         except OSError:
             continue
     return False
 
 
+def settle_tries(record):
+    """Notes when the request of each automatic try finished (last-request.json), once, so the
+    evidence of a try stays bounded to the try: the daily backup waits while an update runs and
+    starts right after it ends, and its backup must not count as the try's. Returns the ledger."""
+    last = read('last-request.json')
+    if not isinstance(last, dict) or last.get('trigger') != 'automatic' or last.get('kind') != 'apply':
+        return record
+    attempt = record['tries'].get(last.get('version'))
+    asked, ended = parse_time(last.get('requested_at')), parse_time(last.get('finished_at'))
+    if attempt is None or 'ended' in attempt or asked is None or ended is None:
+        return record
+    since = parse_time(attempt['last'])
+    if since is None or asked < since.replace(microsecond=0):
+        return record
+    attempt['ended'] = last['finished_at']
+    write('ledger.json', record)
+    return record
+
+
 def went_ahead(attempt, upgrade_state):
     """Whether an automatic try got past the steps that change nothing: it started the backup,
     or it recorded an upgrade (even one that then failed), which happens just before the
-    checkout moves. Such a try is spent; one that stopped earlier may be tried again."""
+    checkout moves. Such a try is spent; one that stopped earlier may be tried again. Only what
+    happened between the try's start and the end of its request counts; a try whose end is not
+    known counts everything since it started."""
     since = parse_time((attempt or {}).get('last'))
     if since is None:
         return True
+    until = parse_time((attempt or {}).get('ended'))
     if isinstance(upgrade_state, dict):
         began = parse_time(upgrade_state.get('started_at'))
-        if began is not None and began >= since:
+        if began is not None and began >= since and (until is None or began <= until):
             return True
-    return backed_up_since(since)
+    return backed_up_since(since, until)
 
 
 def label(state):
@@ -414,6 +441,8 @@ def automatic_release(settings, document, current, upgrade_state, record, moment
     without refusals only, inside the window, never while a backup runs, and never a version
     whose try went ahead or that rolled back. A try that stopped before the backup is tried
     again, at most AUTOMATIC_TRIES times, backing off between tries."""
+    if record.get('tries'):
+        record = settle_tries(record)
     if not (settings['check'] and settings['automatic']) or backup_running:
         return None
     if not in_window(settings['window'], moment):
@@ -542,21 +571,33 @@ def finish_check(status, output, previous, moment, current):
 
 
 def announce_available(document, current, catalog=None):
-    """One update.available per version, ever: the ledger remembers it past the dedupe window."""
+    """One update.available per version, ever: the ledger remembers it past the dedupe window.
+    The release on offer is announced, and so is a newer signed release the check passed over
+    (a manual migration, or one this version cannot reach yet), so the operator learns that it
+    exists without opening the Updates page. An unsigned one stays quiet. Returns the first
+    event written, or None."""
     document = fresh(document, current)
-    release = document.get('available') if document else None
-    if not isinstance(release, dict) or not isinstance(release.get('version'), str):
+    if not document:
         return None
-    version = release['version']
-    if version in ledger()['announced']:
-        return None
-    emitted = notification_producers.emit('update.available', 'info', 'update.available|' + version, {},
-                                          'system:supervisor', 'update_available',
-                                          {'version': version, 'class': str(release.get('class'))}, catalog=catalog)
-    if emitted is not None:
-        # Only a written event counts: a catalog that could not be reached is tried at the next check.
-        remember('announced', version)
-    return emitted
+    candidates = [document.get('available')]
+    newest = document.get('newest')
+    if isinstance(newest, dict) and newest.get('signed') is True:
+        candidates.append(newest)
+    written = []
+    for release in candidates:
+        if not isinstance(release, dict) or not isinstance(release.get('version'), str):
+            continue
+        version = release['version']
+        if version in ledger()['announced']:
+            continue
+        emitted = notification_producers.emit('update.available', 'info', 'update.available|' + version, {},
+                                              'system:supervisor', 'update_available',
+                                              {'version': version, 'class': str(release.get('class'))}, catalog=catalog)
+        if emitted is not None:
+            # Only a written event counts: a catalog that could not be reached is tried at the next check.
+            remember('announced', version)
+            written.append(emitted)
+    return written[0] if written else None
 
 
 def announce_outcome(before, after, catalog=None):

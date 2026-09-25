@@ -2,7 +2,7 @@ import {useCallback,useEffect,useId,useRef,useState,type KeyboardEvent,type Reac
 import {CircleArrowUp,CircleCheck,Download,ExternalLink,Info,OctagonAlert,RefreshCw,RotateCcw,ShieldAlert,ShieldCheck,TriangleAlert,Undo2,Wrench,X} from 'lucide-react';
 import {UpdateError,type UpdatesApi} from './api';
 import {ErrorMessage,Loading} from './components';
-import {ACKNOWLEDGEMENT,BACKUP_GUIDE,CLASS_WORDS,STAGE_TEXT,UPGRADES_GUIDE,availableText,banners,busy,describeWindow,dismiss,formatWhen,settingsKey,installState,installable,parseClock,readDismissed,
+import {ACKNOWLEDGEMENT,BACKUP_GUIDE,CLASS_WORDS,STAGE_TEXT,UPGRADES_GUIDE,availableText,banners,newestText,busy,describeWindow,dismiss,formatWhen,settingsKey,installState,installable,parseClock,readDismissed,
  releaseNotes,resumeKind,startWatch,stepWatch,toClock24,watchStage,windowError,type ClockTime,type NewestRelease,type PollEvent,type ServerZone,type UpdateClass,type UpdateSettings,type UpdatesView,type Watch,type WatchKind} from './releases';
 
 function storage(){try{return window.localStorage;}catch{return undefined;}}
@@ -83,6 +83,7 @@ export function UpdateBanners({updates,onOpen,onPage}:{updates:UpdatesController
   if(banner.kind==='rollback_failed')return <div key={banner.key} className="update-banner critical" role="alert"><OctagonAlert aria-hidden="true"/><p><strong>The update failed and so did the way back.</strong> Restore from the backups taken before the upgrade. <a href={BACKUP_GUIDE} target="_blank" rel="noreferrer">How to restore<ExternalLink aria-hidden="true"/></a></p>{open}</div>;
   if(banner.kind==='rolled_back')return <div key={banner.key} className="update-banner" role="status"><Undo2 aria-hidden="true"/><p>{STAGE_TEXT.rolled_back}</p>{open}{close}</div>;
   if(banner.kind==='confirmed')return <div key={banner.key} className="update-banner done" role="status"><CircleCheck aria-hidden="true"/><p>Sbarbase was updated to {banner.version}.</p>{close}</div>;
+  if(banner.kind==='newest')return <div key={banner.key} className="update-banner" role="status"><Info aria-hidden="true"/><p>{newestText(banner)}</p>{open}{close}</div>;
   return <div key={banner.key} className="update-banner" role="status"><CircleArrowUp aria-hidden="true"/><p>{availableText(banner)}</p>{open}{close}</div>;
  })}</>;
 }
