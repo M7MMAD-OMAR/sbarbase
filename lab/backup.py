@@ -124,12 +124,61 @@ def digest(path):
     return value.hexdigest()
 
 
-def counts(e):
-    """Rows a restore must bring back exactly: users, identities, buckets, objects."""
-    out = sql("SELECT (SELECT count(*) FROM auth.users), (SELECT count(*) FROM auth.identities), "
-              "(SELECT count(*) FROM storage.buckets), (SELECT count(*) FROM storage.objects);", e)
+COUNTS = ("SELECT (SELECT count(*) FROM auth.users), (SELECT count(*) FROM auth.identities), "
+          "(SELECT count(*) FROM storage.buckets), (SELECT count(*) FROM storage.objects);")
+
+
+def parse_counts(out):
     users, identities, buckets, objects = (int(value) for value in out.split('|'))
     return {'auth.users': users, 'auth.identities': identities, 'storage.buckets': buckets, 'storage.objects': objects}
+
+
+def counts(e):
+    """Rows a restore must bring back exactly: users, identities, buckets, objects."""
+    return parse_counts(sql(COUNTS, e))
+
+
+class Snapshot:
+    """One read-only snapshot held open while pg_dump reads it.
+
+    The counts come from the same snapshot the dump exports, so a sign-up or an upload that
+    lands while the environment serves is either in both or in neither. Counting first and
+    dumping afterwards let such a row into the dump only, and the restore then refused the
+    backup because its rows did not match.
+    """
+
+    def __init__(self, e):
+        self.process = subprocess.Popen(
+            ['docker', 'exec', '-i', DB, 'psql', '-X', '-qAt', '-v', 'ON_ERROR_STOP=1', '-U', 'supabase_admin', '-d', e],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+        try:
+            self.process.stdin.write('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;\n'
+                                     'SELECT pg_export_snapshot();\n' + COUNTS + '\n')
+            self.process.stdin.flush()
+            self.id = self.process.stdout.readline().strip()
+            line = self.process.stdout.readline().strip()
+            if not re.fullmatch(r'[0-9A-F]+-[0-9A-F]+-[0-9]+', self.id) or not line:
+                raise BackupError('database snapshot failed')
+            self.counts = parse_counts(line)
+        except BaseException:
+            self.close()
+            raise
+
+    def close(self):
+        if self.process.poll() is None:
+            try:
+                self.process.stdin.write('COMMIT;\n')
+                self.process.stdin.close()
+                self.process.wait(timeout=60)
+            except (OSError, subprocess.TimeoutExpired, ValueError):
+                self.process.kill()
+                self.process.wait()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
 
 
 def private_dir(path):
@@ -162,11 +211,12 @@ def create(e, keep=DEFAULT_KEEP, now=None):
     if target.exists():
         raise BackupError('A backup with this time already exists')
     private_dir(target)
-    before = counts(e)
-    # pg_dump reads one consistent snapshot while the environment keeps serving.
+    # pg_dump reads the snapshot the counts were taken in, while the environment keeps serving.
     fd = os.open(target / 'database.dump', os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    with os.fdopen(fd, 'wb') as handle:
-        run(['docker', 'exec', DB, 'pg_dump', '-U', 'supabase_admin', '-Fc', '-d', e], stdout=handle, text=False)
+    with os.fdopen(fd, 'wb') as handle, Snapshot(e) as snapshot:
+        before = snapshot.counts
+        run(['docker', 'exec', DB, 'pg_dump', '-U', 'supabase_admin', '-Fc', f'--snapshot={snapshot.id}', '-d', e],
+            stdout=handle, text=False)
     # Files after the database: a file written in between is extra, never missing.
     fd = os.open(target / 'objects.tar', os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(fd, 'wb') as handle:

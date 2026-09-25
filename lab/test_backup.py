@@ -144,6 +144,57 @@ class RestoreTests(Fixture):
         self.assertFalse(any('DROP DATABASE' in call[1] for call in calls if call[0] == 'sql'))
         self.assertTrue(any(name.name.startswith('restore-') for name in path.iterdir()))
 
+    def test_the_dump_reads_the_snapshot_its_counts_came_from(self):
+        """A row written while the backup runs is in both the dump and its counts, or in neither."""
+        import io
+        written = []
+
+        class Session:
+            def __init__(self, argv, **kwargs):
+                self.stdin = io.StringIO()
+                self.stdin.close = lambda: written.append(self.stdin.getvalue())
+                self.stdout = io.StringIO('00000003-0000002A-1\n7|7|1|2\n')
+                self.done = False
+
+            def poll(self):
+                return 0 if self.done else None
+
+            def wait(self, timeout=None):
+                self.done = True
+                return 0
+
+        dumped = []
+        def run(argv, **kwargs):
+            if 'pg_dump' in argv:
+                dumped.append(list(argv))
+            return None
+        with patch.object(backup.subprocess, 'Popen', Session), patch.object(backup, 'run', run), \
+             patch.object(backup, 'helper', lambda *a, **k: None), patch.object(backup, 'ownership', return_value=None), \
+             patch.object(backup, 'storage_image', return_value='sha256:storage'), \
+             patch.object(backup.tarfile, 'open', side_effect=lambda path: __import__('contextlib').nullcontext(
+                 type('A', (), {'getmembers': lambda self: []})())):
+            (self.backups / E).mkdir(parents=True, exist_ok=True)
+            path, manifest = backup.create(E)
+        self.assertEqual(manifest['counts'], {'auth.users': 7, 'auth.identities': 7, 'storage.buckets': 1, 'storage.objects': 2})
+        self.assertIn('--snapshot=00000003-0000002A-1', dumped[0])
+        self.assertTrue(written[0].startswith('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;'))
+        self.assertTrue(written[0].rstrip().endswith('COMMIT;'), 'the snapshot is released after the dump')
+
+    def test_a_snapshot_that_fails_stops_the_backup(self):
+        import io
+
+        class Broken:
+            def __init__(self, argv, **kwargs):
+                self.stdin = io.StringIO()
+                self.stdout = io.StringIO('')
+
+            def poll(self):
+                return 3
+
+        with patch.object(backup.subprocess, 'Popen', Broken):
+            with self.assertRaisesRegex(backup.BackupError, 'snapshot'):
+                backup.Snapshot(E)
+
     def test_an_unpublished_environment_is_never_touched(self):
         calls, run, sql, helper = self.recorder()
         with patch.object(backup, 'run', run), patch.object(backup, 'sql', sql):
