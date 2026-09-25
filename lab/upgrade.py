@@ -3,10 +3,14 @@
 Usage (with Docker, put `docker compose exec sbarbase` before each command):
   /usr/bin/python3 lab/upgrade.py check [--to REF]    what would change, and whether it can
   /usr/bin/python3 lab/upgrade.py start [--to REF]    back up, pull images, move the checkout
+  /usr/bin/python3 lab/upgrade.py channel [--json]    the newest signed release, and what it takes
+  /usr/bin/python3 lab/upgrade.py start --release vX.Y.Z [--allow-class rebuild]
+                                                      start onto a verified release from the channel
   /usr/bin/python3 lab/upgrade.py status              the last upgrade and its outcome
   /usr/bin/python3 lab/upgrade.py rollback            move back to the version before it
 
-REF defaults to origin/main, fetched first. After `start` or `rollback`, restart Sbarbase
+REF defaults to origin/main, fetched first; it is an explicit operator choice, not the
+release channel (lab/release_channel.py), and it is neither signature checked nor classified. After `start` or `rollback`, restart Sbarbase
 (`docker compose up -d --build`, or `sudo systemctl restart sbarbase`). The next start
 replaces Auth, REST and Storage containers whose pinned image or configuration changed,
 and nothing else. If that start fails, the supervisor moves the checkout back by itself
@@ -26,6 +30,7 @@ from pathlib import Path
 
 import durable_runtime as runtime
 import install_server
+import release_channel
 import run as lab
 
 ROOT = lab.ROOT
@@ -286,16 +291,84 @@ def status():
     print(f"now at   {git('rev-parse', 'HEAD')[:12]}")
 
 
+# The release channel: lab/release_channel.py decides, these only wire it in.
+
+def show_channel(result):
+    current, available = result['current'], result['available']
+    print(f"now        {current['version']} ({current['commit'][:12]})")
+    if available:
+        print(f"available  {available['version']} ({available['tag']}, {available['commit'][:12]}), class {available['class']}, "
+              + ('signed' if available['signed'] else 'NOT signed'))
+        for reason in available['reasons']:
+            print('reason     ' + reason)
+        for row in available['changes']:
+            print(f"image      {row['image']}: {row['from']} -> {row['to']}")
+        print('notes      ' + available['notes']['en'])
+    else:
+        print('available  nothing newer')
+    for refusal in result['refusals']:
+        print('refused    ' + refusal)
+
+
+def channel(as_json=False, preview=False):
+    try:
+        result = release_channel.check(channel='preview' if preview else 'stable')
+    except release_channel.ReleaseError as error:
+        raise UpgradeError(str(error))
+    release_channel.write_check(result)
+    if as_json:
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+    else:
+        show_channel(result)
+
+
+def start_release(tag, allow=()):
+    """Starts an upgrade to a signed release: verified, classified, then the usual start."""
+    try:
+        release = release_channel.prepare(tag, allow)
+    except release_channel.ReleaseError as error:
+        raise UpgradeError(f'{error}\nNothing was changed')
+    print(f"release  {tag}, class {release['class']}, signed")
+    began = now()
+    try:
+        # The verified commit, never the ref: nothing can move between the check and the checkout.
+        start(release['commit'])
+    finally:
+        state = load_state()
+        if state and state.get('to') == release['commit'] and state.get('started_at', '') >= began and 'release' not in state:
+            save_state({**state, 'release': {'version': release['version'], 'tag': tag, 'class': release['class'], 'signed': True}})
+    if release['class'] == 'rebuild':
+        print('This release changes what a plain restart does not pick up:')
+        for reason in release['reasons']:
+            print('  ' + reason)
+        print('With Docker, restart with: docker compose up -d --build')
+        print('With systemd, reinstall the unit first: sudo /usr/bin/python3 lab/install_server.py supervise --apply')
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description='Upgrade Sbarbase, with a way back')
     sub = parser.add_subparsers(dest='command', required=True)
-    for name in ('check', 'start'):
-        sub.add_parser(name).add_argument('--to', default=DEFAULT_TARGET)
+    sub.add_parser('check').add_argument('--to', default=DEFAULT_TARGET)
+    starting = sub.add_parser('start')
+    target = starting.add_mutually_exclusive_group()
+    target.add_argument('--to', default=DEFAULT_TARGET)
+    target.add_argument('--release', help='a signed release tag from the channel, vX.Y.Z')
+    starting.add_argument('--allow-class', action='append', choices=['rebuild'], default=[],
+                          help='apply a release that needs a rebuild (a manual release is always refused)')
+    listing = sub.add_parser('channel')
+    listing.add_argument('--json', action='store_true')
+    listing.add_argument('--preview', action='store_true', help='include pre-releases')
     sub.add_parser('status')
     sub.add_parser('rollback')
     args = parser.parse_args(argv)
     os.chdir(ROOT)
     try:
+        if args.command == 'channel':
+            channel(args.json, args.preview)
+            return 0
+        if args.command == 'start' and args.release:
+            start_release(args.release, args.allow_class)
+            return 0
         if args.command == 'check':
             details = plan(args.to)
             report(details, args.to)
