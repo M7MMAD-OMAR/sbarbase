@@ -17,6 +17,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+import upgrade
 from test_release_channel import ssh_signing
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -138,6 +139,10 @@ class InstallationTests(unittest.TestCase):
             patcher = patch.object(check, name, value)
             patcher.start()
             self.addCleanup(patcher.stop)
+        # schema_at reads through lab/upgrade.py, which runs Git in its own checkout.
+        patcher = patch.object(upgrade, 'ROOT', self.root)
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def candidates(self):
         output = io.StringIO()
@@ -201,10 +206,9 @@ def catalog(version, digest='d'):
     return {'version': version, 'tables': ['organizations'], 'rows': {'organizations': 1}, 'digest': digest}
 
 
-def observation(head, catalog_state, upgrade, status, rest=True):
+def observation(head, catalog_state, upgrade, rest=True):
     return {'head': head, 'rest_tag': 'postgrest:v14.16', 'environments': {'e_1': {'counts': [1, 1, 1, 1], 'rest_on_pin': rest}},
-            'healthy': True, 'console_health': 200, 'held': False, 'catalog': catalog_state, 'upgrade': upgrade,
-            'status': f'upgrade  x -> y\nresult   {status}: words\n'}
+            'healthy': True, 'console_health': 200, 'held': False, 'catalog': catalog_state, 'upgrade': upgrade}
 
 
 class StageTests(unittest.TestCase):
@@ -222,7 +226,7 @@ class StageTests(unittest.TestCase):
             patcher.start()
             self.addCleanup(patcher.stop)
         check.RECORD.write_text(json.dumps({'commits': self.names,
-                                            'observed': observation(self.names['base'], catalog(3), {}, 'none')}))
+                                            'observed': observation(self.names['base'], catalog(3), {})}))
 
     def after(self, stage, now, back_to='good'):
         with patch.object(check, 'observe', return_value=now), patch.object(check, 'schema_at', return_value=4), \
@@ -237,13 +241,13 @@ class StageTests(unittest.TestCase):
 
     def test_a_catalog_migration_moved_back_with_its_snapshot_passes(self):
         check.MIGRATED.write_text(json.dumps({'version': 4}))
-        now = observation(self.names['good'], catalog(3), self.moved_back('migrates'), 'rolled_back')
+        now = observation(self.names['good'], catalog(3), self.moved_back('migrates'))
         self.assertEqual(self.after('migration-rolled-back', now), (0, []))
 
     def test_a_catalog_left_migrated_or_changed_fails(self):
         check.MIGRATED.write_text(json.dumps({'version': 4}))
         migrated = {**catalog(4, 'other'), 'tables': ['organizations', check.PROBE_TABLE]}
-        now = observation(self.names['good'], migrated, self.moved_back('migrates', restored=None), 'rolled_back')
+        now = observation(self.names['good'], migrated, self.moved_back('migrates', restored=None))
         status, failed = self.after('migration-rolled-back', now)
         self.assertEqual(status, 1)
         self.assertEqual(set(failed), {'the control state snapshot taken when the new version started was restored',
@@ -252,20 +256,20 @@ class StageTests(unittest.TestCase):
                                        'organizations, projects, environments and memberships in the control catalog are unchanged'})
 
     def test_a_migration_that_never_ran_fails(self):
-        now = observation(self.names['good'], catalog(3), self.moved_back('migrates'), 'rolled_back')
+        now = observation(self.names['good'], catalog(3), self.moved_back('migrates'))
         self.assertEqual(self.after('migration-rolled-back', now)[1], ['the new version had migrated the control catalog before it stopped'])
 
     def test_a_stale_rollback_of_another_version_fails(self):
-        now = observation(self.names['good'], catalog(3), self.moved_back('bad'), 'rolled_back')
+        now = observation(self.names['good'], catalog(3), self.moved_back('bad'))
         self.assertEqual(self.after('health-rolled-back', now)[1], ['the broken version was moved back automatically'])
 
     def test_the_operator_rollback_keeps_the_control_state(self):
         state = {'phase': 'rolled_back', 'automatic': False, 'from': self.names['base'], 'to': self.names['good'], 'snapshot': 's'}
-        now = observation(self.names['base'], catalog(3), state, 'rolled_back')
+        now = observation(self.names['base'], catalog(3), state)
         self.assertEqual(self.after('operator-rollback', now), (0, []))
-        now = observation(self.names['base'], catalog(3), {**state, 'restored': 's'}, 'confirmed')
+        now = observation(self.names['base'], catalog(3), {**state, 'restored': 's'})
         self.assertEqual(set(self.after('operator-rollback', now)[1]),
-                         {'after confirmation the control state was kept, not restored', 'upgrade.py status reports rolled_back'})
+                         {'after confirmation the control state was kept, not restored'})
 
     def serve(self, health, rest):
         import http.server
@@ -307,7 +311,7 @@ class StageTests(unittest.TestCase):
         self.serve(lambda: (503, '{}'), lambda: (401, '{"message":"missing key"}'))
         self.assertEqual(self.hold('applied', limit=2), (1, [(
             'application traffic was answered 503 while the new version waited for its health checks', False)]))
-        check.RECORD.write_text(json.dumps({'commits': self.names, 'observed': observation('x', catalog(3), {}, 'none')}))
+        check.RECORD.write_text(json.dumps({'commits': self.names, 'observed': observation('x', catalog(3), {})}))
         self.assertEqual(self.hold('rolling_back', marker=False, limit=30)[0], 1)
 
 

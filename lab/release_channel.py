@@ -22,6 +22,7 @@ not from what the manifest claims:
 import contextlib
 import datetime
 import fcntl
+import fnmatch
 import json
 import os
 import re
@@ -44,12 +45,12 @@ LOCK_WAIT = 300
 NAMESPACE = 'refs/sbarbase-releases/tags/'
 MANIFEST = 'release.json'
 DATABASE_LOCK = 'distro-image.lock.json'
-# Files a restart does not read again: the Dockerfile bakes deploy/container/start.sh into
-# the image, a restart policy reuses the container compose.yaml created, and systemd runs
-# the rendered copy of the unit that `install_server.py supervise --apply` installed.
+# Files a restart does not read again: the image is built from the Dockerfile (with whatever
+# it copies in, image_sources), a restart policy reuses the container compose.yaml created,
+# and systemd runs the rendered copy of the unit that `install_server.py supervise --apply`
+# installed.
 REBUILD = {'Dockerfile': 'the container image definition',
            '.dockerignore': 'what the container image is built from',
-           'deploy/container/start.sh': 'the start script baked into the container image',
            'compose.yaml': 'the container configuration',
            'deploy/sbarbase.service': 'the installed systemd unit'}
 # The TLS proxy runs as its own unit the operator installs (lab/vm-milestones.sh calls it
@@ -65,7 +66,6 @@ PROXY_UNIT = 'sbarbase-tls.service'
 # `db` entry is a lab probe image, overridden by distro-image.lock.json in the runtime.
 MIGRATING = {('images.lock.json', 'auth'): 'Auth', ('storage-image.lock.json', 'default'): 'Storage',
              ('realtime-image.lock.json', 'default'): 'Realtime'}
-CLASSES = ('safe', 'attended', 'rebuild', 'manual')
 SEMVER = re.compile(r'(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?')
 TIMEOUT = 120
 
@@ -93,13 +93,12 @@ def git(*args, check=True, network=False):
 
 
 @contextlib.contextmanager
-def exclusive(wait=None):
-    """One check or start at a time reads and writes the private release refs. A run that
-    cannot take the lock within LOCK_WAIT seconds fails; it never reads a ref another run is
-    writing."""
-    path = Path(LOCK)
+def exclusive(path, refusal, wait=0, error=ReleaseError):
+    """Holds an exclusive flock on path, waiting up to `wait` seconds, or raises error(refusal).
+    lab/upgrade.py takes its own locks through this too, with its own error class."""
+    path = Path(path)
     path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    deadline = time.monotonic() + (LOCK_WAIT if wait is None else wait)
+    deadline = time.monotonic() + wait
     with path.open('a') as handle:
         while True:
             try:
@@ -107,12 +106,19 @@ def exclusive(wait=None):
                 break
             except BlockingIOError:
                 if time.monotonic() >= deadline:
-                    raise ReleaseError('Another release check or update is reading the release source; try again in a moment')
-                time.sleep(0.2)
+                    raise error(refusal) from None
+                time.sleep(.2)
         try:
             yield
         finally:
             fcntl.flock(handle, fcntl.LOCK_UN)
+
+
+def reading():
+    """One check or start at a time reads and writes the private release refs. A run that
+    cannot take the lock within LOCK_WAIT seconds fails; it never reads a ref another run is
+    writing."""
+    return exclusive(LOCK, 'Another release check or update is reading the release source; try again in a moment', LOCK_WAIT)
 
 
 def parse(version):
@@ -140,25 +146,15 @@ def tag_version(tag):
 
 def list_releases(where=None, channel='stable'):
     """Release tags at the source, oldest first. Pre-releases only on the `preview` channel."""
-    listed = git('ls-remote', '--tags', where or source(), network=True).stdout
-    objects, peeled = {}, {}
-    for line in listed.splitlines():
-        oid, _, ref = line.partition('\t')
-        if not ref.startswith('refs/tags/'):
-            continue
-        name = ref[len('refs/tags/'):]
-        if name.endswith('^{}'):
-            peeled[name[:-3]] = oid
-        else:
-            objects[name] = oid
+    listed = git('ls-remote', '--tags', '--refs', where or source(), network=True).stdout
     releases = []
-    for tag, oid in objects.items():
+    for line in listed.splitlines():
+        # Only the names count: what is applied comes from the tag fetched and verified later.
+        tag = line.partition('\t')[2].removeprefix('refs/tags/')
         version = tag_version(tag)
         if version is None or (parse(version)[3] and channel != 'preview'):
             continue
-        # The listed commit is only a hint; what is applied comes from the verified tag.
-        releases.append({'version': version, 'tag': tag, 'object': oid, 'commit': peeled.get(tag, oid),
-                         'annotated': tag in peeled})
+        releases.append({'version': version, 'tag': tag})
     return sorted(releases, key=lambda release: key(release['version']))
 
 
@@ -190,10 +186,11 @@ def signers_configured(signers):
 def verify(ref, signers=None, name=None):
     """None when ref is an annotated tag signed by a key in the signers file; else why not.
 
-    `ref` may be a ref or an object id; it is resolved once and every step reads that one
-    object. `name` is the release tag the object must call itself (by default the last part
-    of the ref). Fails closed: no signers file or no key in it, a lightweight or unsigned
-    tag, a key that is not listed, and a tag object whose own name is not the expected one.
+    `ref` may be a ref or an object id. examine() passes the id object_of() read once from
+    the fetched ref, so every step here reads that one object. `name` is the release tag the
+    object must call itself (by default the last part of the ref). Fails closed: no signers
+    file or no key in it, a lightweight or unsigned tag, a key that is not listed, and a tag
+    object whose own name is not the expected one.
     """
     signers = Path(signers or SIGNERS)
     tag = name or ref.rsplit('/', 1)[-1]
@@ -203,14 +200,10 @@ def verify(ref, signers=None, name=None):
         # Still refused, but for the real reason: a container image built before
         # openssh-client was added to it cannot check any signature.
         return 'ssh-keygen is not installed, so no release signature can be checked; rebuild the container image'
-    try:
-        oid = object_of(ref)
-    except ReleaseError:
-        return f'{tag} is not an annotated, signed tag'
-    kind = git('cat-file', '-t', oid, check=False).stdout.strip()
+    kind = git('cat-file', '-t', ref, check=False).stdout.strip()
     if kind != 'tag':
         return f'{tag} is not an annotated, signed tag'
-    header = git('cat-file', '-p', oid).stdout.split('\n\n', 1)[0].splitlines()
+    header = git('cat-file', '-p', ref).stdout.split('\n\n', 1)[0].splitlines()
     fields = dict(line.split(' ', 1) for line in header if ' ' in line)
     # A signed tag object replayed under another name would carry its own name inside.
     if fields.get('tag') != tag:
@@ -218,7 +211,7 @@ def verify(ref, signers=None, name=None):
     if fields.get('type') != 'commit':
         return f'{tag} does not point at a commit'
     result = git('-c', 'gpg.format=ssh', '-c', f'gpg.ssh.allowedSignersFile={signers}', '-c', 'gpg.minTrustLevel=fully',
-                 'verify-tag', oid, check=False)
+                 'verify-tag', ref, check=False)
     output = result.stdout + result.stderr
     # The exit code alone is not trusted across git versions: a key that is not listed
     # still prints a good signature, followed by "No principal matched".
@@ -269,12 +262,27 @@ def manifest(commit, tag=None):
     return value
 
 
+# Lock files read at a commit, by (commit id, lock name). A commit id names its content for
+# good, so a lock once read is never read again, however many diffs look at it.
+LOCKS_AT = {}
+COMMIT_ID = re.compile(r'[0-9a-f]{40}|[0-9a-f]{64}')
+
+
 def lock_at(commit, name):
+    """A lock file as it is at a commit; None when that version has no such file."""
+    if (commit, name) in LOCKS_AT:
+        return LOCKS_AT[commit, name]
     result = git('show', f'{commit}:lab/{name}', check=False)
+    if result.returncode:
+        # Not remembered: a commit this checkout does not have yet may arrive with a fetch.
+        return None
     try:
-        return json.loads(result.stdout) if not result.returncode else None
+        value = json.loads(result.stdout)
     except ValueError:
         raise ReleaseError(f'lab/{name} at {commit[:12]} is not JSON')
+    if COMMIT_ID.fullmatch(commit):
+        LOCKS_AT[commit, name] = value
+    return value
 
 
 def entries(lock):
@@ -285,63 +293,101 @@ def entries(lock):
     return {name: value for name, value in lock.items() if isinstance(value, dict) and isinstance(value.get('id'), str)}
 
 
-def changes(current, target):
-    """Pinned images that differ between two commits (the same rows lab/upgrade.py reports)."""
-    rows = []
+def pin_diffs(current, target):
+    """(lock name, entry, before, after) for every pinned image that differs between two
+    commits; before or after is {} where that version has no such pin."""
     for name in install_server.LOCKS:
         before, after = entries(lock_at(current, name)), entries(lock_at(target, name))
         for entry in sorted(set(before) | set(after)):
             old, new = before.get(entry, {}), after.get(entry, {})
             if old.get('id') != new.get('id'):
-                rows.append({'image': f'{name}:{entry}', 'from': old.get('tag', 'none'), 'to': new.get('tag', 'none')})
-    return rows
+                yield name, entry, old, new
 
 
-def migrating(current, target):
-    """Why moving between two commits changes environment databases as services start: one
-    sentence per Auth, Storage or Realtime pin that differs."""
-    reasons = []
-    for (name, entry), service in MIGRATING.items():
-        before, after = entries(lock_at(current, name)).get(entry, {}), entries(lock_at(target, name)).get(entry, {})
-        if before.get('id') != after.get('id'):
-            reasons.append(f"lab/{name} changes the {service} image ({before.get('tag', 'none')} -> {after.get('tag', 'none')}); "
-                           f'{service} migrates each environment database when it starts, so going back may need the '
-                           'environment backups taken before the upgrade')
-    return reasons
+def changes(current, target, diffs=None):
+    """Pinned images that differ between two commits, as the console and lab/upgrade.py show them."""
+    return [{'image': f'{name}:{entry}', 'from': old.get('tag', 'none'), 'to': new.get('tag', 'none')}
+            for name, entry, old, new in (pin_diffs(current, target) if diffs is None else diffs)]
 
 
-def classify(current, target, release=None):
-    """('safe' | 'attended' | 'rebuild' | 'manual', reasons) for moving from one commit to another.
+def database_changes(diffs):
+    """One sentence per PostgreSQL image entry that differs: replacing the database container is
+    lab/migrate-generation.py's job, never an upgrade's."""
+    return [f"lab/{DATABASE_LOCK} changes the PostgreSQL image ({old.get('tag', 'none')} -> {new.get('tag', 'none')}); "
+            "that is lab/migrate-generation.py's job" for name, _, old, new in diffs if name == DATABASE_LOCK]
 
-    The most demanding class wins (manual, then rebuild, then attended); the reasons list
-    every finding, so a release that needs a rebuild and also migrates says both."""
+
+def migrating(diffs):
+    """Why a move changes environment databases as services start: one sentence per Auth,
+    Storage or Realtime pin that differs."""
+    return [f"lab/{name} changes the {MIGRATING[name, entry]} image ({old.get('tag', 'none')} -> {new.get('tag', 'none')}); "
+            f'{MIGRATING[name, entry]} migrates each environment database when it starts, so going back may need the '
+            'environment backups taken before the upgrade'
+            for name, entry, old, new in diffs if (name, entry) in MIGRATING]
+
+
+def image_sources(commit):
+    """What the Dockerfile at a commit copies from the checkout into the image: the sources of
+    its COPY and ADD instructions (one from another image, --from, is not the checkout's), so
+    a file the image bakes in is never missed by a hand-kept list."""
+    result = git('show', f'{commit}:Dockerfile', check=False)
+    sources = []
+    for line in result.stdout.replace('\\\n', ' ').splitlines() if not result.returncode else []:
+        words = line.split()
+        if not words or words[0].upper() not in ('COPY', 'ADD') or any(word.startswith('--from') for word in words):
+            continue
+        rest = line.split(None, 1)[1] if len(words) > 1 else ''
+        arguments = [word for word in words[1:] if not word.startswith('--')]
+        if rest.lstrip().startswith('['):
+            try:
+                arguments = json.loads(rest[rest.index('['):])
+            except ValueError:
+                continue
+        sources += [source.removeprefix('./') for source in arguments[:-1] if isinstance(source, str)]
+    return sources
+
+
+def copied(path, sources):
+    """Whether a changed path is one of the image's sources, or under one (a directory, `.`, a glob)."""
+    return any(source in ('.', '') or path == source or path.startswith(source.rstrip('/') + '/')
+               or fnmatch.fnmatchcase(path, source) for source in sources)
+
+
+def findings(current, target, release=None, diffs=None):
+    """What moving from one commit to another needs: {manual, rebuild, attended}, each a list of reasons."""
     if release is None:
         try:
             release = manifest(target)
         except ReleaseError:
             release = {'migrations': []}
+    diffs = list(pin_diffs(current, target)) if diffs is None else diffs
     changed = set(git('diff', '--name-only', current, target).stdout.split())
-    manual, rebuild = [], []
-    before, after = entries(lock_at(current, DATABASE_LOCK)), entries(lock_at(target, DATABASE_LOCK))
-    for entry in sorted(set(before) | set(after)):
-        if before.get(entry, {}).get('id') != after.get(entry, {}).get('id'):
-            manual.append(f"lab/{DATABASE_LOCK} changes the PostgreSQL image ({before.get(entry, {}).get('tag', 'none')} -> "
-                          f"{after.get(entry, {}).get('tag', 'none')}); that is lab/migrate-generation.py's job")
-    for migration in release.get('migrations') or []:
-        manual.append(f'The release declares a data migration: {migration}')
-    for path, what in REBUILD.items():
-        if path in changed:
-            rebuild.append(f'{path} changes ({what}); a restart does not pick it up')
-    for path, what in PROXY.items():
-        if path in changed:
-            rebuild.append(f'{path} changes ({what}); it runs as its own unit (named {PROXY_UNIT} in the VM rehearsal), '
-                           'which an update does not restart: restart that unit after the update')
-    attended = migrating(current, target)
-    if manual:
-        return 'manual', manual + rebuild + attended
-    if rebuild:
-        return 'rebuild', rebuild + attended
-    return ('attended', attended) if attended else ('safe', [])
+    manual = database_changes(diffs) + [f'The release declares a data migration: {migration}'
+                                        for migration in release.get('migrations') or []]
+    rebuild = [f'{path} changes ({what}); a restart does not pick it up' for path, what in REBUILD.items() if path in changed]
+    sources = image_sources(target)
+    rebuild += [f'{path} changes (the container image copies it in); a restart does not pick it up'
+                for path in sorted(changed - set(REBUILD) - set(PROXY)) if copied(path, sources)]
+    rebuild += [f'{path} changes ({what}); it runs as its own unit (named {PROXY_UNIT} in the VM rehearsal), '
+                'which an update does not restart: restart that unit after the update'
+                for path, what in PROXY.items() if path in changed]
+    return {'manual': manual, 'rebuild': rebuild, 'attended': migrating(diffs)}
+
+
+def kind_of(found):
+    """('safe' | 'attended' | 'rebuild' | 'manual', reasons) from findings(). The most demanding
+    class wins (manual, then rebuild, then attended); the reasons list every finding from that
+    class down, so a release that needs a rebuild and also migrates says both."""
+    order = ('manual', 'rebuild', 'attended')
+    for index, kind in enumerate(order):
+        if found[kind]:
+            return kind, [reason for name in order[index:] for reason in found[name]]
+    return 'safe', []
+
+
+def classify(current, target, release=None):
+    """('safe' | 'attended' | 'rebuild' | 'manual', reasons) for moving from one commit to another."""
+    return kind_of(findings(current, target, release))
 
 
 def current_version():
@@ -368,23 +414,26 @@ def now():
 def examine(tag, current, where=None, signers=None):
     """Fetches and reads one release against the running checkout.
 
-    Returns (details, blockers): blockers are what makes this release itself impossible to
-    install here (no valid signature, a manual migration). The private ref is read exactly
-    once: its object id is verified, and that same id is peeled to the commit whose manifest
-    and diff are read, so nothing that moves the ref afterwards changes what was checked.
+    Returns (details, blockers, attended): blockers are what makes this release itself
+    impossible to install here (no valid signature, a manual migration), attended the reasons
+    it migrates environment databases. The private ref is read exactly once: its object id is
+    verified, and that same id is peeled to the commit whose manifest and diff are read, so
+    nothing that moves the ref afterwards changes what was checked.
     """
     oid = object_of(fetch_release(tag, where))
     refusal = verify(oid, signers, name=tag)
     commit = commit_of(oid)
     release = manifest(commit, tag)
-    kind, reasons = classify(current['commit'], commit, release)
+    diffs = list(pin_diffs(current['commit'], commit))
+    found = findings(current['commit'], commit, release, diffs)
+    kind, reasons = kind_of(found)
     details = {'version': release['version'], 'tag': tag, 'commit': commit, 'class': kind, 'reasons': reasons,
-               'notes': release['notes'], 'changes': changes(current['commit'], commit), 'signed': refusal is None,
-               'minimum_from': release['minimum_from'], 'migrations': release['migrations']}
+               'notes': release['notes'], 'changes': changes(current['commit'], commit, diffs), 'signed': refusal is None,
+               'minimum_from': release['minimum_from']}
     blockers = [refusal] if refusal else []
     if kind == 'manual':
         blockers.append(f'{tag} cannot be applied as an upgrade: ' + '; '.join(reasons))
-    return details, blockers
+    return details, blockers, found['attended']
 
 
 def unreachable(details, current):
@@ -421,26 +470,27 @@ def check(where=None, channel='stable', signers=None):
     reachable from this version (minimum_from). Releases passed over on the way are named in
     `skipped`, and the newest of them in `newest`, so the console can say that a newer
     release exists and why it is not offered. `refusals` names only problems with installing
-    the offered release (and an unreachable source); a note about another release never
-    blocks this one.
+    the offered release; a note about another release never blocks this one.
+
+    A source that cannot be read raises ReleaseError: that is no result at all, so the last
+    good one stays where it is (lab/upgrade.py `channel` writes only a result).
     """
     current = current_version()
     result = {'current': current, 'available': None, 'refusals': [], 'skipped': [], 'newest': None, 'checked_at': now()}
     try:
         releases = list_releases(where, channel)
     except ReleaseError as error:
-        result['refusals'].append(f'The release source could not be read: {error}')
-        return result
+        raise ReleaseError(f'The release source could not be read: {error}') from None
     # With no signing key listed every release is refused for that one reason: naming the newest
     # is enough, and fetching every older one would only repeat it.
     keyless = not signers_configured(Path(signers or SIGNERS))
-    with exclusive():
+    with reading():
         for release in reversed(releases):
             if key(release['version']) <= key(current['version']):
                 break
             details = None
             try:
-                details, reasons = examine(release['tag'], current, where, signers)
+                details, reasons, _ = examine(release['tag'], current, where, signers)
             except ReleaseError as error:
                 reasons = [str(error)]
             if details is not None and not reasons and unreachable(details, current):
@@ -479,20 +529,18 @@ def prepare(tag, allow=(), where=None, signers=None):
     current = current_version()
     if key(tag_version(tag)) <= key(current['version']):
         raise ReleaseError(f"{tag} is not newer than this installation ({current['version']})")
-    with exclusive():
-        details, refusals = examine(tag, current, where, signers)
+    with reading():
+        details, refusals, attended = examine(tag, current, where, signers)
     for reason in (unreachable(details, current), left_behind(details, current)):
         if reason:
             refusals.append(reason)
     if details['class'] == 'rebuild' and 'rebuild' not in allow:
         refusals.append(f'{tag} needs a rebuild: ' + '; '.join(details['reasons'])
                         + '. Pass --allow-class rebuild to apply it, then rebuild')
-    if details['class'] in ('attended', 'rebuild') and 'attended' not in allow:
-        migrations = migrating(current['commit'], details['commit'])
-        if migrations:
-            refusals.append(f'{tag} updates services that migrate environment databases: ' + '; '.join(migrations)
-                            + '. If it moves back, environment data may need restoring from the backups taken before the '
-                            'upgrade. Pass --allow-class attended to apply it')
+    if details['class'] in ('attended', 'rebuild') and attended and 'attended' not in allow:
+        refusals.append(f'{tag} updates services that migrate environment databases: ' + '; '.join(attended)
+                        + '. If it moves back, environment data may need restoring from the backups taken before the '
+                        'upgrade. Pass --allow-class attended to apply it')
     if refusals:
         raise ReleaseError('\n'.join(refusals))
     return details

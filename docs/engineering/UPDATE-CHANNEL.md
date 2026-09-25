@@ -15,26 +15,28 @@ Recorded 2026-09-25. Built from the [update channel plan](plans/2026-09-25-updat
 | `src/control/updates.ts`, `src/control/http.ts` | The console's side: `GET /management/v1/updates`, `PUT .../settings`, `POST .../check`, `.../apply`, `.../rollback`, for the installation operator only |
 | `src/gateway/hold.ts`, `src/http/health.ts`, `lab/upstream-server.ts` | The traffic hold and the loopback `/health` |
 | `ui/Updates.tsx`, `ui/releases.ts` | The notice, the Updates page, the progress view and the settings form. Release notes follow `document.documentElement.lang`, which the console sets to `en` only, so the Arabic notes are not shown yet |
-| `deploy/sbarbase.service`, `compose.yaml`, `Dockerfile` | `RestartForceExitStatus=42`; `restart: unless-stopped`; `openssh-client` for `ssh-keygen` |
+| `deploy/sbarbase.service`, `compose.yaml`, `Dockerfile` | `RestartForceExitStatus=42`; `restart: unless-stopped`; `openssh-client` for `ssh-keygen`, `tzdata` so `TZ` may name a zone |
 | `deploy/release-signers`, `release.json` | Allowed signers (no key yet); the manifest of the running version |
 
 ## Design
 
-The console process cannot upgrade: `upgrade.py start` moves the checkout under the running console, and only the supervisor can stop everything and exit so the service manager starts the new code. So the console writes a request and the supervisor carries it out, checking everything again itself. The console never runs Git and never trusts the request file: the supervisor re-derives the refusal from `available.json`, takes the tag from there rather than from the request, and `upgrade.py start --release` fetches and verifies the tag again from the source and moves to the verified commit, never to a ref.
+The console process cannot upgrade: `upgrade.py start` moves the checkout under the running console, and only the supervisor can stop everything and exit so the service manager starts the new code. So the console writes a request and the supervisor carries it out, checking everything again itself. The console never runs Git and never trusts the request file: the supervisor re-derives the refusal from `available.json`, names the release `v` + the version it verified there (a `tag` in the request is not read), and `upgrade.py start --release` fetches and verifies the tag again from the source and moves to the verified commit, never to a ref.
 
-The supervisor is also the one authority on whether a release can be installed now. It publishes that verdict in `current.json`, and the console answers an apply and draws its Install button from it rather than judging the class, the signature, the refusals or the phase again (see [The console's side](#the-consoles-side)).
+The supervisor is also the one authority on whether a release can be installed now. It publishes that verdict in `current.json`, and the console answers an apply and draws its Install button from it rather than judging the class, the signature, the refusals or the phase again (see [The console's side](#the-consoles-side) and [What runs now](#what-runs-now-currentjson)).
 
 After an apply or rollback child exits 0, the supervisor finishes the request, stops its children and the owned runtime, releases its locks and exits with 42. systemd restarts it through `Restart=on-failure` and, explicitly, `RestartForceExitStatus=42`; Docker through `restart: unless-stopped`. Neither restarts a clean exit 0, which is why the code is not 0. A failed start exits 1, which both also restart.
 
-Only one update child runs at a time (a check, an apply or a rollback), spawned through `lab/parent_bound.py` with its output in `.lab/upgrades/<kind>.log`, copied to the journal once it ends. A failure of the scheduling itself pauses it for 60 seconds and never stops the installation.
+Only one update child runs at a time (a check, an apply or a rollback), spawned through `lab/parent_bound.py` with its output in `.lab/upgrades/<kind>.log`, copied to the journal once it ends. Each gets a run id (`--request`, the request's id or a fresh one for a periodic check) and records how it ended in `.lab/upgrades/outcome.json`: `{request, kind, passed, changed, refusals, error, at}`. The supervisor reads that for the request's detail (the refusals, then "Nothing was changed.", else the error's first line); an outcome that is missing or names another run gives "It stopped without saying why." The command line writes no outcome. A failure of the scheduling itself pauses it for 60 seconds and never stops the installation.
+
+Every turn of the supervisor follows the child, the drain and `request.json`; the rest (the verdict in `current.json`, whether a check is due, the automatic decision) runs at most every 15 seconds.
 
 ## The upgrade state
 
-`.lab/upgrades/state.json` holds the last upgrade: `from`, `to`, `phase`, `started_at`, `snapshot`, `trigger` (`cli`, `console`, `automatic`), `automatic` (the way back happened by itself), and for a channel release `release: {version, tag, class, signed}`.
+`.lab/upgrades/state.json` holds the last upgrade: `from`, `to`, `phase`, `started_at`, `snapshot`, `trigger` (`cli`, `console`, `automatic`), `automatic` (the way back happened by itself), for a channel release `release: {version, tag, class, signed}` (in the first record `start` saves), `retryable` when the new version's first start found a record the previous version left unsettled (the way back that follows does not rule the version out for automatic mode), and `notices` for outcomes the guard recorded (see [Notifications](#notifications)).
 
 | From | Event | To |
 |---|---|---|
-| none | `start` passed its refusals, pulled, backed up and took the first snapshot | `applied` |
+| none | `start` passed its refusals, pulled, recorded its point of no return (`outcome.json`), backed up (`--reason upgrade`, so pruning keeps the last three such runs) and took the first snapshot | `applied` |
 | `applied` | the checkout move or `bun install` failed; the checkout is put back | `failed` |
 | `applied` | first start of the new version (`before_start`): a fresh snapshot replaces the first one, `attempted_at` is set | `applied` |
 | `applied` | a health round passed | `confirmed` |
@@ -50,14 +52,14 @@ Only one update child runs at a time (a check, an apply or a rollback), spawned 
 
 ## The request
 
-`.lab/upgrades/request.json` is `{id, kind: apply|rollback|check, version?, tag?, trigger: console|automatic, state, requested_at, started_at?, finished_at?, detail?}`. It is created by linking a private temporary file into place (`linkSync` in TypeScript, `os.link` in Python), which fails when the file exists, so the console and the automatic mode can never both hold the slot.
+`.lab/upgrades/request.json` is `{id, kind: apply|rollback|check, version?, trigger: console|automatic, acknowledged?, state, requested_at, started_at?, finished_at?, detail?}`. An apply from the console with `acknowledged: true` of an `attended` release runs with `--allow-class attended`; an automatic one never does. It is created by linking a private temporary file into place (`linkSync` in TypeScript, `os.link` in Python), which fails when the file exists, so the console and the automatic mode can never both hold the slot.
 
 | From | Event | To |
 |---|---|---|
 | none | console `POST` or the automatic decision | `requested` |
 | `requested` | the supervisor re-checks and refuses | `failed` with the refusal sentence |
 | `requested` | the supervisor spawns the child | `running` (`started_at`) |
-| `running` | the child ends | `done` or `failed` (its meaningful last line) |
+| `running` | the child ends | `done` or `failed` (the sentence from its outcome) |
 | `requested` | not picked up within 1 hour | `failed` (`expired`) |
 | `running` | the supervisor started again and the upgrade state shows it went through | `done` |
 | `running` | otherwise, at the next start or with no child to follow | `failed` (`interrupted`) |
@@ -74,14 +76,33 @@ A final request is copied to `last-request.json` and the slot freed. An apply re
 - **`POST .../rollback`** answers with the `rollback` verdict, as in [canRollback](#canrollback). **`POST .../check`** only asks. **`PUT .../settings`** validates as the supervisor does and returns the zone beside the saved settings.
 - **The console** (`ui/Updates.tsx`, `ui/releases.ts`) keeps the update state in `UpdatesProvider`, read only by the banner and the Updates page, so a 2 second poll during a watched upgrade does not render the whole console again. `openRequest(view)` names the apply or rollback under way (a request not finished, or an `applied` or `rolling_back` phase): the page is busy while there is one and, loaded meanwhile, resumes watching it.
 
+## What runs now (current.json)
+
+`.lab/upgrades/current.json` is written by the supervisor only (`updates.publish_current`):
+
+```
+{version, commit, written_at,
+ rollback: {started_at, possible, reason},
+ apply: null | {version, tag, class, possible, reason, acknowledgement},
+ pending, timezone: {name, offset}}
+```
+
+- **`version`, `commit`** are read once per supervisor process: after an update child moved the checkout, HEAD is the version that starts next, not the one running.
+- **`apply`** is `null` only when `available.json` offers no release. Otherwise `tag` is `v` + `version`, `class` is the release's own (`safe`, `attended`, and also `rebuild` or `manual`, which the console can never install; the verdict then says so with the `class` sentence), and `possible` and `reason` come from `updates.apply_refusal`, the same question the supervisor asks again when it picks the request up: pending (`pending`), not a console class (`class`), not signed (`unsigned`), refusals in the check (`refused`). An `attended` release is judged as if acknowledged, and `acknowledgement: true` tells the console to ask first. Past those, `reason` names a passing blocker the supervisor does not wait out itself: another upgrade or rollback holding `upgrade.lock` (a command line run), or a backup or restore holding `backup.lock` that is not its own daily backup. An operation record still to settle is not one: the supervisor drains before it starts an update. `reason` is always a complete sentence.
+- **`pending`** is true while the phase is `applied` or `rolling_back`: an upgrade or rollback waits for its restart or its confirmation.
+- **Freshness:** a check result made on another commit is moved to `available.previous.json` before `current.json` is written, so no reader sees the release just installed as available; a check is then due at once (after the first 5 minutes, and unless a failed check is backing off).
+- **When:** in full at start and after confirmation (the rollback verdict, which may read Git and the catalog, is judged again then and whenever the upgrade record changes); otherwise at most every 15 seconds, after each update child ends and when the daily backup starts and ends, written only when something other than `written_at` changed.
+
+The console's own reading of it is in [The console's side](#the-consoles-side). Spawning the console before this first publish would start it sooner, but was not done: publishing first is what keeps the console from ever reading an `available.json` that names the version just installed.
+
 ## Confirmation gate and hold
 
 `before_start` runs after the supervisor takes its locks and before the settle stage, which may open and migrate the control catalog. For a pending state it writes `.lab/upgrades/hold` and returns true; a snapshot that cannot be taken raises, the start counts as failed and the way back runs before the new version touched anything. Any other bookkeeping failure leaves the start ungated. A marker without a pending state is removed.
 
 While gated, `Supervisor.run` starts only the console. The worker, the daily backup, Studio starts, sign-in applies, turning Realtime, Edge Functions or direct database access on or off, signing key rotation and the update scheduling all wait, so nothing leaves an effect the restore would not know about. Each turn polls `upgrade_health.Confirmation`:
 
-- The deadline (120 s) starts at the first poll, once the console process exists, so setup before it does not use it up. A round runs every 2 s in a daemon thread; each probe times out after 5 s and goes straight to the upstream service, never through the gateway, with any proxy variable ignored.
-- A round is: the console's `/health` (which reads the catalog schema; `server.json` must name the server this supervisor started), the management Auth `/health`, and for each routed runtime (provisioned, not deleted, not in maintenance, not moved) Auth `/health`, REST `/`, and Storage `/bucket` with a `service_role` token and the tenant host. All must answer 200.
+- The deadline (120 s) starts at the first poll, once the console process exists, so setup before it does not use it up. A round runs every 2 s in a daemon thread, its probes at once (at most 16 together, the detail naming the first failure in probe order); each probe times out after 5 s, with any proxy variable ignored. A supervisor that stops during a round waits for it, at most about one probe timeout.
+- A round is: the console's `/health` (which reads the catalog schema; `server.json` must name the server this supervisor started), the management Auth `/health`, and for each routed runtime (provisioned, not deleted, not in maintenance, not moved) Auth `/health`, REST `/` and Storage `/bucket` (with a `service_role` token and the tenant host) straight at the upstream service, then REST and Auth once more through the gateway, as an application reaches them, with the per-start probe token that passes the hold (`src/gateway/hold-bypass.ts`). All must answer 200.
 - A passing round calls `upgrade_outcome(True)`: phase to `confirmed` or `rolled_back`, intent and marker removed, the outcome notification emitted; then the worker starts and `current.json` is published again. The deadline raises `RuntimeError`, `main` calls `upgrade_outcome(False)`, and the process exits 1.
 
 The hold (`src/gateway/hold.ts`) is the marker **and** a pending phase in `state.json`, re-read at most once a second. Anything else fails open, including an unreadable state, so a stale marker can never wedge an installation. Held: everything except `/management/` gets `503` with `Retry-After: 5`; Realtime socket upgrades get 503; the direct database listener gets no target. Under `/management/`, reads, the management Auth realm (sign-in, refresh, sign-out), "roll back", "check now" and the update settings pass, since the snapshot restores none of what they write; every other management change gets 409 with a sentence saying changes are paused, because the way back would drop it silently. The supervisor's own probe through the gateway passes (`src/gateway/hold-bypass.ts`). Not held: the console's static files, Studio hosts and `/health`, which also reports `held`. When nothing is held, a request costs one cached `held()` answer and nothing else.
@@ -103,16 +124,18 @@ The hold (`src/gateway/hold.ts`) is the marker **and** a pending phase in `state
 - **Signers come from the running checkout:** `deploy/release-signers` at `ROOT`. A key a version does not list is not trusted by it, and a local edit to that file blocks upgrades as a local change.
 - **The commit comes from the verified tag**, and `release.json` is read and validated at that commit; its `version` must equal the tag. Unknown manifest fields are ignored, so older installations keep reading later manifests.
 - **`minimum_from`:** a release this version cannot reach directly is skipped with a reason and the next older one is offered.
-- **Classification comes from the diff** (`git diff --name-only current target`), never from the manifest: `manual` when an entry of `lab/distro-image.lock.json` changes its id or the manifest declares migrations; `rebuild` when `Dockerfile`, `.dockerignore`, `deploy/container/start.sh`, `compose.yaml` or `deploy/sbarbase.service` changes; else `safe`. The manifest can only make a release stricter.
-- **What each path allows:** the console and automatic mode only `safe`, signed, with no refusals, from a check made on the running commit. `start --release` also `rebuild` with `--allow-class rebuild`, never `manual`. `start --to` is the operator's explicit choice: not verified, not classified; `plan()` still refuses a PostgreSQL image change.
+- **Classification comes from the diff** (`git diff --name-only current target`), never from the manifest: `manual` when an entry of `lab/distro-image.lock.json` changes its id or the manifest declares migrations; `rebuild` when `Dockerfile`, `.dockerignore`, `compose.yaml`, `deploy/sbarbase.service` or `deploy/console-tls-proxy.ts` changes, or a file the release's own `Dockerfile` copies into the image (the sources of its `COPY` and `ADD`, a copy `--from` another image excepted); `attended` when the Auth, Storage or Realtime pin changes; else `safe`. The manifest can only make a release stricter. One diff of the pins (`pin_diffs`) serves the classification, the image changes shown and `upgrade.py plan()`; a lock file read at a commit id is read once per process.
+- **What each path allows:** automatic mode only `safe`, signed, with no refusals; the console also `attended` once the operator acknowledged its warning. `start --release` also `rebuild` with `--allow-class rebuild` and `attended` with `--allow-class attended` (repeat the option for both), never `manual`. `start --to` is the operator's explicit choice: not verified, not classified; `plan()` still refuses a PostgreSQL image change.
 
 ## Settings, checks and the automatic decision
 
 Settings (`check`, `automatic`, `window`) are validated identically in Python and TypeScript; a missing or invalid file means the defaults (check on, automatic off, 3:00 AM to 5:00 AM local time), so a damaged file can never turn automatic updates on. `automatic` requires `check`.
 
-`check_due`: never within 5 minutes of the supervisor start; then every 6 hours; after a failure 30 minutes, 1, 2, 4 hours, capped at 6; and as soon as the last result was made on another commit, unless backing off. A check that exits non-zero or finds the source unreachable is a failure, and the previous `available.json` is put back so an offline host keeps the release it knew of.
+`check_due`: never within 5 minutes of the supervisor start; then every 6 hours; after a failure 30 minutes, 1, 2, 4 hours, capped at 6; and as soon as there is no result (right after an upgrade, when the one about the previous version was set aside), unless backing off. A check that fails (a source that cannot be read raises in `release_channel.check`, and `upgrade.py channel` exits 1) writes no result, so an offline host keeps the `available.json` it had.
 
-`automatic_release` returns a release only when check and automatic are on, no backup runs, the local time is in `[start, end)` (crossing midnight when end is earlier), the release is not in the ledger's `attempted` or `rolled_back`, the upgrade state does not show that version rolling back, and `apply_refusal` finds nothing. `blocked()` then waits out a backup or restore lock, the upgrade lock or an unsettled record rather than spending the attempt. The version is added to `attempted` before the request is created: one attempt per version, whatever happens next.
+`automatic_release` returns a release only when check and automatic are on, no backup runs, the local time is in `[start, end)` (crossing midnight when end is earlier), the release is `safe` and `apply_refusal` finds nothing; only then does it read the ledger, and the version must be neither `spent` nor `rolled_back` and within its tries. `blocked()` then waits out a backup or restore lock, the upgrade lock or an unsettled record rather than spending the attempt.
+
+The ledger (`ledger.json`) is `{versions: {version: {announced, tries, last, spent, rolled_back}}}` for the last 50 versions. Each automatic try is counted before its request is created. A try is **spent** only once it passed its point of no return: `upgrade.py start` records `passed: true` in its outcome just before it starts the backup, and the supervisor marks the version spent when such a try ended without moving the checkout (the backup, the snapshot or the move failed), when the child ends or, after a crash, at the next start (`updates.settle`). A try that moved the checkout is judged by how the new version starts: confirmed, it runs; moved back, `announce_outcome` records `rolled_back`, except for a way back the state marks `retryable`. A refusal, a network failure fetching the release or pulling its images, and a drain that timed out spend nothing: that version is tried again, at most 3 times, 10 then 20 minutes apart, inside the window.
 
 ## canRollback
 
@@ -131,16 +154,18 @@ Four kinds, registered in `lab/notify.py`, emitted through `notification_produce
 
 | Kind | Severity | Emitted |
 |---|---|---|
-| `update.available` | info | after a successful check, once per version: the ledger's `announced` list, written only when the event was written |
+| `update.available` | info | after a successful check, once per version: the ledger's `announced`, set only when the event was written |
 | `update.applied` | info | `applied` to `confirmed`, with the trigger |
 | `update.rolled_back` | warning | `applied` to `rolling_back` with `automatic: true`, by the failing version after it restored the snapshot, so the row lands in the catalog the previous version opens |
 | `update.rollback_failed` | critical | `applied` or `rolling_back` to `rollback_failed` |
 
-An operator's rollback earns no notification; every way back, requested or automatic, is added to the ledger's `rolled_back` list. `version` is the release version, or a 12 character commit for a `start --to` upgrade. The ledger keeps the last 50 per list.
+An operator's rollback earns no notification; every way back, requested or automatic, sets the version's `rolled_back` in the ledger, in one place (`announce_outcome`), once the previous version starts (a console rollback when it is confirmed, not when the child ends). `version` is the release version, or a 12 character commit for a `start --to` upgrade.
+
+The guard (`lab/upgrade_guard.py`) imports nothing from `lab/`, so a way back or a `rollback_failed` it records cannot emit anything. It appends a notice `{was, phase}` to the state instead; the next supervisor start (`dev.upgrade_notices`, gated or not, once the runtime is up) runs each through `announce_outcome` as if it had made that change itself, in the catalog of the version that runs then, and clears them under `upgrade.lock`.
 
 ## Tests
 
-Workstation, 2026-09-25: `lab/test_release_channel.py`, `lab/test_updates.py`, `lab/test_upgrade.py` (which also holds the older upgrade tests) and `lab/test_upgrade_health.py`, 86 tests, OK; `tests/hold.test.ts`, `tests/updates-routes.test.ts` and `tests/updates-ui.test.ts`, 42 pass; after the console moved to the supervisor's install verdict, 54 pass. The existing CI job and `lab/vm-milestones.sh upgrade` exercise `start --to` only.
+Workstation, 2026-09-25: `lab/test_release_channel.py`, `lab/test_updates.py`, `lab/test_upgrade.py` (which also holds the older upgrade tests) and `lab/test_upgrade_health.py`, 86 tests, OK; `tests/hold.test.ts`, `tests/updates-routes.test.ts` and `tests/updates-ui.test.ts`, 42 pass; after the console moved to the supervisor's install verdict, 54 pass. After the supervisor's side took on the verdict, the outcome record and the point of no return, the four Python files above with `lab/test_upgrade_guard.py` and `lab/test_upgrade_drain.py` hold 160 tests, OK, and the whole Python suite 978, OK. The existing CI job and `lab/vm-milestones.sh upgrade` exercise `start --to` only.
 
 Pending acceptance, from the plan: the CI upgrade check gains a release that migrates the catalog and then fails (returns with nothing lost), a release that starts but fails health (returns), and an unsigned tag (refused); and the VM rehearsal of a real bump and back passes before automatic updates are described as ready.
 
@@ -152,5 +177,6 @@ Pending acceptance, from the plan: the CI upgrade check gains a release that mig
 - `lab/install_server.py supervise`, with or without `--apply`, rewrites the tracked `docs/evidence/supervisor-unit.json`. On this version that does not block an upgrade: `plan()` ignores changes under `docs/evidence/` and `set_aside_evidence` copies them to `.lab/upgrades/evidence-<time>/` before the move. An installation whose `lab/upgrade.py` has no `set_aside_evidence` (it landed on 2026-09-25) still refuses; the workaround is to copy `docs/evidence/` aside and run `git checkout -- docs/evidence` as the service account once.
 - The health round does not cover Realtime, Edge Functions or Studio, and one passing round confirms: a version that passes and then misbehaves is not moved back by itself.
 - Console changes made during the confirmation window (at most about two minutes from the console's start) are dropped by the snapshot restore if the way back runs, including provisioning jobs requested then. Database schema changes a newer Auth or Storage made at start are not undone.
-- The automatic attempt is spent even when `upgrade.py` then refuses (a local change, for example); that version is never retried automatically.
+- An automatic try that passed its point of no return and then failed (its backup, for example) spends that version for good, even when the cause passes by itself; only the tries before that point are repeated.
+- The record of how a child ended (`outcome.json`) holds the last run only; the supervisor moves what matters (a spent try) into the ledger when the child ends or at its next start, before another child can replace it.
 - `SBARBASE_RELEASE_SOURCE` is not passed into the container by `compose.yaml`. The `sbarbase` command has no `channel` or `--release`.

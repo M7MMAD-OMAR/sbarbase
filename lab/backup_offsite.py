@@ -164,7 +164,7 @@ def installation_manifest(stamp, runtimes, environ=os.environ):
     }
 
 
-def write_installation(stamp, runtimes, keep=backup.DEFAULT_KEEP, environ=os.environ, reason=None):
+def write_installation(stamp, runtimes, keep=backup.DEFAULT_KEEP, environ=os.environ, reason=None, protected=None):
     """Write ``installation/<stamp>/`` beside the environment backups; manifest.json last. A run
     taken for an upgrade is marked like its environment backups, so pruning keeps it too."""
     if reason is not None and reason not in backup.REASONS:
@@ -181,7 +181,7 @@ def write_installation(stamp, runtimes, keep=backup.DEFAULT_KEEP, environ=os.env
     if reason is not None:
         record['reason'] = reason
     backup.write_private(target / 'manifest.json', json.dumps(record, indent=2) + '\n')
-    backup.prune(INSTALLATION, keep)
+    backup.prune(INSTALLATION, keep, protected)
     return target
 
 

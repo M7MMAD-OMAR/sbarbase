@@ -4,7 +4,7 @@ Usage (with Docker, put `docker compose exec sbarbase` before each command):
   /usr/bin/python3 lab/upgrade.py check [--to REF]    what would change, and whether it can
   /usr/bin/python3 lab/upgrade.py start [--to REF]    back up, pull images, move the checkout
   /usr/bin/python3 lab/upgrade.py channel [--json]    the newest signed release, and what it takes
-  /usr/bin/python3 lab/upgrade.py start --release vX.Y.Z [--allow-class rebuild]
+  /usr/bin/python3 lab/upgrade.py start --release vX.Y.Z [--allow-class rebuild|attended]
                                                       start onto a verified release from the channel
   /usr/bin/python3 lab/upgrade.py status              the last upgrade and its outcome
   /usr/bin/python3 lab/upgrade.py rollback [--check]  move back to the version before it (--check: only
@@ -32,7 +32,6 @@ import argparse
 import contextlib
 import datetime
 import fcntl
-import hashlib
 import json
 import os
 import re
@@ -44,7 +43,9 @@ import sys
 import time
 from pathlib import Path
 
+import backup
 import durable_runtime as runtime
+import effect_receipt
 import hba_generation
 import hba_journal
 import install_server
@@ -72,7 +73,6 @@ SUPERVISOR_LOCK = UPSTREAM / 'supervisor.lock'
 BACKUP_LOCK = UPSTREAM / 'backup.lock'
 # Records that must be reconciled before anything moves (the same set hba_startup refuses).
 UNSETTLED = ('worker-effect.json', hba_journal.NAME, hba_generation.MIGRATION)
-DATABASE_LOCK = 'distro-image.lock.json'
 # Which lock entry each replaceable service runs, as durable_runtime reads them.
 SERVICES = upgrade_guard.SERVICES
 DEFAULT_TARGET = 'origin/main'
@@ -84,7 +84,11 @@ RESTART = 'docker compose up -d --build   (or: sudo systemctl restart sbarbase)'
 
 
 class UpgradeError(Exception):
-    pass
+    """Why a command stopped; `refusals` lists the checks that refused it before anything moved."""
+
+    def __init__(self, message, refusals=()):
+        super().__init__(message)
+        self.refusals = list(refusals)
 
 
 def git(*args, check=True):
@@ -103,25 +107,11 @@ def resolve(ref):
     return commit
 
 
-def lock_at(commit, name):
-    """A lock file as it is at a commit; None when that version has no such file."""
-    text = git('show', f'{commit}:lab/{name}', check=False)
-    return json.loads(text) if text else None
-
-
-def entries(lock):
-    if not isinstance(lock, dict):
-        return {}
-    if isinstance(lock.get('id'), str):
-        return {'default': lock}
-    return {key: value for key, value in lock.items() if isinstance(value, dict) and isinstance(value.get('id'), str)}
-
-
 def pins_at(commit):
     """The exact image each replaceable service runs at a commit."""
     pins = {}
     for service, (name, key) in SERVICES.items():
-        lock = lock_at(commit, name)
+        lock = release_channel.lock_at(commit, name)
         if lock is None:
             # That version does not run this service at all (Realtime before it existed).
             continue
@@ -136,22 +126,10 @@ def images_at(commit):
     """Every pinned image of a version, as (label, id, pullable reference)."""
     found = []
     for name in install_server.LOCKS:
-        for key, entry in entries(lock_at(commit, name)).items():
+        for key, entry in release_channel.entries(release_channel.lock_at(commit, name)).items():
             digests = [item for item in entry.get('digests') or [] if isinstance(item, str) and '@sha256:' in item]
             found.append((f'{name}:{key}', entry['id'], digests[0] if digests else entry['id']))
     return found
-
-
-def changes(current, target):
-    """Pinned images that differ between two versions, as (label, before, after)."""
-    rows = []
-    for name in install_server.LOCKS:
-        before, after = entries(lock_at(current, name)), entries(lock_at(target, name))
-        for key in sorted(set(before) | set(after)):
-            old, new = before.get(key, {}), after.get(key, {})
-            if old.get('id') != new.get('id'):
-                rows.append((f'{name}:{key}', old.get('tag', 'none'), new.get('tag', 'none')))
-    return rows
 
 
 def load_state():
@@ -170,21 +148,9 @@ def now():
     return datetime.datetime.now(datetime.UTC).isoformat(timespec='seconds')
 
 
-@contextlib.contextmanager
 def exclusive(path, refusal, wait=0):
     """Holds an exclusive flock on path, waiting up to `wait` seconds, or raises UpgradeError."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open('a') as handle:
-        until = time.monotonic() + wait
-        while True:
-            try:
-                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                break
-            except BlockingIOError:
-                if time.monotonic() >= until:
-                    raise UpgradeError(refusal) from None
-                time.sleep(.2)
-        yield
+    return release_channel.exclusive(path, refusal, wait, UpgradeError)
 
 
 def held(path):
@@ -211,22 +177,6 @@ def present(path):
     except FileNotFoundError:
         return False
     return True
-
-
-def sync_directory(path):
-    handle = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
-    try:
-        os.fsync(handle)
-    finally:
-        os.close(handle)
-
-
-def sha256(path):
-    value = hashlib.sha256()
-    with path.open('rb') as handle:
-        for block in iter(lambda: handle.read(1 << 20), b''):
-            value.update(block)
-    return value.hexdigest()
 
 
 def stores():
@@ -264,11 +214,11 @@ def snapshot(commit):
             with copy.open('rb') as handle:
                 os.fsync(handle.fileno())
             files.append({'home': home, 'file': path.name, 'bytes': copy.stat().st_size,
-                          'sha256': sha256(copy), 'user_version': version})
+                          'sha256': backup.digest(copy), 'user_version': version})
         lab.atomic(partial / 'manifest.json', {'from': commit, 'taken_at': now(), 'files': files})
-        sync_directory(partial)
+        effect_receipt.sync_directory(partial)
         os.replace(partial, SNAPSHOTS / name)
-        sync_directory(SNAPSHOTS)
+        effect_receipt.sync_directory(SNAPSHOTS)
     except (OSError, sqlite3.Error) as error:
         shutil.rmtree(partial, ignore_errors=True)
         raise UpgradeError(f'The control state snapshot failed ({error.__class__.__name__}: {error})') from None
@@ -359,7 +309,7 @@ def install_guard():
         handle.flush()
         os.fsync(handle.fileno())
     os.replace(partial, target)
-    sync_directory(target.parent)
+    effect_receipt.sync_directory(target.parent)
 
 
 def catalog_version():
@@ -416,28 +366,42 @@ def plan(target_ref):
         refusals.append('The checkout has local changes to tracked files; commit or discard them first')
     if target == current:
         refusals.append('Already at this version')
-    database = lock_at(current, DATABASE_LOCK), lock_at(target, DATABASE_LOCK)
-    if (database[0] or {}).get('id') != (database[1] or {}).get('id'):
+    diffs = list(release_channel.pin_diffs(current, target))
+    if release_channel.database_changes(diffs):
         refusals.append('This version changes the PostgreSQL image; that needs lab/migrate-generation.py, not an upgrade')
-    state = load_state()
-    if state and state.get('phase') in PENDING:
-        refusals.append(f"The last {'upgrade' if state['phase'] == 'applied' else 'rollback'} has not started yet; restart Sbarbase first")
-    for name in UNSETTLED:
-        if present(UPSTREAM / name):
-            refusals.append(f'A pending operation record ({name}) must be settled or reconciled first')
-    if held(BACKUP_LOCK):
-        refusals.append('A backup or restore is running; wait for it to finish')
+    # `start` holds the upgrade lock itself while it plans.
+    refusals += transient_refusals(lock=False)
     ahead = git('rev-list', '--count', f'{current}..{target}', check=False) or '?'
     behind = git('rev-list', '--count', f'{target}..{current}', check=False) or '?'
     return {'current': current, 'target': target, 'ahead': ahead, 'behind': behind,
-            'changes': changes(current, target), 'refusals': refusals}
+            'changes': release_channel.changes(current, target, diffs), 'refusals': refusals}
+
+
+def transient_refusals(lock=True, records=True, backup=True):
+    """Why a start would refuse now for a reason that passes by itself: the last upgrade or
+    rollback waits for its restart, an operation record is still to settle, a backup or restore
+    runs, or another upgrade or rollback holds the upgrade lock. plan() refuses on these (without
+    the lock it holds itself); automatic mode (lab/updates.py blocked) waits them out instead of
+    spending its try; the console's verdict leaves out what the supervisor waits out itself."""
+    refusals = []
+    state = load_state()
+    if state and state.get('phase') in PENDING:
+        refusals.append(f"The last {'upgrade' if state['phase'] == 'applied' else 'rollback'} has not started yet; restart Sbarbase first")
+    for name in UNSETTLED if records else ():
+        if present(UPSTREAM / name):
+            refusals.append(f'A pending operation record ({name}) must be settled or reconciled first')
+    if backup and held(BACKUP_LOCK):
+        refusals.append('A backup or restore is running; wait for it to finish')
+    if lock and held(LOCK):
+        refusals.append('Another upgrade or rollback is running')
+    return refusals
 
 
 def report(details, target_ref):
     print(f"now      {details['current'][:12]}")
     print(f"target   {details['target'][:12]}  ({target_ref}: {details['ahead']} commit(s) ahead, {details['behind']} behind)")
-    for label, before, after in details['changes']:
-        print(f'image    {label}: {before} -> {after}')
+    for row in details['changes']:
+        print(f"image    {row['image']}: {row['from']} -> {row['to']}")
     if not details['changes']:
         print('image    no pinned image changes')
     for refusal in details['refusals']:
@@ -453,9 +417,35 @@ def pull(commit):
 def back_up():
     """Backs up every environment before anything moves; the backups stay afterwards."""
     # Local only: an unreachable off-site storage must not block an upgrade that has its backups.
-    result = subprocess.run(['/usr/bin/python3', 'lab/backup.py', 'create', 'all', '--local-only'], cwd=ROOT, text=True)
+    # Marked as an upgrade's, so count-based pruning keeps them (lab/backup.py UPGRADE_RUNS_KEPT).
+    result = subprocess.run(['/usr/bin/python3', 'lab/backup.py', 'create', 'all', '--local-only', '--reason', 'upgrade'],
+                            cwd=ROOT, text=True)
     if result.returncode:
         raise UpgradeError('The backup before the upgrade failed; nothing was changed')
+
+
+def outcome_file():
+    return UPGRADES / 'outcome.json'
+
+
+def record_outcome(request, kind, **fields):
+    """How a command the supervisor ran for a request (lab/dev.py passes --request) ended, for it
+    to read instead of the command's output: {request, kind, passed, changed, refusals, error, at}.
+
+    `passed` is written by `start` just before its backup, the first thing it does that is not
+    free to repeat: automatic mode spends its one try on a version only once a start got there
+    (lab/updates.py). Written durably before the backup, so a start killed during it still says so.
+    Nothing is written without a request: the command line keeps its output only."""
+    if request is None:
+        return
+    try:
+        previous = json.loads(outcome_file().read_text())
+    except (OSError, ValueError):
+        previous = None
+    if not isinstance(previous, dict) or previous.get('request') != request:
+        previous = {'request': request, 'kind': kind, 'passed': False, 'changed': False, 'refusals': [], 'error': None}
+    UPGRADES.mkdir(mode=0o700, parents=True, exist_ok=True)
+    lab.atomic(outcome_file(), {**previous, **fields, 'at': now()})
 
 
 def owner_of_checkout(paths):
@@ -531,19 +521,24 @@ def install_dependencies():
         raise UpgradeError('bun install failed for this version')
 
 
-def start(target_ref, trigger='cli'):
+def start(target_ref, trigger='cli', release=None, request=None):
     with exclusive(LOCK, 'Another upgrade or rollback is running'):
-        apply(target_ref, trigger)
+        apply(target_ref, trigger, release, request)
 
 
-def apply(target_ref, trigger='cli'):
+def apply(target_ref, trigger='cli', release=None, request=None):
+    """`release` ({version, tag, class, signed}) names the channel release a start moves to; it is
+    in the first record saved, so every reader of the state knows the version from the start."""
     details = plan(target_ref)
     report(details, target_ref)
     if details['refusals']:
-        raise UpgradeError('Nothing was changed')
+        raise UpgradeError('Nothing was changed', details['refusals'])
     target = details['target']
     pins, back = pins_at(target), pins_at(details['current'])
     pull(target)
+    # Everything before this changes nothing and may be tried again; the backup is the first
+    # step that is not, so it is recorded before it starts.
+    record_outcome(request, 'start', passed=True)
     back_up()
     # Proves the control state can be copied before anything moves. The new version takes a
     # fresh one when it starts (before_start), which is the one the way back restores.
@@ -558,7 +553,8 @@ def apply(target_ref, trigger='cli'):
     record = {'phase': 'applied', 'from': details['current'], 'to': target, 'started_at': now(),
               'changes': details['changes'], 'automatic': False, 'snapshot': taken, 'trigger': trigger,
               'protocol': upgrade_guard.PROTOCOL, 'moved': False,
-              'way_back': {'pins': back, 'from': target, 'to': details['current']}}
+              'way_back': {'pins': back, 'from': target, 'to': details['current']},
+              **({'release': release} if release else {})}
     save_state(record)
     prune_snapshots()
     try:
@@ -693,6 +689,10 @@ def before_start():
         # anything, the way back restores nothing, and the previous version settles it.
         for name in UNSETTLED:
             if present(UPSTREAM / name):
+                # The way back that follows says nothing about the new version itself: recorded
+                # as `retryable`, it does not rule the version out for automatic updates.
+                with exclusive(LOCK, 'Another upgrade or rollback is running', wait=30):
+                    save_state({**state, 'retryable': True})
                 raise UpgradeError(f'The previous version left a pending operation record ({name}); it settles it first. '
                                    'Start the upgrade again once it has')
         with exclusive(LOCK, 'Another upgrade or rollback is running', wait=30):
@@ -702,6 +702,17 @@ def before_start():
         prune_snapshots()
     hold(state['phase'])
     return True
+
+
+def clear_notices(count):
+    """Drops the first `count` notices the guard recorded (upgrade_guard.notice), once the
+    supervisor announced them; any the guard added since stay."""
+    with exclusive(LOCK, 'Another upgrade or rollback is running', wait=30):
+        state = load_state()
+        if not isinstance(state, dict) or not isinstance(state.get('notices'), list):
+            return
+        rest = state.pop('notices')[count:]
+        save_state({**state, 'notices': rest} if rest else state)
 
 
 def close_attempt():
@@ -812,6 +823,9 @@ def show_channel(result):
         print('available  nothing newer')
     for refusal in result['refusals']:
         print('refused    ' + refusal)
+    # Newer releases the check passed over, and why: a newer one exists, but not for this installation yet.
+    for note in result.get('skipped') or []:
+        print('passed     ' + note)
 
 
 def channel(as_json=False, preview=False):
@@ -826,21 +840,16 @@ def channel(as_json=False, preview=False):
         show_channel(result)
 
 
-def start_release(tag, allow=(), trigger='cli'):
+def start_release(tag, allow=(), trigger='cli', request=None):
     """Starts an upgrade to a signed release: verified, classified, then the usual start."""
     try:
         release = release_channel.prepare(tag, allow)
     except release_channel.ReleaseError as error:
-        raise UpgradeError(f'{error}\nNothing was changed')
+        raise UpgradeError(f'{error}\nNothing was changed', str(error).splitlines())
     print(f"release  {tag}, class {release['class']}, signed")
-    began = now()
-    try:
-        # The verified commit, never the ref: nothing can move between the check and the checkout.
-        start(release['commit'], trigger)
-    finally:
-        state = load_state()
-        if state and state.get('to') == release['commit'] and state.get('started_at', '') >= began and 'release' not in state:
-            save_state({**state, 'release': {'version': release['version'], 'tag': tag, 'class': release['class'], 'signed': True}})
+    # The verified commit, never the ref: nothing can move between the check and the checkout.
+    start(release['commit'], trigger,
+          {'version': release['version'], 'tag': tag, 'class': release['class'], 'signed': True}, request)
     if release['class'] == 'rebuild':
         print('This release changes what a plain restart does not pick up:')
         for reason in release['reasons']:
@@ -857,41 +866,50 @@ def main(argv=None):
     target = starting.add_mutually_exclusive_group()
     target.add_argument('--to', default=DEFAULT_TARGET)
     target.add_argument('--release', help='a signed release tag from the channel, vX.Y.Z')
-    starting.add_argument('--allow-class', action='append', choices=['rebuild'], default=[],
-                          help='apply a release that needs a rebuild (a manual release is always refused)')
+    starting.add_argument('--allow-class', action='append', choices=['rebuild', 'attended'], default=[],
+                          help='apply a release that needs a rebuild, or one that migrates environment databases '
+                               '(repeat for both; a manual release is always refused)')
     starting.add_argument('--trigger', choices=TRIGGERS, default='cli', help=argparse.SUPPRESS)
     listing = sub.add_parser('channel')
     listing.add_argument('--json', action='store_true')
     listing.add_argument('--preview', action='store_true', help='include pre-releases')
     sub.add_parser('status')
-    sub.add_parser('rollback').add_argument('--check', action='store_true',
-                                            help='only say whether a rollback would refuse, and why')
+    back = sub.add_parser('rollback')
+    back.add_argument('--check', action='store_true', help='only say whether a rollback would refuse, and why')
+    # The supervisor's run id: the command then records how it ended (record_outcome).
+    for command in (starting, listing, back):
+        command.add_argument('--request', help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     os.chdir(ROOT)
+    request = getattr(args, 'request', None)
+    kind = {'channel': 'check'}.get(args.command, args.command)
     try:
         if args.command == 'channel':
             channel(args.json, args.preview)
+            record_outcome(request, kind)
             return 0
         if args.command == 'start' and args.release:
-            start_release(args.release, args.allow_class, args.trigger)
-            return 0
-        if args.command == 'rollback' and args.check:
+            start_release(args.release, args.allow_class, args.trigger, request)
+        elif args.command == 'rollback' and args.check:
             refusal = rollback_refusal()
             print(refusal or 'A rollback would go ahead.')
             return 1 if refusal else 0
-        if args.command == 'check':
+        elif args.command == 'check':
             details = plan(args.to)
             report(details, args.to)
             return 1 if details['refusals'] else 0
-        if args.command == 'start':
-            start(args.to, args.trigger)
+        elif args.command == 'start':
+            start(args.to, args.trigger, request=request)
         elif args.command == 'rollback':
             rollback()
         else:
             status()
+            return 0
+        record_outcome(request, kind, changed=True)
         return 0
-    except UpgradeError as error:
+    except (UpgradeError, release_channel.ReleaseError) as error:
         print(str(error), file=sys.stderr)
+        record_outcome(request, kind, changed=False, error=str(error), refusals=getattr(error, 'refusals', []))
         return 1
 
 

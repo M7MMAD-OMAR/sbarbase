@@ -29,6 +29,9 @@ While an upgrade or a rollback waits for confirmation (state.json phase `applied
     state snapshot), then counts the attempt; an open previous attempt or too many attempts
     record rollback_failed, always with the checkout back on the previous version.
 
+A way back or a rollback_failed it records carries a notice in the state, so the next supervisor
+start emits the notification it earns (lab/dev.py upgrade_notices).
+
 Exit status 0 lets the start go on (on whichever version the checkout now holds); 1 means it
 cannot, and the service manager tries again. Anything unreadable or not pending exits 0 at
 once: a guard problem must never stop an installation that has no upgrade under way.
@@ -303,6 +306,16 @@ def complete_way_back(layout, state, save, move):
         save(state)
 
 
+def notice(state, was):
+    """Records that this change of phase (from `was` to the state's phase now) earns an outcome
+    notification. The guard imports nothing from lab/, so it cannot emit one itself: the next
+    supervisor start does (lab/dev.py upgrade_notices, through lab/updates.py announce_outcome),
+    into the catalog of the version that runs then, and removes the notice."""
+    earlier = state.get('notices') if isinstance(state.get('notices'), list) else []
+    state['notices'] = [*earlier, {'was': was, 'phase': state['phase']}]
+    return state
+
+
 def snapshot_failed(state, error):
     state.update({'phase': 'rollback_failed', 'finished_at': now(),
                   'failure': f"{error}. The checkout is back at {state['from'][:12]}, but the control state was not put "
@@ -370,12 +383,12 @@ def guard(layout, install=bun_install):
                 return 0
             say(reason + '; moving back to ' + state['from'][:12])
             begin_way_back(state, True, reason[0].upper() + reason[1:])
-            save(state)
+            save(notice(state, 'applied'))
             record, crashed = {'phase': 'rolling_back', 'attempts': 1}, False
         try:
             complete_way_back(layout, state, save, back)
         except SnapshotError as error:
-            save(snapshot_failed(state, error))
+            save(notice(snapshot_failed(state, error), 'rolling_back'))
             say(state['failure'])
             return 0
         except OSError as error:
@@ -387,7 +400,7 @@ def guard(layout, install=bun_install):
             failure = ('The previous version did not finish a start either' if crashed else
                        f'The previous version did not pass its health checks in {MAX_ATTEMPTS} starts either')
             state.update({'phase': 'rollback_failed', 'finished_at': now(), 'failure': failure})
-            save(state)
+            save(notice(state, 'rolling_back'))
             say(failure + '; it starts without the health checks now')
             return 0
         state['guard'] = {**record, 'open': True}

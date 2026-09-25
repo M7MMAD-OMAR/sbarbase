@@ -71,6 +71,21 @@ class RetentionTests(Fixture):
         # oldest upgrade is an ordinary backup again and was pruned with the others.
         self.assertEqual(names, ['20260903T100000Z', '20260905T100000Z', '20260907T100000Z', '20260908T030000Z', '20260909T030000Z'])
 
+    def test_an_upgrade_run_under_way_counts_among_the_last_ones_read_once_for_the_run(self):
+        upgrades = ['20260901T100000Z', '20260903T100000Z', '20260905T100000Z']
+        for stamp in upgrades:
+            self.complete(stamp, reason='upgrade')
+        current = '20260907T100000Z'
+        protected = backup.upgrade_runs(current=current)
+        self.assertEqual(protected, {*upgrades[1:], current})
+        for day in range(1, 10):
+            self.complete(f'202609{day:02d}T030000Z')
+        # The set read at the start of the run is the one every prune of that run uses.
+        with patch.object(backup, 'upgrade_runs', side_effect=AssertionError('read again')):
+            backup.prune(E, 1, protected)
+        self.assertEqual([path.name for path in backup.complete_backups(E)],
+                         ['20260903T100000Z', '20260905T100000Z', '20260909T030000Z'])
+
     def test_an_upgrade_is_one_run_across_environments(self):
         other = 'e_' + 'b' * 24
         # The last upgrade backed up only the other environment (this one failed or did not exist):
@@ -90,7 +105,7 @@ class RetentionTests(Fixture):
         import offsite
         parsed = []
 
-        def create(e, keep, now, reason):
+        def create(e, keep, now, reason, protected):
             parsed.append(reason)
             raise backup.BackupError('stop here')
         # The off-site configuration is never read here: it lives with the secrets.

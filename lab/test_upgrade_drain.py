@@ -47,7 +47,7 @@ class DrainTests(Private):
         self.put('settings.json', {'check': False, 'automatic': False, 'window': {'start': '03:00', 'end': '05:00'}})
         self.put('available.json', document())
         self.supervisor = dev.Supervisor(threading.Event(), worker_fd=99, catalog=self.folder / 'absent.sqlite')
-        self.supervisor.current = CURRENT
+        self.supervisor.current = self.supervisor.running = CURRENT
         self.supervisor.updates_since = at(0)
         self.spawned, self.workers = [], []
         self.outcome = 0

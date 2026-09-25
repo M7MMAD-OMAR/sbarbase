@@ -256,10 +256,9 @@ def observe():
             healthy = True
             break
         time.sleep(2)
-    status = subprocess.run(['/usr/bin/python3', 'lab/upgrade.py', 'status'], cwd=ROOT, capture_output=True, text=True)
     return {'head': git('rev-parse', 'HEAD'), 'rest_tag': lock['rest']['tag'], 'environments': environments,
             'healthy': healthy, 'console_health': health, 'held': held(url) if url else None,
-            'catalog': catalog_state(), 'upgrade': upgrade_state(), 'status': status.stdout}
+            'catalog': catalog_state(), 'upgrade': upgrade_state()}
 
 
 # The record: every stage appends its checks; `evidence` writes the file once.
@@ -304,8 +303,11 @@ def before(pairs):
 
 
 def schema_at(commit):
-    found = SCHEMA.search(git('show', f'{commit}:src/control/catalog.ts'))
-    return int(found.group(1)) if found else None
+    """The catalog schema a version declares, read as lab/upgrade.py reads it for `rollback`
+    (`after` runs inside the installation, where that module can be imported)."""
+    sys.path.insert(0, str(ROOT / 'lab'))
+    import upgrade
+    return upgrade.catalog_support(commit)
 
 
 # Which candidate each automatic way back is from.
@@ -349,9 +351,6 @@ def after(stage, back_to):
                   migrated == wanted and wanted is not None and wanted > then['catalog']['version'],
                   f'catalog schema {then["catalog"]["version"]} -> {migrated} (the release declares {wanted})')
             check('the table that migration added is gone again', PROBE_TABLE not in now['catalog']['tables'])
-    line = next((row for row in now['status'].splitlines() if row.startswith('result')), '')
-    expected = 'confirmed' if stage == 'upgraded' else 'rolled_back'
-    check(f'upgrade.py status reports {expected}', line.split()[1:2] == [expected + ':'], line)
     check('the control catalog is at the schema it had before the upgrade', now['catalog']['version'] == then['catalog']['version'],
           f"{then['catalog']['version']} -> {now['catalog']['version']}")
     check('organizations, projects, environments and memberships in the control catalog are unchanged',

@@ -14,36 +14,38 @@ Files, all in .lab/upgrades, private (0600), each replaced atomically:
                      only the supervisor changes it afterwards
   last-request.json  the last finished request, kept for the console's progress view
   check.json         the last check: {attempted_at, error, failures}
-  ledger.json        versions announced, tried automatically and rolled back:
-                     {announced, attempted, rolled_back, tries}. `attempted` is a try that went
-                     ahead (it started the backup or moved the checkout) and `rolled_back` a way
-                     back: automatic mode never retries either. `tries` counts automatic tries
-                     that stopped before that point: {version: {count, last, ended?}}, `ended`
-                     being when the last try's request finished
-  current.json       what runs now and whether the console may roll back, written by the
-                     supervisor: {version, commit, written_at, rollback: {started_at, possible, reason},
-                     timezone: {name, offset}}, the zone of the clock the maintenance window uses
-  available.json     the last check's result, written by lab/release_channel.py
+  ledger.json        {versions: {version: {announced, tries, last, spent, rolled_back}}}, the last
+                     LEDGER_KEEP versions: announced once, automatic tries counted (`last` the
+                     latest), `spent` a try that passed its point of no return without moving the
+                     checkout (spend), `rolled_back` a way back (announce_outcome). Automatic mode
+                     never tries a spent or rolled back version again
+  current.json       the supervisor's word to the console (publish_current): {version, commit,
+                     written_at, rollback: {started_at, possible, reason}, apply: null | {version,
+                     tag, class, possible, reason, acknowledgement}, pending, timezone: {name, offset}}
+  available.json     the last check's result, written by lab/release_channel.py; one made on
+                     another commit is moved to available.previous.json
+  outcome.json       how the last child the supervisor ran ended, written by lab/upgrade.py:
+                     {request, kind, passed, changed, refusals, error, at}
 
-A request is {id, kind: apply|rollback|check, version?, tag?, trigger: console|automatic,
-acknowledged?, state: requested|running|done|failed, requested_at, started_at?, finished_at?,
-detail?}. `acknowledged` is true when the operator confirmed the warning an `attended` release
-carries (the Auth, Storage or Realtime image changes, see lab/release_channel.py).
+A request is {id, kind: apply|rollback|check, version?, trigger: console|automatic, acknowledged?,
+state: requested|running|done|failed, requested_at, started_at?, finished_at?, detail?}. The tag
+is `v` + version; a `tag` the console writes is not read. `acknowledged` is true when the
+operator confirmed the warning an `attended` release carries (the Auth, Storage or Realtime
+image changes, see lab/release_channel.py).
 """
 import datetime
 import json
 import os
 import re
 import uuid
+import zoneinfo
 from pathlib import Path
 
+import effect_receipt
 import notification_producers
 
 ROOT = Path(__file__).resolve().parents[1]
 UPGRADES = ROOT / '.lab' / 'upgrades'
-# Where lab/backup.py writes; a backup directory stamped after an automatic try started shows
-# that the try went ahead.
-BACKUPS = ROOT / '.lab' / 'backups'
 DEFAULT_SETTINGS = {'check': True, 'automatic': False, 'window': {'start': '03:00', 'end': '05:00'}}
 CLOCK = re.compile(r'([01]\d|2[0-3]):[0-5]\d')
 KINDS = ('apply', 'rollback', 'check')
@@ -56,8 +58,6 @@ CHECK_INTERVAL = datetime.timedelta(hours=6)
 FIRST_CHECK_DELAY = datetime.timedelta(minutes=5)
 # After a failed check (an offline host): 30 minutes, then 1, 2 and 4 hours, then the interval.
 RETRY_BASE = datetime.timedelta(minutes=30)
-# release_channel.check() does not fail when the source is unreachable: it says so here.
-UNREACHABLE = 'The release source could not be read'
 LEDGER_KEEP = 50
 # An automatic try that stopped before the backup (a network failure while fetching the release
 # or pulling its images) is tried again: at most this many times per version, 10 then 20 minutes
@@ -79,6 +79,12 @@ MESSAGES = {
     'no_rollback': 'There is no installed update to roll back.',
     'expired': 'The server did not pick up this request within an hour, so it was not carried out.',
     'interrupted': 'Sbarbase stopped while this request was running, before it finished.',
+    'settings_fields': 'Settings need exactly check, automatic and window.',
+    'settings_switches': 'Check and automatic must each be on or off.',
+    'settings_window': 'The maintenance window needs a start and an end.',
+    'settings_clock': 'The maintenance window needs a valid start and end time.',
+    'settings_same': 'The maintenance window needs different start and end times.',
+    'settings_check': 'Automatic updates need checking for new releases turned on.',
 }
 
 
@@ -111,8 +117,10 @@ def read(name):
         return None
 
 
-def write(name, value):
-    """Replaces a file atomically: private temporary file, fsync, rename, fsync the directory."""
+def write(name, value, link=False):
+    """Writes a file of this directory atomically: private temporary file (its own name, since
+    the console writes here too), fsync, then rename over the file, or with `link` a hard link
+    that fails when the file exists (False then), then fsync the directory."""
     target = path(name)
     target.parent.mkdir(parents=True, exist_ok=True)
     os.chmod(target.parent, 0o700)
@@ -123,19 +131,17 @@ def write(name, value):
             json.dump(value, handle, ensure_ascii=False)
             handle.flush()
             os.fsync(handle.fileno())
-        os.replace(temporary, target)
-    except BaseException:
-        temporary.unlink(missing_ok=True)
-        raise
-    sync(target.parent)
-
-
-def sync(directory):
-    handle = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
-    try:
-        os.fsync(handle)
+        if not link:
+            os.replace(temporary, target)
+        else:
+            try:
+                os.link(temporary, target)
+            except FileExistsError:
+                return False
     finally:
-        os.close(handle)
+        temporary.unlink(missing_ok=True)
+    effect_receipt.sync_directory(target.parent)
+    return True
 
 
 # ---------------------------------------------------------------- settings
@@ -143,18 +149,18 @@ def sync(directory):
 def validate_settings(value):
     """The settings exactly as the console may send them, or raises ValueError with a sentence."""
     if not isinstance(value, dict) or sorted(value) != ['automatic', 'check', 'window']:
-        raise ValueError('Settings need exactly check, automatic and window.')
+        raise ValueError(MESSAGES['settings_fields'])
     if not isinstance(value['check'], bool) or not isinstance(value['automatic'], bool):
-        raise ValueError('Check and automatic must each be on or off.')
+        raise ValueError(MESSAGES['settings_switches'])
     window = value['window']
     if not isinstance(window, dict) or sorted(window) != ['end', 'start']:
-        raise ValueError('The maintenance window needs a start and an end.')
+        raise ValueError(MESSAGES['settings_window'])
     if not all(isinstance(window[name], str) and CLOCK.fullmatch(window[name]) for name in ('start', 'end')):
-        raise ValueError('The maintenance window needs a valid start and end time.')
+        raise ValueError(MESSAGES['settings_clock'])
     if window['start'] == window['end']:
-        raise ValueError('The maintenance window needs different start and end times.')
+        raise ValueError(MESSAGES['settings_same'])
     if value['automatic'] and not value['check']:
-        raise ValueError('Automatic updates need checking for new releases turned on.')
+        raise ValueError(MESSAGES['settings_check'])
     return {'check': value['check'], 'automatic': value['automatic'],
             'window': {'start': window['start'], 'end': window['end']}}
 
@@ -190,94 +196,65 @@ def in_window(window, moment):
 
 # ---------------------------------------------------------------- ledger
 
+ENTRY = {'announced': False, 'tries': 0, 'last': None, 'spent': False, 'rolled_back': False}
+
+
 def ledger():
+    """{versions: {version: {announced, tries, last, spent, rolled_back}}}, oldest first. A damaged
+    entry reads as the defaults; a ledger in the earlier form (lists announced, attempted and
+    rolled_back, and tries {version: {count, last}}) is read into this one."""
     value = read('ledger.json')
     value = value if isinstance(value, dict) else {}
-    record = {name: [item for item in value.get(name) or [] if isinstance(item, str)]
-              for name in ('announced', 'attempted', 'rolled_back')}
-    tries = value.get('tries') if isinstance(value.get('tries'), dict) else {}
-    record['tries'] = {version: {'count': item['count'], 'last': item['last'],
-                                 **({'ended': item['ended']} if isinstance(item.get('ended'), str) else {})}
-                       for version, item in tries.items()
-                       if isinstance(item, dict) and isinstance(item.get('count'), int) and isinstance(item.get('last'), str)}
-    return record
+    raw = value.get('versions')
+    if not isinstance(raw, dict):
+        raw = {}
+        for flag, name in (('announced', 'announced'), ('spent', 'attempted'), ('rolled_back', 'rolled_back')):
+            for version in value.get(name) if isinstance(value.get(name), list) else []:
+                if isinstance(version, str):
+                    raw.setdefault(version, {})[flag] = True
+        for version, item in (value.get('tries') if isinstance(value.get('tries'), dict) else {}).items():
+            if isinstance(item, dict):
+                raw.setdefault(version, {}).update(tries=item.get('count'), last=item.get('last'))
+    versions = {}
+    for version, item in raw.items():
+        if not isinstance(version, str) or not isinstance(item, dict):
+            continue
+        tries = item.get('tries')
+        versions[version] = {'announced': item.get('announced') is True,
+                             'tries': tries if isinstance(tries, int) and not isinstance(tries, bool) and tries > 0 else 0,
+                             'last': item.get('last') if isinstance(item.get('last'), str) else None,
+                             'spent': item.get('spent') is True, 'rolled_back': item.get('rolled_back') is True}
+    return {'versions': versions}
 
 
-def remember(name, version):
-    """Adds a version to one list of the ledger; True when it was not there yet."""
+def mark(version, **fields):
+    """Changes one version's entry of the ledger, which keeps the last LEDGER_KEEP versions."""
     record = ledger()
-    if version in record[name]:
-        return False
-    record[name] = (record[name] + [version])[-LEDGER_KEEP:]
+    versions = record['versions']
+    versions[version] = {**versions.get(version, ENTRY), **fields}
+    record['versions'] = dict(list(versions.items())[-LEDGER_KEEP:])
     write('ledger.json', record)
-    return True
 
 
 def begin_automatic(version, moment=None):
-    """Counts one automatic try of a version, just before its request is created. Whether it
-    went ahead is judged at the next decision (went_ahead), once the try has ended."""
-    record = ledger()
-    count = record['tries'].get(version, {}).get('count', 0)
-    record['tries'][version] = {'count': count + 1, 'last': stamp(moment or now())}
-    record['tries'] = dict(list(record['tries'].items())[-LEDGER_KEEP:])
-    write('ledger.json', record)
-    return count + 1
+    """Counts one automatic try of a version, just before its request is created; returns the
+    count. Whether the try is spent is recorded once its request ends (spend)."""
+    tries = ledger()['versions'].get(version, ENTRY)['tries'] + 1
+    mark(version, tries=tries, last=stamp(moment or now()))
+    return tries
 
 
-def backed_up_since(moment, until=None):
-    """Whether lab/backup.py started a backup at or after `moment` (and before `until`): its
-    directories are named by the UTC time the run started (YYYYMMDDTHHMMSSZ), and one appears
-    before anything is copied into it."""
-    since = moment.astimezone(datetime.UTC).strftime('%Y%m%dT%H%M%SZ')
-    before = until.astimezone(datetime.UTC).strftime('%Y%m%dT%H%M%SZ') if until else None
-    try:
-        folders = [folder for folder in BACKUPS.iterdir() if folder.is_dir()]
-    except OSError:
-        return False
-    for folder in folders:
-        try:
-            if any(re.fullmatch(r'\d{8}T\d{6}Z', item.name) and item.name >= since and (before is None or item.name < before)
-                   for item in folder.iterdir()):
-                return True
-        except OSError:
-            continue
-    return False
-
-
-def settle_tries(record):
-    """Notes when the request of each automatic try finished (last-request.json), once, so the
-    evidence of a try stays bounded to the try: the daily backup waits while an update runs and
-    starts right after it ends, and its backup must not count as the try's. Returns the ledger."""
-    last = read('last-request.json')
-    if not isinstance(last, dict) or last.get('trigger') != 'automatic' or last.get('kind') != 'apply':
-        return record
-    attempt = record['tries'].get(last.get('version'))
-    asked, ended = parse_time(last.get('requested_at')), parse_time(last.get('finished_at'))
-    if attempt is None or 'ended' in attempt or asked is None or ended is None:
-        return record
-    since = parse_time(attempt['last'])
-    if since is None or asked < since.replace(microsecond=0):
-        return record
-    attempt['ended'] = last['finished_at']
-    write('ledger.json', record)
-    return record
-
-
-def went_ahead(attempt, upgrade_state):
-    """Whether an automatic try got past the steps that change nothing: it started the backup,
-    or it recorded an upgrade (even one that then failed), which happens just before the
-    checkout moves. Such a try is spent; one that stopped earlier may be tried again. Only what
-    happened between the try's start and the end of its request counts; a try whose end is not
-    known counts everything since it started."""
-    since = parse_time((attempt or {}).get('last'))
-    if since is None:
-        return True
-    until = parse_time((attempt or {}).get('ended'))
-    if isinstance(upgrade_state, dict):
-        began = parse_time(upgrade_state.get('started_at'))
-        if began is not None and began >= since and (until is None or began <= until):
-            return True
-    return backed_up_since(since, until)
+def spend(request, outcome, moved):
+    """Records that an automatic try went past its point of no return: `upgrade.py start` says so
+    in its outcome just before it starts the backup (lab/upgrade.py record_outcome). Such a try
+    is spent when the checkout did not move (the backup, the snapshot or the move failed): that
+    version is never tried again automatically. One that moved is judged by how the new version
+    starts: confirmed, it runs; moved back, announce_outcome records it. A try that stopped
+    earlier (a network failure fetching the release or pulling its images, a drain that timed
+    out) is not spent, and is tried again a bounded number of times."""
+    if request.get('trigger') == 'automatic' and request.get('kind') == 'apply' and not moved \
+            and isinstance(request.get('version'), str) and isinstance(outcome, dict) and outcome.get('passed') is True:
+        mark(request['version'], spent=True)
 
 
 def label(state):
@@ -295,7 +272,7 @@ def read_request():
     return value if isinstance(value, dict) and value.get('kind') in KINDS else None
 
 
-def create_request(kind, version=None, tag=None, trigger='console', moment=None):
+def create_request(kind, version=None, trigger='console', moment=None):
     """Creates the one request, or returns None when another exists. The file is linked into
     place, which fails when it exists: nothing can overwrite a request under way."""
     if kind not in KINDS:
@@ -303,25 +280,8 @@ def create_request(kind, version=None, tag=None, trigger='console', moment=None)
     request = {'id': str(uuid.uuid4()), 'kind': kind, 'trigger': trigger, 'state': 'requested',
                'requested_at': stamp(moment or now())}
     if version:
-        request.update(version=version, tag=tag or 'v' + version)
-    target = path('request.json')
-    target.parent.mkdir(parents=True, exist_ok=True)
-    os.chmod(target.parent, 0o700)
-    temporary = target.with_name(f'.request.{uuid.uuid4().hex}.tmp')
-    descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    try:
-        with os.fdopen(descriptor, 'w') as handle:
-            json.dump(request, handle)
-            handle.flush()
-            os.fsync(handle.fileno())
-        try:
-            os.link(temporary, target)
-        except FileExistsError:
-            return None
-    finally:
-        temporary.unlink(missing_ok=True)
-    sync(target.parent)
-    return request
+        request['version'] = version
+    return request if write('request.json', request, link=True) else None
 
 
 def update_request(request, **changes):
@@ -351,7 +311,7 @@ def finish_request(request, state, detail=None, moment=None):
     write('last-request.json', final)
     if current and current.get('id') == request.get('id'):
         path('request.json').unlink(missing_ok=True)
-        sync(path('request.json').parent)
+        effect_receipt.sync_directory(path('request.json').parent)
     return final
 
 
@@ -391,6 +351,9 @@ def settle(upgrade_state, moment=None):
     if request.get('state') == 'running':
         if progressed(request, upgrade_state):
             return finish_request(request, 'done', None, moment)
+        # An automatic try the previous process never saw end may still have passed its point
+        # of no return; its outcome says so.
+        spend(request, outcome(request.get('id')), moved=False)
         return finish_request(request, 'failed', MESSAGES['interrupted'], moment)
     asked = parse_time(request.get('requested_at'))
     if asked is None or moment - asked > REQUEST_TTL:
@@ -400,28 +363,17 @@ def settle(upgrade_state, moment=None):
 
 # ---------------------------------------------------------------- decisions
 
-def fresh(document, current):
-    """The check result when it was made on the running commit; a check made before an upgrade
-    still names the release that was just installed."""
-    if not isinstance(document, dict) or not isinstance(current, dict):
-        return None
-    made_on = document.get('current')
-    if not isinstance(made_on, dict) or made_on.get('commit') != current.get('commit'):
-        return None
-    return document
-
-
-def apply_refusal(version, document, current, upgrade_state, acknowledged=False):
-    """Why an apply of `version` must not go ahead, or None. Asked by the supervisor before it
-    runs `upgrade.py start --release`, which then verifies everything again from the source.
-    An `attended` release goes ahead only when the operator acknowledged its warning; the
-    supervisor then passes `--allow-class attended` to the start."""
+def apply_refusal(version, document, upgrade_state, acknowledged=False):
+    """Why an apply of `version` must not go ahead, or None. Asked by the supervisor for the
+    verdict it publishes and again before it runs `upgrade.py start --release`, which then
+    verifies everything again from the source. The check result is always about the running
+    commit: publish_current moves one made on another commit aside. An `attended` release goes
+    ahead only when the operator acknowledged its warning; the supervisor then passes
+    `--allow-class attended` to the start."""
     if isinstance(upgrade_state, dict) and upgrade_state.get('phase') in ('applied', 'rolling_back'):
         return MESSAGES['pending']
     if not isinstance(document, dict) or not isinstance(document.get('available'), dict):
         return MESSAGES['nothing']
-    if fresh(document, current) is None:
-        return MESSAGES['stale']
     release = document['available']
     if release.get('version') != version:
         return MESSAGES['other']
@@ -436,13 +388,12 @@ def apply_refusal(version, document, current, upgrade_state, acknowledged=False)
     return None
 
 
-def automatic_release(settings, document, current, upgrade_state, record, moment, backup_running):
+def automatic_release(settings, document, upgrade_state, moment, backup_running):
     """The release automatic mode applies now, or None. Safe (never `attended`), signed and
     without refusals only, inside the window, never while a backup runs, and never a version
-    whose try went ahead or that rolled back. A try that stopped before the backup is tried
-    again, at most AUTOMATIC_TRIES times, backing off between tries."""
-    if record.get('tries'):
-        record = settle_tries(record)
+    whose try is spent (spend) or that moved back (announce_outcome). A try that stopped before
+    its point of no return is tried again, at most AUTOMATIC_TRIES times, backing off between
+    tries. The ledger is read only once everything else allows a try."""
     if not (settings['check'] and settings['automatic']) or backup_running:
         return None
     if not in_window(settings['window'], moment):
@@ -451,25 +402,15 @@ def automatic_release(settings, document, current, upgrade_state, record, moment
     if not isinstance(release, dict) or not isinstance(release.get('version'), str):
         return None
     version = release['version']
-    if release.get('class') != 'safe':
+    if release.get('class') != 'safe' or apply_refusal(version, document, upgrade_state):
         return None
-    if version in record['attempted'] or version in record['rolled_back']:
+    entry = ledger()['versions'].get(version, ENTRY)
+    if entry['spent'] or entry['rolled_back']:
         return None
-    attempt = (record.get('tries') or {}).get(version)
-    if attempt is not None:
-        if went_ahead(attempt, upgrade_state):
-            # Spent: from now on it is never tried again automatically.
-            remember('attempted', version)
+    if entry['tries']:
+        last = parse_time(entry['last'])
+        if entry['tries'] >= AUTOMATIC_TRIES or last is None or moment < last + TRY_BACKOFF * 2 ** (entry['tries'] - 1):
             return None
-        last = parse_time(attempt.get('last'))
-        if attempt.get('count', 0) >= AUTOMATIC_TRIES or last is None \
-                or moment < last + TRY_BACKOFF * 2 ** (attempt.get('count', 1) - 1):
-            return None
-    if isinstance(upgrade_state, dict) and label(upgrade_state) == version \
-            and upgrade_state.get('phase') in ('rolling_back', 'rolled_back', 'rollback_failed'):
-        return None
-    if apply_refusal(version, document, current, upgrade_state):
-        return None
     return release
 
 
@@ -493,20 +434,39 @@ def blocked():
     or restore, another upgrade or rollback, an operation record still to settle), or None.
     Automatic mode waits these out instead of spending its one attempt on them."""
     import upgrade
-    if upgrade.held(upgrade.BACKUP_LOCK):
-        return 'a backup or restore is running'
-    if upgrade.held(upgrade.LOCK):
-        return 'another upgrade or rollback is running'
-    for name in upgrade.UNSETTLED:
-        if upgrade.present(upgrade.UPSTREAM / name):
-            return f'the operation record {name} is not settled yet'
-    return None
+    refusals = upgrade.transient_refusals()
+    return refusals[0] if refusals else None
 
 
-def check_due(record, moment, since, document=None, current=None):
+def install_blockers(own_backup):
+    """The passing reasons a release cannot be installed now that the supervisor does not wait
+    out itself, as sentences: another upgrade or rollback (from the command line), and a backup
+    or restore other than the daily one it runs. An operation record still to settle is not
+    one: the supervisor drains before it starts an update, and that settles it."""
+    import upgrade
+    refusals = upgrade.transient_refusals(records=False, backup=not own_backup)
+    return [refusal.rstrip('.') + '.' for refusal in refusals]
+
+
+def apply_verdict(document, upgrade_state, blockers=()):
+    """The `apply` verdict current.json carries, which the console answers an apply with and
+    draws its Install button from: None when no release is on offer, else {version, tag, class,
+    possible, reason, acknowledgement}. `reason` is the sentence the console shows as it is;
+    `acknowledgement` is true for an `attended` release, whose warning the operator confirms
+    first (the verdict judges it as if confirmed)."""
+    release = document.get('available') if isinstance(document, dict) else None
+    if not isinstance(release, dict) or not isinstance(release.get('version'), str):
+        return None
+    version = release['version']
+    reason = apply_refusal(version, document, upgrade_state, acknowledged=True) or next(iter(blockers), None)
+    return {'version': version, 'tag': 'v' + version, 'class': str(release.get('class')), 'possible': reason is None,
+            'reason': reason, 'acknowledgement': release.get('class') == 'attended'}
+
+
+def check_due(record, moment, since, result=True):
     """Whether a periodic check is due. Never within FIRST_CHECK_DELAY of the supervisor start.
-    Then every CHECK_INTERVAL, sooner after a failure (backing off) and as soon as the last result
-    was made on another version (right after an upgrade)."""
+    Then every CHECK_INTERVAL, sooner after a failure (backing off) and as soon as there is no
+    `result` (right after an upgrade, publish_current moved the one about the previous version aside)."""
     if moment < since + FIRST_CHECK_DELAY:
         return False
     record = record if isinstance(record, dict) else {}
@@ -515,54 +475,49 @@ def check_due(record, moment, since, document=None, current=None):
         return True
     failures = record.get('failures') if isinstance(record.get('failures'), int) else 0
     if failures > 0:
-        # The backoff holds even when the last result is stale: an offline host right after an
-        # upgrade keeps that stale result, and must not check again on every turn.
+        # The backoff holds even with no result: an offline host right after an upgrade must not
+        # check again on every turn.
         return moment >= last + min(CHECK_INTERVAL, RETRY_BASE * 2 ** (failures - 1))
-    if document is not None and current is not None and fresh(document, current) is None:
+    if not result:
         return True
     return moment >= last + CHECK_INTERVAL
 
 
-def meaningful(text, limit=400):
-    """The sentence a failed child leaves for the console: its refusals when it printed any,
-    else its last line, without the bare "Nothing was changed" that closes most refusals."""
-    lines = [line.strip() for line in (text or '').splitlines() if line.strip()]
-    unchanged = any(line.rstrip('.') == 'Nothing was changed' for line in lines)
-    lines = [line for line in lines if line.rstrip('.') != 'Nothing was changed']
-    refused = [line[len('refused'):].strip() for line in lines if line.startswith('refused ')]
-    detail = '; '.join(refused) if refused else lines[-1] if lines else 'It stopped without saying why'
-    sentence = detail.rstrip('.') + '.'
-    if unchanged and 'nothing was changed' not in sentence.lower():
-        sentence += ' Nothing was changed.'
+def outcome(run):
+    """How the child run for `run` (a request id, or the id of a periodic check) ended, as
+    `upgrade.py --request` records it; None when it recorded nothing for that run (it crashed
+    before it could, or an older version ran it)."""
+    value = read('outcome.json')
+    return value if isinstance(value, dict) and run is not None and value.get('request') == run else None
+
+
+def failure(result, limit=400):
+    """The sentence a failed child leaves for the console, from its outcome: the checks that
+    refused it (nothing was changed then), else its error."""
+    result = result if isinstance(result, dict) else {}
+    refusals = [item.strip().rstrip('.') for item in result.get('refusals') or [] if isinstance(item, str) and item.strip()]
+    error = [line.strip() for line in str(result.get('error') or '').splitlines() if line.strip()]
+    if refusals:
+        sentence = '; '.join(refusals) + '. Nothing was changed.'
+    elif error:
+        sentence = error[0].rstrip('.') + '.'
+    else:
+        sentence = 'It stopped without saying why.'
     return sentence if len(sentence) <= limit else sentence[:limit - 3].rstrip() + '...'
 
 
 # ---------------------------------------------------------------- check results
 
-def finish_check(status, output, previous, moment, current):
-    """Records a check that ended. Returns (error, document). An unreachable source exits 0 and
-    writes an empty result: that is a failure too, and the last good result is put back so an
-    offline host keeps showing the release it knew of."""
+def finish_check(status, result, moment):
+    """Records a check that ended, with its outcome. Returns (error, document). A check that
+    failed (an unreachable source among others) wrote no result, so an offline host keeps
+    showing the release it knew of."""
     document = read('available.json')
     error = None
     if status != 0:
-        error = meaningful(output)
+        error = failure(result)
     elif not isinstance(document, dict):
         error = 'The check left no result.'
-    else:
-        unreachable = [item for item in document.get('refusals') or [] if isinstance(item, str) and item.startswith(UNREACHABLE)]
-        if unreachable and document.get('available') is None:
-            error = unreachable[0]
-    if error and previous is not None:
-        target = path('available.json')
-        temporary = target.with_name(f'.available.{uuid.uuid4().hex}.tmp')
-        descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-        with os.fdopen(descriptor, 'wb') as handle:
-            handle.write(previous)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary, target)
-        document = read('available.json')
     record = read('check.json')
     before = record.get('failures') if isinstance(record, dict) and isinstance(record.get('failures'), int) else 0
     failures = before + 1 if error else 0
@@ -570,14 +525,13 @@ def finish_check(status, output, previous, moment, current):
     return error, document
 
 
-def announce_available(document, current, catalog=None):
+def announce_available(document, catalog=None):
     """One update.available per version, ever: the ledger remembers it past the dedupe window.
     The release on offer is announced, and so is a newer signed release the check passed over
     (a manual migration, or one this version cannot reach yet), so the operator learns that it
     exists without opening the Updates page. An unsigned one stays quiet. Returns the first
     event written, or None."""
-    document = fresh(document, current)
-    if not document:
+    if not isinstance(document, dict):
         return None
     candidates = [document.get('available')]
     newest = document.get('newest')
@@ -588,14 +542,14 @@ def announce_available(document, current, catalog=None):
         if not isinstance(release, dict) or not isinstance(release.get('version'), str):
             continue
         version = release['version']
-        if version in ledger()['announced']:
+        if ledger()['versions'].get(version, ENTRY)['announced']:
             continue
         emitted = notification_producers.emit('update.available', 'info', 'update.available|' + version, {},
                                               'system:supervisor', 'update_available',
                                               {'version': version, 'class': str(release.get('class'))}, catalog=catalog)
         if emitted is not None:
             # Only a written event counts: a catalog that could not be reached is tried at the next check.
-            remember('announced', version)
+            mark(version, announced=True)
             written.append(emitted)
     return written[0] if written else None
 
@@ -605,7 +559,9 @@ def announce_outcome(before, after, catalog=None):
       applied -> confirmed                 update.applied (info)
       applied -> rolling_back              update.rolled_back (warning), the automatic way back
       applied|rolling_back -> rollback_failed  update.rollback_failed (critical)
-    Every way back also goes into the ledger, so automatic mode never tries that version again.
+    Every way back also goes into the ledger (the one place that records it), so automatic mode
+    never tries that version again; except one the state marks `retryable`, which went back
+    because the previous version still had a record to settle, not because of the new version.
     Returns the kind emitted, or None."""
     if not isinstance(after, dict):
         return None
@@ -614,8 +570,8 @@ def announce_outcome(before, after, catalog=None):
     same = isinstance(before, dict) and before.get('started_at') == after.get('started_at')
     if not same or was == phase:
         return None
-    if phase in ('rolling_back', 'rolled_back', 'rollback_failed') and version:
-        remember('rolled_back', version)
+    if phase in ('rolling_back', 'rolled_back', 'rollback_failed') and version and after.get('retryable') is not True:
+        mark(version, rolled_back=True)
     kind = None
     if was == 'applied' and phase == 'confirmed':
         kind, severity, detail = 'update.applied', 'info', {'version': version, 'trigger': str(after.get('trigger') or 'cli')}
@@ -632,10 +588,11 @@ def announce_outcome(before, after, catalog=None):
 
 # ---------------------------------------------------------------- what runs now
 
-def zone(moment=None, environment=None, localtime='/etc/localtime', database='/usr/share/zoneinfo'):
+def zone(moment=None, environment=None, localtime='/etc/localtime'):
     """{name, offset} of the clock the maintenance window is read in (this process's local time).
-    The offset comes from the clock itself, never from TZ: in a container without a time zone
-    database a zone name in TZ is silently read as UTC, and the page must show what is used."""
+    The offset comes from the clock itself, never from TZ, and TZ names the zone only when the
+    time zone database knows it: the C library reads a name it does not know as UTC, silently,
+    and the page must show what is used."""
     moment = moment or now()
     raw = moment.strftime('%z') or '+0000'
     offset = f'{raw[:3]}:{raw[3:5]}'
@@ -643,9 +600,10 @@ def zone(moment=None, environment=None, localtime='/etc/localtime', database='/u
     name = None
     configured = environment.get('TZ')
     if configured is not None:
-        candidate = configured.lstrip(':')
-        if candidate and not candidate.startswith('/') and '..' not in candidate and (Path(database) / candidate).is_file():
-            name = candidate
+        try:
+            name = zoneinfo.ZoneInfo(configured.lstrip(':')).key
+        except (zoneinfo.ZoneInfoNotFoundError, ValueError, OSError):
+            name = None
     else:
         target = os.path.realpath(localtime)
         if '/zoneinfo/' in target and os.path.isfile(target):
@@ -653,17 +611,47 @@ def zone(moment=None, environment=None, localtime='/etc/localtime', database='/u
     return {'name': name or moment.tzname() or 'UTC', 'offset': offset}
 
 
-def publish_current(upgrade_state, moment=None):
-    """Writes current.json for the console: the running version, whether it may offer
-    "roll back" (tied to the upgrade record it judged by its start time), and the time zone
-    the maintenance window is read in."""
-    import release_channel
-    running = release_channel.current_version()
-    possible, reason = rollback_verdict(upgrade_state)
+def set_aside(document, running):
+    """The check result when it was made on the running commit. One made on another commit (the
+    check before an upgrade or a way back, which names the release just installed as available)
+    is moved to available.previous.json, so that no reader ever takes it for the current one;
+    None then."""
+    if not isinstance(document, dict):
+        return None
+    made_on = document.get('current')
+    if isinstance(made_on, dict) and made_on.get('commit') == running['commit']:
+        return document
+    try:
+        os.replace(path('available.json'), path('available.previous.json'))
+        effect_receipt.sync_directory(UPGRADES)
+    except FileNotFoundError:
+        pass
+    return None
+
+
+def publish_current(upgrade_state, moment=None, running=None, rollback=None, blockers=(), previous=None):
+    """Writes current.json, the supervisor's word to the console:
+      version, commit  what runs (`running`, read once per supervisor process: once an update
+                       moved the checkout, HEAD is the version that starts next, not this one)
+      rollback         {started_at, possible, reason}: whether "roll back" may be offered, for the
+                       upgrade record that started then (rollback_verdict, or `rollback` reused)
+      apply            whether the release on offer can be installed now (apply_verdict)
+      pending          an upgrade or rollback waits for its restart or its confirmation
+      timezone         the zone the maintenance window is read in
+    A check result made on another commit is set aside first. With `previous` (the record last
+    written), nothing is written when only the time would change; returns the record in force."""
+    if running is None:
+        import release_channel
+        running = release_channel.current_version()
+    state = upgrade_state if isinstance(upgrade_state, dict) else {}
+    possible, reason = rollback_verdict(upgrade_state) if rollback is None else rollback
     moment = moment or now()
+    document = set_aside(read('available.json'), running)
     record = {'version': running['version'], 'commit': running['commit'], 'written_at': stamp(moment),
-              'rollback': {'started_at': (upgrade_state or {}).get('started_at') if isinstance(upgrade_state, dict) else None,
-                           'possible': possible, 'reason': reason},
-              'timezone': zone(moment)}
+              'rollback': {'started_at': state.get('started_at'), 'possible': possible, 'reason': reason},
+              'apply': apply_verdict(document, upgrade_state, blockers),
+              'pending': state.get('phase') in ('applied', 'rolling_back'), 'timezone': zone(moment)}
+    if isinstance(previous, dict) and {**previous, 'written_at': None} == {**record, 'written_at': None}:
+        return previous
     write('current.json', record)
     return record
