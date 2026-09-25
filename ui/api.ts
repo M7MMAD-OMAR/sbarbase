@@ -1,5 +1,6 @@
 import {createClient} from '@supabase/supabase-js';
 import {useEffect,useState} from 'react';
+import {classifyStatus,type Outcome,type UpdateSettings,type UpdatesView} from './releases';
 export const auth=createClient(location.origin+'/management','sb_publishable_sbarbase_local_management',{
  auth:{persistSession:false,autoRefreshToken:true,detectSessionInUrl:false}});
 export type Organization={id:string;name:string;role:'owner'|'admin'|'viewer'};
@@ -40,4 +41,38 @@ export function useData<T>(load:(signal:AbortSignal)=>Promise<T>,dependencies:un
    .finally(()=>{if(!controller.signal.aborted)setLoading(false);});return()=>controller.abort();
  },[...dependencies,version]);
  return {data,error,loading,refresh:()=>setVersion(value=>value+1)};
+}
+/** The installation's update routes. They keep their own error handling: while the server
+ * restarts an answer may be a network error, a gateway page or a briefly rejected token, and
+ * none of those may sign the operator out or read as a failure. The token is read on each
+ * call so a refresh during a long restart is picked up. */
+export class UpdateError extends Error{constructor(message:string,readonly outcome:Exclude<Outcome,'ok'>){super(message);}}
+export type UpdatesApi={
+ get:(signal?:AbortSignal)=>Promise<UpdatesView>;
+ check:()=>Promise<void>;
+ apply:(version:string)=>Promise<void>;
+ rollback:()=>Promise<void>;
+ saveSettings:(settings:UpdateSettings)=>Promise<UpdateSettings>;
+};
+export function updatesApi(token:()=>string):UpdatesApi{
+ async function send(path:string,method:string,body?:unknown,signal?:AbortSignal):Promise<unknown>{
+  let response:Response;
+  try{response=await fetch('/management/v1/updates'+path,{method,headers:{authorization:'Bearer '+token(),...(body===undefined?{}:{'content-type':'application/json'})},
+   ...(body===undefined?{}:{body:JSON.stringify(body)}),signal:signal??AbortSignal.timeout(10000)});}
+  catch{throw new UpdateError('The server did not answer. It may be restarting; try again in a moment.','restarting');}
+  const outcome=classifyStatus(response.status);
+  if(outcome==='ok')return response.status===202?undefined:response.json();
+  if(outcome==='refused'){
+   const message=await response.json().then(value=>(value as {message?:string}).message).catch(()=>undefined);
+   throw new UpdateError(message||'The server refused this request.','refused');
+  }
+  throw new UpdateError(outcome==='restarting'?'The server did not answer. It may be restarting; try again in a moment.'
+   :outcome==='forbidden'?'Only the installation operator can manage updates.':'The request failed. Refresh and try again.',outcome);
+ }
+ return {
+  get:async signal=>((await send('','GET',undefined,signal)) as {data:UpdatesView}).data,
+  check:async()=>{await send('/check','POST');},
+  apply:async version=>{await send('/apply','POST',{version});},
+  rollback:async()=>{await send('/rollback','POST');},
+  saveSettings:async settings=>((await send('/settings','PUT',settings)) as {data:UpdateSettings}).data};
 }
