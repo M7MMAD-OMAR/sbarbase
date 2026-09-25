@@ -483,6 +483,29 @@ class ControlStateTests(Checkout):
         self.assertFalse(upgrade.after_start(True))
         self.assertFalse(upgrade.HOLD.exists())
 
+    def test_the_probe_token_lives_exactly_as_long_as_the_hold(self):
+        upgrade.start(self.second)
+        self.assertFalse(upgrade.probe_token().exists())
+        upgrade.before_start()
+        token = upgrade.probe_token().read_text()
+        self.assertRegex(token, r'^[A-Za-z0-9_-]{43}$')
+        self.assertEqual(stat.S_IMODE(upgrade.probe_token().stat().st_mode), 0o600)
+        # Every gated start gets a fresh one.
+        upgrade.before_start()
+        self.assertNotEqual(upgrade.probe_token().read_text(), token)
+        upgrade.after_start(True)
+        self.assertFalse(upgrade.probe_token().exists())
+        # A token left by a crash goes with its stale marker.
+        upgrade.probe_token().write_text(token)
+        self.assertFalse(upgrade.before_start())
+        self.assertFalse(upgrade.probe_token().exists())
+
+    def test_the_way_back_removes_the_probe_token(self):
+        upgrade.start(self.second)
+        upgrade.before_start()
+        self.assertTrue(upgrade.after_start(False))
+        self.assertFalse(upgrade.probe_token().exists())
+
     def test_old_snapshots_are_pruned_but_never_the_current_one(self):
         upgrade.start(self.second)
         current = upgrade.load_state()['snapshot']

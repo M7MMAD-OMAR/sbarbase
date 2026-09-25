@@ -36,6 +36,7 @@ import hashlib
 import json
 import os
 import re
+import secrets
 import shutil
 import sqlite3
 import subprocess
@@ -304,6 +305,33 @@ def restore_snapshot(name):
         upgrade_guard.restore_snapshot(SNAPSHOTS, name, homes())
     except upgrade_guard.SnapshotError as error:
         raise UpgradeError(str(error)) from None
+
+
+def probe_token():
+    """A random token per gated start, private (0600): the supervisor's health round sends one
+    request per environment through the gateway with it, past the hold (lab/upgrade_health.py,
+    src/gateway/hold-bypass.ts). It exists only while the hold does."""
+    return UPGRADES / 'probe-token'
+
+
+def hold(phase):
+    """Holds application traffic and writes a fresh probe token, for a start to confirm."""
+    UPGRADES.mkdir(parents=True, exist_ok=True)
+    target = probe_token()
+    partial = target.with_suffix('.pending')
+    partial.unlink(missing_ok=True)
+    descriptor = os.open(partial, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(descriptor, 'w') as handle:
+        handle.write(secrets.token_urlsafe(32))
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(partial, target)
+    lab.atomic(HOLD, {'phase': phase, 'since': now()})
+
+
+def release_hold():
+    HOLD.unlink(missing_ok=True)
+    probe_token().unlink(missing_ok=True)
 
 
 def guard_copy():
@@ -651,7 +679,7 @@ def before_start():
     if not state or state.get('phase') not in PENDING:
         # A marker without a pending start is stale (a crash, or an older release that never
         # removes it): clear it so it can never hold traffic.
-        HOLD.unlink(missing_ok=True)
+        release_hold()
         return False
     problem = upgrade_guard.mismatch(layout(), state)
     if problem:
@@ -672,8 +700,7 @@ def before_start():
             state.update({'snapshot': taken, 'attempted_at': now()})
             save_state(state)
         prune_snapshots()
-    UPGRADES.mkdir(parents=True, exist_ok=True)
-    lab.atomic(HOLD, {'phase': state['phase'], 'since': now()})
+    hold(state['phase'])
     return True
 
 
@@ -707,13 +734,13 @@ def after_start(started, reason=None):
     """
     state = load_state()
     if not state or state.get('phase') not in PENDING:
-        HOLD.unlink(missing_ok=True)
+        release_hold()
         return False
     if started:
         state.update({'phase': 'confirmed' if state['phase'] == 'applied' else 'rolled_back', 'finished_at': now()})
         save_state(state)
         INTENT.unlink(missing_ok=True)
-        HOLD.unlink(missing_ok=True)
+        release_hold()
         return False
     try:
         if state['phase'] == 'applied':
@@ -741,7 +768,7 @@ def after_start(started, reason=None):
         return False
     finally:
         # The version that starts next writes its own marker if it has a start to confirm.
-        HOLD.unlink(missing_ok=True)
+        release_hold()
 
 
 def status():

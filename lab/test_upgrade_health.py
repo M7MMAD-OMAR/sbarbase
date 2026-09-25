@@ -41,6 +41,7 @@ class ProbeTests(unittest.TestCase):
             'auth': 'http://10.0.0.3:9999', 'rest': 'http://10.0.0.4:3000',
             'storage': {'url': 'http://10.0.0.5:5000', 'tenantHost': RUNTIME + '.storage.internal'}}}))
         self.secrets = {'environments': {RUNTIME: {'jwt': 'x' * 64}}}
+        self.token = 't' * 43
         self.asked = []
 
     def get(self, statuses=None):
@@ -49,29 +50,50 @@ class ProbeTests(unittest.TestCase):
             return (statuses or {}).get(url, 200)
         return answer
 
-    def test_every_service_is_probed_directly_never_through_the_gateway(self):
-        healthy, detail = upgrade_health.check(self.state, 42, self.secrets, self.get(), {RUNTIME})
+    def test_every_service_is_probed_directly_and_rest_and_auth_again_through_the_gateway(self):
+        healthy, detail = upgrade_health.check(self.state, 42, self.secrets, self.get(), {RUNTIME}, token=self.token)
         self.assertTrue(healthy, detail)
         self.assertEqual([url for url, _ in self.asked], [
             'http://127.0.0.1:4000/health', 'http://10.0.0.2:9999/health', 'http://10.0.0.3:9999/health',
-            'http://10.0.0.4:3000/', 'http://10.0.0.5:5000/bucket'])
-        storage = self.asked[-1][1]
+            'http://10.0.0.4:3000/', 'http://10.0.0.5:5000/bucket',
+            f'http://127.0.0.1:4000/{RUNTIME}/rest/v1/', f'http://127.0.0.1:4000/{RUNTIME}/auth/v1/health'])
+        storage = self.asked[4][1]
         self.assertEqual(storage['x-forwarded-host'], RUNTIME + '.storage.internal')
         self.assertTrue(storage['authorization'].startswith('Bearer '))
+        # Through the gateway: the per-start token as the key and as the probe header, and no
+        # x-forwarded-* header, which the gateway would take for a request from the TLS proxy.
+        for _, headers in self.asked[5:]:
+            self.assertEqual(headers, {'apikey': self.token, 'x-sbarbase-upgrade-probe': self.token})
+
+    def test_a_gateway_or_key_store_failure_fails_the_round_without_the_token(self):
+        healthy, detail = upgrade_health.check(self.state, 42, self.secrets,
+                                               self.get({f'http://127.0.0.1:4000/{RUNTIME}/rest/v1/': 401}), {RUNTIME}, token=self.token)
+        self.assertEqual((healthy, detail), (False, f'{RUNTIME} gateway rest answered HTTP 401'))
+        self.assertNotIn(self.token, detail)
+        with patch.object(upgrade_health, 'PROBE_TOKEN', self.state / 'probe-token'):
+            healthy, detail = upgrade_health.check(self.state, 42, self.secrets, self.get(), {RUNTIME})
+            self.assertEqual((healthy, detail), (False, 'health probes unavailable: the confirmation probe token is missing'))
+            (self.state / 'probe-token').write_text(self.token + '\n')
+            self.asked.clear()
+            self.assertTrue(upgrade_health.check(self.state, 42, self.secrets, self.get(), {RUNTIME})[0])
+            self.assertEqual(self.asked[-1][1]['apikey'], self.token)
+            # Without a routed environment no gateway probe is made, and no token is needed.
+            (self.state / 'probe-token').unlink()
+            self.assertTrue(upgrade_health.check(self.state, 42, self.secrets, self.get(), set())[0])
 
     def test_one_failing_service_or_a_stale_console_record_fails_the_round_without_secrets(self):
-        healthy, detail = upgrade_health.check(self.state, 42, self.secrets, self.get({'http://10.0.0.4:3000/': 503}), {RUNTIME})
+        healthy, detail = upgrade_health.check(self.state, 42, self.secrets, self.get({'http://10.0.0.4:3000/': 503}), {RUNTIME}, token=self.token)
         self.assertEqual((healthy, detail), (False, f'{RUNTIME} rest answered HTTP 503'))
         # A server.json left by an earlier run names another process.
-        healthy, detail = upgrade_health.check(self.state, 43, self.secrets, self.get(), {RUNTIME})
+        healthy, detail = upgrade_health.check(self.state, 43, self.secrets, self.get(), {RUNTIME}, token=self.token)
         self.assertFalse(healthy)
         self.assertIn('does not name the console', detail)
-        healthy, detail = upgrade_health.check(self.state, 42, {'environments': {}}, self.get(), {RUNTIME})
+        healthy, detail = upgrade_health.check(self.state, 42, {'environments': {}}, self.get(), {RUNTIME}, token=self.token)
         self.assertEqual((healthy, detail), (False, 'health probes unavailable (KeyError)'))
 
         def refused(url, headers):
             raise ConnectionRefusedError('refused')
-        healthy, detail = upgrade_health.check(self.state, 42, self.secrets, refused, {RUNTIME})
+        healthy, detail = upgrade_health.check(self.state, 42, self.secrets, refused, {RUNTIME}, token=self.token)
         self.assertEqual((healthy, detail), (False, 'console did not answer (ConnectionRefusedError)'))
         self.assertNotIn('x' * 64, detail)
 
@@ -90,11 +112,11 @@ class ProbeTests(unittest.TestCase):
             database.execute('INSERT INTO deleted_runtimes VALUES (?)', (deleted,))
             database.execute("INSERT INTO runtime_routing VALUES (?, 0, '{}')", (moved,))
         self.assertEqual(upgrade_health.routed(self.state), {RUNTIME})
-        healthy, detail = upgrade_health.check(self.state, 42, self.secrets, self.get())
+        healthy, detail = upgrade_health.check(self.state, 42, self.secrets, self.get(), token=self.token)
         self.assertTrue(healthy, detail)
         self.assertFalse(any(e in url for url, _ in self.asked for e in (other, deleted, moved)))
         (self.state / 'control.sqlite').unlink()
-        self.assertEqual(upgrade_health.check(self.state, 42, self.secrets, self.get())[0], False)
+        self.assertEqual(upgrade_health.check(self.state, 42, self.secrets, self.get(), token=self.token)[0], False)
 
 
 class ConfirmationTests(unittest.TestCase):

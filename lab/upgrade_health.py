@@ -2,9 +2,11 @@
 
 A pending upgrade or rollback is confirmed only when, within DEADLINE seconds of the console
 process starting, one round of probes all answer 200: the console's own /health (which reads
-the control catalog), the management Auth realm, and each environment's Auth, REST and Storage.
-The probes go straight to the upstream services, never through the gateway, which holds
-application traffic until confirmation.
+the control catalog and the key store), the management Auth realm, each environment's Auth,
+REST and Storage directly, and each environment's REST and Auth once more through the gateway,
+the way an application reaches them (routing, key resolution, the proxy). The gateway holds
+application traffic until confirmation; only these requests pass it, carrying the per-start
+token lab/upgrade.py writes (src/gateway/hold-bypass.ts).
 """
 import concurrent.futures
 import contextlib
@@ -20,6 +22,9 @@ import durable_runtime as runtime
 DEADLINE = 120
 INTERVAL = 2
 TIMEOUT = 5
+# lab/upgrade.py probe_token(); never printed.
+PROBE_TOKEN = runtime.STATE.parent / 'upgrades' / 'probe-token'
+PROBE_HEADER = 'x-sbarbase-upgrade-probe'
 
 
 def fetch(url, headers=None, timeout=TIMEOUT):
@@ -51,7 +56,14 @@ def routed(state):
             "AND runtime NOT IN (SELECT runtime FROM runtime_routing WHERE maintenance=1 OR placement IS NOT NULL)")}
 
 
-def probes(state, server_pid, secrets, serving=None):
+def probe_token(path=None):
+    try:
+        return (path or PROBE_TOKEN).read_text().strip()
+    except FileNotFoundError:
+        raise ValueError('the confirmation probe token is missing') from None
+
+
+def probes(state, server_pid, secrets, serving=None, token=None):
     """(name, url, headers) of every probe, or raises ValueError naming what is missing."""
     server = read(state / 'server.json')
     if not isinstance(server, dict) or not isinstance(server.get('url'), str):
@@ -59,7 +71,8 @@ def probes(state, server_pid, secrets, serving=None):
     # A crashed earlier run can leave server.json behind: only this supervisor's server counts.
     if server_pid is None or server.get('pid') != server_pid:
         raise ValueError('server.json does not name the console this supervisor started')
-    found = [('console', server['url'].rstrip('/') + '/health', None)]
+    console = server['url'].rstrip('/')
+    found = [('console', console + '/health', None)]
     management = read(state / 'management.json')
     if isinstance(management, dict) and management.get('auth'):
         found.append(('management auth', management['auth'] + '/health', None))
@@ -76,6 +89,13 @@ def probes(state, server_pid, secrets, serving=None):
             found.append((f'{e} storage', storage['url'] + '/bucket',
                           {'authorization': 'Bearer ' + runtime.token(jwt, 'service_role'),
                            'x-forwarded-host': storage['tenantHost']}))
+        # The same environment as an application reaches it, through the gateway and its key
+        # resolution, past the hold (src/gateway/hold-bypass.ts). REST and Auth only: the token
+        # never goes to a route that hands the caller's headers to user code.
+        token = probe_token() if token is None else token
+        through = {'apikey': token, PROBE_HEADER: token}
+        found.append((f'{e} gateway rest', f'{console}/{e}/rest/v1/', through))
+        found.append((f'{e} gateway auth', f'{console}/{e}/auth/v1/health', through))
     return found
 
 
@@ -83,10 +103,10 @@ def private_values():
     return json.loads((runtime.PRIVATE / 'runtime.json').read_text())
 
 
-def check(state, server_pid, secrets=None, get=fetch, serving=None):
+def check(state, server_pid, secrets=None, get=fetch, serving=None, token=None):
     """(healthy, detail) for one round of probes. Never raises; detail never holds a secret."""
     try:
-        rows = probes(state, server_pid, secrets if secrets is not None else private_values(), serving)
+        rows = probes(state, server_pid, secrets if secrets is not None else private_values(), serving, token)
     except ValueError as error:
         return False, f'health probes unavailable: {error}'
     except (OSError, KeyError, TypeError, AttributeError, sqlite3.Error) as error:

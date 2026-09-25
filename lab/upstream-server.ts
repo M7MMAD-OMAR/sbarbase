@@ -6,7 +6,8 @@ import {isRealtimeSocket} from '../src/gateway/realtime';
 import {readFileSync,unlinkSync} from 'node:fs';
 import {databaseListen,databaseProxy} from '../src/http/database-proxy';
 import {readJsonCached} from '../src/http/cached-json';
-import {holdApplication,upgradeHold} from '../src/gateway/hold';
+import {upgradeHold} from '../src/gateway/hold';
+import {confirmationProbe,holdExceptProbe} from '../src/gateway/hold-bypass';
 import {healthHandler} from '../src/http/health';
 
 // Local experimental API only. No remote bind or default production exposure.
@@ -17,7 +18,10 @@ const app=openUpstreamApplication();
 // While a new version waits for its health checks, application traffic (the gateway, Realtime
 // sockets and direct database access) is held; the console, Studio and /health are not.
 const held=upgradeHold();
-const handler=holdApplication(app.handler,held),health=healthHandler(app.catalog,held);
+// Except the supervisor's own probe of each environment through the gateway (src/gateway/hold-bypass.ts).
+const probe=confirmationProbe(held);
+app.keys.confirmationProbe=(_runtime,token)=>probe.key(token);
+const handler=holdExceptProbe(app.handler,held,probe),health=healthHandler(app.catalog,held,app.keys);
 const server=await serveLocal(async request=>{
  const url=new URL(request.url);
  if(studioRuntime(url.hostname))return app.studio(request);
