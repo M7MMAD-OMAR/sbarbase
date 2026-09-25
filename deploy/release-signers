@@ -9,3 +9,4 @@
 # The maintainer adds the public half of the release signing key here, in a commit of
 # its own, before the first signed release. Until a key line exists, every release is
 # refused as unsigned: that is the intended safe default, not a fault.
+m7mmad.omar0@gmail.com namespaces="git" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMjN9Lvo13wTKmGIJY4cf4b0S72njB2QXMSRc+AnEbL3
