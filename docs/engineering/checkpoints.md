@@ -1,6 +1,6 @@
 # Sbarbase: start here
 
-Updated 2026-09-23. Current source release: [0.1.0](../../CHANGELOG.md). The container generation migration is implemented and crash-tested on disposable fixtures; its attended run on the retained database has not happened. The [agent handoff](handoff/README.md) holds the current state and next step; the checkpoints below are chronological and can be superseded.
+Updated 2026-09-25. Current source release: [0.1.0](../../CHANGELOG.md). The container generation migration is implemented, crash-tested on disposable fixtures, and was run once, attended, on the retained database on 2026-09-25. The [agent handoff](handoff/README.md) holds the current state and next step; the checkpoints below are chronological and can be superseded.
 
 The earlier handoff snapshots named below were removed on 2026-09-24 and remain in the repository history; their mentions are kept as plain text.
 
@@ -325,3 +325,11 @@ The per-environment administration surface is now the original upstream Supabase
 A live probe against one retained environment started the real Studio, loaded its full navigation and edited that environment's own table through the Table Editor.
 
 [The integration specification](STUDIO-INTEGRATION.md) records the container set, the fourth scoped login and its grants, the HBA rule, how access is authenticated, routing, the surfaces whose backing service does not exist, the pinning consequences and twelve isolation tests. Not implemented and not claimed: Studio serving, the routing change, the fourth login, any measured Studio footprint, and whether the gateway admits Studio's own server-side admin calls. The configured ceilings of 5888 MiB and 5.75 CPUs predate any Studio process, and the placement container list does not count the new pair.
+
+## Attended generation migration of the retained database, 2026-09-25
+
+Read docs/engineering/CONTAINER-GENERATION-MIGRATION.md. With the owner's authorization, `lab/migrate-generation.py` gained an explicit attended override (`--attended-retained` paired with `--confirm-retained NAME`, NAME equal to the pinned container name, the same gate on `--reconcile`; the default refusal is unchanged) and ten unit tests in `lab/test_migrate_generation.py`. It then replaced `sbarbase-durable-db` once: migration `0b01f97e-1f31-4f5b-bfa7-c312180ab854`, new generation `7c0432a2-ff7a-4795-adae-c1429ffc86f8`, same pgdata volume and image.
+
+A cold copy of the volume, a `pg_dumpall` and the pin were kept under the gitignored `.lab/generation-migration-backup-20260925/` before the run. Exact row counts of 166 tables in 7 databases (851 rows) are identical before and after, both read from cold copies in a network-less throwaway container so the fenced, exported environment database could be counted without touching the retained cluster. The replacement carries `io.sbarbase.tier=system` and all four per-device block IO limits. The rules are re-derived, not byte identical: all 17 retired rules kept in order, 12 added (studio, realtime and developer per environment). Evidence: [generation-migration-retained.json](../evidence/generation-migration-retained.json).
+
+`lab/durable-check.ts` stays disabled. Its step that removes every owned container would leave published environments unable to resume (startup resumes their Auth and REST from existing containers only), its `probe.json` names the exported environment, and startup needs 6400 MiB available. Re-enabling it, and the two load vehicles after it, wait for an owner decision.

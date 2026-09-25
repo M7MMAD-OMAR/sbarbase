@@ -16,11 +16,11 @@ A pending HBA journal blocks worker startup before receipt recovery. HBA complet
 
 Fresh initialization requires both an absent database/retained volume/pin at preparation and positive evidence that this invocation created the exact subsequently inspected container. Docker inspect failure alone is not absence: a successful resource listing must confirm absence, including full or shortened container IDs. Unknown inspection failures refuse progress.
 
-Existing containers require the exact private generation pin and configured container name, owner, image and ID. Restart reads the matching backend registry without reinitializing it and refuses active leftover authority. Missing or changed state is not repaired automatically. Container recreation requires an explicit generation migration, still unfinished.
+Existing containers require the exact private generation pin and configured container name, owner, image and ID. Restart reads the matching backend registry without reinitializing it and refuses active leftover authority. Missing or changed state is not repaired automatically. Container recreation requires an explicit generation migration, which ran once, attended, on the retained database on 2026-09-25.
 
 The retained source predates this protocol and has not been adopted. Its `up` path intentionally refuses until explicit quiesced adoption is implemented. Stop remains available. Do not delete pins, journals or revocations to force startup. Recovery targets and their raw restore writers have not been migrated to this protocol.
 
-The historical `durable-check.ts` recreation probe now refuses before catalog or Docker operations. Its old destructive container-removal step would invalidate the generation pin. Its recreation requirement remains open; it has not been relabeled as a restart test. Use `fresh-worker-check.py` for the currently supported isolated integration rehearsal.
+The historical `durable-check.ts` recreation probe now refuses before catalog or Docker operations. Its old destructive container-removal step would invalidate the generation pin. Its recreation requirement remains open; it has not been relabeled as a restart test. After the 2026-09-25 migration its removal step is still unsafe, because startup resumes a published environment's Auth and REST only from existing containers (CONTAINER-GENERATION-MIGRATION.md, What remains). Use `fresh-worker-check.py` for the currently supported isolated integration rehearsal.
 
 ## Verification
 

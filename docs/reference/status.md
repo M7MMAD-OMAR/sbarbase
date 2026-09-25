@@ -2,7 +2,7 @@
 
 # Status
 
-The single place for what works, what does not, and every number. Updated 2026-09-24. Current source release: [0.1.0](../../CHANGELOG.md) (2026-09-21), plus the unreleased container generation migration.
+The single place for what works, what does not, and every number. Updated 2026-09-25. Current source release: [0.1.0](../../CHANGELOG.md) (2026-09-21), plus the unreleased container generation migration.
 
 Everything below was verified on one development workstation, except the empty-server rehearsal, which ran in a local virtual machine. **Nothing has been run on a real server yet.** Nothing here certifies production readiness or security, and no fixed number of projects per server is claimed.
 
@@ -143,4 +143,4 @@ A start needs its containers' memory limits plus a 2560 MiB reserve: 1792 MiB of
 
 ## Next step
 
-The real server: [milestone 1 of the roadmap](../engineering/plans/2026-09-23-roadmap.md). On the workstation, the attended generation migration of the retained database is still pending; until it runs, the durable container-recreation probe stays disabled and the arrival-driven pressure and mixed SDK load measurements stay blocked.
+The real server: [milestone 1 of the roadmap](../engineering/plans/2026-09-23-roadmap.md). On the workstation, the attended generation migration of the retained database ran on 2026-09-25 with every row count unchanged ([evidence](../evidence/generation-migration-retained.json)). The durable container-recreation probe stays disabled, because its step that removes every owned container would leave published environments unable to resume, and re-enabling it waits for an owner decision; until then the arrival-driven pressure and mixed SDK load measurements stay blocked.

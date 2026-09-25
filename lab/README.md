@@ -50,8 +50,10 @@ and credentials without changing their states.
 Supabase PostgreSQL and shared Storage runtime. `/usr/bin/python3 lab/worker.py
 --upstream` drains `.lab/upstream/control.sqlite`; it never consumes the stock
 component catalog. The historical `bun lab/durable-check.ts` container-recreation
-probe is currently disabled before catalog/Docker effects pending explicit HBA
-generation migration. `/usr/bin/python3 lab/fresh-worker-check.py` tests current
+probe is still disabled before catalog/Docker effects: the retained database has
+been migrated, but its step that removes every owned container would now leave
+published environments unable to resume. See
+[what remains](../docs/engineering/CONTAINER-GENERATION-MIGRATION.md#what-remains). `/usr/bin/python3 lab/fresh-worker-check.py` tests current
 startup, original services, worker HBA authority and same-container restart in
 an isolated disposable namespace. It does not replace recreation coverage.
 
@@ -62,8 +64,11 @@ start. Preserve its state and volumes. See [current scope and adoption gate](../
 ## Container generation migration
 
 `/usr/bin/python3 lab/migrate-generation.py` is the one operation that may
-replace a managed database container, and it refuses the retained placement
-outright: it is a deliberate operator run, not this command. Its private record
+replace a managed database container, and it refuses the retained placement by
+default. An attended operator run adds `--attended-retained --confirm-retained
+NAME`, where NAME must equal the container name the pin already names; either flag
+alone, or another name, refuses before any effect. That run was made once on
+`sbarbase-durable-db` on 2026-09-25. Its private record
 lives beside the generation pin (`.lab/upstream/hba-migration`), and a record,
 torn or whole, blocks ordinary startup, worker preflight and a repeated
 migration until it completes or an operator reconciles it with `--reconcile`.

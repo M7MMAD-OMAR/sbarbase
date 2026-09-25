@@ -57,7 +57,7 @@ Restore the previous pin recorded in the review entry and ship it as a new versi
 
 ## Database containers are special
 
-Startup never recreates a database container as an implicit upgrade. A managed database container is pinned by its exact identity, and replacing it (for a new image, for example) goes through `lab/migrate-generation.py`, which is journaled and crash-tested on disposable fixtures. Its first attended run on retained data has not happened yet; see [status](../reference/status.md).
+Startup never recreates a database container as an implicit upgrade. A managed database container is pinned by its exact identity, and replacing it (for a new image, for example) goes through `lab/migrate-generation.py`, which is journaled and crash-tested on disposable fixtures. Its first attended run on retained data was made on 2026-09-25 and kept every row count; see [status](../reference/status.md).
 
 ## Limits
 

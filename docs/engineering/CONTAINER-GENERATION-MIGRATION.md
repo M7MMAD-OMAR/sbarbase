@@ -2,7 +2,8 @@
 
 Design checkpoint, 2026-09-20. Implemented 2026-09-21 in `lab/hba_migration.py`,
 `lab/migrate-generation.py` and `lab/hba_generation_migration_check.py`, with the
-five crash tests named in the section below. The current runtime refuses to
+five crash tests named in the section below, and run once, attended, on the
+retained database on 2026-09-25 (see the section below). The current runtime refuses to
 silently re-pin a changed database container, which is correct: this document
 records what an explicit migration must do, and it now says what was built.
 
@@ -117,23 +118,66 @@ Three deviations from this document, each deliberate and each visible in the cod
 - The pin replacement moves the retired pin's exact bytes into that archive
   instead of unlinking them, so the retirement stays byte-auditable.
 
+## Attended run on the retained database, 2026-09-25
+
+`lab/migrate-generation.py` still refuses the retained placement by default. An
+attended run passes `--attended-retained` together with `--confirm-retained NAME`,
+where NAME is the container name the pin (or, for `--reconcile`, the migration
+record) already names; either flag alone, or any other name, refuses before the
+intent is written. `lab/test_migrate_generation.py` covers the refusal, the
+override, a mismatched or partial override and the same gate on `--reconcile`.
+
+The owner authorized the run, and it was made once on `sbarbase-durable-db`
+(owner `durable-upstream`, volume `sbarbase-durable-pgdata`, network
+`sbarbase-durable-net`, tier `system.db`, inventory from the runtime's own
+`runtime.json`, retired container stopped with the assertion). Before it: no
+runtime process, no HBA journal, no worker receipt, no migration record, and the
+retired registry held 54 revoked operations and none active. Results, in
+[docs/evidence/generation-migration-retained.json](../evidence/generation-migration-retained.json):
+
+1. **Before the run.** The pin was archived, and a cold copy of the pgdata volume
+   plus a `pg_dumpall` were taken under the gitignored
+   `.lab/generation-migration-backup-20260925/`. Row counts were read from that
+   cold copy in a network-less throwaway container: 7 databases, 166 tables, 851
+   rows. The environment database exported by the earlier cutover is fenced on the
+   source, so it was opened for counting and dumping on the copy only.
+2. **The run.** Migration `0b01f97e-1f31-4f5b-bfa7-c312180ab854` completed and its
+   record is gone. The replacement container carries `io.sbarbase.tier=system` and
+   all four per-device block IO limits (read 256 MB/s, write 128 MB/s, 6000 read
+   IOPS, 3000 write IOPS), which the retired container never had; `io.max` in its
+   cgroup agrees. A second cold copy after the run gives the same count for every
+   one of the 166 tables. The rules are **not** byte identical: all 17 retired
+   rules are kept in their order and 12 are added (a studio, realtime and developer
+   login rule for each of four environments), because the inventory builder has
+   emitted those since the retired container last started. The pin now names the
+   new container and generation; the retired pin's bytes are in the archive.
+   Observed and not reconciled: `cpu.weight` reads 174 and `io.weight` reads
+   `default 100`, which do not match the mapping RESOURCE-POLICY section 3.1 infers.
+
 ## What remains
 
-The attended run on the retained database has not happened. `lab/migrate-generation.py`
-refuses the retained placement by design, so it is a deliberate operator action.
-Its acceptance, carried over from the 2026-09-21 plan (removed 2026-09-24):
-
-1. Before the run, take a row-count snapshot of the environment databases and
-   archive the pin.
-2. The retained database container is recreated once, carrying `io.sbarbase.tier`
-   and the per-device block IO limits, with its authority rules preserved (or the
-   difference stated) and its data intact; compare the row counts afterwards and
-   read the tier and IO limits back.
-3. `lab/durable-check.ts` is re-enabled, and its acceptance run writes
-   `.lab/upstream/probe.json` again.
+3. **`lab/durable-check.ts` is still disabled, and re-enabling it needs an owner
+   decision.** Three things stand in the way, none of them the generation:
+   - Its recreation step removes every owned container. The database is now
+     replaced only by `lab/migrate-generation.py`, and the Auth and REST services of
+     a published environment are resumed with `existing_only`, so the following
+     `up` refuses to create them ("Resume cannot create a missing service
+     container") and would leave the placement unstartable. Only Storage and
+     management Auth are recreated by startup today. Narrowing the removal, or
+     turning the probe into a restart test, changes what it claims, which
+     SOURCE-HBA-INTEGRATION.md declines to do silently.
+   - The retained `probe.json` names the Lifecycle environments, and the first one
+     is the environment the cutover exported: it is fenced on the source and paused
+     in routing, so the probe's first SQL command fails. A regenerated fixture has
+     to choose served environments (connections allowed, routing not paused, job
+     succeeded) by an explicit rule; the four-environment guard leaves no room to
+     create new ones. The probe writes `probe.json` only when it is absent; the file
+     it rewrites on every run is `verification.json`.
+   - Durable startup needs 6400 MiB available (3840 MiB placement plus the 2560 MiB
+     start reserve).
 4. The two load vehicles run against that regenerated fixture and their evidence
    is committed: the arrival driven pressure experiment and the mixed SDK load
-   (`docs/engineering/RESOURCE-POLICY.md` section 5.0).
+   (`docs/engineering/RESOURCE-POLICY.md` section 5.0). Not started.
 
 Out of scope: automatic detection of a changed container, silent re-pinning,
 migration across hosts, concurrent migrations of several databases, power-loss

@@ -545,6 +545,15 @@ placement, and the reason is structural rather than a stale file:
   database container has no supported path, and that document is a deferred
   checkpoint rather than an implemented operation.
 
+Update 2026-09-25: the migration was implemented on 2026-09-21 and run once,
+attended, on the retained database on 2026-09-25; the database now carries its
+tier label and its per-device block IO limits
+([evidence](../evidence/generation-migration-retained.json)). The first bullet still
+holds: `lab/durable-check.ts` stays disabled, `probe.json` still names the exported
+environment, and the probe's removal of every owned container would now leave
+published environments unable to resume. Sections 5.2 and 5.3 stay blocked on that,
+as CONTAINER-GENERATION-MIGRATION.md "What remains" records.
+
 So the arrival driven measurement of section 5.2 and the mixed SDK load of
 section 5.3 are blocked behind that migration, not merely unrun. What DOES run
 today is the supported disposable path: `lab/fresh-worker-check.py` provisions a

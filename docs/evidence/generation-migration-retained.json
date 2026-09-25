@@ -1,0 +1,144 @@
+{
+  "scope": "The attended container generation migration of the retained source database sbarbase-durable-db (owner durable-upstream) on the workstation, run once on 2026-09-25 with lab/migrate-generation.py and its explicit --attended-retained --confirm-retained override. Row counts come from two cold copies of the pgdata volume, one before and one after, each restored into a scratch volume and read by a network-less throwaway container; the fenced environment database was opened for counting on those copies only, never on the retained cluster. No production readiness, load or capacity claim.",
+  "command": "/usr/bin/python3 lab/migrate-generation.py --state .lab/upstream --volume sbarbase-durable-pgdata --network sbarbase-durable-net --tier system.db --inventory-runtime .secrets/upstream/runtime.json --retired stopped --assert-retired-will-not-return --attended-retained --confirm-retained sbarbase-durable-db",
+  "preconditions": {
+    "runtime_running": false,
+    "hba_journal_pending": false,
+    "worker_receipt_pending": false,
+    "migration_record_present": false,
+    "retired_registry_operations": {
+      "revoked": 54,
+      "active": 0
+    },
+    "default_refusal_observed": "Retained placement migration is a deliberate operator run; this command refuses it",
+    "cutover_record": "present and unchanged; environment e_60332245e3a0426dd242492f stays exported to the recovery target, fenced on the source and paused in routing"
+  },
+  "backup": {
+    "location": ".lab/generation-migration-backup-20260925/ (gitignored, mode 0700, files 0600)",
+    "cold_volume_tar_sha256": "517fc7c418b6c590ca50b7c920b9f87c6e18e978fcca47126dd5876490ff21dd",
+    "cold_volume_tar_bytes": 15005350,
+    "pg_dumpall_sha256": "24cb336247b9ab485b51cf75a43aa4af4dc859034fff297e231903ac35b0b6bf",
+    "pg_dumpall_includes_fenced_database": true,
+    "pin_copy_sha256": "3dca198dc2803fe8c5345f0bba41430a9ff325c592109abafc68c991d475da85",
+    "after_cold_volume_tar_sha256": "a99fd44e147a1eeccf3ee5098aac4baddab9dbd9527779aedc3cff1b18de0080"
+  },
+  "migration": {
+    "id": "0b01f97e-1f31-4f5b-bfa7-c312180ab854",
+    "completed": true,
+    "record_removed": true,
+    "retired_generation": "3d427363-a624-40d9-ab91-f1ec05fdb8d1",
+    "retired_container": "afde3abc1b7017e1c244548b35fe3789e824c18bdc0a0a7c5a443826fa03c1b5",
+    "new_generation": "7c0432a2-ff7a-4795-adae-c1429ffc86f8",
+    "new_container": "1f43fb0107110e9c9012ebc0bec61614c764ee2b768f124e37263c1ef0ec705f",
+    "retired_state": "stopped-will-not-return",
+    "volume": "sbarbase-durable-pgdata",
+    "image": "sha256:b3bfedb107413abb3b8cb0d0874b0414a1dceb3d55bc0c778de6ad22d1f7dc86",
+    "hba_operation": "f2078d77-d90b-4399-8c7b-e458d6aba528",
+    "hba_application": "publication-witnessed",
+    "hba_activation": "unknown",
+    "authority_observation": "no-active-operation",
+    "retired_pin_archived_byte_for_byte": true,
+    "new_pin_names_new_container": true
+  },
+  "rules": {
+    "difference": "re-derived-from-inventory",
+    "inventory_digest": "6f513072a7c579fa03554972293df4f5ab81bc13c6e31bfe763dbd5e53938f2e",
+    "inventory_matches_observed": true,
+    "observed_file_digest": "ce17d0110d6eef681438b58d041d026b2376c9e7bd7cbdf2981096713c5c0e28",
+    "observed_rules_digest": "6f513072a7c579fa03554972293df4f5ab81bc13c6e31bfe763dbd5e53938f2e",
+    "retired_hba_digest": "7ab460d4b521b66ec8615448fabba6494dd9b370b53e4b4ab9a721ce84826961",
+    "retired_matches_observed": false,
+    "retired_rules_digest": "44715dc15de8a059d8fe538805fa346b4ad055193d71cf554642b46bda8be783",
+    "retired_rules": 17,
+    "observed_rules": 29,
+    "retired_rules_kept_in_order": true,
+    "rules_added": 12,
+    "added_roles": [
+      "developer",
+      "realtime",
+      "studio"
+    ],
+    "parser_errors_after": 0,
+    "statement": "Not byte identical. Every one of the 17 retired rules is kept in its order; 12 rules are added, one studio, realtime and developer login per environment for four environments, which the current inventory builder emits and the next ordinary startup would have published anyway."
+  },
+  "readback": {
+    "io.sbarbase.tier": "system",
+    "memory_bytes": 1073741824,
+    "memory_swap_bytes": 1073741824,
+    "nano_cpus": 1000000000,
+    "pids_limit": 128,
+    "cpu_shares": 2048,
+    "blkio_weight": 800,
+    "device_read_bps": [
+      268435456
+    ],
+    "device_write_bps": [
+      134217728
+    ],
+    "device_read_iops": [
+      6000
+    ],
+    "device_write_iops": [
+      3000
+    ],
+    "cgroup_io_max": "252:0 rbps=268435456 wbps=134217728 riops=6000 wiops=3000",
+    "cgroup_cpu_weight": 174,
+    "cgroup_io_weight": "default 100",
+    "retired_container_had_tier_label": false,
+    "retired_container_had_device_limits": false,
+    "note": "The tier label and the four per device limits match resource_policy system.db. cpu.weight 174 and io.weight default 100 do not match the mapping RESOURCE-POLICY section 3.1 infers (about 79 for 2048 shares); recorded as observed, not reconciled."
+  },
+  "row_counts": {
+    "method": "exact count(*) of every ordinary and partitioned table outside pg_catalog, information_schema and toast, in every non-template database",
+    "identical": true,
+    "databases": 7,
+    "tables": 166,
+    "rows": 851,
+    "full_map_sha256_before": "75285ee34f5295c0c6e96d173f896fa25d39ca35b261bdde35bab746d8f9ebd9",
+    "full_map_sha256_after": "75285ee34f5295c0c6e96d173f896fa25d39ca35b261bdde35bab746d8f9ebd9",
+    "per_database": {
+      "e_1f0624c545789214eef426c9": {
+        "tables": 31,
+        "rows_before": 138,
+        "rows_after": 138
+      },
+      "e_3ac7584e45004caac76be27c": {
+        "tables": 31,
+        "rows_before": 138,
+        "rows_after": 138
+      },
+      "e_60332245e3a0426dd242492f": {
+        "tables": 32,
+        "rows_before": 172,
+        "rows_after": 172
+      },
+      "e_f61bf85dccd73890ec63997c": {
+        "tables": 32,
+        "rows_before": 164,
+        "rows_after": 164
+      },
+      "management": {
+        "tables": 23,
+        "rows_before": 193,
+        "rows_after": 193
+      },
+      "postgres": {
+        "tables": 6,
+        "rows_before": 7,
+        "rows_after": 7
+      },
+      "storage_metadata": {
+        "tables": 11,
+        "rows_before": 39,
+        "rows_after": 39
+      }
+    },
+    "fenced_on_source": [
+      "e_60332245e3a0426dd242492f"
+    ]
+  },
+  "not_done": [
+    "lab/durable-check.ts stays disabled; see CONTAINER-GENERATION-MIGRATION.md What remains",
+    "the two load vehicles"
+  ]
+}
