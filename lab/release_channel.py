@@ -18,6 +18,7 @@ import datetime
 import json
 import os
 import re
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -139,7 +140,11 @@ def verify(ref, signers=None):
     tag = ref.rsplit('/', 1)[-1]
     if not signers_configured(signers):
         return f'No release signing key is listed in {signers.name}; every release is refused until one is'
-    kind = git('cat-file', '-t', ref, check=False).stdout.strip()
+    if not shutil.which('ssh-keygen'):
+        # Still refused, but for the real reason: a container image built before
+        # openssh-client was added to it cannot check any signature.
+        return 'ssh-keygen is not installed, so no release signature can be checked; rebuild the container image'
+    kind =git('cat-file', '-t', ref, check=False).stdout.strip()
     if kind != 'tag':
         return f'{tag} is not an annotated, signed tag'
     header = git('cat-file', '-p', ref).stdout.split('\n\n', 1)[0].splitlines()

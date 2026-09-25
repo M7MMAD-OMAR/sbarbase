@@ -200,6 +200,8 @@ class ChannelTests(Fixture):
         empty.write_text((ROOT / 'deploy' / 'release-signers').read_text())
         self.assertIn('No release signing key', channel.verify(ref, empty))
         self.assertIn('No release signing key', channel.verify(ref, self.releases.base / 'missing'))
+        with patch.object(channel.shutil, 'which', return_value=None):
+            self.assertIn('ssh-keygen is not installed', channel.verify(ref))
 
     def test_a_signed_tag_replayed_under_a_newer_name_is_refused(self):
         self.releases.release('0.2.0')
@@ -408,8 +410,10 @@ class VersionTests(unittest.TestCase):
         self.assertEqual(value['migrations'], [])
         for text in (ROOT / 'release.json').read_text(), (ROOT / 'deploy' / 'release-signers').read_text():
             self.assertFalse({'\u2013', '\u2014'} & set(text))
-        # Shipped without a key: every release is refused until the maintainer adds one.
-        self.assertFalse(channel.signers_configured(ROOT / 'deploy' / 'release-signers'))
+        # Any key the maintainer adds is one allowed signers line for git's namespace.
+        for line in (ROOT / 'deploy' / 'release-signers').read_text().splitlines():
+            if line.strip() and not line.lstrip().startswith('#'):
+                self.assertRegex(line, r'^\S+ namespaces="git" (ssh-ed25519|ecdsa-sha2-nistp256|ssh-rsa|sk-ssh-ed25519@openssh\.com) [A-Za-z0-9+/=]+')
 
 
 class PrepareTests(unittest.TestCase):
