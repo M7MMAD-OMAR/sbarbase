@@ -15,13 +15,19 @@ Files, all in .lab/upgrades, private (0600), each replaced atomically:
   last-request.json  the last finished request, kept for the console's progress view
   check.json         the last check: {attempted_at, error, failures}
   ledger.json        versions announced, tried automatically and rolled back:
-                     {announced, attempted, rolled_back}, so automatic mode never retries one
+                     {announced, attempted, rolled_back, tries}. `attempted` is a try that went
+                     ahead (it started the backup or moved the checkout) and `rolled_back` a way
+                     back: automatic mode never retries either. `tries` counts automatic tries
+                     that stopped before that point: {version: {count, last}}
   current.json       what runs now and whether the console may roll back, written by the
-                     supervisor: {version, commit, written_at, rollback: {started_at, possible, reason}}
+                     supervisor: {version, commit, written_at, rollback: {started_at, possible, reason},
+                     timezone: {name, offset}}, the zone of the clock the maintenance window uses
   available.json     the last check's result, written by lab/release_channel.py
 
 A request is {id, kind: apply|rollback|check, version?, tag?, trigger: console|automatic,
-state: requested|running|done|failed, requested_at, started_at?, finished_at?, detail?}.
+acknowledged?, state: requested|running|done|failed, requested_at, started_at?, finished_at?,
+detail?}. `acknowledged` is true when the operator confirmed the warning an `attended` release
+carries (the Auth, Storage or Realtime image changes, see lab/release_channel.py).
 """
 import datetime
 import json
@@ -34,6 +40,9 @@ import notification_producers
 
 ROOT = Path(__file__).resolve().parents[1]
 UPGRADES = ROOT / '.lab' / 'upgrades'
+# Where lab/backup.py writes; a backup directory stamped after an automatic try started shows
+# that the try went ahead.
+BACKUPS = ROOT / '.lab' / 'backups'
 DEFAULT_SETTINGS = {'check': True, 'automatic': False, 'window': {'start': '03:00', 'end': '05:00'}}
 CLOCK = re.compile(r'([01]\d|2[0-3]):[0-5]\d')
 KINDS = ('apply', 'rollback', 'check')
@@ -49,6 +58,11 @@ RETRY_BASE = datetime.timedelta(minutes=30)
 # release_channel.check() does not fail when the source is unreachable: it says so here.
 UNREACHABLE = 'The release source could not be read'
 LEDGER_KEEP = 50
+# An automatic try that stopped before the backup (a network failure while fetching the release
+# or pulling its images) is tried again: at most this many times per version, 10 then 20 minutes
+# apart, and only inside the maintenance window.
+AUTOMATIC_TRIES = 3
+TRY_BACKOFF = datetime.timedelta(minutes=10)
 # The sentences the console shows as they are. src/control/updates.ts answers 409 with the
 # same words; lab/test_updates.py keeps the two in step.
 MESSAGES = {
@@ -56,7 +70,8 @@ MESSAGES = {
     'nothing': 'No newer release is available to install. Check for updates first.',
     'stale': 'The last check was made on another version of Sbarbase. Check for updates again.',
     'other': 'That version is not the release available now. Check for updates again.',
-    'class': 'Only a safe release can be installed from the console. Follow the instructions on the Updates page to install this one on the server.',
+    'class': 'This release cannot be installed from the console. Follow the instructions on the Updates page to install it on the server.',
+    'acknowledge': 'This release updates services that change environment databases when they start. Confirm the warning on the Updates page to install it.',
     'unsigned': 'This release is not signed by a Sbarbase release key, so it cannot be installed.',
     'refused': 'The server cannot install this release now. The reasons are listed on the Updates page.',
     'pending': 'The last update has not finished starting yet. Wait for it to finish.',
@@ -177,8 +192,12 @@ def in_window(window, moment):
 def ledger():
     value = read('ledger.json')
     value = value if isinstance(value, dict) else {}
-    return {name: [item for item in value.get(name) or [] if isinstance(item, str)]
-            for name in ('announced', 'attempted', 'rolled_back')}
+    record = {name: [item for item in value.get(name) or [] if isinstance(item, str)]
+              for name in ('announced', 'attempted', 'rolled_back')}
+    tries = value.get('tries') if isinstance(value.get('tries'), dict) else {}
+    record['tries'] = {version: {'count': item['count'], 'last': item['last']} for version, item in tries.items()
+                       if isinstance(item, dict) and isinstance(item.get('count'), int) and isinstance(item.get('last'), str)}
+    return record
 
 
 def remember(name, version):
@@ -189,6 +208,49 @@ def remember(name, version):
     record[name] = (record[name] + [version])[-LEDGER_KEEP:]
     write('ledger.json', record)
     return True
+
+
+def begin_automatic(version, moment=None):
+    """Counts one automatic try of a version, just before its request is created. Whether it
+    went ahead is judged at the next decision (went_ahead), once the try has ended."""
+    record = ledger()
+    count = record['tries'].get(version, {}).get('count', 0)
+    record['tries'][version] = {'count': count + 1, 'last': stamp(moment or now())}
+    record['tries'] = dict(list(record['tries'].items())[-LEDGER_KEEP:])
+    write('ledger.json', record)
+    return count + 1
+
+
+def backed_up_since(moment):
+    """Whether lab/backup.py started a backup at or after `moment`: its directories are named
+    by the UTC time the run started (YYYYMMDDTHHMMSSZ), and one appears before anything is
+    copied into it."""
+    since = moment.astimezone(datetime.UTC).strftime('%Y%m%dT%H%M%SZ')
+    try:
+        folders = [folder for folder in BACKUPS.iterdir() if folder.is_dir()]
+    except OSError:
+        return False
+    for folder in folders:
+        try:
+            if any(re.fullmatch(r'\d{8}T\d{6}Z', item.name) and item.name >= since for item in folder.iterdir()):
+                return True
+        except OSError:
+            continue
+    return False
+
+
+def went_ahead(attempt, upgrade_state):
+    """Whether an automatic try got past the steps that change nothing: it started the backup,
+    or it recorded an upgrade (even one that then failed), which happens just before the
+    checkout moves. Such a try is spent; one that stopped earlier may be tried again."""
+    since = parse_time((attempt or {}).get('last'))
+    if since is None:
+        return True
+    if isinstance(upgrade_state, dict):
+        began = parse_time(upgrade_state.get('started_at'))
+        if began is not None and began >= since:
+            return True
+    return backed_up_since(since)
 
 
 def label(state):
@@ -322,9 +384,11 @@ def fresh(document, current):
     return document
 
 
-def apply_refusal(version, document, current, upgrade_state):
+def apply_refusal(version, document, current, upgrade_state, acknowledged=False):
     """Why an apply of `version` must not go ahead, or None. Asked by the supervisor before it
-    runs `upgrade.py start --release`, which then verifies everything again from the source."""
+    runs `upgrade.py start --release`, which then verifies everything again from the source.
+    An `attended` release goes ahead only when the operator acknowledged its warning; the
+    supervisor then passes `--allow-class attended` to the start."""
     if isinstance(upgrade_state, dict) and upgrade_state.get('phase') in ('applied', 'rolling_back'):
         return MESSAGES['pending']
     if not isinstance(document, dict) or not isinstance(document.get('available'), dict):
@@ -334,8 +398,10 @@ def apply_refusal(version, document, current, upgrade_state):
     release = document['available']
     if release.get('version') != version:
         return MESSAGES['other']
-    if release.get('class') != 'safe':
+    if release.get('class') not in ('safe', 'attended'):
         return MESSAGES['class']
+    if release.get('class') == 'attended' and acknowledged is not True:
+        return MESSAGES['acknowledge']
     if release.get('signed') is not True:
         return MESSAGES['unsigned']
     if document.get('refusals'):
@@ -344,9 +410,10 @@ def apply_refusal(version, document, current, upgrade_state):
 
 
 def automatic_release(settings, document, current, upgrade_state, record, moment, backup_running):
-    """The release automatic mode applies now, or None. Safe, signed and without refusals only,
-    inside the window, never while a backup runs, and never a version tried before or rolled
-    back (at most one attempt per version)."""
+    """The release automatic mode applies now, or None. Safe (never `attended`), signed and
+    without refusals only, inside the window, never while a backup runs, and never a version
+    whose try went ahead or that rolled back. A try that stopped before the backup is tried
+    again, at most AUTOMATIC_TRIES times, backing off between tries."""
     if not (settings['check'] and settings['automatic']) or backup_running:
         return None
     if not in_window(settings['window'], moment):
@@ -355,8 +422,20 @@ def automatic_release(settings, document, current, upgrade_state, record, moment
     if not isinstance(release, dict) or not isinstance(release.get('version'), str):
         return None
     version = release['version']
+    if release.get('class') != 'safe':
+        return None
     if version in record['attempted'] or version in record['rolled_back']:
         return None
+    attempt = (record.get('tries') or {}).get(version)
+    if attempt is not None:
+        if went_ahead(attempt, upgrade_state):
+            # Spent: from now on it is never tried again automatically.
+            remember('attempted', version)
+            return None
+        last = parse_time(attempt.get('last'))
+        if attempt.get('count', 0) >= AUTOMATIC_TRIES or last is None \
+                or moment < last + TRY_BACKOFF * 2 ** (attempt.get('count', 1) - 1):
+            return None
     if isinstance(upgrade_state, dict) and label(upgrade_state) == version \
             and upgrade_state.get('phase') in ('rolling_back', 'rolled_back', 'rollback_failed'):
         return None
@@ -512,14 +591,38 @@ def announce_outcome(before, after, catalog=None):
 
 # ---------------------------------------------------------------- what runs now
 
+def zone(moment=None, environment=None, localtime='/etc/localtime', database='/usr/share/zoneinfo'):
+    """{name, offset} of the clock the maintenance window is read in (this process's local time).
+    The offset comes from the clock itself, never from TZ: in a container without a time zone
+    database a zone name in TZ is silently read as UTC, and the page must show what is used."""
+    moment = moment or now()
+    raw = moment.strftime('%z') or '+0000'
+    offset = f'{raw[:3]}:{raw[3:5]}'
+    environment = os.environ if environment is None else environment
+    name = None
+    configured = environment.get('TZ')
+    if configured is not None:
+        candidate = configured.lstrip(':')
+        if candidate and not candidate.startswith('/') and '..' not in candidate and (Path(database) / candidate).is_file():
+            name = candidate
+    else:
+        target = os.path.realpath(localtime)
+        if '/zoneinfo/' in target and os.path.isfile(target):
+            name = target.split('/zoneinfo/', 1)[1]
+    return {'name': name or moment.tzname() or 'UTC', 'offset': offset}
+
+
 def publish_current(upgrade_state, moment=None):
-    """Writes current.json for the console: the running version and whether it may offer
-    "roll back". Tied to the upgrade record it judged by its start time."""
+    """Writes current.json for the console: the running version, whether it may offer
+    "roll back" (tied to the upgrade record it judged by its start time), and the time zone
+    the maintenance window is read in."""
     import release_channel
     running = release_channel.current_version()
     possible, reason = rollback_verdict(upgrade_state)
-    record = {'version': running['version'], 'commit': running['commit'], 'written_at': stamp(moment or now()),
+    moment = moment or now()
+    record = {'version': running['version'], 'commit': running['commit'], 'written_at': stamp(moment),
               'rollback': {'started_at': (upgrade_state or {}).get('started_at') if isinstance(upgrade_state, dict) else None,
-                           'possible': possible, 'reason': reason}}
+                           'possible': possible, 'reason': reason},
+              'timezone': zone(moment)}
     write('current.json', record)
     return record

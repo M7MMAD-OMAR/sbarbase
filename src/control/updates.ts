@@ -10,16 +10,26 @@ import {randomUUID} from 'node:crypto';
 export const UPDATES_DIRECTORY='.lab/upgrades';
 
 export type UpdateSettings={check:boolean;automatic:boolean;window:{start:string;end:string}};
+/** `attended`: the Auth, Storage or Realtime image changes, and each migrates the environment
+ * databases when it starts. The operator may install it after acknowledging that a way back may
+ * need the environment backups; it is never installed automatically (lab/release_channel.py). */
+export type UpdateClass='safe'|'attended'|'rebuild'|'manual';
+const CLASSES:UpdateClass[]=['safe','attended','rebuild','manual'];
 type Change={label:string;before:string;after:string};
-type Available={version:string;tag:string;commit:string;class:'safe'|'rebuild'|'manual';signed:boolean;reasons:string[];
+type Available={version:string;tag:string;commit:string;class:UpdateClass;signed:boolean;reasons:string[];
   notes:{en:string;ar:string};changes:Change[]};
+/** The newest release the check passed over, and why: shown as information. */
+type Newest={version:string;tag:string;class:UpdateClass|null;signed:boolean;reasons:string[]};
+/** The zone of the clock the supervisor reads the maintenance window in. */
+export type TimeZone={name:string;offset:string};
 type Phase='applied'|'confirmed'|'rolling_back'|'rolled_back'|'rollback_failed'|'failed';
 type Last={phase:Phase;from:string;to:string;version?:string;startedAt:string;finishedAt?:string;automatic:boolean;
   failure?:string;trigger?:'cli'|'console'|'automatic'};
 type RequestView={kind:'apply'|'rollback'|'check';version?:string;state:'requested'|'running'|'done'|'failed';
   requestedAt:string;detail?:string};
 export type UpdatesView={current:{version:string;commit:string};available:null|Available;refusals:string[];
-  checkedAt:string|null;checkError:string|null;settings:UpdateSettings;last:null|Last;request:null|RequestView;canRollback:boolean};
+  skipped:string[];newest:null|Newest;checkedAt:string|null;checkError:string|null;settings:UpdateSettings;timezone:TimeZone;
+  last:null|Last;request:null|RequestView;canRollback:boolean};
 
 export const DEFAULT_SETTINGS:UpdateSettings={check:true,automatic:false,window:{start:'03:00',end:'05:00'}};
 const CLOCK=/^([01]\d|2[0-3]):[0-5]\d$/;
@@ -32,7 +42,8 @@ export const UPDATE_MESSAGES={
   nothing:'No newer release is available to install. Check for updates first.',
   stale:'The last check was made on another version of Sbarbase. Check for updates again.',
   other:'That version is not the release available now. Check for updates again.',
-  class:'Only a safe release can be installed from the console. Follow the instructions on the Updates page to install this one on the server.',
+  class:'This release cannot be installed from the console. Follow the instructions on the Updates page to install it on the server.',
+  acknowledge:'This release updates services that change environment databases when they start. Confirm the warning on the Updates page to install it.',
   unsigned:'This release is not signed by a Sbarbase release key, so it cannot be installed.',
   refused:'The server cannot install this release now. The reasons are listed on the Updates page.',
   pending:'The last update has not finished starting yet. Wait for it to finish.',
@@ -114,11 +125,36 @@ function checked(directory:string,running:{commit:string}):Json|null {
 
 function available(value:unknown):Available|null {
   if(!isObject(value)||!text(value.version)||!text(value.tag)||!text(value.commit)||!isObject(value.notes))return null;
-  if(!['safe','rebuild','manual'].includes(value.class as string))return null;
+  if(!CLASSES.includes(value.class as UpdateClass))return null;
   const changes=Array.isArray(value.changes)?value.changes.filter(isObject).map(row=>({
     label:String(row.image??''),before:String(row.from??'none'),after:String(row.to??'none')})):[];
   return {version:value.version,tag:value.tag,commit:value.commit,class:value.class as Available['class'],signed:value.signed===true,
     reasons:texts(value.reasons),notes:{en:text(value.notes.en)?value.notes.en:'',ar:text(value.notes.ar)?value.notes.ar:''},changes};
+}
+
+function newest(value:unknown):Newest|null {
+  if(!isObject(value)||!text(value.version)||!text(value.tag))return null;
+  return {version:value.version,tag:value.tag,class:CLASSES.includes(value.class as UpdateClass)?value.class as UpdateClass:null,
+    signed:value.signed===true,reasons:texts(value.reasons)};
+}
+
+const OFFSET=/^[+-]\d{2}:\d{2}$/;
+/** This process's own zone, used only until the supervisor has published the one it reads the
+ * window in: Bun carries its own zone data, so a TZ name it resolves may be one the supervisor
+ * cannot (lab/updates.py zone). */
+function processZone():TimeZone {
+  const minutes=-new Date().getTimezoneOffset(),size=Math.abs(minutes);
+  const offset=`${minutes<0?'-':'+'}${String(Math.floor(size/60)).padStart(2,'0')}:${String(size%60).padStart(2,'0')}`;
+  let name='UTC';
+  try {name=Intl.DateTimeFormat().resolvedOptions().timeZone||name;} catch {}
+  return {name,offset};
+}
+
+/** The time zone the maintenance window is read in: the supervisor's, from current.json. */
+export function serverZone(directory=UPDATES_DIRECTORY):TimeZone {
+  const zone=read(directory,'current.json')?.timezone;
+  if(isObject(zone)&&text(zone.name)&&zone.name.length<=64&&text(zone.offset)&&OFFSET.test(zone.offset))return {name:zone.name,offset:zone.offset};
+  return processZone();
 }
 
 function last(state:Json|null):Last|null {
@@ -158,14 +194,17 @@ export function updatesView(directory=UPDATES_DIRECTORY,root='.'):UpdatesView {
   const request=requestView(read(directory,'request.json'))??requestView(read(directory,'last-request.json'));
   const check=read(directory,'check.json');
   return {current:running,available:available(document?.available),refusals:texts(document?.refusals),
+    skipped:texts(document?.skipped),newest:newest(document?.newest),
     checkedAt:document&&text(document.checked_at)?document.checked_at:null,
-    checkError:check&&text(check.error)?check.error:null,settings:readSettings(directory),last:last(state),request,
-    canRollback:rollbackVerdict(directory,state,request).possible};
+    checkError:check&&text(check.error)?check.error:null,settings:readSettings(directory),timezone:serverZone(directory),
+    last:last(state),request,canRollback:rollbackVerdict(directory,state,request).possible};
 }
 
 /** Why an apply of `version` is refused, or null. The supervisor asks the same again, and
- * `upgrade.py start --release` verifies the release once more from its source. */
-function applyRefusal(directory:string,root:string,version:string):string|null {
+ * `upgrade.py start --release` verifies the release once more from its source. An `attended`
+ * release needs the operator's acknowledgement of its warning. Notes about releases the check
+ * passed over (`skipped`) never refuse the one on offer. */
+function applyRefusal(directory:string,root:string,version:string,acknowledged:boolean):string|null {
   const running=current(directory,root),state=read(directory,'state.json');
   if(state&&PENDING.includes(state.phase as Phase))return UPDATE_MESSAGES.pending;
   const document=read(directory,'available.json');
@@ -173,7 +212,8 @@ function applyRefusal(directory:string,root:string,version:string):string|null {
   if(!checked(directory,running))return UPDATE_MESSAGES.stale;
   const release=document.available;
   if(release.version!==version)return UPDATE_MESSAGES.other;
-  if(release.class!=='safe')return UPDATE_MESSAGES.class;
+  if(release.class!=='safe'&&release.class!=='attended')return UPDATE_MESSAGES.class;
+  if(release.class==='attended'&&!acknowledged)return UPDATE_MESSAGES.acknowledge;
   if(release.signed!==true)return UPDATE_MESSAGES.unsigned;
   if(texts(document.refusals).length)return UPDATE_MESSAGES.refused;
   return null;
@@ -182,17 +222,19 @@ function applyRefusal(directory:string,root:string,version:string):string|null {
 export type UpdateRequestKind='apply'|'rollback'|'check';
 /** Asks the supervisor for a check, an apply or a rollback. Returns null when the request was
  * recorded, or the sentence of a refusal (409). request.json is linked into place, which fails
- * while another request holds the slot, so two requests can never both be recorded. */
-export function requestUpdate(kind:UpdateRequestKind,version?:string,directory=UPDATES_DIRECTORY,root='.'):string|null {
+ * while another request holds the slot, so two requests can never both be recorded. An apply
+ * of an `attended` release records the operator's acknowledgement for the supervisor. */
+export function requestUpdate(kind:UpdateRequestKind,version?:string,directory=UPDATES_DIRECTORY,root='.',acknowledged=false):string|null {
   if(open(requestView(read(directory,'request.json'))))return UPDATE_MESSAGES.busy;
-  if(kind==='apply'){const refusal=applyRefusal(directory,root,version??'');if(refusal)return refusal;}
+  if(kind==='apply'){const refusal=applyRefusal(directory,root,version??'',acknowledged);if(refusal)return refusal;}
   if(kind==='rollback'){
     const verdict=rollbackVerdict(directory,read(directory,'state.json'),null);
     if(!verdict.possible)return verdict.reason;
   }
   const document=read(directory,'available.json'),release=isObject(document?.available)?document.available:null;
   const request={id:randomUUID(),kind,trigger:'console',state:'requested',requested_at:new Date().toISOString().replace(/\.\d{3}Z$/,'+00:00'),
-    ...(kind==='apply'&&version?{version,tag:release&&text(release.tag)?release.tag:'v'+version}:{})};
+    ...(kind==='apply'&&version?{version,tag:release&&text(release.tag)?release.tag:'v'+version}:{}),
+    ...(kind==='apply'&&release?.class==='attended'&&acknowledged?{acknowledged:true}:{})};
   privateDirectory(directory);
   const path=temporary(directory,request);
   try {linkSync(path,join(directory,'request.json'));}

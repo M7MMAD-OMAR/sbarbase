@@ -48,7 +48,8 @@ class Private(unittest.TestCase):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         self.folder = Path(directory.name) / 'upgrades'
-        for item in (patch.object(updates, 'UPGRADES', self.folder),
+        self.backups = Path(directory.name) / 'backups'
+        for item in (patch.object(updates, 'UPGRADES', self.folder), patch.object(updates, 'BACKUPS', self.backups),
                      patch.object(upgrade, 'STATE_FILE', self.folder / 'state.json')):
             item.start()
             self.addCleanup(item.stop)
@@ -203,9 +204,98 @@ class ScheduleDecisionTests(Private):
         self.assertIsNone(chosen(state={'phase': 'rolled_back', 'to': 'b' * 40, 'started_at': 'x', 'release': {'version': '0.2.0'}}))
         self.assertIsNone(chosen(checked=document(release(signed=False))))
         self.assertIsNone(chosen(checked=document(release(**{'class': 'rebuild'}))))
+        # A release that migrates environment databases is never installed automatically.
+        self.assertIsNone(chosen(checked=document(release(**{'class': 'attended'}))))
         self.assertIsNone(chosen(checked=document(refusals=['A backup or restore is running'])))
         self.assertIsNone(chosen(checked=document(commit='d' * 40)))
         self.assertIsNone(chosen(state={'phase': 'applied', 'to': 'b' * 40, 'started_at': 'x'}))
+
+
+class RefusalTests(Private):
+    def test_an_attended_release_needs_the_operators_acknowledgement(self):
+        checked = document(release(**{'class': 'attended'}))
+        self.assertEqual(updates.apply_refusal('0.2.0', checked, CURRENT, None), updates.MESSAGES['acknowledge'])
+        self.assertEqual(updates.apply_refusal('0.2.0', checked, CURRENT, None, acknowledged='yes'), updates.MESSAGES['acknowledge'])
+        self.assertIsNone(updates.apply_refusal('0.2.0', checked, CURRENT, None, acknowledged=True))
+        for kind in ('rebuild', 'manual'):
+            self.assertEqual(updates.apply_refusal('0.2.0', document(release(**{'class': kind})), CURRENT, None, acknowledged=True),
+                             updates.MESSAGES['class'])
+
+    def test_notes_about_releases_passed_over_never_refuse_the_one_on_offer(self):
+        checked = {**document(), 'skipped': ['v0.3.0 was passed over: v0.3.0 needs at least version 0.2.0'],
+                   'newest': {'version': '0.3.0', 'tag': 'v0.3.0', 'class': 'safe', 'signed': True, 'reasons': ['x']}}
+        self.assertIsNone(updates.apply_refusal('0.2.0', checked, CURRENT, None))
+        settings = {'check': True, 'automatic': True, 'window': {'start': '23:00', 'end': '01:00'}}
+        found = updates.automatic_release(settings, checked, CURRENT, None, updates.ledger(), at(0, 30), False)
+        self.assertEqual(found['version'], '0.2.0')
+
+
+class TriesTests(Private):
+    settings = {'check': True, 'automatic': True, 'window': {'start': '23:00', 'end': '01:00'}}
+
+    def chosen(self, moment, state=None):
+        found = updates.automatic_release(self.settings, document(), CURRENT, state, updates.ledger(), moment, False)
+        return found and found['version']
+
+    def test_a_try_that_stopped_before_the_backup_is_tried_again_three_times_at_most(self):
+        self.assertEqual(self.chosen(at(0, 0)), '0.2.0')
+        self.assertEqual(updates.begin_automatic('0.2.0', at(0, 0)), 1)
+        # Backing off: 10 minutes after the first try, 20 after the second.
+        self.assertIsNone(self.chosen(at(0, 9)))
+        self.assertEqual(self.chosen(at(0, 10)), '0.2.0')
+        updates.begin_automatic('0.2.0', at(0, 10))
+        self.assertIsNone(self.chosen(at(0, 29)))
+        self.assertEqual(self.chosen(at(0, 30)), '0.2.0')
+        updates.begin_automatic('0.2.0', at(0, 30))
+        self.assertIsNone(self.chosen(at(0, 59)))
+        self.assertEqual(updates.ledger()['tries']['0.2.0']['count'], 3)
+        self.assertEqual(updates.ledger()['attempted'], [])
+        # Still inside the window only.
+        self.put('ledger.json', {'announced': [], 'attempted': [], 'rolled_back': [],
+                                 'tries': {'0.2.0': {'count': 1, 'last': updates.stamp(at(0, 0))}}})
+        self.assertIsNone(self.chosen(at(1, 30)))
+
+    def test_a_try_that_started_the_backup_or_moved_the_checkout_is_spent(self):
+        updates.begin_automatic('0.2.0', at(0, 0))
+        # A backup directory stamped before the try does not count.
+        (self.backups / ('e_' + 'a' * 24) / at(23, 59, day=24).astimezone(datetime.UTC).strftime('%Y%m%dT%H%M%SZ')).mkdir(parents=True)
+        self.assertEqual(self.chosen(at(0, 10)), '0.2.0')
+        (self.backups / 'installation' / at(0, 1).astimezone(datetime.UTC).strftime('%Y%m%dT%H%M%SZ')).mkdir(parents=True)
+        self.assertIsNone(self.chosen(at(0, 10)))
+        self.assertEqual(updates.ledger()['attempted'], ['0.2.0'])
+        self.assertIsNone(self.chosen(at(0, 50)))
+        # An upgrade record from the try (even one that failed) spends it as well.
+        self.put('ledger.json', {'announced': [], 'attempted': [], 'rolled_back': [],
+                                 'tries': {'0.3.0': {'count': 1, 'last': updates.stamp(at(0, 0))}}})
+        later = document(release(version='0.3.0', tag='v0.3.0'))
+        failed = {'phase': 'failed', 'from': COMMIT, 'to': 'b' * 40, 'started_at': at(0, 2).astimezone(datetime.UTC).isoformat()}
+        self.assertIsNone(updates.automatic_release(self.settings, later, CURRENT, failed, updates.ledger(), at(0, 20), False))
+        self.assertEqual(updates.ledger()['attempted'], ['0.3.0'])
+
+    def test_the_ledger_keeps_tries_across_other_writes_and_ignores_damaged_ones(self):
+        updates.begin_automatic('0.2.0', at(0, 0))
+        updates.remember('announced', '0.2.0')
+        self.assertEqual(updates.ledger()['tries'], {'0.2.0': {'count': 1, 'last': updates.stamp(at(0, 0))}})
+        self.put('ledger.json', {'tries': {'0.2.0': {'count': 'x', 'last': 1}, '0.3.0': []}})
+        self.assertEqual(updates.ledger()['tries'], {})
+
+
+class ZoneTests(unittest.TestCase):
+    def test_the_zone_is_the_one_the_clock_uses(self):
+        with tempfile.TemporaryDirectory() as directory:
+            database = Path(directory) / 'zoneinfo'
+            (database / 'Asia').mkdir(parents=True)
+            (database / 'Asia' / 'Dubai').write_bytes(b'TZif')
+            moment = at(3)
+            self.assertEqual(updates.zone(moment, {'TZ': 'Asia/Dubai'}, database=database), {'name': 'Asia/Dubai', 'offset': '+04:00'})
+            # A zone name the container cannot resolve is not repeated as if it were in use.
+            self.assertEqual(updates.zone(moment, {'TZ': 'Europe/Nowhere'}, database=database)['name'], moment.tzname())
+            self.assertEqual(updates.zone(moment, {'TZ': '../../etc/passwd'}, database=database)['name'], moment.tzname())
+            link = Path(directory) / 'localtime'
+            link.symlink_to(database / 'Asia' / 'Dubai')
+            self.assertEqual(updates.zone(moment, {}, localtime=link)['name'], 'Asia/Dubai')
+            utc = datetime.datetime(2026, 9, 25, 3, tzinfo=datetime.UTC)
+            self.assertEqual(updates.zone(utc, {}, localtime=Path(directory) / 'missing'), {'name': 'UTC', 'offset': '+00:00'})
 
 
 class Stand:
@@ -320,17 +410,33 @@ class SupervisorTests(Private):
         self.put('available.json', document())
         self.put('check.json', {'attempted_at': updates.stamp(at(0)), 'error': None, 'failures': 0})
         self.outcome = (1, 'Nothing was changed\n')
+        # The try takes the backup before it fails: it went ahead, so it is spent.
+        self.effect = lambda: (self.backups / 'installation' / at(0, 30).astimezone(datetime.UTC).strftime('%Y%m%dT%H%M%SZ')).mkdir(parents=True)
         self.turn(at(0, 30))
         self.assertEqual(updates.read_request()['trigger'], 'automatic')
-        self.assertEqual(updates.ledger()['attempted'], ['0.2.0'])
+        self.assertEqual(updates.ledger()['tries']['0.2.0']['count'], 1)
         self.turn(at(0, 30))
         self.assertEqual(self.spawned[-1][-2:], ['--trigger', 'automatic'])
         self.turn(at(0, 31))
         self.assertEqual(self.get('last-request.json')['state'], 'failed')
-        # The attempt failed; it is never tried again automatically.
-        self.turn(at(0, 32))
+        # The attempt failed after its backup; it is never tried again automatically.
+        self.turn(at(0, 50))
         self.assertIsNone(updates.read_request())
+        self.assertEqual(updates.ledger()['attempted'], ['0.2.0'])
+        self.turn(at(0, 55))
         self.assertEqual(len(self.spawned), 1)
+
+    def test_a_network_failure_before_the_backup_does_not_spend_the_automatic_attempt(self):
+        self.put('settings.json', {'check': True, 'automatic': True, 'window': {'start': '23:00', 'end': '01:00'}})
+        self.put('available.json', document())
+        self.put('check.json', {'attempted_at': updates.stamp(at(0)), 'error': None, 'failures': 0})
+        self.outcome = (1, 'git fetch failed: Could not resolve host\nNothing was changed\n')
+        for minute in (0, 1, 2, 5, 10, 11, 12, 29, 30, 31, 32, 59):
+            self.turn(at(0, minute))
+        # Tries at 12:00 AM, 12:10 AM and 12:30 AM, then no more; the version is not marked as attempted.
+        self.assertEqual(len(self.spawned), 3)
+        self.assertEqual(updates.ledger()['attempted'], [])
+        self.assertEqual(updates.ledger()['tries']['0.2.0']['count'], 3)
 
     def test_automatic_mode_waits_out_a_backup_instead_of_spending_its_attempt(self):
         self.put('settings.json', {'check': True, 'automatic': True, 'window': {'start': '23:00', 'end': '01:00'}})
@@ -339,13 +445,14 @@ class SupervisorTests(Private):
         with locked(upgrade.BACKUP_LOCK):
             self.turn(at(0, 30))
         self.assertIsNone(updates.read_request())
-        self.assertEqual(updates.ledger()['attempted'], [])
+        self.assertEqual(updates.ledger()['tries'], {})
         (self.upstream / 'worker-effect.json').write_text('{}')
         self.turn(at(0, 31))
-        self.assertEqual(updates.ledger()['attempted'], [])
+        self.assertEqual(updates.ledger()['tries'], {})
         (self.upstream / 'worker-effect.json').unlink()
         self.turn(at(0, 32))
-        self.assertEqual(updates.ledger()['attempted'], ['0.2.0'])
+        self.assertEqual(updates.ledger()['tries']['0.2.0']['count'], 1)
+        self.assertEqual(updates.read_request()['trigger'], 'automatic')
 
     def test_a_periodic_check_runs_the_channel_and_records_an_offline_failure(self):
         self.put('settings.json', {'check': True, 'automatic': False, 'window': {'start': '03:00', 'end': '05:00'}})

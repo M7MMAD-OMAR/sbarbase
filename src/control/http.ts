@@ -3,7 +3,7 @@ import type {KeyStore} from './keys';
 import {authenticate,reply,type ManagementIdentity} from './auth';
 import {readJsonCached} from '../http/cached-json';
 import {join} from 'node:path';
-import {UPDATES_DIRECTORY,requestUpdate,saveSettings,updatesView,validateSettings,type UpdateRequestKind} from './updates';
+import {UPDATES_DIRECTORY,requestUpdate,saveSettings,serverZone,updatesView,validateSettings,type UpdateRequestKind} from './updates';
 
 /** Runtime state directory, the same tree the runtime writes the catalog in. */
 const MAIL_STATE_DIRECTORY='.lab/upstream';
@@ -55,10 +55,11 @@ function notificationState(catalog:Catalog,actor:string) {
 }
 
 class InputError extends Error {}
-/** A JSON object with exactly the allowed keys, at most 4 KiB, read within five seconds. */
+/** A JSON object with exactly the allowed keys (plus any of the optional ones), at most 4 KiB,
+ * read within five seconds. */
 async function body(request:Request):Promise<{name:string}>;
-async function body(request:Request,allowed:string[]):Promise<Record<string,unknown>>;
-async function body(request:Request,allowed:string[]=['name']):Promise<Record<string,unknown>> {
+async function body(request:Request,allowed:string[],optional?:string[]):Promise<Record<string,unknown>>;
+async function body(request:Request,allowed:string[]=['name'],optional:string[]=[]):Promise<Record<string,unknown>> {
   if(request.headers.get('content-type')?.split(';')[0]?.trim()!=='application/json'||!request.body)
     throw new InputError();
   const reader=request.body.getReader(),chunks:Uint8Array[]=[];let bytes=0;
@@ -75,7 +76,7 @@ async function body(request:Request,allowed:string[]=['name']):Promise<Record<st
       chunks.push(chunk.value);
     }
     const parsed=JSON.parse(Buffer.concat(chunks).toString('utf8'));
-    if(!parsed||typeof parsed!=='object'||Array.isArray(parsed)||Object.keys(parsed).some(k=>!allowed.includes(k))||
+    if(!parsed||typeof parsed!=='object'||Array.isArray(parsed)||Object.keys(parsed).some(k=>!allowed.includes(k)&&!optional.includes(k))||
       allowed.some(k=>!(k in parsed)))
       throw new InputError();
     if(allowed.includes('name')&&typeof parsed.name!=='string')throw new InputError();
@@ -252,16 +253,19 @@ export function managementHandler(catalog:Catalog,identify:ManagementIdentity,ma
         if(action==='/settings') {
           const settings=validateSettings(await body(request,['check','automatic','window']));
           if(typeof settings==='string')return reply(400,{message:settings});
-          return reply(200,{data:saveSettings(settings,updatesDirectory)});
+          // The window is read in the supervisor's time zone, returned beside the settings.
+          return reply(200,{data:saveSettings(settings,updatesDirectory),timezone:serverZone(updatesDirectory)});
         }
-        let version:string|undefined;
+        let version:string|undefined,acknowledged=false;
         if(action==='/apply') {
-          const input=await body(request,['version']);
+          const input=await body(request,['version'],['acknowledged']);
           if(typeof input.version!=='string'||!/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(input.version))
             return reply(400,{message:'Name the release version to install.'});
-          version=input.version;
+          // `acknowledged: true` confirms the warning of a release that migrates environment databases.
+          if(input.acknowledged!==undefined&&typeof input.acknowledged!=='boolean')return reply(400,{message:'Invalid request'});
+          version=input.version;acknowledged=input.acknowledged===true;
         } else if(request.body)return reply(400,{message:'Invalid request'});
-        const refused=requestUpdate(action.slice(1) as UpdateRequestKind,version,updatesDirectory,checkout);
+        const refused=requestUpdate(action.slice(1) as UpdateRequestKind,version,updatesDirectory,checkout,acknowledged);
         return refused?reply(409,{message:refused}):reply(202,{state:'requested'});
       } catch(error) {
         if(error instanceof InputError)return reply(400,{message:'Invalid request'});

@@ -34,11 +34,12 @@ function release(overrides:Record<string,unknown>={}) {
     notes:{en:'Faster start.',ar:'بدء أسرع.'},changes:[{image:'images.lock.json:rest',from:'postgrest:v1',to:'postgrest:v2'}],
     minimum_from:'0.1.0',migrations:[],...overrides};
 }
-function checked(available:unknown=release(),refusals:string[]=[],commit=COMMIT) {
-  write('available.json',{current:{version:'0.1.0',commit},available,refusals,checked_at:'2026-09-25T10:00:00+00:00'});
+function checked(available:unknown=release(),refusals:string[]=[],commit=COMMIT,extra:Record<string,unknown>={}) {
+  write('available.json',{current:{version:'0.1.0',commit},available,refusals,checked_at:'2026-09-25T10:00:00+00:00',...extra});
 }
+const ZONE={name:'Asia/Dubai',offset:'+04:00'};
 function running(){write('current.json',{version:'0.1.0',commit:COMMIT,written_at:'2026-09-25T10:00:00+00:00',
-  rollback:{started_at:null,possible:false,reason:UPDATE_MESSAGES.no_rollback}});}
+  rollback:{started_at:null,possible:false,reason:UPDATE_MESSAGES.no_rollback},timezone:ZONE});}
 
 test('every updates route answers 403 to anyone who is not an installation operator',async()=>{
   for(const actor of ['vera','mallory']) {
@@ -63,8 +64,55 @@ test('wrong methods and unknown actions are refused before anything is read',asy
 test('with nothing recorded yet the view shows the checkout version and the default settings',async()=>{
   const answer=await call('');
   expect(answer.status).toBe(200);
-  expect(answer.body.data).toEqual({current:{version:'0.1.0',commit:''},available:null,refusals:[],checkedAt:null,checkError:null,
+  const {timezone,...rest}=answer.body.data;
+  expect(rest).toEqual({current:{version:'0.1.0',commit:''},available:null,refusals:[],skipped:[],newest:null,checkedAt:null,checkError:null,
     settings:DEFAULT_SETTINGS,last:null,request:null,canRollback:false});
+  // Until the supervisor publishes its zone, the console's own process zone is shown.
+  expect(timezone.offset).toMatch(/^[+-]\d{2}:\d{2}$/);
+  expect(typeof timezone.name).toBe('string');
+});
+
+test('the view shows the time zone the supervisor reads the window in, and saving settings returns it',async()=>{
+  running();
+  expect((await call('')).body.data.timezone).toEqual(ZONE);
+  const saved=await call('/settings','PUT',DEFAULT_SETTINGS);
+  expect(saved).toEqual({status:200,body:{data:DEFAULT_SETTINGS,timezone:ZONE}});
+  write('current.json',{version:'0.1.0',commit:COMMIT,timezone:{name:'x',offset:'4 hours'}});
+  expect((await call('')).body.data.timezone).not.toEqual({name:'x',offset:'4 hours'});
+});
+
+test('releases the check passed over are information, never a refusal of the one on offer',async()=>{
+  running();
+  checked(release(),[],COMMIT,{skipped:['v0.3.0 was passed over: v0.3.0 is not signed by a key listed in release-signers'],
+    newest:{version:'0.3.0',tag:'v0.3.0',class:'manual',signed:false,reasons:['v0.3.0 is not signed'],extra:1}});
+  const {body}=await call('');
+  expect(body.data.refusals).toEqual([]);
+  expect(body.data.skipped).toEqual(['v0.3.0 was passed over: v0.3.0 is not signed by a key listed in release-signers']);
+  expect(body.data.newest).toEqual({version:'0.3.0',tag:'v0.3.0',class:'manual',signed:false,reasons:['v0.3.0 is not signed']});
+  expect((await call('/apply','POST',{version:'0.2.0'})).status).toBe(202);
+  // With nothing installable, the newest release is still named.
+  rmSync(join(directory,'request.json'));
+  checked(null,[],COMMIT,{newest:{version:'0.3.0',tag:'v0.3.0',class:null,signed:false,reasons:['v0.3.0 has no release.json']}});
+  const none=(await call('')).body.data;
+  expect(none.newest).toEqual({version:'0.3.0',tag:'v0.3.0',class:null,signed:false,reasons:['v0.3.0 has no release.json']});
+  expect(none.available).toBeNull();
+});
+
+test('a release that migrates environment databases installs only with the acknowledgement, which the request carries',async()=>{
+  running();checked(release({class:'attended',reasons:['lab/images.lock.json changes the Auth image']}));
+  expect((await call('')).body.data.available.class).toBe('attended');
+  expect(await call('/apply','POST',{version:'0.2.0'})).toEqual({status:409,body:{message:UPDATE_MESSAGES.acknowledge}});
+  expect(await call('/apply','POST',{version:'0.2.0',acknowledged:false})).toEqual({status:409,body:{message:UPDATE_MESSAGES.acknowledge}});
+  expect((await call('/apply','POST',{version:'0.2.0',acknowledged:'yes'})).status).toBe(400);
+  expect(existsSync(join(directory,'request.json'))).toBe(false);
+  expect((await call('/apply','POST',{version:'0.2.0',acknowledged:true})).status).toBe(202);
+  expect(file('request.json')).toMatchObject({kind:'apply',version:'0.2.0',acknowledged:true,trigger:'console'});
+});
+
+test('a safe release does not record an acknowledgement it never needed',async()=>{
+  running();checked();
+  expect((await call('/apply','POST',{version:'0.2.0',acknowledged:true})).status).toBe(202);
+  expect(file('request.json').acknowledged).toBeUndefined();
 });
 
 test('the view maps the check, the upgrade record and the request into the console shape',async()=>{
@@ -171,7 +219,8 @@ test('a rollback is offered only for a confirmed upgrade the supervisor judged p
 
 test('settings are validated strictly and saved privately',async()=>{
   const saved=await call('/settings','PUT',{check:true,automatic:true,window:{start:'23:00',end:'01:00'}});
-  expect(saved).toEqual({status:200,body:{data:{check:true,automatic:true,window:{start:'23:00',end:'01:00'}}}});
+  expect(saved.status).toBe(200);
+  expect(saved.body.data).toEqual({check:true,automatic:true,window:{start:'23:00',end:'01:00'}});
   expect(file('settings.json')).toEqual({check:true,automatic:true,window:{start:'23:00',end:'01:00'}});
   expect(statSync(join(directory,'settings.json')).mode&0o777).toBe(0o600);
   expect((await call('')).body.data.settings).toEqual({check:true,automatic:true,window:{start:'23:00',end:'01:00'}});
