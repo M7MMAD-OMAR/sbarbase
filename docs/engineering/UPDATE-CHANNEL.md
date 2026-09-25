@@ -14,7 +14,7 @@ Recorded 2026-09-25. Built from the [update channel plan](plans/2026-09-25-updat
 | `lab/dev.py` | Wiring: `upgrade_prepare`, the gated start, `Supervisor.schedule_updates`, `RESTART_FOR_UPGRADE = 42` |
 | `src/control/updates.ts`, `src/control/http.ts` | The console's side: `GET /management/v1/updates`, `PUT .../settings`, `POST .../check`, `.../apply`, `.../rollback`, for the installation operator only |
 | `src/gateway/hold.ts`, `src/http/health.ts`, `lab/upstream-server.ts` | The traffic hold and the loopback `/health` |
-| `ui/Updates.tsx`, `ui/releases.ts` | The notice, the Updates page, the progress view and the settings form |
+| `ui/Updates.tsx`, `ui/releases.ts` | The notice, the Updates page, the progress view and the settings form. Release notes follow `document.documentElement.lang`, which the console sets to `en` only, so the Arabic notes are not shown yet |
 | `deploy/sbarbase.service`, `compose.yaml`, `Dockerfile` | `RestartForceExitStatus=42`; `restart: unless-stopped`; `openssh-client` for `ssh-keygen` |
 | `deploy/release-signers`, `release.json` | Allowed signers (no key yet); the manifest of the running version |
 
@@ -66,7 +66,7 @@ A final request is copied to `last-request.json` and the slot freed. An apply re
 
 `before_start` runs after the supervisor takes its locks and before the settle stage, which may open and migrate the control catalog. For a pending state it writes `.lab/upgrades/hold` and returns true; a snapshot that cannot be taken raises, the start counts as failed and the way back runs before the new version touched anything. Any other bookkeeping failure leaves the start ungated. A marker without a pending state is removed.
 
-While gated, `Supervisor.run` starts only the console. The worker, the daily backup, Studio starts, sign-in applies, the Realtime, Functions, database access and signing toggles and the update scheduling all wait, so nothing leaves an effect the restore would not know about. Each turn polls `upgrade_health.Confirmation`:
+While gated, `Supervisor.run` starts only the console. The worker, the daily backup, Studio starts, sign-in applies, turning Realtime, Edge Functions or direct database access on or off, signing key rotation and the update scheduling all wait, so nothing leaves an effect the restore would not know about. Each turn polls `upgrade_health.Confirmation`:
 
 - The deadline (120 s) starts at the first poll, once the console process exists, so setup before it does not use it up. A round runs every 2 s in a daemon thread; each probe times out after 5 s and goes straight to the upstream service, never through the gateway, with any proxy variable ignored.
 - A round is: the console's `/health` (which reads the catalog schema; `server.json` must name the server this supervisor started), the management Auth `/health`, and for each routed runtime (provisioned, not deleted, not in maintenance, not moved) Auth `/health`, REST `/`, and Storage `/bucket` with a `service_role` token and the tenant host. All must answer 200.
@@ -96,7 +96,7 @@ The hold (`src/gateway/hold.ts`) is the marker **and** a pending phase in `state
 
 ## Settings, checks and the automatic decision
 
-Settings (`check`, `automatic`, `window`) are validated identically in Python and TypeScript; a missing or invalid file means the defaults (check on, automatic off, 03:00 to 05:00 local), so a damaged file can never turn automatic updates on. `automatic` requires `check`.
+Settings (`check`, `automatic`, `window`) are validated identically in Python and TypeScript; a missing or invalid file means the defaults (check on, automatic off, 3:00 AM to 5:00 AM local time), so a damaged file can never turn automatic updates on. `automatic` requires `check`.
 
 `check_due`: never within 5 minutes of the supervisor start; then every 6 hours; after a failure 30 minutes, 1, 2, 4 hours, capped at 6; and as soon as the last result was made on another commit, unless backing off. A check that exits non-zero or finds the source unreachable is a failure, and the previous `available.json` is put back so an offline host keeps the release it knew of.
 
@@ -137,7 +137,7 @@ Pending acceptance, from the plan: the CI upgrade check gains a release that mig
 - Unit tests only, as above. No release signing key is listed in `deploy/release-signers`, so every release is refused as unsigned until a maintainer commits one; installations without that commit reach it through `start --to`.
 - The first move onto the version that introduces the channel changes `Dockerfile`, `compose.yaml` and `deploy/sbarbase.service`: class `rebuild`, and the version before it has no channel, so it takes `start --to` and a rebuild or unit reinstall. A Docker image that was not rebuilt has no `ssh-keygen` and refuses every release with that reason. The new version's first start is still snapshotted and gated, because `before_start` sees an `applied` state without `attempted_at`.
 - A way back that lands on a version older than the channel confirms its start without a health round or hold, and cannot deliver the `update.*` notifications.
-- `lab/install_server.py supervise`, with or without `--apply`, rewrites the tracked `docs/evidence/supervisor-unit.json`. On this version that does not block an upgrade: `plan()` ignores changes under `docs/evidence/` and `set_aside_evidence` copies them to `.lab/upgrades/evidence-<time>/` before the move. An installation whose `lab/upgrade.py` predates that (before 2026-09-25) still refuses; the workaround is to copy `docs/evidence/` aside and run `git checkout -- docs/evidence` as the service account once.
+- `lab/install_server.py supervise`, with or without `--apply`, rewrites the tracked `docs/evidence/supervisor-unit.json`. On this version that does not block an upgrade: `plan()` ignores changes under `docs/evidence/` and `set_aside_evidence` copies them to `.lab/upgrades/evidence-<time>/` before the move. An installation whose `lab/upgrade.py` has no `set_aside_evidence` (it landed on 2026-09-25) still refuses; the workaround is to copy `docs/evidence/` aside and run `git checkout -- docs/evidence` as the service account once.
 - The health round does not cover Realtime, Edge Functions or Studio, and one passing round confirms: a version that passes and then misbehaves is not moved back by itself.
 - Console changes made during the confirmation window (at most about two minutes from the console's start) are dropped by the snapshot restore if the way back runs, including provisioning jobs requested then. Database schema changes a newer Auth or Storage made at start are not undone.
 - The automatic attempt is spent even when `upgrade.py` then refuses (a local change, for example); that version is never retried automatically.

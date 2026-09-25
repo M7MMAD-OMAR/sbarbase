@@ -90,7 +90,7 @@ If `.lab/upstream/backup-offsite.json` exists, each daily backup run is encrypte
 
 ## Update channel
 
-The console's update settings, requests and the upgrade record live in `.lab/upgrades/`, private to the service account (directory 0700, files 0600, each replaced atomically). The console writes only `settings.json` and `request.json`; the supervisor writes the rest ([upgrades](../guides/upgrades.md)).
+The console's update settings, requests and the upgrade record live in `.lab/upgrades/`, private to the service account: the directory is 0700, and the JSON files are 0600 and each replaced atomically. The console writes only `settings.json` and `request.json`; the supervisor writes the rest ([upgrades](../guides/upgrades.md)).
 
 | Path | Holds |
 |---|---|

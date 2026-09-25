@@ -152,7 +152,7 @@ Built on 2026-09-25: signed release tags checked against `deploy/release-signers
 | The three CI cases (a release that migrates the catalog and then fails, one that fails its health checks, an unsigned tag) | none yet | **not run** |
 | VM rehearsal of a real bump and back through the channel | none yet | **not run** |
 
-Unit tests only. No release signing key is listed in `deploy/release-signers` yet, so every release is refused as unsigned until one is. The CI and VM upgrade runs in the tables above used `lab/upgrade.py start --to`, not the channel, the console or automatic updates.
+Unit tests only. No release signing key is listed in `deploy/release-signers` yet, so every release is refused as unsigned until one is. The CI upgrade run in the Docker table above and the VM run ([vm-upgrade-checks.json](../evidence/vm-upgrade-checks.json)) used `lab/upgrade.py start --to`, not the channel, the console or automatic updates.
 
 ## Resources
 
