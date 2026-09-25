@@ -67,25 +67,31 @@ test('held application requests get 503 with Retry-After and CORS; management re
  expect((await handler(new Request('http://127.0.0.1/e_0123456789abcdef01234567/rest/v1/items'))).status).toBe(200);
 });
 
-test('while held, management changes answer 409 so none is lost on the way back; reads, sign-in and roll back pass',async()=>{
+test('while held, management changes answer 409 so none is lost on the way back; reads, sign-in and the update routes pass',async()=>{
  let held=true;const seen:string[]=[];
  const handler=holdApplication(async request=>{seen.push(request.method+' '+new URL(request.url).pathname);return new Response('ok');},()=>held);
  const call=(method:string,path:string)=>handler(new Request('http://127.0.0.1'+path,{method}));
  for(const [method,path] of [['POST','/management/v1/organizations'],['PATCH','/management/v1/projects/0b5c1c3e-5f40-4d2e-9d6e-6a4e1f1d2c3b'],
-  ['DELETE','/management/v1/environments/0b5c1c3e-5f40-4d2e-9d6e-6a4e1f1d2c3b'],['PUT','/management/v1/updates/settings'],
-  ['POST','/management/v1/updates/apply'],['POST','/management/v1/updates/check'],['POST','/management/invitations/redeem']] as const) {
+  ['DELETE','/management/v1/environments/0b5c1c3e-5f40-4d2e-9d6e-6a4e1f1d2c3b'],
+  ['POST','/management/v1/updates/apply'],['POST','/management/invitations/redeem']] as const) {
   const answer=await call(method,path);
   expect(answer.status).toBe(409);
   expect(answer.headers.get('cache-control')).toBe('no-store');
+  expect(answer.headers.get('x-content-type-options')).toBe('nosniff');
   expect((await answer.json() as {message:string}).message).toBe(PAUSED_CHANGES);
  }
  expect(seen).toEqual([]);
+ // Roll back, check now and the update settings write only .lab/upgrades, which the snapshot
+ // does not restore, so nothing they change is lost on the way back.
  for(const [method,path] of [['GET','/management/v1/organizations'],['GET','/management/v1/updates'],['HEAD','/management/v1/updates'],
   ['OPTIONS','/management/v1/organizations'],['POST','/management/auth/v1/token'],['POST','/management/auth/v1/logout'],
-  ['POST','/management/v1/updates/rollback']] as const)expect((await call(method,path)).status).toBe(200);
- expect(seen).toHaveLength(7);
+  ['POST','/management/v1/updates/rollback'],['POST','/management/v1/updates/check'],['PUT','/management/v1/updates/settings']] as const)
+  expect((await call(method,path)).status).toBe(200);
+ expect(seen).toHaveLength(9);
  expect(passesHold('GET','/management/v1/updates/rollback')).toBe(true);
  expect(passesHold('PUT','/management/v1/updates/rollback')).toBe(false);
+ expect(passesHold('POST','/management/v1/updates/settings')).toBe(false);
+ expect(passesHold('PUT','/management/v1/updates/check')).toBe(false);
  held=false;
  expect((await call('POST','/management/v1/organizations')).status).toBe(200);
  expect(PAUSED_CHANGES).toContain('confirmed');
