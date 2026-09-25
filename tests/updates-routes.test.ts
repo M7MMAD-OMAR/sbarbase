@@ -1,10 +1,10 @@
 import {test,expect,beforeEach,afterEach} from 'bun:test';
-import {mkdtempSync,readFileSync,rmSync,statSync,writeFileSync,existsSync,readdirSync} from 'node:fs';
+import {mkdtempSync,readFileSync,renameSync,rmSync,statSync,writeFileSync,existsSync,readdirSync} from 'node:fs';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {Catalog} from '../src/control/catalog';
 import {managementHandler} from '../src/control/http';
-import {UPDATE_MESSAGES,DEFAULT_SETTINGS} from '../src/control/updates';
+import {CONSOLE_MESSAGES,UPDATE_MESSAGES,DEFAULT_SETTINGS} from '../src/control/updates';
 
 const COMMIT='a'.repeat(40),NEXT='b'.repeat(40);
 let directory:string,checkout:string,catalog:Catalog,handler:ReturnType<typeof managementHandler>;
@@ -21,7 +21,13 @@ beforeEach(()=>{
 });
 afterEach(()=>{catalog.close();rmSync(directory,{recursive:true,force:true});rmSync(checkout,{recursive:true,force:true});});
 
-function write(name:string,value:unknown){writeFileSync(join(directory,name),JSON.stringify(value));}
+// Replaced as the supervisor replaces them (a new file renamed into place), so the console's
+// cached reader sees every write even within one timestamp tick.
+let writes=0;
+function write(name:string,value:unknown){
+  const temporary=join(directory,`.test.${writes++}.tmp`);
+  writeFileSync(temporary,JSON.stringify(value));renameSync(temporary,join(directory,name));
+}
 function file(name:string){return JSON.parse(readFileSync(join(directory,name),'utf8'));}
 async function call(path:string,method='GET',body?:unknown,actor='olga') {
   const response=await handler(new Request('http://local/management/v1/updates'+path,{method,
@@ -38,8 +44,12 @@ function checked(available:unknown=release(),refusals:string[]=[],commit=COMMIT,
   write('available.json',{current:{version:'0.1.0',commit},available,refusals,checked_at:'2026-09-25T10:00:00+00:00',...extra});
 }
 const ZONE={name:'Asia/Dubai',offset:'+04:00'};
-function running(){write('current.json',{version:'0.1.0',commit:COMMIT,written_at:'2026-09-25T10:00:00+00:00',
-  rollback:{started_at:null,possible:false,reason:UPDATE_MESSAGES.no_rollback},timezone:ZONE});}
+/** The supervisor's verdict about installing a release now (current.json `apply`). */
+function verdict(overrides:Record<string,unknown>={}) {
+  return {version:'0.2.0',tag:'v0.2.0',class:'safe',possible:true,reason:null,acknowledgement:false,...overrides};
+}
+function running(apply:unknown=verdict()){write('current.json',{version:'0.1.0',commit:COMMIT,written_at:'2026-09-25T10:00:00+00:00',
+  rollback:{started_at:null,possible:false,reason:UPDATE_MESSAGES.no_rollback},timezone:ZONE,apply,pending:false});}
 
 test('every updates route answers 403 to anyone who is not an installation operator',async()=>{
   for(const actor of ['vera','mallory']) {
@@ -66,7 +76,7 @@ test('with nothing recorded yet the view shows the checkout version and the defa
   expect(answer.status).toBe(200);
   const {timezone,...rest}=answer.body.data;
   expect(rest).toEqual({current:{version:'0.1.0',commit:''},available:null,refusals:[],skipped:[],newest:null,checkedAt:null,checkError:null,
-    settings:DEFAULT_SETTINGS,last:null,request:null,canRollback:false});
+    settings:DEFAULT_SETTINGS,last:null,request:null,install:null,canRollback:false});
   // Until the supervisor publishes its zone, the console's own process zone is shown.
   expect(timezone.offset).toMatch(/^[+-]\d{2}:\d{2}$/);
   expect(typeof timezone.name).toBe('string');
@@ -99,8 +109,10 @@ test('releases the check passed over are information, never a refusal of the one
 });
 
 test('a release that migrates environment databases installs only with the acknowledgement, which the request carries',async()=>{
-  running();checked(release({class:'attended',reasons:['lab/images.lock.json changes the Auth image']}));
-  expect((await call('')).body.data.available.class).toBe('attended');
+  running(verdict({class:'attended',acknowledgement:true}));checked(release({class:'attended',reasons:['lab/images.lock.json changes the Auth image']}));
+  const shown=(await call('')).body.data;
+  expect(shown.available.class).toBe('attended');
+  expect(shown.install).toEqual({possible:true,reason:null,acknowledgement:true});
   expect(await call('/apply','POST',{version:'0.2.0'})).toEqual({status:409,body:{message:UPDATE_MESSAGES.acknowledge}});
   expect(await call('/apply','POST',{version:'0.2.0',acknowledged:false})).toEqual({status:409,body:{message:UPDATE_MESSAGES.acknowledge}});
   expect((await call('/apply','POST',{version:'0.2.0',acknowledged:'yes'})).status).toBe(400);
@@ -116,7 +128,7 @@ test('a safe release does not record an acknowledgement it never needed',async()
 });
 
 test('the view maps the check, the upgrade record and the request into the console shape',async()=>{
-  running();
+  running(verdict({possible:false,reason:UPDATE_MESSAGES.refused}));
   checked(release(),['A backup or restore is running; wait for it to finish']);
   write('check.json',{attempted_at:'2026-09-25T10:00:00+00:00',error:null,failures:0});
   write('state.json',{phase:'confirmed',from:'c'.repeat(40),to:COMMIT,started_at:'2026-09-24T10:00:00+00:00',finished_at:'2026-09-24T10:05:00+00:00',
@@ -131,18 +143,43 @@ test('the view maps the check, the upgrade record and the request into the conso
   expect(body.data.last).toEqual({phase:'confirmed',from:'c'.repeat(40),to:COMMIT,version:'0.1.0',startedAt:'2026-09-24T10:00:00+00:00',
     finishedAt:'2026-09-24T10:05:00+00:00',automatic:false,trigger:'console'});
   expect(body.data.request).toEqual({kind:'check',state:'done',requestedAt:'2026-09-25T09:59:00+00:00'});
+  // Whether it can be installed is the supervisor's verdict, word for word.
+  expect(body.data.install).toEqual({possible:false,reason:UPDATE_MESSAGES.refused,acknowledgement:false});
   // The supervisor's verdict was for another upgrade record, so no rollback is offered.
   expect(body.data.canRollback).toBe(false);
 });
 
-test('a check made on another version is not shown: it still names the release just installed',async()=>{
-  running();
-  checked(release(),[], 'd'.repeat(40));
+test('a failed check is reported beside the result the supervisor kept',async()=>{
+  running();checked();
   write('check.json',{attempted_at:'2026-09-25T10:00:00+00:00',error:'The release source could not be read: offline',failures:2});
   const {body}=await call('');
-  expect(body.data.available).toBeNull();
-  expect(body.data.refusals).toEqual([]);
+  expect(body.data.available.version).toBe('0.2.0');
   expect(body.data.checkError).toBe('The release source could not be read: offline');
+});
+
+test('install follows the supervisor verdict about the very release on offer',async()=>{
+  checked();
+  // No current.json yet: the supervisor has not finished starting.
+  expect((await call('')).body.data.install).toEqual({possible:false,reason:CONSOLE_MESSAGES.starting,acknowledgement:false});
+  write('current.json',{version:'0.1.0',commit:COMMIT});
+  expect((await call('')).body.data.install.reason).toBe(CONSOLE_MESSAGES.starting);
+  // A verdict about another release, or none, is not a verdict about this one.
+  running(verdict({version:'0.1.5',tag:'v0.1.5'}));
+  expect((await call('')).body.data.install).toEqual({possible:false,reason:CONSOLE_MESSAGES.unjudged,acknowledgement:false});
+  running(null);
+  expect((await call('')).body.data.install.reason).toBe(CONSOLE_MESSAGES.unjudged);
+  running(verdict({possible:false,reason:UPDATE_MESSAGES.pending}));
+  expect((await call('')).body.data.install).toEqual({possible:false,reason:UPDATE_MESSAGES.pending,acknowledgement:false});
+  running();
+  expect((await call('')).body.data.install).toEqual({possible:true,reason:null,acknowledgement:false});
+  // An apply or rollback under way holds the slot; a check does not stop the button.
+  write('request.json',{id:'r',kind:'rollback',trigger:'console',state:'running',requested_at:'2026-09-25T09:59:00+00:00'});
+  expect((await call('')).body.data.install).toEqual({possible:false,reason:UPDATE_MESSAGES.busy,acknowledgement:false});
+  write('request.json',{id:'r',kind:'check',trigger:'console',state:'running',requested_at:'2026-09-25T09:59:00+00:00'});
+  expect((await call('')).body.data.install.possible).toBe(true);
+  rmSync(join(directory,'request.json'));
+  checked(null);
+  expect((await call('')).body.data.install).toBeNull();
 });
 
 test('an apply is recorded once, privately, and a second one waits for the first',async()=>{
@@ -162,24 +199,32 @@ test('an apply is recorded once, privately, and a second one waits for the first
   expect((await call('')).body.data.request).toEqual({kind:'apply',version:'0.2.0',state:'requested',requestedAt:request.requested_at});
 });
 
-test('an apply is refused with a sentence unless the checked release is safe, signed and clear',async()=>{
+test('an apply is refused with the supervisor\'s own sentence unless its verdict allows that version',async()=>{
+  checked();
+  const refused=async(version='0.2.0')=>{const answer=await call('/apply','POST',{version});expect(answer.status).toBe(409);return answer.body.message;};
+  expect(await refused()).toBe(CONSOLE_MESSAGES.starting);
+  write('current.json',{version:'0.1.0',commit:COMMIT});
+  expect(await refused()).toBe(CONSOLE_MESSAGES.starting);
+  running(null);
+  expect(await refused()).toBe(UPDATE_MESSAGES.nothing);
   running();
-  expect((await call('/apply','POST',{version:'0.2.0'})).body.message).toBe(UPDATE_MESSAGES.nothing);
-  checked(release(),[],'d'.repeat(40));
-  expect((await call('/apply','POST',{version:'0.2.0'})).body.message).toBe(UPDATE_MESSAGES.stale);
-  checked();
-  expect((await call('/apply','POST',{version:'0.3.0'})).body.message).toBe(UPDATE_MESSAGES.other);
-  checked(release({class:'rebuild'}));
-  expect((await call('/apply','POST',{version:'0.2.0'})).body.message).toBe(UPDATE_MESSAGES.class);
-  checked(release({signed:false}));
-  expect((await call('/apply','POST',{version:'0.2.0'})).body.message).toBe(UPDATE_MESSAGES.unsigned);
-  checked(release(),['A backup or restore is running; wait for it to finish']);
-  expect((await call('/apply','POST',{version:'0.2.0'})).body.message).toBe(UPDATE_MESSAGES.refused);
-  checked();
-  write('state.json',{phase:'applied',from:'c'.repeat(40),to:COMMIT,started_at:'2026-09-24T10:00:00+00:00'});
-  const pending=await call('/apply','POST',{version:'0.2.0'});
-  expect(pending).toEqual({status:409,body:{message:UPDATE_MESSAGES.pending}});
+  expect(await refused('0.3.0')).toBe(UPDATE_MESSAGES.other);
+  for(const reason of [UPDATE_MESSAGES.class,UPDATE_MESSAGES.unsigned,UPDATE_MESSAGES.pending,'A backup or restore is running; wait for it to finish.']) {
+    running(verdict({possible:false,reason}));
+    expect(await refused()).toBe(reason);
+  }
+  running(verdict({possible:false,reason:null}));
+  expect(await refused()).toBe(UPDATE_MESSAGES.refused);
   expect(existsSync(join(directory,'request.json'))).toBe(false);
+  // The tag is the one the verdict names, whatever the check file says.
+  running(verdict({tag:'v0.2.0-verified'}));checked(release({tag:'v0.2.0-other'}));
+  expect((await call('/apply','POST',{version:'0.2.0'})).status).toBe(202);
+  expect(file('request.json').tag).toBe('v0.2.0-verified');
+});
+
+test('each sentence shared with the supervisor is word for word in lab/updates.py',()=>{
+  const source=readFileSync(new URL('../lab/updates.py',import.meta.url),'utf8');
+  for(const [name,sentence] of Object.entries(UPDATE_MESSAGES))expect([name,source.includes(`'${sentence}'`)]).toEqual([name,true]);
 });
 
 test('an apply needs exactly a version, and check and rollback take no body',async()=>{
