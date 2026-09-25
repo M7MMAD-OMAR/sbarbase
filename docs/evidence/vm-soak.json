@@ -1,0 +1,789 @@
+{
+  "check": "soak",
+  "recorded": "2026-09-25T15:27:55Z",
+  "passed": true,
+  "minutes": 55,
+  "interval_seconds": 300,
+  "growth": {
+    "containers_used_mib": -8,
+    "disk_used_mib": 1,
+    "state_mib": 0,
+    "container_logs_mib": 0
+  },
+  "checks": [
+    {
+      "check": "no Sbarbase container restarted during the soak",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "the console and every environment answered at every sample",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "available host memory never fell under 512 MiB",
+      "ok": true,
+      "detail": "lowest 5452 MiB"
+    }
+  ],
+  "samples": [
+    {
+      "at": "2026-09-25T14:32:29Z",
+      "host": {
+        "available_mib": 5452,
+        "swap_used_mib": 0
+      },
+      "load": [
+        "0.17",
+        "0.27",
+        "0.16"
+      ],
+      "disk_free_mib": 55403,
+      "state_mib": 0,
+      "backups_mib": 1,
+      "container_logs_mib": null,
+      "volumes": {
+        "sbarbase-durable-objects": "0B",
+        "sbarbase-durable-pgdata": "96.87MB"
+      },
+      "containers_used_mib": 253,
+      "containers": {
+        "sbarbase-durable-e_e8ea310d9f152a997af075aa-rest": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 7
+        },
+        "sbarbase-durable-e_bec8fdf2a35abce07fb468a7-rest": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 7
+        },
+        "sbarbase-durable-e_e8ea310d9f152a997af075aa-auth": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 9
+        },
+        "sbarbase-durable-e_bec8fdf2a35abce07fb468a7-auth": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 9
+        },
+        "sbarbase-durable-storage": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 122
+        },
+        "sbarbase-durable-management-auth": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 11
+        },
+        "sbarbase-durable-db": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 88
+        }
+      },
+      "health": {
+        "console": true,
+        "e_bec8fdf2a35abce07fb468a7": true,
+        "e_e8ea310d9f152a997af075aa": true
+      }
+    },
+    {
+      "at": "2026-09-25T14:37:32Z",
+      "host": {
+        "available_mib": 5479,
+        "swap_used_mib": 0
+      },
+      "load": [
+        "0.19",
+        "0.19",
+        "0.15"
+      ],
+      "disk_free_mib": 55403,
+      "state_mib": 0,
+      "backups_mib": 1,
+      "container_logs_mib": null,
+      "volumes": {
+        "sbarbase-durable-objects": "0B",
+        "sbarbase-durable-pgdata": "96.87MB"
+      },
+      "containers_used_mib": 230,
+      "containers": {
+        "sbarbase-durable-e_e8ea310d9f152a997af075aa-rest": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 8
+        },
+        "sbarbase-durable-e_bec8fdf2a35abce07fb468a7-rest": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 8
+        },
+        "sbarbase-durable-e_e8ea310d9f152a997af075aa-auth": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 8
+        },
+        "sbarbase-durable-e_bec8fdf2a35abce07fb468a7-auth": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 8
+        },
+        "sbarbase-durable-storage": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 104
+        },
+        "sbarbase-durable-management-auth": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 9
+        },
+        "sbarbase-durable-db": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 85
+        }
+      },
+      "health": {
+        "console": true,
+        "e_bec8fdf2a35abce07fb468a7": true,
+        "e_e8ea310d9f152a997af075aa": true
+      }
+    },
+    {
+      "at": "2026-09-25T14:42:34Z",
+      "host": {
+        "available_mib": 5483,
+        "swap_used_mib": 0
+      },
+      "load": [
+        "0.07",
+        "0.13",
+        "0.13"
+      ],
+      "disk_free_mib": 55403,
+      "state_mib": 0,
+      "backups_mib": 1,
+      "container_logs_mib": null,
+      "volumes": {
+        "sbarbase-durable-objects": "0B",
+        "sbarbase-durable-pgdata": "96.87MB"
+      },
+      "containers_used_mib": 228,
+      "containers": {
+        "sbarbase-durable-e_e8ea310d9f152a997af075aa-rest": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 9
+        },
+        "sbarbase-durable-e_bec8fdf2a35abce07fb468a7-rest": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 9
+        },
+        "sbarbase-durable-e_e8ea310d9f152a997af075aa-auth": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 8
+        },
+        "sbarbase-durable-e_bec8fdf2a35abce07fb468a7-auth": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 8
+        },
+        "sbarbase-durable-storage": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 104
+        },
+        "sbarbase-durable-management-auth": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 9
+        },
+        "sbarbase-durable-db": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 81
+        }
+      },
+      "health": {
+        "console": true,
+        "e_bec8fdf2a35abce07fb468a7": true,
+        "e_e8ea310d9f152a997af075aa": true
+      }
+    },
+    {
+      "at": "2026-09-25T14:47:36Z",
+      "host": {
+        "available_mib": 5480,
+        "swap_used_mib": 0
+      },
+      "load": [
+        "0.15",
+        "0.17",
+        "0.15"
+      ],
+      "disk_free_mib": 55403,
+      "state_mib": 0,
+      "backups_mib": 1,
+      "container_logs_mib": null,
+      "volumes": {
+        "sbarbase-durable-objects": "0B",
+        "sbarbase-durable-pgdata": "96.87MB"
+      },
+      "containers_used_mib": 232,
+      "containers": {
+        "sbarbase-durable-e_e8ea310d9f152a997af075aa-rest": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 11
+        },
+        "sbarbase-durable-e_bec8fdf2a35abce07fb468a7-rest": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 10
+        },
+        "sbarbase-durable-e_e8ea310d9f152a997af075aa-auth": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 8
+        },
+        "sbarbase-durable-e_bec8fdf2a35abce07fb468a7-auth": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 8
+        },
+        "sbarbase-durable-storage": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 105
+        },
+        "sbarbase-durable-management-auth": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 9
+        },
+        "sbarbase-durable-db": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 81
+        }
+      },
+      "health": {
+        "console": true,
+        "e_bec8fdf2a35abce07fb468a7": true,
+        "e_e8ea310d9f152a997af075aa": true
+      }
+    },
+    {
+      "at": "2026-09-25T14:52:38Z",
+      "host": {
+        "available_mib": 5476,
+        "swap_used_mib": 0
+      },
+      "load": [
+        "0.12",
+        "0.13",
+        "0.13"
+      ],
+      "disk_free_mib": 55402,
+      "state_mib": 0,
+      "backups_mib": 1,
+      "container_logs_mib": null,
+      "volumes": {
+        "sbarbase-durable-objects": "0B",
+        "sbarbase-durable-pgdata": "96.87MB"
+      },
+      "containers_used_mib": 234,
+      "containers": {
+        "sbarbase-durable-e_e8ea310d9f152a997af075aa-rest": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 12
+        },
+        "sbarbase-durable-e_bec8fdf2a35abce07fb468a7-rest": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 12
+        },
+        "sbarbase-durable-e_e8ea310d9f152a997af075aa-auth": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 8
+        },
+        "sbarbase-durable-e_bec8fdf2a35abce07fb468a7-auth": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 8
+        },
+        "sbarbase-durable-storage": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 104
+        },
+        "sbarbase-durable-management-auth": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 9
+        },
+        "sbarbase-durable-db": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 81
+        }
+      },
+      "health": {
+        "console": true,
+        "e_bec8fdf2a35abce07fb468a7": true,
+        "e_e8ea310d9f152a997af075aa": true
+      }
+    },
+    {
+      "at": "2026-09-25T14:57:41Z",
+      "host": {
+        "available_mib": 5472,
+        "swap_used_mib": 0
+      },
+      "load": [
+        "0.12",
+        "0.14",
+        "0.13"
+      ],
+      "disk_free_mib": 55402,
+      "state_mib": 0,
+      "backups_mib": 1,
+      "container_logs_mib": null,
+      "volumes": {
+        "sbarbase-durable-objects": "0B",
+        "sbarbase-durable-pgdata": "96.87MB"
+      },
+      "containers_used_mib": 237,
+      "containers": {
+        "sbarbase-durable-e_e8ea310d9f152a997af075aa-rest": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 13
+        },
+        "sbarbase-durable-e_bec8fdf2a35abce07fb468a7-rest": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 13
+        },
+        "sbarbase-durable-e_e8ea310d9f152a997af075aa-auth": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 8
+        },
+        "sbarbase-durable-e_bec8fdf2a35abce07fb468a7-auth": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 8
+        },
+        "sbarbase-durable-storage": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 105
+        },
+        "sbarbase-durable-management-auth": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 9
+        },
+        "sbarbase-durable-db": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 81
+        }
+      },
+      "health": {
+        "console": true,
+        "e_bec8fdf2a35abce07fb468a7": true,
+        "e_e8ea310d9f152a997af075aa": true
+      }
+    },
+    {
+      "at": "2026-09-25T15:02:43Z",
+      "host": {
+        "available_mib": 5478,
+        "swap_used_mib": 0
+      },
+      "load": [
+        "0.12",
+        "0.15",
+        "0.14"
+      ],
+      "disk_free_mib": 55402,
+      "state_mib": 0,
+      "backups_mib": 1,
+      "container_logs_mib": null,
+      "volumes": {
+        "sbarbase-durable-objects": "0B",
+        "sbarbase-durable-pgdata": "96.87MB"
+      },
+      "containers_used_mib": 239,
+      "containers": {
+        "sbarbase-durable-e_e8ea310d9f152a997af075aa-rest": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 14
+        },
+        "sbarbase-durable-e_bec8fdf2a35abce07fb468a7-rest": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 14
+        },
+        "sbarbase-durable-e_e8ea310d9f152a997af075aa-auth": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 8
+        },
+        "sbarbase-durable-e_bec8fdf2a35abce07fb468a7-auth": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 8
+        },
+        "sbarbase-durable-storage": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 105
+        },
+        "sbarbase-durable-management-auth": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 9
+        },
+        "sbarbase-durable-db": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 81
+        }
+      },
+      "health": {
+        "console": true,
+        "e_bec8fdf2a35abce07fb468a7": true,
+        "e_e8ea310d9f152a997af075aa": true
+      }
+    },
+    {
+      "at": "2026-09-25T15:07:45Z",
+      "host": {
+        "available_mib": 5473,
+        "swap_used_mib": 0
+      },
+      "load": [
+        "0.04",
+        "0.09",
+        "0.11"
+      ],
+      "disk_free_mib": 55402,
+      "state_mib": 0,
+      "backups_mib": 1,
+      "container_logs_mib": null,
+      "volumes": {
+        "sbarbase-durable-objects": "0B",
+        "sbarbase-durable-pgdata": "96.87MB"
+      },
+      "containers_used_mib": 241,
+      "containers": {
+        "sbarbase-durable-e_e8ea310d9f152a997af075aa-rest": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 15
+        },
+        "sbarbase-durable-e_bec8fdf2a35abce07fb468a7-rest": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 15
+        },
+        "sbarbase-durable-e_e8ea310d9f152a997af075aa-auth": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 8
+        },
+        "sbarbase-durable-e_bec8fdf2a35abce07fb468a7-auth": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 8
+        },
+        "sbarbase-durable-storage": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 105
+        },
+        "sbarbase-durable-management-auth": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 9
+        },
+        "sbarbase-durable-db": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 81
+        }
+      },
+      "health": {
+        "console": true,
+        "e_bec8fdf2a35abce07fb468a7": true,
+        "e_e8ea310d9f152a997af075aa": true
+      }
+    },
+    {
+      "at": "2026-09-25T15:12:47Z",
+      "host": {
+        "available_mib": 5471,
+        "swap_used_mib": 0
+      },
+      "load": [
+        "0.14",
+        "0.10",
+        "0.10"
+      ],
+      "disk_free_mib": 55402,
+      "state_mib": 0,
+      "backups_mib": 1,
+      "container_logs_mib": null,
+      "volumes": {
+        "sbarbase-durable-objects": "0B",
+        "sbarbase-durable-pgdata": "96.87MB"
+      },
+      "containers_used_mib": 243,
+      "containers": {
+        "sbarbase-durable-e_e8ea310d9f152a997af075aa-rest": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 16
+        },
+        "sbarbase-durable-e_bec8fdf2a35abce07fb468a7-rest": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 16
+        },
+        "sbarbase-durable-e_e8ea310d9f152a997af075aa-auth": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 8
+        },
+        "sbarbase-durable-e_bec8fdf2a35abce07fb468a7-auth": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 8
+        },
+        "sbarbase-durable-storage": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 105
+        },
+        "sbarbase-durable-management-auth": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 9
+        },
+        "sbarbase-durable-db": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 81
+        }
+      },
+      "health": {
+        "console": true,
+        "e_bec8fdf2a35abce07fb468a7": true,
+        "e_e8ea310d9f152a997af075aa": true
+      }
+    },
+    {
+      "at": "2026-09-25T15:17:50Z",
+      "host": {
+        "available_mib": 5469,
+        "swap_used_mib": 0
+      },
+      "load": [
+        "0.07",
+        "0.14",
+        "0.11"
+      ],
+      "disk_free_mib": 55402,
+      "state_mib": 0,
+      "backups_mib": 1,
+      "container_logs_mib": null,
+      "volumes": {
+        "sbarbase-durable-objects": "0B",
+        "sbarbase-durable-pgdata": "96.87MB"
+      },
+      "containers_used_mib": 245,
+      "containers": {
+        "sbarbase-durable-e_e8ea310d9f152a997af075aa-rest": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 17
+        },
+        "sbarbase-durable-e_bec8fdf2a35abce07fb468a7-rest": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 17
+        },
+        "sbarbase-durable-e_e8ea310d9f152a997af075aa-auth": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 8
+        },
+        "sbarbase-durable-e_bec8fdf2a35abce07fb468a7-auth": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 8
+        },
+        "sbarbase-durable-storage": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 105
+        },
+        "sbarbase-durable-management-auth": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 9
+        },
+        "sbarbase-durable-db": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 81
+        }
+      },
+      "health": {
+        "console": true,
+        "e_bec8fdf2a35abce07fb468a7": true,
+        "e_e8ea310d9f152a997af075aa": true
+      }
+    },
+    {
+      "at": "2026-09-25T15:22:52Z",
+      "host": {
+        "available_mib": 5468,
+        "swap_used_mib": 0
+      },
+      "load": [
+        "0.17",
+        "0.20",
+        "0.14"
+      ],
+      "disk_free_mib": 55402,
+      "state_mib": 0,
+      "backups_mib": 1,
+      "container_logs_mib": null,
+      "volumes": {
+        "sbarbase-durable-pgdata": "96.87MB",
+        "sbarbase-durable-objects": "0B"
+      },
+      "containers_used_mib": 245,
+      "containers": {
+        "sbarbase-durable-e_e8ea310d9f152a997af075aa-rest": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 17
+        },
+        "sbarbase-durable-e_bec8fdf2a35abce07fb468a7-rest": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 17
+        },
+        "sbarbase-durable-e_e8ea310d9f152a997af075aa-auth": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 8
+        },
+        "sbarbase-durable-e_bec8fdf2a35abce07fb468a7-auth": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 8
+        },
+        "sbarbase-durable-storage": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 105
+        },
+        "sbarbase-durable-management-auth": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 9
+        },
+        "sbarbase-durable-db": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 81
+        }
+      },
+      "health": {
+        "console": true,
+        "e_bec8fdf2a35abce07fb468a7": true,
+        "e_e8ea310d9f152a997af075aa": true
+      }
+    },
+    {
+      "at": "2026-09-25T15:27:55Z",
+      "host": {
+        "available_mib": 5458,
+        "swap_used_mib": 0
+      },
+      "load": [
+        "0.28",
+        "0.19",
+        "0.14"
+      ],
+      "disk_free_mib": 55402,
+      "state_mib": 0,
+      "backups_mib": 1,
+      "container_logs_mib": null,
+      "volumes": {
+        "sbarbase-durable-objects": "0B",
+        "sbarbase-durable-pgdata": "96.87MB"
+      },
+      "containers_used_mib": 245,
+      "containers": {
+        "sbarbase-durable-e_e8ea310d9f152a997af075aa-rest": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 17
+        },
+        "sbarbase-durable-e_bec8fdf2a35abce07fb468a7-rest": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 17
+        },
+        "sbarbase-durable-e_e8ea310d9f152a997af075aa-auth": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 8
+        },
+        "sbarbase-durable-e_bec8fdf2a35abce07fb468a7-auth": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 8
+        },
+        "sbarbase-durable-storage": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 105
+        },
+        "sbarbase-durable-management-auth": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 9
+        },
+        "sbarbase-durable-db": {
+          "running": true,
+          "restarts": 0,
+          "used_mib": 81
+        }
+      },
+      "health": {
+        "console": true,
+        "e_bec8fdf2a35abce07fb468a7": true,
+        "e_e8ea310d9f152a997af075aa": true
+      }
+    }
+  ],
+  "scope": "Rehearsal VM (Fedora 44, 4 vCPU, 6656 MiB) with two environments, sampled every 5 minutes for 60 minutes with no application traffic during the soak itself. It shows the idle installation is stable over an hour (no restarts, flat memory, disk and logs); it is not the seven-day soak with real environments that the roadmap asks of a server."
+}
