@@ -341,10 +341,38 @@ def catalog_version():
         raise UpgradeError(f'The control catalog cannot be read ({error})') from None
 
 
+def key_store_version():
+    """The key store's schema version now, or None without a key store."""
+    if not KEY_STORE.is_file():
+        return None
+    try:
+        with contextlib.closing(sqlite3.connect(f'file:{KEY_STORE}?mode=ro', uri=True, timeout=30)) as database:
+            return database.execute('PRAGMA user_version').fetchone()[0]
+    except sqlite3.Error as error:
+        raise UpgradeError(f'The key store cannot be read ({error})') from None
+
+
+def schema_support(commit, path, constant):
+    """The newest schema of one store a version opens, or None when that version cannot be read.
+
+    A version that declares no such constant (every release before the catalog got its schema
+    ladder, and every release so far for the key store) never wrote PRAGMA user_version, so the
+    only schema it is known to open is the baseline, 0. That is not the same as "unknown": a
+    commit git cannot read at all is unknown, and the caller refuses."""
+    if subprocess.run(['git', 'cat-file', '-e', f'{commit}^{{commit}}'], cwd=ROOT, capture_output=True).returncode:
+        return None
+    found = re.search(constant + r'\s*=\s*(\d+)', git('show', f'{commit}:{path}', check=False))
+    return int(found.group(1)) if found else 0
+
+
 def catalog_support(commit):
-    """The newest catalog schema a version opens, or None when that version does not check it."""
-    found = re.search(r'CATALOG_SCHEMA_VERSION\s*=\s*(\d+)', git('show', f'{commit}:src/control/catalog.ts', check=False))
-    return int(found.group(1)) if found else None
+    """The newest catalog schema a version opens (lab/upgrade.py schema_support)."""
+    return schema_support(commit, 'src/control/catalog.ts', 'CATALOG_SCHEMA_VERSION')
+
+
+def key_store_support(commit):
+    """The newest key store schema a version opens; 0 until a release declares one in keys.ts."""
+    return schema_support(commit, 'src/control/keys.ts', 'KEY_STORE_SCHEMA_VERSION')
 
 
 def plan(target_ref):
@@ -506,11 +534,11 @@ def apply(target_ref, trigger='cli'):
     print('If the new version does not start, Sbarbase moves back by itself.')
 
 
-def rollback(automatic=False):
+def rollback(automatic=False, reason=None):
     # The automatic way back runs inside the supervisor, which already holds its own lock; it
     # waits a little for the upgrade lock rather than failing on a moment's overlap.
     with exclusive(LOCK, 'Another upgrade or rollback is running', wait=30 if automatic else 0):
-        go_back(automatic)
+        go_back(automatic, reason)
 
 
 def rollback_refusal(state=None):
@@ -520,18 +548,31 @@ def rollback_refusal(state=None):
     if not state or state.get('phase') not in ('applied', 'confirmed'):
         return 'There is no upgrade to roll back'
     if state['phase'] == 'confirmed':
-        # After confirmation the fix is forward only: later writes stay, so the catalog must be
-        # one the previous version can still open.
+        # After confirmation the fix is forward only: later writes stay, so every store must be
+        # one the previous version can still open. Unknown support refuses; it never allows.
         source = state['from']
-        supported, current = catalog_support(source), catalog_version()
-        if supported is not None and current is not None and current > supported:
-            return (f'The control catalog is at schema {current}, and {source[:12]} opens only up to {supported}. '
-                    'After a confirmed upgrade the fix is forward only: move to a newer version, or restore from '
-                    'the backups taken before the upgrade (lab/backup.py list). Nothing was changed')
+        for label, current, supported in (('control catalog', catalog_version(), catalog_support(source)),
+                                          ('key store', key_store_version(), key_store_support(source))):
+            if current is None:
+                continue
+            if supported is None:
+                return (f'Version {source[:12]} cannot be read from this checkout, so whether it opens the {label} '
+                        'is unknown. Nothing was changed')
+            if current > supported:
+                return (f'The {label} is at schema {current}, and {source[:12]} opens only up to {supported}. '
+                        'After a confirmed upgrade the fix is forward only: move to a newer version, or restore from '
+                        'the backups taken before the upgrade (lab/backup.py list). Nothing was changed')
     return None
 
 
-def go_back(automatic):
+def short_reason(reason):
+    """The first line of why the automatic way back ran, bounded (the supervisor's own error
+    text, which never carries a secret)."""
+    lines = str(reason or '').strip().splitlines()
+    return lines[0][:300] if lines else None
+
+
+def go_back(automatic, reason=None):
     state = load_state()
     refusal = rollback_refusal(state)
     if refusal:
@@ -552,6 +593,9 @@ def go_back(automatic):
             restore_snapshot(state.get('snapshot'))
             state['restored'] = state['snapshot']
         state.update({'phase': 'rolling_back', 'automatic': automatic, 'rollback_at': now()})
+        if automatic and short_reason(reason):
+            # A start that failed and one that failed its health checks read differently in `status`.
+            state['reason'] = short_reason(reason)
         save_state(state)
         checkout(source, {'pins': pins, 'from': state['to'], 'to': source})
     print(f'The checkout is back at {source[:12]}.' + ('' if automatic else f' Restart Sbarbase now:\n  {RESTART}'))
@@ -585,26 +629,33 @@ def before_start():
     return True
 
 
-def after_start(started):
+def after_start(started, reason=None):
     """Called by the supervisor once its start has succeeded or failed.
 
     Returns True when a failed start moved the checkout back, so the caller exits and
     the restart policy brings up the previous version.
+
+    A confirmation is saved before the hold is lifted: when the state cannot be saved this
+    raises, the hold stays, and the supervisor tries again (lab/upgrade_health.Confirmation).
     """
     state = load_state()
     if not state or state.get('phase') not in PENDING:
         HOLD.unlink(missing_ok=True)
         return False
+    if started:
+        state.update({'phase': 'confirmed' if state['phase'] == 'applied' else 'rolled_back', 'finished_at': now()})
+        save_state(state)
+        INTENT.unlink(missing_ok=True)
+        HOLD.unlink(missing_ok=True)
+        return False
     try:
-        if started:
-            state.update({'phase': 'confirmed' if state['phase'] == 'applied' else 'rolled_back', 'finished_at': now()})
-            save_state(state)
-            INTENT.unlink(missing_ok=True)
-            return False
         if state['phase'] == 'applied':
             try:
-                rollback(automatic=True)
+                rollback(automatic=True, reason=reason)
             except (UpgradeError, SystemExit, OSError) as error:
+                # Read again: the way back may have saved progress (rolling_back, automatic,
+                # rollback_at, restored) before it failed, and the copy above predates it.
+                state = load_state() or state
                 state.update({'phase': 'rollback_failed', 'failure': str(error), 'finished_at': now()})
                 save_state(state)
                 return False
@@ -625,11 +676,14 @@ def status():
     words = {'applied': 'waiting for the new version to start and pass its health checks',
              'confirmed': 'the new version started and passed its health checks',
              'rolling_back': 'waiting for the previous version to start and pass its health checks',
-             'rolled_back': 'back on the previous version' + (' (automatic, the new version did not start)' if state.get('automatic') else ''),
+             'rolled_back': 'back on the previous version' + (' (automatic)' if state.get('automatic') else ''),
              'rollback_failed': 'the previous version did not start; restore from the backups taken before the upgrade',
              'failed': 'the upgrade stopped before the checkout moved; nothing changed'}
     print(f"upgrade  {state['from'][:12]} -> {state['to'][:12]}, started {state['started_at']}")
     print(f"result   {state['phase']}: {words.get(state['phase'], '')}")
+    if state.get('automatic') and state.get('reason'):
+        # Recorded by the automatic way back: a start that failed, or one that failed its health checks.
+        print('why back ' + state['reason'])
     if state.get('failure'):
         print('reason   ' + state['failure'])
     if state.get('snapshot'):

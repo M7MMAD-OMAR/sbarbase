@@ -100,7 +100,7 @@ class ProbeTests(unittest.TestCase):
 class ConfirmationTests(unittest.TestCase):
     def test_confirms_once_a_round_passes(self):
         clock, rounds, confirmed = Clock(), iter([(False, 'rest answered HTTP 503'), (True, 'ok')]), []
-        gate = upgrade_health.Confirmation(lambda: next(rounds), lambda: confirmed.append(True), deadline=120,
+        gate = upgrade_health.Confirmation(lambda: next(rounds), lambda: confirmed.append(True) or True, deadline=120,
                                            interval=2, clock=clock, submit=done)
         self.assertFalse(gate.poll())
         self.assertFalse(gate.poll())
@@ -112,7 +112,7 @@ class ConfirmationTests(unittest.TestCase):
 
     def test_past_the_deadline_it_raises_and_never_confirms(self):
         clock, confirmed = Clock(), []
-        gate = upgrade_health.Confirmation(lambda: (False, 'storage answered HTTP 500'), lambda: confirmed.append(True),
+        gate = upgrade_health.Confirmation(lambda: (False, 'storage answered HTTP 500'), lambda: confirmed.append(True) or True,
                                            deadline=120, interval=2, clock=clock, submit=done)
         while clock.now < 120:
             self.assertFalse(gate.poll())
@@ -123,12 +123,46 @@ class ConfirmationTests(unittest.TestCase):
 
     def test_the_deadline_starts_when_the_console_exists_not_when_the_gate_is_made(self):
         clock, confirmed = Clock(), []
-        gate = upgrade_health.Confirmation(lambda: (True, 'ok'), lambda: confirmed.append(True),
+        gate = upgrade_health.Confirmation(lambda: (True, 'ok'), lambda: confirmed.append(True) or True,
                                            deadline=120, clock=clock, submit=done)
         clock.now = 300  # a slow Studio reset before the server spawned
         self.assertFalse(gate.poll())
         self.assertTrue(gate.poll())
         self.assertEqual(confirmed, [True])
+
+    def test_a_confirmation_that_was_not_saved_is_not_a_confirmation(self):
+        clock, saves = Clock(), iter([False, OSError('read-only file system'), True])
+        attempts = []
+
+        def confirmed():
+            attempts.append(clock.now)
+            result = next(saves)
+            if isinstance(result, Exception):
+                raise result
+            return result
+        gate = upgrade_health.Confirmation(lambda: (True, 'ok'), confirmed, deadline=120, interval=2, clock=clock, submit=done)
+        self.assertFalse(gate.poll())
+        self.assertFalse(gate.poll())
+        self.assertIn('not saved', gate.detail)
+        # The next round waits for the interval, then tries again.
+        self.assertFalse(gate.poll())
+        clock.now = 2
+        self.assertFalse(gate.poll())
+        self.assertFalse(gate.poll())
+        self.assertIn('OSError', gate.detail)
+        clock.now = 4
+        self.assertFalse(gate.poll())
+        self.assertTrue(gate.poll())
+        self.assertEqual(attempts, [0, 2, 4])
+
+    def test_a_confirmation_never_saved_ends_at_the_deadline(self):
+        clock = Clock()
+        gate = upgrade_health.Confirmation(lambda: (True, 'ok'), lambda: False, deadline=10, interval=2, clock=clock, submit=done)
+        while clock.now < 10:
+            self.assertFalse(gate.poll())
+            clock.now += 1
+        with self.assertRaisesRegex(RuntimeError, 'not saved'):
+            gate.poll()
 
     def test_a_probe_that_hangs_does_not_block_the_deadline(self):
         clock, release = Clock(), threading.Event()

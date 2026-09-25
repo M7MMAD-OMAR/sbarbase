@@ -526,7 +526,7 @@ def run_stage(command, stop_event, timeout=180, pass_fds=(), env=None):
         terminate_group(process, grace=2)
 
 
-def upgrade_outcome(started, catalog=None):
+def upgrade_outcome(started, catalog=None, reason=None):
     """Confirms a pending upgrade or rollback, or moves a failed upgrade back (lab/upgrade.py),
     then emits the notification that outcome earns (lab/updates.py announce_outcome). The
     automatic way back has restored the control state by then, so its event lands in the
@@ -534,7 +534,7 @@ def upgrade_outcome(started, catalog=None):
     try:
         import upgrade
         before = upgrade.load_state()
-        result = upgrade.after_start(started)
+        result = upgrade.after_start(started, reason)
     except Exception as error:
         print(f'Upgrade bookkeeping failed: {error}', file=sys.stderr)
         return False
@@ -543,6 +543,27 @@ def upgrade_outcome(started, catalog=None):
     except Exception as error:
         print(f'Upgrade notification failed: {error}', file=sys.stderr)
     return result
+
+
+def upgrade_confirmed(catalog=None):
+    """Records that a pending upgrade or rollback passed its health checks. True only once that
+    is saved: until then the hold stays, the worker does not start, and the supervisor tries
+    again on its next round (lab/upgrade_health.Confirmation)."""
+    try:
+        import upgrade
+        before = upgrade.load_state()
+        upgrade.after_start(True)
+        after = upgrade.load_state()
+    except Exception as error:
+        print(f'The upgrade confirmation was not saved: {error}', file=sys.stderr, flush=True)
+        return False
+    if isinstance(after, dict) and after.get('phase') in upgrade.PENDING:
+        return False
+    try:
+        updates.announce_outcome(before, after, catalog=catalog)
+    except Exception as error:
+        print(f'Upgrade notification failed: {error}', file=sys.stderr)
+    return True
 
 
 def upgrade_prepare():
@@ -571,7 +592,7 @@ def upgrade_confirmation(supervisor):
     import upgrade_health
     return upgrade_health.Confirmation(
         lambda: upgrade_health.check(STATE, supervisor.server.pid if supervisor.server else None),
-        lambda: upgrade_outcome(True, supervisor.catalog))
+        lambda: upgrade_confirmed(supervisor.catalog))
 
 
 def main():
@@ -636,7 +657,7 @@ def main():
             # path owns no durable state change to emit from. The runtime's own refusal, if
             # there was one, is emitted where its 0600 diagnostic is written.
             print(str(error), file=sys.stderr)
-            if upgrade_outcome(False):
+            if upgrade_outcome(False, reason=str(error)):
                 print('The new version did not start, so the checkout moved back to the previous version. '
                       'It starts again on that version; lab/upgrade.py status shows the outcome.', file=sys.stderr)
             raise SystemExit(1)

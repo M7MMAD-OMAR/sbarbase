@@ -117,8 +117,12 @@ def background(function):
 
 class Confirmation:
     """Polled once per supervisor turn while an upgrade waits. poll() returns True once a round
-    passed (after calling confirmed), False while waiting, and raises RuntimeError once the
-    deadline passed without a passing round, so the supervisor stops and the way back runs."""
+    passed and confirmed() returned true, False while waiting, and raises RuntimeError once the
+    deadline passed without that, so the supervisor stops and the way back runs.
+
+    confirmed() returns true only once the confirmation is saved. A passing round whose
+    confirmation could not be saved is not a confirmation: the hold stays, the worker does not
+    start, and the next round tries again within the same deadline."""
 
     def __init__(self, probe, confirmed, deadline=DEADLINE, interval=INTERVAL, clock=time.monotonic, submit=background):
         self.probe, self.confirmed, self.clock, self.submit = probe, confirmed, clock, submit
@@ -141,8 +145,16 @@ class Confirmation:
                 healthy, self.detail = False, f'health probe failed ({error.__class__.__name__})'
             self.pending = None
             if healthy:
-                self.confirmed()
-                return True
+                try:
+                    saved = self.confirmed()
+                except Exception as error:
+                    saved = False
+                    self.detail = f'the health checks passed, but the confirmation was not saved ({error.__class__.__name__})'
+                else:
+                    if not saved:
+                        self.detail = 'the health checks passed, but the confirmation was not saved'
+                if saved:
+                    return True
             self.next = self.clock() + self.interval
         if self.clock() >= self.until:
             raise RuntimeError(f'The new version did not become healthy within {self.deadline} s: {self.detail}')

@@ -358,6 +358,83 @@ class ControlStateTests(Checkout):
         self.assertEqual((self.head(), contents(self.catalog)), (base, (2, 9)))
         self.assertNotIn('restored', upgrade.load_state())
 
+    def test_a_confirmation_that_cannot_be_saved_keeps_the_hold(self):
+        import dev
+        upgrade.start(self.second)
+        upgrade.before_start()
+        with patch.object(upgrade, 'save_state', side_effect=OSError('read-only file system')):
+            with self.assertRaises(OSError):
+                upgrade.after_start(True)
+            with patch.object(dev.updates, 'announce_outcome') as announce:
+                self.assertFalse(dev.upgrade_confirmed())
+            announce.assert_not_called()
+        self.assertEqual(upgrade.load_state()['phase'], 'applied')
+        self.assertTrue(upgrade.HOLD.exists())
+        self.assertTrue(upgrade.INTENT.exists())
+        with patch.object(dev.updates, 'announce_outcome') as announce:
+            self.assertTrue(dev.upgrade_confirmed())
+        self.assertEqual(announce.call_args.args[1]['phase'], 'confirmed')
+        self.assertFalse(upgrade.HOLD.exists())
+
+    def test_a_way_back_that_fails_keeps_what_it_already_recorded(self):
+        upgrade.start(self.second)
+        upgrade.before_start()
+        with patch.object(upgrade, 'checkout', side_effect=upgrade.UpgradeError('git checkout failed')):
+            self.assertFalse(upgrade.after_start(False, 'Runtime startup failed'))
+        state = upgrade.load_state()
+        self.assertEqual(state['phase'], 'rollback_failed')
+        self.assertEqual((state['automatic'], state['reason']), (True, 'Runtime startup failed'))
+        self.assertTrue(state['rollback_at'])
+        self.assertEqual(state['restored'], state['snapshot'])
+
+    def test_status_says_why_the_automatic_way_back_ran(self):
+        import io
+        upgrade.start(self.second)
+        upgrade.before_start()
+        upgrade.after_start(False, 'The new version did not become healthy within 120 s: e rest answered HTTP 503\nmore')
+        upgrade.after_start(True)
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            upgrade.status()
+        text = output.getvalue()
+        self.assertIn('rolled_back: back on the previous version (automatic)\n', text)
+        self.assertIn('why back The new version did not become healthy within 120 s: e rest answered HTTP 503\n', text)
+        self.assertNotIn('did not start', text)
+        self.assertNotIn('more', text)
+
+    def confirmed_upgrade(self):
+        upgrade.start(self.second)
+        upgrade.before_start()
+        upgrade.after_start(True)
+
+    def test_a_version_without_a_schema_ladder_opens_only_the_baseline_catalog(self):
+        """The first commit has no CATALOG_SCHEMA_VERSION: it never wrote user_version, so the
+        only catalog it is known to open is at 0, and a migrated one refuses the rollback."""
+        self.confirmed_upgrade()
+        self.assertRegex(upgrade.rollback_refusal(), 'control catalog is at schema 2.*opens only up to 0')
+        store(self.catalog, 0, 3)
+        self.assertIsNone(upgrade.rollback_refusal())
+        upgrade.rollback()
+        self.assertEqual(self.head(), self.first)
+
+    def test_a_key_store_newer_than_the_previous_version_refuses_the_rollback(self):
+        store(self.catalog, 0, 3)
+        self.confirmed_upgrade()
+        store(self.keys, 1, 1)
+        self.assertRegex(upgrade.rollback_refusal(), 'key store is at schema 1.*opens only up to 0')
+        with self.assertRaisesRegex(upgrade.UpgradeError, 'forward only'):
+            upgrade.rollback()
+        self.assertEqual(self.head(), self.second)
+
+    def test_a_previous_version_that_cannot_be_read_refuses_the_rollback(self):
+        store(self.catalog, 0, 3)
+        self.confirmed_upgrade()
+        state = upgrade.load_state()
+        upgrade.save_state({**state, 'from': 'f' * 40})
+        self.assertIn('cannot be read', upgrade.rollback_refusal())
+        self.assertIsNone(upgrade.catalog_support('f' * 40))
+        self.assertEqual(upgrade.catalog_support(self.first), 0)
+
     def test_pending_records_a_running_backup_or_another_upgrade_refuse_before_anything_moves(self):
         for name in ('worker-effect.json', 'hba-operation.json', 'hba-migration'):
             (self.upstream / name).write_text('{}')
