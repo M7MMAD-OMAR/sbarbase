@@ -63,6 +63,8 @@ Commands
   backups list [<environment>]        complete backups (lab/backup.py list)
   restore <environment> <backup> [--yes]
                                       replace one environment with a backup of itself (lab/backup.py restore)
+  relink <runtime> <backup>           on a new installation, recreate a backup's organization, project and
+                                      environment with their original ids, before restore
   add-environment <project> <name>    create an environment through the management API, as the console does
   rotate-key <environment> [--revoke <key id>]
                                       issue a new publishable key, show it once, then revoke the old one
@@ -77,7 +79,7 @@ Commands
 <environment> is the environment id from the console, its runtime id (e_ and 24 hex), or
 <project>/<name>. <project> is a project id or name, or <client>/<project> when names repeat.
 
-Sign-in, for add-environment, rotate-key, studio and share: your own management account.
+Sign-in, for relink, add-environment, rotate-key, studio and share: your own management account.
   --email ADDRESS        or SBARBASE_EMAIL; asked at the terminal otherwise
   --password-stdin       read the password from standard input; asked without echo otherwise
   --operator-file PATH   a private 0600 JSON file with email and password (lab/operator_file.py)
@@ -117,6 +119,17 @@ Runs lab/backup.py list.`,
 Runs lab/backup.py restore after you confirm. Rows, users and files written after the backup
 are gone from that environment. The replaced state is kept aside until
 lab/backup.py discard-previous. Without a terminal, --yes is required.`,
+ relink:`sbarbase relink <runtime> <backup>
+
+For a backup taken on another installation, placed here under .lab/backups/<runtime>/<backup>/
+(copied by hand or with lab/backup.py offsite-fetch). Reads the organization, project and
+environment the backup's manifest records, signs in, and asks the management API to recreate
+them with the same ids and runtime id; only installation operators may. Nothing is ever attached
+by name: an organization or project with the recorded name but another id is refused, and so is
+anything else that conflicts. The worker then provisions an empty environment of that runtime.
+When sbarbase environments shows it provisioned, run sbarbase restore <runtime> <backup>.
+Members, API keys and the JWT signing key do not come with a backup: invite people again and
+issue new keys; users sign in again with their old passwords.`,
  'add-environment':`sbarbase add-environment <project> <name>
 
 Signs in and asks the management API for a new environment, exactly as the console does. The
@@ -151,6 +164,7 @@ const BOOLEAN_FLAGS=new Set(['--json','--yes','--password-stdin','--follow','--h
 const ALIASES:Record<string,string>={'-h':'--help','-y':'--yes','-f':'--follow','-n':'--lines'};
 const ALLOWED:Record<string,string[]>={
  status:['--json'],environments:['--json'],backup:['--keep'],backups:[],restore:['--yes'],
+ relink:['--email','--operator-file','--password-stdin'],
  'add-environment':['--email','--operator-file','--password-stdin'],
  'rotate-key':['--email','--operator-file','--password-stdin','--revoke'],
  upgrade:['--to'],studio:['--email','--operator-file','--password-stdin'],share:['--email','--operator-file','--password-stdin'],logs:['--lines','--follow'],help:[],
@@ -400,6 +414,11 @@ const CONFLICTS:Record<string,string>={
  'Environment is not ready':'This environment is not provisioned yet.',
  'Studio is not running':'Studio is not running yet.',
  'Shares exceed gateway capacity':'That share would take the shares of all environments past the gateway capacity.',
+ 'Organization name belongs to another organization':'An organization with that name but another id already exists here. Rename it first; a backup is never attached by name.',
+ 'Project belongs to another organization':'The recorded project id already belongs to another organization here.',
+ 'Environment exists with another project or runtime':'The recorded environment id already exists here with another project or runtime.',
+ 'Runtime belongs to another environment':'The backup\'s runtime id already belongs to another environment here.',
+ 'Runtime was deleted here':'That runtime belonged to an environment deleted on this installation; it is never reused.',
 };
 
 async function signedIn<T>(deps:Deps,flags:Parsed['flags'],work:(api:Api)=>Promise<T>):Promise<T> {
@@ -570,6 +589,31 @@ async function restore(deps:Deps,parsed:Parsed) {
  return deps.run([PYTHON,'lab/backup.py','restore',environment,name]);
 }
 
+/** A backup of another installation recreates its organization, project and environment here,
+ * with their original ids, so lab/backup.py can then restore it in place. */
+async function relink(deps:Deps,parsed:Parsed) {
+ arity(parsed,2,2);
+ const [runtime,name]=parsed.args as [string,string];
+ if(!RUNTIME.test(runtime))throw new Usage('<runtime> is the backup\'s runtime id, e_ and 24 hex, as in .lab/backups/<runtime>/');
+ if(!STAMP.test(name))throw new Usage('<backup> is the time of the backup, such as 20260924T030000Z');
+ const manifest=readJson(join(deps.root,'.lab','backups',runtime,name,'manifest.json'));
+ if(!manifest)throw new Refusal(`No complete backup ${runtime}/${name} here. Copy it under .lab/backups/ or fetch it with lab/backup.py offsite-fetch first.`);
+ if(manifest.runtime!==runtime)throw new Refusal('The backup\'s manifest names another runtime');
+ const ownership=manifest.ownership;
+ if(!ownership||typeof ownership!=='object')
+  throw new Refusal('This backup does not record its organization and project (it was taken before they were recorded, or the old catalog did not know the runtime). Create the environment by hand instead.');
+ return signedIn(deps,parsed.flags,async api=>{
+  const {data}=await api('/relink','POST',{runtime,ownership}) as {data:{state:string;created:Record<string,boolean>}};
+  const made=Object.entries(data.created).filter(([,value])=>value).map(([key])=>key);
+  deps.out(`${ownership.organization.name}/${ownership.project.name}/${ownership.environment.name} is linked as ${runtime}; `+
+   (made.length?`created: ${made.join(', ')}.`:'it was already here.'));
+  if(data.state!=='succeeded')deps.out('The worker provisions it now; wait until sbarbase environments shows it succeeded.');
+  deps.out(`Then restore the backup into it: sbarbase restore ${runtime} ${name}`);
+  deps.err('Members, API keys and the signing key are not in a backup: invite people again and issue new keys.');
+  return EXIT.ok;
+ });
+}
+
 async function upgrade(deps:Deps,parsed:Parsed) {
  arity(parsed,0,1);
  const action=parsed.args[0]??'check';
@@ -621,6 +665,7 @@ export async function main(argv:string[],deps:Deps):Promise<number> {
    case 'backup':return await backup(deps,parsed);
    case 'backups':return await backups(deps,parsed);
    case 'restore':return await restore(deps,parsed);
+   case 'relink':return await relink(deps,parsed);
    case 'add-environment':return await addEnvironment(deps,parsed);
    case 'rotate-key':return await rotateKey(deps,parsed);
    case 'upgrade':return await upgrade(deps,parsed);

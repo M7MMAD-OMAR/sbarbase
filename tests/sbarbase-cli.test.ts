@@ -427,3 +427,41 @@ test('backup now keeps as many backups as the daily run, reading the unit when t
  expect(container.runs).toEqual([['/usr/bin/python3','lab/backup.py','create','all']]);
  expect(await main(['backup','now'],harness(root,{unit:true,unitEnvironment:'Environment=SBARBASE_BACKUP_KEEP=zero\n'}).deps)).toBe(EXIT.usage);
 });
+
+test('relink sends the ownership a backup records, then points at restore',async()=>{
+ const {root}=installation();
+ const runtime='e_'+'a'.repeat(24),stamp='20260920T030000Z';
+ const ownership={organization:{id:crypto.randomUUID(),name:'Old client'},project:{id:crypto.randomUUID(),name:'shop'},
+  environment:{id:crypto.randomUUID(),name:'production'}};
+ mkdirSync(join(root,'.lab','backups',runtime,stamp),{recursive:true});
+ writeFileSync(join(root,'.lab','backups',runtime,stamp,'manifest.json'),JSON.stringify({version:1,runtime,ownership}));
+ const run=harness(root,{env:{SBARBASE_EMAIL:'owner@example.com'},stdin:PASSWORD+'\n',routes:call=>
+  call.method==='POST'&&call.url===CONSOLE+'/management/v1/relink'?Response.json({data:{state:'queued',
+   created:{organization:true,project:true,environment:true}}}):undefined});
+ expect(await main(['relink',runtime,stamp,'--password-stdin'],run.deps)).toBe(EXIT.ok);
+ const sent=run.calls.find(call=>call.url.endsWith('/management/v1/relink'))!;
+ expect(JSON.parse(sent.body!)).toEqual({runtime,ownership});
+ expect(run.out.join('\n')).toContain(`sbarbase restore ${runtime} ${stamp}`);
+ expect(run.out.join('\n')).toContain('created: organization, project, environment');
+ expect(run.calls.at(-1)!.url).toBe(CONSOLE+'/management/auth/v1/logout');
+ expect(run.printed()).not.toContain(TOKEN);
+ expect(run.runs).toEqual([]);
+ // A conflict is explained, and nothing is ever attached by name.
+ const refused=harness(root,{env:{SBARBASE_EMAIL:'owner@example.com'},stdin:PASSWORD+'\n',routes:call=>
+  call.url.endsWith('/management/v1/relink')?Response.json({message:'Organization name belongs to another organization'},{status:409}):undefined});
+ expect(await main(['relink',runtime,stamp,'--password-stdin'],refused.deps)).toBe(EXIT.failed);
+ expect(refused.err.join('\n')).toContain('never attached by name');
+});
+
+test('relink refuses a missing backup, one without ownership and bad arguments before signing in',async()=>{
+ const {root,runtime}=installation();
+ const none=harness(root);
+ expect(await main(['relink','e_'+'b'.repeat(24),'20260920T030000Z'],none.deps)).toBe(EXIT.refused);
+ expect(none.err.join('\n')).toContain('offsite-fetch');
+ // The fixture's backups record no ownership.
+ const bare=harness(root);
+ expect(await main(['relink',runtime,'20260923T030000Z'],bare.deps)).toBe(EXIT.refused);
+ expect(bare.calls).toEqual([]);
+ expect(await main(['relink','../etc','20260923T030000Z'],harness(root).deps)).toBe(EXIT.usage);
+ expect(await main(['relink',runtime,'latest'],harness(root).deps)).toBe(EXIT.usage);
+});

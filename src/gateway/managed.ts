@@ -31,7 +31,9 @@ export function managedGateway(catalog:Catalog,keys:KeyStore,resolve:(runtime:st
   const runtime=new URL(request.url).pathname.split('/')[1];
   try {
    if(!runtime||!catalog.runtimeReady(runtime))
-    return Response.json({message:'Unknown environment'},{status:404});
+    // A deleted environment's keys are revoked, so its apps get the answer a revoked key gets.
+    return runtime&&catalog.runtimeDeleted(runtime)?Response.json({message:'Invalid API key'},{status:401})
+     :Response.json({message:'Unknown environment'},{status:404});
    const routing=catalog.runtimeRouting(runtime);
    if(routing.maintenance)return Response.json({message:'Environment temporarily paused'},
     {status:503,headers:{'retry-after':'1','cache-control':'no-store'}});

@@ -43,6 +43,11 @@ export class KeyStore {
     return this.db.query('UPDATE api_keys SET revoked_at=? WHERE id=? AND environment=? AND revoked_at IS NULL')
       .run(Date.now(),id,environment).changes===1;
   }
+  /** Every active key of one runtime, for a deleted or moved environment. Returns how many. */
+  revokeAll(environment:string):number {
+    return this.db.query('UPDATE api_keys SET revoked_at=? WHERE environment=? AND revoked_at IS NULL')
+      .run(Date.now(),environment).changes;
+  }
   list(environment:string):KeyRecord[] {
     return this.db.query<KeyRecord,[string]>('SELECT id,environment,kind,created_at,revoked_at FROM api_keys WHERE environment=? ORDER BY created_at,id').all(environment);
   }

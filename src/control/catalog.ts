@@ -125,6 +125,12 @@ export type SignInState={runtime:string;revision:number;applied:number|null;
 /** `total` and `allocated` describe the whole installation, so only installation operators get them. */
 export type GatewayShareState={share:number;default:number;ceiling:number;operator:boolean;total?:number;allocated?:number};
 
+/** Which organization, project and environment owned a runtime, as a backup records it
+ * (lab/recovery_bundle.py catalog_ownership). */
+export type Ownership={organization:{id:string;name:string};project:{id:string;name:string};environment:{id:string;name:string}};
+export type RelinkResult={organization:string;project:string;environment:string;runtime:string;state:string;
+  created:{organization:boolean;project:boolean;environment:boolean}};
+
 export type AuditEvent={at:number;actor:string;action:string;kind:'organization'|'project'|'environment';subject:string;detail:Record<string,string|number|boolean>};
 
 const INVITATION_TTL_MS=7*24*60*60*1000;
@@ -216,6 +222,10 @@ export class Catalog {
         desired TEXT NOT NULL CHECK(desired IN ('rotate')),
         state TEXT NOT NULL CHECK(state IN ('pending','done','failed')),
         failure TEXT, actor TEXT NOT NULL, updated_at INTEGER NOT NULL, rotated_at INTEGER);
+      CREATE TABLE IF NOT EXISTS deleted_runtimes(
+        runtime TEXT PRIMARY KEY, environment TEXT NOT NULL, project TEXT NOT NULL,
+        organization TEXT NOT NULL, actor TEXT NOT NULL, at INTEGER NOT NULL,
+        attempt INTEGER NOT NULL, claim TEXT, exit_code INTEGER);
       CREATE TABLE IF NOT EXISTS audit_events(
         sequence INTEGER PRIMARY KEY AUTOINCREMENT, actor TEXT NOT NULL,
         action TEXT NOT NULL, subject TEXT NOT NULL, detail TEXT NOT NULL, at INTEGER NOT NULL);
@@ -933,7 +943,15 @@ export class Catalog {
     if(![0,75].includes(exitCode))throw new Error('Unresolved provisioning outcome');
     this.db.transaction(()=>{
       const job=this.job(environment);
-      if(!job||job.runtime!==runtime||job.attempt<attempt)throw new Error('Provisioning receipt mismatch');
+      if(!job) {
+        // Deleted after this outcome settled: the tombstone keeps exactly that outcome, so a
+        // worker that restarts before consuming its receipt settles it again instead of stopping.
+        const gone=this.db.query<{environment:string;attempt:number;claim:string|null;exit_code:number|null},[string]>(
+          'SELECT environment,attempt,claim,exit_code FROM deleted_runtimes WHERE runtime=?').get(runtime);
+        if(gone&&gone.environment===environment&&gone.attempt===attempt&&gone.claim===claim&&gone.exit_code===exitCode)return;
+        throw new Error('Provisioning receipt mismatch');
+      }
+      if(job.runtime!==runtime||job.attempt<attempt)throw new Error('Provisioning receipt mismatch');
       const success=exitCode===0;
       const prior=this.db.query<{runtime:string;claim:string;exit_code:number},[string,number]>(
         'SELECT runtime,claim,exit_code FROM provision_effect_results WHERE environment=? AND attempt=?').get(environment,attempt);
@@ -990,15 +1008,16 @@ export class Catalog {
           {attempt:job.attempt,reason_source:'settlement'});
     }).immediate();
   }
-  /** Metadata-only transfer. Requires owner authority in both organizations.
-   * Runtime transfer must additionally revoke/rotate previously exposed access.
-   * Do not expose as a complete project transfer until that workflow exists.
-   */
-  transferProject(actor:string,project:string,destination:string) {
-    this.db.transaction(()=>{
+  /** Moves a project to another organization. Requires owner authority in both. Ids and
+   * runtimes stay, so nothing is renamed or copied. Returns the environments whose queued
+   * provisioning it cancelled and the runtimes whose API keys the caller must revoke; the
+   * management route does both (src/control/http.ts). The JWT signing key and the direct
+   * database password are not rotated here (docs/engineering/CONTROL-PLANE.md). */
+  transferProject(actor:string,project:string,destination:string):{cancelled:string[];runtimes:string[]} {
+    return this.db.transaction(()=>{
       const source=this.project(actor,project,['owner']);
       this.require(actor,destination,['owner']);
-      if(source.organization===destination) return;
+      if(source.organization===destination) return {cancelled:[],runtimes:[]};
       this.unusedProjectName(destination,source.name,project);
       const active=this.db.query<{n:number},[string]>("SELECT count(*) n FROM provision_jobs j JOIN environments e ON e.id=j.environment WHERE e.project=? AND j.state='running'").get(project);
       if(active?.n) throw new Error('Provisioning is active');
@@ -1019,6 +1038,172 @@ export class Catalog {
       this.notify('project.ownership_changed','critical','project.ownership_changed|'+project,
         {organization:source.organization,project},actor,'ownership_changed',
         {from:source.organization,to:destination});
+      // The caller revokes these runtimes' keys: people of the source organization may hold them.
+      const runtimes=this.db.query<{runtime:string},[string]>(
+        'SELECT j.runtime runtime FROM provision_jobs j JOIN environments e ON e.id=j.environment WHERE e.project=? ORDER BY j.runtime').all(project);
+      return {cancelled:queued.map(job=>job.environment),runtimes:runtimes.map(row=>row.runtime)};
+    }).immediate();
+  }
+  /** Owners rename their organization. Organization names are not unique. */
+  renameOrganization(actor:string,organization:string,name:string) {
+    const title=this.name(name);
+    this.db.transaction(()=>{
+      this.require(actor,organization,['owner']);
+      this.db.query('UPDATE organizations SET name=? WHERE id=?').run(title,organization);
+      this.record(actor,'organization.renamed',organization,{});
+    }).immediate();
+  }
+  /** Owners delete an empty organization: no project may remain, so nothing it owned is lost.
+   * The organization created at bootstrap runs the installation and is never deleted. Its
+   * memberships and pending invitations go with it; the audit rows stay. */
+  deleteOrganization(actor:string,organization:string) {
+    this.db.transaction(()=>{
+      this.require(actor,organization,['owner']);
+      if(this.installationBootstrap()?.organization===organization)throw new Error('Installation organization cannot be deleted');
+      if(this.db.query('SELECT 1 FROM projects WHERE organization=? LIMIT 1').get(organization))throw new Error('Organization has projects');
+      this.record(actor,'organization.deleted',organization,{});
+      this.db.query('DELETE FROM invitations WHERE organization=?').run(organization);
+      this.db.query('DELETE FROM memberships WHERE organization=?').run(organization);
+      this.db.query('DELETE FROM organizations WHERE id=?').run(organization);
+    }).immediate();
+  }
+  /** Owners and admins rename a project, as they create one; the name stays unique in its organization. */
+  renameProject(actor:string,project:string,name:string) {
+    const title=this.name(name);
+    this.db.transaction(()=>{
+      const current=this.project(actor,project,['owner','admin']);
+      this.unusedProjectName(current.organization,title,project);
+      this.db.query('UPDATE projects SET name=? WHERE id=?').run(title,project);
+      this.record(actor,'project.renamed',project,{});
+    }).immediate();
+  }
+  /** Owners delete a project that holds no environment. */
+  deleteProject(actor:string,project:string) {
+    this.db.transaction(()=>{
+      const current=this.project(actor,project,['owner']);
+      if(this.db.query('SELECT 1 FROM environments WHERE project=? LIMIT 1').get(project))throw new Error('Project has environments');
+      this.db.query('DELETE FROM projects WHERE id=?').run(project);
+      this.record(actor,'project.deleted',current.organization,{});
+    }).immediate();
+  }
+  /** Owners and admins rename an environment; the name stays unique in its project. */
+  renameEnvironment(actor:string,environment:string,name:string) {
+    const title=this.name(name);
+    this.db.transaction(()=>{
+      const project=this.environmentProject(actor,environment,['owner','admin']);
+      const clash=this.db.query<{id:string},[string,string]>('SELECT id FROM environments WHERE project=? AND name=?').get(project.id,title);
+      if(clash&&clash.id!==environment)throw new Error('Name already used');
+      this.db.query('UPDATE environments SET name=? WHERE id=?').run(title,environment);
+      this.record(actor,'environment.renamed',environment,{});
+    }).immediate();
+  }
+  /** Owners delete an environment from the catalog. The gateway stops routing its runtime at
+   * once and answers 401 to it, as for a revoked key; the caller also revokes its keys. The
+   * runtime's database, containers and files are retained: this removes management, not data.
+   * Refused while provisioning is queued or running, and while anything the supervisor runs
+   * for it is on or changing (Studio, Realtime, Edge Functions, database access, a sign-in
+   * change, a signing key rotation, a paused or moved routing), because deleting those rows
+   * would leave a container or a login that nothing manages any more. A tombstone keeps the
+   * runtime id, so it is never reused, and the last settled worker outcome, so a worker that
+   * restarts with that receipt still settles it. */
+  deleteEnvironment(actor:string,environment:string):{runtime:string|null} {
+    return this.db.transaction(()=>{
+      const project=this.environmentProject(actor,environment,['owner']);
+      const job=this.job(environment);
+      if(job&&['queued','running'].includes(job.state))throw new Error('Provisioning is active');
+      if(job&&this.runtimeServicesActive(job.runtime))throw new Error('Environment services are still on');
+      this.record(actor,'environment.deleted',environment,{project:project.id});
+      if(job) {
+        const result=this.db.query<{claim:string;exit_code:number},[string,number]>(
+          'SELECT claim,exit_code FROM provision_effect_results WHERE environment=? AND attempt=?').get(environment,job.attempt);
+        this.db.query(`INSERT INTO deleted_runtimes(runtime,environment,project,organization,actor,at,attempt,claim,exit_code)
+          VALUES (?,?,?,?,?,?,?,?,?)`).run(job.runtime,environment,project.id,project.organization,actor,Date.now(),
+          job.attempt,result?.claim??null,result?.exit_code??null);
+        for(const table of ['runtime_routing','studio_sessions','gateway_shares','auth_settings','realtime_settings',
+          'functions_settings','database_access','signing_keys'])
+          this.db.query(`DELETE FROM ${table} WHERE runtime=?`).run(job.runtime);
+        this.db.query('DELETE FROM provision_effect_results WHERE environment=?').run(environment);
+        this.db.query('DELETE FROM provision_recovery_decisions WHERE environment=?').run(environment);
+        this.db.query('DELETE FROM provision_jobs WHERE environment=?').run(environment);
+      }
+      this.db.query('DELETE FROM environments WHERE id=?').run(environment);
+      return {runtime:job?.runtime??null};
+    }).immediate();
+  }
+  private runtimeServicesActive(runtime:string):boolean {
+    const on=(table:string)=>!!this.db.query(`SELECT 1 FROM ${table} WHERE runtime=? AND (desired='on' OR state IN ('pending','on'))`).get(runtime);
+    return on('realtime_settings')||on('functions_settings')||on('database_access')||
+      !!this.db.query("SELECT 1 FROM studio_sessions WHERE runtime=? AND (desired='running' OR state IN ('starting','running'))").get(runtime)||
+      !!this.db.query("SELECT 1 FROM auth_settings WHERE runtime=? AND state='pending'").get(runtime)||
+      !!this.db.query("SELECT 1 FROM signing_keys WHERE runtime=? AND state='pending'").get(runtime)||
+      !!this.db.query('SELECT 1 FROM runtime_routing WHERE runtime=? AND (maintenance=1 OR placement IS NOT NULL)').get(runtime);
+  }
+  /** A runtime whose environment was deleted: the gateway answers it like a revoked key. */
+  runtimeDeleted(runtime:string):boolean {
+    return !!this.db.query('SELECT 1 FROM deleted_runtimes WHERE runtime=?').get(runtime);
+  }
+  /** Re-links an environment restored from a backup of another installation to its recorded
+   * organization and project, keeping every recorded id and the runtime id, and queues its
+   * provisioning so the worker builds an empty runtime of that name for the backup to fill
+   * (docs/guides/backup-and-restore.md). Installation operators only. Conservative on purpose:
+   * - an organization is matched by id only. When the id is absent it is created with the
+   *   recorded name and the caller as its owner, but an organization with the same name and
+   *   another id refuses: nothing is ever attached by name. When the id exists the caller must
+   *   be one of its owners.
+   * - a project id that exists must belong to that organization; an absent one is created,
+   *   unless its name is already used in that organization.
+   * - an environment id that exists must already be this project's, with this runtime, and is
+   *   then left as it is; an absent one is created, unless its name is used in the project.
+   * - a runtime id used by another environment, or by one deleted here, refuses.
+   * Memberships are not carried: actor ids belong to the other installation's sign-in realm.
+   * Every refusal changes nothing. */
+  relinkEnvironment(actor:string,ownership:Ownership,runtime:string):RelinkResult {
+    const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+    if(typeof runtime!=='string'||!/^e_[a-f0-9]{24}$/.test(runtime))throw new Error('Invalid runtime');
+    for(const level of ['organization','project','environment'] as const)
+      if(!ownership?.[level]||typeof ownership[level].id!=='string'||!UUID.test(ownership[level].id))throw new Error('Invalid ownership');
+    const names={organization:this.name(ownership.organization.name),project:this.name(ownership.project.name),
+      environment:this.name(ownership.environment.name)};
+    const organization=ownership.organization.id,project=ownership.project.id,environment=ownership.environment.id;
+    return this.db.transaction(()=>{
+      if(!this.installationOperator(actor))throw new Error('Forbidden');
+      if(this.runtimeDeleted(runtime))throw new Error('Runtime was deleted here');
+      const created={organization:false,project:false,environment:false};
+      if(this.db.query('SELECT 1 FROM organizations WHERE id=?').get(organization))this.require(actor,organization,['owner']);
+      else {
+        if(this.db.query('SELECT 1 FROM organizations WHERE name=?').get(names.organization))
+          throw new Error('Organization name belongs to another organization');
+        this.db.query('INSERT INTO organizations VALUES (?,?)').run(organization,names.organization);
+        this.db.query('INSERT INTO memberships VALUES (?,?,?)').run(organization,actor,'owner');
+        this.record(actor,'organization.created',organization,{relinked:true});
+        created.organization=true;
+      }
+      const existingProject=this.db.query<Project,[string]>('SELECT * FROM projects WHERE id=?').get(project);
+      if(existingProject) {
+        if(existingProject.organization!==organization)throw new Error('Project belongs to another organization');
+      } else {
+        this.unusedProjectName(organization,names.project);
+        this.db.query('INSERT INTO projects VALUES (?,?,?)').run(project,organization,names.project);
+        this.record(actor,'project.created',project,{relinked:true});
+        created.project=true;
+      }
+      const existingEnvironment=this.db.query<Environment,[string]>('SELECT * FROM environments WHERE id=?').get(environment);
+      if(existingEnvironment) {
+        const job=this.job(environment);
+        if(existingEnvironment.project!==project||job?.runtime!==runtime)
+          throw new Error('Environment exists with another project or runtime');
+        return {organization,project,environment,runtime,state:job.state,created};
+      }
+      if(this.db.query('SELECT 1 FROM provision_jobs WHERE runtime=?').get(runtime))throw new Error('Runtime belongs to another environment');
+      if(this.db.query('SELECT 1 FROM environments WHERE project=? AND name=?').get(project,names.environment))
+        throw new Error('Name already used');
+      this.requireEnvironmentCapacity();
+      this.db.query('INSERT INTO environments VALUES (?,?,?)').run(environment,project,names.environment);
+      this.db.query('INSERT INTO provision_jobs(environment,runtime,actor,organization,state) VALUES (?,?,?,?,?)')
+        .run(environment,runtime,actor,organization,'queued');
+      this.record(actor,'environment.relinked',environment,{project});
+      created.environment=true;
+      return {organization,project,environment,runtime,state:'queued',created};
     }).immediate();
   }
   runtimeRouting(runtime:string):RuntimeRouting {

@@ -1,4 +1,5 @@
-import {Catalog,type MembershipRole} from './catalog';
+import {Catalog,type MembershipRole,type Ownership} from './catalog';
+import type {KeyStore} from './keys';
 import {authenticate,reply,type ManagementIdentity} from './auth';
 import {readJsonCached} from '../http/cached-json';
 import {join} from 'node:path';
@@ -53,7 +54,10 @@ function notificationState(catalog:Catalog,actor:string) {
 }
 
 class InputError extends Error {}
-async function body(request:Request):Promise<{name:string}> {
+/** A JSON object with exactly the allowed keys, at most 4 KiB, read within five seconds. */
+async function body(request:Request):Promise<{name:string}>;
+async function body(request:Request,allowed:string[]):Promise<Record<string,unknown>>;
+async function body(request:Request,allowed:string[]=['name']):Promise<Record<string,unknown>> {
   if(request.headers.get('content-type')?.split(';')[0]?.trim()!=='application/json'||!request.body)
     throw new InputError();
   const reader=request.body.getReader(),chunks:Uint8Array[]=[];let bytes=0;
@@ -70,20 +74,90 @@ async function body(request:Request):Promise<{name:string}> {
       chunks.push(chunk.value);
     }
     const parsed=JSON.parse(Buffer.concat(chunks).toString('utf8'));
-    if(!parsed||Array.isArray(parsed)||Object.keys(parsed).some(k=>k!=='name')||typeof parsed.name!=='string')
+    if(!parsed||typeof parsed!=='object'||Array.isArray(parsed)||Object.keys(parsed).some(k=>!allowed.includes(k))||
+      allowed.some(k=>!(k in parsed)))
       throw new InputError();
+    if(allowed.includes('name')&&typeof parsed.name!=='string')throw new InputError();
     return parsed;
   } catch {throw new InputError();}
   finally {clearTimeout(timer);reader.releaseLock();}
 }
 
-/** Metadata API only. Creating an organization is limited to installation operators.
- * Membership changes and project transfer intentionally remain internal until
- * invitations and complete runtime access revocation are ready.
+/** The refusals these routes answer with 409 and their fixed message: the request conflicts
+ * with the current state, and nothing was changed. */
+const CONFLICTS=new Set(['Name already used','Environment capacity reached','Organization has projects',
+  'Project has environments','Installation organization cannot be deleted','Provisioning is active',
+  'Environment services are still on','Runtime was deleted here','Organization name belongs to another organization',
+  'Project belongs to another organization','Environment exists with another project or runtime',
+  'Runtime belongs to another environment']);
+const INVALID=new Set(['Invalid name','Invalid ownership','Invalid runtime']);
+function refusal(error:unknown):Response {
+  const message=error instanceof Error?error.message:'';
+  if(error instanceof InputError||INVALID.has(message))return reply(400,{message:'Invalid request'});
+  if(message==='Forbidden')return reply(403,{message:'Forbidden'});
+  if(CONFLICTS.has(message))return reply(409,{message});
+  return reply(500,{message:'Management operation failed'});
+}
+
+/** Metadata API. Creating an organization and re-linking a restored environment are limited
+ * to installation operators. Moving a project and deleting an environment revoke the API keys
+ * of the runtimes involved, so both need the key store and refuse without it.
  */
-export function managementHandler(catalog:Catalog,identify:ManagementIdentity,mailDirectory=MAIL_STATE_DIRECTORY) {
+export function managementHandler(catalog:Catalog,identify:ManagementIdentity,mailDirectory=MAIL_STATE_DIRECTORY,keys?:KeyStore) {
   return async(request:Request):Promise<Response>=>{
     const path=new URL(request.url).pathname;
+    const item=path.match(/^\/management\/v1\/(organizations|projects|environments)\/([a-f0-9-]{36})$/);
+    if(item) {
+      if(!['PATCH','DELETE'].includes(request.method))return reply(405,{message:'Method not allowed'});
+      const actor=await authenticate(identify,request);
+      if(actor instanceof Response)return actor;
+      const kind=item[1]!,id=item[2]!;
+      try {
+        if(request.method==='PATCH') {
+          const {name}=await body(request);
+          if(kind==='organizations')catalog.renameOrganization(actor,id,name);
+          else if(kind==='projects')catalog.renameProject(actor,id,name);
+          else catalog.renameEnvironment(actor,id,name);
+          return reply(200,{id,name:name.trim()});
+        }
+        if(request.body)return reply(400,{message:'Invalid request'});
+        if(kind==='organizations'){catalog.deleteOrganization(actor,id);return reply(200,{deleted:true});}
+        if(kind==='projects'){catalog.deleteProject(actor,id);return reply(200,{deleted:true});}
+        if(!keys)return reply(500,{message:'Key revocation unavailable'});
+        const {runtime}=catalog.deleteEnvironment(actor,id);
+        // The catalog commits first, so a refusal changes nothing. From then on the gateway
+        // answers 401 for the runtime whatever happens to the keys; revoking them keeps it so.
+        try {return reply(200,{deleted:true,revoked:runtime?keys.revokeAll(runtime):0});}
+        catch {return reply(500,{message:'Environment deleted; revoking its keys failed'});}
+      } catch(error) {return refusal(error);}
+    }
+    const move=path.match(/^\/management\/v1\/projects\/([a-f0-9-]{36})\/move$/);
+    if(move) {
+      if(request.method!=='POST')return reply(405,{message:'Method not allowed'});
+      const actor=await authenticate(identify,request);
+      if(actor instanceof Response)return actor;
+      if(!keys)return reply(500,{message:'Key revocation unavailable'});
+      try {
+        const input=await body(request,['organization']);
+        if(typeof input.organization!=='string'||!/^[a-f0-9-]{36}$/.test(input.organization))return reply(400,{message:'Invalid request'});
+        const moved=catalog.transferProject(actor,move[1]!,input.organization);
+        // People of the source organization may hold the keys, so none of them survives the move.
+        // The move is committed first, so a name clash in the destination costs nobody a key.
+        let revoked=0;
+        try {for(const runtime of moved.runtimes)revoked+=keys.revokeAll(runtime);}
+        catch {return reply(500,{message:'Project moved; revoking its keys failed'});}
+        return reply(200,{organization:input.organization,cancelled:moved.cancelled,revoked});
+      } catch(error) {return refusal(error);}
+    }
+    if(path==='/management/v1/relink') {
+      if(request.method!=='POST')return reply(405,{message:'Method not allowed'});
+      const actor=await authenticate(identify,request);
+      if(actor instanceof Response)return actor;
+      try {
+        const input=await body(request,['runtime','ownership']);
+        return reply(200,{data:catalog.relinkEnvironment(actor,input.ownership as Ownership,input.runtime as string)});
+      } catch(error) {return refusal(error);}
+    }
     if(path==='/management/v1/organizations') {
       if(!['GET','POST'].includes(request.method))return reply(405,{message:'Method not allowed'});
       const actor=await authenticate(identify,request);
