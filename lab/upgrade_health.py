@@ -134,7 +134,8 @@ def check(state, server_pid, secrets=None, get=fetch, serving=None, token=None):
 
 def background(function):
     """Run one round off the supervisor's loop, in a daemon thread, so a probe that hangs until
-    its timeout neither delays the loop nor keeps the process alive at exit."""
+    its timeout never delays the loop. The round's own probe threads are joined at exit, so a
+    process that stops during a round waits for it, at most about TIMEOUT."""
     future = concurrent.futures.Future()
 
     def run():
