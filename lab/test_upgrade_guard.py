@@ -544,6 +544,23 @@ class ForcedMoveTests(Checkout):
         self.assertIn('stays on the confirmed version', state['rollback_failure'])
         self.assertFalse(upgrade.INTENT.exists(), "the previous version's pins must not reach the confirmed version")
 
+    def test_a_stuck_move_back_of_start_logs_one_line_per_retry(self):
+        with patch.object(upgrade, 'checkout', side_effect=Crash()), self.assertRaises(Crash):
+            upgrade.start(self.second)
+        with patch.object(upgrade_guard, 'force_checkout', side_effect=OSError(13, 'Permission denied')), \
+                patch.object(upgrade_guard, 'head', return_value='0' * 40):
+            for _ in range(upgrade_guard.MAX_ATTEMPTS - 1):
+                with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(upgrade_guard.Refused):
+                    self.guard()
+            with contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(self.guard(), upgrade_guard.STUCK)
+            # Every retry after that, every STUCK_WAIT: one line.
+            for _ in range(2):
+                with contextlib.redirect_stderr(io.StringIO()) as said:
+                    self.assertEqual(self.guard(), upgrade_guard.STUCK)
+                self.assertEqual(said.getvalue().count('\n'), 1, said.getvalue())
+        self.assertEqual(self.state()['phase'], 'applied')
+
     def test_a_way_back_from_an_older_record_is_never_taken_for_a_confirmed_one(self):
         self.rolling_back_with_an_edit()
         state = self.state()

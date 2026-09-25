@@ -526,7 +526,9 @@ def guard(layout, install=bun_install):
             # `start` stopped while it moved the checkout: the new version never ran, so putting
             # the checkout back is all there is to undo. HEAD may not have moved at all while the
             # tree is half written, so the move is forced and verified, never assumed.
-            say('the upgrade stopped while it moved the checkout; moving back to ' + state['from'][:12])
+            if not state.get('stuck'):
+                # A stuck retry keeps to its one line (cannot_move).
+                say('the upgrade stopped while it moved the checkout; moving back to ' + state['from'][:12])
             try:
                 move_checkout(layout, state['from'], None, install, aside_folder(layout, state))
             except (Refused, OSError) as error:
