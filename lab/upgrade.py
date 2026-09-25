@@ -7,7 +7,8 @@ Usage (with Docker, put `docker compose exec sbarbase` before each command):
   /usr/bin/python3 lab/upgrade.py start --release vX.Y.Z [--allow-class rebuild]
                                                       start onto a verified release from the channel
   /usr/bin/python3 lab/upgrade.py status              the last upgrade and its outcome
-  /usr/bin/python3 lab/upgrade.py rollback            move back to the version before it
+  /usr/bin/python3 lab/upgrade.py rollback [--check]  move back to the version before it (--check: only
+                                                      say whether it would refuse, and why)
 
 REF defaults to origin/main, fetched first; it is an explicit operator choice, not the
 release channel (lab/release_channel.py), and it is neither signature checked nor classified. After `start` or `rollback`, restart Sbarbase
@@ -75,6 +76,10 @@ SERVICES = {'auth': ('images.lock.json', 'auth'), 'rest': ('images.lock.json', '
             'storage': ('storage-image.lock.json', None), 'realtime': ('realtime-image.lock.json', None),
             'functions': ('functions-image.lock.json', None)}
 DEFAULT_TARGET = 'origin/main'
+# Who started an upgrade: an operator on the command line, the console's "update now" or the
+# automatic updates (lab/updates.py). Recorded in the state as `trigger`; `automatic` keeps
+# meaning that the way back happened by itself.
+TRIGGERS = ('cli', 'console', 'automatic')
 RESTART = 'docker compose up -d --build   (or: sudo systemctl restart sbarbase)'
 
 
@@ -424,12 +429,12 @@ def install_dependencies():
         raise UpgradeError('bun install failed for this version')
 
 
-def start(target_ref):
+def start(target_ref, trigger='cli'):
     with exclusive(LOCK, 'Another upgrade or rollback is running'):
-        apply(target_ref)
+        apply(target_ref, trigger)
 
 
-def apply(target_ref):
+def apply(target_ref, trigger='cli'):
     details = plan(target_ref)
     report(details, target_ref)
     if details['refusals']:
@@ -445,7 +450,7 @@ def apply(target_ref):
     except UpgradeError as error:
         raise UpgradeError(f'{error}; nothing was changed') from None
     record = {'phase': 'applied', 'from': details['current'], 'to': target, 'started_at': now(),
-              'changes': details['changes'], 'automatic': False, 'snapshot': taken}
+              'changes': details['changes'], 'automatic': False, 'snapshot': taken, 'trigger': trigger}
     save_state(record)
     prune_snapshots()
     try:
@@ -467,24 +472,35 @@ def rollback(automatic=False):
         go_back(automatic)
 
 
+def rollback_refusal(state=None):
+    """Why `rollback` would refuse before moving anything, or None. The console's "roll back"
+    (lab/updates.py) asks this same question, so the page and the command cannot disagree."""
+    state = load_state() if state is None else state
+    if not state or state.get('phase') not in ('applied', 'confirmed'):
+        return 'There is no upgrade to roll back'
+    if state['phase'] == 'confirmed':
+        # After confirmation the fix is forward only: later writes stay, so the catalog must be
+        # one the previous version can still open.
+        source = state['from']
+        supported, current = catalog_support(source), catalog_version()
+        if supported is not None and current is not None and current > supported:
+            return (f'The control catalog is at schema {current}, and {source[:12]} opens only up to {supported}. '
+                    'After a confirmed upgrade the fix is forward only: move to a newer version, or restore from '
+                    'the backups taken before the upgrade (lab/backup.py list). Nothing was changed')
+    return None
+
+
 def go_back(automatic):
     state = load_state()
-    if not state or state.get('phase') not in ('applied', 'confirmed'):
-        raise UpgradeError('There is no upgrade to roll back')
+    refusal = rollback_refusal(state)
+    if refusal:
+        raise UpgradeError(refusal)
     source = state['from']
     # Before confirmation the new version may have migrated the control state, and nothing it
     # did is trusted: the snapshot it took on start goes back. A version that never started
     # (no `attempted_at`) touched nothing, and restoring would drop what the running version
     # wrote since `start`.
     restore = state['phase'] == 'applied' and bool(state.get('attempted_at'))
-    if state['phase'] == 'confirmed':
-        # After confirmation the fix is forward only: later writes stay, so the catalog must be
-        # one the previous version can still open.
-        supported, current = catalog_support(source), catalog_version()
-        if supported is not None and current is not None and current > supported:
-            raise UpgradeError(f'The control catalog is at schema {current}, and {source[:12]} opens only up to {supported}. '
-                               'After a confirmed upgrade the fix is forward only: move to a newer version, or restore from '
-                               'the backups taken before the upgrade (lab/backup.py list). Nothing was changed')
     pins = pins_at(source)
     pull(source)
     guard = contextlib.nullcontext() if automatic or not restore else \
@@ -612,7 +628,7 @@ def channel(as_json=False, preview=False):
         show_channel(result)
 
 
-def start_release(tag, allow=()):
+def start_release(tag, allow=(), trigger='cli'):
     """Starts an upgrade to a signed release: verified, classified, then the usual start."""
     try:
         release = release_channel.prepare(tag, allow)
@@ -622,7 +638,7 @@ def start_release(tag, allow=()):
     began = now()
     try:
         # The verified commit, never the ref: nothing can move between the check and the checkout.
-        start(release['commit'])
+        start(release['commit'], trigger)
     finally:
         state = load_state()
         if state and state.get('to') == release['commit'] and state.get('started_at', '') >= began and 'release' not in state:
@@ -645,11 +661,13 @@ def main(argv=None):
     target.add_argument('--release', help='a signed release tag from the channel, vX.Y.Z')
     starting.add_argument('--allow-class', action='append', choices=['rebuild'], default=[],
                           help='apply a release that needs a rebuild (a manual release is always refused)')
+    starting.add_argument('--trigger', choices=TRIGGERS, default='cli', help=argparse.SUPPRESS)
     listing = sub.add_parser('channel')
     listing.add_argument('--json', action='store_true')
     listing.add_argument('--preview', action='store_true', help='include pre-releases')
     sub.add_parser('status')
-    sub.add_parser('rollback')
+    sub.add_parser('rollback').add_argument('--check', action='store_true',
+                                            help='only say whether a rollback would refuse, and why')
     args = parser.parse_args(argv)
     os.chdir(ROOT)
     try:
@@ -657,14 +675,18 @@ def main(argv=None):
             channel(args.json, args.preview)
             return 0
         if args.command == 'start' and args.release:
-            start_release(args.release, args.allow_class)
+            start_release(args.release, args.allow_class, args.trigger)
             return 0
+        if args.command == 'rollback' and args.check:
+            refusal = rollback_refusal()
+            print(refusal or 'A rollback would go ahead.')
+            return 1 if refusal else 0
         if args.command == 'check':
             details = plan(args.to)
             report(details, args.to)
             return 1 if details['refusals'] else 0
         if args.command == 'start':
-            start(args.to)
+            start(args.to, args.trigger)
         elif args.command == 'rollback':
             rollback()
         else:
