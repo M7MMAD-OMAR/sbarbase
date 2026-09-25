@@ -12,6 +12,8 @@
 #   lab/vm-rehearsal.sh --dir DIR --stop          # power the VM off
 #   --organization NAME names the first client (a restore drill needs a name the backup
 #   does not use, because a restore never attaches a backup to a client by name)
+#   --preload-images copies every pinned image the host already has into the guest by
+#   digest before the install, so a slow link downloads only what the host lacks
 #
 # The image is not downloaded for you: fetch a Fedora 44 Cloud Base qcow2 from
 # fedoraproject.org and verify its checksum first. The guest needs
@@ -35,6 +37,7 @@ MEMORY=6144
 SSH_PORT=2222
 STOP=0
 ORGANIZATION="First client"
+PRELOAD=0
 fail() { printf 'FAIL: %s\n' "$1" >&2; exit 1; }
 step() { printf '\n== %s\n' "$1"; }
 wait_seconds() { /usr/bin/python3 -c "import time; time.sleep($1)"; }
@@ -47,8 +50,9 @@ while [ $# -gt 0 ]; do
     --memory) shift; MEMORY="${1:-}" ;;
     --ssh-port) shift; SSH_PORT="${1:-}" ;;
     --organization) shift; ORGANIZATION="${1:-}" ;;
+    --preload-images) PRELOAD=1 ;;
     --stop) STOP=1 ;;
-    -h|--help) sed -n '2,28p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,30p' "$0"; exit 0 ;;
     *) fail "unknown argument: $1" ;;
   esac
   shift
@@ -121,6 +125,17 @@ qemu-system-x86_64 -name sbarbase-clean -enable-kvm -machine q35 -cpu host -smp 
   done ) >/dev/null 2>&1 &
 for _ in $(seq 1 60); do guest test -f /var/lib/cloud-ready 2>/dev/null && break; wait_seconds 8; done
 guest test -f /var/lib/cloud-ready || fail "the guest did not finish cloud-init; see $DIR/serial.log"
+
+if [ "$PRELOAD" = "1" ]; then
+  step "pinned images the host already has, copied into the guest"
+  for ref in $(grep -rhoE '"[a-z0-9./-]+@sha256:[0-9a-f]{64}"' "$REPO_ROOT"/lab/*.lock.json | tr -d '"' | sort -u); do
+    if docker image inspect "$ref" >/dev/null 2>&1; then
+      docker save "$ref" | guest 'sudo docker load -q' >/dev/null && printf 'copied %s\n' "${ref%%@*}"
+    else
+      printf 'not on the host, the install pulls it: %s\n' "${ref%%@*}"
+    fi
+  done
+fi
 
 step "clean clone of $(git -C "$REPO_ROOT" rev-parse --short HEAD) and the service account"
 git -C "$REPO_ROOT" bundle create "$DIR/repo.bundle" HEAD >/dev/null 2>&1
