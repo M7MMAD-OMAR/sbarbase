@@ -93,8 +93,8 @@ DESCRIPTIONS = {
 }
 
 
-def git(*args, cwd=ROOT, env=None, stdin=None):
-    return subprocess.run(['git', *args], cwd=cwd, check=True, capture_output=True, text=True, env=env,
+def git(*args, cwd=None, env=None, stdin=None):
+    return subprocess.run(['git', *args], cwd=cwd or ROOT, check=True, capture_output=True, text=True, env=env,
                           input=stdin).stdout.strip()
 
 
@@ -108,13 +108,14 @@ def replace_once(path, old, new):
     path.write_text(text.replace(old, new))
 
 
-def newer_rest(root=ROOT):
-    set_rest(root, NEWER_REST)
+def newer_rest(root=None):
+    set_rest(root or ROOT, NEWER_REST)
 
 
-def never_answers(root=ROOT):
+def never_answers(root=None):
     # postgres-meta is pinned and pulled already, and never listens on PostgREST's port.
-    set_rest(root, json.loads((root / 'lab' / 'studio-image.lock.json').read_text())['meta'])
+    root = root or ROOT
+    set_rest(root,json.loads((root / 'lab' / 'studio-image.lock.json').read_text())['meta'])
 
 
 def set_rest(root, rest):
@@ -124,9 +125,10 @@ def set_rest(root, rest):
     path.write_text(json.dumps(lock, indent=2) + '\n')
 
 
-def migrate_then_stop(root=ROOT):
+def migrate_then_stop(root=None):
     """One more catalog schema step (an empty table, nothing else), and a console that stops once
     it has opened, and so migrated, the catalog."""
+    root = root or ROOT
     path = root / 'src' / 'control' / 'catalog.ts'
     found = SCHEMA.findall(path.read_text())
     if len(found) != 1:
@@ -139,8 +141,8 @@ def migrate_then_stop(root=ROOT):
     replace_once(root / 'lab' / 'upstream-server.ts', SERVER_ANCHOR, SERVER_ANCHOR + STOP_AFTER_MIGRATING)
 
 
-def never_healthy(root=ROOT):
-    replace_once(root / 'src' / 'http' / 'health.ts', HEALTH_ANCHOR, NEVER_HEALTHY)
+def never_healthy(root=None):
+    replace_once((root or ROOT) / 'src' / 'http' / 'health.ts', HEALTH_ANCHOR, NEVER_HEALTHY)
 
 
 def derive(parent, message, edit):
@@ -187,9 +189,9 @@ def candidates():
 
 # Observation. Only the standard library at module level: `hold` runs on the host.
 
-def catalog_state(path=CATALOG):
+def catalog_state(path=None):
     """The catalog's schema version, its tables, and a digest of the rows nothing may change."""
-    with contextlib.closing(sqlite3.connect(f'file:{path}?mode=ro', uri=True, timeout=30)) as database:
+    with contextlib.closing(sqlite3.connect(f'file:{path or CATALOG}?mode=ro', uri=True, timeout=30)) as database:
         version = database.execute('PRAGMA user_version').fetchone()[0]
         tables = sorted(row[0] for row in database.execute("SELECT name FROM sqlite_master WHERE type='table'"))
         digest, rows = hashlib.sha256(), {}
@@ -209,7 +211,8 @@ def fetch(url):
         with opener.open(url, timeout=5) as response:
             return response.status, response.read().decode(errors='replace')
     except urllib.error.HTTPError as error:
-        return error.code, error.read().decode(errors='replace')
+        with error:
+            return error.code, error.read().decode(errors='replace')
     except (OSError, ValueError) as error:
         return None, error.__class__.__name__
 
