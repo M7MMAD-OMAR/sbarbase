@@ -141,6 +141,19 @@ Idle with one environment, the containers used about 250 MiB and the supervisor 
 
 The itemised server matrix is [deployment readiness](deployment-readiness.md).
 
+## Update channel, 2026-09-25
+
+Built on 2026-09-25: signed release tags checked against `deploy/release-signers`, the class of a release computed from the diff (safe, needs a rebuild, needs a migration), the console notice and Updates page for the installation operator, one-click install of safe signed releases, opt-in automatic updates inside a maintenance window, a control state snapshot, application traffic held until a health round passes within 120 seconds, and the way back ([upgrades](../guides/upgrades.md)).
+
+| What | Evidence | Result |
+|---|---|---|
+| Release channel, request and settings files, automatic decision, snapshot and restore, health-gated confirmation (the upgrade file also holds the older upgrade tests) | `lab/test_release_channel.py`, `lab/test_updates.py`, `lab/test_upgrade.py`, `lab/test_upgrade_health.py` | 86 Python tests, OK, on the workstation |
+| Traffic hold, updates routes, console page logic | `tests/hold.test.ts`, `tests/updates-routes.test.ts`, `tests/updates-ui.test.ts` | 42 Bun tests pass |
+| The three CI cases (a release that migrates the catalog and then fails, one that fails its health checks, an unsigned tag) | none yet | **not run** |
+| VM rehearsal of a real bump and back through the channel | none yet | **not run** |
+
+Unit tests only. No release signing key is listed in `deploy/release-signers` yet, so every release is refused as unsigned until one is. The CI upgrade run in the Docker table above and the VM run ([vm-upgrade-checks.json](../evidence/vm-upgrade-checks.json)) used `lab/upgrade.py start --to`, not the channel, the console or automatic updates.
+
 ## Resources
 
 A start needs its containers' memory limits plus a 2560 MiB reserve: 1792 MiB of limits on an empty server and 512 MiB more per environment, and CPU ceilings of at most twice the cores after one core is kept for the host. At most four environments per installation are allowed by a lab guard for now; the management API refuses the fifth with 409 before queueing it, and the runtime guard still enforces it. The configured ceilings for the workstation's retained combined placement are 5888 MiB of container memory and 5.75 CPUs, admitted under a 6 GiB and 6 CPU cap plus a 2560 MiB host reserve. These are allocation limits, not measured demand or a hardware recommendation. Sustained mixed load has not been measured, so there is no validated maximum of 10 or 100 environments, and daily visitor counts alone cannot size a server.
@@ -152,7 +165,7 @@ A start needs its containers' memory limits plus a 2560 MiB reserve: 1792 MiB of
 - Point-in-time recovery, SSH or rsync targets for the off-host copies (S3-compatible storage only), and rebuilding a whole lost server from the off-site copies in one step (each environment's copy restores, on a new installation after `sbarbase relink` recreates its client, project and environment with their original ids; the installation manifest records what the backups need, but members, keys and settings do not travel with it yet, and this path has only unit tests, no rehearsal on a second machine).
 - Importing schemas other than `public`, Vault secrets and cron jobs from a Supabase project (the [import](../guides/move-from-supabase.md) moves `public`, users, rows and files).
 - Automatic recovery of later-stage provisioning failures; they block until an operator reconciles them.
-- Adoption of any upstream release through the update policy; unattended upgrades (an operator starts each one with [lab/upgrade.py](../../lab/upgrade.py)).
+- Adoption of any upstream release through the update policy. A live run of the update channel: automatic updates exist, off by default, but have unit tests only (above).
 - MFA and login rate limits. Moving a project between clients revokes its API keys but does not rotate its JWT signing key or direct database password. Deleting an environment keeps its runtime (database, containers, files), which still counts against the environment limit; reclaiming it is not built.
 - Multi-server placement and coordination.
 - Resumable (TUS) uploads through the gateway; standard uploads go up to the upload limit, 50 MiB by default.

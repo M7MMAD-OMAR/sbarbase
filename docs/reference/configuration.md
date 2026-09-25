@@ -88,6 +88,27 @@ If `.lab/upstream/backup-offsite.json` exists, each daily backup run is encrypte
 
 `endpoint` must be `https` (plain `http` only on loopback). `prefix` may hold letters, digits, `.`, `_`, `-` and `/`. `credentialsFile` is a 0600 file `{"schema": 1, "accessKeyId": "...", "secretAccessKey": "..."}`. `keyFile` is a 0600 file `{"schema": 1, "key": "<64 hex characters>"}`, created only on request with `python3 lab/backup.py offsite-key PATH`. Both files are refused when they are symlinks or readable by group or others. Retention follows `SBARBASE_BACKUP_KEEP`. Setup and limits: [backup and restore](../guides/backup-and-restore.md).
 
+## Update channel
+
+The console's update settings, requests and the upgrade record live in `.lab/upgrades/`, private to the service account: the directory is 0700, and the JSON files are 0600 and each replaced atomically. The console writes only `settings.json` and `request.json`; the supervisor writes the rest ([upgrades](../guides/upgrades.md)).
+
+| Path | Holds |
+|---|---|
+| `.lab/upgrades/settings.json` | The operator's settings: `check` (default on), `automatic` (default off) and the maintenance `window` in server local time (default 3:00 AM to 5:00 AM, stored as `"03:00"` and `"05:00"`). A missing or damaged file means the defaults |
+| `.lab/upgrades/request.json` | The one request under way (`apply`, `rollback` or `check`), created only when none exists; the supervisor checks it again before acting |
+| `.lab/upgrades/last-request.json` | The last finished request, for the console's progress view |
+| `.lab/upgrades/available.json` | The last check's result: the running version, the newest release it can move to, its class, notes and refusals |
+| `.lab/upgrades/check.json` | When the last check ran, its error and the count of failures in a row (for the backoff) |
+| `.lab/upgrades/ledger.json` | Versions already announced, tried automatically and rolled back, so each is announced once and never retried automatically |
+| `.lab/upgrades/current.json` | What runs now and whether the console may offer a rollback, written by the supervisor |
+| `.lab/upgrades/state.json` | The last upgrade: from, to, phase (`applied`, `confirmed`, `rolling_back`, `rolled_back`, `rollback_failed`, `failed`), who started it and its snapshot |
+| `.lab/upgrades/snapshots/` | Control state snapshots (catalog and key store) with a manifest; the newest three are kept, plus the one the last upgrade names |
+| `.lab/upgrades/hold` | Present while a new version waits for its health checks; the gateway holds application traffic only while `state.json` also says a start is pending |
+| `.lab/upgrades/evidence-<time>/` | Evidence written on this server, copied aside before the checkout moved |
+| `.lab/upgrades/upgrade.lock`, `check.log`, `apply.log`, `rollback.log` | The lock one upgrade or rollback holds, and the output of the last child of each kind |
+
+`SBARBASE_RELEASE_SOURCE` names the Git repository the release check reads (a URL or a path); by default the canonical repository over HTTPS. Signatures are checked against `deploy/release-signers` of the running checkout whatever the source. `compose.yaml` does not pass it into the container; with Docker, add it to its `environment` list.
+
 ## State directories
 
 Both are ignored by Git. Never print `.secrets/`, and never delete either to get past a refusal.

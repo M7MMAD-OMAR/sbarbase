@@ -104,6 +104,13 @@ account that does not exist on the host. Point it at a different layout with
 `deploy/server-acceptance.sh` forwards the same three flags, so the one-command
 acceptance path can name the server's account too.
 
+The unit restarts the supervisor on failure, and also carries
+`RestartForceExitStatus=42`: after an update or rollback from the console moves the
+checkout, the supervisor stops everything cleanly and exits with code 42 so systemd
+starts it again on the new version ([upgrades](upgrades.md)). A unit installed
+before this line existed still restarts on that exit, because `Restart=on-failure`
+covers it; reinstall it with `supervise --apply` when you move to that version.
+
 Four things must be true before the unit can serve, and the preflight names each
 one rather than failing obscurely:
 
@@ -351,13 +358,18 @@ The step by step versions are [backup and restore](backup-and-restore.md) and [u
   private state directory. The encrypted export and independent-restore path is
   documented in [INDEPENDENT-RESTORE](../engineering/INDEPENDENT-RESTORE.md); it is the only
   restore path with recorded evidence.
-- Upgrade: follow [UPSTREAM-UPDATE-POLICY](../engineering/UPSTREAM-UPDATE-POLICY.md): read the
-  upstream changelog, write a dated entry in `docs/upstream/`, adopt one
-  component at a time, run the full Python and Bun suites plus the live checks,
-  and record the rollback pin before starting.
-- Rollback: restore the previous pin, then restart the supervisor. Data
-  migrations are the operator's responsibility and must be recorded in the same
-  entry.
+- Upgrade: the console's Updates page shows a newer signed release and installs a
+  safe one with one click; `lab/upgrade.py` does the same from the command line.
+  Each upgrade backs up every environment first, holds application traffic until
+  the new version passes its health checks, and moves back by itself if it does
+  not. Automatic updates are opt-in. The [upgrades guide](upgrades.md) has the
+  steps, the classes that need a rebuild or a migration, and the limits.
+- Rollback: before confirmation it is automatic. After it, **Roll back** on the
+  Updates page or `lab/upgrade.py rollback` keeps everything written since the
+  update, and refuses when the previous version cannot open the control catalog.
+- Changing a pinned upstream image is a maintainer's task: follow
+  [UPSTREAM-UPDATE-POLICY](../engineering/UPSTREAM-UPDATE-POLICY.md), which records
+  the rollback pin and any data migration in a dated entry under `docs/upstream/`.
 
 ## Known limits at this revision
 
@@ -376,6 +388,9 @@ The step by step versions are [backup and restore](backup-and-restore.md) and [u
   not measured peak demand. Sustained mixed load and 10/100-project capacity are
   unproven.
 - Realtime, Functions, the connection pooler and cron are not implemented.
-- Off-host restore, multi-host coordination and automatic upgrades are out of
-  scope for this revision.
+- Off-host restore and multi-host coordination are out of scope for this
+  revision.
+- Updates from the console and opt-in automatic updates exist, with a health-gated
+  way back ([upgrades](upgrades.md)). They are covered by unit tests only: the live
+  CI cases and the VM rehearsal of the update channel have not run yet.
 - The bootstrap flow has no invitations, MFA or rate limiting.
