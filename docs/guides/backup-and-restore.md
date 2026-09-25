@@ -190,6 +190,7 @@ A failed restore leaves its descriptor behind, and a plain rerun refuses. Do not
 - The off-host copy speaks S3 only; SSH or rsync targets are not built. It is tested against a local fake bucket, not yet against a real provider.
 - One set is one upload, so a set larger than the provider's single upload limit (5 GiB on Amazon S3) fails. The set is written encrypted to this server before the upload, so the disk needs room for it.
 - Retention on the target is by count, not by age.
+- An encrypted run set written since 2026-09-26 carries the `storage/` folder, and a version older than that refuses the whole set as holding an unexpected entry. After a way back to such a version, `offsite-fetch` and `restore --offsite` fail for those sets; the local backups, including those taken before an upgrade, are unaffected.
 - Restoring needs the environment published on that server. On a new installation, `sbarbase relink` creates it first ([above](#restore-on-a-new-installation)); a backup taken before 2026-09-23 records no ownership and must be restored into an environment created by hand. Database roles shared by the whole engine are not in the set.
 - Restore has been rehearsed on one host with a test fixture, not on a server with real client data. The `storage_metadata` backup and `restore-storage` have unit tests only; neither has run against a live Storage yet.
 - Once a restored target has accepted writes, going back to the old source is unsafe without reconciliation.
