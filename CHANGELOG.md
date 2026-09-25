@@ -25,7 +25,7 @@ ready.
   <backup>` recreates the backup's client, project and environment with their
   original ids, never matching by name, and `sbarbase restore` then fills it.
   Members, API keys and the signing key do not travel; users sign in again
-  with their old passwords. Not yet rehearsed on a second machine.
+  with their old passwords. Rehearsed onto a second VM on 2026-09-25.
 - **Rotate an environment's signing key.** Owners and admins press **Rotate
   signing key** (or `POST .../signing-key/rotate`); the supervisor gives the
   environment a new JWT secret, recreates its Auth and REST, updates its
@@ -166,6 +166,21 @@ ready.
 
 ### Fixed
 
+- Found by the milestone runs in the rehearsal VM on 2026-09-25: redeeming an
+  invitation answered 500, because the account calls went to `/auth/v1/...` on
+  the management Auth service itself, which serves them at its root; the first
+  upgrade after an acceptance was refused as local changes, because the
+  acceptance rewrites tracked evidence (it is now copied aside to
+  `.lab/upgrades/`); the acceptance waited for the console right after
+  installing the unit, before the images existed, so an empty host always
+  timed out (the unit now starts after the installation); and an image pull
+  gave up after one immediate retry (now four attempts, waiting 15, 45 and 90 s).
+- A backup counted its rows before `pg_dump` ran, so a sign-up in between put a
+  row in the dump that the manifest did not count, and the restore refused the
+  backup. The counts and the dump now read one snapshot.
+- The loopback listener announced `connection: close` after refusing a request
+  but kept the connection open; a pooled client reused it and a one-second
+  cleanup cut off the next long request. The sustained arrival run now passes.
 - Found by the empty-server rehearsal: the acceptance checked the console before
   building it; block IO limits named a partition, which the kernel rejects, so the
   database never started on a usual VPS disk layout; body-less POST and DELETE
