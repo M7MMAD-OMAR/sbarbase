@@ -1,9 +1,9 @@
 {
-  "version": "0.1.0",
+  "version": "0.2.0",
   "minimum_from": "0.1.0",
   "notes": {
-    "en": "The first numbered release. An installation can now learn which signed release is newer and what applying it takes.",
-    "ar": "أول إصدار يحمل رقمًا. صار بإمكان كل تثبيت أن يعرف الإصدار الموقّع الأحدث منه، وما يتطلبه تطبيقه."
+    "en": "Updates from the console. Sbarbase checks for signed releases, shows what a release changes, installs a safe one with one click or inside a maintenance window you choose, and moves back by itself if the new version does not pass its health checks. A backup and a snapshot of the control state are taken first.",
+    "ar": "التحديث من لوحة التحكم. يتحقق Sbarbase من الإصدارات الموقّعة، ويعرض ما يغيّره كل إصدار، ويثبّت الإصدار الآمن بنقرة واحدة أو ضمن نافذة صيانة تختارها، ويرجع وحده إلى النسخة السابقة إذا لم تنجح فحوص الصحة. قبل أي تحديث تُؤخذ نسخة احتياطية ولقطة من حالة التحكم."
   },
   "migrations": []
 }

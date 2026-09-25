@@ -1,6 +1,6 @@
 {
   "name": "sbarbase",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Multi-project self-hosting built on original Supabase services, in development.",
   "dependencies": {
