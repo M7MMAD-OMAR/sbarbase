@@ -36,9 +36,19 @@ export function studioState():{upstream?:{host:string;port:number};sessions:Reco
 /** Account operations for invitations through the management realm's admin API. The service
  * role token is made here, from the private runtime secret, and never leaves this process.
  * docs/engineering/INVITATIONS.md */
-export function invitationAccounts(url:string,serviceRole:string):InvitationAccounts {
- const admin=createClient(url,serviceRole,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false},
-  global:{fetch:(input,init)=>fetch(input,{...init,redirect:'error',signal:AbortSignal.timeout(10_000)})}});
+export function invitationAccounts(url:string,serviceRole:string,request:typeof fetch=fetch):InvitationAccounts {
+ // `url` is the realm's own Auth service, which serves /admin/users and /user at its root.
+ // supabase-js addresses Auth behind an API gateway at /auth/v1, so that prefix is removed
+ // here; without it every call reached a path Auth does not serve and answered 404, which
+ // the first live run of an invitation found.
+ const origin=url.replace(/\/+$/,'');
+ const direct=(input:RequestInfo|URL)=>{
+  const target=new URL(input instanceof Request?input.url:String(input));
+  if(target.origin===new URL(origin).origin&&target.pathname.startsWith('/auth/v1/'))target.pathname=target.pathname.slice('/auth/v1'.length);
+  return target.toString();
+ };
+ const admin=createClient(origin,serviceRole,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false},
+  global:{fetch:(input,init)=>request(direct(input),{...init,redirect:'error',signal:AbortSignal.timeout(10_000)})}});
  return {
   async create(email,password) {
    const {data,error}=await admin.auth.admin.createUser({email,password,email_confirm:true,app_metadata:{sbarbase_invited:true}});
