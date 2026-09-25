@@ -10,7 +10,7 @@
 |---|---|---|
 | عنوان Docker | `DOCKER_HOST`، أو `--docker-host` في `deploy/server-acceptance.sh` | يجب أن يصل إلى خدمة Docker أصلية على Linux. خدمة النظام لا ترث بيئة الطرفية، فإذا كان سياق Docker على الخادم يشير إلى مقبس نسخة سطح المكتب، فمرّره صراحة في ملف الوحدة |
 | Bun | على `PATH`، و`--bun-dir` لوحدة الخدمة | يبني لوحة الإدارة ويشغّل خادم الحلقة المحلية |
-| Python | `/usr/bin/python3`، الإصدار 3.14 أو أحدث | الخيار `--python` في `deploy/server-acceptance.sh` يغيّره |
+| Python | `/usr/bin/python3`، الإصدار 3.12 أو أحدث، ومعه `cryptography` | الخيار `--python` في `deploy/server-acceptance.sh` يغيّره |
 
 ## الصور المثبّتة الإصدار
 

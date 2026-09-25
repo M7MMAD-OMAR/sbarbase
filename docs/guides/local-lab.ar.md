@@ -14,7 +14,7 @@
 
 ## المتطلبات
 
-نظام Linux مع خدمة Docker محلية، و[Bun](https://bun.sh)، وPython بإصدار 3.14 أو أحدث في `/usr/bin/python3`.
+نظام Linux مع خدمة Docker محلية، و[Bun](https://bun.sh)، وPython بإصدار 3.12 أو أحدث في `/usr/bin/python3` ومعه الوحدة `cryptography` (الحزمة `python3-cryptography`).
 
 ## التشغيل
 

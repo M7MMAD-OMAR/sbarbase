@@ -21,7 +21,7 @@ databases, not through a full restore or install. Read
 |---|---|
 | Linux x86-64 host with Docker (native daemon, not remote) | every placement runs pinned containers |
 | Bun on PATH (for a system service, add its directory to the unit's `PATH`, e.g. `/home/sbarbase/.bun/bin`) | package manager, console build, gateway checks |
-| `/usr/bin/python3` 3.14 or newer | the lab runtime uses modern f-strings |
+| `/usr/bin/python3` 3.12 or newer, with `cryptography` | the lab runtime uses f-strings that need 3.12; `cryptography` encrypts recovery bundles and off-site backups |
 | Git checkout of this repository | state and lock files live in the checkout by default |
 | Headroom: on an empty server 4352 MiB available (1792 MiB for the database, Storage and management Auth containers plus a 2560 MiB reserve) and at least 2 CPU cores; more as environments are added. The preflight states the exact figure and refuses below it | The requirement is derived from the placement the next start runs: on an empty host the three system containers at their tier limits, afterwards every retained container at its own limits (each environment adds 512 MiB and 0.5 CPU of ceilings for its Auth and REST), plus the reserve, plus, on an installation that has been moved, the measured cost of the running source stage (`docs/evidence/source-stage-footprint.json`). CPU ceilings may add up to twice the cores after one core is kept for the host; the cgroup pressure gate refuses new work under real contention. The development host's retained split placement still needs 5888 MiB of limits plus the reserve. The preflight prints the composition, so a refusal names each term |
 | A service account that exists, holding the checkout | the unit runs as that account (`User=`), so `--apply` refuses an account that does not exist instead of installing a unit that cannot start. The shipped default is `sbarbase`; name the server's account with `--service-user`, `--home` and `--bun-dir` (also forwarded by `deploy/server-acceptance.sh`) |
@@ -41,7 +41,7 @@ deploy/server-acceptance.sh --rehearse --bootstrap-file /path/to/operator.json
 
 Without `--rehearse` the same command runs the prerequisites and the preflight
 only. It refuses before touching anything when a prerequisite is missing (docker, bun,
-git, `/usr/bin/python3` 3.14+, native Linux daemon), when the bootstrap file is
+git, `/usr/bin/python3` 3.12+, native Linux daemon), when the bootstrap file is
 not mode 600, or when the preflight reports a blocker, and it never prints a
 secret. The step-by-step sequence below is what it runs, for an operator who
 wants to drive each stage by hand.

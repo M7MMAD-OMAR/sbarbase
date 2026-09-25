@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 510" width="900" height="510" role="img" aria-labelledby="instala-t instala-d" xml:lang="ar" direction="rtl">
   <title id="instala-t">البداية السريعة: من خادم فارغ إلى استدعاء supabase-js</title>
-  <desc id="instala-d">ثماني خطوات. 1، ثبّت Docker وGit وPython 3.14. 2، أنشئ حساب الخدمة sbarbase ونسخة المستودع. 3، ثبّت Bun بالإصدار المثبّت لذلك الحساب. 4، اكتب بيانات المشغّل الأول في ملف خاص. 5، شغّل فحص الخادم حتى يعطي 0 عوائق. 6، أمر استلام واحد يفحص المتطلبات، ويبني لوحة الإدارة، ويفحص وكيل TLS، ويثبّت وحدة systemd، ويسحب الصور المثبّتة، ويجرب تشغيلًا وإيقافًا نظيفًا، وينشئ أول مشروع ببيئة إنتاج ويسجّل مستخدمًا بـ supabase-js عبر البوابة، وينتهي بـ Server acceptance: PASSED. 7، افتح لوحة الإدارة عبر نفق SSH. 8، وجّه تطبيقك إلى عنوان HTTPS. جُرّب في جهاز افتراضي محلي بنظام Fedora 44، ولم يُجرّب على خادم حقيقي بعد.</desc>
+  <desc id="instala-d">ثماني خطوات. 1، ثبّت Docker وGit وPython 3.12 أو أحدث. 2، أنشئ حساب الخدمة sbarbase ونسخة المستودع. 3، ثبّت Bun بالإصدار المثبّت لذلك الحساب. 4، اكتب بيانات المشغّل الأول في ملف خاص. 5، شغّل فحص الخادم حتى يعطي 0 عوائق. 6، أمر استلام واحد يفحص المتطلبات، ويبني لوحة الإدارة، ويفحص وكيل TLS، ويثبّت وحدة systemd، ويسحب الصور المثبّتة، ويجرب تشغيلًا وإيقافًا نظيفًا، وينشئ أول مشروع ببيئة إنتاج ويسجّل مستخدمًا بـ supabase-js عبر البوابة، وينتهي بـ Server acceptance: PASSED. 7، افتح لوحة الإدارة عبر نفق SSH. 8، وجّه تطبيقك إلى عنوان HTTPS. جُرّب في جهاز افتراضي محلي بنظام Fedora 44، ولم يُجرّب على خادم حقيقي بعد.</desc>
   <defs><marker id="instala-i" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#2A2632" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="instala-c" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#E06A4B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
   <rect x="0" y="0" width="900" height="510" fill="#F5EFE3"/>
   <g font-family="system-ui, sans-serif" fill="#2A2632" text-anchor="middle">
@@ -10,7 +10,7 @@
   <text x="856" y="84.5" font-size="12.5" font-weight="700" fill="#FFFBF1">1</text>
   <text x="838" y="85" font-size="13" font-weight="700" text-anchor="start">حزم النظام</text>
   <text x="774" y="112" font-size="12.5">Docker وGit</text>
-  <text x="774" y="131" font-size="12.5">وPython 3.14</text>
+  <text x="774" y="131" font-size="12.5">وPython 3.12+</text>
   <path d="M672 104 L662 104" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#instala-i)"/>
   <rect x="456" y="60" width="204" height="88" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
   <circle cx="640" cy="80" r="11" fill="#2A2632"/>

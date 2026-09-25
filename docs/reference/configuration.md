@@ -10,7 +10,7 @@ What an operator can set, and where Sbarbase keeps its state. Paths are relative
 |---|---|---|
 | Docker endpoint | `DOCKER_HOST`, or `--docker-host` on `deploy/server-acceptance.sh` | Must reach a native Linux daemon. A system service does not inherit your shell, so a host whose Docker context points at a desktop socket must forward it in the unit |
 | Bun | on `PATH`; `--bun-dir` for the service unit | Used for the console build and the loopback server |
-| Python | `/usr/bin/python3`, 3.14 or newer | `--python` on `deploy/server-acceptance.sh` overrides it |
+| Python | `/usr/bin/python3`, 3.12 or newer, with `cryptography` | `--python` on `deploy/server-acceptance.sh` overrides it |
 
 ## Pinned images
 

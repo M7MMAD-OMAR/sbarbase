@@ -655,7 +655,7 @@ def install(lang):
     t = lambda en, ar: pick(lang, en, ar)
     d = Diagram('install-flow', 900, 500, lang,
                 t('Quickstart: from an empty server to a supabase-js call', 'البداية السريعة: من خادم فارغ إلى استدعاء supabase-js'),
-                t('Eight steps. 1, install Docker, Git and Python 3.14. 2, create the sbarbase service account and its '
+                t('Eight steps. 1, install Docker, Git and Python 3.12 or newer. 2, create the sbarbase service account and its '
                   'checkout. 3, install the pinned Bun for that account. 4, write the first operator\'s credentials to a '
                   'private file. 5, run the preflight check until it reports 0 blockers. 6, one acceptance command checks '
                   'prerequisites, builds the console, checks the TLS proxy, installs the systemd unit, pulls the pinned '
@@ -663,7 +663,7 @@ def install(lang):
                   'and a supabase-js sign-up through the gateway, ending with Server acceptance: PASSED. 7, open the '
                   'console over an SSH tunnel. 8, point your app at the HTTPS address. Rehearsed in a local Fedora 44 '
                   'virtual machine, not yet on a real server.',
-                  'ثماني خطوات. 1، ثبّت Docker وGit وPython 3.14. 2، أنشئ حساب الخدمة sbarbase ونسخة المستودع. 3، ثبّت '
+                  'ثماني خطوات. 1، ثبّت Docker وGit وPython 3.12 أو أحدث. 2، أنشئ حساب الخدمة sbarbase ونسخة المستودع. 3، ثبّت '
                   'Bun بالإصدار المثبّت لذلك الحساب. 4، اكتب بيانات المشغّل الأول في ملف خاص. 5، شغّل فحص الخادم حتى '
                   'يعطي 0 عوائق. 6، أمر استلام واحد يفحص المتطلبات، ويبني لوحة الإدارة، ويفحص وكيل TLS، ويثبّت وحدة '
                   'systemd، ويسحب الصور المثبّتة، ويجرب تشغيلًا وإيقافًا نظيفًا، وينشئ أول مشروع ببيئة إنتاج ويسجّل '
@@ -672,7 +672,7 @@ def install(lang):
                   'حقيقي بعد.'))
     d.text(24, 34, d.title, size=16, weight=700, anchor='start')
     row1 = (
-        (t('system packages', 'حزم النظام'), [t('Docker, Git,', 'Docker وGit'), t('Python 3.14', 'وPython 3.14')]),
+        (t('system packages', 'حزم النظام'), [t('Docker, Git,', 'Docker وGit'), t('Python 3.12+', 'وPython 3.12+')]),
         (t('service account', 'حساب الخدمة'), [t('user sbarbase and', 'المستخدم sbarbase'), t('the checkout', 'ونسخة المستودع')]),
         (t('install Bun', 'تثبيت Bun'), [t('the pinned version,', 'بالإصدار المثبّت'), t('for that account', 'لذلك الحساب')]),
         (t('operator file', 'ملف المشغّل'), [t('private, mode 600;', 'ملف خاص بصلاحية 600'), t('no password in args', 'بلا كلمة مرور في الأوامر')]),
