@@ -544,6 +544,15 @@ def apply(target_ref, trigger='cli'):
     save_state({**record, 'moved': True})
     print(f'The checkout is at {target[:12]}. Restart Sbarbase now:\n  {RESTART}')
     print('If the new version does not start, Sbarbase moves back by itself.')
+    if trigger == 'cli' and held(SUPERVISOR_LOCK):
+        # From the command line while Sbarbase runs (the only way inside the container, where
+        # the supervisor is the container's own process): until the restart, the running
+        # supervisor is the previous version, and the scripts it starts (Studio, sign-in and
+        # toggle applies, the daily backup, a restarted worker, the final runtime stop) are read
+        # from the moved checkout. The console's "update now" avoids that window by draining the
+        # supervisor first (lab/dev.py begin_drain); here the restart must simply follow at once.
+        print('Sbarbase is still running the previous version from the moved checkout: restart it now, '
+              'before it starts anything else.')
 
 
 def rollback(automatic=False, reason=None):
@@ -648,6 +657,16 @@ def before_start():
     if problem:
         raise UpgradeError(problem[0].upper() + problem[1:])
     if state['phase'] == 'applied' and not state.get('attempted_at'):
+        # A record the previous version left unsettled (a provisioning receipt, an HBA journal
+        # or migration: after `start` from the command line the old supervisor kept working
+        # until the restart) is settled by that version, never by this one: the snapshot below
+        # would hold the catalog without the matching record, and a restore after this version
+        # settled it would leave the two disagreeing. So this start fails before it touched
+        # anything, the way back restores nothing, and the previous version settles it.
+        for name in UNSETTLED:
+            if present(UPSTREAM / name):
+                raise UpgradeError(f'The previous version left a pending operation record ({name}); it settles it first. '
+                                   'Start the upgrade again once it has')
         with exclusive(LOCK, 'Another upgrade or rollback is running', wait=30):
             taken = snapshot(state['from'])
             state.update({'snapshot': taken, 'attempted_at': now()})

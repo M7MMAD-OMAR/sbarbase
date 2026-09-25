@@ -192,6 +192,12 @@ class Gate:
 
 class SupervisorGateTests(unittest.TestCase):
     def supervisor(self, gate, stop_after):
+        # run() clears a stale drain marker in STATE: never the real .lab.
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        state = patch.object(dev, 'STATE', Path(directory.name))
+        state.start()
+        self.addCleanup(state.stop)
         stop = threading.Event()
         supervisor = dev.Supervisor(stop)
         supervisor.confirm = gate
