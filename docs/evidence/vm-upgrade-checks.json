@@ -1,59 +1,171 @@
 {
   "check": "upgrade",
-  "recorded": "2026-09-25T14:30:40Z",
+  "recorded": "2026-09-25T23:13:41Z",
   "passed": true,
-  "count": 10,
-  "scope": "One installation with its environments on a clean machine: an upgrade to a version with a newer PostgREST (v14.15 to v14.16) through lab/upgrade.py and a restart, then an upgrade to a version whose PostgREST never starts, which the supervisor moved back by itself. Data is compared by row counts, not contents.",
+  "count": 26,
+  "stages": [
+    "upgraded",
+    "operator-rollback",
+    "rolled-back"
+  ],
+  "missing": [],
+  "scope": "One installation with its environments on a clean machine, not a real server. An upgrade to a version with a newer PostgREST (v14.15 to v14.16) through lab/upgrade.py and a restart. A manual rollback by the operator after that upgrade was confirmed. An upgrade to a version whose PostgREST never answers, which the supervisor moved back by itself. Data is compared by row counts, and the control catalog by its schema version and a digest of its organizations, projects, environments and memberships, not every table.",
   "checks": [
     {
+      "stage": "upgraded",
       "check": "the upgrade finished and was confirmed",
       "ok": true,
-      "detail": "confirmed"
+      "detail": "confirmed automatic=False to=17b18c2c61bf"
     },
     {
+      "stage": "upgraded",
       "check": "the checkout is on the new version",
       "ok": true,
-      "detail": "eb2d1012bfd1"
+      "detail": "17b18c2c61bf"
     },
     {
+      "stage": "upgraded",
       "check": "every REST container runs the new PostgREST",
       "ok": true,
       "detail": "public.ecr.aws/supabase/postgrest:v14.16"
     },
     {
+      "stage": "upgraded",
+      "check": "the control catalog is at the schema it had before the upgrade",
+      "ok": true,
+      "detail": "3 -> 3"
+    },
+    {
+      "stage": "upgraded",
+      "check": "organizations, projects, environments and memberships in the control catalog are unchanged",
+      "ok": true,
+      "detail": "{\"environments\": 1, \"installation_bootstrap\": 1, \"memberships\": 1, \"organizations\": 1, \"projects\": 1}"
+    },
+    {
+      "stage": "upgraded",
       "check": "users, identities, buckets and files are unchanged in every environment",
       "ok": true,
-      "detail": "2 environment(s)"
+      "detail": "1 environment(s)"
     },
     {
-      "check": "Auth, REST and the console answer",
+      "stage": "upgraded",
+      "check": "Auth, REST and the console answer, and the console /health answers 200",
       "ok": true,
-      "detail": ""
+      "detail": "/health 200"
     },
     {
+      "stage": "upgraded",
+      "check": "application traffic is served, not held",
+      "ok": true,
+      "detail": "held=False"
+    },
+    {
+      "stage": "operator-rollback",
+      "check": "the operator moved back from the confirmed upgrade",
+      "ok": true,
+      "detail": "rolled_back automatic=False to=17b18c2c61bf"
+    },
+    {
+      "stage": "operator-rollback",
+      "check": "the checkout is on the version before the upgrade",
+      "ok": true,
+      "detail": "62786672d385"
+    },
+    {
+      "stage": "operator-rollback",
+      "check": "every REST container runs that version's PostgREST again",
+      "ok": true,
+      "detail": "public.ecr.aws/supabase/postgrest:v14.15"
+    },
+    {
+      "stage": "operator-rollback",
+      "check": "after confirmation the control state was kept, not restored",
+      "ok": true,
+      "detail": "None"
+    },
+    {
+      "stage": "operator-rollback",
+      "check": "the control catalog is at the schema it had before the upgrade",
+      "ok": true,
+      "detail": "3 -> 3"
+    },
+    {
+      "stage": "operator-rollback",
+      "check": "organizations, projects, environments and memberships in the control catalog are unchanged",
+      "ok": true,
+      "detail": "{\"environments\": 1, \"installation_bootstrap\": 1, \"memberships\": 1, \"organizations\": 1, \"projects\": 1}"
+    },
+    {
+      "stage": "operator-rollback",
+      "check": "users, identities, buckets and files are unchanged in every environment",
+      "ok": true,
+      "detail": "1 environment(s)"
+    },
+    {
+      "stage": "operator-rollback",
+      "check": "Auth, REST and the console answer, and the console /health answers 200",
+      "ok": true,
+      "detail": "/health 200"
+    },
+    {
+      "stage": "operator-rollback",
+      "check": "application traffic is served, not held",
+      "ok": true,
+      "detail": "held=False"
+    },
+    {
+      "stage": "rolled-back",
       "check": "the broken version was moved back automatically",
       "ok": true,
-      "detail": "rolled_back automatic=True"
+      "detail": "rolled_back automatic=True to=08c841d79ea7"
     },
     {
+      "stage": "rolled-back",
       "check": "the checkout is on the last good version",
       "ok": true,
-      "detail": "eb2d1012bfd1"
+      "detail": "62786672d385"
     },
     {
+      "stage": "rolled-back",
       "check": "every REST container runs the last good PostgREST again",
       "ok": true,
-      "detail": "public.ecr.aws/supabase/postgrest:v14.16"
+      "detail": "public.ecr.aws/supabase/postgrest:v14.15"
     },
     {
+      "stage": "rolled-back",
+      "check": "the control state snapshot taken when the new version started was restored",
+      "ok": true,
+      "detail": "62786672d385-20260925T231238762289Z"
+    },
+    {
+      "stage": "rolled-back",
+      "check": "the control catalog is at the schema it had before the upgrade",
+      "ok": true,
+      "detail": "3 -> 3"
+    },
+    {
+      "stage": "rolled-back",
+      "check": "organizations, projects, environments and memberships in the control catalog are unchanged",
+      "ok": true,
+      "detail": "{\"environments\": 1, \"installation_bootstrap\": 1, \"memberships\": 1, \"organizations\": 1, \"projects\": 1}"
+    },
+    {
+      "stage": "rolled-back",
       "check": "users, identities, buckets and files are unchanged in every environment",
       "ok": true,
-      "detail": "2 environment(s)"
+      "detail": "1 environment(s)"
     },
     {
-      "check": "Auth, REST and the console answer",
+      "stage": "rolled-back",
+      "check": "Auth, REST and the console answer, and the console /health answers 200",
       "ok": true,
-      "detail": ""
+      "detail": "/health 200"
+    },
+    {
+      "stage": "rolled-back",
+      "check": "application traffic is served, not held",
+      "ok": true,
+      "detail": "held=False"
     }
   ]
 }
