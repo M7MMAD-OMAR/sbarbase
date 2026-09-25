@@ -130,7 +130,10 @@ if [ "$PRELOAD" = "1" ]; then
   step "pinned images the host already has, copied into the guest"
   for ref in $(grep -rhoE '"[a-z0-9./-]+@sha256:[0-9a-f]{64}"' "$REPO_ROOT"/lab/*.lock.json | tr -d '"' | sort -u); do
     if docker image inspect "$ref" >/dev/null 2>&1; then
-      docker save "$ref" | guest 'sudo docker load -q' >/dev/null && printf 'copied %s\n' "${ref%%@*}"
+      # A loaded image can arrive without its name; pulling the digest names it and
+      # downloads only the manifest, because the layers are already there.
+      docker save "$ref" | guest 'sudo docker load -q' >/dev/null && guest "sudo docker pull -q $ref" >/dev/null \
+        && printf 'copied %s\n' "${ref%%@*}"
     else
       printf 'not on the host, the install pulls it: %s\n' "${ref%%@*}"
     fi
