@@ -26,10 +26,9 @@ services:
       SBARBASE_BACKUP_HOUR: ${SBARBASE_BACKUP_HOUR:-3}
       SBARBASE_BACKUP_KEEP: ${SBARBASE_BACKUP_KEEP:-7}
       # The maintenance window of automatic updates is read in this container's local time,
-      # which is UTC unless TZ is set. The image carries no time zone database, so a zone name
-      # such as Asia/Dubai is read as UTC; give a fixed offset in POSIX form instead, for
-      # example TZ='<+04>-4' for UTC+4 (the sign is reversed in that form). The Updates page
-      # shows the zone the server actually uses next to the window.
+      # which is UTC unless TZ names a zone, for example TZ=Asia/Dubai (the image carries the
+      # time zone database). The Updates page shows the zone the server actually uses next to
+      # the window, so a name that does not resolve shows up as UTC there.
       TZ: ${TZ:-}
       # The address people and OAuth providers reach this server at, for example
       # https://api.example.com. Auth builds email links and callbacks from it.

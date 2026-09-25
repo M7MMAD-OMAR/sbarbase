@@ -378,10 +378,11 @@ class ZoneTests(unittest.TestCase):
             (database / 'Asia').mkdir(parents=True)
             (database / 'Asia' / 'Dubai').write_bytes(b'TZif')
             moment = at(3)
-            self.assertEqual(updates.zone(moment, {'TZ': 'Asia/Dubai'}, database=database), {'name': 'Asia/Dubai', 'offset': '+04:00'})
-            # A zone name the container cannot resolve is not repeated as if it were in use.
-            self.assertEqual(updates.zone(moment, {'TZ': 'Europe/Nowhere'}, database=database)['name'], moment.tzname())
-            self.assertEqual(updates.zone(moment, {'TZ': '../../etc/passwd'}, database=database)['name'], moment.tzname())
+            self.assertEqual(updates.zone(moment, {'TZ': 'Asia/Dubai'}), {'name': 'Asia/Dubai', 'offset': '+04:00'})
+            self.assertEqual(updates.zone(moment, {'TZ': ':Asia/Dubai'})['name'], 'Asia/Dubai')
+            # A zone name the time zone database does not know is not repeated as if it were in use.
+            for configured in ('Europe/Nowhere', '../../etc/passwd', '/etc/passwd', '', "<+04>-4"):
+                self.assertEqual(updates.zone(moment, {'TZ': configured})['name'], moment.tzname(), configured)
             link = Path(directory) / 'localtime'
             link.symlink_to(database / 'Asia' / 'Dubai')
             self.assertEqual(updates.zone(moment, {}, localtime=link)['name'], 'Asia/Dubai')

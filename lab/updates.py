@@ -35,6 +35,7 @@ import json
 import os
 import re
 import uuid
+import zoneinfo
 from pathlib import Path
 
 import effect_receipt
@@ -584,10 +585,11 @@ def announce_outcome(before, after, catalog=None):
 
 # ---------------------------------------------------------------- what runs now
 
-def zone(moment=None, environment=None, localtime='/etc/localtime', database='/usr/share/zoneinfo'):
+def zone(moment=None, environment=None, localtime='/etc/localtime'):
     """{name, offset} of the clock the maintenance window is read in (this process's local time).
-    The offset comes from the clock itself, never from TZ: in a container without a time zone
-    database a zone name in TZ is silently read as UTC, and the page must show what is used."""
+    The offset comes from the clock itself, never from TZ, and TZ names the zone only when the
+    time zone database knows it: the C library reads a name it does not know as UTC, silently,
+    and the page must show what is used."""
     moment = moment or now()
     raw = moment.strftime('%z') or '+0000'
     offset = f'{raw[:3]}:{raw[3:5]}'
@@ -595,9 +597,10 @@ def zone(moment=None, environment=None, localtime='/etc/localtime', database='/u
     name = None
     configured = environment.get('TZ')
     if configured is not None:
-        candidate = configured.lstrip(':')
-        if candidate and not candidate.startswith('/') and '..' not in candidate and (Path(database) / candidate).is_file():
-            name = candidate
+        try:
+            name = zoneinfo.ZoneInfo(configured.lstrip(':')).key
+        except (zoneinfo.ZoneInfoNotFoundError, ValueError, OSError):
+            name = None
     else:
         target = os.path.realpath(localtime)
         if '/zoneinfo/' in target and os.path.isfile(target):
