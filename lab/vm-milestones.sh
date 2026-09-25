@@ -14,6 +14,8 @@
 #   lab/vm-milestones.sh --dir DIR restore-drill IN restore IN (from export) into this VM and
 #                                                    sign the drill users in
 #   lab/vm-milestones.sh --dir DIR upgrade          upgrade, operator rollback, automatic way back
+#   lab/vm-milestones.sh --dir DIR channel          signed releases from a local source, installed
+#                                                    from the console and by automatic mode
 #   lab/vm-milestones.sh --dir DIR environments     fill to the environment limit and measure
 #   lab/vm-milestones.sh --dir DIR soak MINUTES     sample memory, disk, logs and restarts
 #
@@ -32,7 +34,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --dir) shift; DIR="${1:-}" ;;
     --ssh-port) shift; SSH_PORT="${1:-}" ;;
-    -h|--help) sed -n '2,21p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,23p' "$0"; exit 0 ;;
     *) break ;;
   esac
   shift
@@ -65,6 +67,16 @@ run_check() {
   local file=$1 status=0; shift
   as_service "$* --evidence docs/evidence/$file" || status=$?
   evidence "$file"; exit "$status"
+}
+# The upgrade phase in the installed checkout: returns once it is $1 and the console answers.
+phase() {
+  for _ in $(seq 1 120); do
+    p=$(guest "sudo /usr/bin/python3 -c 'import json;print(json.load(open(\"/opt/sbarbase/.lab/upgrades/state.json\")).get(\"phase\"))'" 2>/dev/null || true)
+    [ "$p" = "$1" ] && console_answers 10 && return 0
+    case "$p" in failed|rollback_failed) break ;; esac
+    wait_seconds 5
+  done
+  printf 'upgrade phase: %s (expected %s)\n' "$p" "$1"; return 1
 }
 reboot_guest() {
   guest 'sudo systemctl reboot' || :
@@ -165,15 +177,6 @@ upgrade)
   step "candidate versions on top of the installed one"
   versions=$(guest 'cd /opt/sbarbase && sudo -u sbarbase /usr/bin/python3 lab/upgrade-check.py candidates')
   eval "$versions"
-  phase() {
-    for _ in $(seq 1 120); do
-      p=$(guest "sudo /usr/bin/python3 -c 'import json;print(json.load(open(\"/opt/sbarbase/.lab/upgrades/state.json\")).get(\"phase\"))'" 2>/dev/null || true)
-      [ "$p" = "$1" ] && console_answers 10 && return 0
-      case "$p" in failed|rollback_failed) break ;; esac
-      wait_seconds 5
-    done
-    printf 'upgrade phase: %s (expected %s)\n' "$p" "$1"; return 1
-  }
   # `upgrade.py rollback` takes a confirmed upgrade only, so the operator's rollback comes right
   # after the confirmation, and the broken version then moves back to the installed one.
   # The evidence file is written once, at the end, even when a stage fails: a changed tracked
@@ -201,6 +204,50 @@ upgrade)
   rehearse_upgrade || status=1
   as_service "/usr/bin/python3 lab/upgrade-check.py evidence docs/evidence/vm-upgrade-checks.json upgraded operator-rollback rolled-back" || status=1
   evidence vm-upgrade-checks.json || :
+  exit "$status"
+  ;;
+channel)
+  # The update channel as an operator uses it: releases signed with the throwaway key `candidates`
+  # lists, served from a bare repository in the guest, found by "check now", installed from the
+  # management API or by automatic mode, with the supervisor draining, exiting 42 and systemd
+  # starting the new version behind the guard and the hold.
+  OPERATOR=/home/sbarbase/operator.json
+  SOURCE=/home/sbarbase/releases.git
+  step "candidate versions on top of the installed one"
+  installed=$(as_service "git rev-parse HEAD")
+  versions=$(as_service "/usr/bin/python3 lab/upgrade-check.py candidates")
+  eval "$versions"
+  # The service account cannot read the system journal; a copy of the unit's lines since the
+  # stage began is handed to it for the stage's journal checks.
+  journal_checks() {
+    guest "sudo journalctl -u sbarbase --since @$2 -o cat --no-pager > /tmp/channel-journal.txt \
+      && sudo install -o sbarbase -g sbarbase -m 600 /tmp/channel-journal.txt /home/sbarbase/channel-journal.txt" || return 1
+    as_service "/usr/bin/python3 lab/upgrade-check.py channel-journal $1 /home/sbarbase/channel-journal.txt"
+  }
+  rehearse_channel() {
+    as_service "/usr/bin/python3 lab/upgrade-check.py before base=$base good=$good bad=$bad" || return 1
+    as_service "/usr/bin/python3 lab/upgrade-check.py channel-source $SOURCE" || return 1
+    step "back to the installed commit, then onto the base with upgrade.py and one restart"
+    as_service "git checkout -q --detach $installed" || return 1
+    guest "set -e
+sudo mkdir -p /etc/systemd/system/sbarbase.service.d
+printf '[Service]\nEnvironment=SBARBASE_RELEASE_SOURCE=$SOURCE\n' | sudo tee /etc/systemd/system/sbarbase.service.d/release-source.conf >/dev/null
+sudo systemctl daemon-reload" || return 1
+    as_service "/usr/bin/python3 lab/upgrade.py start --to $base" || return 1
+    guest 'sudo systemctl restart sbarbase'
+    phase confirmed || { printf 'FAIL: the move onto the base was not confirmed\n' >&2; return 1; }
+    as_service "/usr/bin/python3 lab/upgrade-check.py channel-base $OPERATOR" || return 1
+    for name in good broken automatic attended; do
+      step "release $name through the channel"
+      since=$(guest 'date +%s')
+      as_service "/usr/bin/python3 lab/upgrade-check.py channel-apply $name $OPERATOR" || return 1
+      journal_checks "$name" "$since" || return 1
+    done
+  }
+  status=0
+  rehearse_channel || status=1
+  as_service "/usr/bin/python3 lab/upgrade-check.py evidence docs/evidence/vm-channel-checks.json channel-base channel-applied channel-rolled-back channel-automatic channel-attended" || status=1
+  evidence vm-channel-checks.json || :
   exit "$status"
   ;;
 environments)

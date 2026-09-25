@@ -202,6 +202,102 @@ class InstallationTests(unittest.TestCase):
         self.assertIn('the channel accepts a tag signed by the listed key', failed)
         self.assertIn('upgrade.py start --release refuses the unsigned tag, naming its signature', failed)
 
+    def test_the_channel_releases_are_signed_on_top_of_each_other_and_classified(self):
+        names = self.candidates()
+        source = check.release_source(Path(tempfile.mkdtemp(dir=self.root.parent)) / 'releases.git')
+        record = {'commits': names, 'channel': {'source': str(source), 'minimum': '0.2.0', 'releases': {}}}
+        environment = {**os.environ, 'SBARBASE_RELEASE_SOURCE': str(source)}
+
+        def offered():
+            result = subprocess.run(['/usr/bin/python3', 'lab/upgrade.py', 'channel', '--json'], cwd=self.root,
+                                    env=environment, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            return json.loads(result.stdout)['available'] or {}
+        with contextlib.redirect_stdout(io.StringIO()):
+            good = check.publish_channel(record, 'good')
+        release = offered()
+        self.assertEqual((release.get('tag'), release.get('signed'), release.get('class'), release.get('commit')),
+                         ('v0.9.1', True, 'safe', good))
+        self.assertEqual([row['to'] for row in release['changes']], [check.NEWER_REST['tag']])
+        with contextlib.redirect_stdout(io.StringIO()):
+            for name in ('broken', 'automatic', 'attended'):
+                check.publish_channel(record, name)
+        commits = {name: value['commit'] for name, value in record['channel']['releases'].items()}
+        parent = lambda commit: run_git(source, 'rev-parse', f'{commit}^')
+        self.assertEqual([parent(commits[name]) for name in check.RELEASES],
+                         [names['good'], commits['good'], commits['broken'], commits['automatic']])
+        for name, tag in check.RELEASES.items():
+            self.assertEqual(json.loads(run_git(source, 'show', f'{commits[name]}:release.json'))['version'], tag[1:])
+        lock = lambda commit: json.loads(run_git(source, 'show', f'{commit}:lab/images.lock.json'))
+        self.assertEqual(lock(commits['broken'])['rest'], lock(names['bad'])['rest'])
+        self.assertEqual(lock(commits['automatic']), lock(commits['good']))
+        self.assertEqual(lock(commits['attended']), {**lock(commits['good']), 'auth': check.NEWER_AUTH})
+        release = offered()
+        self.assertEqual((release.get('tag'), release.get('signed'), release.get('class')), ('v0.9.4', True, 'attended'))
+
+
+class ChannelTests(unittest.TestCase):
+    """The channel stages' own parts that need no installation."""
+
+    def setUp(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.base = Path(directory.name)
+        patcher = patch.object(check, 'RECORD', self.base / 'record.json')
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_the_window_opens_before_now_in_the_supervisor_zone(self):
+        import datetime
+        moment = datetime.datetime(2026, 9, 26, 22, 10, tzinfo=datetime.UTC)
+        self.assertEqual(check.window_around('+04:00', moment), {'start': '01:40', 'end': '04:10'})
+        self.assertEqual(check.window_around('+00:00', moment), {'start': '21:40', 'end': '00:10'})
+        self.assertEqual(check.window_around('-05:30', moment, before=10, after=20), {'start': '16:30', 'end': '17:00'})
+        with self.assertRaises(ValueError):
+            check.window_around('UTC', moment)
+
+    def journal(self, name, text):
+        path = self.base / 'journal.txt'
+        path.write_text(text)
+        with contextlib.redirect_stdout(io.StringIO()):
+            status = check.channel_journal(name, path)
+        return status, [row['check'] for row in check.load()['checks'] if not row['ok']]
+
+    def test_the_journal_checks_name_every_line_that_is_missing(self):
+        check.RECORD.write_text('{}')
+        lines = ('Finishing provisioning and other work before the update.\n'
+                 'Update to a newer Sbarbase release started.\n'
+                 'The checkout moved to Sbarbase 0.9.3. Sbarbase restarts on it now.\n'
+                 'sbarbase.service: Main process exited, code=exited, status=42/n/a\n')
+        self.assertEqual(self.journal('automatic', lines), (1, ['the journal shows it: automatic']))
+        check.RECORD.write_text('{}')
+        self.assertEqual(self.journal('automatic', lines + 'Automatic update to Sbarbase 0.9.3 requested.\n'), (0, []))
+        check.RECORD.write_text('{}')
+        self.assertEqual(self.journal('good', lines.replace('status=42', 'status=1'))[1],
+                         ['the journal shows it: exit 42', 'the journal shows it: moved'])
+
+    def test_a_skipped_stage_is_named_in_the_evidence_and_not_missing(self):
+        rows = [{'stage': stage, 'check': 'c', 'ok': True, 'detail': ''} for stage in ('channel-base', 'channel-applied')]
+        check.RECORD.write_text(json.dumps({'checks': rows, 'skipped': {'channel-attended': 'no image.'},
+                                            'channel': {'releases': {'good': {'tag': 'v0.9.1', 'commit': 'c'}}}}))
+        path = self.base / 'evidence.json'
+        with contextlib.redirect_stdout(io.StringIO()):
+            status = check.evidence(path, ['channel-base', 'channel-applied', 'channel-attended'])
+        written = json.loads(path.read_text())
+        self.assertEqual((status, written['check'], written['passed'], written['missing']), (0, 'update-channel', True, []))
+        self.assertIn('Skipped, channel-attended: no image.', written['scope'])
+        self.assertIn('not a real server', written['scope'])
+        self.assertEqual(written['releases'], {'good': {'tag': 'v0.9.1', 'commit': 'c'}})
+        with contextlib.redirect_stdout(io.StringIO()):
+            status = check.evidence(path, ['channel-base', 'channel-rolled-back'])
+        self.assertEqual((status, json.loads(path.read_text())['missing']), (1, ['channel-rolled-back']))
+
+    def test_events_match_on_their_detail(self):
+        events = [('update.applied', {'version': '0.9.1', 'trigger': 'console'})]
+        self.assertTrue(check.recorded_event(events, 'update.applied', version='0.9.1', trigger='console'))
+        self.assertFalse(check.recorded_event(events, 'update.applied', version='0.9.1', trigger='automatic'))
+        self.assertFalse(check.recorded_event(events, 'update.rolled_back', version='0.9.1'))
+
 
 def catalog(version, digest='d'):
     return {'version': version, 'tables': ['organizations'], 'rows': {'organizations': 1}, 'digest': digest}
