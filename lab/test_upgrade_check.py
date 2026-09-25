@@ -194,7 +194,8 @@ class InstallationTests(unittest.TestCase):
     def test_a_channel_that_refuses_every_release_does_not_pass(self):
         names = self.candidates()
         # With no key listed, every tag is refused for that reason, not for its own signature.
-        (self.root / 'deploy' / 'release-signers').write_text((ROOT / 'deploy' / 'release-signers').read_text())
+        (self.root / 'deploy' / 'release-signers').write_text(''.join(
+            line for line in (ROOT / 'deploy' / 'release-signers').read_text().splitlines(True) if line.startswith('#')))
         status, rows = self.unsigned(names)
         self.assertEqual(status, 1)
         failed = [row['check'] for row in rows if not row['ok']]

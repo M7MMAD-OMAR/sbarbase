@@ -7,6 +7,7 @@ import functools
 import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -58,6 +59,11 @@ def ssh_signing():
         except (AssertionError, subprocess.CalledProcessError) as error:
             return f'git cannot sign or verify a tag with an SSH key here: {error}'
     return None
+
+
+def comments_only(path):
+    """The shipped signers file without its keys: what an installation has before a key is listed."""
+    return ''.join(line for line in path.read_text().splitlines(True) if line.startswith('#'))
 
 
 def pin(tag, digit):
@@ -201,7 +207,7 @@ class ChannelTests(Fixture):
         self.releases.release('0.2.0')
         ref = channel.fetch_release('v0.2.0')
         empty = self.releases.base / 'empty-signers'
-        empty.write_text((ROOT / 'deploy' / 'release-signers').read_text())
+        empty.write_text(comments_only(ROOT / 'deploy' / 'release-signers'))
         self.assertIn('No release signing key', channel.verify(ref, empty))
         self.assertIn('No release signing key', channel.verify(ref, self.releases.base / 'missing'))
         with patch.object(channel.shutil, 'which', return_value=None):
@@ -354,7 +360,7 @@ class ChannelTests(Fixture):
         self.releases.release('0.2.0')
         self.releases.release('0.3.0')
         empty = self.releases.base / 'empty-signers'
-        empty.write_text((ROOT / 'deploy' / 'release-signers').read_text())
+        empty.write_text(comments_only(ROOT / 'deploy' / 'release-signers'))
         result = channel.check(signers=empty)
         self.assertIsNone(result['available'])
         self.assertEqual(len(result['skipped']), 1)
@@ -565,8 +571,10 @@ class PrepareTests(unittest.TestCase):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         base = Path(directory.name)
-        for name in ('release.json', 'package.json'):
-            shutil.copy(ROOT / name, base / name)
+        # The repository's own release moves on; these tests start from a fixed 0.1.0.
+        (base / 'release.json').write_text(json.dumps(manifest('0.1.0'), indent=2) + '\n')
+        package = re.sub(r'"version": "[^"]+"', '"version": "0.1.0"', (ROOT / 'package.json').read_text(), count=1)
+        (base / 'package.json').write_text(package)
         for item in (patch.object(release, 'RELEASE', base / 'release.json'), patch.object(release, 'PACKAGE', base / 'package.json')):
             item.start()
             self.addCleanup(item.stop)
