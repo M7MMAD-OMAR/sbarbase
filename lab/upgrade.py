@@ -346,7 +346,7 @@ def plan(target_ref):
     current = git('rev-parse', 'HEAD')
     target = resolve(target_ref)
     refusals = []
-    if git('status', '--porcelain', '--untracked-files=no'):
+    if [path for path in changed_tracked() if not path.startswith(EVIDENCE)]:
         refusals.append('The checkout has local changes to tracked files; commit or discard them first')
     if target == current:
         refusals.append('Already at this version')
@@ -405,12 +405,53 @@ def owner_of_checkout(paths):
             os.lchown(path, stat.st_uid, stat.st_gid)
 
 
+# The acceptance and the live checks write their evidence into the checkout, over files the
+# repository tracks. Those runs are this server's own record, not local edits, so they never
+# block an upgrade: they are copied aside before the checkout moves. The first upgrade after
+# an acceptance in the rehearsal VM was refused for exactly this.
+EVIDENCE = 'docs/evidence/'
+
+
+def porcelain(*args):
+    """(status, path) pairs from git status -z; git() strips the leading space of the first entry."""
+    result = subprocess.run(['git', 'status', '--porcelain=v1', '-z', *args], cwd=ROOT, capture_output=True, text=True)
+    if result.returncode:
+        raise UpgradeError(f'git status failed: {result.stderr.strip()}')
+    return [(entry[:2], entry[3:]) for entry in result.stdout.split('\0') if len(entry) > 3]
+
+
+def changed_tracked():
+    return [path for _, path in porcelain('--untracked-files=no')]
+
+
+def set_aside_evidence(commit):
+    """Copy evidence written here to .lab/upgrades/evidence-<time>/, then clear the paths the move would touch."""
+    changed = [path for path in changed_tracked() if path.startswith(EVIDENCE)]
+    untracked = [path for code, path in porcelain('--untracked-files=all', '--', EVIDENCE) if code == '??']
+    arriving = set(git('ls-tree', '-r', '--name-only', commit, '--', EVIDENCE, check=False).splitlines())
+    clashing = [path for path in untracked if path in arriving]
+    if not changed and not clashing:
+        return None
+    aside = UPGRADES / ('evidence-' + time.strftime('%Y%m%dT%H%M%SZ', time.gmtime()))
+    for path in changed + clashing:
+        target = aside / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(ROOT / path, target)
+    if changed:
+        git('checkout', '-q', '--', *changed)
+    for path in clashing:
+        (ROOT / path).unlink()
+    print(f'Evidence written on this server was copied to {aside} before the move')
+    return aside
+
+
 def checkout(commit, intent):
     """Records which images the next start may replace, then moves the checkout."""
     previous = git('rev-parse', 'HEAD')
     INTENT.parent.mkdir(parents=True, exist_ok=True)
     lab.atomic(INTENT, intent)
     try:
+        set_aside_evidence(commit)
         git('checkout', '-q', '--detach', commit)
     except UpgradeError:
         INTENT.unlink(missing_ok=True)

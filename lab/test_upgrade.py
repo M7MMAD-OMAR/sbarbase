@@ -111,6 +111,34 @@ class UpgradeTests(Checkout):
         self.repo.git('checkout', '--', '.')
         self.assertIn('Already at this version', upgrade.plan(self.first)['refusals'])
 
+    def test_evidence_written_on_this_server_is_set_aside_not_refused(self):
+        """Found in the rehearsal VM: the acceptance rewrites tracked evidence, and upgrade then refused."""
+        self.repo.git('checkout', '-q', '--detach', self.second)
+        target = self.repo.commit('evidence', files={'docs/evidence/acceptance.json': 'shipped\n',
+                                                      'docs/evidence/first-project.json': 'shipped\n'})
+        self.repo.git('checkout', '-q', '--detach', self.first)
+        self.repo.commit('evidence here too', files={'docs/evidence/acceptance.json': 'older\n'})
+        current = self.head()
+        (self.repo.root / 'docs/evidence/acceptance.json').write_text('this server\n')
+        (self.repo.root / 'docs/evidence/first-project.json').write_text('this server too\n')
+        (self.repo.root / 'docs/evidence/extra.json').write_text('only here\n')
+        self.assertEqual(upgrade.plan(target)['refusals'], [])
+        upgrade.start(target)
+        self.assertEqual(self.head(), target)
+        aside = next(upgrade.UPGRADES.glob('evidence-*'))
+        self.assertEqual((aside / 'docs/evidence/acceptance.json').read_text(), 'this server\n')
+        self.assertEqual((aside / 'docs/evidence/first-project.json').read_text(), 'this server too\n')
+        self.assertEqual((self.repo.root / 'docs/evidence/acceptance.json').read_text(), 'shipped\n')
+        self.assertEqual((self.repo.root / 'docs/evidence/extra.json').read_text(), 'only here\n',
+                         'an untracked file the new version does not ship stays where it is')
+        self.assertNotEqual(current, target)
+
+    def test_a_local_change_outside_evidence_still_refuses(self):
+        self.repo.commit('evidence', files={'docs/evidence/acceptance.json': 'shipped\n'})
+        self.repo.git('checkout', '-q', '--detach', self.first)
+        (self.repo.root / 'lab' / 'images.lock.json').write_text('{}')
+        self.assertTrue(any('local changes' in refusal for refusal in upgrade.plan(self.second)['refusals']))
+
     def test_a_refused_start_changes_nothing(self):
         (self.repo.root / 'lab' / 'images.lock.json').write_text('{}')
         with self.assertRaises(upgrade.UpgradeError):
