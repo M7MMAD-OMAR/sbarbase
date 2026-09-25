@@ -108,8 +108,8 @@ The update settings, requests and the upgrade record live in `.lab/upgrades/`, p
 | `.lab/upgrades/guard.py` | The start guard of the version the last upgrade left, which every start runs first (see [the start guard](../guides/upgrades.md#the-start-guard)) |
 | `.lab/upgrades/hold` | Present while a new version waits for its health checks; the gateway holds application traffic only while `state.json` also says a start is pending |
 | `.lab/upgrades/probe-token` | A random token for this start's health checks through the gateway, 0600; it exists only while the hold does |
-| `.lab/upgrades/evidence-<time>/` | Evidence written on this server, copied aside before the checkout moved |
-| `.lab/upgrades/aside-<time>/` | Local changes to tracked files, and untracked files the previous version would overwrite, copied here by a way back before it forced the checkout; one folder per way back. Nothing prunes them: remove one yourself once you no longer need it |
+| `.lab/upgrades/evidence-<time>/` | Evidence written on this server, copied aside before the checkout moved (by an upgrade or a way back) |
+| `.lab/upgrades/aside-<time>/` | Local changes to tracked files outside `docs/evidence/`, and untracked files the previous version would overwrite, copied here by a way back before it forced the checkout; one folder per way back. Nothing prunes them: remove one yourself once you no longer need it |
 | `.lab/upgrades/upgrade.lock`, `channel.lock`, `check.log`, `apply.log`, `rollback.log` | The lock one upgrade or rollback holds, the lock of one release check or fetch, and the output of the last child of each kind |
 | `.lab/upstream/worker-drain` | Present while the supervisor drains before an update: the worker claims no new job |
 | `.lab/upstream/upgrade-intent.json` | Which pinned images the next start may replace, written by an upgrade or a way back |

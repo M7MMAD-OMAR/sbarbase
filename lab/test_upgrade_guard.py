@@ -349,6 +349,30 @@ class ForcedMoveTests(Checkout):
         self.assertEqual(stat.S_IMODE(next(upgrade.UPGRADES.glob('aside-*')).stat().st_mode), 0o700)
         self.assertTrue(upgrade.before_start())
 
+    def test_a_way_back_sets_evidence_aside_where_an_upgrade_does(self):
+        """Evidence the new version's checks rewrote, which the previous version ships otherwise,
+        lands in evidence-<time>, not among the operator's own edits."""
+        self.repo.git('checkout', '-q', '--detach', self.second)
+        target = self.repo.commit('evidence', files={'docs/evidence/acceptance.json': 'shipped\n'})
+        self.repo.git('checkout', '-q', '--detach', self.first)
+        base = self.repo.commit('evidence here', files={'docs/evidence/acceptance.json': 'older\n',
+                                                        'docs/evidence/only-before.json': 'older\n'})
+        upgrade.start(target)
+        upgrade.after_start(True)
+        state = self.state()
+        upgrade_guard.begin_way_back(state, False, None)
+        state['way_back'] = upgrade.way_back(state)
+        upgrade.save_state(state)
+        (self.repo.root / 'docs/evidence/acceptance.json').write_text('this server\n')
+        (self.repo.root / 'docs/evidence/only-before.json').write_text('this server too\n')  # untracked here
+        self.assertEqual(self.guard(), 0)
+        self.assertEqual((self.head(), self.state()['moved_back']), (base, True))
+        self.assertEqual(self.repo.git('status', '--porcelain', '--untracked-files=all'), '')
+        aside = next(upgrade.UPGRADES.glob('evidence-*'))
+        self.assertEqual({path.relative_to(aside).as_posix(): path.read_text() for path in aside.rglob('*') if path.is_file()},
+                         {'docs/evidence/acceptance.json': 'this server\n', 'docs/evidence/only-before.json': 'this server too\n'})
+        self.assertEqual(self.asides(), {})
+
     def test_an_operator_rollback_that_raced_an_edit_moves_it_aside(self):
         """The refusal comes first; a change made between it and the move is set aside, not fatal."""
         store(self.catalog, 0, 3)  # a catalog the first version opens

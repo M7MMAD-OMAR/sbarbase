@@ -40,7 +40,6 @@ import shutil
 import sqlite3
 import subprocess
 import sys
-import time
 from pathlib import Path
 
 import backup
@@ -362,7 +361,7 @@ def plan(target_ref):
     current = git('rev-parse', 'HEAD')
     target = resolve(target_ref)
     refusals = []
-    if [path for path in changed_tracked() if not path.startswith(EVIDENCE)]:
+    if local_changes():
         refusals.append('The checkout has local changes to tracked files; commit or discard them first')
     if target == current:
         refusals.append('Already at this version')
@@ -466,44 +465,28 @@ def owner_of_checkout(paths):
             os.lchown(path, stat.st_uid, stat.st_gid)
 
 
-# The acceptance and the live checks write their evidence into the checkout, over files the
-# repository tracks. Those runs are this server's own record, not local edits, so they never
-# block an upgrade: they are copied aside before the checkout moves. The first upgrade after
-# an acceptance in the rehearsal VM was refused for exactly this.
-EVIDENCE = 'docs/evidence/'
-
-
-def porcelain(*args):
-    """(status, path) pairs from git status -z; git() strips the leading space of the first entry."""
-    result = subprocess.run(['git', 'status', '--porcelain=v1', '-z', *args], cwd=ROOT, capture_output=True, text=True)
-    if result.returncode:
-        raise UpgradeError(f'git status failed: {result.stderr.strip()}')
-    return [(entry[:2], entry[3:]) for entry in result.stdout.split('\0') if len(entry) > 3]
-
-
-def changed_tracked():
-    return [path for _, path in porcelain('--untracked-files=no')]
+def local_changes():
+    """Tracked files with local changes, outside the evidence the acceptance and the live checks
+    write under docs/evidence/: this server's own record, not local edits, so they never block an
+    upgrade (lab/upgrade_guard.py set_aside_evidence, which every move of the checkout calls; the
+    first upgrade after an acceptance in the rehearsal VM was refused for exactly this). A git
+    status that fails raises, never reads as local changes or as a clean tree."""
+    try:
+        return upgrade_guard.local_changes(layout())
+    except upgrade_guard.Refused as error:
+        raise UpgradeError(str(error)) from None
 
 
 def set_aside_evidence(commit):
-    """Copy evidence written here to .lab/upgrades/evidence-<time>/, then clear the paths the move would touch."""
-    changed = [path for path in changed_tracked() if path.startswith(EVIDENCE)]
-    untracked = [path for code, path in porcelain('--untracked-files=all', '--', EVIDENCE) if code == '??']
-    arriving = set(git('ls-tree', '-r', '--name-only', commit, '--', EVIDENCE, check=False).splitlines())
-    clashing = [path for path in untracked if path in arriving]
-    if not changed and not clashing:
-        return None
-    aside = UPGRADES / ('evidence-' + time.strftime('%Y%m%dT%H%M%SZ', time.gmtime()))
-    for path in changed + clashing:
-        target = aside / path
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(ROOT / path, target)
-    if changed:
-        git('checkout', '-q', '--', *changed)
-    for path in clashing:
-        (ROOT / path).unlink()
-    print(f'Evidence written on this server was copied to {aside} before the move')
-    return aside
+    """Copies evidence written here aside and clears the paths the move would touch; returns
+    the paths git rewrote or removed."""
+    try:
+        aside, restored = upgrade_guard.set_aside_evidence(layout(), commit)
+    except upgrade_guard.Refused as error:
+        raise UpgradeError(str(error)) from None
+    if aside is not None:
+        print(f'Evidence written on this server was copied to {aside} before the move')
+    return restored
 
 
 def checkout(commit, intent):
@@ -512,12 +495,12 @@ def checkout(commit, intent):
     INTENT.parent.mkdir(parents=True, exist_ok=True)
     lab.atomic(INTENT, intent)
     try:
-        set_aside_evidence(commit)
+        restored = set_aside_evidence(commit)
         git('checkout', '-q', '--detach', commit)
     except UpgradeError:
         INTENT.unlink(missing_ok=True)
         raise
-    owner_of_checkout(git('diff', '--name-only', previous, commit).splitlines())
+    owner_of_checkout(sorted(set(git('diff', '--name-only', previous, commit).splitlines()) | set(restored)))
     install_dependencies()
 
 
@@ -617,11 +600,6 @@ def rollback(automatic=False, reason=None):
     # waits a little for the upgrade lock rather than failing on a moment's overlap.
     with exclusive(LOCK, 'Another upgrade or rollback is running', wait=30 if automatic else 0):
         go_back(automatic, reason)
-
-
-def local_changes():
-    """Tracked files with local changes, outside the evidence the live checks write."""
-    return [path for path in changed_tracked() if not path.startswith(EVIDENCE)]
 
 
 def rollback_refusal(state=None, automatic=False):

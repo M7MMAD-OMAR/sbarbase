@@ -32,9 +32,10 @@ While an upgrade or a rollback waits for confirmation (state.json phase `applied
 A way back or a rollback_failed it records carries a notice in the state, so the next supervisor
 start emits the notification it earns (lab/dev.py upgrade_notices).
 
-Every move it makes is forced and verified (force_checkout): local changes to tracked files are
-copied aside into .lab/upgrades/aside-<time>/ first, a stale .git/index.lock is removed when no
-git process can be using the checkout, and nothing is recorded until HEAD is the commit and the
+Every move it makes is forced and verified (force_checkout): a stale .git/index.lock is removed
+when no git process can be using the checkout, evidence written under docs/evidence/ is copied
+into .lab/upgrades/evidence-<time>/ and other local changes to tracked files into
+.lab/upgrades/aside-<time>/, and nothing is recorded until HEAD is the commit and the
 tree is clean. A move that still fails is retried by the next MAX_ATTEMPTS starts; after that the
 outcome is terminal (cannot_move): the start goes on only when the checkout holds the previous
 version, or the confirmed one an operator's rollback tried to leave; otherwise the guard says so
@@ -63,6 +64,8 @@ PENDING = ('applied', 'rolling_back')
 MAX_ATTEMPTS = 3
 # The state format this guard writes. States without it were written before the guard existed.
 PROTOCOL = 2
+# Where the acceptance and the live checks write their evidence, over tracked files: never a
+# local change (local_changes), and set aside before every move (set_aside_evidence).
 EVIDENCE = 'docs/evidence/'
 # guard() returns this when the checkout cannot be moved and neither version on disk may start.
 STUCK = 3
@@ -174,13 +177,80 @@ def head(layout):
     return git(layout, 'rev-parse', 'HEAD', check=False)
 
 
-def clean(layout):
-    """No tracked file differs from HEAD, evidence the live checks write aside."""
-    result = subprocess.run(['git', 'status', '--porcelain=v1', '-z', '--untracked-files=no'], cwd=layout.root,
+def status(layout, *args):
+    """(code, path) pairs from `git status --porcelain=v1 -z`, run directly because git() strips
+    the leading space of the first entry. A rename or copy is one entry followed by its origin in
+    a field of its own; a rename's origin is reported as a second pair with the same code, since
+    it changed too (it is gone), and a copy's is skipped (it did not). Raises Refused when git
+    status fails, so a caller never takes a failure for a clean tree or for local changes."""
+    result = subprocess.run(['git', 'status', '--porcelain=v1', '-z', *args], cwd=layout.root,
                             capture_output=True, text=True)
     if result.returncode:
+        raise Refused(f'git status failed: {result.stderr.strip()}')
+    fields = iter(result.stdout.split('\0'))
+    entries = []
+    for entry in fields:
+        if len(entry) < 4:
+            continue
+        code = entry[:2]
+        entries.append((code, entry[3:]))
+        if 'R' in code or 'C' in code:
+            origin = next(fields, '')
+            if 'R' in code and origin:
+                entries.append((code, origin))
+    return entries
+
+
+def changed_tracked(layout):
+    """Every tracked path that differs from HEAD, staged or not. Raises Refused (status)."""
+    return [path for _, path in status(layout, '--untracked-files=no')]
+
+
+def local_changes(layout):
+    """Tracked paths that differ from HEAD outside the evidence the live checks write. Raises Refused."""
+    return [path for path in changed_tracked(layout) if not path.startswith(EVIDENCE)]
+
+
+def clean(layout):
+    """No tracked file differs from HEAD, evidence the live checks write aside. A git status that
+    fails is not clean."""
+    try:
+        return not local_changes(layout)
+    except Refused:
         return False
-    return not [entry[3:] for entry in result.stdout.split('\0') if len(entry) > 3 and not entry[3:].startswith(EVIDENCE)]
+
+
+def set_aside_evidence(layout, commit):
+    """The acceptance and the live checks write their evidence into the checkout, over files the
+    repository tracks. Those runs are this server's own record, not local edits, so no move of the
+    checkout refuses on them: the changed tracked evidence and the untracked evidence `commit`
+    would overwrite are copied to <upgrades>/evidence-<time>/ (0700), then the tracked paths are
+    restored from HEAD (index and tree) and the clashing ones removed. A copy already there is
+    kept, as set_aside keeps one: a move retried within the same second must not replace this
+    server's evidence with a half-written tree. Returns (folder, the paths git rewrote or removed),
+    folder None when nothing was set aside; raises Refused or OSError, and a copy that fails stops
+    before anything is restored."""
+    changed = [path for path in changed_tracked(layout) if path.startswith(EVIDENCE)]
+    untracked = [path for code, path in status(layout, '--untracked-files=all', '--', EVIDENCE) if code == '??']
+    arriving = set(names(git(layout, 'ls-tree', '-r', '--name-only', '-z', commit, '--', EVIDENCE, check=False)))
+    clashing = [path for path in untracked if path in arriving]
+    if not changed and not clashing:
+        return None, []
+    aside = layout.upgrades / ('evidence-' + time.strftime('%Y%m%dT%H%M%SZ', time.gmtime()))
+    for relative in changed + clashing:
+        source, target = layout.root / relative, aside / relative
+        # A deleted or renamed-away file has nothing to copy; the restore brings it back.
+        if not (source.is_file() or source.is_symlink()) or target.exists() or target.is_symlink():
+            continue
+        aside.mkdir(mode=0o700, parents=True, exist_ok=True)
+        os.chmod(aside, 0o700)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target, follow_symlinks=False)
+    if changed:
+        git(layout, 'restore', '--source=HEAD', '--staged', '--worktree', '--', *changed)
+    for relative in clashing:
+        (layout.root / relative).unlink(missing_ok=True)
+    return aside, changed + clashing
 
 
 def moved(layout, state):
@@ -323,7 +393,12 @@ def force_checkout(layout, commit, folder):
     checked before the caller records anything. Raises Refused or OSError."""
     clear_stale_index_lock(layout)
     previous = head(layout)
-    rewritten = set_aside(layout, commit, folder)
+    # Evidence first, after the stale lock is gone: it lands where an upgrade puts it
+    # (evidence-<time>), and set_aside then copies only the operator's own changes.
+    evidence, restored = set_aside_evidence(layout, commit)
+    if evidence is not None:
+        say(f'evidence written on this server was copied to {evidence} before the move')
+    rewritten = restored + set_aside(layout, commit, folder)
     git(layout, 'checkout', '-q', '-f', '--detach', commit)
     if head(layout) != commit or not clean(layout):
         raise Refused(f'git checkout did not leave a clean checkout at {commit[:12]}')

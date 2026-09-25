@@ -63,7 +63,7 @@ It also completes a way back that was interrupted. If the previous version then 
 
 Every way back, by the guard, the supervisor or an operator's rollback, moves the checkout by force and checks the result:
 
-- local changes to tracked files, and untracked files the previous version would overwrite, are first copied to `.lab/upgrades/aside-<time>/`, one folder per way back. Nothing prunes those folders: look there for an edit you made on the server, and remove a folder yourself once you no longer need it;
+- evidence under `docs/evidence/` goes to `.lab/upgrades/evidence-<time>/`, as in an upgrade; other local changes to tracked files, and untracked files the previous version would overwrite, are first copied to `.lab/upgrades/aside-<time>/`, one folder per way back. Nothing prunes those folders: look there for an edit you made on the server, and remove a folder yourself once you no longer need it;
 - a `.git/index.lock` left behind by a killed Git process is removed, but only when no Git process could be using the checkout;
 - nothing is recorded until the checkout is the previous version and its tracked files are clean.
 
@@ -157,7 +157,7 @@ The check reads the canonical repository over HTTPS, not your `origin`. To read 
 - **Environment databases are not part of that snapshot.** For a safe release nothing in them changes as the new version starts. For a release that needs your confirmation, the Auth, Storage or Realtime migrations stay after a way back, and `storage_metadata` is in no per-environment backup.
 - **After confirmation the fix is forward only.** The backups taken before the upgrade stay in `.lab/backups/`, and those of the last 3 upgrades that moved the checkout are kept out of pruning. A rollback keeps what was written since confirmation, or refuses when it cannot.
 - **Database image changes never go through an upgrade.** They are refused, and belong to `lab/migrate-generation.py`.
-- **Local edits are never discarded.** A local change to a tracked file outside `docs/evidence/` blocks an upgrade and an operator's rollback until you commit or discard it yourself. A way back that runs anyway (the automatic one, or the guard's) copies local changes to `.lab/upgrades/aside-<time>/` before it overwrites the checkout.
+- **Local edits are never discarded.** A local change to a tracked file outside `docs/evidence/` blocks an upgrade and an operator's rollback until you commit or discard it yourself. A way back that runs anyway (the automatic one, or the guard's) copies local changes to `.lab/upgrades/aside-<time>/`, and evidence to `.lab/upgrades/evidence-<time>/`, before it overwrites the checkout.
 
 ## From the command line
 

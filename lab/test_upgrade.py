@@ -144,6 +144,65 @@ class UpgradeTests(Checkout):
         (self.repo.root / 'lab' / 'images.lock.json').write_text('{}')
         self.assertTrue(any('local changes' in refusal for refusal in upgrade.plan(self.second)['refusals']))
 
+    def test_a_git_status_that_fails_raises_instead_of_reading_as_local_changes(self):
+        real = subprocess.run
+
+        def failing_status(args, *rest, **options):
+            if args[:2] == ['git', 'status']:
+                return subprocess.CompletedProcess(args, 128, '', 'fatal: index file corrupt\n')
+            return real(args, *rest, **options)
+        with patch.object(subprocess, 'run', failing_status):
+            with self.assertRaisesRegex(upgrade.UpgradeError, '^git status failed: fatal: index file corrupt$'):
+                upgrade.plan(self.second)
+            with self.assertRaises(upgrade.UpgradeError):
+                upgrade.rollback_refusal({'phase': 'applied', 'from': self.first, 'to': self.second})
+            self.assertFalse(upgrade_guard.clean(upgrade.layout()), 'a status that failed is never a clean tree')
+
+    def test_a_staged_rename_is_read_as_its_two_paths(self):
+        """git status -z puts a rename's origin in a field of its own, which was once read as an entry."""
+        self.repo.commit('evidence', files={'docs/evidence/before.json': 'here\n', 'lab/notes.txt': 'notes\n'})
+        self.repo.git('mv', 'docs/evidence/before.json', 'docs/evidence/after.json')
+        self.assertEqual(upgrade_guard.changed_tracked(upgrade.layout()), ['docs/evidence/after.json', 'docs/evidence/before.json'])
+        self.assertEqual((upgrade.local_changes(), upgrade.plan(self.second)['refusals']), ([], []))
+        self.assertTrue(upgrade_guard.clean(upgrade.layout()))
+        # A rename into the evidence is still a local change: its origin is outside.
+        self.repo.git('mv', 'lab/notes.txt', 'docs/evidence/notes.txt')
+        self.assertEqual(upgrade.local_changes(), ['lab/notes.txt'])
+        self.assertFalse(upgrade_guard.clean(upgrade.layout()))
+
+    def test_staged_deleted_and_renamed_evidence_is_set_aside_and_the_start_moves(self):
+        """Evidence is put back as HEAD has it, index included; a deleted file has nothing to copy."""
+        self.repo.git('checkout', '-q', '--detach', self.second)
+        target = self.repo.commit('evidence', files={'docs/evidence/acceptance.json': 'shipped\n'})
+        self.repo.git('checkout', '-q', '--detach', self.first)
+        self.repo.commit('evidence here', files={'docs/evidence/acceptance.json': 'older\n',
+                                                 'docs/evidence/gone.json': 'older\n', 'docs/evidence/old-name.json': 'older\n'})
+        (self.repo.root / 'docs/evidence/acceptance.json').write_text('this server\n')
+        self.repo.git('add', 'docs/evidence/acceptance.json')
+        (self.repo.root / 'docs/evidence/gone.json').unlink()
+        self.repo.git('mv', 'docs/evidence/old-name.json', 'docs/evidence/new-name.json')
+        upgrade.start(target)
+        self.assertEqual(self.head(), target)
+        self.assertEqual(self.repo.git('status', '--porcelain', '--untracked-files=all'), '')
+        aside = next(upgrade.UPGRADES.glob('evidence-*'))
+        self.assertEqual({path.relative_to(aside).as_posix(): path.read_text() for path in aside.rglob('*') if path.is_file()},
+                         {'docs/evidence/acceptance.json': 'this server\n', 'docs/evidence/new-name.json': 'older\n'})
+        self.assertEqual(stat.S_IMODE(aside.stat().st_mode), 0o700)
+
+    def test_evidence_set_aside_twice_in_one_second_keeps_the_first_copy(self):
+        """A move retried at once must not replace this server's evidence with a half-written tree."""
+        self.repo.commit('evidence', files={'docs/evidence/acceptance.json': 'shipped\n'})
+        evidence = self.repo.root / 'docs/evidence/acceptance.json'
+        with patch.object(upgrade_guard.time, 'gmtime', return_value=upgrade_guard.time.gmtime(0)):
+            evidence.write_text('this server\n')
+            first, restored = upgrade_guard.set_aside_evidence(upgrade.layout(), self.second)
+            evidence.write_text('half written\n')
+            second, _ = upgrade_guard.set_aside_evidence(upgrade.layout(), self.second)
+        self.assertEqual((first, restored), (second, ['docs/evidence/acceptance.json']))
+        self.assertEqual((first / 'docs/evidence/acceptance.json').read_text(), 'this server\n')
+        self.assertEqual(evidence.read_text(), 'shipped\n')
+        self.assertEqual(upgrade_guard.set_aside_evidence(upgrade.layout(), self.second), (None, []))
+
     def test_a_refused_start_changes_nothing(self):
         (self.repo.root / 'lab' / 'images.lock.json').write_text('{}')
         with self.assertRaises(upgrade.UpgradeError):
@@ -589,6 +648,26 @@ class ControlStateTests(Checkout):
         os.utime(self.snapshot() / 'manifest.json', ns=(0, 0))
         upgrade.prune_snapshots()
         self.assertEqual(sorted(path.name for path in upgrade.SNAPSHOTS.iterdir()), sorted(names[1:] + [current]))
+
+
+class BackUpTests(unittest.TestCase):
+    """The backup itself, which Checkout replaces in every other test."""
+
+    def test_the_backup_before_an_upgrade_is_marked_as_an_upgrades_and_names_its_run(self):
+        """Only runs marked `reason: upgrade` can be kept out of pruning (lab/backup.py upgrade_runs)."""
+        calls = []
+        runs = iter([{'20260901T030000Z'}, {'20260901T030000Z', '20260926T030000Z'}])
+        with patch.object(subprocess, 'run', side_effect=lambda args, **_: calls.append(args) or subprocess.CompletedProcess(args, 0)), \
+                patch.object(backup, 'upgrade_run_times', side_effect=lambda: next(runs)):
+            self.assertEqual(upgrade.back_up(), '20260926T030000Z')
+        # lab/test_backup.py shows the command passes this reason to every backup of the run.
+        self.assertEqual(calls, [['/usr/bin/python3', 'lab/backup.py', 'create', 'all', '--local-only', '--reason', 'upgrade']])
+
+    def test_a_backup_that_fails_stops_the_upgrade(self):
+        with patch.object(subprocess, 'run', return_value=subprocess.CompletedProcess([], 1)), \
+                patch.object(backup, 'upgrade_run_times', return_value=set()):
+            with self.assertRaisesRegex(upgrade.UpgradeError, 'backup before the upgrade failed'):
+                upgrade.back_up()
 
 
 class CommandTests(unittest.TestCase):
