@@ -186,11 +186,11 @@ function requestView(value:Json|null):RequestView|null {
     requestedAt:value.requested_at,...(text(value.detail)?{detail:value.detail}:{})};
 }
 
-/** An apply or rollback the supervisor has not finished: while it holds the slot, no other
- * update can be asked for. */
-function underway(request:RequestView|null) {
-  return !!request&&request.kind!=='check'&&(request.state==='requested'||request.state==='running');
-}
+/** A request the supervisor has not finished: while it holds the slot, no other can be recorded. */
+function open(request:RequestView|null) {return !!request&&(request.state==='requested'||request.state==='running');}
+/** An apply or rollback under way. A check holds the slot only for moments, so the page still
+ * offers "Install update" meanwhile. */
+function underway(request:RequestView|null) {return open(request)&&request?.kind!=='check';}
 
 /** Whether "roll back" is offered, and the sentence when it is not. The supervisor judged it with
  * upgrade.py's own rollback_refusal and recorded the verdict for this very upgrade record. */
@@ -237,7 +237,7 @@ export function updatesView(directory=UPDATES_DIRECTORY,root='.'):UpdatesView {
     checkedAt:document&&text(document.checked_at)?document.checked_at:null,
     checkError:check&&text(check.error)?check.error:null,settings:readSettings(directory),timezone:serverZone(directory,recorded),
     last:last(state),request,install:install(release,applyVerdict(recorded),request),
-    canRollback:rollbackVerdict(recorded,state).possible&&!underway(request)};
+    canRollback:rollbackVerdict(recorded,state).possible&&!open(request)};
 }
 
 export type UpdateRequestKind='apply'|'rollback'|'check';
