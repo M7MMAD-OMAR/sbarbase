@@ -4,6 +4,7 @@
   "private": true,
   "description": "Multi-project self-hosting built on original Supabase services, in development.",
   "dependencies": {
+    "@supabase/auth-js": "2.116.0",
     "@supabase/supabase-js": "2.116.0",
     "lucide-react": "1.47.0",
     "react": "19.3.0",

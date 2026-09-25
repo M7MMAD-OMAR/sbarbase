@@ -1,6 +1,7 @@
 import {readFileSync} from 'node:fs';
 import {createClient} from '@supabase/supabase-js';
 import type {InvitationAccounts} from '../src/control/invitations';
+import {AuthClient} from '@supabase/auth-js';
 import {PressureMonitor} from '../src/gateway/pressure';
 import {applicationConcurrency} from '../src/gateway/managed';
 import {createHmac} from 'node:crypto';
@@ -37,21 +38,15 @@ export function studioState():{upstream?:{host:string;port:number};sessions:Reco
  * role token is made here, from the private runtime secret, and never leaves this process.
  * docs/engineering/INVITATIONS.md */
 export function invitationAccounts(url:string,serviceRole:string,request:typeof fetch=fetch):InvitationAccounts {
- // `url` is the realm's own Auth service, which serves /admin/users and /user at its root.
- // supabase-js addresses Auth behind an API gateway at /auth/v1, so that prefix is removed
- // here; without it every call reached a path Auth does not serve and answered 404, which
- // the first live run of an invitation found.
- const origin=url.replace(/\/+$/,'');
- const direct=(input:RequestInfo|URL)=>{
-  const target=new URL(input instanceof Request?input.url:String(input));
-  if(target.origin===new URL(origin).origin&&target.pathname.startsWith('/auth/v1/'))target.pathname=target.pathname.slice('/auth/v1'.length);
-  return target.toString();
- };
- const admin=createClient(origin,serviceRole,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false},
-  global:{fetch:(input,init)=>request(direct(input),{...init,redirect:'error',signal:AbortSignal.timeout(10_000)})}});
+ // `url` is the realm's own Auth service, which serves /admin/users and /user at its root, so
+ // the Auth client is used directly: supabase-js would address it at /auth/v1, which only an
+ // API gateway serves (every call answered 404 until the first live invitation run).
+ const auth=new AuthClient({url:url.replace(/\/+$/,''),headers:{Authorization:`Bearer ${serviceRole}`,apikey:serviceRole},
+  persistSession:false,autoRefreshToken:false,detectSessionInUrl:false,
+  fetch:(input,init)=>request(input,{...init,redirect:'error',signal:AbortSignal.timeout(10_000)})});
  return {
   async create(email,password) {
-   const {data,error}=await admin.auth.admin.createUser({email,password,email_confirm:true,app_metadata:{sbarbase_invited:true}});
+   const {data,error}=await auth.admin.createUser({email,password,email_confirm:true,app_metadata:{sbarbase_invited:true}});
    if(error){
     // Only these codes mean the email is taken; other 422s are validation, never 'exists'.
     if(['email_exists','user_already_exists'].includes(error.code??''))return 'exists';
@@ -61,7 +56,7 @@ export function invitationAccounts(url:string,serviceRole:string,request:typeof 
    return {id:data.user.id};
   },
   async session(token) {
-   const {data,error}=await admin.auth.getUser(token);
+   const {data,error}=await auth.getUser(token);
    return error||!data.user?.id||!data.user.email?null:{id:data.user.id,email:data.user.email};
   },
  };
