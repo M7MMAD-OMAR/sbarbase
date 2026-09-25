@@ -23,7 +23,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   checks:
-    # ubuntu-26.04 ships /usr/bin/python3 3.14, the interpreter the runtime requires.
+    # ubuntu-26.04 ships /usr/bin/python3 3.14; the runtime requires 3.12 or newer.
     runs-on: ubuntu-26.04
     timeout-minutes: 20
     steps:

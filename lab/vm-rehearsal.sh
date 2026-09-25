@@ -13,7 +13,7 @@
 #
 # The image is not downloaded for you: fetch a Fedora 44 Cloud Base qcow2 from
 # fedoraproject.org and verify its checksum first. The guest needs
-# /usr/bin/python3 3.14 or newer, which Fedora 44 and Ubuntu 26.04 ship.
+# /usr/bin/python3 3.12 or newer; Fedora 44 ships 3.14.
 #
 # Requirements on the host: qemu-system-x86_64 with KVM, qemu-img, genisoimage,
 # ssh, git, bun. The VM's disk is a copy-on-write overlay, so the base image is

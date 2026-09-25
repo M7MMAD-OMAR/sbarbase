@@ -16,7 +16,7 @@ SCRIPT=ROOT/'deploy'/'server-acceptance.sh'
 
 def host_python_is_modern():
     try:
-        result=subprocess.run(['/usr/bin/python3','-c','import sys;print(sys.version_info>=(3,14))'],capture_output=True,text=True,timeout=30)
+        result=subprocess.run(['/usr/bin/python3','-c','import sys;print(sys.version_info>=(3,12))'],capture_output=True,text=True,timeout=30)
     except OSError:
         return False
     return result.stdout.strip()=='True'
@@ -64,7 +64,7 @@ class ServerAcceptanceTests(unittest.TestCase):
         self.assertNotEqual(result.returncode,0)
         self.assertIn('is not on PATH',result.stderr)
 
-    @unittest.skipUnless(MODERN_PYTHON and DOCKER,'this host lacks /usr/bin/python3 3.14 or a Docker daemon')
+    @unittest.skipUnless(MODERN_PYTHON and DOCKER,'this host lacks /usr/bin/python3 3.12 or a Docker daemon')
     def test_a_world_readable_bootstrap_file_is_refused(self):
         with tempfile.TemporaryDirectory() as directory:
             path=Path(directory)/'operator.json'
@@ -88,7 +88,7 @@ class ServerAcceptanceTests(unittest.TestCase):
             self.assertNotIn(leak,source)
         self.assertIn('contents never printed',source)
 
-    @unittest.skipUnless(MODERN_PYTHON and DOCKER,'this host lacks /usr/bin/python3 3.14 or a Docker daemon')
+    @unittest.skipUnless(MODERN_PYTHON and DOCKER,'this host lacks /usr/bin/python3 3.12 or a Docker daemon')
     def test_the_prerequisite_step_passes_on_this_host_so_preflight_speaks_next(self):
         result=run()
         output=result.stdout+result.stderr
