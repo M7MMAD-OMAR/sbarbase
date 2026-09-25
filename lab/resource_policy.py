@@ -159,16 +159,30 @@ def recovery_target_prefix(state):
     return prefix if isinstance(prefix, str) and prefix else None
 
 
+def started_recovery_target_prefix(state):
+    """The current recovery target's prefix when the next start runs it, else None.
+
+    lab/installation_runtime.py starts the target beside the source only on an
+    installation that moved an environment (cutover-operation.json recorded);
+    without it only the source starts, and the source start refuses a running
+    target. A restored target that was never cut over is therefore not part of
+    the next start's placement.
+    """
+    if not (Path(state) / 'cutover-operation.json').exists():
+        return None
+    return recovery_target_prefix(state)
+
+
 def recovery_target_items(state, docker):
     """`docker inspect` records of the current recovery target's containers, running or stopped.
 
     The one listing the preflight and the runtime's restart check both read. A
     moved installation starts these beside the source placement under the
-    combined admission, so the next start runs them too. Historical targets are
-    not counted: the runtime does not start them. With no recorded target this
-    makes no Docker call at all.
+    combined admission, so the next start runs them too. Historical targets, and
+    a target on an installation that has not moved, are not counted: the next
+    start does not run them. Without a started target this makes no Docker call.
     """
-    prefix = recovery_target_prefix(state)
+    prefix = started_recovery_target_prefix(state)
     if prefix is None:
         return []
     names = docker('ps', '-a', '--filter', 'label=io.sbarbase.owner=' + RECOVERY_TARGET_OWNER,

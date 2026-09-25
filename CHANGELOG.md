@@ -190,7 +190,8 @@ ready.
   On an installation that moved an environment, that check and the preflight
   now count the current recovery target's containers in one computation; the
   check used to count the source placement only, and a running target's memory
-  is now counted as in use rather than twice.
+  is now counted as in use rather than twice. A restored target that was never
+  cut over is counted by neither, because the next start does not run it.
 - Project names are unique within an organization and environment names within
   a project; a clash answers 409, not 500. The API refuses an environment past
   the installation limit with 409 before queueing it.

@@ -136,7 +136,8 @@ def planned_placement(inspect=None,targets=None):
     current recovery target's containers are added by
     resource_policy.restart_placement from resource_policy.recovery_target_items,
     the same computation the runtime's restart check uses, so on an installation
-    that moved an environment both count the target. A container without a finite
+    that moved an environment both count the target, and on one that has not
+    moved (the next start does not run the target) neither does. A container without a finite
     limit falls back to the full split placement, the conservative figure.
     """
     import resource_policy

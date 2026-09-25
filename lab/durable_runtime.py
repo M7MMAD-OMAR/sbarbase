@@ -87,12 +87,12 @@ def restart_placement(environments, realtime=0, functions=0):
 def owned_usage_bytes():
     """Memory the running owned containers use now, from the daemon.
 
-    The current recovery target's running containers are included: the restart
-    check counts them in the placement, and while they run their use is already
+    On a moved installation the current recovery target's running containers are
+    included: the restart check counts them in the placement, and while they run their use is already
     missing from MemAvailable, so leaving them out would count them twice.
     """
     names = lab.docker('ps', '--filter', 'label=io.sbarbase.owner='+OWNER, '--format', '{{.Names}}').stdout.split()
-    prefix = resource_policy.recovery_target_prefix(STATE)
+    prefix = resource_policy.started_recovery_target_prefix(STATE)
     if prefix:
         names += [name for name in lab.docker('ps', '--filter', 'label=io.sbarbase.owner='+resource_policy.RECOVERY_TARGET_OWNER,
                                                '--format', '{{.Names}}').stdout.split() if name.startswith(prefix+'-')]

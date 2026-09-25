@@ -151,6 +151,8 @@ class RecoveryTargetPlacementTests(unittest.TestCase):
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
         self.state=Path(self.temp.name)
         (self.state/'recovery-target.json').write_text(json.dumps({'prefix':self.PREFIX}))
+        # A moved installation: the next start runs the target beside the source.
+        (self.state/'cutover-operation.json').write_text('{}')
         # The source rows for two environments, retained at the limits the policy launches them with.
         self.source={'sbarbase-durable-db':self.item(1024,1),'sbarbase-durable-storage':self.item(512,.5),
                      'sbarbase-durable-management-auth':self.item(256,.25)}
@@ -191,6 +193,29 @@ class RecoveryTargetPlacementTests(unittest.TestCase):
         (self.state/'recovery-target.json').unlink()
         self.assertEqual(resource_policy.recovery_target_items(self.state,refuse),[])
         self.assertEqual(resource_policy.restart_placement((1792,1.75),[]),(1792,1.75))
+
+    def test_a_target_that_was_never_cut_over_is_not_counted_by_either(self):
+        # Restore done, cutover not: the next start runs the source only and
+        # refuses a running target, so neither figure may include it.
+        import durable_runtime
+        import resource_policy
+        (self.state/'cutover-operation.json').unlink()
+        def refuse(*args,**kwargs):
+            if args[0]=='ps' and any('recovery-target' in value for value in args):
+                raise AssertionError('the target was listed on an installation that has not moved')
+            return self.docker(*args,**kwargs)
+        with patch.object(durable_runtime,'STATE',self.state),patch.object(durable_runtime.lab,'docker',refuse):
+            runtime_figure=durable_runtime.restart_placement(2)
+            in_use=durable_runtime.owned_usage_bytes()
+        with patch.object(install_server,'STATE',self.state),patch.object(install_server,'docker',refuse):
+            memory,cpus,origin=install_server.planned_placement()
+        self.assertEqual(runtime_figure,resource_policy.start_placement(2))
+        self.assertEqual((memory,cpus),runtime_figure)
+        self.assertNotIn('recovery target',origin)
+        self.assertEqual(in_use,7*100*self.MIB)
+        # The pin classification still sees the recorded target.
+        with patch.object(install_server,'STATE',self.state):
+            self.assertEqual(install_server.current_prefix(),self.PREFIX)
 
     def test_the_restart_check_and_the_preflight_state_the_same_figure(self):
         import durable_runtime
