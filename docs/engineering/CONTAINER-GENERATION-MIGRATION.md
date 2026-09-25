@@ -156,25 +156,30 @@ retired registry held 54 revoked operations and none active. Results, in
 
 ## What remains
 
-3. **`lab/durable-check.ts` is still disabled, and re-enabling it needs an owner
-   decision.** Three things stand in the way, none of them the generation:
-   - Its recreation step removes every owned container. The database is now
-     replaced only by `lab/migrate-generation.py`, and the Auth and REST services of
-     a published environment are resumed with `existing_only`, so the following
-     `up` refuses to create them ("Resume cannot create a missing service
-     container") and would leave the placement unstartable. Only Storage and
-     management Auth are recreated by startup today. Narrowing the removal, or
-     turning the probe into a restart test, changes what it claims, which
-     SOURCE-HBA-INTEGRATION.md declines to do silently.
-   - The retained `probe.json` names the Lifecycle environments, and the first one
-     is the environment the cutover exported: it is fenced on the source and paused
-     in routing, so the probe's first SQL command fails. A regenerated fixture has
-     to choose served environments (connections allowed, routing not paused, job
-     succeeded) by an explicit rule; the four-environment guard leaves no room to
-     create new ones. The probe writes `probe.json` only when it is absent; the file
-     it rewrites on every run is `verification.json`.
-   - Durable startup needs 6400 MiB available (3840 MiB placement plus the 2560 MiB
-     start reserve).
+3. **`lab/durable-check.ts` is reworked and re-enabled, not yet run.** The owner
+   decided (2026-09-25) that it becomes a non-destructive lifecycle probe on the
+   migrated generation instead of a recreation probe, because its old step that
+   removed every owned container would leave published environments unable to
+   resume (startup resumes their Auth and REST from existing containers only).
+   It now:
+   - uses exactly the two published, unfenced environments `e_f61bf85...` and
+     `e_1f0624...`, refusing clearly if either is unpublished, paused in routing,
+     fenced or unprovisioned; it never touches the exported `e_60332245...` and
+     provisions nothing (selection in `lab/durable-fixture.ts`, eight Bun tests);
+   - starts the runtime with `lab/durable_runtime.py up`, runs the same SDK data
+     path (signup, RLS insert, private upload, signed URL, neighbour denial), then
+     stops and starts it through the same command and asserts the same database
+     container id, an unchanged generation pin, every owned container resumed with
+     its id, and every data, identity, object and signed URL check again;
+   - removes the rows, objects and Auth users it created, stops the runtime, and
+     only when all of that passes writes a fresh `probe.json` (a different earlier
+     fixture is archived beside it as `probe.pre-<day>.json`, never overwritten)
+     and its evidence file `docs/evidence/durable-lifecycle-restart.json`;
+     `verification.json` is written on every run.
+   Container recreation is covered by `lab/migrate-generation.py` (database) and
+   `lab/upgrade.py` (services), not by this probe. Startup needs 6400 MiB available
+   (3840 MiB placement plus the 2560 MiB start reserve), so the run waits for host
+   memory.
 4. The two load vehicles run against that regenerated fixture and their evidence
    is committed: the arrival driven pressure experiment and the mixed SDK load
    (`docs/engineering/RESOURCE-POLICY.md` section 5.0). Not started.

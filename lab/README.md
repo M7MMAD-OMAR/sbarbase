@@ -50,9 +50,12 @@ and credentials without changing their states.
 Supabase PostgreSQL and shared Storage runtime. `/usr/bin/python3 lab/worker.py
 --upstream` drains `.lab/upstream/control.sqlite`; it never consumes the stock
 component catalog. The historical `bun lab/durable-check.ts` container-recreation
-probe is still disabled before catalog/Docker effects: the retained database has
-been migrated, but its step that removes every owned container would now leave
-published environments unable to resume. See
+probe is now a non-destructive lifecycle probe: on two published, unfenced
+environments it runs the SDK data path, stops and starts the runtime through
+`durable_runtime.py`, and checks that every retained container resumed with its
+id and every datum survived. It removes no container; recreation belongs to
+`lab/migrate-generation.py` and `lab/upgrade.py`. It writes `probe.json` only on a
+passing run. See
 [what remains](../docs/engineering/CONTAINER-GENERATION-MIGRATION.md#what-remains). `/usr/bin/python3 lab/fresh-worker-check.py` tests current
 startup, original services, worker HBA authority and same-container restart in
 an isolated disposable namespace. It does not replace recreation coverage.

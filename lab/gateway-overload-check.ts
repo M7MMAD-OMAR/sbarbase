@@ -37,7 +37,7 @@ try{
   try{await sql(candidate.runtime,'SELECT 1;');live.push(id);}
   catch{console.error('fixture environment does not answer and is skipped:',id);}
  }
- if(live.length<2)throw new Error(`Two answering fixture environments are required; ${live.length} of ${probe.environments.length} answered. The probe fixture is written by lab/durable-check.ts, which is disabled pending the container generation migration.`);
+ if(live.length<2)throw new Error(`Two answering fixture environments are required; ${live.length} of ${probe.environments.length} answered. The probe fixture is written by a passing run of lab/durable-check.ts.`);
  for(const [index,id] of live.slice(0,2).entries()){
   const job=app.catalog.getProvision('durable-probe-owner',id);
   const key=app.catalog.withReadyEnvironment('durable-probe-owner',id,true,()=>app.keys.issue(job.runtime));
