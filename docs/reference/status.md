@@ -159,16 +159,16 @@ The itemised server matrix is [deployment readiness](deployment-readiness.md).
 
 ## Update channel, 2026-09-25
 
-Built on 2026-09-25: signed release tags checked against `deploy/release-signers`, the class of a release computed from the diff (safe, needs a rebuild, needs a migration), the console notice and Updates page for the installation operator, one-click install of safe signed releases, opt-in automatic updates inside a maintenance window, a control state snapshot, application traffic held until a health round passes within 120 seconds, and the way back ([upgrades](../guides/upgrades.md)).
+Built on 2026-09-25 ([upgrades](../guides/upgrades.md)): signed release tags checked against `deploy/release-signers`; four classes computed from the diff (safe, attended for an Auth, Storage or Realtime pin change, rebuild, manual); the console notice and Updates page for the installation operator, with the supervisor's install verdict; one-click install of safe releases and of attended ones after an acknowledgement; opt-in automatic updates for safe releases inside a maintenance window; a drain before the move; backups kept for the last 3 upgrades; a control state snapshot; a start guard that runs first on every start; application traffic held and management changes refused with 409 until a health round, including probes through the gateway, passes within 120 seconds; and the way back.
 
 | What | Evidence | Result |
 |---|---|---|
-| Release channel, request and settings files, automatic decision, snapshot and restore, health-gated confirmation (the upgrade file also holds the older upgrade tests) | `lab/test_release_channel.py`, `lab/test_updates.py`, `lab/test_upgrade.py`, `lab/test_upgrade_health.py` | 86 Python tests, OK, on the workstation |
-| Traffic hold, updates routes, console page logic | `tests/hold.test.ts`, `tests/updates-routes.test.ts`, `tests/updates-ui.test.ts` | 42 Bun tests pass |
-| The three CI cases (a release that migrates the catalog and then fails, one that fails its health checks, an unsigned tag) | none yet | **not run** |
-| VM rehearsal of a real bump and back through the channel | none yet | **not run** |
+| Release channel and classes, request, settings and verdict files, automatic decision and tries, snapshot and restore, guard, drain, health-gated confirmation, the CI upgrade check's own logic (the upgrade file also holds the older upgrade tests) | `lab/test_release_channel.py`, `lab/test_updates.py`, `lab/test_upgrade.py`, `lab/test_upgrade_health.py`, `lab/test_upgrade_guard.py`, `lab/test_upgrade_drain.py`, `lab/test_upgrade_check.py` | 178 Python tests, OK, on the workstation |
+| Traffic hold, the probe past it, updates routes, console page logic | `tests/hold.test.ts`, `tests/hold-bypass.test.ts`, `tests/updates-routes.test.ts`, `tests/updates-ui.test.ts` | 58 Bun tests pass |
+| The three CI cases (a release that migrates the catalog and then fails, one that fails its health checks, an unsigned tag) | in the CI job; no recorded run | **not run** |
+| VM rehearsal of a real bump and back through the channel, the guard, the drain, an attended release | none yet | **not run** |
 
-Unit tests only. No release signing key is listed in `deploy/release-signers` yet, so every release is refused as unsigned until one is. The CI upgrade run in the Docker table above and the VM run ([vm-upgrade-checks.json](../evidence/vm-upgrade-checks.json)) used `lab/upgrade.py start --to`, not the channel, the console or automatic updates.
+Unit tests only: nothing about the channel has run live or in the VM. No release signing key is listed in `deploy/release-signers` yet, so every release is refused as unsigned until one is. The CI upgrade run in the Docker table above and the VM run ([vm-upgrade-checks.json](../evidence/vm-upgrade-checks.json)) used `lab/upgrade.py start --to`, not the channel, the console or automatic updates.
 
 ## Resources
 
