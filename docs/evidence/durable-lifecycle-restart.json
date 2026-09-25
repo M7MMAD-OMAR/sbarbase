@@ -1,0 +1,148 @@
+{
+  "scope": "Two published, unfenced retained environments on the migrated database generation: original Supabase Auth, REST and shared Storage through the SDK and a loopback gateway, then a full stop and start of the retained runtime through lab/durable_runtime.py, resuming every owned container rather than recreating it. Container recreation is covered by lab/migrate-generation.py (database) and lab/upgrade.py (services), not by this probe. The environment exported by the cutover is not touched and nothing is provisioned. No host-loss backup, load or production readiness claim.",
+  "date": "2026-09-25",
+  "fixture": {
+    "runtimes": [
+      "e_f61bf85dccd73890ec63997c",
+      "e_1f0624c545789214eef426c9"
+    ],
+    "excluded": [
+      "e_60332245e3a0426dd242492f"
+    ],
+    "previous_fixture_archived": true
+  },
+  "database": {
+    "container": "1f43fb0107110e9c9012ebc0bec61614c764ee2b768f124e37263c1ef0ec705f",
+    "generation": "7c0432a2-ff7a-4795-adae-c1429ffc86f8",
+    "pin_sha256": "21948af76ee7c756222b9621a45de9ba36e9dbe7959aa4b2c2e4eaee723654e4"
+  },
+  "owned_containers_resumed": 9,
+  "cleanup": "rows, objects and Auth users created by this run removed; table, policies and bucket kept",
+  "runtime_stopped_after": true,
+  "checks": [
+    {
+      "check": "the running database is the pinned generation container",
+      "passed": true
+    },
+    {
+      "check": "both fixture environments are published, unfenced and served by the source",
+      "passed": true
+    },
+    {
+      "check": "e_f61bf85dccd73890ec63997c SDK signup works",
+      "passed": true
+    },
+    {
+      "check": "e_f61bf85dccd73890ec63997c SDK inserts row through real Auth RLS",
+      "passed": true
+    },
+    {
+      "check": "e_f61bf85dccd73890ec63997c private bucket exists",
+      "passed": true
+    },
+    {
+      "check": "e_f61bf85dccd73890ec63997c SDK private upload works",
+      "passed": true
+    },
+    {
+      "check": "e_f61bf85dccd73890ec63997c signed URL issued before restart",
+      "passed": true
+    },
+    {
+      "check": "e_1f0624c545789214eef426c9 SDK signup works",
+      "passed": true
+    },
+    {
+      "check": "e_1f0624c545789214eef426c9 SDK inserts row through real Auth RLS",
+      "passed": true
+    },
+    {
+      "check": "e_1f0624c545789214eef426c9 private bucket exists",
+      "passed": true
+    },
+    {
+      "check": "e_1f0624c545789214eef426c9 SDK private upload works",
+      "passed": true
+    },
+    {
+      "check": "e_1f0624c545789214eef426c9 signed URL issued before restart",
+      "passed": true
+    },
+    {
+      "check": "same email has separate Auth identities",
+      "passed": true
+    },
+    {
+      "check": "e_f61bf85dccd73890ec63997c neighboring token denied before restart",
+      "passed": true
+    },
+    {
+      "check": "e_1f0624c545789214eef426c9 neighboring token denied before restart",
+      "passed": true
+    },
+    {
+      "check": "stop leaves no owned container running",
+      "passed": true
+    },
+    {
+      "check": "the database container is the same migrated generation after restart",
+      "passed": true
+    },
+    {
+      "check": "the generation pin is unchanged by stop and start",
+      "passed": true
+    },
+    {
+      "check": "every owned container that ran before is resumed with the same id",
+      "passed": true
+    },
+    {
+      "check": "e_f61bf85dccd73890ec63997c Auth login retains user identity after restart",
+      "passed": true
+    },
+    {
+      "check": "e_f61bf85dccd73890ec63997c database identity retained",
+      "passed": true
+    },
+    {
+      "check": "e_f61bf85dccd73890ec63997c SDK row survives restart",
+      "passed": true
+    },
+    {
+      "check": "e_f61bf85dccd73890ec63997c private object bytes survive restart",
+      "passed": true
+    },
+    {
+      "check": "e_f61bf85dccd73890ec63997c earlier signed URL survives restart",
+      "passed": true
+    },
+    {
+      "check": "e_f61bf85dccd73890ec63997c neighboring token remains denied after restart",
+      "passed": true
+    },
+    {
+      "check": "e_1f0624c545789214eef426c9 Auth login retains user identity after restart",
+      "passed": true
+    },
+    {
+      "check": "e_1f0624c545789214eef426c9 database identity retained",
+      "passed": true
+    },
+    {
+      "check": "e_1f0624c545789214eef426c9 SDK row survives restart",
+      "passed": true
+    },
+    {
+      "check": "e_1f0624c545789214eef426c9 private object bytes survive restart",
+      "passed": true
+    },
+    {
+      "check": "e_1f0624c545789214eef426c9 earlier signed URL survives restart",
+      "passed": true
+    },
+    {
+      "check": "e_1f0624c545789214eef426c9 neighboring token remains denied after restart",
+      "passed": true
+    }
+  ]
+}

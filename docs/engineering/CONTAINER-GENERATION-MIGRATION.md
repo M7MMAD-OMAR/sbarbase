@@ -156,7 +156,7 @@ retired registry held 54 revoked operations and none active. Results, in
 
 ## What remains
 
-3. **`lab/durable-check.ts` is reworked and re-enabled, not yet run.** The owner
+3. **Done 2026-09-25: `lab/durable-check.ts` reworked, re-enabled and passing.** The owner
    decided (2026-09-25) that it becomes a non-destructive lifecycle probe on the
    migrated generation instead of a recreation probe, because its old step that
    removed every owned container would leave published environments unable to
@@ -178,11 +178,20 @@ retired registry held 54 revoked operations and none active. Results, in
      `verification.json` is written on every run.
    Container recreation is covered by `lab/migrate-generation.py` (database) and
    `lab/upgrade.py` (services), not by this probe. Startup needs 6400 MiB available
-   (3840 MiB placement plus the 2560 MiB start reserve), so the run waits for host
-   memory.
-4. The two load vehicles run against that regenerated fixture and their evidence
-   is committed: the arrival driven pressure experiment and the mixed SDK load
-   (`docs/engineering/RESOURCE-POLICY.md` section 5.0). Not started.
+   (3840 MiB placement plus the 2560 MiB start reserve); one attempt was refused for
+   headroom before anything started. The run passed 31 checks: nine owned
+   containers resumed with their ids, the database still `1f43fb01...` on generation
+   `7c0432a2...`, the pin unchanged, and a fresh `probe.json` written with the stale
+   one archived as `.lab/upstream/probe.pre-20260925.json`
+   ([evidence](../evidence/durable-lifecycle-restart.json)).
+4. **Load vehicles, run 2026-09-25 on that fixture, one result each way.** The
+   mixed SDK load (`lab/sdk-load-check.ts --policy-regression`) passed with no
+   failed operation. The sustained arrival run (`lab/gateway-overload-check.ts
+   --sustained`) failed reproducibly: 14 of 600 target arrivals ended without an
+   HTTP status, one every 2050 ms, while every neighbour arrival was correct and
+   fast; the cause is not established. The pressure-sampling mode and the
+   experimental-class phase of RESOURCE-POLICY sections 5.2 and 5.3 are not built.
+   Numbers and limits: RESOURCE-POLICY.md section 5.0.
 
 Out of scope: automatic detection of a changed container, silent re-pinning,
 migration across hosts, concurrent migrations of several databases, power-loss

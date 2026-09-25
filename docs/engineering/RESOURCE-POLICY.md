@@ -537,10 +537,12 @@ placement, and the reason is structural rather than a stale file:
   isolated fresh worker check instead. The `probe.json` on this host is therefore
   a leftover, and its first environment resolves to the retired environment
   `e_60332245e3a0426dd242492f`, which is why the overload vehicle dies on its
-  first SQL command. Two more defects in that vehicle must be fixed before it runs
-  again: its cleanup throws `Overload fixture cleanup incomplete`, which masks the
-  real error, and it writes `docs/evidence/gateway-sustained-failure.json` whatever
-  the outcome, so a run that dies in setup replaces committed evidence.
+  first SQL command. The two further defects once listed here are fixed in the
+  current code: cleanup failures are only printed when a primary error exists and
+  are thrown only when the run itself succeeded, so they no longer mask the real
+  error; and `docs/evidence/gateway-sustained-failure.json` is written only when the
+  run produced samples, so a run that dies in setup leaves committed evidence alone
+  (verified 2026-09-25: a setup failure left the file unchanged).
 - `docs/engineering/CONTAINER-GENERATION-MIGRATION.md` records that recreating a retained
   database container has no supported path, and that document is a deferred
   checkpoint rather than an implemented operation.
@@ -552,8 +554,32 @@ tier label and its per-device block IO limits
 held until the same day's rework: `lab/durable-check.ts` is now a non-destructive
 stop and start probe on two published, unfenced environments, and a passing run
 rewrites `probe.json` with exactly those two, archiving the stale fixture that
-names the exported environment. It has not run yet; sections 5.2 and 5.3 follow
-its first passing run, as CONTAINER-GENERATION-MIGRATION.md "What remains" records.
+names the exported environment. Its first run passed 31 checks the same day
+([evidence](../evidence/durable-lifecycle-restart.json)), and both vehicles then ran
+on that fixture, each alone, from a stopped runtime, stopped afterwards:
+
+- `lab/gateway-overload-check.ts --sustained` **failed**, reproducibly (two runs of
+  the unmodified vehicle, one more with a local logging copy, all the same). All 10
+  setup checks passed; of 660 arrivals, the 60 neighbour arrivals were all correct
+  200s (p50 2.4 ms, p95 3.7 ms), 555 target arrivals were correct 429s with
+  `retry-after: 1`, 31 were correct 200s after about 2004 ms, and 14 target
+  arrivals ended with no HTTP status at all: the client fetch threw after about
+  151 ms, one every 2050 ms, at the moment each batch of two-second RPCs releases
+  its slots. The failure condition "any unexpected target status" fired, so this is
+  recorded as a failure in
+  [gateway-sustained-failure.json](../evidence/gateway-sustained-failure.json); the
+  cause (gateway, local server or client connection reuse) is not established.
+  One earlier run of the same vehicle failed in setup at "neighbor succeeds while
+  target requests remain active" and left no artifact.
+- `lab/sdk-load-check.ts --policy-regression` **passed** with no failed operation
+  ([sdk-policy-regression.json](../evidence/sdk-policy-regression.json), replacing
+  the earlier run). Concurrent phase p95 against the previous file: read 2.8 (3.0)
+  ms, insert 4.5 (12.5), identity 33.6 (28.2), upload 14.4 (18.4), download 9.0
+  (7.6); pressure snapshots stayed at or near zero.
+
+Not built, on purpose for this run: the `--pressure` mode of section 5.2 and the
+experimental-class third phase of section 5.3. Both experiments therefore remain
+incomplete; these runs measure the existing vehicles on the new fixture only.
 
 So the arrival driven measurement of section 5.2 and the mixed SDK load of
 section 5.3 are blocked behind that migration, not merely unrun. What DOES run
