@@ -10,6 +10,8 @@
 #   lab/vm-rehearsal.sh --image /path/Fedora-Cloud-Base-Generic-44-*.qcow2
 #   lab/vm-rehearsal.sh --image IMG --cpus 4 --memory 6144 --dir ~/.local/share/sbarbase-vm
 #   lab/vm-rehearsal.sh --dir DIR --stop          # power the VM off
+#   --organization NAME names the first client (a restore drill needs a name the backup
+#   does not use, because a restore never attaches a backup to a client by name)
 #
 # The image is not downloaded for you: fetch a Fedora 44 Cloud Base qcow2 from
 # fedoraproject.org and verify its checksum first. The guest needs
@@ -32,6 +34,7 @@ CPUS=4
 MEMORY=6144
 SSH_PORT=2222
 STOP=0
+ORGANIZATION="First client"
 fail() { printf 'FAIL: %s\n' "$1" >&2; exit 1; }
 step() { printf '\n== %s\n' "$1"; }
 wait_seconds() { /usr/bin/python3 -c "import time; time.sleep($1)"; }
@@ -43,8 +46,9 @@ while [ $# -gt 0 ]; do
     --cpus) shift; CPUS="${1:-}" ;;
     --memory) shift; MEMORY="${1:-}" ;;
     --ssh-port) shift; SSH_PORT="${1:-}" ;;
+    --organization) shift; ORGANIZATION="${1:-}" ;;
     --stop) STOP=1 ;;
-    -h|--help) sed -n '2,26p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,28p' "$0"; exit 0 ;;
     *) fail "unknown argument: $1" ;;
   esac
   shift
@@ -128,7 +132,7 @@ sudo install -d -o sbarbase -g sbarbase /opt/sbarbase
 sudo -u sbarbase git clone -q /tmp/repo.bundle /opt/sbarbase
 sudo -u sbarbase install -D -m 755 /tmp/bun /home/sbarbase/.bun/bin/bun
 cd /opt/sbarbase
-/usr/bin/python3 -c "import json,secrets;print(json.dumps({\"email\":\"operator@example.com\",\"password\":secrets.token_urlsafe(24),\"organization\":\"First client\"}))" \
+/usr/bin/python3 -c "import json,secrets;print(json.dumps({\"email\":\"operator@example.com\",\"password\":secrets.token_urlsafe(24),\"organization\":\"'"$ORGANIZATION"'\"}))" \
   | sudo -u sbarbase /usr/bin/python3 lab/operator_file.py --stdin /home/sbarbase/operator.json'
 
 step "one-command acceptance with the first project"
