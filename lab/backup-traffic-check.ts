@@ -11,43 +11,22 @@
 // private drill file (mode 600), so a restore on another installation can prove they came
 // back. The keys are revoked at the end.
 import {createClient} from '@supabase/supabase-js';
-import {readFileSync,statSync,writeFileSync} from 'node:fs';
+import {writeFileSync} from 'node:fs';
+import {checkList,installationUrl,managementCaller,operatorFrom,option,signIn,waitProvisioned} from './check-kit';
 
-const MANAGEMENT_KEY='sb_publishable_sbarbase_local_management';
 const args=process.argv.slice(2);
-const operatorPath=args[0];
-const option=(name:string,fallback:string)=>{const at=args.indexOf(name);return at>=0?args[at+1]:fallback;};
-const evidencePath=option('--evidence','docs/evidence/backup-traffic-check.json');
-const drillPath=option('--drill','.lab/drill-users.json');
-if(!operatorPath||!evidencePath||!drillPath){console.error('usage: bun lab/backup-traffic-check.ts <operator.json> [--evidence PATH] [--drill PATH]');process.exit(2);}
-if((statSync(operatorPath).mode&0o077)!==0){console.error('the operator file must be private (mode 600)');process.exit(2);}
-const operator=JSON.parse(readFileSync(operatorPath,'utf8')) as {email:string;password:string};
-const base=(JSON.parse(readFileSync('.lab/upstream/server.json','utf8')) as {url:string}).url;
-
-type Check={check:string;ok:boolean;detail:string};
-const checks:Check[]=[];
-function record(check:string,ok:boolean,detail=''){checks.push({check,ok,detail});console.log((ok?'ok:   ':'FAIL: ')+check+(detail?'  '+detail:''));return ok;}
-const started=Date.now();
+const operator=operatorFrom(args[0],'usage: bun lab/backup-traffic-check.ts <operator.json> [--evidence PATH] [--drill PATH]');
+const drillPath=option(args,'--drill','.lab/drill-users.json');
+const base=installationUrl();
 const traffic:Record<string,{requests:number;failures:number;slowest_ms:number;signups:number;errors:string[]}>={};
 let backupRun={exit:-1,seconds:0,lines:[] as string[]};
-
-async function finish(){
- const passed=checks.length>0&&checks.every(row=>row.ok);
- writeFileSync(evidencePath,JSON.stringify({check:'backup-under-traffic',recorded:new Date().toISOString(),passed,count:checks.length,
-  seconds:Math.round((Date.now()-started)/1000),traffic,backup:{exit:backupRun.exit,seconds:backupRun.seconds,lines:backupRun.lines},checks},null,2)+'\n');
- console.log(`evidence: ${evidencePath}\nbackup under traffic check: ${passed?'passed':'failed'}`);
- process.exit(passed?0:1);
-}
+const {record,finish}=checkList('backup-under-traffic',option(args,'--evidence','docs/evidence/backup-traffic-check.json'),
+ ()=>({traffic,backup:backupRun}));
 
 try {
- const management=createClient(`${base}/management`,MANAGEMENT_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
- const login=await management.auth.signInWithPassword({email:operator.email,password:operator.password});
- const token=login.data.session?.access_token;
- if(!record('the operator signs in',!!token,login.error?.message??''))await finish();
- const call=async(method:string,path:string,body?:unknown)=>{
-  const response=await fetch(`${base}/management/v1${path}`,{method,headers:{authorization:`Bearer ${token}`,...(body?{'content-type':'application/json'}:{})},body:body?JSON.stringify(body):undefined});
-  return {status:response.status,json:await response.json().catch(()=>null) as any};
- };
+ const login=await signIn(base,operator.email,operator.password);
+ if(!record('the operator signs in',!!login.token,login.error))await finish();
+ const call=managementCaller(base,login.token!);
  const provisioned=async()=>{
   const found:{id:string;project:string;name:string}[]=[];
   for(const organization of (await call('GET','/organizations')).json?.data??[])
@@ -63,9 +42,8 @@ try {
   const organization=(await call('GET','/organizations')).json?.data?.[0]?.id;
   const project=await call('POST',`/organizations/${organization}/projects`,{name:`Traffic ${new Date().toISOString().slice(0,19)}`});
   const created=await call('POST',`/projects/${project.json?.id}/environments`,{name:'production'});
-  let state='queued';const deadline=Date.now()+10*60_000;
-  while(Date.now()<deadline&&!['succeeded','failed','cancelled'].includes(state)){await Bun.sleep(3000);state=(await call('GET',`/environments/${created.json?.id}/provision`)).json?.state??'unknown';}
-  record('a second environment is provisioned for the check',state==='succeeded',`state ${state}`);
+  const {state,failure}=await waitProvisioned(call,created.json?.id);
+  record('a second environment is provisioned for the check',state==='succeeded',`state ${state}${failure?' '+failure:''}`);
   environments=await provisioned();
  }
  if(!record('two environments are provisioned',environments.length>=2,`${environments.length} found`))await finish();

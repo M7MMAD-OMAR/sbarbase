@@ -11,43 +11,13 @@
 // invitee is removed from the organization at the end; the management account
 // itself stays, because the API has no route that deletes one. Passwords are
 // generated here and never printed or written.
-import {createClient} from '@supabase/supabase-js';
-import {readFileSync,statSync,writeFileSync} from 'node:fs';
+import {checkList,installationUrl,managementCaller,operatorFrom,option,signIn} from './check-kit';
 
-const MANAGEMENT_KEY='sb_publishable_sbarbase_local_management';
 const args=process.argv.slice(2);
-const operatorPath=args[0];
-const evidenceAt=args.indexOf('--evidence');
-const evidencePath=evidenceAt>=0?args[evidenceAt+1]:'docs/evidence/invitation-check.json';
-if(!operatorPath||!evidencePath){console.error('usage: bun lab/invitation-check.ts <operator.json> [--evidence PATH]');process.exit(2);}
-if((statSync(operatorPath).mode&0o077)!==0){console.error('the operator file must be private (mode 600)');process.exit(2);}
-const operator=JSON.parse(readFileSync(operatorPath,'utf8')) as {email:string;password:string};
-const base=(JSON.parse(readFileSync('.lab/upstream/server.json','utf8')) as {url:string}).url;
+const operator=operatorFrom(args[0],'usage: bun lab/invitation-check.ts <operator.json> [--evidence PATH]');
+const base=installationUrl();
+const {record,finish}=checkList('invitation',option(args,'--evidence','docs/evidence/invitation-check.json'));
 
-type Check={check:string;ok:boolean;detail:string};
-const checks:Check[]=[];
-function record(check:string,ok:boolean,detail=''){checks.push({check,ok,detail});console.log((ok?'ok:   ':'FAIL: ')+check+(detail?'  '+detail:''));return ok;}
-const started=Date.now();
-
-async function finish(){
- const passed=checks.length>0&&checks.every(row=>row.ok);
- writeFileSync(evidencePath,JSON.stringify({check:'invitation',recorded:new Date().toISOString(),passed,count:checks.length,
-  seconds:Math.round((Date.now()-started)/1000),checks},null,2)+'\n');
- console.log(`evidence: ${evidencePath}\ninvitation check: ${passed?'passed':'failed'}`);
- process.exit(passed?0:1);
-}
-
-async function signIn(email:string,password:string){
- const client=createClient(`${base}/management`,MANAGEMENT_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
- const login=await client.auth.signInWithPassword({email,password});
- return {token:login.data.session?.access_token,userId:login.data.user?.id,error:login.error?.message??''};
-}
-function caller(token:string){
- return async(method:string,path:string,body?:unknown)=>{
-  const response=await fetch(`${base}/management/v1${path}`,{method,headers:{authorization:`Bearer ${token}`,...(body?{'content-type':'application/json'}:{})},body:body?JSON.stringify(body):undefined});
-  return {status:response.status,json:await response.json().catch(()=>null) as any};
- };
-}
 async function redeem(body:unknown,token?:string){
  const response=await fetch(`${base}/management/invitations/redeem`,{method:'POST',
   headers:{'content-type':'application/json',...(token?{authorization:`Bearer ${token}`}:{})},body:JSON.stringify(body)});
@@ -55,9 +25,9 @@ async function redeem(body:unknown,token?:string){
 }
 
 try {
- const owner=await signIn(operator.email,operator.password);
+ const owner=await signIn(base,operator.email,operator.password);
  if(!record('the operator signs in through the management Auth realm',!!owner.token,owner.error))await finish();
- const call=caller(owner.token!);
+ const call=managementCaller(base,owner.token!);
  const organizations=await call('GET','/organizations');
  const organization=organizations.json?.data?.[0]?.id as string|undefined;
  if(!record('the operator sees an organization',organizations.status===200&&!!organization,`status ${organizations.status}`))await finish();
@@ -80,9 +50,9 @@ try {
  const again=await redeem({token,password});
  record('the same token is refused a second time',again.status===400,`status ${again.status}`);
 
- const invitee=await signIn(email,password);
+ const invitee=await signIn(base,email,password);
  if(!record('the invitee signs in with the new password',!!invitee.token,invitee.error))await finish();
- const as=caller(invitee.token!);
+ const as=managementCaller(base,invitee.token!);
  const seen=await as('GET','/organizations');
  record('the invitee sees the organization',seen.status===200&&(seen.json?.data??[]).some((row:any)=>row.id===organization),`status ${seen.status}`);
  const project=await as('POST',`/organizations/${organization}/projects`,{name:'Viewer may not create'});

@@ -11,32 +11,19 @@
 // installation. The users' sessions and keys from the old installation are expected to
 // be gone; their accounts and passwords must not be.
 import {createClient} from '@supabase/supabase-js';
-import {cpSync,existsSync,mkdirSync,readFileSync,readdirSync,statSync,writeFileSync} from 'node:fs';
+import {cpSync,existsSync,mkdirSync,readFileSync,readdirSync} from 'node:fs';
 import {join} from 'node:path';
+import {checkList,installationUrl,managementCaller,operatorFrom,option,signIn} from './check-kit';
 
-const MANAGEMENT_KEY='sb_publishable_sbarbase_local_management';
 const args=process.argv.slice(2);
+const usage='usage: bun lab/restore-drill-check.ts <operator.json> <export dir> [--evidence PATH]';
 const [operatorPath,exportDir]=args;
-const evidenceAt=args.indexOf('--evidence');
-const evidencePath=evidenceAt>=0?args[evidenceAt+1]:'docs/evidence/restore-drill.json';
-if(!operatorPath||!exportDir||!evidencePath){console.error('usage: bun lab/restore-drill-check.ts <operator.json> <export dir> [--evidence PATH]');process.exit(2);}
-if((statSync(operatorPath).mode&0o077)!==0){console.error('the operator file must be private (mode 600)');process.exit(2);}
-const operator=JSON.parse(readFileSync(operatorPath,'utf8')) as {email:string;password:string};
-const base=(JSON.parse(readFileSync('.lab/upstream/server.json','utf8')) as {url:string}).url;
-
-type Check={check:string;ok:boolean;detail:string};
-const checks:Check[]=[];
-function record(check:string,ok:boolean,detail=''){checks.push({check,ok,detail});console.log((ok?'ok:   ':'FAIL: ')+check+(detail?'  '+detail:''));return ok;}
-const started=Date.now();
+const operator=operatorFrom(operatorPath,usage);
+if(!exportDir){console.error(usage);process.exit(2);}
+const base=installationUrl();
 const restored:Record<string,unknown>[]=[];
+const {record,finish}=checkList('restore-drill',option(args,'--evidence','docs/evidence/restore-drill.json'),()=>({restored}));
 
-async function finish(){
- const passed=checks.length>0&&checks.every(row=>row.ok);
- writeFileSync(evidencePath,JSON.stringify({check:'restore-drill',recorded:new Date().toISOString(),passed,count:checks.length,
-  seconds:Math.round((Date.now()-started)/1000),restored,checks},null,2)+'\n');
- console.log(`evidence: ${evidencePath}\nrestore drill: ${passed?'passed':'failed'}`);
- process.exit(passed?0:1);
-}
 async function sbarbase(...command:string[]){
  const child=Bun.spawn(['deploy/sbarbase',...command],{stdout:'pipe',stderr:'pipe'});
  const [out,err]=await Promise.all([new Response(child.stdout).text(),new Response(child.stderr).text()]);
@@ -57,7 +44,7 @@ try {
   const target=join('.lab','backups',backup.runtime);
   mkdirSync(target,{recursive:true,mode:0o700});
   cpSync(join(exportDir,'backups',backup.runtime,backup.name),join(target,backup.name),{recursive:true});
-  const relink=await sbarbase('relink',backup.runtime,backup.name,'--operator-file',operatorPath);
+  const relink=await sbarbase('relink',backup.runtime,backup.name,'--operator-file',operatorPath!);
   if(!record(`relink recreates ${label} with its original ids`,relink.code===0,relink.out.split('\n')[0]??''))continue;
   const deadline=Date.now()+10*60_000;
   while(Date.now()<deadline&&!(backup.runtime in published()))await Bun.sleep(3000);
@@ -67,14 +54,9 @@ try {
   restored.push({runtime:backup.runtime,backup:backup.name,counts:backup.manifest.counts,relink:relink.code,restore:restore.code});
  }
 
- const management=createClient(`${base}/management`,MANAGEMENT_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
- const login=await management.auth.signInWithPassword({email:operator.email,password:operator.password});
- const token=login.data.session?.access_token;
- if(!record('the operator signs in on the new installation',!!token,login.error?.message??''))await finish();
- const call=async(method:string,path:string)=>{
-  const response=await fetch(`${base}/management/v1${path}`,{method,headers:{authorization:`Bearer ${token}`}});
-  return {status:response.status,json:await response.json().catch(()=>null) as any};
- };
+ const login=await signIn(base,operator.email,operator.password);
+ if(!record('the operator signs in on the new installation',!!login.token,login.error))await finish();
+ const call=managementCaller(base,login.token!);
  for(const user of drill.users) {
   const backup=backups.find(b=>b.manifest.ownership.environment.id===user.environment);
   if(!record(`a backup exists for the drill user of ${user.label}`,!!backup))continue;
@@ -83,8 +65,8 @@ try {
   const issued=await call('POST',`/environments/${environment}/keys`);
   if(!record(`a new key is issued for ${user.label}`,connection.status===200&&issued.status===201,`status ${connection.status}/${issued.status}`))continue;
   const app=createClient(`${base}${connection.json.apiPath}`,issued.json.token,{auth:{persistSession:false,autoRefreshToken:false}});
-  const signIn=await app.auth.signInWithPassword({email:user.email,password:user.password});
-  record(`the user from the old installation signs in to ${user.label} with their old password`,!signIn.error&&!!signIn.data.session,signIn.error?.message??'');
+  const session=await app.auth.signInWithPassword({email:user.email,password:user.password});
+  record(`the user from the old installation signs in to ${user.label} with their old password`,!session.error&&!!session.data.session,session.error?.message??'');
   const revoked=await call('DELETE',`/environments/${environment}/keys/${issued.json.id}`);
   record(`the drill key is revoked in ${user.label}`,revoked.status===200,`status ${revoked.status}`);
  }

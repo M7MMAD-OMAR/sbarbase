@@ -9,24 +9,14 @@
 // to what admission reserves for it. The limit is either the count guard (a 409 before any
 // job is queued) or, on a smaller host, the worker's admission (capacity_exceeded).
 // The environments stay, as an operator's would.
-import {createClient} from '@supabase/supabase-js';
-import {readFileSync,statSync,writeFileSync} from 'node:fs';
+import {readFileSync} from 'node:fs';
+import {checkList,installationUrl,managementCaller,operatorFrom,option,signIn,waitProvisioned} from './check-kit';
 
-const MANAGEMENT_KEY='sb_publishable_sbarbase_local_management';
 const args=process.argv.slice(2);
-const operatorPath=args[0];
-const evidenceAt=args.indexOf('--evidence');
-const evidencePath=evidenceAt>=0?args[evidenceAt+1]:'docs/evidence/environment-limit-check.json';
-if(!operatorPath||!evidencePath){console.error('usage: bun lab/environment-limit-check.ts <operator.json> [--evidence PATH]');process.exit(2);}
-if((statSync(operatorPath).mode&0o077)!==0){console.error('the operator file must be private (mode 600)');process.exit(2);}
-const operator=JSON.parse(readFileSync(operatorPath,'utf8')) as {email:string;password:string};
-const base=(JSON.parse(readFileSync('.lab/upstream/server.json','utf8')) as {url:string}).url;
-
-type Check={check:string;ok:boolean;detail:string};
-const checks:Check[]=[];
-function record(check:string,ok:boolean,detail=''){checks.push({check,ok,detail});console.log((ok?'ok:   ':'FAIL: ')+check+(detail?'  '+detail:''));return ok;}
-const started=Date.now();
+const operator=operatorFrom(args[0],'usage: bun lab/environment-limit-check.ts <operator.json> [--evidence PATH]');
+const base=installationUrl();
 const samples:unknown[]=[];
+const {record,finish}=checkList('environment-limit',option(args,'--evidence','docs/evidence/environment-limit-check.json'),()=>({samples}));
 
 function meminfo(){
  const fields=Object.fromEntries(readFileSync('/proc/meminfo','utf8').split('\n').filter(Boolean)
@@ -48,23 +38,10 @@ async function sample(label:string,environments:number){
  samples.push(entry);
  console.log(`sample ${label}: ${environments} environment(s), host available ${entry.host.available_mib} MiB, containers ${entry.containers_used_mib} MiB`);
 }
-async function finish(){
- const passed=checks.length>0&&checks.every(row=>row.ok);
- writeFileSync(evidencePath,JSON.stringify({check:'environment-limit',recorded:new Date().toISOString(),passed,count:checks.length,
-  seconds:Math.round((Date.now()-started)/1000),samples,checks},null,2)+'\n');
- console.log(`evidence: ${evidencePath}\nenvironment limit check: ${passed?'passed':'failed'}`);
- process.exit(passed?0:1);
-}
-
 try {
- const management=createClient(`${base}/management`,MANAGEMENT_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
- const login=await management.auth.signInWithPassword({email:operator.email,password:operator.password});
- const token=login.data.session?.access_token;
- if(!record('the operator signs in',!!token,login.error?.message??''))await finish();
- const call=async(method:string,path:string,body?:unknown)=>{
-  const response=await fetch(`${base}/management/v1${path}`,{method,headers:{authorization:`Bearer ${token}`,...(body?{'content-type':'application/json'}:{})},body:body?JSON.stringify(body):undefined});
-  return {status:response.status,json:await response.json().catch(()=>null) as any};
- };
+ const login=await signIn(base,operator.email,operator.password);
+ if(!record('the operator signs in',!!login.token,login.error))await finish();
+ const call=managementCaller(base,login.token!);
  const organization=(await call('GET','/organizations')).json?.data?.[0]?.id as string;
  const count=async()=>{
   let held=0;
@@ -73,7 +50,7 @@ try {
     if(['queued','running','succeeded'].includes((await call('GET',`/environments/${environment.id}/provision`)).json?.state))held++;
   return held;
  };
- let held=await count();
+ let held=await count(),limitReached=false;
  await sample('start',held);
  for(let round=0;round<8;round++) {
   const project=await call('POST',`/organizations/${organization}/projects`,{name:`Limit ${round+1} ${new Date().toISOString().slice(11,19)}`});
@@ -82,17 +59,17 @@ try {
    const after=await count();
    record('the next environment is refused with 409 at the limit',environment.json?.message==='Environment capacity reached',`at ${held} environment(s)`);
    record('no job was queued for the refused environment',after===held,`${after} held`);
+   limitReached=true;
    break;
   }
   if(!record(`environment ${held+1} is accepted`,environment.status===202,`status ${environment.status}`))break;
-  let state='queued',failure='';const deadline=Date.now()+10*60_000;
-  while(Date.now()<deadline&&!['succeeded','failed','cancelled'].includes(state)){await Bun.sleep(3000);
-   const job=(await call('GET',`/environments/${environment.json.id}/provision`)).json;state=job?.state??'unknown';failure=job?.failure??'';}
+  const {state,failure}=await waitProvisioned(call,environment.json.id);
   if(state==='failed'&&failure==='capacity_exceeded') {
    // The worker's memory, pressure and connection admission refused before the count guard:
    // on a smaller host that is the limit that binds, and it is the one worth measuring.
    record(`the worker's admission refuses environment ${held+1} before the count guard`,true,`capacity_exceeded at ${held} environment(s)`);
    await sample(`refused at environment ${held+1}`,held);
+   limitReached=true;
    break;
   }
   if(!record(`environment ${held+1} is provisioned`,state==='succeeded',`state ${state}${failure?' '+failure:''}`))break;
@@ -100,8 +77,7 @@ try {
   await Bun.sleep(20_000);
   await sample(`after environment ${held}`,held);
  }
- const refused=checks.some(row=>row.check.startsWith('the next environment is refused')||row.check.startsWith("the worker's admission refuses"));
- record('the limit was reached',refused,`${held} environment(s)`);
+ record('the limit was reached',limitReached,`${held} environment(s)`);
 } catch(error) {
  record('the check completed without an exception',false,error instanceof Error?error.message:String(error));
 }
