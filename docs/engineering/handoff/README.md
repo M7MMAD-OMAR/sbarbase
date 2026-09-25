@@ -1,6 +1,6 @@
 # Handoff for agents
 
-Current state and next step for a coding agent (Claude Code, Codex, Hermes or another) continuing this work. Updated 2026-09-23. Human-facing documentation starts at [docs/README.md](../../README.md); this folder is for continuity only.
+Current state and next step for a coding agent (Claude Code, Codex, Hermes or another) continuing this work. Updated 2026-09-25. Human-facing documentation starts at [docs/README.md](../../README.md); this folder is for continuity only.
 
 ## Read first
 
@@ -27,20 +27,20 @@ Configured resource ceilings are not measured demand or a hardware recommendatio
 
 ## Current state
 
-- Source release [0.1.0](../../../CHANGELOG.md) (2026-09-21) plus, unreleased, the container generation migration: `lab/migrate-generation.py`, journaled and passing five SIGKILL crash points on the disposable fixture.
-- Both retained databases (source and recovery target) were adopted into the owned HBA authority on 2026-09-20 and carry generation pins.
-- The retained moved environment stays on its recovery target; its source database and scoped logins remain fenced. Resume from the private cutover journal, never by rerunning export or allocation.
-- The deployment path passes on the development workstation and, from an empty server, in a local Fedora 44 VM with 4 vCPU and 6 GiB: acceptance 12 of 12, first project 13 of 13, reboot survived ([summary](../../evidence/vm-empty-server-rehearsal.json)). Repeat it with `lab/vm-rehearsal.sh`. No real server has been used.
+Updated 2026-09-25.
+
+- Source release [0.1.0](../../../CHANGELOG.md) (2026-09-21) plus a long unreleased list in the changelog.
+- The retained database was migrated to a new container generation on 2026-09-25, attended, with every row count unchanged ([evidence](../../evidence/generation-migration-retained.json)); a safety copy sits in the gitignored `.lab/generation-migration-backup-20260925/`. `lab/durable-check.ts` is now a non-destructive stop and start of the retained runtime (31 checks), and the mixed SDK load and the sustained arrival run both pass on it.
+- The retained moved environment stays on its recovery target; its source database and scoped logins remain fenced. Resume from the private cutover journal, never by rerunning export or allocation. `probe.json` names `e_f61bf85...` and `e_1f0624...`; `lab/recovery-export.py` exports `probe.environments[0]`, so running it fences that one.
+- Every roadmap step that needs a server was rehearsed in a local VM on 2026-09-25 with `lab/vm-rehearsal.sh --preload-images` and `lab/vm-milestones.sh`: acceptance and reboot, TLS behind a local CA across a reboot, live invitations, a backup under traffic, a restore onto a second VM, upgrade and back, the environment limit, and a 60 minute idle soak ([summary](../../evidence/vm-milestones-2026-09-25.json)). No real server has been used.
+- The host this runs on is shared with other agents and swings by several GiB of available memory; the VM watchdog powers a guest off under 3 GiB. A 6656 MiB guest was the largest that stayed up, and it holds two environments.
 - Source HBA authority is integrated into startup and worker provisioning. Complete HBA writes reject truncation and stale prepared requests; a reload acknowledgment does not prove enforcement and does not end existing sessions.
-- 2026-09-24: the [verification and migration plan](../plans/2026-09-23-verification-and-migration-plan.md) records the hierarchy follow-ups (most done, each with tests), the competitor comparison and the import design; import phase 0 exists as `lab/import_inspect.py`.
 
 ## Next step
 
-**Follow the [roadmap](../plans/2026-09-23-roadmap.md)**: a real server first (the owner expects one next month), then backups as a feature, Studio per environment and upgrades. Use [CONTRIBUTING.md](../../../CONTRIBUTING.md) for the workflow.
+**The real server, next month** ([roadmap](../plans/2026-09-23-roadmap.md), milestone 1): repeat on it what the VM rehearsed, in the same order, then add what a VM cannot show: a public certificate and DNS, a seven-day soak with two real environments, and capacity under load (milestone 1b, item 3). Use [CONTRIBUTING.md](../../../CONTRIBUTING.md) for the workflow.
 
-On the workstation, still pending: **the attended generation migration of the retained database.** `lab/migrate-generation.py` refuses the retained placement by design; running it there is a deliberate operator action, and its acceptance is in [what remains](../CONTAINER-GENERATION-MIGRATION.md#what-remains). Until it happens, `lab/durable-check.ts` stays disabled and the arrival-driven pressure and mixed SDK load measurements stay blocked.
-
-Still open after that: a real-server rehearsal, later-stage crash recovery, service effects, sustained mixed-load capacity, off-host restore, upgrades, complete organization transfer, multi-host coordination, and Realtime, Functions, pooler, cron and per-environment Studio.
+Still open after that: the `--pressure` sampling mode and the experimental-class phase of the resource experiments, a restore of an environment that used Studio, Realtime or direct database access, reclaiming a deleted environment's runtime, later-stage crash recovery, the connection pooler and cron, a release archive install, and multi-host coordination.
 
 ## History
 
