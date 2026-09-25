@@ -22,6 +22,8 @@ import durable_runtime as runtime
 DEADLINE = 120
 INTERVAL = 2
 TIMEOUT = 5
+# Probes of one round that run at the same time.
+WORKERS = 16
 # lab/upgrade.py probe_token(); never printed.
 PROBE_TOKEN = runtime.STATE.parent / 'upgrades' / 'probe-token'
 PROBE_HEADER = 'x-sbarbase-upgrade-probe'
@@ -104,20 +106,29 @@ def private_values():
 
 
 def check(state, server_pid, secrets=None, get=fetch, serving=None, token=None):
-    """(healthy, detail) for one round of probes. Never raises; detail never holds a secret."""
+    """(healthy, detail) for one round of probes. Never raises; detail never holds a secret.
+
+    The probes of a round run at once (at most WORKERS together), so a round with many
+    environments takes about as long as its slowest probe, not the sum of them; the detail
+    names the first failure in probe order, as a round one after the other would."""
     try:
         rows = probes(state, server_pid, secrets if secrets is not None else private_values(), serving, token)
     except ValueError as error:
         return False, f'health probes unavailable: {error}'
     except (OSError, KeyError, TypeError, AttributeError, sqlite3.Error) as error:
         return False, f'health probes unavailable ({error.__class__.__name__})'
-    for name, url, headers in rows:
+
+    def failure(row):
+        name, url, headers = row
         try:
             status = get(url, headers)
         except Exception as error:
-            return False, f'{name} did not answer ({error.__class__.__name__})'
-        if status != 200:
-            return False, f'{name} answered HTTP {status}'
+            return f'{name} did not answer ({error.__class__.__name__})'
+        return None if status == 200 else f'{name} answered HTTP {status}'
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, min(WORKERS, len(rows)))) as pool:
+        found = next((item for item in pool.map(failure, rows) if item), None)
+    if found:
+        return False, found
     return True, f'{len(rows)} health probe(s) answered'
 
 

@@ -328,7 +328,7 @@ class TargetTests(Fixture):
         server = self.serve()
         server.fail.add('PUT')
 
-        def create(e, keep, now=None, reason=None):
+        def create(e, keep, now=None, reason=None, protected=None):
             path = self.complete(e, now.strftime('%Y%m%dT%H%M%SZ'))
             return path, json.loads((path / 'manifest.json').read_text())
 

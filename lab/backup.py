@@ -208,7 +208,7 @@ def ownership(e):
     return catalog_ownership(STATE / 'control.sqlite', e)
 
 
-def create(e, keep=DEFAULT_KEEP, now=None, reason=None):
+def create(e, keep=DEFAULT_KEEP, now=None, reason=None, protected=None):
     if reason is not None and reason not in REASONS:
         raise BackupError('Unknown backup reason')
     if e not in published():
@@ -244,7 +244,7 @@ def create(e, keep=DEFAULT_KEEP, now=None, reason=None):
     if reason is not None:
         manifest['reason'] = reason
     write_private(target / 'manifest.json', json.dumps(manifest, indent=2) + '\n')
-    prune(e, keep)
+    prune(e, keep, protected)
     return target, manifest
 
 
@@ -257,11 +257,12 @@ def complete_backups(e):
                   if STAMP.fullmatch(path.name) and (path / 'manifest.json').is_file())
 
 
-def upgrade_runs(limit=UPGRADE_RUNS_KEPT):
+def upgrade_runs(limit=UPGRADE_RUNS_KEPT, current=None):
     """The times of the last ``limit`` backup runs taken for an upgrade, across every environment
     and the installation manifest: a run is one time, and any manifest of it marked
-    ``reason: upgrade`` names it."""
-    runs = set()
+    ``reason: upgrade`` names it. ``current`` is the time of an upgrade run under way, whose
+    manifests are not all written yet."""
+    runs = {current} if current else set()
     if not BACKUPS.is_dir():
         return runs
     for folder in BACKUPS.iterdir():
@@ -278,7 +279,7 @@ def upgrade_runs(limit=UPGRADE_RUNS_KEPT):
     return set(sorted(runs)[-limit:]) if limit > 0 else set()
 
 
-def prune(e, keep):
+def prune(e, keep, protected=None):
     """Keep the newest ``keep`` complete backups; interrupted ones older than the newest go too.
 
     Backups of the last UPGRADE_RUNS_KEPT upgrades are kept whatever their age and are not
@@ -286,7 +287,7 @@ def prune(e, keep):
     if keep < 1:
         raise BackupError('Keep at least one backup')
     complete = complete_backups(e)
-    protected = upgrade_runs()
+    protected = upgrade_runs() if protected is None else protected
     doomed = [path for path in complete if path.name not in protected][:-keep]
     newest = complete[-1].name if complete else ''
     folder = BACKUPS / e
@@ -486,10 +487,12 @@ def main(argv=None):
                 # One time for the whole run, so the run is one set here and off this host.
                 now = datetime.datetime.now(datetime.UTC).replace(microsecond=0)
                 stamp = now.strftime('%Y%m%dT%H%M%SZ')
+                # Read once for the run, which counts among the last upgrades when it is one.
+                protected = upgrade_runs(current=stamp if args.reason == 'upgrade' else None)
                 failed, created = 0, []
                 for e in targets:
                     try:
-                        path, manifest = create(e, args.keep, now=now, reason=args.reason)
+                        path, manifest = create(e, args.keep, now=now, reason=args.reason, protected=protected)
                         created.append(e)
                         print(f"backup {e} {path.name}: database {manifest['database']['bytes']} B, "
                               f"{manifest['objects']['files']} file(s), {manifest['counts']['auth.users']} user(s)")
@@ -501,7 +504,7 @@ def main(argv=None):
                     offsite = None
                     try:
                         import backup_offsite as offsite
-                        offsite.write_installation(stamp, created, args.keep, reason=args.reason)
+                        offsite.write_installation(stamp, created, args.keep, reason=args.reason, protected=protected)
                         print(f'installation manifest {stamp} written')
                     except Exception as error:
                         failed += 1

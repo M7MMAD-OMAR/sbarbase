@@ -53,17 +53,23 @@ class ProbeTests(unittest.TestCase):
     def test_every_service_is_probed_directly_and_rest_and_auth_again_through_the_gateway(self):
         healthy, detail = upgrade_health.check(self.state, 42, self.secrets, self.get(), {RUNTIME}, token=self.token)
         self.assertTrue(healthy, detail)
-        self.assertEqual([url for url, _ in self.asked], [
+        # The probes of a round run at once, so they arrive in any order.
+        asked = dict(self.asked)
+        through = [f'http://127.0.0.1:4000/{RUNTIME}/rest/v1/', f'http://127.0.0.1:4000/{RUNTIME}/auth/v1/health']
+        self.assertEqual(sorted(asked), sorted([
             'http://127.0.0.1:4000/health', 'http://10.0.0.2:9999/health', 'http://10.0.0.3:9999/health',
-            'http://10.0.0.4:3000/', 'http://10.0.0.5:5000/bucket',
-            f'http://127.0.0.1:4000/{RUNTIME}/rest/v1/', f'http://127.0.0.1:4000/{RUNTIME}/auth/v1/health'])
-        storage = self.asked[4][1]
+            'http://10.0.0.4:3000/', 'http://10.0.0.5:5000/bucket', *through]))
+        storage = asked['http://10.0.0.5:5000/bucket']
         self.assertEqual(storage['x-forwarded-host'], RUNTIME + '.storage.internal')
         self.assertTrue(storage['authorization'].startswith('Bearer '))
         # Through the gateway: the per-start token as the key and as the probe header, and no
         # x-forwarded-* header, which the gateway would take for a request from the TLS proxy.
-        for _, headers in self.asked[5:]:
-            self.assertEqual(headers, {'apikey': self.token, 'x-sbarbase-upgrade-probe': self.token})
+        for url in through:
+            self.assertEqual(asked[url], {'apikey': self.token, 'x-sbarbase-upgrade-probe': self.token})
+        # A round with every probe failing names the first one in probe order.
+        failing = {url: 503 for url in asked}
+        self.assertEqual(upgrade_health.check(self.state, 42, self.secrets, self.get(failing), {RUNTIME}, token=self.token),
+                         (False, 'console answered HTTP 503'))
 
     def test_a_gateway_or_key_store_failure_fails_the_round_without_the_token(self):
         healthy, detail = upgrade_health.check(self.state, 42, self.secrets,
@@ -76,7 +82,7 @@ class ProbeTests(unittest.TestCase):
             (self.state / 'probe-token').write_text(self.token + '\n')
             self.asked.clear()
             self.assertTrue(upgrade_health.check(self.state, 42, self.secrets, self.get(), {RUNTIME})[0])
-            self.assertEqual(self.asked[-1][1]['apikey'], self.token)
+            self.assertEqual(dict(self.asked)[f'http://127.0.0.1:4000/{RUNTIME}/rest/v1/']['apikey'], self.token)
             # Without a routed environment no gateway probe is made, and no token is needed.
             (self.state / 'probe-token').unlink()
             self.assertTrue(upgrade_health.check(self.state, 42, self.secrets, self.get(), set())[0])
