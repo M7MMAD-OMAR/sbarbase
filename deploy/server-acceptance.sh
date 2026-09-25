@@ -204,9 +204,18 @@ if [ -n "$SERVICE_HOME" ]; then supervise_args+=(--home "$SERVICE_HOME"); fi
 if [ -n "$BUN_DIR" ]; then supervise_args+=(--bun-dir "$BUN_DIR"); fi
 if [ "$INSTALL_UNIT" = "1" ]; then
   [ "$(id -u)" = "0" ] || fail "--install-unit needs root (run the whole script with sudo)"
-  "$PYTHON" lab/install_server.py "${supervise_args[@]}" --apply --timeout "$CONSOLE_WAIT" || fail "the supervisor unit could not be installed, or its console did not answer"
-  unit_control is-active --quiet sbarbase.service || fail "sbarbase.service is not active after install"
-  printf 'ok: sbarbase.service installed, enabled and active, and its console answers\n'
+  if [ "$REHEARSAL" = "1" ] && [ "$(unit_state)" != "active" ]; then
+    # On an empty host the images and the installation do not exist until the
+    # rehearsal installs them, so a started unit could only fail and restart. The
+    # unit is enabled now and started after the rehearsal, which waits for its console.
+    "$PYTHON" lab/install_server.py "${supervise_args[@]}" --apply --defer-start || fail "the supervisor unit could not be installed"
+    START_AFTER_REHEARSAL=1
+    printf 'ok: sbarbase.service installed and enabled; it starts after the rehearsal installs\n'
+  else
+    "$PYTHON" lab/install_server.py "${supervise_args[@]}" --apply --timeout "$CONSOLE_WAIT" || fail "the supervisor unit could not be installed, or its console did not answer"
+    unit_control is-active --quiet sbarbase.service || fail "sbarbase.service is not active after install"
+    printf 'ok: sbarbase.service installed, enabled and active, and its console answers\n'
+  fi
 else
   run_as_installation "$PYTHON" lab/install_server.py "${supervise_args[@]}" || fail "the supervisor unit did not render and verify for this installation"
 fi
@@ -246,6 +255,10 @@ if [ "$(unit_state)" = "active" ] || [ "$(unit_state)" = "activating" ]; then
   done
   [ "$(unit_state)" = "inactive" ] || fail "sbarbase.service did not stop; the rehearsal would run against a live installation"
   printf 'ok: sbarbase.service stopped for the rehearsal\n'
+elif [ "${START_AFTER_REHEARSAL:-0}" = "1" ]; then
+  # Installed but never started: it is started after the rehearsal, as a released unit is.
+  STOPPED_UNIT=1
+  printf 'ok: sbarbase.service is installed but not started yet; nothing to release\n'
 else
   printf 'ok: sbarbase.service is not active; nothing to release\n'
 fi

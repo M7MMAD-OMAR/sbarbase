@@ -564,8 +564,14 @@ def unit_commands(rendered_path):
 
 
 def supervise(apply=False,service_user='sbarbase',home=None,bun_dir=None,evidence_path=None,
-              console_timeout=CONSOLE_WAIT_SECONDS,waiter=None):
-    """Render, verify and optionally install the supervisor unit."""
+              console_timeout=CONSOLE_WAIT_SECONDS,waiter=None,defer_start=False):
+    """Render, verify and optionally install the supervisor unit.
+
+    With defer_start the unit is installed and enabled but not started: on an empty host the
+    pinned images and the installation do not exist yet, so a started unit would only fail
+    and restart until the installation that follows (the acceptance's rehearsal) creates
+    them. Whoever installs next starts the unit and waits for its console.
+    """
     home=home or Path('/home')/service_user
     if bun_dir is None:
         found=shutil.which('bun')
@@ -593,9 +599,14 @@ def supervise(apply=False,service_user='sbarbase',home=None,bun_dir=None,evidenc
         if not verified:raise SystemExit('Rendered unit did not verify; refusing to install it')
         for command in (['install','-m','0644',str(temporary),str(SERVICE_UNIT_PATH)],
                         ['systemctl','daemon-reload'],
-                        ['systemctl','enable','--now','sbarbase.service']):
+                        ['systemctl','enable',*([] if defer_start else ['--now']),'sbarbase.service']):
             if run(command,check=False).returncode:
                 raise SystemExit('Unit installation step failed: '+' '.join(command))
+    if apply and defer_start:
+        applied=True
+        console='deferred: the unit is enabled and starts once the installation exists'
+        print(console)
+    elif apply:
         if run(['systemctl','is-active','sbarbase.service'],check=False).stdout.strip()!='active':
             raise SystemExit('The unit was installed but did not become active; inspect systemctl status sbarbase.service')
         # systemd says active as soon as dev.py is executed; the unit is recorded
@@ -613,7 +624,7 @@ def supervise(apply=False,service_user='sbarbase',home=None,bun_dir=None,evidenc
               'installation_root':str(ROOT),'service_user':service_user,'home':str(home),'bun_dir':bun_dir,
               'rendered':rendered,'rendered_path':str(temporary),
               'verify':'passed' if verified else ('failed: '+(verify.stderr or verify.stdout).strip()),
-              'running_as_root':root_user,'applied':applied,'console':console,'service_account':account,'install_commands':unit_commands(temporary),
+              'running_as_root':root_user,'applied':applied,'start_deferred':bool(apply and defer_start),'console':console,'service_account':account,'install_commands':unit_commands(temporary),
               'run_at':datetime.datetime.now().astimezone().isoformat(timespec='seconds'),
               'passed':bool(verified) and (not apply or applied)}
     out=Path(evidence_path) if evidence_path else ROOT/'docs'/'evidence'/'supervisor-unit.json'
@@ -621,7 +632,7 @@ def supervise(apply=False,service_user='sbarbase',home=None,bun_dir=None,evidenc
     out.write_text(json.dumps(evidence,indent=1)+'\n')
     print('rendered unit verified' if verified else 'rendered unit FAILED verification')
     print('evidence:',out)
-    if apply:print('unit installed and started' if applied else 'unit installed but not active')
+    if apply:print(('unit installed and enabled; not started yet' if defer_start else 'unit installed and started') if applied else 'unit installed but not active')
     else:print('dry run: install it with  sudo /usr/bin/python3 lab/install_server.py supervise --apply')
     return evidence['passed']
 
@@ -634,6 +645,8 @@ def main():
     parser.add_argument('--service-user',default='sbarbase',help='supervise: the account the service runs as')
     parser.add_argument('--home',help='supervise: the service account home directory')
     parser.add_argument('--bun-dir',help='supervise: directory holding the bun binary')
+    parser.add_argument('--defer-start',action='store_true',dest='defer_start',
+                        help='supervise --apply: install and enable the unit without starting it (an empty host, before the installation exists)')
     parser.add_argument('--timeout',type=int,default=CONSOLE_WAIT_SECONDS,
                         help='supervise --apply and wait-console: seconds to wait for the console to answer')
     args=parser.parse_args()
@@ -643,7 +656,7 @@ def main():
         print(detail if answered else 'console not answering: '+detail)
         raise SystemExit(0 if answered else 1)
     if args.command=='supervise':
-        raise SystemExit(0 if supervise(args.apply,args.service_user,args.home,args.bun_dir,console_timeout=args.timeout) else 1)
+        raise SystemExit(0 if supervise(args.apply,args.service_user,args.home,args.bun_dir,console_timeout=args.timeout,defer_start=args.defer_start) else 1)
     if args.command=='check':
         raise SystemExit(0 if report(preflight()) else 1)
     if args.command=='plan':
