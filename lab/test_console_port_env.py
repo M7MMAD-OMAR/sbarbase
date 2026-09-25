@@ -22,9 +22,11 @@ class ConsolePortEnvironmentTests(unittest.TestCase):
 
     def test_the_supervisor_spawns_the_console_with_its_own_environment(self):
         source=(ROOT/'lab'/'dev.py').read_text()
-        spawn=source[source.index('    def spawn(self, command):'):]
+        spawn=source[source.index('    def spawn(self, command, **options):'):]
         spawn=spawn[:spawn.index('\n\n')]
         self.assertNotIn('env=',spawn)
+        # The console is spawned without options of its own, so it keeps this process's environment.
+        self.assertIn("self.server = self.spawn(['bun', 'lab/upstream-server.ts'])",source)
 
     def test_the_console_reads_the_variable(self):
         self.assertIn('consolePort(process.env.SBARBASE_CONSOLE_PORT)',(ROOT/'lab'/'upstream-server.ts').read_text())

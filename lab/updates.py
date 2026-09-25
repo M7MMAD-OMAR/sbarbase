@@ -14,21 +14,24 @@ Files, all in .lab/upgrades, private (0600), each replaced atomically:
                      only the supervisor changes it afterwards
   last-request.json  the last finished request, kept for the console's progress view
   check.json         the last check: {attempted_at, error, failures}
-  ledger.json        versions announced, tried automatically and rolled back:
-                     {announced, attempted, rolled_back, tries}. `attempted` is a try that went
-                     ahead (it started the backup or moved the checkout) and `rolled_back` a way
-                     back: automatic mode never retries either. `tries` counts automatic tries
-                     that stopped before that point: {version: {count, last, ended?}}, `ended`
-                     being when the last try's request finished
-  current.json       what runs now and whether the console may roll back, written by the
-                     supervisor: {version, commit, written_at, rollback: {started_at, possible, reason},
-                     timezone: {name, offset}}, the zone of the clock the maintenance window uses
-  available.json     the last check's result, written by lab/release_channel.py
+  ledger.json        {versions: {version: {announced, tries, last, spent, rolled_back}}}, the last
+                     LEDGER_KEEP versions: announced once, automatic tries counted (`last` the
+                     latest), `spent` a try that passed its point of no return without moving the
+                     checkout (spend), `rolled_back` a way back (announce_outcome). Automatic mode
+                     never tries a spent or rolled back version again
+  current.json       the supervisor's word to the console (publish_current): {version, commit,
+                     written_at, rollback: {started_at, possible, reason}, apply: null | {version,
+                     tag, class, possible, reason, acknowledgement}, pending, timezone: {name, offset}}
+  available.json     the last check's result, written by lab/release_channel.py; one made on
+                     another commit is moved to available.previous.json
+  outcome.json       how the last child the supervisor ran ended, written by lab/upgrade.py:
+                     {request, kind, passed, changed, refusals, error, at}
 
-A request is {id, kind: apply|rollback|check, version?, tag?, trigger: console|automatic,
-acknowledged?, state: requested|running|done|failed, requested_at, started_at?, finished_at?,
-detail?}. `acknowledged` is true when the operator confirmed the warning an `attended` release
-carries (the Auth, Storage or Realtime image changes, see lab/release_channel.py).
+A request is {id, kind: apply|rollback|check, version?, trigger: console|automatic, acknowledged?,
+state: requested|running|done|failed, requested_at, started_at?, finished_at?, detail?}. The tag
+is `v` + version; a `tag` the console writes is not read. `acknowledged` is true when the
+operator confirmed the warning an `attended` release carries (the Auth, Storage or Realtime
+image changes, see lab/release_channel.py).
 """
 import datetime
 import json
