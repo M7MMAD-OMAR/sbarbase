@@ -2,7 +2,7 @@ import {useCallback,useEffect,useId,useRef,useState,type KeyboardEvent,type Reac
 import {CircleArrowUp,CircleCheck,Download,ExternalLink,OctagonAlert,RefreshCw,RotateCcw,ShieldCheck,TriangleAlert,Undo2,Wrench,X} from 'lucide-react';
 import {UpdateError,type UpdatesApi} from './api';
 import {ErrorMessage,Loading} from './components';
-import {BACKUP_GUIDE,CLASS_WORDS,STAGE_TEXT,UPGRADES_GUIDE,availableText,banners,busy,describeWindow,dismiss,formatWhen,installState,parseClock,readDismissed,
+import {BACKUP_GUIDE,CLASS_WORDS,STAGE_TEXT,UPGRADES_GUIDE,availableText,banners,busy,describeWindow,dismiss,formatWhen,settingsKey,installState,parseClock,readDismissed,
  releaseNotes,resumeKind,startWatch,stepWatch,toClock24,watchStage,windowError,type ClockTime,type PollEvent,type UpdateClass,type UpdateSettings,type UpdatesView,type Watch,type WatchKind} from './releases';
 
 function storage(){try{return window.localStorage;}catch{return undefined;}}
@@ -72,6 +72,10 @@ const inProgress=(progress:UpdatesController['progress'])=>Boolean(progress&&pro
 export function UpdateBanners({updates,onOpen,onPage}:{updates:UpdatesController;onOpen:()=>void;onPage:boolean}){
  const open=onPage?null:<button className="secondary" onClick={onOpen}>View updates</button>;
  if(inProgress(updates.progress))return <div className="update-banner" role="status"><RefreshCw aria-hidden="true"/><p>An update is in progress. The console may disconnect for a few minutes while Sbarbase restarts.</p>{open}</div>;
+ const watch=updates.progress?.watch;
+ // Wherever the operator waited, a confirmed upgrade asks for a reload so the new console loads.
+ if(watch&&watch.kind==='apply'&&updates.progress?.delay===null&&watchStage(watch)==='confirmed')
+  return <div className="update-banner done" role="status"><CircleCheck aria-hidden="true"/><p>Sbarbase was updated{watch.view?.last?.version?' to '+watch.view.last.version:''}. Reload the console so it loads the new version.</p><button className="primary" onClick={()=>location.reload()}><RotateCcw aria-hidden="true"/>Reload console</button></div>;
  const shown=banners(updates.view,updates.dismissed);
  if(!shown.length)return null;
  return <>{shown.map(banner=>{
@@ -128,7 +132,8 @@ function ClockPicker({label,value,onChange}:{label:string;value:string;onChange:
 
 function Settings({updates,settings}:{updates:UpdatesController;settings:UpdateSettings}){
  const [form,setForm]=useState(settings),[busy,setBusy]=useState(false),[error,setError]=useState(''),[saved,setSaved]=useState('');
- useEffect(()=>setForm(settings),[settings]);
+ // Reset only when the saved values change: each poll hands over a new, equal object.
+ useEffect(()=>setForm(settings),[settingsKey(settings)]);
  const invalid=form.automatic?windowError(form.window):'';
  const changed=JSON.stringify(form)!==JSON.stringify(settings);
  async function save(){setBusy(true);setError('');setSaved('');try{await updates.saveSettings(form);setSaved('Settings saved.');}catch(e){setError(message(e));}finally{setBusy(false);}}

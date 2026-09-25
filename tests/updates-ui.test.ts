@@ -2,7 +2,7 @@ import {test,expect,describe} from 'bun:test';
 import {readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {CLASS_WORDS,STAGE_TEXT,availableText,banners,busy,classifyStatus,describeWindow,dismiss,formatClock,formatWhen,installState,parseClock,readDismissed,
- releaseNotes,resumeKind,startWatch,stepWatch,toClock24,watchStage,windowError,type UpdatesView,type Watch} from '../ui/releases';
+ releaseNotes,resumeKind,settingsKey,startWatch,stepWatch,toClock24,watchStage,windowError,type UpdatesView,type Watch} from '../ui/releases';
 
 const ui=join(import.meta.dir,'..','ui');
 const app=readFileSync(join(ui,'App.tsx'),'utf8');
@@ -51,6 +51,20 @@ describe('twelve hour clock',()=>{
   const text=formatWhen('2026-09-25T15:04:00Z','en-US').replace(/\s/g,' ');
   expect(text).toMatch(/\d{1,2}:04 (AM|PM)/);
   expect(formatWhen(null)).toBe('Never');
+ });
+});
+
+describe('settings form',()=>{
+ test('an equal settings object from a poll does not reset the form; a saved change does',()=>{
+  const saved={check:true,automatic:true,window:{start:'02:00',end:'05:00'}};
+  expect(settingsKey({...saved,window:{...saved.window}})).toBe(settingsKey(saved));
+  expect(settingsKey({...saved,automatic:false})).not.toBe(settingsKey(saved));
+  expect(settingsKey({...saved,window:{start:'02:00',end:'06:00'}})).not.toBe(settingsKey(saved));
+  expect(page).toContain('useEffect(()=>setForm(settings),[settingsKey(settings)])');
+ });
+ test('a confirmed upgrade asks for a reload from the banner as well as the page',()=>{
+  expect(page).toContain("watchStage(watch)==='confirmed'");
+  expect(page.split('Reload console').length-1).toBe(2);
  });
 });
 

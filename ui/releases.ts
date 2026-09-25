@@ -126,6 +126,11 @@ export function formatClock(value:string):string{
 export function describeWindow(window:{start:string;end:string}):string{
  return `Every day from ${formatClock(window.start)} to ${formatClock(window.end)}, server time.`;
 }
+/** The saved settings by value. The form resets to them only when this changes, not on
+ * every poll that hands over an equal object. */
+export function settingsKey(settings:UpdateSettings):string{
+ return [settings.check,settings.automatic,settings.window.start,settings.window.end].join('|');
+}
 export function windowError(window:{start:string;end:string}):string{
  if(!parseClock(window.start)||!parseClock(window.end))return 'Choose a start and an end time.';
  if(window.start===window.end)return 'The window needs different start and end times.';
