@@ -74,7 +74,11 @@ file. Nothing here is a production capacity claim.
   host whose docker context points at a desktop socket it needs the drop-in noted
   in the runbook. The unit reached `active` here only after that drop-in was
   added.
-- Container-generation migration has a design only
+- Container-generation migration is implemented and crash-tested on disposable
+  fixtures, and was run once, attended, on the retained database on 2026-09-25
+  with every row intact (`docs/evidence/generation-migration-retained.json`).
+  It is not automatic, and it does not cross hosts
   (`docs/engineering/CONTAINER-GENERATION-MIGRATION.md`).
-- The bootstrap flow has no invitations, MFA or rate limiting, and no
-  supported repair or reset procedure.
+- The bootstrap flow creates the first operator only. Later operators join by
+  invitation. There is no MFA, no sign-in rate limit, and no supported repair
+  or reset procedure.
