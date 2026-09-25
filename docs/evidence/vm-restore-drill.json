@@ -1,0 +1,115 @@
+{
+  "check": "restore-drill",
+  "recorded": "2026-09-25T15:37:41.800Z",
+  "passed": true,
+  "count": 16,
+  "seconds": 28,
+  "restored": [
+    {
+      "runtime": "e_e8ea310d9f152a997af075aa",
+      "backup": "20260925T142834Z",
+      "counts": {
+        "auth.users": 5,
+        "auth.identities": 5,
+        "storage.buckets": 0,
+        "storage.objects": 0
+      },
+      "relink": 0,
+      "restore": 0
+    },
+    {
+      "runtime": "e_bec8fdf2a35abce07fb468a7",
+      "backup": "20260925T142834Z",
+      "counts": {
+        "auth.users": 5,
+        "auth.identities": 5,
+        "storage.buckets": 0,
+        "storage.objects": 0
+      },
+      "relink": 0,
+      "restore": 0
+    }
+  ],
+  "checks": [
+    {
+      "check": "the export holds backups with their ownership",
+      "ok": true,
+      "detail": "2 backup(s)"
+    },
+    {
+      "check": "relink recreates First project 2026-09-25T14:24:25/production with its original ids",
+      "ok": true,
+      "detail": "First client/First project 2026-09-25T14:24:25/production is linked as e_e8ea310d9f152a997af075aa; created: organization, project, environment."
+    },
+    {
+      "check": "the worker provisions First project 2026-09-25T14:24:25/production as e_e8ea310d9f152a997af075aa",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "the backup restores into First project 2026-09-25T14:24:25/production",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "relink recreates First project 2026-09-25T14:18:55/production with its original ids",
+      "ok": true,
+      "detail": "First client/First project 2026-09-25T14:18:55/production is linked as e_bec8fdf2a35abce07fb468a7; created: project, environment."
+    },
+    {
+      "check": "the worker provisions First project 2026-09-25T14:18:55/production as e_bec8fdf2a35abce07fb468a7",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "the backup restores into First project 2026-09-25T14:18:55/production",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "the operator signs in on the new installation",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "a backup exists for the drill user of First project 2026-09-25T14:24:25/production",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "a new key is issued for First project 2026-09-25T14:24:25/production",
+      "ok": true,
+      "detail": "status 200/201"
+    },
+    {
+      "check": "the user from the old installation signs in to First project 2026-09-25T14:24:25/production with their old password",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "the drill key is revoked in First project 2026-09-25T14:24:25/production",
+      "ok": true,
+      "detail": "status 200"
+    },
+    {
+      "check": "a backup exists for the drill user of First project 2026-09-25T14:18:55/production",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "a new key is issued for First project 2026-09-25T14:18:55/production",
+      "ok": true,
+      "detail": "status 200/201"
+    },
+    {
+      "check": "the user from the old installation signs in to First project 2026-09-25T14:18:55/production with their old password",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "the drill key is revoked in First project 2026-09-25T14:18:55/production",
+      "ok": true,
+      "detail": "status 200"
+    }
+  ]
+}
