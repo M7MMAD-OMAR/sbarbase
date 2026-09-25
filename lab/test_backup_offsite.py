@@ -328,7 +328,7 @@ class TargetTests(Fixture):
         server = self.serve()
         server.fail.add('PUT')
 
-        def create(e, keep, now=None):
+        def create(e, keep, now=None, reason=None):
             path = self.complete(e, now.strftime('%Y%m%dT%H%M%SZ'))
             return path, json.loads((path / 'manifest.json').read_text())
 
@@ -341,6 +341,17 @@ class TargetTests(Fixture):
         stamps = {path.name for e in (E1, E2, 'installation') for path in (self.backups / e).iterdir()}
         self.assertEqual(len(stamps), 1)
         self.assertTrue((self.backups / 'installation' / stamps.pop() / 'manifest.json').is_file())
+
+    def test_an_installation_manifest_taken_for_an_upgrade_is_marked_and_kept(self):
+        marked = offsite.write_installation('20260901T030000Z', [E1], environ={}, reason='upgrade')
+        self.assertEqual(json.loads((marked / 'manifest.json').read_text())['reason'], 'upgrade')
+        for day in range(2, 6):
+            offsite.write_installation(f'202609{day:02d}T030000Z', [E1], keep=2, environ={})
+        kept = sorted(path.name for path in (self.backups / 'installation').iterdir())
+        self.assertEqual(kept, ['20260901T030000Z', '20260904T030000Z', '20260905T030000Z'])
+        self.assertNotIn('reason', json.loads((self.backups / 'installation' / '20260905T030000Z' / 'manifest.json').read_text()))
+        with self.assertRaises(backup.BackupError):
+            offsite.write_installation('20260906T030000Z', [E1], environ={}, reason='whim')
 
     def test_a_broken_settings_file_is_recorded_as_invalid_and_does_not_fail_the_manifest(self):
         (self.state / 'notifications.json').write_text('{broken')

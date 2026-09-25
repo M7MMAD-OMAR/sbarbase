@@ -432,11 +432,12 @@ def unsigned():
             stranger = base / 'stranger'
             subprocess.run(['ssh-keygen', '-q', '-t', 'ed25519', '-N', '', '-C', 'stranger', '-f', str(stranger)],
                            check=True, capture_output=True)
-            tree = git('rev-parse', 'HEAD^{tree}')
+            tree, head = git('rev-parse', 'HEAD^{tree}'), git('rev-parse', 'HEAD')
 
             def publish(tag, signing):
                 """A commit with this checkout's tree and a release.json for the tag, tagged in the
-                source. No parent: a shallow CI checkout has no history to hang it on."""
+                source. Its parent is HEAD, so the release contains this checkout (the channel refuses
+                one that does not); only HEAD's own object is needed, which a shallow CI checkout has."""
                 manifest = {'version': tag[1:], 'minimum_from': current, 'migrations': [],
                             'notes': {'en': f'Upgrade check release {tag}.', 'ar': f'إصدار فحص الترقية {tag}.'}}
                 index = {**isolated, 'GIT_INDEX_FILE': str(base / 'index')}
@@ -444,8 +445,8 @@ def unsigned():
                            stdin=json.dumps(manifest, indent=2, ensure_ascii=False) + '\n')
                 git('read-tree', tree, cwd=source, env=index)
                 git('update-index', '--add', '--cacheinfo', f'100644,{blob},release.json', cwd=source, env=index)
-                commit = git(*identity, 'commit-tree', git('write-tree', cwd=source, env=index), '-m', f'Release {tag}',
-                             cwd=source, env=isolated)
+                commit = git(*identity, 'commit-tree', git('write-tree', cwd=source, env=index), '-p', head,
+                             '-m', f'Release {tag}', cwd=source, env=isolated)
                 if signing:
                     git(*identity, '-c', 'gpg.format=ssh', '-c', f'user.signingkey={signing}', 'tag', '-s', tag, '-m', tag,
                         commit, cwd=source, env=isolated)
@@ -464,19 +465,22 @@ def unsigned():
                     found = json.loads(result.stdout) if result.returncode == 0 else {}
                 except ValueError:
                     found = {}
-                return found.get('available') or {}, found.get('refusals'), result.stderr.strip()
+                return found.get('available') or {}, found.get('refusals'), found.get('newest') or {}, result.stderr.strip()
 
             publish(tags['signed'], key)
-            offered, refusals, error = channel()
+            offered, refusals, _, error = channel()
             check('the channel accepts a tag signed by the listed key', offered.get('tag') == tags['signed']
                   and offered.get('signed') is True and offered.get('class') == 'safe' and refusals == [],
                   f"{offered.get('tag')} signed={offered.get('signed')} refusals={refusals} {error}")
             publish(tags['unsigned'], None)
-            offered, refusals, error = channel()
+            offered, refusals, newest, error = channel()
             named = f"{tags['unsigned']} is not signed by a key listed in release-signers"
-            check('the channel reports an unsigned tag as not signed, and refuses it', offered.get('tag') == tags['unsigned']
-                  and offered.get('signed') is False and any(named in item for item in refusals or []),
-                  f"{offered.get('tag')} signed={offered.get('signed')} refusals={refusals} {error}")
+            # The newer unsigned tag is named, with its reason, and the signed one stays on offer.
+            check('the channel names an unsigned tag as not signed and never offers it', newest.get('tag') == tags['unsigned']
+                  and newest.get('signed') is False and any(named in item for item in newest.get('reasons') or [])
+                  and offered.get('tag') == tags['signed'] and refusals == [],
+                  f"newest {newest.get('tag')} signed={newest.get('signed')} reasons={newest.get('reasons')} "
+                  f"offered {offered.get('tag')} refusals={refusals} {error}")
             result = upgrade('start', '--release', tags['unsigned'])
             check('upgrade.py start --release refuses the unsigned tag, naming its signature', result.returncode == 1
                   and named in result.stderr and 'Nothing was changed' in result.stderr, result.stderr.strip()[-300:])

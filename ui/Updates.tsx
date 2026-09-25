@@ -1,9 +1,9 @@
 import {useCallback,useEffect,useId,useRef,useState,type KeyboardEvent,type ReactNode} from 'react';
-import {CircleArrowUp,CircleCheck,Download,ExternalLink,OctagonAlert,RefreshCw,RotateCcw,ShieldCheck,TriangleAlert,Undo2,Wrench,X} from 'lucide-react';
+import {CircleArrowUp,CircleCheck,Download,ExternalLink,Info,OctagonAlert,RefreshCw,RotateCcw,ShieldAlert,ShieldCheck,TriangleAlert,Undo2,Wrench,X} from 'lucide-react';
 import {UpdateError,type UpdatesApi} from './api';
 import {ErrorMessage,Loading} from './components';
-import {BACKUP_GUIDE,CLASS_WORDS,STAGE_TEXT,UPGRADES_GUIDE,availableText,banners,busy,describeWindow,dismiss,formatWhen,settingsKey,installState,parseClock,readDismissed,
- releaseNotes,resumeKind,startWatch,stepWatch,toClock24,watchStage,windowError,type ClockTime,type PollEvent,type UpdateClass,type UpdateSettings,type UpdatesView,type Watch,type WatchKind} from './releases';
+import {ACKNOWLEDGEMENT,BACKUP_GUIDE,CLASS_WORDS,STAGE_TEXT,UPGRADES_GUIDE,availableText,banners,newestText,busy,describeWindow,dismiss,formatWhen,settingsKey,installState,installable,parseClock,readDismissed,
+ releaseNotes,resumeKind,startWatch,stepWatch,toClock24,watchStage,windowError,type ClockTime,type NewestRelease,type PollEvent,type ServerZone,type UpdateClass,type UpdateSettings,type UpdatesView,type Watch,type WatchKind} from './releases';
 
 function storage(){try{return window.localStorage;}catch{return undefined;}}
 const message=(error:unknown)=>error instanceof Error?error.message:'The request failed. Refresh and try again.';
@@ -13,7 +13,7 @@ export type UpdatesController={
  progress?:{watch:Watch;delay:number|null};
  dismissed:string[];
  refresh:()=>void;
- begin:(kind:WatchKind,version?:string)=>Promise<void>;
+ begin:(kind:WatchKind,version?:string,acknowledged?:boolean)=>Promise<void>;
  close:()=>void;
  dismiss:(key:string)=>void;
  saveSettings:(settings:UpdateSettings)=>Promise<void>;
@@ -47,10 +47,10 @@ export function useUpdates(client:UpdatesApi,enabled:boolean):UpdatesController{
   },progress.delay);
   return()=>{live=false;clearTimeout(timer);};
  },[progress,client]);
- async function begin(kind:WatchKind,version?:string){
+ async function begin(kind:WatchKind,version?:string,acknowledged?:boolean){
   // A fresh read is the baseline, so an older request is never mistaken for this one.
   const before=await client.get().catch(()=>view);
-  if(kind==='apply'&&version)await client.apply(version);else if(kind==='rollback')await client.rollback();else await client.check();
+  if(kind==='apply'&&version)await client.apply(version,acknowledged);else if(kind==='rollback')await client.rollback();else await client.check();
   setProgress({watch:startWatch(kind,before,Date.now(),false,version),delay:500});
  }
  return {view,error,loading,progress,dismissed,refresh,begin,
@@ -59,8 +59,8 @@ export function useUpdates(client:UpdatesApi,enabled:boolean):UpdatesController{
   saveSettings:async settings=>{const saved=await client.saveSettings(settings);setView(current=>current&&{...current,settings:saved});}};
 }
 
-const CLASS_ICON:Record<UpdateClass,typeof ShieldCheck>={safe:ShieldCheck,rebuild:Wrench,manual:TriangleAlert};
-const CLASS_STATE:Record<UpdateClass,string>={safe:'applied',rebuild:'running',manual:'failed'};
+const CLASS_ICON:Record<UpdateClass,typeof ShieldCheck>={safe:ShieldCheck,attended:ShieldAlert,rebuild:Wrench,manual:TriangleAlert};
+const CLASS_STATE:Record<UpdateClass,string>={safe:'applied',attended:'running',rebuild:'running',manual:'failed'};
 function ClassBadge({value}:{value:UpdateClass}){
  const Icon=CLASS_ICON[value];
  return <span className={'update-class state '+CLASS_STATE[value]}><Icon aria-hidden="true"/>{CLASS_WORDS[value].label}</span>;
@@ -83,18 +83,19 @@ export function UpdateBanners({updates,onOpen,onPage}:{updates:UpdatesController
   if(banner.kind==='rollback_failed')return <div key={banner.key} className="update-banner critical" role="alert"><OctagonAlert aria-hidden="true"/><p><strong>The update failed and so did the way back.</strong> Restore from the backups taken before the upgrade. <a href={BACKUP_GUIDE} target="_blank" rel="noreferrer">How to restore<ExternalLink aria-hidden="true"/></a></p>{open}</div>;
   if(banner.kind==='rolled_back')return <div key={banner.key} className="update-banner" role="status"><Undo2 aria-hidden="true"/><p>{STAGE_TEXT.rolled_back}</p>{open}{close}</div>;
   if(banner.kind==='confirmed')return <div key={banner.key} className="update-banner done" role="status"><CircleCheck aria-hidden="true"/><p>Sbarbase was updated to {banner.version}.</p>{close}</div>;
+  if(banner.kind==='newest')return <div key={banner.key} className="update-banner" role="status"><Info aria-hidden="true"/><p>{newestText(banner)}</p>{open}{close}</div>;
   return <div key={banner.key} className="update-banner" role="status"><CircleArrowUp aria-hidden="true"/><p>{availableText(banner)}</p>{open}{close}</div>;
  })}</>;
 }
 
 /** A confirmation step inside the page, like the console's other confirmations, that takes
  * focus when it opens, closes on Escape and hands focus back to the button that opened it. */
-function Confirm({title,children,action,danger,busy,onConfirm,onCancel}:{title:string;children:ReactNode;action:string;danger?:boolean;busy:boolean;onConfirm:()=>void;onCancel:()=>void}){
+function Confirm({title,children,action,danger,busy,disabled,onConfirm,onCancel}:{title:string;children:ReactNode;action:string;danger?:boolean;busy:boolean;disabled?:boolean;onConfirm:()=>void;onCancel:()=>void}){
  const id=useId(),heading=useRef<HTMLHeadingElement>(null);
  useEffect(()=>{heading.current?.focus();},[]);
  const key=(event:KeyboardEvent)=>{if(event.key==='Escape'&&!busy){event.stopPropagation();onCancel();}};
  return <div className="confirm-panel" role="group" aria-labelledby={id} onKeyDown={key}><h3 id={id} ref={heading} tabIndex={-1}>{title}</h3>{children}
-  <div className="form-row"><button className={danger?'danger':'primary'} disabled={busy} onClick={onConfirm}>{busy?'Sending…':action}</button><button onClick={onCancel} disabled={busy}>Cancel</button></div></div>;
+  <div className="form-row"><button className={danger?'danger':'primary'} disabled={busy||disabled} onClick={onConfirm}>{busy?'Sending…':action}</button><button onClick={onCancel} disabled={busy}>Cancel</button></div></div>;
 }
 
 function useFocusReturn(){
@@ -130,7 +131,7 @@ function ClockPicker({label,value,onChange}:{label:string;value:string;onChange:
  </div></fieldset>;
 }
 
-function Settings({updates,settings}:{updates:UpdatesController;settings:UpdateSettings}){
+function Settings({updates,settings,timezone}:{updates:UpdatesController;settings:UpdateSettings;timezone:ServerZone}){
  const [form,setForm]=useState(settings),[busy,setBusy]=useState(false),[error,setError]=useState(''),[saved,setSaved]=useState('');
  // Reset only when the saved values change: each poll hands over a new, equal object.
  useEffect(()=>setForm(settings),[settingsKey(settings)]);
@@ -141,11 +142,11 @@ function Settings({updates,settings}:{updates:UpdatesController;settings:UpdateS
   <label className="check"><input type="checkbox" checked={form.check} onChange={event=>setForm({...form,check:event.target.checked,automatic:event.target.checked&&form.automatic})}/>Check for new releases</label>
   <p className="small muted">Sbarbase looks for a newer signed release every 6 hours and shows it here. Checking never installs anything.</p>
   <label className="check"><input type="checkbox" checked={form.automatic} disabled={!form.check} onChange={event=>setForm({...form,automatic:event.target.checked})}/>Install safe updates automatically</label>
-  <p className="small muted">{form.check?'Only safe, signed releases install by themselves, and only inside the maintenance window. A release that rolled back is never tried again automatically.':'Turn on checking first: automatic updates need it.'}</p>
+  <p className="small muted">{form.check?'Only safe, signed releases install by themselves, and only inside the maintenance window. A release that changes environment databases always waits for you, and one that rolled back is never tried again automatically.':'Turn on checking first: automatic updates need it.'}</p>
   {form.automatic&&<div className="window"><h3>Maintenance window</h3><div className="window-row">
    <ClockPicker label="Starts" value={form.window.start} onChange={start=>setForm({...form,window:{...form.window,start}})}/>
    <ClockPicker label="Ends" value={form.window.end} onChange={end=>setForm({...form,window:{...form.window,end}})}/></div>
-   <p className="small muted">{invalid||describeWindow(form.window)}</p></div>}
+   <p className="small muted">{invalid||describeWindow(form.window,timezone)}</p></div>}
   <ErrorMessage message={error}/>
   <div className="actions form-row"><button className="primary" disabled={busy||!changed||Boolean(invalid)} onClick={()=>void save()}>{busy?'Saving…':'Save settings'}</button><span className="small muted" role="status">{saved}</span></div>
  </section>;
@@ -153,15 +154,35 @@ function Settings({updates,settings}:{updates:UpdatesController;settings:UpdateS
 
 function Commands({lines}:{lines:string[]}){return <pre className="log commands"><code>{lines.join('\n')}</code></pre>;}
 
+/** Notes about releases the check passed over: information, never a reason the release on
+ * offer cannot be installed. */
+function Skipped({notes}:{notes:string[]}){
+ if(!notes.length)return null;
+ return <><h3>Releases passed over</h3><ul className="plain-list small muted">{notes.map(note=><li key={note}><Info aria-hidden="true"/>{note}</li>)}</ul></>;
+}
+
+/** The newest release when it is not the one on offer: that it exists, and why it is not offered. */
+function Newest({release,offered,notes}:{release:NewestRelease;offered:boolean;notes:string[]}){
+ return <section className="details" aria-labelledby="newest-heading">
+  <div className="section-heading"><h2 id="newest-heading">{offered?'Also released: ':'Newer release: '}Sbarbase {release.version}</h2>{release.class&&<ClassBadge value={release.class}/>}</div>
+  <p className="small muted">Tag <code>{release.tag}</code>. {release.signed?'Signed by a Sbarbase release key.':'Not signed by a Sbarbase release key.'}</p>
+  <p>{offered?'This installation cannot install it, so the newest release it can install is offered instead.':'This installation cannot install it.'}</p>
+  {release.reasons.length>0&&<><h3>Why</h3><ul className="plain-list">{release.reasons.map(reason=><li key={reason}>{reason}</li>)}</ul></>}
+  {release.class==='manual'&&<p>It needs a manual migration on the server. <a href={UPGRADES_GUIDE} target="_blank" rel="noreferrer">Read the upgrades guide<ExternalLink aria-hidden="true"/></a></p>}
+  {!offered&&notes.length>1&&<Skipped notes={notes}/>}
+ </section>;
+}
+
 /** The installation's updates page: what runs now, what is available, how to install it,
  * the last upgrade and the update settings. Only the installation operator reaches it. */
 export function Updates({updates}:{updates:UpdatesController}){
  const view=updates.view;
  const [confirm,setConfirm]=useState<'install'|'rollback'>(),[sending,setSending]=useState(false),[error,setError]=useState(''),[checking,setChecking]=useState(false);
+ const [acknowledged,setAcknowledged]=useState(false),acknowledgeId=useId();
  const install=useFocusReturn(),back=useFocusReturn(),reasonsId=useId();
- async function run(kind:WatchKind,version?:string){
+ async function run(kind:WatchKind,version?:string,acknowledgement?:boolean){
   setSending(true);setError('');
-  try{await updates.begin(kind,version);setConfirm(undefined);}catch(e){setError(message(e));}finally{setSending(false);}
+  try{await updates.begin(kind,version,acknowledgement);setConfirm(undefined);setAcknowledged(false);}catch(e){setError(message(e));}finally{setSending(false);}
  }
  async function check(){setChecking(true);setError('');try{await updates.begin('check');}catch(e){setError(message(e));}finally{setChecking(false);}}
  const heading=<div className="page-heading"><div><h1>Updates</h1><p className="muted">Sbarbase versions for this installation. Only the installation operator sees this page.</p></div></div>;
@@ -189,10 +210,14 @@ export function Updates({updates}:{updates:UpdatesController}){
    {release.changes.length>0&&<><h3>What changes</h3><div className="table-wrap compact"><table><thead><tr><th>Component</th><th>Now</th><th>After the update</th></tr></thead>
     <tbody>{release.changes.map(change=><tr key={change.label}><td>{change.label}</td><td><code>{change.before}</code></td><td><code>{change.after}</code></td></tr>)}</tbody></table></div></>}
    {view.refusals.length>0&&<><h3>Why it cannot be installed now</h3><ul className="plain-list refusals">{view.refusals.map(refusal=><li key={refusal}><TriangleAlert aria-hidden="true"/>{refusal}</li>)}</ul></>}
-   {release.class==='safe'?<div className="actions">{confirm==='install'
-    ?<Confirm title={'Install Sbarbase '+release.version+'?'} action="Install now" busy={sending} onConfirm={()=>void run('apply',release.version)} onCancel={()=>{setConfirm(undefined);install.restore();}}>
-      <ul className="plain-list"><li>A backup of every environment is taken first.</li><li>The console and your applications pause for a few minutes while Sbarbase restarts.</li><li>If the new version does not start healthy, Sbarbase returns to this version by itself.</li></ul></Confirm>
-    :<><button ref={install.trigger} className="primary" disabled={!state.enabled} aria-describedby={state.enabled?undefined:reasonsId} onClick={()=>setConfirm('install')}><Download aria-hidden="true"/>Install update</button>
+   <Skipped notes={view.skipped}/>
+   {installable(release.class)?<div className="actions">{confirm==='install'
+    ?<Confirm title={'Install Sbarbase '+release.version+'?'} action="Install now" busy={sending} disabled={release.class==='attended'&&!acknowledged}
+      onConfirm={()=>void run('apply',release.version,release.class==='attended'&&acknowledged)} onCancel={()=>{setConfirm(undefined);setAcknowledged(false);install.restore();}}>
+      <ul className="plain-list"><li>A backup of every environment is taken first.</li><li>The console and your applications pause for a few minutes while Sbarbase restarts.</li><li>If the new version does not start healthy, Sbarbase returns to this version by itself.</li>
+       {release.class==='attended'&&<li><strong>This update changes your environment databases as it starts.</strong> The way back restores the console's own state only: if Sbarbase returns to this version, environment data may need restoring from the backups taken before the update. <a href={BACKUP_GUIDE} target="_blank" rel="noreferrer">How to restore<ExternalLink aria-hidden="true"/></a></li>}</ul>
+      {release.class==='attended'&&<label className="check" htmlFor={acknowledgeId}><input id={acknowledgeId} type="checkbox" checked={acknowledged} onChange={event=>setAcknowledged(event.target.checked)}/>{ACKNOWLEDGEMENT}</label>}</Confirm>
+    :<><button ref={install.trigger} className="primary" disabled={!state.enabled} aria-describedby={state.enabled?undefined:reasonsId} onClick={()=>{setAcknowledged(false);setConfirm('install');}}><Download aria-hidden="true"/>Install update</button>
       {!state.enabled&&<p id={reasonsId} className="small muted">{state.reasons.join(' ')}</p>}</>}</div>
    :release.class==='rebuild'?<div className="actions"><h3>Install it on the server</h3>
      <p>Move the checkout to the release, then rebuild. With Docker:</p>
@@ -203,7 +228,8 @@ export function Updates({updates}:{updates:UpdatesController}){
      <p><a href={UPGRADES_GUIDE} target="_blank" rel="noreferrer">Read the upgrades guide<ExternalLink aria-hidden="true"/></a></p></div>
    :<div className="actions"><h3>This release needs a manual migration</h3><p>Follow the upgrades guide on the server before installing it. The console does not install it.</p>
      <p><a href={UPGRADES_GUIDE} target="_blank" rel="noreferrer">Read the upgrades guide<ExternalLink aria-hidden="true"/></a></p></div>}
-  </section>:<section className="details"><h2>No newer release</h2><p className="muted">{view.settings.check?'This installation runs the newest release it knows of.':'Turn on checking below, or press Check now, to look for a newer release.'}</p></section>}
+  </section>:view.newest?null:<section className="details"><h2>No newer release</h2><p className="muted">{view.settings.check?'This installation runs the newest release it knows of.':'Turn on checking below, or press Check now, to look for a newer release.'}</p></section>}
+  {view.newest&&view.newest.version!==release?.version&&<Newest release={view.newest} offered={Boolean(release)} notes={view.skipped}/>}
   {view.last&&<section className="details"><h2>Last update</h2>
    <p><span className={'state '+(view.last.phase==='confirmed'?'applied':view.last.phase==='rollback_failed'||view.last.phase==='failed'?'failed':'running')}>{PHASE_WORDS[view.last.phase]}</span></p>
    <p className="small muted">From <code>{view.last.from.slice(0,12)}</code> to {view.last.version?'Sbarbase '+view.last.version+' ':''}<code>{view.last.to.slice(0,12)}</code>. Started {formatWhen(view.last.startedAt)}{view.last.finishedAt?', finished '+formatWhen(view.last.finishedAt):''}.{view.last.phase==='rolled_back'&&view.last.automatic?' The way back was automatic.':''}</p>
@@ -214,7 +240,7 @@ export function Updates({updates}:{updates:UpdatesController}){
       <ul className="plain-list"><li>Sbarbase returns to the version it ran before the last update.</li><li>The console and your applications pause for a few minutes while it restarts.</li><li>The backups taken before the update stay where they are.</li></ul></Confirm>
     :<div className="actions"><button ref={back.trigger} className="danger" disabled={moving} onClick={()=>setConfirm('rollback')}><Undo2 aria-hidden="true"/>Roll back</button></div>)}
   </section>}
-  <Settings updates={updates} settings={view.settings}/>
+  <Settings updates={updates} settings={view.settings} timezone={view.timezone}/>
  </>;
 }
 

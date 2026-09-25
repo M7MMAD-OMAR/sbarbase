@@ -272,8 +272,10 @@ class Supervisor:
         release = updates.automatic_release(settings, document, self.current, state, updates.ledger(), moment,
                                             self.backup is not None)
         if release is not None and updates.blocked() is None:
-            # Remembered before the request exists: whatever happens next, it is tried once.
-            updates.remember('attempted', release['version'])
+            # Counted before the request exists. A try that went ahead (backup or checkout) is
+            # never repeated; one that stopped before that is tried again, a bounded number of
+            # times (lab/updates.py automatic_release).
+            updates.begin_automatic(release['version'], moment)
             if updates.create_request('apply', release['version'], release.get('tag'), 'automatic', moment):
                 print(f"Automatic update to Sbarbase {release['version']} requested.", flush=True)
 

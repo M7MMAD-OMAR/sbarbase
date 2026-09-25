@@ -27,11 +27,30 @@ export function upgradeHold(marker=HOLD_MARKER,state=UPGRADE_STATE,{ttlMs=1000,n
  };
 }
 
-/** Application requests wait with 503 and Retry-After while `held()`; the management API (the
- * operator's console, its sign-in included) always passes, so the operator can see the status. */
+export const PAUSED_CHANGES='Sbarbase is confirming an update, so changes are paused until it is confirmed. '+
+ 'If it returns to the previous version, a change made now would be lost. Try again in a few minutes.';
+const READS=['GET','HEAD','OPTIONS'];
+
+/** Whether a management request passes while traffic is held. Reads always do, so the operator
+ * can watch the update; so do the operator's sign-in, token refresh and sign-out (the
+ * management Auth realm, which the way back does not restore) and "roll back". Every other
+ * change would land in the control state that the automatic way back restores from its
+ * snapshot, and would be lost silently, so it waits. */
+export function passesHold(method:string,path:string):boolean {
+ return READS.includes(method)||path.startsWith('/management/auth/')||(method==='POST'&&path==='/management/v1/updates/rollback');
+}
+
+/** Application requests wait with 503 and Retry-After while `held()`. The management API (the
+ * operator's console) answers reads as usual, and management changes get 409 with a sentence
+ * saying they are paused (see passesHold). */
 export function holdApplication(handler:(request:Request)=>Promise<Response>,held:()=>boolean) {
  return async(request:Request):Promise<Response>=>{
-  if(new URL(request.url).pathname.startsWith('/management/')||!held())return handler(request);
+  const path=new URL(request.url).pathname;
+  if(path.startsWith('/management/')) {
+   if(passesHold(request.method,path)||!held())return handler(request);
+   return Response.json({message:PAUSED_CHANGES},{status:409,headers:{'cache-control':'no-store'}});
+  }
+  if(!held())return handler(request);
   return withCors(Response.json({message:'Sbarbase is confirming an upgrade; try again shortly'},
    {status:503,headers:{'retry-after':'5','cache-control':'no-store'}}),request);
  };

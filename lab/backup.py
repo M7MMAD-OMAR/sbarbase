@@ -1,6 +1,6 @@
 """Per-environment backup and in-place restore, while every other environment keeps serving.
 
-    backup.py create <environment|all> [--keep N]
+    backup.py create <environment|all> [--keep N] [--local-only] [--reason upgrade]
     backup.py list [<environment>]
     backup.py restore <environment> <backup> [--offsite]
     backup.py discard-previous <environment>
@@ -23,7 +23,10 @@ and the current files are moved aside, not deleted, and any failure puts them ba
 successful restore they are kept until ``discard-previous``.
 
 ``create all`` gives every backup of the run one time and also writes the installation manifest
-(``.lab/backups/installation/<UTC time>/``). Two independent ways copy backups off this host, each
+(``.lab/backups/installation/<UTC time>/``). ``--reason upgrade`` (``lab/upgrade.py`` before it moves
+the checkout) marks every manifest of the run: the backups of the last ``UPGRADE_RUNS_KEPT`` upgrades
+are the way back to data a newer version migrated, so count-based pruning never removes them and
+does not count them against ``--keep``. Two independent ways copy backups off this host, each
 active only when configured: ``lab/offsite.py`` copies each new backup, encrypted, to S3-compatible
 storage, and ``.lab/upstream/backup-offsite.json`` makes ``backup_offsite.py`` copy the daily run
 as one encrypted set. A failed copy is reported and never changes a local backup. ``restore
@@ -57,6 +60,8 @@ RUNTIME = re.compile(r'e_[a-f0-9]{24}')
 UUID = re.compile(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}')
 STAMP = re.compile(r'\d{8}T\d{6}Z')
 DEFAULT_KEEP = 7
+REASONS = ('upgrade',)
+UPGRADE_RUNS_KEPT = 3
 
 
 class BackupError(RuntimeError):
@@ -203,7 +208,9 @@ def ownership(e):
     return catalog_ownership(STATE / 'control.sqlite', e)
 
 
-def create(e, keep=DEFAULT_KEEP, now=None):
+def create(e, keep=DEFAULT_KEEP, now=None, reason=None):
+    if reason is not None and reason not in REASONS:
+        raise BackupError('Unknown backup reason')
     if e not in published():
         raise BackupError('Only a published environment can be backed up')
     stamp = (now or datetime.datetime.now(datetime.UTC)).strftime('%Y%m%dT%H%M%SZ')
@@ -234,6 +241,8 @@ def create(e, keep=DEFAULT_KEEP, now=None):
         'images': {'db': json.loads((ROOT / 'lab' / 'distro-image.lock.json').read_text())['id'],
                    'storage': storage_image()},
     }
+    if reason is not None:
+        manifest['reason'] = reason
     write_private(target / 'manifest.json', json.dumps(manifest, indent=2) + '\n')
     prune(e, keep)
     return target, manifest
@@ -248,12 +257,37 @@ def complete_backups(e):
                   if STAMP.fullmatch(path.name) and (path / 'manifest.json').is_file())
 
 
+def upgrade_runs(limit=UPGRADE_RUNS_KEPT):
+    """The times of the last ``limit`` backup runs taken for an upgrade, across every environment
+    and the installation manifest: a run is one time, and any manifest of it marked
+    ``reason: upgrade`` names it."""
+    runs = set()
+    if not BACKUPS.is_dir():
+        return runs
+    for folder in BACKUPS.iterdir():
+        if not folder.is_dir():
+            continue
+        for path in folder.iterdir():
+            if not STAMP.fullmatch(path.name) or path.name in runs:
+                continue
+            try:
+                if json.loads((path / 'manifest.json').read_text()).get('reason') == 'upgrade':
+                    runs.add(path.name)
+            except (OSError, ValueError, AttributeError):
+                continue
+    return set(sorted(runs)[-limit:]) if limit > 0 else set()
+
+
 def prune(e, keep):
-    """Keep the newest ``keep`` complete backups; interrupted ones older than the newest go too."""
+    """Keep the newest ``keep`` complete backups; interrupted ones older than the newest go too.
+
+    Backups of the last UPGRADE_RUNS_KEPT upgrades are kept whatever their age and are not
+    counted: ``keep`` applies to the others."""
     if keep < 1:
         raise BackupError('Keep at least one backup')
     complete = complete_backups(e)
-    doomed = complete[:-keep]
+    protected = upgrade_runs()
+    doomed = [path for path in complete if path.name not in protected][:-keep]
     newest = complete[-1].name if complete else ''
     folder = BACKUPS / e
     if folder.is_dir():
@@ -406,6 +440,8 @@ def main(argv=None):
     make.add_argument('environment')
     make.add_argument('--keep', type=int, default=DEFAULT_KEEP)
     make.add_argument('--local-only', action='store_true', help='do not copy the new backups off the server')
+    make.add_argument('--reason', choices=REASONS,
+                      help='why the backup is taken: upgrade keeps the backups of the last upgrades out of pruning')
     listing = sub.add_parser('list')
     listing.add_argument('environment', nargs='?')
     back = sub.add_parser('restore')
@@ -435,7 +471,8 @@ def main(argv=None):
                 for path in complete_backups(e):
                     manifest = json.loads((path / 'manifest.json').read_text())
                     print(f"{e}  {path.name}  database {manifest['database']['bytes']} B  "
-                          f"files {manifest['objects']['files']}  users {manifest['counts']['auth.users']}")
+                          f"files {manifest['objects']['files']}  users {manifest['counts']['auth.users']}"
+                          + ('  before an upgrade' if manifest.get('reason') == 'upgrade' else ''))
             return 0
         private_dir(BACKUPS)
         with (STATE / 'backup.lock').open('a') as lock:
@@ -452,7 +489,7 @@ def main(argv=None):
                 failed, created = 0, []
                 for e in targets:
                     try:
-                        path, manifest = create(e, args.keep, now=now)
+                        path, manifest = create(e, args.keep, now=now, reason=args.reason)
                         created.append(e)
                         print(f"backup {e} {path.name}: database {manifest['database']['bytes']} B, "
                               f"{manifest['objects']['files']} file(s), {manifest['counts']['auth.users']} user(s)")
@@ -464,7 +501,7 @@ def main(argv=None):
                     offsite = None
                     try:
                         import backup_offsite as offsite
-                        offsite.write_installation(stamp, created, args.keep)
+                        offsite.write_installation(stamp, created, args.keep, reason=args.reason)
                         print(f'installation manifest {stamp} written')
                     except Exception as error:
                         failed += 1

@@ -50,7 +50,7 @@ export class UpdateError extends Error{constructor(message:string,readonly outco
 export type UpdatesApi={
  get:(signal?:AbortSignal)=>Promise<UpdatesView>;
  check:()=>Promise<void>;
- apply:(version:string)=>Promise<void>;
+ apply:(version:string,acknowledged?:boolean)=>Promise<void>;
  rollback:()=>Promise<void>;
  saveSettings:(settings:UpdateSettings)=>Promise<UpdateSettings>;
 };
@@ -72,7 +72,7 @@ export function updatesApi(token:()=>string):UpdatesApi{
  return {
   get:async signal=>((await send('','GET',undefined,signal)) as {data:UpdatesView}).data,
   check:async()=>{await send('/check','POST');},
-  apply:async version=>{await send('/apply','POST',{version});},
+  apply:async(version,acknowledged)=>{await send('/apply','POST',acknowledged?{version,acknowledged:true}:{version});},
   rollback:async()=>{await send('/rollback','POST');},
   saveSettings:async settings=>((await send('/settings','PUT',settings)) as {data:UpdateSettings}).data};
 }

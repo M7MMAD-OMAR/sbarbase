@@ -86,6 +86,9 @@ class Releases:
         self.files = {'lab/distro-image.lock.json': pin('postgres:17.6', '1'),
                       'lab/images.lock.json': {'db': pin('postgres:17', '2'), 'auth': pin('gotrue:v1', '3'), 'rest': pin('postgrest:v1', '4')},
                       'lab/storage-image.lock.json': pin('storage:v1', '5'),
+                      'lab/realtime-image.lock.json': pin('realtime:v1', '6'),
+                      'lab/functions-image.lock.json': pin('edge-runtime:v1', 'a'),
+                      'lab/studio-image.lock.json': {'studio': pin('studio:v1', 'b'), 'meta': pin('postgres-meta:v1', 'c')},
                       'package.json': {'name': 'sbarbase', 'version': '0.1.0'},
                       'release.json': manifest('0.1.0'),
                       'Dockerfile': 'FROM ubuntu:26.04\n',
@@ -149,8 +152,9 @@ class Fixture(unittest.TestCase):
         git(base, 'clone', '-q', str(self.releases.remote), str(self.checkout))
         git(self.checkout, 'remote', 'set-url', 'origin', 'https://example.invalid/fork.git')
         self.available = base / 'state' / 'upgrades' / 'available.json'
+        self.lock = base / 'state' / 'upgrades' / 'channel.lock'
         for item in (patch.object(channel, 'ROOT', self.checkout), patch.object(channel, 'SIGNERS', self.releases.signers),
-                     patch.object(channel, 'AVAILABLE', self.available)):
+                     patch.object(channel, 'AVAILABLE', self.available), patch.object(channel, 'LOCK', self.lock)):
             item.start()
             self.addCleanup(item.stop)
 
@@ -239,11 +243,37 @@ class ChannelTests(Fixture):
         channel.fetch_release('v' + version)
         return channel.classify(self.first, commit)
 
-    def test_code_dependency_and_service_pin_changes_are_safe(self):
+    def test_code_dependency_and_non_migrating_pin_changes_are_safe(self):
+        # PostgREST, Edge Functions and Studio never change an environment database; the images.lock.json
+        # db entry is a lab probe image the runtime overrides with distro-image.lock.json.
         images = {**self.releases.files['lab/images.lock.json'], 'rest': pin('postgrest:v2', '8'), 'db': pin('postgres:18', '9')}
         kind, reasons = self.classify('0.2.0', **{'src/code.ts': 'export const version = 2\n', 'bun.lock': 'two\n',
-                                                  'lab/images.lock.json': images})
+                                                  'lab/images.lock.json': images,
+                                                  'lab/functions-image.lock.json': pin('edge-runtime:v2', 'd'),
+                                                  'lab/studio-image.lock.json': {'studio': pin('studio:v2', 'e'), 'meta': pin('postgres-meta:v2', 'f')}})
         self.assertEqual((kind, reasons), ('safe', []))
+
+    def test_auth_storage_and_realtime_pin_changes_need_the_operator(self):
+        images = {**self.releases.files['lab/images.lock.json'], 'auth': pin('gotrue:v2', '8')}
+        for index, (path, value, service) in enumerate((('lab/images.lock.json', images, 'Auth'),
+                                                        ('lab/storage-image.lock.json', pin('storage:v2', '8'), 'Storage'),
+                                                        ('lab/realtime-image.lock.json', pin('realtime:v2', '8'), 'Realtime')), 2):
+            kind, reasons = self.classify(f'0.{index}.0', **{path: value})
+            # Each release is compared with the first one, so the changes add up.
+            self.assertEqual(kind, 'attended', path)
+            self.assertEqual(len(reasons), index - 1, reasons)
+            self.assertIn(f'changes the {service} image', reasons[-1])
+            self.assertIn('backups taken before the upgrade', reasons[-1])
+        # A rebuild wins, and still says that the release migrates.
+        kind, reasons = self.classify('0.5.0', Dockerfile='FROM ubuntu:26.10\n', **{'lab/storage-image.lock.json': pin('storage:v3', '9')})
+        self.assertEqual(kind, 'rebuild')
+        self.assertTrue(any('Dockerfile' in reason for reason in reasons) and any('Storage image' in reason for reason in reasons))
+
+    def test_a_tls_proxy_change_needs_its_own_unit_restarted(self):
+        kind, reasons = self.classify('0.2.0', **{'deploy/console-tls-proxy.ts': 'export {}\n'})
+        self.assertEqual(kind, 'rebuild')
+        self.assertIn('sbarbase-tls.service', reasons[0])
+        self.assertIn('restart that unit', reasons[0])
 
     def test_image_compose_and_unit_changes_need_a_rebuild(self):
         kind, reasons = self.classify('0.2.0', Dockerfile='FROM ubuntu:26.10\n')
@@ -274,9 +304,9 @@ class ChannelTests(Fixture):
         commit = self.releases.release('0.3.0', **{'lab/images.lock.json': {**self.releases.files['lab/images.lock.json'],
                                                                              'rest': pin('postgrest:v2', '8')}})
         result = channel.check()
-        self.assertEqual(set(result), {'current', 'available', 'refusals', 'checked_at'})
+        self.assertEqual(set(result), {'current', 'available', 'refusals', 'skipped', 'newest', 'checked_at'})
         self.assertEqual(result['current'], {'version': '0.1.0', 'commit': self.first})
-        self.assertEqual(result['refusals'], [])
+        self.assertEqual((result['refusals'], result['skipped'], result['newest']), ([], [], None))
         available = result['available']
         self.assertEqual(set(available), {'version', 'tag', 'commit', 'class', 'reasons', 'notes', 'changes', 'signed',
                                           'minimum_from', 'migrations'})
@@ -295,23 +325,93 @@ class ChannelTests(Fixture):
         self.assertIsNone(result['available'])
         self.assertIn('could not be read', result['refusals'][0])
 
-    def test_an_unsigned_release_is_reported_but_refused(self):
+    def test_an_unsigned_release_is_named_as_the_newest_but_never_offered(self):
         self.releases.release('0.2.0', key='stranger')
         result = channel.check()
-        self.assertEqual((result['available']['version'], result['available']['signed']), ('0.2.0', False))
-        self.assertIn('not signed by a key', result['refusals'][0])
+        self.assertIsNone(result['available'])
+        self.assertEqual(result['refusals'], [])
+        newest = result['newest']
+        self.assertEqual((newest['version'], newest['tag'], newest['class'], newest['signed']), ('0.2.0', 'v0.2.0', 'safe', False))
+        self.assertIn('not signed by a key', newest['reasons'][0])
+        self.assertIn('v0.2.0 was passed over', result['skipped'][0])
+
+    def test_with_no_key_listed_only_the_newest_release_is_named(self):
+        self.releases.release('0.2.0')
+        self.releases.release('0.3.0')
+        empty = self.releases.base / 'empty-signers'
+        empty.write_text((ROOT / 'deploy' / 'release-signers').read_text())
+        result = channel.check(signers=empty)
+        self.assertIsNone(result['available'])
+        self.assertEqual(len(result['skipped']), 1)
+        self.assertEqual(result['newest']['version'], '0.3.0')
+        self.assertIn('No release signing key', result['newest']['reasons'][0])
+        self.assertNotIn('refs/sbarbase-releases/tags/v0.2.0', self.local('for-each-ref', '--format=%(refname)', 'refs/sbarbase-releases'))
+
+    def test_the_check_walks_down_to_the_newest_release_it_can_install(self):
+        self.releases.release('0.2.0')
+        self.releases.release('0.3.0', manifest={'migrations': ['Split the users table']})
+        self.releases.release('0.4.0', key='unsigned')
+        result = channel.check()
+        self.assertEqual((result['available']['version'], result['refusals']), ('0.2.0', []))
+        self.assertEqual((result['newest']['version'], result['newest']['signed']), ('0.4.0', False))
+        self.assertEqual([note.split(' ')[0] for note in result['skipped']], ['v0.4.0', 'v0.3.0'])
+        self.assertIn('data migration', result['skipped'][1])
 
     def test_a_release_this_version_cannot_reach_offers_the_newest_one_it_can(self):
         self.releases.release('0.2.0')
         self.releases.release('0.3.0', manifest={'minimum_from': '0.2.0'})
         result = channel.check()
         self.assertEqual(result['available']['version'], '0.2.0')
-        self.assertIn('v0.3.0 needs at least version 0.2.0', result['refusals'][0])
+        # The note about v0.3.0 is information, never a refusal of v0.2.0.
+        self.assertEqual(result['refusals'], [])
+        self.assertIn('v0.3.0 needs at least version 0.2.0', result['skipped'][0])
+        self.assertEqual(result['newest']['version'], '0.3.0')
         self.releases.release('0.4.0', manifest={'minimum_from': '0.3.0'})
         git(self.releases.upstream, 'push', '-q', '--delete', str(self.releases.remote), 'refs/tags/v0.2.0')
         result = channel.check()
         self.assertIsNone(result['available'])
-        self.assertEqual(len(result['refusals']), 2)
+        self.assertEqual((len(result['skipped']), result['refusals'], result['newest']['version']), (2, [], '0.4.0'))
+
+    def test_local_commits_the_release_does_not_contain_refuse_it(self):
+        self.releases.release('0.2.0')
+        (self.checkout / 'local.txt').write_text('mine\n')
+        self.local('add', 'local.txt')
+        self.local('commit', '-q', '-m', 'local change')
+        result = channel.check()
+        self.assertEqual(result['available']['version'], '0.2.0')
+        self.assertIn('1 commit(s) that v0.2.0 does not contain', result['refusals'][0])
+        with self.assertRaisesRegex(channel.ReleaseError, 'leave them behind'):
+            channel.prepare('v0.2.0')
+
+    def test_the_commit_read_is_the_one_whose_tag_was_verified(self):
+        commit = self.releases.release('0.2.0')
+        other = self.releases.set_and_commit('not released', {'src/code.ts': 'export const version = 666\n'})
+        self.releases.publish()
+        verify = channel.verify
+
+        def verify_then_move(ref, signers=None, name=None):
+            refusal = verify(ref, signers, name)
+            # Anything that moves the private ref after the check must not change what is read.
+            self.local('fetch', '-q', str(self.releases.remote), 'main')
+            self.local('update-ref', channel.NAMESPACE + 'v0.2.0', other)
+            return refusal
+        with patch.object(channel, 'verify', verify_then_move):
+            details, blockers = channel.examine('v0.2.0', channel.current_version())
+        self.assertEqual(self.local('rev-parse', channel.NAMESPACE + 'v0.2.0'), other)
+        self.assertEqual((details['commit'], details['signed'], blockers), (commit, True, []))
+
+    def test_concurrent_runs_wait_for_each_other_and_a_busy_lock_fails_the_run(self):
+        import fcntl
+        self.releases.release('0.2.0')
+        self.lock.parent.mkdir(parents=True)
+        with self.lock.open('a') as held:
+            fcntl.flock(held, fcntl.LOCK_EX)
+            with patch.object(channel, 'LOCK_WAIT', 0.3):
+                with self.assertRaisesRegex(channel.ReleaseError, 'try again in a moment'):
+                    channel.check()
+                with self.assertRaisesRegex(channel.ReleaseError, 'try again in a moment'):
+                    channel.prepare('v0.2.0')
+        self.assertEqual(channel.check()['available']['version'], '0.2.0')
 
     def test_a_check_leaves_branches_tags_and_remotes_as_they_were(self):
         def snapshot():
@@ -341,6 +441,21 @@ class ChannelTests(Fixture):
             channel.prepare('v0.5.0')
         with self.assertRaisesRegex(channel.ReleaseError, 'not newer'):
             channel.prepare('v0.1.0')
+
+    def test_prepare_applies_a_migrating_release_only_when_the_operator_allowed_it(self):
+        images = {**self.releases.files['lab/images.lock.json'], 'auth': pin('gotrue:v2', '8')}
+        self.releases.release('0.2.0', **{'lab/images.lock.json': images})
+        with self.assertRaisesRegex(channel.ReleaseError, 'environment data may need restoring'):
+            channel.prepare('v0.2.0')
+        with self.assertRaisesRegex(channel.ReleaseError, '--allow-class attended'):
+            channel.prepare('v0.2.0', ['rebuild'])
+        self.assertEqual(channel.prepare('v0.2.0', ['attended'])['class'], 'attended')
+        # A rebuild that also migrates needs both.
+        self.releases.release('0.3.0', Dockerfile='FROM ubuntu:26.10\n', **{'lab/realtime-image.lock.json': pin('realtime:v2', '8')})
+        for allow in (['rebuild'], ['attended']):
+            with self.assertRaises(channel.ReleaseError):
+                channel.prepare('v0.3.0', allow)
+        self.assertEqual(channel.prepare('v0.3.0', ['rebuild', 'attended'])['class'], 'rebuild')
 
 
 class StartReleaseTests(Fixture):
