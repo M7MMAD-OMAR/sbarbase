@@ -307,20 +307,27 @@ def npm_install():
 
 # The distro PostgreSQL image is about 1.7 GB. The first empty-VM rehearsal on a
 # slower link hit the generic 600 second command timeout halfway through it, and
-# the pull printed nothing while it ran. Pulls get their own budget, a retry, and
-# Docker's own progress lines on the terminal.
+# the pull printed nothing while it ran. Pulls get their own budget, retries, and
+# Docker's own progress lines on the terminal. A later rehearsal on a link of about
+# 1 MB/s lost the Storage pull twice in a row to a dropped connection, so the
+# retries now wait a little longer each time instead of following at once.
 PULL_TIMEOUT=3600
-PULL_ATTEMPTS=2
+PULL_ATTEMPTS=4
+PULL_BACKOFF=(15,45,90)
 
 
-def pull_image(label,reference,position,runner=subprocess.run):
+def pull_image(label,reference,position,runner=subprocess.run,sleep=time.sleep):
     """Pull one pinned image with progress shown, or stop the install naming it."""
     for attempt in range(1,PULL_ATTEMPTS+1):
-        print(f'pulling {position} {label} (attempt {attempt} of {PULL_ATTEMPTS}; the first install downloads about 2.4 GB)',flush=True)
+        print(f'pulling {position} {label} (attempt {attempt} of {PULL_ATTEMPTS}; the first install downloads several GB)',flush=True)
         try:
             if runner(['docker','pull',reference],text=True,timeout=PULL_TIMEOUT,check=False).returncode==0:return
         except subprocess.TimeoutExpired:
             print(f'pull of {label} exceeded {PULL_TIMEOUT} s',flush=True)
+        if attempt<PULL_ATTEMPTS:
+            wait=PULL_BACKOFF[min(attempt,len(PULL_BACKOFF))-1]
+            print(f'pull of {label} failed; trying again in {wait} s (layers already downloaded are kept)',flush=True)
+            sleep(wait)
     raise SystemExit('Pinned image pull failed for '+label+'; check the network, then run the install again (pulled images are kept)')
 
 

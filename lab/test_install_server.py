@@ -166,13 +166,15 @@ class PinnedImagePullTests(unittest.TestCase):
         def runner(command,**kwargs):
             attempts.append(command);raise subprocess.TimeoutExpired(command,kwargs['timeout'])
         with self.assertRaises(SystemExit) as refused:
-            install_server.pull_image('db','repo@sha256:x','1/5',runner=runner)
+            install_server.pull_image('db','repo@sha256:x','1/5',runner=runner,sleep=lambda seconds:None)
         self.assertEqual(len(attempts),install_server.PULL_ATTEMPTS)
         self.assertIn('Pinned image pull failed for db',str(refused.exception))
 
     def test_a_retry_that_succeeds_continues_the_install(self):
-        outcomes=iter([result(1),result(0)])
-        install_server.pull_image('db','repo@sha256:x','1/5',runner=lambda command,**kwargs:next(outcomes))
+        outcomes=iter([result(1),result(1),result(0)])
+        waits=[]
+        install_server.pull_image('db','repo@sha256:x','1/5',runner=lambda command,**kwargs:next(outcomes),sleep=waits.append)
+        self.assertEqual(waits,list(install_server.PULL_BACKOFF[:2]),'each retry waits longer than the one before')
 
 
 class ConsoleWaitTests(unittest.TestCase):
