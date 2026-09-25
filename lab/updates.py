@@ -359,28 +359,17 @@ def settle(upgrade_state, moment=None):
 
 # ---------------------------------------------------------------- decisions
 
-def fresh(document, current):
-    """The check result when it was made on the running commit; a check made before an upgrade
-    still names the release that was just installed."""
-    if not isinstance(document, dict) or not isinstance(current, dict):
-        return None
-    made_on = document.get('current')
-    if not isinstance(made_on, dict) or made_on.get('commit') != current.get('commit'):
-        return None
-    return document
-
-
-def apply_refusal(version, document, current, upgrade_state, acknowledged=False):
-    """Why an apply of `version` must not go ahead, or None. Asked by the supervisor before it
-    runs `upgrade.py start --release`, which then verifies everything again from the source.
-    An `attended` release goes ahead only when the operator acknowledged its warning; the
-    supervisor then passes `--allow-class attended` to the start."""
+def apply_refusal(version, document, upgrade_state, acknowledged=False):
+    """Why an apply of `version` must not go ahead, or None. Asked by the supervisor for the
+    verdict it publishes and again before it runs `upgrade.py start --release`, which then
+    verifies everything again from the source. The check result is always about the running
+    commit: publish_current moves one made on another commit aside. An `attended` release goes
+    ahead only when the operator acknowledged its warning; the supervisor then passes
+    `--allow-class attended` to the start."""
     if isinstance(upgrade_state, dict) and upgrade_state.get('phase') in ('applied', 'rolling_back'):
         return MESSAGES['pending']
     if not isinstance(document, dict) or not isinstance(document.get('available'), dict):
         return MESSAGES['nothing']
-    if fresh(document, current) is None:
-        return MESSAGES['stale']
     release = document['available']
     if release.get('version') != version:
         return MESSAGES['other']
@@ -395,7 +384,7 @@ def apply_refusal(version, document, current, upgrade_state, acknowledged=False)
     return None
 
 
-def automatic_release(settings, document, current, upgrade_state, moment, backup_running):
+def automatic_release(settings, document, upgrade_state, moment, backup_running):
     """The release automatic mode applies now, or None. Safe (never `attended`), signed and
     without refusals only, inside the window, never while a backup runs, and never a version
     whose try is spent (spend) or that moved back (announce_outcome). A try that stopped before
@@ -409,7 +398,7 @@ def automatic_release(settings, document, current, upgrade_state, moment, backup
     if not isinstance(release, dict) or not isinstance(release.get('version'), str):
         return None
     version = release['version']
-    if release.get('class') != 'safe' or apply_refusal(version, document, current, upgrade_state):
+    if release.get('class') != 'safe' or apply_refusal(version, document, upgrade_state):
         return None
     entry = ledger()['versions'].get(version, ENTRY)
     if entry['spent'] or entry['rolled_back']:
@@ -445,10 +434,35 @@ def blocked():
     return refusals[0] if refusals else None
 
 
-def check_due(record, moment, since, document=None, current=None):
+def install_blockers(own_backup):
+    """The passing reasons a release cannot be installed now that the supervisor does not wait
+    out itself, as sentences: another upgrade or rollback (from the command line), and a backup
+    or restore other than the daily one it runs. An operation record still to settle is not
+    one: the supervisor drains before it starts an update, and that settles it."""
+    import upgrade
+    refusals = upgrade.transient_refusals(records=False, backup=not own_backup)
+    return [refusal.rstrip('.') + '.' for refusal in refusals]
+
+
+def apply_verdict(document, upgrade_state, blockers=()):
+    """The `apply` verdict current.json carries, which the console answers an apply with and
+    draws its Install button from: None when no release is on offer, else {version, tag, class,
+    possible, reason, acknowledgement}. `reason` is the sentence the console shows as it is;
+    `acknowledgement` is true for an `attended` release, whose warning the operator confirms
+    first (the verdict judges it as if confirmed)."""
+    release = document.get('available') if isinstance(document, dict) else None
+    if not isinstance(release, dict) or not isinstance(release.get('version'), str):
+        return None
+    version = release['version']
+    reason = apply_refusal(version, document, upgrade_state, acknowledged=True) or next(iter(blockers), None)
+    return {'version': version, 'tag': 'v' + version, 'class': str(release.get('class')), 'possible': reason is None,
+            'reason': reason, 'acknowledgement': release.get('class') == 'attended'}
+
+
+def check_due(record, moment, since, result=True):
     """Whether a periodic check is due. Never within FIRST_CHECK_DELAY of the supervisor start.
-    Then every CHECK_INTERVAL, sooner after a failure (backing off) and as soon as the last result
-    was made on another version (right after an upgrade)."""
+    Then every CHECK_INTERVAL, sooner after a failure (backing off) and as soon as there is no
+    `result` (right after an upgrade, publish_current moved the one about the previous version aside)."""
     if moment < since + FIRST_CHECK_DELAY:
         return False
     record = record if isinstance(record, dict) else {}
@@ -457,10 +471,10 @@ def check_due(record, moment, since, document=None, current=None):
         return True
     failures = record.get('failures') if isinstance(record.get('failures'), int) else 0
     if failures > 0:
-        # The backoff holds even when the last result is stale: an offline host right after an
-        # upgrade keeps that stale result, and must not check again on every turn.
+        # The backoff holds even with no result: an offline host right after an upgrade must not
+        # check again on every turn.
         return moment >= last + min(CHECK_INTERVAL, RETRY_BASE * 2 ** (failures - 1))
-    if document is not None and current is not None and fresh(document, current) is None:
+    if not result:
         return True
     return moment >= last + CHECK_INTERVAL
 
@@ -507,14 +521,13 @@ def finish_check(status, result, moment):
     return error, document
 
 
-def announce_available(document, current, catalog=None):
+def announce_available(document, catalog=None):
     """One update.available per version, ever: the ledger remembers it past the dedupe window.
     The release on offer is announced, and so is a newer signed release the check passed over
     (a manual migration, or one this version cannot reach yet), so the operator learns that it
     exists without opening the Updates page. An unsigned one stays quiet. Returns the first
     event written, or None."""
-    document = fresh(document, current)
-    if not document:
+    if not isinstance(document, dict):
         return None
     candidates = [document.get('available')]
     newest = document.get('newest')
@@ -592,17 +605,47 @@ def zone(moment=None, environment=None, localtime='/etc/localtime', database='/u
     return {'name': name or moment.tzname() or 'UTC', 'offset': offset}
 
 
-def publish_current(upgrade_state, moment=None):
-    """Writes current.json for the console: the running version, whether it may offer
-    "roll back" (tied to the upgrade record it judged by its start time), and the time zone
-    the maintenance window is read in."""
-    import release_channel
-    running = release_channel.current_version()
-    possible, reason = rollback_verdict(upgrade_state)
+def set_aside(document, running):
+    """The check result when it was made on the running commit. One made on another commit (the
+    check before an upgrade or a way back, which names the release just installed as available)
+    is moved to available.previous.json, so that no reader ever takes it for the current one;
+    None then."""
+    if not isinstance(document, dict):
+        return None
+    made_on = document.get('current')
+    if isinstance(made_on, dict) and made_on.get('commit') == running['commit']:
+        return document
+    try:
+        os.replace(path('available.json'), path('available.previous.json'))
+        effect_receipt.sync_directory(UPGRADES)
+    except FileNotFoundError:
+        pass
+    return None
+
+
+def publish_current(upgrade_state, moment=None, running=None, rollback=None, blockers=(), previous=None):
+    """Writes current.json, the supervisor's word to the console:
+      version, commit  what runs (`running`, read once per supervisor process: once an update
+                       moved the checkout, HEAD is the version that starts next, not this one)
+      rollback         {started_at, possible, reason}: whether "roll back" may be offered, for the
+                       upgrade record that started then (rollback_verdict, or `rollback` reused)
+      apply            whether the release on offer can be installed now (apply_verdict)
+      pending          an upgrade or rollback waits for its restart or its confirmation
+      timezone         the zone the maintenance window is read in
+    A check result made on another commit is set aside first. With `previous` (the record last
+    written), nothing is written when only the time would change; returns the record in force."""
+    if running is None:
+        import release_channel
+        running = release_channel.current_version()
+    state = upgrade_state if isinstance(upgrade_state, dict) else {}
+    possible, reason = rollback_verdict(upgrade_state) if rollback is None else rollback
     moment = moment or now()
+    document = set_aside(read('available.json'), running)
     record = {'version': running['version'], 'commit': running['commit'], 'written_at': stamp(moment),
-              'rollback': {'started_at': (upgrade_state or {}).get('started_at') if isinstance(upgrade_state, dict) else None,
-                           'possible': possible, 'reason': reason},
-              'timezone': zone(moment)}
+              'rollback': {'started_at': state.get('started_at'), 'possible': possible, 'reason': reason},
+              'apply': apply_verdict(document, upgrade_state, blockers),
+              'pending': state.get('phase') in ('applied', 'rolling_back'), 'timezone': zone(moment)}
+    if isinstance(previous, dict) and {**previous, 'written_at': None} == {**record, 'written_at': None}:
+        return previous
     write('current.json', record)
     return record

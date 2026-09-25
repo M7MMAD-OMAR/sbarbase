@@ -180,12 +180,12 @@ class ScheduleDecisionTests(Private):
         self.assertFalse(updates.check_due({**failed, 'failures': 3}, at(12, 4), since))
         self.assertTrue(updates.check_due({**failed, 'failures': 3}, at(12, 5), since))
         self.assertFalse(updates.check_due({**failed, 'failures': 9}, at(16, 4), since))
-        # Right after an upgrade the last result names the release just installed: check again.
-        self.assertTrue(updates.check_due(done, at(10, 30), since, document(commit='d' * 40), CURRENT))
-        # But an offline host keeps that stale result: the backoff still holds.
+        # Right after an upgrade the result about the previous version was set aside: check again.
+        self.assertTrue(updates.check_due(done, at(10, 30), since, result=False))
+        # But an offline host with no result keeps its backoff.
         offline = {'attempted_at': updates.stamp(at(10, 30)), 'error': 'offline', 'failures': 1}
-        self.assertFalse(updates.check_due(offline, at(10, 31), since, document(commit='d' * 40), CURRENT))
-        self.assertTrue(updates.check_due(offline, at(11, 0), since, document(commit='d' * 40), CURRENT))
+        self.assertFalse(updates.check_due(offline, at(10, 31), since, result=False))
+        self.assertTrue(updates.check_due(offline, at(11, 0), since, result=False))
 
     def test_an_offline_check_is_a_failure_that_keeps_the_release_it_knew_of(self):
         # The channel writes no result when the source cannot be read: the one before stays.
@@ -204,7 +204,7 @@ class ScheduleDecisionTests(Private):
 
         def chosen(moment=at(0, 30), settings=settings, checked=None, state=None, entry=None, backup=False):
             self.put('ledger.json', {'versions': {'0.2.0': entry} if entry else {}})
-            found = updates.automatic_release(settings, checked or document(), CURRENT, state, moment, backup)
+            found = updates.automatic_release(settings, checked or document(), state, moment, backup)
             return found and found['version']
         self.assertEqual(chosen(), '0.2.0')
         self.assertEqual(chosen(at(23, 30, day=24)), '0.2.0')
@@ -219,26 +219,25 @@ class ScheduleDecisionTests(Private):
         # A release that migrates environment databases is never installed automatically.
         self.assertIsNone(chosen(checked=document(release(**{'class': 'attended'}))))
         self.assertIsNone(chosen(checked=document(refusals=['A backup or restore is running'])))
-        self.assertIsNone(chosen(checked=document(commit='d' * 40)))
         self.assertIsNone(chosen(state={'phase': 'applied', 'to': 'b' * 40, 'started_at': 'x'}))
 
 
 class RefusalTests(Private):
     def test_an_attended_release_needs_the_operators_acknowledgement(self):
         checked = document(release(**{'class': 'attended'}))
-        self.assertEqual(updates.apply_refusal('0.2.0', checked, CURRENT, None), updates.MESSAGES['acknowledge'])
-        self.assertEqual(updates.apply_refusal('0.2.0', checked, CURRENT, None, acknowledged='yes'), updates.MESSAGES['acknowledge'])
-        self.assertIsNone(updates.apply_refusal('0.2.0', checked, CURRENT, None, acknowledged=True))
+        self.assertEqual(updates.apply_refusal('0.2.0', checked, None), updates.MESSAGES['acknowledge'])
+        self.assertEqual(updates.apply_refusal('0.2.0', checked, None, acknowledged='yes'), updates.MESSAGES['acknowledge'])
+        self.assertIsNone(updates.apply_refusal('0.2.0', checked, None, acknowledged=True))
         for kind in ('rebuild', 'manual'):
-            self.assertEqual(updates.apply_refusal('0.2.0', document(release(**{'class': kind})), CURRENT, None, acknowledged=True),
+            self.assertEqual(updates.apply_refusal('0.2.0', document(release(**{'class': kind})), None, acknowledged=True),
                              updates.MESSAGES['class'])
 
     def test_notes_about_releases_passed_over_never_refuse_the_one_on_offer(self):
         checked = {**document(), 'skipped': ['v0.3.0 was passed over: v0.3.0 needs at least version 0.2.0'],
                    'newest': {'version': '0.3.0', 'tag': 'v0.3.0', 'class': 'safe', 'signed': True, 'reasons': ['x']}}
-        self.assertIsNone(updates.apply_refusal('0.2.0', checked, CURRENT, None))
+        self.assertIsNone(updates.apply_refusal('0.2.0', checked, None))
         settings = {'check': True, 'automatic': True, 'window': {'start': '23:00', 'end': '01:00'}}
-        found = updates.automatic_release(settings, checked, CURRENT, None, at(0, 30), False)
+        found = updates.automatic_release(settings, checked, None, at(0, 30), False)
         self.assertEqual(found['version'], '0.2.0')
 
 
@@ -246,7 +245,7 @@ class TriesTests(Private):
     settings = {'check': True, 'automatic': True, 'window': {'start': '23:00', 'end': '01:00'}}
 
     def chosen(self, moment, state=None):
-        found = updates.automatic_release(self.settings, document(), CURRENT, state, moment, False)
+        found = updates.automatic_release(self.settings, document(), state, moment, False)
         return found and found['version']
 
     def test_a_try_that_stopped_before_the_backup_is_tried_again_three_times_at_most(self):
@@ -301,6 +300,77 @@ class TriesTests(Private):
         self.assertEqual((self.entry('0.5.0')['tries'], self.entry('0.5.0')['last']), (2, updates.stamp(at(0, 0))))
 
 
+class CurrentTests(Private):
+    """current.json: the supervisor's one word on what runs and what can be installed now."""
+
+    def setUp(self):
+        super().setUp()
+        upstream = self.folder.parent / 'upstream'
+        upstream.mkdir()
+        for item in (patch.object(upgrade, 'UPSTREAM', upstream), patch.object(upgrade, 'BACKUP_LOCK', upstream / 'backup.lock'),
+                     patch.object(upgrade, 'LOCK', self.folder / 'upgrade.lock')):
+            item.start()
+            self.addCleanup(item.stop)
+
+    def publish(self, state=None, blockers=(), previous=None):
+        return updates.publish_current(state, at(12), running=CURRENT, rollback=(False, 'x.'), blockers=blockers,
+                                       previous=previous)
+
+    def test_the_apply_verdict_has_the_shape_the_console_reads(self):
+        self.assertEqual(self.publish()['apply'], None)
+        self.put('available.json', document())
+        record = self.publish()
+        self.assertEqual(record['apply'], {'version': '0.2.0', 'tag': 'v0.2.0', 'class': 'safe', 'possible': True, 'reason': None,
+                                           'acknowledgement': False})
+        self.assertEqual((record['pending'], record['rollback']), (False, {'started_at': None, 'possible': False, 'reason': 'x.'}))
+        self.assertEqual(self.get('current.json'), record)
+        self.assertEqual(stat.S_IMODE((self.folder / 'current.json').stat().st_mode), 0o600)
+        # An attended release: possible once acknowledged, and the console asks for that.
+        self.put('available.json', document(release(**{'class': 'attended'})))
+        self.assertEqual({key: self.publish()['apply'][key] for key in ('possible', 'reason', 'acknowledgement')},
+                         {'possible': True, 'reason': None, 'acknowledgement': True})
+        # Never from the console, but still named with the sentence that says why.
+        for changes, sentence in (({'class': 'rebuild'}, updates.MESSAGES['class']), ({'signed': False}, updates.MESSAGES['unsigned'])):
+            self.put('available.json', document(release(**changes)))
+            self.assertEqual({key: self.publish()['apply'][key] for key in ('version', 'possible', 'reason')},
+                             {'version': '0.2.0', 'possible': False, 'reason': sentence})
+        self.put('available.json', document(refusals=['This checkout has 1 commit(s) that v0.2.0 does not contain']))
+        self.assertEqual(self.publish()['apply']['reason'], updates.MESSAGES['refused'])
+
+    def test_a_pending_upgrade_and_a_passing_blocker_make_it_impossible_for_now(self):
+        self.put('available.json', document())
+        record = self.publish({'phase': 'applied', 'from': 'c' * 40, 'to': COMMIT, 'started_at': 's'})
+        self.assertEqual((record['pending'], record['apply']['possible'], record['apply']['reason']),
+                         (True, False, updates.MESSAGES['pending']))
+        with locked(upgrade.LOCK):
+            blockers = updates.install_blockers(own_backup=False)
+        self.assertEqual(blockers, ['Another upgrade or rollback is running.'])
+        self.assertEqual(self.publish(blockers=blockers)['apply']['reason'], 'Another upgrade or rollback is running.')
+        # The daily backup the supervisor runs itself is waited out, not a reason to refuse.
+        with locked(upgrade.BACKUP_LOCK):
+            self.assertEqual(updates.install_blockers(own_backup=True), [])
+            self.assertEqual(updates.install_blockers(own_backup=False), ['A backup or restore is running; wait for it to finish.'])
+        # A record still to settle is not one either: the drain settles it.
+        (upgrade.UPSTREAM / 'worker-effect.json').write_text('{}')
+        self.assertEqual(updates.install_blockers(own_backup=False), [])
+
+    def test_a_check_made_on_another_commit_is_set_aside_before_anyone_reads_it(self):
+        self.put('available.json', document(commit='d' * 40))
+        self.assertIsNone(self.publish()['apply'])
+        self.assertFalse((self.folder / 'available.json').exists())
+        self.assertEqual(self.get('available.previous.json')['current']['commit'], 'd' * 40)
+
+    def test_an_unchanged_verdict_is_not_written_again(self):
+        self.put('available.json', document())
+        first = self.publish()
+        (self.folder / 'current.json').unlink()
+        self.assertIs(updates.publish_current(None, at(13), running=CURRENT, rollback=(False, 'x.'), previous=first), first)
+        self.assertFalse((self.folder / 'current.json').exists())
+        self.put('available.json', document(release(signed=False)))
+        self.assertFalse(updates.publish_current(None, at(13), running=CURRENT, rollback=(False, 'x.'), previous=first)['apply']['possible'])
+        self.assertTrue((self.folder / 'current.json').exists())
+
+
 class ZoneTests(unittest.TestCase):
     def test_the_zone_is_the_one_the_clock_uses(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -339,7 +409,7 @@ class SupervisorTests(Private):
             self.addCleanup(item.stop)
         self.put('settings.json', {'check': False, 'automatic': False, 'window': {'start': '03:00', 'end': '05:00'}})
         self.supervisor = dev.Supervisor(threading.Event(), catalog=Path(self.folder) / 'absent.sqlite')
-        self.supervisor.current = CURRENT
+        self.supervisor.current = self.supervisor.running = CURRENT
         self.supervisor.updates_since = at(0)
         self.spawned = []
         # The child's exit status, and what it records as its outcome (lab/upgrade.py record_outcome).
@@ -388,6 +458,21 @@ class SupervisorTests(Private):
                          ('failed', 'A backup or restore is running; wait for it to finish. Nothing was changed.'))
         self.assertFalse(self.supervisor.restart_for_upgrade)
         self.assertFalse(self.supervisor.stop_event.is_set())
+
+    def test_past_the_request_file_the_scheduling_looks_at_most_every_fifteen_seconds(self):
+        self.put('settings.json', {'check': True, 'automatic': False, 'window': {'start': '03:00', 'end': '05:00'}})
+        self.put('available.json', document())
+        second = datetime.timedelta(seconds=1)
+        with patch.object(updates, 'check_due', return_value=False) as due:
+            for offset in (0, 5, 14, 15, 20):
+                self.turn(at(1) + offset * second)
+        self.assertEqual(due.call_count, 2)
+        # Each of those turns published the verdict, which the console reads.
+        self.assertEqual(self.get('current.json')['apply']['version'], '0.2.0')
+        # The request file is read on every turn.
+        request = updates.create_request('check', moment=at(1))
+        self.turn(at(1) + 21 * second)
+        self.assertEqual(self.spawned[-1][-1], request['id'])
 
     def test_the_supervisor_never_trusts_the_request_file(self):
         self.put('available.json', document(release(signed=False)))
@@ -538,27 +623,26 @@ class NotificationTests(ProducerCase):
         return [json.loads(row[0]) for row in self.rows('SELECT detail FROM notification_outbox ORDER BY rowid')]
 
     def test_an_available_release_is_announced_once_per_version(self):
-        self.assertIsNotNone(updates.announce_available(document(), CURRENT, catalog=self.catalog))
-        self.assertIsNone(updates.announce_available(document(), CURRENT, catalog=self.catalog))
-        self.assertIsNone(updates.announce_available(document(commit='d' * 40), CURRENT, catalog=self.catalog))
+        self.assertIsNotNone(updates.announce_available(document(), catalog=self.catalog))
+        self.assertIsNone(updates.announce_available(document(), catalog=self.catalog))
         self.assertEqual(self.outbox(), [('update.available', 'info', 'update_available', None)])
         self.assertEqual(self.details(), [{'class': 'safe', 'version': '0.2.0'}])
 
     def test_a_newer_signed_release_passed_over_is_announced_and_an_unsigned_one_is_not(self):
         checked = {**document(), 'newest': {'version': '0.4.0', 'tag': 'v0.4.0', 'class': 'manual', 'signed': True, 'reasons': ['x']}}
-        self.assertIsNotNone(updates.announce_available(checked, CURRENT, catalog=self.catalog))
+        self.assertIsNotNone(updates.announce_available(checked, catalog=self.catalog))
         self.assertEqual(self.details(), [{'class': 'safe', 'version': '0.2.0'}, {'class': 'manual', 'version': '0.4.0'}])
-        self.assertIsNone(updates.announce_available(checked, CURRENT, catalog=self.catalog))
+        self.assertIsNone(updates.announce_available(checked, catalog=self.catalog))
         quiet = {**document(available=False), 'available': None,
                  'newest': {'version': '0.5.0', 'tag': 'v0.5.0', 'class': 'safe', 'signed': False, 'reasons': ['x']}}
-        self.assertIsNone(updates.announce_available(quiet, CURRENT, catalog=self.catalog))
+        self.assertIsNone(updates.announce_available(quiet, catalog=self.catalog))
         self.assertEqual(len(self.details()), 2)
 
     def test_an_announcement_the_catalog_did_not_take_is_tried_again(self):
         document_ = document(release(version='0.3.0', tag='v0.3.0'))
-        self.assertIsNone(updates.announce_available(document_, CURRENT, catalog=self.directory / 'absent.sqlite'))
+        self.assertIsNone(updates.announce_available(document_, catalog=self.directory / 'absent.sqlite'))
         self.assertNotIn('0.3.0', updates.ledger()['versions'])
-        self.assertIsNotNone(updates.announce_available(document_, CURRENT, catalog=self.catalog))
+        self.assertIsNotNone(updates.announce_available(document_, catalog=self.catalog))
 
     def test_each_outcome_earns_its_event_and_every_way_back_is_remembered(self):
         base = {'from': 'c' * 40, 'to': 'b' * 40, 'started_at': '2026-09-25T03:00:00+00:00', 'trigger': 'automatic',

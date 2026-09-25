@@ -33,6 +33,9 @@ UPGRADE_STATE = ROOT / '.lab/upgrades/state.json'
 # 'worker-drain' in STATE, read by lab/worker.ts), and nothing else new starts. When that
 # takes longer than this, the request fails and nothing moves.
 DRAIN_SECONDS = 600
+# The update scheduling looks past the request file (the verdict in current.json, whether a
+# check is due, the automatic decision) at most this often.
+UPDATES_EVERY = datetime.timedelta(seconds=15)
 
 
 def notify_installation(kind, catalog=None):
@@ -136,20 +139,28 @@ class Supervisor:
         # the way back, which restores the control state, would no longer know about.
         self.confirm = None
         # The update channel (lab/updates.py): at most one child at a time (a check, an upgrade or
-        # a rollback), what runs now as last published, when this supervisor began scheduling
-        # updates, a pause after the scheduling itself failed, and whether this process exits
-        # with RESTART_FOR_UPGRADE once it has stopped.
+        # a rollback), current.json as last published, the version this process runs, the last
+        # rollback verdict with the record it judged, when this supervisor began scheduling
+        # updates, when the scheduling next looks past the request file, a pause after the
+        # scheduling itself failed, and whether this process exits with RESTART_FOR_UPGRADE once
+        # it has stopped.
         self.update = None
         self.current = None
+        self.running = None
+        self.verdict = None
         self.updates_since = None
+        self.updates_next = None
         self.updates_after = 0.0
         self.restart_for_upgrade = False
         # An upgrade or rollback waiting for the supervisor to drain (see DRAIN_SECONDS): the
         # child it runs once everything settled, and until when it waits.
         self.drain = None
 
-    def spawn(self, command):
-        return subprocess.Popen(['/usr/bin/python3','lab/parent_bound.py',str(os.getpid()),*command], cwd=ROOT, start_new_session=True)
+    def spawn(self, command, **options):
+        """A child bound to this process (lab/parent_bound.py) in a session of its own; `options`
+        go to Popen (the output, the environment, descriptors to pass)."""
+        return subprocess.Popen(['/usr/bin/python3','lab/parent_bound.py',str(os.getpid()),*command], cwd=ROOT,
+                                start_new_session=True, **options)
 
     def descriptor(self):
         record = {'pid': os.getpid(), 'serverPid': self.server.pid if self.server else None,
@@ -162,9 +173,8 @@ class Supervisor:
     def start_worker(self):
         if self.worker_fd is None:
             raise RuntimeError('Supervisor requires an exclusive worker lock')
-        self.worker = subprocess.Popen(['/usr/bin/python3','lab/parent_bound.py',str(os.getpid()),'/usr/bin/python3', 'lab/worker.py', '--upstream', '--watch'],
-                                       cwd=ROOT, start_new_session=True, pass_fds=(self.worker_fd,),
-                                       env=dict(os.environ, SBARBASE_WORKER_FD=str(self.worker_fd)))
+        self.worker = self.spawn(['/usr/bin/python3', 'lab/worker.py', '--upstream', '--watch'], pass_fds=(self.worker_fd,),
+                                 env=dict(os.environ, SBARBASE_WORKER_FD=str(self.worker_fd)))
         self.descriptor()
 
     def drain_marker(self):
@@ -210,6 +220,7 @@ class Supervisor:
                 return
             terminate_group(self.backup, grace=0)
             self.backup = None
+            self.refresh_current()
             path = STATE/'endpoints.json'
             count = len(json.loads(path.read_text())) if path.exists() else 0
             if status == 3:
@@ -240,6 +251,13 @@ class Supervisor:
         temporary.replace(record)
         print('Daily backup started.', flush=True)
         self.backup = self.spawn(['/usr/bin/python3', 'lab/backup.py', 'create', 'all', '--keep', str(self.backup_keep)])
+        self.refresh_current()
+
+    def refresh_current(self):
+        """current.json again after something its verdict reads changed (the daily backup holds the
+        backup lock), once this process has published it at all."""
+        if self.running is not None:
+            self.publish_current(rejudge=False)
 
     def spawn_logged(self, command, log):
         """Like spawn, with the child's output in a private log that is read when it ends. A file,
@@ -247,15 +265,29 @@ class Supervisor:
         log.parent.mkdir(parents=True, exist_ok=True)
         descriptor = os.open(log, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
         with os.fdopen(descriptor, 'w') as handle:
-            return subprocess.Popen(['/usr/bin/python3', 'lab/parent_bound.py', str(os.getpid()), *command], cwd=ROOT,
-                                    start_new_session=True, stdout=handle, stderr=subprocess.STDOUT,
-                                    env=dict(os.environ, PYTHONUNBUFFERED='1'))
+            return self.spawn(command, stdout=handle, stderr=subprocess.STDOUT, env=dict(os.environ, PYTHONUNBUFFERED='1'))
 
-    def publish_current(self):
-        """What runs now and whether the console may offer a rollback (lab/updates.py)."""
+    def publish_current(self, rejudge=True):
+        """What runs now, whether the console may offer a rollback and whether the release on offer
+        can be installed now (lab/updates.py publish_current), written only when that changed.
+
+        The running version is read once per process. The rollback verdict (which may read Git and
+        the catalog) is judged again with `rejudge`, at start and after confirmation, and whenever
+        the upgrade record changed; otherwise the last one is reused, so the refresh every turn
+        of the update scheduling stays cheap."""
         try:
+            import release_channel
             import upgrade
-            self.current = updates.publish_current(upgrade.load_state())
+            state = upgrade.load_state()
+            record = state if isinstance(state, dict) else {}
+            judged = (record.get('phase'), record.get('started_at'))
+            if rejudge or self.verdict is None or judged != self.verdict[0]:
+                self.verdict = judged, updates.rollback_verdict(state)
+            if self.running is None:
+                self.running = release_channel.current_version()
+            self.current = updates.publish_current(state, running=self.running, rollback=self.verdict[1],
+                                                   blockers=updates.install_blockers(own_backup=self.backup is not None),
+                                                   previous=None if rejudge else self.current)
         except Exception as error:
             print(f'Update status could not be recorded: {error}', file=sys.stderr, flush=True)
 
@@ -269,7 +301,11 @@ class Supervisor:
 
     def schedule_updates(self, moment=None):
         """Checks for a newer release, carries out the console's requests and the automatic
-        updates, one child at a time. Runs only once a pending upgrade is confirmed."""
+        updates, one child at a time. Runs only once a pending upgrade is confirmed.
+
+        Every turn follows the child, the drain and the request file; the rest (the verdict in
+        current.json, whether a check is due, the automatic decision) at most every
+        UPDATES_EVERY, which is soon enough for all of them and keeps a turn to one small read."""
         moment = moment or updates.now()
         if self.updates_since is None:
             self.updates_since = moment
@@ -280,12 +316,13 @@ class Supervisor:
             terminate_group(self.update['process'], grace=0)
             job, self.update = self.update, None
             self.update_finished(job, status, moment)
+            # A check found a release, or an upgrade or rollback now waits for its restart.
+            self.refresh_current()
             return
         if self.drain is not None:
             self.continue_drain(moment)
             return
         import upgrade
-        state = upgrade.load_state()
         request = updates.read_request()
         if request is not None and request.get('state') != 'requested':
             # Finished, or running without a child of this process: it cannot be followed.
@@ -294,13 +331,20 @@ class Supervisor:
                                    request.get('detail') if final else updates.MESSAGES['interrupted'], moment)
             return
         if request is not None:
-            self.start_request(request, state, moment)
+            self.start_request(request, upgrade.load_state(), moment)
             return
+        # A clock set back starts the interval again rather than waiting it out.
+        if self.updates_next is not None and self.updates_next - UPDATES_EVERY <= moment < self.updates_next:
+            return
+        self.updates_next = moment + UPDATES_EVERY
+        # A start whose first publish failed tries it whole again.
+        self.publish_current(rejudge=self.running is None)
+        state = upgrade.load_state()
         settings, document = updates.load_settings(), updates.read('available.json')
-        if settings['check'] and updates.check_due(updates.read('check.json'), moment, self.updates_since, document, self.current):
+        if settings['check'] and updates.check_due(updates.read('check.json'), moment, self.updates_since, document is not None):
             self.start_update('check', None, moment)
             return
-        release = updates.automatic_release(settings, document, self.current, state, moment, self.backup is not None)
+        release = updates.automatic_release(settings, document, state, moment, self.backup is not None)
         if release is not None and updates.blocked() is None:
             # Counted before the request exists. A try that passed its point of no return is
             # never repeated; one that stopped before it is tried again, a bounded number of
@@ -324,7 +368,7 @@ class Supervisor:
             # mode never installs one.
             acknowledged = request.get('acknowledged') is True and not automatic
             document = updates.read('available.json')
-            refusal = updates.apply_refusal(request.get('version'), document, self.current, state, acknowledged)
+            refusal = updates.apply_refusal(request.get('version'), document, state, acknowledged)
             if refusal:
                 updates.finish_request(request, 'failed', refusal, moment)
                 return
@@ -420,7 +464,7 @@ class Supervisor:
         if kind == 'check':
             error, document = updates.finish_check(status, result, moment)
             if error is None:
-                updates.announce_available(document, self.current, catalog=self.catalog)
+                updates.announce_available(document, catalog=self.catalog)
             else:
                 print('The update check did not finish: ' + error, flush=True)
             if request is not None:

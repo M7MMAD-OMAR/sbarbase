@@ -377,19 +377,20 @@ def plan(target_ref):
             'changes': release_channel.changes(current, target, diffs), 'refusals': refusals}
 
 
-def transient_refusals(lock=True):
+def transient_refusals(lock=True, records=True, backup=True):
     """Why a start would refuse now for a reason that passes by itself: the last upgrade or
     rollback waits for its restart, an operation record is still to settle, a backup or restore
-    runs, or (with `lock`) another upgrade or rollback holds the upgrade lock. plan() refuses on
-    these; automatic mode (lab/updates.py blocked) waits them out instead of spending its try."""
+    runs, or another upgrade or rollback holds the upgrade lock. plan() refuses on these (without
+    the lock it holds itself); automatic mode (lab/updates.py blocked) waits them out instead of
+    spending its try; the console's verdict leaves out what the supervisor waits out itself."""
     refusals = []
     state = load_state()
     if state and state.get('phase') in PENDING:
         refusals.append(f"The last {'upgrade' if state['phase'] == 'applied' else 'rollback'} has not started yet; restart Sbarbase first")
-    for name in UNSETTLED:
+    for name in UNSETTLED if records else ():
         if present(UPSTREAM / name):
             refusals.append(f'A pending operation record ({name}) must be settled or reconciled first')
-    if held(BACKUP_LOCK):
+    if backup and held(BACKUP_LOCK):
         refusals.append('A backup or restore is running; wait for it to finish')
     if lock and held(LOCK):
         refusals.append('Another upgrade or rollback is running')
