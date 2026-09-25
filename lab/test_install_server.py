@@ -60,6 +60,31 @@ class PlanTests(unittest.TestCase):
         self.assertIn('installation_runtime.py',source)
 
 
+class InterpreterPreflightTests(unittest.TestCase):
+    def findings(self,version,imports=True):
+        def fake(command,**kwargs):
+            if command[-1]=='import cryptography':return result(0 if imports else 1)
+            return result(0,version+'\n')
+        with patch.object(install_server.shutil,'which',return_value='/usr/bin/tool'), \
+             patch.object(install_server.Path,'exists',return_value=True), \
+             patch.object(install_server,'run',side_effect=fake):
+            return install_server.versions()
+
+    def test_the_ubuntu_and_debian_interpreters_pass(self):
+        for version in ('3.12','3.13','3.14'):
+            self.assertEqual(self.findings(version),[],version)
+
+    def test_an_older_interpreter_is_a_blocker_that_names_the_floor(self):
+        findings=self.findings('3.11')
+        self.assertEqual([kind for kind,_ in findings],['blocker'])
+        self.assertIn('3.12 or newer, found 3.11',findings[0][1])
+
+    def test_a_missing_cryptography_module_names_the_package(self):
+        findings=self.findings('3.12',imports=False)
+        self.assertEqual([kind for kind,_ in findings],['blocker'])
+        self.assertIn('python3-cryptography',findings[0][1])
+
+
 class UnreachableDaemonPreflightTests(unittest.TestCase):
     """Without a daemon the preflight must not guess about images or containers."""
 

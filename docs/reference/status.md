@@ -19,7 +19,21 @@ Run from the repository root in a clean container with Python 3.14 and `cryptogr
 
 Earlier pages recorded other totals (for example 575 Python and 87 Bun tests at the 0.1.0 release gate, and 625 and 93 on the workstation on 2026-09-23). Those were correct for their date and scope; this table replaces them.
 
-On 2026-09-25 the Python suite had 765 tests: `OK` with no skips on the workstation, `OK (skipped=2)` there with no Docker daemon reachable, and in a throwaway `python:3.12` container `OK (skipped=6)` as root and `OK (skipped=4)` as an unprivileged user. Each skip names what the host lacks: root for a permission refusal, a `/usr/bin/python3` of 3.14 or a Docker daemon for the acceptance script, `systemd-analyze`, or a block device for `/`.
+On 2026-09-25 the Python suite had 765 tests: `OK` with no skips on the workstation, `OK (skipped=2)` there with no Docker daemon reachable, and in a throwaway `python:3.12` container `OK (skipped=6)` as root and `OK (skipped=4)` as an unprivileged user. Each skip names what the host lacks: root for a permission refusal, a `/usr/bin/python3` of 3.12 or a Docker daemon for the acceptance script, `systemd-analyze`, or a block device for `/`.
+
+### Python interpreters, 2026-09-25
+
+The preflight now accepts `/usr/bin/python3` 3.12 or newer, which admits the interpreters Ubuntu 24.04 and Debian 13 ship. To check that the code runs on them, the same Python suite ran in throwaway containers as an ordinary user (uid 1000). The checkout was mounted, Bun was on the path and no Docker daemon was reachable. Ubuntu and Debian used their own `python3` and `python3-cryptography` packages; the `python:` images used the current `cryptography` wheel. `python -m compileall lab deploy` passes on all of them.
+
+| Interpreter | Result |
+|---|---|
+| Ubuntu 24.04: `python3` 3.12.3, `python3-cryptography` 41.0.7 | 768 tests; 3 skipped; 6 fail, all bound to the host (below) |
+| Debian 13: `python3` 3.13.5, `python3-cryptography` 43.0.0 | 768 tests; 3 skipped; 7 fail, bound to the host |
+| `python:3.12` (3.12.14), `python:3.13` (3.13.15) | 768 tests; 3 skipped; the same 7 fail |
+| `python:3.14` (3.14.7), run as a control | 768 tests; 3 skipped; the same 7 fail |
+| The workstation's `/usr/bin/python3` 3.14.7 | 768 tests, OK |
+
+The control fails the same 7 tests, so the failures come from the container, not the interpreter version. Five need a block device behind `/` (the IO limits refuse with `io_device_unavailable`), one needs `systemd-analyze`, and one needs a home directory for uid 1000, which the Ubuntu image has and the others do not. The 3 skips need a Docker daemon or a device source for `/`. Neither Ubuntu 24.04 nor Debian 13 has had an install rehearsed end to end; only Fedora 44 has.
 
 ## Live evidence
 

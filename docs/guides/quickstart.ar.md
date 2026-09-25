@@ -21,7 +21,14 @@ sudo dnf install -y moby-engine git python3-cryptography
 sudo systemctl enable --now docker
 ```
 
-مقابلاتها على Ubuntu 26.04 هي `docker.io` و`git` و`python3-cryptography`. تحقق أن `/usr/bin/python3 --version` يعطي 3.14 أو أحدث.
+على Ubuntu 26.04 أو Ubuntu 24.04 أو Debian 13:
+
+```bash
+sudo apt-get install -y docker.io git python3-cryptography curl unzip
+sudo systemctl enable --now docker
+```
+
+الحزمتان `curl` و`unzip` لمثبّت Bun في الخطوة 3. تحقق أن `/usr/bin/python3 --version` يعطي 3.12 أو أحدث. تنجح اختبارات الوحدات مع إصدار Python الذي يأتي مع Ubuntu 24.04 وDebian 13، لكن هذا التثبيت لم يُجرَّب من أوله إلى آخره إلا على Fedora 44، ولم يُجرَّب على أي من الأنظمة الثلاثة هذه.
 
 ## 2. أنشئ حساب الخدمة ونسخة المستودع
 

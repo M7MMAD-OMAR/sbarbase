@@ -64,6 +64,10 @@ def pinned_images():
     return references
 
 
+# Ubuntu 24.04 ships 3.12 and Debian 13 ships 3.13; PEP 701 f-strings need 3.12.
+PYTHON_FLOOR=(3,12)
+
+
 def versions():
     findings=[]
     if sys.platform!='linux':findings.append(('blocker','Host must be Linux'))
@@ -73,8 +77,12 @@ def versions():
     if not python.exists():findings.append(('blocker','/usr/bin/python3 not found'))
     else:
         result=run([str(python),'-c','import sys;print("%d.%d"%sys.version_info[:2])'])
-        if tuple(int(part) for part in result.stdout.strip().split('.'))<(3,14):
-            findings.append(('blocker','/usr/bin/python3 must be 3.14 or newer, found '+result.stdout.strip()))
+        found=result.stdout.strip()
+        if tuple(int(part) for part in found.split('.'))<PYTHON_FLOOR:
+            findings.append(('blocker','/usr/bin/python3 must be %d.%d or newer, found %s'%(*PYTHON_FLOOR,found)))
+        elif run([str(python),'-c','import cryptography'],check=False).returncode!=0:
+            findings.append(('blocker','/usr/bin/python3 cannot import cryptography; install python3-cryptography '
+                             '(recovery bundles and off-site backups need it)'))
     return findings
 
 
@@ -639,7 +647,7 @@ def main():
     if args.command=='check':
         raise SystemExit(0 if report(preflight()) else 1)
     if args.command=='plan':
-        print('1. preflight (docker, bun, /usr/bin/python3 3.14+, pinned images, headroom, disk, state)')
+        print('1. preflight (docker, bun, /usr/bin/python3 3.12+ with cryptography, pinned images, headroom, disk, state)')
         print('2. take the installation operation lock')
         print('3. create the private secret directory (0700)')
         print('4. pull each pinned image by its repository@digest reference when it is not local')

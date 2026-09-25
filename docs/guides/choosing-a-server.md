@@ -11,7 +11,7 @@ What to buy, or borrow for free, to run Sbarbase. Figures come from the empty-se
 | CPU | 3 cores, x86-64 | 4 cores |
 | Memory | 8 GB | 8 GB; 16 GB if you also want room to rehearse a restore on the same machine |
 | Disk | 12 GiB free; the pinned images take about 2.4 GB | 80 GB or more, NVMe, to hold data and local backups |
-| System | `/usr/bin/python3` 3.14 or newer, Docker, systemd | Fedora 44 (rehearsed) or Ubuntu 26.04 LTS (ships Python 3.14; not rehearsed yet) |
+| System | `/usr/bin/python3` 3.12 or newer with `cryptography`, Docker, systemd | Fedora 44 (rehearsed); Ubuntu 26.04 LTS, Ubuntu 24.04 LTS or Debian 13 (not rehearsed yet) |
 
 How many environments fit, by the same rules the preflight, the runtime and the provisioning worker apply (approximate for memory, because it depends on what the operating system itself uses; `lab/install_server.py check` gives the exact figure for your server):
 
@@ -31,7 +31,7 @@ Why these numbers:
 
 - **Memory is counted by limits, not use.** An empty installation measured about 190 MiB for its three containers and 130 MiB for the supervisor, but the preflight reserves each container's memory limit plus 2560 MiB for the host, because a container that outgrows a shared host is killed. Each environment's Auth and REST add 256 MiB of limit each.
 - **CPU is counted as ceilings.** One core stays with the host and the containers' CPU ceilings may add up to twice the rest, because idle services use almost nothing and a busy one is slowed, not killed. Real contention is caught by the pressure gate.
-- **Python 3.14** is why Ubuntu 24.04 (3.12) and Debian 13 (3.13) are not listed yet. See the roadmap's known debt.
+- **Python 3.12 is the floor.** Ubuntu 24.04 ships 3.12 and Debian 13 ships 3.13. The Python unit tests pass on both with their own `python3` and `python3-cryptography` packages, apart from checks that need a real host (a block device, systemd). Neither has had an install rehearsed end to end yet, so Fedora 44 remains the only rehearsed system.
 
 The four-environment guard (for example two clients with production and staging each) does not come from the hardware. Lifting it waits for measurements on a real server; see the roadmap.
 

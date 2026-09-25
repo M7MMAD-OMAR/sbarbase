@@ -14,7 +14,7 @@ Run Sbarbase on your own Linux machine to evaluate it. The full instructions liv
 
 ## Requirements
 
-Linux with a native Docker daemon, [Bun](https://bun.sh), and Python 3.14 or newer at `/usr/bin/python3`.
+Linux with a native Docker daemon, [Bun](https://bun.sh), and Python 3.12 or newer at `/usr/bin/python3` with the `cryptography` module (`python3-cryptography`).
 
 ## Run it
 

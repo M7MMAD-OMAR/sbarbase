@@ -21,7 +21,14 @@ sudo dnf install -y moby-engine git python3-cryptography
 sudo systemctl enable --now docker
 ```
 
-On Ubuntu 26.04 the equivalents are `docker.io`, `git` and `python3-cryptography`. Check that `/usr/bin/python3 --version` says 3.14 or newer.
+On Ubuntu 26.04, Ubuntu 24.04 or Debian 13:
+
+```bash
+sudo apt-get install -y docker.io git python3-cryptography curl unzip
+sudo systemctl enable --now docker
+```
+
+`curl` and `unzip` are for the Bun installer in step 3. Check that `/usr/bin/python3 --version` says 3.12 or newer. The unit tests pass with the Python that Ubuntu 24.04 and Debian 13 ship, but this install has been rehearsed end to end only on Fedora 44, not on any of these three.
 
 ## 2. Create the service account and the checkout
 

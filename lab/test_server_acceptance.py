@@ -16,7 +16,7 @@ SCRIPT=ROOT/'deploy'/'server-acceptance.sh'
 
 def host_python_is_modern():
     try:
-        result=subprocess.run(['/usr/bin/python3','-c','import sys;print(sys.version_info>=(3,14))'],capture_output=True,text=True,timeout=30)
+        result=subprocess.run(['/usr/bin/python3','-c','import sys;print(sys.version_info>=(3,12))'],capture_output=True,text=True,timeout=30)
     except OSError:
         return False
     return result.stdout.strip()=='True'
@@ -34,7 +34,7 @@ def docker_answers():
 # passes both checks.
 MODERN_PYTHON=host_python_is_modern()
 DOCKER=docker_answers()
-HOST_GAPS=', '.join(gap for gap,missing in (('/usr/bin/python3 is older than 3.14',not MODERN_PYTHON),
+HOST_GAPS=', '.join(gap for gap,missing in (('/usr/bin/python3 is older than 3.12',not MODERN_PYTHON),
                                             ('no Docker daemon answers',not DOCKER)) if missing)
 
 

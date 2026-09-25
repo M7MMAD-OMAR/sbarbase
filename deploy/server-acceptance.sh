@@ -140,9 +140,9 @@ for tool in docker bun git; do
   fi
   printf 'ok: %s %s\n' "$tool" "$("$tool" --version 2>/dev/null | head -1)"
 done
-[ -x "$PYTHON" ] || fail "$PYTHON is missing; pass --python with a 3.14+ interpreter"
-"$PYTHON" -c 'import sys; raise SystemExit(0 if sys.version_info>=(3,14) else 1)' \
-  || fail "$PYTHON is older than 3.14; the lab runtime needs modern f-strings"
+[ -x "$PYTHON" ] || fail "$PYTHON is missing; pass --python with a 3.12+ interpreter"
+"$PYTHON" -c 'import sys; raise SystemExit(0 if sys.version_info>=(3,12) else 1)' \
+  || fail "$PYTHON is older than 3.12; the lab runtime needs PEP 701 f-strings"
 printf 'ok: %s %s\n' "$PYTHON" "$("$PYTHON" -c 'import platform;print(platform.python_version())')"
 docker info --format '{{.Name}} {{.OSType}}' >/dev/null 2>&1 || fail "Docker daemon unavailable or not native Linux"
 printf 'ok: docker daemon %s\n' "$(docker info --format '{{.OSType}}')"
