@@ -9,7 +9,7 @@ Sbarbase backs up every environment once a day, while it keeps serving, and keep
 | Setting | Default | Meaning |
 |---|---|---|
 | `SBARBASE_BACKUP_HOUR` | `3` | UTC hour of the daily run; `off` turns it off |
-| `SBARBASE_BACKUP_KEEP` | `7` | Backups kept per environment. Backups taken for an upgrade are not counted: those of the last 3 upgrades are kept ([upgrades](upgrades.md)) |
+| `SBARBASE_BACKUP_KEEP` | `7` | Backups kept per environment. Backups taken for an upgrade are not counted: those of the last 3 upgrades that moved the checkout are kept ([upgrades](upgrades.md)) |
 
 Set them in `compose.yaml` (Docker) or in the unit's environment (systemd).
 

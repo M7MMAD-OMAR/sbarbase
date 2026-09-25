@@ -34,7 +34,7 @@ If the new version does not become healthy, the page says so and Sbarbase is bac
 2. **Drain.** The provisioning worker stops claiming new jobs, and the supervisor waits until the job in hand, any Studio, sign-in, Realtime, Edge Functions, database access or signing key change, and the daily backup have finished, and no operation record is left to settle. Nothing new starts meanwhile. If that takes longer than 10 minutes, the request fails, nothing moves, and provisioning continues.
 3. **Checks.** `lab/upgrade.py start --release <tag>` fetches the release tag again, verifies its signature and computes its class again from the source. It refuses, with nothing changed, when the checkout has local changes to tracked files, when the release does not contain every commit the checkout runs, when the release changes the PostgreSQL image, when an earlier upgrade has not finished starting, when an operation record still needs settling, or when a backup or restore is running. Evidence the acceptance and the live checks wrote under `docs/evidence/` is not a local change: it is copied to `.lab/upgrades/evidence-<time>/` before the checkout moves.
 4. **Images.** It pulls every image the new version pins, so a missing download never stops a running installation. Everything up to here changes nothing.
-5. **Backup.** It backs up every environment on this server ([backup and restore](backup-and-restore.md)). The start of this step is the point of no return for an automatic try. Backups taken for an upgrade are marked as such: the backups of the last 3 upgrades are kept whatever their age, and they do not count against `SBARBASE_BACKUP_KEEP`.
+5. **Backup.** It backs up every environment on this server ([backup and restore](backup-and-restore.md)). The start of this step is the point of no return for an automatic try. Backups taken for an upgrade are marked as such. Once the checkout has moved, the run is also recorded in `.lab/backups/upgrade-moved.json`: the backups of the last 3 upgrades that moved the checkout are kept whatever their age, and they do not count against `SBARBASE_BACKUP_KEEP`. A try that stopped before the move keeps ordinary backups.
 6. **Control snapshot and guard.** It copies the control state (the control catalog, every SQLite store directly under `.lab/upstream/`, and the key store `.secrets/upstream/managed-keys.sqlite`) into `.lab/upgrades/snapshots/`, and copies this version's start guard to `.lab/upgrades/guard.py` (see [the start guard](#the-start-guard)).
 7. **The move.** It moves the checkout to the release commit and installs its dependencies.
 8. **Restart.** The supervisor stops the console and the owned containers cleanly, then exits with code 42. systemd (`RestartForceExitStatus=42` in the unit) and Docker (`restart: unless-stopped`) start it again. From the command line you restart it yourself.
@@ -59,7 +59,23 @@ While an upgrade or a rollback waits for its health checks, and never otherwise,
 - the new version has not passed its health checks in 3 starts;
 - the checkout is not the version being confirmed, or the upgrade stopped while it moved the checkout.
 
-It also completes a way back that was interrupted. If the previous version then fails in the same way, the guard records `rollback_failed` and lets the previous version start without the health checks. A way back the guard takes is announced by the next start that can send notifications. The systemd unit sets `StartLimitIntervalSec=0`, so systemd never stops restarting while the guard needs several starts, and `TimeoutStartSec=600`, because a way back reinstalls the previous version's dependencies before the preflight runs.
+It also completes a way back that was interrupted. If the previous version then fails in the same way, the guard records `rollback_failed` and lets the previous version start without the health checks.
+
+Every way back, by the guard, the supervisor or an operator's rollback, moves the checkout by force and checks the result:
+
+- local changes to tracked files, and untracked files the previous version would overwrite, are first copied to `.lab/upgrades/aside-<time>/`, one folder per way back. Nothing prunes those folders: look there for an edit you made on the server, and remove a folder yourself once you no longer need it;
+- a `.git/index.lock` left behind by a killed Git process is removed, but only when no Git process could be using the checkout;
+- nothing is recorded until the checkout is the previous version and its tracked files are clean.
+
+If the move back inside `start` itself fails, the upgrade stays `applied`, and the next restart moves the checkout back before any code of either version runs.
+
+A move that keeps failing is tried again by the next starts. After 3 failed moves, one of three things happens:
+
+- the checkout holds the previous version: the phase becomes `failed` (the move back of `start`) or `rollback_failed` (any other way back), and the previous version starts without the health checks;
+- the checkout still holds the confirmed version an operator's rollback tried to leave: it stays on that version, the phase is `confirmed` again, and `upgrade.py status` shows a `rollback` line saying why the rollback failed;
+- anything else: Sbarbase stays stopped rather than run an unchecked tree. The guard prints one line, waits 5 minutes and exits, so each restart tries the move again, and `status` shows a `stuck` line with the reason. The installation comes back by itself once the cause (a full disk, wrong file ownership) is gone.
+
+After an update child fails in a way that may have left the checkout between two versions, the supervisor does not resume provisioning on it: it fails the request, says Sbarbase restarts, and exits so the guard settles the checkout first. A way back the guard takes is announced by the next start that can send notifications. The systemd unit sets `StartLimitIntervalSec=0`, so systemd never stops restarting while the guard needs several starts, and `TimeoutStartSec=600`, because a way back reinstalls the previous version's dependencies before the preflight runs.
 
 ## The four classes
 
@@ -130,7 +146,7 @@ The check reads the canonical repository over HTTPS, not your `origin`. To read 
 - It keeps the control state as it is now: everything written since the update stays. It does not restore the snapshot.
 - It is offered only when the previous version can still open the control catalog and the key store. If the update migrated them to a schema the previous version does not know, it is refused with the reason, and the way forward is a newer version, or the backups taken before the upgrade.
 - It is offered only for the last update, and not while another request is under way.
-- It is refused while tracked files in the checkout have local changes.
+- It is refused, from the page or the command line, while tracked files outside `docs/evidence/` have local changes, because the way back would move them aside; the refusal names them. Commit or discard them on the server first. The automatic way back never refuses for this: it sets the changes aside.
 - Going back does not undo a change a newer Auth, Storage or Realtime made to the environment databases when it started (see [releases that need your confirmation](#releases-that-need-your-confirmation)). If the previous version does not run on it, restore the backups taken before the upgrade.
 
 `python3 lab/upgrade.py rollback --check` says whether a rollback would go ahead, and why not, without changing anything.
@@ -139,9 +155,9 @@ The check reads the canonical repository over HTTPS, not your `origin`. To read 
 
 - **Before confirmation the control state goes back complete.** Application traffic is held, so no application write lands on the new version; management changes are refused with `409` rather than accepted and then dropped; and the control state goes back to the snapshot the new version took when it started.
 - **Environment databases are not part of that snapshot.** For a safe release nothing in them changes as the new version starts. For a release that needs your confirmation, the Auth, Storage or Realtime migrations stay after a way back, and `storage_metadata` is in no per-environment backup.
-- **After confirmation the fix is forward only.** The backups taken before the upgrade stay in `.lab/backups/`, and those of the last 3 upgrades are kept out of pruning. A rollback keeps what was written since confirmation, or refuses when it cannot.
+- **After confirmation the fix is forward only.** The backups taken before the upgrade stay in `.lab/backups/`, and those of the last 3 upgrades that moved the checkout are kept out of pruning. A rollback keeps what was written since confirmation, or refuses when it cannot.
 - **Database image changes never go through an upgrade.** They are refused, and belong to `lab/migrate-generation.py`.
-- **Local edits are never discarded.** A local change to a tracked file outside `docs/evidence/` blocks the upgrade until you commit or discard it yourself.
+- **Local edits are never discarded.** A local change to a tracked file outside `docs/evidence/` blocks an upgrade and an operator's rollback until you commit or discard it yourself. A way back that runs anyway (the automatic one, or the guard's) copies local changes to `.lab/upgrades/aside-<time>/` before it overwrites the checkout.
 
 ## From the command line
 
@@ -182,7 +198,7 @@ The new version's first start takes the control snapshot, holds traffic and runs
 
 ## What has been run
 
-- Unit tests on the workstation on 2026-09-25: 178 Python tests in `lab/test_release_channel.py`, `lab/test_updates.py`, `lab/test_upgrade.py`, `lab/test_upgrade_health.py`, `lab/test_upgrade_guard.py`, `lab/test_upgrade_drain.py` and `lab/test_upgrade_check.py` (the upgrade file also holds the older upgrade tests), and 58 Bun tests for the hold, the probe past it, the updates routes and the console page. All pass.
+- Unit tests on the workstation on 2026-09-25: 201 Python tests in `lab/test_release_channel.py`, `lab/test_updates.py`, `lab/test_upgrade.py`, `lab/test_upgrade_health.py`, `lab/test_upgrade_guard.py`, `lab/test_upgrade_drain.py` and `lab/test_upgrade_check.py` (the upgrade file also holds the older upgrade tests), and 58 Bun tests for the hold, the probe past it, the updates routes and the console page. All pass.
 - The rehearsal VM ran the command line cycle on 2026-09-25: an upgrade to a newer PostgREST with `start --to`, a broken version that moved back by itself, and a return to the installed pins, with users unchanged at each step ([evidence](../evidence/vm-upgrade-checks.json), [return](../evidence/vm-upgrade-return.json)). CI records the same `start --to` cycle on a clean machine, with users, files and buckets compared before and after ([evidence](../evidence/docker-upgrade-checks.json)).
 - Not run yet: the three CI cases for the channel (they are in the CI job, but no run is recorded), the VM rehearsal of a real bump and back through the channel, the start guard, the drain, and an `attended` release. Until those pass, automatic updates are not described as ready.
 
@@ -246,3 +262,5 @@ Startup never recreates a database container as an implicit upgrade. A managed d
 - The first move onto the version with the update channel needs a rebuild and the command line (above). A way back that lands on a version older than the channel has no guard, no health checks and no hold, and cannot deliver the `update.*` notifications.
 - `lab/install_server.py supervise`, with or without `--apply`, rewrites the tracked `docs/evidence/supervisor-unit.json`. On a version with the update channel that does not block an upgrade: it is copied aside with the other evidence. An installation whose `lab/upgrade.py` has no `set_aside_evidence` (it landed on 2026-09-25) still refuses when its evidence files changed. Copy `docs/evidence/` somewhere, run `git checkout -- docs/evidence` as the service account once, then upgrade.
 - Automatic updates install only safe releases. A release that needs your confirmation, a rebuild or a migration always waits for you.
+- The forced way back, the 3-move limit and the stopped state live in the guard, and the way back runs the guard copied from the version the upgrade left. So they protect only upgrades started from a version that has them.
+- A guard that cannot write `state.json` at all (a full or read-only disk) cannot count its failures, so the service restarts in a loop until the disk is writable again.
