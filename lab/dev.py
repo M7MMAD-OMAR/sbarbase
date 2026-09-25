@@ -16,6 +16,7 @@ import threading
 import time
 import traceback
 import updates
+import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
 STATE = ROOT / '.lab/upstream'
@@ -299,14 +300,13 @@ class Supervisor:
         if settings['check'] and updates.check_due(updates.read('check.json'), moment, self.updates_since, document, self.current):
             self.start_update('check', None, moment)
             return
-        release = updates.automatic_release(settings, document, self.current, state, updates.ledger(), moment,
-                                            self.backup is not None)
+        release = updates.automatic_release(settings, document, self.current, state, moment, self.backup is not None)
         if release is not None and updates.blocked() is None:
-            # Counted before the request exists. A try that went ahead (backup or checkout) is
-            # never repeated; one that stopped before that is tried again, a bounded number of
-            # times (lab/updates.py automatic_release).
+            # Counted before the request exists. A try that passed its point of no return is
+            # never repeated; one that stopped before it is tried again, a bounded number of
+            # times (lab/updates.py spend and automatic_release).
             updates.begin_automatic(release['version'], moment)
-            if updates.create_request('apply', release['version'], release.get('tag'), 'automatic', moment):
+            if updates.create_request('apply', release['version'], 'automatic', moment):
                 print(f"Automatic update to Sbarbase {release['version']} requested.", flush=True)
 
     def start_request(self, request, state, moment):
@@ -319,26 +319,30 @@ class Supervisor:
             # The daily backup runs; the upgrade starts after it.
             return
         if kind == 'apply':
+            automatic = request.get('trigger') == 'automatic'
+            # Only an operator acknowledges the warning an attended release carries; automatic
+            # mode never installs one.
+            acknowledged = request.get('acknowledged') is True and not automatic
             document = updates.read('available.json')
-            refusal = updates.apply_refusal(request.get('version'), document, self.current, state)
-            if refusal is None and not str(document['available'].get('tag', '')).startswith('v'):
-                refusal = updates.MESSAGES['nothing']
+            refusal = updates.apply_refusal(request.get('version'), document, self.current, state, acknowledged)
             if refusal:
                 updates.finish_request(request, 'failed', refusal, moment)
                 return
-            # The tag the check verified, not one the request names; upgrade.py verifies it again.
-            trigger = 'automatic' if request.get('trigger') == 'automatic' else 'console'
-            command = ['/usr/bin/python3', 'lab/upgrade.py', 'start', '--release', document['available']['tag'],
-                       '--trigger', trigger]
+            # The release the check verified, named by its version; upgrade.py verifies it again.
+            release = document['available']
+            command = ['/usr/bin/python3', 'lab/upgrade.py', 'start', '--release', 'v' + release['version'],
+                       '--trigger', 'automatic' if automatic else 'console']
+            if release.get('class') == 'attended' and acknowledged:
+                command += ['--allow-class', 'attended']
         else:
             possible, reason = updates.rollback_verdict(state)
             if not possible:
                 updates.finish_request(request, 'failed', reason, moment)
                 return
             command = ['/usr/bin/python3', 'lab/upgrade.py', 'rollback']
-        self.begin_drain(kind, request, moment, command, state)
+        self.begin_drain(kind, request, moment, command)
 
-    def begin_drain(self, kind, request, moment, command, state):
+    def begin_drain(self, kind, request, moment, command):
         """Before an upgrade or rollback moves the checkout, this supervisor quiesces itself: the
         worker finishes the job in hand and claims no other, running children finish, nothing new
         starts (paused), and no operation record may be left unsettled. Only then does the child
@@ -349,7 +353,7 @@ class Supervisor:
         if self.worker is not None:
             marker = self.drain_marker()
             marker.write_text('{}')
-        self.drain = {'kind': kind, 'request': request, 'command': command, 'state': state,
+        self.drain = {'kind': kind, 'request': request, 'command': command,
                       'until': time.monotonic() + DRAIN_SECONDS}
         print('Finishing provisioning and other work before the '
               + ('update.' if kind == 'apply' else 'rollback.'), flush=True)
@@ -370,7 +374,7 @@ class Supervisor:
         job = self.drain
         if self.idle():
             self.drain = None
-            self.start_update(job['kind'], job['request'], moment, job['command'], job['state'])
+            self.start_update(job['kind'], job['request'], moment, job['command'])
             return
         if time.monotonic() < job['until']:
             return
@@ -388,19 +392,22 @@ class Supervisor:
         if self.worker is None and self.confirm is None and self.worker_fd is not None:
             self.start_worker()
 
-    def start_update(self, kind, request, moment, command=None, state=None):
+    def start_update(self, kind, request, moment, command=None):
         if kind == 'check':
             command = ['/usr/bin/python3', 'lab/upgrade.py', 'channel', '--json']
         if request is not None:
             request = updates.update_request(request, state='running', started_at=updates.stamp(moment)) or request
+        # The child records how it ended under this id (lab/upgrade.py record_outcome).
+        run = request['id'] if request is not None else uuid.uuid4().hex
         print({'check': 'Checking for a newer Sbarbase release.', 'apply': 'Update to a newer Sbarbase release started.',
                'rollback': 'Rollback to the previous Sbarbase version started.'}[kind], flush=True)
-        self.update = {'kind': kind, 'request': request, 'state': state,
-                       'process': self.spawn_logged(command, updates.path(kind + '.log'))}
+        self.update = {'kind': kind, 'request': request, 'run': run,
+                       'process': self.spawn_logged([*command, '--request', run], updates.path(kind + '.log'))}
 
     def update_finished(self, job, status, moment):
-        """Records how a check, an upgrade or a rollback ended. After an upgrade or rollback that
-        moved the checkout, this process stops and exits with RESTART_FOR_UPGRADE."""
+        """Records how a check, an upgrade or a rollback ended, from the outcome the child
+        recorded. After an upgrade or rollback that moved the checkout, this process stops and
+        exits with RESTART_FOR_UPGRADE."""
         kind, request = job['kind'], job['request']
         try:
             output = updates.path(kind + '.log').read_text(errors='replace')
@@ -409,8 +416,9 @@ class Supervisor:
         # The child's output goes to the journal once it ended (the log file is replaced each run).
         for line in output.splitlines()[-40:]:
             print('  ' + line, flush=True)
+        result = updates.outcome(job['run'])
         if kind == 'check':
-            error, document = updates.finish_check(status, output, moment)
+            error, document = updates.finish_check(status, result, moment)
             if error is None:
                 updates.announce_available(document, self.current, catalog=self.catalog)
             else:
@@ -418,8 +426,10 @@ class Supervisor:
             if request is not None:
                 updates.finish_request(request, 'failed' if error else 'done', error, moment)
             return
+        if request is not None:
+            updates.spend(request, result, moved=status == 0)
         if status != 0:
-            detail = updates.meaningful(output)
+            detail = updates.failure(result)
             print(f"The {'update' if kind == 'apply' else 'rollback'} did not go ahead: {detail}", flush=True)
             if request is not None:
                 updates.finish_request(request, 'failed', detail, moment)
@@ -428,7 +438,7 @@ class Supervisor:
         if kind == 'apply':
             detail = f"The checkout moved to Sbarbase {(request or {}).get('version', 'the new version')}. Sbarbase restarts on it now."
         else:
-            updates.remember('rolled_back', updates.label(job['state']))
+            # The ledger learns of the way back when the previous version confirms it (announce_outcome).
             detail = 'The checkout moved back to the previous version. Sbarbase restarts on it now.'
         if request is not None:
             updates.finish_request(request, 'done', detail, moment)

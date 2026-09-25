@@ -163,6 +163,41 @@ class UpgradeTests(Checkout):
         # A second start waits until the first one has been started.
         self.assertTrue(any('restart' in refusal for refusal in upgrade.plan(self.first)['refusals']))
 
+    def test_a_start_for_a_request_records_its_point_of_no_return_before_the_backup_and_how_it_ended(self):
+        # upgrade.main changes into its checkout; come back before the directory goes.
+        self.addCleanup(os.chdir, os.getcwd())
+        seen = []
+        upgrade.back_up.side_effect = lambda: seen.append(json.loads(upgrade.outcome_file().read_text()))
+        with patch('builtins.print'):
+            self.assertEqual(upgrade.main(['start', '--to', self.second, '--request', 'r1']), 0)
+        self.assertEqual([(item['request'], item['kind'], item['passed'], item['changed']) for item in seen],
+                         [('r1', 'start', True, False)])
+        outcome = json.loads(upgrade.outcome_file().read_text())
+        self.assertEqual((outcome['passed'], outcome['changed'], outcome['error']), (True, True, None))
+        self.assertEqual(stat.S_IMODE(upgrade.outcome_file().stat().st_mode), 0o600)
+        # Refused before anything moved: the refusals, and no point of no return.
+        with patch('builtins.print'), patch('sys.stderr'):
+            self.assertEqual(upgrade.main(['start', '--to', self.first, '--request', 'r2']), 1)
+        outcome = json.loads(upgrade.outcome_file().read_text())
+        self.assertEqual((outcome['request'], outcome['passed'], outcome['changed']), ('r2', False, False))
+        self.assertTrue(any('restart' in refusal for refusal in outcome['refusals']))
+        # From the command line, without a request, nothing is recorded.
+        upgrade.outcome_file().unlink()
+        with patch('builtins.print'), patch('sys.stderr'):
+            upgrade.main(['start', '--to', self.first])
+        self.assertFalse(upgrade.outcome_file().exists())
+
+    def test_the_first_start_refuses_a_record_the_previous_version_left_and_marks_the_way_back_retryable(self):
+        upgrade.start(self.second)
+        (self.upstream / 'worker-effect.json').write_text('{}')
+        with self.assertRaisesRegex(upgrade.UpgradeError, 'pending operation record'):
+            upgrade.before_start()
+        self.assertTrue(upgrade.load_state()['retryable'])
+        (self.upstream / 'worker-effect.json').unlink()
+        self.assertTrue(upgrade.after_start(False))
+        state = upgrade.load_state()
+        self.assertEqual((state['phase'], state['retryable']), ('rolling_back', True))
+
     def test_a_good_start_confirms_the_upgrade_and_closes_the_intent(self):
         upgrade.start(self.second)
         self.assertFalse(upgrade.after_start(True))
@@ -519,6 +554,28 @@ class ControlStateTests(Checkout):
         os.utime(self.snapshot() / 'manifest.json', ns=(0, 0))
         upgrade.prune_snapshots()
         self.assertEqual(sorted(path.name for path in upgrade.SNAPSHOTS.iterdir()), sorted(names[1:] + [current]))
+
+
+class CommandTests(unittest.TestCase):
+    def test_the_backup_before_an_upgrade_is_marked_as_one(self):
+        with patch.object(upgrade.subprocess, 'run', return_value=SimpleNamespace(returncode=0)) as run:
+            upgrade.back_up()
+        self.assertEqual(run.call_args.args[0][-4:], ['all', '--local-only', '--reason', 'upgrade'])
+
+    def test_a_release_start_may_allow_a_rebuild_and_a_migrating_release(self):
+        self.addCleanup(os.chdir, os.getcwd())
+        with patch.object(upgrade, 'start_release') as start, patch.object(upgrade, 'record_outcome'):
+            self.assertEqual(upgrade.main(['start', '--release', 'v0.2.0', '--allow-class', 'rebuild',
+                                           '--allow-class', 'attended', '--request', 'r1']), 0)
+        self.assertEqual(start.call_args.args, ('v0.2.0', ['rebuild', 'attended'], 'cli', 'r1'))
+
+    def test_the_channel_names_the_releases_it_passed_over(self):
+        result = {'current': {'version': '0.1.0', 'commit': 'a' * 40}, 'available': None, 'refusals': [],
+                  'skipped': ['v0.3.0 was passed over: v0.3.0 needs at least version 0.2.0']}
+        with patch('builtins.print') as shown:
+            upgrade.show_channel(result)
+        self.assertIn('passed     v0.3.0 was passed over: v0.3.0 needs at least version 0.2.0',
+                      [call.args[0] for call in shown.call_args_list])
 
 
 class ReplacementTests(unittest.TestCase):

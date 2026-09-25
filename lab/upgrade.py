@@ -4,7 +4,7 @@ Usage (with Docker, put `docker compose exec sbarbase` before each command):
   /usr/bin/python3 lab/upgrade.py check [--to REF]    what would change, and whether it can
   /usr/bin/python3 lab/upgrade.py start [--to REF]    back up, pull images, move the checkout
   /usr/bin/python3 lab/upgrade.py channel [--json]    the newest signed release, and what it takes
-  /usr/bin/python3 lab/upgrade.py start --release vX.Y.Z [--allow-class rebuild]
+  /usr/bin/python3 lab/upgrade.py start --release vX.Y.Z [--allow-class rebuild|attended]
                                                       start onto a verified release from the channel
   /usr/bin/python3 lab/upgrade.py status              the last upgrade and its outcome
   /usr/bin/python3 lab/upgrade.py rollback [--check]  move back to the version before it (--check: only
@@ -84,7 +84,11 @@ RESTART = 'docker compose up -d --build   (or: sudo systemctl restart sbarbase)'
 
 
 class UpgradeError(Exception):
-    pass
+    """Why a command stopped; `refusals` lists the checks that refused it before anything moved."""
+
+    def __init__(self, message, refusals=()):
+        super().__init__(message)
+        self.refusals = list(refusals)
 
 
 def git(*args, check=True):
@@ -412,9 +416,35 @@ def pull(commit):
 def back_up():
     """Backs up every environment before anything moves; the backups stay afterwards."""
     # Local only: an unreachable off-site storage must not block an upgrade that has its backups.
-    result = subprocess.run(['/usr/bin/python3', 'lab/backup.py', 'create', 'all', '--local-only'], cwd=ROOT, text=True)
+    # Marked as an upgrade's, so count-based pruning keeps them (lab/backup.py UPGRADE_RUNS_KEPT).
+    result = subprocess.run(['/usr/bin/python3', 'lab/backup.py', 'create', 'all', '--local-only', '--reason', 'upgrade'],
+                            cwd=ROOT, text=True)
     if result.returncode:
         raise UpgradeError('The backup before the upgrade failed; nothing was changed')
+
+
+def outcome_file():
+    return UPGRADES / 'outcome.json'
+
+
+def record_outcome(request, kind, **fields):
+    """How a command the supervisor ran for a request (lab/dev.py passes --request) ended, for it
+    to read instead of the command's output: {request, kind, passed, changed, refusals, error, at}.
+
+    `passed` is written by `start` just before its backup, the first thing it does that is not
+    free to repeat: automatic mode spends its one try on a version only once a start got there
+    (lab/updates.py). Written durably before the backup, so a start killed during it still says so.
+    Nothing is written without a request: the command line keeps its output only."""
+    if request is None:
+        return
+    try:
+        previous = json.loads(outcome_file().read_text())
+    except (OSError, ValueError):
+        previous = None
+    if not isinstance(previous, dict) or previous.get('request') != request:
+        previous = {'request': request, 'kind': kind, 'passed': False, 'changed': False, 'refusals': [], 'error': None}
+    UPGRADES.mkdir(mode=0o700, parents=True, exist_ok=True)
+    lab.atomic(outcome_file(), {**previous, **fields, 'at': now()})
 
 
 def owner_of_checkout(paths):
@@ -490,19 +520,24 @@ def install_dependencies():
         raise UpgradeError('bun install failed for this version')
 
 
-def start(target_ref, trigger='cli'):
+def start(target_ref, trigger='cli', release=None, request=None):
     with exclusive(LOCK, 'Another upgrade or rollback is running'):
-        apply(target_ref, trigger)
+        apply(target_ref, trigger, release, request)
 
 
-def apply(target_ref, trigger='cli'):
+def apply(target_ref, trigger='cli', release=None, request=None):
+    """`release` ({version, tag, class, signed}) names the channel release a start moves to; it is
+    in the first record saved, so every reader of the state knows the version from the start."""
     details = plan(target_ref)
     report(details, target_ref)
     if details['refusals']:
-        raise UpgradeError('Nothing was changed')
+        raise UpgradeError('Nothing was changed', details['refusals'])
     target = details['target']
     pins, back = pins_at(target), pins_at(details['current'])
     pull(target)
+    # Everything before this changes nothing and may be tried again; the backup is the first
+    # step that is not, so it is recorded before it starts.
+    record_outcome(request, 'start', passed=True)
     back_up()
     # Proves the control state can be copied before anything moves. The new version takes a
     # fresh one when it starts (before_start), which is the one the way back restores.
@@ -517,7 +552,8 @@ def apply(target_ref, trigger='cli'):
     record = {'phase': 'applied', 'from': details['current'], 'to': target, 'started_at': now(),
               'changes': details['changes'], 'automatic': False, 'snapshot': taken, 'trigger': trigger,
               'protocol': upgrade_guard.PROTOCOL, 'moved': False,
-              'way_back': {'pins': back, 'from': target, 'to': details['current']}}
+              'way_back': {'pins': back, 'from': target, 'to': details['current']},
+              **({'release': release} if release else {})}
     save_state(record)
     prune_snapshots()
     try:
@@ -652,6 +688,10 @@ def before_start():
         # anything, the way back restores nothing, and the previous version settles it.
         for name in UNSETTLED:
             if present(UPSTREAM / name):
+                # The way back that follows says nothing about the new version itself: recorded
+                # as `retryable`, it does not rule the version out for automatic updates.
+                with exclusive(LOCK, 'Another upgrade or rollback is running', wait=30):
+                    save_state({**state, 'retryable': True})
                 raise UpgradeError(f'The previous version left a pending operation record ({name}); it settles it first. '
                                    'Start the upgrade again once it has')
         with exclusive(LOCK, 'Another upgrade or rollback is running', wait=30):
@@ -771,6 +811,9 @@ def show_channel(result):
         print('available  nothing newer')
     for refusal in result['refusals']:
         print('refused    ' + refusal)
+    # Newer releases the check passed over, and why: a newer one exists, but not for this installation yet.
+    for note in result.get('skipped') or []:
+        print('passed     ' + note)
 
 
 def channel(as_json=False, preview=False):
@@ -785,21 +828,16 @@ def channel(as_json=False, preview=False):
         show_channel(result)
 
 
-def start_release(tag, allow=(), trigger='cli'):
+def start_release(tag, allow=(), trigger='cli', request=None):
     """Starts an upgrade to a signed release: verified, classified, then the usual start."""
     try:
         release = release_channel.prepare(tag, allow)
     except release_channel.ReleaseError as error:
-        raise UpgradeError(f'{error}\nNothing was changed')
+        raise UpgradeError(f'{error}\nNothing was changed', str(error).splitlines())
     print(f"release  {tag}, class {release['class']}, signed")
-    began = now()
-    try:
-        # The verified commit, never the ref: nothing can move between the check and the checkout.
-        start(release['commit'], trigger)
-    finally:
-        state = load_state()
-        if state and state.get('to') == release['commit'] and state.get('started_at', '') >= began and 'release' not in state:
-            save_state({**state, 'release': {'version': release['version'], 'tag': tag, 'class': release['class'], 'signed': True}})
+    # The verified commit, never the ref: nothing can move between the check and the checkout.
+    start(release['commit'], trigger,
+          {'version': release['version'], 'tag': tag, 'class': release['class'], 'signed': True}, request)
     if release['class'] == 'rebuild':
         print('This release changes what a plain restart does not pick up:')
         for reason in release['reasons']:
@@ -816,41 +854,50 @@ def main(argv=None):
     target = starting.add_mutually_exclusive_group()
     target.add_argument('--to', default=DEFAULT_TARGET)
     target.add_argument('--release', help='a signed release tag from the channel, vX.Y.Z')
-    starting.add_argument('--allow-class', action='append', choices=['rebuild'], default=[],
-                          help='apply a release that needs a rebuild (a manual release is always refused)')
+    starting.add_argument('--allow-class', action='append', choices=['rebuild', 'attended'], default=[],
+                          help='apply a release that needs a rebuild, or one that migrates environment databases '
+                               '(repeat for both; a manual release is always refused)')
     starting.add_argument('--trigger', choices=TRIGGERS, default='cli', help=argparse.SUPPRESS)
     listing = sub.add_parser('channel')
     listing.add_argument('--json', action='store_true')
     listing.add_argument('--preview', action='store_true', help='include pre-releases')
     sub.add_parser('status')
-    sub.add_parser('rollback').add_argument('--check', action='store_true',
-                                            help='only say whether a rollback would refuse, and why')
+    back = sub.add_parser('rollback')
+    back.add_argument('--check', action='store_true', help='only say whether a rollback would refuse, and why')
+    # The supervisor's run id: the command then records how it ended (record_outcome).
+    for command in (starting, listing, back):
+        command.add_argument('--request', help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     os.chdir(ROOT)
+    request = getattr(args, 'request', None)
+    kind = {'channel': 'check'}.get(args.command, args.command)
     try:
         if args.command == 'channel':
             channel(args.json, args.preview)
+            record_outcome(request, kind)
             return 0
         if args.command == 'start' and args.release:
-            start_release(args.release, args.allow_class, args.trigger)
-            return 0
-        if args.command == 'rollback' and args.check:
+            start_release(args.release, args.allow_class, args.trigger, request)
+        elif args.command == 'rollback' and args.check:
             refusal = rollback_refusal()
             print(refusal or 'A rollback would go ahead.')
             return 1 if refusal else 0
-        if args.command == 'check':
+        elif args.command == 'check':
             details = plan(args.to)
             report(details, args.to)
             return 1 if details['refusals'] else 0
-        if args.command == 'start':
-            start(args.to, args.trigger)
+        elif args.command == 'start':
+            start(args.to, args.trigger, request=request)
         elif args.command == 'rollback':
             rollback()
         else:
             status()
+            return 0
+        record_outcome(request, kind, changed=True)
         return 0
     except (UpgradeError, release_channel.ReleaseError) as error:
         print(str(error), file=sys.stderr)
+        record_outcome(request, kind, changed=False, error=str(error), refusals=getattr(error, 'refusals', []))
         return 1
 
 
