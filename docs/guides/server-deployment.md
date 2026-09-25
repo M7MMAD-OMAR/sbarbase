@@ -110,6 +110,15 @@ The unit carries what updates need ([upgrades](upgrades.md)):
   an upgrade left in `.lab/upgrades/guard.py`). It runs before the preflight and
   before any code of the version the checkout holds, and moves the checkout back
   when a new version keeps failing its start.
+- Its second `ExecStartPre` (`lab/leftover_runtime.py`) handles a supervisor that
+  was killed (SIGKILL, the OOM killer) instead of stopping. Docker, not the unit,
+  owns the containers, so they keep running, and the preflight used to refuse every
+  later start because owned containers were running. This step stops them the way
+  the supervisor's own stop does (`docker stop`, every container and volume kept),
+  but only when no supervisor, worker or effect owner holds its lock and no
+  provisioning receipt, HBA journal or migration record waits for reconciliation.
+  Otherwise it refuses and names the reason. The supervisor runs the same step
+  after it takes its locks, which covers Docker and terminal starts.
 - `RestartForceExitStatus=42`: after an update or rollback from the console moves
   the checkout, the supervisor stops everything cleanly and exits with code 42 so
   systemd starts it again on the new version. `Restart=on-failure` already covers
@@ -119,8 +128,10 @@ The unit carries what updates need ([upgrades](upgrades.md)):
   way back reinstalls dependencies before the preflight runs.
 
 A unit installed before these lines existed has no guard before the preflight; the
-supervisor then runs the guard itself. Reinstall the unit with `supervise --apply`
-when you move to the version that has them.
+supervisor then runs the guard itself. Without the second line, a start after an
+unclean stop still refuses at the preflight; stop the leftover containers once with
+`/usr/bin/python3 lab/leftover_runtime.py` as the service account. Reinstall the
+unit with `supervise --apply` when you move to the version that has them.
 
 Four things must be true before the unit can serve, and the preflight names each
 one rather than failing obscurely:

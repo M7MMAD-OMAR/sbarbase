@@ -182,7 +182,7 @@ class InstallationProducerTests(ProducerCase):
         return stages, run_stage, StubSupervisor
 
     def main(self, run_stage, supervisor):
-        with patch.object(dev, 'run_stage', run_stage), \
+        with patch.object(dev, 'run_stage', run_stage), patch.object(dev, 'settle_leftover'), \
              patch.object(dev.console_build_check, 'is_fresh', return_value=(True, 'fresh')), \
              patch.object(dev, 'Supervisor', supervisor), \
              patch.object(dev.os, 'chdir'), \

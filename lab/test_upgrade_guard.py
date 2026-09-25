@@ -697,7 +697,7 @@ class MainTests(unittest.TestCase):
         for item in [patch.object(dev, 'STATE', self.state), patch.object(dev.os, 'chdir'),
                      patch.object(dev, 'run_guard'), patch.object(dev.signal, 'signal'),
                      patch.object(dev, 'upgrade_prepare', return_value=True),
-                     patch.object(dev, 'run_stage', return_value=0),
+                     patch.object(dev, 'run_stage', return_value=0), patch.object(dev, 'settle_leftover'),
                      patch.object(dev.console_build_check, 'is_fresh', return_value=(True, 'fresh')),
                      patch.object(dev, 'notify_installation'), patch.object(dev, 'upgrade_notices'),
                      patch.object(dev, 'upgrade_confirmation'),

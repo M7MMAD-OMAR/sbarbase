@@ -77,6 +77,8 @@ A move that keeps failing is tried again by the next starts. After 3 failed move
 
 After an update child fails in a way that may have left the checkout between two versions, the supervisor does not resume provisioning on it: it fails the request, says Sbarbase restarts, and exits so the guard settles the checkout first. A way back the guard takes is announced by the next start that can send notifications. The systemd unit sets `StartLimitIntervalSec=0`, so systemd never stops restarting while the guard needs several starts, and `TimeoutStartSec=600`, because a way back reinstalls the previous version's dependencies before the preflight runs.
 
+A supervisor that is killed rather than stopped (SIGKILL, the OOM killer), during the health checks or at any other time, leaves the owned containers running, since Docker owns them and not the service. After the guard, the next start stops them the way the supervisor's own stop does, keeping every container and volume (`lab/leftover_runtime.py`, the unit's second `ExecStartPre`, and again in the supervisor after it takes its locks). It refuses instead, and names why, when a live supervisor or worker still holds its lock or a provisioning receipt or HBA journal waits for reconciliation. A unit installed before that line existed still refuses at the preflight until the unit is reinstalled ([server deployment](server-deployment.md)).
+
 ## The four classes
 
 The class is computed from the difference between the commit you run and the release commit, not taken from what the release says about itself. A release can only make itself stricter, by declaring a data migration.
