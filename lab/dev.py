@@ -155,6 +155,9 @@ class Supervisor:
         # An upgrade or rollback waiting for the supervisor to drain (see DRAIN_SECONDS): the
         # child it runs once everything settled, and until when it waits.
         self.drain = None
+        # The commit this process runs, read now: after an update child ends, a checkout that is
+        # no longer here (or an upgrade state left pending) means this process must not go on.
+        self.head = checkout_head()
 
     def spawn(self, command, **options):
         """A child bound to this process (lab/parent_bound.py) in a session of its own; `options`
@@ -430,8 +433,42 @@ class Supervisor:
             updates.finish_request(job['request'], 'failed', detail, moment)
         self.resume_work()
 
+    def unsettled(self):
+        """Why this process must not go on after an update child ended, or None: the upgrade state
+        waits for a restart (`applied` or `rolling_back`, which the guard settles before anything
+        runs), or the checkout is not the commit this process started on (or cannot be read).
+        Resuming then would start the worker and every later child from a moved or half-moved
+        checkout under this old supervisor."""
+        import upgrade
+        state = upgrade.load_state()
+        if isinstance(state, dict) and state.get('phase') in upgrade.PENDING:
+            return 'the upgrade state waits for a restart'
+        now = checkout_head()
+        if now is None or now != self.head:
+            return 'the checkout is no longer the version this process runs'
+        return None
+
+    def moved_for_good(self):
+        """Whether an upgrade child left the checkout moved onto the new version, as the upgrade
+        state records it (`applied` with `moved`) and HEAD confirms."""
+        import upgrade
+        state = upgrade.load_state()
+        return isinstance(state, dict) and state.get('phase') == 'applied' and state.get('moved') is True \
+            and state.get('to') == checkout_head() != self.head
+
+    def restart_to_settle(self, why):
+        print(f'Sbarbase stops so the next start settles the checkout first ({why}).', flush=True)
+        self.drain_marker().unlink(missing_ok=True)
+        self.restart_for_upgrade = True
+        self.stop_event.set()
+
     def resume_work(self):
-        """After an upgrade or rollback that did not go ahead: provisioning continues."""
+        """After an upgrade or rollback that did not go ahead: provisioning continues, unless the
+        checkout is not where this process started, and then it stops for the guard instead."""
+        why = self.unsettled()
+        if why:
+            self.restart_to_settle(why)
+            return
         self.drain_marker().unlink(missing_ok=True)
         if self.worker is None and self.confirm is None and self.worker_fd is not None:
             self.start_worker()
@@ -471,12 +508,24 @@ class Supervisor:
                 updates.finish_request(request, 'failed' if error else 'done', error, moment)
             return
         if request is not None:
-            updates.spend(request, result, moved=status == 0)
+            # Whether the try moved the checkout comes from the upgrade state and HEAD, not from
+            # the exit status alone: a start that moved and then could not write its outcome
+            # exits nonzero, and its version is judged by how it starts, never spent here.
+            updates.spend(request, result, moved=status == 0 or self.moved_for_good())
         if status != 0:
             detail = updates.failure(result)
             print(f"The {'update' if kind == 'apply' else 'rollback'} did not go ahead: {detail}", flush=True)
+            why = self.unsettled()
+            if why:
+                # A nonzero exit does not prove nothing moved: a move back that failed leaves
+                # `applied`, a rollback that stopped leaves `rolling_back`, and either may leave
+                # the checkout elsewhere. The guard settles that before anything else runs.
+                detail += ' Sbarbase restarts so the checkout is settled before anything else runs.'
             if request is not None:
                 updates.finish_request(request, 'failed', detail, moment)
+            if why:
+                self.restart_to_settle(why)
+                return
             self.resume_work()
             return
         if kind == 'apply':
@@ -781,7 +830,10 @@ def run_guard(environment=os.environ):
     copy = ROOT / '.lab' / 'upgrades' / 'guard.py'
     script = copy if copy.is_file() else ROOT / 'lab' / 'upgrade_guard.py'
     before = checkout_head()
-    if subprocess.run(['/usr/bin/python3', str(script), str(ROOT)], cwd=ROOT).returncode:
+    # A terminal start gets the guard's line at once rather than its wait before a restart
+    # (lab/upgrade_guard.py STUCK_WAIT); an older copy of the guard ignores the variable.
+    if subprocess.run(['/usr/bin/python3', str(script), str(ROOT)], cwd=ROOT,
+                      env=dict(os.environ, SBARBASE_GUARD_WAIT='0')).returncode:
         raise SystemExit('The upgrade guard stopped this start; its reason is above.')
     if checkout_head() != before:
         print('The upgrade guard moved the checkout back to the previous version. Under systemd or Docker '

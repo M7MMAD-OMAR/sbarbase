@@ -115,6 +115,69 @@ class DrainTests(Private):
         self.assertEqual(self.workers, [True])
         self.assertFalse(self.supervisor.restart_for_upgrade)
 
+    def run_failing_child(self, kind, leave=None, head='same', request=None):
+        """A child that exits 1 after leaving the upgrade state `leave` and HEAD at `head` (None:
+        HEAD cannot be read)."""
+        self.outcome = 1
+        request = request or updates.create_request(kind, '0.2.0' if kind == 'apply' else None, moment=at(12))
+        with patch.object(updates, 'rollback_verdict', return_value=(True, None)):
+            self.turn()
+            ended(self.supervisor.worker)
+            self.turn()
+        self.assertEqual(len(self.spawned), 1)
+        if leave is not None:
+            upgrade.save_state(leave)
+        with patch.object(dev, 'checkout_head', return_value=self.supervisor.head if head == 'same' else head):
+            self.turn()
+        return request
+
+    def assert_restarts_to_settle(self):
+        self.assertTrue(self.supervisor.restart_for_upgrade)
+        self.assertTrue(self.supervisor.stop_event.is_set())
+        self.assertEqual(self.workers, [], 'no worker may start from a moved checkout')
+        last = self.get('last-request.json')
+        self.assertEqual(last['state'], 'failed')
+        self.assertIn('Sbarbase restarts so the checkout is settled', last['detail'])
+
+    def test_a_failed_upgrade_that_left_its_move_back_to_the_guard_restarts_instead_of_resuming(self):
+        self.run_failing_child('apply', {'phase': 'applied', 'from': 'a' * 40, 'to': 'b' * 40, 'moved': False,
+                                         'started_at': '2026-09-25T12:00:00+00:00'})
+        self.assert_restarts_to_settle()
+
+    def test_a_failed_rollback_that_left_rolling_back_restarts_instead_of_resuming(self):
+        self.run_failing_child('rollback', {'phase': 'rolling_back', 'from': 'a' * 40, 'to': 'b' * 40, 'moved_back': False,
+                                            'started_at': '2026-09-25T12:00:00+00:00'})
+        self.assert_restarts_to_settle()
+
+    def test_a_failed_child_that_moved_the_checkout_restarts_instead_of_resuming(self):
+        self.run_failing_child('apply', head='c' * 40)
+        self.assert_restarts_to_settle()
+
+    def test_a_checkout_that_cannot_be_read_after_a_failed_child_is_not_resumed_either(self):
+        self.run_failing_child('apply', head=None)
+        self.assert_restarts_to_settle()
+
+    def test_an_automatic_try_that_moved_but_could_not_write_its_outcome_is_not_spent(self):
+        for moved, spent in ((True, False), (False, True)):
+            with self.subTest(moved=moved):
+                updates.path('ledger.json').unlink(missing_ok=True)
+                upgrade.STATE_FILE.unlink(missing_ok=True)
+                self.supervisor.stop_event.clear()
+                self.supervisor.restart_for_upgrade = False
+                self.supervisor.worker = sleeper()
+                self.addCleanup(dev.terminate_group, self.supervisor.worker, 0)
+                self.spawned.clear()
+                request = updates.create_request('apply', '0.2.0', 'automatic', moment=at(12))
+                # The start passed its point of no return; its last outcome write then failed.
+                self.put('outcome.json', {'request': request['id'], 'kind': 'start', 'passed': True, 'changed': False,
+                                          'refusals': [], 'error': None})
+                target = 'd' * 40 if moved else self.supervisor.head
+                self.run_failing_child('apply', {'phase': 'applied', 'from': self.supervisor.head, 'to': 'd' * 40,
+                                                 'moved': moved, 'started_at': '2026-09-25T12:00:00+00:00'},
+                                       head=target, request=request)
+                self.assertEqual(self.entry('0.2.0')['spent'], spent)
+                self.assertTrue(self.supervisor.restart_for_upgrade)
+
     def test_nothing_new_starts_while_draining_but_running_children_are_reaped(self):
         updates.create_request('apply', '0.2.0', moment=at(12))
         studio = sleeper()
