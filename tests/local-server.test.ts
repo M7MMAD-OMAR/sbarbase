@@ -73,12 +73,15 @@ describe('connections after an early answer',()=>{
  };
  const until=async(done:()=>boolean,ms:number)=>{const deadline=Date.now()+ms;while(!done()&&Date.now()<deadline)await Bun.sleep(10);};
 
- test('a slow request reusing the connection of a refused one is answered, not cut off',async()=>{
+ // The real server listens behind the WebSocket front (lab/upstream-server.ts), so both paths are covered.
+ const listeners=[['plain',{}],['behind the WebSocket front',{upgrade:()=>({ok:false as const,status:404,message:'Unknown route'}),isUpgrade:()=>false}]] as const;
+ for(const [name,options] of listeners){
+ test(`${name}: a slow request reusing the connection of a refused one is answered, not cut off`,async()=>{
   const server=await serveLocal(async request=>{
    // Admission refuses without reading the body; an admitted call then takes longer than a second.
    if(new URL(request.url).pathname==='/refused')return Response.json({message:'busy'},{status:429,headers:{'retry-after':'1'}});
    await request.text();await Bun.sleep(1_500);return Response.json(1);
-  });
+  },0,options);
   const {socket,state}=await open(server.port);
   try {
    socket.write(post('/refused','{}'));
@@ -93,8 +96,9 @@ describe('connections after an early answer',()=>{
   } finally {socket.destroy();server.stop(true);}
  },10_000);
 
- test('a large unread body closes the connection right after the answer',async()=>{
-  const server=await serveLocal(()=>new Response('too large',{status:413}));
+ test(`${name}: a large unread body closes the connection right after the answer, with the answer intact`,async()=>{
+  const answer='too large '.repeat(20_000);
+  const server=await serveLocal(()=>new Response(answer,{status:413}),0,options);
   const {socket,state}=await open(server.port);
   const started=Date.now();
   try {
@@ -102,10 +106,14 @@ describe('connections after an early answer',()=>{
    await until(()=>!!state.closedAt,3_000);
    expect(statuses(state.raw)).toEqual([413]);
    expect(state.raw.toLowerCase()).toContain('connection: close');
+   // The whole answer arrived: all of it, then the final chunk, before the close.
+   expect(state.raw.length).toBeGreaterThan(answer.length);
+   expect(state.raw.endsWith('0\r\n\r\n')).toBe(true);
    // Closed at once, not left open to serve another request until the one-second backstop.
    expect(state.closedAt-started).toBeLessThan(500);
   } finally {socket.destroy();server.stop(true);}
  },10_000);
+ }
 
  test('sustained arrivals at a full REST budget get 200 or 429, never a dropped connection',async()=>{
   // The shape of `lab/gateway-overload-check.ts --sustained`, shortened: a REST budget of three,
