@@ -17,8 +17,11 @@ import shutil
 import subprocess
 import sys
 import time
+import urllib.error
 import urllib.request
 from pathlib import Path
+
+import install_server
 
 ROOT = Path(__file__).resolve().parent.parent
 STATE = ROOT / '.lab' / 'upstream'
@@ -55,9 +58,13 @@ def size_mib(path):
     return total // 1048576
 
 
+# A proxy variable in the environment must not carry a loopback probe away.
+LOOPBACK = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
+
 def answers(url):
     try:
-        with urllib.request.urlopen(url, timeout=5) as response:
+        with LOOPBACK.open(url, timeout=5) as response:
             return response.status < 500
     except urllib.error.HTTPError as error:
         return error.code < 500
@@ -65,7 +72,17 @@ def answers(url):
         return False
 
 
-def sample():
+def volume_sizes():
+    """Sbarbase volume sizes; slow on a large host, so only the first and last samples take it."""
+    volumes = {}
+    for line in docker('system', 'df', '-v', '--format', '{{json .Volumes}}').splitlines():
+        for volume in json.loads(line or '[]') or []:
+            if volume.get('Name', '').startswith('sbarbase'):
+                volumes[volume['Name']] = volume.get('Size')
+    return volumes
+
+
+def sample(with_volumes=False):
     names = [n for n in docker('ps', '-a', '--format', '{{.Names}}').split() if n.startswith('sbarbase-')]
     stats = {}
     for line in docker('stats', '--no-stream', '--format', '{{.Name}}\t{{.MemUsage}}').splitlines():
@@ -84,20 +101,14 @@ def sample():
         except OSError:
             pass
     endpoints = json.loads((STATE / 'endpoints.json').read_text()) if (STATE / 'endpoints.json').exists() else {}
-    server = json.loads((STATE / 'server.json').read_text())['url'] if (STATE / 'server.json').exists() else None
-    health = {'console': bool(server) and answers(server + '/')}
+    health = {'console': install_server.console_answer(STATE)[0]}
     for e, item in endpoints.items():
         health[e] = answers(item['auth'] + '/health') and answers(item['rest'] + '/')
-    volumes = {}
-    for line in docker('system', 'df', '-v', '--format', '{{json .Volumes}}').splitlines():
-        for volume in json.loads(line or '[]') or []:
-            if volume.get('Name', '').startswith('sbarbase'):
-                volumes[volume['Name']] = volume.get('Size')
     disk = shutil.disk_usage('/')
     return {'at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()), 'host': meminfo(),
             'load': Path('/proc/loadavg').read_text().split()[:3], 'disk_free_mib': disk.free // 1048576,
-            'state_mib': size_mib(ROOT / '.lab' / 'upstream'), 'backups_mib': size_mib(ROOT / '.lab' / 'backups'),
-            'container_logs_mib': logs // 1048576 if logs else None, 'volumes': volumes,
+            'state_mib': size_mib(STATE), 'backups_mib': size_mib(ROOT / '.lab' / 'backups'),
+            'container_logs_mib': logs // 1048576, 'volumes': volume_sizes() if with_volumes else None,
             'containers_used_mib': sum(c['used_mib'] for c in containers.values()), 'containers': containers,
             'health': health}
 
@@ -111,11 +122,12 @@ def main(argv=None):
     started = time.time()
     samples = []
     while True:
-        samples.append(sample())
+        final = time.time() - started + args.interval > args.minutes * 60
+        samples.append(sample(with_volumes=not samples or final))
         last = samples[-1]
         print(f"{last['at']}  available {last['host']['available_mib']} MiB  containers {last['containers_used_mib']} MiB  "
               f"disk free {last['disk_free_mib']} MiB  healthy {all(last['health'].values())}", flush=True)
-        if time.time() - started + args.interval > args.minutes * 60:
+        if final:
             break
         time.sleep(args.interval)
     first, last = samples[0], samples[-1]
@@ -131,7 +143,7 @@ def main(argv=None):
     growth = {'containers_used_mib': last['containers_used_mib'] - first['containers_used_mib'],
               'disk_used_mib': first['disk_free_mib'] - last['disk_free_mib'],
               'state_mib': last['state_mib'] - first['state_mib'],
-              'container_logs_mib': (last['container_logs_mib'] or 0) - (first['container_logs_mib'] or 0)}
+              'container_logs_mib': last['container_logs_mib'] - first['container_logs_mib']}
     passed = all(c['ok'] for c in checks)
     Path(args.evidence).write_text(json.dumps({
         'check': 'soak', 'recorded': last['at'], 'passed': passed, 'minutes': round((time.time() - started) / 60),
