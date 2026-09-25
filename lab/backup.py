@@ -25,9 +25,10 @@ successful restore they are kept until ``discard-previous``.
 ``create all`` gives every backup of the run one time and also writes the installation manifest
 (``.lab/backups/installation/<UTC time>/``). ``--reason upgrade`` (``lab/upgrade.py`` before it moves
 the checkout) marks every manifest of the run: the backups of the last ``UPGRADE_RUNS_KEPT`` upgrades
-are the way back to data a newer version migrated, so count-based pruning never removes them and
-does not count them against ``--keep``. Two independent ways copy backups off this host, each
-active only when configured: ``lab/offsite.py`` copies each new backup, encrypted, to S3-compatible
+that moved the checkout (``lab/upgrade.py`` marks those, ``mark_moved``) are the way back to data a
+newer version migrated, so count-based pruning never removes them and does not count them against
+``--keep``. A try that stopped before it moved leaves an ordinary run. Two independent ways copy
+backups off this host, each active only when configured: ``lab/offsite.py`` copies each new backup, encrypted, to S3-compatible
 storage, and ``.lab/upstream/backup-offsite.json`` makes ``backup_offsite.py`` copy the daily run
 as one encrypted set. A failed copy is reported and never changes a local backup. ``restore
 --offsite`` fetches a ``backup_offsite.py`` set that is not on this host first.
@@ -248,12 +249,11 @@ def complete_backups(e):
                   if STAMP.fullmatch(path.name) and (path / 'manifest.json').is_file())
 
 
-def upgrade_runs(limit=UPGRADE_RUNS_KEPT, current=None):
-    """The times of the last ``limit`` backup runs taken for an upgrade, across every environment
-    and the installation manifest: a run is one time, and any manifest of it marked
-    ``reason: upgrade`` names it. ``current`` is the time of an upgrade run under way, whose
-    manifests are not all written yet."""
-    runs = {current} if current else set()
+def upgrade_run_times():
+    """The times of every backup run taken for an upgrade, across every environment and the
+    installation manifest: a run is one time, and any manifest of it marked ``reason: upgrade``
+    names it."""
+    runs = set()
     if not BACKUPS.is_dir():
         return runs
     for folder in BACKUPS.iterdir():
@@ -267,6 +267,55 @@ def upgrade_runs(limit=UPGRADE_RUNS_KEPT, current=None):
                     runs.add(path.name)
             except (OSError, ValueError, AttributeError):
                 continue
+    return runs
+
+
+# Upgrade runs whose try moved the checkout (lab/upgrade.py marks them), kept to this many.
+MOVED_KEPT = 20
+
+
+def moved_record():
+    return BACKUPS / 'upgrade-moved.json'
+
+
+def moved_runs():
+    """The upgrade runs whose try moved the checkout, or None before any was marked (the
+    record did not exist before this rule, so the earlier rule then applies to every run)."""
+    try:
+        value = json.loads(moved_record().read_text())
+    except FileNotFoundError:
+        return None
+    except (OSError, ValueError):
+        # Damaged: keeping more is the safe side, so every upgrade run counts.
+        return None
+    runs = value.get('runs') if isinstance(value, dict) else None
+    return {run for run in runs if isinstance(run, str) and STAMP.fullmatch(run)} if isinstance(runs, list) else None
+
+
+def mark_moved(stamp):
+    """Records that the upgrade whose backup run is ``stamp`` moved the checkout, so its backups
+    count among the last upgrades. A try that stopped before (its backup, snapshot or move
+    failed) is never marked, and its run is pruned like any other."""
+    if not STAMP.fullmatch(str(stamp)):
+        raise BackupError('Not a backup run time')
+    runs = sorted((moved_runs() or set()) | {stamp})[-MOVED_KEPT:]
+    private_dir(BACKUPS)
+    partial = moved_record().with_suffix('.pending')
+    write_private(partial, json.dumps({'runs': runs}) + '\n')
+    os.replace(partial, moved_record())
+
+
+def upgrade_runs(limit=UPGRADE_RUNS_KEPT, current=None):
+    """The times of the last ``limit`` backup runs taken for an upgrade that moved the checkout
+    (mark_moved; every upgrade run while nothing was ever marked). ``current`` is the time of an
+    upgrade run under way, whose manifests are not all written yet and whose try has not moved
+    yet: it counts until the run ends."""
+    runs = upgrade_run_times()
+    moved = moved_runs()
+    if moved is not None:
+        runs &= moved
+    if current:
+        runs.add(current)
     return set(sorted(runs)[-limit:]) if limit > 0 else set()
 
 
