@@ -621,9 +621,11 @@ correct 429s, 45 correct target 200s (three slots for each of fifteen batches) a
 listener and pass on the new one: a 1.5 s request reusing a refused connection is
 answered in full, a large unread body closes the connection within 500 ms of the
 answer, and a shortened sustained pattern through the real gateway and Bun's fetch
-sees only 200 and 429. The live `--sustained` run against the runtime has not been
-repeated since the fix, so section 5.2's arrival measurement still needs that re-run
-before it can be counted as passing.
+sees only 200 and 429. The live `--sustained` run against the retained runtime was
+repeated on 2026-09-25 after the fix and passed all 14 checks with the same shape: 555
+correct 429s, 45 correct target 200s, 60 of 60 neighbour 200s and no request without an
+HTTP status (`docs/evidence/gateway-sustained-checks.json`). The earlier failure stays in
+`docs/evidence/gateway-sustained-failure.json` as the record of the defect.
 
 Not built, on purpose for this run: the `--pressure` mode of section 5.2 and the
 experimental-class third phase of section 5.3. Both experiments therefore remain
