@@ -182,6 +182,8 @@ ready.
   limits on an empty server, plus 512 MiB per environment, plus the 2560 MiB
   reserve), and the preflight, the unit's `ExecStartPre` and the runtime use one
   computation. It was a fixed 5888 MiB in the preflight and 6 GiB in the runtime.
+- Every GitHub Actions step is pinned to a full commit SHA, with the tag it was
+  resolved from as a comment, so a moved tag cannot change what CI runs.
 - CPU limits are admitted as ceilings: up to twice the cores after one core for
   the host. The old rule asked for 8 cores.
 - A new environment is refused when the next restart could not admit it.
