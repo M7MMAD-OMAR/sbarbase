@@ -1,0 +1,9 @@
+{
+  "version": "0.1.0",
+  "minimum_from": "0.1.0",
+  "notes": {
+    "en": "The first numbered release. An installation can now learn which signed release is newer and what applying it takes.",
+    "ar": "أول إصدار يحمل رقمًا. صار بإمكان كل تثبيت أن يعرف الإصدار الموقّع الأحدث منه، وما يتطلبه تطبيقه."
+  },
+  "migrations": []
+}
