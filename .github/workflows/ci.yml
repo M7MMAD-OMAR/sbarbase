@@ -76,7 +76,9 @@ jobs:
     # nothing but Docker; Python, Bun and the Docker CLI come from the image.
     needs: checks
     runs-on: ubuntu-26.04
-    timeout-minutes: 45
+    # Two more broken upgrades each wait out a failed start (one a 120 s health deadline) and a
+    # container restart back onto the previous version.
+    timeout-minutes: 60
     env:
       SBARBASE_CONSOLE_PORT: '8790'
     steps:
@@ -141,7 +143,10 @@ jobs:
           docker compose exec -T sbarbase bun lab/upload-check.ts "$PWD/.secrets/operator.json" --limit-mb 64 --append --evidence "$PWD/docs/evidence/docker-upload-checks.json"
           SBARBASE_UPLOAD_LIMIT_MB=50 docker compose up -d
           for i in $(seq 1 120); do curl -fsS -o /dev/null http://127.0.0.1:8790/ && break; sleep 5; done
-      - name: Upgrade, then a broken upgrade that moves back by itself
+      - name: Upgrade, broken upgrades that move back by themselves, and a refused unsigned tag
+        # Each broken version compares users, files, buckets and the control catalog with the
+        # recording before the first upgrade. The evidence file is written once, at the end: a
+        # changed tracked file would make the next `upgrade.py start` refuse.
         run: |
           versions=$(python3 lab/upgrade-check.py candidates)
           eval "$versions"
@@ -154,16 +159,34 @@ jobs:
             done
             echo "upgrade phase: $p (expected $1)"; docker compose logs --tail 120; return 1
           }
-          docker compose exec -T sbarbase python3 lab/upgrade-check.py before "$good" "$bad"
-          docker compose exec -T sbarbase python3 lab/upgrade.py start --to "$good"
+          check() { docker compose exec -T sbarbase python3 lab/upgrade-check.py "$@"; }
+          upgrade() { docker compose exec -T sbarbase python3 lab/upgrade.py "$@"; }
+          check before base="$base" good="$good" bad="$bad" migrates="$migrates" unhealthy="$unhealthy"
+          upgrade start --to "$good"
           docker compose restart
           phase confirmed
-          docker compose exec -T sbarbase python3 lab/upgrade-check.py after upgraded
-          docker compose exec -T sbarbase python3 lab/upgrade.py start --to "$bad"
+          check after upgraded
+          # PostgREST never answers: the start fails and the supervisor moves back.
+          upgrade start --to "$bad"
           docker compose restart
           phase rolled_back
-          docker compose exec -T sbarbase python3 lab/upgrade.py status
-          docker compose exec -T sbarbase python3 lab/upgrade-check.py after rolled-back --evidence "$PWD/docs/evidence/docker-upgrade-checks.json"
+          upgrade status
+          check after rolled-back
+          # The catalog is migrated, then the console stops: the snapshot goes back with the checkout.
+          upgrade start --to "$migrates"
+          docker compose restart
+          phase rolled_back
+          check after migration-rolled-back
+          # Everything starts but /health never passes: traffic is held, then the deadline moves it back.
+          upgrade start --to "$unhealthy"
+          docker compose restart
+          sudo python3 lab/upgrade-check.py hold
+          phase rolled_back
+          check after health-rolled-back
+          # Unsigned and unlisted-key release tags are refused, and nothing moves.
+          check unsigned
+          check evidence "$PWD/docs/evidence/docker-upgrade-checks.json" \
+            upgraded rolled-back migration-rolled-back hold health-rolled-back unsigned
       - name: Restart and come back
         run: |
           docker compose restart
@@ -177,6 +200,9 @@ jobs:
         if: failure()
         # A throwaway runner: its generated credentials exist only for this run.
         run: |
+          # The upgrade checks recorded so far, marked incomplete (the file is kept below).
+          docker compose exec -T sbarbase python3 lab/upgrade-check.py evidence "$PWD/docs/evidence/docker-upgrade-checks.json" \
+            upgraded rolled-back migration-rolled-back hold health-rolled-back unsigned || true
           docker compose logs --tail 200 || true
           for c in $(docker ps -aq --filter name=-realtime) $(docker ps -aq --filter name=-functions); do echo "== $(docker inspect -f '{{.Name}}' $c)"; docker logs --tail 80 $c 2>&1; done || true
           sudo sh -c 'for f in .lab/upstream/diagnostics/*.log; do echo "== $f"; tail -n 40 "$f"; done' || true

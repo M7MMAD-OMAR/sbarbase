@@ -13,7 +13,7 @@
 #                                                    to OUT on the host (private, mode 700)
 #   lab/vm-milestones.sh --dir DIR restore-drill IN restore IN (from export) into this VM and
 #                                                    sign the drill users in
-#   lab/vm-milestones.sh --dir DIR upgrade          upgrade, automatic way back, operator rollback
+#   lab/vm-milestones.sh --dir DIR upgrade          upgrade, operator rollback, automatic way back
 #   lab/vm-milestones.sh --dir DIR environments     fill to the environment limit and measure
 #   lab/vm-milestones.sh --dir DIR soak MINUTES     sample memory, disk, logs and restarts
 #
@@ -161,7 +161,7 @@ restore-drill)
   evidence vm-restore-drill.json; exit "$status"
   ;;
 upgrade)
-  step "two candidate versions on top of the installed one"
+  step "candidate versions on top of the installed one"
   versions=$(guest 'cd /opt/sbarbase && sudo -u sbarbase /usr/bin/python3 lab/upgrade-check.py candidates')
   eval "$versions"
   phase() {
@@ -173,27 +173,42 @@ upgrade)
     done
     printf 'upgrade phase: %s (expected %s)\n' "$p" "$1"; return 1
   }
-  as_service "/usr/bin/python3 lab/upgrade-check.py before $good $bad"
-  step "upgrade to a newer PostgREST"
-  as_service "/usr/bin/python3 lab/upgrade.py start --to $good"
-  guest 'sudo systemctl restart sbarbase'; phase confirmed || fail "the upgrade was not confirmed"
-  as_service "/usr/bin/python3 lab/upgrade-check.py after upgraded"
-  step "a version whose PostgREST never starts moves back by itself"
-  as_service "/usr/bin/python3 lab/upgrade.py start --to $bad"
-  guest 'sudo systemctl restart sbarbase'; phase rolled_back || fail "the broken version was not moved back"
-  as_service "/usr/bin/python3 lab/upgrade-check.py after rolled-back --evidence docs/evidence/vm-upgrade-checks.json"
-  step "the operator goes back to the pins the installation started with"
-  # After an automatic way back there is no upgrade left to roll back; returning to the
-  # previous pins is an upgrade to the previous version, which backs up first like any other.
-  as_service "/usr/bin/python3 lab/upgrade.py start --to $base"
-  guest 'sudo systemctl restart sbarbase'; phase confirmed || fail "the return to the previous version was not confirmed"
-  back=$(guest 'cd /opt/sbarbase && sudo -u sbarbase git rev-parse HEAD')
-  rest=$(guest "sudo docker inspect -f '{{.Image}}' \$(sudo docker ps --format '{{.Names}}' | grep -m1 -- '-rest\$')")
-  printf 'checkout after the return: %s (installed version %s); REST image %s\n' "$back" "$base" "$rest"
-  [ "$back" = "$base" ] || fail "the return did not reach the installed version"
-  case "$rest" in *2f8e7b656f09*) ;; *) fail "REST does not run the original PostgREST again: $rest" ;; esac
-  as_service "/usr/bin/python3 -c 'import sys;sys.path.insert(0,\"lab\");import backup;print({e:backup.counts(e) for e in backup.environments()})'"
-  evidence vm-upgrade-checks.json
+  # `upgrade.py rollback` takes a confirmed upgrade only, so the operator's rollback comes right
+  # after the confirmation, and the broken version then moves back to the installed one.
+  # The evidence file is written once, at the end, even when a stage fails: a changed tracked
+  # file would make the next `upgrade.py start` refuse.
+  rehearse_upgrade() {
+    as_service "/usr/bin/python3 lab/upgrade-check.py before base=$base good=$good bad=$bad" || return 1
+    step "upgrade to a newer PostgREST"
+    as_service "/usr/bin/python3 lab/upgrade.py start --to $good" || return 1
+    guest 'sudo systemctl restart sbarbase'
+    phase confirmed || { printf 'FAIL: the upgrade was not confirmed\n' >&2; return 1; }
+    as_service "/usr/bin/python3 lab/upgrade-check.py after upgraded" || return 1
+    step "the operator goes back to the version before the upgrade"
+    as_service "/usr/bin/python3 lab/upgrade.py rollback" || return 1
+    guest 'sudo systemctl restart sbarbase'
+    phase rolled_back || { printf 'FAIL: the rollback did not come back\n' >&2; return 1; }
+    as_service "/usr/bin/python3 lab/upgrade-check.py after operator-rollback" || return 1
+    step "a version whose PostgREST never starts moves back by itself"
+    as_service "/usr/bin/python3 lab/upgrade.py start --to $bad" || return 1
+    guest 'sudo systemctl restart sbarbase'
+    phase rolled_back || { printf 'FAIL: the broken version was not moved back\n' >&2; return 1; }
+    as_service "/usr/bin/python3 lab/upgrade.py status" || :
+    as_service "/usr/bin/python3 lab/upgrade-check.py after rolled-back --back-to base" || return 1
+    # The installation is back on the version it was installed with: REST runs the original
+    # PostgREST again and every environment still has its rows.
+    back=$(guest 'cd /opt/sbarbase && sudo -u sbarbase git rev-parse HEAD')
+    rest=$(guest "sudo docker inspect -f '{{.Image}}' \$(sudo docker ps --format '{{.Names}}' | grep -m1 -- '-rest\$')")
+    printf 'checkout at the end: %s (installed version %s); REST image %s\n' "$back" "$base" "$rest"
+    [ "$back" = "$base" ] || { printf 'FAIL: the installation is not back on the installed version\n' >&2; return 1; }
+    case "$rest" in *2f8e7b656f09*) ;; *) printf 'FAIL: REST does not run the original PostgREST again: %s\n' "$rest" >&2; return 1 ;; esac
+    as_service "/usr/bin/python3 -c 'import sys;sys.path.insert(0,\"lab\");import backup;print({e:backup.counts(e) for e in backup.environments()})'" || return 1
+  }
+  status=0
+  rehearse_upgrade || status=1
+  as_service "/usr/bin/python3 lab/upgrade-check.py evidence docs/evidence/vm-upgrade-checks.json upgraded operator-rollback rolled-back" || status=1
+  evidence vm-upgrade-checks.json || :
+  exit "$status"
   ;;
 environments)
   step "fill the installation to its environment limit and measure it"
