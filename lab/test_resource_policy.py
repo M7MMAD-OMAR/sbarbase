@@ -62,8 +62,22 @@ class TierTableTests(unittest.TestCase):
         self.assertFalse(policy.known_label(None))
 
 
+def fixed_device(test):
+    """Resolve the block device to a fixed name, so a launch needs no real disk.
+
+    The real one comes from findmnt and sysfs, which a container root on overlayfs
+    does not have; BlockIOLimits covers that resolution on its own.
+    """
+    patcher = patch('resource_policy.device', return_value='/dev/sda')
+    patcher.start()
+    test.addCleanup(patcher.stop)
+
+
 class LaunchFlagTests(unittest.TestCase):
     """docs/engineering/RESOURCE-POLICY.md section 3.2: the exact flags each launch adds."""
+
+    def setUp(self):
+        fixed_device(self)
 
     def launch(self, tier, memory='256m', cpus=.25, name='sbarbase-durable-probe'):
         import tempfile
@@ -325,6 +339,9 @@ class MaintenanceLabels(unittest.TestCase):
     A counted container without the class label is a refusal in
     lab/combined_admission.py, so every owner labelled creation site carries it.
     """
+
+    def setUp(self):
+        fixed_device(self)
 
     def test_labels_carry_the_class_the_weights_and_the_io_flags(self):
         flags = policy.labels('maintenance')

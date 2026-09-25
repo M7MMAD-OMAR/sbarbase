@@ -34,6 +34,8 @@ def docker_answers():
 # passes both checks.
 MODERN_PYTHON=host_python_is_modern()
 DOCKER=docker_answers()
+HOST_GAPS=', '.join(gap for gap,missing in (('/usr/bin/python3 is older than 3.14',not MODERN_PYTHON),
+                                            ('no Docker daemon answers',not DOCKER)) if missing)
 
 
 def run(*args,env=None):
@@ -64,7 +66,7 @@ class ServerAcceptanceTests(unittest.TestCase):
         self.assertNotEqual(result.returncode,0)
         self.assertIn('is not on PATH',result.stderr)
 
-    @unittest.skipUnless(MODERN_PYTHON and DOCKER,'this host lacks /usr/bin/python3 3.14 or a Docker daemon')
+    @unittest.skipUnless(MODERN_PYTHON and DOCKER,'the script refuses this host first: '+HOST_GAPS)
     def test_a_world_readable_bootstrap_file_is_refused(self):
         with tempfile.TemporaryDirectory() as directory:
             path=Path(directory)/'operator.json'
@@ -88,7 +90,7 @@ class ServerAcceptanceTests(unittest.TestCase):
             self.assertNotIn(leak,source)
         self.assertIn('contents never printed',source)
 
-    @unittest.skipUnless(MODERN_PYTHON and DOCKER,'this host lacks /usr/bin/python3 3.14 or a Docker daemon')
+    @unittest.skipUnless(MODERN_PYTHON and DOCKER,'the script refuses this host first: '+HOST_GAPS)
     def test_the_prerequisite_step_passes_on_this_host_so_preflight_speaks_next(self):
         result=run()
         output=result.stdout+result.stderr
