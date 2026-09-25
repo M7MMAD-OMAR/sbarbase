@@ -202,14 +202,16 @@ supervise_args=(supervise)
 if [ -n "$SERVICE_USER" ]; then supervise_args+=(--service-user "$SERVICE_USER"); fi
 if [ -n "$SERVICE_HOME" ]; then supervise_args+=(--home "$SERVICE_HOME"); fi
 if [ -n "$BUN_DIR" ]; then supervise_args+=(--bun-dir "$BUN_DIR"); fi
+STOPPED_UNIT=0
 if [ "$INSTALL_UNIT" = "1" ]; then
   [ "$(id -u)" = "0" ] || fail "--install-unit needs root (run the whole script with sudo)"
-  if [ "$REHEARSAL" = "1" ] && [ "$(unit_state)" != "active" ]; then
+  if [ "$(unit_state)" != "active" ]; then
     # On an empty host the images and the installation do not exist until the
     # rehearsal installs them, so a started unit could only fail and restart. The
     # unit is enabled now and started after the rehearsal, which waits for its console.
     "$PYTHON" lab/install_server.py "${supervise_args[@]}" --apply --defer-start || fail "the supervisor unit could not be installed"
-    START_AFTER_REHEARSAL=1
+    # Installed but never started: started after the rehearsal, as a released unit is.
+    STOPPED_UNIT=1
     printf 'ok: sbarbase.service installed and enabled; it starts after the rehearsal installs\n'
   else
     "$PYTHON" lab/install_server.py "${supervise_args[@]}" --apply --timeout "$CONSOLE_WAIT" || fail "the supervisor unit could not be installed, or its console did not answer"
@@ -245,7 +247,6 @@ restore_unit_on_exit() {
   fi
 }
 trap restore_unit_on_exit EXIT
-STOPPED_UNIT=0
 if [ "$(unit_state)" = "active" ] || [ "$(unit_state)" = "activating" ]; then
   unit_control stop sbarbase.service || fail "sbarbase.service could not be stopped for the rehearsal"
   STOPPED_UNIT=1
@@ -255,9 +256,7 @@ if [ "$(unit_state)" = "active" ] || [ "$(unit_state)" = "activating" ]; then
   done
   [ "$(unit_state)" = "inactive" ] || fail "sbarbase.service did not stop; the rehearsal would run against a live installation"
   printf 'ok: sbarbase.service stopped for the rehearsal\n'
-elif [ "${START_AFTER_REHEARSAL:-0}" = "1" ]; then
-  # Installed but never started: it is started after the rehearsal, as a released unit is.
-  STOPPED_UNIT=1
+elif [ "$STOPPED_UNIT" = "1" ]; then
   printf 'ok: sbarbase.service is installed but not started yet; nothing to release\n'
 else
   printf 'ok: sbarbase.service is not active; nothing to release\n'

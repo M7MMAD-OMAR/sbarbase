@@ -279,24 +279,17 @@ class ConsoleWaitTests(unittest.TestCase):
                                                    clock=clock,sleep=sleep)
         self.assertTrue(answered)
 
-    def test_supervise_records_the_unit_applied_only_after_the_console_answers(self):
-        source=Path(install_server.__file__).read_text()
-        start=source.index('def supervise(');end=source.index('\ndef ',start+1)
-        body=source[start:end]
-        self.assertLess(body.index("['--now']"),body.index('wait_for_console'))
-        self.assertLess(body.index('wait_for_console'),body.rindex('applied=True'))
-        self.assertIn("'console':console",body)
-
-    def apply(self,defer_start,states=('active',)):
+    def apply(self,defer_start,states=('active',),answers=True):
+        """supervise --apply against a fake systemd; every command and wait lands in one ordered log."""
         import tempfile
         from unittest import mock
-        commands=[];waits=[]
+        events=[]
         def run(command,check=True,**kwargs):
-            commands.append(command)
+            events.append(command)
             out=states[0] if command[:2]==['systemctl','is-active'] else ''
             return mock.Mock(returncode=0,stdout=out,stderr='')
         def waiter(timeout,unit_state=None):
-            waits.append(timeout);return True,'console answered'
+            events.append('wait');return answers,'console answered' if answers else 'no answer'
         with tempfile.TemporaryDirectory() as directory, \
              mock.patch.object(install_server,'run',run), mock.patch.object(install_server,'account_exists',return_value=True), \
              mock.patch.object(install_server.os,'geteuid',return_value=0), \
@@ -306,19 +299,27 @@ class ConsoleWaitTests(unittest.TestCase):
             passed=install_server.supervise(True,'sbarbase','/home/sbarbase','/usr/bin',evidence_path=evidence,
                                             waiter=waiter,defer_start=defer_start)
             record=json.loads(evidence.read_text())
-        return passed,commands,waits,record
+        commands=[event for event in events if event!='wait']
+        return passed,commands,events,record
+
+    def test_the_unit_is_recorded_applied_only_after_its_console_answers(self):
+        passed,_,events,record=self.apply(False)
+        self.assertLess(events.index(['systemctl','enable','--now','sbarbase.service']),events.index('wait'))
+        self.assertTrue(passed);self.assertTrue(record['applied'])
+        with self.assertRaises(SystemExit):
+            self.apply(False,answers=False)
 
     def test_a_deferred_unit_is_enabled_without_starting_or_waiting(self):
-        passed,commands,waits,record=self.apply(True,states=('failed',))
+        passed,commands,events,record=self.apply(True,states=('failed',))
         self.assertTrue(passed)
         self.assertIn(['systemctl','enable','sbarbase.service'],commands)
         self.assertFalse(any('--now' in command for command in commands))
-        self.assertEqual(waits,[],'nothing is started, so nothing is waited for')
+        self.assertNotIn('wait',events,'nothing is started, so nothing is waited for')
         self.assertTrue(record['applied']);self.assertTrue(record['start_deferred'])
 
     def test_an_applied_unit_is_started_and_waited_for(self):
-        passed,commands,waits,record=self.apply(False)
+        passed,commands,events,record=self.apply(False)
         self.assertTrue(passed)
         self.assertIn(['systemctl','enable','--now','sbarbase.service'],commands)
-        self.assertEqual(len(waits),1)
+        self.assertEqual(events.count('wait'),1)
         self.assertFalse(record['start_deferred'])

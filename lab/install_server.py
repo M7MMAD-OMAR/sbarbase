@@ -312,8 +312,8 @@ def npm_install():
 # 1 MB/s lost the Storage pull twice in a row to a dropped connection, so the
 # retries now wait a little longer each time instead of following at once.
 PULL_TIMEOUT=3600
-PULL_ATTEMPTS=4
 PULL_BACKOFF=(15,45,90)
+PULL_ATTEMPTS=len(PULL_BACKOFF)+1
 
 
 def pull_image(label,reference,position,runner=subprocess.run,sleep=time.sleep):
@@ -325,7 +325,7 @@ def pull_image(label,reference,position,runner=subprocess.run,sleep=time.sleep):
         except subprocess.TimeoutExpired:
             print(f'pull of {label} exceeded {PULL_TIMEOUT} s',flush=True)
         if attempt<PULL_ATTEMPTS:
-            wait=PULL_BACKOFF[min(attempt,len(PULL_BACKOFF))-1]
+            wait=PULL_BACKOFF[attempt-1]
             print(f'pull of {label} failed; trying again in {wait} s (layers already downloaded are kept)',flush=True)
             sleep(wait)
     raise SystemExit('Pinned image pull failed for '+label+'; check the network, then run the install again (pulled images are kept)')
@@ -617,19 +617,18 @@ def supervise(apply=False,service_user='sbarbase',home=None,bun_dir=None,evidenc
                         ['systemctl','enable',*([] if defer_start else ['--now']),'sbarbase.service']):
             if run(command,check=False).returncode:
                 raise SystemExit('Unit installation step failed: '+' '.join(command))
-    if apply and defer_start:
-        applied=True
-        console='deferred: the unit is enabled and starts once the installation exists'
+        if defer_start:
+            console='deferred: the unit is enabled and starts once the installation exists'
+        else:
+            if run(['systemctl','is-active','sbarbase.service'],check=False).stdout.strip()!='active':
+                raise SystemExit('The unit was installed but did not become active; inspect systemctl status sbarbase.service')
+            # systemd says active as soon as dev.py is executed; the unit is recorded
+            # as applied only once the console it supervises answers.
+            answered,console=(waiter or wait_for_console)(console_timeout,unit_state=unit_active_state)
+            if not answered:
+                print(console)
+                raise SystemExit('The unit is active but its console never answered: '+console)
         print(console)
-    elif apply:
-        if run(['systemctl','is-active','sbarbase.service'],check=False).stdout.strip()!='active':
-            raise SystemExit('The unit was installed but did not become active; inspect systemctl status sbarbase.service')
-        # systemd says active as soon as dev.py is executed; the unit is recorded
-        # as applied only once the console it supervises answers.
-        answered,console=(waiter or wait_for_console)(console_timeout,unit_state=unit_active_state)
-        print(console)
-        if not answered:
-            raise SystemExit('The unit is active but its console never answered: '+console)
         applied=True
     evidence={'scope':('Supervisor unit: the shipped unit is rendered for this installation (paths, service user and Bun '
                        'directory), verified with systemd-analyze, and the exact install commands are recorded. With '
@@ -639,7 +638,7 @@ def supervise(apply=False,service_user='sbarbase',home=None,bun_dir=None,evidenc
               'installation_root':str(ROOT),'service_user':service_user,'home':str(home),'bun_dir':bun_dir,
               'rendered':rendered,'rendered_path':str(temporary),
               'verify':'passed' if verified else ('failed: '+(verify.stderr or verify.stdout).strip()),
-              'running_as_root':root_user,'applied':applied,'start_deferred':bool(apply and defer_start),'console':console,'service_account':account,'install_commands':unit_commands(temporary),
+              'running_as_root':root_user,'applied':applied,'start_deferred':applied and defer_start,'console':console,'service_account':account,'install_commands':unit_commands(temporary),
               'run_at':datetime.datetime.now().astimezone().isoformat(timespec='seconds'),
               'passed':bool(verified) and (not apply or applied)}
     out=Path(evidence_path) if evidence_path else ROOT/'docs'/'evidence'/'supervisor-unit.json'
@@ -647,7 +646,7 @@ def supervise(apply=False,service_user='sbarbase',home=None,bun_dir=None,evidenc
     out.write_text(json.dumps(evidence,indent=1)+'\n')
     print('rendered unit verified' if verified else 'rendered unit FAILED verification')
     print('evidence:',out)
-    if apply:print(('unit installed and enabled; not started yet' if defer_start else 'unit installed and started') if applied else 'unit installed but not active')
+    if applied:print('unit installed and enabled; not started yet' if defer_start else 'unit installed and started')
     else:print('dry run: install it with  sudo /usr/bin/python3 lab/install_server.py supervise --apply')
     return evidence['passed']
 
