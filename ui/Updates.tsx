@@ -198,8 +198,8 @@ export function Updates({updates}:{updates:UpdatesController}){
      <p>Move the checkout to the release, then rebuild. With Docker:</p>
      <Commands lines={['docker compose exec sbarbase python3 lab/upgrade.py start --release '+release.tag+' --allow-class rebuild','docker compose up -d --build']}/>
      <p>With the systemd service:</p>
-     <Commands lines={['/usr/bin/python3 lab/upgrade.py start --release '+release.tag+' --allow-class rebuild','sudo /usr/bin/python3 lab/install_server.py supervise --apply']}/>
-     <p className="small muted">Give <code>supervise --apply</code> the same options the service was installed with. It installs the new unit and restarts Sbarbase on the release.</p>
+     <Commands lines={['/usr/bin/python3 lab/upgrade.py start --release '+release.tag+' --allow-class rebuild','sudo /usr/bin/python3 lab/install_server.py supervise --apply','sudo systemctl restart sbarbase']}/>
+     <p className="small muted">Give <code>supervise --apply</code> the same options the service was installed with. It installs the new unit; the restart then starts Sbarbase on the release.</p>
      <p><a href={UPGRADES_GUIDE} target="_blank" rel="noreferrer">Read the upgrades guide<ExternalLink aria-hidden="true"/></a></p></div>
    :<div className="actions"><h3>This release needs a manual migration</h3><p>Follow the upgrades guide on the server before installing it. The console does not install it.</p>
      <p><a href={UPGRADES_GUIDE} target="_blank" rel="noreferrer">Read the upgrades guide<ExternalLink aria-hidden="true"/></a></p></div>}

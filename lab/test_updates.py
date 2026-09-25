@@ -17,7 +17,7 @@ import notification_producers
 import updates
 import upgrade
 from test_notification_producers import ProducerCase
-from test_upgrade import Checkout, store
+from test_upgrade import Checkout, locked, store
 
 ROOT = Path(__file__).resolve().parents[1]
 ZONE = datetime.timezone(datetime.timedelta(hours=4))
@@ -166,6 +166,10 @@ class ScheduleDecisionTests(Private):
         self.assertFalse(updates.check_due({**failed, 'failures': 9}, at(16, 4), since))
         # Right after an upgrade the last result names the release just installed: check again.
         self.assertTrue(updates.check_due(done, at(10, 30), since, document(commit='d' * 40), CURRENT))
+        # But an offline host keeps that stale result: the backoff still holds.
+        offline = {'attempted_at': updates.stamp(at(10, 30)), 'error': 'offline', 'failures': 1}
+        self.assertFalse(updates.check_due(offline, at(10, 31), since, document(commit='d' * 40), CURRENT))
+        self.assertTrue(updates.check_due(offline, at(11, 0), since, document(commit='d' * 40), CURRENT))
 
     def test_an_offline_check_is_a_failure_that_keeps_the_release_it_knew_of(self):
         self.put('available.json', document())
@@ -216,6 +220,12 @@ class SupervisorTests(Private):
 
     def setUp(self):
         super().setUp()
+        self.upstream = self.folder.parent / 'upstream'
+        self.upstream.mkdir()
+        for item in (patch.object(upgrade, 'UPSTREAM', self.upstream), patch.object(upgrade, 'BACKUP_LOCK', self.upstream / 'backup.lock'),
+                     patch.object(upgrade, 'LOCK', self.folder / 'upgrade.lock')):
+            item.start()
+            self.addCleanup(item.stop)
         self.put('settings.json', {'check': False, 'automatic': False, 'window': {'start': '03:00', 'end': '05:00'}})
         self.supervisor = dev.Supervisor(threading.Event(), catalog=Path(self.folder) / 'absent.sqlite')
         self.supervisor.current = CURRENT
@@ -322,6 +332,21 @@ class SupervisorTests(Private):
         self.assertIsNone(updates.read_request())
         self.assertEqual(len(self.spawned), 1)
 
+    def test_automatic_mode_waits_out_a_backup_instead_of_spending_its_attempt(self):
+        self.put('settings.json', {'check': True, 'automatic': True, 'window': {'start': '23:00', 'end': '01:00'}})
+        self.put('available.json', document())
+        self.put('check.json', {'attempted_at': updates.stamp(at(0)), 'error': None, 'failures': 0})
+        with locked(upgrade.BACKUP_LOCK):
+            self.turn(at(0, 30))
+        self.assertIsNone(updates.read_request())
+        self.assertEqual(updates.ledger()['attempted'], [])
+        (self.upstream / 'worker-effect.json').write_text('{}')
+        self.turn(at(0, 31))
+        self.assertEqual(updates.ledger()['attempted'], [])
+        (self.upstream / 'worker-effect.json').unlink()
+        self.turn(at(0, 32))
+        self.assertEqual(updates.ledger()['attempted'], ['0.2.0'])
+
     def test_a_periodic_check_runs_the_channel_and_records_an_offline_failure(self):
         self.put('settings.json', {'check': True, 'automatic': False, 'window': {'start': '03:00', 'end': '05:00'}})
         self.put('available.json', document())
@@ -356,6 +381,12 @@ class NotificationTests(ProducerCase):
         self.assertIsNone(updates.announce_available(document(commit='d' * 40), CURRENT, catalog=self.catalog))
         self.assertEqual(self.outbox(), [('update.available', 'info', 'update_available', None)])
         self.assertEqual(self.details(), [{'class': 'safe', 'version': '0.2.0'}])
+
+    def test_an_announcement_the_catalog_did_not_take_is_tried_again(self):
+        document_ = document(release(version='0.3.0', tag='v0.3.0'))
+        self.assertIsNone(updates.announce_available(document_, CURRENT, catalog=self.directory / 'absent.sqlite'))
+        self.assertNotIn('0.3.0', updates.ledger()['announced'])
+        self.assertIsNotNone(updates.announce_available(document_, CURRENT, catalog=self.catalog))
 
     def test_each_outcome_earns_its_event_and_every_way_back_is_remembered(self):
         base = {'from': 'c' * 40, 'to': 'b' * 40, 'started_at': '2026-09-25T03:00:00+00:00', 'trigger': 'automatic',

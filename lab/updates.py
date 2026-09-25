@@ -380,6 +380,21 @@ def rollback_verdict(upgrade_state):
     return True, None
 
 
+def blocked():
+    """Why `upgrade.py start` would refuse right now for a reason that passes by itself (a backup
+    or restore, another upgrade or rollback, an operation record still to settle), or None.
+    Automatic mode waits these out instead of spending its one attempt on them."""
+    import upgrade
+    if upgrade.held(upgrade.BACKUP_LOCK):
+        return 'a backup or restore is running'
+    if upgrade.held(upgrade.LOCK):
+        return 'another upgrade or rollback is running'
+    for name in upgrade.UNSETTLED:
+        if upgrade.present(upgrade.UPSTREAM / name):
+            return f'the operation record {name} is not settled yet'
+    return None
+
+
 def check_due(record, moment, since, document=None, current=None):
     """Whether a periodic check is due. Never within FIRST_CHECK_DELAY of the supervisor start.
     Then every CHECK_INTERVAL, sooner after a failure (backing off) and as soon as the last result
@@ -390,11 +405,14 @@ def check_due(record, moment, since, document=None, current=None):
     last = parse_time(record.get('attempted_at'))
     if last is None:
         return True
+    failures = record.get('failures') if isinstance(record.get('failures'), int) else 0
+    if failures > 0:
+        # The backoff holds even when the last result is stale: an offline host right after an
+        # upgrade keeps that stale result, and must not check again on every turn.
+        return moment >= last + min(CHECK_INTERVAL, RETRY_BASE * 2 ** (failures - 1))
     if document is not None and current is not None and fresh(document, current) is None:
         return True
-    failures = record.get('failures') if isinstance(record.get('failures'), int) else 0
-    wait = min(CHECK_INTERVAL, RETRY_BASE * 2 ** (failures - 1)) if failures > 0 else CHECK_INTERVAL
-    return moment >= last + wait
+    return moment >= last + CHECK_INTERVAL
 
 
 def meaningful(text, limit=400):
@@ -453,10 +471,13 @@ def announce_available(document, current, catalog=None):
     version = release['version']
     if version in ledger()['announced']:
         return None
-    remember('announced', version)
-    return notification_producers.emit('update.available', 'info', 'update.available|' + version, {},
-                                       'system:supervisor', 'update_available',
-                                       {'version': version, 'class': str(release.get('class'))}, catalog=catalog)
+    emitted = notification_producers.emit('update.available', 'info', 'update.available|' + version, {},
+                                          'system:supervisor', 'update_available',
+                                          {'version': version, 'class': str(release.get('class'))}, catalog=catalog)
+    if emitted is not None:
+        # Only a written event counts: a catalog that could not be reached is tried at the next check.
+        remember('announced', version)
+    return emitted
 
 
 def announce_outcome(before, after, catalog=None):

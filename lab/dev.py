@@ -271,7 +271,7 @@ class Supervisor:
             return
         release = updates.automatic_release(settings, document, self.current, state, updates.ledger(), moment,
                                             self.backup is not None)
-        if release is not None:
+        if release is not None and updates.blocked() is None:
             # Remembered before the request exists: whatever happens next, it is tried once.
             updates.remember('attempted', release['version'])
             if updates.create_request('apply', release['version'], release.get('tag'), 'automatic', moment):
