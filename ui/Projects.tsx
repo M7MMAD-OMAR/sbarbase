@@ -1,5 +1,5 @@
 import {useState,type FormEvent} from 'react';
-import {Folder,ChevronRight,Plus,Search,Users,UserPlus,Copy} from 'lucide-react';
+import {Folder,ChevronRight,Plus,Search,Users,UserPlus,Copy,Pencil,Trash2} from 'lucide-react';
 import {useData,type Api,type Organization,type Project} from './api';
 import {Empty,ErrorMessage,Loading,NameForm,Refresh} from './components';
 /** Who can act in this organization. Owners change a role or remove a member; access ends at once.
@@ -33,7 +33,16 @@ function Invitations({organization,request}:{organization:Organization;request:A
  {link&&<div className="new-key"><label htmlFor="invite-link">Send this link to the person you invited. It is only shown once.</label><textarea id="invite-link" readOnly value={link}/><div className="form-row"><button onClick={()=>void copy()}><Copy aria-hidden="true"/>Copy link</button><button onClick={()=>{setLink('');setCopied('');}}>Done</button></div><p className="small muted" role="status">{copied}</p></div>}
  {!!pending.data?.data.length&&<div className="table-wrap"><table><thead><tr><th>Pending</th><th>Role</th><th>Expires</th><th>Action</th></tr></thead><tbody>{pending.data.data.map(item=><tr key={item.id}><td>{item.email}</td><td>{item.role}</td><td>{new Date(item.expires_at).toLocaleDateString()}</td><td><button disabled={busy} onClick={()=>void cancel(item.id)}>Cancel</button></td></tr>)}</tbody></table></div>}</section>;
 }
-export function Projects({organization,request,onSelect}:{organization:Organization;request:Api;onSelect:(project:Project)=>void}){
+/** Owners rename the organization, or delete it once it holds no project. */
+function OrganizationSettings({organization,request,empty,onChanged}:{organization:Organization;request:Api;empty:boolean;onChanged:()=>void}){
+ const [renaming,setRenaming]=useState(false),[confirm,setConfirm]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ async function remove(){setBusy(true);setError('');try{await request(`/organizations/${organization.id}`,'DELETE');onChanged();}catch(e){setError((e as Error).message);}finally{setBusy(false);setConfirm(false);}}
+ return <section className="details" aria-labelledby="organization-settings"><h2 id="organization-settings">Organization settings</h2>
+ {renaming?<NameForm label="New organization name" action="Rename" onCancel={()=>setRenaming(false)} onSubmit={async name=>{await request(`/organizations/${organization.id}`,'PATCH',{name});setRenaming(false);onChanged();}}/>:<button disabled={busy} onClick={()=>setRenaming(true)}><Pencil aria-hidden="true"/>Rename organization</button>}
+ {confirm?<div className="confirm"><span>Delete {organization.name}? Its members lose access.</span><button className="danger" disabled={busy} onClick={()=>void remove()}>Confirm delete</button><button onClick={()=>setConfirm(false)}>Cancel</button></div>:<button disabled={busy||!empty} title={empty?undefined:'Delete or move its projects first'} onClick={()=>setConfirm(true)}><Trash2 aria-hidden="true"/>Delete organization</button>}
+ <ErrorMessage message={error}/></section>;
+}
+export function Projects({organization,request,onSelect,onOrganizationChanged}:{organization:Organization;request:Api;onSelect:(project:Project)=>void;onOrganizationChanged?:()=>void}){
  const result=useData<{data:Project[]}>(signal=>request(`/organizations/${organization.id}/projects`,'GET',undefined,signal),[organization.id,request]);
  const [query,setQuery]=useState(''),[creating,setCreating]=useState(false);
  const projects=result.data?.data.filter(item=>item.name.toLowerCase().includes(query.toLowerCase()))??[];
@@ -41,5 +50,6 @@ export function Projects({organization,request,onSelect}:{organization:Organizat
  {creating&&<NameForm label="Project name" onCancel={()=>setCreating(false)} onSubmit={async name=>{await request(`/organizations/${organization.id}/projects`,'POST',{name});setCreating(false);result.refresh();}}/>}
  <div className="search"><Search aria-hidden="true"/><input aria-label="Search projects" placeholder="Search projects" value={query} onChange={e=>setQuery(e.target.value)}/></div>
  <ErrorMessage message={result.error}/>{result.error&&<Refresh onClick={result.refresh}/>}{result.loading?<Loading/>:projects.length?<><div className="table-wrap"><table><thead><tr><th>Project</th><th>Project ID</th><th><span className="sr-only">Open</span></th></tr></thead><tbody>{projects.map(project=><tr key={project.id}><td><button className="project-link" onClick={()=>onSelect(project)}><Folder aria-hidden="true"/>{project.name}</button></td><td><code title={project.id}>{project.id.slice(0,8)}</code></td><td><ChevronRight aria-hidden="true"/></td></tr>)}</tbody></table></div><p className="small muted">{projects.length} {projects.length===1?'project':'projects'}</p></>:!result.error&&<Empty>{query?'No matching projects.':'No projects yet. Create your first project to get started.'}</Empty>}
- {organization.role!=='viewer'&&<><Members organization={organization} request={request}/><Invitations organization={organization} request={request}/></>}</>;
+ {organization.role!=='viewer'&&<><Members organization={organization} request={request}/><Invitations organization={organization} request={request}/></>}
+ {organization.role==='owner'&&onOrganizationChanged&&result.data&&<OrganizationSettings organization={organization} request={request} empty={!result.data.data.length} onChanged={onOrganizationChanged}/>}</>;
 }

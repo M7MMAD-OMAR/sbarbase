@@ -35,6 +35,7 @@ docker compose exec sbarbase deploy/sbarbase status
 | Back up now | `sbarbase backup now [<environment>]` | `lab/backup.py create` |
 | List backups | `sbarbase backups list [<environment>]` | `lab/backup.py list` |
 | Restore an environment | `sbarbase restore <environment> <backup>` | `lab/backup.py restore`, after you confirm |
+| Prepare a backup from another installation | `sbarbase relink <runtime> <backup>` | the management API, installation operators only |
 | Add an environment | `sbarbase add-environment <project> <name>` | the management API, as the console |
 | Rotate a publishable key | `sbarbase rotate-key <environment>` | the key API, as the console |
 | Gateway share | `sbarbase share <environment> [<n>]` | the management API, as the console |
@@ -60,6 +61,10 @@ It exits 0 when the console runs and every published environment answers, and 1 
 These run `lab/backup.py`, described in [backup and restore](backup-and-restore.md). Without an environment, `backup now` backs up every environment. A manual backup keeps as many backups as the daily one: it reads `SBARBASE_BACKUP_KEEP` from your shell or, on a systemd install, from the unit, and `--keep N` overrides it. When neither sets it, `lab/backup.py` keeps 7.
 
 `restore` asks you to type the backup time before it replaces anything, and says what is lost. At no terminal, as in a script, it refuses unless you pass `--yes`. What the restore sets aside is removed with `lab/backup.py discard-previous`.
+
+### relink
+
+`relink <runtime> <backup>` is the first step of restoring a backup taken on another installation, described in [backup and restore](backup-and-restore.md). The backup must already be under `.lab/backups/<runtime>/<backup>/`. The command reads the client, project and environment its manifest records, signs in like the commands below, and asks the management API to recreate them here with the same ids and the same runtime id. Only installation operators may. It never attaches a backup by name: a client or project that has the recorded name but another id is refused, and so is any other conflict, with nothing changed. The worker then provisions an empty environment, and `restore` fills it.
 
 ### add-environment, rotate-key, share, studio
 

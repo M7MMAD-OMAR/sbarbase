@@ -16,7 +16,7 @@ import {RequestLog} from '../gateway/observe';
 
 export function controlHandler(catalog:Catalog,keys:KeyStore,identity:ManagementIdentity,services?:ServiceDiscovery,
  studioKey?:()=>Buffer,requests=new RequestLog(),containers?:ContainerReader,accounts?:InvitationAccounts) {
- const metadata=managementHandler(catalog,identity),credentials=keyHandler(catalog,keys,identity,services);
+ const metadata=managementHandler(catalog,identity,undefined,keys),credentials=keyHandler(catalog,keys,identity,services);
  const studio=studioKey?studioHandler(catalog,identity,studioKey):undefined,signIn=signInHandler(catalog,identity),
   realtime=realtimeHandler(catalog,identity),observe=observeHandler(catalog,identity,requests,containers),
   functions=functionsHandler(catalog,identity),database=databaseHandler(catalog,identity),

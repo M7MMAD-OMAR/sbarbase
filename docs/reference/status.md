@@ -135,11 +135,11 @@ A start needs its containers' memory limits plus a 2560 MiB reserve: 1792 MiB of
 
 - A rehearsal on a real server. The empty-server install passed in a local VM only.
 - The connection pooler and cron. `SUPABASE_DB_URL` inside Edge Functions.
-- Point-in-time recovery, SSH or rsync targets for the off-host copies (S3-compatible storage only), and rebuilding a whole lost server from the off-site copies in one step (each environment's copy restores; the installation manifest records what the backups need, but the installation's own state does not travel with it yet).
+- Point-in-time recovery, SSH or rsync targets for the off-host copies (S3-compatible storage only), and rebuilding a whole lost server from the off-site copies in one step (each environment's copy restores, on a new installation after `sbarbase relink` recreates its client, project and environment with their original ids; the installation manifest records what the backups need, but members, keys and settings do not travel with it yet, and this path has only unit tests, no rehearsal on a second machine).
 - Importing schemas other than `public`, Vault secrets and cron jobs from a Supabase project (the [import](../guides/move-from-supabase.md) moves `public`, users, rows and files).
 - Automatic recovery of later-stage provisioning failures; they block until an operator reconciles them.
 - Adoption of any upstream release through the update policy; unattended upgrades (an operator starts each one with [lab/upgrade.py](../../lab/upgrade.py)).
-- Complete project transfer between clients, invitations, MFA and login rate limits.
+- MFA and login rate limits. Moving a project between clients revokes its API keys but does not rotate its JWT signing key or direct database password. Deleting an environment keeps its runtime (database, containers, files), which still counts against the environment limit; reclaiming it is not built.
 - Multi-server placement and coordination.
 - Resumable (TUS) uploads through the gateway; standard uploads go up to the upload limit, 50 MiB by default.
 

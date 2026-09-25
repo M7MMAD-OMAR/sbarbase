@@ -109,6 +109,31 @@ python3 lab/backup.py restore <environment> <backup> --offsite
 
 The set is downloaded, its authentication tag is checked before anything is unpacked, and each backup is checked against its digests before `restore` uses it. A backup already on this server is kept as it is.
 
+## Restore on a new installation
+
+A backup restores into an environment that exists and is published. On a new server, after losing the old one, that environment does not exist yet. Each backup records the ids of its client, project and environment (`ownership` in `manifest.json`, since 2026-09-23), so the new installation can recreate them exactly and then restore into them:
+
+1. Install Sbarbase on the new server ([operator setup](operator-setup.md)) at the same release, so the pinned images match; the installation manifest lists them.
+2. Put the backup under `.lab/backups/<runtime>/<backup>/`: copy the directory from wherever you keep it, or fetch it from the off-host target as described above.
+3. Run the three steps below as an installation operator. `relink` recreates the client, project and environment with their original ids and runtime id, and the worker provisions an empty environment of that name. When `environments` shows it `succeeded`, `restore` fills it from the backup.
+
+```bash
+sbarbase relink <runtime> <backup>
+sbarbase environments
+sbarbase restore <runtime> <backup>
+```
+
+`relink` is careful on purpose. It never attaches a backup to a client or project by name: when a client with the recorded name but another id exists here, it refuses, and so it does when the recorded project or environment id already means something else here, or the runtime id belongs to another environment or to one deleted on this installation. A refusal changes nothing. You become the owner of a client it creates; if the recorded client already exists here, you must already be one of its owners. Asking again after a success changes nothing.
+
+What a backup does not carry, and what you do after the restore:
+
+- **Members.** Account ids belong to the old installation's sign-in, so nobody is added. Invite people again.
+- **API keys.** Issue new publishable keys and update your apps.
+- **The JWT signing key.** The new environment has its own. Users sign in again with their old passwords, which the backup keeps; existing sessions and signed Storage URLs stop working.
+- **Direct database access, Studio, Realtime and Edge Functions.** Turn them on again where you used them; database access gets a new password.
+
+This path is covered by unit tests of the catalog, the API and the command. It has not yet been rehearsed end to end on a second machine. One risk is known: an environment that had Studio, Realtime or direct database access has logins for them that its database grants access to, and a new installation does not have those logins until the feature is turned on, so the restore may refuse. Expect to meet this in the first rehearsal.
+
 ## Whole-server cold backup
 
 The simplest backup is a cold copy of everything, taken with all services stopped:
@@ -161,7 +186,7 @@ A failed restore leaves its descriptor behind, and a plain rerun refuses. Do not
 - The off-host copy speaks S3 only; SSH or rsync targets are not built. It is tested against a local fake bucket, not yet against a real provider.
 - One set is one upload, so a set larger than the provider's single upload limit (5 GiB on Amazon S3) fails. The set is written encrypted to this server before the upload, so the disk needs room for it.
 - Retention on the target is by count, not by age.
-- Restoring from the target needs the environment already published on that server. Database roles shared by the whole engine are not in the set.
+- Restoring needs the environment published on that server. On a new installation, `sbarbase relink` creates it first ([above](#restore-on-a-new-installation)); a backup taken before 2026-09-23 records no ownership and must be restored into an environment created by hand. Database roles shared by the whole engine are not in the set.
 - Restore has been rehearsed on one host with a test fixture, not on a server with real client data.
 - Once a restored target has accepted writes, going back to the old source is unsafe without reconciliation.
 

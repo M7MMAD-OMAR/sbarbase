@@ -26,12 +26,14 @@ Any other `/management/auth/...` path is `404`; a wrong method is `405`.
 
 ## Management API
 
-All routes need `Authorization: Bearer <management access token>`. The actor comes from that token, never from the body. IDs are UUIDs. Errors: `400` invalid input, `401` no valid token, `403` not allowed (also for an unknown ID), `404` unknown route, `405` wrong method, `409` conflict (environment not ready, name already used in that client or project, environment limit reached, not retryable), `503` identity check unavailable, `500` sanitized internal error.
+All routes need `Authorization: Bearer <management access token>`. The actor comes from that token, never from the body. IDs are UUIDs. Errors: `400` invalid input, `401` no valid token, `403` not allowed (also for an unknown ID), `404` unknown route, `405` wrong method, `409` conflict (environment not ready, name already used in that client or project, environment limit reached, not retryable, still holds projects or environments, provisioning or a service still active); nothing was changed, `503` identity check unavailable, `500` sanitized internal error.
 
 | Method | Path | Who | Result |
 |---|---|---|---|
 | GET | `/management/v1/organizations` | any operator | The caller's clients (organizations) with ID, name and role, and `operator: true` when the caller may create clients |
 | POST | `/management/v1/organizations` | owner or admin of the client created at bootstrap | Body `{"name": "..."}`. `201` with `{id}`; the caller becomes its owner |
+| PATCH | `/management/v1/organizations/{id}` | owner | Body `{"name": "..."}`. Renames the client |
+| DELETE | `/management/v1/organizations/{id}` | owner | Deletes an empty client with its memberships and pending invitations. `409` while it has projects, and always for the client created at bootstrap |
 | GET | `/management/v1/organizations/{id}/members` | owner, admin | Members of that client with their role |
 | PUT | `/management/v1/organizations/{id}/members/{member}` | owner | Body `{"role": "owner"|"admin"|"viewer"}` for an existing member. `404` for someone who is not a member (adding people waits for invitations); `409` when it would leave no owner |
 | DELETE | `/management/v1/organizations/{id}/members/{member}` | owner | Removes the member; their management and Studio access ends at the next request. `409` for the last owner |
@@ -41,8 +43,14 @@ All routes need `Authorization: Bearer <management access token>`. The actor com
 | POST | `/management/invitations/redeem` | anyone with the token | Body `{"token": "...", "password": "..."}` creates the account (password of 12 characters or more) and joins; with a session for the invited email, `{"token": "..."}` joins. `400 This invitation is not valid` for any unknown, used, cancelled or expired token; `409` when an account exists and must sign in first; `429` after 20 failures in a minute |
 | GET | `/management/v1/organizations/{id}/projects` | member | Projects of that client |
 | POST | `/management/v1/organizations/{id}/projects` | owner, admin | Body `{"name": "..."}`. `201` with `{id, state: "metadata_only"}` |
+| PATCH | `/management/v1/projects/{id}` | owner, admin | Body `{"name": "..."}`. `409` when the name is used in that client |
+| DELETE | `/management/v1/projects/{id}` | owner | Deletes a project that has no environment; `409` otherwise |
+| POST | `/management/v1/projects/{id}/move` | owner of both clients | Body `{"organization": "<id>"}`. Moves the project; its ids and runtimes stay. Queued provisioning is cancelled (retry it in the new client) and every API key of its environments is revoked. `200` with `{organization, cancelled, revoked}`; `409` on a name clash in the destination or while provisioning runs |
 | GET | `/management/v1/projects/{id}/environments` | member | Environments of that project |
 | POST | `/management/v1/projects/{id}/environments` | owner, admin | Body `{"name": "..."}`. `202` with `{id, state: "queued"}`; the worker provisions it |
+| PATCH | `/management/v1/environments/{id}` | owner, admin | Body `{"name": "..."}`. `409` when the name is used in that project |
+| DELETE | `/management/v1/environments/{id}` | owner | Removes the environment from management and revokes its keys; from then on the gateway answers `401` for its runtime. Its database, containers and files stay on the server. `409` while provisioning is queued or running, or while Studio, Realtime, Edge Functions, database access, a sign-in change, a signing key rotation, or a paused or moved routing is on or in progress |
+| POST | `/management/v1/relink` | installation operator | Body `{"runtime": "e_...", "ownership": {...}}`, the `ownership` a backup's manifest records. Recreates that client, project and environment here with the same ids and runtime, and queues provisioning; `sbarbase relink` calls it ([backup and restore](../guides/backup-and-restore.md)). `409` for any conflict: a client with that name but another id, an id that belongs to something else here, a runtime in use or deleted here |
 | GET | `/management/v1/environments/{id}/provision` | member | Provisioning `state`, `attempt` and `failure` if any |
 | POST | `/management/v1/environments/{id}/retry` | owner, admin | No body. `202 {state: "queued"}` for a failed or cancelled environment; `409` otherwise or at the environment limit |
 | GET | `/management/v1/environments/{id}/connection` | member, when ready | `{environment, apiPath: "/<runtime>", services}` |
@@ -67,7 +75,7 @@ All routes need `Authorization: Bearer <management access token>`. The actor com
 | GET | `/management/v1/environments/{id}/share` | member | The environment's guaranteed gateway share, the default and the ceiling; installation operators also get `total` and `allocated` |
 | PUT | `/management/v1/environments/{id}/share` | installation operator | Body `{"share": n}`, 1 to 24. `409` when the shares of all ready environments would exceed 32. Applies at the next request |
 
-Request bodies accept only `name`, at most 4 KiB, read within five seconds. Key and connection routes refuse any body. Responses are not cacheable. There are no routes for changing members or transferring projects; those stay internal until invitations and revocation of a moved environment's keys exist.
+Request bodies accept exactly the fields listed for the route, at most 4 KiB, read within five seconds. Key and connection routes and every `DELETE` refuse any body. Responses are not cacheable. A move revokes API keys but does not rotate the environments' JWT signing key or direct database password; rotate them ([signing key](../guides/signing-keys.md)) when people of the old client must lose every kind of access. Deleting an environment does not free its slot in the worker's environment limit, because its runtime is kept.
 
 ## Application gateway
 
@@ -88,7 +96,7 @@ Request bodies accept only `name`, at most 4 KiB, read within five seconds. Key 
 
 | Status | Meaning |
 |---|---|
-| `401` | Missing or invalid API key, or a malformed `Authorization` header |
+| `401` | Missing or invalid API key, a malformed `Authorization` header, or an environment that was deleted |
 | `404` | Unknown environment, route or unconfigured service |
 | `408` | Request cancelled by the client |
 | `413` | Body over 1 MiB, or an upload over the upload limit |

@@ -15,6 +15,17 @@ ready.
 
 ### Added
 
+- **Rename, move and delete clients, projects and environments.** Owners and
+  admins rename; owners move a project to another client they own, which
+  revokes its API keys, and delete what is empty. An environment is deleted
+  only while nothing runs or changes for it; its keys stop working at once
+  (the gateway answers 401), and its data stays on the server. From the
+  console or the management API.
+- **Restore a backup onto a new installation.** `sbarbase relink <runtime>
+  <backup>` recreates the backup's client, project and environment with their
+  original ids, never matching by name, and `sbarbase restore` then fills it.
+  Members, API keys and the signing key do not travel; users sign in again
+  with their old passwords. Not yet rehearsed on a second machine.
 - **Rotate an environment's signing key.** Owners and admins press **Rotate
   signing key** (or `POST .../signing-key/rotate`); the supervisor gives the
   environment a new JWT secret, recreates its Auth and REST, updates its
