@@ -19,6 +19,8 @@ Run from the repository root in a clean container with Python 3.14 and `cryptogr
 
 Earlier pages recorded other totals (for example 575 Python and 87 Bun tests at the 0.1.0 release gate, and 625 and 93 on the workstation on 2026-09-23). Those were correct for their date and scope; this table replaces them.
 
+On 2026-09-25 the Python suite had 765 tests: `OK` with no skips on the workstation, `OK (skipped=2)` there with no Docker daemon reachable, and in a throwaway `python:3.12` container `OK (skipped=6)` as root and `OK (skipped=4)` as an unprivileged user. Each skip names what the host lacks: root for a permission refusal, a `/usr/bin/python3` of 3.14 or a Docker daemon for the acceptance script, `systemd-analyze`, or a block device for `/`.
+
 ## Live evidence
 
 Live probes start real containers and write their results to [docs/evidence](../evidence/). Each file names its own scope; counts from different files overlap and are not additive. The count below is the one recorded in the file.

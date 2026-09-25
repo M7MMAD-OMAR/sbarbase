@@ -407,7 +407,8 @@ class OrderTests(Fixture,unittest.TestCase):
                                                              'intent':authority.digest(authority.canonical(record)),
                                                              'container_id':NEW_CONTAINER,'generation':minted})
         self.docker.marker='yes'
-        with patch.object(hba_generation,'read_existing'), patch('hba_runtime.SourceHBA') as writer:
+        with patch.object(hba_generation,'read_existing'), patch('hba_runtime.SourceHBA') as writer, \
+             patch('resource_policy.io_flags',return_value=['--device-read-bps','/dev/x:1mb']):
             writer.return_value.publish.side_effect=RuntimeError('HBA reload signal not acknowledged')
             with self.assertRaisesRegex(RuntimeError,'reload signal not acknowledged'):
                 migration.execute(self.docker,self.state,replacement=self.replacement(),desired=DESIRED)

@@ -23,9 +23,13 @@ Defects found and fixed in this change:
 
 The five remaining failures on this container are environmental, not defects: tests that check a permission refusal cannot see one as root (`test_supervisor_unit` dry run, the world-readable bootstrap file), and `test_server_acceptance` shells out to the host's `/usr/bin/python3`, which is 3.11 here. On CI (Ubuntu 26.04, non-root, Docker present) they pass.
 
-**Step 1.1 (open).** Make these tests state their host needs instead of failing: skip with a reason when `os.geteuid()==0` for permission-refusal assertions, and when `/usr/bin/python3` is older than 3.14 for the acceptance script tests. Check: the suite reports `OK (skipped=N)` in this container and `OK` with no skips on CI.
+**Step 1.1 (done 2026-09-25).** Make these tests state their host needs instead of failing: skip with a reason when `os.geteuid()==0` for permission-refusal assertions, and when `/usr/bin/python3` is older than 3.14 for the acceptance script tests. Check: the suite reports `OK (skipped=N)` in this container and `OK` with no skips on CI.
 
-**Step 1.2 (open).** Add a CI job that runs the Python suite with no Docker socket (`DOCKER_HOST=unix:///nonexistent`) so a new unit test that reaches the daemon fails in review, not on the next machine.
+The skips landed in `986b9bc`. A run in a throwaway `python:3.12` container (its `/usr/bin/python3` is 3.13, no Docker CLI, no systemd; the host's Bun mounted in) found three more tests that needed the host: one in `test_hba_migration` lacked the `io_flags` patch its siblings use, the launch and label tests in `test_resource_policy` resolved the real block device, which an overlay root does not have, and `test_deployment_rehearsal` ran `systemd-analyze` unconditionally. The first two now mock the device; the third skips when the tool is absent. The acceptance skip reason now names which check the host fails. Results: 765 tests; workstation `OK`, no skips; container as root `OK (skipped=6)`; container as an unprivileged user `OK (skipped=4)`. Each skip names the missing need: root, an older `/usr/bin/python3` or no daemon for the acceptance script, no `systemd-analyze`, no block device for `/`.
+
+**Step 1.2 (done 2026-09-25).** Add a CI job that runs the Python suite with no Docker socket (`DOCKER_HOST=unix:///nonexistent`) so a new unit test that reaches the daemon fails in review, not on the next machine.
+
+It is a step of the `checks` job in `.github/workflows/ci.yml` ("Python unit tests with no Docker daemon", added in `986b9bc`), not a separate job, so it reuses the job's setup. On the workstation the suite with `DOCKER_HOST=unix:///nonexistent/docker.sock` reports `OK (skipped=2)`: the two acceptance script tests that need a daemon. No unit test reached the daemon.
 
 ## 2. What the hierarchy change still leaves open
 
@@ -94,7 +98,7 @@ Each step names the check that closes it. Steps inside a block can run in parall
 
 **Block A: green baseline (this week, no server needed)**
 1. Merge this change; confirm CI `checks` is green on `main`.
-2. Step 1.1 and 1.2 (hermetic tests, no-Docker CI job). Check: CI green, container run `OK`.
+2. **Done 2026-09-25.** Step 1.1 and 1.2 (hermetic tests, no-Docker CI job). Check: CI green, container run `OK`.
 3. Decide H1. Then implement H1 and H2 with their tests. Check: `bun test` passes with the new tests.
 4. Update [status](../../reference/status.md) test counts from the CI run.
 

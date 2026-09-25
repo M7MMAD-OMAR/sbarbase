@@ -2,6 +2,7 @@
 from pathlib import Path
 from unittest.mock import patch
 import os
+import shutil
 import tempfile
 import unittest
 import deployment_rehearsal as rehearsal
@@ -55,6 +56,7 @@ class ServerEvidenceTests(unittest.TestCase):
         self.assertEqual(status['verify_source'],'template')
         self.assertTrue(Path(status['verified_path']).exists())
 
+    @unittest.skipUnless(shutil.which('systemd-analyze'),'this host has no systemd-analyze to verify the unit with')
     def test_the_shipped_unit_verifies_under_systemd_analyze(self):
         from pathlib import Path
         status=rehearsal.unit_status(Path(rehearsal.__file__).resolve().parent.parent/'deploy'/'sbarbase.service')
