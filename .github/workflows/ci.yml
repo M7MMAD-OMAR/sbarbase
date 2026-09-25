@@ -50,8 +50,8 @@ jobs:
 
   python-floor:
     # The oldest interpreter the preflight accepts: Ubuntu 24.04 ships
-    # /usr/bin/python3 3.12. Unit tests only, so a construct newer than the
-    # floor fails in review rather than on an operator's server.
+    # /usr/bin/python3 3.12. A syntax check and the unit tests, so a construct
+    # newer than the floor fails in review rather than on an operator's server.
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -62,6 +62,9 @@ jobs:
       - name: System Python dependencies
         run: sudo apt-get update -q && sudo apt-get install -y -q python3-cryptography
       - run: /usr/bin/python3 --version
+      - name: Every lab and deploy script compiles on 3.12
+        # Not every live probe or deploy helper is imported by a unit test.
+        run: /usr/bin/python3 -m compileall -q lab deploy
       - name: Python unit tests on 3.12
         env:
           DOCKER_HOST: unix:///nonexistent/docker.sock
