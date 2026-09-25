@@ -37,6 +37,7 @@ import re
 import uuid
 from pathlib import Path
 
+import effect_receipt
 import notification_producers
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -56,8 +57,6 @@ CHECK_INTERVAL = datetime.timedelta(hours=6)
 FIRST_CHECK_DELAY = datetime.timedelta(minutes=5)
 # After a failed check (an offline host): 30 minutes, then 1, 2 and 4 hours, then the interval.
 RETRY_BASE = datetime.timedelta(minutes=30)
-# release_channel.check() does not fail when the source is unreachable: it says so here.
-UNREACHABLE = 'The release source could not be read'
 LEDGER_KEEP = 50
 # An automatic try that stopped before the backup (a network failure while fetching the release
 # or pulling its images) is tried again: at most this many times per version, 10 then 20 minutes
@@ -111,8 +110,10 @@ def read(name):
         return None
 
 
-def write(name, value):
-    """Replaces a file atomically: private temporary file, fsync, rename, fsync the directory."""
+def write(name, value, link=False):
+    """Writes a file of this directory atomically: private temporary file (its own name, since
+    the console writes here too), fsync, then rename over the file, or with `link` a hard link
+    that fails when the file exists (False then), then fsync the directory."""
     target = path(name)
     target.parent.mkdir(parents=True, exist_ok=True)
     os.chmod(target.parent, 0o700)
@@ -123,19 +124,17 @@ def write(name, value):
             json.dump(value, handle, ensure_ascii=False)
             handle.flush()
             os.fsync(handle.fileno())
-        os.replace(temporary, target)
-    except BaseException:
-        temporary.unlink(missing_ok=True)
-        raise
-    sync(target.parent)
-
-
-def sync(directory):
-    handle = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
-    try:
-        os.fsync(handle)
+        if not link:
+            os.replace(temporary, target)
+        else:
+            try:
+                os.link(temporary, target)
+            except FileExistsError:
+                return False
     finally:
-        os.close(handle)
+        temporary.unlink(missing_ok=True)
+    effect_receipt.sync_directory(target.parent)
+    return True
 
 
 # ---------------------------------------------------------------- settings
@@ -304,24 +303,7 @@ def create_request(kind, version=None, tag=None, trigger='console', moment=None)
                'requested_at': stamp(moment or now())}
     if version:
         request.update(version=version, tag=tag or 'v' + version)
-    target = path('request.json')
-    target.parent.mkdir(parents=True, exist_ok=True)
-    os.chmod(target.parent, 0o700)
-    temporary = target.with_name(f'.request.{uuid.uuid4().hex}.tmp')
-    descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    try:
-        with os.fdopen(descriptor, 'w') as handle:
-            json.dump(request, handle)
-            handle.flush()
-            os.fsync(handle.fileno())
-        try:
-            os.link(temporary, target)
-        except FileExistsError:
-            return None
-    finally:
-        temporary.unlink(missing_ok=True)
-    sync(target.parent)
-    return request
+    return request if write('request.json', request, link=True) else None
 
 
 def update_request(request, **changes):
@@ -351,7 +333,7 @@ def finish_request(request, state, detail=None, moment=None):
     write('last-request.json', final)
     if current and current.get('id') == request.get('id'):
         path('request.json').unlink(missing_ok=True)
-        sync(path('request.json').parent)
+        effect_receipt.sync_directory(path('request.json').parent)
     return final
 
 
@@ -493,14 +475,8 @@ def blocked():
     or restore, another upgrade or rollback, an operation record still to settle), or None.
     Automatic mode waits these out instead of spending its one attempt on them."""
     import upgrade
-    if upgrade.held(upgrade.BACKUP_LOCK):
-        return 'a backup or restore is running'
-    if upgrade.held(upgrade.LOCK):
-        return 'another upgrade or rollback is running'
-    for name in upgrade.UNSETTLED:
-        if upgrade.present(upgrade.UPSTREAM / name):
-            return f'the operation record {name} is not settled yet'
-    return None
+    refusals = upgrade.transient_refusals()
+    return refusals[0] if refusals else None
 
 
 def check_due(record, moment, since, document=None, current=None):
@@ -539,30 +515,16 @@ def meaningful(text, limit=400):
 
 # ---------------------------------------------------------------- check results
 
-def finish_check(status, output, previous, moment, current):
-    """Records a check that ended. Returns (error, document). An unreachable source exits 0 and
-    writes an empty result: that is a failure too, and the last good result is put back so an
-    offline host keeps showing the release it knew of."""
+def finish_check(status, output, moment):
+    """Records a check that ended. Returns (error, document). A check that failed (an
+    unreachable source among others) wrote no result, so an offline host keeps showing the
+    release it knew of."""
     document = read('available.json')
     error = None
     if status != 0:
         error = meaningful(output)
     elif not isinstance(document, dict):
         error = 'The check left no result.'
-    else:
-        unreachable = [item for item in document.get('refusals') or [] if isinstance(item, str) and item.startswith(UNREACHABLE)]
-        if unreachable and document.get('available') is None:
-            error = unreachable[0]
-    if error and previous is not None:
-        target = path('available.json')
-        temporary = target.with_name(f'.available.{uuid.uuid4().hex}.tmp')
-        descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-        with os.fdopen(descriptor, 'wb') as handle:
-            handle.write(previous)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary, target)
-        document = read('available.json')
     record = read('check.json')
     before = record.get('failures') if isinstance(record, dict) and isinstance(record.get('failures'), int) else 0
     failures = before + 1 if error else 0

@@ -389,18 +389,13 @@ class Supervisor:
             self.start_worker()
 
     def start_update(self, kind, request, moment, command=None, state=None):
-        previous = None
         if kind == 'check':
             command = ['/usr/bin/python3', 'lab/upgrade.py', 'channel', '--json']
-            try:
-                previous = updates.path('available.json').read_bytes()
-            except OSError:
-                previous = None
         if request is not None:
             request = updates.update_request(request, state='running', started_at=updates.stamp(moment)) or request
         print({'check': 'Checking for a newer Sbarbase release.', 'apply': 'Update to a newer Sbarbase release started.',
                'rollback': 'Rollback to the previous Sbarbase version started.'}[kind], flush=True)
-        self.update = {'kind': kind, 'request': request, 'previous': previous, 'state': state,
+        self.update = {'kind': kind, 'request': request, 'state': state,
                        'process': self.spawn_logged(command, updates.path(kind + '.log'))}
 
     def update_finished(self, job, status, moment):
@@ -415,7 +410,7 @@ class Supervisor:
         for line in output.splitlines()[-40:]:
             print('  ' + line, flush=True)
         if kind == 'check':
-            error, document = updates.finish_check(status, output, job['previous'], moment, self.current)
+            error, document = updates.finish_check(status, output, moment)
             if error is None:
                 updates.announce_available(document, self.current, catalog=self.catalog)
             else:

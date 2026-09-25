@@ -12,7 +12,9 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import backup
 import durable_runtime
+import release_channel
 import upgrade
 import upgrade_guard
 
@@ -75,7 +77,8 @@ class Checkout(unittest.TestCase):
         self.pulled = []
         self.backups = []
         # Every path an upgrade touches points into this test's own directory.
-        for item in [patch.object(upgrade, 'ROOT', self.repo.root), patch.object(upgrade, 'UPGRADES', upgrades),
+        for item in [patch.object(upgrade, 'ROOT', self.repo.root), patch.object(release_channel, 'ROOT', self.repo.root),
+                     patch.object(upgrade, 'UPGRADES', upgrades),
                      patch.object(upgrade, 'STATE_FILE', upgrades / 'state.json'), patch.object(upgrade, 'LOCK', upgrades / 'upgrade.lock'),
                      patch.object(upgrade, 'SNAPSHOTS', upgrades / 'snapshots'), patch.object(upgrade, 'HOLD', upgrades / 'hold'),
                      patch.object(upgrade, 'UPSTREAM', self.upstream), patch.object(upgrade, 'KEY_STORE', self.secrets / 'managed-keys.sqlite'),
@@ -99,7 +102,7 @@ class UpgradeTests(Checkout):
     def test_check_names_the_changed_images_and_refuses_a_database_change(self):
         details = upgrade.plan(self.second)
         self.assertEqual(details['refusals'], [])
-        self.assertEqual(details['changes'], [('images.lock.json:rest', 'postgrest:v1', 'postgrest:v2')])
+        self.assertEqual(details['changes'], [{'image': 'images.lock.json:rest', 'from': 'postgrest:v1', 'to': 'postgrest:v2'}])
         self.repo.git('checkout', '-q', '--detach', self.second)
         self.repo.locks['distro-image.lock.json'] = pin('postgres:18.0', '9')
         database = self.repo.commit('database')
@@ -254,7 +257,7 @@ class ControlStateTests(Checkout):
         self.assertEqual([(item['home'], item['file'], item['user_version']) for item in manifest['files']],
                          [('upstream', 'control.sqlite', 2), ('keys', 'managed-keys.sqlite', 0)])
         for item in manifest['files']:
-            self.assertEqual(upgrade.sha256(folder / item['file']), item['sha256'])
+            self.assertEqual(backup.digest(folder / item['file']), item['sha256'])
             self.assertEqual(stat.S_IMODE((folder / item['file']).stat().st_mode), 0o600)
         self.assertEqual(stat.S_IMODE(folder.stat().st_mode), 0o700)
         self.assertEqual(contents(folder / 'control.sqlite'), (2, 3))

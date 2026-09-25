@@ -173,18 +173,15 @@ class ScheduleDecisionTests(Private):
         self.assertTrue(updates.check_due(offline, at(11, 0), since, document(commit='d' * 40), CURRENT))
 
     def test_an_offline_check_is_a_failure_that_keeps_the_release_it_knew_of(self):
+        # The channel writes no result when the source cannot be read: the one before stays.
         self.put('available.json', document())
-        previous = (self.folder / 'available.json').read_bytes()
-        self.put('available.json', {'current': CURRENT, 'available': None, 'checked_at': 'x',
-                                    'refusals': [updates.UNREACHABLE + ': git ls-remote failed: unable to access']})
-        error, kept = updates.finish_check(0, '', previous, at(10), CURRENT)
-        self.assertTrue(error.startswith(updates.UNREACHABLE))
+        error, kept = updates.finish_check(1, 'The release source could not be read: git ls-remote failed\n', at(10))
+        self.assertTrue(error.startswith('The release source could not be read'))
         self.assertEqual(kept['available']['version'], '0.2.0')
         self.assertEqual(self.get('check.json')['failures'], 1)
-        error, _ = updates.finish_check(1, 'git fetch failed: timeout\n', previous, at(11), CURRENT)
+        error, _ = updates.finish_check(1, 'git fetch failed: timeout\n', at(11))
         self.assertEqual((error, self.get('check.json')['failures']), ('git fetch failed: timeout.', 2))
-        self.put('available.json', document())
-        self.assertEqual(updates.finish_check(0, '', previous, at(12), CURRENT)[0], None)
+        self.assertEqual(updates.finish_check(0, '', at(12))[0], None)
         self.assertEqual(self.get('check.json'), {'attempted_at': updates.stamp(at(12)), 'error': None, 'failures': 0})
 
     def test_automatic_updates_apply_only_a_clear_release_inside_the_window_once(self):
@@ -480,9 +477,8 @@ class SupervisorTests(Private):
         self.put('available.json', document())
         self.turn(at(0, 4))
         self.assertEqual(self.spawned, [])
-        # Offline: the channel exits 0 and writes an empty result naming the unreachable source.
-        self.effect = lambda: self.put('available.json', {'current': CURRENT, 'available': None,
-                                                          'refusals': [updates.UNREACHABLE + ': offline']})
+        # Offline: the channel fails and writes no result.
+        self.outcome = (1, 'The release source could not be read: offline\n')
         self.turn(at(0, 5))
         self.assertEqual(self.spawned, [['/usr/bin/python3', 'lab/upgrade.py', 'channel', '--json']])
         self.turn(at(0, 6))

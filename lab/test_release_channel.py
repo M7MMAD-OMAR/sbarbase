@@ -180,8 +180,7 @@ class ChannelTests(Fixture):
         self.releases.tag('v1.0', 'lightweight')
         stable = channel.list_releases()
         self.assertEqual([item['version'] for item in stable], ['0.1.0', '0.2.0', '0.9.0', '0.10.0'])
-        self.assertTrue(all(item['annotated'] for item in stable))
-        self.assertEqual(stable[0]['commit'], self.first)
+        self.assertEqual(set(stable[0]), {'version', 'tag'})
         preview = channel.list_releases(channel='preview')
         self.assertEqual(preview[-1]['tag'], 'v0.11.0-rc.1')
 
@@ -309,7 +308,7 @@ class ChannelTests(Fixture):
         self.assertEqual((result['refusals'], result['skipped'], result['newest']), ([], [], None))
         available = result['available']
         self.assertEqual(set(available), {'version', 'tag', 'commit', 'class', 'reasons', 'notes', 'changes', 'signed',
-                                          'minimum_from', 'migrations'})
+                                          'minimum_from'})
         self.assertEqual((available['version'], available['tag'], available['commit'], available['class'], available['signed']),
                          ('0.3.0', 'v0.3.0', commit, 'safe', True))
         self.assertEqual(available['notes'], {'en': 'Version 0.3.0.', 'ar': 'الإصدار 0.3.0.'})
@@ -321,9 +320,9 @@ class ChannelTests(Fixture):
 
     def test_nothing_newer_and_an_unreachable_source(self):
         self.assertEqual((channel.check()['available'], channel.check()['refusals']), (None, []))
-        result = channel.check(where=str(self.releases.base / 'no-such-repository'))
-        self.assertIsNone(result['available'])
-        self.assertIn('could not be read', result['refusals'][0])
+        # No result at all, so nothing replaces the last good one.
+        with self.assertRaisesRegex(channel.ReleaseError, 'The release source could not be read'):
+            channel.check(where=str(self.releases.base / 'no-such-repository'))
 
     def test_an_unsigned_release_is_named_as_the_newest_but_never_offered(self):
         self.releases.release('0.2.0', key='stranger')
@@ -396,7 +395,7 @@ class ChannelTests(Fixture):
             self.local('update-ref', channel.NAMESPACE + 'v0.2.0', other)
             return refusal
         with patch.object(channel, 'verify', verify_then_move):
-            details, blockers = channel.examine('v0.2.0', channel.current_version())
+            details, blockers, _ = channel.examine('v0.2.0', channel.current_version())
         self.assertEqual(self.local('rev-parse', channel.NAMESPACE + 'v0.2.0'), other)
         self.assertEqual((details['commit'], details['signed'], blockers), (commit, True, []))
 
@@ -514,6 +513,12 @@ class StartReleaseTests(Fixture):
             self.assertEqual(upgrade.main(['channel', '--json']), 0)
         printed = json.loads(output.getvalue())
         self.assertEqual(printed['available']['version'], '0.2.0')
+        self.assertEqual(json.loads(self.available.read_text()), printed)
+        # An unreachable source fails the command and leaves the last good result in place.
+        with patch.dict(os.environ, {'SBARBASE_RELEASE_SOURCE': str(self.releases.base / 'no-such-repository')}), \
+                redirect_stdout(io.StringIO()), patch('sys.stderr', io.StringIO()) as error:
+            self.assertEqual(upgrade.main(['channel', '--json']), 1)
+        self.assertIn('could not be read', error.getvalue())
         self.assertEqual(json.loads(self.available.read_text()), printed)
 
 

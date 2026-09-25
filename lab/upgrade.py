@@ -32,7 +32,6 @@ import argparse
 import contextlib
 import datetime
 import fcntl
-import hashlib
 import json
 import os
 import re
@@ -44,7 +43,9 @@ import sys
 import time
 from pathlib import Path
 
+import backup
 import durable_runtime as runtime
+import effect_receipt
 import hba_generation
 import hba_journal
 import install_server
@@ -72,7 +73,6 @@ SUPERVISOR_LOCK = UPSTREAM / 'supervisor.lock'
 BACKUP_LOCK = UPSTREAM / 'backup.lock'
 # Records that must be reconciled before anything moves (the same set hba_startup refuses).
 UNSETTLED = ('worker-effect.json', hba_journal.NAME, hba_generation.MIGRATION)
-DATABASE_LOCK = 'distro-image.lock.json'
 # Which lock entry each replaceable service runs, as durable_runtime reads them.
 SERVICES = upgrade_guard.SERVICES
 DEFAULT_TARGET = 'origin/main'
@@ -103,25 +103,11 @@ def resolve(ref):
     return commit
 
 
-def lock_at(commit, name):
-    """A lock file as it is at a commit; None when that version has no such file."""
-    text = git('show', f'{commit}:lab/{name}', check=False)
-    return json.loads(text) if text else None
-
-
-def entries(lock):
-    if not isinstance(lock, dict):
-        return {}
-    if isinstance(lock.get('id'), str):
-        return {'default': lock}
-    return {key: value for key, value in lock.items() if isinstance(value, dict) and isinstance(value.get('id'), str)}
-
-
 def pins_at(commit):
     """The exact image each replaceable service runs at a commit."""
     pins = {}
     for service, (name, key) in SERVICES.items():
-        lock = lock_at(commit, name)
+        lock = release_channel.lock_at(commit, name)
         if lock is None:
             # That version does not run this service at all (Realtime before it existed).
             continue
@@ -136,22 +122,10 @@ def images_at(commit):
     """Every pinned image of a version, as (label, id, pullable reference)."""
     found = []
     for name in install_server.LOCKS:
-        for key, entry in entries(lock_at(commit, name)).items():
+        for key, entry in release_channel.entries(release_channel.lock_at(commit, name)).items():
             digests = [item for item in entry.get('digests') or [] if isinstance(item, str) and '@sha256:' in item]
             found.append((f'{name}:{key}', entry['id'], digests[0] if digests else entry['id']))
     return found
-
-
-def changes(current, target):
-    """Pinned images that differ between two versions, as (label, before, after)."""
-    rows = []
-    for name in install_server.LOCKS:
-        before, after = entries(lock_at(current, name)), entries(lock_at(target, name))
-        for key in sorted(set(before) | set(after)):
-            old, new = before.get(key, {}), after.get(key, {})
-            if old.get('id') != new.get('id'):
-                rows.append((f'{name}:{key}', old.get('tag', 'none'), new.get('tag', 'none')))
-    return rows
 
 
 def load_state():
@@ -170,21 +144,9 @@ def now():
     return datetime.datetime.now(datetime.UTC).isoformat(timespec='seconds')
 
 
-@contextlib.contextmanager
 def exclusive(path, refusal, wait=0):
     """Holds an exclusive flock on path, waiting up to `wait` seconds, or raises UpgradeError."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open('a') as handle:
-        until = time.monotonic() + wait
-        while True:
-            try:
-                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                break
-            except BlockingIOError:
-                if time.monotonic() >= until:
-                    raise UpgradeError(refusal) from None
-                time.sleep(.2)
-        yield
+    return release_channel.exclusive(path, refusal, wait, UpgradeError)
 
 
 def held(path):
@@ -211,22 +173,6 @@ def present(path):
     except FileNotFoundError:
         return False
     return True
-
-
-def sync_directory(path):
-    handle = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
-    try:
-        os.fsync(handle)
-    finally:
-        os.close(handle)
-
-
-def sha256(path):
-    value = hashlib.sha256()
-    with path.open('rb') as handle:
-        for block in iter(lambda: handle.read(1 << 20), b''):
-            value.update(block)
-    return value.hexdigest()
 
 
 def stores():
@@ -264,11 +210,11 @@ def snapshot(commit):
             with copy.open('rb') as handle:
                 os.fsync(handle.fileno())
             files.append({'home': home, 'file': path.name, 'bytes': copy.stat().st_size,
-                          'sha256': sha256(copy), 'user_version': version})
+                          'sha256': backup.digest(copy), 'user_version': version})
         lab.atomic(partial / 'manifest.json', {'from': commit, 'taken_at': now(), 'files': files})
-        sync_directory(partial)
+        effect_receipt.sync_directory(partial)
         os.replace(partial, SNAPSHOTS / name)
-        sync_directory(SNAPSHOTS)
+        effect_receipt.sync_directory(SNAPSHOTS)
     except (OSError, sqlite3.Error) as error:
         shutil.rmtree(partial, ignore_errors=True)
         raise UpgradeError(f'The control state snapshot failed ({error.__class__.__name__}: {error})') from None
@@ -359,7 +305,7 @@ def install_guard():
         handle.flush()
         os.fsync(handle.fileno())
     os.replace(partial, target)
-    sync_directory(target.parent)
+    effect_receipt.sync_directory(target.parent)
 
 
 def catalog_version():
@@ -416,9 +362,23 @@ def plan(target_ref):
         refusals.append('The checkout has local changes to tracked files; commit or discard them first')
     if target == current:
         refusals.append('Already at this version')
-    database = lock_at(current, DATABASE_LOCK), lock_at(target, DATABASE_LOCK)
-    if (database[0] or {}).get('id') != (database[1] or {}).get('id'):
+    diffs = list(release_channel.pin_diffs(current, target))
+    if release_channel.database_changes(diffs):
         refusals.append('This version changes the PostgreSQL image; that needs lab/migrate-generation.py, not an upgrade')
+    # `start` holds the upgrade lock itself while it plans.
+    refusals += transient_refusals(lock=False)
+    ahead = git('rev-list', '--count', f'{current}..{target}', check=False) or '?'
+    behind = git('rev-list', '--count', f'{target}..{current}', check=False) or '?'
+    return {'current': current, 'target': target, 'ahead': ahead, 'behind': behind,
+            'changes': release_channel.changes(current, target, diffs), 'refusals': refusals}
+
+
+def transient_refusals(lock=True):
+    """Why a start would refuse now for a reason that passes by itself: the last upgrade or
+    rollback waits for its restart, an operation record is still to settle, a backup or restore
+    runs, or (with `lock`) another upgrade or rollback holds the upgrade lock. plan() refuses on
+    these; automatic mode (lab/updates.py blocked) waits them out instead of spending its try."""
+    refusals = []
     state = load_state()
     if state and state.get('phase') in PENDING:
         refusals.append(f"The last {'upgrade' if state['phase'] == 'applied' else 'rollback'} has not started yet; restart Sbarbase first")
@@ -427,17 +387,16 @@ def plan(target_ref):
             refusals.append(f'A pending operation record ({name}) must be settled or reconciled first')
     if held(BACKUP_LOCK):
         refusals.append('A backup or restore is running; wait for it to finish')
-    ahead = git('rev-list', '--count', f'{current}..{target}', check=False) or '?'
-    behind = git('rev-list', '--count', f'{target}..{current}', check=False) or '?'
-    return {'current': current, 'target': target, 'ahead': ahead, 'behind': behind,
-            'changes': changes(current, target), 'refusals': refusals}
+    if lock and held(LOCK):
+        refusals.append('Another upgrade or rollback is running')
+    return refusals
 
 
 def report(details, target_ref):
     print(f"now      {details['current'][:12]}")
     print(f"target   {details['target'][:12]}  ({target_ref}: {details['ahead']} commit(s) ahead, {details['behind']} behind)")
-    for label, before, after in details['changes']:
-        print(f'image    {label}: {before} -> {after}')
+    for row in details['changes']:
+        print(f"image    {row['image']}: {row['from']} -> {row['to']}")
     if not details['changes']:
         print('image    no pinned image changes')
     for refusal in details['refusals']:
@@ -890,7 +849,7 @@ def main(argv=None):
         else:
             status()
         return 0
-    except UpgradeError as error:
+    except (UpgradeError, release_channel.ReleaseError) as error:
         print(str(error), file=sys.stderr)
         return 1
 
