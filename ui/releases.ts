@@ -61,7 +61,7 @@ export function newestText(release:Pick<NewestRelease,'version'|'class'>){
   :`Sbarbase ${release.version} is released, but this installation cannot install it yet.`;
 }
 
-/** Release notes in the console's language, falling back to English. */
+/** Release notes in the reader's language, falling back to English. */
 export function releaseNotes(notes:{en:string;ar:string},language:string){
  return language.toLowerCase().startsWith('ar')&&notes.ar.trim()?{text:notes.ar,language:'ar'}:{text:notes.en,language:'en'};
 }

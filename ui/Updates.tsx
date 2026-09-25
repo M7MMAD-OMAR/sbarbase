@@ -169,6 +169,11 @@ function Commands({lines}:{lines:string[]}){return <pre className="log commands"
 
 /** Notes about releases the check passed over: information, never a reason the release on
  * offer cannot be installed. */
+/** The console is English, so release notes follow the reader's browser language instead. */
+function notesLanguage(){
+ return navigator.languages?.find(tag=>/^(ar|en)\b/i.test(tag))??'en';
+}
+
 function Skipped({notes}:{notes:string[]}){
  if(!notes.length)return null;
  return <><h3>Releases passed over</h3><ul className="plain-list small muted">{notes.map(note=><li key={note}><Info aria-hidden="true"/>{note}</li>)}</ul></>;
@@ -203,7 +208,7 @@ export function Updates(){
  const release=view.available,state=installState(view),watch=updates.progress?.watch;
  const checkRunning=Boolean(checking||watch?.kind==='check'&&updates.progress?.delay!==null);
  const checkDone=watch?.kind==='check'&&updates.progress?.delay===null?(watchStage(watch)==='timed_out'?'The check has not finished yet. Look again later.':release?'Checked. A newer release is available.':'Checked. This is the newest release.'):'';
- const notes=release?releaseNotes(release.notes,document.documentElement.lang||'en'):undefined;
+ const notes=release?releaseNotes(release.notes,notesLanguage()):undefined;
  const moving=inProgress(updates.progress)||Boolean(openRequest(view)),acknowledgement=Boolean(view.install?.acknowledgement);
  return <>{heading}
   {watch&&watch.kind!=='check'&&<Progress key={watch.since} updates={updates}/>}

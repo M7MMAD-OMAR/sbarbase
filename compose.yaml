@@ -30,6 +30,9 @@ services:
       # time zone database). The Updates page shows the zone the server actually uses next to
       # the window, so a name that does not resolve shows up as UTC there.
       TZ: ${TZ:-}
+      # Where the update check reads signed releases. Empty means the canonical repository;
+      # set it only for a mirror you control.
+      SBARBASE_RELEASE_SOURCE: ${SBARBASE_RELEASE_SOURCE:-}
       # The address people and OAuth providers reach this server at, for example
       # https://api.example.com. Auth builds email links and callbacks from it.
       SBARBASE_PUBLIC_URL: ${SBARBASE_PUBLIC_URL:-}
