@@ -103,12 +103,13 @@ The update settings, requests and the upgrade record live in `.lab/upgrades/`, p
 | `.lab/upgrades/check.json` | When the last check ran, its error and the count of failures in a row (for the backoff) |
 | `.lab/upgrades/outcome.json` | How the last update child the supervisor ran ended (passed its point of no return, changed anything, refusals, error), for the request's detail and the automatic tries |
 | `.lab/upgrades/ledger.json` | Per version: announced, automatic tries, whether a try was spent past its point of no return, and rolled back |
-| `.lab/upgrades/state.json` | The last upgrade: from, to, phase (`applied`, `confirmed`, `rolling_back`, `rolled_back`, `rollback_failed`, `failed`), who started it, its snapshot, the guard's attempt count, why it went back, and notices the next start sends |
+| `.lab/upgrades/state.json` | The last upgrade: from, to, phase (`applied`, `confirmed`, `rolling_back`, `rolled_back`, `rollback_failed`, `failed`), who started it, its snapshot, the guard's attempt and failed move counts, why it went back, a failed rollback of a confirmed version, whether it is stuck, and notices the next start sends |
 | `.lab/upgrades/snapshots/` | Control state snapshots (catalog and key store) with a manifest; the newest three are kept, plus the one the last upgrade names |
 | `.lab/upgrades/guard.py` | The start guard of the version the last upgrade left, which every start runs first (see [the start guard](../guides/upgrades.md#the-start-guard)) |
 | `.lab/upgrades/hold` | Present while a new version waits for its health checks; the gateway holds application traffic only while `state.json` also says a start is pending |
 | `.lab/upgrades/probe-token` | A random token for this start's health checks through the gateway, 0600; it exists only while the hold does |
 | `.lab/upgrades/evidence-<time>/` | Evidence written on this server, copied aside before the checkout moved |
+| `.lab/upgrades/aside-<time>/` | Local changes to tracked files, and untracked files the previous version would overwrite, copied here by a way back before it forced the checkout; one folder per way back. Nothing prunes them: remove one yourself once you no longer need it |
 | `.lab/upgrades/upgrade.lock`, `channel.lock`, `check.log`, `apply.log`, `rollback.log` | The lock one upgrade or rollback holds, the lock of one release check or fetch, and the output of the last child of each kind |
 | `.lab/upstream/worker-drain` | Present while the supervisor drains before an update: the worker claims no new job |
 | `.lab/upstream/upgrade-intent.json` | Which pinned images the next start may replace, written by an upgrade or a way back |
@@ -126,6 +127,7 @@ Both are ignored by Git. Never print `.secrets/`, and never delete either to get
 | `.lab/upstream/*.json` | Operation journals, recovery descriptors and probe outputs |
 | `.lab/ui/` | The built console |
 | `.lab/backups/` | Daily backups per environment, and the installation manifest of each run under `installation/` |
+| `.lab/backups/upgrade-moved.json` | The backup runs of upgrades that moved the checkout. The last 3 of them are kept out of pruning; an upgrade try that stopped before the move keeps ordinary backups |
 | `.secrets/upstream/runtime.json` | Generated credentials of the owned runtime |
 | `.secrets/upstream/managed-keys.sqlite` | Hashed publishable key metadata |
 | `.secrets/upstream/bootstrap.json` | Operator setup journal (no password) |
@@ -141,7 +143,7 @@ Set these in `compose.yaml` (Docker) or as `Environment=` lines of the systemd s
 | `SBARBASE_PUBLIC_URL` | `http://localhost` | The address people and OAuth providers reach this server at, such as `https://api.example.com`. Auth builds email links and OAuth callbacks from it. A change applies at the next start |
 | `SBARBASE_CONSOLE_PORT` | chosen at start | The loopback port of the console and API, for a TLS proxy |
 | `SBARBASE_BACKUP_HOUR` | `3` | Hour (UTC) of the daily backup; `off` stops it |
-| `SBARBASE_BACKUP_KEEP` | `7` | Backups kept per environment. Backups taken for an upgrade are not counted: those of the last 3 upgrades are always kept |
+| `SBARBASE_BACKUP_KEEP` | `7` | Backups kept per environment. Backups taken for an upgrade are not counted: those of the last 3 upgrades that moved the checkout are always kept |
 | `TZ` | UTC in the container | The zone the maintenance window of automatic updates is read in, for example `Asia/Dubai`. Outside Docker the server's own zone applies |
 | `SBARBASE_RELEASE_SOURCE` | the canonical repository | Where the update check reads signed releases: a mirror's Git URL or path |
 | `SBARBASE_DATABASE_PORT` | `6543` | Port of the direct database access listener ([database access](../guides/database-access.md)); `off` turns it off |
