@@ -13,7 +13,7 @@
 #                                                    to OUT on the host (private, mode 700)
 #   lab/vm-milestones.sh --dir DIR restore-drill IN restore IN (from export) into this VM and
 #                                                    sign the drill users in
-#   lab/vm-milestones.sh --dir DIR upgrade          upgrade, automatic way back, operator rollback
+#   lab/vm-milestones.sh --dir DIR upgrade          upgrade, operator rollback, automatic way back
 #   lab/vm-milestones.sh --dir DIR environments     fill to the environment limit and measure
 #   lab/vm-milestones.sh --dir DIR soak MINUTES     sample memory, disk, logs and restarts
 #
@@ -159,7 +159,7 @@ restore-drill)
   evidence vm-restore-drill.json; exit "$status"
   ;;
 upgrade)
-  step "two candidate versions on top of the installed one"
+  step "candidate versions on top of the installed one"
   versions=$(guest 'cd /opt/sbarbase && sudo -u sbarbase /usr/bin/python3 lab/upgrade-check.py candidates')
   eval "$versions"
   phase() {
@@ -171,23 +171,34 @@ upgrade)
     done
     printf 'upgrade phase: %s (expected %s)\n' "$p" "$1"; return 1
   }
-  as_service "/usr/bin/python3 lab/upgrade-check.py before $good $bad"
-  step "upgrade to a newer PostgREST"
-  as_service "/usr/bin/python3 lab/upgrade.py start --to $good"
-  guest 'sudo systemctl restart sbarbase'; phase confirmed || fail "the upgrade was not confirmed"
-  as_service "/usr/bin/python3 lab/upgrade-check.py after upgraded"
-  step "a version whose PostgREST never starts moves back by itself"
-  as_service "/usr/bin/python3 lab/upgrade.py start --to $bad"
-  guest 'sudo systemctl restart sbarbase'; phase rolled_back || fail "the broken version was not moved back"
-  as_service "/usr/bin/python3 lab/upgrade-check.py after rolled-back --evidence docs/evidence/vm-upgrade-checks.json"
-  step "the operator goes back to the version before the upgrade"
-  as_service "/usr/bin/python3 lab/upgrade.py rollback"
-  guest 'sudo systemctl restart sbarbase'; wait_service || fail "the service did not come back after the rollback"
-  back=$(guest 'cd /opt/sbarbase && sudo -u sbarbase git rev-parse HEAD')
-  as_service "/usr/bin/python3 lab/upgrade.py status" || :
-  printf 'checkout after the rollback: %s (installed version %s)\n' "$back" "$base"
-  [ "$back" = "$base" ] || fail "the rollback did not return to the installed version"
-  evidence vm-upgrade-checks.json
+  # `upgrade.py rollback` takes a confirmed upgrade only, so the operator's rollback comes right
+  # after the confirmation, and the broken version then moves back to the installed one.
+  # The evidence file is written once, at the end, even when a stage fails: a changed tracked
+  # file would make the next `upgrade.py start` refuse.
+  rehearse_upgrade() {
+    as_service "/usr/bin/python3 lab/upgrade-check.py before base=$base good=$good bad=$bad" || return 1
+    step "upgrade to a newer PostgREST"
+    as_service "/usr/bin/python3 lab/upgrade.py start --to $good" || return 1
+    guest 'sudo systemctl restart sbarbase'
+    phase confirmed || { printf 'FAIL: the upgrade was not confirmed\n' >&2; return 1; }
+    as_service "/usr/bin/python3 lab/upgrade-check.py after upgraded" || return 1
+    step "the operator goes back to the version before the upgrade"
+    as_service "/usr/bin/python3 lab/upgrade.py rollback" || return 1
+    guest 'sudo systemctl restart sbarbase'
+    phase rolled_back || { printf 'FAIL: the rollback did not come back\n' >&2; return 1; }
+    as_service "/usr/bin/python3 lab/upgrade-check.py after operator-rollback" || return 1
+    step "a version whose PostgREST never starts moves back by itself"
+    as_service "/usr/bin/python3 lab/upgrade.py start --to $bad" || return 1
+    guest 'sudo systemctl restart sbarbase'
+    phase rolled_back || { printf 'FAIL: the broken version was not moved back\n' >&2; return 1; }
+    as_service "/usr/bin/python3 lab/upgrade.py status" || :
+    as_service "/usr/bin/python3 lab/upgrade-check.py after rolled-back --back-to base" || return 1
+  }
+  status=0
+  rehearse_upgrade || status=1
+  as_service "/usr/bin/python3 lab/upgrade-check.py evidence docs/evidence/vm-upgrade-checks.json upgraded operator-rollback rolled-back" || status=1
+  evidence vm-upgrade-checks.json || :
+  exit "$status"
   ;;
 environments)
   step "fill the installation to its environment limit and measure it"
