@@ -700,7 +700,7 @@ class RestartTests(ProducerCase):
                 stages.append('supervisor')
         with patch.object(dev, 'STATE', state), patch.object(notification_producers, 'CATALOG', self.catalog), \
                 patch.object(dev, 'run_stage', run_stage), patch.object(dev, 'upgrade_prepare', return_value=False), \
-                patch.object(dev, 'upgrade_outcome', return_value=False), \
+                patch.object(dev, 'upgrade_outcome', return_value=False), patch.object(dev, 'upgrade_notices'), \
                 patch.object(dev.console_build_check, 'is_fresh', return_value=(True, 'fresh')), \
                 patch.object(dev, 'Supervisor', Moved), patch.object(dev.os, 'chdir'), patch.object(dev.sys, 'argv', ['dev.py']), \
                 patch('builtins.print'):

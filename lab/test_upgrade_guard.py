@@ -87,6 +87,23 @@ class GuardTests(Checkout):
         self.assertFalse(upgrade.after_start(True))
         self.assertEqual(self.state()['phase'], 'rolled_back')
 
+    def test_the_next_start_announces_what_the_guard_did_once(self):
+        upgrade.start(self.second)
+        self.guard()
+        self.guard()  # the new version died: back to the previous one
+        self.assertEqual(self.state()['notices'], [{'was': 'applied', 'phase': 'rolling_back'}])
+        self.guard()  # the previous version died too
+        self.assertEqual(self.state()['notices'], [{'was': 'applied', 'phase': 'rolling_back'},
+                                                  {'was': 'rolling_back', 'phase': 'rollback_failed'}])
+        seen = []
+        with patch.object(dev.updates, 'announce_outcome', side_effect=lambda before, after, catalog=None:
+                          seen.append((before['phase'], after['phase'], after['automatic'], before['started_at'] == after['started_at']))):
+            self.assertEqual(dev.upgrade_notices(), 2)
+            self.assertEqual(dev.upgrade_notices(), 0)
+        self.assertEqual(seen, [('applied', 'rolling_back', True, True), ('rolling_back', 'rollback_failed', True, True)])
+        self.assertNotIn('notices', self.state())
+        self.assertEqual(self.state()['phase'], 'rollback_failed')
+
     def test_a_preflight_that_failed_before_the_supervisor_ran_goes_back_without_a_restore(self):
         """ExecStartPre install_server.py check, or bun install in the container, failed: the new
         version never opened the control state, so what the old version wrote since stays."""
@@ -366,7 +383,7 @@ class MainTests(unittest.TestCase):
                      patch.object(dev, 'upgrade_prepare', return_value=True),
                      patch.object(dev, 'run_stage', return_value=0),
                      patch.object(dev.console_build_check, 'is_fresh', return_value=(True, 'fresh')),
-                     patch.object(dev, 'notify_installation'),
+                     patch.object(dev, 'notify_installation'), patch.object(dev, 'upgrade_notices'),
                      patch.object(dev, 'upgrade_confirmation'),
                      patch.object(dev, 'upgrade_outcome', side_effect=lambda started, catalog=None, reason=None:
                                   self.calls.append(('outcome', started, reason)) or False),

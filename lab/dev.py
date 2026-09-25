@@ -682,6 +682,28 @@ def upgrade_outcome(started, catalog=None, reason=None):
     return result
 
 
+def upgrade_notices(catalog=None):
+    """Emits the outcomes the guard recorded (lab/upgrade_guard.py notice): a way back it took, or
+    a rollback_failed, which no process with the notification machinery saw happen. Each goes
+    through announce_outcome as if this process had made the change, so the notification and the
+    ledger entry are the same as for one it made; then the notices leave the record. Never raises."""
+    try:
+        import upgrade
+        state = upgrade.load_state()
+        notices = state.get('notices') if isinstance(state, dict) else None
+        if not isinstance(notices, list) or not notices:
+            return 0
+        for item in notices:
+            if isinstance(item, dict):
+                updates.announce_outcome({**state, 'phase': item.get('was')}, {**state, 'phase': item.get('phase')},
+                                         catalog=catalog)
+        upgrade.clear_notices(len(notices))
+        return len(notices)
+    except Exception as error:
+        print(f'Upgrade notification failed: {error}', file=sys.stderr)
+        return 0
+
+
 def upgrade_confirmed(catalog=None):
     """Records that a pending upgrade or rollback passed its health checks. True only once that
     is saved: until then the hold stays, the worker does not start, and the supervisor tries
@@ -823,6 +845,8 @@ def main():
             # durable: that is the state change this event records. A stage that fails
             # leaves no durable start, and no event is emitted for it here.
             notify_installation('installation.started')
+            # A way back the guard took before this start is announced now, in this version's catalog.
+            upgrade_notices()
             if not gated:
                 upgrade_outcome(True)
             if not stop_event.is_set():

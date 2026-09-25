@@ -704,6 +704,17 @@ def before_start():
     return True
 
 
+def clear_notices(count):
+    """Drops the first `count` notices the guard recorded (upgrade_guard.notice), once the
+    supervisor announced them; any the guard added since stay."""
+    with exclusive(LOCK, 'Another upgrade or rollback is running', wait=30):
+        state = load_state()
+        if not isinstance(state, dict) or not isinstance(state.get('notices'), list):
+            return
+        rest = state.pop('notices')[count:]
+        save_state({**state, 'notices': rest} if rest else state)
+
+
 def close_attempt():
     """A start that stopped cleanly before its verdict (a stop signal, Ctrl+C, a reboot) closes
     the attempt the guard opened, so the next start does not take it for a crash. Returns
