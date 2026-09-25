@@ -164,8 +164,11 @@ def installation_manifest(stamp, runtimes, environ=os.environ):
     }
 
 
-def write_installation(stamp, runtimes, keep=backup.DEFAULT_KEEP, environ=os.environ):
-    """Write ``installation/<stamp>/`` beside the environment backups; manifest.json last."""
+def write_installation(stamp, runtimes, keep=backup.DEFAULT_KEEP, environ=os.environ, reason=None):
+    """Write ``installation/<stamp>/`` beside the environment backups; manifest.json last. A run
+    taken for an upgrade is marked like its environment backups, so pruning keeps it too."""
+    if reason is not None and reason not in backup.REASONS:
+        raise BackupError('Unknown backup reason')
     target = backup.private_dir(backup.BACKUPS / INSTALLATION) / stamp
     if target.exists():
         raise BackupError('An installation manifest with this time already exists')
@@ -175,6 +178,8 @@ def write_installation(stamp, runtimes, keep=backup.DEFAULT_KEEP, environ=os.env
     record = {'version': 1, 'kind': 'installation', 'created_at': stamp,
               'installation': {'file': 'installation.json', 'bytes': (target / 'installation.json').stat().st_size,
                                'sha256': backup.digest(target / 'installation.json')}}
+    if reason is not None:
+        record['reason'] = reason
     backup.write_private(target / 'manifest.json', json.dumps(record, indent=2) + '\n')
     backup.prune(INSTALLATION, keep)
     return target

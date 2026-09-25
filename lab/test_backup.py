@@ -26,16 +26,18 @@ class Fixture(unittest.TestCase):
     def tearDown(self):
         self.directory.cleanup()
 
-    def complete(self, stamp, counts=None):
-        path = backup.private_dir(self.backups / E / stamp)
+    def complete(self, stamp, counts=None, reason=None, e=E):
+        path = backup.private_dir(self.backups / e / stamp)
         (path / 'database.dump').write_bytes(b'dump-' + stamp.encode())
         (path / 'objects.tar').write_bytes(b'tar-' + stamp.encode())
-        manifest = {'version': 1, 'runtime': E, 'created_at': stamp,
+        manifest = {'version': 1, 'runtime': e, 'created_at': stamp,
                     'database': {'file': 'database.dump', 'bytes': (path / 'database.dump').stat().st_size,
                                  'sha256': backup.digest(path / 'database.dump')},
                     'objects': {'file': 'objects.tar', 'bytes': (path / 'objects.tar').stat().st_size,
                                 'sha256': backup.digest(path / 'objects.tar'), 'files': 0},
                     'counts': counts or {'auth.users': 1}}
+        if reason:
+            manifest['reason'] = reason
         (path / 'manifest.json').write_text(json.dumps(manifest))
         return path
 
@@ -55,6 +57,50 @@ class RetentionTests(Fixture):
     def test_keeping_nothing_is_refused(self):
         with self.assertRaises(backup.BackupError):
             backup.prune(E, 0)
+
+    def test_backups_of_the_last_three_upgrades_are_kept_and_not_counted(self):
+        upgrades = ['20260901T100000Z', '20260903T100000Z', '20260905T100000Z', '20260907T100000Z']
+        for day in range(1, 10):
+            self.complete(f'202609{day:02d}T030000Z')
+        for stamp in upgrades:
+            self.complete(stamp, reason='upgrade')
+        self.assertEqual(backup.upgrade_runs(), set(upgrades[1:]))
+        backup.prune(E, 2)
+        names = [path.name for path in backup.complete_backups(E)]
+        # The two newest daily backups, plus the last three upgrades whatever their age; the
+        # oldest upgrade is an ordinary backup again and was pruned with the others.
+        self.assertEqual(names, ['20260903T100000Z', '20260905T100000Z', '20260907T100000Z', '20260908T030000Z', '20260909T030000Z'])
+
+    def test_an_upgrade_is_one_run_across_environments(self):
+        other = 'e_' + 'b' * 24
+        # The last upgrade backed up only the other environment (this one failed or did not exist):
+        # it still counts as one of the last three upgrades for every directory.
+        for stamp in ('20260901T100000Z', '20260902T100000Z', '20260903T100000Z'):
+            self.complete(stamp, reason='upgrade')
+        self.complete('20260904T100000Z', reason='upgrade', e=other)
+        self.complete('20260905T030000Z')
+        self.assertEqual(backup.upgrade_runs(), {'20260902T100000Z', '20260903T100000Z', '20260904T100000Z'})
+        backup.prune(E, 1)
+        self.assertEqual([path.name for path in backup.complete_backups(E)], ['20260902T100000Z', '20260903T100000Z', '20260905T030000Z'])
+        # A damaged manifest is never taken for an upgrade.
+        (self.backups / E / '20260905T030000Z' / 'manifest.json').write_text('[')
+        self.assertEqual(len(backup.upgrade_runs()), 3)
+
+    def test_the_command_passes_its_reason_to_every_backup_of_the_run(self):
+        import offsite
+        parsed = []
+
+        def create(e, keep, now, reason):
+            parsed.append(reason)
+            raise backup.BackupError('stop here')
+        # The off-site configuration is never read here: it lives with the secrets.
+        with patch.object(backup, 'create', create), patch.object(offsite, 'load_config', return_value=None), \
+                patch('sys.stderr'), patch('builtins.print'):
+            self.assertEqual(backup.main(['create', E, '--reason', 'upgrade', '--local-only']), 1)
+            self.assertEqual(backup.main(['create', E, '--local-only']), 1)
+        self.assertEqual(parsed, ['upgrade', None])
+        with patch('sys.stderr'), self.assertRaises(SystemExit):
+            backup.main(['create', E, '--reason', 'whim'])
 
 
 class VerifyTests(Fixture):
@@ -175,6 +221,15 @@ class RestoreTests(Fixture):
                  type('A', (), {'getmembers': lambda self: []})())):
             (self.backups / E).mkdir(parents=True, exist_ok=True)
             path, manifest = backup.create(E)
+            self.assertNotIn('reason', manifest)
+            import datetime
+            later = datetime.datetime(2026, 9, 25, 3, tzinfo=datetime.UTC)
+            marked = backup.create(E, reason='upgrade', now=later)[1]
+            with self.assertRaisesRegex(backup.BackupError, 'reason'):
+                backup.create(E, reason='whim', now=later.replace(hour=4))
+        self.assertEqual(marked['reason'], 'upgrade')
+        self.assertEqual(json.loads((self.backups / E / '20260925T030000Z' / 'manifest.json').read_text())['reason'], 'upgrade')
+        self.assertEqual(backup.upgrade_runs(), {'20260925T030000Z'})
         self.assertEqual(manifest['counts'], {'auth.users': 7, 'auth.identities': 7, 'storage.buckets': 1, 'storage.objects': 2})
         self.assertIn('--snapshot=00000003-0000002A-1', dumped[0])
         self.assertTrue(written[0].startswith('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;'))
