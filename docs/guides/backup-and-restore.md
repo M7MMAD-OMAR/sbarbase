@@ -132,7 +132,7 @@ What a backup does not carry, and what you do after the restore:
 - **The JWT signing key.** The new environment has its own. Users sign in again with their old passwords, which the backup keeps; existing sessions and signed Storage URLs stop working.
 - **Direct database access, Studio, Realtime and Edge Functions.** Turn them on again where you used them; database access gets a new password.
 
-This path is covered by unit tests of the catalog, the API and the command. It has not yet been rehearsed end to end on a second machine.
+This path is covered by unit tests of the catalog, the API and the command. It has not yet been rehearsed end to end on a second machine. One risk is known: an environment that had Studio, Realtime or direct database access has logins for them that its database grants access to, and a new installation does not have those logins until the feature is turned on, so the restore may refuse. Expect to meet this in the first rehearsal.
 
 ## Whole-server cold backup
 

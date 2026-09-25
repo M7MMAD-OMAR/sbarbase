@@ -225,7 +225,7 @@ export class Catalog {
       CREATE TABLE IF NOT EXISTS deleted_runtimes(
         runtime TEXT PRIMARY KEY, environment TEXT NOT NULL, project TEXT NOT NULL,
         organization TEXT NOT NULL, actor TEXT NOT NULL, at INTEGER NOT NULL,
-        attempt INTEGER NOT NULL, claim TEXT, exit_code INTEGER);
+        attempt INTEGER NOT NULL, claim TEXT, exit_code INTEGER, receipt_token TEXT, decision TEXT);
       CREATE TABLE IF NOT EXISTS audit_events(
         sequence INTEGER PRIMARY KEY AUTOINCREMENT, actor TEXT NOT NULL,
         action TEXT NOT NULL, subject TEXT NOT NULL, detail TEXT NOT NULL, at INTEGER NOT NULL);
@@ -969,7 +969,16 @@ export class Catalog {
   recoverPreflightReceipt(environment:string,runtime:string,claim:string,attempt:number,token:string):'requeued'|'failed' {
     return this.db.transaction(()=>{
       const job=this.job(environment);
-      if(!job||job.runtime!==runtime||job.attempt<attempt)throw new Error('Preflight receipt mismatch');
+      if(!job) {
+        // Deleted after this decision committed: answer the recorded decision, and only for
+        // exactly that receipt, so a worker restarting before it consumed the receipt goes on.
+        const gone=this.db.query<{environment:string;attempt:number;claim:string|null;receipt_token:string|null;decision:string|null},[string]>(
+          'SELECT environment,attempt,claim,receipt_token,decision FROM deleted_runtimes WHERE runtime=?').get(runtime);
+        if(gone&&gone.environment===environment&&gone.attempt===attempt&&gone.claim===claim&&gone.receipt_token===token&&gone.decision)
+          return gone.decision==='retry'?'requeued':'failed';
+        throw new Error('Preflight receipt mismatch');
+      }
+      if(job.runtime!==runtime||job.attempt<attempt)throw new Error('Preflight receipt mismatch');
       const prior=this.db.query<{runtime:string;claim:string;receipt_token:string;decision:string},[string,number]>(
         'SELECT runtime,claim,receipt_token,decision FROM provision_recovery_decisions WHERE environment=? AND attempt=?').get(environment,attempt);
       if(prior) {
@@ -1112,13 +1121,16 @@ export class Catalog {
       const job=this.job(environment);
       if(job&&['queued','running'].includes(job.state))throw new Error('Provisioning is active');
       if(job&&this.runtimeServicesActive(job.runtime))throw new Error('Environment services are still on');
-      this.record(actor,'environment.deleted',environment,{project:project.id});
+      // Recorded against the project, which stays, so its organization still sees who deleted what.
+      this.record(actor,'environment.deleted',project.id,{});
       if(job) {
         const result=this.db.query<{claim:string;exit_code:number},[string,number]>(
           'SELECT claim,exit_code FROM provision_effect_results WHERE environment=? AND attempt=?').get(environment,job.attempt);
-        this.db.query(`INSERT INTO deleted_runtimes(runtime,environment,project,organization,actor,at,attempt,claim,exit_code)
-          VALUES (?,?,?,?,?,?,?,?,?)`).run(job.runtime,environment,project.id,project.organization,actor,Date.now(),
-          job.attempt,result?.claim??null,result?.exit_code??null);
+        const decision=this.db.query<{claim:string;receipt_token:string;decision:string},[string,number]>(
+          'SELECT claim,receipt_token,decision FROM provision_recovery_decisions WHERE environment=? AND attempt=?').get(environment,job.attempt);
+        this.db.query(`INSERT INTO deleted_runtimes(runtime,environment,project,organization,actor,at,attempt,claim,exit_code,receipt_token,decision)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?)`).run(job.runtime,environment,project.id,project.organization,actor,Date.now(),
+          job.attempt,result?.claim??decision?.claim??null,result?.exit_code??null,decision?.receipt_token??null,decision?.decision??null);
         for(const table of ['runtime_routing','studio_sessions','gateway_shares','auth_settings','realtime_settings',
           'functions_settings','database_access','signing_keys'])
           this.db.query(`DELETE FROM ${table} WHERE runtime=?`).run(job.runtime);

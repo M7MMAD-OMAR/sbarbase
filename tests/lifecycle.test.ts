@@ -97,6 +97,35 @@ test('a worker that restarts with the receipt of a deleted environment settles i
   } finally {catalog.close();}
 });
 
+test('a preflight receipt of a deleted environment gets its recorded decision back, and only that receipt',()=>{
+  const catalog=new Catalog(':memory:');
+  try {
+    const org=catalog.createOrganization('alice','A'),project=catalog.createProject('alice',org,'P');
+    const environment=catalog.createEnvironment('alice',project,'production');
+    let job=catalog.claimProvision()!;
+    for(const token of ['t1','t2']) {
+      expect(catalog.recoverPreflightReceipt(environment,job.runtime,job.claim!,job.attempt,token)).toBe('requeued');
+      job=catalog.claimProvision()!;
+    }
+    expect(catalog.recoverPreflightReceipt(environment,job.runtime,job.claim!,job.attempt,'t3')).toBe('failed');
+    catalog.deleteEnvironment('alice',environment);
+    expect(catalog.recoverPreflightReceipt(environment,job.runtime,job.claim!,job.attempt,'t3')).toBe('failed');
+    expect(()=>catalog.recoverPreflightReceipt(environment,job.runtime,job.claim!,job.attempt,'t4')).toThrow('Preflight receipt mismatch');
+    expect(()=>catalog.recoverPreflightReceipt(environment,job.runtime,job.claim!,job.attempt-1,'t2')).toThrow('Preflight receipt mismatch');
+    // The effect path refuses it too: no effect ever settled for that attempt.
+    expect(()=>catalog.applyProvisionReceipt(environment,job.runtime,job.claim!,job.attempt,0)).toThrow('Provisioning receipt mismatch');
+  } finally {catalog.close();}
+});
+
+test('the organization still sees who deleted an environment',async()=>{
+  const s=setup();
+  try {
+    expect((await s.call('alice','DELETE',`environments/${s.environment}`)).status).toBe(200);
+    const deleted=s.catalog.auditEvents('alice',s.a).find(event=>event.action==='environment.deleted');
+    expect(deleted).toMatchObject({actor:'alice',kind:'project',subject:'Shop'});
+  } finally {s.close();}
+});
+
 test('renames keep names unique where the hierarchy scopes them',async()=>{
   const s=setup();
   try {
