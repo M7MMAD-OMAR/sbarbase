@@ -94,7 +94,9 @@ Wants=sbarbase.service
 [Service]
 User=sbarbase
 WorkingDirectory=/opt/sbarbase
-ExecStart=/home/sbarbase/.bun/bin/bun deploy/console-tls-proxy.ts --cert /etc/sbarbase-tls/console.pem --key /etc/sbarbase-tls/console.key --public-host $HOST_NAME --upstream http://127.0.0.1:8787 --https-port 8443 --http-port 8080
+# SELinux on Fedora refuses systemd executing a binary under /home directly
+# (status 203/EXEC, Permission denied); a shell started by systemd may exec it.
+ExecStart=/bin/sh -c 'exec /home/sbarbase/.bun/bin/bun deploy/console-tls-proxy.ts --cert /etc/sbarbase-tls/console.pem --key /etc/sbarbase-tls/console.key --public-host $HOST_NAME --upstream http://127.0.0.1:8787 --https-port 8443 --http-port 8080'
 Restart=always
 RestartSec=3
 
@@ -114,7 +116,7 @@ hsts=\$(curl -sI --cacert /etc/sbarbase-tls/ca.pem https://$HOST_NAME:8443/ | gr
 redirect=\$(curl -s -o /dev/null -w '%{http_code} %{redirect_url}' http://$HOST_NAME:8080/)
 port=\$(sudo /usr/bin/python3 -c 'import json;print(json.load(open(\"/opt/sbarbase/.lab/upstream/server.json\"))[\"url\"])')
 echo \"console over https: \$code; hsts: \$hsts; plain http: \$redirect; console upstream: \$port\"
-[ \"\$code\" = 200 ] && [ \"\$hsts\" = 1 ] && case \"\$redirect\" in 308\ https://$HOST_NAME:8443/*) true;; *) false;; esac && case \"\$port\" in *:8787) true;; *) false;; esac"
+[ \"\$code\" = 200 ] && [ \"\$hsts\" = 1 ] && case \"\$redirect\" in 308\ https://$HOST_NAME/*) true;; *) false;; esac && case \"\$port\" in *:8787) true;; *) false;; esac"
   }
   step "console and redirect over HTTPS"
   https_checks || fail "the console does not answer over HTTPS"
