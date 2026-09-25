@@ -6,6 +6,9 @@ import {connect,createServer as createTcpServer,type Socket,type Server as TcpSe
 export type UpgradeDecision={ok:true;host:string;port:number;head:string}|{ok:false;status:number;message:string};
 export type Upgrade=(path:string,headers:Headers)=>UpgradeDecision|Promise<UpgradeDecision>;
 const MAX_HEAD=16384;
+/** An unread request body up to this size is read and discarded after an early answer, for at
+ * most DISCARD_WAIT_MS, so the connection can carry the next request. */
+const DISCARD_BODY=64*1024,DISCARD_WAIT_MS=1_000;
 
 const HOP_BY_HOP=new Set(['connection','keep-alive','proxy-authenticate','proxy-authorization','te','trailer','transfer-encoding','upgrade']);
 
@@ -60,6 +63,16 @@ export async function serveLocal(fetch:(request:Request)=>Response|Promise<Respo
     ...(hasBody?{body:requestBody(incoming),duplex:'half'}:{})} as RequestInit);
    const response=await fetch(request);
    if(abort.signal.aborted){void response.body?.cancel().catch(()=>{});return;}
+   // A small declared body the handler never read, as when admission refuses a REST call with
+   // 429 before reading it, is read and discarded here, as Node's own server does. The
+   // connection then stays reusable instead of being closed for every refusal; a client
+   // whose pool ignores `connection: close` (Bun's fetch) otherwise races the close.
+   if(hasBody&&!incoming.readableEnded&&!request.bodyUsed&&length!==undefined&&Number(length)<=DISCARD_BODY){
+    let timer:ReturnType<typeof setTimeout>|undefined;
+    await Promise.race([request.arrayBuffer().catch(()=>{}),new Promise(resolve=>{timer=setTimeout(resolve,DISCARD_WAIT_MS);})]);
+    clearTimeout(timer);
+    if(abort.signal.aborted){void response.body?.cancel().catch(()=>{});return;}
+   }
    const output:Record<string,string|string[]>={};
    // An answer before the body was read in full (a refused upload): the rest of the body is
    // still on the connection, so it cannot carry another request. Tell the client, drain what
@@ -71,6 +84,14 @@ export async function serveLocal(fetch:(request:Request)=>Response|Promise<Respo
      // Once the client has sent everything nothing unread is left, so closing cannot cut off
      // the answer; a client that keeps sending is closed after a second.
      incoming.once('end',()=>incoming.socket?.destroy());incoming.resume();
+     // The close must happen now, not only after the drain. Bun's node:http sends
+     // `connection: close` yet keeps the connection open and serves further requests on it,
+     // and Bun's fetch reuses such a connection from its pool. Left open, a later request
+     // landed on it and was cut off mid-flight by the one-second destroy below: a request
+     // admitted to a slow upstream died about 150 ms in with no status
+     // (docs/engineering/RESOURCE-POLICY.md, section 5.0). Ending it here sends the client
+     // end of stream right after the answer, and no later request is served on it.
+     incoming.socket?.end();
      setTimeout(()=>incoming.socket?.destroy(),1_000).unref();
     });
    }

@@ -567,8 +567,9 @@ on that fixture, each alone, from a stopped runtime, stopped afterwards:
   151 ms, one every 2050 ms, at the moment each batch of two-second RPCs releases
   its slots. The failure condition "any unexpected target status" fired, so this is
   recorded as a failure in
-  [gateway-sustained-failure.json](../evidence/gateway-sustained-failure.json); the
-  cause (gateway, local server or client connection reuse) is not established.
+  [gateway-sustained-failure.json](../evidence/gateway-sustained-failure.json). The
+  cause was not established by that run; it was found and fixed the same day, see
+  "Cause of the dropped sustained requests" below.
   One earlier run of the same vehicle failed in setup at "neighbor succeeds while
   target requests remain active" and left no artifact.
 - `lab/sdk-load-check.ts --policy-regression` **passed** with no failed operation
@@ -576,6 +577,53 @@ on that fixture, each alone, from a stopped runtime, stopped afterwards:
   the earlier run). Concurrent phase p95 against the previous file: read 2.8 (3.0)
   ms, insert 4.5 (12.5), identity 33.6 (28.2), upload 14.4 (18.4), download 9.0
   (7.6); pressure snapshots stayed at or near zero.
+
+**Cause of the dropped sustained requests, found and fixed 2026-09-25.** The fault
+was in the loopback listener, `src/http/local-server.ts`, not in admission, the
+upstream or the SQL. It was reproduced without Docker: the same arrival pattern (20
+per second at a REST budget of 3 with a two-second upstream, 2 per second at a
+neighbour, 30 s) through `createGateway` and `serveLocal` in front of a loopback
+stub gave 555 correct 429s, 30 correct 200s and 15 client errors, "The socket
+connection was closed unexpectedly", against the live run's 555, 31 and 14. The
+upstream fetch never failed, a Node style stub upstream gave the same errors, and the
+same load with client keep-alive turned off gave none. The chain:
+
+1. Admission refuses a REST call with 429 before its body is read. The listener
+   treats any answer sent before the body is read as leaving unread bytes on the
+   connection, so it sends `connection: close`, waits for the request's `end` event
+   to destroy the socket, and destroys it after one second as a backstop.
+2. Bun's `node:http` (1.3.14) sends that header but keeps the connection open and
+   keeps serving later requests on it, and in this path the request's `end` event
+   never fires, so every refused connection lived exactly until the one-second
+   destroy (traced: one destroy per 429, each at its answer plus 1 s).
+3. Bun's `fetch` reuses a pooled connection after an answer that carries
+   `connection: close` (five sequential requests to such a server used one
+   connection). This is the trigger, not the cause: the listener advertised a close
+   it did not perform.
+4. A 429 finishes in a few milliseconds, so a reused connection rarely hurt one.
+   The first target request admitted after a batch of two-second calls released its
+   slots lives two seconds, so when it landed on a connection whose last 429 was
+   about 850 ms earlier, the destroy cut it off about 1000 - 850 = 150 ms in, once
+   per batch, which is the 151 ms every 2050 ms in the evidence.
+
+The fix, in the listener: a small declared body (up to 64 KiB) that the handler
+never read is now read and discarded before the answer, for at most one second, as
+Node's own server does, so a refusal leaves the connection reusable and sends no
+`connection: close`. A larger or unframed unread body still gets `connection: close`,
+and the listener now ends the socket as soon as the answer is written instead of
+leaving it open to serve further requests until the backstop. A close alone still
+raced Bun's pool: with only that change the 30 s stub run gave 45 correct target
+200s but one to four neighbour requests failed within 2 ms on a connection the pool
+reused just before it saw the close. With both changes three 30 s stub runs gave 555
+correct 429s, 45 correct target 200s (three slots for each of fifteen batches) and
+60 neighbour 200s, with no client error. Regression tests in
+`tests/local-server.test.ts`, "connections after an early answer", fail on the old
+listener and pass on the new one: a 1.5 s request reusing a refused connection is
+answered in full, a large unread body closes the connection within 500 ms of the
+answer, and a shortened sustained pattern through the real gateway and Bun's fetch
+sees only 200 and 429. The live `--sustained` run against the runtime has not been
+repeated since the fix, so section 5.2's arrival measurement still needs that re-run
+before it can be counted as passing.
 
 Not built, on purpose for this run: the `--pressure` mode of section 5.2 and the
 experimental-class third phase of section 5.3. Both experiments therefore remain
