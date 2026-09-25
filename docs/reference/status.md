@@ -123,10 +123,26 @@ A disposable Fedora 44 Cloud VM with 4 vCPU and 6 GiB, a clean clone, the one-co
 |---|---|---|
 | Summary: VM, command, reboot, idle footprint, defects found | [vm-empty-server-rehearsal.json](../evidence/vm-empty-server-rehearsal.json) | recorded |
 | Install, supervised start, console, management realm, operator bootstrap, unit, clean stop | [vm-empty-server-acceptance.json](../evidence/vm-empty-server-acceptance.json) | 12 |
-| First project: login, project, environment provisioned in 10 s, key, supabase-js Auth sign-up, REST and Storage through the gateway, revocation refused with 401 | [vm-empty-server-first-project.json](../evidence/vm-empty-server-first-project.json) | 13 |
+| First project: login, project, environment provisioned, key, supabase-js Auth sign-up, REST and Storage through the gateway, a browser's cross-origin call, revocation refused with 401 (rerun 2026-09-25) | [vm-empty-server-first-project.json](../evidence/vm-empty-server-first-project.json) | 15 |
 | Reboot: the service and the environment came back without help | [vm-empty-server-rehearsal.json](../evidence/vm-empty-server-rehearsal.json) | passed |
 
 Idle with one environment, the containers used about 250 MiB and the supervisor about 130 MiB. The preflight still reserves container limits (2304 MiB for that placement) plus 2560 MiB for the host; see [choosing a server](../guides/choosing-a-server.md).
+
+### Roadmap milestones in the VM, 2026-09-25
+
+The steps that need a server, rehearsed in the same kind of VM (4 vCPU, 6656 MiB, the pinned images copied from the workstation) with [lab/vm-milestones.sh](../../lab/vm-milestones.sh) until a server is bought. A local CA stands in for a public certificate. Summary with scope and limits: [vm-milestones-2026-09-25.json](../evidence/vm-milestones-2026-09-25.json).
+
+| What | Evidence | Checks |
+|---|---|---|
+| Pinned console port, TLS proxy as a unit, reboot, then the whole first project over HTTPS | [vm-https-first-project.json](../evidence/vm-https-first-project.json) | 15 |
+| Invitations against the real management Auth: invite, preview, redeem, sign in, viewer refused, cancel, remove | [vm-invitation-check.json](../evidence/vm-invitation-check.json) | 16 |
+| Backup of both environments while they served 13326 requests, none failed (small databases, about 1 s) | [vm-backup-traffic.json](../evidence/vm-backup-traffic.json) | 11 |
+| Restore of both backups onto a second VM with `sbarbase relink` and `restore`; old users signed in with old passwords | [vm-restore-drill.json](../evidence/vm-restore-drill.json) | 16 |
+| Upgrade to a newer PostgREST, a broken version moved back by itself, then a return to the installed pins | [vm-upgrade-checks.json](../evidence/vm-upgrade-checks.json), [vm-upgrade-return.json](../evidence/vm-upgrade-return.json) | 10 + 4 |
+| Environment limit: at 6656 MiB memory admission refuses the third environment; about 258 MiB used at rest | [vm-environment-limit.json](../evidence/vm-environment-limit.json) | 4 |
+| Soak: 60 minutes idle with two environments, no restart, flat memory, disk and logs | [vm-soak.json](../evidence/vm-soak.json) | 3 |
+
+These runs found five defects, all fixed with tests: the acceptance waited for the console before the images existed; an image pull gave up after one immediate retry; redeeming an invitation answered 500; the first upgrade after an acceptance was refused because the acceptance rewrites tracked evidence; and SELinux refuses a unit that runs Bun from `/home`. GitHub private vulnerability reporting was turned on the same day.
 
 ### Deployment path (workstation only)
 
@@ -160,9 +176,9 @@ A start needs its containers' memory limits plus a 2560 MiB reserve: 1792 MiB of
 
 ## What does not exist yet
 
-- A rehearsal on a real server. The empty-server install passed in a local VM only.
+- A rehearsal on a real server: a public certificate and DNS, a seven-day soak with real traffic, and capacity under load. Everything else in milestone 1 passed in a local VM.
 - The connection pooler and cron. `SUPABASE_DB_URL` inside Edge Functions.
-- Point-in-time recovery, SSH or rsync targets for the off-host copies (S3-compatible storage only), and rebuilding a whole lost server from the off-site copies in one step (each environment's copy restores, on a new installation after `sbarbase relink` recreates its client, project and environment with their original ids; the installation manifest records what the backups need, but members, keys and settings do not travel with it yet, and this path has only unit tests, no rehearsal on a second machine).
+- Point-in-time recovery, SSH or rsync targets for the off-host copies (S3-compatible storage only), and rebuilding a whole lost server from the off-site copies in one step (each environment's copy restores, on a new installation after `sbarbase relink` recreates its client, project and environment with their original ids; the installation manifest records what the backups need, but members, keys and settings do not travel with it yet, and this path was rehearsed onto a second VM on 2026-09-25 for environments that never used Studio, Realtime or direct database access).
 - Importing schemas other than `public`, Vault secrets and cron jobs from a Supabase project (the [import](../guides/move-from-supabase.md) moves `public`, users, rows and files).
 - Automatic recovery of later-stage provisioning failures; they block until an operator reconciles them.
 - Adoption of any upstream release through the update policy. A live run of the update channel: automatic updates exist, off by default, but have unit tests only (above).
@@ -172,4 +188,4 @@ A start needs its containers' memory limits plus a 2560 MiB reserve: 1792 MiB of
 
 ## Next step
 
-The real server: [milestone 1 of the roadmap](../engineering/plans/2026-09-23-roadmap.md). On the workstation, the attended generation migration of the retained database ran on 2026-09-25 with every row count unchanged ([evidence](../evidence/generation-migration-retained.json)). The durable lifecycle probe, reworked into a non-destructive stop and start of the retained runtime, passed 31 checks ([evidence](../evidence/durable-lifecycle-restart.json)). On that fixture the mixed SDK load passed with no failed operation ([evidence](../evidence/sdk-policy-regression.json)), and the sustained arrival run failed: 14 of 600 target arrivals ended without an HTTP status while every neighbour arrival was correct ([evidence](../evidence/gateway-sustained-failure.json)). The cause was found in the loopback listener and fixed without Docker: a refused request's connection was announced as closing but stayed open, a pooled client reused it, and a one-second cleanup cut off the next long request on it ([details](../engineering/RESOURCE-POLICY.md)). The live sustained run was repeated after the fix and passed: 555 correct 429s, 45 correct 200s and all 60 neighbour arrivals correct, with no request left without an HTTP status ([evidence](../evidence/gateway-sustained-checks.json)). The pressure-sampling mode and the experimental-class phase are not built.
+The real server: [milestone 1 of the roadmap](../engineering/plans/2026-09-23-roadmap.md), to repeat on it what the VM rehearsed on 2026-09-25 (above). On the workstation, the attended generation migration of the retained database ran on 2026-09-25 with every row count unchanged ([evidence](../evidence/generation-migration-retained.json)). The durable lifecycle probe, reworked into a non-destructive stop and start of the retained runtime, passed 31 checks ([evidence](../evidence/durable-lifecycle-restart.json)). On that fixture the mixed SDK load passed with no failed operation ([evidence](../evidence/sdk-policy-regression.json)), and the sustained arrival run failed: 14 of 600 target arrivals ended without an HTTP status while every neighbour arrival was correct ([evidence](../evidence/gateway-sustained-failure.json)). The cause was found in the loopback listener and fixed without Docker: a refused request's connection was announced as closing but stayed open, a pooled client reused it, and a one-second cleanup cut off the next long request on it ([details](../engineering/RESOURCE-POLICY.md)). The live sustained run was repeated after the fix and passed: 555 correct 429s, 45 correct 200s and all 60 neighbour arrivals correct, with no request left without an HTTP status ([evidence](../evidence/gateway-sustained-checks.json)). The pressure-sampling mode and the experimental-class phase are not built.
