@@ -22,6 +22,7 @@ not from what the manifest claims:
 import contextlib
 import datetime
 import fcntl
+import fnmatch
 import json
 import os
 import re
@@ -44,12 +45,12 @@ LOCK_WAIT = 300
 NAMESPACE = 'refs/sbarbase-releases/tags/'
 MANIFEST = 'release.json'
 DATABASE_LOCK = 'distro-image.lock.json'
-# Files a restart does not read again: the Dockerfile bakes deploy/container/start.sh into
-# the image, a restart policy reuses the container compose.yaml created, and systemd runs
-# the rendered copy of the unit that `install_server.py supervise --apply` installed.
+# Files a restart does not read again: the image is built from the Dockerfile (with whatever
+# it copies in, image_sources), a restart policy reuses the container compose.yaml created,
+# and systemd runs the rendered copy of the unit that `install_server.py supervise --apply`
+# installed.
 REBUILD = {'Dockerfile': 'the container image definition',
            '.dockerignore': 'what the container image is built from',
-           'deploy/container/start.sh': 'the start script baked into the container image',
            'compose.yaml': 'the container configuration',
            'deploy/sbarbase.service': 'the installed systemd unit'}
 # The TLS proxy runs as its own unit the operator installs (lab/vm-milestones.sh calls it
@@ -325,6 +326,33 @@ def migrating(diffs):
             for name, entry, old, new in diffs if (name, entry) in MIGRATING]
 
 
+def image_sources(commit):
+    """What the Dockerfile at a commit copies from the checkout into the image: the sources of
+    its COPY and ADD instructions (one from another image, --from, is not the checkout's), so
+    a file the image bakes in is never missed by a hand-kept list."""
+    result = git('show', f'{commit}:Dockerfile', check=False)
+    sources = []
+    for line in result.stdout.replace('\\\n', ' ').splitlines() if not result.returncode else []:
+        words = line.split()
+        if not words or words[0].upper() not in ('COPY', 'ADD') or any(word.startswith('--from') for word in words):
+            continue
+        rest = line.split(None, 1)[1] if len(words) > 1 else ''
+        arguments = [word for word in words[1:] if not word.startswith('--')]
+        if rest.lstrip().startswith('['):
+            try:
+                arguments = json.loads(rest[rest.index('['):])
+            except ValueError:
+                continue
+        sources += [source.removeprefix('./') for source in arguments[:-1] if isinstance(source, str)]
+    return sources
+
+
+def copied(path, sources):
+    """Whether a changed path is one of the image's sources, or under one (a directory, `.`, a glob)."""
+    return any(source in ('.', '') or path == source or path.startswith(source.rstrip('/') + '/')
+               or fnmatch.fnmatchcase(path, source) for source in sources)
+
+
 def findings(current, target, release=None, diffs=None):
     """What moving from one commit to another needs: {manual, rebuild, attended}, each a list of reasons."""
     if release is None:
@@ -337,6 +365,9 @@ def findings(current, target, release=None, diffs=None):
     manual = database_changes(diffs) + [f'The release declares a data migration: {migration}'
                                         for migration in release.get('migrations') or []]
     rebuild = [f'{path} changes ({what}); a restart does not pick it up' for path, what in REBUILD.items() if path in changed]
+    sources = image_sources(target)
+    rebuild += [f'{path} changes (the container image copies it in); a restart does not pick it up'
+                for path in sorted(changed - set(REBUILD) - set(PROXY)) if copied(path, sources)]
     rebuild += [f'{path} changes ({what}); it runs as its own unit (named {PROXY_UNIT} in the VM rehearsal), '
                 'which an update does not restart: restart that unit after the update'
                 for path, what in PROXY.items() if path in changed]

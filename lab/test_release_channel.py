@@ -91,7 +91,8 @@ class Releases:
                       'lab/studio-image.lock.json': {'studio': pin('studio:v1', 'b'), 'meta': pin('postgres-meta:v1', 'c')},
                       'package.json': {'name': 'sbarbase', 'version': '0.1.0'},
                       'release.json': manifest('0.1.0'),
-                      'Dockerfile': 'FROM ubuntu:26.04\n',
+                      'Dockerfile': 'FROM ubuntu:26.04\nCOPY --from=oven/bun:1 /usr/local/bin/bun /usr/local/bin/bun\n'
+                                    'COPY deploy/container/start.sh /usr/local/bin/sbarbase-start\n',
                       'compose.yaml': 'services: {}\n',
                       'bun.lock': 'one\n',
                       'src/code.ts': 'export const version = 1\n'}
@@ -275,13 +276,28 @@ class ChannelTests(Fixture):
         self.assertIn('restart that unit', reasons[0])
 
     def test_image_compose_and_unit_changes_need_a_rebuild(self):
-        kind, reasons = self.classify('0.2.0', Dockerfile='FROM ubuntu:26.10\n')
+        kind, reasons = self.classify('0.2.0', Dockerfile='FROM ubuntu:26.10\nCOPY deploy/container/start.sh /usr/local/bin/sbarbase-start\n')
         self.assertEqual(kind, 'rebuild')
         self.assertTrue(any('Dockerfile' in reason for reason in reasons))
         for index, path in enumerate(('deploy/container/start.sh', 'compose.yaml', 'deploy/sbarbase.service', '.dockerignore'), 3):
             kind, reasons = self.classify(f'0.{index}.0', **{path: f'changed {index}\n'})
             self.assertEqual(kind, 'rebuild', path)
             self.assertTrue(any(path in reason for reason in reasons), reasons)
+
+    def test_what_the_image_copies_in_is_read_from_the_dockerfile_of_the_release(self):
+        dockerfile = ('FROM ubuntu:26.04\nCOPY --from=docker:29-cli /usr/local/bin/docker /usr/local/bin/docker\n'
+                      'COPY --chmod=755 deploy/container/start.sh \\\n  deploy/container/probe.sh /usr/local/bin/\n'
+                      'ADD ["deploy/container/conf.d/", "/etc/sbarbase/"]\n')
+        commit = self.releases.release('0.2.0', Dockerfile=dockerfile)
+        channel.fetch_release('v0.2.0')
+        self.assertEqual(channel.image_sources(commit),
+                         ['deploy/container/start.sh', 'deploy/container/probe.sh', 'deploy/container/conf.d/'])
+        # A file the new Dockerfile copies in needs a rebuild; code the checkout mounts does not.
+        kind, reasons = self.classify('0.3.0', **{'deploy/container/conf.d/tls.conf': 'on\n', 'src/code.ts': 'export {}\n'})
+        self.assertEqual(kind, 'rebuild')
+        self.assertTrue(any('deploy/container/conf.d/tls.conf changes (the container image copies it in)' in reason
+                            for reason in reasons), reasons)
+        self.assertFalse(any('src/code.ts' in reason for reason in reasons))
 
     def test_a_database_image_change_or_a_declared_migration_is_manual(self):
         kind, reasons = self.classify('0.2.0', **{'lab/distro-image.lock.json': pin('postgres:18.0', '7'), 'Dockerfile': 'FROM x\n'})
