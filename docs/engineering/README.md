@@ -79,7 +79,7 @@ Continuity notes for coding agents are in [handoff](handoff/README.md). The chro
 - [ENVIRONMENT-EMAIL](ENVIRONMENT-EMAIL.md): per-environment Auth mail through an operator SMTP relay (design record; implemented in 0.1.0).
 - [OPERATOR-NOTIFICATIONS](OPERATOR-NOTIFICATIONS.md): operator events by email or signed webhook (design record; implemented in 0.1.0).
 - [UPSTREAM-UPDATE-POLICY](UPSTREAM-UPDATE-POLICY.md): the binding rules for changing a pinned upstream image.
-- [UPDATE-CHANNEL](UPDATE-CHANNEL.md): signed releases, classification from the diff, console requests, the health-gated confirmation and hold, snapshots and the way back (unit tests only; CI cases and VM rehearsal pending).
+- [UPDATE-CHANNEL](UPDATE-CHANNEL.md): signed releases, classification from the diff, console requests, the health-gated confirmation and hold, snapshots and the way back (unit tests and the CI cases on a clean machine; VM rehearsal pending).
 
 ## Reviews
 
