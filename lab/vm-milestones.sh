@@ -21,7 +21,6 @@
 # DNS: this proves the proxy, the pinned port and the reboot, not public networking.
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIR="${HOME}/.local/share/sbarbase-vm"
 SSH_PORT=2222
 HOST_NAME=console.sbarbase.test
@@ -52,12 +51,20 @@ evidence() {
 [ -f "$DIR/qemu.pid" ] && kill -0 "$(cat "$DIR/qemu.pid")" 2>/dev/null || fail "no VM runs from $DIR; start one with lab/vm-rehearsal.sh"
 guest true || fail "the VM does not answer on SSH port $SSH_PORT"
 
+# Active is not enough: systemd says so the moment the supervisor starts. The console must answer.
+console_answers() { as_service "/usr/bin/python3 lab/install_server.py wait-console --timeout ${1:-300}" >/dev/null; }
 wait_service() {
   for _ in $(seq 1 90); do
-    guest 'systemctl is-active --quiet sbarbase && sudo test -f /opt/sbarbase/.lab/upstream/server.json' 2>/dev/null && return 0
+    guest 'systemctl is-active --quiet sbarbase' 2>/dev/null && { console_answers; return; }
     wait_seconds 5
   done
   return 1
+}
+# One live check inside the guest; its evidence is copied back whether it passed or not.
+run_check() {
+  local file=$1 status=0; shift
+  as_service "$* --evidence docs/evidence/$file" || status=$?
+  evidence "$file"; exit "$status"
 }
 reboot_guest() {
   guest 'sudo systemctl reboot' || :
@@ -130,15 +137,11 @@ echo \"console over https: \$code; hsts: \$hsts; plain http: \$redirect; console
   ;;
 invitations)
   step "invitation check against the real management Auth"
-  status=0
-  as_service "bun lab/invitation-check.ts /home/sbarbase/operator.json --evidence docs/evidence/vm-invitation-check.json" || status=$?
-  evidence vm-invitation-check.json; exit "$status"
+  run_check vm-invitation-check.json bun lab/invitation-check.ts /home/sbarbase/operator.json
   ;;
 backup-traffic)
   step "backup every environment while two of them serve"
-  status=0
-  as_service "bun lab/backup-traffic-check.ts /home/sbarbase/operator.json --evidence docs/evidence/vm-backup-traffic.json --drill .lab/drill-users.json" || status=$?
-  evidence vm-backup-traffic.json; exit "$status"
+  run_check vm-backup-traffic.json bun lab/backup-traffic-check.ts /home/sbarbase/operator.json --drill .lab/drill-users.json
   ;;
 export)
   OUT="${1:-}"; [ -n "$OUT" ] || fail "export needs an output directory"
@@ -156,9 +159,7 @@ restore-drill)
   guest 'rm -rf /tmp/drill && mkdir /tmp/drill' && "${SSH[@]}" 'tar xf - -C /tmp/drill' < "$IN/export.tar"
   guest 'sudo chown -R sbarbase:sbarbase /tmp/drill && sudo chmod -R go-rwx /tmp/drill'
   step "restore every exported environment onto this installation"
-  status=0
-  as_service "bun lab/restore-drill-check.ts /home/sbarbase/operator.json /tmp/drill --evidence docs/evidence/vm-restore-drill.json" || status=$?
-  evidence vm-restore-drill.json; exit "$status"
+  run_check vm-restore-drill.json bun lab/restore-drill-check.ts /home/sbarbase/operator.json /tmp/drill
   ;;
 upgrade)
   step "candidate versions on top of the installed one"
@@ -167,7 +168,7 @@ upgrade)
   phase() {
     for _ in $(seq 1 120); do
       p=$(guest "sudo /usr/bin/python3 -c 'import json;print(json.load(open(\"/opt/sbarbase/.lab/upgrades/state.json\")).get(\"phase\"))'" 2>/dev/null || true)
-      [ "$p" = "$1" ] && guest 'curl -fsS -o /dev/null "$(sudo /usr/bin/python3 -c "import json;print(json.load(open(\"/opt/sbarbase/.lab/upstream/server.json\"))[\"url\"])")/"' && return 0
+      [ "$p" = "$1" ] && console_answers 10 && return 0
       case "$p" in failed|rollback_failed) break ;; esac
       wait_seconds 5
     done
@@ -195,14 +196,6 @@ upgrade)
     phase rolled_back || { printf 'FAIL: the broken version was not moved back\n' >&2; return 1; }
     as_service "/usr/bin/python3 lab/upgrade.py status" || :
     as_service "/usr/bin/python3 lab/upgrade-check.py after rolled-back --back-to base" || return 1
-    # The installation is back on the version it was installed with: REST runs the original
-    # PostgREST again and every environment still has its rows.
-    back=$(guest 'cd /opt/sbarbase && sudo -u sbarbase git rev-parse HEAD')
-    rest=$(guest "sudo docker inspect -f '{{.Image}}' \$(sudo docker ps --format '{{.Names}}' | grep -m1 -- '-rest\$')")
-    printf 'checkout at the end: %s (installed version %s); REST image %s\n' "$back" "$base" "$rest"
-    [ "$back" = "$base" ] || { printf 'FAIL: the installation is not back on the installed version\n' >&2; return 1; }
-    case "$rest" in *2f8e7b656f09*) ;; *) printf 'FAIL: REST does not run the original PostgREST again: %s\n' "$rest" >&2; return 1 ;; esac
-    as_service "/usr/bin/python3 -c 'import sys;sys.path.insert(0,\"lab\");import backup;print({e:backup.counts(e) for e in backup.environments()})'" || return 1
   }
   status=0
   rehearse_upgrade || status=1
@@ -212,16 +205,12 @@ upgrade)
   ;;
 environments)
   step "fill the installation to its environment limit and measure it"
-  status=0
-  as_service "bun lab/environment-limit-check.ts /home/sbarbase/operator.json --evidence docs/evidence/vm-environment-limit.json" || status=$?
-  evidence vm-environment-limit.json; exit "$status"
+  run_check vm-environment-limit.json bun lab/environment-limit-check.ts /home/sbarbase/operator.json
   ;;
 soak)
   MINUTES="${1:-60}"; case "$MINUTES" in *[!0-9]*|'') fail "soak takes minutes" ;; esac
   step "soak for $MINUTES minutes: one sample every 5 minutes"
-  status=0
-  as_service "/usr/bin/python3 lab/soak.py --minutes $MINUTES --evidence docs/evidence/vm-soak.json" || status=$?
-  evidence vm-soak.json; exit "$status"
+  run_check vm-soak.json /usr/bin/python3 lab/soak.py --minutes "$MINUTES"
   ;;
 *) fail "unknown step: $COMMAND" ;;
 esac

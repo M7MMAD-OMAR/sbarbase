@@ -128,16 +128,19 @@ guest test -f /var/lib/cloud-ready || fail "the guest did not finish cloud-init;
 
 if [ "$PRELOAD" = "1" ]; then
   step "pinned images the host already has, copied into the guest"
-  for ref in $(grep -rhoE '"[a-z0-9./-]+@sha256:[0-9a-f]{64}"' "$REPO_ROOT"/lab/*.lock.json | tr -d '"' | sort -u); do
-    if docker image inspect "$ref" >/dev/null 2>&1; then
-      # A loaded image can arrive without its name; pulling the digest names it and
-      # downloads only the manifest, because the layers are already there.
-      docker save "$ref" | guest 'sudo docker load -q' >/dev/null && guest "sudo docker pull -q $ref" >/dev/null \
-        && printf 'copied %s\n' "${ref%%@*}"
-    else
-      printf 'not on the host, the install pulls it: %s\n' "${ref%%@*}"
-    fi
+  # The same references the installer pulls, so the preload and the preflight agree on the pins.
+  refs=$(cd "$REPO_ROOT" && /usr/bin/python3 -c 'import sys;sys.path.insert(0,"lab");import install_server as s;print(*sorted({r for *_,r in s.pinned_images()}))')
+  have=()
+  for ref in $refs; do
+    if docker image inspect "$ref" >/dev/null 2>&1; then have+=("$ref"); else printf 'not on the host, the install pulls it: %s\n' "${ref%%@*}"; fi
   done
+  if [ "${#have[@]}" -gt 0 ]; then
+    # One archive sends each shared layer once. A loaded image can arrive without its name;
+    # pulling its digest names it and downloads only the manifest.
+    docker save "${have[@]}" | guest 'sudo docker load -q' >/dev/null
+    guest "for ref in ${have[*]}; do sudo docker pull -q \$ref >/dev/null || exit 1; done" \
+      && printf 'copied %s image(s) from the host\n' "${#have[@]}"
+  fi
 fi
 
 step "clean clone of $(git -C "$REPO_ROOT" rev-parse --short HEAD) and the service account"
