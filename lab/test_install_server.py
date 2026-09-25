@@ -2,6 +2,7 @@
 from pathlib import Path
 from unittest.mock import patch
 import json
+import os
 import tempfile
 import unittest
 import install_server
@@ -147,3 +148,114 @@ class PinnedImagePullTests(unittest.TestCase):
     def test_a_retry_that_succeeds_continues_the_install(self):
         outcomes=iter([result(1),result(0)])
         install_server.pull_image('db','repo@sha256:x','1/5',runner=lambda command,**kwargs:next(outcomes))
+
+
+class ConsoleWaitTests(unittest.TestCase):
+    """systemd says active the moment dev.py is executed; a start counts once the console answers."""
+
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
+        self.state=Path(self.temp.name)
+
+    def serve(self,status):
+        import http.server
+        import threading
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(status);self.send_header('Content-Length','0');self.end_headers()
+            def log_message(self,*args):pass
+        server=http.server.ThreadingHTTPServer(('127.0.0.1',0),Handler)
+        threading.Thread(target=server.serve_forever,daemon=True).start()
+        self.addCleanup(server.server_close);self.addCleanup(server.shutdown)
+        return f'http://127.0.0.1:{server.server_address[1]}'
+
+    def record(self,url,pid=None,server_pid=None):
+        pid=pid or os.getpid()
+        (self.state/'server.json').write_text(json.dumps({'url':url,'pid':pid}))
+        (self.state/'supervisor.json').write_text(json.dumps({'pid':1,'serverPid':server_pid or pid}))
+
+    def test_a_listening_console_answers_even_with_a_client_error_status(self):
+        self.record(self.serve(404))
+        answered,detail=install_server.console_answer(self.state)
+        self.assertTrue(answered,detail)
+        self.assertIn('HTTP 404',detail)
+
+    def test_a_server_error_is_not_an_answer(self):
+        self.record(self.serve(503))
+        answered,detail=install_server.console_answer(self.state)
+        self.assertFalse(answered)
+        self.assertIn('HTTP 503',detail)
+
+    def test_no_record_yet_is_not_an_answer(self):
+        answered,detail=install_server.console_answer(self.state)
+        self.assertFalse(answered)
+        self.assertIn('server.json not written yet',detail)
+
+    def test_a_stale_record_the_supervisor_does_not_own_is_not_an_answer(self):
+        self.record(self.serve(200),server_pid=os.getpid()+1)
+        answered,detail=install_server.console_answer(self.state)
+        self.assertFalse(answered)
+        self.assertIn('stale record',detail)
+
+    def test_a_closed_port_is_not_an_answer(self):
+        import socket
+        with socket.socket() as probe:
+            probe.bind(('127.0.0.1',0));port=probe.getsockname()[1]
+        self.record(f'http://127.0.0.1:{port}')
+        answered,detail=install_server.console_answer(self.state)
+        self.assertFalse(answered)
+        self.assertIn('did not answer',detail)
+
+    def test_a_non_loopback_address_is_refused(self):
+        self.record('http://192.0.2.1:8080')
+        answered,detail=install_server.console_answer(self.state)
+        self.assertFalse(answered)
+        self.assertIn('loopback',detail)
+
+    def clock(self):
+        now=[0.0]
+        def sleep(seconds):now[0]+=seconds
+        return (lambda:now[0]),sleep
+
+    def test_the_wait_ends_when_the_console_answers(self):
+        clock,sleep=self.clock()
+        outcomes=iter([(False,'server.json not written yet')]*3+[(True,'console answered HTTP 200')])
+        answered,detail=install_server.wait_for_console(60,probe=lambda:next(outcomes),clock=clock,sleep=sleep,interval=2)
+        self.assertTrue(answered)
+        self.assertEqual(detail,'console answered HTTP 200')
+        self.assertEqual(clock(),6)
+
+    def test_the_wait_is_bounded_and_names_the_last_observation(self):
+        clock,sleep=self.clock()
+        probes=[]
+        def probe():
+            probes.append(clock());return False,'console at http://127.0.0.1:1 did not answer (refused)'
+        answered,detail=install_server.wait_for_console(10,probe=probe,clock=clock,sleep=sleep,interval=2)
+        self.assertFalse(answered)
+        self.assertIn('did not answer within 10 s',detail)
+        self.assertIn('last: console at http://127.0.0.1:1 did not answer',detail)
+        self.assertIn('journalctl -u sbarbase.service',detail)
+        self.assertEqual(probes[-1],10)
+
+    def test_a_failed_unit_ends_the_wait_at_once(self):
+        clock,sleep=self.clock()
+        answered,detail=install_server.wait_for_console(300,probe=lambda:(False,'server.json not written yet'),
+                                                         unit_state=lambda:'failed',clock=clock,sleep=sleep)
+        self.assertFalse(answered)
+        self.assertIn('failed before the console answered',detail)
+        self.assertEqual(clock(),0)
+
+    def test_an_activating_unit_keeps_the_wait_going(self):
+        clock,sleep=self.clock()
+        outcomes=iter([(False,'x'),(True,'answered')])
+        answered,_=install_server.wait_for_console(60,probe=lambda:next(outcomes),unit_state=lambda:'activating',
+                                                   clock=clock,sleep=sleep)
+        self.assertTrue(answered)
+
+    def test_supervise_records_the_unit_applied_only_after_the_console_answers(self):
+        source=Path(install_server.__file__).read_text()
+        start=source.index('def supervise(');end=source.index('\ndef ',start+1)
+        body=source[start:end]
+        self.assertLess(body.index("'enable','--now','sbarbase.service'"),body.index('wait_for_console'))
+        self.assertLess(body.index('wait_for_console'),body.index('applied=True'))
+        self.assertIn("'console':console",body)

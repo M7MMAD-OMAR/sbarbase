@@ -5,6 +5,7 @@ Commands:
   plan    print the exact steps install would run, without running them
   install perform the steps below, stopping at the first failure
   smoke   verify a running installation (console, management Auth, environments)
+  wait-console  wait, bounded, until the supervised console answers over loopback
 
 Rules:
 - Never print or accept secrets in arguments. The operator identity is supplied
@@ -21,6 +22,7 @@ import shutil
 import stat
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import console_build_check
@@ -371,6 +373,78 @@ def console_status():
     return True,f'console pid {pid} running'
 
 
+# systemd reports a Type=simple unit active the moment dev.py is executed, while
+# the console answers only once the owned runtime and the API are up, which on a
+# restart with retained containers can take minutes. The unit sets no
+# TimeoutStartSec, so this bound is the acceptance's own.
+CONSOLE_WAIT_SECONDS=300
+CONSOLE_POLL_SECONDS=2
+
+
+def console_answer(state=STATE,opener=None,timeout=5):
+    """(answered, detail) for one probe of the supervised console over loopback.
+
+    Answered means: server.json names a live pid, the supervisor's own record
+    owns that pid (a crashed earlier run can leave a stale server.json), and an
+    HTTP request to the recorded loopback address gets a response below 500.
+    """
+    import urllib.error
+    import urllib.parse
+    import urllib.request
+    try:server=json.loads((state/'server.json').read_text())
+    except FileNotFoundError:return False,'server.json not written yet'
+    except (OSError,ValueError):return False,'server.json unreadable'
+    try:supervisor=json.loads((state/'supervisor.json').read_text())
+    except FileNotFoundError:return False,'supervisor.json not written yet'
+    except (OSError,ValueError):return False,'supervisor.json unreadable'
+    pid=server.get('pid') if isinstance(server,dict) else None
+    url=server.get('url') if isinstance(server,dict) else None
+    if not isinstance(pid,int) or pid<=0 or not isinstance(url,str):
+        return False,'server.json has no usable pid and url'
+    if not isinstance(supervisor,dict) or supervisor.get('serverPid')!=pid:
+        return False,f'server.json names pid {pid}, which the supervisor does not own (a stale record)'
+    parsed=urllib.parse.urlparse(url)
+    if parsed.scheme!='http' or parsed.hostname not in ('127.0.0.1','localhost'):
+        return False,'server.json does not name a loopback http address'
+    try:os.kill(pid,0)
+    except ProcessLookupError:return False,f'console pid {pid} is not running'
+    except PermissionError:pass
+    # A proxy variable in the environment must not carry a loopback probe away.
+    opener=opener or urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    try:
+        with opener.open(url.rstrip('/')+'/',timeout=timeout) as response:code=response.status
+    except urllib.error.HTTPError as error:code=error.code
+    except (urllib.error.URLError,OSError) as error:
+        return False,f'console at {url} did not answer ({getattr(error,"reason",error)})'
+    if code>=500:return False,f'console at {url} answered HTTP {code}'
+    return True,f'console at {url} answered HTTP {code}'
+
+
+def unit_active_state():
+    """systemd's own word for the unit, or 'unknown' when systemctl cannot say."""
+    try:return run(['systemctl','is-active','sbarbase.service'],check=False).stdout.strip() or 'unknown'
+    except (OSError,subprocess.SubprocessError):return 'unknown'
+
+
+def wait_for_console(timeout=CONSOLE_WAIT_SECONDS,*,probe=console_answer,unit_state=None,
+                     clock=time.monotonic,sleep=time.sleep,interval=CONSOLE_POLL_SECONDS):
+    """Wait until the console answers, at most `timeout` seconds.
+
+    Returns (answered, detail). A unit that systemd reports as failed ends the
+    wait at once; otherwise the last observation is stated with the timeout.
+    """
+    deadline=clock()+timeout
+    while True:
+        answered,detail=probe()
+        if answered:return True,detail
+        if unit_state is not None and unit_state()=='failed':
+            return False,'sbarbase.service failed before the console answered (last: '+detail+'); inspect journalctl -u sbarbase.service'
+        if clock()>=deadline:
+            return False,(f'the console did not answer within {timeout} s (last: {detail}); '
+                          'inspect journalctl -u sbarbase.service')
+        sleep(interval)
+
+
 def smoke():
     import urllib.request
     checks=[]
@@ -477,7 +551,8 @@ def unit_commands(rendered_path):
             'systemctl is-active sbarbase.service']
 
 
-def supervise(apply=False,service_user='sbarbase',home=None,bun_dir=None,evidence_path=None):
+def supervise(apply=False,service_user='sbarbase',home=None,bun_dir=None,evidence_path=None,
+              console_timeout=CONSOLE_WAIT_SECONDS,waiter=None):
     """Render, verify and optionally install the supervisor unit."""
     home=home or Path('/home')/service_user
     if bun_dir is None:
@@ -500,6 +575,7 @@ def supervise(apply=False,service_user='sbarbase',home=None,bun_dir=None,evidenc
     verified=verify.returncode==0
     root_user=os.geteuid()==0
     applied=False
+    console=None
     if apply:
         if not root_user:raise SystemExit('Installing the unit requires root (run with sudo)')
         if not verified:raise SystemExit('Rendered unit did not verify; refusing to install it')
@@ -508,18 +584,24 @@ def supervise(apply=False,service_user='sbarbase',home=None,bun_dir=None,evidenc
                         ['systemctl','enable','--now','sbarbase.service']):
             if run(command,check=False).returncode:
                 raise SystemExit('Unit installation step failed: '+' '.join(command))
-        applied=run(['systemctl','is-active','sbarbase.service'],check=False).stdout.strip()=='active'
-        if not applied:
+        if run(['systemctl','is-active','sbarbase.service'],check=False).stdout.strip()!='active':
             raise SystemExit('The unit was installed but did not become active; inspect systemctl status sbarbase.service')
+        # systemd says active as soon as dev.py is executed; the unit is recorded
+        # as applied only once the console it supervises answers.
+        answered,console=(waiter or wait_for_console)(console_timeout,unit_state=unit_active_state)
+        print(console)
+        if not answered:
+            raise SystemExit('The unit is active but its console never answered: '+console)
+        applied=True
     evidence={'scope':('Supervisor unit: the shipped unit is rendered for this installation (paths, service user and Bun '
                        'directory), verified with systemd-analyze, and the exact install commands are recorded. With '
                        '--apply and root the unit is installed, reloaded, enabled and started, and the run fails unless it '
-                       'becomes active. Not a substitute for the server acceptance run, which requires the unit to be '
-                       'installed.'),
+                       'becomes active and its console then answers over loopback within the stated bound. Not a '
+                       'substitute for the server acceptance run, which requires the unit to be installed.'),
               'installation_root':str(ROOT),'service_user':service_user,'home':str(home),'bun_dir':bun_dir,
               'rendered':rendered,'rendered_path':str(temporary),
               'verify':'passed' if verified else ('failed: '+(verify.stderr or verify.stdout).strip()),
-              'running_as_root':root_user,'applied':applied,'service_account':account,'install_commands':unit_commands(temporary),
+              'running_as_root':root_user,'applied':applied,'console':console,'service_account':account,'install_commands':unit_commands(temporary),
               'run_at':datetime.datetime.now().astimezone().isoformat(timespec='seconds'),
               'passed':bool(verified) and (not apply or applied)}
     out=Path(evidence_path) if evidence_path else ROOT/'docs'/'evidence'/'supervisor-unit.json'
@@ -534,15 +616,22 @@ def supervise(apply=False,service_user='sbarbase',home=None,bun_dir=None,evidenc
 
 def main():
     parser=argparse.ArgumentParser(description='sbarbase server preflight and installation')
-    parser.add_argument('command',choices=('check','plan','install','images','smoke','supervise'))
+    parser.add_argument('command',choices=('check','plan','install','images','smoke','supervise','wait-console'))
     parser.add_argument('--bootstrap-file',help='private 0600 JSON with email, password and organization; write it with lab/operator_file.py')
     parser.add_argument('--apply',action='store_true',help='supervise: install, enable and start the unit (requires root)')
     parser.add_argument('--service-user',default='sbarbase',help='supervise: the account the service runs as')
     parser.add_argument('--home',help='supervise: the service account home directory')
     parser.add_argument('--bun-dir',help='supervise: directory holding the bun binary')
+    parser.add_argument('--timeout',type=int,default=CONSOLE_WAIT_SECONDS,
+                        help='supervise --apply and wait-console: seconds to wait for the console to answer')
     args=parser.parse_args()
+    if args.timeout<=0:raise SystemExit('--timeout must be a positive number of seconds')
+    if args.command=='wait-console':
+        answered,detail=wait_for_console(args.timeout,unit_state=unit_active_state)
+        print(detail if answered else 'console not answering: '+detail)
+        raise SystemExit(0 if answered else 1)
     if args.command=='supervise':
-        raise SystemExit(0 if supervise(args.apply,args.service_user,args.home,args.bun_dir) else 1)
+        raise SystemExit(0 if supervise(args.apply,args.service_user,args.home,args.bun_dir,console_timeout=args.timeout) else 1)
     if args.command=='check':
         raise SystemExit(0 if report(preflight()) else 1)
     if args.command=='plan':

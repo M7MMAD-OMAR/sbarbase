@@ -167,6 +167,9 @@ ready.
 - CI was red on a host whose root filesystem is a partition: a test still
   expected the partition where the runtime correctly names the whole disk.
 - Five admission unit tests called Docker for real and failed without a daemon.
+- The server acceptance recorded the unit as active in the same second it
+  started it. After every start it now waits, at most 300 seconds, until the
+  console answers over loopback, and fails with the last thing it saw.
 
 ### Changed
 

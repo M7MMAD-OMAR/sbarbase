@@ -173,10 +173,33 @@ class AcceptanceScriptContractTests(unittest.TestCase):
             end=next(i for i in range(start+1,len(lines)) if lines[i]=='}')
             return '\n'.join(lines[start:end+1])+'\n'
         harness=('systemctl() { echo active; return 0; }; unit_control() { systemctl "$@"; }; STOPPED_UNIT=1; '
+                 'console_answers() { return 0; }; '
                  +block('unit_state()')+block('restore_unit_on_exit()')+'restore_unit_on_exit')
         result=subprocess.run(['bash','-c',harness],capture_output=True,text=True)
         self.assertEqual(result.returncode,0,result.stderr)
-        self.assertIn('sbarbase.service active again',result.stdout)
+        self.assertIn('sbarbase.service active again and its console answers',result.stdout)
+        # Active but silent is a failure, not a restore.
+        silent=harness.replace('console_answers() { return 0; }','console_answers() { return 1; }')
+        result=subprocess.run(['bash','-c',silent],capture_output=True,text=True)
+        self.assertIn('its console did not answer',result.stderr)
+        self.assertNotIn('ok: sbarbase.service active again',result.stdout)
+
+    def test_every_start_of_the_unit_waits_for_the_console_to_answer(self):
+        # systemd said active in the same second it started the unit; the
+        # acceptance recorded that as a working installation.
+        self.assertIn('lab/install_server.py wait-console --timeout "$CONSOLE_WAIT"',self.source)
+        self.assertIn('--apply --timeout "$CONSOLE_WAIT"',self.source)
+        lines=self.source.splitlines()
+        rehearsal_restore=next(i for i,line in enumerate(lines) if 'is not active after the rehearsal' in line)
+        self.assertIn('console_answers ||',lines[rehearsal_restore+1])
+        first=self.source[self.source.index('step "first project"'):]
+        self.assertIn('console_answers ||',first)
+        self.assertNotIn('seq 1 60',first)
+
+    def test_the_console_bound_is_validated(self):
+        result=run('--console-timeout','soon')
+        self.assertNotEqual(result.returncode,0)
+        self.assertIn('--console-timeout must be a positive whole number',result.stderr)
 
     def test_a_failure_after_the_stop_still_starts_the_unit_again(self):
         self.assertIn('trap restore_unit_on_exit EXIT',self.source)
