@@ -165,7 +165,11 @@ root with `--install-unit`: it renders and verifies the unit, installs and start
 it, proves the console and the TLS termination, releases the unit so the rehearsal
 can own the containers and state, runs the rehearsal with the unit required,
 starts the unit again and asserts it is active, and leaves the evidence in one
-place. The release happens whenever the unit is found active, with or without
+place. systemd calls the unit active the moment the supervisor process starts,
+long before the console can answer, so after every start of the unit the run
+waits until the console answers over loopback, at most 300 seconds
+(`--console-timeout` changes the bound), and fails with the last thing it saw
+when it does not. The release happens whenever the unit is found active, with or without
 `--install-unit`, and a trap starts it again on any exit, so a failure in the
 middle of the run cannot leave the installation down. Two supervisors cannot own
 the same containers, so the rehearsal never runs against a live installation.

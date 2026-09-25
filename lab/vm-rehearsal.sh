@@ -144,7 +144,10 @@ guest 'sudo systemctl reboot' || :
 wait_seconds 20
 for _ in $(seq 1 60); do guest 'systemctl is-active --quiet sbarbase && sudo test -f /opt/sbarbase/.lab/upstream/server.json' 2>/dev/null && break; wait_seconds 5; done
 guest 'systemctl is-active --quiet sbarbase' || fail "sbarbase.service is not active after the reboot"
-printf 'ok: sbarbase.service active after reboot\n'
+# systemd says active as soon as the supervisor starts; the service is back once its console answers.
+guest 'cd /opt/sbarbase && sudo -u sbarbase /usr/bin/python3 lab/install_server.py wait-console --timeout 300' \
+  || fail "sbarbase.service is active after the reboot but its console did not answer"
+printf 'ok: sbarbase.service active after reboot and its console answers\n'
 
 step "footprint and evidence"
 guest 'docker stats --no-stream --format "{{.Name}} {{.MemUsage}}"; free -m | sed -n 2p'

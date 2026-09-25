@@ -73,20 +73,20 @@ class DerivedPlacementTests(unittest.TestCase):
 
     def test_an_empty_host_needs_the_three_system_containers_only(self):
         self.assertEqual(install_server.fresh_placement(),(1792,1.75))
-        memory,cpus,origin=install_server.planned_placement(inspect=lambda:[])
+        memory,cpus,origin=install_server.planned_placement(inspect=lambda:[],targets=lambda:[])
         self.assertEqual((memory,cpus),(1792,1.75))
         self.assertEqual(origin,'fresh placement')
 
     def test_retained_containers_are_counted_at_their_own_limits(self):
         # The fresh system rows plus two environments of Auth and REST each.
         items=[self.item(1024,1),self.item(512,.5),self.item(256,.25)]+[self.item(256,.25) for _ in range(4)]
-        memory,cpus,origin=install_server.planned_placement(inspect=lambda:items)
+        memory,cpus,origin=install_server.planned_placement(inspect=lambda:items,targets=lambda:[])
         self.assertEqual((memory,cpus),(1792+4*256,2.75))
         self.assertIn('7 containers',origin)
 
     def test_a_container_without_a_finite_limit_falls_back_to_the_full_placement(self):
         items=[self.item(1024,1),{'HostConfig':{'Memory':0,'NanoCpus':0}}]
-        memory,cpus,_=install_server.planned_placement(inspect=lambda:items)
+        memory,cpus,_=install_server.planned_placement(inspect=lambda:items,targets=lambda:[])
         self.assertEqual((memory,cpus),(install_server.PLANNED_MIB,install_server.PLANNED_CPUS))
 
     def test_the_stated_composition_names_where_the_figure_came_from(self):
@@ -133,3 +133,143 @@ class RestartHeadroomTests(unittest.TestCase):
     def test_the_provisioning_path_refuses_on_restart_headroom(self):
         source=(Path(install_server.__file__).parent/'durable_runtime.py').read_text()
         self.assertIn("raise AdmissionLimitError('Restart headroom unavailable')",source)
+
+
+class RecoveryTargetPlacementTests(unittest.TestCase):
+    """On an installation that moved an environment, the restart check and the
+    preflight count the same containers: the source plus the current recovery target."""
+
+    MIB=1024**2
+    PREFIX='sbarbase-restore-abc'
+
+    @staticmethod
+    def item(memory_mib,cpus):
+        return {'HostConfig':{'Memory':memory_mib*1024**2,'NanoCpus':int(cpus*1e9)}}
+
+    def setUp(self):
+        import json
+        self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
+        self.state=Path(self.temp.name)
+        (self.state/'recovery-target.json').write_text(json.dumps({'prefix':self.PREFIX}))
+        # A moved installation: the next start runs the target beside the source.
+        (self.state/'cutover-operation.json').write_text('{}')
+        # The source rows for two environments, retained at the limits the policy launches them with.
+        self.source={'sbarbase-durable-db':self.item(1024,1),'sbarbase-durable-storage':self.item(512,.5),
+                     'sbarbase-durable-management-auth':self.item(256,.25)}
+        for index in range(2):
+            for kind in ('auth','rest'):self.source[f'sbarbase-durable-e_{index}-{kind}']=self.item(256,.25)
+        # The current target, and one historical generation the runtime does not start.
+        self.target={self.PREFIX+'-db':self.item(1024,1),self.PREFIX+'-auth':self.item(256,.25),
+                     self.PREFIX+'-rest':self.item(256,.25),self.PREFIX+'-storage':self.item(512,.5)}
+        self.historical={'sbarbase-restore-old-db':self.item(1024,1)}
+        self.running=set(self.source)|{self.PREFIX+'-db'}
+        self.calls=[]
+
+    def docker(self,*args,**kwargs):
+        import json
+        self.calls.append(args)
+        out=lambda text:type('R',(),{'returncode':0,'stdout':text,'stderr':''})()
+        if args[0]=='ps':
+            owner=next(value.removeprefix('label=io.sbarbase.owner=') for value in args if value.startswith('label=io.sbarbase.owner='))
+            pool=self.source if owner=='durable-upstream' else {**self.target,**self.historical}
+            names=[name for name in pool if '-a' in args or name in self.running]
+            return out('\n'.join(names)+'\n')
+        if args[0]=='inspect':
+            everything={**self.source,**self.target,**self.historical}
+            return out(json.dumps([everything[args[1]]]))
+        if args[0]=='stats':
+            return out(''.join('100MiB / 1GiB\n' for _ in args[4:]))
+        raise AssertionError('unexpected docker call '+repr(args))
+
+    def test_the_target_listing_counts_the_current_generation_only(self):
+        import resource_policy
+        items=resource_policy.recovery_target_items(self.state,self.docker)
+        self.assertEqual(len(items),4)
+        self.assertEqual(resource_policy.retained_limits(items),(2048,2.0))
+
+    def test_no_recorded_target_makes_no_docker_call(self):
+        import resource_policy
+        def refuse(*args,**kwargs):raise AssertionError('docker called without a recorded target')
+        (self.state/'recovery-target.json').unlink()
+        self.assertEqual(resource_policy.recovery_target_items(self.state,refuse),[])
+        self.assertEqual(resource_policy.restart_placement((1792,1.75),[]),(1792,1.75))
+
+    def test_a_target_that_was_never_cut_over_is_not_counted_by_either(self):
+        # Restore done, cutover not: the next start runs the source only and
+        # refuses a running target, so neither figure may include it.
+        import durable_runtime
+        import resource_policy
+        (self.state/'cutover-operation.json').unlink()
+        def refuse(*args,**kwargs):
+            if args[0]=='ps' and any('recovery-target' in value for value in args):
+                raise AssertionError('the target was listed on an installation that has not moved')
+            return self.docker(*args,**kwargs)
+        with patch.object(durable_runtime,'STATE',self.state),patch.object(durable_runtime.lab,'docker',refuse):
+            runtime_figure=durable_runtime.restart_placement(2)
+            in_use=durable_runtime.owned_usage_bytes()
+        with patch.object(install_server,'STATE',self.state),patch.object(install_server,'docker',refuse):
+            memory,cpus,origin=install_server.planned_placement()
+        self.assertEqual(runtime_figure,resource_policy.start_placement(2))
+        self.assertEqual((memory,cpus),runtime_figure)
+        self.assertNotIn('recovery target',origin)
+        self.assertEqual(in_use,7*100*self.MIB)
+        # The pin classification still sees the recorded target.
+        with patch.object(install_server,'STATE',self.state):
+            self.assertEqual(install_server.current_prefix(),self.PREFIX)
+
+    def test_the_restart_check_and_the_preflight_state_the_same_figure(self):
+        import durable_runtime
+        import resource_policy
+        with patch.object(durable_runtime,'STATE',self.state),patch.object(durable_runtime.lab,'docker',self.docker):
+            runtime_figure=durable_runtime.restart_placement(2)
+        with patch.object(install_server,'STATE',self.state),patch.object(install_server,'docker',self.docker):
+            memory,cpus,origin=install_server.planned_placement()
+        self.assertEqual(runtime_figure,(memory,cpus))
+        # The source rows alone, which is what the restart check counted before.
+        self.assertEqual(resource_policy.start_placement(2),(2816,2.75))
+        self.assertEqual(runtime_figure,(2816+2048,4.75))
+        self.assertIn('plus 4 recovery target containers',origin)
+
+    def test_a_fresh_source_beside_a_target_counts_both(self):
+        # The preflight used to count only the target when no source container was retained.
+        with patch.object(install_server,'STATE',self.state),patch.object(install_server,'docker',self.docker):
+            memory,cpus,origin=install_server.planned_placement(inspect=lambda:[])
+        self.assertEqual((memory,cpus),(1792+2048,3.75))
+        self.assertIn('fresh placement plus 4',origin)
+
+    def test_the_new_environment_check_refuses_what_only_fits_without_the_target(self):
+        import durable_runtime
+        import resource_policy
+        with patch.object(durable_runtime,'STATE',self.state),patch.object(durable_runtime.lab,'docker',self.docker):
+            placement,cpus=durable_runtime.restart_placement(2)
+        source,source_cpus=resource_policy.start_placement(2)
+        available=(source+resource_policy.START_RESERVE_MIB+500)*self.MIB
+        self.assertTrue(resource_policy.restart_fits(source,source_cpus,available,0,8))
+        self.assertFalse(resource_policy.restart_fits(placement,cpus,available,0,8))
+
+    def test_the_running_target_is_counted_in_use_so_it_is_not_counted_twice(self):
+        import durable_runtime
+        with patch.object(durable_runtime,'STATE',self.state),patch.object(durable_runtime.lab,'docker',self.docker):
+            in_use=durable_runtime.owned_usage_bytes()
+        # Seven running source containers and the one running target container.
+        self.assertEqual(in_use,8*100*self.MIB)
+        stats=[call for call in self.calls if call[0]=='stats'][0]
+        self.assertIn(self.PREFIX+'-db',stats)
+        self.assertNotIn('sbarbase-restore-old-db',stats)
+
+    def test_an_unbounded_target_container_is_refused_by_the_runtime_and_widened_by_the_preflight(self):
+        import durable_runtime
+        import resource_policy
+        self.target[self.PREFIX+'-storage']={'HostConfig':{'Memory':0,'NanoCpus':0}}
+        with patch.object(durable_runtime,'STATE',self.state),patch.object(durable_runtime.lab,'docker',self.docker):
+            with self.assertRaises(resource_policy.ResourcePolicyError):durable_runtime.restart_placement(2)
+        with patch.object(install_server,'STATE',self.state),patch.object(install_server,'docker',self.docker):
+            memory,cpus,_=install_server.planned_placement()
+        self.assertEqual((memory,cpus),(install_server.PLANNED_MIB,install_server.PLANNED_CPUS))
+
+    def test_every_restart_check_counts_the_recovery_target(self):
+        source=(Path(install_server.__file__).parent/'durable_runtime.py').read_text()
+        checks=[line for line in source.splitlines() if 'placement, cpus = ' in line]
+        self.assertEqual(len(checks),3)
+        for line in checks:self.assertIn('restart_placement(',line)
+        self.assertNotIn('placement, cpus = resource_policy.start_placement',source)

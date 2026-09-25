@@ -51,6 +51,7 @@ class NativeStageTests(unittest.TestCase):
                  patch.object(durable_runtime,'inspect',return_value={"owned":True}),\
                  patch.object(durable_runtime,'owned_usage_bytes',return_value=0),\
                  patch.object(durable_runtime.resource_policy,'restart_fits',return_value=True),\
+                 patch.object(durable_runtime,'recovery_target_items',return_value=[]),\
                  patch.object(durable_runtime.resource_admission,'snapshot',return_value=None),\
                  patch.object(durable_runtime.resource_admission,'refusal',return_value=None),\
                  patch.object(durable_runtime.pressure_admission,'snapshot',return_value=None),\
@@ -71,6 +72,7 @@ class NativeStageTests(unittest.TestCase):
                  patch.object(durable_runtime,'inspect',return_value={"owned":True}),\
                  patch.object(durable_runtime,'owned_usage_bytes',return_value=0),\
                  patch.object(durable_runtime.resource_policy,'restart_fits',return_value=True),\
+                 patch.object(durable_runtime,'recovery_target_items',return_value=[]),\
                  patch.object(durable_runtime.resource_admission,'snapshot',return_value=None),\
                  patch.object(durable_runtime.resource_admission,'refusal',return_value=None),\
                  patch.object(durable_runtime.pressure_admission,'snapshot',return_value=None),\

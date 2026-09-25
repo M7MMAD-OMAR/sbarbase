@@ -74,9 +74,28 @@ def available_memory_bytes():
     return int(next(x.split()[1] for x in lab.Path('/proc/meminfo').read_text().splitlines() if x.startswith('MemAvailable:')))*1024
 
 
+def recovery_target_items():
+    """The current recovery target's containers, the same listing the preflight counts."""
+    return resource_policy.recovery_target_items(STATE, lab.docker)
+
+
+def restart_placement(environments, realtime=0, functions=0):
+    """(MiB, CPUs) the next start runs: the source rows plus the current recovery target."""
+    return resource_policy.restart_placement(resource_policy.start_placement(environments, realtime, functions), recovery_target_items())
+
+
 def owned_usage_bytes():
-    """Memory the running owned containers use now, from the daemon."""
+    """Memory the running owned containers use now, from the daemon.
+
+    On a moved installation the current recovery target's running containers are
+    included: the restart check counts them in the placement, and while they run their use is already
+    missing from MemAvailable, so leaving them out would count them twice.
+    """
     names = lab.docker('ps', '--filter', 'label=io.sbarbase.owner='+OWNER, '--format', '{{.Names}}').stdout.split()
+    prefix = resource_policy.started_recovery_target_prefix(STATE)
+    if prefix:
+        names += [name for name in lab.docker('ps', '--filter', 'label=io.sbarbase.owner='+resource_policy.RECOVERY_TARGET_OWNER,
+                                               '--format', '{{.Names}}').stdout.split() if name.startswith(prefix+'-')]
     if not names:
         return 0
     units = {'B': 1, 'KiB': 1024, 'MiB': 1024**2, 'GiB': 1024**3}
@@ -523,7 +542,7 @@ class Runtime:
                 raise AdmissionLimitError('Local runtime admission limit reached')
             try:
                 reason = resource_admission.refusal(resource_admission.snapshot())
-                placement, cpus = resource_policy.start_placement(len(self.values['environments']) + int(new_environment), realtime_count(), functions_count())
+                placement, cpus = restart_placement(len(self.values['environments']) + int(new_environment), realtime_count(), functions_count())
                 restart = resource_policy.restart_fits(placement, cpus, available_memory_bytes(), owned_usage_bytes(), os.cpu_count() or 0)
             except Exception:
                 raise RuntimeError('Resource measurement unavailable') from None
@@ -978,7 +997,7 @@ ALTER DEFAULT PRIVILEGES FOR ROLE {role} IN SCHEMA public GRANT EXECUTE ON FUNCT
         name = PREFIX+'-'+e+'-functions'
         if on:
             if not functions_on(e):
-                placement, cpus = resource_policy.start_placement(len(self.values['environments']), realtime_count(), functions_count() + 1)
+                placement, cpus = restart_placement(len(self.values['environments']), realtime_count(), functions_count() + 1)
                 if not resource_policy.restart_fits(placement, cpus, available_memory_bytes(), owned_usage_bytes(), os.cpu_count() or 0):
                     raise AdmissionLimitError('Restart headroom unavailable')
             entry = self.functions_start(e)
@@ -1010,7 +1029,7 @@ ALTER DEFAULT PRIVILEGES FOR ROLE {role} IN SCHEMA public GRANT EXECUTE ON FUNCT
             if self.sql(f"SELECT count(*) FROM pg_hba_file_rules WHERE '{e}_realtime' = ANY(user_name) AND error IS NULL;").stdout.strip() != '1':
                 raise RuntimeError('Realtime access rule not published; restart Sbarbase once')
             if not realtime_on(e):
-                placement, cpus = resource_policy.start_placement(len(self.values['environments']), realtime_count() + 1, functions_count())
+                placement, cpus = restart_placement(len(self.values['environments']), realtime_count() + 1, functions_count())
                 if not resource_policy.restart_fits(placement, cpus, available_memory_bytes(), owned_usage_bytes(), os.cpu_count() or 0):
                     raise AdmissionLimitError('Restart headroom unavailable')
                 # The connections Realtime adds must fit what the cluster can serve, as Studio's do.

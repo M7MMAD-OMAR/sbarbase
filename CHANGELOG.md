@@ -167,6 +167,9 @@ ready.
 - CI was red on a host whose root filesystem is a partition: a test still
   expected the partition where the runtime correctly names the whole disk.
 - Five admission unit tests called Docker for real and failed without a daemon.
+- The server acceptance recorded the unit as active in the same second it
+  started it. After every start it now waits, at most 300 seconds, until the
+  console answers over loopback, and fails with the last thing it saw.
 
 ### Changed
 
@@ -179,9 +182,16 @@ ready.
   limits on an empty server, plus 512 MiB per environment, plus the 2560 MiB
   reserve), and the preflight, the unit's `ExecStartPre` and the runtime use one
   computation. It was a fixed 5888 MiB in the preflight and 6 GiB in the runtime.
+- Every GitHub Actions step is pinned to a full commit SHA, with the tag it was
+  resolved from as a comment, so a moved tag cannot change what CI runs.
 - CPU limits are admitted as ceilings: up to twice the cores after one core for
   the host. The old rule asked for 8 cores.
 - A new environment is refused when the next restart could not admit it.
+  On an installation that moved an environment, that check and the preflight
+  now count the current recovery target's containers in one computation; the
+  check used to count the source placement only, and a running target's memory
+  is now counted as in use rather than twice. A restored target that was never
+  cut over is counted by neither, because the next start does not run it.
 - Project names are unique within an organization and environment names within
   a project; a clash answers 409, not 500. The API refuses an environment past
   the installation limit with 409 before queueing it.

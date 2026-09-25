@@ -24,6 +24,9 @@
 #
 #   deploy/server-acceptance.sh --rehearse --docker-host unix:///var/run/docker.sock
 #
+# Every start of the unit is recorded only once its console answers over
+# loopback; --console-timeout SECONDS bounds that wait (default 300).
+#
 # It never prints a secret: only whether a bootstrap file was used. Every step
 # that fails stops the run and exits non-zero. Evidence lands in
 # docs/evidence/deployment-rehearsal.json and is copied to
@@ -42,6 +45,7 @@ SERVICE_USER=""
 SERVICE_HOME=""
 BUN_DIR=""
 DOCKER_HOST_ARG=""
+CONSOLE_WAIT=300
 
 fail() { printf 'FAIL: %s\n' "$1" >&2; exit 1; }
 step() { printf '\n== %s\n' "$1"; }
@@ -61,12 +65,16 @@ while [ $# -gt 0 ]; do
     --home) shift; [ $# -gt 0 ] || fail "--home needs a path"; SERVICE_HOME="$1" ;;
     --bun-dir) shift; [ $# -gt 0 ] || fail "--bun-dir needs a path"; BUN_DIR="$1" ;;
     --docker-host) shift; [ $# -gt 0 ] || fail "--docker-host needs an endpoint"; DOCKER_HOST_ARG="$1" ;;
+    --console-timeout) shift; [ $# -gt 0 ] || fail "--console-timeout needs a number of seconds"; CONSOLE_WAIT="$1" ;;
     --python) shift; [ $# -gt 0 ] || fail "--python needs a path"; PYTHON="$1" ;;
-    -h|--help) sed -n '2,30p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,33p' "$0"; exit 0 ;;
     *) fail "unknown argument: $1" ;;
   esac
   shift
 done
+case "$CONSOLE_WAIT" in
+  ''|*[!0-9]*|0) fail "--console-timeout must be a positive whole number of seconds: $CONSOLE_WAIT" ;;
+esac
 
 # sudo replaces PATH with a secure default, so a Bun installed under the
 # invoking user's home disappears. --bun-dir names it once for every step: the
@@ -110,6 +118,12 @@ run_as_installation() {
   local environment=("PATH=$PATH")
   if [ -n "${DOCKER_HOST:-}" ]; then environment+=("DOCKER_HOST=$DOCKER_HOST"); fi
   sudo -u "$SERVICE_USER" -H env "${environment[@]}" "$@"
+}
+# systemd reports the unit active the moment dev.py is executed; the console
+# answers only once the owned runtime and the API are up. A start is recorded
+# only after the console answers over loopback, within a bound (--console-timeout).
+console_answers() {
+  run_as_installation "$PYTHON" lab/install_server.py wait-console --timeout "$CONSOLE_WAIT"
 }
 # System units need root; a non-root run uses sudo when it has the right to.
 unit_control() {
@@ -190,9 +204,9 @@ if [ -n "$SERVICE_HOME" ]; then supervise_args+=(--home "$SERVICE_HOME"); fi
 if [ -n "$BUN_DIR" ]; then supervise_args+=(--bun-dir "$BUN_DIR"); fi
 if [ "$INSTALL_UNIT" = "1" ]; then
   [ "$(id -u)" = "0" ] || fail "--install-unit needs root (run the whole script with sudo)"
-  "$PYTHON" lab/install_server.py "${supervise_args[@]}" --apply || fail "the supervisor unit could not be installed"
+  "$PYTHON" lab/install_server.py "${supervise_args[@]}" --apply --timeout "$CONSOLE_WAIT" || fail "the supervisor unit could not be installed, or its console did not answer"
   unit_control is-active --quiet sbarbase.service || fail "sbarbase.service is not active after install"
-  printf 'ok: sbarbase.service installed, enabled and active\n'
+  printf 'ok: sbarbase.service installed, enabled and active, and its console answers\n'
 else
   run_as_installation "$PYTHON" lab/install_server.py "${supervise_args[@]}" || fail "the supervisor unit did not render and verify for this installation"
 fi
@@ -213,8 +227,9 @@ restore_unit_on_exit() {
   if [ "${STOPPED_UNIT:-0}" = "1" ]; then
     printf '\n== restore the supervised installation\n'
     if unit_control start sbarbase.service; then
-      if [ "$(unit_state)" = "active" ]; then printf 'ok: sbarbase.service active again\n';
-      else printf 'FAIL: sbarbase.service did not become active again\n' >&2; fi
+      if [ "$(unit_state)" != "active" ]; then printf 'FAIL: sbarbase.service did not become active again\n' >&2;
+      elif console_answers; then printf 'ok: sbarbase.service active again and its console answers\n';
+      else printf 'FAIL: sbarbase.service is active again but its console did not answer within %s s\n' "$CONSOLE_WAIT" >&2; fi
     else
       printf 'FAIL: sbarbase.service could not be started again\n' >&2
     fi
@@ -251,6 +266,7 @@ if [ "${STOPPED_UNIT:-0}" = "1" ]; then
   # Restored once here; the exit trap must not start it a second time.
   STOPPED_UNIT=0
   unit_control is-active --quiet sbarbase.service || fail "sbarbase.service is not active after the rehearsal"
+  console_answers || fail "sbarbase.service is active after the rehearsal but its console did not answer within $CONSOLE_WAIT s"
 fi
 
 step "evidence"
@@ -280,11 +296,7 @@ if [ "$FIRST_PROJECT" = "1" ]; then
   step "first project"
   [ -n "$BOOTSTRAP" ] || fail "--first-project needs --bootstrap-file to log in as the operator"
   unit_control is-active --quiet sbarbase.service || fail "--first-project needs the supervised installation running"
-  for _ in $(seq 1 60); do
-    [ -f .lab/upstream/server.json ] && break
-    sleep 2
-  done
-  [ -f .lab/upstream/server.json ] || fail "the supervised console did not publish its address"
+  console_answers || fail "the supervised console did not answer within $CONSOLE_WAIT s"
   run_as_installation bun lab/first-project-check.ts "$BOOTSTRAP" --evidence docs/evidence/first-project-check.json \
     || fail "first project check failed; the recorded findings are in docs/evidence/first-project-check.json"
 fi
