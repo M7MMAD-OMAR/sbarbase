@@ -3,7 +3,7 @@ import type {KeyStore} from './keys';
 import {authenticate,reply,type ManagementIdentity} from './auth';
 import {readJsonCached} from '../http/cached-json';
 import {join} from 'node:path';
-import {UPDATES_DIRECTORY,requestUpdate,saveSettings,serverZone,updatesView,validateSettings,type UpdateRequestKind} from './updates';
+import {UPDATES_DIRECTORY,UpdateRefusal,requestUpdate,saveSettings,serverZone,updatesView,validateSettings,type UpdateRequestKind} from './updates';
 
 /** Runtime state directory, the same tree the runtime writes the catalog in. */
 const MAIL_STATE_DIRECTORY='.lab/upstream';
@@ -95,6 +95,7 @@ const CONFLICTS=new Set(['Name already used','Environment capacity reached','Org
 const INVALID=new Set(['Invalid name','Invalid ownership','Invalid runtime']);
 function refusal(error:unknown):Response {
   const message=error instanceof Error?error.message:'';
+  if(error instanceof UpdateRefusal)return reply(error.status,{message});
   if(error instanceof InputError||INVALID.has(message))return reply(400,{message:'Invalid request'});
   if(message==='Forbidden')return reply(403,{message:'Forbidden'});
   if(CONFLICTS.has(message))return reply(409,{message});
@@ -248,11 +249,11 @@ export function managementHandler(catalog:Catalog,identify:ManagementIdentity,ma
       const actor=await authenticate(identify,request);
       if(actor instanceof Response)return actor;
       try {
-        if(!catalog.installationOperator(actor))return reply(403,{message:'Forbidden'});
+        if(!catalog.installationOperator(actor))throw new Error('Forbidden');
         if(action==='')return reply(200,{data:updatesView(updatesDirectory,checkout)});
         if(action==='/settings') {
           const settings=validateSettings(await body(request,['check','automatic','window']));
-          if(typeof settings==='string')return reply(400,{message:settings});
+          if(typeof settings==='string')throw new UpdateRefusal(settings,400);
           // The window is read in the supervisor's time zone, returned beside the settings.
           return reply(200,{data:saveSettings(settings,updatesDirectory),timezone:serverZone(updatesDirectory)});
         }
@@ -260,18 +261,14 @@ export function managementHandler(catalog:Catalog,identify:ManagementIdentity,ma
         if(action==='/apply') {
           const input=await body(request,['version'],['acknowledged']);
           if(typeof input.version!=='string'||!/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(input.version))
-            return reply(400,{message:'Name the release version to install.'});
+            throw new UpdateRefusal('Name the release version to install.',400);
           // `acknowledged: true` confirms the warning of a release that migrates environment databases.
-          if(input.acknowledged!==undefined&&typeof input.acknowledged!=='boolean')return reply(400,{message:'Invalid request'});
+          if(input.acknowledged!==undefined&&typeof input.acknowledged!=='boolean')throw new InputError();
           version=input.version;acknowledged=input.acknowledged===true;
-        } else if(request.body)return reply(400,{message:'Invalid request'});
-        const refused=requestUpdate(action.slice(1) as UpdateRequestKind,version,updatesDirectory,checkout,acknowledged);
-        return refused?reply(409,{message:refused}):reply(202,{state:'requested'});
-      } catch(error) {
-        if(error instanceof InputError)return reply(400,{message:'Invalid request'});
-        if(error instanceof Error&&error.message==='Forbidden')return reply(403,{message:'Forbidden'});
-        return reply(500,{message:'Management operation failed'});
-      }
+        } else if(request.body)throw new InputError();
+        requestUpdate(action.slice(1) as UpdateRequestKind,version,updatesDirectory,acknowledged);
+        return reply(202,{state:'requested'});
+      } catch(error) {return refusal(error);}
     }
     if(path==='/management/v1/notifications') {
       if(request.method!=='GET')return reply(405,{message:'Method not allowed'});

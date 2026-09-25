@@ -18,6 +18,10 @@ export type AvailableRelease={version:string;tag:string;commit:string;class:Upda
 export type NewestRelease={version:string;tag:string;class:UpdateClass|null;signed:boolean;reasons:string[]};
 /** The zone of the server clock the maintenance window is read in. */
 export type ServerZone={name:string;offset:string};
+/** The server's verdict on installing the release on offer now: the supervisor judged it, so
+ * the console shows it and never judges again. `acknowledgement`: the operator confirms the
+ * release's warning first. */
+export type InstallVerdict={possible:boolean;reason:string|null;acknowledgement:boolean};
 export type UpdatesView={
  current:{version:string;commit:string};
  available:null|AvailableRelease;
@@ -27,6 +31,7 @@ export type UpdatesView={
  settings:UpdateSettings;timezone:ServerZone;
  last:null|UpdateRecord;
  request:null|UpdateRequest;
+ install:null|InstallVerdict;
  canRollback:boolean;
 };
 
@@ -111,29 +116,30 @@ export function dismiss(storage:KeyStore|undefined,key:string):string[]{
  return next;
 }
 
-/** Whether a class installs from the console: safe, and attended after the acknowledgement. */
+/** Whether the page offers the install button for a class (safe, and attended after the
+ * acknowledgement) rather than the commands to install it on the server. Whether it is enabled
+ * is the server's verdict (installState). */
 export function installable(value:UpdateClass):boolean{return value==='safe'||value==='attended';}
 /** What the operator must acknowledge before an `attended` release is sent. */
 export const ACKNOWLEDGEMENT='I understand that if this update returns to the current version, environment data may need restoring from the backups taken before it.';
 
-/** Whether "Install update" is offered, and why not when it is not. Notes about releases the
- * check passed over never disable it. */
+/** Whether "Install update" is enabled, and why not when it is not: the server's verdict as it
+ * gave it, which already counts a request under way. */
 export function installState(view:UpdatesView|undefined):{enabled:boolean;reasons:string[]}{
- const release=view?.available;
- if(!view||!release)return {enabled:false,reasons:['No newer release is available.']};
- const reasons:string[]=[];
- if(!installable(release.class))reasons.push('This release installs on the server, not from the console.');
- if(!release.signed)reasons.push('This release is not signed by a Sbarbase release key.');
- if(view.refusals.length)reasons.push('The server cannot apply it right now.');
- if(busy(view))reasons.push('Another update request is still in progress.');
- return {enabled:reasons.length===0,reasons};
+ const install=view?.available?view.install:null;
+ if(!install)return {enabled:false,reasons:['No newer release is available.']};
+ if(install.possible)return {enabled:true,reasons:[]};
+ return {enabled:false,reasons:[install.reason??'The server cannot install this release now.']};
 }
 
-/** A request the server has not finished, or an upgrade that is still between phases. */
-export function busy(view:UpdatesView):boolean{
- const request=view.request;
- if(request&&request.kind!=='check'&&(request.state==='requested'||request.state==='running'))return true;
- return view.last?.phase==='applied'||view.last?.phase==='rolling_back';
+/** The apply or rollback under way: a request the server has not finished, or an upgrade still
+ * between phases. The page stays busy while there is one and, loaded meanwhile, watches it. */
+export function openRequest(view:UpdatesView|undefined):'apply'|'rollback'|undefined{
+ const request=view?.request;
+ if(request&&request.kind!=='check'&&(request.state==='requested'||request.state==='running'))return request.kind;
+ if(view?.last?.phase==='applied')return 'apply';
+ if(view?.last?.phase==='rolling_back')return 'rollback';
+ return undefined;
 }
 
 /** Twelve hour display of the API's "HH:MM" server time, by arithmetic rather than Intl so
@@ -213,14 +219,10 @@ export function startWatch(kind:WatchKind,view:UpdatesView|undefined,now:number,
   baseline:{last:signature(view?.last),request:resume?null:view?.request?.requestedAt??null,checkedAt:view?.checkedAt??null}};
 }
 
-/** What to watch on page load: an apply or rollback that is still under way. */
-export function resumeKind(view:UpdatesView|undefined):WatchKind|undefined{
- if(!view)return undefined;
- const request=view.request;
- if(request&&request.kind!=='check'&&(request.state==='requested'||request.state==='running'))return request.kind;
- if(view.last?.phase==='applied')return 'apply';
- if(view.last?.phase==='rolling_back')return 'rollback';
- return undefined;
+/** The request a watch follows: one of its kind that the server recorded after the watch began. */
+function watchedRequest(watch:Watch):UpdateRequest|undefined{
+ const request=watch.view?.request;
+ return request&&request.kind===watch.kind&&request.requestedAt!==watch.baseline.request?request:undefined;
 }
 
 export type PollEvent={type:'ok';view:UpdatesView}|{type:'unreachable'};
@@ -234,10 +236,9 @@ export function stepWatch(watch:Watch,event:PollEvent,now:number):{watch:Watch;d
   if(expired)return {watch:{...watch,unreachable,phase:'timed_out'},delay:null};
   return {watch:{...watch,unreachable,phase:'restarting'},delay:Math.min(POLL_MS*2**Math.min(unreachable,4),MAX_BACKOFF_MS)};
  }
- const view=event.view,next:Watch={...watch,view,unreachable:0,phase:'waiting'};
- const request=view.request,fresh=request&&request.kind===watch.kind&&request.requestedAt!==watch.baseline.request;
- let finished=Boolean(fresh&&request?.state==='failed');
- if(watch.kind==='check')finished||=Boolean(fresh&&request?.state==='done')||view.checkedAt!==watch.baseline.checkedAt;
+ const view=event.view,next:Watch={...watch,view,unreachable:0,phase:'waiting'},request=watchedRequest(next);
+ let finished=request?.state==='failed';
+ if(watch.kind==='check')finished||=request?.state==='done'||view.checkedAt!==watch.baseline.checkedAt;
  else finished||=Boolean(view.last&&FINAL.has(view.last.phase)&&signature(view.last)!==watch.baseline.last);
  if(finished)return {watch:{...next,phase:'done'},delay:null};
  if(expired)return {watch:{...next,phase:'timed_out'},delay:null};
@@ -248,11 +249,10 @@ export type Stage='queued'|'running'|'restarting'|'checking'|'returning'|'confir
 
 /** Where a watched request stands, in the terms the progress view speaks. */
 export function watchStage(watch:Watch):Stage{
- const view=watch.view,request=view?.request,last=view?.last;
- const fresh=request&&request.kind===watch.kind&&request.requestedAt!==watch.baseline.request;
+ const last=watch.view?.last,request=watchedRequest(watch);
  if(watch.phase==='timed_out')return 'timed_out';
  if(watch.phase==='done'){
-  if(fresh&&request?.state==='failed')return 'refused';
+  if(request?.state==='failed')return 'refused';
   if(watch.kind==='check')return 'checked';
   if(last?.phase==='confirmed')return 'confirmed';
   if(last?.phase==='rolled_back')return last.automatic?'rolled_back':'rolled_back_by_request';
@@ -262,7 +262,7 @@ export function watchStage(watch:Watch):Stage{
  if(watch.phase==='restarting')return 'restarting';
  if(last?.phase==='rolling_back')return 'returning';
  if(watch.kind==='apply'&&last?.phase==='applied'&&(signature(last)!==watch.baseline.last||watch.baseline.request===null))return 'checking';
- if(fresh&&request?.state==='running')return 'running';
+ if(request?.state==='running')return 'running';
  return 'queued';
 }
 

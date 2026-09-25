@@ -1,8 +1,10 @@
 import {readFileSync} from 'node:fs';
+import {join} from 'node:path';
 import {timingSafeEqual} from 'node:crypto';
+import {UPDATES_DIRECTORY} from '../control/updates';
 import {holdApplication} from './hold';
 
-export const PROBE_TOKEN='.lab/upgrades/probe-token';
+export const PROBE_TOKEN=join(UPDATES_DIRECTORY,'probe-token');
 export const PROBE_HEADER='x-sbarbase-upgrade-probe';
 // Only these two: the Functions route hands the caller's own headers to user code, and Storage
 // and Realtime are probed directly by the supervisor already.

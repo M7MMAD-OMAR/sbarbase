@@ -1,9 +1,9 @@
-import {useCallback,useEffect,useId,useRef,useState,type KeyboardEvent,type ReactNode} from 'react';
+import {createContext,useCallback,useContext,useEffect,useId,useRef,useState,type KeyboardEvent,type ReactNode} from 'react';
 import {CircleArrowUp,CircleCheck,Download,ExternalLink,Info,OctagonAlert,RefreshCw,RotateCcw,ShieldAlert,ShieldCheck,TriangleAlert,Undo2,Wrench,X} from 'lucide-react';
 import {UpdateError,type UpdatesApi} from './api';
 import {ErrorMessage,Loading} from './components';
-import {ACKNOWLEDGEMENT,BACKUP_GUIDE,CLASS_WORDS,STAGE_TEXT,UPGRADES_GUIDE,availableText,banners,newestText,busy,describeWindow,dismiss,formatWhen,settingsKey,installState,installable,parseClock,readDismissed,
- releaseNotes,resumeKind,startWatch,stepWatch,toClock24,watchStage,windowError,type ClockTime,type NewestRelease,type PollEvent,type ServerZone,type UpdateClass,type UpdateSettings,type UpdatesView,type Watch,type WatchKind} from './releases';
+import {ACKNOWLEDGEMENT,BACKUP_GUIDE,CLASS_WORDS,STAGE_TEXT,UPGRADES_GUIDE,availableText,banners,newestText,describeWindow,dismiss,formatWhen,settingsKey,installState,installable,openRequest,parseClock,readDismissed,
+ releaseNotes,startWatch,stepWatch,toClock24,watchStage,windowError,type ClockTime,type NewestRelease,type PollEvent,type ServerZone,type UpdateClass,type UpdateSettings,type UpdatesView,type Watch,type WatchKind} from './releases';
 
 function storage(){try{return window.localStorage;}catch{return undefined;}}
 const message=(error:unknown)=>error instanceof Error?error.message:'The request failed. Refresh and try again.';
@@ -22,7 +22,7 @@ export type UpdatesController={
 /** Update state for the installation operator. It lives in the console shell, not in a page,
  * so a watched upgrade survives navigation and token refreshes during the restart. A 403
  * leaves everything empty: someone who is not the operator sees nothing about updates. */
-export function useUpdates(client:UpdatesApi,enabled:boolean):UpdatesController{
+function useUpdates(client:UpdatesApi,enabled:boolean):UpdatesController{
  const [view,setView]=useState<UpdatesView>(),[error,setError]=useState(''),[loading,setLoading]=useState(false);
  const [progress,setProgress]=useState<{watch:Watch;delay:number|null}>(),[dismissed,setDismissed]=useState<string[]>(()=>readDismissed(storage()));
  const watching=useRef(false);watching.current=Boolean(progress&&progress.delay!==null);
@@ -36,7 +36,7 @@ export function useUpdates(client:UpdatesApi,enabled:boolean):UpdatesController{
   const timer=setInterval(()=>{if(!watching.current)refresh();},5*60*1000);return()=>clearInterval(timer);},[enabled,refresh]);
  // A page loaded while an upgrade is under way picks up the watch where it stands.
  const resumed=useRef(false);
- useEffect(()=>{if(resumed.current||!view)return;resumed.current=true;const kind=resumeKind(view);
+ useEffect(()=>{if(resumed.current||!view)return;resumed.current=true;const kind=openRequest(view);
   if(kind&&!progress)setProgress({watch:startWatch(kind,view,Date.now(),true),delay:2000});},[view]);
  useEffect(()=>{
   if(!progress||progress.delay===null)return;let live=true;const current=progress.watch;
@@ -59,6 +59,19 @@ export function useUpdates(client:UpdatesApi,enabled:boolean):UpdatesController{
   saveSettings:async settings=>{const saved=await client.saveSettings(settings);setView(current=>current&&{...current,settings:saved});}};
 }
 
+const UpdatesContext=createContext<UpdatesController|undefined>(undefined);
+/** Holds the update state for the console shell. Only the banner and the Updates page read it,
+ * so each poll of a watched upgrade renders those two again, not the whole console: the
+ * children come from the shell's own render, and React keeps them as they are. */
+export function UpdatesProvider({client,enabled,children}:{client:UpdatesApi;enabled:boolean;children:ReactNode}){
+ return <UpdatesContext.Provider value={useUpdates(client,enabled)}>{children}</UpdatesContext.Provider>;
+}
+function useUpdatesState():UpdatesController{
+ const updates=useContext(UpdatesContext);
+ if(!updates)throw new Error('The update state is read inside UpdatesProvider only.');
+ return updates;
+}
+
 const CLASS_ICON:Record<UpdateClass,typeof ShieldCheck>={safe:ShieldCheck,attended:ShieldAlert,rebuild:Wrench,manual:TriangleAlert};
 const CLASS_STATE:Record<UpdateClass,string>={safe:'applied',attended:'running',rebuild:'running',manual:'failed'};
 function ClassBadge({value}:{value:UpdateClass}){
@@ -69,8 +82,8 @@ const inProgress=(progress:UpdatesController['progress'])=>Boolean(progress&&pro
 
 /** App-wide notices for the operator: a newer release, the outcome of the last upgrade, or
  * an upgrade under way. Each notice states itself in words, not by colour alone. */
-export function UpdateBanners({updates,onOpen,onPage}:{updates:UpdatesController;onOpen:()=>void;onPage:boolean}){
- const open=onPage?null:<button className="secondary" onClick={onOpen}>View updates</button>;
+export function UpdateBanners({onOpen,onPage}:{onOpen:()=>void;onPage:boolean}){
+ const updates=useUpdatesState(),open=onPage?null:<button className="secondary" onClick={onOpen}>View updates</button>;
  if(inProgress(updates.progress))return <div className="update-banner" role="status"><RefreshCw aria-hidden="true"/><p>An update is in progress. The console may disconnect for a few minutes while Sbarbase restarts.</p>{open}</div>;
  const watch=updates.progress?.watch;
  // Wherever the operator waited, a confirmed upgrade asks for a reload so the new console loads.
@@ -175,8 +188,8 @@ function Newest({release,offered,notes}:{release:NewestRelease;offered:boolean;n
 
 /** The installation's updates page: what runs now, what is available, how to install it,
  * the last upgrade and the update settings. Only the installation operator reaches it. */
-export function Updates({updates}:{updates:UpdatesController}){
- const view=updates.view;
+export function Updates(){
+ const updates=useUpdatesState(),view=updates.view;
  const [confirm,setConfirm]=useState<'install'|'rollback'>(),[sending,setSending]=useState(false),[error,setError]=useState(''),[checking,setChecking]=useState(false);
  const [acknowledged,setAcknowledged]=useState(false),acknowledgeId=useId();
  const install=useFocusReturn(),back=useFocusReturn(),reasonsId=useId();
@@ -191,7 +204,7 @@ export function Updates({updates}:{updates:UpdatesController}){
  const checkRunning=Boolean(checking||watch?.kind==='check'&&updates.progress?.delay!==null);
  const checkDone=watch?.kind==='check'&&updates.progress?.delay===null?(watchStage(watch)==='timed_out'?'The check has not finished yet. Look again later.':release?'Checked. A newer release is available.':'Checked. This is the newest release.'):'';
  const notes=release?releaseNotes(release.notes,document.documentElement.lang||'en'):undefined;
- const moving=inProgress(updates.progress)||busy(view);
+ const moving=inProgress(updates.progress)||Boolean(openRequest(view)),acknowledgement=Boolean(view.install?.acknowledgement);
  return <>{heading}
   {watch&&watch.kind!=='check'&&<Progress key={watch.since} updates={updates}/>}
   <ErrorMessage message={error}/>
@@ -212,11 +225,11 @@ export function Updates({updates}:{updates:UpdatesController}){
    {view.refusals.length>0&&<><h3>Why it cannot be installed now</h3><ul className="plain-list refusals">{view.refusals.map(refusal=><li key={refusal}><TriangleAlert aria-hidden="true"/>{refusal}</li>)}</ul></>}
    <Skipped notes={view.skipped}/>
    {installable(release.class)?<div className="actions">{confirm==='install'
-    ?<Confirm title={'Install Sbarbase '+release.version+'?'} action="Install now" busy={sending} disabled={release.class==='attended'&&!acknowledged}
-      onConfirm={()=>void run('apply',release.version,release.class==='attended'&&acknowledged)} onCancel={()=>{setConfirm(undefined);setAcknowledged(false);install.restore();}}>
+    ?<Confirm title={'Install Sbarbase '+release.version+'?'} action="Install now" busy={sending} disabled={acknowledgement&&!acknowledged}
+      onConfirm={()=>void run('apply',release.version,acknowledgement&&acknowledged)} onCancel={()=>{setConfirm(undefined);setAcknowledged(false);install.restore();}}>
       <ul className="plain-list"><li>A backup of every environment is taken first.</li><li>The console and your applications pause for a few minutes while Sbarbase restarts.</li><li>If the new version does not start healthy, Sbarbase returns to this version by itself.</li>
-       {release.class==='attended'&&<li><strong>This update changes your environment databases as it starts.</strong> The way back restores the console's own state only: if Sbarbase returns to this version, environment data may need restoring from the backups taken before the update. <a href={BACKUP_GUIDE} target="_blank" rel="noreferrer">How to restore<ExternalLink aria-hidden="true"/></a></li>}</ul>
-      {release.class==='attended'&&<label className="check" htmlFor={acknowledgeId}><input id={acknowledgeId} type="checkbox" checked={acknowledged} onChange={event=>setAcknowledged(event.target.checked)}/>{ACKNOWLEDGEMENT}</label>}</Confirm>
+       {acknowledgement&&<li><strong>This update changes your environment databases as it starts.</strong> The way back restores the console's own state only: if Sbarbase returns to this version, environment data may need restoring from the backups taken before the update. <a href={BACKUP_GUIDE} target="_blank" rel="noreferrer">How to restore<ExternalLink aria-hidden="true"/></a></li>}</ul>
+      {acknowledgement&&<label className="check" htmlFor={acknowledgeId}><input id={acknowledgeId} type="checkbox" checked={acknowledged} onChange={event=>setAcknowledged(event.target.checked)}/>{ACKNOWLEDGEMENT}</label>}</Confirm>
     :<><button ref={install.trigger} className="primary" disabled={!state.enabled} aria-describedby={state.enabled?undefined:reasonsId} onClick={()=>{setAcknowledged(false);setConfirm('install');}}><Download aria-hidden="true"/>Install update</button>
       {!state.enabled&&<p id={reasonsId} className="small muted">{state.reasons.join(' ')}</p>}</>}</div>
    :release.class==='rebuild'?<div className="actions"><h3>Install it on the server</h3>

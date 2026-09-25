@@ -1,8 +1,8 @@
 import {test,expect,describe} from 'bun:test';
 import {readFileSync} from 'node:fs';
 import {join} from 'node:path';
-import {ACKNOWLEDGEMENT,CLASS_WORDS,STAGE_TEXT,availableText,banners,newestText,busy,classifyStatus,describeWindow,dismiss,formatClock,formatWhen,installState,installable,parseClock,readDismissed,
- releaseNotes,resumeKind,settingsKey,startWatch,stepWatch,toClock24,watchStage,windowError,zoneText,type UpdatesView,type Watch} from '../ui/releases';
+import {ACKNOWLEDGEMENT,CLASS_WORDS,STAGE_TEXT,availableText,banners,newestText,classifyStatus,describeWindow,dismiss,formatClock,formatWhen,installState,installable,openRequest,parseClock,readDismissed,
+ releaseNotes,settingsKey,startWatch,stepWatch,toClock24,watchStage,windowError,zoneText,type UpdatesView,type Watch} from '../ui/releases';
 
 const ui=join(import.meta.dir,'..','ui');
 const app=readFileSync(join(ui,'App.tsx'),'utf8');
@@ -14,7 +14,8 @@ const release={version:'0.2.0',tag:'v0.2.0',commit:'b'.repeat(40),class:'safe' a
  notes:{en:'Faster REST.',ar:'واجهة REST أسرع.'},changes:[{label:'PostgREST',before:'v12',after:'v13'}]};
 function view(change:Partial<UpdatesView>={}):UpdatesView{
  return {current:{version:'0.1.0',commit:'a'.repeat(40)},available:release,refusals:[],skipped:[],newest:null,checkedAt:'2026-09-25T10:00:00Z',checkError:null,
-  settings:{check:true,automatic:false,window:{start:'02:00',end:'05:00'}},timezone:{name:'UTC',offset:'+00:00'},last:null,request:null,canRollback:false,...change};
+  settings:{check:true,automatic:false,window:{start:'02:00',end:'05:00'}},timezone:{name:'UTC',offset:'+00:00'},last:null,request:null,
+  install:{possible:true,reason:null,acknowledgement:false},canRollback:false,...change};
 }
 const at=(minutes:number)=>1_000_000+minutes*60_000;
 
@@ -149,26 +150,36 @@ describe('banners',()=>{
 });
 
 describe('install button',()=>{
- test('offered only for a safe, signed release with no refusals and nothing under way',()=>{
+ test('enabled exactly as the server judged it, with the server\'s own sentence when it is not',()=>{
   expect(installState(view())).toEqual({enabled:true,reasons:[]});
-  expect(installState(view({available:{...release,class:'rebuild'}})).enabled).toBe(false);
-  expect(installState(view({available:{...release,class:'manual'}})).enabled).toBe(false);
-  expect(installState(view({available:{...release,signed:false}})).enabled).toBe(false);
-  expect(installState(view({refusals:['The checkout has local edits.']})).enabled).toBe(false);
+  const refused='This release is not signed by a Sbarbase release key, so it cannot be installed.';
+  expect(installState(view({install:{possible:false,reason:refused,acknowledgement:false}}))).toEqual({enabled:false,reasons:[refused]});
+  expect(installState(view({install:{possible:false,reason:null,acknowledgement:false}})).reasons).toEqual(['The server cannot install this release now.']);
+  // The console no longer judges the class, the signature or the refusals itself.
+  expect(installState(view({available:{...release,signed:false,class:'manual'},refusals:['The checkout has local edits.']})).enabled).toBe(true);
   expect(installState(view({available:null})).enabled).toBe(false);
+  expect(installState(view({install:null})).enabled).toBe(false);
   expect(installState(undefined).enabled).toBe(false);
-  const running=view({request:{kind:'apply',state:'running',requestedAt:'r'}});
-  expect(busy(running)).toBe(true);expect(installState(running).enabled).toBe(false);
-  expect(busy(view({request:{kind:'check',state:'running',requestedAt:'r'}}))).toBe(false);
-  expect(busy(view({last:{phase:'applied',from:'a',to:'b',startedAt:'s',automatic:false}}))).toBe(true);
-  expect(installState(view({available:{...release,signed:false,class:'manual'}})).reasons).toHaveLength(2);
+  expect(logic).not.toContain('release.signed');
  });
- test('a release that migrates environment databases is offered, behind an acknowledgement',()=>{
-  expect(installState(view({available:{...release,class:'attended'}}))).toEqual({enabled:true,reasons:[]});
+ test('an apply or rollback under way keeps the page busy and is watched on load',()=>{
+  expect(openRequest(view({request:{kind:'apply',state:'running',requestedAt:'r'}}))).toBe('apply');
+  expect(openRequest(view({request:{kind:'rollback',state:'requested',requestedAt:'r'}}))).toBe('rollback');
+  expect(openRequest(view({request:{kind:'check',state:'running',requestedAt:'r'}}))).toBeUndefined();
+  expect(openRequest(view({request:{kind:'apply',state:'done',requestedAt:'r'}}))).toBeUndefined();
+  expect(openRequest(view({last:{phase:'applied',from:'a',to:'b',startedAt:'s',automatic:false}}))).toBe('apply');
+  expect(openRequest(view({last:{phase:'rolling_back',from:'a',to:'b',startedAt:'s',automatic:false}}))).toBe('rollback');
+  expect(openRequest(view())).toBeUndefined();expect(openRequest(undefined)).toBeUndefined();
+  expect(page).toContain('Boolean(openRequest(view))');
+  expect(page).toContain('const kind=openRequest(view)');
+ });
+ test('a release whose verdict asks for the acknowledgement is offered behind it',()=>{
+  expect(installState(view({available:{...release,class:'attended'},install:{possible:true,reason:null,acknowledgement:true}}))).toEqual({enabled:true,reasons:[]});
   expect(['safe','attended','rebuild','manual'].map(value=>installable(value as never))).toEqual([true,true,false,false]);
-  expect(page).toContain('disabled={release.class===\'attended\'&&!acknowledged}');
+  expect(page).toContain('acknowledgement=Boolean(view.install?.acknowledgement)');
+  expect(page).toContain('disabled={acknowledgement&&!acknowledged}');
   expect(page).toContain('{ACKNOWLEDGEMENT}');
-  expect(page).toContain("run('apply',release.version,release.class==='attended'&&acknowledged)");
+  expect(page).toContain("run('apply',release.version,acknowledgement&&acknowledged)");
   expect(ACKNOWLEDGEMENT).toContain('backups taken before');
  });
  test('releases passed over are shown as information and never disable the install',()=>{
@@ -262,11 +273,9 @@ describe('progress state machine',()=>{
  });
  test('a page loaded mid-upgrade resumes the watch and counts the request under way',()=>{
   const running=view({request:{kind:'apply',state:'running',requestedAt:'q1'}});
-  expect(resumeKind(running)).toBe('apply');
-  expect(resumeKind(view({last:record('applied')}))).toBe('apply');
-  expect(resumeKind(view({last:record('rolling_back')}))).toBe('rollback');
-  expect(resumeKind(view())).toBeUndefined();
-  expect(resumeKind(view({request:{kind:'check',state:'running',requestedAt:'q'}}))).toBeUndefined();
+  expect(openRequest(running)).toBe('apply');
+  expect(openRequest(view({last:record('applied')}))).toBe('apply');
+  expect(openRequest(view({last:record('rolling_back')}))).toBe('rollback');
   const watch=startWatch('apply',running,at(0),true);
   expect(watchStage(run(watch,[[0,{type:'ok',view:running}]]).watch)).toBe('running');
   const refused=run(watch,[[0,{type:'ok',view:{...running,request:{kind:'apply',state:'failed',requestedAt:'q1'}}}]]);
@@ -279,9 +288,13 @@ describe('progress state machine',()=>{
 
 describe('wiring',()=>{
  test('the console shows updates to the operator only and reads the token on every call',()=>{
-  expect(app).toContain('useUpdates(updatesClient,operator)');
+  expect(app).toContain('<UpdatesProvider client={updatesClient} enabled={operator}>');
   expect(app).toContain('updatesApi(()=>token.current)');
   expect(app).toContain("{operator&&<UpdateBanners");
+  expect(app).toContain('<Updates/>');
+  // Only the banner and the page read the update state, so a poll does not render the whole console.
+  expect(app).not.toContain('useUpdates(');
+  expect(page.match(/useUpdatesState\(\)/g)).toHaveLength(3);
   expect(app).toContain("setOperator(Boolean(organizations.data.operator))");
   expect(api).toContain("'/management/v1/updates'+path");
   for(const route of ["send('/check','POST')","send('/apply','POST',acknowledged?{version,acknowledged:true}:{version})","send('/rollback','POST')","send('/settings','PUT',settings)"])expect(api).toContain(route);
