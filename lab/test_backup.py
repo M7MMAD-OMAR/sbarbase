@@ -248,7 +248,8 @@ class RestoreTests(Fixture):
 
         with patch.object(backup.subprocess, 'Popen', Broken):
             with self.assertRaisesRegex(backup.BackupError, 'snapshot'):
-                backup.Snapshot(E)
+                with backup.snapshot(E):
+                    self.fail('a failed snapshot must not reach the dump')
 
     def test_an_unpublished_environment_is_never_touched(self):
         calls, run, sql, helper = self.recorder()
