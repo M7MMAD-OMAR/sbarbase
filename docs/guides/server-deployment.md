@@ -295,6 +295,14 @@ bun deploy/console-tls-proxy.ts \
     --https-port 8443 --http-port 8080
 ```
 
+To keep it running across reboots, give it its own systemd unit that runs as the service
+account. On Fedora, SELinux refuses a unit that executes Bun under `/home` directly
+(status `203/EXEC`, permission denied), so start it through a shell:
+`ExecStart=/bin/sh -c 'exec /home/sbarbase/.bun/bin/bun deploy/console-tls-proxy.ts ...'`.
+The rehearsal VM ran it this way, with a local CA, across a reboot
+(`docs/evidence/vm-https-first-project.json`). It redirects plain HTTP to
+`https://<public host>/` on port 443, so publish it on 443 on a real server.
+
 It refuses to start unless the certificate and key are regular files, the key is
 not group or world readable, `--public-host` is set to a bare host name, and the
 upstream is loopback. The loopback assertion is applied to the console URL

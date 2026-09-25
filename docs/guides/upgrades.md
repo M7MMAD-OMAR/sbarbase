@@ -16,13 +16,15 @@ One command moves an installation to a newer Sbarbase version, and a restart sta
 
 `start` goes to `origin/main` by default; `--to <tag or commit>` picks another version. Before it moves anything it:
 
-1. refuses if the checkout has local changes, or if the new version changes the PostgreSQL image (that is a database migration, not an upgrade; see below);
+1. refuses if the checkout has local changes, or if the new version changes the PostgreSQL image (that is a database migration, not an upgrade; see below). Evidence the acceptance and the checks wrote under `docs/evidence/` is not a local change: it is copied to `.lab/upgrades/evidence-<time>/` before the checkout moves;
 2. pulls every image the new version pins, so a missing download never stops a running installation;
 3. backs up every environment ([backup and restore](backup-and-restore.md)); the backups stay afterwards.
 
 On the restart, only Auth, REST and Storage containers whose pinned image or configuration changed are replaced. They keep no data of their own: users, rows and files stay in the database and the file volume, which are never touched. If that start fails, the supervisor moves the checkout back, exits, and the restart policy brings up the previous version with its previous images. `status` then says `rolled_back`, and the backups taken before the upgrade are there if you need them.
 
-CI runs this on a clean machine with every change: a real upgrade to a newer PostgREST, then a broken version that never starts, which Sbarbase moves back from by itself, with users, files and buckets compared before and after ([evidence](../evidence/docker-upgrade-checks.json)).
+To go back to earlier pins after the automatic way back, when `rollback` says there is no upgrade to roll back, upgrade to the earlier version: `python3 lab/upgrade.py start --to <earlier commit>`, then restart. It backs up first, like any upgrade.
+
+The rehearsal VM ran the whole cycle on 2026-09-25: an upgrade to a newer PostgREST, a broken version that moved back by itself, and a return to the installed pins, with users unchanged at each step ([evidence](../evidence/vm-upgrade-checks.json), [return](../evidence/vm-upgrade-return.json)). CI runs this on a clean machine with every change: a real upgrade to a newer PostgREST, then a broken version that never starts, which Sbarbase moves back from by itself, with users, files and buckets compared before and after ([evidence](../evidence/docker-upgrade-checks.json)).
 
 ## Changing a pinned upstream version
 
@@ -61,6 +63,7 @@ Startup never recreates a database container as an implicit upgrade. A managed d
 
 ## Limits
 
-- There is no upgrade rehearsal on a server with real client data.
+- There is no upgrade rehearsal on a server with real client data; the rehearsal VM held test users only.
+- An installation from before 2026-09-25 still refuses when its evidence files changed. Copy `docs/evidence/` somewhere, run `git checkout -- docs/evidence` as the service account once, then upgrade.
 - Going back does not undo a database change a newer Auth or Storage made at start. Upstream migrations add to the schema, so the previous version normally runs on it; if it does not, restore the backups taken before the upgrade.
 - A new version that fails in a way the supervisor cannot see (it starts, but misbehaves) is not moved back by itself. Use `rollback`.
