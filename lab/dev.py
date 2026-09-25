@@ -448,13 +448,20 @@ class Supervisor:
             return 'the checkout is no longer the version this process runs'
         return None
 
-    def moved_for_good(self):
-        """Whether an upgrade child left the checkout moved onto the new version, as the upgrade
-        state records it (`applied` with `moved`) and HEAD confirms."""
+    def moved_for_good(self, kind='apply'):
+        """Whether an upgrade child left the checkout on the new version (`applied` with `moved`),
+        or a rollback child finished its way back (`rolling_back` with the way back done), as the
+        upgrade state records it and HEAD confirms."""
         import upgrade
+        import upgrade_guard
         state = upgrade.load_state()
-        return isinstance(state, dict) and state.get('phase') == 'applied' and state.get('moved') is True \
-            and state.get('to') == checkout_head() != self.head
+        if not isinstance(state, dict):
+            return False
+        here = checkout_head()
+        if kind == 'apply':
+            return state.get('phase') == 'applied' and state.get('moved') is True and state.get('to') == here != self.head
+        return state.get('phase') == 'rolling_back' and here is not None and here != self.head \
+            and upgrade_guard.way_back_done(upgrade.layout(), state)
 
     def restart_to_settle(self, why):
         print(f'Sbarbase stops so the next start settles the checkout first ({why}).', flush=True)
@@ -507,12 +514,14 @@ class Supervisor:
             if request is not None:
                 updates.finish_request(request, 'failed' if error else 'done', error, moment)
             return
+        # Whether the child got where it was going comes from the upgrade state and HEAD, not from
+        # the exit status alone: a start that moved and then could not write its outcome exits
+        # nonzero, yet its version is judged by how it starts (never spent here) and the request
+        # is done, as for a rollback that finished its way back.
+        completed = status == 0 or self.moved_for_good(kind)
         if request is not None:
-            # Whether the try moved the checkout comes from the upgrade state and HEAD, not from
-            # the exit status alone: a start that moved and then could not write its outcome
-            # exits nonzero, and its version is judged by how it starts, never spent here.
-            updates.spend(request, result, moved=status == 0 or self.moved_for_good())
-        if status != 0:
+            updates.spend(request, result, moved=completed)
+        if not completed:
             detail = updates.failure(result)
             print(f"The {'update' if kind == 'apply' else 'rollback'} did not go ahead: {detail}", flush=True)
             why = self.unsettled()

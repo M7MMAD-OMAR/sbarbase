@@ -16,6 +16,7 @@ from unittest.mock import patch
 import dev
 import updates
 import upgrade
+import upgrade_guard
 from test_updates import CURRENT, Private, Stand, at, document
 from test_upgrade import Checkout, contents, locked, store
 
@@ -149,6 +150,14 @@ class DrainTests(Private):
                                             'started_at': '2026-09-25T12:00:00+00:00'})
         self.assert_restarts_to_settle()
 
+    def test_a_rollback_child_that_finished_its_way_back_but_exited_nonzero_is_done(self):
+        with patch.object(upgrade_guard, 'way_back_done', return_value=True):
+            self.run_failing_child('rollback', {'phase': 'rolling_back', 'from': 'a' * 40, 'to': 'b' * 40, 'moved_back': True,
+                                                'started_at': '2026-09-25T12:00:00+00:00'}, head='a' * 40)
+        self.assertTrue(self.supervisor.restart_for_upgrade)
+        self.assertEqual(self.workers, [])
+        self.assertEqual(self.get('last-request.json')['state'], 'done')
+
     def test_a_failed_child_that_moved_the_checkout_restarts_instead_of_resuming(self):
         self.run_failing_child('apply', head='c' * 40)
         self.assert_restarts_to_settle()
@@ -177,6 +186,8 @@ class DrainTests(Private):
                                        head=target, request=request)
                 self.assertEqual(self.entry('0.2.0')['spent'], spent)
                 self.assertTrue(self.supervisor.restart_for_upgrade)
+                # The console hears that the checkout moved, not that the update failed.
+                self.assertEqual(self.get('last-request.json')['state'], 'done' if moved else 'failed')
 
     def test_nothing_new_starts_while_draining_but_running_children_are_reaped(self):
         updates.create_request('apply', '0.2.0', moment=at(12))
