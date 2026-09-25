@@ -1,0 +1,13 @@
+{
+  "check": "upgrade-return",
+  "recorded": "2026-09-25T14:33:00Z",
+  "passed": true,
+  "scope": "Rehearsal VM (Fedora 44, 4 vCPU, 6656 MiB), after vm-upgrade-checks.json: the installation, back on PostgREST v14.16 after the broken version rolled back by itself, returns to the pins it was installed with by an upgrade to that version (lab/upgrade.py start --to <installed commit>) and a restart. Row counts, not contents.",
+  "checks": [
+    {"check": "the return to the installed version is confirmed", "ok": true, "detail": "phase confirmed"},
+    {"check": "the checkout is on the installed version", "ok": true, "detail": "e03da0aa457c"},
+    {"check": "every REST container runs the original PostgREST v14.15 again", "ok": true, "detail": "image 2f8e7b656f09 in both environments"},
+    {"check": "users and identities are unchanged in both environments", "ok": true, "detail": "5 users and 5 identities in each"}
+  ],
+  "finding": "After an automatic way back, lab/upgrade.py rollback answers 'There is no upgrade to roll back'; going back to earlier pins is an upgrade to the earlier version."
+}

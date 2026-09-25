@@ -1,0 +1,89 @@
+{
+  "check": "invitation",
+  "recorded": "2026-09-25T14:28:23.258Z",
+  "passed": true,
+  "count": 16,
+  "seconds": 1,
+  "checks": [
+    {
+      "check": "the operator signs in through the management Auth realm",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "the operator sees an organization",
+      "ok": true,
+      "detail": "status 200"
+    },
+    {
+      "check": "the owner invites a viewer and receives the token once",
+      "ok": true,
+      "detail": "status 201"
+    },
+    {
+      "check": "the pending invitation is listed without its token",
+      "ok": true,
+      "detail": "status 200"
+    },
+    {
+      "check": "the invitee previews the organization and role",
+      "ok": true,
+      "detail": "status 200"
+    },
+    {
+      "check": "a short password is refused before any account exists",
+      "ok": true,
+      "detail": "status 400"
+    },
+    {
+      "check": "redeeming creates the account and the membership",
+      "ok": true,
+      "detail": "status 201"
+    },
+    {
+      "check": "the same token is refused a second time",
+      "ok": true,
+      "detail": "status 400"
+    },
+    {
+      "check": "the invitee signs in with the new password",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "the invitee sees the organization",
+      "ok": true,
+      "detail": "status 200"
+    },
+    {
+      "check": "a viewer cannot create a project",
+      "ok": true,
+      "detail": "status 403"
+    },
+    {
+      "check": "a viewer cannot invite",
+      "ok": true,
+      "detail": "status 403"
+    },
+    {
+      "check": "the owner cancels a pending invitation",
+      "ok": true,
+      "detail": "status 201/200"
+    },
+    {
+      "check": "a cancelled invitation cannot be redeemed",
+      "ok": true,
+      "detail": "status 400"
+    },
+    {
+      "check": "the owner removes the invitee",
+      "ok": true,
+      "detail": "status 200"
+    },
+    {
+      "check": "the removed invitee no longer sees the organization",
+      "ok": true,
+      "detail": "status 200"
+    }
+  ]
+}

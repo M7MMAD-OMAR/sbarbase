@@ -9,8 +9,8 @@
   "docker": "29.7.2",
   "bun": "1.3.14",
   "systemd": "systemd 259 (259.5-1.fc44)",
-  "mem_available_mib": 5059,
-  "disk_free_mib": 57456
+  "mem_available_mib": 5547,
+  "disk_free_mib": 55466
  },
  "pins": [
   {
@@ -37,6 +37,26 @@
    "component": "storage-image.lock.json:default",
    "digest": "sha256:c24fb33cc2fa38d0f9582a30312907fc56da333fb9ba0646833186197e4982f3",
    "pull": "public.ecr.aws/supabase/storage-api@sha256:c24fb33cc2fa38d0f9582a30312907fc56da333fb9ba0646833186197e4982f3"
+  },
+  {
+   "component": "studio-image.lock.json:studio",
+   "digest": "sha256:94a2a9d2906e8b4109e55159a62e241c3044709a492913ea8edd34b14973d288",
+   "pull": "public.ecr.aws/supabase/studio@sha256:94a2a9d2906e8b4109e55159a62e241c3044709a492913ea8edd34b14973d288"
+  },
+  {
+   "component": "studio-image.lock.json:meta",
+   "digest": "sha256:9a079ac1c94d89629262822a4bd1902d5b1be4adb464e5a0a8fd078aaed72158",
+   "pull": "public.ecr.aws/supabase/postgres-meta@sha256:9a079ac1c94d89629262822a4bd1902d5b1be4adb464e5a0a8fd078aaed72158"
+  },
+  {
+   "component": "realtime-image.lock.json:default",
+   "digest": "sha256:7a6d995635f747b566079e51b1a1388dded8b2d0dfef1eda5afe98f6c9e5567e",
+   "pull": "public.ecr.aws/supabase/realtime@sha256:7a6d995635f747b566079e51b1a1388dded8b2d0dfef1eda5afe98f6c9e5567e"
+  },
+  {
+   "component": "functions-image.lock.json:default",
+   "digest": "sha256:5f555406dc0705d775323c58e27e856cca7b5b8d0ab726cc6a30b11fcfc7c6b3",
+   "pull": "public.ecr.aws/supabase/edge-runtime@sha256:5f555406dc0705d775323c58e27e856cca7b5b8d0ab726cc6a30b11fcfc7c6b3"
   }
  ],
  "unit": {
@@ -59,8 +79,8 @@
  "unit_required": true,
  "supervisor_log": "/opt/sbarbase/.lab/upstream/rehearsal-supervisor.log",
  "runtime_diagnostics": "/opt/sbarbase/.lab/upstream/diagnostics",
- "started_at": "2026-09-23T02:04:14+00:00",
- "finished_at": "2026-09-23T02:04:37+00:00",
+ "started_at": "2026-09-25T14:18:29+00:00",
+ "finished_at": "2026-09-25T14:18:46+00:00",
  "checks": [
   {
    "check": "host preflight passed",
@@ -100,7 +120,7 @@
   {
    "check": "operator bootstrap checks passed against the live management Auth",
    "ok": true,
-   "detail": "18 live operator bootstrap checks passed."
+   "detail": "21 live operator bootstrap checks passed."
   },
   {
    "check": "supervisor unit is enabled on this host",

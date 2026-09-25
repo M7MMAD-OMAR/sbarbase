@@ -1,0 +1,127 @@
+{
+  "check": "environment-limit",
+  "recorded": "2026-09-25T14:32:17.124Z",
+  "passed": true,
+  "count": 4,
+  "seconds": 8,
+  "samples": [
+    {
+      "label": "start",
+      "environments": 2,
+      "host": {
+        "total_mib": 6417,
+        "available_mib": 5447,
+        "swap_used_mib": 0
+      },
+      "load": "0.24 0.29 0.16",
+      "containers_used_mib": 258,
+      "containers": [
+        {
+          "name": "sbarbase-durable-e_e8ea310d9f152a997af075aa-rest",
+          "used_mib": 7,
+          "cpu": "0.06%"
+        },
+        {
+          "name": "sbarbase-durable-e_bec8fdf2a35abce07fb468a7-rest",
+          "used_mib": 7,
+          "cpu": "0.05%"
+        },
+        {
+          "name": "sbarbase-durable-e_e8ea310d9f152a997af075aa-auth",
+          "used_mib": 9,
+          "cpu": "0.01%"
+        },
+        {
+          "name": "sbarbase-durable-e_bec8fdf2a35abce07fb468a7-auth",
+          "used_mib": 9,
+          "cpu": "0.02%"
+        },
+        {
+          "name": "sbarbase-durable-storage",
+          "used_mib": 122,
+          "cpu": "0.09%"
+        },
+        {
+          "name": "sbarbase-durable-management-auth",
+          "used_mib": 11,
+          "cpu": "0.00%"
+        },
+        {
+          "name": "sbarbase-durable-db",
+          "used_mib": 93,
+          "cpu": "1.85%"
+        }
+      ]
+    },
+    {
+      "label": "refused at environment 3",
+      "environments": 2,
+      "host": {
+        "total_mib": 6417,
+        "available_mib": 5431,
+        "swap_used_mib": 0
+      },
+      "load": "0.22 0.29 0.16",
+      "containers_used_mib": 257,
+      "containers": [
+        {
+          "name": "sbarbase-durable-e_e8ea310d9f152a997af075aa-rest",
+          "used_mib": 7,
+          "cpu": "0.05%"
+        },
+        {
+          "name": "sbarbase-durable-e_bec8fdf2a35abce07fb468a7-rest",
+          "used_mib": 7,
+          "cpu": "0.05%"
+        },
+        {
+          "name": "sbarbase-durable-e_e8ea310d9f152a997af075aa-auth",
+          "used_mib": 9,
+          "cpu": "0.01%"
+        },
+        {
+          "name": "sbarbase-durable-e_bec8fdf2a35abce07fb468a7-auth",
+          "used_mib": 9,
+          "cpu": "0.01%"
+        },
+        {
+          "name": "sbarbase-durable-storage",
+          "used_mib": 122,
+          "cpu": "0.00%"
+        },
+        {
+          "name": "sbarbase-durable-management-auth",
+          "used_mib": 11,
+          "cpu": "0.01%"
+        },
+        {
+          "name": "sbarbase-durable-db",
+          "used_mib": 92,
+          "cpu": "0.02%"
+        }
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "check": "the operator signs in",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "environment 3 is accepted",
+      "ok": true,
+      "detail": "status 202"
+    },
+    {
+      "check": "the worker's admission refuses environment 3 before the count guard",
+      "ok": true,
+      "detail": "capacity_exceeded at 2 environment(s)"
+    },
+    {
+      "check": "the limit was reached",
+      "ok": true,
+      "detail": "2 environment(s)"
+    }
+  ]
+}

@@ -1,0 +1,59 @@
+{
+  "check": "upgrade",
+  "recorded": "2026-09-25T14:30:40Z",
+  "passed": true,
+  "count": 10,
+  "scope": "One installation with its environments on a clean machine: an upgrade to a version with a newer PostgREST (v14.15 to v14.16) through lab/upgrade.py and a restart, then an upgrade to a version whose PostgREST never starts, which the supervisor moved back by itself. Data is compared by row counts, not contents.",
+  "checks": [
+    {
+      "check": "the upgrade finished and was confirmed",
+      "ok": true,
+      "detail": "confirmed"
+    },
+    {
+      "check": "the checkout is on the new version",
+      "ok": true,
+      "detail": "eb2d1012bfd1"
+    },
+    {
+      "check": "every REST container runs the new PostgREST",
+      "ok": true,
+      "detail": "public.ecr.aws/supabase/postgrest:v14.16"
+    },
+    {
+      "check": "users, identities, buckets and files are unchanged in every environment",
+      "ok": true,
+      "detail": "2 environment(s)"
+    },
+    {
+      "check": "Auth, REST and the console answer",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "the broken version was moved back automatically",
+      "ok": true,
+      "detail": "rolled_back automatic=True"
+    },
+    {
+      "check": "the checkout is on the last good version",
+      "ok": true,
+      "detail": "eb2d1012bfd1"
+    },
+    {
+      "check": "every REST container runs the last good PostgREST again",
+      "ok": true,
+      "detail": "public.ecr.aws/supabase/postgrest:v14.16"
+    },
+    {
+      "check": "users, identities, buckets and files are unchanged in every environment",
+      "ok": true,
+      "detail": "2 environment(s)"
+    },
+    {
+      "check": "Auth, REST and the console answer",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

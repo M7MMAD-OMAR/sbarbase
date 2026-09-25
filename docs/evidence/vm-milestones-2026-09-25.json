@@ -1,0 +1,31 @@
+{
+  "check": "vm-milestones",
+  "recorded": "2026-09-25",
+  "scope": "Roadmap milestone steps rehearsed in a disposable local VM, not a real server: Fedora 44 Cloud Base 1.7, 4 vCPU, 6656 MiB, 60 GB virtio disk, user-mode network, the pinned images copied from the workstation (lab/vm-rehearsal.sh --preload-images). The VM stands in for a server until one is bought. A local CA stands in for a public certificate and /etc/hosts for public DNS. Not public networking, not a public certificate, not sustained load, not a seven-day soak.",
+  "vm": {"distro": "Fedora 44 Cloud Base 1.7", "vcpus": 4, "memory_mib": 6656, "python": "3.14.3", "docker": "29.7.2"},
+  "runs": [
+    {"step": "empty-server acceptance, first project and reboot", "evidence": ["vm-empty-server-acceptance.json", "vm-empty-server-first-project.json"], "passed": true,
+     "detail": "acceptance 12 of 12 in 91 s, first project 15 of 15, sbarbase.service active after the reboot with its console answering"},
+    {"step": "Milestone 1 step 2: pinned console port, TLS proxy as a unit, reboot", "evidence": ["vm-https-first-project.json"], "passed": true,
+     "detail": "console 200 over HTTPS with Strict-Transport-Security before and after the reboot, plain HTTP 308 to https://<host>/, console on the pinned port 8787, then the whole first-project path (15 checks) through the proxy"},
+    {"step": "Milestone 5: invitations against the real management Auth", "evidence": ["vm-invitation-check.json"], "passed": true,
+     "detail": "16 of 16 after the fix below; the first run failed at redeem with 500"},
+    {"step": "Milestone 2 acceptance, first half: a backup while two environments serve", "evidence": ["vm-backup-traffic.json"], "passed": true,
+     "detail": "13326 requests through supabase-js and fetch across two environments, 0 failed; the backup of both took about 1 s because the databases are small (about 167 KB each), so this is not a large-database result"},
+    {"step": "Milestone 4 acceptance: upgrade and back", "evidence": ["vm-upgrade-checks.json", "vm-upgrade-return.json"], "passed": true,
+     "detail": "PostgREST v14.15 to v14.16 confirmed, a broken version moved back by itself, then a return to the installed pins confirmed; users and identities unchanged at every step"},
+    {"step": "Milestone 1 step 4: environment limit, measured", "evidence": ["vm-environment-limit.json"], "passed": true,
+     "detail": "at 6656 MiB the worker's admission refuses the third environment (capacity_exceeded) before the four-environment count guard; the Sbarbase containers used about 258 MiB at rest with two environments, far below what admission reserves"}
+  ],
+  "defects_found_and_fixed": [
+    "the acceptance waited for the console right after installing the unit, before the rehearsal had pulled the images, so an empty host always timed out (fix: the unit is enabled and started after the installation exists)",
+    "an image pull was retried once, immediately; a slow link lost the Storage pull twice within seconds (fix: four attempts with 15, 45 and 90 s waits)",
+    "redeeming an invitation answered 500: the account calls went to /auth/v1/admin/users on the Auth service itself, which serves /admin/users (fix: the calls use Auth's own paths)",
+    "the first upgrade after an acceptance was refused as local changes, because the acceptance rewrites tracked evidence (fix: evidence is copied aside to .lab/upgrades/ and never blocks)",
+    "a systemd unit that executes bun under /home fails on Fedora with SELinux (status 203/EXEC); the rehearsal's TLS unit starts it through /bin/sh"
+  ],
+  "findings_not_code": [
+    "after an automatic way back, lab/upgrade.py rollback has nothing to roll back; returning to earlier pins is an upgrade to the earlier version",
+    "the TLS proxy redirects plain HTTP to https://<public host>/ on port 443, as a public server needs"
+  ]
+}

@@ -1,0 +1,89 @@
+{
+  "check": "backup-under-traffic",
+  "recorded": "2026-09-25T14:28:40.090Z",
+  "passed": true,
+  "count": 11,
+  "seconds": 12,
+  "traffic": {
+    "First project 2026-09-25T14:24:25/production": {
+      "requests": 6672,
+      "failures": 0,
+      "slowest_ms": 218,
+      "signups": 3,
+      "errors": []
+    },
+    "First project 2026-09-25T14:18:55/production": {
+      "requests": 6654,
+      "failures": 0,
+      "slowest_ms": 202,
+      "signups": 3,
+      "errors": []
+    }
+  },
+  "backup": {
+    "exit": 0,
+    "seconds": 1,
+    "lines": [
+      "backup e_bec8fdf2a35abce07fb468a7 20260925T142834Z: database 167374 B, 0 file(s), 5 user(s)",
+      "backup e_e8ea310d9f152a997af075aa 20260925T142834Z: database 167381 B, 0 file(s), 5 user(s)",
+      "installation manifest 20260925T142834Z written"
+    ]
+  },
+  "checks": [
+    {
+      "check": "the operator signs in",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "two environments are provisioned",
+      "ok": true,
+      "detail": "2 found"
+    },
+    {
+      "check": "a key is issued for First project 2026-09-25T14:24:25/production",
+      "ok": true,
+      "detail": "status 200/201"
+    },
+    {
+      "check": "a known user signs up in First project 2026-09-25T14:24:25/production",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "a key is issued for First project 2026-09-25T14:18:55/production",
+      "ok": true,
+      "detail": "status 200/201"
+    },
+    {
+      "check": "a known user signs up in First project 2026-09-25T14:18:55/production",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "the backup of every environment completes while they serve",
+      "ok": true,
+      "detail": "exit 0 after 1 s"
+    },
+    {
+      "check": "no request failed in First project 2026-09-25T14:24:25/production during the backup",
+      "ok": true,
+      "detail": "6672 requests, 3 sign-ups, 0 failed, slowest round 218 ms"
+    },
+    {
+      "check": "no request failed in First project 2026-09-25T14:18:55/production during the backup",
+      "ok": true,
+      "detail": "6654 requests, 3 sign-ups, 0 failed, slowest round 202 ms"
+    },
+    {
+      "check": "the check's key is revoked in First project 2026-09-25T14:24:25/production",
+      "ok": true,
+      "detail": "status 200"
+    },
+    {
+      "check": "the check's key is revoked in First project 2026-09-25T14:18:55/production",
+      "ok": true,
+      "detail": "status 200"
+    }
+  ]
+}
