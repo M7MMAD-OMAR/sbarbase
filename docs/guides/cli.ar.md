@@ -35,6 +35,7 @@ docker compose exec sbarbase deploy/sbarbase status
 | نسخة احتياطية الآن | `sbarbase backup now [<environment>]` | `lab/backup.py create` |
 | عرض النسخ | `sbarbase backups list [<environment>]` | `lab/backup.py list` |
 | استعادة بيئة | `sbarbase restore <environment> <backup>` | `lab/backup.py restore` بعد تأكيدك |
+| تجهيز نسخة من تثبيت آخر | `sbarbase relink <runtime> <backup>` | واجهة الإدارة البرمجية، لمشغّلي التثبيت وحدهم |
 | إضافة بيئة | `sbarbase add-environment <project> <name>` | واجهة الإدارة البرمجية، كما تفعل لوحة الإدارة |
 | تدوير مفتاح عام | `sbarbase rotate-key <environment>` | واجهة المفاتيح، كما تفعل لوحة الإدارة |
 | حصة البوابة | `sbarbase share <environment> [<n>]` | واجهة الإدارة البرمجية، كما تفعل لوحة الإدارة |
@@ -60,6 +61,10 @@ docker compose exec sbarbase deploy/sbarbase status
 تشغّل هذه الأوامر `lab/backup.py`، المشروح في [النسخ الاحتياطي والاستعادة](backup-and-restore.ar.md). إذا لم تسمِّ بيئة، ينسخ `backup now` كل البيئات. وتحتفظ النسخة اليدوية بعدد النسخ نفسه الذي تحتفظ به النسخة اليومية: تقرأ `SBARBASE_BACKUP_KEEP` من الطرفية، أو من الوحدة في تثبيت systemd، ويغيّره الخيار `--keep N`. إذا لم يضبطه أيّ منهما، يحتفظ `lab/backup.py` بسبع نسخ.
 
 يطلب `restore` أن تكتب وقت النسخة قبل أن يستبدل شيئًا، ويذكر ما سيضيع. إذا لم تكن هناك طرفية، كما في سكربت، يرفض ما لم تمرر `--yes`. وما تحفظه الاستعادة جانبًا يُحذف بالأمر `lab/backup.py discard-previous`.
+
+### الأمر relink
+
+الأمر `relink <runtime> <backup>` هو الخطوة الأولى لاستعادة نسخة أُخذت على تثبيت آخر، كما يشرح [النسخ الاحتياطي والاستعادة](backup-and-restore.ar.md). ضع النسخة أولًا في `.lab/backups/<runtime>/<backup>/`. يقرأ الأمر العميل والمشروع والبيئة المسجلة في بيان النسخة، ويسجّل الدخول مثل الأوامر التالية، ثم يطلب من واجهة الإدارة البرمجية أن تنشئها هنا بالمعرّفات نفسها ومعرّف التشغيل نفسه. لا يملك ذلك إلا مشغّلو التثبيت. ولا يربط النسخة بالاسم أبدًا: إذا وُجد عميل أو مشروع بالاسم المسجل لكن بمعرّف آخر رُفض الطلب، وكذلك أي تعارض آخر، ولا يتغير شيء. بعدها يجهّز العامل بيئة فارغة، ويملؤها `restore`.
 
 ### الأوامر add-environment وrotate-key وshare وstudio
 

@@ -4,13 +4,28 @@ The local Catalog adapter is an implementation experiment, not a deployed manage
 
 | Role | Read organization projects | Create project/environment | Manage membership | Transfer project metadata |
 |---|---|---|---|---|
-| Owner | Yes | Yes | Yes, preserve at least one owner | Only if owner of both organizations |
+| Owner | Yes | Yes | Yes, preserve at least one owner | Only if owner of both organizations; revokes the project's API keys |
 | Admin | Yes | Yes | No | No |
 | Viewer | Yes | No | No | No |
 
 This is an initial policy, not a complete product permission model. Organization creation is a trusted bootstrap operation. The new HTTP handler derives actor IDs from its authentication adapter, never request body fields. All mutations use immediate transactions, so authorization checks and changes share one database transaction. Reads derive environment authority from the current project organization, avoiding stale duplicated memberships. Audit events are local records, not a tamper-proof external audit log.
 
-Ownership transfer currently changes metadata only. It preserves project and environment IDs and changes inherited management access immediately. It does not revoke application API keys, end sessions, rotate database credentials, stop jobs or move a database. It must not be exposed as a finished transfer until these steps have a durable, recoverable workflow. Transfers between independently owned organizations will eventually require a destination acceptance process; the current internal operation requires one verified actor with ownership of both.
+Ownership transfer preserves project and environment IDs and runtime IDs and changes inherited management access immediately. Since 2026-09-25 it is exposed as `POST /management/v1/projects/{id}/move` (H3 of the [verification plan](plans/2026-09-23-verification-and-migration-plan.md)). In the same catalog transaction it cancels queued provisioning and rewrites `provision_jobs.organization` (H2). The route then revokes every API key of the project's runtimes in the key store, a separate SQLite file: the catalog commits first so a name clash in the destination costs no key, and a revocation failure answers 500 saying the move committed. It does not rotate the environments' JWT signing key or direct database password, end application sessions, or move a database; an operator who must cut every kind of access rotates those separately. Transfers between independently owned organizations still require one verified actor with ownership of both; a destination acceptance process remains future work.
+
+## Rename and delete (2026-09-25)
+
+Owners and admins rename projects and environments; owners rename organizations and delete. Deletes are conservative:
+
+- An organization is deleted only when it has no project; the bootstrap organization never. Memberships and pending invitations go with it; audit rows stay.
+- A project is deleted only when it has no environment.
+- An environment is refused while its job is queued or running, and while any supervisor-managed state is on or changing: Studio desired running or starting, Realtime, Edge Functions or database access on or pending, a pending sign-in change or signing rotation, routing in maintenance or with a staged placement. Deleting those rows would leave a container or login that nothing reconciles.
+- An allowed environment delete writes a `deleted_runtimes` tombstone (runtime, ids, actor, time, and the last attempt's settled effect result), then removes the environment's job, settled effect results, recovery decisions and per-runtime settings rows. The gateway answers 401 `Invalid API key` for a tombstoned runtime, the answer a revoked key gets, and 404 stays for runtimes it never knew. The route also revokes the runtime's keys after the catalog commits; the tombstone already refuses them, so a revocation failure cannot reopen access.
+- The runtime itself (database, logins, containers, Storage files, `runtime.json` entry) is retained. Reclaiming it is a separate operator step that does not exist yet, and until then the runtime still counts against the worker's `ENVIRONMENT_LIMIT`, which counts runtime state, not catalog rows.
+- `applyProvisionReceipt` accepts a receipt for a deleted environment only when it matches the tombstone's recorded attempt, claim and exit code exactly, so a worker that restarts before consuming a settled receipt does not stop; any other receipt still fails closed.
+
+## Re-linking a restored environment (2026-09-25)
+
+`Catalog.relinkEnvironment`, exposed as `POST /management/v1/relink` and `sbarbase relink`, recreates the organization, project and environment a backup's `ownership` records, with their ids and the original runtime id, and queues provisioning so the worker builds an empty runtime of that name for `lab/backup.py restore` to fill. Keeping the runtime id keeps the scoped login names, so the restored database ACL matches the dump. Installation operators only. Matching is by id, never by name: an absent organization id is created with the caller as owner unless another organization already has that name; an existing one requires the caller to own it; a project or environment id that exists elsewhere, an environment name clash, or a runtime id used by another job or tombstoned here all refuse with 409 and change nothing. A repeat after success is a no-op. Memberships are not carried because actor ids belong to the source installation's management Auth realm. H7 of the verification plan.
 
 Tests cover crossed organization access, viewer writes, admin privilege escalation, last-owner removal/demotion, failed transfer authority, membership revocation, identity preservation, uniqueness and persistence after reopening the database. Dedicated management deployment, invitations, server placement and lifecycle execution remain unfinished.
 
