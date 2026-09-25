@@ -104,12 +104,23 @@ account that does not exist on the host. Point it at a different layout with
 `deploy/server-acceptance.sh` forwards the same three flags, so the one-command
 acceptance path can name the server's account too.
 
-The unit restarts the supervisor on failure, and also carries
-`RestartForceExitStatus=42`: after an update or rollback from the console moves the
-checkout, the supervisor stops everything cleanly and exits with code 42 so systemd
-starts it again on the new version ([upgrades](upgrades.md)). A unit installed
-before this line existed still restarts on that exit, because `Restart=on-failure`
-covers it; reinstall it with `supervise --apply` when you move to that version.
+The unit carries what updates need ([upgrades](upgrades.md)):
+
+- Its first `ExecStartPre` is the upgrade guard (`lab/upgrade_guard.py`, or the copy
+  an upgrade left in `.lab/upgrades/guard.py`). It runs before the preflight and
+  before any code of the version the checkout holds, and moves the checkout back
+  when a new version keeps failing its start.
+- `RestartForceExitStatus=42`: after an update or rollback from the console moves
+  the checkout, the supervisor stops everything cleanly and exits with code 42 so
+  systemd starts it again on the new version. `Restart=on-failure` already covers
+  that exit; the line keeps it so if the restart policy changes.
+- `StartLimitIntervalSec=0`, so systemd never gives up restarting while the guard
+  needs several starts to go back, and `TimeoutStartSec=600`, because the guard's
+  way back reinstalls dependencies before the preflight runs.
+
+A unit installed before these lines existed has no guard before the preflight; the
+supervisor then runs the guard itself. Reinstall the unit with `supervise --apply`
+when you move to the version that has them.
 
 Four things must be true before the unit can serve, and the preflight names each
 one rather than failing obscurely:
@@ -391,6 +402,10 @@ The step by step versions are [backup and restore](backup-and-restore.md) and [u
 - Off-host restore and multi-host coordination are out of scope for this
   revision.
 - Updates from the console and opt-in automatic updates exist, with a health-gated
-  way back ([upgrades](upgrades.md)). They are covered by unit tests only: the live
-  CI cases and the VM rehearsal of the update channel have not run yet.
+  way back and a start guard ([upgrades](upgrades.md)). They are covered by unit
+  tests only: nothing about the update channel has run live or in the VM yet.
+- If the supervisor is killed while a new version waits for its health checks, the
+  owned containers keep running. The guard moves the checkout back on the next start,
+  but the preflight then refuses because owned containers are running, so the service
+  can stay down. This follows from the code and has not been rehearsed.
 - The bootstrap flow has no invitations, MFA or rate limiting.
