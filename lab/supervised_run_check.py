@@ -24,6 +24,8 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+import install_server
+
 ROOT=Path(__file__).resolve().parent.parent
 UNIT_NAME='sbar-supervised-check.service'
 USER_UNIT_DIR=Path(os.environ.get('XDG_CONFIG_HOME',Path.home()/'.config'))/'systemd'/'user'
@@ -58,7 +60,9 @@ Type=simple
 WorkingDirectory={ROOT}
 Environment=HOME={Path.home()}
 Environment=PATH={os.environ.get('PATH','/usr/local/bin:/usr/bin:/bin')}
-{docker_lines}ExecStartPre=/usr/bin/python3 {ROOT}/lab/install_server.py check
+Environment=SBARBASE_GUARDED=1
+{docker_lines}{install_server.GUARD_LINE}
+ExecStartPre=/usr/bin/python3 {ROOT}/lab/install_server.py check
 ExecStart=/usr/bin/python3 {ROOT}/lab/dev.py
 Restart=no
 TimeoutStopSec=220

@@ -249,10 +249,18 @@ class MainGateTests(unittest.TestCase):
         with patch.object(upgrade, 'before_start', side_effect=upgrade.UpgradeError('disk full')):
             with self.assertRaisesRegex(RuntimeError, 'cannot start: disk full'):
                 dev.upgrade_prepare()
-        with patch.object(upgrade, 'before_start', side_effect=OSError('odd')):
-            self.assertFalse(dev.upgrade_prepare())
-        with patch.object(upgrade, 'before_start', return_value=True):
-            self.assertTrue(dev.upgrade_prepare())
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        state = Path(directory.name) / 'state.json'
+        with patch.object(dev, 'UPGRADE_STATE', state):
+            with patch.object(upgrade, 'before_start', side_effect=OSError('odd')):
+                self.assertFalse(dev.upgrade_prepare())
+                # While an upgrade is pending, broken bookkeeping never lets a version run ungated.
+                state.write_text(json.dumps({'phase': 'applied'}))
+                with self.assertRaisesRegex(RuntimeError, 'bookkeeping failed'):
+                    dev.upgrade_prepare()
+            with patch.object(upgrade, 'before_start', return_value=True):
+                self.assertTrue(dev.upgrade_prepare())
 
 
 if __name__ == '__main__':

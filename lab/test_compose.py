@@ -40,6 +40,11 @@ class ComposeTests(unittest.TestCase):
         self.assertIn('exec /usr/bin/python3 lab/dev.py', start)
         # A clean host has none of the pinned images; the supervisor does not pull them.
         self.assertLess(start.index('install_server.py images'), start.index('lab/dev.py'))
+        # The upgrade guard runs before anything of the checked out version, bun install included.
+        self.assertLess(start.index('.lab/upgrades/guard.py'), start.index('bun install'))
+        self.assertLess(start.index('lab/upgrade_guard.py'), start.index('bun install'))
+        self.assertLess(start.index('SBARBASE_GUARDED=1'), start.index('lab/dev.py'))
+        self.assertIn('set -eu', start)
 
 
 if __name__ == '__main__':

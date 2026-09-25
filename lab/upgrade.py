@@ -49,6 +49,7 @@ import hba_journal
 import install_server
 import release_channel
 import run as lab
+import upgrade_guard
 
 ROOT = lab.ROOT
 UPGRADES = lab.STATE / 'upgrades'
@@ -61,7 +62,7 @@ KEEP_SNAPSHOTS = 3
 # Present while a new version waits for its health checks: the gateway holds application
 # traffic (src/gateway/hold.ts). It counts only while the state below says a start is pending.
 HOLD = UPGRADES / 'hold'
-PENDING = ('applied', 'rolling_back')
+PENDING = upgrade_guard.PENDING
 INTENT = runtime.UPGRADE_INTENT
 UPSTREAM = runtime.STATE
 # The key store lives with the secrets (lab/upstream-app.ts); it holds key digests only.
@@ -72,9 +73,7 @@ BACKUP_LOCK = UPSTREAM / 'backup.lock'
 UNSETTLED = ('worker-effect.json', hba_journal.NAME, hba_generation.MIGRATION)
 DATABASE_LOCK = 'distro-image.lock.json'
 # Which lock entry each replaceable service runs, as durable_runtime reads them.
-SERVICES = {'auth': ('images.lock.json', 'auth'), 'rest': ('images.lock.json', 'rest'),
-            'storage': ('storage-image.lock.json', None), 'realtime': ('realtime-image.lock.json', None),
-            'functions': ('functions-image.lock.json', None)}
+SERVICES = upgrade_guard.SERVICES
 DEFAULT_TARGET = 'origin/main'
 # Who started an upgrade: an operator on the command line, the console's "update now" or the
 # automatic updates (lab/updates.py). Recorded in the state as `trigger`; `automatic` keeps
@@ -292,41 +291,47 @@ def prune_snapshots(keep=KEEP_SNAPSHOTS):
             shutil.rmtree(path, ignore_errors=True)
 
 
+def layout():
+    """This module's paths (which the tests redirect), in the form the guard takes."""
+    return upgrade_guard.Layout(ROOT, upgrades=UPGRADES, state=STATE_FILE, lock=LOCK, snapshots=SNAPSHOTS,
+                                supervisor_lock=SUPERVISOR_LOCK, intent=INTENT, homes=homes())
+
+
 def restore_snapshot(name):
-    """Puts every store back as the snapshot has it. Every file is verified first, all or nothing;
-    each store is then replaced atomically (private temporary file, fsync, rename). Callers make
-    sure nothing has the stores open: the supervisor is not running."""
-    folder = SNAPSHOTS / name if isinstance(name, str) and name else None
+    """Puts every store back as the snapshot has it, all or nothing (lab/upgrade_guard.py, which
+    the next start also uses to finish an interrupted way back)."""
     try:
-        manifest = json.loads((folder / 'manifest.json').read_text())
-    except (TypeError, OSError, ValueError):
-        raise UpgradeError('The control state snapshot of this upgrade is missing; nothing was restored') from None
-    places = homes()
-    for item in manifest['files']:
-        copy = folder / item['file']
-        if item.get('home') not in places or '/' in item['file'] or not copy.is_file() \
-                or copy.stat().st_size != item['bytes'] or sha256(copy) != item['sha256']:
-            raise UpgradeError(f"The control state snapshot does not match its manifest ({item['file']}); nothing was restored")
-    for item in manifest['files']:
-        target = places[item['home']] / item['file']
-        pending = target.with_name(target.name + '.upgrade-restore')
-        pending.unlink(missing_ok=True)
-        descriptor = os.open(pending, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-        with os.fdopen(descriptor, 'wb') as handle, (folder / item['file']).open('rb') as source:
-            shutil.copyfileobj(source, handle)
-            handle.flush()
-            os.fsync(handle.fileno())
-        if target.exists():
-            # Keep the owner and mode of the store it replaces (root in Docker, another owner outside).
-            current = target.stat()
-            if os.geteuid() == 0:
-                os.chown(pending, current.st_uid, current.st_gid)
-            os.chmod(pending, current.st_mode & 0o777)
-        # A leftover rollback journal would be played back into the restored file: remove it first.
-        for suffix in ('-journal', '-wal', '-shm'):
-            target.with_name(target.name + suffix).unlink(missing_ok=True)
-        os.replace(pending, target)
-        sync_directory(target.parent)
+        upgrade_guard.restore_snapshot(SNAPSHOTS, name, homes())
+    except upgrade_guard.SnapshotError as error:
+        raise UpgradeError(str(error)) from None
+
+
+def guard_copy():
+    """Where the guard every start runs first (lab/upgrade_guard.py) is copied: .lab/upgrades/guard.py,
+    the path the systemd unit and the container's start script look for."""
+    return UPGRADES / 'guard.py'
+
+
+def install_guard():
+    """Copies this version's guard to guard_copy() before anything moves. `start` runs in the
+    checkout it leaves, whose tracked files plan() found unchanged, so this is the guard of the
+    version the way back returns to, and the next starts run it rather than the new version's.
+    A version without a guard leaves no copy, so no older copy outlives it."""
+    target = guard_copy()
+    UPGRADES.mkdir(parents=True, exist_ok=True)
+    source = ROOT / 'lab' / 'upgrade_guard.py'
+    if not source.is_file():
+        target.unlink(missing_ok=True)
+        return
+    partial = target.with_suffix('.pending')
+    partial.unlink(missing_ok=True)
+    descriptor = os.open(partial, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(descriptor, 'wb') as handle:
+        handle.write(source.read_bytes())
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(partial, target)
+    sync_directory(target.parent)
 
 
 def catalog_version():
@@ -509,17 +514,23 @@ def apply(target_ref, trigger='cli'):
     if details['refusals']:
         raise UpgradeError('Nothing was changed')
     target = details['target']
-    pins = pins_at(target)
+    pins, back = pins_at(target), pins_at(details['current'])
     pull(target)
     back_up()
     # Proves the control state can be copied before anything moves. The new version takes a
     # fresh one when it starts (before_start), which is the one the way back restores.
     try:
         taken = snapshot(details['current'])
-    except UpgradeError as error:
+        install_guard()
+    except (UpgradeError, OSError) as error:
         raise UpgradeError(f'{error}; nothing was changed') from None
+    # `moved` becomes true once the checkout and its dependencies are in place; until then the
+    # guard takes a crash for a move that never finished and undoes it. `way_back` is the intent
+    # the way back writes, known now, so the guard needs nothing from the new version.
     record = {'phase': 'applied', 'from': details['current'], 'to': target, 'started_at': now(),
-              'changes': details['changes'], 'automatic': False, 'snapshot': taken, 'trigger': trigger}
+              'changes': details['changes'], 'automatic': False, 'snapshot': taken, 'trigger': trigger,
+              'protocol': upgrade_guard.PROTOCOL, 'moved': False,
+              'way_back': {'pins': back, 'from': target, 'to': details['current']}}
     save_state(record)
     prune_snapshots()
     try:
@@ -530,6 +541,7 @@ def apply(target_ref, trigger='cli'):
         INTENT.unlink(missing_ok=True)
         save_state({**record, 'phase': 'failed', 'failure': str(error), 'finished_at': now()})
         raise
+    save_state({**record, 'moved': True})
     print(f'The checkout is at {target[:12]}. Restart Sbarbase now:\n  {RESTART}')
     print('If the new version does not start, Sbarbase moves back by itself.')
 
@@ -572,6 +584,11 @@ def short_reason(reason):
     return lines[0][:300] if lines else None
 
 
+def way_back(state):
+    """The intent the way back writes: recorded by `start`, or worked out for an older record."""
+    return state.get('way_back') or {'pins': pins_at(state['from']), 'from': state['to'], 'to': state['from']}
+
+
 def go_back(automatic, reason=None):
     state = load_state()
     refusal = rollback_refusal(state)
@@ -583,21 +600,25 @@ def go_back(automatic, reason=None):
     # (no `attempted_at`) touched nothing, and restoring would drop what the running version
     # wrote since `start`.
     restore = state['phase'] == 'applied' and bool(state.get('attempted_at'))
-    pins = pins_at(source)
+    intent = way_back(state)
     pull(source)
     guard = contextlib.nullcontext() if automatic or not restore else \
         exclusive(SUPERVISOR_LOCK, 'Sbarbase is running; stop it first (sudo systemctl stop sbarbase, or docker compose stop), '
                                    'then roll back, so the control state can be put back safely')
     with guard:
-        if restore:
-            restore_snapshot(state.get('snapshot'))
-            state['restored'] = state['snapshot']
-        state.update({'phase': 'rolling_back', 'automatic': automatic, 'rollback_at': now()})
-        if automatic and short_reason(reason):
-            # A start that failed and one that failed its health checks read differently in `status`.
-            state['reason'] = short_reason(reason)
+        # A start that failed and one that failed its health checks read differently in `status`.
+        upgrade_guard.begin_way_back(state, automatic, short_reason(reason) if automatic else None)
+        state['way_back'] = intent
         save_state(state)
-        checkout(source, {'pins': pins, 'from': state['to'], 'to': source})
+        # From here the way back is resumable: the checkout moves first, then the control state
+        # is restored, each step recorded once done. Whatever stops it in between leaves
+        # rolling_back, which the next start completes (lab/upgrade_guard.py) before anything
+        # else runs, so the failed version is never started again without its gate.
+        try:
+            upgrade_guard.complete_way_back(layout(), state, save_state, lambda: checkout(source, intent))
+        except upgrade_guard.SnapshotError as error:
+            save_state(upgrade_guard.snapshot_failed(state, error))
+            raise UpgradeError(state['failure']) from None
     print(f'The checkout is back at {source[:12]}.' + ('' if automatic else f' Restart Sbarbase now:\n  {RESTART}'))
 
 
@@ -605,6 +626,11 @@ def before_start():
     """Called by the supervisor after taking its locks and before anything opens the control
     state. Returns True when this start confirms a pending upgrade or rollback, which the
     supervisor then does only after its health checks pass (lab/upgrade_health.py).
+
+    The checkout must be the version the phase confirms (`to` while applied, `from` while
+    rolling back, with no tracked file changed): anything else, such as a crash in the middle
+    of a checkout or of `bun install`, raises UpgradeError, and the caller's failed start moves
+    back or completes the way back. A mismatched tree is never confirmed.
 
     On the first start of a new version it snapshots the control state again, so the way back
     keeps everything the previous version wrote until the restart, and records that the new
@@ -618,6 +644,9 @@ def before_start():
         # removes it): clear it so it can never hold traffic.
         HOLD.unlink(missing_ok=True)
         return False
+    problem = upgrade_guard.mismatch(layout(), state)
+    if problem:
+        raise UpgradeError(problem[0].upper() + problem[1:])
     if state['phase'] == 'applied' and not state.get('attempted_at'):
         with exclusive(LOCK, 'Another upgrade or rollback is running', wait=30):
             taken = snapshot(state['from'])
@@ -629,6 +658,20 @@ def before_start():
     return True
 
 
+def close_attempt():
+    """A start that stopped cleanly before its verdict (a stop signal, Ctrl+C, a reboot) closes
+    the attempt the guard opened, so the next start does not take it for a crash. Returns
+    whether an open attempt was closed."""
+    state = load_state()
+    if not state or state.get('phase') not in PENDING:
+        return False
+    record = state.get('guard')
+    if not isinstance(record, dict) or record.get('phase') != state['phase'] or record.get('open') is not True:
+        return False
+    save_state({**state, 'guard': {**record, 'open': False}})
+    return True
+
+
 def after_start(started, reason=None):
     """Called by the supervisor once its start has succeeded or failed.
 
@@ -637,6 +680,11 @@ def after_start(started, reason=None):
 
     A confirmation is saved before the hold is lifted: when the state cannot be saved this
     raises, the hold stays, and the supervisor tries again (lab/upgrade_health.Confirmation).
+
+    rollback_failed is recorded only with the checkout back on the previous version. A way back
+    that could not finish leaves `applied` (nothing recorded yet: the next start's guard goes
+    back itself) or `rolling_back` (which the next start completes), so the failed version is
+    never what an ungated start runs.
     """
     state = load_state()
     if not state or state.get('phase') not in PENDING:
@@ -653,12 +701,21 @@ def after_start(started, reason=None):
             try:
                 rollback(automatic=True, reason=reason)
             except (UpgradeError, SystemExit, OSError) as error:
-                # Read again: the way back may have saved progress (rolling_back, automatic,
-                # rollback_at, restored) before it failed, and the copy above predates it.
-                state = load_state() or state
-                state.update({'phase': 'rollback_failed', 'failure': str(error), 'finished_at': now()})
-                save_state(state)
+                # Nothing is marked failed from this (possibly stale) copy of the state: a
+                # snapshot that cannot be restored recorded rollback_failed itself, with the
+                # checkout already back, and every other failure stays resumable (see above).
+                print(f'The way back did not finish: {error}', file=sys.stderr, flush=True)
                 return False
+            return True
+        if not upgrade_guard.way_back_done(layout(), state):
+            # The way back stopped halfway: finish it, and the previous version starts next.
+            with exclusive(LOCK, 'Another upgrade or rollback is running', wait=30):
+                try:
+                    upgrade_guard.complete_way_back(layout(), state, save_state,
+                                                    lambda: checkout(state['from'], way_back(state)))
+                except upgrade_guard.SnapshotError as error:
+                    save_state(upgrade_guard.snapshot_failed(state, error))
+                    return False
             return True
         state.update({'phase': 'rollback_failed', 'failure': 'The previous version did not start either', 'finished_at': now()})
         save_state(state)

@@ -14,6 +14,7 @@ from unittest.mock import patch
 
 import durable_runtime
 import upgrade
+import upgrade_guard
 
 
 
@@ -35,7 +36,8 @@ class Repository:
                       'images.lock.json': {'db': pin('postgres:17', '2'), 'auth': pin('gotrue:v1', '3'), 'rest': pin('postgrest:v1', '4')},
                       'storage-image.lock.json': pin('storage:v1', '5'),
                       'studio-image.lock.json': {'studio': pin('studio:1', '6'), 'meta': pin('meta:1', '7')}}
-        self.commit('first')
+        # `start` copies the guard of the version it leaves; every version here ships one.
+        self.commit('first', {'lab/upgrade_guard.py': Path(upgrade_guard.__file__).read_text()})
 
     def git(self, *args):
         return subprocess.run(['git', *args], cwd=self.root, check=True, capture_output=True, text=True).stdout.strip()
@@ -306,9 +308,14 @@ class ControlStateTests(Checkout):
         with (self.snapshot() / 'control.sqlite').open('ab') as handle:
             handle.write(b'x')
         self.assertFalse(upgrade.after_start(False))
-        self.assertEqual(upgrade.load_state()['phase'], 'rollback_failed')
+        state = upgrade.load_state()
+        self.assertEqual(state['phase'], 'rollback_failed')
+        self.assertIn('restore from the backups', state['failure'])
         self.assertEqual(contents(self.catalog), (9, 8))
-        self.assertEqual(self.head(), self.second)
+        # The checkout moved back before the restore was tried: the failed version is never what
+        # the next (ungated) start runs. The previous version refuses a catalog newer than it opens.
+        self.assertEqual(self.head(), self.first)
+        self.assertFalse(upgrade.before_start())
 
     def test_a_snapshot_that_cannot_be_taken_on_start_moves_back_with_nothing_touched(self):
         upgrade.start(self.second)
@@ -379,13 +386,24 @@ class ControlStateTests(Checkout):
     def test_a_way_back_that_fails_keeps_what_it_already_recorded(self):
         upgrade.start(self.second)
         upgrade.before_start()
+        store(self.catalog, 9, 8)
         with patch.object(upgrade, 'checkout', side_effect=upgrade.UpgradeError('git checkout failed')):
             self.assertFalse(upgrade.after_start(False, 'Runtime startup failed'))
         state = upgrade.load_state()
-        self.assertEqual(state['phase'], 'rollback_failed')
+        # Resumable, never rollback_failed with the failed version checked out.
+        self.assertEqual((state['phase'], state['moved_back'], state['restore_pending']), ('rolling_back', False, True))
         self.assertEqual((state['automatic'], state['reason']), (True, 'Runtime startup failed'))
         self.assertTrue(state['rollback_at'])
-        self.assertEqual(state['restored'], state['snapshot'])
+        self.assertNotIn('restored', state)
+        self.assertEqual((self.head(), contents(self.catalog)), (self.second, (9, 8)))
+        with self.assertRaisesRegex(upgrade.UpgradeError, 'did not finish'):
+            upgrade.before_start()
+        # The next start's guard completes it before anything else runs.
+        self.assertEqual(upgrade_guard.guard(upgrade.layout(), install=lambda layout: None), 0)
+        state = upgrade.load_state()
+        self.assertEqual((self.head(), contents(self.catalog)), (self.first, (2, 3)))
+        self.assertEqual((state['phase'], state['restored']), ('rolling_back', state['snapshot']))
+        self.assertTrue(upgrade.before_start())
 
     def test_status_says_why_the_automatic_way_back_ran(self):
         import io

@@ -36,15 +36,28 @@ class MirrorFidelityTests(unittest.TestCase):
 
     def test_the_mirror_keeps_the_preflight_gate_and_the_working_directory(self):
         mirror=directives(supervised.unit_text())
-        self.assertTrue(mirror['ExecStartPre'][0].endswith('lab/install_server.py check'))
+        self.assertIn('upgrade_guard.py',mirror['ExecStartPre'][0])
+        self.assertTrue(mirror['ExecStartPre'][1].endswith('lab/install_server.py check'))
         self.assertEqual(mirror['WorkingDirectory'][0],str(ROOT))
         self.assertIn('PATH=',mirror['Environment'][1])
         self.assertEqual(mirror['Restart'][0],'no')
 
     def test_the_shipped_unit_still_gates_on_the_preflight(self):
         shipped=directives((ROOT/'deploy'/'sbarbase.service').read_text())
-        self.assertTrue(shipped['ExecStartPre'][0].endswith('lab/install_server.py check'))
+        self.assertTrue(shipped['ExecStartPre'][1].endswith('lab/install_server.py check'))
         self.assertTrue(shipped['ExecStart'][0].endswith('lab/dev.py'))
+
+    def test_the_upgrade_guard_runs_first_and_the_unit_never_stops_restarting(self):
+        text=(ROOT/'deploy'/'sbarbase.service').read_text()
+        shipped=directives(text)
+        # Before any code of the checked out version, the preflight included: a preflight that
+        # fails after an upgrade is one of the starts the guard counts.
+        self.assertIn(".lab/upgrades/guard.py",shipped['ExecStartPre'][0])
+        self.assertIn("lab/upgrade_guard.py'",shipped['ExecStartPre'][0])
+        self.assertIn('SBARBASE_GUARDED=1',shipped['Environment'])
+        unit=text.split('[Service]')[0]
+        self.assertIn('StartLimitIntervalSec=0',unit)
+        self.assertRegex(text,r'\nTimeoutStartSec=[1-9]\d{2,}\n')
 
     def test_the_scope_states_what_this_does_not_prove(self):
         source=(ROOT/'lab'/'supervised_run_check.py').read_text()

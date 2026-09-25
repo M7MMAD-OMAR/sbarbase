@@ -14,6 +14,7 @@ import subprocess
 import sys
 import threading
 import time
+import traceback
 import updates
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -23,6 +24,9 @@ STATE = ROOT / '.lab/upstream'
 # (RestartForceExitStatus= in deploy/sbarbase.service), Docker's `restart: unless-stopped` on
 # any exit. Neither restarts a clean exit 0, so this is never 0.
 RESTART_FOR_UPGRADE = 42
+# Read without importing lab/upgrade.py, so a start can tell that an upgrade is pending even
+# when that module (the new version's code) cannot be imported.
+UPGRADE_STATE = ROOT / '.lab/upgrades/state.json'
 
 
 def notify_installation(kind, catalog=None):
@@ -566,25 +570,69 @@ def upgrade_confirmed(catalog=None):
     return True
 
 
+def upgrade_pending():
+    """Whether state.json says an upgrade or rollback waits for confirmation, read directly."""
+    try:
+        state = json.loads(UPGRADE_STATE.read_text())
+    except (OSError, ValueError):
+        return False
+    return isinstance(state, dict) and state.get('phase') in ('applied', 'rolling_back')
+
+
 def upgrade_prepare():
     """True when this start confirms a pending upgrade or rollback (lab/upgrade.py before_start).
 
-    A control state snapshot that cannot be taken is a failed start, so the way back runs
-    before the new version touched anything. Any other bookkeeping failure leaves the start
-    ungated, as it was before health-gated confirmation existed.
+    A control state snapshot that cannot be taken, or a checkout that is not the version being
+    confirmed, is a failed start, so the way back runs before the new version touched anything.
+    Any other bookkeeping failure is a failed start too while an upgrade is pending (an untrusted
+    version must never run ungated), and leaves the start ungated otherwise, as it was before
+    health-gated confirmation existed.
     """
     try:
         import upgrade
-    except Exception as error:
-        print(f'Upgrade bookkeeping failed: {error}', file=sys.stderr)
-        return False
-    try:
         return upgrade.before_start()
-    except upgrade.UpgradeError as error:
-        raise RuntimeError(f'The pending upgrade cannot start: {error}') from None
     except Exception as error:
+        if error.__class__.__name__ == 'UpgradeError':
+            raise RuntimeError(f'The pending upgrade cannot start: {error}') from None
+        if upgrade_pending():
+            raise RuntimeError(f'The pending upgrade cannot start: its bookkeeping failed ({error.__class__.__name__}: {error})') from None
         print(f'Upgrade bookkeeping failed: {error}', file=sys.stderr)
         return False
+
+
+def upgrade_close_attempt():
+    """A start that stopped cleanly before its verdict closes its attempt (lab/upgrade.py
+    close_attempt), so the next start's guard does not take the stop for a crash."""
+    try:
+        import upgrade
+        upgrade.close_attempt()
+    except Exception as error:
+        print(f'Upgrade bookkeeping failed: {error}', file=sys.stderr)
+
+
+def checkout_head():
+    result = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=ROOT, capture_output=True, text=True)
+    return result.stdout.strip() if result.returncode == 0 else None
+
+
+def run_guard(environment=os.environ):
+    """The upgrade guard (lab/upgrade_guard.py) is the first step of every start. The systemd
+    unit and the container's start script run it before this process (and say so with
+    SBARBASE_GUARDED=1); a start from a terminal runs it here, before taking any lock, since the
+    guard takes the supervisor lock itself. When it moved the checkout back, nothing more of
+    this version runs: the process exits so the previous version starts."""
+    if environment.get('SBARBASE_GUARDED') == '1':
+        return
+    copy = ROOT / '.lab' / 'upgrades' / 'guard.py'
+    script = copy if copy.is_file() else ROOT / 'lab' / 'upgrade_guard.py'
+    before = checkout_head()
+    if subprocess.run(['/usr/bin/python3', str(script), str(ROOT)], cwd=ROOT).returncode:
+        raise SystemExit('The upgrade guard stopped this start; its reason is above.')
+    if checkout_head() != before:
+        print('The upgrade guard moved the checkout back to the previous version. Under systemd or Docker '
+              'Sbarbase starts again by itself; in a terminal, start it again: /usr/bin/python3 lab/dev.py',
+              file=sys.stderr, flush=True)
+        raise SystemExit(RESTART_FOR_UPGRADE)
 
 
 def upgrade_confirmation(supervisor):
@@ -602,6 +650,7 @@ def main():
             return
         raise SystemExit('Usage: /usr/bin/python3 lab/dev.py')
     os.chdir(ROOT)
+    run_guard()
     STATE.mkdir(parents=True, exist_ok=True)
     stop_event = threading.Event()
     signal.signal(signal.SIGTERM, lambda *_: stop_event.set())
@@ -618,6 +667,8 @@ def main():
             raise SystemExit('Stop the existing manual worker before starting the runner.')
         started = False
         restart = False
+        gated = False
+        failed = False
         try:
             # Before the settle stage, which may open and migrate the control catalog.
             gated = upgrade_prepare()
@@ -652,16 +703,31 @@ def main():
                 restart = getattr(supervisor, 'restart_for_upgrade', False)
         except InterruptedError:
             print('Local installation startup cancelled.', file=sys.stderr)
-        except RuntimeError as error:
+        except KeyboardInterrupt:
+            # Ctrl+C normally arrives as the stop event above; either way it is a stop, not a
+            # failure, so it never takes the way back.
+            print('Local installation stopped.', file=sys.stderr)
+        except BaseException as error:
+            # Every failure of this start, not only the RuntimeError its own stages raise: an
+            # exception in new startup code (a TypeError, an ImportError, a Studio reset that
+            # timed out) must take the way back too, never leave the start restarting with
+            # application traffic held.
             # No event here: a stage failure is a return code and a stderr line, and this
             # path owns no durable state change to emit from. The runtime's own refusal, if
             # there was one, is emitted where its 0600 diagnostic is written.
-            print(str(error), file=sys.stderr)
-            if upgrade_outcome(False, reason=str(error)):
+            failed = True
+            if not isinstance(error, (RuntimeError, SystemExit)):
+                traceback.print_exc()
+            detail = str(error) or error.__class__.__name__
+            print(detail, file=sys.stderr)
+            if upgrade_outcome(False, reason=detail):
                 print('The new version did not start, so the checkout moved back to the previous version. '
                       'It starts again on that version; lab/upgrade.py status shows the outcome.', file=sys.stderr)
             raise SystemExit(1)
         finally:
+            if gated and not failed:
+                # Stopped before the health checks decided (a stop signal, Ctrl+C): not a crash.
+                upgrade_close_attempt()
             if started:
                 result = run_stage(['/usr/bin/python3', 'lab/installation_runtime.py', 'stop'], threading.Event(), timeout=90)
                 if result:
