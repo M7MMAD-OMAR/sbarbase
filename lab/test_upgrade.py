@@ -234,14 +234,48 @@ class UpgradeTests(Checkout):
         with self.assertRaises(upgrade.UpgradeError):
             upgrade.rollback()
 
+    def test_an_operator_rollback_refuses_local_changes_before_anything_moves(self):
+        """A local edit after confirmation used to leave `rolling_back` saved before a plain
+        checkout that refused it, and every later start refused the way back for good."""
+        upgrade.start(self.second)
+        upgrade.after_start(True)
+        edited = self.repo.root / 'lab' / 'images.lock.json'
+        edited.write_text('{"ports": "local"}')
+        refusal = upgrade.rollback_refusal()
+        self.assertIn('local changes to tracked files (lab/images.lock.json)', refusal)
+        self.assertTrue(refusal.endswith('Nothing was changed'))
+        with self.assertRaisesRegex(upgrade.UpgradeError, 'local changes'):
+            upgrade.rollback()
+        self.assertEqual((upgrade.load_state()['phase'], self.head()), ('confirmed', self.second))
+        self.assertEqual(edited.read_text(), '{"ports": "local"}')
+        # The automatic way back never refuses on it: it sets the changes aside instead.
+        self.assertIsNone(upgrade.rollback_refusal(automatic=True))
+        self.repo.git('checkout', '--', '.')
+        self.assertIsNone(upgrade.rollback_refusal())
+
+    def test_only_a_start_that_moved_the_checkout_marks_its_backup_run(self):
+        marked = []
+        with patch.object(upgrade, 'back_up', return_value='20260925T030000Z'), \
+                patch.object(backup, 'mark_moved', side_effect=marked.append):
+            with patch.object(upgrade, 'install_dependencies', side_effect=[upgrade.UpgradeError('bun install failed'), None]):
+                with self.assertRaises(upgrade.UpgradeError):
+                    upgrade.start(self.second)
+            self.assertEqual((upgrade.load_state()['phase'], marked), ('failed', []))
+            upgrade.start(self.second)
+        self.assertEqual(marked, ['20260925T030000Z'])
+        self.assertEqual(upgrade.load_state()['backup'], '20260925T030000Z')
+
     def test_a_start_without_an_upgrade_does_nothing(self):
         self.assertFalse(upgrade.after_start(False))
         self.assertIsNone(upgrade.load_state())
 
     def test_a_checkout_that_cannot_install_its_dependencies_goes_back(self):
-        with patch.object(upgrade, 'install_dependencies', side_effect=upgrade.UpgradeError('bun install failed')):
+        # The new version's install fails; the previous version's, on the way back, works.
+        with patch.object(upgrade, 'install_dependencies',
+                          side_effect=[upgrade.UpgradeError('bun install failed'), None]) as install:
             with self.assertRaises(upgrade.UpgradeError):
                 upgrade.start(self.second)
+        self.assertEqual(install.call_count, 2, "the way back installs the previous version's dependencies")
         self.assertEqual(self.head(), self.first)
         self.assertFalse(upgrade.INTENT.exists())
         self.assertEqual(upgrade.load_state()['phase'], 'failed')
@@ -425,8 +459,9 @@ class ControlStateTests(Checkout):
         upgrade.start(self.second)
         upgrade.before_start()
         store(self.catalog, 9, 8)
-        with patch.object(upgrade, 'checkout', side_effect=upgrade.UpgradeError('git checkout failed')):
+        with patch.object(upgrade, 'move_back', side_effect=upgrade.UpgradeError('git checkout failed')) as failing:
             self.assertFalse(upgrade.after_start(False, 'Runtime startup failed'))
+        failing.assert_called_once()
         state = upgrade.load_state()
         # Resumable, never rollback_failed with the failed version checked out.
         self.assertEqual((state['phase'], state['moved_back'], state['restore_pending']), ('rolling_back', False, True))
@@ -557,9 +592,21 @@ class ControlStateTests(Checkout):
 
 
 class CommandTests(unittest.TestCase):
-    def test_the_backup_before_an_upgrade_is_marked_as_one(self):
-        with patch.object(upgrade.subprocess, 'run', return_value=SimpleNamespace(returncode=0)) as run:
-            upgrade.back_up()
+    def test_the_backup_before_an_upgrade_is_marked_as_one_and_names_its_run(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        backups = Path(directory.name)
+        earlier = backups / 'installation' / '20260901T030000Z'
+        earlier.mkdir(parents=True)
+        (earlier / 'manifest.json').write_text(json.dumps({'reason': 'upgrade'}))
+
+        def create(*args, **options):
+            run = backups / 'installation' / '20260925T030000Z'
+            run.mkdir()
+            (run / 'manifest.json').write_text(json.dumps({'reason': 'upgrade'}))
+            return SimpleNamespace(returncode=0)
+        with patch.object(backup, 'BACKUPS', backups), patch.object(upgrade.subprocess, 'run', side_effect=create) as run:
+            self.assertEqual(upgrade.back_up(), '20260925T030000Z')
         self.assertEqual(run.call_args.args[0][-4:], ['all', '--local-only', '--reason', 'upgrade'])
 
     def test_a_release_start_may_allow_a_rebuild_and_a_migrating_release(self):

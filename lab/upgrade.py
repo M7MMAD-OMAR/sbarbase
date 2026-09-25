@@ -415,13 +415,18 @@ def pull(commit):
 
 
 def back_up():
-    """Backs up every environment before anything moves; the backups stay afterwards."""
+    """Backs up every environment before anything moves; the backups stay afterwards. Returns the
+    time that names the run (None when none can be found), which `apply` marks once the checkout
+    moved: only such runs are kept out of pruning."""
+    before = backup.upgrade_run_times()
     # Local only: an unreachable off-site storage must not block an upgrade that has its backups.
     # Marked as an upgrade's, so count-based pruning keeps them (lab/backup.py UPGRADE_RUNS_KEPT).
     result = subprocess.run(['/usr/bin/python3', 'lab/backup.py', 'create', 'all', '--local-only', '--reason', 'upgrade'],
                             cwd=ROOT, text=True)
     if result.returncode:
         raise UpgradeError('The backup before the upgrade failed; nothing was changed')
+    # The upgrade lock is held, so the only upgrade run that can have appeared is this one.
+    return max(backup.upgrade_run_times() - before, default=None)
 
 
 def outcome_file():
@@ -521,6 +526,19 @@ def install_dependencies():
         raise UpgradeError('bun install failed for this version')
 
 
+def move_back(commit, intent, state):
+    """Every way back to the previous version (the move back of a failed start, a rollback, the
+    automatic way back): the guard's forced and verified move (upgrade_guard.force_checkout),
+    which copies local changes aside rather than failing on them and records nothing until HEAD
+    is `commit` with a clean tree, then that version's dependencies. A plain checkout here is
+    what once turned one local edit into a way back that no later start could finish."""
+    try:
+        upgrade_guard.move_checkout(layout(), commit, intent, lambda _: install_dependencies(),
+                                    upgrade_guard.aside_folder(layout(), state))
+    except upgrade_guard.Refused as error:
+        raise UpgradeError(str(error)) from None
+
+
 def start(target_ref, trigger='cli', release=None, request=None):
     with exclusive(LOCK, 'Another upgrade or rollback is running'):
         apply(target_ref, trigger, release, request)
@@ -539,7 +557,7 @@ def apply(target_ref, trigger='cli', release=None, request=None):
     # Everything before this changes nothing and may be tried again; the backup is the first
     # step that is not, so it is recorded before it starts.
     record_outcome(request, 'start', passed=True)
-    back_up()
+    run = back_up()
     # Proves the control state can be copied before anything moves. The new version takes a
     # fresh one when it starts (before_start), which is the one the way back restores.
     try:
@@ -554,18 +572,33 @@ def apply(target_ref, trigger='cli', release=None, request=None):
               'changes': details['changes'], 'automatic': False, 'snapshot': taken, 'trigger': trigger,
               'protocol': upgrade_guard.PROTOCOL, 'moved': False,
               'way_back': {'pins': back, 'from': target, 'to': details['current']},
-              **({'release': release} if release else {})}
+              **({'release': release} if release else {}), **({'backup': run} if run else {})}
     save_state(record)
     prune_snapshots()
     try:
         checkout(target, {'pins': pins, 'from': details['current'], 'to': target})
-    except UpgradeError as error:
-        # The checkout did not move, or moved without its dependencies: go back to where it was.
-        git('checkout', '-q', '--detach', details['current'], check=False)
-        INTENT.unlink(missing_ok=True)
+    except (UpgradeError, OSError) as error:
+        # The checkout did not move, moved part way, or moved without its dependencies: put it
+        # back where it was, verified, with that version's dependencies.
+        try:
+            move_back(details['current'], None, record)
+        except (UpgradeError, OSError) as failure:
+            # Nothing more is saved: the record above (`applied`, `moved: false`) is what makes
+            # the next start's guard redo this move back before any code of either version runs,
+            # and record `failed` only then. Recording it here would let an unverified tree start
+            # without the gate.
+            raise UpgradeError(f'{error}. Moving the checkout back failed too ({failure}); restart Sbarbase '
+                               'and it moves back before anything else runs') from None
         save_state({**record, 'phase': 'failed', 'failure': str(error), 'finished_at': now()})
-        raise
+        raise UpgradeError(str(error)) from None
     save_state({**record, 'moved': True})
+    if run is not None:
+        # Only a try that moved the checkout keeps its backups out of pruning (lab/backup.py
+        # mark_moved); one that stopped before is an ordinary backup run.
+        try:
+            backup.mark_moved(run)
+        except (OSError, backup.BackupError) as error:
+            print(f'The backup run {run} could not be marked as an upgrade that moved: {error}', file=sys.stderr)
     print(f'The checkout is at {target[:12]}. Restart Sbarbase now:\n  {RESTART}')
     print('If the new version does not start, Sbarbase moves back by itself.')
     if trigger == 'cli' and held(SUPERVISOR_LOCK):
@@ -586,12 +619,28 @@ def rollback(automatic=False, reason=None):
         go_back(automatic, reason)
 
 
-def rollback_refusal(state=None):
+def local_changes():
+    """Tracked files with local changes, outside the evidence the live checks write."""
+    return [path for path in changed_tracked() if not path.startswith(EVIDENCE)]
+
+
+def rollback_refusal(state=None, automatic=False):
     """Why `rollback` would refuse before moving anything, or None. The console's "roll back"
-    (lab/updates.py) asks this same question, so the page and the command cannot disagree."""
+    (lab/updates.py) asks this same question, so the page and the command cannot disagree.
+
+    An operator's rollback refuses a checkout with local changes to tracked files: the way back
+    would move them aside (move_back), and a change someone made on purpose, such as a port in
+    compose.yaml, should not vanish from a button. The automatic way back never refuses on it:
+    the version it leaves is failing, and it sets the changes aside instead."""
     state = load_state() if state is None else state
     if not state or state.get('phase') not in ('applied', 'confirmed'):
         return 'There is no upgrade to roll back'
+    if not automatic:
+        changed = local_changes()
+        if changed:
+            shown = ', '.join(changed[:3]) + (f' and {len(changed) - 3} more' if len(changed) > 3 else '')
+            return (f'The checkout has local changes to tracked files ({shown}), which a rollback would move aside. '
+                    'Commit or discard them on the server first. Nothing was changed')
     if state['phase'] == 'confirmed':
         # After confirmation the fix is forward only: later writes stay, so every store must be
         # one the previous version can still open. Unknown support refuses; it never allows.
@@ -624,7 +673,7 @@ def way_back(state):
 
 def go_back(automatic, reason=None):
     state = load_state()
-    refusal = rollback_refusal(state)
+    refusal = rollback_refusal(state, automatic)
     if refusal:
         raise UpgradeError(refusal)
     source = state['from']
@@ -648,7 +697,7 @@ def go_back(automatic, reason=None):
         # rolling_back, which the next start completes (lab/upgrade_guard.py) before anything
         # else runs, so the failed version is never started again without its gate.
         try:
-            upgrade_guard.complete_way_back(layout(), state, save_state, lambda: checkout(source, intent))
+            upgrade_guard.complete_way_back(layout(), state, save_state, lambda: move_back(source, intent, state))
         except upgrade_guard.SnapshotError as error:
             save_state(upgrade_guard.snapshot_failed(state, error))
             raise UpgradeError(state['failure']) from None
@@ -769,7 +818,7 @@ def after_start(started, reason=None):
             with exclusive(LOCK, 'Another upgrade or rollback is running', wait=30):
                 try:
                     upgrade_guard.complete_way_back(layout(), state, save_state,
-                                                    lambda: checkout(state['from'], way_back(state)))
+                                                    lambda: move_back(state['from'], way_back(state), state))
                 except upgrade_guard.SnapshotError as error:
                     save_state(upgrade_guard.snapshot_failed(state, error))
                     return False
@@ -800,6 +849,12 @@ def status():
         print('why back ' + state['reason'])
     if state.get('failure'):
         print('reason   ' + state['failure'])
+    if isinstance(state.get('stuck'), dict):
+        # Recorded by the guard (lab/upgrade_guard.py cannot_move): Sbarbase stays stopped.
+        print(f"stuck    the checkout could not be moved back ({state['stuck'].get('reason')}); Sbarbase stays "
+              'stopped until that is fixed, and every start tries again')
+    if state.get('rollback_failure') and state.get('phase') == 'confirmed':
+        print('rollback ' + state['rollback_failure'])
     if state.get('snapshot'):
         restored = ' (restored on the way back)' if state.get('restored') == state['snapshot'] else ''
         print(f"control  snapshot {SNAPSHOTS.relative_to(ROOT) if SNAPSHOTS.is_relative_to(ROOT) else SNAPSHOTS}/{state['snapshot']}{restored}")

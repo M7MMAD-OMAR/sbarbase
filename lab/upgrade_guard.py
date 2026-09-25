@@ -32,6 +32,15 @@ While an upgrade or a rollback waits for confirmation (state.json phase `applied
 A way back or a rollback_failed it records carries a notice in the state, so the next supervisor
 start emits the notification it earns (lab/dev.py upgrade_notices).
 
+Every move it makes is forced and verified (force_checkout): local changes to tracked files are
+copied aside into .lab/upgrades/aside-<time>/ first, a stale .git/index.lock is removed when no
+git process can be using the checkout, and nothing is recorded until HEAD is the commit and the
+tree is clean. A move that still fails is retried by the next MAX_ATTEMPTS starts; after that the
+outcome is terminal (cannot_move): the start goes on only when the checkout holds the previous
+version, or the confirmed one an operator's rollback tried to leave; otherwise the guard says so
+in one line and waits STUCK_WAIT seconds before it exits, so the service manager's restarts try
+again slowly instead of looping every few seconds, and never run the failed version ungated.
+
 Exit status 0 lets the start go on (on whichever version the checkout now holds); 1 means it
 cannot, and the service manager tries again. Anything unreadable or not pending exits 0 at
 once: a guard problem must never stop an installation that has no upgrade under way.
@@ -55,6 +64,15 @@ MAX_ATTEMPTS = 3
 # The state format this guard writes. States without it were written before the guard existed.
 PROTOCOL = 2
 EVIDENCE = 'docs/evidence/'
+# guard() returns this when the checkout cannot be moved and neither version on disk may start.
+STUCK = 3
+# How long main() waits before it exits after STUCK. systemd restarts a failed ExecStartPre and
+# Docker restarts any exit, and neither can be told to stay stopped by an ExecStartPre's exit
+# status, so the wait is what keeps the restarts slow. It stays well under the unit's
+# TimeoutStartSec (600 s), which every ExecStartPre shares. A terminal start (lab/dev.py
+# run_guard) sets SBARBASE_GUARD_WAIT=0 and gets the line at once; an environment variable,
+# because the copy that runs may be an older guard, which reads its first argument as the root.
+STUCK_WAIT = 300
 # Which lock entry each replaceable service runs, as durable_runtime reads them (lab/upgrade.py
 # uses this same table). The guard needs it only for a state that predates `way_back`.
 SERVICES = {'auth': ('images.lock.json', 'auth'), 'rest': ('images.lock.json', 'rest'),
@@ -212,28 +230,114 @@ def bun_install(layout):
         raise Refused('bun install failed for the previous version')
 
 
-def own(layout, previous, commit):
+def own(layout, paths):
     """Files git rewrote keep the checkout's owner when this runs as root in the container."""
     if os.geteuid() != 0:
         return
     owner = layout.root.stat()
     if owner.st_uid == 0:
         return
-    for relative in git(layout, 'diff', '--name-only', previous, commit, check=False).splitlines():
+    for relative in paths:
         path = layout.root / relative
         if path.exists() or path.is_symlink():
             os.lchown(path, owner.st_uid, owner.st_gid)
 
 
-def move_checkout(layout, commit, intent, install=bun_install):
-    """The guard's own move: the intent the next start reads, the checkout, the dependencies."""
+def names(text):
+    return [name for name in text.split('\0') if name]
+
+
+def git_running(root):
+    """Whether a git process may be working in this checkout: one whose working directory is in
+    it, or one whose working directory this user cannot read (another user's git, as root on the
+    host, cannot be shown to be elsewhere)."""
+    root = Path(root).resolve()
+    for entry in Path('/proc').iterdir():
+        if not entry.name.isdigit() or int(entry.name) == os.getpid():
+            continue
+        try:
+            if not (entry / 'comm').read_text().strip().startswith('git'):
+                continue
+        except OSError:
+            continue
+        try:
+            directory = Path(os.readlink(entry / 'cwd'))
+        except FileNotFoundError:
+            continue
+        except OSError:
+            return True
+        if directory == root or root in directory.parents:
+            return True
+    return False
+
+
+def clear_stale_index_lock(layout):
+    """Removes .git/index.lock left by a git process that was killed (SIGKILL, power loss), which
+    otherwise refuses every checkout for good. Callers hold the upgrade lock, so no upgrade,
+    rollback or guard runs git here; the lock is removed only when no git process can be using
+    the checkout either. Returns whether it removed one."""
+    lock = layout.root / '.git' / 'index.lock'
+    if not lock.exists() or git_running(layout.root):
+        return False
+    lock.unlink(missing_ok=True)
+    say('removed a stale .git/index.lock that no git process holds')
+    return True
+
+
+def aside_folder(layout, state):
+    """One folder per upgrade or way back, so the copies a retried move makes land together."""
+    moment = str(state.get('rollback_at') or state.get('started_at') or now())
+    return layout.upgrades / ('aside-' + ''.join(char for char in moment if char.isalnum()))
+
+
+def set_aside(layout, commit, folder):
+    """Copies every tracked file that differs from HEAD (staged or not, evidence included, since
+    a forced checkout overwrites all of them) and every untracked file the commit would
+    overwrite into `folder`, 0700. A copy already there is kept: the first copy is the operator's
+    own edit, a later one may be a half-written tree from a move that stopped. Returns the paths
+    that differ; raises OSError when a copy fails, and then nothing is overwritten."""
+    changed = names(git(layout, 'diff', '--name-only', '-z', 'HEAD', '--'))
+    untracked = set(names(git(layout, 'ls-files', '--others', '--exclude-standard', '-z')))
+    arriving = set(names(git(layout, 'ls-tree', '-r', '--name-only', '-z', commit)))
+    copied = []
+    for relative in changed + sorted(untracked & arriving):
+        source = layout.root / relative
+        target = folder / relative
+        if not (source.is_file() or source.is_symlink()) or target.exists() or target.is_symlink():
+            continue
+        folder.mkdir(mode=0o700, parents=True, exist_ok=True)
+        os.chmod(folder, 0o700)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target, follow_symlinks=False)
+        copied.append(relative)
+    if copied:
+        sync_directory(folder)
+        say(f'{len(copied)} changed file(s) of the checkout were copied to {folder} before the move')
+    return changed + sorted(untracked & arriving)
+
+
+def force_checkout(layout, commit, folder):
+    """Moves the checkout to `commit` whatever the tree holds, and proves it did: local changes go
+    aside first (set_aside; a copy that fails stops here, before anything is overwritten), a
+    stale index lock is cleared, `git checkout -f --detach` runs, and HEAD and a clean tree are
+    checked before the caller records anything. Raises Refused or OSError."""
+    clear_stale_index_lock(layout)
     previous = head(layout)
+    rewritten = set_aside(layout, commit, folder)
+    git(layout, 'checkout', '-q', '-f', '--detach', commit)
+    if head(layout) != commit or not clean(layout):
+        raise Refused(f'git checkout did not leave a clean checkout at {commit[:12]}')
+    diff = git(layout, 'diff', '--name-only', previous, commit, check=False).splitlines() if previous else []
+    own(layout, sorted(set(diff) | set(rewritten)))
+
+
+def move_checkout(layout, commit, intent, install=bun_install, folder=None):
+    """The guard's own move: the intent the next start reads, the checkout, the dependencies."""
     if intent is not None:
         write_json(layout.intent, intent)
     else:
         layout.intent.unlink(missing_ok=True)
-    git(layout, 'checkout', '-q', '--detach', commit)
-    own(layout, previous, commit)
+    force_checkout(layout, commit, folder or aside_folder(layout, {}))
     install(layout)
 
 
@@ -282,8 +386,11 @@ def restore_snapshot(snapshots, name, places):
 
 
 def begin_way_back(state, automatic, reason):
-    """The record that makes a way back resumable, saved before anything moves."""
+    """The record that makes a way back resumable, saved before anything moves, with the phase
+    it leaves (`back_from`): a way back from `confirmed` that cannot move leaves a version on disk that
+    passed its health checks, which the guard may then start (cannot_move)."""
     state.update({'phase': 'rolling_back', 'automatic': automatic, 'rollback_at': now(), 'protocol': PROTOCOL,
+                  'back_from': state['phase'], 'move_failures': 0,
                   'restore_pending': state['phase'] == 'applied' and bool(state.get('attempted_at')),
                   'moved_back': False, 'guard': None})
     if reason:
@@ -338,8 +445,68 @@ def mismatch(layout, state):
     return None
 
 
+def cannot_move(layout, state, save, error):
+    """A move of the checkout (or the restore after it) failed. The next MAX_ATTEMPTS starts try
+    again, since most causes pass (a git process that had the index locked, a full disk someone
+    clears). After that the outcome is terminal, and the least harmful start is chosen:
+
+      - the checkout holds the previous version, clean: record `failed` (the upgrade's own move
+        back) or `rollback_failed`, and let the previous version start without the gate;
+      - an operator's rollback of a confirmed upgrade could not leave it, and the confirmed
+        version is intact: record `confirmed` again with `rollback_failure`, and start it;
+      - otherwise the failed or a half-written version is on disk: record `stuck`, keep the phase
+        pending so nothing ever starts it ungated, and return STUCK (main waits, then exits).
+
+    A state that cannot even be saved raises, and the service manager's restarts keep trying."""
+    text = f'{error.__class__.__name__}: {error}' if isinstance(error, OSError) else str(error)
+    count = state.get('move_failures')
+    state['move_failures'] = (count if isinstance(count, int) and not isinstance(count, bool) else 0) + 1
+    source = state['from'][:12]
+    if state['move_failures'] < MAX_ATTEMPTS:
+        save(state)
+        raise Refused(f'The checkout could not be moved back to {source} ({text}); the next start tries again')
+    here, tidy = head(layout), clean(layout)
+    state.pop('stuck', None)
+    if here == state['from'] and tidy:
+        if state['phase'] == 'applied':
+            state.update({'phase': 'failed', 'finished_at': now(),
+                          'failure': f'The upgrade stopped while it moved the checkout. The checkout is back at {source}, '
+                                     f'but the move back did not finish ({text})'})
+            save(state)
+            say(state['failure'] + '; it starts without the health checks now')
+            return 0
+        failure = f'The checkout is back at {source}, but the way back did not finish ({text})'
+        if state.get('restore_pending') and state.get('restored') != state.get('snapshot'):
+            try:
+                restore_snapshot(layout.snapshots, state.get('snapshot'), layout.homes)
+                state['restored'] = state['snapshot']
+            except (SnapshotError, OSError) as problem:
+                failure += (f'; the control state was not put back ({problem}): restore from the backups taken '
+                            'before the upgrade (lab/backup.py list)')
+        state.update({'phase': 'rollback_failed', 'finished_at': now(), 'failure': failure})
+        save(notice(state, 'rolling_back'))
+        say(failure + '; it starts without the health checks now')
+        return 0
+    if state['phase'] == 'rolling_back' and state.get('back_from') == 'confirmed' and here == state['to'] and tidy:
+        # The way back wrote the previous version's pins before it failed to move: the version
+        # that starts now is the confirmed one, which must not replace its services with them.
+        layout.intent.unlink(missing_ok=True)
+        state.update({'phase': 'confirmed', 'guard': None,
+                      'rollback_failure': f'The rollback could not move the checkout back to {source} ({text}); '
+                                          f"Sbarbase stays on the confirmed version {state['to'][:12]}"})
+        save(state)
+        say(state['rollback_failure'])
+        return 0
+    state['stuck'] = {'at': now(), 'reason': text}
+    save(state)
+    say(f'the checkout cannot be moved back to {source} ({text}), and the version it holds must not start '
+        'without its health checks, so Sbarbase stays stopped. Fix the cause (lab/upgrade.py status), then '
+        f'restart Sbarbase; until then this guard tries again every {STUCK_WAIT // 60} minutes')
+    return STUCK
+
+
 def guard(layout, install=bun_install):
-    """One run; returns the exit status. See the module docstring."""
+    """One run; returns the exit status, or STUCK. See the module docstring."""
     if not pending(read_state(layout)):
         return 0
     with locked(layout.lock, 'Another upgrade or rollback is running', wait=30), \
@@ -352,13 +519,20 @@ def guard(layout, install=bun_install):
             write_json(layout.state, value)
 
         def back():
-            move_checkout(layout, state['from'], intent_back(layout, state), install)
+            # The folder is named after the way back, so every retry of it shares one.
+            move_checkout(layout, state['from'], intent_back(layout, state), install, aside_folder(layout, state))
 
         if state['phase'] == 'applied' and not moved(layout, state):
             # `start` stopped while it moved the checkout: the new version never ran, so putting
-            # the checkout back is all there is to undo.
+            # the checkout back is all there is to undo. HEAD may not have moved at all while the
+            # tree is half written, so the move is forced and verified, never assumed.
             say('the upgrade stopped while it moved the checkout; moving back to ' + state['from'][:12])
-            move_checkout(layout, state['from'], None, install)
+            try:
+                move_checkout(layout, state['from'], None, install, aside_folder(layout, state))
+            except (Refused, OSError) as error:
+                return cannot_move(layout, state, save, error)
+            for key in ('stuck', 'move_failures'):
+                state.pop(key, None)
             state.update({'phase': 'failed', 'finished_at': now(),
                           'failure': 'The upgrade stopped while it moved the checkout; the checkout went back'})
             save(state)
@@ -391,9 +565,10 @@ def guard(layout, install=bun_install):
             save(notice(snapshot_failed(state, error), 'rolling_back'))
             say(state['failure'])
             return 0
-        except OSError as error:
-            raise Refused(f'The way back did not finish ({error.__class__.__name__}: {error}); '
-                          'the next start tries again') from None
+        except (Refused, OSError) as error:
+            return cannot_move(layout, state, save, error)
+        for key in ('stuck', 'move_failures'):
+            state.pop(key, None)
         if crashed or record['attempts'] > MAX_ATTEMPTS:
             # An open attempt only says that start never finished: it may have ended in the
             # preflight, before the previous version's supervisor ran at all.
@@ -412,10 +587,20 @@ def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
     layout = Layout(Path(argv[0] if argv else os.getcwd()).resolve())
     try:
-        return guard(layout)
+        status = guard(layout)
     except Refused as error:
         say(str(error))
         return 1
+    except OSError as error:
+        # The state itself could not be written: nothing is known to be settled.
+        say(f'the upgrade state could not be recorded ({error.__class__.__name__}: {error}); the next start tries again')
+        return 1
+    if status == STUCK:
+        # Outside the locks, so the operator's own commands can run meanwhile.
+        if os.environ.get('SBARBASE_GUARD_WAIT') != '0':
+            time.sleep(STUCK_WAIT)
+        return 1
+    return status
 
 
 if __name__ == '__main__':
