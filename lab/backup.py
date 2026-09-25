@@ -3,7 +3,8 @@
     backup.py create <environment|all> [--keep N] [--local-only] [--reason upgrade]
     backup.py list [<environment>]
     backup.py restore <environment> <backup> [--offsite]
-    backup.py discard-previous <environment>
+    backup.py restore-storage <backup> [--offsite]
+    backup.py discard-previous <environment|storage>
     backup.py offsite-list
     backup.py offsite-fetch <backup>
     backup.py offsite-key <path>
@@ -22,9 +23,16 @@ REST stop; Storage and every other environment keep serving. The current databas
 and the current files are moved aside, not deleted, and any failure puts them back. After a
 successful restore they are kept until ``discard-previous``.
 
-``create all`` gives every backup of the run one time and also writes the installation manifest
-(``.lab/backups/installation/<UTC time>/``). ``--reason upgrade`` (``lab/upgrade.py`` before it moves
-the checkout) marks every manifest of the run: the backups of the last ``UPGRADE_RUNS_KEPT`` upgrades
+``create all`` gives every backup of the run one time, backs up Storage's shared metadata
+database (``storage_metadata``: every environment's Storage registration, its signing keys and
+the migration state Storage records per tenant) to ``.lab/backups/storage/<UTC time>/``, and
+writes the installation manifest (``.lab/backups/installation/<UTC time>/``). Storage migrates
+that database when a new image starts, so an upgrade that changes the Storage pin is undone
+completely only with ``restore-storage`` from the same run as the environments' restores.
+``restore-storage`` stops the shared Storage process for the length of the restore (every
+environment's Storage pauses; nothing else does) and refuses a backup that does not register
+an environment published now, since restoring it would drop that environment's registration.
+``--reason upgrade`` (``lab/upgrade.py`` before it moves the checkout) marks every manifest of the run: the backups of the last ``UPGRADE_RUNS_KEPT`` upgrades
 that moved the checkout (``lab/upgrade.py`` marks those, ``mark_moved``) are the way back to data a
 newer version migrated, so count-based pruning never removes them and does not count them against
 ``--keep``. A try that stopped before it moved leaves an ordinary run. Two independent ways copy
@@ -58,6 +66,12 @@ DB = PREFIX + '-db'
 OBJECTS_VOLUME = PREFIX + '-objects'
 # storage-files.cjs and the Storage file backend keep a tenant's files here in the volume.
 TENANT_PARENT = 'sbarbase-lab'
+# Storage's shared metadata database (lab/durable_runtime.py MULTITENANT_DATABASE_URL), backed up
+# once per run under its own folder, and the one Storage process that holds it open.
+STORAGE = 'storage'
+STORAGE_DATABASE = 'storage_metadata'
+STORAGE_CONTAINER = PREFIX + '-storage'
+STORAGE_PORT = 5000
 RUNTIME = re.compile(r'e_[a-f0-9]{24}')
 UUID = re.compile(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}')
 STAMP = re.compile(r'\d{8}T\d{6}Z')
@@ -149,8 +163,21 @@ def counts(e):
     return parse_counts(sql(COUNTS, e))
 
 
+# Counts and tenant ids only: the other columns hold encrypted credentials and signing keys.
+STORAGE_COUNTS = "SELECT count(*), coalesce(string_agg(id, ',' ORDER BY id), '') FROM tenants;"
+
+
+def parse_storage_counts(out):
+    count, ids = out.split('|', 1)
+    return {'tenants': int(count), 'ids': [item for item in ids.split(',') if item]}
+
+
+def storage_counts():
+    return parse_storage_counts(sql(STORAGE_COUNTS, STORAGE_DATABASE))
+
+
 @contextlib.contextmanager
-def snapshot(e):
+def snapshot(e, query=COUNTS, parse=parse_counts):
     """(snapshot id, counts) from one read-only snapshot, held open while pg_dump reads it.
 
     The counts come from the same snapshot the dump exports, so a sign-up or an upload that
@@ -161,13 +188,13 @@ def snapshot(e):
     process = subprocess.Popen(psql(e), stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
     try:
         process.stdin.write('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;\n'
-                            'SELECT pg_export_snapshot();\n' + COUNTS + '\n')
+                            'SELECT pg_export_snapshot();\n' + query + '\n')
         process.stdin.flush()
         exported = process.stdout.readline().strip()
         line = process.stdout.readline().strip()
         if not re.fullmatch(r'[0-9A-F]+-[0-9A-F]+-[0-9]+', exported) or not line:
             raise BackupError('database snapshot failed')
-        yield exported, parse_counts(line)
+        yield exported, parse(line)
     finally:
         if process.poll() is None:
             try:
@@ -237,6 +264,38 @@ def create(e, keep=DEFAULT_KEEP, now=None, reason=None, protected=None):
         manifest['reason'] = reason
     write_private(target / 'manifest.json', json.dumps(manifest, indent=2) + '\n')
     prune(e, keep, protected)
+    return target, manifest
+
+
+def create_storage(keep=DEFAULT_KEEP, now=None, reason=None, protected=None):
+    """Back up ``storage_metadata`` the way an environment's database is backed up: pg_dump in
+    custom format inside one snapshot while Storage keeps serving, and the manifest last. The
+    manifest records the tenant count and ids from that snapshot (never another column), which
+    a restore checks."""
+    if reason is not None and reason not in REASONS:
+        raise BackupError('Unknown backup reason')
+    stamp = (now or datetime.datetime.now(datetime.UTC)).strftime('%Y%m%dT%H%M%SZ')
+    target = private_dir(BACKUPS / STORAGE) / stamp
+    if target.exists():
+        raise BackupError('A Storage metadata backup with this time already exists')
+    private_dir(target)
+    fd = os.open(target / 'database.dump', os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, 'wb') as handle, \
+            snapshot(STORAGE_DATABASE, STORAGE_COUNTS, parse_storage_counts) as (exported, before):
+        run(['docker', 'exec', DB, 'pg_dump', '-U', 'supabase_admin', '-Fc', f'--snapshot={exported}',
+             '-d', STORAGE_DATABASE], stdout=handle, text=False)
+    manifest = {
+        'version': 1, 'kind': STORAGE_DATABASE, 'created_at': stamp,
+        'database': {'file': 'database.dump', 'name': STORAGE_DATABASE,
+                     'bytes': (target / 'database.dump').stat().st_size, 'sha256': digest(target / 'database.dump')},
+        'counts': {'tenants': before['tenants']}, 'tenants': before['ids'],
+        'images': {'db': json.loads((ROOT / 'lab' / 'distro-image.lock.json').read_text())['id'],
+                   'storage': storage_image()},
+    }
+    if reason is not None:
+        manifest['reason'] = reason
+    write_private(target / 'manifest.json', json.dumps(manifest, indent=2) + '\n')
+    prune(STORAGE, keep, protected)
     return target, manifest
 
 
@@ -363,6 +422,26 @@ def verify(e, path):
     return manifest
 
 
+def verify_storage(path):
+    """The manifest of a complete Storage metadata backup whose dump matches its digest."""
+    if not STAMP.fullmatch(path.name) or path.parent != BACKUPS / STORAGE:
+        raise BackupError('Not a Storage metadata backup')
+    manifest_path = path / 'manifest.json'
+    if not manifest_path.is_file():
+        raise BackupError('Backup is incomplete')
+    manifest = json.loads(manifest_path.read_text())
+    item = manifest.get('database') if isinstance(manifest, dict) else None
+    if not isinstance(item, dict) or manifest.get('version') != 1 or manifest.get('kind') != STORAGE_DATABASE \
+            or not isinstance(manifest.get('tenants'), list):
+        raise BackupError('Backup belongs to another format')
+    file = path / 'database.dump'
+    if item.get('file') != 'database.dump' or not file.is_file():
+        raise BackupError('Backup database file is missing')
+    if file.stat().st_size != item.get('bytes') or digest(file) != item.get('sha256'):
+        raise BackupError('Backup database file does not match its digest')
+    return manifest
+
+
 def wait_healthy(e, timeout=180):
     endpoints = published().get(e, {})
     deadline = time.time() + timeout
@@ -458,6 +537,93 @@ def restore(e, name, now=None):
     return record
 
 
+def start_storage():
+    """Start Storage again and publish its address for every environment; a restart may change it."""
+    run(['docker', 'start', STORAGE_CONTAINER])
+    import durable_runtime
+    item = durable_runtime.inspect('container', STORAGE_CONTAINER)
+    address = item['NetworkSettings']['Networks'][durable_runtime.NETWORK]['IPAddress'] if item else ''
+    if not address:
+        raise BackupError('Storage has no address after the restore')
+    path = STATE / 'endpoints.json'
+    endpoints = json.loads(path.read_text()) if path.exists() else {}
+    for entry in endpoints.values():
+        if isinstance(entry, dict) and isinstance(entry.get('storage'), dict):
+            entry['storage']['url'] = f'http://{address}:{STORAGE_PORT}'
+    durable_runtime.atomic(path, endpoints)
+    return address
+
+
+def wait_storage(address, timeout=180):
+    """Storage listens once its start, its own migrations included, is done; seeing that needs no key."""
+    import socket
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            with socket.create_connection((address, STORAGE_PORT), timeout=5):
+                return True
+        except OSError:
+            time.sleep(2)
+    raise BackupError('Storage did not come back after the restore')
+
+
+def restore_storage(name, now=None):
+    """Replace ``storage_metadata`` with a backup of it the way ``restore`` replaces an
+    environment's database: the current one is renamed and kept, and any failure puts it back.
+    Storage is stopped meanwhile, so every environment's Storage pauses for the restore."""
+    path = BACKUPS / STORAGE / name
+    manifest = verify_storage(path)
+    missing = [e for e in environments() if e not in manifest['tenants']]
+    if missing:
+        raise BackupError('That backup does not register ' + ', '.join(missing) + ', published now; restoring it '
+                          'would drop their Storage registration. Restore a backup taken after they were created')
+    stamp = (now or datetime.datetime.now(datetime.UTC)).strftime('%Y%m%dt%H%M%Sz')
+    previous = f'{STORAGE_DATABASE}_pre_{stamp}'
+    moved_database = False
+    run(['docker', 'stop', STORAGE_CONTAINER])
+    try:
+        sql(f"ALTER DATABASE {STORAGE_DATABASE} ALLOW_CONNECTIONS false; "
+            f"SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE datname='{STORAGE_DATABASE}';")
+        sql(f'ALTER DATABASE {STORAGE_DATABASE} RENAME TO {previous};')
+        moved_database = True
+        with (path / 'database.dump').open('rb') as handle:
+            run(['docker', 'exec', '-i', DB, 'pg_restore', '-U', 'supabase_admin', '--create', '--exit-on-error',
+                 '-d', 'postgres'], stdin=handle, text=False)
+        # The properties the runtime set (lab/durable_runtime.py), copied from the database being replaced.
+        limit, acl = sql(f"SELECT datconnlimit, coalesce(datacl::text,'') FROM pg_database WHERE datname='{previous}';").split('|')
+        sql(f'ALTER DATABASE {STORAGE_DATABASE} CONNECTION LIMIT {int(limit)}; '
+            f'ALTER DATABASE {STORAGE_DATABASE} ALLOW_CONNECTIONS true; ALTER DATABASE {previous} ALLOW_CONNECTIONS false;')
+        if sql(f"SELECT coalesce(datacl::text,'') FROM pg_database WHERE datname='{STORAGE_DATABASE}';") != acl:
+            raise BackupError('Restored Storage metadata access differs from the database it replaces')
+        if storage_counts() != {'tenants': manifest['counts']['tenants'], 'ids': manifest['tenants']}:
+            raise BackupError('Restored Storage registrations do not match the backup')
+    except BaseException:
+        if moved_database:
+            sql(f"SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE datname='{STORAGE_DATABASE}';")
+            sql(f'DROP DATABASE IF EXISTS {STORAGE_DATABASE} WITH (FORCE);')
+            sql(f'ALTER DATABASE {previous} RENAME TO {STORAGE_DATABASE}; '
+                f'ALTER DATABASE {STORAGE_DATABASE} ALLOW_CONNECTIONS true;')
+        else:
+            sql(f'ALTER DATABASE {STORAGE_DATABASE} ALLOW_CONNECTIONS true;')
+        start_storage()
+        raise
+    wait_storage(start_storage())
+    record = {'restored_at': stamp, 'backup': name, 'previous_database': previous, 'counts': manifest['counts']}
+    write_private(path / f'restore-{stamp}.json', json.dumps(record, indent=2) + '\n')
+    return record
+
+
+def discard_previous_storage():
+    """Drop the Storage metadata databases that restores set aside."""
+    names = [line for line in sql(f"SELECT datname FROM pg_database WHERE datname LIKE "
+                                  f"'{STORAGE_DATABASE}\\_pre\\_%' ESCAPE '\\';").splitlines() if line]
+    for name in names:
+        if not re.fullmatch(STORAGE_DATABASE + r'_pre_\d{8}t\d{6}z', name):
+            raise BackupError('Unexpected database name')
+        sql(f'DROP DATABASE {name} WITH (FORCE);')
+    return names
+
+
 def discard_previous(e):
     """Drop what restores set aside for this environment, once the operator is satisfied."""
     names = [line for line in sql(f"SELECT datname FROM pg_database WHERE datname LIKE '{e}\\_pre\\_%' ESCAPE '\\';").splitlines() if line]
@@ -493,6 +659,9 @@ def main(argv=None):
     back.add_argument('environment')
     back.add_argument('backup')
     back.add_argument('--offsite', action='store_true', help='fetch the backup from the off-host target first')
+    shared = sub.add_parser('restore-storage', help="replace Storage's shared metadata database with a backup of it")
+    shared.add_argument('backup')
+    shared.add_argument('--offsite', action='store_true', help='fetch the backup from the off-host target first')
     drop = sub.add_parser('discard-previous')
     drop.add_argument('environment')
     sub.add_parser('offsite-list')
@@ -517,6 +686,12 @@ def main(argv=None):
                     manifest = json.loads((path / 'manifest.json').read_text())
                     print(f"{e}  {path.name}  database {manifest['database']['bytes']} B  "
                           f"files {manifest['objects']['files']}  users {manifest['counts']['auth.users']}"
+                          + ('  before an upgrade' if manifest.get('reason') == 'upgrade' else ''))
+            if not args.environment:
+                for path in complete_backups(STORAGE):
+                    manifest = json.loads((path / 'manifest.json').read_text())
+                    print(f"{STORAGE_DATABASE}  {path.name}  database {manifest['database']['bytes']} B  "
+                          f"tenants {manifest['counts']['tenants']}"
                           + ('  before an upgrade' if manifest.get('reason') == 'upgrade' else ''))
             return 0
         private_dir(BACKUPS)
@@ -545,6 +720,15 @@ def main(argv=None):
                         print(f'backup {e} failed: {error}', file=sys.stderr)
                 copied = None
                 if every:
+                    # Storage's shared database, in the same run: a restore of the run brings the
+                    # registrations back with the environments they belong to.
+                    try:
+                        path, manifest = create_storage(args.keep, now=now, reason=args.reason, protected=protected)
+                        print(f"backup {STORAGE_DATABASE} {path.name}: database {manifest['database']['bytes']} B, "
+                              f"{manifest['counts']['tenants']} tenant(s)")
+                    except BackupError as error:
+                        failed += 1
+                        print(f'backup {STORAGE_DATABASE} failed: {error}', file=sys.stderr)
                     offsite = None
                     try:
                         import backup_offsite as offsite
@@ -581,6 +765,18 @@ def main(argv=None):
                 record = restore(e, args.backup)
                 print(f"restored {e} from {args.backup}; the previous state is kept as {record['previous_database']} "
                       f"until: backup.py discard-previous {e}")
+                return 0
+            if args.command == 'restore-storage':
+                if args.offsite and not (BACKUPS / STORAGE / args.backup).exists():
+                    import backup_offsite
+                    backup_offsite.fetch(args.backup)
+                record = restore_storage(args.backup)
+                print(f"restored {STORAGE_DATABASE} from {args.backup}; the previous database is kept as "
+                      f"{record['previous_database']} until: backup.py discard-previous {STORAGE}")
+                return 0
+            if args.environment == STORAGE:
+                names = discard_previous_storage()
+                print(f'discarded {len(names)} previous {STORAGE_DATABASE} database(s)')
                 return 0
             e = resolve(args.environment)
             names = discard_previous(e)

@@ -135,9 +135,21 @@ class Fixture(unittest.TestCase):
         (path / 'manifest.json').write_text(json.dumps(manifest))
         return path
 
+    def storage(self, stamp):
+        path = backup.private_dir(self.backups / 'storage' / stamp)
+        (path / 'database.dump').write_bytes(b'storage dump ' + stamp.encode())
+        manifest = {'version': 1, 'kind': 'storage_metadata', 'created_at': stamp,
+                    'database': {'file': 'database.dump', 'name': 'storage_metadata',
+                                 'bytes': (path / 'database.dump').stat().st_size,
+                                 'sha256': backup.digest(path / 'database.dump')},
+                    'counts': {'tenants': 2}, 'tenants': [E1, E2]}
+        (path / 'manifest.json').write_text(json.dumps(manifest))
+        return path
+
     def run_set(self, stamp):
         for e in (E1, E2):
             self.complete(e, stamp)
+        self.storage(stamp)
         offsite.write_installation(stamp, [E1, E2], environ={})
 
     def encrypted(self, stamp, name=None):
@@ -294,8 +306,11 @@ class TargetTests(Fixture):
         expected = tree(self.backups)
         shutil.rmtree(self.backups / E1 / stamp)
         shutil.rmtree(self.backups / 'installation' / stamp)
+        shutil.rmtree(self.backups / 'storage' / stamp)
         (self.backups / E2 / stamp / 'marker').write_text('local')
-        self.assertEqual(offsite.fetch(stamp), [E1, 'installation'])
+        # Storage's shared metadata travels in the run's set and comes back verified.
+        self.assertEqual(offsite.fetch(stamp), [E1, 'installation', 'storage'])
+        self.assertEqual(backup.verify_storage(self.backups / 'storage' / stamp)['tenants'], [E1, E2])
         self.assertEqual(backup.verify(E1, self.backups / E1 / stamp)['runtime'], E1)
         restored = tree(self.backups)
         self.assertEqual(restored.pop(f'{E2}/{stamp}/marker'), b'local')
@@ -332,13 +347,18 @@ class TargetTests(Fixture):
             path = self.complete(e, now.strftime('%Y%m%dT%H%M%SZ'))
             return path, json.loads((path / 'manifest.json').read_text())
 
-        with patch.object(backup, 'create', create), patch.object(notification_producers, 'emit') as emit, \
+        def create_storage(keep, now=None, reason=None, protected=None):
+            path = self.storage(now.strftime('%Y%m%dT%H%M%SZ'))
+            return path, json.loads((path / 'manifest.json').read_text())
+
+        with patch.object(backup, 'create', create), patch.object(backup, 'create_storage', create_storage), \
+                patch.object(notification_producers, 'emit') as emit, \
                 contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()) as error:
             # Local backups are fine; 3 tells the supervisor the failed copy was already reported.
             self.assertEqual(backup.main(['create', 'all']), backup.OFFSITE_FAILED)
         self.assertIn('off-host copy', error.getvalue())
         self.assertEqual(emit.call_args.args[0], 'backup.failed')
-        stamps = {path.name for e in (E1, E2, 'installation') for path in (self.backups / e).iterdir()}
+        stamps = {path.name for e in (E1, E2, 'storage', 'installation') for path in (self.backups / e).iterdir()}
         self.assertEqual(len(stamps), 1)
         self.assertTrue((self.backups / 'installation' / stamps.pop() / 'manifest.json').is_file())
 

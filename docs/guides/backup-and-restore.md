@@ -22,6 +22,8 @@ Commands (with Docker, prefix `docker compose exec sbarbase`):
 | List backups | `python3 lab/backup.py list` |
 | Restore an environment | `python3 lab/backup.py restore <environment> <backup>` |
 | Drop what a restore set aside | `python3 lab/backup.py discard-previous <environment>` |
+| Restore Storage's shared metadata | `python3 lab/backup.py restore-storage <backup>` |
+| Drop what that restore set aside | `python3 lab/backup.py discard-previous storage` |
 | List the sets on the off-host target | `python3 lab/backup.py offsite-list` |
 | Bring one set back from the target | `python3 lab/backup.py offsite-fetch <backup>` |
 | Restore from the target | `python3 lab/backup.py restore <environment> <backup> --offsite` |
@@ -33,6 +35,8 @@ Commands (with Docker, prefix `docker compose exec sbarbase`):
 CI runs the full cycle on every change: back up while serving, change rows, users and files, restore, check that everything matches the backup, and discard the set-aside state.
 
 **The installation manifest.** Each daily run also writes `.lab/backups/installation/<backup>/`: the pinned images, the routing of every environment, the catalog's clients, projects, environments, memberships and jobs, the operator settings, and the names of the files in `.secrets/`. It holds no secret value: it is built from lists of allowed fields, and a webhook address is reduced to its host. It carries a digest and is kept as long as the environment backups. On a new server it tells you which pins and secrets the backups need.
+
+**Storage's shared metadata.** Every `create all` run, the daily one and the one before each upgrade, also backs up `storage_metadata`, the one database Storage keeps for every environment: each environment's Storage registration, its signing keys and the migration state Storage records for it. It goes to `.lab/backups/storage/<backup>/`: a dump taken inside one snapshot while Storage serves, and its own manifest with a digest and the ids of the environments it registers, nothing secret. A failed dump fails the run. `restore-storage <backup>` replaces the whole database with it. Storage stops for every environment while it runs; the current database is kept aside until `discard-previous storage`, and any failure puts it back. It refuses a backup that does not register an environment published now, because that environment's Storage would lose its registration. Restore it with the environment backups of the same run, environments first: the migration state it records has to match their databases ([upgrades](upgrades.md#releases-that-need-your-confirmation)). It travels in the encrypted run set below; the per-environment copies of `lab/offsite.py` do not include it.
 
 There are two independent ways to copy backups off the server, described below. Configure one of them.
 
@@ -187,7 +191,7 @@ A failed restore leaves its descriptor behind, and a plain rerun refuses. Do not
 - One set is one upload, so a set larger than the provider's single upload limit (5 GiB on Amazon S3) fails. The set is written encrypted to this server before the upload, so the disk needs room for it.
 - Retention on the target is by count, not by age.
 - Restoring needs the environment published on that server. On a new installation, `sbarbase relink` creates it first ([above](#restore-on-a-new-installation)); a backup taken before 2026-09-23 records no ownership and must be restored into an environment created by hand. Database roles shared by the whole engine are not in the set.
-- Restore has been rehearsed on one host with a test fixture, not on a server with real client data.
+- Restore has been rehearsed on one host with a test fixture, not on a server with real client data. The `storage_metadata` backup and `restore-storage` have unit tests only; neither has run against a live Storage yet.
 - Once a restored target has accepted writes, going back to the old source is unsafe without reconciliation.
 
 The full record, with check counts, is [independent restore](../engineering/INDEPENDENT-RESTORE.md).
