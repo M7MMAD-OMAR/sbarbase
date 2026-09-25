@@ -170,10 +170,11 @@ class SupervisorGateTests(unittest.TestCase):
             if supervisor.turns >= stop_after:
                 stop.set()
         patches = [patch.object(supervisor, 'reset_studios'), patch.object(supervisor, 'spawn', return_value=None),
+                   patch.object(supervisor, 'settle_updates'), patch.object(supervisor, 'publish_current'),
                    patch.object(supervisor, 'descriptor', side_effect=lambda: events.append(('descriptor',))),
                    patch.object(supervisor, 'start_worker', side_effect=lambda: (events.append(('worker',)), setattr(supervisor, 'worker', object()))),
                    patch.object(supervisor, 'check', side_effect=turn)]
-        for name in ('schedule_backup', 'schedule_studios', 'schedule_sign_in', 'schedule_toggles'):
+        for name in ('schedule_backup', 'schedule_studios', 'schedule_sign_in', 'schedule_toggles', 'schedule_updates'):
             patches.append(patch.object(supervisor, name, side_effect=lambda name=name: events.append((name,))))
         for item in patches:
             item.start()
