@@ -888,7 +888,8 @@ def moved_checks(check, name, record, watch, baseline, state, trigger):
           f"{len(fresh)} snapshot(s) since the apply")
     if name != 'broken':
         # The broken release never serves: its runtime start fails before the console starts.
-        confirmed = next((item['at'] for item in seen['phases'] if item['phase'] == 'confirmed'), None)
+        confirmed = next((item['at'] for item in seen['phases'] if item['phase'] == 'confirmed'
+                          and item['to'] == commit[:12]), None)
         check('application traffic was answered 503 while the new version waited for its health checks',
               seen['held_at'] is not None, f"held at {seen['held_at']} s, confirmed at {confirmed} s")
     release = state.get('release') if isinstance(state.get('release'), dict) else {}
@@ -898,8 +899,8 @@ def moved_checks(check, name, record, watch, baseline, state, trigger):
     if name == 'broken':
         check('the broken release did not start and was moved back automatically',
               state.get('phase') == 'rolled_back' and state.get('automatic') is True and state.get('to') == commit
-              and state.get('from') == previous and bool(state.get('failure')),
-              f"{state.get('phase')} automatic={state.get('automatic')}: {state.get('failure')}")
+              and state.get('from') == previous and bool(state.get('reason')),
+              f"{state.get('phase')} automatic={state.get('automatic')}: {state.get('reason')}")
         check('the checkout is on the last good release again', head == previous, head[:12])
         check('the control state snapshot taken when the broken release started was restored',
               bool(state.get('snapshot')) and state.get('restored') == state.get('snapshot'), state.get('restored'))

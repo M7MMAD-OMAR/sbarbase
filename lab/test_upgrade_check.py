@@ -292,6 +292,50 @@ class ChannelTests(unittest.TestCase):
             status = check.evidence(path, ['channel-base', 'channel-rolled-back'])
         self.assertEqual((status, json.loads(path.read_text())['missing']), (1, ['channel-rolled-back']))
 
+    def moved(self, name, state, requests, phases, held_at, restarts=('1', '3')):
+        commits = {'base': 'b' * 40, 'good': 'g' * 40, 'bad': 'd' * 40}
+        releases = {key: {'tag': check.RELEASES[key], 'commit': str(index) * 40}
+                    for index, key in enumerate(('good', 'broken', 'automatic', 'attended'), 1)}
+        record = {'commits': commits, 'channel': {'releases': releases}}
+        upgrades = self.base / 'upgrades'
+        for snapshot in ('older', state['snapshot']):
+            (upgrades / 'snapshots' / snapshot).mkdir(parents=True, exist_ok=True)
+
+        class Watch:
+            started = 0
+
+            def summary(self):
+                return {'requests': requests, 'phases': phases, 'console_down_at': 9.0, 'held_at': held_at}
+        rows = []
+        after = {'NRestarts': restarts[1], 'InvocationID': 'new', 'MainPID': '2'}
+        with patch.object(check, 'UPGRADES', upgrades), patch.object(check, 'unit', return_value=after), \
+                patch.object(check, 'git', return_value=state['to'] if state['phase'] == 'confirmed' else state['from']):
+            check.moved_checks(lambda name, ok, detail='': rows.append((name, ok)), name, record, Watch(),
+                               {'NRestarts': restarts[0], 'InvocationID': 'old', 'MainPID': '1'}, state,
+                               'console' if name != 'automatic' else 'automatic')
+        return [name for name, ok in rows if not ok], releases
+
+    def test_an_install_and_a_way_back_as_the_vm_recorded_them_pass(self):
+        running = [{'at': 3.5, 'kind': 'apply', 'state': 'running'}]
+        # The broken release's state as the rehearsal VM left it on 2026-09-26 (trimmed).
+        broken = {'phase': 'rolled_back', 'from': '1' * 40, 'to': '2' * 40, 'automatic': True, 'snapshot': 'taken',
+                  'trigger': 'console', 'release': {'version': '0.9.2', 'tag': 'v0.9.2', 'class': 'safe', 'signed': True},
+                  'guard': {'phase': 'rolling_back', 'attempts': 1, 'open': True}, 'attempted_at': 't',
+                  'reason': 'Runtime startup failed; the installation runtime reported its own reason above',
+                  'restored': 'taken'}
+        self.assertEqual(self.moved('broken', broken, running, [], None)[0], [])
+        self.assertEqual(self.moved('broken', {**broken, 'reason': None}, running, [], None)[0],
+                         ['the broken release did not start and was moved back automatically'])
+        good = {'phase': 'confirmed', 'from': 'b' * 40, 'to': '1' * 40, 'snapshot': 'taken', 'trigger': 'console',
+                'release': {'version': '0.9.1', 'tag': 'v0.9.1', 'class': 'safe', 'signed': True},
+                'guard': {'phase': 'applied', 'attempts': 1, 'open': True}, 'attempted_at': 't'}
+        phases = [{'at': 0.0, 'phase': 'confirmed', 'to': 'b' * 12}, {'at': 37.8, 'phase': 'confirmed', 'to': '1' * 12}]
+        self.assertEqual(self.moved('good', good, running, phases, 37.4)[0], [])
+        failed = self.moved('good', good, [], phases, None, restarts=('1', '1'))[0]
+        self.assertEqual(failed, ['the supervisor drained before it moved: the request ran while the console still answered',
+                                  'systemd started Sbarbase again by itself (1 restart(s) at least), a new invocation',
+                                  'application traffic was answered 503 while the new version waited for its health checks'])
+
     def test_events_match_on_their_detail(self):
         events = [('update.applied', {'version': '0.9.1', 'trigger': 'console'})]
         self.assertTrue(check.recorded_event(events, 'update.applied', version='0.9.1', trigger='console'))
