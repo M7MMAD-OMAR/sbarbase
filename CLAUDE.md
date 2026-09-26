@@ -2,8 +2,6 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-@AGENTS.md
-
 ## What this is
 
 Sbarbase is an in-development, self-hosted administration layer for running many

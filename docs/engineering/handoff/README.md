@@ -4,7 +4,7 @@ Current state and next step for a coding agent (Claude Code, Codex, Hermes or an
 
 ## Read first
 
-1. The repository's `CLAUDE.md` and `AGENTS.md`, and the machine-wide agent instructions they import.
+1. The repository's `CLAUDE.md` and the machine-wide agent instructions. `AGENTS.md` is a local, untracked file (graft guidance) and may be absent.
 2. [Status](../../reference/status.md): what works and the current test numbers.
 3. [lab/README.md](../../../lab/README.md) before running anything that starts containers.
 4. The engineering note for the subsystem you will touch, from the [notebook index](../README.md).
