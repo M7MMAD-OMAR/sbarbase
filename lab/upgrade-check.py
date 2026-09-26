@@ -245,6 +245,19 @@ def held(url):
     return status == 503 and HELD in body
 
 
+def settled_hold(url, seconds=5):
+    """Whether traffic is still held once the gateway's one second hold cache has caught up.
+
+    The gateway re-reads the hold at most once a second (src/gateway/hold.ts), so a request
+    right after the confirmation can still meet the hold. Only a hold that outlasts that
+    cache is a finding."""
+    deadline = time.monotonic() + seconds
+    while True:
+        if not held(url) or time.monotonic() >= deadline:
+            return held(url)
+        time.sleep(0.5)
+
+
 def upgrade_state():
     try:
         return json.loads((UPGRADES / 'state.json').read_text())
@@ -276,7 +289,7 @@ def observe():
         time.sleep(2)
     return {'head': git('rev-parse', 'HEAD'), 'rest_tag': lock['rest']['tag'], 'auth_tag': lock['auth']['tag'],
             'management_auth_on_pin': on_pin('sbarbase-durable-management-auth', 'auth'), 'environments': environments,
-            'healthy': healthy, 'console_health': health, 'held': held(url) if url else None,
+            'healthy': healthy, 'console_health': health, 'held': settled_hold(url) if url else None,
             'catalog': catalog_state(), 'upgrade': upgrade_state()}
 
 

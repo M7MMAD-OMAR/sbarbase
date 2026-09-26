@@ -352,6 +352,21 @@ def observation(head, catalog_state, upgrade, rest=True):
             'healthy': True, 'console_health': 200, 'held': False, 'catalog': catalog_state, 'upgrade': upgrade}
 
 
+class HoldTests(unittest.TestCase):
+    """A hold is a finding only once it outlasts the gateway's one second cache."""
+
+    def test_a_hold_the_cache_still_reports_is_waited_out(self):
+        answers = iter([True, True, False, False])
+        with patch.object(check, 'held', side_effect=lambda url: next(answers)), patch.object(check.time, 'sleep'):
+            self.assertFalse(check.settled_hold('http://console'))
+
+    def test_a_hold_that_stays_is_reported(self):
+        clock = iter(range(0, 100))
+        with patch.object(check, 'held', return_value=True), patch.object(check.time, 'sleep'), \
+             patch.object(check.time, 'monotonic', side_effect=lambda: next(clock)):
+            self.assertTrue(check.settled_hold('http://console', seconds=3))
+
+
 class StageTests(unittest.TestCase):
     """What `after` and `hold` conclude from what they observe; the observing itself needs Docker."""
 
