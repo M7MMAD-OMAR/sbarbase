@@ -1,0 +1,938 @@
+{
+  "check": "update-channel",
+  "recorded": "2026-09-26T00:47:38Z",
+  "passed": true,
+  "count": 114,
+  "stages": [
+    "channel-base",
+    "channel-applied",
+    "channel-rolled-back",
+    "channel-automatic",
+    "channel-attended"
+  ],
+  "missing": [],
+  "scope": "One installation with its environments in the local rehearsal VM under systemd, not a real server. Releases came from a local bare repository named by SBARBASE_RELEASE_SOURCE, signed with a throwaway key listed for the rehearsal, not from the canonical repository or with the maintainer key. The installation moved with `upgrade.py start --to` onto a base commit that lists a throwaway release key beside the maintainer key, and a systemd drop-in pointed the service at a local release source. v0.9.1 (PostgREST v14.15 to v14.16), checked for and installed from the console as the operator: the drain, exit 42, the restart by systemd, the start guard, the gated start with application traffic answered 503 until the confirmation. v0.9.2, whose PostgREST never answers, installed from the console the same way: its runtime did not start, so it moved back by itself with the control snapshot restored, and systemd started the previous release again. Automatic updates turned on with a window around the server time: the release that moved back was not tried again, and v0.9.3, published afterwards, installed itself after \"check now\" and was confirmed with trigger automatic. v0.9.4 (Auth, GoTrue v2.196.0 to v2.197.0): automatic mode left it alone, the console refused it without the acknowledgement and installed it with it, and the operator signed in again afterwards. Data is compared by row counts, and the control catalog by its schema version and a digest of its organizations, projects, environments and memberships, not every table.",
+  "skipped": {},
+  "releases": {
+    "good": {
+      "tag": "v0.9.1",
+      "commit": "b1e4658d792f57e96f3c3d6c585a68dd5c700a31"
+    },
+    "broken": {
+      "tag": "v0.9.2",
+      "commit": "79a48531b0b8b8c8fb7e9c88256b0bcfeecbca1c"
+    },
+    "automatic": {
+      "tag": "v0.9.3",
+      "commit": "4a2d06e9ae5dfc85839431a5af1288cf0724102b"
+    },
+    "attended": {
+      "tag": "v0.9.4",
+      "commit": "ce95f878252a5ca709267d02785c89b2c044860e"
+    }
+  },
+  "watches": {
+    "good": {
+      "requests": [
+        {
+          "at": 0.2,
+          "kind": "check",
+          "trigger": "console",
+          "version": null,
+          "state": "requested"
+        },
+        {
+          "at": 0.5,
+          "kind": "check",
+          "trigger": "console",
+          "version": null,
+          "state": "running"
+        },
+        {
+          "at": 1.2,
+          "kind": "check",
+          "trigger": "console",
+          "version": null,
+          "state": "done"
+        },
+        {
+          "at": 3.3,
+          "kind": "apply",
+          "trigger": "console",
+          "version": "0.9.1",
+          "state": "requested"
+        },
+        {
+          "at": 3.5,
+          "kind": "apply",
+          "trigger": "console",
+          "version": "0.9.1",
+          "state": "running"
+        }
+      ],
+      "phases": [
+        {
+          "at": 0.0,
+          "phase": "confirmed",
+          "to": "077f88865c54"
+        },
+        {
+          "at": 15.9,
+          "phase": "applied",
+          "to": "b1e4658d792f"
+        },
+        {
+          "at": 36.1,
+          "phase": "confirmed",
+          "to": "b1e4658d792f"
+        }
+      ],
+      "console_down_at": 16.1,
+      "held_at": 35.7
+    },
+    "broken": {
+      "requests": [
+        {
+          "at": 0.2,
+          "kind": "check",
+          "trigger": "console",
+          "version": null,
+          "state": "requested"
+        },
+        {
+          "at": 0.4,
+          "kind": "check",
+          "trigger": "console",
+          "version": null,
+          "state": "running"
+        },
+        {
+          "at": 3.3,
+          "kind": "apply",
+          "trigger": "console",
+          "version": "0.9.2",
+          "state": "requested"
+        },
+        {
+          "at": 3.4,
+          "kind": "apply",
+          "trigger": "console",
+          "version": "0.9.2",
+          "state": "running"
+        }
+      ],
+      "phases": [
+        {
+          "at": 0.0,
+          "phase": "confirmed",
+          "to": "b1e4658d792f"
+        },
+        {
+          "at": 4.5,
+          "phase": "applied",
+          "to": "79a48531b0b8"
+        },
+        {
+          "at": 53.6,
+          "phase": "rolling_back",
+          "to": "79a48531b0b8"
+        },
+        {
+          "at": 74.0,
+          "phase": "rolled_back",
+          "to": "79a48531b0b8"
+        }
+      ],
+      "console_down_at": 4.7,
+      "held_at": null
+    },
+    "automatic": {
+      "requests": [
+        {
+          "at": 0.1,
+          "kind": "check",
+          "trigger": "console",
+          "version": null,
+          "state": "requested"
+        },
+        {
+          "at": 0.2,
+          "kind": "check",
+          "trigger": "console",
+          "version": null,
+          "state": "running"
+        },
+        {
+          "at": 1.1,
+          "kind": "apply",
+          "trigger": "automatic",
+          "version": "0.9.3",
+          "state": "requested"
+        },
+        {
+          "at": 1.4,
+          "kind": "apply",
+          "trigger": "automatic",
+          "version": "0.9.3",
+          "state": "running"
+        },
+        {
+          "at": 3.6,
+          "kind": "apply",
+          "trigger": "automatic",
+          "version": "0.9.3",
+          "state": "done"
+        }
+      ],
+      "phases": [
+        {
+          "at": 0.0,
+          "phase": "rolled_back",
+          "to": "79a48531b0b8"
+        },
+        {
+          "at": 3.6,
+          "phase": "applied",
+          "to": "4a2d06e9ae5d"
+        },
+        {
+          "at": 26.9,
+          "phase": "confirmed",
+          "to": "4a2d06e9ae5d"
+        }
+      ],
+      "console_down_at": 3.6,
+      "held_at": 26.5
+    },
+    "attended": {
+      "requests": [
+        {
+          "at": 0.3,
+          "kind": "check",
+          "trigger": "console",
+          "version": null,
+          "state": "running"
+        },
+        {
+          "at": 43.3,
+          "kind": "apply",
+          "trigger": "console",
+          "version": "0.9.4",
+          "state": "requested"
+        },
+        {
+          "at": 43.4,
+          "kind": "apply",
+          "trigger": "console",
+          "version": "0.9.4",
+          "state": "running"
+        }
+      ],
+      "phases": [
+        {
+          "at": 0.0,
+          "phase": "confirmed",
+          "to": "4a2d06e9ae5d"
+        },
+        {
+          "at": 44.5,
+          "phase": "applied",
+          "to": "ce95f878252a"
+        },
+        {
+          "at": 65.3,
+          "phase": "confirmed",
+          "to": "ce95f878252a"
+        }
+      ],
+      "console_down_at": 44.6,
+      "held_at": 64.8
+    }
+  },
+  "checks": [
+    {
+      "stage": "channel-base",
+      "check": "the installation moved to the base of the releases with `upgrade.py start --to` and was confirmed",
+      "ok": true,
+      "detail": "confirmed to=077f88865c54 trigger=cli"
+    },
+    {
+      "stage": "channel-base",
+      "check": "the checkout is on that base",
+      "ok": true,
+      "detail": "077f88865c54"
+    },
+    {
+      "stage": "channel-base",
+      "check": "its release-signers lists the throwaway release key beside the maintainer key",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "stage": "channel-base",
+      "check": "the service reads its releases from the local source (a systemd drop-in)",
+      "ok": true,
+      "detail": "HOME=/home/sbarbase PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/sbarbase/.bun/bin SBARBASE_GUARDED=1 SBARBASE_RELEASE_SOURCE=/home/sbarbase/releases.git"
+    },
+    {
+      "stage": "channel-base",
+      "check": "the operator signs in through the management Auth realm",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "stage": "channel-base",
+      "check": "the Updates view names the running version and its commit",
+      "ok": true,
+      "detail": "0.2.0 077f88865c54"
+    },
+    {
+      "stage": "channel-base",
+      "check": "the control catalog is at the schema it had before the upgrade",
+      "ok": true,
+      "detail": "3 -> 3"
+    },
+    {
+      "stage": "channel-base",
+      "check": "organizations, projects, environments and memberships in the control catalog are unchanged",
+      "ok": true,
+      "detail": "{\"environments\": 1, \"installation_bootstrap\": 1, \"memberships\": 1, \"organizations\": 1, \"projects\": 1}"
+    },
+    {
+      "stage": "channel-base",
+      "check": "users, identities, buckets and files are unchanged in every environment",
+      "ok": true,
+      "detail": "1 environment(s)"
+    },
+    {
+      "stage": "channel-base",
+      "check": "Auth, REST and the console answer, and the console /health answers 200",
+      "ok": true,
+      "detail": "/health 200"
+    },
+    {
+      "stage": "channel-base",
+      "check": "application traffic is served, not held",
+      "ok": true,
+      "detail": "held=False"
+    },
+    {
+      "stage": "channel-applied",
+      "check": "the console takes \"check now\"",
+      "ok": true,
+      "detail": "status 202"
+    },
+    {
+      "stage": "channel-applied",
+      "check": "the console offers v0.9.1, signed, class safe, and it can be installed now",
+      "ok": true,
+      "detail": "class safe, images.lock.json:rest: public.ecr.aws/supabase/postgrest:v14.15 -> public.ecr.aws/supabase/postgrest:v14.16"
+    },
+    {
+      "stage": "channel-applied",
+      "check": "the console takes the install",
+      "ok": true,
+      "detail": "status 202"
+    },
+    {
+      "stage": "channel-applied",
+      "check": "the supervisor drained before it moved: the request ran while the console still answered",
+      "ok": true,
+      "detail": "running at 3.5 s, console gone at 16.1 s"
+    },
+    {
+      "stage": "channel-applied",
+      "check": "systemd started Sbarbase again by itself (1 restart(s) at least), a new invocation",
+      "ok": true,
+      "detail": "1 restart(s), main pid 4694 -> 7773"
+    },
+    {
+      "stage": "channel-applied",
+      "check": "the new version started behind the gate: the guard counted its start, a fresh control snapshot was taken",
+      "ok": true,
+      "detail": "guard applied x1, attempted_at 2026-09-26T00:43:14+00:00, 2 snapshot(s) since the apply"
+    },
+    {
+      "stage": "channel-applied",
+      "check": "application traffic was answered 503 while the new version waited for its health checks",
+      "ok": true,
+      "detail": "held at 35.7 s, confirmed at 36.1 s"
+    },
+    {
+      "stage": "channel-applied",
+      "check": "v0.9.1 was recorded as the release, signed",
+      "ok": true,
+      "detail": "{\"class\": \"safe\", \"signed\": true, \"tag\": \"v0.9.1\", \"version\": \"0.9.1\"}"
+    },
+    {
+      "stage": "channel-applied",
+      "check": "the update to v0.9.1 was confirmed, triggered by console",
+      "ok": true,
+      "detail": "confirmed trigger=console"
+    },
+    {
+      "stage": "channel-applied",
+      "check": "the checkout is on v0.9.1",
+      "ok": true,
+      "detail": "b1e4658d792f"
+    },
+    {
+      "stage": "channel-applied",
+      "check": "every REST container runs the PostgREST of the release that runs",
+      "ok": true,
+      "detail": "public.ecr.aws/supabase/postgrest:v14.16"
+    },
+    {
+      "stage": "channel-applied",
+      "check": "the operator signs in again with a fresh token",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "stage": "channel-applied",
+      "check": "the Updates view shows confirmed, the version that runs and the finished request",
+      "ok": true,
+      "detail": "last confirmed 0.9.1 trigger=console, runs 0.9.1, request apply done"
+    },
+    {
+      "stage": "channel-applied",
+      "check": "update.available was recorded for 0.9.1",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "stage": "channel-applied",
+      "check": "update.applied was recorded for 0.9.1 with trigger console",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "stage": "channel-applied",
+      "check": "the control catalog is at the schema it had before the upgrade",
+      "ok": true,
+      "detail": "3 -> 3"
+    },
+    {
+      "stage": "channel-applied",
+      "check": "organizations, projects, environments and memberships in the control catalog are unchanged",
+      "ok": true,
+      "detail": "{\"environments\": 1, \"installation_bootstrap\": 1, \"memberships\": 1, \"organizations\": 1, \"projects\": 1}"
+    },
+    {
+      "stage": "channel-applied",
+      "check": "users, identities, buckets and files are unchanged in every environment",
+      "ok": true,
+      "detail": "1 environment(s)"
+    },
+    {
+      "stage": "channel-applied",
+      "check": "Auth, REST and the console answer, and the console /health answers 200",
+      "ok": true,
+      "detail": "/health 200"
+    },
+    {
+      "stage": "channel-applied",
+      "check": "application traffic is served, not held",
+      "ok": true,
+      "detail": "held=False"
+    },
+    {
+      "stage": "channel-applied",
+      "check": "the journal shows it: drain",
+      "ok": true,
+      "detail": "Finishing provisioning and other work before the update."
+    },
+    {
+      "stage": "channel-applied",
+      "check": "the journal shows it: started",
+      "ok": true,
+      "detail": "Update to a newer Sbarbase release started."
+    },
+    {
+      "stage": "channel-applied",
+      "check": "the journal shows it: exit 42",
+      "ok": true,
+      "detail": "Main process exited, code=exited, status=42\\b"
+    },
+    {
+      "stage": "channel-applied",
+      "check": "the journal shows it: moved",
+      "ok": true,
+      "detail": "The checkout moved to Sbarbase 0.9.1. Sbarbase restarts on it now."
+    },
+    {
+      "stage": "channel-rolled-back",
+      "check": "the console takes \"check now\"",
+      "ok": true,
+      "detail": "status 202"
+    },
+    {
+      "stage": "channel-rolled-back",
+      "check": "the console offers v0.9.2, signed, class safe, and it can be installed now",
+      "ok": true,
+      "detail": "class safe, images.lock.json:rest: public.ecr.aws/supabase/postgrest:v14.16 -> public.ecr.aws/supabase/postgres-meta:v0.99.0"
+    },
+    {
+      "stage": "channel-rolled-back",
+      "check": "the console takes the install",
+      "ok": true,
+      "detail": "status 202"
+    },
+    {
+      "stage": "channel-rolled-back",
+      "check": "the supervisor drained before it moved: the request ran while the console still answered",
+      "ok": true,
+      "detail": "running at 3.4 s, console gone at 4.7 s"
+    },
+    {
+      "stage": "channel-rolled-back",
+      "check": "systemd started Sbarbase again by itself (2 restart(s) at least), a new invocation",
+      "ok": true,
+      "detail": "2 restart(s), main pid 7773 -> 13214"
+    },
+    {
+      "stage": "channel-rolled-back",
+      "check": "the new version started behind the gate: the guard counted its start, a fresh control snapshot was taken",
+      "ok": true,
+      "detail": "guard rolling_back x1, attempted_at 2026-09-26T00:43:42+00:00, 2 snapshot(s) since the apply"
+    },
+    {
+      "stage": "channel-rolled-back",
+      "check": "v0.9.2 was recorded as the release, signed",
+      "ok": true,
+      "detail": "{\"class\": \"safe\", \"signed\": true, \"tag\": \"v0.9.2\", \"version\": \"0.9.2\"}"
+    },
+    {
+      "stage": "channel-rolled-back",
+      "check": "the broken release did not start and was moved back automatically",
+      "ok": true,
+      "detail": "rolled_back automatic=True: Runtime startup failed; the installation runtime reported its own reason above"
+    },
+    {
+      "stage": "channel-rolled-back",
+      "check": "the checkout is on the last good release again",
+      "ok": true,
+      "detail": "b1e4658d792f"
+    },
+    {
+      "stage": "channel-rolled-back",
+      "check": "the control state snapshot taken when the broken release started was restored",
+      "ok": true,
+      "detail": "b1e4658d792f-20260926T004342156298Z"
+    },
+    {
+      "stage": "channel-rolled-back",
+      "check": "every REST container runs the PostgREST of the release that runs",
+      "ok": true,
+      "detail": "public.ecr.aws/supabase/postgrest:v14.16"
+    },
+    {
+      "stage": "channel-rolled-back",
+      "check": "the operator signs in again with a fresh token",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "stage": "channel-rolled-back",
+      "check": "the Updates view shows rolled_back, the version that runs and the finished request",
+      "ok": true,
+      "detail": "last rolled_back 0.9.2 trigger=console, runs 0.9.1, request apply done"
+    },
+    {
+      "stage": "channel-rolled-back",
+      "check": "update.available was recorded for 0.9.2",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "stage": "channel-rolled-back",
+      "check": "update.rolled_back was recorded for 0.9.2",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "stage": "channel-rolled-back",
+      "check": "the control catalog is at the schema it had before the upgrade",
+      "ok": true,
+      "detail": "3 -> 3"
+    },
+    {
+      "stage": "channel-rolled-back",
+      "check": "organizations, projects, environments and memberships in the control catalog are unchanged",
+      "ok": true,
+      "detail": "{\"environments\": 1, \"installation_bootstrap\": 1, \"memberships\": 1, \"organizations\": 1, \"projects\": 1}"
+    },
+    {
+      "stage": "channel-rolled-back",
+      "check": "users, identities, buckets and files are unchanged in every environment",
+      "ok": true,
+      "detail": "1 environment(s)"
+    },
+    {
+      "stage": "channel-rolled-back",
+      "check": "Auth, REST and the console answer, and the console /health answers 200",
+      "ok": true,
+      "detail": "/health 200"
+    },
+    {
+      "stage": "channel-rolled-back",
+      "check": "application traffic is served, not held",
+      "ok": true,
+      "detail": "held=False"
+    },
+    {
+      "stage": "channel-rolled-back",
+      "check": "the journal shows it: drain",
+      "ok": true,
+      "detail": "Finishing provisioning and other work before the update."
+    },
+    {
+      "stage": "channel-rolled-back",
+      "check": "the journal shows it: started",
+      "ok": true,
+      "detail": "Update to a newer Sbarbase release started."
+    },
+    {
+      "stage": "channel-rolled-back",
+      "check": "the journal shows it: exit 42",
+      "ok": true,
+      "detail": "Main process exited, code=exited, status=42\\b"
+    },
+    {
+      "stage": "channel-rolled-back",
+      "check": "the journal shows it: moved",
+      "ok": true,
+      "detail": "The checkout moved to Sbarbase 0.9.2. Sbarbase restarts on it now."
+    },
+    {
+      "stage": "channel-rolled-back",
+      "check": "the journal shows it: way back",
+      "ok": true,
+      "detail": "The new version did not start, so the checkout moved back to the previous version."
+    },
+    {
+      "stage": "channel-automatic",
+      "check": "the release that moved back is still on offer and could be installed by hand",
+      "ok": true,
+      "detail": "0.9.2 {'possible': True, 'reason': None, 'acknowledgement': False}"
+    },
+    {
+      "stage": "channel-automatic",
+      "check": "the operator turns automatic updates on, with a window around the server time now",
+      "ok": true,
+      "detail": "status 200, window 00:14 to 02:44 at +00:00"
+    },
+    {
+      "stage": "channel-automatic",
+      "check": "automatic mode leaves v0.9.2 alone for 40 seconds, window open",
+      "ok": true,
+      "detail": "request=None phase=rolled_back"
+    },
+    {
+      "stage": "channel-automatic",
+      "check": "the console takes \"check now\"",
+      "ok": true,
+      "detail": "status 202"
+    },
+    {
+      "stage": "channel-automatic",
+      "check": "automatic mode requested the release by itself",
+      "ok": true,
+      "detail": "[{\"at\": 0.1, \"kind\": \"check\", \"trigger\": \"console\", \"version\": null, \"state\": \"requested\"}, {\"at\": 0.2, \"kind\": \"check\", \"trigger\": \"console\", \"version\": null, \"state\": \"running\"}, {\"at\": 1.1, \"kind\": \"apply\", \"trigger\": \"automatic\", \"version\": \"0.9.3\", \"state\": \"requested\"}]"
+    },
+    {
+      "stage": "channel-automatic",
+      "check": "the supervisor drained before it moved: the request ran while the console still answered",
+      "ok": true,
+      "detail": "running at 1.4 s, console gone at 3.6 s"
+    },
+    {
+      "stage": "channel-automatic",
+      "check": "systemd started Sbarbase again by itself (1 restart(s) at least), a new invocation",
+      "ok": true,
+      "detail": "1 restart(s), main pid 13214 -> 16493"
+    },
+    {
+      "stage": "channel-automatic",
+      "check": "the new version started behind the gate: the guard counted its start, a fresh control snapshot was taken",
+      "ok": true,
+      "detail": "guard applied x1, attempted_at 2026-09-26T00:45:39+00:00, 2 snapshot(s) since the apply"
+    },
+    {
+      "stage": "channel-automatic",
+      "check": "application traffic was answered 503 while the new version waited for its health checks",
+      "ok": true,
+      "detail": "held at 26.5 s, confirmed at 26.9 s"
+    },
+    {
+      "stage": "channel-automatic",
+      "check": "v0.9.3 was recorded as the release, signed",
+      "ok": true,
+      "detail": "{\"class\": \"safe\", \"signed\": true, \"tag\": \"v0.9.3\", \"version\": \"0.9.3\"}"
+    },
+    {
+      "stage": "channel-automatic",
+      "check": "the update to v0.9.3 was confirmed, triggered by automatic",
+      "ok": true,
+      "detail": "confirmed trigger=automatic"
+    },
+    {
+      "stage": "channel-automatic",
+      "check": "the checkout is on v0.9.3",
+      "ok": true,
+      "detail": "4a2d06e9ae5d"
+    },
+    {
+      "stage": "channel-automatic",
+      "check": "every REST container runs the PostgREST of the release that runs",
+      "ok": true,
+      "detail": "public.ecr.aws/supabase/postgrest:v14.16"
+    },
+    {
+      "stage": "channel-automatic",
+      "check": "the operator signs in again with a fresh token",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "stage": "channel-automatic",
+      "check": "the Updates view shows confirmed, the version that runs and the finished request",
+      "ok": true,
+      "detail": "last confirmed 0.9.3 trigger=automatic, runs 0.9.3, request apply done"
+    },
+    {
+      "stage": "channel-automatic",
+      "check": "update.available was recorded for 0.9.3",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "stage": "channel-automatic",
+      "check": "update.applied was recorded for 0.9.3 with trigger automatic",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "stage": "channel-automatic",
+      "check": "the control catalog is at the schema it had before the upgrade",
+      "ok": true,
+      "detail": "3 -> 3"
+    },
+    {
+      "stage": "channel-automatic",
+      "check": "organizations, projects, environments and memberships in the control catalog are unchanged",
+      "ok": true,
+      "detail": "{\"environments\": 1, \"installation_bootstrap\": 1, \"memberships\": 1, \"organizations\": 1, \"projects\": 1}"
+    },
+    {
+      "stage": "channel-automatic",
+      "check": "users, identities, buckets and files are unchanged in every environment",
+      "ok": true,
+      "detail": "1 environment(s)"
+    },
+    {
+      "stage": "channel-automatic",
+      "check": "Auth, REST and the console answer, and the console /health answers 200",
+      "ok": true,
+      "detail": "/health 200"
+    },
+    {
+      "stage": "channel-automatic",
+      "check": "application traffic is served, not held",
+      "ok": true,
+      "detail": "held=False"
+    },
+    {
+      "stage": "channel-automatic",
+      "check": "the journal shows it: drain",
+      "ok": true,
+      "detail": "Finishing provisioning and other work before the update."
+    },
+    {
+      "stage": "channel-automatic",
+      "check": "the journal shows it: started",
+      "ok": true,
+      "detail": "Update to a newer Sbarbase release started."
+    },
+    {
+      "stage": "channel-automatic",
+      "check": "the journal shows it: exit 42",
+      "ok": true,
+      "detail": "Main process exited, code=exited, status=42\\b"
+    },
+    {
+      "stage": "channel-automatic",
+      "check": "the journal shows it: moved",
+      "ok": true,
+      "detail": "The checkout moved to Sbarbase 0.9.3. Sbarbase restarts on it now."
+    },
+    {
+      "stage": "channel-automatic",
+      "check": "the journal shows it: automatic",
+      "ok": true,
+      "detail": "Automatic update to Sbarbase 0.9.3 requested."
+    },
+    {
+      "stage": "channel-attended",
+      "check": "the console takes \"check now\"",
+      "ok": true,
+      "detail": "status 202"
+    },
+    {
+      "stage": "channel-attended",
+      "check": "the console offers v0.9.4, signed, class attended, and it can be installed now",
+      "ok": true,
+      "detail": "class attended, images.lock.json:auth: public.ecr.aws/supabase/gotrue:v2.196.0 -> public.ecr.aws/supabase/gotrue:v2.197.0"
+    },
+    {
+      "stage": "channel-attended",
+      "check": "automatic mode leaves v0.9.4 alone for 40 seconds, window open",
+      "ok": true,
+      "detail": "request=None phase=confirmed"
+    },
+    {
+      "stage": "channel-attended",
+      "check": "without the acknowledgement the console refuses to install it, with its sentence",
+      "ok": true,
+      "detail": "status 409"
+    },
+    {
+      "stage": "channel-attended",
+      "check": "the console takes the install with the acknowledgement",
+      "ok": true,
+      "detail": "status 202"
+    },
+    {
+      "stage": "channel-attended",
+      "check": "the supervisor drained before it moved: the request ran while the console still answered",
+      "ok": true,
+      "detail": "running at 43.4 s, console gone at 44.6 s"
+    },
+    {
+      "stage": "channel-attended",
+      "check": "systemd started Sbarbase again by itself (1 restart(s) at least), a new invocation",
+      "ok": true,
+      "detail": "1 restart(s), main pid 16493 -> 20151"
+    },
+    {
+      "stage": "channel-attended",
+      "check": "the new version started behind the gate: the guard counted its start, a fresh control snapshot was taken",
+      "ok": true,
+      "detail": "guard applied x1, attempted_at 2026-09-26T00:47:24+00:00, 2 snapshot(s) since the apply"
+    },
+    {
+      "stage": "channel-attended",
+      "check": "application traffic was answered 503 while the new version waited for its health checks",
+      "ok": true,
+      "detail": "held at 64.8 s, confirmed at 65.3 s"
+    },
+    {
+      "stage": "channel-attended",
+      "check": "v0.9.4 was recorded as the release, signed",
+      "ok": true,
+      "detail": "{\"class\": \"attended\", \"signed\": true, \"tag\": \"v0.9.4\", \"version\": \"0.9.4\"}"
+    },
+    {
+      "stage": "channel-attended",
+      "check": "the update to v0.9.4 was confirmed, triggered by console",
+      "ok": true,
+      "detail": "confirmed trigger=console"
+    },
+    {
+      "stage": "channel-attended",
+      "check": "the checkout is on v0.9.4",
+      "ok": true,
+      "detail": "ce95f878252a"
+    },
+    {
+      "stage": "channel-attended",
+      "check": "every Auth container and the management Auth run the newer GoTrue",
+      "ok": true,
+      "detail": "public.ecr.aws/supabase/gotrue:v2.197.0"
+    },
+    {
+      "stage": "channel-attended",
+      "check": "the operator signs in again with a fresh token",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "stage": "channel-attended",
+      "check": "the Updates view shows confirmed, the version that runs and the finished request",
+      "ok": true,
+      "detail": "last confirmed 0.9.4 trigger=console, runs 0.9.4, request apply done"
+    },
+    {
+      "stage": "channel-attended",
+      "check": "update.available was recorded for 0.9.4",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "stage": "channel-attended",
+      "check": "update.applied was recorded for 0.9.4 with trigger console",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "stage": "channel-attended",
+      "check": "the control catalog is at the schema it had before the upgrade",
+      "ok": true,
+      "detail": "3 -> 3"
+    },
+    {
+      "stage": "channel-attended",
+      "check": "organizations, projects, environments and memberships in the control catalog are unchanged",
+      "ok": true,
+      "detail": "{\"environments\": 1, \"installation_bootstrap\": 1, \"memberships\": 1, \"organizations\": 1, \"projects\": 1}"
+    },
+    {
+      "stage": "channel-attended",
+      "check": "users, identities, buckets and files are unchanged in every environment",
+      "ok": true,
+      "detail": "1 environment(s)"
+    },
+    {
+      "stage": "channel-attended",
+      "check": "Auth, REST and the console answer, and the console /health answers 200",
+      "ok": true,
+      "detail": "/health 200"
+    },
+    {
+      "stage": "channel-attended",
+      "check": "application traffic is served, not held",
+      "ok": true,
+      "detail": "held=False"
+    },
+    {
+      "stage": "channel-attended",
+      "check": "automatic updates are turned off again",
+      "ok": true,
+      "detail": "status 200"
+    },
+    {
+      "stage": "channel-attended",
+      "check": "the journal shows it: drain",
+      "ok": true,
+      "detail": "Finishing provisioning and other work before the update."
+    },
+    {
+      "stage": "channel-attended",
+      "check": "the journal shows it: started",
+      "ok": true,
+      "detail": "Update to a newer Sbarbase release started."
+    },
+    {
+      "stage": "channel-attended",
+      "check": "the journal shows it: exit 42",
+      "ok": true,
+      "detail": "Main process exited, code=exited, status=42\\b"
+    },
+    {
+      "stage": "channel-attended",
+      "check": "the journal shows it: moved",
+      "ok": true,
+      "detail": "The checkout moved to Sbarbase 0.9.4. Sbarbase restarts on it now."
+    }
+  ]
+}

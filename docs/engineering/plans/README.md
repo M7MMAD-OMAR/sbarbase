@@ -5,7 +5,7 @@ describes is on main and its evidence is committed under `docs/evidence/`.
 
 | Date | File | Topic | Status |
 |---|---|---|---|
-| 2026-09-25 | [update-channel](2026-09-25-update-channel.md) | release channel, console update notice, one-click and opt-in automatic updates with a lossless way back | built ([UPDATE-CHANNEL](../UPDATE-CHANNEL.md)); CI cases passed on a clean machine, VM rehearsal pending |
+| 2026-09-25 | [update-channel](2026-09-25-update-channel.md) | release channel, console update notice, one-click and opt-in automatic updates with a lossless way back | built ([UPDATE-CHANNEL](../UPDATE-CHANNEL.md)); CI cases passed on a clean machine, and the VM rehearsal through the console and automatic mode on 2026-09-26; no real server yet |
 | 2026-09-23 | [roadmap](2026-09-23-roadmap.md) | milestones in order: a real server, backups as a feature, Studio per environment, upgrades, onboarding | active; the next step for agents |
 | 2026-09-23 | [verification-and-migration-plan](2026-09-23-verification-and-migration-plan.md) | verification run, hierarchy follow-ups, competitors, `sbarbase import` design, ordered steps | proposal, partly done |
 | 2026-09-21 | [RESOURCE-POLICY](../RESOURCE-POLICY.md) | tiers, weights, IO limits, derived placement arithmetic, measurement method | built, uncalibrated; two measurements blocked (sections 3.6, 5.0) |
