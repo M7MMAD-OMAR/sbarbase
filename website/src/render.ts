@@ -174,6 +174,7 @@ export function render(lang:Lang){
 <link rel="alternate" hreflang="en" href="https://base.sbarah.com/en/">
 <link rel="alternate" hreflang="x-default" href="https://base.sbarah.com/">
 <meta property="og:type" content="website"><meta property="og:title" content="${esc(c.title)}"><meta property="og:description" content="${esc(c.description)}"><meta property="og:image" content="https://base.sbarah.com/assets/social.jpg"><meta property="og:url" content="${url}"><meta property="og:locale" content="${lang==='ar'?'ar':'en_US'}"><meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">${JSON.stringify({'@context':'https://schema.org','@type':'SoftwareSourceCode',name:'Sbarbase',alternateName:['sbarbase','صباربيز'],description:c.description,url,codeRepository:'https://github.com/M7MMAD-OMAR/sbarbase',sameAs:['https://github.com/M7MMAD-OMAR/sbarbase'],programmingLanguage:['TypeScript','Python'],license:'https://www.apache.org/licenses/LICENSE-2.0',inLanguage:c.lang}).replaceAll('<','\\u003c')}</script>
 <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
 <link rel="preload" href="/assets/${lang==='ar'?'arabic':'latin'}.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/style.css">

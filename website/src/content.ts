@@ -82,7 +82,7 @@ export const content={
  },
  ar:{
   dir:'rtl',lang:'ar',
-  title:'صباربيز | مشاريع Supabase كثيرة على خادم واحد',
+  title:'Sbarbase صباربيز | مشاريع Supabase كثيرة على خادم واحد',
   description:'شغّل خدمات Supabase الأصلية لمشاريع كثيرة على خادم واحد. لكل بيئة قاعدتها وحساباتها وAuth وREST ومفاتيحها.',
   skip:'انتقل إلى المحتوى',menu:'القائمة الرئيسية',
   nav:[['الهرمية','hierarchy'],['كيف يعمل','how'],['التثبيت','install']] as [string,string][],
