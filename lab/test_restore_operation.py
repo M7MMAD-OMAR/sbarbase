@@ -161,6 +161,43 @@ class RestoreWorkerAdmissionTests(unittest.TestCase):
             with self.subTest(changes=changes), self.assertRaises(OperationError):
                 admit_workers(workers(**changes))
 
+    def test_exact_native_defaults_admit_only_for_bound_image_and_separate_target(self):
+        native = workers(shared='pg_stat_statements,pgaudit,plpgsql,plpgsql_check,pg_cron,pg_net,pgsodium,auto_explain,pg_tle,plan_filter,supabase_vault',
+                         session='supautils', workers=['checkpointer', 'pg_cron launcher', 'pg_net 0.20.4 worker'],
+                         scoped_preloads=['session_preload_libraries=supautils, safeupdate'],
+                         native={'cron_database': 'postgres', 'cron_background': 'off', 'net_database': 'postgres',
+                                 'versions': {'pg_cron': '1.6.4', 'pg_net': '0.20.4', 'pgsodium': '3.1.8',
+                                              'pg_stat_statements': '1.11', 'pgaudit': '17.1'},
+                                 'installed': {'pg_cron': '1.6.4', 'pg_net': '0.20.4'},
+                                 'scopes': [{'role': 'authenticator', 'database': None,
+                                             'setting': 'session_preload_libraries=supautils, safeupdate'}],
+                                 'workers': [{'backend_type': 'pg_cron launcher', 'datname': 'postgres'},
+                                             {'backend_type': 'pg_net 0.20.4 worker', 'datname': 'postgres'}]})
+        image = 'sha256:b3bfedb107413abb3b8cb0d0874b0414a1dceb3d55bc0c778de6ad22d1f7dc86'
+        target = 'e_' + 'a' * 24
+        self.assertTrue(admit_workers(native, image=image, database=target))
+        self.assertTrue(admit_workers(native, image=image, database='storage_metadata'))
+        for key, value in (('image', None), ('image', 'sha256:' + 'f' * 64), ('database', 'postgres')):
+            args = {'image': image, 'database': target, key: value}
+            with self.subTest(key=key, value=value), self.assertRaises(OperationError):
+                admit_workers(native, **args)
+        mutations = [('cron_background', 'on'), ('cron_database', target), ('net_database', target),
+                     ('versions', {'pg_cron': '1.7.0'}), ('installed', {'pg_net': '0.19.5'}),
+                     ('scopes', [{'role': 'postgres', 'database': None, 'setting': 'session_preload_libraries=supautils, safeupdate'}]),
+                     ('workers', [{'backend_type': 'pg_net 0.20.4 worker', 'datname': target}])]
+        for key, value in mutations:
+            changed = copy.deepcopy(native)
+            changed['native'][key] = value
+            with self.subTest(key=key), self.assertRaises(OperationError):
+                admit_workers(changed, image=image, database=target)
+        for key, value in (('shared', native['shared'] + ',arbitrary'), ('session', 'supautils,arbitrary'),
+                           ('workers', native['workers'] + ['pg_cron worker']), ('subscriptions', 1),
+                           ('scoped_preloads', ['session_preload_libraries=supautils'])):
+            changed = copy.deepcopy(native)
+            changed[key] = value
+            with self.subTest(key=key), self.assertRaises(OperationError):
+                admit_workers(changed, image=image, database=target)
+
     def test_enabled_subscription_refuses_even_when_no_worker_is_currently_visible(self):
         for count in (1, True, '0'):
             with self.subTest(count=count), self.assertRaises(OperationError):

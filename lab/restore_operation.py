@@ -185,6 +185,20 @@ WORKER_QUERY = """SELECT json_build_object(
  'local', current_setting('local_preload_libraries'),
  'workers', coalesce((SELECT json_agg(DISTINCT backend_type) FROM pg_stat_activity
                      WHERE backend_type <> 'client backend'), '[]'::json),
+ 'native', json_build_object(
+   'cron_database', current_setting('cron.database_name',true),
+   'cron_background', current_setting('cron.use_background_workers',true),
+   'net_database', current_setting('pg_net.database_name',true),
+   'versions', (SELECT json_object_agg(name,default_version) FROM pg_available_extensions
+                WHERE name IN ('pg_cron','pg_net','pgsodium','pg_stat_statements','pgaudit')),
+   'installed', (SELECT coalesce(json_object_agg(extname,extversion),'{}'::json) FROM pg_extension),
+   'scopes', coalesce((SELECT json_agg(json_build_object('role',r.rolname,'database',d.datname,'setting',setting))
+                       FROM pg_db_role_setting s LEFT JOIN pg_roles r ON r.oid=s.setrole
+                       LEFT JOIN pg_database d ON d.oid=s.setdatabase, unnest(s.setconfig) setting
+                       WHERE split_part(setting,'=',1) IN ('session_preload_libraries','local_preload_libraries',
+                                                          'shared_preload_libraries','cron.use_background_workers')), '[]'::json),
+   'workers', coalesce((SELECT json_agg(json_build_object('backend_type',backend_type,'datname',datname))
+                       FROM pg_stat_activity WHERE backend_type IN ('pg_cron launcher','pg_net 0.20.4 worker')), '[]'::json)),
  'subscriptions', (SELECT count(*) FROM pg_subscription WHERE subenabled),
  'scoped_preloads', coalesce((SELECT json_agg(setting) FROM pg_db_role_setting,
                          unnest(setconfig) setting WHERE split_part(setting,'=',1) IN
@@ -192,25 +206,68 @@ WORKER_QUERY = """SELECT json_build_object(
                           'shared_preload_libraries','cron.use_background_workers')), '[]'::json));"""
 
 
-def admit_workers(value):
-    """Allow classified core workers only; extension writer contracts need proof."""
-    if not isinstance(value, dict) or set(value) != {'version', 'shared', 'session', 'local', 'workers', 'subscriptions', 'scoped_preloads'} \
+def admit_workers(value, *, image=None, database=None):
+    """Classify core workers or the exact pinned, separate-database native defaults."""
+    if not isinstance(value, dict) or set(value) not in ({'version', 'shared', 'session', 'local', 'workers', 'subscriptions', 'scoped_preloads'},
+                                                        {'version', 'shared', 'session', 'local', 'workers', 'subscriptions', 'scoped_preloads', 'native'}) \
             or type(value['version']) is not int or not 170000 <= value['version'] < 180000:
         raise OperationError('PostgreSQL restore worker contract is unsupported')
+    if not isinstance(value['workers'], list) or any(not isinstance(item, str) for item in value['workers']):
+        raise OperationError('PostgreSQL worker inventory is unverifiable')
     for key in ('shared', 'session', 'local'):
         if not isinstance(value[key], str):
             raise OperationError('PostgreSQL preload inventory is unverifiable')
-    # pg_stat_statements and pgaudit use hooks, without independent DB-writing
-    # worker processes. pg_cron, pg_net and arbitrary extensions need separate
-    # native admission evidence, so no broad Supabase-worker claim is made here.
     preloads = [item.strip() for item in value['shared'].split(',') if item.strip()]
-    if any(item not in ('pg_stat_statements', 'pgaudit') for item in preloads) \
-            or value['session'].strip() or value['local'].strip():
+    native = any(item not in ('pg_stat_statements', 'pgaudit') for item in preloads) or value['session'].strip()
+    if native:
+        admit_native_defaults(value, image, database, preloads)
+    elif value['local'].strip():
         raise OperationError('Unclassified privileged PostgreSQL preload refuses restore')
     allowed = {'autovacuum launcher', 'autovacuum worker', 'background writer', 'checkpointer',
                'walwriter', 'logical replication launcher', 'walsender'}
+    if native:
+        allowed.update(('pg_cron launcher', 'pg_net 0.20.4 worker'))
     if not isinstance(value['workers'], list) or any(not isinstance(item, str) or item not in allowed for item in value['workers']) \
             or type(value['subscriptions']) is not int or value['subscriptions'] != 0 \
-            or not isinstance(value['scoped_preloads'], list) or value['scoped_preloads']:
+            or not isinstance(value['scoped_preloads'], list) or (not native and value['scoped_preloads']):
         raise OperationError('Unclassified PostgreSQL worker or scoped preload refuses restore')
     return True
+
+
+NATIVE_IMAGE = 'sha256:b3bfedb107413abb3b8cb0d0874b0414a1dceb3d55bc0c778de6ad22d1f7dc86'
+NATIVE_PRELOADS = {'pg_stat_statements', 'pgaudit', 'plpgsql', 'plpgsql_check', 'pg_cron', 'pg_net',
+                   'pgsodium', 'auto_explain', 'pg_tle', 'plan_filter', 'supabase_vault'}
+NATIVE_VERSIONS = {'pg_cron': '1.6.4', 'pg_net': '0.20.4', 'pgsodium': '3.1.8',
+                   'pg_stat_statements': '1.11', 'pgaudit': '17.1'}
+
+
+def admit_native_defaults(value, image, database, preloads):
+    # Preflight binds the running DB to the distributed image before this call.
+    # Client-mode cron and pg_net remain attached to postgres, never the replaced
+    # environment or Storage database. Their libraries connect with flags zero.
+    if value['version'] != 170006 or image != NATIVE_IMAGE or not isinstance(database, str) or not re.fullmatch(r'(e_[a-f0-9]{24}|storage_metadata)', database) \
+            or set(preloads) != NATIVE_PRELOADS or len(preloads) != len(NATIVE_PRELOADS) \
+            or value['session'].strip() != 'supautils' or value['local'].strip():
+        raise OperationError('Unclassified privileged PostgreSQL preload refuses restore')
+    profile = value.get('native')
+    if not isinstance(profile, dict) or set(profile) != {'cron_database', 'cron_background', 'net_database', 'versions', 'installed', 'workers', 'scopes'} \
+            or profile['cron_database'] != 'postgres' or profile['cron_background'] != 'off' \
+            or profile['net_database'] != 'postgres' or profile['versions'] != NATIVE_VERSIONS:
+        raise OperationError('Pinned native PostgreSQL worker configuration differs')
+    setting = 'session_preload_libraries=supautils, safeupdate'
+    if value['scoped_preloads'] != [setting] or profile['scopes'] != [{'role': 'authenticator', 'database': None, 'setting': setting}]:
+        raise OperationError('Pinned native scoped preload identity differs')
+    if not isinstance(profile['installed'], dict) or any(profile['installed'].get(name, version) != version for name, version in NATIVE_VERSIONS.items()):
+        raise OperationError('Pinned native PostgreSQL extension version differs')
+    workers = profile['workers']
+    expected = {'pg_cron launcher', 'pg_net 0.20.4 worker'} & set(value['workers']) if isinstance(value['workers'], list) else set()
+    if not isinstance(workers, list) or len(workers) != len(expected):
+        raise OperationError('Native worker database identity is unverifiable')
+    observed = set()
+    for worker in workers:
+        if not isinstance(worker, dict) or set(worker) != {'backend_type', 'datname'} \
+                or worker['datname'] != 'postgres' or worker['backend_type'] not in expected or worker['backend_type'] in observed:
+            raise OperationError('Native worker database identity differs from maintenance')
+        observed.add(worker['backend_type'])
+    if observed != expected:
+        raise OperationError('Native worker inventory differs')

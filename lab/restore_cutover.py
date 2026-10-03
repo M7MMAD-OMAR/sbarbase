@@ -137,7 +137,8 @@ def restore(api, scope, name, now):
         raise api.BackupError('Only a published environment can be restored')
     admitted = api.preflight()
     storage_cid = storage(api)
-    operation.admit_workers(json.loads(api.sql(operation.WORKER_QUERY)))
+    workers = json.loads(api.sql(operation.WORKER_QUERY))
+    operation.admit_workers(workers, image=api.image_pin('distro-image.lock.json')['id'] if 'native' in workers else None, database=database)
     prepared(api, database)
     stamp = now.strftime('%Y%m%dt%H%M%Sz')
     stage, previous = database + '_stage_' + stamp, database + '_pre_' + stamp
@@ -305,7 +306,8 @@ def recover(api, scope, name, stamp):
         result = api.complete_restore(scope, name, stamp)
         phase(api, journal, 'completed')
         return result
-    operation.admit_workers(json.loads(api.sql(operation.WORKER_QUERY)))
+    workers = json.loads(api.sql(operation.WORKER_QUERY))
+    operation.admit_workers(workers, image=api.image_pin('distro-image.lock.json')['id'] if 'native' in workers else None, database=journal['database'])
     api.run(['docker', 'stop', journal['storage_cid']])
     storage(api, journal['storage_cid'], stopped=True)
     if scope != api.STORAGE:

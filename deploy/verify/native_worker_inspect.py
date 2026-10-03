@@ -352,7 +352,7 @@ funcs AS (SELECT p.oid::text AS oid,p.pronamespace::text AS namespace_oid,n.nspn
  WHERE n.nspname !~ '^pg_(catalog|toast|temp_)'),
 exts AS (SELECT e.oid::text AS oid,e.extname AS name,e.extowner::text AS owner_oid,pg_get_userbyid(e.extowner) AS owner,
  e.extnamespace::text AS namespace_oid,n.nspname AS namespace,e.extversion AS version,e.extrelocatable AS relocatable,
- ARRAY(SELECT x::text FROM unnest(e.extconfig) x) AS configuration,e.extcondition AS conditions FROM pg_extension e JOIN pg_namespace n ON n.oid=e.extnamespace),
+ CASE WHEN e.extconfig IS NULL THEN NULL ELSE ARRAY(SELECT x::text FROM unnest(e.extconfig) x) END AS configuration,e.extcondition AS conditions FROM pg_extension e JOIN pg_namespace n ON n.oid=e.extnamespace),
 defs AS (SELECT d.oid::text AS oid,d.defaclrole::text AS role_oid,d.defaclnamespace::text AS namespace_oid,d.defaclobjtype::text AS kind,d.defaclacl AS acl_raw,
  (SELECT coalesce(json_agg(row_to_json(a) ORDER BY grantor,grantee,privilege_type,is_grantable),'[]'::json)
  FROM (SELECT grantor::text,grantee::text,privilege_type,is_grantable FROM aclexplode(d.defaclacl)) a) AS acl FROM pg_default_acl d),
@@ -518,7 +518,7 @@ def admit_cron_setup(before, after, identity, *, newly_installed):
     grants(namespace, 'n', [(postgres, 'USAGE', True)])
     for name, row in by_name.items():
         owner(row)
-        if row['namespace'] != 'cron' or row['namespace_oid'] != cron_oid or row['kind'] != CRON_RELATIONS[name] or row['persistence'] != 'p'
+        if (row['namespace'] != 'cron' or row['namespace_oid'] != cron_oid or row['kind'] != CRON_RELATIONS[name] or row['persistence'] != 'p'
                 or row['rls'] is not (row['kind'] == 'r') or row['force_rls'] is not False):
             raise RuntimeError('Closed cron relation identity differs')
         if row['kind'] == 'i':
@@ -571,7 +571,7 @@ def admit_cron_setup(before, after, identity, *, newly_installed):
     for row in default_acls:
         privileges = {'r': TABLE_PRIVILEGES, 'f': ('EXECUTE',), 'S': ('SELECT', 'UPDATE', 'USAGE')}[row['kind']]
         expected = {(admin, postgres, p, True) for p in privileges}
-        if row['role_oid'] != admin or row['namespace_oid'] != cron_oid or row['acl_raw'] is None or acl_set(row['acl']) != expected
+        if (row['role_oid'] != admin or row['namespace_oid'] != cron_oid or row['acl_raw'] is None or acl_set(row['acl']) != expected
                 or native_acl_raw(row['acl_raw'], row['kind'], role_oids) != expected):
             raise RuntimeError('Closed per-cron default ACL grants differ')
     hook = [r for r in before['routines'] if r['name'] == 'grant_pg_cron_access' and r['namespace'] == 'extensions']
@@ -967,6 +967,7 @@ def configured_probe(report, sql, native, container):
         evidence['failed_phase'] = phase
         raise
     finally:
+        evidence['work_finished_at_unix_seconds'] = time.time()
         # Eight once-only commands maximum: disable/drain, guarded unschedule,
         # guarded drop, then identity/config/projection/jobs and fixed frames.
         sql_clear = not job_attempted
@@ -1009,7 +1010,11 @@ def configured_probe(report, sql, native, container):
             if baseline is not None and sql_clear:
                 after = preserve('effects-post-cleanup', cleanup=True)
                 admit_owned_projection(baseline, after, binding, absent=True)
-                unchanged_jobs(jobs(cleanup=True))
+                terminal = observe("SELECT json_build_object('jobs',(SELECT coalesce(json_agg(row_to_json(j) ORDER BY jobid),'[]'::json) FROM cron.job j),'workers',(SELECT coalesce(json_agg(row_to_json(w) ORDER BY backend_type,pid),'[]'::json) FROM (SELECT pid,datid,datname,usename,backend_type FROM pg_stat_activity WHERE backend_type IN ('pg_cron launcher','pg_net 0.20.4 worker')) w));", cleanup=True)
+                unchanged_jobs(terminal['jobs'])
+                evidence['workers_after_cleanup'] = terminal['workers']
+                if not exact(terminal['workers'], evidence['workers_before_setup']):
+                    raise RuntimeError('Original worker identities changed after owned cleanup')
                 evidence['cleanup'].append({'kind': 'original-projection-and-jobs', 'passed': True})
         except Exception as error:
             evidence['cleanup'].append({'kind': 'owned-sql', 'passed': False, 'error': str(error)})
@@ -1040,7 +1045,7 @@ def configured_probe(report, sql, native, container):
                 evidence['helper_cleanup'] = {'id': helper, 'name': name, 'passed': False, 'error': str(error)}
         cleanup_ok = all(e['passed'] for e in evidence['cleanup']) and (not helper_attempted or evidence.get('helper_cleanup', {}).get('passed', False))
         evidence['passed'] = bool(evidence.get('effects_complete') and cleanup_ok and first_failure is None)
-        evidence['work_finished_at_unix_seconds'] = time.time()
+        evidence['cleanup_finished_at_unix_seconds'] = time.time()
         if not cleanup_ok and first_failure is None:
             raise RuntimeError('Configured effects owned cleanup failed')
 
