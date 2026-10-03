@@ -352,6 +352,7 @@ class TargetTests(Fixture):
             return path, json.loads((path / 'manifest.json').read_text())
 
         with patch.object(backup, 'create', create), patch.object(backup, 'create_storage', create_storage), \
+                patch.object(backup, 'preflight'), \
                 patch.object(notification_producers, 'emit') as emit, \
                 contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()) as error:
             # Local backups are fine; 3 tells the supervisor the failed copy was already reported.

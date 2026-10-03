@@ -3,6 +3,7 @@ from pathlib import Path
 from unittest.mock import patch
 import os
 import shutil
+import subprocess
 import tempfile
 import unittest
 import deployment_rehearsal as rehearsal
@@ -56,12 +57,46 @@ class ServerEvidenceTests(unittest.TestCase):
         self.assertEqual(status['verify_source'],'template')
         self.assertTrue(Path(status['verified_path']).exists())
 
-    @unittest.skipUnless(shutil.which('systemd-analyze'),'this host has no systemd-analyze to verify the unit with')
-    def test_the_shipped_unit_verifies_under_systemd_analyze(self):
-        from pathlib import Path
-        status=rehearsal.unit_status(Path(rehearsal.__file__).resolve().parent.parent/'deploy'/'sbarbase.service')
-        self.assertTrue(status['installed'])
-        self.assertEqual(status['verify'],'passed')
+    def verify_static_unit(self, text, docker_dependency=True):
+        """Validate unit syntax with explicit external dependencies, never start it.
+
+        This fixture makes no claim about Docker availability or a running systemd
+        manager. Those remain required checks of the server integration rehearsal.
+        """
+        self.assertIsNotNone(shutil.which('systemd-analyze'), 'static unit validation requires systemd-analyze')
+        with tempfile.TemporaryDirectory(prefix='sbarbase-unit-schema-') as directory:
+            units=Path(directory)
+            target=units/'sbarbase.service'
+            target.write_text(text)
+            # Supply only known external units. Avoid the workstation's unit paths,
+            # installed Docker service, drop-ins and generators entirely.
+            for name in ('sysinit','basic','shutdown','network-online','multi-user'):
+                (units/(name+'.target')).write_text(
+                    '[Unit]\nDescription=Static dependency fixture\nDefaultDependencies=no\n')
+            if docker_dependency:
+                (units/'docker.service').write_text(
+                    '[Unit]\nDescription=External Docker dependency fixture, never started\n'
+                    'DefaultDependencies=no\n[Service]\nType=oneshot\nExecStart=/usr/bin/true\n')
+            return subprocess.run(['systemd-analyze','--generators=no','verify',str(target)],
+                                  env=dict(os.environ,SYSTEMD_UNIT_PATH=str(units)),
+                                  capture_output=True,text=True,timeout=60)
+
+    def test_the_shipped_unit_schema_verifies_under_systemd_analyze(self):
+        result=self.verify_static_unit((ROOT/'deploy'/'sbarbase.service').read_text())
+        self.assertEqual(result.returncode,0,result.stderr)
+
+    def test_static_verification_refuses_a_missing_external_dependency(self):
+        result=self.verify_static_unit((ROOT/'deploy'/'sbarbase.service').read_text(),docker_dependency=False)
+        self.assertNotEqual(result.returncode,0)
+        self.assertIn('docker.service',result.stderr)
+
+    def test_static_verification_refuses_a_broken_service_command(self):
+        text=(ROOT/'deploy'/'sbarbase.service').read_text().replace(
+            'ExecStart=/usr/bin/python3 /opt/sbarbase/lab/dev.py',
+            'ExecStart=/nonexistent/sbarbase-fixture-command')
+        result=self.verify_static_unit(text)
+        self.assertNotEqual(result.returncode,0)
+        self.assertIn('/nonexistent/sbarbase-fixture-command',result.stderr)
 
     def test_evidence_records_pins_that_match_the_lock_files(self):
         pins=[{'component':label,'digest':digest,'pull':reference} for label,digest,reference in rehearsal.install_server.pinned_images()]

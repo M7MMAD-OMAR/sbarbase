@@ -2,6 +2,7 @@
 import effect_receipt
 import hba_runtime
 import hba_startup
+import image_identity
 from guarded_sql_executor import GuardedSQL
 import argparse
 import base64
@@ -346,7 +347,8 @@ class Runtime:
         for component, filename in [('db', 'distro-image.lock.json'), ('storage', 'storage-image.lock.json'),
                                     ('realtime', 'realtime-image.lock.json'), ('functions', 'functions-image.lock.json')]:
             self.pins[component] = json.loads((lab.ROOT/'lab'/filename).read_text())
-        self.hba_writer = (hba_runtime.SourceHBA(lab.docker,STATE,DB,OWNER,self.pins['db']['id'],startup=startup,operation_fd=operation_fd)
+        database_image = self.image('db')[1] if startup is not None or operation_fd is not None else None
+        self.hba_writer = (hba_runtime.SourceHBA(lab.docker,STATE,DB,OWNER,database_image,startup=startup,operation_fd=operation_fd)
                            if startup is not None or operation_fd is not None else None)
         if startup is not None:
             self.hba_writer.before_start(inspect('container',DB),inspect('volume',PREFIX+'-pgdata') is not None)
@@ -363,13 +365,21 @@ class Runtime:
     def sql(self, query, database='postgres', check=True):
         return lab.docker('exec', '-i', DB, 'psql', '-X', '-v', 'ON_ERROR_STOP=1', '-U', 'supabase_admin', '-d', database, '-qAt', data=query, check=check)
 
+    def image(self, component):
+        """Prove the exact immutable repository reference on this daemon."""
+        reference = image_identity.reference(self.pins[component])
+        result = lab.docker('image', 'inspect', reference, check=False)
+        if result.returncode:
+            raise image_identity.inspection_failure(reference, result.stdout, result.stderr)
+        return reference, image_identity.resolved_id(reference, image_identity.record(result.stdout))
+
     def launch(self, name, component, env, memory, cpus, volumes=(), command=(), existing_only=False, tier=None, binds=(), rotating=False):
+        reference, expected = self.image(component)
         image = self.pins[component]['id']
         actual = inspect('container', name)
         if existing_only and not actual:
             raise RuntimeError('Resume cannot create a missing service container')
         if actual:
-            expected = json.loads(lab.docker('image', 'inspect', image).stdout)[0]['Id']
             configured = dict(entry.split('=', 1) for entry in actual['Config'].get('Env', []) if '=' in entry)
             # The comparison runs in both directions for the mail keys. The desired
             # keys alone miss the removal direction: an operator who deletes an
@@ -400,7 +410,7 @@ class Runtime:
             raise RuntimeError('Tier placement disagrees with the requested limits')
         path = PRIVATE/(name+'.env')
         lab.secure_file(path, ''.join(f'{k}={v}\n' for k, v in env.items()))
-        args = ['run', '-d', '--name', name, '--label', 'io.sbarbase.owner='+OWNER, '--label', 'io.sbarbase.tier='+flags['label'], '--network', NETWORK,
+        args = ['run', '-d', '--pull=never', '--name', name, '--label', 'io.sbarbase.owner='+OWNER, '--label', 'io.sbarbase.tier='+flags['label'], '--network', NETWORK,
                 '--memory', memory, '--memory-swap', memory, '--cpus', str(cpus), '--pids-limit', str(flags['pids']),
                 '--cpu-shares', str(flags['shares']), '--blkio-weight', str(flags['weight']),
                 *resource_policy.io_flags(tier),
@@ -411,7 +421,7 @@ class Runtime:
             args += ['-v', volume+':'+destination]
         for source, destination in binds:
             args += ['-v', f'{source}:{destination}:ro']
-        return lab.docker(*args, image, *command).stdout.strip(),True
+        return lab.docker(*args, reference, *command).stdout.strip(),True
 
     def endpoint(self, name, port):
         item = inspect('container', name)

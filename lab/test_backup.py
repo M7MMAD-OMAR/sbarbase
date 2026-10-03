@@ -1,4 +1,5 @@
-"""Per-environment backup: completeness, retention, verification and a restore that always rolls back."""
+"""Per-environment backup completeness, retention and explicit restore recovery."""
+import contextlib
 import json
 import sqlite3
 import tempfile
@@ -12,6 +13,11 @@ E = 'e_' + 'a' * 24
 
 class Fixture(unittest.TestCase):
     def setUp(self):
+        # Data-flow tests isolate admission; test_backup_image_identity covers native proof.
+        for name in ('preflight', 'admit_database'):
+            admission = patch.object(backup, name, return_value={'db': 'c' * 64} if name == 'preflight' else 'c' * 64)
+            admission.start()
+            self.addCleanup(admission.stop)
         self.directory = tempfile.TemporaryDirectory()
         root = Path(self.directory.name)
         self.backups = root / 'backups'
@@ -184,7 +190,7 @@ class VerifyTests(Fixture):
 class ResolveTests(Fixture):
     def test_a_console_environment_id_resolves_to_its_runtime(self):
         catalog = self.state / 'control.sqlite'
-        with sqlite3.connect(catalog) as database:
+        with contextlib.closing(sqlite3.connect(catalog)) as database, database:
             database.execute('CREATE TABLE provision_jobs(environment TEXT, runtime TEXT, state TEXT)')
             database.execute("INSERT INTO provision_jobs VALUES ('11111111-2222-3333-4444-555555555555', ?, 'succeeded')", (E,))
         self.assertEqual(backup.resolve('11111111-2222-3333-4444-555555555555', catalog), E)
@@ -205,6 +211,8 @@ class RestoreTests(Fixture):
                 raise backup.BackupError('injected')
         def sql(query, database='postgres'):
             calls.append(('sql', query))
+            if 'SELECT oid FROM pg_database' in query:
+                return '12345'
             if 'datconnlimit' in query:
                 return '100|{acl}'
             if 'coalesce(datacl' in query:
@@ -214,42 +222,40 @@ class RestoreTests(Fixture):
             calls.append(('helper', script, args))
         return calls, run, sql, helper
 
-    def test_a_failed_database_restore_puts_the_original_back_and_restarts_services(self):
-        self.complete('20260901T030000Z')
-        calls, run, sql, helper = self.recorder(fail_on='pg_restore')
-        with patch.object(backup, 'run', run), patch.object(backup, 'sql', sql), patch.object(backup, 'helper', helper), \
-             patch.object(backup, 'start_services', lambda e: calls.append(('run', ('docker', 'start', *backup.service_names(e))))):
-            with self.assertRaisesRegex(backup.BackupError, 'injected'):
-                backup.restore(E, '20260901T030000Z')
-        statements = ' '.join(call[1] for call in calls if call[0] == 'sql')
-        self.assertIn(f'ALTER DATABASE {E} RENAME TO {E}_pre_', statements)
-        self.assertIn(f'DROP DATABASE IF EXISTS {E} WITH (FORCE)', statements)
-        self.assertRegex(statements, rf'ALTER DATABASE {E}_pre_\w+ RENAME TO {E};')
-        self.assertEqual(calls[-1][0:2], ('run', ('docker', 'start', *backup.service_names(E))))
-        self.assertFalse(any(call[0] == 'helper' for call in calls), 'files are untouched when the database fails')
+    def test_a_failed_database_restore_preserves_original_until_explicit_recovery(self):
+        from test_restore_cutover import NativeModel, environment_archive
+        environment_archive(self)
+        with NativeModel(self, fail='replay') as model:
+            with self.assertRaisesRegex(backup.BackupError, 'recover-restore'):
+                model.restore()
+            self.assertEqual(model.dbs[E]['oid'], '100')
+            self.assertFalse(any(event[0] in ('files', 'rename', 'start-services') for event in model.events))
+            self.assertEqual(model.recover()['status'], 'rolled-back')
+            self.assertEqual(model.dbs, {E: {'oid': '100', 'allow_connections': True}})
+            self.assertTrue(model.running)
 
-    def test_rows_that_do_not_match_the_backup_roll_back_files_and_database(self):
-        self.complete('20260901T030000Z', counts={'auth.users': 5})
-        calls, run, sql, helper = self.recorder()
-        with patch.object(backup, 'run', run), patch.object(backup, 'sql', sql), patch.object(backup, 'helper', helper), \
-             patch.object(backup, 'counts', return_value={'auth.users': 4}), \
-             patch.object(backup, 'start_services', lambda e: calls.append(('run', ('docker', 'start', *backup.service_names(e))))):
-            with self.assertRaisesRegex(backup.BackupError, 'rows'):
-                backup.restore(E, '20260901T030000Z')
-        statements = ' '.join(call[1] for call in calls if call[0] == 'sql')
-        self.assertIn(f'DROP DATABASE IF EXISTS {E} WITH (FORCE)', statements)
-        self.assertEqual(calls[-1][1][:2], ('docker', 'start'))
+    def test_rows_that_do_not_match_the_backup_refuse_before_cutover(self):
+        from test_restore_cutover import NativeModel, environment_archive
+        environment_archive(self)
+        with NativeModel(self, actual='4|1|1|1') as model:
+            with self.assertRaisesRegex(backup.BackupError, 'recover-restore'):
+                model.restore()
+            self.assertEqual(model.dbs[E]['oid'], '100')
+            self.assertEqual(model.trees[E], model.identity('1'))
+            self.assertFalse(any(event[0] in ('files', 'rename') for event in model.events))
+            self.assertEqual(model.recover()['status'], 'rolled-back')
+            self.assertFalse(backup.completion_path(E).exists())
 
     def test_a_successful_restore_keeps_the_previous_state_and_records_it(self):
-        path = self.complete('20260901T030000Z', counts={'auth.users': 1})
-        calls, run, sql, helper = self.recorder()
-        with patch.object(backup, 'run', run), patch.object(backup, 'sql', sql), patch.object(backup, 'helper', helper), \
-             patch.object(backup, 'counts', return_value={'auth.users': 1}), patch.object(backup, 'wait_healthy'), \
-             patch.object(backup, 'start_services'):
-            record = backup.restore(E, '20260901T030000Z')
-        self.assertTrue(record['previous_database'].startswith(E + '_pre_'))
-        self.assertFalse(any('DROP DATABASE' in call[1] for call in calls if call[0] == 'sql'))
-        self.assertTrue(any(name.name.startswith('restore-') for name in path.iterdir()))
+        from test_restore_cutover import NativeModel, environment_archive
+        path = environment_archive(self)
+        with NativeModel(self) as model:
+            record = model.restore()
+            self.assertEqual(model.dbs[E]['oid'], '20000')
+            self.assertEqual(model.dbs[record['previous_database']], {'oid': '100', 'allow_connections': False})
+            self.assertEqual(model.trees[record['previous_files']], model.identity('1'))
+            self.assertFalse(any(event[0] == 'drop' for event in model.events))
+            self.assertTrue(any(item.name.startswith('restore-') for item in path.iterdir()))
 
     def test_the_dump_reads_the_snapshot_its_counts_came_from(self):
         """A row written while the backup runs is in both the dump and its counts, or in neither."""
@@ -372,7 +378,7 @@ class StorageMetadataTests(Fixture):
         self.assertEqual(path, self.backups / 'storage' / '20260925T030000Z')
         # psql and pg_dump both reach storage_metadata, and the dump reads the exported snapshot.
         self.assertEqual(sessions[0][-1], 'storage_metadata')
-        self.assertIn('FROM tenants', written[0])
+        self.assertIn('FROM public.tenants', written[0])
         self.assertTrue(written[0].rstrip().endswith('COMMIT;'), 'the snapshot is released after the dump')
         self.assertEqual(dumped[0][-2:], ['-d', 'storage_metadata'])
         self.assertIn('--snapshot=00000003-0000002B-1', dumped[0])
@@ -411,6 +417,8 @@ class StorageMetadataTests(Fixture):
 
         def sql(query, database='postgres'):
             calls.append(('sql', query))
+            if 'SELECT oid FROM pg_database' in query:
+                return '12345'
             if 'datconnlimit' in query:
                 return '6|{acl}'
             if 'coalesce(datacl' in query:
@@ -433,40 +441,37 @@ class StorageMetadataTests(Fixture):
             return backup.restore_storage(name), starts
 
     def test_a_successful_restore_stops_storage_keeps_the_previous_database_and_records_it(self):
+        from test_restore_cutover import NativeModel
         path = self.storage('20260901T030000Z')
-        calls, run, sql = self.recorder()
-        record, starts = self.restore(calls, run, sql)
-        self.assertEqual(calls[0], ('run', ('docker', 'stop', 'sbarbase-durable-storage')))
-        statements = ' '.join(call[1] for call in calls if call[0] == 'sql')
-        self.assertIn('ALTER DATABASE storage_metadata RENAME TO storage_metadata_pre_', statements)
-        self.assertIn('ALTER DATABASE storage_metadata CONNECTION LIMIT 6', statements)
-        self.assertNotIn('DROP DATABASE', statements)
-        restores = [call[1] for call in calls if call[0] == 'run' and 'pg_restore' in call[1]]
-        self.assertEqual(restores[0][-2:], ('-d', 'postgres'))
-        self.assertIn('--create', restores[0])
-        self.assertEqual(starts, ['start'])
-        self.assertEqual(calls[-1], ('wait', '10.0.0.9'))
-        self.assertTrue(record['previous_database'].startswith('storage_metadata_pre_'))
-        self.assertTrue(any(item.name.startswith('restore-') for item in path.iterdir()))
+        with NativeModel(self, scope=backup.STORAGE) as model:
+            record = model.restore()
+            self.assertEqual(model.dbs[backup.STORAGE_DATABASE]['oid'], '20000')
+            self.assertEqual(model.dbs[record['previous_database']], {'oid': '100', 'allow_connections': False})
+            self.assertEqual(next(event for event in model.events if event[0] == 'stop')[1], 'stop-intent')
+            self.assertTrue(model.running)
+            self.assertFalse(any(event[0] in ('drop', 'files') for event in model.events))
+            self.assertTrue(any(item.name.startswith('restore-') for item in path.iterdir()))
 
-    def test_a_failed_restore_puts_the_original_back_and_starts_storage_again(self):
+    def test_a_failed_restore_requires_recovery_without_replacing_shared_metadata(self):
+        from test_restore_cutover import NativeModel
         self.storage('20260901T030000Z')
-        calls, run, sql = self.recorder(fail_on='pg_restore')
-        with self.assertRaisesRegex(backup.BackupError, 'injected'):
-            self.restore(calls, run, sql)
-        statements = ' '.join(call[1] for call in calls if call[0] == 'sql')
-        self.assertIn('DROP DATABASE IF EXISTS storage_metadata WITH (FORCE)', statements)
-        self.assertRegex(statements, r'ALTER DATABASE storage_metadata_pre_\w+ RENAME TO storage_metadata;')
-        self.assertEqual(calls[-1], ('start',))
+        with NativeModel(self, scope=backup.STORAGE, fail='replay') as model:
+            with self.assertRaisesRegex(backup.BackupError, 'recover-restore'):
+                model.restore()
+            self.assertEqual(model.dbs[backup.STORAGE_DATABASE]['oid'], '100')
+            self.assertTrue(model.running)
+            self.assertEqual(model.recover()['status'], 'rolled-back')
+            self.assertEqual(model.dbs, {backup.STORAGE_DATABASE: {'oid': '100', 'allow_connections': True}})
 
-    def test_registrations_that_do_not_match_the_backup_roll_back(self):
+    def test_registrations_that_do_not_match_the_backup_refuse_before_cutover(self):
+        from test_restore_cutover import NativeModel
         self.storage('20260901T030000Z')
-        calls, run, sql = self.recorder(restored=f'2|{E},{self.OTHER}')
-        with self.assertRaisesRegex(backup.BackupError, 'registrations'):
-            self.restore(calls, run, sql)
-        statements = ' '.join(call[1] for call in calls if call[0] == 'sql')
-        self.assertIn('DROP DATABASE IF EXISTS storage_metadata WITH (FORCE)', statements)
-        self.assertEqual(calls[-1], ('start',))
+        with NativeModel(self, scope=backup.STORAGE, actual=f'2|{E},{self.OTHER}') as model:
+            with self.assertRaisesRegex(backup.BackupError, 'recover-restore'):
+                model.restore()
+            self.assertFalse(any(event[0] in ('rename', 'stop') for event in model.events))
+            self.assertEqual(model.recover()['status'], 'rolled-back')
+            self.assertFalse(backup.completion_path(backup.STORAGE).exists())
 
     def test_a_backup_that_misses_an_environment_published_now_is_refused_before_anything_stops(self):
         (self.state / 'endpoints.json').write_text(json.dumps({E: {'auth': 'a'}, self.OTHER: {'auth': 'b'}}))

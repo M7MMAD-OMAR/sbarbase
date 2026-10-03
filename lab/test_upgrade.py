@@ -21,7 +21,7 @@ import upgrade_guard
 
 
 def pin(tag, digit):
-    return {'tag': tag, 'id': 'sha256:' + digit * 64}
+    return {'tag': tag, 'id': 'sha256:' + digit * 64, 'digests': [tag.rsplit(':', 1)[0] + '@sha256:' + digit * 64]}
 
 
 class Repository:
@@ -715,13 +715,17 @@ class ReplacementTests(unittest.TestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
         self.runtime = object.__new__(durable_runtime.Runtime)
-        self.runtime.pins = {'rest': {'id': 'sha256:new'}, 'db': {'id': 'sha256:db'}}
+        self.image = 'sha256:' + 'a' * 64
+        self.reference = 'docker.io/postgrest/postgrest@' + self.image
+        self.runtime.pins = {'rest': {'id': self.image, 'tag': 'postgrest/postgrest:v1', 'digests': [self.reference]},
+                             'db': {'id': 'sha256:' + 'c' * 64, 'tag': 'supabase/postgres:v1',
+                                    'digests': ['supabase/postgres@sha256:' + 'c' * 64]}}
         self.calls = []
 
     def docker(self, *args, **kwargs):
         self.calls.append(args)
         if args[:2] == ('image', 'inspect'):
-            return SimpleNamespace(returncode=0, stdout=json.dumps([{'Id': 'sha256:new-local'}]))
+            return SimpleNamespace(returncode=0, stdout=json.dumps([{'Id': 'sha256:' + 'b' * 64, 'RepoDigests': [self.reference]}]))
         return SimpleNamespace(returncode=0, stdout='new-container\n')
 
     def launch(self, component='rest'):
@@ -738,10 +742,11 @@ class ReplacementTests(unittest.TestCase):
         self.assertNotIn(('rm', '-f', 'old-container'), self.calls)
 
     def test_an_upgrade_replaces_the_service_with_its_named_image(self):
-        self.intent.write_text(json.dumps({'pins': {'rest': 'sha256:new'}}))
+        self.intent.write_text(json.dumps({'pins': {'rest': self.image}}))
         self.assertEqual(self.launch(), ('new-container', True))
         self.assertIn(('rm', '-f', 'old-container'), self.calls)
-        self.assertEqual(self.calls[-1][-1], 'sha256:new')
+        self.assertEqual(self.calls[-1][-1], self.reference)
+        self.assertIn('--pull=never', self.calls[-1])
 
     def test_an_upgrade_for_another_image_or_the_database_is_refused(self):
         self.intent.write_text(json.dumps({'pins': {'rest': 'sha256:other', 'db': 'sha256:db'}}))

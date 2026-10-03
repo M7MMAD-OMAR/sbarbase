@@ -1,5 +1,6 @@
 import {Catalog} from './catalog';
 import {KeyStore} from './keys';
+import {PlacementUnavailable} from './placement';
 import {authenticate,reply,type ManagementIdentity} from './auth';
 
 /** Publishable keys only. Never accepts a client-supplied runtime, role or actor.
@@ -26,6 +27,7 @@ export function keyHandler(catalog:Catalog,keys:KeyStore,identify:ManagementIden
     return keys.revoke(job.runtime,keyId!)?reply(200,{revoked:true}):reply(404,{message:'Active key not found'});
    });
   } catch(error) {
+   if(error instanceof PlacementUnavailable)return reply(503,{message:error.message});
    if(error instanceof Error&&error.message==='Forbidden') return reply(403,{message:'Forbidden'});
    if(error instanceof Error&&error.message==='Environment is not ready') return reply(409,{message:'Environment is not ready'});
    return reply(500,{message:'Key operation failed'});

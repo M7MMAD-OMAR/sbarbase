@@ -1,9 +1,12 @@
-"""Per-environment backup and in-place restore, while every other environment keeps serving.
+"""Per-environment backup, fenced replacement and explicit identity-bound recovery.
 
     backup.py create <environment|all> [--keep N] [--local-only] [--reason upgrade]
     backup.py list [<environment>]
     backup.py restore <environment> <backup> [--offsite]
     backup.py restore-storage <backup> [--offsite]
+    backup.py restore-status
+    backup.py recover-restore <environment|storage> <backup> <restore-stamp>
+    backup.py complete-restore <environment|storage> <backup> <restore-stamp>
     backup.py discard-previous <environment|storage>
     backup.py offsite-list
     backup.py offsite-fetch <backup>
@@ -18,10 +21,12 @@ environment's Storage files (a tar of its own tenant directory only) and ``manif
 written last, with sizes, SHA-256 digests and row counts. A directory without a manifest is
 an interrupted backup and is never restored.
 
-Restore replaces one environment with a backup of itself. Only that environment's Auth and
-REST stop; Storage and every other environment keep serving. The current database is renamed
-and the current files are moved aside, not deleted, and any failure puts them back. After a
-successful restore they are kept until ``discard-previous``.
+Restore stages the archive behind a PostgreSQL connection fence. Selected app services and
+shared Storage stop before cutover, so neighboring Storage access also pauses. Old data and
+files stay aside. An interruption requires guarded ``recover-restore``; no implicit rollback
+runs. A hard kill may print nothing: ``restore-status`` reads private operation state and
+shows exact recovery commands. After reopening, new writes survive recovery and readiness
+retry. Use ``complete-restore`` for a printed readiness failure, without replaying data.
 
 ``create all`` gives every backup of the run one time, backs up Storage's shared metadata
 database (``storage_metadata``: every environment's Storage registration, its signing keys and
@@ -55,14 +60,18 @@ import sqlite3
 import subprocess
 import sys
 import tarfile
+import tempfile
 import time
 from pathlib import Path
+
+import image_identity
 
 ROOT = Path(__file__).resolve().parent.parent
 STATE = ROOT / '.lab' / 'upstream'
 BACKUPS = ROOT / '.lab' / 'backups'
 PREFIX = 'sbarbase-durable'
 DB = PREFIX + '-db'
+DATABASE_OWNER = 'durable-upstream'
 OBJECTS_VOLUME = PREFIX + '-objects'
 # storage-files.cjs and the Storage file backend keep a tenant's files here in the volume.
 TENANT_PARENT = 'sbarbase-lab'
@@ -93,7 +102,8 @@ def run(argv, *, stdin=None, stdout=subprocess.PIPE, check=True, text=True, time
 
 
 def psql(database):
-    return ['docker', 'exec', '-i', DB, 'psql', '-X', '-qAt', '-v', 'ON_ERROR_STOP=1', '-U', 'supabase_admin', '-d', database]
+    container = admit_database()
+    return ['docker', 'exec', '-i', container, 'psql', '-X', '-qAt', '-v', 'ON_ERROR_STOP=1', '-U', 'supabase_admin', '-d', database]
 
 
 def sql(query, database='postgres'):
@@ -105,19 +115,89 @@ def sql(query, database='postgres'):
     return result.stdout.strip()
 
 
+def image_pin(filename):
+    """Read a strict logical pin without consulting the daemon or changing state."""
+    try:
+        pin = json.loads((ROOT / 'lab' / filename).read_text())
+        image_identity.reference(pin)
+        return pin
+    except (OSError, ValueError, TypeError) as error:
+        raise BackupError('Invalid backup image lock: ' + filename) from error
+
+
 def storage_image():
-    return json.loads((ROOT / 'lab' / 'storage-image.lock.json').read_text())['id']
+    """The logical archived pin, never the daemon's configuration identity."""
+    return image_pin('storage-image.lock.json')['id']
+
+
+def resolve_image(pin):
+    """Prove the repository-qualified pin and return its daemon-local identity."""
+    try:
+        reference = image_identity.reference(pin)
+        inspected = run(['docker', 'image', 'inspect', reference], check=False)
+        if inspected.returncode or inspected.stderr.strip():
+            raise image_identity.inspection_failure(reference, inspected.stdout, inspected.stderr)
+        native = image_identity.resolved_id(reference, image_identity.record(inspected.stdout))
+        return reference, native
+    except image_identity.IdentityError as error:
+        raise BackupError(str(error)) from error
+
+
+def resolve_storage_image():
+    return resolve_image(image_pin('storage-image.lock.json'))
+
+
+def admit_database(pin=None):
+    """A DB exec is authorized by its exact native image and runtime owner."""
+    reference, native = resolve_image(pin if pin is not None else image_pin('distro-image.lock.json'))
+    inspected = run(['docker', 'container', 'inspect', DB], check=False)
+    if inspected.returncode or inspected.stderr.strip():
+        raise BackupError('Database container inspection refused')
+    try:
+        item = image_identity.record(inspected.stdout)
+        if not isinstance(item.get('Id'), str) or not re.fullmatch(r'[a-f0-9]{64}', item['Id']) or item.get('Name') != '/' + DB:
+            raise BackupError('Database container identity or name is not proved')
+        if item.get('Image') != native or item.get('Config', {}).get('Labels', {}).get('io.sbarbase.owner') != DATABASE_OWNER:
+            raise BackupError('Database container image or ownership differs from the configured runtime')
+        if item.get('State', {}).get('Running') is not True:
+            raise BackupError('Database container is not running')
+    except (image_identity.IdentityError, AttributeError, TypeError) as error:
+        raise BackupError('Invalid database container inspection') from error
+    return item['Id']
+
+
+def admit_objects_volume():
+    """Refuse implicit creation or access to another owner's object volume."""
+    inspected = run(['docker', 'volume', 'inspect', OBJECTS_VOLUME], check=False)
+    if inspected.returncode or inspected.stderr.strip():
+        raise BackupError('Objects volume inspection refused')
+    try:
+        item = image_identity.record(inspected.stdout)
+        if item.get('Name') != OBJECTS_VOLUME or item.get('Labels', {}).get('io.sbarbase.owner') != DATABASE_OWNER:
+            raise BackupError('Objects volume identity or ownership differs from the configured runtime')
+    except (image_identity.IdentityError, AttributeError, TypeError) as error:
+        raise BackupError('Invalid objects volume inspection') from error
+    return OBJECTS_VOLUME
+
+
+def preflight():
+    """Prove all backup tools before writing artifacts or altering live data."""
+    db = image_pin('distro-image.lock.json')
+    storage = image_pin('storage-image.lock.json')
+    database = admit_database(db)
+    objects = resolve_image(storage)
+    volume = admit_objects_volume()
+    return {'db': database, 'storage': objects, 'objects_volume': volume}
 
 
 def helper(script, *args, writable=False, stdin=None, stdout=subprocess.PIPE, text=True):
-    """A short-lived container of the pinned Storage image with the objects volume mounted.
-
-    No network, small limits, and an owner label so nothing else mistakes it for its own.
-    """
+    """An admitted immutable Storage tool, isolated from network and resource bounded."""
+    reference, _native = resolve_storage_image()
+    volume = admit_objects_volume()
     mode = '' if writable else ':ro'
-    return run(['docker', 'run', '--rm', '-i', '--network', 'none', '--memory', '256m', '--cpus', '.5',
-                '--label', 'io.sbarbase.owner=backup', '-v', f'{OBJECTS_VOLUME}:/data{mode}',
-                '--entrypoint', 'sh', storage_image(), '-c', script, 'sh', *args],
+    return run(['docker', 'run', '--rm', '--pull=never', '-i', '--network', 'none', '--memory', '256m', '--cpus', '.5',
+                '--label', 'io.sbarbase.owner=backup', '-v', f'{volume}:/data{mode}',
+                '--entrypoint', 'sh', reference, '-c', script, 'sh', *args],
                stdin=subprocess.DEVNULL if stdin is None else stdin, stdout=stdout, text=text)
 
 
@@ -128,7 +208,7 @@ def resolve(name, catalog=None):
     if not UUID.fullmatch(name):
         raise BackupError('Name an environment by its runtime id (e_...) or its environment id')
     path = Path(catalog or STATE / 'control.sqlite')
-    with sqlite3.connect(f'file:{path}?mode=ro', uri=True) as database:
+    with contextlib.closing(sqlite3.connect(f'file:{path}?mode=ro', uri=True)) as database:
         row = database.execute("SELECT runtime FROM provision_jobs WHERE environment=? AND state='succeeded'",
                                (name,)).fetchone()
     if not row:
@@ -164,7 +244,7 @@ def counts(e):
 
 
 # Counts and tenant ids only: the other columns hold encrypted credentials and signing keys.
-STORAGE_COUNTS = "SELECT count(*), coalesce(string_agg(id, ',' ORDER BY id), '') FROM tenants;"
+STORAGE_COUNTS = "SELECT count(*), coalesce(string_agg(id, ',' ORDER BY id), '') FROM public.tenants;"
 
 
 def parse_storage_counts(out):
@@ -185,25 +265,41 @@ def snapshot(e, query=COUNTS, parse=parse_counts):
     dumping afterwards let such a row into the dump only, and the restore then refused the
     backup because its rows did not match.
     """
-    process = subprocess.Popen(psql(e), stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
-    try:
-        process.stdin.write('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;\n'
-                            'SELECT pg_export_snapshot();\n' + query + '\n')
-        process.stdin.flush()
-        exported = process.stdout.readline().strip()
-        line = process.stdout.readline().strip()
-        if not re.fullmatch(r'[0-9A-F]+-[0-9A-F]+-[0-9]+', exported) or not line:
-            raise BackupError('database snapshot failed')
-        yield exported, parse(line)
-    finally:
-        if process.poll() is None:
+    # A file avoids a filled stderr pipe blocking the held transaction. Diagnostics may
+    # contain private data, so refuse them without copying their contents into errors.
+    with tempfile.TemporaryFile() as diagnostics:
+        process = subprocess.Popen(psql(e), stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                   stderr=diagnostics, text=True)
+        session_failed = False
+        try:
+            process.stdin.write('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;\n'
+                                'SELECT pg_export_snapshot();\n' + query + '\n')
+            process.stdin.flush()
+            exported = process.stdout.readline().strip()
+            line = process.stdout.readline().strip()
+            if not re.fullmatch(r'[0-9A-F]+-[0-9A-F]+-[0-9]+', exported) or not line:
+                raise BackupError('database snapshot failed')
+            if os.fstat(diagnostics.fileno()).st_size:
+                raise BackupError('database snapshot emitted diagnostics')
+            yield exported, parse(line)
+        finally:
             try:
-                process.stdin.write('COMMIT;\n')
+                if process.poll() is None:
+                    try:
+                        process.stdin.write('COMMIT;\n')
+                        process.stdin.close()
+                        session_failed = process.wait(timeout=60) != 0
+                    except (OSError, subprocess.TimeoutExpired, ValueError):
+                        process.kill()
+                        process.wait()
+                        session_failed = True
+                else:
+                    session_failed = process.poll() != 0
+            finally:
                 process.stdin.close()
-                process.wait(timeout=60)
-            except (OSError, subprocess.TimeoutExpired, ValueError):
-                process.kill()
-                process.wait()
+                process.stdout.close()
+            if session_failed or os.fstat(diagnostics.fileno()).st_size:
+                raise BackupError('database snapshot failed or emitted diagnostics')
 
 
 def private_dir(path):
@@ -229,10 +325,12 @@ def ownership(e):
 
 
 def create(e, keep=DEFAULT_KEEP, now=None, reason=None, protected=None):
+    no_pending_completion()
     if reason is not None and reason not in REASONS:
         raise BackupError('Unknown backup reason')
     if e not in published():
         raise BackupError('Only a published environment can be backed up')
+    admitted = preflight()
     stamp = (now or datetime.datetime.now(datetime.UTC)).strftime('%Y%m%dT%H%M%SZ')
     target = private_dir(BACKUPS / e) / stamp
     if target.exists():
@@ -241,7 +339,7 @@ def create(e, keep=DEFAULT_KEEP, now=None, reason=None, protected=None):
     # pg_dump reads the snapshot the counts were taken in, while the environment keeps serving.
     fd = os.open(target / 'database.dump', os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(fd, 'wb') as handle, snapshot(e) as (exported, before):
-        run(['docker', 'exec', DB, 'pg_dump', '-U', 'supabase_admin', '-Fc', f'--snapshot={exported}', '-d', e],
+        run(['docker', 'exec', admitted['db'], 'pg_dump', '-U', 'supabase_admin', '-Fc', f'--snapshot={exported}', '-d', e],
             stdout=handle, text=False)
     # Files after the database: a file written in between is extra, never missing.
     fd = os.open(target / 'objects.tar', os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
@@ -272,8 +370,10 @@ def create_storage(keep=DEFAULT_KEEP, now=None, reason=None, protected=None):
     custom format inside one snapshot while Storage keeps serving, and the manifest last. The
     manifest records the tenant count and ids from that snapshot (never another column), which
     a restore checks."""
+    no_pending_completion()
     if reason is not None and reason not in REASONS:
         raise BackupError('Unknown backup reason')
+    admitted = preflight()
     stamp = (now or datetime.datetime.now(datetime.UTC)).strftime('%Y%m%dT%H%M%SZ')
     target = private_dir(BACKUPS / STORAGE) / stamp
     if target.exists():
@@ -282,7 +382,7 @@ def create_storage(keep=DEFAULT_KEEP, now=None, reason=None, protected=None):
     fd = os.open(target / 'database.dump', os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(fd, 'wb') as handle, \
             snapshot(STORAGE_DATABASE, STORAGE_COUNTS, parse_storage_counts) as (exported, before):
-        run(['docker', 'exec', DB, 'pg_dump', '-U', 'supabase_admin', '-Fc', f'--snapshot={exported}',
+        run(['docker', 'exec', admitted['db'], 'pg_dump', '-U', 'supabase_admin', '-Fc', f'--snapshot={exported}',
              '-d', STORAGE_DATABASE], stdout=handle, text=False)
     manifest = {
         'version': 1, 'kind': STORAGE_DATABASE, 'created_at': stamp,
@@ -387,11 +487,14 @@ def prune(e, keep, protected=None):
 
     Backups of the last UPGRADE_RUNS_KEPT upgrades are kept whatever their age and are not
     counted: ``keep`` applies to the others."""
+    no_pending_completion()
     if keep < 1:
         raise BackupError('Keep at least one backup')
     complete = complete_backups(e)
     protected = upgrade_runs() if protected is None else protected
-    doomed = [path for path in complete if path.name not in protected][:-keep]
+    completion = completion_path(e) if e == STORAGE or RUNTIME.fullmatch(e) else None
+    completed_backup = json.loads(completion.read_text())['backup'] if completion and completion.exists() else None
+    doomed = [path for path in complete if path.name not in protected and path.name != completed_backup][:-keep]
     newest = complete[-1].name if complete else ''
     folder = BACKUPS / e
     if folder.is_dir():
@@ -484,56 +587,178 @@ def start_services(e):
     durable_runtime.atomic(path, endpoints)
 
 
-def restore(e, name, now=None):
-    if e not in published():
-        raise BackupError('Only a published environment can be restored')
-    path = BACKUPS / e / name
-    manifest = verify(e, path)
-    stamp = (now or datetime.datetime.now(datetime.UTC)).strftime('%Y%m%dt%H%M%Sz')
-    previous = f'{e}_pre_{stamp}'
-    aside = f'.pre-restore-{e}-{stamp}'
-    moved_database = moved_files = False
-    run(['docker', 'stop', *service_names(e)])
+
+def atomic_private(path, value):
+    """Persist private control state and its directory entry before returning."""
+    if path.parent.is_symlink() or path.is_symlink():
+        raise BackupError('Restore completion path is unverifiable')
+    private_dir(path.parent)
+    fd, temporary = tempfile.mkstemp(prefix='.completion-', dir=path.parent)
     try:
-        # Nothing may hold the database while it is renamed; Storage reconnects by name afterwards.
-        sql(f"ALTER DATABASE {e} ALLOW_CONNECTIONS false; "
-            f"SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE datname='{e}';")
-        sql(f'ALTER DATABASE {e} RENAME TO {previous};')
-        moved_database = True
-        with (path / 'database.dump').open('rb') as handle:
-            run(['docker', 'exec', '-i', DB, 'pg_restore', '-U', 'supabase_admin', '--create', '--exit-on-error',
-                 '-d', 'postgres'], stdin=handle, text=False)
-        # The database properties the runtime set, copied from the database being replaced.
-        limit, acl = sql(f"SELECT datconnlimit, coalesce(datacl::text,'') FROM pg_database WHERE datname='{previous}';").split('|')
-        sql(f'ALTER DATABASE {e} CONNECTION LIMIT {int(limit)}; ALTER DATABASE {e} ALLOW_CONNECTIONS true; '
-            f"ALTER DATABASE {previous} ALLOW_CONNECTIONS false;")
-        restored_acl = sql(f"SELECT coalesce(datacl::text,'') FROM pg_database WHERE datname='{e}';")
-        if restored_acl != acl:
-            raise BackupError('Restored database access differs from the environment it replaces')
-        if counts(e) != manifest['counts']:
-            raise BackupError('Restored rows do not match the backup')
-        helper(f'mkdir -p /data/{TENANT_PARENT} && cd /data/{TENANT_PARENT} && '
-               'if [ -e "$1" ]; then mv "$1" "$2"; fi', e, aside, writable=True)
-        moved_files = True
-        with (path / 'objects.tar').open('rb') as handle:
-            helper(f'cd /data/{TENANT_PARENT} && tar -xf -', writable=True, stdin=handle, text=False)
-    except BaseException:
-        if moved_files:
-            helper(f'cd /data/{TENANT_PARENT} && rm -rf "$1" && if [ -e "$2" ]; then mv "$2" "$1"; fi',
-                   e, aside, writable=True)
-        if moved_database:
-            sql(f"SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE datname='{e}';")
-            sql(f'DROP DATABASE IF EXISTS {e} WITH (FORCE);')
-            sql(f'ALTER DATABASE {previous} RENAME TO {e}; ALTER DATABASE {e} ALLOW_CONNECTIONS true;')
+        with os.fdopen(fd, 'w') as handle:
+            json.dump(value, handle, indent=2)
+            handle.write('\n')
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+        directory = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def completion_path(scope):
+    if not isinstance(scope, str) or (scope != STORAGE and not RUNTIME.fullmatch(scope)):
+        raise BackupError('Invalid restore completion scope')
+    return STATE / 'restore-completions' / (scope + '.json')
+
+
+def no_pending_completion():
+    import restore_operation
+    for path in STATE.glob('restore-operation-*.json'):
+        scope = path.name[len('restore-operation-'):-len('.json')]
+        journal = restore_operation.read_journal(STATE, scope)
+        if journal['phase'] not in ('completed', 'rolled-back'):
+            raise BackupError('Restore operation is pending; use recover-restore before another backup, restore, prune or discard')
+    folder = STATE / 'restore-completions'
+    if not folder.exists():
+        return
+    if folder.is_symlink() or not folder.is_dir():
+        raise BackupError('Unverifiable restore completion state')
+    completed = []
+    for path in folder.iterdir():
+        if path.name.startswith('.completion-'):
+            raise BackupError('Interrupted restore completion persistence requires review')
+        try:
+            record = json.loads(path.read_text())
+        except (OSError, ValueError):
+            raise BackupError('Unverifiable restore completion state') from None
+        if not isinstance(record, dict) or record.get('status') != 'completed':
+            raise BackupError('Restore readiness is pending; use complete-restore before another restore, prune or discard')
+        if path.is_symlink() or not isinstance(record.get('scope'), str) or path.name != record['scope'] + '.json':
+            raise BackupError('Unverifiable restore completion state')
+        completed.append(record)
+    # Refuse all pending state before inspecting any completed identity.
+    for record in completed:
+        checkpoint, archive, success_record = load_completion(record.get('scope', ''), record.get('backup', ''), record.get('stamp', ''))
+        verify_completion_success(archive, checkpoint['stamp'], success_record)
+
+
+def database_oid(database):
+    value = sql(f"SELECT oid FROM pg_database WHERE datname='{database}';")
+    if not re.fullmatch(r'[1-9][0-9]*', value):
+        raise BackupError('Restored database identity is unavailable')
+    return value
+
+
+def checkpoint_restore(scope, name, stamp, admitted, record, storage_cid=None):
+    database = STORAGE_DATABASE if scope == STORAGE else scope
+    path = BACKUPS / scope / name
+    checkpoint = {'version': 1, 'status': 'readiness-pending', 'scope': scope,
+                  'backup': name, 'stamp': stamp, 'database': database,
+                  'container_id': admitted['db'], 'database_oid': database_oid(database),
+                  'manifest_sha256': digest(path / 'manifest.json'),
+                  'database_sha256': digest(path / 'database.dump'),
+                  'objects_sha256': None if scope == STORAGE else digest(path / 'objects.tar'),
+                  'record': record}
+    if storage_cid is not None:
+        checkpoint['version'] = 2
+        checkpoint['storage_container_id'] = storage_cid
+    atomic_private(completion_path(scope), checkpoint)
+    return checkpoint
+
+
+def load_completion(scope, name, stamp):
+    """Validate durable archive and checkpoint identity, without touching live data."""
+    path = completion_path(scope)
+    if not isinstance(name, str) or not isinstance(stamp, str) or not STAMP.fullmatch(name) or not re.fullmatch(r'[0-9]{8}t[0-9]{6}z', stamp):
+        raise BackupError('Invalid restore completion identity')
+    try:
+        if path.parent.is_symlink() or not path.parent.is_dir() or path.parent.stat().st_mode & 0o777 != 0o700 \
+                or path.is_symlink() or path.stat().st_mode & 0o777 != 0o600:
+            raise BackupError('Restore completion checkpoint is not private')
+        checkpoint = json.loads(path.read_text())
+    except (OSError, ValueError):
+        raise BackupError('Restore completion checkpoint is missing or invalid') from None
+    required = {'version', 'status', 'scope', 'backup', 'stamp', 'database', 'container_id',
+                'database_oid', 'manifest_sha256', 'database_sha256', 'objects_sha256', 'record'}
+    if isinstance(checkpoint, dict) and checkpoint.get('version') == 2:
+        required.add('storage_container_id')
+    database = STORAGE_DATABASE if scope == STORAGE else scope
+    if not isinstance(checkpoint, dict) or set(checkpoint) != required or type(checkpoint['version']) is not int or checkpoint['version'] not in (1, 2) \
+            or checkpoint['status'] not in ('readiness-pending', 'completed') \
+            or (checkpoint['scope'], checkpoint['backup'], checkpoint['stamp'], checkpoint['database']) != (scope, name, stamp, database):
+        raise BackupError('Restore completion checkpoint identity differs')
+    if not isinstance(checkpoint['container_id'], str) or not re.fullmatch(r'[a-f0-9]{64}', checkpoint['container_id']) \
+            or not isinstance(checkpoint['database_oid'], str) or not re.fullmatch(r'[1-9][0-9]*', checkpoint['database_oid']):
+        raise BackupError('Restore completion native identity is malformed')
+    if checkpoint['version'] == 2 and (not isinstance(checkpoint['storage_container_id'], str)
+            or not re.fullmatch(r'[a-f0-9]{64}', checkpoint['storage_container_id'])):
+        raise BackupError('Restore completion Storage identity is malformed')
+    archive = BACKUPS / scope / name
+    manifest = verify_storage(archive) if scope == STORAGE else verify(scope, archive)
+    record = checkpoint['record']
+    expected = {'restored_at': stamp, 'backup': name, 'previous_database': database + '_pre_' + stamp,
+                'counts': manifest['counts']}
+    if scope != STORAGE:
+        expected['previous_files'] = '.pre-restore-' + scope + '-' + stamp
+    if record != expected or checkpoint['manifest_sha256'] != digest(archive / 'manifest.json') \
+            or checkpoint['database_sha256'] != digest(archive / 'database.dump') \
+            or checkpoint['objects_sha256'] != (None if scope == STORAGE else digest(archive / 'objects.tar')):
+        raise BackupError('Restore completion archive identity differs')
+    return checkpoint, archive, record
+
+
+def verify_completion_success(archive, stamp, record):
+    success = archive / ('restore-' + stamp + '.json')
+    try:
+        if success.is_symlink() or success.stat().st_mode & 0o777 != 0o600 or json.loads(success.read_text()) != record:
+            raise BackupError('Restore completion success record differs')
+    except (OSError, ValueError):
+        raise BackupError('Restore completion success record is unavailable') from None
+
+
+def complete_restore(scope, name, stamp):
+    """Retry readiness only, never replay archive, SQL replacement or file extraction."""
+    checkpoint, archive, record = load_completion(scope, name, stamp)
+    admitted = preflight()
+    if admitted['db'] != checkpoint['container_id'] or database_oid(checkpoint['database']) != checkpoint['database_oid']:
+        raise BackupError('Restore completion database identity changed')
+    if scope != STORAGE and scope not in published():
+        raise BackupError('Restore completion environment is no longer published')
+    if checkpoint['status'] == 'completed':
+        verify_completion_success(archive, stamp, record)
+        return record
+    if checkpoint['version'] == 2:
+        import restore_cutover
+        import restore_operation
+        journal = restore_operation.read_journal(STATE, scope)
+        if (journal['backup'], journal['stamp'], journal['stage_oid'], journal['storage_cid']) != \
+                (name, stamp, checkpoint['database_oid'], checkpoint['storage_container_id']) \
+                or journal['phase'] not in ('opened', 'completed'):
+            raise BackupError('Restore cutover requires guarded recover-restore before readiness')
+        restore_cutover.storage(sys.modules[__name__], checkpoint['storage_container_id'])
+    try:
+        if scope == STORAGE:
+            wait_storage(start_storage())
         else:
-            sql(f'ALTER DATABASE {e} ALLOW_CONNECTIONS true;')
-        start_services(e)
-        raise
-    start_services(e)
-    wait_healthy(e)
-    record = {'restored_at': stamp, 'backup': name, 'previous_database': previous, 'previous_files': aside,
-              'counts': manifest['counts']}
-    write_private(path / f'restore-{stamp}.json', json.dumps(record, indent=2) + '\n')
+            if checkpoint['version'] == 2:
+                wait_storage(start_storage())
+            start_services(scope)
+            wait_healthy(scope)
+        atomic_private(archive / ('restore-' + stamp + '.json'), record)
+        checkpoint['status'] = 'completed'
+        atomic_private(completion_path(scope), checkpoint)
+        if checkpoint['version'] == 2:
+            journal['phase'] = 'completed'
+            restore_operation.publish(STATE, journal, atomic_private)
+    except Exception:
+        raise BackupError(f'Data restored; readiness remains pending. Preserve current writes and retry: '
+                          f'backup.py complete-restore {scope} {name} {stamp}') from None
     return record
 
 
@@ -567,54 +792,10 @@ def wait_storage(address, timeout=180):
     raise BackupError('Storage did not come back after the restore')
 
 
-def restore_storage(name, now=None):
-    """Replace ``storage_metadata`` with a backup of it the way ``restore`` replaces an
-    environment's database: the current one is renamed and kept, and any failure puts it back.
-    Storage is stopped meanwhile, so every environment's Storage pauses for the restore."""
-    path = BACKUPS / STORAGE / name
-    manifest = verify_storage(path)
-    missing = [e for e in environments() if e not in manifest['tenants']]
-    if missing:
-        raise BackupError('That backup does not register ' + ', '.join(missing) + ', published now; restoring it '
-                          'would drop their Storage registration. Restore a backup taken after they were created')
-    stamp = (now or datetime.datetime.now(datetime.UTC)).strftime('%Y%m%dt%H%M%Sz')
-    previous = f'{STORAGE_DATABASE}_pre_{stamp}'
-    moved_database = False
-    run(['docker', 'stop', STORAGE_CONTAINER])
-    try:
-        sql(f"ALTER DATABASE {STORAGE_DATABASE} ALLOW_CONNECTIONS false; "
-            f"SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE datname='{STORAGE_DATABASE}';")
-        sql(f'ALTER DATABASE {STORAGE_DATABASE} RENAME TO {previous};')
-        moved_database = True
-        with (path / 'database.dump').open('rb') as handle:
-            run(['docker', 'exec', '-i', DB, 'pg_restore', '-U', 'supabase_admin', '--create', '--exit-on-error',
-                 '-d', 'postgres'], stdin=handle, text=False)
-        # The properties the runtime set (lab/durable_runtime.py), copied from the database being replaced.
-        limit, acl = sql(f"SELECT datconnlimit, coalesce(datacl::text,'') FROM pg_database WHERE datname='{previous}';").split('|')
-        sql(f'ALTER DATABASE {STORAGE_DATABASE} CONNECTION LIMIT {int(limit)}; '
-            f'ALTER DATABASE {STORAGE_DATABASE} ALLOW_CONNECTIONS true; ALTER DATABASE {previous} ALLOW_CONNECTIONS false;')
-        if sql(f"SELECT coalesce(datacl::text,'') FROM pg_database WHERE datname='{STORAGE_DATABASE}';") != acl:
-            raise BackupError('Restored Storage metadata access differs from the database it replaces')
-        if storage_counts() != {'tenants': manifest['counts']['tenants'], 'ids': manifest['tenants']}:
-            raise BackupError('Restored Storage registrations do not match the backup')
-    except BaseException:
-        if moved_database:
-            sql(f"SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE datname='{STORAGE_DATABASE}';")
-            sql(f'DROP DATABASE IF EXISTS {STORAGE_DATABASE} WITH (FORCE);')
-            sql(f'ALTER DATABASE {previous} RENAME TO {STORAGE_DATABASE}; '
-                f'ALTER DATABASE {STORAGE_DATABASE} ALLOW_CONNECTIONS true;')
-        else:
-            sql(f'ALTER DATABASE {STORAGE_DATABASE} ALLOW_CONNECTIONS true;')
-        start_storage()
-        raise
-    wait_storage(start_storage())
-    record = {'restored_at': stamp, 'backup': name, 'previous_database': previous, 'counts': manifest['counts']}
-    write_private(path / f'restore-{stamp}.json', json.dumps(record, indent=2) + '\n')
-    return record
-
-
 def discard_previous_storage():
     """Drop the Storage metadata databases that restores set aside."""
+    no_pending_completion()
+    preflight()
     names = [line for line in sql(f"SELECT datname FROM pg_database WHERE datname LIKE "
                                   f"'{STORAGE_DATABASE}\\_pre\\_%' ESCAPE '\\';").splitlines() if line]
     for name in names:
@@ -624,8 +805,77 @@ def discard_previous_storage():
     return names
 
 
+def fsync_directory(path):
+    fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def restore(e, name, now=None):
+    import restore_cutover
+    return restore_cutover.restore(sys.modules[__name__], e, name, now or datetime.datetime.now(datetime.UTC))
+
+
+def restore_storage(name, now=None):
+    import restore_cutover
+    return restore_cutover.restore(sys.modules[__name__], STORAGE, name, now or datetime.datetime.now(datetime.UTC))
+
+
+def recover_restore(scope, name, stamp):
+    import restore_cutover
+    return restore_cutover.recover(sys.modules[__name__], scope, name, stamp)
+
+
+def restore_status():
+    """Read private state and return sanitized exact commands, without effects."""
+    import restore_operation
+    if STATE.is_symlink():
+        raise BackupError('Restore status state is not private')
+    if not STATE.exists():
+        return []
+    if STATE.is_symlink() or not STATE.is_dir() or STATE.stat().st_mode & 0o777 != 0o700:
+        raise BackupError('Restore status state is not private')
+    pending = {}
+    try:
+        for path in sorted(STATE.glob('restore-operation-*.json')):
+            scope = path.name[len('restore-operation-'):-len('.json')]
+            journal = restore_operation.read_journal(STATE, scope)
+            if journal['phase'] not in ('completed', 'rolled-back'):
+                pending[scope] = {'scope': scope, 'phase': journal['phase'], 'command':
+                    'python3 lab/backup.py recover-restore ' + scope + ' ' + journal['backup'] + ' ' + journal['stamp']}
+    except restore_operation.OperationError:
+        raise BackupError('Restore status operation identity is unverifiable') from None
+    folder = STATE / 'restore-completions'
+    if folder.is_symlink():
+        raise BackupError('Restore status completion folder is unverifiable')
+    if folder.exists():
+        if not folder.is_dir() or folder.stat().st_mode & 0o777 != 0o700:
+            raise BackupError('Restore status completion folder is unverifiable')
+        for path in sorted(folder.iterdir()):
+            if path.is_symlink() or not path.is_file() or path.stat().st_size > 65536:
+                raise BackupError('Restore status completion identity is unverifiable')
+            try:
+                reference = json.loads(path.read_text())
+            except (OSError, ValueError):
+                raise BackupError('Restore status completion identity is unverifiable') from None
+            if not isinstance(reference, dict) or path.name != str(reference.get('scope')) + '.json':
+                raise BackupError('Restore status completion identity is unverifiable')
+            checkpoint, archive, record = load_completion(reference.get('scope'), reference.get('backup'), reference.get('stamp'))
+            if checkpoint['status'] == 'completed':
+                verify_completion_success(archive, checkpoint['stamp'], record)
+            elif checkpoint['scope'] not in pending:
+                scope = checkpoint['scope']
+                pending[scope] = {'scope': scope, 'phase': 'readiness-pending', 'command':
+                    'python3 lab/backup.py complete-restore ' + scope + ' ' + checkpoint['backup'] + ' ' + checkpoint['stamp']}
+    return [pending[key] for key in sorted(pending)]
+
+
 def discard_previous(e):
     """Drop what restores set aside for this environment, once the operator is satisfied."""
+    no_pending_completion()
+    preflight()
     names = [line for line in sql(f"SELECT datname FROM pg_database WHERE datname LIKE '{e}\\_pre\\_%' ESCAPE '\\';").splitlines() if line]
     for name in names:
         if not re.fullmatch(e + r'_pre_\d{8}t\d{6}z', name):
@@ -662,6 +912,15 @@ def main(argv=None):
     shared = sub.add_parser('restore-storage', help="replace Storage's shared metadata database with a backup of it")
     shared.add_argument('backup')
     shared.add_argument('--offsite', action='store_true', help='fetch the backup from the off-host target first')
+    completion = sub.add_parser('complete-restore', help='retry restore readiness without replacing data')
+    completion.add_argument('environment')
+    completion.add_argument('backup')
+    completion.add_argument('stamp')
+    recovery = sub.add_parser('recover-restore', help='recover a fenced cutover from native identities')
+    recovery.add_argument('environment')
+    recovery.add_argument('backup')
+    recovery.add_argument('stamp')
+    sub.add_parser('restore-status', help='show exact pending recovery commands without changing state')
     drop = sub.add_parser('discard-previous')
     drop.add_argument('environment')
     sub.add_parser('offsite-list')
@@ -671,6 +930,13 @@ def main(argv=None):
     key.add_argument('path')
     args = parser.parse_args(argv)
     try:
+        if args.command == 'restore-status':
+            pending = restore_status()
+            for item in pending:
+                print(item['scope'] + ' ' + item['phase'] + ': ' + item['command'])
+            if not pending:
+                print('No pending restore operation')
+            return 0
         if args.command in ('offsite-list', 'offsite-key'):
             import backup_offsite
             if args.command == 'offsite-key':
@@ -694,6 +960,8 @@ def main(argv=None):
                           f"tenants {manifest['counts']['tenants']}"
                           + ('  before an upgrade' if manifest.get('reason') == 'upgrade' else ''))
             return 0
+        if args.command in ('create', 'restore', 'restore-storage', 'discard-previous'):
+            preflight()
         private_dir(BACKUPS)
         with (STATE / 'backup.lock').open('a') as lock:
             try:
@@ -756,6 +1024,16 @@ def main(argv=None):
                 import backup_offsite
                 placed = backup_offsite.fetch(args.backup)
                 print(f"fetched {args.backup}: {', '.join(placed) or 'nothing new, every backup is already here'}")
+                return 0
+            if args.command == 'complete-restore':
+                scope = STORAGE if args.environment == STORAGE else resolve(args.environment)
+                complete_restore(scope, args.backup, args.stamp)
+                print(f'restore readiness completed for {scope}; current data was preserved')
+                return 0
+            if args.command == 'recover-restore':
+                scope = STORAGE if args.environment == STORAGE else resolve(args.environment)
+                result = recover_restore(scope, args.backup, args.stamp)
+                print('restore recovery completed for ' + scope + ': ' + result.get('status', 'restored'))
                 return 0
             if args.command == 'restore':
                 e = resolve(args.environment)

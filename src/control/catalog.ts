@@ -1,6 +1,6 @@
 import {Database} from 'bun:sqlite';
 import {GATEWAY} from '../gateway/shares';
-import {validatePlacement,type RuntimePlacement,type RuntimeRouting} from './placement';
+import {validatePlacement,validatePlacementTransition,resolveRuntimePlacement,placementServices,type RuntimePlacement,type RuntimeRouting} from './placement';
 import {randomUUID,randomBytes,createHash} from 'node:crypto';
 import {chmodSync} from 'node:fs';
 
@@ -1228,8 +1228,10 @@ export class Catalog {
     const row=this.db.query<{revision:number;maintenance:number;placement:string|null},[string]>(
       'SELECT revision,maintenance,placement FROM runtime_routing WHERE runtime=?').get(runtime);
     if(!row)return {revision:0,maintenance:false,placement:null};
-    return {revision:row.revision,maintenance:row.maintenance===1,
+    const routing={revision:row.revision,maintenance:row.maintenance===1,
       placement:row.placement===null?null:validatePlacement(JSON.parse(row.placement))};
+    resolveRuntimePlacement(runtime,routing);
+    return routing;
   }
   /** Trusted operator only. No HTTP exposure; source fencing and drain are separate prerequisites. */
   changeRuntimeRouting(runtime:string,expectedRevision:number,action:'pause'|'stage'|'resume',placement?:RuntimePlacement):number {
@@ -1242,6 +1244,8 @@ export class Catalog {
       const current=this.runtimeRouting(runtime);
       if(current.revision!==expectedRevision)throw new Error('Stale routing revision');
       if(action==='pause'&&current.maintenance||action!=='pause'&&!current.maintenance)throw new Error('Invalid routing transition');
+      if(target)validatePlacementTransition(runtime,current.placement,target);
+      if(action==='resume')placementServices(resolveRuntimePlacement(runtime,current));
       const revision=current.revision+1;
       if(!Number.isSafeInteger(revision))throw new Error('Routing revision exhausted');
       const next=target??current.placement;

@@ -1,9 +1,11 @@
 """Server acceptance entry point: prerequisites, refusals, and no secret leakage.
 
-These run the shipped script for real against the local host; the only checks
-taken from source are the ones that would need a server to observe.
+These execute the shipped shell with isolated prerequisites and preflight
+doubles. Docker and systemd runtime acceptance belongs to the server gate.
 """
 import os
+import shutil
+import sys
 from pathlib import Path
 import stat
 import subprocess
@@ -14,28 +16,36 @@ ROOT=Path(__file__).resolve().parent.parent
 SCRIPT=ROOT/'deploy'/'server-acceptance.sh'
 
 
-def host_python_is_modern():
-    try:
-        result=subprocess.run(['/usr/bin/python3','-c','import sys;print(sys.version_info>=(3,12))'],capture_output=True,text=True,timeout=30)
-    except OSError:
-        return False
-    return result.stdout.strip()=='True'
+class ScriptFixture:
+    """Real shell entry point with isolated command and preflight doubles.
 
+    This tests shell control flow, not Docker or server readiness.
+    """
+    def __init__(self, directory, preflight_status=0):
+        self.root=Path(directory)
+        self.root.mkdir(parents=True,exist_ok=True)
+        for name in ('deploy','lab','bin'):
+            (self.root/name).mkdir()
+        self.script=self.root/'deploy'/'server-acceptance.sh'
+        shutil.copy2(SCRIPT,self.script)
+        (self.root/'deploy'/'sbarbase.service').write_text('[Unit]\n')
+        (self.root/'lab'/'install_server.py').write_text(
+            'import sys\nassert sys.argv[1:]==["check"]\n'
+            +f'print("fixture preflight status {preflight_status}")\n'
+            +f'raise SystemExit({preflight_status})\n')
+        for name,source in {
+            'docker':'#!/bin/sh\nif [ "$1" = "info" ]; then echo linux; else echo Docker-fixture; fi\n',
+            'bun':'#!/bin/sh\necho Bun-fixture\n',
+        }.items():
+            path=self.root/'bin'/name
+            path.write_text(source)
+            path.chmod(0o755)
 
-def docker_answers():
-    try:
-        return subprocess.run(['docker','info'],capture_output=True,timeout=30).returncode==0
-    except (OSError,subprocess.TimeoutExpired):
-        return False
-
-
-# The script checks /usr/bin/python3 and then the Docker daemon before it reads any
-# argument's file, so a refusal that comes later can only be observed on a host that
-# passes both checks.
-MODERN_PYTHON=host_python_is_modern()
-DOCKER=docker_answers()
-HOST_GAPS=', '.join(gap for gap,missing in (('/usr/bin/python3 is older than 3.12',not MODERN_PYTHON),
-                                            ('no Docker daemon answers',not DOCKER)) if missing)
+    def run(self,*args):
+        environment=dict(os.environ)
+        environment['PATH']=str(self.root/'bin')+os.pathsep+environment.get('PATH','')
+        return subprocess.run([str(self.script),'--python',sys.executable,*args],
+                              capture_output=True,text=True,timeout=30,env=environment)
 
 
 def run(*args,env=None):
@@ -66,13 +76,13 @@ class ServerAcceptanceTests(unittest.TestCase):
         self.assertNotEqual(result.returncode,0)
         self.assertIn('is not on PATH',result.stderr)
 
-    @unittest.skipUnless(MODERN_PYTHON and DOCKER,'the script refuses this host first: '+HOST_GAPS)
     def test_a_world_readable_bootstrap_file_is_refused(self):
         with tempfile.TemporaryDirectory() as directory:
             path=Path(directory)/'operator.json'
             path.write_text('{"note":"placeholder"}')
             path.chmod(0o644)
-            result=run('--bootstrap-file',str(path))
+            fixture=ScriptFixture(Path(directory)/'fixture')
+            result=fixture.run('--bootstrap-file',str(path))
             self.assertNotEqual(result.returncode,0)
             self.assertIn('mode 600',result.stderr)
             self.assertNotIn('placeholder',result.stdout+result.stderr)
@@ -90,15 +100,23 @@ class ServerAcceptanceTests(unittest.TestCase):
             self.assertNotIn(leak,source)
         self.assertIn('contents never printed',source)
 
-    @unittest.skipUnless(MODERN_PYTHON and DOCKER,'the script refuses this host first: '+HOST_GAPS)
-    def test_the_prerequisite_step_passes_on_this_host_so_preflight_speaks_next(self):
-        result=run()
-        output=result.stdout+result.stderr
-        self.assertIn('ok: docker',output)
-        self.assertIn('ok: /usr/bin/python3',output)
-        self.assertIn('read-only preflight',output)
-        # Either the host admits the plan, or the refusal is stated as a blocker.
-        self.assertTrue('Preflight: 0 blocker' in output or 'FAIL: preflight refused' in output)
+    def test_prerequisites_reach_preflight_and_preserve_its_result(self):
+        for status in (0,7):
+            with self.subTest(status=status), tempfile.TemporaryDirectory() as directory:
+                fixture=ScriptFixture(directory,status)
+                result=fixture.run()
+                output=result.stdout+result.stderr
+                self.assertIn('ok: docker daemon linux',output)
+                self.assertIn('ok: '+sys.executable,output)
+                self.assertIn('read-only preflight',output)
+                self.assertIn(f'fixture preflight status {status}',output)
+                if status:
+                    self.assertNotEqual(result.returncode,0)
+                    self.assertIn('FAIL: preflight refused',result.stderr)
+                    self.assertNotIn('Preflight passed.',output)
+                else:
+                    self.assertEqual(result.returncode,0,result.stderr)
+                    self.assertIn('Preflight passed.',output)
 
 
 class AcceptanceScriptContractTests(unittest.TestCase):

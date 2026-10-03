@@ -84,13 +84,16 @@ class LaunchFlagTests(unittest.TestCase):
         from types import SimpleNamespace
         import durable_runtime as runtime
         target = runtime.Runtime.__new__(runtime.Runtime)
-        target.pins = {'auth': {'id': 'fixture'}}
+        digest = 'sha256:' + 'a' * 64
+        reference = 'docker.io/supabase/gotrue@' + digest
+        target.pins = {'auth': {'id': digest, 'tag': 'supabase/gotrue:v1', 'digests': [reference]}}
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         with patch.object(runtime, 'inspect', return_value=None), \
              patch.object(runtime, 'PRIVATE', Path(directory.name)), \
              patch.object(runtime.lab, 'docker') as docker:
-            docker.return_value = SimpleNamespace(stdout='fixture-id\n')
+            docker.side_effect = lambda *args, **kwargs: (SimpleNamespace(returncode=0, stderr='', stdout=json.dumps([{'Id': 'sha256:' + 'b' * 64, 'RepoDigests': [reference]}]))
+                                                        if args[:2] == ('image', 'inspect') else SimpleNamespace(stdout='fixture-id\n'))
             target.launch(name, 'auth', {}, memory, cpus, tier=tier)
         return runtime, docker
 
@@ -406,15 +409,56 @@ class BlockIOLimits(unittest.TestCase):
             with self.assertRaisesRegex(policy.ResourcePolicyError, 'io_device_unavailable'):
                 policy.io_flags('production')
 
+    def test_a_missing_volume_root_never_resolves_its_existing_parent(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            missing = Path(directory) / 'missing-volume-root'
+            with patch.object(policy, '_findmnt', return_value='/dev/fixture') as findmnt, \
+                 patch.object(policy, 'numbers', return_value='8:1') as numbers, \
+                 patch.object(policy, 'known_block_device', return_value=True), \
+                 patch.object(policy, 'whole_disk', return_value='/dev/fixture'):
+                self.assertIsNone(policy.io_device(missing))
+                findmnt.assert_not_called()
+                numbers.assert_not_called()
+
+    def test_a_file_is_not_a_volume_root(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            file = Path(directory) / 'not-a-directory'
+            file.write_text('fixture')
+            with patch.object(policy, '_findmnt', return_value='/dev/fixture') as findmnt, \
+                 patch.object(policy, 'numbers', return_value='8:1') as numbers, \
+                 patch.object(policy, 'known_block_device', return_value=True), \
+                 patch.object(policy, 'whole_disk', return_value='/dev/fixture'):
+                self.assertIsNone(policy.io_device(file))
+                findmnt.assert_not_called()
+                numbers.assert_not_called()
+
+    def test_an_existing_custom_volume_root_is_the_exact_discovery_target(self):
+        import tempfile
+        from unittest.mock import Mock
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / 'custom volume root'
+            root.mkdir()
+            runner = Mock(return_value='/dev/fixture')
+            with patch.object(policy, '_findmnt') as findmnt, \
+                 patch.object(policy, 'numbers') as numbers, \
+                 patch.object(policy, 'known_block_device', return_value=True), \
+                 patch.object(policy, 'whole_disk', return_value='/dev/fixture'):
+                self.assertEqual(policy.io_device(root, runner=runner), '/dev/fixture')
+                runner.assert_called_once_with(str(root))
+                findmnt.assert_not_called()
+                numbers.assert_not_called()
+
     def test_io_device_takes_the_device_from_a_subvolume_mount_source(self):
-        # This host's own device is the fixture, with a subvolume suffix added,
-        # because io_device refuses a device path that does not exist.
-        source = policy._findmnt('/')
-        if not source or not source.startswith('/dev/'):
-            self.skipTest('this host reports no device source for /')
-        device = source.split('[')[0]
-        # A partition resolves to its whole disk, which is what io.max accepts.
-        self.assertEqual(policy.io_device('/', runner=lambda target: device + '[/root]'), policy.whole_disk(device))
+        # Subvolume parsing must run even when the test container uses overlayfs.
+        # Device existence and partition mapping are separate filesystem boundaries.
+        with patch('resource_policy.known_block_device',
+                   side_effect=lambda value: value in ('/dev/vda3', '/dev/vda')), \
+                patch('resource_policy.whole_disk', return_value='/dev/vda') as whole:
+            self.assertEqual(policy.io_device('/', runner=lambda target: '/dev/vda3[/root]'),
+                             '/dev/vda')
+        whole.assert_called_once_with('/dev/vda3')
 
     def test_a_partition_is_limited_through_its_whole_disk(self):
         # Mirrors sysfs: /sys/class/block/vda3 links into the disk's own directory.
@@ -478,3 +522,28 @@ class BlockIOLimits(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class DeviceProfileCache(unittest.TestCase):
+    def test_cache_separates_normalized_roots_and_daemon_identities(self):
+        import docker_profile
+        policy._device.clear()
+        self.addCleanup(policy._device.clear)
+        profiles = [docker_profile.DockerProfile('/srv/root one', '/run/docker.sock', True),
+                    docker_profile.DockerProfile('/srv/root two', '/run/docker.sock', True),
+                    docker_profile.DockerProfile('/srv/root one', '/run/docker.sock', True)]
+        with patch('docker_profile.from_environment', side_effect=profiles), \
+                patch('docker_profile.configured', return_value=True), \
+                patch('docker_profile.validated_identity', side_effect=['daemon-a', 'daemon-a', 'daemon-b']), \
+                patch.object(policy, 'io_device', side_effect=['/dev/a', '/dev/b', '/dev/c']) as probe:
+            self.assertEqual([policy.device() for _ in range(3)], ['/dev/a', '/dev/b', '/dev/c'])
+            self.assertEqual([call.args for call in probe.call_args_list],
+                             [('/srv/root one',), ('/srv/root two',), ('/srv/root one',)])
+
+    def test_container_policy_refuses_profile_before_device_discovery(self):
+        import docker_profile
+        with patch('docker_profile.from_environment', side_effect=docker_profile.ProfileError('docker_endpoint_override')), \
+                patch.object(policy, 'io_device') as probe:
+            with self.assertRaisesRegex(policy.ResourcePolicyError, 'docker_endpoint_override'):
+                policy.device()
+            probe.assert_not_called()

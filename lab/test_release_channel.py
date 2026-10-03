@@ -67,7 +67,7 @@ def comments_only(path):
 
 
 def pin(tag, digit):
-    return {'tag': tag, 'id': 'sha256:' + digit * 64}
+    return {'tag': tag, 'id': 'sha256:' + digit * 64, 'digests': [tag.rsplit(':', 1)[0] + '@sha256:' + digit * 64]}
 
 
 def manifest(version, minimum_from='0.1.0', migrations=()):

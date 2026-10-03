@@ -5,6 +5,9 @@ describes is on main and its evidence is committed under `docs/evidence/`.
 
 | Date | File | Topic | Status |
 |---|---|---|---|
+| 2026-10-03 | [gauntlet-execution-method](2026-10-03-gauntlet-execution-method.md) | Linux Docker-only execution, named Supabase reference, independent critics, reproducible tests and complete acceptance scope | execution contract; bounded source verifier implemented; full runtime and release gates remain open |
+| 2026-10-03 | [native-placement-identity](2026-10-03-native-placement-identity.md) | Catalog authority, explicit legacy identity, versioned engine/application/maintenance declaration and protected read-only routing | implemented and independently accepted for read-only declarations/routing; native activation and remaining consumers unaccepted |
+| 2026-10-03 | [product-and-portability-plan](2026-10-03-product-and-portability-plan.md) | current community evidence, cloud compatibility, supported environments, recovery, guided operations and staged multi-server growth | research-backed proposal; no new runtime or release acceptance |
 | 2026-09-25 | [update-channel](2026-09-25-update-channel.md) | release channel, console update notice, one-click and opt-in automatic updates with a lossless way back | built ([UPDATE-CHANNEL](../UPDATE-CHANNEL.md)); CI cases passed on a clean machine, and the VM rehearsal through the console and automatic mode on 2026-09-26; no real server yet |
 | 2026-09-23 | [roadmap](2026-09-23-roadmap.md) | milestones in order: a real server, backups as a feature, Studio per environment, upgrades, onboarding | active; the next step for agents |
 | 2026-09-23 | [verification-and-migration-plan](2026-09-23-verification-and-migration-plan.md) | verification run, hierarchy follow-ups, competitors, `sbarbase import` design, ordered steps | proposal, partly done |

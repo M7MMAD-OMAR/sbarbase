@@ -16,6 +16,7 @@ autoconfirm override, and the four states the console renders.
 """
 import json
 import os
+import shutil
 import stat
 import subprocess
 import sys
@@ -325,20 +326,26 @@ class CommandTests(unittest.TestCase):
     """The command surface, exercised the way an operator would run it."""
 
     def setUp(self):
-        # A directory git already ignores, so the ignore guard is really exercised.
-        self.directory = ROOT / 'lab' / '__pycache__' / 'mail-config-tests'
+        # Exercise the real Git guard in an isolated repository, even when the
+        # distributed checkout has no Git metadata. Copy only code and ignore rules.
+        temporary = tempfile.TemporaryDirectory(prefix='sbarbase-mail-config-')
+        self.addCleanup(temporary.cleanup)
+        self.fixture = Path(temporary.name)
+        (self.fixture / 'lab').mkdir()
+        self.tool = self.fixture / 'lab' / 'mail_config.py'
+        shutil.copyfile(TOOL, self.tool)
+        shutil.copyfile(ROOT / '.gitignore', self.fixture / '.gitignore')
+        self.git_env = {key: value for key, value in os.environ.items() if not key.startswith('GIT_')}
+        self.git_env.update(GIT_CONFIG_NOSYSTEM='1', GIT_CONFIG_GLOBAL=os.devnull)
+        subprocess.run(['git', 'init', '-q', str(self.fixture)], env=self.git_env,
+                       capture_output=True, check=True)
+        self.directory = self.fixture / '.secrets'
         self.directory.mkdir(parents=True, exist_ok=True)
-        self.addCleanup(self.remove_directory)
         self.path = self.directory / (RUNTIME_ID + '-mail.json')
 
-    def remove_directory(self):
-        for entry in sorted(self.directory.glob('*')):
-            entry.unlink()
-        self.directory.rmdir()
-
     def run_tool(self, *args, **kwargs):
-        return subprocess.run([sys.executable, str(TOOL), *args], input=kwargs.pop('data', b''),
-                              capture_output=True, **kwargs)
+        return subprocess.run([sys.executable, str(self.tool), *args], input=kwargs.pop('data', b''),
+                              env=self.git_env, cwd=self.fixture, capture_output=True, **kwargs)
 
     def test_write_then_show_prints_pass_set_and_never_the_password(self):
         written = self.run_tool('write', str(self.path), '--stdin', data=json.dumps(CONFIG).encode())
@@ -383,11 +390,19 @@ class CommandTests(unittest.TestCase):
 
     def test_a_path_git_does_not_ignore_is_refused(self):
         with tempfile.TemporaryDirectory() as outside:
-            path = Path(outside) / (RUNTIME_ID + '-mail.json')
-            result = self.run_tool('write', str(path), '--stdin', data=json.dumps(CONFIG).encode())
-            self.assertEqual(result.returncode, 1)
-            self.assertIn('ignored', result.stderr.decode())
-            self.assertFalse(path.exists())
+            for path in (self.fixture / (RUNTIME_ID + '-mail.json'),
+                         Path(outside) / (RUNTIME_ID + '-mail.json')):
+                result = self.run_tool('write', str(path), '--stdin', data=json.dumps(CONFIG).encode())
+                self.assertEqual(result.returncode, 1)
+                self.assertIn('ignored', result.stderr.decode())
+                self.assertFalse(path.exists())
+
+    def test_a_checkout_without_git_metadata_refuses_the_write(self):
+        shutil.rmtree(self.fixture / '.git')
+        result = self.run_tool('write', str(self.path), '--stdin', data=json.dumps(CONFIG).encode())
+        self.assertEqual(result.returncode, 1)
+        self.assertIn('ignored', result.stderr.decode())
+        self.assertFalse(self.path.exists())
 
     def test_a_relative_path_is_refused(self):
         result = self.run_tool('write', RUNTIME_ID + '-mail.json', '--stdin', data=json.dumps(CONFIG).encode())
@@ -525,8 +540,10 @@ class LaunchMailDriftTests(unittest.TestCase):
     def launch(self, retained, desired):
         import durable_runtime as runtime
         target = runtime.Runtime.__new__(runtime.Runtime)
-        target.pins = {'auth': {'id': 'fixture'}}
-        actual = {'Id': 'cid-retained', 'Image': 'sha256:fixture',
+        digest = 'sha256:' + 'a' * 64
+        reference = 'docker.io/supabase/gotrue@' + digest
+        target.pins = {'auth': {'id': digest, 'tag': 'supabase/gotrue:v1', 'digests': [reference]}}
+        actual = {'Id': 'cid-retained', 'Image': 'sha256:' + 'b' * 64,
                   'Config': {'Labels': {'io.sbarbase.owner': runtime.OWNER}, 'Env': list(retained)},
                   'Mounts': [], 'NetworkSettings': {'Networks': {runtime.NETWORK: {}}}}
         self.calls = []
@@ -534,7 +551,7 @@ class LaunchMailDriftTests(unittest.TestCase):
         def docker(*arguments, **kwargs):
             self.calls.append(arguments)
             if arguments[:2] == ('image', 'inspect'):
-                return SimpleNamespace(returncode=0, stdout=json.dumps([{'Id': 'sha256:fixture'}]))
+                return SimpleNamespace(returncode=0, stdout=json.dumps([{'Id': 'sha256:' + 'b' * 64, 'RepoDigests': [reference]}]))
             return SimpleNamespace(returncode=0, stdout='')
 
         with patch.object(runtime, 'inspect', return_value=actual), \

@@ -1,0 +1,8 @@
+# Only local public-image inspection uses a daemon socket.
+ARG SOURCE_VERIFY_IMAGE=sbarbase-source-verify:required-source-image
+FROM docker:29-cli@sha256:b1805116a6a86cc591b5d5f60a910a0715cdcc9d18d866ad68b1457ead25c35c AS cli
+FROM ${SOURCE_VERIFY_IMAGE}
+USER root
+COPY --from=cli /usr/local/bin/docker /usr/local/bin/docker
+RUN docker --version && chown 0:0 /evidence
+ENTRYPOINT ["/usr/bin/python3", "deploy/verify/image_identity_inspect.py"]

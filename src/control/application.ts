@@ -1,4 +1,5 @@
 import {Catalog} from './catalog';
+import {resolveRuntimePlacement,placementServices,PlacementUnavailable} from './placement';
 import {KeyStore} from './keys';
 import {managementIdentity} from './auth';
 import {controlHandler} from './handler';
@@ -26,15 +27,23 @@ export function application(catalog:Catalog,keys:KeyStore,realm:ManagementRealm,
  }) as typeof fetch;
  const identity=managementIdentity('http://management.internal',realm.publishableKey,identityTransport);
  const control=controlHandler(catalog,keys,identity,runtime=>{
-  const routing=catalog.runtimeRouting(runtime);
-  if(routing.maintenance)throw new Error('Runtime under maintenance');
-  const route=routeWithPlacement(resolve(runtime),routing);
-  if(!route||!route.enabled)throw new Error('Runtime routing unavailable');
-  return [...(route.storage?['auth','rest','storage'] as const:['auth','rest'] as const),...(route.realtime?['realtime'] as const:[]),...(route.functions?['functions'] as const:[])];
+  try {
+   const routing=catalog.runtimeRouting(runtime);
+   const resolved=resolveRuntimePlacement(runtime,routing);
+   placementServices(resolved);
+   if(routing.maintenance)throw new Error('Runtime under maintenance');
+   const route=routeWithPlacement(resolve(runtime),routing,resolved);
+   if(!route||!route.enabled)throw new Error('Runtime routing unavailable');
+   return [...(route.storage?['auth','rest','storage'] as const:['auth','rest'] as const),...(route.realtime?['realtime'] as const:[]),...(route.functions?['functions'] as const:[])];
+  }catch(error){throw error instanceof PlacementUnavailable?error:new PlacementUnavailable();}
  },studioKey,requests,containers,accounts);
  // Each environment's answers are counted for its logs and metrics (src/gateway/observe.ts).
  const gateway=observedGateway(managedGateway(catalog,keys,resolve,transport),requests,runtime=>{
-  try{return !!resolve(runtime);}catch{return false;}
+  try{
+   const routing=catalog.runtimeRouting(runtime);
+   if(routing.maintenance)return false;
+   placementServices(resolveRuntimePlacement(runtime,routing));return !!resolve(runtime);
+  }catch{return false;}
  });
  const login=createGateway(new Map([['management',{
   auth:realm.auth,rest:realm.auth,keys:[realm.publishableKey],anonymousToken:realm.anonymousToken,enabled:true

@@ -48,6 +48,7 @@ import effect_receipt
 import hba_generation
 import hba_journal
 import install_server
+import image_identity
 import release_channel
 import run as lab
 import upgrade_guard
@@ -107,27 +108,64 @@ def resolve(ref):
 
 
 def pins_at(commit):
-    """The exact image each replaceable service runs at a commit."""
+    """Logical service pins from fully validated version locks, never daemon IDs."""
+    images = {label: logical_id for label, logical_id, _reference in images_at(commit)}
+    present = {label.split(':', 1)[0] for label in images}
     pins = {}
     for service, (name, key) in SERVICES.items():
-        lock = release_channel.lock_at(commit, name)
-        if lock is None:
-            # That version does not run this service at all (Realtime before it existed).
+        if name not in present:
+            # An absent historical feature lock means that version did not ship it.
             continue
-        entry = lock if key is None else lock.get(key)
-        if not isinstance(entry, dict) or not isinstance(entry.get('id'), str):
+        label = f'{name}:{key if key is not None else "default"}'
+        if label not in images:
             raise UpgradeError(f'Version {commit[:12]} has no pin for {service}')
-        pins[service] = entry['id']
+        pins[service] = images[label]
     return pins
 
 
+def historical_lock_at(commit, name):
+    """Distinguish absent feature files from unreadable or malformed version proof."""
+    path = f'lab/{name}'
+    present = git('ls-tree', '--name-only', commit, '--', path)
+    if not present:
+        if name == 'images.lock.json':
+            raise UpgradeError(f'Version {commit[:12]} has no core image lock {name}')
+        return None
+    if present != path:
+        raise UpgradeError(f'Version {commit[:12]} has ambiguous image lock path {name}')
+    contents = git('show', f'{commit}:{path}')
+    try:
+        lock = json.loads(contents)
+    except (ValueError, TypeError) as error:
+        raise UpgradeError(f'Version {commit[:12]} has invalid JSON in image lock {name}') from error
+    if not isinstance(lock, dict) or not lock:
+        raise UpgradeError(f'Version {commit[:12]} has an invalid image lock {name}')
+    return lock
+
+
 def images_at(commit):
-    """Every pinned image of a version, as (label, id, pullable reference)."""
+    """Every declared pin at a version, with validated immutable repository proof.
+
+    Historical versions may omit feature lock files they did not ship. A present
+    lock must prove every entry; malformed entries are never silently filtered.
+    """
     found = []
     for name in install_server.LOCKS:
-        for key, entry in release_channel.entries(release_channel.lock_at(commit, name)).items():
-            digests = [item for item in entry.get('digests') or [] if isinstance(item, str) and '@sha256:' in item]
-            found.append((f'{name}:{key}', entry['id'], digests[0] if digests else entry['id']))
+        lock = historical_lock_at(commit, name)
+        if lock is None:
+            continue
+        if not isinstance(lock, dict) or not lock:
+            raise UpgradeError(f'Version {commit[:12]} has an invalid image lock {name}')
+        entries = {'default': lock} if 'id' in lock else lock
+        for key, entry in entries.items():
+            label = f'{name}:{key}'
+            try:
+                reference = image_identity.reference(entry)
+            except image_identity.IdentityError as error:
+                raise UpgradeError(f'Version {commit[:12]} has an invalid image lock {label}: {error}') from error
+            found.append((label, entry['id'], reference))
+    if not found:
+        raise UpgradeError(f'Version {commit[:12]} has no image locks')
     return found
 
 
@@ -408,9 +446,26 @@ def report(details, target_ref):
 
 
 def pull(commit):
-    for number, (label, image, reference) in enumerate(images_at(commit), 1):
-        if lab.docker('image', 'inspect', image, check=False).returncode:
-            install_server.pull_image(label, reference, f'{number}')
+    """Admit all exact references before downloads or upgrade lifecycle effects."""
+    images = images_at(commit)
+    missing = []
+    try:
+        for number, (label, _logical_id, reference) in enumerate(images, 1):
+            result = lab.docker('image', 'inspect', reference, check=False)
+            if result.returncode:
+                if not image_identity.is_missing(reference, result.stdout, result.stderr):
+                    raise image_identity.inspection_failure(reference, result.stdout, result.stderr)
+                missing.append((number, label, reference))
+            else:
+                image_identity.resolved_id(reference, image_identity.record(result.stdout))
+        for number, label, reference in missing:
+            install_server.pull_image(label, reference, str(number))
+            result = lab.docker('image', 'inspect', reference, check=False)
+            if result.returncode:
+                raise image_identity.inspection_failure(reference, result.stdout, result.stderr)
+            image_identity.resolved_id(reference, image_identity.record(result.stdout))
+    except image_identity.IdentityError as error:
+        raise UpgradeError(str(error)) from error
 
 
 def back_up():

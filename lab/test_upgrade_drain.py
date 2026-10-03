@@ -36,13 +36,18 @@ def ended(process):
         time.sleep(.02)
 
 
-class DrainTests(Private):
+class DrainFixture(Private):
+    """Select the checkout explicitly, independent of the machine running the tests."""
+
+    checkout_commit = 'e' * 40
+
     def setUp(self):
         super().setUp()
         self.upstream = self.folder.parent / 'upstream'
         self.upstream.mkdir()
         for item in (patch.object(upgrade, 'UPSTREAM', self.upstream), patch.object(upgrade, 'BACKUP_LOCK', self.upstream / 'backup.lock'),
-                     patch.object(upgrade, 'LOCK', self.folder / 'upgrade.lock'), patch.object(dev, 'STATE', self.upstream)):
+                     patch.object(upgrade, 'LOCK', self.folder / 'upgrade.lock'), patch.object(dev, 'STATE', self.upstream),
+                     patch.object(dev, 'checkout_head', return_value=self.checkout_commit)):
             item.start()
             self.addCleanup(item.stop)
         self.put('settings.json', {'check': False, 'automatic': False, 'window': {'start': '03:00', 'end': '05:00'}})
@@ -66,6 +71,10 @@ class DrainTests(Private):
         with contextlib.redirect_stdout(io.StringIO()):
             self.supervisor.check()
             self.supervisor.schedule_updates(at(12))
+
+
+class DrainTests(DrainFixture):
+    """A verified host checkout may resume provisioning after a refused update."""
 
     def test_the_update_waits_for_the_worker_to_finish_its_job_and_stop(self):
         updates.create_request('apply', '0.2.0', moment=at(12))
@@ -276,6 +285,50 @@ class FirstStartTests(Checkout):
             upgrade.start(self.second, trigger='console')
         self.assertNotIn('restart it now', output.getvalue())
 
+
+class DockerDrainTests(DrainFixture):
+    """An unverifiable source-only Docker checkout must not resume its old worker."""
+
+    checkout_commit = None
+
+    def assert_stops_without_resuming(self):
+        self.assertTrue(self.supervisor.restart_for_upgrade)
+        self.assertTrue(self.supervisor.stop_event.is_set())
+        self.assertIsNone(self.supervisor.worker)
+        self.assertIsNone(self.supervisor.drain)
+        self.assertFalse((self.upstream / 'worker-drain').exists())
+        self.assertEqual(self.workers, [])
+        self.assertIsNone(updates.read_request())
+
+    def test_a_failed_upgrade_child_restarts_without_resuming_provisioning(self):
+        self.outcome = 1
+        updates.create_request('apply', '0.2.0', moment=at(12))
+        self.turn()
+        ended(self.supervisor.worker)
+        self.turn()
+        self.turn()
+        last = self.get('last-request.json')
+        self.assertEqual((last['state'], last['detail']),
+                         ('failed', 'It stopped without saying why. '
+                          'Sbarbase restarts so the checkout is settled before anything else runs.'))
+        self.assertEqual(len(self.spawned), 1)
+        self.assert_stops_without_resuming()
+
+    def test_a_drain_timeout_restarts_without_launching_an_upgrade_or_worker(self):
+        updates.create_request('apply', '0.2.0', moment=at(12))
+        (self.upstream / 'worker-effect.json').write_text('{}')
+        self.turn()
+        ended(self.supervisor.worker)
+        self.turn()
+        self.supervisor.drain['until'] = time.monotonic() - 1
+        self.turn()
+        last = self.get('last-request.json')
+        self.assertEqual((last['state'], last['detail']),
+                         ('failed', f'Provisioning or another operation did not finish within {dev.DRAIN_SECONDS // 60} minutes, '
+                          'so nothing was changed. Try again later.'))
+        self.assertTrue((self.upstream / 'worker-effect.json').exists())
+        self.assertEqual(self.spawned, [])
+        self.assert_stops_without_resuming()
 
 if __name__ == '__main__':
     unittest.main()

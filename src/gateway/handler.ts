@@ -101,6 +101,39 @@ export function createGateway(registry:RouteRegistry, transport:typeof fetch = f
   return async (request:Request):Promise<Response> => withCors(await handle(request),request);
 }
 
+/** Shared gateway admission preserves public Auth, Storage and Function routes. */
+export function gatewayKeyAccess(request:Request,service:string,path:string,verifyKey:(key:string)=>boolean):Response|{apiKey:string|null;keylessFunction:boolean} {
+  if(service==='functions'&&!FUNCTION_NAME.test(path.split('/')[1]??''))return error(404,'Function not found');
+  if(service==='realtime'&&!(path==='/api/broadcast'&&request.method==='POST'))return error(404,'Unknown route');
+  if(request.method==='OPTIONS')return {apiKey:null,keylessFunction:false};
+  const url=new URL(request.url);
+  const apiKey = request.headers.get('apikey');
+  const readMethod=request.method==='GET'||request.method==='HEAD';
+  const signedTokens=url.searchParams.getAll('token');
+  const publicStorageRead=service==='storage'&&readMethod&&(
+    /^\/object\/public\/[^/]+\/.+/.test(path)||
+    /^\/object\/sign\/[^/]+\/.+/.test(path)&&signedTokens.length===1&&
+    !!signedTokens[0]&&signedTokens[0].length<=8192);
+  // A browser reaches these by following a link or a redirect, so it cannot send a key:
+  // an email link (verify), the start of an OAuth sign-in (authorize) and the provider's
+  // return (callback, which Apple posts as a form). Auth checks each one itself.
+  const browserAuthStep=service==='auth'&&(readMethod&&/^\/(authorize|verify|callback)$/.test(path)||
+    request.method==='POST'&&path==='/callback');
+  // A function may be called without a key (a payment provider's webhook, say): the function's
+  // own verify_jwt setting decides, in the Edge Functions runtime, as on Supabase.
+  const keylessFunction=service==='functions'&&apiKey===null;
+  // Public object visibility and signed-token validity are enforced by Storage.
+  // No exception exists for writes, listing, signing, or authenticated paths.
+  if(apiKey!==null) {
+    if(!apiKey||apiKey.length>8192) return error(401,'Invalid API key');
+    let keyAccepted=false;
+    try {keyAccepted=verifyKey(apiKey);}
+    catch {return error(503,'Key verification unavailable');}
+    if(!keyAccepted) return error(401,'Invalid API key');
+  } else if(!publicStorageRead&&!browserAuthStep&&!keylessFunction) return error(401,'Invalid API key');
+  return {apiKey,keylessFunction};
+}
+
 function gatewayHandler(registry:RouteRegistry, transport:typeof fetch, verifyKey:((environment:string,key:string)=>boolean)|undefined, bodyReadTimeoutMs:number, concurrency:ConcurrencyGate, uploadBytes:number) {
   return async (request:Request):Promise<Response> => {
     const url = new URL(request.url);
@@ -117,30 +150,9 @@ function gatewayHandler(registry:RouteRegistry, transport:typeof fetch, verifyKe
     if (!route || !route.enabled) return error(404,'Unknown route');
     // A browser asks before a cross-origin call; the answer carries no data and needs no key.
     if (request.method === 'OPTIONS') return new Response(null,{status:204,headers:{'cache-control':'no-store'}});
-    const apiKey = request.headers.get('apikey');
-    const readMethod=request.method==='GET'||request.method==='HEAD';
-    const signedTokens=url.searchParams.getAll('token');
-    const publicStorageRead=service==='storage'&&readMethod&&(
-      /^\/object\/public\/[^/]+\/.+/.test(path)||
-      /^\/object\/sign\/[^/]+\/.+/.test(path)&&signedTokens.length===1&&
-        !!signedTokens[0]&&signedTokens[0].length<=8192);
-    // A browser reaches these by following a link or a redirect, so it cannot send a key:
-    // an email link (verify), the start of an OAuth sign-in (authorize) and the provider's
-    // return (callback, which Apple posts as a form). Auth checks each one itself.
-    const browserAuthStep=service==='auth'&&(readMethod&&/^\/(authorize|verify|callback)$/.test(path)||
-      request.method==='POST'&&path==='/callback');
-    // A function may be called without a key (a payment provider's webhook, say): the function's
-    // own verify_jwt setting decides, in the Edge Functions runtime, as on Supabase.
-    const keylessFunction=service==='functions'&&apiKey===null;
-    // Public object visibility and signed-token validity are enforced by Storage.
-    // No exception exists for writes, listing, signing, or authenticated paths.
-    if(apiKey!==null) {
-      if(!apiKey||apiKey.length>8192) return error(401,'Invalid API key');
-      let keyAccepted=false;
-      try {keyAccepted=verifyKey?verifyKey(environment,apiKey):route.keys.some(key=>matches(key,apiKey));}
-      catch {return error(503,'Key verification unavailable');}
-      if(!keyAccepted) return error(401,'Invalid API key');
-    } else if(!publicStorageRead&&!browserAuthStep&&!keylessFunction) return error(401,'Invalid API key');
+    const access=gatewayKeyAccess(request,service,path,key=>verifyKey?verifyKey(environment,key):route.keys.some(candidate=>matches(candidate,key)));
+    if(access instanceof Response)return access;
+    const {apiKey,keylessFunction}=access;
     // Never let a forwarded path or absolute URL choose the upstream host.
     if (path.includes('\\') || /%2f|%5c|%00/i.test(path)) return error(400,'Invalid path');
     if (!['GET','HEAD','POST','PUT','PATCH','DELETE'].includes(request.method)) return error(405,'Method not allowed');

@@ -27,6 +27,8 @@ from pathlib import Path
 
 import console_build_check
 import pinned_images_check
+import docker_profile
+import image_identity
 ROOT=Path(__file__).resolve().parent.parent
 STATE=ROOT/'.lab'/'upstream'
 PRIVATE=ROOT/'.secrets'/'upstream'
@@ -49,18 +51,18 @@ def docker(*args,**kwargs):
 
 def pinned_images():
     """Every pinned component with a pullable 'repository@sha256:...' reference."""
-    result=[]
+    references=[]
     for lock in LOCKS:
         entry=json.loads((ROOT/'lab'/lock).read_text())
-        for key,value in entry.items():
-            if isinstance(value,dict) and isinstance(value.get('id'),str):
-                result.append((lock+':'+key,value))
-            elif key=='id' and isinstance(value,str):
-                result.append((lock+':default',entry))
-    references=[]
-    for label,value in result:
-        digests=[item for item in value.get('digests') or [] if isinstance(item,str) and '@sha256:' in item]
-        references.append((label,value['id'],digests[0] if digests else value['id']))
+        if not isinstance(entry,dict) or not entry:
+            raise image_identity.IdentityError('Invalid image lock '+lock)
+        entries={'default':entry} if 'id' in entry else entry
+        for key,value in entries.items():
+            label=lock+':'+key
+            try:reference=image_identity.reference(value)
+            except image_identity.IdentityError as error:
+                raise image_identity.IdentityError('Invalid image lock '+label+': '+str(error)) from error
+            references.append((label,value['id'],reference))
     return references
 
 
@@ -87,8 +89,13 @@ def versions():
 
 
 def resolved_endpoint():
-    """The socket the docker context resolves to, readable even without a daemon."""
-    result=docker('context','inspect','--format','{{.Endpoints.docker.Host}}',check=False)
+    """The effective CLI endpoint, including explicit context precedence."""
+    context=os.environ.get('DOCKER_CONTEXT')
+    if not context and os.environ.get('DOCKER_HOST'):
+        return os.environ['DOCKER_HOST']
+    args=['context','inspect']
+    if context:args.append(context)
+    result=docker(*args,'--format','{{.Endpoints.docker.Host}}',check=False)
     return result.stdout.strip() or 'the docker context endpoint (unresolved)'
 
 
@@ -96,22 +103,43 @@ def daemon():
     findings=[]
     result=docker('info','--format','{{json .}}',check=False)
     if result.returncode:
-        # A service does not inherit the caller's shell; name what was tried.
-        endpoint=os.environ.get('DOCKER_HOST') or resolved_endpoint()
+        endpoint=resolved_endpoint()
         findings.append(('blocker',f'Docker daemon unreachable from this process (tried {endpoint}); a system service must reach the socket its docker context resolves to'))
         return findings
-    info=json.loads(result.stdout)
+    try:
+        info=json.loads(result.stdout)
+        if not isinstance(info,dict):raise ValueError('invalid daemon information')
+    except (ValueError,TypeError):
+        return [('blocker','Docker daemon information invalid; profile and inventory were not inspected')]
     if info.get('OSType')!='linux':findings.append(('blocker','Native Linux containers required'))
-    if info.get('Name')!=os.uname().nodename:
+    if docker_profile.configured():
+        try:docker_profile.validate()
+        except docker_profile.ProfileError as error:
+            findings.append(('blocker','Docker profile refused: '+error.reason))
+    elif info.get('Name')!=os.uname().nodename:
         findings.append(('warning','Docker daemon host differs from this host: remote daemons are not supported'))
     return findings
 
 
 def images():
     findings=[]
-    for label,digest,reference in pinned_images():
-        if docker('image','inspect',digest,check=False).returncode:
-            findings.append(('action','Pinned image '+label+' is not local; install will pull '+reference[:60]))
+    try:pins=pinned_images()
+    except (image_identity.IdentityError,OSError,ValueError) as error:
+        return [('blocker','Invalid pinned image inputs: '+str(error))]
+    for label,digest,reference in pins:
+        try:result=docker('image','inspect',reference,check=False)
+        except (OSError,subprocess.SubprocessError) as error:
+            findings.append(('blocker','Pinned image '+label+' inspection failed: '+str(error)))
+            continue
+        if result.returncode:
+            if image_identity.is_missing(reference,result.stdout,result.stderr):
+                findings.append(('action','Pinned image '+label+' is not local; install will pull '+reference+'; '+result.stderr.strip()))
+            else:
+                findings.append(('blocker',str(image_identity.inspection_failure(reference,result.stdout,result.stderr))))
+        else:
+            try:image_identity.resolved_id(reference,image_identity.record(result.stdout))
+            except image_identity.IdentityError as error:
+                findings.append(('blocker','Pinned image '+label+' did not verify: '+str(error)))
     return findings
 
 
@@ -263,12 +291,12 @@ def state():
 
 def preflight():
     daemon_findings=daemon()
-    reachable=not any(kind=='blocker' and 'unreachable' in detail for kind,detail in daemon_findings)
+    reachable=not any(kind=='blocker' for kind,detail in daemon_findings)
     if not reachable:
         # Saying "will pull" or "fresh install" from a process that cannot see the
         # daemon would be a guess dressed as a finding.
         unknown=[('info','Pinned images were not inspected and installation containers were not enumerated: '
-                         'the Docker daemon was unreachable from this process')]
+                         'Docker daemon or profile validation failed from this process')]
         return versions()+daemon_findings+unknown+capacity(reachable=False)
     return versions()+daemon_findings+images()+capacity()+state()
 
@@ -333,14 +361,23 @@ def pull_image(label,reference,position,runner=subprocess.run,sleep=time.sleep):
 
 def ensure_images():
     """Pull every pinned image that is not local, by digest, then verify each one."""
-    missing=[(label,reference) for label,digest,reference in pinned_images()
-             if docker('image','inspect',digest,check=False).returncode]
+    if docker_profile.configured():
+        try:docker_profile.validate()
+        except docker_profile.ProfileError as error:raise SystemExit(str(error)) from error
+    pins=pinned_images()
+    missing=[]
+    for label,digest,reference in pins:
+        result=docker('image','inspect',reference,check=False)
+        if result.returncode:
+            if image_identity.is_missing(reference,result.stdout,result.stderr):missing.append((label,reference))
+            else:raise image_identity.inspection_failure(reference,result.stdout,result.stderr)
+        else:image_identity.resolved_id(reference,image_identity.record(result.stdout))
     for number,(label,reference) in enumerate(missing,1):
         pull_image(label,reference,f'{number}/{len(missing)}')
-    for label,digest,reference in pinned_images():
+    for label,digest,reference in pins:
         record,error=pinned_images_check.inspect_image(reference)
-        ok,detail=pinned_images_check.evaluate(digest,record)
-        if not ok:raise SystemExit('Pinned image '+label+' did not verify: '+detail)
+        ok,detail=pinned_images_check.evaluate(reference,record)
+        if not ok:raise SystemExit('Pinned image '+label+' did not verify: '+(error or detail))
 
 
 def install(bootstrap_file):
@@ -432,7 +469,9 @@ def console_answer(state=STATE,opener=None,timeout=5):
     opener=opener or urllib.request.build_opener(urllib.request.ProxyHandler({}))
     try:
         with opener.open(url.rstrip('/')+'/',timeout=timeout) as response:code=response.status
-    except urllib.error.HTTPError as error:code=error.code
+    except urllib.error.HTTPError as error:
+        code=error.code
+        error.close()
     except (urllib.error.URLError,OSError) as error:
         return False,f'console at {url} did not answer ({getattr(error,"reason",error)})'
     if code>=500:return False,f'console at {url} answered HTTP {code}'
@@ -697,6 +736,7 @@ def main():
     if args.command=='install':
         install(args.bootstrap_file);return
     if args.command=='images':
+        if not report(daemon(),title='Docker profile'):raise SystemExit('Docker validation failed; no images were pulled')
         ensure_images();print('pinned images present and verified');return
     raise SystemExit(0 if smoke() else 1)
 

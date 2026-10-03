@@ -1,3 +1,4 @@
-# The image copies only its start script; the checkout is mounted at run time.
+# Only the startup script and public profile validator are baked into the image.
 *
 !deploy/container/start.sh
+!lab/docker_profile.py

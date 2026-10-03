@@ -250,6 +250,7 @@ IO_FLAG_NAMES = ('--device-read-bps', '--device-write-bps',
 
 # Where the installation's volumes live, so the device is read from the host
 # rather than written down here.
+DOCKER_PROFILE_VERSION = 'local-v1'
 VOLUME_ROOT = '/var/lib/docker'
 _device = {}
 
@@ -273,8 +274,8 @@ def io_device(path=VOLUME_ROOT, runner=None):
     """
     run = runner or _findmnt
     probe = Path(path)
-    while not probe.exists() and probe != probe.parent:
-        probe = probe.parent
+    if not probe.is_dir():
+        return None
     source = run(str(probe))
     device = source.split('[')[0].strip() if source else ''
     if not device.startswith('/dev/') or not known_block_device(device):
@@ -341,10 +342,17 @@ def whole_disk(device, sysfs=Path('/sys/class/block')):
 
 
 def device():
-    """The block device for this process, resolved once."""
-    if 'device' not in _device:
-        _device['device'] = io_device()
-    return _device['device']
+    """Resolve a device only after configured profiles prove their daemon and root."""
+    import docker_profile
+    try:
+        profile = docker_profile.from_environment()
+        daemon_id = docker_profile.validated_identity(profile) if docker_profile.configured() else 'legacy-native'
+    except docker_profile.ProfileError as error:
+        raise ResourcePolicyError(error.reason) from error
+    key = (profile.data_root, daemon_id)
+    if key not in _device:
+        _device[key] = io_device(profile.data_root)
+    return _device[key]
 
 
 def io_flags(tier, target=None):

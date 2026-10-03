@@ -3,27 +3,28 @@ import unittest
 import pinned_images_check as check
 
 PIN='sha256:'+'a'*64
+REFERENCE='docker.io/library/postgres@'+PIN
 
 
 class EvaluateTests(unittest.TestCase):
     def test_a_present_pin_matching_the_repo_digest_passes(self):
         record={'RepoDigests':['postgres@'+PIN],'Id':'sha256:'+'b'*64,'RepoTags':['postgres:17']}
-        ok,detail=check.evaluate(PIN,record)
+        ok,detail=check.evaluate(REFERENCE,record)
         self.assertTrue(ok)
         self.assertIn('matches the pin',detail)
 
-    def test_a_present_pin_matching_the_local_id_passes(self):
+    def test_a_local_id_without_repository_proof_fails(self):
         record={'RepoDigests':[],'Id':PIN,'RepoTags':['sbarbase-db:local']}
-        self.assertTrue(check.evaluate(PIN,record)[0])
+        self.assertFalse(check.evaluate(REFERENCE,record)[0])
 
     def test_a_tag_that_resolves_to_another_digest_fails(self):
         record={'RepoDigests':['postgres@sha256:'+'c'*64],'Id':'sha256:'+'d'*64,'RepoTags':['postgres:17']}
-        ok,detail=check.evaluate(PIN,record)
+        ok,detail=check.evaluate(REFERENCE,record)
         self.assertFalse(ok)
-        self.assertIn('no digest matches',detail)
+        self.assertIn('requested repository digest',detail)
 
     def test_a_missing_image_fails_with_a_clear_reason(self):
-        ok,detail=check.evaluate(PIN,None)
+        ok,detail=check.evaluate(REFERENCE,None)
         self.assertFalse(ok)
         self.assertEqual(detail,'not present locally')
 

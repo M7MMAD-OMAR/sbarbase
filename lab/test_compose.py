@@ -19,8 +19,11 @@ class ComposeTests(unittest.TestCase):
         self.assertIn('SBARBASE_ROOT: ${SBARBASE_ROOT:-${PWD}}', self.compose)
 
     def test_the_daemon_and_its_disk_are_reachable(self):
-        self.assertIn('- /var/run/docker.sock:/var/run/docker.sock', self.compose)
-        self.assertIn('- /var/lib/docker:/var/lib/docker:ro', self.compose)
+        self.assertIn('source: ${SBARBASE_DOCKER_SOCKET:-/var/run/docker.sock}', self.compose)
+        self.assertIn('source: ${SBARBASE_DOCKER_DATA_ROOT:-/var/lib/docker}', self.compose)
+        self.assertEqual(self.compose.count('create_host_path: false'), 2)
+        self.assertIn('DOCKER_HOST: unix:///var/run/docker.sock', self.compose)
+        self.assertIn('DOCKER_CONTEXT: ""', self.compose)
 
     def test_a_failed_upgrade_is_restarted_on_the_previous_version(self):
         # lab/upgrade.py moves the checkout back and the supervisor exits 1; the restart

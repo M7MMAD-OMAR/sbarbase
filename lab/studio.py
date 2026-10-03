@@ -36,6 +36,7 @@ import urllib.request
 from pathlib import Path
 
 import durable_runtime as runtime
+import image_identity
 import resource_policy
 import run as lab
 import source_fence
@@ -148,11 +149,30 @@ def require_rule(e):
 
 
 def ensure_images():
-    for component, pin in pins().items():
-        if lab.docker('image', 'inspect', pin['id'], check=False).returncode:
-            reference = next((item for item in pin.get('digests', []) if '@sha256:' in item), pin['id'])
-            if lab.docker('pull', reference, check=False).returncode:
-                raise StudioError(f'Pinned {component} image could not be pulled')
+    locked = pins()
+    if not isinstance(locked, dict) or set(locked) != {'studio', 'meta'}:
+        raise StudioError('Studio lock must declare Studio and postgres-meta')
+    images = {component: image_identity.reference(pin) for component, pin in locked.items()}
+    missing = []
+    for component, reference in images.items():
+        result = lab.docker('image', 'inspect', reference, check=False)
+        if result.returncode:
+            if image_identity.is_missing(reference, result.stdout, result.stderr):
+                missing.append((component, reference))
+            else:
+                raise image_identity.inspection_failure(reference, result.stdout, result.stderr)
+        else:
+            image_identity.resolved_id(reference, image_identity.record(result.stdout))
+    for component, reference in missing:
+        result = lab.docker('pull', reference, check=False)
+        if result.returncode:
+            raise StudioError(f'Pinned {component} image could not be pulled: {result.stderr.strip()}')
+    for reference in images.values():
+        result = lab.docker('image', 'inspect', reference, check=False)
+        if result.returncode:
+            raise image_identity.inspection_failure(reference, result.stdout, result.stderr)
+        image_identity.resolved_id(reference, image_identity.record(result.stdout))
+    return images
 
 
 def headroom(needed_mib):
@@ -167,11 +187,16 @@ def remove(name):
 
 
 def launch(name, tier, env, image):
+    image = image_identity.immutable(image)
+    result = lab.docker('image', 'inspect', image, check=False)
+    if result.returncode:
+        raise image_identity.inspection_failure(image, result.stdout, result.stderr)
+    expected = image_identity.resolved_id(image, image_identity.record(result.stdout))
     flags = resource_policy.container_flags(tier)
     path = runtime.PRIVATE / (name + '.env')
     lab.secure_file(path, ''.join(f'{k}={v}\n' for k, v in env.items()))
     try:
-        lab.docker('run', '-d', '--name', name, '--label', 'io.sbarbase.owner=' + runtime.OWNER,
+        lab.docker('run', '-d', '--pull=never', '--name', name, '--label', 'io.sbarbase.owner=' + runtime.OWNER,
                    '--label', 'io.sbarbase.tier=' + flags['label'], '--network', runtime.NETWORK,
                    '--memory', flags['memory'], '--memory-swap', flags['memory'], '--cpus', str(flags['cpus']),
                    '--pids-limit', str(flags['pids']), '--cpu-shares', str(flags['shares']),
@@ -181,6 +206,8 @@ def launch(name, tier, env, image):
         # The container holds its environment now; nothing keeps the session password on disk.
         path.unlink(missing_ok=True)
     item = runtime.inspect('container', name)
+    if not item or item.get('Image') != expected or item.get('Config', {}).get('Labels', {}).get('io.sbarbase.owner') != runtime.OWNER:
+        raise StudioError('Studio container identity or ownership does not match')
     address = item['NetworkSettings']['Networks'][runtime.NETWORK]['IPAddress'] if item else ''
     if not address:
         raise StudioError('Studio container has no address')
@@ -226,7 +253,7 @@ def up(e):
                                                         '-d', 'postgres', data=query), e):
         raise StudioError('The environment database is fenced')
     require_rule(e)
-    ensure_images()
+    image = ensure_images()
     headroom(resource_policy.memory_mib(resource_policy.TIERS['operator.studio'].memory)
              + resource_policy.memory_mib(resource_policy.TIERS['operator.meta'].memory))
     values = json.loads((runtime.PRIVATE / 'runtime.json').read_text())['environments'][e]
@@ -239,7 +266,6 @@ def up(e):
     remove(meta)
     open_connections(e)
     runtime_sql(role_sql(e, password), e)
-    image = {component: pin['id'] for component, pin in pins().items()}
     try:
         meta_address = launch(meta, 'operator.meta', {
             'PG_META_PORT': '8080', 'PG_META_DB_HOST': runtime.DB, 'PG_META_DB_PORT': '5432', 'PG_META_DB_NAME': e,
@@ -337,7 +363,7 @@ def main(argv=None):
         record(args.environment, 'stopped')
         print(f'Studio for {args.environment} stopped')
         return 0
-    except (StudioError, resource_policy.ResourcePolicyError) as error:
+    except (StudioError, image_identity.IdentityError, resource_policy.ResourcePolicyError) as error:
         if args.environment:
             record(args.environment, 'failed', str(error)[:200])
         print(f'refused: {error}', file=sys.stderr)

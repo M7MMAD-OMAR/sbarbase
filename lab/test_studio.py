@@ -60,7 +60,9 @@ class LifecycleTests(unittest.TestCase):
         patches = [patch.object(studio, 'STATE_FILE', root / 'studio.json'), patch.object(studio.runtime, 'STATE', root),
                    patch.object(studio.runtime, 'PRIVATE', root / 'private'),
                    patch.object(studio.source_fence, 'is_fenced', return_value=False),
-                   patch.object(studio, 'require_rule'), patch.object(studio, 'ensure_images'), patch.object(studio, 'headroom'),
+                   patch.object(studio, 'require_rule'),
+                   patch.object(studio, 'ensure_images', return_value={'meta': 'meta-reference', 'studio': 'studio-reference'}),
+                   patch.object(studio, 'headroom'),
                    patch.object(studio, 'open_connections'), patch.object(studio, 'network_gateway', return_value='172.18.0.1'),
                    patch.object(studio, 'runtime_sql', side_effect=lambda query, database='postgres': self.statements.append(query) or ''),
                    patch.object(studio, 'remove', side_effect=self.removed.append)]
@@ -115,11 +117,29 @@ class LifecycleTests(unittest.TestCase):
             studio.up('not-a-runtime')
         self.assertEqual(self.statements, [])
 
+    def test_image_failure_preserves_retained_session_and_login(self):
+        with patch.object(studio, 'ensure_images', side_effect=studio.StudioError('image proof refused')), \
+             patch.object(studio, 'open_connections') as opened:
+            with self.assertRaisesRegex(studio.StudioError, 'image proof refused'):
+                studio.up(E)
+        self.assertEqual(self.removed, [])
+        self.assertEqual(self.statements, [])
+        opened.assert_not_called()
+
+    def test_up_uses_prepared_references_without_rereading_lock(self):
+        images = []
+        with patch.object(studio, 'pins', side_effect=AssertionError('lock must not be read twice')), \
+             patch.object(studio, 'launch', side_effect=lambda name, tier, env, image: images.append(image) or '10.0.0.2'), \
+             patch.object(studio, 'wait_ready'):
+            studio.up(E)
+        self.assertEqual(images, ['meta-reference', 'studio-reference'])
+
 
 class ReadinessTests(unittest.TestCase):
     def test_postgres_meta_counts_as_ready_on_any_reply_and_studio_only_on_200(self):
         import urllib.error
         refusal = urllib.error.HTTPError('http://meta:8080/', 404, 'Not Found', {}, None)
+        self.addCleanup(refusal.close)
         with patch.object(studio.urllib.request, 'urlopen', side_effect=[OSError('refused'), refusal]), patch.object(studio.time, 'sleep'):
             studio.wait_ready('http://meta:8080/', any_answer=True, what='postgres-meta')
         with patch.object(studio.urllib.request, 'urlopen', side_effect=refusal), patch.object(studio.time, 'sleep'), \

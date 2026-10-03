@@ -47,12 +47,18 @@ from pathlib import Path
 import backup
 import durable_runtime as runtime
 import import_inspect
+import image_identity
 import run as lab
 
 TOOL = 'sbarbase-import-tool'
 KEEP_ROLES = ('anon', 'authenticated', 'service_role', 'PUBLIC')
 AUTH_TABLES = ('users', 'identities', 'mfa_factors')
 MAX_OBJECT = 5 * 1024 ** 3
+# Portable finite bounds for one serial psql/pg_dump worker. Large imports need
+# independent capacity measurements; these are tool limits, not host IO claims.
+SOURCE_TOOL_MEMORY = '512m'
+SOURCE_TOOL_CPUS = '1'
+SOURCE_TOOL_PIDS = '128'
 
 
 class ImportError_(RuntimeError):
@@ -66,25 +72,82 @@ class Source:
     the host needs neither; the password is passed in a private env file, never an argument."""
 
     def __init__(self, url):
+        self.container_id = None
+        self.env_file = None
         self.environment = import_inspect.connection_environment(url)
+        pin = json.loads((lab.ROOT / 'lab' / 'distro-image.lock.json').read_text())
+        self.image_ref = image_identity.reference(pin)
+        proof = lab.docker('image', 'inspect', self.image_ref, check=False)
+        if proof.returncode or proof.stderr.strip():
+            raise image_identity.inspection_failure(self.image_ref, proof.stdout, proof.stderr)
+        self.image_id = image_identity.resolved_id(self.image_ref, image_identity.record(proof.stdout))
+        retained = self._container(TOOL)
+        if retained:
+            lab.docker('rm', '-f', retained['Id'])
         host = self.environment['PGHOST']
         local = host in ('127.0.0.1', 'localhost', '::1')
         network = 'host' if local else runtime.EGRESS
         if not local and not runtime.inspect('network', runtime.EGRESS):
             lab.docker('network', 'create', '--label', 'io.sbarbase.owner=' + runtime.OWNER, runtime.EGRESS)
-        image = json.loads((lab.ROOT / 'lab' / 'distro-image.lock.json').read_text())['id']
-        lab.docker('rm', '-f', TOOL, check=False)
-        lab.docker('run', '-d', '--rm', '--name', TOOL, '--network', network, '--label', 'io.sbarbase.owner=' + runtime.OWNER,
-                   '--entrypoint', 'sleep', image, 'infinity')
-        handle, self.env_file = tempfile.mkstemp(prefix='sbarbase-import-', suffix='.env')
-        with os.fdopen(handle, 'w') as file:
-            # The source is read only, whatever the tools do.
-            file.write(''.join(f'{key}={value}\n' for key, value in {**self.environment,
-                       'PGOPTIONS': '-c default_transaction_read_only=on'}.items()))
-        os.chmod(self.env_file, 0o600)
+        created = lab.docker('run', '-d', '--rm', '--pull=never', '--name', TOOL, '--network', network,
+                             '--memory', SOURCE_TOOL_MEMORY, '--memory-swap', SOURCE_TOOL_MEMORY,
+                             '--cpus', SOURCE_TOOL_CPUS, '--pids-limit', SOURCE_TOOL_PIDS,
+                             '--cap-drop=ALL', '--security-opt=no-new-privileges',
+                             '--label', 'io.sbarbase.owner=' + runtime.OWNER,
+                             '--entrypoint', 'sleep', self.image_ref, 'infinity').stdout.strip()
+        if not isinstance(created, str) or not re.fullmatch(r'[a-f0-9]{64}', created):
+            raise ImportError_('source tool creation did not return a complete container identity')
+        item = self._container(created)
+        if item is None:
+            raise ImportError_('source tool disappeared before admission')
+        self.container_id = item['Id']
+        try:
+            handle, self.env_file = tempfile.mkstemp(prefix='sbarbase-import-', suffix='.env')
+            with os.fdopen(handle, 'w') as file:
+                # The source is read only, whatever the tools do.
+                file.write(''.join(f'{key}={value}\n' for key, value in {**self.environment,
+                           'PGOPTIONS': '-c default_transaction_read_only=on'}.items()))
+            os.chmod(self.env_file, 0o600)
+        except BaseException:
+            self.close()
+            raise
+
+    def _container(self, identity):
+        result = lab.docker('inspect', identity, check=False)
+        if not result.returncode and result.stderr.strip():
+            raise ImportError_('source tool inspection returned a diagnostic')
+        if result.returncode:
+            try:
+                absent = json.loads(result.stdout) == []
+            except (ValueError, TypeError):
+                absent = False
+            if absent and result.stderr in (f'Error: No such object: {identity}\n',
+                                           f'error: no such object: {identity}\n',
+                                           f'Error response from daemon: No such container: {identity}\n'):
+                return None
+            raise ImportError_('source tool inspection unavailable')
+        try:
+            item = image_identity.record(result.stdout)
+            cid = item.get('Id')
+            labels = item.get('Config', {}).get('Labels') or {}
+            if not isinstance(cid, str) or not re.fullmatch(r'[a-f0-9]{64}', cid):
+                raise ImportError_('source tool container identity unavailable')
+            if identity != TOOL and cid != identity:
+                raise ImportError_('source tool container identity changed')
+            if identity == TOOL and item.get('Name') != '/' + TOOL:
+                raise ImportError_('source tool retained name proof unavailable')
+            if labels.get('io.sbarbase.owner') != runtime.OWNER:
+                raise ImportError_('source tool ownership collision')
+            if item.get('Image') != self.image_id:
+                raise ImportError_('source tool image identity mismatch')
+        except (AttributeError, TypeError) as error:
+            raise ImportError_('source tool container proof malformed') from error
+        return item
 
     def command(self, *argv):
-        return ['docker', 'exec', '-i', '--env-file', self.env_file, TOOL, *argv]
+        if self.container_id is None or self.env_file is None:
+            raise ImportError_('source tool is closed')
+        return ['docker', 'exec', '-i', '--env-file', self.env_file, self.container_id, *argv]
 
     def query(self, sql):
         result = subprocess.run(self.command('psql', '-X', '-A', '-t', '-q', '-v', 'ON_ERROR_STOP=1', '-F',
@@ -104,8 +167,14 @@ class Source:
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
     def close(self):
-        lab.docker('rm', '-f', TOOL, check=False)
-        Path(self.env_file).unlink(missing_ok=True)
+        try:
+            if self.container_id is not None and self._container(self.container_id) is not None:
+                lab.docker('rm', '-f', self.container_id)
+            self.container_id = None
+        finally:
+            if self.env_file is not None:
+                Path(self.env_file).unlink(missing_ok=True)
+                self.env_file = None
 
 
 # ---- the target ---------------------------------------------------------------------------------

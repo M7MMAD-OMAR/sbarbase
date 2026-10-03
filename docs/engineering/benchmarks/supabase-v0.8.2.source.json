@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "reviewed_at": "2026-10-03",
+  "repository": "https://github.com/supabase/supabase",
+  "tag": "self-hosted/v0.8.2",
+  "tag_object": "47111f95a43ffcc20ab288e29c48ce0b80174bd6",
+  "commit": "564eab8ad7840b13324f68b1bfac074ef8d51c21",
+  "files": [
+    {
+      "path": "docker/docker-compose.yml",
+      "url": "https://raw.githubusercontent.com/supabase/supabase/564eab8ad7840b13324f68b1bfac074ef8d51c21/docker/docker-compose.yml",
+      "sha256": "8ba18fd43e9afba90e8287c8e8afc4bdda1e38d2228e57ff660968bb550da054",
+      "bytes": 21240
+    }
+  ],
+  "status": "source-identity-verified-runtime-unrun",
+  "remaining": [
+    "Freeze complete docker subtree and redacted effective reference configuration.",
+    "Resolve every reference image per platform to its immutable digest.",
+    "Run reference and candidate using matched fixtures and resource limits."
+  ]
+}

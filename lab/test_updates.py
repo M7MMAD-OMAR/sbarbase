@@ -397,15 +397,18 @@ class Stand:
         self.returncode, self.pid = status, 0
 
 
-class SupervisorTests(Private):
-    """schedule_updates through the real Supervisor, with its children replaced by stand-ins."""
+class SupervisorFixture(Private):
+    """Host checkout by default; source-only Docker tests explicitly use an unreadable HEAD."""
+
+    checkout_commit = COMMIT
 
     def setUp(self):
         super().setUp()
         self.upstream = self.folder.parent / 'upstream'
         self.upstream.mkdir()
         for item in (patch.object(upgrade, 'UPSTREAM', self.upstream), patch.object(upgrade, 'BACKUP_LOCK', self.upstream / 'backup.lock'),
-                     patch.object(upgrade, 'LOCK', self.folder / 'upgrade.lock')):
+                     patch.object(upgrade, 'LOCK', self.folder / 'upgrade.lock'),
+                     patch.object(dev, 'checkout_head', return_value=self.checkout_commit)):
             item.start()
             self.addCleanup(item.stop)
         self.put('settings.json', {'check': False, 'automatic': False, 'window': {'start': '03:00', 'end': '05:00'}})
@@ -430,6 +433,10 @@ class SupervisorTests(Private):
     def turn(self, moment=None):
         with patch('builtins.print'):
             self.supervisor.schedule_updates(moment or at(12))
+
+
+class SupervisorTests(SupervisorFixture):
+    """Host checkout scheduling through real Supervisor children replaced by stand-ins."""
 
     def test_an_apply_request_runs_the_verified_release_then_exits_to_restart(self):
         self.put('available.json', document())
@@ -610,6 +617,46 @@ class SupervisorTests(Private):
         self.assertEqual(self.get('available.json')['available']['version'], '0.2.0')
         self.turn(at(0, 7))
         self.assertEqual(len(self.spawned), 1)
+
+
+class DockerSupervisorTests(SupervisorFixture):
+    """A Docker source image has no Git metadata, so recovery must restart safely."""
+
+    checkout_commit = None
+
+    def test_a_refused_apply_restarts_when_the_checkout_cannot_be_verified(self):
+        self.put('available.json', document())
+        self.outcome = (1, {'refusals': ['A backup or restore is running; wait for it to finish'], 'error': 'Nothing was changed'})
+        updates.create_request('apply', '0.2.0', moment=at(12))
+        self.turn()
+        self.turn()
+        last = self.get('last-request.json')
+        self.assertEqual((last['state'], last['detail']),
+                         ('failed', 'A backup or restore is running; wait for it to finish. Nothing was changed. '
+                          'Sbarbase restarts so the checkout is settled before anything else runs.'))
+        self.assertIsNone(self.supervisor.update)
+        self.assertIsNone(updates.read_request())
+        self.assertTrue(self.supervisor.restart_for_upgrade)
+        self.assertTrue(self.supervisor.stop_event.is_set())
+
+    def test_a_failed_automatic_attempt_is_spent_before_the_safety_restart(self):
+        self.put('settings.json', {'check': True, 'automatic': True, 'window': {'start': '23:00', 'end': '01:00'}})
+        self.put('available.json', document())
+        self.put('check.json', {'attempted_at': updates.stamp(at(0)), 'error': None, 'failures': 0})
+        self.outcome = (1, {'passed': True, 'error': 'The backup before the upgrade failed; nothing was changed'})
+        self.turn(at(0, 30))
+        self.assertEqual(updates.read_request()['trigger'], 'automatic')
+        self.turn(at(0, 30))
+        self.turn(at(0, 31))
+        last = self.get('last-request.json')
+        self.assertEqual((last['state'], last['detail']),
+                         ('failed', 'The backup before the upgrade failed; nothing was changed. '
+                          'Sbarbase restarts so the checkout is settled before anything else runs.'))
+        self.assertEqual((self.entry('0.2.0')['tries'], self.entry('0.2.0')['spent']), (1, True))
+        self.assertEqual(len(self.spawned), 1)
+        self.assertIsNone(updates.read_request())
+        self.assertTrue(self.supervisor.restart_for_upgrade)
+        self.assertTrue(self.supervisor.stop_event.is_set())
 
 
 class NotificationTests(ProducerCase):

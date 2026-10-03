@@ -323,3 +323,70 @@ class ConsoleWaitTests(unittest.TestCase):
         self.assertIn(['systemctl','enable','--now','sbarbase.service'],commands)
         self.assertEqual(events.count('wait'),1)
         self.assertFalse(record['start_deferred'])
+
+
+class DockerProfilePreflightTests(unittest.TestCase):
+    def test_direct_images_command_refuses_before_image_mutations(self):
+        import docker_profile
+        import sys
+        with patch.object(sys,'argv',['install_server.py','images']), \
+             patch.object(install_server,'docker',return_value=result(0,json.dumps({'OSType':'linux'}))), \
+             patch.object(docker_profile,'configured',return_value=True), \
+             patch.object(docker_profile,'validate',side_effect=docker_profile.ProfileError('docker_data_root_mismatch')), \
+             patch.object(install_server,'ensure_images') as pull:
+            with self.assertRaisesRegex(SystemExit,'no images were pulled'):
+                install_server.main()
+        pull.assert_not_called()
+
+    def test_image_helper_refuses_before_inventory_or_pull(self):
+        import docker_profile
+        with patch.object(docker_profile,'configured',return_value=True), \
+             patch.object(docker_profile,'validate',side_effect=docker_profile.ProfileError('docker_data_root_mismatch')), \
+             patch.object(install_server,'docker') as inventory, \
+             patch.object(install_server,'pull_image') as pull:
+            with self.assertRaisesRegex(SystemExit,'docker_data_root_mismatch'):
+                install_server.ensure_images()
+        inventory.assert_not_called()
+        pull.assert_not_called()
+
+    def test_explicit_context_takes_precedence_over_host_in_diagnostics(self):
+        import os
+        with patch.dict(os.environ, {'DOCKER_CONTEXT':'chosen','DOCKER_HOST':'unix:///ignored.sock'}, clear=True), \
+             patch.object(install_server, 'docker', return_value=result(0,'unix:///selected.sock')) as docker:
+            self.assertEqual(install_server.resolved_endpoint(), 'unix:///selected.sock')
+        docker.assert_called_once_with('context','inspect','chosen','--format','{{.Endpoints.docker.Host}}',check=False)
+
+    def test_explicit_host_does_not_use_default_context(self):
+        import os
+        with patch.dict(os.environ, {'DOCKER_HOST':'unix:///selected.sock'}, clear=True), \
+             patch.object(install_server, 'docker') as docker:
+            self.assertEqual(install_server.resolved_endpoint(), 'unix:///selected.sock')
+        docker.assert_not_called()
+
+    def test_refused_profile_prevents_inventory_and_install_mutations(self):
+        import docker_profile
+        info=json.dumps({'OSType':'linux','Name':__import__('os').uname().nodename})
+        with patch.object(install_server,'docker',return_value=result(0,info)), \
+             patch.object(docker_profile,'configured',return_value=True), \
+             patch.object(docker_profile,'validate',side_effect=docker_profile.ProfileError('docker_data_root_mismatch')), \
+             patch.object(install_server,'versions',return_value=[]), \
+             patch.object(install_server,'capacity',return_value=[]), \
+             patch.object(install_server,'images') as images, \
+             patch.object(install_server,'state') as state, \
+             patch.object(install_server,'operation_lock') as lock, \
+             patch.object(install_server,'ensure_images') as pull, \
+             patch.object(install_server,'npm_install') as dependencies, \
+             patch.object(install_server,'run',side_effect=AssertionError('refused profile reached mutating runner')):
+            with self.assertRaisesRegex(SystemExit,'nothing was installed'):
+                install_server.install(None)
+        for operation in (images,state,lock,pull,dependencies):
+            operation.assert_not_called()
+
+    def test_valid_configured_profile_is_checked_before_inventory(self):
+        import docker_profile
+        info=json.dumps({'OSType':'linux','Name':__import__('os').uname().nodename})
+        with patch.object(install_server,'docker',return_value=result(0,info)), \
+             patch.object(docker_profile,'configured',return_value=True), \
+             patch.object(docker_profile,'validate',return_value='fixture-daemon') as validate:
+            self.assertEqual(install_server.daemon(),[])
+        validate.assert_called_once_with()

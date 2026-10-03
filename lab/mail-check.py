@@ -158,11 +158,11 @@ def pinned(label):
 
 
 def confirmed_pin(label):
-    """The local image id must be the pin. A tag that moved is a failure, not a warning."""
+    """The immutable repository reference must resolve with exact daemon proof."""
     image_id, reference = pinned(label)
-    result = subprocess.run(['docker', 'image', 'inspect', reference], capture_output=True, text=True)
-    record = json.loads(result.stdout)[0] if result.returncode == 0 else None
-    passed, detail = pinned_images_check.evaluate(image_id, record)
+    record, error = pinned_images_check.inspect_image(reference)
+    passed, detail = pinned_images_check.evaluate(reference, record)
+    detail = error or detail
     return image_id, reference, passed, detail
 
 

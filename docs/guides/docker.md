@@ -2,9 +2,13 @@
 
 # Install with Docker
 
-The shortest path: any Linux server with Docker Engine and the Compose plugin. Python, Bun and the Docker CLI come inside the Sbarbase image, so the host's own Python version does not matter. CI runs this exact path on a clean machine on every change: build, start, first operator, a first project used through supabase-js, a restart, and a clean stop.
+The container installation targets a local rootful Linux Docker Engine with Compose 2.15 or later. Python, Bun and the Docker CLI come inside the Sbarbase image, so the host's own Python version does not matter. The CI workflow describes a clean-machine installation rehearsal; its existence does not establish a passing runtime result for the current checkout. Independent-host trials and measured resource enforcement remain required before publishing a supported-host matrix.
 
 Size the server first with [choosing a server](choosing-a-server.md).
+
+The default Docker data root is `/var/lib/docker` and socket is `/var/run/docker.sock`. If the daemon uses different absolute paths, set `SBARBASE_DOCKER_DATA_ROOT` to its reported `DockerRootDir` and `SBARBASE_DOCKER_SOCKET` to its local Unix socket before Compose creates the controller. These settings select existing paths; they do not reconfigure or migrate Docker. Bind mounts refuse missing sources rather than creating empty directories. The controller checks the daemon root, its own full container identity, project/service labels and both bind mounts before recovery or provisioning.
+
+`DOCKER_CONTEXT`, `DOCKER_TLS` and `DOCKER_TLS_VERIFY` are cleared inside the controller, and its CLI uses the mounted socket. The Compose invocation itself must target the intended local daemon. Remote daemons, Docker Desktop and rootless profiles have not passed the required tests and the explicit `local-v1` profile refuses them. A custom data root also requires a runtime declaring `local-v1` compatibility. Rollback to a runtime without that declaration stays stopped rather than silently using its historical default root.
 
 ## 1. Get the code and start
 
@@ -43,7 +47,7 @@ The console and the API listen on loopback only. Publish them through the TLS pr
 
 ## Updates
 
-The console's Updates page shows a newer signed release, installs a safe one with one click, and installs one that changes Auth, Storage or Realtime after you confirm a warning ([upgrades](upgrades.md)). The supervisor lets running work finish, backs up every environment, moves the checkout, stops cleanly and exits with code 42. `restart: unless-stopped` starts the container again on any exit, with the same image. The container's start script runs the upgrade guard first, before anything else, and the new version then holds application traffic until its health checks pass. If they do not pass, it moves back by itself and the container restarts once more on the previous version; the guard also moves back after 3 failed starts or a start that died halfway.
+The console's Updates page shows a newer signed release, installs a safe one with one click, and installs one that changes Auth, Storage or Realtime after you confirm a warning ([upgrades](upgrades.md)). The supervisor lets running work finish, backs up every environment, moves the checkout, stops cleanly and exits with code 42. `restart: unless-stopped` starts the container again on any exit, with the same image. The container's baked profile validator runs before the upgrade guard and checks again afterward, before dependencies or image pulls. The new version then holds application traffic until its health checks pass. If they do not pass, it moves back by itself and the container restarts once more on the previous version; the guard also moves back after 3 failed starts or a start that died halfway.
 
 Two settings in `compose.yaml` concern updates. `TZ` sets the container's time zone, which the maintenance window of automatic updates is read in (UTC when unset; the image carries the time zone database, so a name such as `Asia/Dubai` works). `SBARBASE_RELEASE_SOURCE` points the update check at a mirror; leave it empty for the canonical repository.
 
@@ -58,10 +62,11 @@ Do not update with `git pull`: that skips the backup, the control snapshot and t
 
 ## How it fits together
 
-The container holds the control plane: the supervisor, the provisioning worker, the console and the gateway. It starts the pinned Supabase services as sibling containers through the host's Docker socket. Three settings in `compose.yaml` make that work, and a test keeps them in place:
+The container holds the control plane: the supervisor, the provisioning worker, the console and the gateway. It starts the pinned Supabase services as sibling containers through the host's Docker socket. The following settings in `compose.yaml` make that work, and tests keep them in place:
 
 - the checkout is mounted at the same path as on the host, and the host network is used, so paths and loopback addresses mean the same inside and outside;
-- `/var/lib/docker` is mounted read only, so block IO limits target the disk behind Docker's data;
+- the selected Docker data root is mounted read only at the identical path, so block IO device discovery uses the selected daemon's persistent data;
+- `cgroup: host` exposes the controller's own full container identity for exact inspection;
 - `init: true`, because the supervisor refuses to run as process 1.
 
 Access to the Docker socket is equivalent to root on the host, as it is for the systemd install; the [threat model](../explain/threat-model.md) explains why that is accepted for now.

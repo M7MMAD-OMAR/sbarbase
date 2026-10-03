@@ -4,7 +4,7 @@ The documentation is split into explain, guides, reference, decisions and an
 engineering notebook. Moving a page breaks every relative link that pointed at
 it, and a broken link is found by a reader, not by a build. This check parses
 every Markdown file under docs/ (except the machine-written evidence), the root
-README.md and CLAUDE.md, resolves each relative link target against the file
+README.md, resolves each relative link target against the file
 that contains it and fails listing every target that does not exist.
 
 The project also forbids the em dash and the en dash in its prose, so the same
@@ -14,6 +14,8 @@ import re
 import unittest
 from pathlib import Path
 from urllib.parse import unquote
+from unittest.mock import patch
+import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / 'docs'
@@ -34,7 +36,8 @@ def markdown_files():
     # The Arabic siblings outside docs/ (docs/engineering/ARABIC-DOCS.md) are checked too.
     arabic = [ROOT / name for name in ('README.ar.md', 'SECURITY.ar.md', 'CONTRIBUTING.ar.md',
                                        'CHANGELOG.ar.md', 'lab/README.ar.md')]
-    return files + [ROOT / 'README.md', ROOT / 'CLAUDE.md'] + [path for path in arabic if path.exists()]
+    # Agent instructions are private checkout context, not distributed runtime docs.
+    return files + [ROOT / 'README.md'] + [path for path in arabic if path.exists()]
 
 
 def prose_lines(text):
@@ -91,6 +94,26 @@ class DocumentationLinkTests(unittest.TestCase):
 
 class CheckerSelfTests(unittest.TestCase):
     """The checker must not wave through the cases it exists to catch."""
+
+    def test_distributed_docs_do_not_require_private_agent_instructions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            docs = root / 'docs'
+            docs.mkdir()
+            readme = root / 'README.md'
+            readme.write_text('Public documentation\n', encoding='utf-8')
+            guide = docs / 'guide.md'
+            guide.write_text('[Readme](../README.md)\n', encoding='utf-8')
+            with patch.dict(globals(), ROOT=root, DOCS=docs, EVIDENCE=docs / 'evidence'):
+                self.assertEqual(set(markdown_files()), {readme, guide})
+                DocumentationLinkTests('test_every_relative_link_resolves').test_every_relative_link_resolves()
+                DocumentationLinkTests('test_no_long_dash_in_the_documentation').test_no_long_dash_in_the_documentation()
+                readme.unlink()
+                # A missing distributed page remains a failure, not an exclusion.
+                self.assertIn(readme, markdown_files())
+                self.assertIsNotNone(missing_target(guide, '../README.md'))
+                with self.assertRaises((FileNotFoundError, AssertionError)):
+                    DocumentationLinkTests('test_every_relative_link_resolves').test_every_relative_link_resolves()
 
     def test_external_anchor_and_code_links_are_ignored(self):
         text = '[a](https://x.y) [b](mailto:a@b.c) [c](#top) `[d](missing.md)`\n```\n[e](missing.md)\n```\n'

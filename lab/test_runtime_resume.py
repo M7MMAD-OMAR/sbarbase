@@ -38,11 +38,13 @@ class ResumeTests(unittest.TestCase):
         self.target.activate_services.assert_not_called()
 
     def test_resume_container_disappearance_cannot_fall_back_to_create(self):
-        self.target.pins={'auth':{'id':'fixture'}}
+        digest='sha256:'+'a'*64;reference='docker.io/supabase/gotrue@'+digest
+        self.target.pins={'auth':{'id':digest,'tag':'supabase/gotrue:v1','digests':[reference]}}
         with patch.object(runtime,'inspect',return_value=None),patch.object(runtime.lab,'docker') as docker:
+            docker.return_value=SimpleNamespace(returncode=0,stdout=json.dumps([{'Id':'sha256:'+'b'*64,'RepoDigests':[reference]}]),stderr='')
             with self.assertRaisesRegex(RuntimeError,'cannot create'):
                 self.target.launch('fixture','auth',{},'256m',.25,existing_only=True)
-            docker.assert_not_called()
+            docker.assert_called_once_with('image','inspect',reference,check=False)
 
     def test_missing_storage_tenant_on_resume_never_posts(self):
         del self.target.activate_services

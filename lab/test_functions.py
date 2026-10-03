@@ -65,9 +65,16 @@ class FunctionsRuntimeTests(unittest.TestCase):
                 self.runtime.functions_start(E)
 
     def test_binds_are_read_only(self):
+        digest = 'sha256:' + 'a' * 64
+        reference = 'docker.io/supabase/edge-runtime@' + digest
+        self.runtime.pins['functions'] = {'id': digest, 'tag': 'supabase/edge-runtime:v1', 'digests': [reference]}
+        def docker(*args, **kwargs):
+            self.docker.append(args)
+            return SimpleNamespace(returncode=0, stderr='', stdout=json.dumps([{'Id': 'sha256:' + 'b' * 64, 'RepoDigests': [reference]}])
+                                   if args[:2] == ('image', 'inspect') else '')
         with patch.object(durable_runtime.resource_policy, 'container_flags', return_value={'memory': '384m', 'cpus': .5, 'label': 'production', 'pids': 256, 'shares': 512, 'weight': 400}), \
              patch.object(durable_runtime.resource_policy, 'io_flags', return_value=[]), \
-             patch.object(durable_runtime.lab, 'secure_file'):
+             patch.object(durable_runtime.lab, 'secure_file'), patch.object(durable_runtime.lab, 'docker', docker):
             self.runtime.launch('c', 'functions', {}, '384m', .5, tier='production.functions', binds=[('/src', '/dst')])
         run = next(args for args in self.docker if args and args[0] == 'run')
         self.assertIn('/src:/dst:ro', run)

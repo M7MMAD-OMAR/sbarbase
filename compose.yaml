@@ -13,6 +13,7 @@ services:
     build: .
     image: sbarbase:local
     init: true
+    cgroup: host
     network_mode: host
     # Any exit restarts it, including the exit 42 with which the supervisor stops after
     # an update or rollback from the console moved the checkout (lab/dev.py).
@@ -21,6 +22,15 @@ services:
     stop_grace_period: 3m
     working_dir: ${SBARBASE_ROOT:-${PWD}}
     environment:
+      SBARBASE_DOCKER_PROFILE: local-v1
+      SBARBASE_CONTAINER: "1"
+      SBARBASE_COMPOSE_PROJECT: ${COMPOSE_PROJECT_NAME}
+      SBARBASE_DOCKER_DATA_ROOT: ${SBARBASE_DOCKER_DATA_ROOT:-/var/lib/docker}
+      SBARBASE_DOCKER_SOCKET: ${SBARBASE_DOCKER_SOCKET:-/var/run/docker.sock}
+      DOCKER_HOST: unix:///var/run/docker.sock
+      DOCKER_CONTEXT: ""
+      DOCKER_TLS: ""
+      DOCKER_TLS_VERIFY: ""
       SBARBASE_ROOT: ${SBARBASE_ROOT:-${PWD}}
       SBARBASE_CONSOLE_PORT: ${SBARBASE_CONSOLE_PORT:-8790}
       SBARBASE_BACKUP_HOUR: ${SBARBASE_BACKUP_HOUR:-3}
@@ -42,7 +52,16 @@ services:
       SBARBASE_DATABASE_PORT: ${SBARBASE_DATABASE_PORT:-6543}
       SBARBASE_DATABASE_BIND: ${SBARBASE_DATABASE_BIND:-127.0.0.1}
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      - type: bind
+        source: ${SBARBASE_DOCKER_SOCKET:-/var/run/docker.sock}
+        target: /var/run/docker.sock
+        bind:
+          create_host_path: false
       # Read only: the disk behind Docker's data is where block IO limits apply.
-      - /var/lib/docker:/var/lib/docker:ro
+      - type: bind
+        source: ${SBARBASE_DOCKER_DATA_ROOT:-/var/lib/docker}
+        target: ${SBARBASE_DOCKER_DATA_ROOT:-/var/lib/docker}
+        read_only: true
+        bind:
+          create_host_path: false
       - ${SBARBASE_ROOT:-${PWD}}:${SBARBASE_ROOT:-${PWD}}

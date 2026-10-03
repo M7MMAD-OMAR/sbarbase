@@ -5,6 +5,9 @@
 # restart policy keeps alive.
 set -eu
 cd "${SBARBASE_ROOT:?SBARBASE_ROOT must name the checkout}"
+# Refuse a mismatched endpoint/root/mount before upgrade or provisioning actions.
+/usr/bin/python3 /usr/local/lib/sbarbase/docker_profile.py check
+/usr/bin/python3 /usr/local/lib/sbarbase/docker_profile.py runtime "$PWD"
 # First, before any code of the version the checkout holds (lab/upgrade_guard.py):
 # the copy an upgrade took from the version it left when there is one. While an
 # upgrade waits for its health checks it may move the checkout back, so the steps
@@ -15,6 +18,9 @@ if [ -f .lab/upgrades/guard.py ]; then
 else
   /usr/bin/python3 lab/upgrade_guard.py
 fi
+# Recovery may have selected an older runtime with different profile capabilities.
+/usr/bin/python3 /usr/local/lib/sbarbase/docker_profile.py check
+/usr/bin/python3 /usr/local/lib/sbarbase/docker_profile.py runtime "$PWD"
 export SBARBASE_GUARDED=1
 bun install --frozen-lockfile
 /usr/bin/python3 lab/install_server.py images
