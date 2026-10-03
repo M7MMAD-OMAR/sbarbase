@@ -208,7 +208,7 @@ jobs:
           sudo sh -c 'for f in .lab/upstream/diagnostics/*.log; do echo "== $f"; tail -n 40 "$f"; done' || true
       - name: Keep the evidence
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: docker-install-evidence
           path: docs/evidence/docker-*.json
@@ -239,7 +239,7 @@ jobs:
             --docker-host unix:///var/run/docker.sock --bootstrap-file "$RUNNER_TEMP/operator.json"
       - name: Keep the evidence
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: empty-host-acceptance-evidence
           path: docs/evidence/*.json
