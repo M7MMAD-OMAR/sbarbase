@@ -2,11 +2,15 @@
 
 # Status
 
-The single place for what works, what does not, and every number. Updated 2026-09-25. Current source release: [0.1.0](../../CHANGELOG.md) (2026-09-21), plus the unreleased container generation migration.
+Current scope updated 2026-10-04. The declared package version is 0.2.0, a development snapshot; [0.1.0](../../CHANGELOG.md) remains the historical source release. No signed 0.2.0 release is established here.
 
-Everything below was verified on one development workstation, except the empty-server rehearsal, which ran in a local virtual machine. **Nothing has been run on a real server yet.** Nothing here certifies production readiness or security, and no fixed number of projects per server is claimed.
+At revision `6c112c3`, all four jobs in [CI run 37135601249](https://github.com/M7MMAD-OMAR/sbarbase/actions/runs/37135601249) passed. Website also passed for that revision. These results belong to that source revision. They do not transfer to later edits or establish independent-host, security or production acceptance.
 
-## Test suites, 2026-09-24
+The current direction is recorded in the [project goal](../../PROJECT_GOAL.md), [October product plan](../engineering/plans/2026-10-03-product-and-portability-plan.md), [execution method](../engineering/plans/2026-10-03-gauntlet-execution-method.md) and [native placement contract](../engineering/plans/2026-10-03-native-placement-identity.md). The [gauntlet ledger](../engineering/gauntlet-ledger.json) records each verification fragment and its exact source scope, including failures and locally retained packets. Configured native effects still refuse at routine privilege admission. A native declaration remains unadmitted; full native service operation and recovery are not accepted.
+
+The September tables below are historical workstation and local-VM observations, not a freshly verified matrix for this tree. No independent public-server pilot or fixed projects-per-server capacity is established. Complete recovery, key/object continuity, security maintenance, HA and PITR remain open.
+
+## Historical test suites, 2026-09-24
 
 Run from the repository root in a clean container with Python 3.14 and `cryptography`, as root. These suites do not start containers; they also pass with no Docker daemon reachable, which CI now checks.
 
@@ -21,7 +25,7 @@ Earlier pages recorded other totals (for example 575 Python and 87 Bun tests at 
 
 On 2026-09-25 the Python suite had 765 tests: `OK` with no skips on the workstation, `OK (skipped=2)` there with no Docker daemon reachable, and in a throwaway `python:3.12` container `OK (skipped=6)` as root and `OK (skipped=4)` as an unprivileged user. Each skip names what the host lacks: root for a permission refusal, a `/usr/bin/python3` of 3.12 or a Docker daemon for the acceptance script, `systemd-analyze`, or a block device for `/`.
 
-### Python interpreters, 2026-09-25
+### Historical Python interpreter probes, 2026-09-25
 
 The preflight now accepts `/usr/bin/python3` 3.12 or newer, which admits the interpreters Ubuntu 24.04 and Debian 13 ship. To check that the code runs on them, the same Python suite ran in throwaway containers as an ordinary user (uid 1000). The checkout was mounted, Bun was on the path and no Docker daemon was reachable. Ubuntu and Debian used their own `python3` and `python3-cryptography` packages; the `python:` images used the current `cryptography` wheel. `python -m compileall lab deploy` passes on all of them.
 
@@ -35,7 +39,7 @@ The preflight now accepts `/usr/bin/python3` 3.12 or newer, which admits the int
 
 The control fails the same 7 tests, so the failures come from the container, not the interpreter version. Five need a block device behind `/` (the IO limits refuse with `io_device_unavailable`), one needs `systemd-analyze`, and one needs a home directory for uid 1000, which the Ubuntu image has and the others do not. The 3 skips need a Docker daemon or a device source for `/`. Neither Ubuntu 24.04 nor Debian 13 has had an install rehearsed end to end; only Fedora 44 has.
 
-## Live evidence
+## Historical live evidence
 
 Live probes start real containers and write their results to [docs/evidence](../evidence/). Each file names its own scope; counts from different files overlap and are not additive. The count below is the one recorded in the file.
 
@@ -193,6 +197,10 @@ A start needs its containers' memory limits plus a 2560 MiB reserve: 1792 MiB of
 - Multi-server placement and coordination.
 - Resumable (TUS) uploads through the gateway; standard uploads go up to the upload limit, 50 MiB by default.
 
-## Next step
+## Current priorities
 
-The real server: [milestone 1 of the roadmap](../engineering/plans/2026-09-23-roadmap.md), to repeat on it what the VM rehearsed on 2026-09-25 (above). On the workstation, the attended generation migration of the retained database ran on 2026-09-25 with every row count unchanged ([evidence](../evidence/generation-migration-retained.json)). The durable lifecycle probe, reworked into a non-destructive stop and start of the retained runtime, passed 31 checks ([evidence](../evidence/durable-lifecycle-restart.json)). On that fixture the mixed SDK load passed with no failed operation ([evidence](../evidence/sdk-policy-regression.json)), and the sustained arrival run failed: 14 of 600 target arrivals ended without an HTTP status while every neighbour arrival was correct ([evidence](../evidence/gateway-sustained-failure.json)). The cause was found in the loopback listener and fixed without Docker: a refused request's connection was announced as closing but stayed open, a pooled client reused it, and a one-second cleanup cut off the next long request on it ([details](../engineering/RESOURCE-POLICY.md)). The live sustained run was repeated after the fix and passed: 555 correct 429s, 45 correct 200s and all 60 neighbour arrivals correct, with no request left without an HTTP status ([evidence](../evidence/gateway-sustained-checks.json)). The pressure-sampling mode and the experimental-class phase are not built.
+Follow the October product plan and execution method, with the ledger as the scoped evidence index. Establish the exact native admission cause before changing its privilege model, then verify the required service, recovery and host contracts. An independent-server pilot remains a later step with explicit owner authorization; this page does not authorize infrastructure purchases or host changes.
+
+## September next-step record
+
+The September roadmap proposed a real server: [milestone 1 of the roadmap](../engineering/plans/2026-09-23-roadmap.md), to repeat on it what the VM rehearsed on 2026-09-25 (above). On the workstation, the attended generation migration of the retained database ran on 2026-09-25 with every row count unchanged ([evidence](../evidence/generation-migration-retained.json)). The durable lifecycle probe, reworked into a non-destructive stop and start of the retained runtime, passed 31 checks ([evidence](../evidence/durable-lifecycle-restart.json)). On that fixture the mixed SDK load passed with no failed operation ([evidence](../evidence/sdk-policy-regression.json)), and the sustained arrival run failed: 14 of 600 target arrivals ended without an HTTP status while every neighbour arrival was correct ([evidence](../evidence/gateway-sustained-failure.json)). The cause was found in the loopback listener and fixed without Docker: a refused request's connection was announced as closing but stayed open, a pooled client reused it, and a one-second cleanup cut off the next long request on it ([details](../engineering/RESOURCE-POLICY.md)). The live sustained run was repeated after the fix and passed: 555 correct 429s, 45 correct 200s and all 60 neighbour arrivals correct, with no request left without an HTTP status ([evidence](../evidence/gateway-sustained-checks.json)). The pressure-sampling mode and the experimental-class phase are not built.

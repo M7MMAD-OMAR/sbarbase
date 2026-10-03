@@ -4,6 +4,8 @@
 
 ## ما هي
 
+تشرح هذه الصفحة البنية المشتركة الحالية `legacy-shared`. الرسوم ومسار الطلب أدناه يصفان هذا النطاق.
+
 بوابة واحدة على خادمك تستقبل كل طلب، وتتحقق من مفتاح API، ثم تمرّره إلى خدمة Supabase الأصلية في البيئة الصحيحة. لكل بيئة قاعدة بياناتها وAuth وREST خاصة بها؛ أما PostgreSQL نفسه وStorage فعمليتان مشتركتان.
 
 ## لماذا
@@ -64,6 +66,12 @@ flowchart TB
 
 الكود: [src/control/application.ts](../../src/control/application.ts) (التوجيه بين المسارات الثلاثة)، و[src/gateway/handler.ts](../../src/gateway/handler.ts) و[src/gateway/managed.ts](../../src/gateway/managed.ts) (البوابة)، و[src/gateway/concurrency.ts](../../src/gateway/concurrency.ts) (القبول)، و[src/control/http.ts](../../src/control/http.ts) و[src/control/key-http.ts](../../src/control/key-http.ts) (واجهة الإدارة)، و[src/control/catalog.ts](../../src/control/catalog.ts) (الفهرس)، و[lab/worker.py](../../lab/worker.py) و[lab/durable_runtime.py](../../lab/durable_runtime.py) (بيئة التشغيل). المسارات مسرودة في [مرجع API](../reference/api.ar.md).
 
+## مسار تجريبي لمحرك مستقل
+
+تحدد [مواصفة مكان التشغيل الأصلي](../engineering/plans/2026-10-03-native-placement-identity.md) بنية `native-dedicated` تستخدم صورة Supabase الأصلية لمحرك مستقل. يربط التصريح في فهرس التحكم هوية البيئة بقاعدة التطبيق وقاعدة الصيانة، مع الفصل بينهما. قبول هذا التصريح للقراءة لا يفعّل التجهيز أو التوجيه أو الاستعادة أو كل الخدمات المستهلكة له.
+
+تسجّل [خطة المنتج](../engineering/plans/2026-10-03-product-and-portability-plan.md) و[سجل الأدلة](../engineering/gauntlet-ledger.json) الأجزاء المتحقق منها والفجوات. توقف فحص المهام المجدولة وطلبات HTTP عند اختلاف صلاحيات دوال cron الفعلية عن النموذج المتوقع، قبل تشغيل تلك المهام والطلبات. ولم يُقبل هذا المسار. وهذا المسار التجريبي لا يغيّر حدود البنية المشتركة الموصوفة هنا.
+
 ## الحدود
 
 - القبول لكل عملية بوابة، بلا طابور: البيئة المثقلة تأخذ `429`، والخادم المشغول يأخذ `503`. عمليات البوابة المتعددة لا تتشارك العدّادات.
@@ -75,4 +83,4 @@ flowchart TB
 
 - [طبقة التحكم](../engineering/CONTROL-PLANE.md)، و[التوجيه الدائم](../engineering/PERSISTENT-ROUTING.md)، و[حمل البوابة الزائد](../engineering/GATEWAY-OVERLOAD.md)، و[تصريف البوابة](../engineering/GATEWAY-DRAIN.md).
 - [بيئة التشغيل المشتركة](../engineering/COMBINED-RUNTIME.md) و[سياسة الموارد](../engineering/RESOURCE-POLICY.md).
-- [مواصفة دمج Studio](../engineering/STUDIO-INTEGRATION.md): كيف ستحصل كل بيئة على Studio أصلي خاص بها.
+- [مواصفة دمج Studio](../engineering/STUDIO-INTEGRATION.md): كيف يشغّل المشغّل Studio الأصلي لكل بيئة عند الطلب.

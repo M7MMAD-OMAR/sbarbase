@@ -6,14 +6,15 @@ All notable changes to sbarbase. The format follows Keep a Changelog and the
 project uses Semantic Versioning, which for a 0.x version means the interface may
 still change between releases.
 
-This is a source release. Nothing here is deployed as a service, no server
-rehearsal has been run against it, and the repository describes itself as in
-development. Read "Not in this release" before treating anything as production
-ready.
+The declared package version is 0.2.0, a development snapshot. Historical 0.1.0 release entries retain their original scope. Later Docker and VM rehearsals are dated in [status](docs/reference/status.md); no independent public-server or production release acceptance is established.
 
 ## [Unreleased]
 
 ### Added
+
+- Current product and portability roadmap, Docker-only verification contract, explicit native-placement identity and scoped evidence ledger. Native activation, complete recovery and release acceptance remain open.
+- Bounded native-effects verification now preserves raw ACL distinctions and enforces phase deadlines. The latest actual fixture still refuses its routine privilege model; this is verification work, not accepted native-effects operation.
+- Updated current documentation and repository layout, preserving historical results and distinguishing implemented shared-runtime features from experimental native placement.
 
 - **Rename, move and delete clients, projects and environments.** Owners and
   admins rename; owners move a project to another client they own, which

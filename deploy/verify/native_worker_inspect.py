@@ -323,15 +323,16 @@ CRON_RELATIONS = {'job': 'r', 'job_run_details': 'r', 'jobid_seq': 'S', 'runid_s
 # One statement, one MVCC snapshot, no LIMIT or opaque routine bodies.
 PROJECTION_SQL = r"""WITH owner AS (SELECT oid FROM pg_roles WHERE rolname='supabase_admin'),
 ns AS (SELECT n.oid::text AS oid,n.nspname AS name,n.nspowner::text AS owner_oid,pg_get_userbyid(n.nspowner) AS owner,
- n.nspacl AS acl_raw,(SELECT coalesce(json_agg(row_to_json(a) ORDER BY grantor,grantee,privilege_type,is_grantable),'[]'::json)
- FROM (SELECT grantor::text,grantee::text,privilege_type,is_grantable FROM aclexplode(coalesce(n.nspacl,acldefault('n',n.nspowner)))) a) AS acl,
+ n.nspacl AS acl_raw,CASE WHEN cardinality(n.nspacl)=0 THEN '[]'::json ELSE (SELECT coalesce(json_agg(row_to_json(a) ORDER BY grantor,grantee,privilege_type,is_grantable),'[]'::json)
+ FROM (SELECT grantor::text,grantee::text,privilege_type,is_grantable FROM aclexplode(coalesce(n.nspacl,acldefault('n',n.nspowner)))) a) END AS acl,
  (SELECT coalesce(json_agg(e.extname ORDER BY e.extname),'[]'::json) FROM pg_depend d JOIN pg_extension e ON e.oid=d.refobjid
  WHERE d.classid='pg_namespace'::regclass AND d.objid=n.oid AND d.deptype='e') AS extensions FROM pg_namespace n),
 rels AS (SELECT c.oid::text AS oid,c.relnamespace::text AS namespace_oid,n.nspname AS namespace,c.relname AS name,
  c.relkind::text AS kind,c.relpersistence::text AS persistence,c.relrowsecurity AS rls,c.relforcerowsecurity AS force_rls,c.relowner::text AS owner_oid,pg_get_userbyid(c.relowner) AS owner,c.relacl AS acl_raw,
+ CASE WHEN c.relkind IN ('i','I') OR cardinality(c.relacl)=0 THEN '[]'::json ELSE
  (SELECT coalesce(json_agg(row_to_json(a) ORDER BY grantor,grantee,privilege_type,is_grantable),'[]'::json)
- FROM (SELECT grantor::text,grantee::text,privilege_type,is_grantable FROM aclexplode(CASE WHEN c.relkind IN ('i','I') THEN '{}'::aclitem[]
- ELSE coalesce(c.relacl,acldefault(CASE WHEN c.relkind='S' THEN 'S'::"char" ELSE 'r'::"char" END,c.relowner)) END)) a) AS acl,
+ FROM (SELECT grantor::text,grantee::text,privilege_type,is_grantable FROM aclexplode(
+ coalesce(c.relacl,acldefault(CASE WHEN c.relkind='S' THEN 's'::"char" ELSE 'r'::"char" END,c.relowner)))) a) END AS acl,
  i.indrelid::text AS parent_oid,CASE WHEN i.indexrelid IS NOT NULL THEN pg_get_indexdef(c.oid) END AS index_definition,
  (SELECT coalesce(json_agg(e.extname ORDER BY e.extname),'[]'::json) FROM pg_depend d JOIN pg_extension e ON e.oid=d.refobjid
  WHERE d.classid='pg_class'::regclass AND d.objid=c.oid AND d.deptype='e') AS extensions
@@ -344,8 +345,8 @@ funcs AS (SELECT p.oid::text AS oid,p.pronamespace::text AS namespace_oid,n.nspn
  p.pronargdefaults AS default_count,pg_get_expr(p.proargdefaults,0) AS defaults,p.proretset AS returns_set,
  p.proowner::text AS owner_oid,pg_get_userbyid(p.proowner) AS owner,p.proacl AS acl_raw,
  CASE WHEN l.lanname='c' THEN p.probin END AS library,CASE WHEN l.lanname='c' THEN p.prosrc END AS c_symbol,
- (SELECT coalesce(json_agg(row_to_json(a) ORDER BY grantor,grantee,privilege_type,is_grantable),'[]'::json)
- FROM (SELECT grantor::text,grantee::text,privilege_type,is_grantable FROM aclexplode(coalesce(p.proacl,acldefault('f',p.proowner)))) a) AS acl,
+ CASE WHEN cardinality(p.proacl)=0 THEN '[]'::json ELSE (SELECT coalesce(json_agg(row_to_json(a) ORDER BY grantor,grantee,privilege_type,is_grantable),'[]'::json)
+ FROM (SELECT grantor::text,grantee::text,privilege_type,is_grantable FROM aclexplode(coalesce(p.proacl,acldefault('f',p.proowner)))) a) END AS acl,
  (SELECT coalesce(json_agg(e.extname ORDER BY e.extname),'[]'::json) FROM pg_depend d JOIN pg_extension e ON e.oid=d.refobjid
  WHERE d.classid='pg_proc'::regclass AND d.objid=p.oid AND d.deptype='e') AS extensions
  FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace JOIN pg_language l ON l.oid=p.prolang
@@ -354,11 +355,11 @@ exts AS (SELECT e.oid::text AS oid,e.extname AS name,e.extowner::text AS owner_o
  e.extnamespace::text AS namespace_oid,n.nspname AS namespace,e.extversion AS version,e.extrelocatable AS relocatable,
  CASE WHEN e.extconfig IS NULL THEN NULL ELSE ARRAY(SELECT x::text FROM unnest(e.extconfig) x) END AS configuration,e.extcondition AS conditions FROM pg_extension e JOIN pg_namespace n ON n.oid=e.extnamespace),
 defs AS (SELECT d.oid::text AS oid,d.defaclrole::text AS role_oid,d.defaclnamespace::text AS namespace_oid,d.defaclobjtype::text AS kind,d.defaclacl AS acl_raw,
- (SELECT coalesce(json_agg(row_to_json(a) ORDER BY grantor,grantee,privilege_type,is_grantable),'[]'::json)
- FROM (SELECT grantor::text,grantee::text,privilege_type,is_grantable FROM aclexplode(d.defaclacl)) a) AS acl FROM pg_default_acl d),
+ CASE WHEN cardinality(d.defaclacl)=0 THEN '[]'::json ELSE (SELECT coalesce(json_agg(row_to_json(a) ORDER BY grantor,grantee,privilege_type,is_grantable),'[]'::json)
+ FROM (SELECT grantor::text,grantee::text,privilege_type,is_grantable FROM aclexplode(d.defaclacl)) a) END AS acl FROM pg_default_acl d),
 creation AS (SELECT k.kind,d.defaclacl AS global_acl_raw,
- (SELECT coalesce(json_agg(row_to_json(a) ORDER BY grantor,grantee,privilege_type,is_grantable),'[]'::json)
- FROM (SELECT grantor::text,grantee::text,privilege_type,is_grantable FROM aclexplode(coalesce(d.defaclacl,acldefault(k.kind,owner.oid)))) a) AS acl
+ CASE WHEN cardinality(d.defaclacl)=0 THEN '[]'::json ELSE (SELECT coalesce(json_agg(row_to_json(a) ORDER BY grantor,grantee,privilege_type,is_grantable),'[]'::json)
+ FROM (SELECT grantor::text,grantee::text,privilege_type,is_grantable FROM aclexplode(coalesce(d.defaclacl,acldefault(CASE WHEN k.kind='S' THEN 's'::"char" ELSE k.kind END,owner.oid)))) a) END AS acl
  FROM owner CROSS JOIN (VALUES ('n'::"char"),('r'::"char"),('S'::"char"),('f'::"char")) k(kind)
  LEFT JOIN pg_default_acl d ON d.defaclrole=owner.oid AND d.defaclnamespace=0 AND d.defaclobjtype=k.kind)
 SELECT json_build_object(
@@ -467,9 +468,10 @@ def admit_cron_setup(before, after, identity, *, newly_installed):
         cron_ns = next((r['oid'] for r in after['namespaces'] if r['name'] == 'cron'), None)
         base['default_acls'] = [r for r in after['default_acls'] if r['namespace_oid'] != cron_ns]
         return admit_cron_setup(base, after, identity, newly_installed=True)
-    role_oids = {r['rolname']: r['oid'] for r in identity['roles']}
-    admin = next(r['oid'] for r in identity['roles'] if r['rolname'] == 'supabase_admin')
-    postgres = next(r['oid'] for r in identity['roles'] if r['rolname'] == 'postgres')
+    role_oids = {r['rolname']: positive_oid(str(r['oid'])) for r in identity['roles']}
+    if len(role_oids) != len(identity['roles']) or len(set(role_oids.values())) != len(role_oids):
+        raise RuntimeError('Accepted role identities are not unique')
+    admin, postgres = role_oids['supabase_admin'], role_oids['postgres']
     if additions['event_triggers']:
         raise RuntimeError('Cron setup added an event trigger')
     namespaces = additions['namespaces']
@@ -649,11 +651,11 @@ def admit_http_helper(record, cid, name, owner, image, network, *, running):
 
 
 OWNED_TABLE_SQL = r"""SELECT json_build_object(
- 'table',(SELECT json_build_object('oid',c.oid::text,'owner',pg_get_userbyid(c.relowner),'namespace',n.nspname,'name',c.relname,'kind',c.relkind,'persistence',c.relpersistence,'rls',c.relrowsecurity,'force_rls',c.relforcerowsecurity)
+ 'table',(SELECT json_build_object('oid',c.oid::text,'owner',pg_get_userbyid(c.relowner),'owner_oid',c.relowner::text,'namespace',n.nspname,'name',c.relname,'kind',c.relkind,'persistence',c.relpersistence,'rls',c.relrowsecurity,'force_rls',c.relforcerowsecurity)
  FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE c.oid=to_regclass('public.fixture_worker_effects')),
  'columns',(SELECT json_agg(json_build_object('name',a.attname,'type',format_type(a.atttypid,a.atttypmod),'not_null',a.attnotnull,'identity',a.attidentity,'generated',a.attgenerated) ORDER BY a.attnum)
  FROM pg_attribute a WHERE a.attrelid=to_regclass('public.fixture_worker_effects') AND a.attnum>0 AND NOT a.attisdropped),
- 'sequence',(SELECT json_build_object('oid',c.oid::text,'name',c.relname,'owner',pg_get_userbyid(c.relowner),'namespace',n.nspname,'kind',c.relkind,'persistence',c.relpersistence,
+ 'sequence',(SELECT json_build_object('oid',c.oid::text,'name',c.relname,'owner',pg_get_userbyid(c.relowner),'owner_oid',c.relowner::text,'namespace',n.nspname,'kind',c.relkind,'persistence',c.relpersistence,
  'parent_oid',d.refobjid::text,'parent_column',d.refobjsubid,'dependency',d.deptype,'type',format_type(s.seqtypid,NULL),'increment',s.seqincrement,'min',s.seqmin,'max',s.seqmax,'start',s.seqstart,'cache',s.seqcache,'cycle',s.seqcycle)
  FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace JOIN pg_sequence s ON s.seqrelid=c.oid
  JOIN pg_depend d ON d.classid='pg_class'::regclass AND d.objid=c.oid AND d.refclassid='pg_class'::regclass AND d.deptype='i'
@@ -662,12 +664,12 @@ OWNED_TABLE_SQL = r"""SELECT json_build_object(
 
 def admit_owned_table(value):
     table, sequence = value['table'], value['sequence']
-    if (not table or table != {'oid': positive_oid(table['oid']), 'owner': 'supabase_admin', 'namespace': 'public',
+    if (not table or table != {'oid': positive_oid(table['oid']), 'owner': 'supabase_admin', 'owner_oid': positive_oid(table['owner_oid']), 'namespace': 'public',
                              'name': 'fixture_worker_effects', 'kind': 'r', 'persistence': 'p', 'rls': True, 'force_rls': False}):
         raise RuntimeError('Owned effects table identity differs')
     columns = [{'name': n, 'type': t, 'not_null': True, 'identity': 'a' if n == 'sequence' else '', 'generated': ''}
                for n, t in (('sequence', 'bigint'), ('marker', 'text'), ('kind', 'text'), ('request_id', 'bigint'))]
-    expected = {'oid': positive_oid(sequence['oid']), 'name': 'fixture_worker_effects_sequence_seq', 'owner': 'supabase_admin',
+    expected = {'oid': positive_oid(sequence['oid']), 'name': 'fixture_worker_effects_sequence_seq', 'owner': 'supabase_admin', 'owner_oid': table['owner_oid'],
                 'namespace': 'public', 'kind': 'S', 'persistence': 'p', 'parent_oid': table['oid'], 'parent_column': 1,
                 'dependency': 'i', 'type': 'bigint', 'increment': 1, 'min': 1, 'max': 9223372036854775807,
                 'start': 1, 'cache': 1, 'cycle': False}
@@ -698,8 +700,10 @@ def admit_owned_projection(baseline, current, binding, owned_baseline=None, *, a
     if len(rows) != 4 or set(by_name) != set(expected):
         raise RuntimeError('Owned table/sequence/two-index projection differs')
     table_oid = binding['table']['oid']
+    public_oid = next(r['oid'] for r in baseline['namespaces'] if r['name'] == 'public')
     for name, row in by_name.items():
-        if (row['namespace'] != 'public' or row['owner'] != 'supabase_admin' or row['kind'] != expected[name]
+        if (row['namespace'] != 'public' or row['namespace_oid'] != public_oid
+                or row['owner'] != 'supabase_admin' or row['owner_oid'] != binding['table']['owner_oid'] or row['kind'] != expected[name]
                 or row['persistence'] != 'p' or row['extensions']
                 or row['rls'] is not (row['kind'] == 'r') or row['force_rls'] is not False):
             raise RuntimeError('Owned projected relation identity differs')
@@ -748,20 +752,33 @@ def configured_probe(report, sql, native, container):
     first_failure = None
     phase = 'bootstrap prerequisite'
 
-    def call(args, **kwargs):
-        if time.monotonic() >= effects_deadline:
-            raise RuntimeError('Configured effects work budget exhausted')
-        return native(args, operation_deadline=effects_deadline, **kwargs)
+    def remaining_deadline(phase_deadline=None):
+        deadline = effects_deadline if phase_deadline is None else min(effects_deadline, phase_deadline)
+        if time.monotonic() >= deadline:
+            raise RuntimeError('Configured effects work or phase budget exhausted')
+        return deadline
 
-    def query(statement, *, cleanup=False):
+    def call(args, *, phase_deadline=None, **kwargs):
+        deadline = remaining_deadline(phase_deadline)
+        result = native(args, operation_deadline=deadline, **kwargs)
+        remaining_deadline(deadline)
+        return result
+
+    def query(statement, *, cleanup=False, phase_deadline=None):
         if cleanup:
+            if phase_deadline is not None:
+                raise ValueError('Cleanup retains its separate whole deadline')
             return sql(statement, cleanup=True)
-        if time.monotonic() >= effects_deadline:
-            raise RuntimeError('Configured effects work budget exhausted')
-        return sql(statement, operation_deadline=effects_deadline)
+        deadline = remaining_deadline(phase_deadline)
+        result = sql(statement, operation_deadline=deadline)
+        remaining_deadline(deadline)
+        return result
 
-    def observe(statement, *, cleanup=False):
-        return json.loads(query(statement, cleanup=cleanup))
+    def observe(statement, *, cleanup=False, phase_deadline=None):
+        result = json.loads(query(statement, cleanup=cleanup, phase_deadline=phase_deadline))
+        if not cleanup:
+            remaining_deadline(phase_deadline)
+        return result
 
     def jobs(*, cleanup=False):
         return observe("SELECT coalesce(json_agg(row_to_json(j) ORDER BY jobid),'[]'::json) FROM cron.job j;", cleanup=cleanup)
@@ -783,58 +800,62 @@ def configured_probe(report, sql, native, container):
         projection_rows(projected)
         return projected
 
-    def events():
+    def events(*, phase_deadline=None):
         value = json.loads(call(['docker', 'exec', helper, '/usr/bin/python3', '-c',
-            "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8080/events', timeout=2).read().decode())"]).stdout)
+            "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8080/events', timeout=2).read().decode())"], phase_deadline=phase_deadline).stdout)
         if set(value) != {'marker', 'events'} or value['marker'] != fixture or len(value['events']) > 128:
             raise RuntimeError('Owned HTTP receipts marker/bounds differ')
+        remaining_deadline(phase_deadline)
         return value['events']
 
-    def definition():
-        return observe('SELECT row_to_json(j) FROM cron.job j WHERE jobid=' + str(jobid) + ';')
+    def definition(*, phase_deadline=None):
+        return observe('SELECT row_to_json(j) FROM cron.job j WHERE jobid=' + str(jobid) + ';', phase_deadline=phase_deadline)
 
-    def snapshot(label):
+    def snapshot(label, *, phase_deadline=None):
         sample = observe("SELECT json_build_object("
             "'rows',(SELECT coalesce(json_agg(row_to_json(t) ORDER BY sequence),'[]'::json) FROM " + table + " t),"
             "'responses',(SELECT coalesce(json_agg(row_to_json(r) ORDER BY id),'[]'::json) FROM net._http_response r WHERE id IN (SELECT request_id FROM " + table + ")),"
             "'queued',(SELECT count(*) FROM net.http_request_queue WHERE id IN (SELECT request_id FROM " + table + ")),"
             "'runs',(SELECT coalesce(json_agg(row_to_json(r) ORDER BY runid),'[]'::json) FROM cron.job_run_details r WHERE jobid=" + str(jobid) + "),"
-            "'job',(SELECT row_to_json(j) FROM cron.job j WHERE jobid=" + str(jobid) + "));")
-        sample.update(label=label, epoch=time.time(), receipts=events())
+            "'job',(SELECT row_to_json(j) FROM cron.job j WHERE jobid=" + str(jobid) + "));", phase_deadline=phase_deadline)
+        sample.update(label=label, epoch=time.time(), receipts=events(phase_deadline=phase_deadline))
         evidence['samples'].append(sample)
         if not exact(sample['job'], dict(original, active=sample['job']['active'])):
             raise RuntimeError('Full owned job definition changed')
         strict_effect_sample(sample, fixture)
+        remaining_deadline(phase_deadline)
         return sample
 
-    def wait_effects(label, minimum, timeout):
-        deadline = min(effects_deadline, time.monotonic() + timeout)
+    def wait_effects(label, minimum, timeout, *, phase_deadline=None):
+        deadline = (min(effects_deadline, time.monotonic() + timeout)
+                    if phase_deadline is None else min(effects_deadline, phase_deadline))
         while True:
-            sample = snapshot(label)
-            if len(sample['rows']) >= minimum and strict_effect_sample(sample, fixture):
+            remaining_deadline(deadline)
+            sample = snapshot(label, phase_deadline=deadline)
+            complete = len(sample['rows']) >= minimum and strict_effect_sample(sample, fixture)
+            remaining_deadline(deadline)
+            if complete:
                 return sample
-            if time.monotonic() >= deadline:
-                raise RuntimeError(label + ' configured effect deadline')
-            time.sleep(.25)
+            time.sleep(min(.25, deadline - time.monotonic()))
 
     def disable_drain(label):
-        if not exact(definition(), original):
-            raise RuntimeError('Job mutation guard differs before disable')
-        query('SELECT cron.alter_job(' + str(jobid) + ', active := false);')
         deadline = min(effects_deadline, time.monotonic() + 10)
+        if not exact(definition(phase_deadline=deadline), original):
+            raise RuntimeError('Job mutation guard differs before disable')
+        query('SELECT cron.alter_job(' + str(jobid) + ', active := false);', phase_deadline=deadline)
         stable = None
         while True:
-            sample = snapshot(label)
+            remaining_deadline(deadline)
+            sample = snapshot(label, phase_deadline=deadline)
             complete = strict_effect_sample(sample, fixture)
             signature = stable_effect_signature(sample)
             if sample['job'] != dict(original, active=False):
                 raise RuntimeError('Inactive full job definition differs')
+            remaining_deadline(deadline)
             if complete and stable == signature:
                 return sample
             stable = signature if complete else None
-            if time.monotonic() >= deadline:
-                raise RuntimeError(label + ' configured drain deadline')
-            time.sleep(.5)
+            time.sleep(min(.5, deadline - time.monotonic()))
 
     try:
         if (not report['bootstrap'].get('passed') or any(not e['passed'] for e in report['bootstrap']['helper_cleanup'])
@@ -902,6 +923,9 @@ def configured_probe(report, sql, native, container):
         table_attempted = True
         query('CREATE TABLE ' + table + '(sequence bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY, marker text NOT NULL, kind text NOT NULL, request_id bigint NOT NULL UNIQUE); ALTER TABLE public.fixture_worker_effects ENABLE ROW LEVEL SECURITY;')
         binding = admit_owned_table(observe(OWNED_TABLE_SQL))
+        admin_oid = positive_oid(str(next(r['oid'] for r in report['bootstrap']['after_authentication']['roles'] if r['rolname'] == 'supabase_admin')))
+        if binding['table']['owner_oid'] != admin_oid:
+            raise RuntimeError('Owned table owner OID differs from accepted native role')
         evidence['owned_table'] = binding
         owned_rows = admit_owned_projection(baseline, observe(PROJECTION_SQL), binding)
         evidence['owned_projected_relations'] = owned_rows
@@ -932,21 +956,26 @@ def configured_probe(report, sql, native, container):
         drained = disable_drain('disabled-drained')
         phase = 'bounded inactive stability'
         start = time.monotonic()
+        stability_deadline = min(effects_deadline, start + 4)
         while time.monotonic() - start < 4:
-            stable = snapshot('inactive-stable')
+            stable = snapshot('inactive-stable', phase_deadline=stability_deadline)
             if stable_effect_signature(stable) != stable_effect_signature(drained) or not strict_effect_sample(stable, fixture):
                 raise RuntimeError('Disabled tracked rows/responses/receipts/runs changed')
-            time.sleep(.25)
+            remaining_deadline(stability_deadline)
+            time.sleep(min(.25, stability_deadline - time.monotonic()))
+        remaining_deadline()
         phase = 'resume writes and final inactive delivery'
-        if not exact(definition(), dict(original, active=False)):
+        resume_deadline = min(effects_deadline, time.monotonic() + 8)
+        if not exact(definition(phase_deadline=resume_deadline), dict(original, active=False)):
             raise RuntimeError('Inactive job mutation guard differs before resume')
-        query('SELECT cron.alter_job(' + str(jobid) + ', active := true);')
-        if not exact(definition(), original):
+        query('SELECT cron.alter_job(' + str(jobid) + ', active := true);', phase_deadline=resume_deadline)
+        if not exact(definition(phase_deadline=resume_deadline), original):
             raise RuntimeError('Restored full job definition differs')
-        wait_effects('resumed', len(drained['rows']) + 2, 8)
+        wait_effects('resumed', len(drained['rows']) + 2, 8, phase_deadline=resume_deadline)
         final = disable_drain('final-disabled-drained')
-        query(insert('explicit'))
-        delivered = wait_effects('explicit-while-inactive', len(final['rows']) + 1, 10)
+        explicit_deadline = min(effects_deadline, time.monotonic() + 10)
+        query(insert('explicit'), phase_deadline=explicit_deadline)
+        delivered = wait_effects('explicit-while-inactive', len(final['rows']) + 1, 10, phase_deadline=explicit_deadline)
         if (delivered['job'] != dict(original, active=False) or sum(r['kind'] == 'cron' for r in delivered['rows']) < 4
                 or sum(r['kind'] == 'explicit' for r in delivered['rows']) != 1):
             raise RuntimeError('Final cron/explicit owned effects differ')
@@ -977,23 +1006,23 @@ def configured_probe(report, sql, native, container):
                 expected_job = dict(original) if original is not None else {'schedule': '1 second', 'command': command, 'nodename': 'localhost', 'nodeport': 5432,
                     'database': 'postgres', 'username': 'supabase_admin', 'active': True, 'jobname': jobname}
                 guard_json = json.dumps(expected_job, sort_keys=True).replace("'", "''")
-                without_runtime = "j::jsonb-'active'" if original is not None else "j::jsonb-'jobid'-'active'"
-                disable = ("DO $cleanup$ DECLARE j json; matches json; deadline timestamptz := clock_timestamp()+interval '6 seconds'; BEGIN "
+                without_runtime = "admitted_job::jsonb-'active'" if original is not None else "admitted_job::jsonb-'jobid'-'active'"
+                disable = ("DO $cleanup$ DECLARE admitted_job json; matches json; deadline timestamptz := clock_timestamp()+interval '6 seconds'; BEGIN "
                     + job_guard.replace(' FROM cron.job j', ' INTO matches FROM cron.job j') + "; IF json_array_length(matches)<>1 THEN RAISE EXCEPTION 'owned job cleanup identity unavailable'; END IF; "
-                    "j:=matches->0; IF json_typeof(j->'active')<>'boolean' OR (j->>'jobid')::bigint<=0 OR " + without_runtime + "<>(('" + guard_json + "'::jsonb)-'active') THEN "
+                    "admitted_job:=matches->0; IF json_typeof(admitted_job->'active')<>'boolean' OR (admitted_job->>'jobid')::bigint<=0 OR " + without_runtime + "<>(('" + guard_json + "'::jsonb)-'active') THEN "
                     "RAISE EXCEPTION 'owned job definition changed'; END IF; "
-                    "PERFORM cron.alter_job((j->>'jobid')::bigint,active:=false); LOOP "
-                    "EXIT WHEN NOT EXISTS(SELECT 1 FROM cron.job_run_details WHERE jobid=(j->>'jobid')::bigint AND (status<>'succeeded' OR end_time IS NULL)) "
+                    "PERFORM cron.alter_job((admitted_job->>'jobid')::bigint,active:=false); LOOP "
+                    "EXIT WHEN NOT EXISTS(SELECT 1 FROM cron.job_run_details WHERE jobid=(admitted_job->>'jobid')::bigint AND (status<>'succeeded' OR end_time IS NULL)) "
                     "AND NOT EXISTS(SELECT 1 FROM net.http_request_queue WHERE id IN (SELECT request_id FROM public.fixture_worker_effects)); "
                     "IF clock_timestamp()>=deadline THEN RAISE EXCEPTION 'owned cleanup drain deadline'; END IF; PERFORM pg_sleep(.1); END LOOP; END $cleanup$;")
                 query(disable, cleanup=True)
                 inactive = dict(expected_job, active=False)
                 guard = json.dumps(inactive, sort_keys=True).replace("'", "''")
-                same = "j::jsonb='" + guard + "'::jsonb" if original is not None else "(j::jsonb-'jobid')='" + guard + "'::jsonb"
-                unschedule = ("DO $cleanup$ DECLARE j json; matches json; BEGIN " + job_guard.replace(' FROM cron.job j', ' INTO matches FROM cron.job j') + "; "
-                    "IF json_array_length(matches)<>1 THEN RAISE EXCEPTION 'owned inactive job unavailable'; END IF; j:=matches->0; "
+                same = "admitted_job::jsonb='" + guard + "'::jsonb" if original is not None else "(admitted_job::jsonb-'jobid')='" + guard + "'::jsonb"
+                unschedule = ("DO $cleanup$ DECLARE admitted_job json; matches json; BEGIN " + job_guard.replace(' FROM cron.job j', ' INTO matches FROM cron.job j') + "; "
+                    "IF json_array_length(matches)<>1 THEN RAISE EXCEPTION 'owned inactive job unavailable'; END IF; admitted_job:=matches->0; "
                     "IF NOT(" + same + ") THEN RAISE EXCEPTION 'owned inactive job changed'; END IF; "
-                    "IF NOT cron.unschedule((j->>'jobid')::bigint) THEN RAISE EXCEPTION 'owned unschedule refused'; END IF; "
+                    "IF NOT cron.unschedule((admitted_job->>'jobid')::bigint) THEN RAISE EXCEPTION 'owned unschedule refused'; END IF; "
                     "IF EXISTS(SELECT 1 FROM cron.job WHERE jobname='" + jobname + "') THEN RAISE EXCEPTION 'owned job remains'; END IF; END $cleanup$;")
                 query(unschedule, cleanup=True)
                 evidence['cleanup'].append({'kind': 'job', 'passed': True})

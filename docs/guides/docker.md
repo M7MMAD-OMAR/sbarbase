@@ -58,7 +58,7 @@ docker compose exec sbarbase python3 lab/upgrade.py start --release vX.Y.Z --all
 docker compose up -d --build
 ```
 
-Do not update with `git pull`: that skips the backup, the control snapshot and the way back. The first move onto the version with the update channel is a rebuild too; the [upgrades guide](upgrades.md) has the steps. The update channel has unit tests only so far: nothing about it has run live or in the rehearsal VM yet.
+Do not update with `git pull`: that skips the backup, the control snapshot and the way back. The first move onto the version with the update channel is a rebuild too; the [upgrades guide](upgrades.md) has the steps. The update channel has unit and CI coverage and a local rehearsal-VM run: [vm-channel-checks.json](../evidence/vm-channel-checks.json) records 114 checks on 2026-09-26 using releases signed with a throwaway key. It has not been accepted on an independent public server, and no upstream release adoption is established by that rehearsal.
 
 ## How it fits together
 

@@ -1,5 +1,7 @@
 # Verification, hierarchy follow-ups and migration into Sbarbase
 
+Historical September plan. Its dated outcomes and proposals are preserved. Current priorities and acceptance are defined by the [October product plan](2026-10-03-product-and-portability-plan.md), [execution method](2026-10-03-gauntlet-execution-method.md) and [ledger](../gauntlet-ledger.json).
+
 Written 2026-09-23 after the hierarchy change (installation > organization > project > environment) and the documentation restructuring. It answers three questions: what is verified today, what the hierarchy change still leaves open, and what exactly to build so that moving from Supabase Cloud or another self-hosted setup into Sbarbase is easy and checked. It complements the [roadmap](2026-09-23-roadmap.md) and does not replace its milestone order; section 5 says where each step fits.
 
 Nothing here claims production readiness. Every step ends in a check that can fail.

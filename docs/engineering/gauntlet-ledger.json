@@ -4473,7 +4473,7 @@
     }
   },
   "configured_native_effects": {
-    "status": "DECLARED, implementation in progress, runtime UNRUN",
+    "status": "NOT MET second actual window, corrected ACL projection executes but routine grant model differs",
     "declaration": "COMPLIANCE.md: Configured native owned effects declaration",
     "bootstrap_prerequisite_source_sha256": "85791f0e1061259286822b9686afa817af61d26c6a735380e82d59085e5bcc69",
     "advisor": ".lab/configured-native-effects-advisor-20261003/report.md",
@@ -4497,6 +4497,130 @@
     "full_catalog_dependency_or_content_attestation": false,
     "fenced_continuity_accepted": false,
     "native_runtime_accepted": false,
-    "full_goal_accepted": false
+    "full_goal_accepted": false,
+    "builder_report": ".lab/configured-native-effects-builder-20261003/report.md",
+    "builder_pure_checks": ".lab/configured-native-effects-builder-20261003/pure-checks.json",
+    "builder_check_count": 179,
+    "builder_harness_errors": ".lab/configured-native-effects-builder-20261003/harness-errors.json",
+    "planned_complete_cleanup_operations": 27,
+    "declared_maximum_cleanup_operations": 28,
+    "design_review": ".lab/configured-native-effects-design-critic-20261003-02/report.json",
+    "design_review_status": "MET DESIGN ONLY after deadline repair",
+    "design_reviews": [
+      {
+        "report": ".lab/configured-native-effects-design-critic-20261003/report.json",
+        "verdict": "NOT MET",
+        "scope": "DESIGN ONLY",
+        "blockers": [
+          "Successful native SQL/HTTP snapshots may exceed10/8-second phase deadlines."
+        ],
+        "builder_cases_replayed": 179,
+        "cleanup_accounting_independently_confirmed": true
+      },
+      {
+        "report": ".lab/configured-native-effects-design-critic-20261003-02/report.json",
+        "verdict": "MET",
+        "scope": "DESIGN ONLY",
+        "repair_checks_replayed": 228,
+        "independent_controls": 35,
+        "root_cases_verified": 26
+      }
+    ],
+    "deadline_repair": {
+      "status": "terminal, fresh independent design MET DESIGN ONLY, runtime UNRUN",
+      "source": "native_worker_inspect.py configured_probe and nested callers only",
+      "native_runtime_accepted": false,
+      "report": ".lab/configured-native-effects-deadline-repair-20261003/report.md",
+      "checks": ".lab/configured-native-effects-deadline-repair-20261003/pure-checks.json",
+      "check_count": 228,
+      "prior_named_cases_replayed": 179,
+      "new_deadline_cases": 49
+    },
+    "actual_attempts": [
+      {
+        "source_sha256": "042d6bd940c66bd0d762aa2f90f4d62624cc2168f0bc75fad7b237f648d528cd",
+        "standalone": ".lab/configured-native-effects-preservation-verification/identity-20261003T161100Z-879974-0",
+        "effects": ".lab/configured-native-effects-verification/identity-20261003T161152Z-908846-0",
+        "offline": ".lab/configured-native-effects-offline-verification/run-20261003T161100Z-879975-0",
+        "verdict": "NOT MET ACTUAL CONFIGURED EFFECTS",
+        "bootstrap_prefix_passed": true,
+        "failure_command": 79,
+        "failure_exit": 3,
+        "failure_stderr": "ERROR:  ACL arrays must be one-dimensional\n",
+        "effects_setup_reached": false,
+        "raw_root_absences": [
+          11,
+          20,
+          2
+        ],
+        "unrun": [
+          "HTTP CID, never created"
+        ],
+        "offline_python_tests": 1329,
+        "offline_bun_tests": 301,
+        "critic": ".lab/configured-native-effects-actual-loss-critic-20261003/report.json",
+        "critic_evidence_checks": 804,
+        "critic_artifact_hash_records": 906,
+        "freeze": "released after all processes and actual critic terminal"
+      },
+      {
+        "source_sha256": "c8b99a81a3428e7748576a7c991cfbd58ed4312bd3a4800624e6fbcdd7762d2b",
+        "standalone": ".lab/configured-native-effects-acl-preservation-verification/identity-20261003T163737Z-1411981-0",
+        "effects": ".lab/configured-native-effects-acl-verification/identity-20261003T163841Z-1443872-0",
+        "offline": ".lab/configured-native-effects-acl-offline-verification/run-20261003T163737Z-1411980-0",
+        "verdict": "NOT MET configured effects",
+        "bootstrap_prefix_passed": true,
+        "acl_projection_executed": true,
+        "failed_phase": "closed native pg_cron setup",
+        "failure": "Seven routines carry postgres EXECUTE WITH GRANT OPTION absent from source-declared expectation",
+        "final_hook_origin": "UNPROVEN",
+        "effects_resources_created": false,
+        "raw_root_absences": [
+          11,
+          20,
+          2
+        ],
+        "unrun": [
+          "HTTP CID, never created"
+        ],
+        "offline_python_tests": 1329,
+        "offline_bun_tests": 301,
+        "critic": ".lab/configured-native-effects-acl-actual-critic-20261003/report.json",
+        "critic_evidence_checks": 634,
+        "commands": 162,
+        "stream_hashes": 324,
+        "stdin_bindings": 40,
+        "config_frames": 88,
+        "freeze": "released after all actual processes and fresh critic terminal"
+      }
+    ],
+    "acl_projection_repair": {
+      "status": "Actual projection executed successfully; full configured effects NOT MET",
+      "source_scope": "native_worker_inspect.py PROJECTION_SQL only",
+      "changes": [
+        "Guard empty canonical ACL without changing raw ACL or dropping rows",
+        "Map catalog sequence kind S to acldefault discriminator s only"
+      ],
+      "runtime_accepted": false,
+      "report": ".lab/configured-native-effects-acl-repair-20261003/report.md",
+      "checks": 273,
+      "prior_named_cases": 228,
+      "new_controls": 45,
+      "design_critic": ".lab/configured-native-effects-acl-design-critic-20261003/report.json",
+      "independent_controls": 77,
+      "actual_critic": ".lab/configured-native-effects-acl-actual-critic-20261003/report.json"
+    }
+  },
+  "product_strategy_review": {
+    "report": ".lab/product-plan-value-review-20261003/report.md",
+    "scope": "read-only strategy, not demand or runtime acceptance",
+    "outreach_performed": false,
+    "final_document_critic": ".lab/product-plan-refinement-critic-20261003/report.md",
+    "verdict": "MET DOCUMENT SCOPE",
+    "remaining_named_fixtures": [
+      "management-disaster-recovery",
+      "recovery-external-effects",
+      "host-maintenance-rehearsal"
+    ]
   }
 }

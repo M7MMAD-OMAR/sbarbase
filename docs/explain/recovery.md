@@ -4,9 +4,11 @@
 
 ## What it is
 
-Recovery takes one environment, stops its writes, exports it encrypted, restores it into a separate database engine, checks that everything came across, and only then points its traffic at the new copy. The other environments on the server keep their data and are restarted afterwards.
+The operator workflow provides daily environment backups, restore and optional encrypted S3-compatible offsite copy/fetch through [backup and restore](../guides/backup-and-restore.md). It is implemented in [lab/backup.py](../../lab/backup.py) and [lab/offsite.py](../../lab/offsite.py). Disposable local MinIO copy/fetch/restore evidence is recorded in [docker-offsite-checks.json](../evidence/docker-offsite-checks.json); this does not establish operation with a real external provider or complete lost-server recovery.
 
-## Why
+A separate historical cutover experiment stops one environment's writes, exports it encrypted, restores into an independent engine, checks the copy and switches traffic. The sequence and limits below describe that experiment, not every operator backup. Experimental native-dedicated recovery has additional engine/application/maintenance identity requirements and remains unaccepted; see the [native placement contract](../engineering/plans/2026-10-03-native-placement-identity.md) and [ledger](../engineering/gauntlet-ledger.json).
+
+## Why the historical cutover uses a separate target
 
 **Choice: restore into an isolated target, verify, then switch.** A restore that overwrites the live database in place leaves nothing to fall back to when it goes wrong. Restoring into a fresh engine keeps the source untouched (but fenced) until the copy has been checked, including identities, row-level security and old signed file URLs.
 
@@ -15,7 +17,7 @@ Recovery takes one environment, stops its writes, exports it encrypted, restores
 - **Replication as backup.** A replica copies mistakes and deletions immediately; it is not a backup.
 - **Cluster-level point-in-time recovery.** PostgreSQL's physical recovery works on the whole engine, so restoring one environment would roll back every neighbour. Per-environment recovery needs a logical export of that environment's database plus its files and configuration.
 
-## How we built it
+## Historical cutover sequence
 
 ![Five steps: stop writes, encrypted export, restore into an independent engine, verify, switch the route; if verification fails the source data is untouched and stays fenced until an operator reopens it, and exporting stops shared Storage for every environment on the engine](../diagrams/restore-flow.svg)
 
@@ -32,15 +34,16 @@ Recovery takes one environment, stops its writes, exports it encrypted, restores
 
 Code: [lab/source_fence.py](../../lab/source_fence.py), [lab/cutover-export.py](../../lab/cutover-export.py), [lab/recovery_bundle.py](../../lab/recovery_bundle.py), [lab/recovery-restore-db.py](../../lab/recovery-restore-db.py), [lab/recovery-check-services.py](../../lab/recovery-check-services.py), [lab/recovery_reconcile.py](../../lab/recovery_reconcile.py), [lab/target_runtime.py](../../lab/target_runtime.py), [src/control/placement.ts](../../src/control/placement.ts). The operator procedure is in [backup and restore](../guides/backup-and-restore.md).
 
-## Limits
+## Cutover fixture limits and remaining recovery gaps
 
-- Exercised on one host with a retained test fixture. The recovery scripts are still fixture-specific and not a general backup product.
-- There are no scheduled backups, no off-host copies and no point-in-time recovery.
+- This independent-engine cutover was exercised on one host with a retained fixture. Its scripts are fixture-specific and do not define the general operator backup workflow.
+- Daily backups and S3-compatible copies exist in the operator workflow. Point-in-time recovery and HA remain unavailable; those capabilities are not established by either path.
 - It is a downtime procedure, and not only for the environment being recovered: a consistent export stops the shared Storage process and the other services of the whole source placement, so every environment on that engine, and the console login, is offline until the neighbours are restarted.
 - Maintenance stops new requests, but requests already admitted by a gateway process can still be cut off when services stop.
-- The export bundle is held in memory and capped at 32 MiB; large databases and object stores need a streaming format.
+- The historical cutover export bundle is held in memory and capped at 32 MiB; this fixture limit does not apply to every operator backup path.
 - Once the target has accepted writes, switching back to the older source is unsafe and needs reconciliation. Automatic resume after the controller itself dies mid-operation is not proven.
-- Vault contents, function artifacts and external object stores are not covered.
+- The cutover fixture does not cover Vault contents, function artifacts or external object stores.
+- Complete recovery still requires coherent database/object capture under concurrent writes, installation members, keys and configuration, feature state and independently verified fresh-host recovery. Scoped copy/restore checks do not establish that complete contract.
 
 ## Go deeper
 

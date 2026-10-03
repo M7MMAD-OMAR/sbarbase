@@ -87,6 +87,13 @@ The additional six-source community review adds disk growth, existing Studio dat
 
 ## 4. Priority problems and user outcomes
 
+### First-beta boundary and expansion rule
+
+Begin with one documented Linux x86_64 host profile, a local Docker Engine/Compose deployment, one versioned original Supabase bundle and one admitted placement profile. Record the exact distribution, kernel, engine, filesystem and resource minimums after independent clean-host evidence; no profile is supported merely by naming it here. Use native dedicated placement first when enabled features require it. Support multiple fresh environments under a measured workload limit, with SQL/Data API, Auth and Storage first. Realtime, Functions and Studio enter the supported set only after their own application/configuration/recovery gates pass. Show every unavailable capability explicitly rather than claim a complete stack from partial startup proof.
+
+The first user journey must complete install, connect an application, preview an update and recover on a clean host from an offsite recovery set. General cloud import, shared-engine optimization, ARM, Kubernetes, public hostile tenancy, billing and HA do not block learning from this bounded beta. They remain required future milestones where applicable to the full goal; this boundary does not redefine full completion. Do not impose host Python, Bun, systemd or private workstation dependencies on the primary container journey.
+
+
 Priorities are proposed judgments based on impact, existing gaps and dependencies, not fabricated scoring data.
 
 | Priority | User problem | Proposed outcome | Proof required |
@@ -166,6 +173,8 @@ These are targets, not declarations that installations already passed.
 
 Publish the support window and exact tested kernel/engine/architecture/filesystem and host distribution. Docker image availability alone does not satisfy the contract. Host Python, Bun and systemd must not be required for the primary container workflow. Existing native installation scripts are legacy paths until independently maintained; they cannot dictate container portability. Cloud providers can reuse a proven host profile, but networking, disks, DNS, mail and certificate behavior still need provider-specific checks.
 
+Host maintenance is a separate support contract from SB-03 database security maintenance. Publish supported OS/kernel/Docker/Compose versions and lifecycle dates, who monitors upstream security advisories, who authorizes patches, and what happens when a profile leaves support. Test planned update/reboot, application reconnection and recovery availability before promoting a profile. Show pending host maintenance and its consequences to the operator; do not claim containerization removes host administration. Docker daemon access belongs to trusted management, with an explicit privilege boundary. [Docker Engine security](https://docs.docker.com/engine/security/) and [security announcements](https://docs.docker.com/security/security-announcements/) inform this contract. Rootless operation remains separately experimental until its resource/network/ownership contracts pass. No automatic host patching or reboot is part of this research task.
+
 ## 8. User workflow and support
 
 The console should lead through: inspect server, create operator, enable management protection, configure domain/HTTPS, create environment, configure email/Auth, connect app, set offsite recovery, complete first restore drill. A local evaluation can skip public DNS, but its status must remain distinct from production readiness.
@@ -177,6 +186,10 @@ For development keep the usual Supabase project layout. Support migrations via t
 Existing Studio-created databases need an adoption path: inventory objects and privileges, capture a baseline, review it, replay on a clean fixture and verify a subsequent no-change diff. Record the exact CLI version and diff engine, including unsupported command behavior. Current declarative workflows compare schema files with migration history; they do not capture later live Studio edits. Do not silently switch between engines. Preserve owners, ACLs, RLS, security-invoker views, publications and custom schemas; route bucket rows and other data changes through explicit migrations or seeds. Before the Studio role transition, preview actual owners and review custom schemas that the upstream public-only migration leaves untouched.
 
 Capacity guidance must remain available when the application database is unhealthy. Separate database, Storage, WAL/replication-slot retention, logs and retained recovery-set usage. Offer optional log aggregation with documented access protection, redaction, retention and measured cost. A missing Logs Explorer should explain what evidence is unavailable. No generic cleanup action may delete WAL or replication slots; expansion or retention changes require a reviewed plan with application and recovery consequences.
+
+Management disaster recovery needs a separate documented journey. With the original host unavailable, retrieve independently held offsite archives and encryption material, recover the controller/catalog/configuration and the declared application set, apply the published credential policy, reconnect a client and verify object access and new writes. Specify audited offline management recovery for lost MFA or an unavailable controller, revoke stale access and distinguish management recovery from application credential rotation. If encryption material has no independent surviving copy, report recovery unavailable; never silently weaken encryption. Domain-provider access loss needs an explicit fallback or refusal rather than an assumption that DNS can be changed.
+
+Restore drills must suppress production email, callbacks and webhooks by default. Before reopening production, display a policy for pending, retried and overdue cron/queue work, external credentials and reconciliation. Record already delivered effects and known duplicate or lost-work consequences. Database/object consistency does not establish exactly-once external delivery. Add a separate adversarial future fixture for these side effects; this requirement does not widen the currently bounded native effects slice.
 
 For incidents show: affected environments, observed symptom, evidence, recommended action and its consequence. Notify on meaningful state changes with deduplication and delivery tracking. Export a support bundle that redacts credentials and personal data, with user review before sharing. Separate an upstream bug, unsupported configuration and Sbarbase orchestration failure in issue triage.
 
@@ -217,6 +230,16 @@ Concrete first backlog:
 | SB-14 | Disk/WAL/log capacity and independent diagnostics | SB-02, SB-06 | Stalled consumers and near-capacity fixtures yield actionable diagnosis; approved remedy preserves application and recovery state |
 | SB-15 | Adopt Studio schema and versioned CLI workflow | SB-03, SB-09, SB-10 | Clean replay plus no-change diff preserve owner/ACL/RLS/view behavior; custom schemas and DML have explicit coverage |
 
+Future recovery/support fixture ownership must be assigned before implementation:
+
+| ID | Maintainer role | Named future acceptance fixture | Gate |
+|---|---|---|---|
+| SB-16 | Runtime/security maintainer | management-disaster-recovery | Original host unavailable; independent recovery material, lost MFA/controller recovery, stale-access denial, and explicit unavailable-key refusal. Depends on SB-05/SB-06 |
+| SB-17 | Supabase compatibility and recovery maintainers | recovery-external-effects | Restore drill sends no production effects; pending/retry/overdue cron/queue/webhook policy, observed duplicates/losses and reviewed reopening. Depends on SB-05/SB-11 |
+| SB-18 | Runtime/security maintainer | host-maintenance-rehearsal | Supported OS/kernel/engine lifecycle, update/reboot/client reconnection/recovery access and clear unsupported-profile status. Depends on SB-02/SB-03 |
+
+These are planned contracts, not existing accepted fixtures. The named maintainer roles must receive actual ownership before their workstream starts. SB-16 and the enabled-feature portion of SB-17 belong to first-beta recovery acceptance; broader feature coverage follows the capability registry. SB-18 belongs to the promoted host profile.
+
 ## 10. Validation with people and economic value
 
 Conduct consented interviews and observed workflow tests with agencies, independent developers and existing self-host operators. This task did not contact anyone. Start with 10 interviews and 5 installation/recovery pilots as proposed discovery sample sizes, not as a statistical estimate of the community.
@@ -224,6 +247,10 @@ Conduct consented interviews and observed workflow tests with agencies, independ
 Ask about the last real upgrade or outage, what was lost, recovery time, projects per host, current hosting and operator costs, compliance needs, important Supabase features, and what prevents migration. Observe a fresh installation and a restore rather than ask whether someone likes the idea. Find out whether shared-engine efficiency or reduced operational effort motivates purchase. Reassess segment choice if the evidence favors dedicated projects.
 
 Measure: time to first successful SDK call; undocumented manual interventions; completion of offsite backup and first restore; actual recovery duration and lost-data interval; successful upgrades and reconciliations; support requests per task; resource cost per measured workload; pilot retention. Do not set an availability SLA, project count or cost savings claim before collecting the relevant evidence.
+
+Before observing pilots, publish the task definitions, assistance limits and go-or-narrow rules. Every safety or data-integrity failure blocks that workflow claim and requires repair. For the proposed five disposable-data pilot sessions, use four independent install/connect/restore completions as an initial maintainer decision target. Fewer completions means an operator-assisted beta while failed steps are repaired. Any undeclared maintainer intervention prevents that session counting as independent. This small-sample threshold is a proposed learning rule, not evidence about the community or an SLA. Set task-time targets from observed current workflows rather than invented savings.
+
+Compare the same application tasks on the versioned upstream deployment and Sbarbase. Record configuration effort, all interventions, recovery completeness, duration and measured resources. If recurring multi-project burden is weak in interviews and observed tasks, revisit the customer segment and efficiency hypothesis before building shared-engine optimizations. Preserve recoverability work whose value is separately demonstrated. Participant outreach and public/paid pilot infrastructure require their own authorization; none occurred in this task.
 
 Potential model: open-source core with optional paid assistance, maintained release bundles or hosted coordination. Validate willingness to pay before building billing. Clarify who owns data and responds to incidents. Avoid implying affiliation with Supabase, inherited compliance certifications or a legal guarantee from the choice of software.
 
@@ -234,7 +261,15 @@ Assign a maintainer for each workstream before implementation: runtime/security,
 The release gate must combine unit/build/type diagnostics, integration/isolation, native installation, browser/accessibility, security and dependency/license checks, recovery, performance and public-deployment observations. Every evidence item names source revision, bundle, platform and time. Missing evidence, warnings, skips of required cases, stale results and manual checks without observations block acceptance. [COMPLIANCE.md](../../../COMPLIANCE.md) records the current gaps.
 
 The original planning task made no implementation or deployment changes. Subsequent execution has accepted only separately recorded immutable fragments. No paid deployment, complete runtime benchmark, full security audit or full original-stack acceptance follows from this refreshed roadmap. The product remains unaccepted for production, and the full goal stays active.
-# Native bootstrap configuration path follow-up
+## Current native prerequisite status and historical attempts
+
+Current authoritative status: original-image configured bootstrap is independently accepted only at immutable source 85791f0e1061259286822b9686afa817af61d26c6a735380e82d59085e5bcc69. The subsequent configured-effects window at source 042d6bd940c66bd0d762aa2f90f4d62624cc2168f0bc75fad7b237f648d528cd passed standalone preservation, the complete bootstrap prefix and six offline stages, but failed its first canonical ACL metadata query before cron/table/job/helper setup. Fresh actual review retains 804 evidence checks and 906 artifact hash records. Eleven/twenty/two root absences pass; never-created HTTP CID is UNRUN. The offline packet contains 1329 Python and 301 Bun tests. At that first window, a narrow ACL observer repair was declared; its subsequent review and actual outcome are recorded below. Configured effects, full recovery/services, cross-host support, security maintenance and release remain unaccepted. Later documentation does not inherit these historical source identities.
+
+The subsequent ACL-only correction reached actual PostgreSQL successfully at immutable source c8b99a81a3428e7748576a7c991cfbd58ed4312bd3a4800624e6fbcdd7762d2b. It then refused the closed cron setup: seven routines have postgres EXECUTE WITH GRANT OPTION absent from the expected model. Fresh actual review verifies 634 evidence checks, the complete scoped bootstrap prefix, six offline stages and eleven/twenty/two root absences; HTTP CID remains UNRUN and no owned effects started. The final installed hook cause is unproven. Future work must establish that exact original versioned source cause before changing admission; no grant repair or arbitrary manifest widening is allowed. This advances the observer correction only and preserves the full roadmap gaps.
+
+### Historical attempts, preserved losses and limited acceptances
+
+The following entries describe successive earlier evidence windows. Their current-tense statements apply to those windows, not to the authoritative status above.
 
 Configured original-image bootstrap remains NOT MET. The first three retained attempts distinguish verifier-format losses from the actual native initialization failure. Docker capability-prefix and BusyBox missing-file differences are now handled narrowly, but the third attempt's strict initial diagnostics show the pg_net worker using postgres before native migrations create that role. Successful offline source gates do not certify native bootstrap.
 

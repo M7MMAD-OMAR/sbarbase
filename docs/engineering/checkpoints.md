@@ -1,16 +1,16 @@
 # Sbarbase: start here
 
-Updated 2026-09-25. Current source release: [0.1.0](../../CHANGELOG.md). The container generation migration is implemented, crash-tested on disposable fixtures, and was run once, attended, on the retained database on 2026-09-25. The [agent handoff](handoff/README.md) holds the current state and next step; the checkpoints below are chronological and can be superseded.
+Current pointers updated 2026-10-04: [status](../reference/status.md), [handoff](handoff/README.md), [October product plan](plans/2026-10-03-product-and-portability-plan.md) and [evidence ledger](gauntlet-ledger.json). Package 0.2.0 is a development snapshot, not a newly accepted release. The summaries and chronological records below are historical snapshots and can be superseded.
 
 The earlier handoff snapshots named below were removed on 2026-09-24 and remain in the repository history; their mentions are kept as plain text.
 
-## Product and current decision
+## Historical foundation summary
 
 Downloadable open source Supabase-based administration for multiple projects, usually on one VPS. Preserve Supabase SDK/SQL compatibility. Administer each environment through the original upstream Supabase Studio; the platform console covers only organizations, projects, environments, connection details, keys and provisioning status. Operators are trusted; application visitors are not. A working platform console now runs on the loopback API server. No production platform or complete installer exists yet.
 
 **Continue implementation and verification; production architecture is not approved.** Hierarchy: installation > organization > project > environment. Ownership is independent of server placement. Candidate: shared PostgreSQL, separate environment databases and service credentials, original Auth/REST per environment and shared Storage. Shared roles/processes/resources remain failure boundaries. Independent PostgreSQL is the fallback if compatibility, isolation or recovery gates fail. No fixed project capacity, distribution license or upstream adoption has been chosen.
 
-## Current implementation and evidence
+## Historical implementation and evidence snapshot
 
 | Area | What works | Evidence and limits |
 |---|---|---|
@@ -32,7 +32,7 @@ The gateway now also permits API-key-free GET/HEAD on public-object and signed-d
 
 Local SQLite stores experimental control metadata and hashed API keys; application data stays in PostgreSQL. A shared Storage process can access all tenant configurations, so process compromise remains a shared boundary. No complete organization/server transfer or multi-host control plane exists.
 
-## Next gates
+## Historical next gates
 
 1. Harden the new durable upstream lifecycle: verify full migration readiness, configuration reconciliation, pinned-version upgrades, failure injection and full-install fault recovery. Dedicated management Auth/key integration now passes locally. It currently uses an isolated experimental catalog and local worker.
 2. Complete production management deployment, operator onboarding UX, invitations, key rotation/auditing, admission controls, CORS/OAuth and streaming uploads. Integrate Realtime, pooler, functions and scheduled jobs with isolation tests.
@@ -365,3 +365,8 @@ Not done, and not claimed: a public certificate and DNS, a seven-day soak with r
 `lab/vm-milestones.sh channel` ran in a fresh rehearsal VM on the committed HEAD (f5f41ce) and passed 114 of 114 checks ([evidence](../evidence/vm-channel-checks.json), [how](UPDATE-CHANNEL.md#rehearsal-in-the-vm)). The installation moved onto a base listing a throwaway release key with `upgrade.py start --to`, a systemd drop-in pointed it at a bare repository in the guest, and four signed releases went through the real operator path, asked for through the management API the console uses: v0.9.1 (PostgREST v14.16), confirmed; v0.9.2 (a PostgREST that never answers), whose runtime did not start, moved back by itself with the control snapshot restored; v0.9.3 installed by automatic mode inside its window after automatic mode had left v0.9.2 alone; v0.9.4 (GoTrue v2.197.0, attended) refused without the acknowledgement, installed with it, the operator signing in again through the migrated management Auth. Each install showed the drain, exit 42, the systemd restart, the guard's count, a fresh snapshot, application traffic answered 503 until the confirmation (a window of about half a second for a healthy release), unchanged data, and the `update.*` audit and outbox rows. The command line cycle had passed 26 of 26 in the VM earlier the same day ([evidence](../evidence/vm-upgrade-checks.json)).
 
 No product defect was found. The check itself had three: it looked up releases not yet published, it expected a 503 hold from the broken release (its runtime fails before the console starts, so nothing is served to hold), and it read the way back's sentence from `failure` instead of `reason`. Three VM attempts were powered off by the rehearsal's own watchdog when other work on the host took its memory below 3 GiB, and one did not finish cloud-init on a slow package mirror; the run that counts started from a fresh VM. Not covered: the console's "Roll back", a way back from an attended release, a rebuild release, the canonical repository with the maintainer's key, and a real server.
+
+
+## 2026-10-04: documentation and publication consolidation
+
+Current reader pages and engineering navigation now distinguish the implemented shared runtime, experimental native placement and historical rehearsal results. Main at `6c112c3` passed CI run 37135601249 and Website run 37134926306 before this consolidation; fresh checks are required for the new revision. The latest configured-effects packet executes the corrected ACL projection but refuses the routine privilege model. Original bootstrap and isolated source gates retain their own scoped passes. Complete native services/recovery, coherent keys and objects, independent hosts, security maintenance, capacity, HA, PITR and release acceptance remain open. No host changes or product deployment follows from source publication.

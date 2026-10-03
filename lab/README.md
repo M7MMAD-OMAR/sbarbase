@@ -2,7 +2,7 @@
 
 # Local component laboratory
 
-This is an isolated compatibility experiment, not the Sbarbase product or a production deployment. It initially compares three environment databases on one PostgreSQL 17 instance with original Supabase Auth and PostgREST services. Storage, Realtime, functions, UI, recovery and upgrade gates remain separate work.
+This index contains isolated compatibility experiments and operator tooling. It is not a production acceptance record. Current capabilities and dated scope are in [status](../docs/reference/status.md); current development follows the [October execution contract](../docs/engineering/plans/2026-10-03-gauntlet-execution-method.md). It initially compares three environment databases on one PostgreSQL 17 instance with original Supabase Auth and PostgREST services. Storage, Realtime, functions, UI, recovery and upgrade gates remain separate work.
 
 All containers use the `sbarbase-lab` ownership label, an internal bridge with no public port publishing, dedicated networking and a dedicated volume. Secrets stay in ignored `.secrets/`. Run with `/usr/bin/python3 lab/run.py up`, `status`, or `stop`. Stop preserves data. No existing services are managed.
 
@@ -129,7 +129,7 @@ stop it after testing. Details: [operator setup](../docs/guides/operator-setup.m
 
 Run `bun install --frozen-lockfile`, then `/usr/bin/python3 lab/dev.py`. The foreground runner builds the console, starts the owned runtime and continuously processes queued creation operations. Open its printed loopback URL. Create the initial operator with `lab/bootstrap.py` if needed. Ctrl+C stops the runner and its owned runtime while preserving volumes. Browser sessions are in memory, so reloading requires login. Do not run manual lifecycle commands concurrently with the runner. This is not a production service manager.
 
-This console is the platform layer: organizations, projects, environments, connection details, keys and provisioning status. Environment administration is handed to the original upstream Studio, which is specified in [the integration specification](../docs/engineering/STUDIO-INTEGRATION.md) and is not served by any command yet. When it lands, its route and its authenticated gate join this runner and its admission math.
+This console is the platform layer: organizations, projects, environments, connection details, keys and provisioning status. Environment administration is handed to the original upstream Studio, through the implemented on-demand shared-runtime path described in [the integration specification](../docs/engineering/STUDIO-INTEGRATION.md) and [Studio guide](../docs/guides/studio.md). Dedicated native placement and complete feature recovery remain separately unaccepted.
 
 `bun run typecheck:ui` checks frontend types. `lab/ui-fixture.ts` creates only a
 private temporary QA identity attached to the existing durable probe organization;

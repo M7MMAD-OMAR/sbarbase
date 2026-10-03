@@ -4,6 +4,10 @@ Detailed notes written while each mechanism was built and tested. They are dated
 
 Continuity notes for coding agents are in [handoff](handoff/README.md). The chronological project log is [checkpoints](checkpoints.md).
 
+## Current development contract
+
+Start with the [project goal](../../PROJECT_GOAL.md), [product and portability plan](plans/2026-10-03-product-and-portability-plan.md), [execution method](plans/2026-10-03-gauntlet-execution-method.md), [native placement identity](plans/2026-10-03-native-placement-identity.md) and [scoped evidence ledger](gauntlet-ledger.json). The ledger includes immutable local packet references; those raw packets are not distributed as public evidence. Accepted fragments do not establish complete native placement or production readiness. [Project layout](../reference/project-layout.md) explains the source and documentation structure.
+
 ## Architecture and control plane
 
 - [ARCHITECTURE-REVIEW](ARCHITECTURE-REVIEW.md): the original foundation review, options and acceptance gates.
@@ -79,7 +83,7 @@ Continuity notes for coding agents are in [handoff](handoff/README.md). The chro
 - [ENVIRONMENT-EMAIL](ENVIRONMENT-EMAIL.md): per-environment Auth mail through an operator SMTP relay (design record; implemented in 0.1.0).
 - [OPERATOR-NOTIFICATIONS](OPERATOR-NOTIFICATIONS.md): operator events by email or signed webhook (design record; implemented in 0.1.0).
 - [UPSTREAM-UPDATE-POLICY](UPSTREAM-UPDATE-POLICY.md): the binding rules for changing a pinned upstream image.
-- [UPDATE-CHANNEL](UPDATE-CHANNEL.md): signed releases, classification from the diff, console requests, the health-gated confirmation and hold, snapshots and the way back (unit tests and the CI cases on a clean machine; VM rehearsal pending).
+- [UPDATE-CHANNEL](UPDATE-CHANNEL.md): signed releases, classification from the diff, console requests, the health-gated confirmation and hold, snapshots and the way back (unit tests and the CI cases on a clean machine; bounded VM rehearsal recorded on 2026-09-26; independent public-server acceptance open).
 
 ## Reviews
 
@@ -100,4 +104,4 @@ Continuity notes for coding agents are in [handoff](handoff/README.md). The chro
 
 ## Plans
 
-- [plans](plans/README.md): working plans, led by the [roadmap](plans/2026-09-23-roadmap.md) and the [verification and migration plan](plans/2026-09-23-verification-and-migration-plan.md).
+- [plans](plans/README.md): current October contracts and dated historical plans. September milestone ordering is retained as history; current priorities are defined above.

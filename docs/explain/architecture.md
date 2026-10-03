@@ -4,7 +4,9 @@
 
 ## What it is
 
-One gateway on your server receives every request, checks the API key and forwards it to the original Supabase service of the right environment. Each environment has its own database, Auth and REST; PostgreSQL itself and Storage are shared processes.
+The existing `legacy-shared` topology uses one gateway to check API keys and forward requests to the original Supabase services of the right environment. Each environment has its own database, Auth and REST; PostgreSQL itself and Storage are shared processes. The diagrams and sharing rationale below describe that topology.
+
+The experimental `native-dedicated` placement contract records an environment's own engine, application database `postgres`, and a distinct maintenance database with separate credential references. The catalog is the declaration authority; discovering an engine does not authorize its adoption. Every native declaration currently resolves as unadmitted, so declaring it does not activate provisioning, routing, service consumers, pools, recovery or external effects. See the [native placement contract](../engineering/plans/2026-10-03-native-placement-identity.md) and [gauntlet ledger](../engineering/gauntlet-ledger.json).
 
 ## Why
 
@@ -13,7 +15,7 @@ The choice is to share the heavy engines (PostgreSQL, Storage) and keep separate
 Rejected alternatives:
 
 - **One Auth and one PostgREST for all environments**, switching database per request. Neither upstream service supports that as an established mode, and making it work means rewriting security-critical code.
-- **A full stack per environment.** Kept as the isolation baseline and the fallback (independent PostgreSQL per environment), but it repeats every component.
+- **A full stack per environment.** Kept as the isolation baseline and historical independent-engine fallback. The native-dedicated candidate is a separate compatibility requirement for original Supabase features, with its own admission and evidence contract.
 
 ## How we built it
 
@@ -68,11 +70,11 @@ Code: [src/control/application.ts](../../src/control/application.ts) (routing be
 
 - Admission is per gateway process, with no queue: an overloaded environment gets `429` and a busy server `503`. Several gateway processes do not share counts.
 - Uploads stream through up to the upload limit (50 MiB by default); resumable (TUS) uploads are not routed.
-- Realtime and Edge Functions run one container per environment that turns them on; Studio runs per environment on demand. The pooler and cron are not part of the running architecture yet.
+- Realtime and Edge Functions run one container per environment that turns them on; Studio runs per environment on demand. The legacy workflow does not expose pooler or cron support. Cron libraries in the native image are not evidence of a supported operator feature.
 - All processes share one local catalog; there is no multi-server coordination.
 
 ## Go deeper
 
 - [Control plane](../engineering/CONTROL-PLANE.md), [persistent routing](../engineering/PERSISTENT-ROUTING.md), [gateway overload](../engineering/GATEWAY-OVERLOAD.md), [gateway drain](../engineering/GATEWAY-DRAIN.md).
 - [Combined runtime](../engineering/COMBINED-RUNTIME.md) and [resource policy](../engineering/RESOURCE-POLICY.md).
-- [Studio integration specification](../engineering/STUDIO-INTEGRATION.md): how each environment will get its own upstream Studio.
+- [Studio integration specification](../engineering/STUDIO-INTEGRATION.md): the implemented on-demand upstream Studio workflow and its evidence.

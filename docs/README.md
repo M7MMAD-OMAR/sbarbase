@@ -2,7 +2,7 @@
 
 # Sbarbase documentation
 
-Sbarbase runs many Supabase projects on one server that you can back up, restore and upgrade without fear. The docs are split by what you need right now. Start with [why](explain/why.md) if you are new, or with [status](reference/status.md) if you want to know what works.
+Sbarbase develops operations for many Supabase projects on one server, including tested backup, restore and upgrade workflows. The docs are split by what you need right now. Start with [why](explain/why.md) if you are new, or with [status](reference/status.md) if you want to know what works.
 
 ![Map of the docs: explain for why it works this way, guides for how to do something, reference for facts to look up, decisions for why this design, and the engineering notebook for dated notes when you want to go deeper](diagrams/docs-map.svg)
 
@@ -24,7 +24,7 @@ Read these to understand the design. Each page has the same shape: what it is, w
 
 ## Guides: how to do something
 
-- [Install with Docker](guides/docker.md): the shortest path, on any Linux host with Docker.
+- [Install with Docker](guides/docker.md): the container installation path for a compatible Linux Docker Engine and Compose host.
 - [Quickstart](guides/quickstart.md): from an empty server to a supabase-js call, as rehearsed in a local VM.
 - [Choosing a server](guides/choosing-a-server.md): what to buy, and what the free options really give you.
 - [Local lab](guides/local-lab.md): run the stack on your own machine for evaluation.
@@ -38,13 +38,14 @@ Read these to understand the design. Each page has the same shape: what it is, w
 - [Logs and metrics](guides/logs-and-metrics.md): requests, errors, response times and service logs per environment.
 - [Sign-in settings](guides/sign-in.md): site URL, redirect addresses and OAuth providers (Google, GitHub, Apple and others) per environment.
 - [Supabase Studio](guides/studio.md): open the original Studio for one environment, behind the console login.
-- [Backup and restore](guides/backup-and-restore.md): the manual procedure that exists today.
+- [Backup and restore](guides/backup-and-restore.md): the current operator workflow, including scheduled backups and bounded offsite recovery.
 - [Upgrades](guides/upgrades.md): updates from the console, opt-in automatic updates and the command line, with an automatic way back.
 - [The sbarbase command](guides/cli.md): status, backups, restore, environments, keys, upgrade, Studio and logs from one command.
 
 ## Reference: facts to look up
 
 - [Status](reference/status.md): the single place for what works and every number, with dates and commands.
+- [Project layout](reference/project-layout.md): repository folders and the current documentation entry points.
 - [Glossary](reference/glossary.md): every internal term in one or two sentences.
 - [Configuration](reference/configuration.md): files, flags and environment variables an operator touches.
 - [API](reference/api.md): management and gateway routes.
@@ -59,3 +60,7 @@ Read these to understand the design. Each page has the same shape: what it is, w
 [docs/engineering](engineering/README.md) holds the detailed notes written while building each mechanism: designs, crash tests, reviews, plans and the chronological [checkpoints](engineering/checkpoints.md). They are precise and dated, and some are superseded by later notes. Read them when an explain page links you there or before changing that subsystem. Notes for coding agents continuing the work are in [engineering/handoff](engineering/handoff/README.md).
 
 Also kept here: [evidence](evidence/) (JSON written by live probes, cited by status), [diagrams](diagrams/README.md) and the [console design record](design/CONSOLE.md).
+
+## Current direction
+
+The [project goal](../PROJECT_GOAL.md), [October product plan](engineering/plans/2026-10-03-product-and-portability-plan.md) and [execution method](engineering/plans/2026-10-03-gauntlet-execution-method.md) guide current development. The [native placement contract](engineering/plans/2026-10-03-native-placement-identity.md) separates experimental dedicated placement from the existing shared topology. The [evidence ledger](engineering/gauntlet-ledger.json) records scoped passes and refusals, including local packets that are not distributed with the repository. A source publication is not production release acceptance.

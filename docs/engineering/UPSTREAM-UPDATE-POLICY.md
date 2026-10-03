@@ -10,8 +10,8 @@ binding for every future change, assistant and release.
    (PostgREST), Storage, CLI, migration scripts) is pinned to an exact version
    in one visible place. No floating tags (`latest`, `main`). The pin file is
    the single source for "what are we on". Studio and postgres-meta are
-   components of the same kind, adopted per environment: see the pending
-   components note under Current pins.
+   components of the same kind, pinned for the on-demand per-environment
+   workflow in `lab/studio-image.lock.json`.
 2. **Read the changelog before touching anything.** For every candidate
    upstream release, before adopting it: read the upstream release notes and
    changelog, and record in a dated entry under `docs/upstream/`:
@@ -52,22 +52,18 @@ floating tag or an unpinned component.
 | Auth | `lab/images.lock.json` | public.ecr.aws/supabase/gotrue:v2.196.0 | c0c25187a6b8 | project start | GoTrue |
 | REST | `lab/images.lock.json` | public.ecr.aws/supabase/postgrest:v14.15 | 2f8e7b656f09 | project start | PostgREST |
 | Storage | `lab/storage-image.lock.json` | public.ecr.aws/supabase/storage-api:v1.73.1 | c24fb33cc2fa | project start | tenant-aware |
+| Studio | `lab/studio-image.lock.json` | public.ecr.aws/supabase/studio:2026.09.07-sha-7996410 | 94a2a9d2906e | current distributed lock | per environment, on demand |
+| postgres-meta | `lab/studio-image.lock.json` | public.ecr.aws/supabase/postgres-meta:v0.99.0 | 9a079ac1c94d | current distributed lock | scoped Studio database access |
+| Realtime | `lab/realtime-image.lock.json` | public.ecr.aws/supabase/realtime:v2.138.1 | 7a6d995635f7 | current distributed lock | optional per environment |
+| Edge Functions | `lab/functions-image.lock.json` | public.ecr.aws/supabase/edge-runtime:v1.77.0 | 5f555406dc07 | current distributed lock | optional per environment |
 
 Keep this table honest. An out-of-date pin table is treated as a bug.
 
-### Pending components
+### Inventory and acceptance boundaries, 2026-10-04
 
-Studio and postgres-meta are adopted per environment ([decision](../decisions/README.md)) but
-are not pinned yet, because nothing serves them. Each enters this table in its own
-change with its own dated review entry, one component at a time. Two pairs exist and
-one has to be chosen on purpose: the pair already measured on this host is
-`studio:2026.07.27-sha-cbb076d` with `postgres-meta:v0.96.6`, and the pair named by
-the current upstream self-hosting compose is `studio:2026.09.07-sha-7996410` with
-`postgres-meta:v0.99.0`. The compose's database image must not be taken at all;
-this installation pins `17.6.1.166`. Neither Studio nor postgres-meta is covered by
-any existing evidence, so no recorded gate result may be reused for them, and the
-adoption has to state which checkpoints it invalidates. [Integration
-specification](STUDIO-INTEGRATION.md) section 9 lists them.
+Studio and postgres-meta are pinned and served by the legacy workflow. The [Studio integration note](STUDIO-INTEGRATION.md) and [docker-studio-checks.json](../evidence/docker-studio-checks.json) retain its implementation and bounded rehearsal evidence. Realtime and Functions also have distributed locks. The table records the current lock contents, not a newly executed pin-verification command or completed adoption review.
+
+Every future change still needs its own dated release review and affected gates. Existing evidence cannot be transferred to a changed image or to native-dedicated placement. Original-image inventory fragments in the [gauntlet ledger](gauntlet-ledger.json) do not establish complete upstream adoption, current PostgreSQL security acceptance or a production support window.
 
 ## Staging an update
 

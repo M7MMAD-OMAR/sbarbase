@@ -14,15 +14,15 @@ Sbarbase is an open source, self-hosted layer that runs the original Supabase se
 
 - **One ordinary server.** No second machine and no cloud service needed. Clients hold projects, projects hold environments (production, staging).
 - **No data mixing.** Each environment has its own database, its own logins and its own keys. A key from one project never opens another.
-- **Fast, with room to grow.** One PostgreSQL engine and one Storage serve every environment, instead of a full Supabase stack per app, so the same server holds more projects.
+- **Shared resources.** The existing topology shares PostgreSQL and Storage across environments. Capacity depends on measured workloads; no fixed project count is validated.
 - **A busy project uses the free room, never its neighbours' share.** Each environment has a guaranteed share of the gateway, and a busy one may borrow what the others are not using. Every project that was active in the last minute keeps its whole share. If one keeps choking, you get a message by email, webhook or Telegram.
-- **Your app does not change.** It keeps using supabase-js and SQL.
+- **Original Supabase APIs.** Tested workflows use supabase-js and SQL. Full cloud feature compatibility remains a development goal.
 
 <p align="center"><img src="docs/diagrams/hierarchy.svg" width="820" alt="Clients, projects and environments on one server"></p>
 
 ## Install
 
-On any Linux server with Docker, three commands ([Install with Docker](docs/guides/docker.md)):
+On a compatible Linux host with rootful Docker Engine and Compose, three commands ([Install with Docker](docs/guides/docker.md)):
 
 ```bash
 git clone https://github.com/M7MMAD-OMAR/sbarbase /opt/sbarbase && cd /opt/sbarbase
@@ -30,7 +30,7 @@ docker compose up -d --build
 docker compose exec sbarbase python3 lab/bootstrap.py
 ```
 
-Without Docker Compose, on an empty Fedora server (plan on 4 cores and 8 GB). Each step is explained in the [quickstart](docs/guides/quickstart.md).
+The earlier native supervisor installation path, on an empty Fedora server (plan on 4 cores and 8 GB). Each step is explained in the [quickstart](docs/guides/quickstart.md).
 
 ```bash
 sudo dnf install -y moby-engine git python3-cryptography && sudo systemctl enable --now docker
@@ -52,11 +52,13 @@ The last command installs the service, creates a first project, proves supabase-
 | [Decisions](docs/decisions/README.md) | what was chosen, what was rejected, and why |
 | [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md) · [Changelog](CHANGELOG.md) | |
 
-Every reader-facing page is in English and Arabic, with a link to the other language at the top.
+Reader guides and references are in English and Arabic. The dated engineering notebook is primarily in English. See the [project layout](docs/reference/project-layout.md) for the repository structure.
 
 ## Status
 
-In development. The install has passed in a local virtual machine, not yet on a real server, and it is not production ready. What works, with every number, is in [status](docs/reference/status.md).
+The declared package version is 0.2.0, a development snapshot; 0.1.0 remains the historical source release. Docker install and VM rehearsals have scoped passing evidence. Independent public-server and production acceptance remain open. What works, with every number, is in [status](docs/reference/status.md).
+
+Current priorities are in the [product and portability plan](docs/engineering/plans/2026-10-03-product-and-portability-plan.md), with the [execution contract](docs/engineering/plans/2026-10-03-gauntlet-execution-method.md) defining how each claim is verified.
 
 ## Support
 
