@@ -505,9 +505,15 @@ def prune(e, keep, protected=None):
     return doomed
 
 
-def verify(e, path):
+def verify(e, path, *, staged_stamp=None):
     """The manifest of a complete backup of this environment whose files match their digests."""
-    if not STAMP.fullmatch(path.name) or path.parent != BACKUPS / e:
+    if staged_stamp is None:
+        admitted = STAMP.fullmatch(path.name) and path.parent == BACKUPS / e
+    else:
+        admitted = (type(staged_stamp) is str and STAMP.fullmatch(staged_stamp)
+                    and re.fullmatch(r'\.' + re.escape(staged_stamp) + r'\.fetching-[0-9a-f]{32}', path.name)
+                    and path.parent == BACKUPS / e and not path.is_symlink())
+    if not admitted:
         raise BackupError('Not a backup of this environment')
     manifest_path = path / 'manifest.json'
     if not manifest_path.is_file():

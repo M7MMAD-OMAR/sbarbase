@@ -75,6 +75,201 @@ class EncryptionTests(unittest.TestCase):
         with self.assertRaises(offsite.OffsiteError):
             self.open(b'not a backup')
 
+    def test_actual_four_mib_chunk_boundaries(self):
+        chunk = 4 * 1024 * 1024
+        with patch.object(offsite, 'CHUNK', chunk):
+            for size in (0, chunk - 1, chunk, chunk + 1, 2 * chunk + 17):
+                data = b'a' * size
+                source = self.root / 'actual-source'
+                source.write_bytes(data)
+                salt = os.urandom(16)
+                with offsite.EncryptingReader(source, offsite.derive_key(PASS, salt), salt) as reader:
+                    sealed = b''.join(iter(lambda: reader.read(chunk + offsite.TAG), b''))
+                self.assertEqual(len(sealed), offsite.encrypted_size(size))
+                target = self.root / 'actual-output'
+                receipt = offsite.decrypt_stream(io.BytesIO(sealed), target, PASS,
+                                                expected_bytes=size, max_bytes=size,
+                                                expected_sha256=hashlib.sha256(data).hexdigest())
+                self.assertEqual(receipt['bytes'], size)
+                self.assertEqual(target.read_bytes(), data)
+                self.assertFalse(list(self.root.glob('.*.decrypt-*')))
+
+    def test_fragmented_transport_and_plaintext_receipt(self):
+        data = b'fragmented transport' * 150
+        sealed = self.seal(data)
+
+        class Fragmented(io.BytesIO):
+            def read(self, size=-1):
+                return super().read(min(size, 7))
+
+        target = self.root / 'fragmented'
+        receipt = offsite.decrypt_stream(Fragmented(sealed), target, PASS,
+                                        expected_bytes=len(data), expected_sha256=hashlib.sha256(data).hexdigest(),
+                                        max_bytes=len(data))
+        self.assertEqual(target.read_bytes(), data)
+        self.assertEqual(receipt, {'bytes': len(data), 'sha256': hashlib.sha256(data).hexdigest()})
+        self.assertEqual(target.stat().st_mode & 0o777, 0o600)
+        self.assertFalse(list(self.root.glob('.*.decrypt-*')))
+
+    def test_late_authentication_failure_preserves_destination_and_hides_prefix(self):
+        sealed = bytearray(self.seal(b'a' * 3000))
+        sealed[-1] ^= 1
+        for exists in (False, True):
+            target = self.root / 'late'
+            if exists:
+                target.write_bytes(b'prior bytes')
+            with self.assertRaises(offsite.OffsiteError):
+                offsite.decrypt_stream(io.BytesIO(sealed), target, PASS)
+            if exists:
+                self.assertEqual(target.read_bytes(), b'prior bytes')
+            else:
+                self.assertFalse(target.exists())
+            self.assertFalse(list(self.root.glob('.*.decrypt-*')))
+
+    def test_plaintext_limits_and_digest_fail_before_publication(self):
+        data = b'bounded' * 300
+        sealed = self.seal(data)
+        target = self.root / 'limited'
+        target.write_bytes(b'previous')
+        for options in ({'max_bytes': len(data) - 1}, {'expected_bytes': len(data) - 1},
+                        {'expected_bytes': len(data) + 1}, {'expected_sha256': '0' * 64}):
+            with self.assertRaises(offsite.OffsiteError):
+                offsite.decrypt_stream(io.BytesIO(sealed), target, PASS, **options)
+            self.assertEqual(target.read_bytes(), b'previous')
+            self.assertFalse(list(self.root.glob('.*.decrypt-*')))
+
+    def test_invalid_typed_admissions_fail_before_reading(self):
+        class Unreadable:
+            def read(self, size):
+                raise AssertionError('Invalid admission must not read the source')
+
+        for field in ('expected_bytes', 'max_bytes'):
+            for value in (True, -1, 1.5, '12', offsite.CHUNK * 2**32 + 1):
+                with self.assertRaises(offsite.OffsiteError):
+                    offsite.decrypt_stream(Unreadable(), self.root / 'bad', PASS, **{field: value})
+        for value in (b'0' * 64, 'X' * 64, '0' * 63, 42):
+            with self.assertRaises(offsite.OffsiteError):
+                offsite.decrypt_stream(Unreadable(), self.root / 'bad', PASS, expected_sha256=value)
+        with self.assertRaises(offsite.OffsiteError):
+            offsite.decrypt_stream(Unreadable(), self.root / 'bad', PASS, expected_bytes=2, max_bytes=1)
+        for value in (True, -1, 1.5, '12', offsite.CHUNK * 2**32 + 1):
+            with self.assertRaises(offsite.OffsiteError):
+                offsite.encrypted_size(value)
+        self.assertEqual(offsite.encrypted_size(offsite.CHUNK * 2**32),
+                         28 + offsite.CHUNK * 2**32 + 16 * 2**32)
+
+    def test_unsafe_destination_is_refused_without_following_it(self):
+        sealed = self.seal(b'private')
+        destination = self.root / 'unsafe'
+        prior = self.root / 'prior'
+        prior.write_bytes(b'keep')
+        destination.symlink_to(prior)
+        with self.assertRaises(offsite.OffsiteError):
+            offsite.decrypt_stream(io.BytesIO(sealed), destination, PASS)
+        self.assertEqual(prior.read_bytes(), b'keep')
+        destination.unlink()
+        destination.mkdir()
+        with self.assertRaises(offsite.OffsiteError):
+            offsite.decrypt_stream(io.BytesIO(sealed), destination, PASS)
+
+    def test_reader_rejects_shrink_growth_and_same_length_mutation(self):
+        source = self.root / 'mutable'
+        for mutation in ('shrink', 'growth', 'rewrite'):
+            source.write_bytes(b'a' * 3000)
+            salt = os.urandom(16)
+            with offsite.EncryptingReader(source, b'k' * 32, salt) as reader:
+                self.assertEqual(reader.read(28)[:4], offsite.MAGIC)
+                self.assertTrue(reader.read(1040))
+                if mutation == 'shrink':
+                    source.write_bytes(b'a')
+                elif mutation == 'growth':
+                    with source.open('ab') as handle:
+                        handle.write(b'grown')
+                else:
+                    source.write_bytes(b'b' * 3000)
+                with self.assertRaises(offsite.OffsiteError):
+                    while reader.read(1040):
+                        pass
+                with self.assertRaises(offsite.OffsiteError):
+                    reader.read(1040)
+
+    def test_huge_readinto_keeps_only_one_chunk_and_zero_request_does_not_advance(self):
+        source = self.root / 'large'
+        source.write_bytes(b'z' * (offsite.CHUNK * 12))
+        with offsite.EncryptingReader(source, b'k' * 32, b's' * 16) as reader:
+            self.assertEqual(reader.readinto(bytearray()), 0)
+            self.assertEqual(reader.handle.tell(), 0)
+            buffer = bytearray(1024 * 1024)
+            count = reader.readinto(buffer)
+            self.assertEqual(count, 28)
+            self.assertEqual(reader.handle.tell(), 0)
+            ciphertext = bytes(buffer[:count])
+            while count := reader.readinto(buffer):
+                self.assertLessEqual(count, offsite.CHUNK + offsite.TAG)
+                self.assertLessEqual(len(reader.pending), offsite.CHUNK + offsite.TAG)
+                ciphertext += bytes(buffer[:count])
+        self.assertEqual(len(ciphertext), offsite.encrypted_size(source.stat().st_size))
+
+    def test_reader_admits_only_exact_key_and_salt_lengths_and_refuses_index_exhaustion(self):
+        source = self.root / 'keys'
+        source.write_bytes(b'plain')
+        for key, salt in ((b'k' * 16, b's' * 16), (b'k' * 32, b's'), ('k' * 32, b's' * 16)):
+            with self.assertRaises(offsite.OffsiteError):
+                offsite.EncryptingReader(source, key, salt)
+        for salt in (b's', 's' * 16):
+            with self.assertRaises(offsite.OffsiteError):
+                offsite.derive_key(PASS, salt)
+        with offsite.EncryptingReader(source, b'k' * 32, b's' * 16) as reader:
+            reader.read(28)
+            reader.index = 2**32
+            with self.assertRaises(offsite.OffsiteError):
+                reader.read(1040)
+
+    def test_failed_source_read_does_not_expose_authenticated_prefix(self):
+        sealed = self.seal(b'a' * 3000)
+
+        class FailedTransport(io.BytesIO):
+            def read(self, size=-1):
+                if self.tell() >= 28 + 2 * (offsite.CHUNK + offsite.TAG):
+                    raise OSError('transport interrupted')
+                return super().read(size)
+
+        target = self.root / 'interrupted'
+        target.write_bytes(b'previous')
+        with self.assertRaisesRegex(OSError, 'transport interrupted'):
+            offsite.decrypt_stream(FailedTransport(sealed), target, PASS)
+        self.assertEqual(target.read_bytes(), b'previous')
+        self.assertFalse(list(self.root.glob('.*.decrypt-*')))
+
+    def test_decrypt_staging_is_private_before_atomic_replacement(self):
+        sealed = self.seal(b'new plaintext')
+        target = self.root / 'permissions'
+        target.write_bytes(b'old plaintext')
+        original = offsite.os.replace
+        observed = []
+
+        def replace(source, destination):
+            self.assertEqual(source.stat().st_mode & 0o777, 0o600)
+            self.assertEqual(source.parent.stat().st_mode & 0o777, 0o700)
+            self.assertEqual(source.parent.parent, target.parent)
+            self.assertEqual(target.read_bytes(), b'old plaintext')
+            observed.append(source)
+            return original(source, destination)
+
+        with patch.object(offsite.os, 'replace', side_effect=replace):
+            offsite.decrypt_stream(io.BytesIO(sealed), target, PASS)
+        self.assertEqual(len(observed), 1)
+        self.assertEqual(target.read_bytes(), b'new plaintext')
+
+    def test_partial_header_tag_and_appended_bytes_never_publish(self):
+        sealed = self.seal(b'a' * 2048)
+        for malformed in (sealed[:27], sealed[:30], sealed[:-1], sealed + b'extra'):
+            target = self.root / 'malformed'
+            with self.assertRaises(offsite.OffsiteError):
+                offsite.decrypt_stream(io.BytesIO(malformed), target, PASS)
+            self.assertFalse(target.exists())
+            self.assertFalse(list(self.root.glob('.*.decrypt-*')))
+
 
 class MemoryBucket:
     objects = {}
@@ -154,6 +349,114 @@ class PushAndFetchTests(unittest.TestCase):
         offsite.push([E], self.config)
         del MemoryBucket.objects[f'sbarbase/{E}/20260901T030000Z/complete']
         self.assertEqual(offsite.remote_backups(MemoryBucket(self.config), self.config, E), [])
+
+    def prepare_fetch(self):
+        stamp = '20260901T030000Z'
+        path = self.make(stamp)
+        offsite.push([E], self.config)
+        import shutil
+        shutil.rmtree(path)
+        return stamp, path
+
+    def test_fetch_verifies_private_staging_before_publication(self):
+        stamp, target = self.prepare_fetch()
+        original = backup.verify
+        observed = []
+
+        def verify(e, path, *, staged_stamp=None):
+            self.assertFalse(target.exists())
+            self.assertEqual(staged_stamp, stamp)
+            self.assertEqual(path.stat().st_mode & 0o777, 0o700)
+            self.assertTrue(path.name.startswith(f'.{stamp}.fetching-'))
+            observed.append(path)
+            return original(e, path, staged_stamp=staged_stamp)
+
+        with patch.object(backup, 'verify', side_effect=verify):
+            offsite.fetch(E, stamp, self.config)
+        self.assertEqual(len(observed), 1)
+        self.assertTrue(target.exists())
+        self.assertFalse(observed[0].exists())
+
+    def test_fetch_bad_manifest_leaves_no_published_backup_or_staging(self):
+        stamp, target = self.prepare_fetch()
+        # A valid authenticated file paired with the wrong manifest must fail verification.
+        wrong = target.parent / 'wrong'
+        wrong.write_bytes(b'incorrect database')
+        MemoryBucket(self.config).put_file(f'sbarbase/{E}/{stamp}/database.dump.sbb', wrong, PASS)
+        wrong.unlink()
+        with self.assertRaises(backup.BackupError):
+            offsite.fetch(E, stamp, self.config)
+        self.assertFalse(target.exists())
+        self.assertFalse(list(target.parent.glob(f'.{stamp}.fetching-*')))
+
+    def test_fetch_concurrent_destination_is_not_replaced(self):
+        stamp, target = self.prepare_fetch()
+        original = offsite._promote_directory
+
+        def collide(source, destination):
+            target.mkdir()
+            return original(source, destination)
+
+        with patch.object(offsite, '_promote_directory', side_effect=collide):
+            with self.assertRaises(offsite.OffsiteError):
+                offsite.fetch(E, stamp, self.config)
+        self.assertTrue(target.is_dir())
+        self.assertEqual(list(target.iterdir()), [])
+        self.assertFalse(list(target.parent.glob(f'.{stamp}.fetching-*')))
+
+    def test_fetch_refuses_dangling_destination_symlink(self):
+        stamp, target = self.prepare_fetch()
+        target.symlink_to(target.parent / 'missing')
+        with self.assertRaises(offsite.OffsiteError):
+            offsite.fetch(E, stamp, self.config)
+        self.assertTrue(target.is_symlink())
+
+    def test_owned_staging_verifier_rejects_identity_and_path_mismatches(self):
+        stamp = '20260901T030000Z'
+        path = self.make(stamp)
+        staged = path.with_name(f'.{stamp}.fetching-' + 'a' * 32)
+        path.rename(staged)
+        self.assertEqual(backup.verify(E, staged, staged_stamp=stamp)['runtime'], E)
+        for supplied in (None, True, '20260902T030000Z', '../bad'):
+            with self.assertRaises(backup.BackupError):
+                backup.verify(E, staged, staged_stamp=supplied)
+        link = staged.with_name(f'.{stamp}.fetching-' + 'b' * 32)
+        link.symlink_to(staged, target_is_directory=True)
+        with self.assertRaises(backup.BackupError):
+            backup.verify(E, link, staged_stamp=stamp)
+        other = backup.private_dir(staged.parent / 'other') / staged.name
+        with self.assertRaises(backup.BackupError):
+            backup.verify(E, other, staged_stamp=stamp)
+
+    def test_owned_staging_name_collision_does_not_remove_another_directory(self):
+        stamp, target = self.prepare_fetch()
+        partial = target.with_name(f'.{stamp}.fetching-' + 'a' * 32)
+        partial.mkdir(mode=0o700)
+        marker = partial / 'another-owner'
+        marker.write_bytes(b'preserve')
+        with patch.object(offsite.secrets, 'token_hex', return_value='a' * 32):
+            with self.assertRaises(FileExistsError):
+                offsite.fetch(E, stamp, self.config)
+        self.assertEqual(marker.read_bytes(), b'preserve')
+        self.assertFalse(target.exists())
+
+    def test_cleanup_failure_is_explicit_and_preserves_original_failure(self):
+        stamp, target = self.prepare_fetch()
+        original_cleanup = offsite.shutil.rmtree
+
+        def deny_fetch_cleanup(path):
+            if Path(path).name.startswith(f'.{stamp}.fetching-'):
+                raise OSError('cleanup denied')
+            return original_cleanup(path)
+
+        with patch.object(backup, 'verify', side_effect=backup.BackupError('manifest refusal')) as verifier:
+            with patch.object(offsite.shutil, 'rmtree', side_effect=deny_fetch_cleanup):
+                with self.assertRaisesRegex(offsite.OffsiteError, 'cleanup failed') as caught:
+                    offsite.fetch(E, stamp, self.config)
+        verifier.assert_called_once()
+        self.assertIsInstance(caught.exception.__context__, OSError)
+        self.assertIsInstance(caught.exception.__context__.__context__, backup.BackupError)
+        self.assertFalse(target.exists())
 
     def test_settings_are_checked(self):
         good = {'endpoint': 'https://x.r2.cloudflarestorage.com', 'bucket': 'backups', 'access_key_id': 'k', 'secret_access_key': 's', 'passphrase': PASS}

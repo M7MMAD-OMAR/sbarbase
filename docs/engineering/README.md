@@ -10,6 +10,8 @@ Start with the [project goal](../../PROJECT_GOAL.md), [product and portability p
 
 - [Original configured Cron and HTTP effects](reviews/2026-10-04-native-cron-effects.md): accepted bounded effects, source identity, preservation and cleanup; broader native/recovery/security gates remain open.
 
+- [Streaming backup transport](reviews/2026-10-04-streaming-backup-transport.md): accepted offline transport regressions, atomic-publication limits and separate patched-candidate static refusal.
+
 ## Architecture and control plane
 
 - [ARCHITECTURE-REVIEW](ARCHITECTURE-REVIEW.md): the original foundation review, options and acceptance gates.

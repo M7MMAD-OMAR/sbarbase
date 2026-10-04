@@ -19,6 +19,8 @@ against its manifest, and leaves it where `backup.py restore` finds it.
 """
 import argparse
 import datetime
+import ctypes
+import errno
 import hashlib
 import hmac
 import http.client
@@ -27,8 +29,11 @@ import json
 import os
 import re
 import secrets
+import shutil
+import stat
 import struct
 import sys
+import tempfile
 import urllib.parse
 import xml.etree.ElementTree as ElementTree
 from pathlib import Path
@@ -52,43 +57,82 @@ class OffsiteError(RuntimeError):
 # ---- encryption -------------------------------------------------------------------------
 
 def derive_key(passphrase, salt):
+    if type(salt) is not bytes or len(salt) != 16:
+        raise OffsiteError('Key derivation requires a 16-byte salt')
     return hashlib.scrypt(passphrase.encode(), salt=salt, n=2**15, r=8, p=1, maxmem=64 * 1024 * 1024, dklen=32)
 
 
+def _size(value, name):
+    if type(value) is not int or value < 0 or value > CHUNK * 2**32:
+        raise OffsiteError(f'{name} must be a nonnegative integer within the SBB1 size ceiling')
+    return value
+
+
 def encrypted_size(plain):
+    plain = _size(plain, 'Plaintext size')
     chunks = max(1, -(-plain // CHUNK))
     return len(MAGIC) + 16 + 8 + plain + chunks * TAG
 
 
 class EncryptingReader(io.RawIOBase):
-    """Reads a file as `SBB1 | salt | nonce prefix | chunks`, each chunk sealed with its index and
-    whether it is the last, so a reordered, dropped or truncated chunk fails to open."""
+    """Reads SBB1 with at most one sealed chunk pending, including for huge requests."""
 
     def __init__(self, path, key, salt):
         from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+        if type(key) is not bytes or len(key) != 32 or type(salt) is not bytes or len(salt) != 16:
+            raise OffsiteError('Encryption requires a 32-byte key and 16-byte salt')
         self.handle = open(path, 'rb')
-        self.size = os.fstat(self.handle.fileno()).st_size
-        self.aead = AESGCM(key)
-        self.prefix = secrets.token_bytes(8)
-        self.pending = MAGIC + salt + self.prefix
-        self.index = 0
-        self.remaining = self.size
-        self.finished = False
+        try:
+            self.snapshot = os.fstat(self.handle.fileno())
+            if not stat.S_ISREG(self.snapshot.st_mode):
+                raise OffsiteError('Encryption source must be a regular file')
+            self.size = _size(self.snapshot.st_size, 'Plaintext size')
+            self.aead = AESGCM(key)
+            self.prefix = secrets.token_bytes(8)
+            self.pending = MAGIC + salt + self.prefix
+            self.index = 0
+            self.remaining = self.size
+            self.finished = False
+            self.failed = False
+        except BaseException:
+            self.handle.close()
+            raise
 
     def readable(self):
         return True
 
     def _next(self):
-        data = self.handle.read(CHUNK)
-        self.remaining -= len(data)
-        last = self.remaining == 0
-        nonce = self.prefix + struct.pack('>I', self.index)
-        self.pending += self.aead.encrypt(nonce, data, struct.pack('>IB', self.index, last))
-        self.index += 1
-        self.finished = last
+        if self.failed:
+            raise OffsiteError('Encryption source previously failed admission')
+        try:
+            if self.index >= 2**32:
+                raise OffsiteError('SBB1 chunk index exhausted')
+            wanted = min(CHUNK, self.remaining)
+            data = _read_block(self.handle, wanted)
+            if len(data) != wanted:
+                raise OffsiteError('Encryption source shrank while reading')
+            self.remaining -= len(data)
+            last = self.remaining == 0
+            if last:
+                extra = self.handle.read(1)
+                current = os.fstat(self.handle.fileno())
+                if extra or any(getattr(current, field) != getattr(self.snapshot, field)
+                                            for field in ('st_size', 'st_mtime_ns', 'st_ctime_ns')):
+                    raise OffsiteError('Encryption source changed while reading')
+            nonce = self.prefix + struct.pack('>I', self.index)
+            self.pending = self.aead.encrypt(nonce, data, struct.pack('>IB', self.index, last))
+            self.index += 1
+            self.finished = last
+        except BaseException:
+            self.failed = True
+            raise
 
     def readinto(self, buffer):
-        while len(self.pending) < len(buffer) and not self.finished:
+        if self.closed:
+            raise ValueError('read of closed encryption source')
+        if not len(buffer):
+            return 0
+        if not self.pending and not self.finished:
             self._next()
         count = min(len(buffer), len(self.pending))
         buffer[:count] = self.pending[:count]
@@ -96,34 +140,112 @@ class EncryptingReader(io.RawIOBase):
         return count
 
     def close(self):
-        self.handle.close()
+        if hasattr(self, 'handle'):
+            self.handle.close()
         super().close()
 
 
-def decrypt_stream(source, target, passphrase):
-    """Decrypts a stream written by EncryptingReader into the file `target`."""
+def _read_block(source, limit):
+    """Accumulate legal short reads, never beyond one requested bounded block."""
+    result = bytearray()
+    while len(result) < limit:
+        part = source.read(limit - len(result))
+        if not isinstance(part, bytes) or len(part) > limit - len(result):
+            raise OffsiteError('Ciphertext source returned an invalid read')
+        if not part:
+            break
+        result.extend(part)
+    return bytes(result)
+
+
+def _destination(target):
+    try:
+        mode = target.lstat().st_mode
+    except FileNotFoundError:
+        return
+    if not stat.S_ISREG(mode):
+        raise OffsiteError('Decryption destination must be absent or a regular file')
+
+
+def _sync_directory(path):
+    fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def _cleanup(path):
+    try:
+        shutil.rmtree(path)
+    except OSError as error:
+        raise OffsiteError(f'Private staging cleanup failed at {path}: {error}') from error
+
+
+def decrypt_stream(source, target, passphrase, *, expected_bytes=None, expected_sha256=None, max_bytes=None):
+    """Authenticate into private staging and publish only complete, validated plaintext.
+
+    Returns a plaintext bytes/sha256 receipt. Limits are explicitly supplied by callers.
+    """
     from cryptography.exceptions import InvalidTag
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-    header = source.read(len(MAGIC) + 16 + 8)
+    for name, value in (('Expected bytes', expected_bytes), ('Maximum bytes', max_bytes)):
+        if value is not None:
+            _size(value, name)
+    if expected_sha256 is not None and (type(expected_sha256) is not str
+                                       or re.fullmatch(r'[0-9a-f]{64}', expected_sha256) is None):
+        raise OffsiteError('Expected SHA-256 must be 64 lowercase hexadecimal characters')
+    if expected_bytes is not None and max_bytes is not None and expected_bytes > max_bytes:
+        raise OffsiteError('Expected bytes exceed maximum bytes')
+    target = Path(target)
+    _destination(target)
+    header = _read_block(source, 28)
     if len(header) != 28 or header[:4] != MAGIC:
         raise OffsiteError('Not an encrypted Sbarbase backup file')
     aead = AESGCM(derive_key(passphrase, header[4:20]))
     prefix, index = header[20:28], 0
-    block = source.read(CHUNK + TAG)
-    with open(target, 'wb') as handle:
-        while True:
-            following = source.read(CHUNK + TAG) if len(block) == CHUNK + TAG else b''
-            last = not following
-            try:
-                handle.write(aead.decrypt(prefix + struct.pack('>I', index), block, struct.pack('>IB', index, last)))
-            except InvalidTag:
-                raise OffsiteError('The file does not decrypt: a wrong passphrase, or a damaged or truncated copy') from None
-            if last:
-                return
-            block, index = following, index + 1
+    block = _read_block(source, CHUNK + TAG)
+    staging = Path(tempfile.mkdtemp(prefix=f'.{target.name}.decrypt-', dir=target.parent))
+    temporary = staging / 'plaintext'
+    total, digest = 0, hashlib.sha256()
+    try:
+        fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, 'wb') as handle:
+            while True:
+                if index >= 2**32 or len(block) < TAG:
+                    raise OffsiteError('Invalid or exhausted SBB1 ciphertext chunk')
+                following = _read_block(source, CHUNK + TAG) if len(block) == CHUNK + TAG else b''
+                last = not following
+                try:
+                    data = aead.decrypt(prefix + struct.pack('>I', index), block, struct.pack('>IB', index, last))
+                except InvalidTag:
+                    raise OffsiteError('The file does not decrypt: a wrong passphrase, or a damaged or truncated copy') from None
+                total += len(data)
+                if any(limit is not None and total > limit for limit in (expected_bytes, max_bytes)):
+                    raise OffsiteError('Decrypted plaintext exceeds the admitted byte limit')
+                handle.write(data)
+                digest.update(data)
+                if last:
+                    break
+                block, index = following, index + 1
+            actual_hash = digest.hexdigest()
+            if expected_bytes is not None and total != expected_bytes:
+                raise OffsiteError('Decrypted plaintext does not match expected bytes')
+            if expected_sha256 is not None and not hmac.compare_digest(actual_hash, expected_sha256):
+                raise OffsiteError('Decrypted plaintext does not match expected SHA-256')
+            handle.flush()
+            os.fsync(handle.fileno())
+        _sync_directory(staging)
+        _destination(target)
+        os.replace(temporary, target)
+        _sync_directory(target.parent)
+        return {'bytes': total, 'sha256': actual_hash}
+    finally:
+        _cleanup(staging)
 
 
-# ---- S3 ---------------------------------------------------------------------------------
+# ---- request signing --------------------------------------------------------------------
+
 
 def signed_headers(method, url, region, key_id, secret, headers=None, payload='UNSIGNED-PAYLOAD', now=None):
     """AWS Signature Version 4 for one request; returns the headers to send."""
@@ -295,6 +417,23 @@ def push(targets, config=None):
     return copied
 
 
+def _promote_directory(source, target):
+    """Linux atomic directory publication with an absent destination, fail closed elsewhere."""
+    if not sys.platform.startswith('linux'):
+        raise OffsiteError('Atomic absent-destination promotion requires Linux renameat2')
+    library = ctypes.CDLL(None, use_errno=True)
+    rename = getattr(library, 'renameat2', None)
+    if rename is None:
+        raise OffsiteError('Atomic absent-destination promotion requires renameat2 support')
+    rename.argtypes = (ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint)
+    rename.restype = ctypes.c_int
+    if rename(-100, os.fsencode(source), -100, os.fsencode(target), 1) != 0:
+        code = ctypes.get_errno()
+        if code == errno.EEXIST:
+            raise OffsiteError('That backup is already on this server')
+        raise OffsiteError(f'Atomic backup promotion failed: {os.strerror(code)}')
+
+
 def fetch(e, stamp, config=None):
     config = config or load_config()
     if not config:
@@ -305,25 +444,30 @@ def fetch(e, stamp, config=None):
     if stamp not in remote_backups(bucket, config, e):
         raise OffsiteError('No complete copy of that backup in the bucket')
     target = backup.BACKUPS / e / stamp
-    if target.exists():
+    if os.path.lexists(target):
         raise OffsiteError('That backup is already on this server')
-    partial = backup.private_dir(backup.BACKUPS / e) / f'.{stamp}.fetching'
-    backup.private_dir(partial)
+    parent = backup.private_dir(backup.BACKUPS / e)
+    partial = parent / f'.{stamp}.fetching-{secrets.token_hex(16)}'
+    partial.mkdir(mode=0o700)
+    promoted = False
     try:
         for file in FILES:
             response = bucket.request('GET', f"{config['prefix']}/{e}/{stamp}/{file}.sbb", stream=True)
             if isinstance(response, bytes):
                 raise OffsiteError(f'{file} is missing from the copy')
-            decrypt_stream(response, partial / file, config['passphrase'])
-            os.chmod(partial / file, 0o600)
-        partial.rename(target)
-        return backup.verify(e, target)
-    except BaseException:
-        import shutil
-        shutil.rmtree(partial, ignore_errors=True)
-        if target.exists() and not (target / 'manifest.json').exists():
-            shutil.rmtree(target, ignore_errors=True)
-        raise
+            try:
+                decrypt_stream(response, partial / file, config['passphrase'])
+            finally:
+                response.close()
+        manifest = backup.verify(e, partial, staged_stamp=stamp)
+        _sync_directory(partial)
+        _promote_directory(partial, target)
+        promoted = True
+        _sync_directory(parent)
+        return manifest
+    finally:
+        if not promoted:
+            _cleanup(partial)
 
 
 def main(argv=None):
