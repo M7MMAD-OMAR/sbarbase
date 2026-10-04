@@ -5312,6 +5312,124 @@
     "full_recovery_accepted": false,
     "general_secret_safety_accepted": false,
     "clean_clone_reproducibility": false,
-    "production_accepted": false
+    "production_accepted": false,
+    "assessment_scope": "Historical bridge fragment; later live checkpoint and credential scopes are assessed separately."
+  },
+  "private_diagnostics_live_checkpoint": {
+    "verdict": "MET_THREE_CASE_SYNTHETIC_LIVE_PREFIX_CHECKPOINT_ONLY",
+    "review": ".lab/private-diagnostic-live-checkpoint-v2-actual-critic-20261004/review.json",
+    "packet": ".lab/private-diagnostic-live-checkpoint-v2-build-20261004/run-diagnostic-live-5d4d3c9370e74043bfb2f4ea566d2801/receipt.json",
+    "public_review": "docs/engineering/reviews/2026-10-04-live-diagnostics-and-credentials.md",
+    "independent_checks": 3697,
+    "commands": 170,
+    "streams": 340,
+    "stream_bytes": 884909,
+    "evidence_pre_receipt_bytes": 1048369,
+    "elapsed_seconds": 6.996608532994287,
+    "cases": {
+      "live_good": {
+        "prefix_bytes": 175,
+        "prefix": "ACCEPTED",
+        "final_bytes": 191,
+        "final": "ACCEPTED"
+      },
+      "before_unknown": {
+        "prefix_bytes": 238,
+        "prefix": "REFUSED",
+        "final_bytes": 238,
+        "final": "REFUSED"
+      },
+      "after_unknown": {
+        "prefix_bytes": 179,
+        "prefix": "ACCEPTED",
+        "final_bytes": 253,
+        "final": "REFUSED"
+      }
+    },
+    "helpers": 7,
+    "exact_helper_cid_and_name_absences": 14,
+    "exact_volume_absences": 2,
+    "create_uncertain": false,
+    "private_marker_spool_host_read_print_hash": false,
+    "retained_master_key_volume_touched": false,
+    "continuous_monitor_accepted": false,
+    "vendor_grammar_accepted": false,
+    "candidate_startup_accepted": false,
+    "clean_clone_reproducibility": false,
+    "production_accepted": false,
+    "preserved_refusals": [
+      ".lab/private-diagnostic-live-checkpoint-design-critic-20261004/review.json",
+      ".lab/private-diagnostic-live-checkpoint-source-critic-20261004/review.json"
+    ]
+  },
+  "private_postgres_credential_filesystem": {
+    "verdict": "MET_NATIVE_PRIVATE_CREDENTIAL_FILESYSTEM_AND_METADATA_GUARDS_ONLY",
+    "review": ".lab/patched-private-credential-actual-critic-20261004/review.json",
+    "packet": ".lab/patched-private-credential-v2-build-20261004/run-private-credential-065d336e3b0d4898aa19b5d198294983/receipt.json",
+    "public_review": "docs/engineering/reviews/2026-10-04-live-diagnostics-and-credentials.md",
+    "independent_checks": 617,
+    "source_selected_controls": 108,
+    "commands": 88,
+    "streams": 176,
+    "stream_bytes": 174315,
+    "evidence_pre_receipt_bytes": 248131,
+    "elapsed_seconds": 2.2546510440006386,
+    "helpers": 4,
+    "exact_helper_cid_and_name_absences": 8,
+    "equal_generator_and_two_guard_numeric_witnesses": true,
+    "retained_volume": "private-credential-065d336e3b0d4898aa19b5d198294983-credential",
+    "positive_volume_retained": true,
+    "renewed_owner_and_current_zero_consumers": true,
+    "volume_absence_claimed": false,
+    "password_value_host_read_print_hash": false,
+    "diagnostic_receiver_mount": false,
+    "retained_master_key_volume_touched": false,
+    "vendor_password_import_accepted": false,
+    "authentication_accepted": false,
+    "candidate_startup_accepted": false,
+    "clean_clone_reproducibility": false,
+    "production_accepted": false,
+    "preserved_refusals": [
+      ".lab/patched-private-credential-source-critic-20261004/review.json"
+    ]
+  },
+  "patched_public_build_metadata": {
+    "verdict": "MET_FINITE_NATIVE_PUBLIC_BUILD_METADATA_OBSERVATION_ONLY",
+    "review": ".lab/patched-public-build-defaults-v4-actual-critic-20261004/review.json",
+    "packet": ".lab/patched-public-build-defaults-v4-build-20261004/run-public-build-defaults-137220d4f7364c1f82024a4b7c7b666e/receipt.json",
+    "public_review": "docs/engineering/reviews/2026-10-04-live-diagnostics-and-credentials.md",
+    "independent_checks": 250,
+    "commands": 13,
+    "streams": 26,
+    "stream_bytes": 14401,
+    "evidence_pre_receipt_bytes": 37448,
+    "elapsed_seconds": 0.44637106099980883,
+    "helpers": 1,
+    "exact_helper_cid_and_name_absences": 2,
+    "native_actor_uid": 100,
+    "native_actor_gid": 101,
+    "effective_groups": [
+      101
+    ],
+    "mounts": [],
+    "postgres_version": "17.11",
+    "pg_config_version": "17.11",
+    "configure_tokens": 20,
+    "socket_directory_configure_option": null,
+    "installed_libpq_default": "UNRESOLVED",
+    "early_cleared_PGHOST_compatibility": "UNRUN",
+    "server_started": false,
+    "connection_attempted": false,
+    "production_accepted": false,
+    "prior_unstarted_helper_cleanup": {
+      "review": ".lab/patched-public-build-defaults-v4-cleanup-actual-critic-20261004/review.json",
+      "independent_checks": 144,
+      "exact_cid_and_name_absent": true
+    },
+    "preserved_refusals": [
+      ".lab/patched-public-build-defaults-refusal-critic-20261004/review.json",
+      ".lab/patched-public-build-defaults-v2-refusal-critic-20261004/review.json",
+      ".lab/patched-public-build-defaults-v3-source-critic-20261004/review.json"
+    ]
   }
 }

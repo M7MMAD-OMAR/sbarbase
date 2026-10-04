@@ -20,7 +20,9 @@ Start with the [project goal](../../PROJECT_GOAL.md), [product and portability p
 
 - [Private diagnostic FIFO mechanics](reviews/2026-10-04-private-diagnostics-fifo.md): accepted 32 synthetic outcomes and 436 independent checks in one detached helper; the later bridge is recorded separately, with vendor grammar, candidate startup and recovery still unaccepted.
 
-- [Synthetic diagnostics across containers](reviews/2026-10-04-private-diagnostics-bridge.md): accepted three native writer/receiver cases and 2671 saved-public bindings, with exact seven-helper/two-volume cleanup; vendor startup, live checkpoints and recovery remain unaccepted.
+- [Synthetic diagnostics across containers](reviews/2026-10-04-private-diagnostics-bridge.md): accepted three native writer/receiver cases and 2671 saved-public bindings, with exact seven-helper/two-volume cleanup; vendor startup and recovery remain unaccepted; later live-prefix evidence is assessed separately.
+
+- [Live checkpoints and isolated credentials](reviews/2026-10-04-live-diagnostics-and-credentials.md): accepted finite three-case live-prefix proof and a separate native password filesystem handoff; actual vendor startup, authentication and complete recovery remain unaccepted.
 
 ## Architecture and control plane
 
