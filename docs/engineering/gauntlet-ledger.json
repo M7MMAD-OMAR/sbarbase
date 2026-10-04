@@ -2,7 +2,7 @@
   "schema": 1,
   "goal": "PROJECT_GOAL.md",
   "method": "docs/engineering/plans/2026-10-03-gauntlet-execution-method.md",
-  "source_commit": "2366c8279f2eb25bc174620817f79a959181e1f8",
+  "source_commit": "c8f286a1febfe5b33c74a3ba0f223d91545bd50c",
   "includes_uncommitted_work": true,
   "status": "active",
   "reference": "docs/engineering/benchmarks/supabase-v0.8.2.source.json",
@@ -1724,6 +1724,30 @@
       "exact_cleanup_absences": 2,
       "critic": ".lab/stream-transport-actual-critic-20261004/review.json",
       "verdict": "MET OFFLINE TRANSPORT REGRESSIONS ONLY"
+    },
+    {
+      "packet": ".lab/stream-final-publication-verification-20261004/run-20261004T023835Z-4155359-0",
+      "source_sha256": "f6dea99d62276412e9fd0673f04a7a44759f2611e6e05c6994936239b71045be",
+      "review": ".lab/stream-final-publication-actual-critic-20261004/review.json",
+      "verdict": "MET SOURCE CHECKS ONLY",
+      "stages": 6,
+      "python_tests": 1367,
+      "bun_tests": 301,
+      "bun_expect_calls": 6440,
+      "offsite_tests": 25,
+      "exact_cleanup_absences": 2,
+      "published_commit": "c8f286a1febfe5b33c74a3ba0f223d91545bd50c",
+      "ci_run": 37171876490,
+      "ci_status": "success",
+      "ci_passed_jobs": [
+        "python-floor",
+        "checks",
+        "docker-install"
+      ],
+      "ci_skipped_job": "empty-host-acceptance",
+      "website_run": 37171889234,
+      "website_status": "success",
+      "website_scope": "build-test-artifact-only"
     }
   ],
   "source_safety_changes": [
@@ -4797,15 +4821,58 @@
       ".lab/patched-candidate-pull-20261004/receipt.json",
       ".lab/patched-static-probe-build-20261004/evidence-identity-patched17-9469e78e54a94d429ab43a54055e04ed/receipt.json",
       ".lab/patched-static-probe-build-20261004/evidence-identity-patched17-8565f3ef725846868150448cb222d448/receipt.json",
-      ".lab/patched-static-probe-build-20261004/evidence-identity-patched17-fc1c64b4590344dfa0dfa41164de1245/receipt.json"
+      ".lab/patched-static-probe-build-20261004/evidence-identity-patched17-fc1c64b4590344dfa0dfa41164de1245/receipt.json",
+      ".lab/patched-static-probe-build-20261004/evidence-identity-patched17-077cba75eb3d4a46943be288f25a3e0f/receipt.json"
     ],
-    "static_content_status": "NOT_ESTABLISHED: bounded observer exited85 before directory/content admission",
+    "static_content_status": "MET STATIC OBSERVATION ONLY",
     "native_startup_accepted": false,
     "security_profile_accepted": false,
     "source_to_image_attestation": false,
     "second_static_owned_reconciliation": ".lab/patched-static-probe-build-20261004/evidence-identity-patched17-8565f3ef725846868150448cb222d448/root-owned-reconciliation.json",
-    "latest_static_actual_review": ".lab/patched-static-path-actual-critic-20261004/review.json",
+    "latest_static_actual_review": ".lab/patched-static-complete-actual-critic-20261004/review.json",
     "latest_static_owned_cleanup": "REMOVED_AND_EXACT_ABSENT",
-    "native_version_observed": "17.11"
+    "native_version_observed": "17.11",
+    "static_observation_packet": ".lab/patched-static-probe-build-20261004/evidence-identity-patched17-6bed7a50810141f9984c1f4e8a15bdf5/receipt.json",
+    "canonical_sharedir": "/nix/store/6sq91839k5z0mgn7h9kkaq0zk76wi5lr-postgresql-and-plugins-17.11/share/postgresql",
+    "finite_configuration_baseline": {
+      "verdict": "MET FINITE PUBLIC CONFIGURATION BASELINE ONLY",
+      "review": ".lab/patched-config-baseline-actual-critic-20261004/review.json",
+      "packet": ".lab/patched-config-baseline-build-20261004/evidence-identity-patched17-984418744e6842d78bf4e6d22b7990af/receipt.json",
+      "original_files": 5,
+      "original_bytes": 97,
+      "effective_configuration_accepted": false
+    },
+    "public_script_data_observation": {
+      "verdict": "MET_PUBLIC_SCRIPT_DATA_OBSERVATION_ONLY",
+      "review": ".lab/patched-provider-actual-critic-20261004/review.json",
+      "packet": ".lab/patched-provider-observation-build-20261004/evidence-identity-patched17-8252a06e760c43f0892b7a96ba5aab14/receipt.json",
+      "provider_bytes": 208,
+      "entrypoint_bytes": 14040,
+      "scripts_executed": false,
+      "key_behavior_accepted": false,
+      "preserved_design_refusal": ".lab/patched-provider-design-critic-20261004/review.json"
+    },
+    "direct_configuration_preservation": {
+      "verdict": "MET NATIVE DIRECT CONFIGURATION PRESERVATION ONLY",
+      "review": ".lab/patched-direct-preservation-actual-critic-20261004/review.json",
+      "packet": ".lab/patched-direct-preservation-build-20261004/evidence-identity-patched17-preserve-9dc6eab5d7454856a61944c7b896cdf1/receipt.json",
+      "independent_checks": 293,
+      "commands": 47,
+      "raw_streams": 94,
+      "stream_bytes": 110645,
+      "whole_seconds": 5.8443,
+      "helpers": 4,
+      "volumes": 1,
+      "exact_cleanup_absences": 9,
+      "original_files": 5,
+      "original_bytes": 97,
+      "marker_bytes": 30,
+      "marker_removed": true,
+      "native_uid": 100,
+      "native_gid": 101,
+      "bootstrap_handoff_accepted": false,
+      "durability_accepted": false,
+      "initial_root_gate_refusal": ".lab/patched-direct-preservation-build-20261004/root-gate-refusal.json"
+    }
   }
 }

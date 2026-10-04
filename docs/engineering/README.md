@@ -10,7 +10,9 @@ Start with the [project goal](../../PROJECT_GOAL.md), [product and portability p
 
 - [Original configured Cron and HTTP effects](reviews/2026-10-04-native-cron-effects.md): accepted bounded effects, source identity, preservation and cleanup; broader native/recovery/security gates remain open.
 
-- [Streaming backup transport](reviews/2026-10-04-streaming-backup-transport.md): accepted offline transport regressions, atomic-publication limits and separate patched-candidate static refusal.
+- [Streaming backup transport](reviews/2026-10-04-streaming-backup-transport.md): accepted offline transport regressions and atomic-publication limits; historical patched-candidate refusals remain recorded.
+
+- [Patched PostgreSQL observations](reviews/2026-10-04-patched-postgres-observations.md): accepted finite image/configuration/public-script observations and native direct configuration-volume preservation; no server, key-provider or recovery acceptance.
 
 ## Architecture and control plane
 
