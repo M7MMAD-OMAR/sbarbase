@@ -8,6 +8,8 @@ Continuity notes for coding agents are in [handoff](handoff/README.md). The chro
 
 Start with the [project goal](../../PROJECT_GOAL.md), [product and portability plan](plans/2026-10-03-product-and-portability-plan.md), [execution method](plans/2026-10-03-gauntlet-execution-method.md), [native placement identity](plans/2026-10-03-native-placement-identity.md) and [scoped evidence ledger](gauntlet-ledger.json). The ledger includes immutable local packet references; those raw packets are not distributed as public evidence. Accepted fragments do not establish complete native placement or production readiness. [Project layout](../reference/project-layout.md) explains the source and documentation structure.
 
+- [Original configured Cron and HTTP effects](reviews/2026-10-04-native-cron-effects.md): accepted bounded effects, source identity, preservation and cleanup; broader native/recovery/security gates remain open.
+
 ## Architecture and control plane
 
 - [ARCHITECTURE-REVIEW](ARCHITECTURE-REVIEW.md): the original foundation review, options and acceptance gates.

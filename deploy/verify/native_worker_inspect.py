@@ -448,7 +448,13 @@ def native_acl_raw(raw, kind, role_oids):
     return grants
 
 
-def admit_cron_setup(before, after, identity, *, newly_installed):
+def admit_cron_setup(before, after, identity, *, newly_installed, provenance):
+    from native_cron_provenance import admit_setup_witness
+    admit_setup_witness(provenance, identity, before, after)
+    return _admit_cron_setup(before, after, identity, newly_installed=newly_installed)
+
+
+def _admit_cron_setup(before, after, identity, *, newly_installed):
     old, new = projection_rows(before), projection_rows(after)
     if not exact(before['creation_defaults'], after['creation_defaults']):
         raise RuntimeError('Original global creation defaults changed')
@@ -467,7 +473,7 @@ def admit_cron_setup(before, after, identity, *, newly_installed):
                          or kind == 'extensions' and r['name'] == 'pg_cron')]
         cron_ns = next((r['oid'] for r in after['namespaces'] if r['name'] == 'cron'), None)
         base['default_acls'] = [r for r in after['default_acls'] if r['namespace_oid'] != cron_ns]
-        return admit_cron_setup(base, after, identity, newly_installed=True)
+        return _admit_cron_setup(base, after, identity, newly_installed=True)
     role_oids = {r['rolname']: positive_oid(str(r['oid'])) for r in identity['roles']}
     if len(role_oids) != len(identity['roles']) or len(set(role_oids.values())) != len(role_oids):
         raise RuntimeError('Accepted role identities are not unique')
@@ -555,7 +561,7 @@ def admit_cron_setup(before, after, identity, *, newly_installed):
                 or row['extensions'] != ['pg_cron']):
             raise RuntimeError('Closed cron routine metadata differs')
         restricted = row['name'] in ('alter_job', 'schedule_in_database')
-        grants(row, 'f', remove_public=restricted, allow_null=not restricted and defaults['f']['global_acl_raw'] is None)
+        grants(row, 'f', [(postgres, 'EXECUTE', True)], remove_public=restricted)
     extensions = additions['extensions']
     if len(extensions) != 1:
         raise RuntimeError('Closed cron extension addition differs')
@@ -720,6 +726,7 @@ def admit_owned_projection(baseline, current, binding, owned_baseline=None, *, a
 
 def configured_probe(report, sql, native, container):
     from native_bootstrap_inspect import identity_snapshot, configuration_snapshot, original_configuration_frames
+    from native_cron_provenance import observe_file, observe_sql
     fixture, image = os.environ['SBARBASE_FIXTURE_ID'], os.environ['SBARBASE_VERIFY_IMAGE_ID']
     if not re.fullmatch(r'identity-[A-Za-z0-9-]+', fixture) or not re.fullmatch(r'sha256:[a-f0-9]{64}', image):
         raise ValueError('Configured effect fixture/verifier identity differs')
@@ -864,11 +871,14 @@ def configured_probe(report, sql, native, container):
         phase = 'fresh HTTP namespace'
         call(['docker', 'container', 'inspect', name], allow_absence=True)
         phase = 'original configured metadata before cron setup'
+        provenance = evidence.setdefault('cron_provenance', {})
+        observe_file(provenance, call, container, output)
         evidence['workers_before_setup'] = observe("SELECT coalesce(json_agg(row_to_json(w) ORDER BY backend_type,pid),'[]'::json) FROM (SELECT pid,datid,datname,usename,backend_type FROM pg_stat_activity WHERE backend_type IN ('pg_cron launcher','pg_net 0.20.4 worker')) w;")
         net_workers = [w for w in evidence['workers_before_setup'] if w['backend_type'] == 'pg_net 0.20.4 worker']
         if len(net_workers) != 1 or not exact(net_workers[0], report['bootstrap']['warm_worker']):
             raise RuntimeError('Accepted original postgres worker changed before effects')
         before = preserve('effects-before')
+        observe_sql(provenance, 'before', query, report['bootstrap']['after_authentication'], before, output)
         existing = [e for e in before['extensions'] if e['name'] == 'pg_cron']
         pg_net = [e for e in before['extensions'] if e['name'] == 'pg_net']
         if len(pg_net) != 1 or pg_net[0]['version'] != '0.20.4' or pg_net[0]['owner'] != 'supabase_admin':
@@ -888,7 +898,8 @@ def configured_probe(report, sql, native, container):
         if not existing:
             query('CREATE EXTENSION pg_cron;')
         candidate = preserve('effects-after-setup')
-        evidence['cron_setup'] = admit_cron_setup(before, candidate, report['bootstrap']['after_authentication'], newly_installed=not existing)
+        observe_sql(provenance, 'setup', query, report['bootstrap']['after_authentication'], candidate, output)
+        evidence['cron_setup'] = admit_cron_setup(before, candidate, report['bootstrap']['after_authentication'], newly_installed=not existing, provenance=provenance)
         baseline = candidate
         evidence['cron_setup']['newly_installed'] = not existing
         if not exact(jobs(), original_jobs):

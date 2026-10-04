@@ -4,9 +4,9 @@
 
 Current scope updated 2026-10-04. The declared package version is 0.2.0, a development snapshot; [0.1.0](../../CHANGELOG.md) remains the historical source release. No signed 0.2.0 release is established here.
 
-At revision `6c112c3`, all four jobs in [CI run 37135601249](https://github.com/M7MMAD-OMAR/sbarbase/actions/runs/37135601249) passed. Website also passed for that revision. These results belong to that source revision. They do not transfer to later edits or establish independent-host, security or production acceptance.
+At the latest prior published revision `73a6a7d990cf75019257b2164574158c07f95165`, all four jobs in [CI run 37160682671](https://github.com/M7MMAD-OMAR/sbarbase/actions/runs/37160682671) and [Website run 37160683714](https://github.com/M7MMAD-OMAR/sbarbase/actions/runs/37160683714) passed. These results belong to that source revision. They do not transfer to later edits or establish independent-host, security or production acceptance.
 
-The current direction is recorded in the [project goal](../../PROJECT_GOAL.md), [October product plan](../engineering/plans/2026-10-03-product-and-portability-plan.md), [execution method](../engineering/plans/2026-10-03-gauntlet-execution-method.md) and [native placement contract](../engineering/plans/2026-10-03-native-placement-identity.md). The [gauntlet ledger](../engineering/gauntlet-ledger.json) records each verification fragment and its exact source scope, including failures and locally retained packets. Configured native effects still refuse at routine privilege admission. A native declaration remains unadmitted; full native service operation and recovery are not accepted.
+The current direction is recorded in the [project goal](../../PROJECT_GOAL.md), [October product plan](../engineering/plans/2026-10-03-product-and-portability-plan.md), [execution method](../engineering/plans/2026-10-03-gauntlet-execution-method.md) and [native placement contract](../engineering/plans/2026-10-03-native-placement-identity.md). The [gauntlet ledger](../engineering/gauntlet-ledger.json) records each verification fragment and its exact source scope, including failures and locally retained packets. The pinned original image now passes bounded configured Cron writes and native HTTP effects, with independently reviewed source-bound ACL provenance, preservation and cleanup. The [configured-effects review](../engineering/reviews/2026-10-04-native-cron-effects.md) records the exact accepted scope and prior losses. A native declaration remains unadmitted; full native service operation and recovery are not accepted.
 
 The September tables below are historical workstation and local-VM observations, not a freshly verified matrix for this tree. No independent public-server pilot or fixed projects-per-server capacity is established. Complete recovery, key/object continuity, security maintenance, HA and PITR remain open.
 
@@ -21,7 +21,7 @@ Run from the repository root in a clean container with Python 3.14 and `cryptogr
 | Website | `cd website && bun run build && bun test` | build OK; 2 pass, 0 fail, 40 assertions |
 | Console typecheck | `bun run typecheck:ui` | passes |
 
-Earlier pages recorded other totals (for example 575 Python and 87 Bun tests at the 0.1.0 release gate, and 625 and 93 on the workstation on 2026-09-23). Those were correct for their date and scope; this table replaces them.
+Earlier pages recorded other totals (for example 575 Python and 87 Bun tests at the 0.1.0 release gate, and 625 and 93 on the workstation on 2026-09-23). Those were correct for their date and scope; this table superseded those earlier totals within the September snapshot only.
 
 On 2026-09-25 the Python suite had 765 tests: `OK` with no skips on the workstation, `OK (skipped=2)` there with no Docker daemon reachable, and in a throwaway `python:3.12` container `OK (skipped=6)` as root and `OK (skipped=4)` as an unprivileged user. Each skip names what the host lacks: root for a permission refusal, a `/usr/bin/python3` of 3.12 or a Docker daemon for the acceptance script, `systemd-analyze`, or a block device for `/`.
 
@@ -37,7 +37,7 @@ The preflight now accepts `/usr/bin/python3` 3.12 or newer, which admits the int
 | `python:3.14` (3.14.7), run as a control | 768 tests; 3 skipped; the same 7 fail |
 | The workstation's `/usr/bin/python3` 3.14.7 | 768 tests, OK |
 
-The control fails the same 7 tests, so the failures come from the container, not the interpreter version. Five need a block device behind `/` (the IO limits refuse with `io_device_unavailable`), one needs `systemd-analyze`, and one needs a home directory for uid 1000, which the Ubuntu image has and the others do not. The 3 skips need a Docker daemon or a device source for `/`. Neither Ubuntu 24.04 nor Debian 13 has had an install rehearsed end to end; only Fedora 44 has.
+The control fails the same 7 tests, so the failures come from the container, not the interpreter version. Five need a block device behind `/` (the IO limits refuse with `io_device_unavailable`), one needs `systemd-analyze`, and one needs a home directory for uid 1000, which the Ubuntu image has and the others do not. The 3 skips need a Docker daemon or a device source for `/`. Within that September interpreter probe, neither Ubuntu 24.04 nor Debian 13 had an end-to-end install rehearsal; the separate local-VM rehearsal used Fedora 44. Current source CI is described independently above.
 
 ## Historical live evidence
 
@@ -199,7 +199,7 @@ A start needs its containers' memory limits plus a 2560 MiB reserve: 1792 MiB of
 
 ## Current priorities
 
-Follow the October product plan and execution method, with the ledger as the scoped evidence index. Establish the exact native admission cause before changing its privilege model, then verify the required service, recovery and host contracts. An independent-server pilot remains a later step with explicit owner authorization; this page does not authorize infrastructure purchases or host changes.
+Follow the October product plan and execution method, with the ledger as the scoped evidence index. Continue the required service, recovery and security/profile contracts after the accepted bounded configured-effects fragment. The owner selected this computer as an isolated local server, with a verified Fedora 44 x86_64 profile; buying an external server is not a prerequisite. Independent-host portability and physical HA require separate evidence. This page does not authorize infrastructure purchases or host changes.
 
 ## September next-step record
 

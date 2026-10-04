@@ -370,3 +370,12 @@ No product defect was found. The check itself had three: it looked up releases n
 ## 2026-10-04: documentation and publication consolidation
 
 Current reader pages and engineering navigation now distinguish the implemented shared runtime, experimental native placement and historical rehearsal results. Main at `6c112c3` passed CI run 37135601249 and Website run 37134926306 before this consolidation; fresh checks are required for the new revision. The latest configured-effects packet executes the corrected ACL projection but refuses the routine privilege model. Original bootstrap and isolated source gates retain their own scoped passes. Complete native services/recovery, coherent keys and objects, independent hosts, security maintenance, capacity, HA, PITR and release acceptance remain open. No host changes or product deployment follows from source publication.
+
+
+## 2026-10-04: original configured Cron and HTTP effects accepted in scope
+
+The fresh independent actual review is MET CONFIGURED EFFECTS ONLY, superseding the current refusal summary without relabeling any prior failed packet. All three verification packets share baked source `43aa3887dbdc3d84990d70875959cee0b882602538f21ec7014b3b52eb71c3d0`: six source stages passed with 1348 Python tests, 301 Bun tests and 6440 assertions; standalone original configuration preservation and configured bootstrap/effects passed. Exact original file/GUC/image provenance binds the seven required vendor grants.
+
+The reviewer bound four actual Cron writes, five native HTTP 200 echoes, 29 samples, queue zero, nine inactive stable samples over 3.586 seconds, resume growth and explicit HTTP while Cron was inactive. Effects took 14.523 seconds within ninety seconds. Twenty-seven cleanup operations stayed within twenty-eight, with thirty-four exact absence observations including the full HTTP helper CID. See the [public scoped review](reviews/2026-10-04-native-cron-effects.md) for local packet references and limitations.
+
+Latest prior published source `73a6a7d` passed CI run 37160682671 and Website run 37160683714; pending publication needs fresh source checks. The owner selected this computer as a local isolated server, verified Fedora 44 x86_64. No external server purchase is a precondition. Full native activation, owned-job restart/fencing continuity, complete keys/objects/services recovery, PostgreSQL 17.11 security acceptance, physical HA, PITR, capacity and production release remain open.

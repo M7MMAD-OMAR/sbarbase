@@ -28,14 +28,14 @@ Configured resource ceilings are not measured demand or a hardware recommendatio
 ## Current state, 2026-10-04
 
 - Package 0.2.0 is a development snapshot; historical 0.1.0 release evidence remains separately dated.
-- Source baseline `6c112c3` passed all four CI jobs in run 37135601249 and Website run 37134926306. Pending source or documentation edits require fresh checks.
+- Latest prior published source `73a6a7d990cf75019257b2164574158c07f95165` passed all four CI jobs in run 37160682671 and Website run 37160683714. Pending source or documentation edits require fresh checks.
 - Existing shared-runtime Docker workflows include Studio, Realtime, Functions, daily backups, bounded encrypted offsite recovery and update-channel rehearsals. These are not proof of all-host or complete cloud compatibility.
-- Native placement declarations and read-only routing are accepted only in their named scope. Dedicated activation and remaining consumers are unaccepted. The latest configured-effects fixture refuses the routine privilege model after the corrected projection executes; do not expand privileges to bypass it.
+- Native placement declarations and read-only routing are accepted only in their named scope. Dedicated activation and remaining consumers are unaccepted. The [configured-effects review](../reviews/2026-10-04-native-cron-effects.md) accepts bounded original Cron/native HTTP behavior at baked source `43aa3887dbdc3d84990d70875959cee0b882602538f21ec7014b3b52eb71c3d0`, after exact source/file/GUC/image provenance and the seven vendor grants were independently bound. Prior failed packets remain failed; this does not activate native placement.
 - Historical retained runtime and VM observations are in the dated [checkpoints](../checkpoints.md) and evidence files. Do not assume those fixture identities or resource observations describe present live state. Inspect only the explicitly authorized fixture before any runtime work.
 
 ## Next work
 
-Follow the October plan and execution contract. Prioritize the capability/support registry, host security lifecycle, coherent application and operator recovery, and bounded native admission. Establish the exact installed-hook cause before any future routine ACL admission change. Each runtime slice needs its declared resource budget, immutable source, named fixture, independent critic and explicit losses. Public reproducibility, independent-host pilot, capacity, full services/pools, security maintenance and release remain open. A roadmap does not authorize purchases, deployment or host changes.
+Follow the October plan and execution contract. Prioritize the capability/support registry, host security lifecycle, coherent application and operator recovery, and bounded native admission. Retain the accepted exact installed-hook/source witness and closed ACL model; refuse drift rather than broadening grants. Each runtime slice needs its declared resource budget, immutable source, named fixture, independent critic and explicit losses. Public reproducibility, independent-host pilot, capacity, full services/pools, security maintenance and release remain open. The owner selected this machine as an isolated local server with a verified Fedora 44 x86_64 profile; an external server purchase is not a prerequisite. Physical HA, independent-host portability and the PostgreSQL 17.11 patched security profile remain separate unaccepted work. A roadmap does not authorize purchases, deployment or host changes.
 
 ## History
 

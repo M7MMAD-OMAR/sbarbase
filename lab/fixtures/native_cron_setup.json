@@ -1,0 +1,1594 @@
+{
+  "before": {
+    "namespaces": [
+      {
+        "oid": "16394",
+        "name": "extensions",
+        "owner_oid": "16384",
+        "owner": "postgres",
+        "acl_raw": [
+          "postgres=UC/postgres",
+          "anon=U/postgres",
+          "authenticated=U/postgres",
+          "service_role=U/postgres",
+          "dashboard_user=UC/postgres"
+        ],
+        "acl": [
+          {
+            "grantor": "16384",
+            "grantee": "16384",
+            "privilege_type": "CREATE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "16384",
+            "grantee": "16384",
+            "privilege_type": "USAGE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "16384",
+            "grantee": "16443",
+            "privilege_type": "USAGE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "16384",
+            "grantee": "16444",
+            "privilege_type": "USAGE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "16384",
+            "grantee": "16445",
+            "privilege_type": "USAGE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "16384",
+            "grantee": "16514",
+            "privilege_type": "CREATE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "16384",
+            "grantee": "16514",
+            "privilege_type": "USAGE",
+            "is_grantable": false
+          }
+        ],
+        "extensions": []
+      },
+      {
+        "oid": "11",
+        "name": "pg_catalog",
+        "owner_oid": "10",
+        "owner": "supabase_admin",
+        "acl_raw": [
+          "supabase_admin=UC/supabase_admin",
+          "=U/supabase_admin"
+        ],
+        "acl": [
+          {
+            "grantor": "10",
+            "grantee": "0",
+            "privilege_type": "USAGE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "CREATE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "USAGE",
+            "is_grantable": false
+          }
+        ],
+        "extensions": []
+      }
+    ],
+    "relations": [],
+    "routines": [
+      {
+        "oid": "16510",
+        "namespace_oid": "16394",
+        "namespace": "extensions",
+        "name": "grant_pg_cron_access",
+        "identity_arguments": "",
+        "argument_types": "",
+        "return_type": "event_trigger",
+        "language": "plpgsql",
+        "kind": "f",
+        "strict": false,
+        "volatility": "v",
+        "security_definer": false,
+        "parallel": "u",
+        "configuration": null,
+        "variadic": "0",
+        "default_count": 0,
+        "defaults": null,
+        "returns_set": false,
+        "owner_oid": "10",
+        "owner": "supabase_admin",
+        "acl_raw": [
+          "=X/supabase_admin",
+          "supabase_admin=X*/supabase_admin",
+          "dashboard_user=X/supabase_admin"
+        ],
+        "library": null,
+        "c_symbol": null,
+        "acl": [
+          {
+            "grantor": "10",
+            "grantee": "0",
+            "privilege_type": "EXECUTE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "EXECUTE",
+            "is_grantable": true
+          },
+          {
+            "grantor": "10",
+            "grantee": "16514",
+            "privilege_type": "EXECUTE",
+            "is_grantable": false
+          }
+        ],
+        "extensions": []
+      }
+    ],
+    "extensions": [
+      {
+        "oid": "16663",
+        "name": "pg_net",
+        "owner_oid": "10",
+        "owner": "supabase_admin",
+        "namespace_oid": "2200",
+        "namespace": "public",
+        "version": "0.20.4",
+        "relocatable": false,
+        "configuration": null,
+        "conditions": null
+      }
+    ],
+    "default_acls": [],
+    "event_triggers": [
+      {
+        "oid": "16650",
+        "name": "issue_pg_cron_access",
+        "event": "ddl_command_end",
+        "owner_oid": "10",
+        "enabled": "O",
+        "function_oid": "16510",
+        "tags": [
+          "CREATE EXTENSION"
+        ]
+      }
+    ],
+    "creation_defaults": [
+      {
+        "kind": "S",
+        "global_acl_raw": null,
+        "acl": [
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "SELECT",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "UPDATE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "USAGE",
+            "is_grantable": false
+          }
+        ]
+      },
+      {
+        "kind": "f",
+        "global_acl_raw": null,
+        "acl": [
+          {
+            "grantor": "10",
+            "grantee": "0",
+            "privilege_type": "EXECUTE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "EXECUTE",
+            "is_grantable": false
+          }
+        ]
+      },
+      {
+        "kind": "n",
+        "global_acl_raw": null,
+        "acl": [
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "CREATE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "USAGE",
+            "is_grantable": false
+          }
+        ]
+      },
+      {
+        "kind": "r",
+        "global_acl_raw": null,
+        "acl": [
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "DELETE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "INSERT",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "MAINTAIN",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "REFERENCES",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "SELECT",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "TRIGGER",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "TRUNCATE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "UPDATE",
+            "is_grantable": false
+          }
+        ]
+      }
+    ]
+  },
+  "after": {
+    "namespaces": [
+      {
+        "oid": "16709",
+        "name": "cron",
+        "owner_oid": "10",
+        "owner": "supabase_admin",
+        "acl_raw": [
+          "supabase_admin=UC/supabase_admin",
+          "postgres=U*/supabase_admin"
+        ],
+        "acl": [
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "CREATE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "USAGE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "16384",
+            "privilege_type": "USAGE",
+            "is_grantable": true
+          }
+        ],
+        "extensions": [
+          "pg_cron"
+        ]
+      },
+      {
+        "oid": "16394",
+        "name": "extensions",
+        "owner_oid": "16384",
+        "owner": "postgres",
+        "acl_raw": [
+          "postgres=UC/postgres",
+          "anon=U/postgres",
+          "authenticated=U/postgres",
+          "service_role=U/postgres",
+          "dashboard_user=UC/postgres"
+        ],
+        "acl": [
+          {
+            "grantor": "16384",
+            "grantee": "16384",
+            "privilege_type": "CREATE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "16384",
+            "grantee": "16384",
+            "privilege_type": "USAGE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "16384",
+            "grantee": "16443",
+            "privilege_type": "USAGE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "16384",
+            "grantee": "16444",
+            "privilege_type": "USAGE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "16384",
+            "grantee": "16445",
+            "privilege_type": "USAGE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "16384",
+            "grantee": "16514",
+            "privilege_type": "CREATE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "16384",
+            "grantee": "16514",
+            "privilege_type": "USAGE",
+            "is_grantable": false
+          }
+        ],
+        "extensions": []
+      },
+      {
+        "oid": "11",
+        "name": "pg_catalog",
+        "owner_oid": "10",
+        "owner": "supabase_admin",
+        "acl_raw": [
+          "supabase_admin=UC/supabase_admin",
+          "=U/supabase_admin"
+        ],
+        "acl": [
+          {
+            "grantor": "10",
+            "grantee": "0",
+            "privilege_type": "USAGE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "CREATE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "USAGE",
+            "is_grantable": false
+          }
+        ],
+        "extensions": []
+      }
+    ],
+    "relations": [
+      {
+        "oid": "16711",
+        "namespace_oid": "16709",
+        "namespace": "cron",
+        "name": "job",
+        "kind": "r",
+        "persistence": "p",
+        "rls": true,
+        "force_rls": false,
+        "owner_oid": "10",
+        "owner": "supabase_admin",
+        "acl_raw": [
+          "supabase_admin=arwdDxtm/supabase_admin",
+          "=r/supabase_admin",
+          "postgres=r*/supabase_admin"
+        ],
+        "acl": [
+          {
+            "grantor": "10",
+            "grantee": "0",
+            "privilege_type": "SELECT",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "DELETE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "INSERT",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "MAINTAIN",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "REFERENCES",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "SELECT",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "TRIGGER",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "TRUNCATE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "UPDATE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "16384",
+            "privilege_type": "SELECT",
+            "is_grantable": true
+          }
+        ],
+        "parent_oid": null,
+        "index_definition": null,
+        "extensions": [
+          "pg_cron"
+        ]
+      },
+      {
+        "oid": "16721",
+        "namespace_oid": "16709",
+        "namespace": "cron",
+        "name": "job_pkey",
+        "kind": "i",
+        "persistence": "p",
+        "rls": false,
+        "force_rls": false,
+        "owner_oid": "10",
+        "owner": "supabase_admin",
+        "acl_raw": null,
+        "acl": [],
+        "parent_oid": "16711",
+        "index_definition": "CREATE UNIQUE INDEX job_pkey ON cron.job USING btree (jobid)",
+        "extensions": []
+      },
+      {
+        "oid": "16730",
+        "namespace_oid": "16709",
+        "namespace": "cron",
+        "name": "job_run_details",
+        "kind": "r",
+        "persistence": "p",
+        "rls": true,
+        "force_rls": false,
+        "owner_oid": "10",
+        "owner": "supabase_admin",
+        "acl_raw": [
+          "supabase_admin=arwdDxtm/supabase_admin",
+          "=rd/supabase_admin",
+          "postgres=a*r*w*d*D*x*m*/supabase_admin"
+        ],
+        "acl": [
+          {
+            "grantor": "10",
+            "grantee": "0",
+            "privilege_type": "DELETE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "0",
+            "privilege_type": "SELECT",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "DELETE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "INSERT",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "MAINTAIN",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "REFERENCES",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "SELECT",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "TRIGGER",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "TRUNCATE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "UPDATE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "16384",
+            "privilege_type": "DELETE",
+            "is_grantable": true
+          },
+          {
+            "grantor": "10",
+            "grantee": "16384",
+            "privilege_type": "INSERT",
+            "is_grantable": true
+          },
+          {
+            "grantor": "10",
+            "grantee": "16384",
+            "privilege_type": "MAINTAIN",
+            "is_grantable": true
+          },
+          {
+            "grantor": "10",
+            "grantee": "16384",
+            "privilege_type": "REFERENCES",
+            "is_grantable": true
+          },
+          {
+            "grantor": "10",
+            "grantee": "16384",
+            "privilege_type": "SELECT",
+            "is_grantable": true
+          },
+          {
+            "grantor": "10",
+            "grantee": "16384",
+            "privilege_type": "TRUNCATE",
+            "is_grantable": true
+          },
+          {
+            "grantor": "10",
+            "grantee": "16384",
+            "privilege_type": "UPDATE",
+            "is_grantable": true
+          }
+        ],
+        "parent_oid": null,
+        "index_definition": null,
+        "extensions": [
+          "pg_cron"
+        ]
+      },
+      {
+        "oid": "16736",
+        "namespace_oid": "16709",
+        "namespace": "cron",
+        "name": "job_run_details_pkey",
+        "kind": "i",
+        "persistence": "p",
+        "rls": false,
+        "force_rls": false,
+        "owner_oid": "10",
+        "owner": "supabase_admin",
+        "acl_raw": null,
+        "acl": [],
+        "parent_oid": "16730",
+        "index_definition": "CREATE UNIQUE INDEX job_run_details_pkey ON cron.job_run_details USING btree (runid)",
+        "extensions": []
+      },
+      {
+        "oid": "16710",
+        "namespace_oid": "16709",
+        "namespace": "cron",
+        "name": "jobid_seq",
+        "kind": "S",
+        "persistence": "p",
+        "rls": false,
+        "force_rls": false,
+        "owner_oid": "10",
+        "owner": "supabase_admin",
+        "acl_raw": [
+          "supabase_admin=rwU/supabase_admin",
+          "=r/supabase_admin"
+        ],
+        "acl": [
+          {
+            "grantor": "10",
+            "grantee": "0",
+            "privilege_type": "SELECT",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "SELECT",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "UPDATE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "USAGE",
+            "is_grantable": false
+          }
+        ],
+        "parent_oid": null,
+        "index_definition": null,
+        "extensions": [
+          "pg_cron"
+        ]
+      },
+      {
+        "oid": "16746",
+        "namespace_oid": "16709",
+        "namespace": "cron",
+        "name": "jobname_username_uniq",
+        "kind": "i",
+        "persistence": "p",
+        "rls": false,
+        "force_rls": false,
+        "owner_oid": "10",
+        "owner": "supabase_admin",
+        "acl_raw": null,
+        "acl": [],
+        "parent_oid": "16711",
+        "index_definition": "CREATE UNIQUE INDEX jobname_username_uniq ON cron.job USING btree (jobname, username)",
+        "extensions": []
+      },
+      {
+        "oid": "16729",
+        "namespace_oid": "16709",
+        "namespace": "cron",
+        "name": "runid_seq",
+        "kind": "S",
+        "persistence": "p",
+        "rls": false,
+        "force_rls": false,
+        "owner_oid": "10",
+        "owner": "supabase_admin",
+        "acl_raw": [
+          "supabase_admin=rwU/supabase_admin",
+          "=r/supabase_admin"
+        ],
+        "acl": [
+          {
+            "grantor": "10",
+            "grantee": "0",
+            "privilege_type": "SELECT",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "SELECT",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "UPDATE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "USAGE",
+            "is_grantable": false
+          }
+        ],
+        "parent_oid": null,
+        "index_definition": null,
+        "extensions": [
+          "pg_cron"
+        ]
+      }
+    ],
+    "routines": [
+      {
+        "oid": "16744",
+        "namespace_oid": "16709",
+        "namespace": "cron",
+        "name": "alter_job",
+        "identity_arguments": "job_id bigint, schedule text, command text, database text, username text, active boolean",
+        "argument_types": "bigint, text, text, text, text, boolean",
+        "return_type": "void",
+        "language": "c",
+        "kind": "f",
+        "strict": false,
+        "volatility": "v",
+        "security_definer": false,
+        "parallel": "u",
+        "configuration": null,
+        "variadic": "0",
+        "default_count": 5,
+        "defaults": "NULL::text, NULL::text, NULL::text, NULL::text, NULL::boolean",
+        "returns_set": false,
+        "owner_oid": "10",
+        "owner": "supabase_admin",
+        "acl_raw": [
+          "supabase_admin=X/supabase_admin",
+          "postgres=X*/supabase_admin"
+        ],
+        "library": "$libdir/pg_cron",
+        "c_symbol": "cron_alter_job",
+        "acl": [
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "EXECUTE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "16384",
+            "privilege_type": "EXECUTE",
+            "is_grantable": true
+          }
+        ],
+        "extensions": [
+          "pg_cron"
+        ]
+      },
+      {
+        "oid": "16726",
+        "namespace_oid": "16709",
+        "namespace": "cron",
+        "name": "job_cache_invalidate",
+        "identity_arguments": "",
+        "argument_types": "",
+        "return_type": "trigger",
+        "language": "c",
+        "kind": "f",
+        "strict": false,
+        "volatility": "v",
+        "security_definer": false,
+        "parallel": "u",
+        "configuration": null,
+        "variadic": "0",
+        "default_count": 0,
+        "defaults": null,
+        "returns_set": false,
+        "owner_oid": "10",
+        "owner": "supabase_admin",
+        "acl_raw": [
+          "=X/supabase_admin",
+          "supabase_admin=X/supabase_admin",
+          "postgres=X*/supabase_admin"
+        ],
+        "library": "$libdir/pg_cron",
+        "c_symbol": "cron_job_cache_invalidate",
+        "acl": [
+          {
+            "grantor": "10",
+            "grantee": "0",
+            "privilege_type": "EXECUTE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "EXECUTE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "16384",
+            "privilege_type": "EXECUTE",
+            "is_grantable": true
+          }
+        ],
+        "extensions": [
+          "pg_cron"
+        ]
+      },
+      {
+        "oid": "16724",
+        "namespace_oid": "16709",
+        "namespace": "cron",
+        "name": "schedule",
+        "identity_arguments": "schedule text, command text",
+        "argument_types": "text, text",
+        "return_type": "bigint",
+        "language": "c",
+        "kind": "f",
+        "strict": true,
+        "volatility": "v",
+        "security_definer": false,
+        "parallel": "u",
+        "configuration": null,
+        "variadic": "0",
+        "default_count": 0,
+        "defaults": null,
+        "returns_set": false,
+        "owner_oid": "10",
+        "owner": "supabase_admin",
+        "acl_raw": [
+          "=X/supabase_admin",
+          "supabase_admin=X/supabase_admin",
+          "postgres=X*/supabase_admin"
+        ],
+        "library": "$libdir/pg_cron",
+        "c_symbol": "cron_schedule",
+        "acl": [
+          {
+            "grantor": "10",
+            "grantee": "0",
+            "privilege_type": "EXECUTE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "EXECUTE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "16384",
+            "privilege_type": "EXECUTE",
+            "is_grantable": true
+          }
+        ],
+        "extensions": [
+          "pg_cron"
+        ]
+      },
+      {
+        "oid": "16743",
+        "namespace_oid": "16709",
+        "namespace": "cron",
+        "name": "schedule",
+        "identity_arguments": "job_name text, schedule text, command text",
+        "argument_types": "text, text, text",
+        "return_type": "bigint",
+        "language": "c",
+        "kind": "f",
+        "strict": false,
+        "volatility": "v",
+        "security_definer": false,
+        "parallel": "u",
+        "configuration": null,
+        "variadic": "0",
+        "default_count": 0,
+        "defaults": null,
+        "returns_set": false,
+        "owner_oid": "10",
+        "owner": "supabase_admin",
+        "acl_raw": [
+          "=X/supabase_admin",
+          "supabase_admin=X/supabase_admin",
+          "postgres=X*/supabase_admin"
+        ],
+        "library": "$libdir/pg_cron",
+        "c_symbol": "cron_schedule_named",
+        "acl": [
+          {
+            "grantor": "10",
+            "grantee": "0",
+            "privilege_type": "EXECUTE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "EXECUTE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "16384",
+            "privilege_type": "EXECUTE",
+            "is_grantable": true
+          }
+        ],
+        "extensions": [
+          "pg_cron"
+        ]
+      },
+      {
+        "oid": "16745",
+        "namespace_oid": "16709",
+        "namespace": "cron",
+        "name": "schedule_in_database",
+        "identity_arguments": "job_name text, schedule text, command text, database text, username text, active boolean",
+        "argument_types": "text, text, text, text, text, boolean",
+        "return_type": "bigint",
+        "language": "c",
+        "kind": "f",
+        "strict": false,
+        "volatility": "v",
+        "security_definer": false,
+        "parallel": "u",
+        "configuration": null,
+        "variadic": "0",
+        "default_count": 2,
+        "defaults": "NULL::text, true",
+        "returns_set": false,
+        "owner_oid": "10",
+        "owner": "supabase_admin",
+        "acl_raw": [
+          "supabase_admin=X/supabase_admin",
+          "postgres=X*/supabase_admin"
+        ],
+        "library": "$libdir/pg_cron",
+        "c_symbol": "cron_schedule_named",
+        "acl": [
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "EXECUTE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "16384",
+            "privilege_type": "EXECUTE",
+            "is_grantable": true
+          }
+        ],
+        "extensions": [
+          "pg_cron"
+        ]
+      },
+      {
+        "oid": "16725",
+        "namespace_oid": "16709",
+        "namespace": "cron",
+        "name": "unschedule",
+        "identity_arguments": "job_id bigint",
+        "argument_types": "bigint",
+        "return_type": "boolean",
+        "language": "c",
+        "kind": "f",
+        "strict": true,
+        "volatility": "v",
+        "security_definer": false,
+        "parallel": "u",
+        "configuration": null,
+        "variadic": "0",
+        "default_count": 0,
+        "defaults": null,
+        "returns_set": false,
+        "owner_oid": "10",
+        "owner": "supabase_admin",
+        "acl_raw": [
+          "=X/supabase_admin",
+          "supabase_admin=X/supabase_admin",
+          "postgres=X*/supabase_admin"
+        ],
+        "library": "$libdir/pg_cron",
+        "c_symbol": "cron_unschedule",
+        "acl": [
+          {
+            "grantor": "10",
+            "grantee": "0",
+            "privilege_type": "EXECUTE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "EXECUTE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "16384",
+            "privilege_type": "EXECUTE",
+            "is_grantable": true
+          }
+        ],
+        "extensions": [
+          "pg_cron"
+        ]
+      },
+      {
+        "oid": "16755",
+        "namespace_oid": "16709",
+        "namespace": "cron",
+        "name": "unschedule",
+        "identity_arguments": "job_name text",
+        "argument_types": "text",
+        "return_type": "boolean",
+        "language": "c",
+        "kind": "f",
+        "strict": true,
+        "volatility": "v",
+        "security_definer": false,
+        "parallel": "u",
+        "configuration": null,
+        "variadic": "0",
+        "default_count": 0,
+        "defaults": null,
+        "returns_set": false,
+        "owner_oid": "10",
+        "owner": "supabase_admin",
+        "acl_raw": [
+          "=X/supabase_admin",
+          "supabase_admin=X/supabase_admin",
+          "postgres=X*/supabase_admin"
+        ],
+        "library": "$libdir/pg_cron",
+        "c_symbol": "cron_unschedule_named",
+        "acl": [
+          {
+            "grantor": "10",
+            "grantee": "0",
+            "privilege_type": "EXECUTE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "EXECUTE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "16384",
+            "privilege_type": "EXECUTE",
+            "is_grantable": true
+          }
+        ],
+        "extensions": [
+          "pg_cron"
+        ]
+      },
+      {
+        "oid": "16510",
+        "namespace_oid": "16394",
+        "namespace": "extensions",
+        "name": "grant_pg_cron_access",
+        "identity_arguments": "",
+        "argument_types": "",
+        "return_type": "event_trigger",
+        "language": "plpgsql",
+        "kind": "f",
+        "strict": false,
+        "volatility": "v",
+        "security_definer": false,
+        "parallel": "u",
+        "configuration": null,
+        "variadic": "0",
+        "default_count": 0,
+        "defaults": null,
+        "returns_set": false,
+        "owner_oid": "10",
+        "owner": "supabase_admin",
+        "acl_raw": [
+          "=X/supabase_admin",
+          "supabase_admin=X*/supabase_admin",
+          "dashboard_user=X/supabase_admin"
+        ],
+        "library": null,
+        "c_symbol": null,
+        "acl": [
+          {
+            "grantor": "10",
+            "grantee": "0",
+            "privilege_type": "EXECUTE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "EXECUTE",
+            "is_grantable": true
+          },
+          {
+            "grantor": "10",
+            "grantee": "16514",
+            "privilege_type": "EXECUTE",
+            "is_grantable": false
+          }
+        ],
+        "extensions": []
+      }
+    ],
+    "extensions": [
+      {
+        "oid": "16708",
+        "name": "pg_cron",
+        "owner_oid": "10",
+        "owner": "supabase_admin",
+        "namespace_oid": "11",
+        "namespace": "pg_catalog",
+        "version": "1.6.4",
+        "relocatable": false,
+        "configuration": [
+          "16711",
+          "16710",
+          "16730",
+          "16729"
+        ],
+        "conditions": [
+          "",
+          "",
+          "",
+          ""
+        ]
+      },
+      {
+        "oid": "16663",
+        "name": "pg_net",
+        "owner_oid": "10",
+        "owner": "supabase_admin",
+        "namespace_oid": "2200",
+        "namespace": "public",
+        "version": "0.20.4",
+        "relocatable": false,
+        "configuration": null,
+        "conditions": null
+      }
+    ],
+    "default_acls": [
+      {
+        "oid": "16757",
+        "role_oid": "10",
+        "namespace_oid": "16709",
+        "kind": "f",
+        "acl_raw": [
+          "postgres=X*/supabase_admin"
+        ],
+        "acl": [
+          {
+            "grantor": "10",
+            "grantee": "16384",
+            "privilege_type": "EXECUTE",
+            "is_grantable": true
+          }
+        ]
+      },
+      {
+        "oid": "16756",
+        "role_oid": "10",
+        "namespace_oid": "16709",
+        "kind": "r",
+        "acl_raw": [
+          "postgres=a*r*w*d*D*x*t*m*/supabase_admin"
+        ],
+        "acl": [
+          {
+            "grantor": "10",
+            "grantee": "16384",
+            "privilege_type": "DELETE",
+            "is_grantable": true
+          },
+          {
+            "grantor": "10",
+            "grantee": "16384",
+            "privilege_type": "INSERT",
+            "is_grantable": true
+          },
+          {
+            "grantor": "10",
+            "grantee": "16384",
+            "privilege_type": "MAINTAIN",
+            "is_grantable": true
+          },
+          {
+            "grantor": "10",
+            "grantee": "16384",
+            "privilege_type": "REFERENCES",
+            "is_grantable": true
+          },
+          {
+            "grantor": "10",
+            "grantee": "16384",
+            "privilege_type": "SELECT",
+            "is_grantable": true
+          },
+          {
+            "grantor": "10",
+            "grantee": "16384",
+            "privilege_type": "TRIGGER",
+            "is_grantable": true
+          },
+          {
+            "grantor": "10",
+            "grantee": "16384",
+            "privilege_type": "TRUNCATE",
+            "is_grantable": true
+          },
+          {
+            "grantor": "10",
+            "grantee": "16384",
+            "privilege_type": "UPDATE",
+            "is_grantable": true
+          }
+        ]
+      },
+      {
+        "oid": "16758",
+        "role_oid": "10",
+        "namespace_oid": "16709",
+        "kind": "S",
+        "acl_raw": [
+          "postgres=r*w*U*/supabase_admin"
+        ],
+        "acl": [
+          {
+            "grantor": "10",
+            "grantee": "16384",
+            "privilege_type": "SELECT",
+            "is_grantable": true
+          },
+          {
+            "grantor": "10",
+            "grantee": "16384",
+            "privilege_type": "UPDATE",
+            "is_grantable": true
+          },
+          {
+            "grantor": "10",
+            "grantee": "16384",
+            "privilege_type": "USAGE",
+            "is_grantable": true
+          }
+        ]
+      }
+    ],
+    "event_triggers": [
+      {
+        "oid": "16650",
+        "name": "issue_pg_cron_access",
+        "event": "ddl_command_end",
+        "owner_oid": "10",
+        "enabled": "O",
+        "function_oid": "16510",
+        "tags": [
+          "CREATE EXTENSION"
+        ]
+      }
+    ],
+    "creation_defaults": [
+      {
+        "kind": "S",
+        "global_acl_raw": null,
+        "acl": [
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "SELECT",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "UPDATE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "USAGE",
+            "is_grantable": false
+          }
+        ]
+      },
+      {
+        "kind": "f",
+        "global_acl_raw": null,
+        "acl": [
+          {
+            "grantor": "10",
+            "grantee": "0",
+            "privilege_type": "EXECUTE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "EXECUTE",
+            "is_grantable": false
+          }
+        ]
+      },
+      {
+        "kind": "n",
+        "global_acl_raw": null,
+        "acl": [
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "CREATE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "USAGE",
+            "is_grantable": false
+          }
+        ]
+      },
+      {
+        "kind": "r",
+        "global_acl_raw": null,
+        "acl": [
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "DELETE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "INSERT",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "MAINTAIN",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "REFERENCES",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "SELECT",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "TRIGGER",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "TRUNCATE",
+            "is_grantable": false
+          },
+          {
+            "grantor": "10",
+            "grantee": "10",
+            "privilege_type": "UPDATE",
+            "is_grantable": false
+          }
+        ]
+      }
+    ]
+  },
+  "identity": {
+    "roles": [
+      {
+        "oid": "16384",
+        "rolname": "postgres",
+        "rolsuper": false,
+        "rolinherit": true,
+        "rolcreaterole": true,
+        "rolcreatedb": true,
+        "rolcanlogin": true,
+        "rolreplication": true,
+        "rolbypassrls": true,
+        "rolconnlimit": -1
+      },
+      {
+        "oid": "10",
+        "rolname": "supabase_admin",
+        "rolsuper": true,
+        "rolinherit": true,
+        "rolcreaterole": true,
+        "rolcreatedb": true,
+        "rolcanlogin": true,
+        "rolreplication": true,
+        "rolbypassrls": true,
+        "rolconnlimit": -1
+      }
+    ]
+  },
+  "provenance": {
+    "scope": "pinned-original-cron-hook-provenance",
+    "passed": true,
+    "upstream_commit": "af61232a627931d1da9d392993780cecb6a472de",
+    "image_id": "sha256:b3bfedb107413abb3b8cb0d0874b0414a1dceb3d55bc0c778de6ad22d1f7dc86",
+    "file": {
+      "path": "/etc/postgresql-custom/extension-custom-scripts/pg_cron/after-create.sql",
+      "artifact": "cron-provenance-after-create.sql.bin",
+      "bytes": 737,
+      "sha256": "12169cf2fa48df164030dc0519594757b864e4ed1cb1417daeb3c29ec8fb1a8b",
+      "passed": true,
+      "source": "grant usage on schema cron to postgres with grant option;\ngrant all on all functions in schema cron to postgres with grant option;\n\nalter default privileges for user supabase_admin in schema cron grant all\n    on sequences to postgres with grant option;\nalter default privileges for user supabase_admin in schema cron grant all\n    on tables to postgres with grant option;\nalter default privileges for user supabase_admin in schema cron grant all\n    on functions to postgres with grant option;\n\ngrant all privileges on all tables in schema cron to postgres with grant option;\nrevoke all on table cron.job from postgres;\ngrant select on table cron.job to postgres with grant option;\nrevoke trigger on cron.job_run_details from postgres;\n"
+    },
+    "before": {
+      "artifact": "cron-provenance-before.json.bin",
+      "bytes": 2834,
+      "sha256": "e1f5aef20f5d6fe089982995c829b75825a95e01833cab8079a1336089fb0c2e",
+      "passed": true,
+      "observation": {
+        "hook_count": 1,
+        "hooks": [
+          {
+            "oid": "16510",
+            "namespace_oid": "16394",
+            "namespace": "extensions",
+            "name": "grant_pg_cron_access",
+            "owner_oid": "10",
+            "owner": "supabase_admin",
+            "language": "plpgsql",
+            "security_definer": false,
+            "configuration": null,
+            "kind": "f",
+            "argument_types": "",
+            "return_type": "event_trigger",
+            "body": "\nBEGIN\n  IF EXISTS (\n    SELECT\n    FROM pg_event_trigger_ddl_commands() AS ev\n    JOIN pg_extension AS ext\n    ON ev.objid = ext.oid\n    WHERE ext.extname = 'pg_cron'\n  )\n  THEN\n    grant usage on schema cron to postgres with grant option;\n\n    alter default privileges in schema cron grant all on tables to postgres with grant option;\n    alter default privileges in schema cron grant all on functions to postgres with grant option;\n    alter default privileges in schema cron grant all on sequences to postgres with grant option;\n\n    alter default privileges for user supabase_admin in schema cron grant all\n        on sequences to postgres with grant option;\n    alter default privileges for user supabase_admin in schema cron grant all\n        on tables to postgres with grant option;\n    alter default privileges for user supabase_admin in schema cron grant all\n        on functions to postgres with grant option;\n\n    grant all privileges on all tables in schema cron to postgres with grant option;\n    revoke all on table cron.job from postgres;\n    grant select on table cron.job to postgres with grant option;\n    revoke trigger on cron.job_run_details from postgres;\n  END IF;\nEND;\n",
+            "body_bytes": 1194
+          }
+        ],
+        "trigger_count": 1,
+        "triggers": [
+          {
+            "oid": "16650",
+            "name": "issue_pg_cron_access",
+            "event": "ddl_command_end",
+            "owner_oid": "10",
+            "enabled": "O",
+            "function_oid": "16510",
+            "tags": [
+              "CREATE EXTENSION"
+            ]
+          }
+        ],
+        "current_user": "supabase_admin",
+        "session_user": "supabase_admin",
+        "settings": {
+          "supautils.extension_custom_scripts_path": "/etc/postgresql-custom/extension-custom-scripts",
+          "supautils.privileged_extensions": "address_standardizer, address_standardizer_data_us, autoinc, bloom, btree_gin, btree_gist, citext, cube, dblink, dict_int, dict_xsyn, earthdistance, fuzzystrmatch, hstore, http, hypopg, index_advisor, insert_username, intarray, isn, ltree, moddatetime, orioledb, pg_buffercache, pg_cron, pg_graphql, pg_hashids, pg_jsonschema, pg_net, pg_prewarm, pg_repack, pg_stat_monitor, pg_stat_statements, pg_tle, pg_trgm, pg_walinspect, pgaudit, pgcrypto, pgjwt, pgroonga, pgroonga_database, pgrouting, pgrowlocks, pgsodium, pgstattuple, pgtap, plcoffee, pljava, plls, plpgsql_check, postgis, postgis_raster, postgis_sfcgal, postgis_tiger_geocoder, postgis_topology, postgres_fdw, refint, rum, seg, sslinfo, supabase_vault, supautils, tablefunc, tcn, tsm_system_rows, tsm_system_time, unaccent, uuid-ossp, vector, wrappers",
+          "supautils.privileged_extensions_superuser": "supabase_admin"
+        }
+      },
+      "source": "{\"hook_count\" : 1, \"hooks\" : [{\"oid\":\"16510\",\"namespace_oid\":\"16394\",\"namespace\":\"extensions\",\"name\":\"grant_pg_cron_access\",\"owner_oid\":\"10\",\"owner\":\"supabase_admin\",\"language\":\"plpgsql\",\"security_definer\":false,\"configuration\":null,\"kind\":\"f\",\"argument_types\":\"\",\"return_type\":\"event_trigger\",\"body\":\"\\nBEGIN\\n  IF EXISTS (\\n    SELECT\\n    FROM pg_event_trigger_ddl_commands() AS ev\\n    JOIN pg_extension AS ext\\n    ON ev.objid = ext.oid\\n    WHERE ext.extname = 'pg_cron'\\n  )\\n  THEN\\n    grant usage on schema cron to postgres with grant option;\\n\\n    alter default privileges in schema cron grant all on tables to postgres with grant option;\\n    alter default privileges in schema cron grant all on functions to postgres with grant option;\\n    alter default privileges in schema cron grant all on sequences to postgres with grant option;\\n\\n    alter default privileges for user supabase_admin in schema cron grant all\\n        on sequences to postgres with grant option;\\n    alter default privileges for user supabase_admin in schema cron grant all\\n        on tables to postgres with grant option;\\n    alter default privileges for user supabase_admin in schema cron grant all\\n        on functions to postgres with grant option;\\n\\n    grant all privileges on all tables in schema cron to postgres with grant option;\\n    revoke all on table cron.job from postgres;\\n    grant select on table cron.job to postgres with grant option;\\n    revoke trigger on cron.job_run_details from postgres;\\n  END IF;\\nEND;\\n\",\"body_bytes\":1194}], \"trigger_count\" : 1, \"triggers\" : [{\"oid\":\"16650\",\"name\":\"issue_pg_cron_access\",\"event\":\"ddl_command_end\",\"owner_oid\":\"10\",\"enabled\":\"O\",\"function_oid\":\"16510\",\"tags\":[\"CREATE EXTENSION\"]}], \"current_user\" : \"supabase_admin\", \"session_user\" : \"supabase_admin\", \"settings\" : {\"supautils.extension_custom_scripts_path\" : \"/etc/postgresql-custom/extension-custom-scripts\", \"supautils.privileged_extensions\" : \"address_standardizer, address_standardizer_data_us, autoinc, bloom, btree_gin, btree_gist, citext, cube, dblink, dict_int, dict_xsyn, earthdistance, fuzzystrmatch, hstore, http, hypopg, index_advisor, insert_username, intarray, isn, ltree, moddatetime, orioledb, pg_buffercache, pg_cron, pg_graphql, pg_hashids, pg_jsonschema, pg_net, pg_prewarm, pg_repack, pg_stat_monitor, pg_stat_statements, pg_tle, pg_trgm, pg_walinspect, pgaudit, pgcrypto, pgjwt, pgroonga, pgroonga_database, pgrouting, pgrowlocks, pgsodium, pgstattuple, pgtap, plcoffee, pljava, plls, plpgsql_check, postgis, postgis_raster, postgis_sfcgal, postgis_tiger_geocoder, postgis_topology, postgres_fdw, refint, rum, seg, sslinfo, supabase_vault, supautils, tablefunc, tcn, tsm_system_rows, tsm_system_time, unaccent, uuid-ossp, vector, wrappers\", \"supautils.privileged_extensions_superuser\" : \"supabase_admin\"}}"
+    },
+    "setup": {
+      "artifact": "cron-provenance-setup.json.bin",
+      "bytes": 2834,
+      "sha256": "e1f5aef20f5d6fe089982995c829b75825a95e01833cab8079a1336089fb0c2e",
+      "passed": true,
+      "observation": {
+        "hook_count": 1,
+        "hooks": [
+          {
+            "oid": "16510",
+            "namespace_oid": "16394",
+            "namespace": "extensions",
+            "name": "grant_pg_cron_access",
+            "owner_oid": "10",
+            "owner": "supabase_admin",
+            "language": "plpgsql",
+            "security_definer": false,
+            "configuration": null,
+            "kind": "f",
+            "argument_types": "",
+            "return_type": "event_trigger",
+            "body": "\nBEGIN\n  IF EXISTS (\n    SELECT\n    FROM pg_event_trigger_ddl_commands() AS ev\n    JOIN pg_extension AS ext\n    ON ev.objid = ext.oid\n    WHERE ext.extname = 'pg_cron'\n  )\n  THEN\n    grant usage on schema cron to postgres with grant option;\n\n    alter default privileges in schema cron grant all on tables to postgres with grant option;\n    alter default privileges in schema cron grant all on functions to postgres with grant option;\n    alter default privileges in schema cron grant all on sequences to postgres with grant option;\n\n    alter default privileges for user supabase_admin in schema cron grant all\n        on sequences to postgres with grant option;\n    alter default privileges for user supabase_admin in schema cron grant all\n        on tables to postgres with grant option;\n    alter default privileges for user supabase_admin in schema cron grant all\n        on functions to postgres with grant option;\n\n    grant all privileges on all tables in schema cron to postgres with grant option;\n    revoke all on table cron.job from postgres;\n    grant select on table cron.job to postgres with grant option;\n    revoke trigger on cron.job_run_details from postgres;\n  END IF;\nEND;\n",
+            "body_bytes": 1194
+          }
+        ],
+        "trigger_count": 1,
+        "triggers": [
+          {
+            "oid": "16650",
+            "name": "issue_pg_cron_access",
+            "event": "ddl_command_end",
+            "owner_oid": "10",
+            "enabled": "O",
+            "function_oid": "16510",
+            "tags": [
+              "CREATE EXTENSION"
+            ]
+          }
+        ],
+        "current_user": "supabase_admin",
+        "session_user": "supabase_admin",
+        "settings": {
+          "supautils.extension_custom_scripts_path": "/etc/postgresql-custom/extension-custom-scripts",
+          "supautils.privileged_extensions": "address_standardizer, address_standardizer_data_us, autoinc, bloom, btree_gin, btree_gist, citext, cube, dblink, dict_int, dict_xsyn, earthdistance, fuzzystrmatch, hstore, http, hypopg, index_advisor, insert_username, intarray, isn, ltree, moddatetime, orioledb, pg_buffercache, pg_cron, pg_graphql, pg_hashids, pg_jsonschema, pg_net, pg_prewarm, pg_repack, pg_stat_monitor, pg_stat_statements, pg_tle, pg_trgm, pg_walinspect, pgaudit, pgcrypto, pgjwt, pgroonga, pgroonga_database, pgrouting, pgrowlocks, pgsodium, pgstattuple, pgtap, plcoffee, pljava, plls, plpgsql_check, postgis, postgis_raster, postgis_sfcgal, postgis_tiger_geocoder, postgis_topology, postgres_fdw, refint, rum, seg, sslinfo, supabase_vault, supautils, tablefunc, tcn, tsm_system_rows, tsm_system_time, unaccent, uuid-ossp, vector, wrappers",
+          "supautils.privileged_extensions_superuser": "supabase_admin"
+        }
+      },
+      "source": "{\"hook_count\" : 1, \"hooks\" : [{\"oid\":\"16510\",\"namespace_oid\":\"16394\",\"namespace\":\"extensions\",\"name\":\"grant_pg_cron_access\",\"owner_oid\":\"10\",\"owner\":\"supabase_admin\",\"language\":\"plpgsql\",\"security_definer\":false,\"configuration\":null,\"kind\":\"f\",\"argument_types\":\"\",\"return_type\":\"event_trigger\",\"body\":\"\\nBEGIN\\n  IF EXISTS (\\n    SELECT\\n    FROM pg_event_trigger_ddl_commands() AS ev\\n    JOIN pg_extension AS ext\\n    ON ev.objid = ext.oid\\n    WHERE ext.extname = 'pg_cron'\\n  )\\n  THEN\\n    grant usage on schema cron to postgres with grant option;\\n\\n    alter default privileges in schema cron grant all on tables to postgres with grant option;\\n    alter default privileges in schema cron grant all on functions to postgres with grant option;\\n    alter default privileges in schema cron grant all on sequences to postgres with grant option;\\n\\n    alter default privileges for user supabase_admin in schema cron grant all\\n        on sequences to postgres with grant option;\\n    alter default privileges for user supabase_admin in schema cron grant all\\n        on tables to postgres with grant option;\\n    alter default privileges for user supabase_admin in schema cron grant all\\n        on functions to postgres with grant option;\\n\\n    grant all privileges on all tables in schema cron to postgres with grant option;\\n    revoke all on table cron.job from postgres;\\n    grant select on table cron.job to postgres with grant option;\\n    revoke trigger on cron.job_run_details from postgres;\\n  END IF;\\nEND;\\n\",\"body_bytes\":1194}], \"trigger_count\" : 1, \"triggers\" : [{\"oid\":\"16650\",\"name\":\"issue_pg_cron_access\",\"event\":\"ddl_command_end\",\"owner_oid\":\"10\",\"enabled\":\"O\",\"function_oid\":\"16510\",\"tags\":[\"CREATE EXTENSION\"]}], \"current_user\" : \"supabase_admin\", \"session_user\" : \"supabase_admin\", \"settings\" : {\"supautils.extension_custom_scripts_path\" : \"/etc/postgresql-custom/extension-custom-scripts\", \"supautils.privileged_extensions\" : \"address_standardizer, address_standardizer_data_us, autoinc, bloom, btree_gin, btree_gist, citext, cube, dblink, dict_int, dict_xsyn, earthdistance, fuzzystrmatch, hstore, http, hypopg, index_advisor, insert_username, intarray, isn, ltree, moddatetime, orioledb, pg_buffercache, pg_cron, pg_graphql, pg_hashids, pg_jsonschema, pg_net, pg_prewarm, pg_repack, pg_stat_monitor, pg_stat_statements, pg_tle, pg_trgm, pg_walinspect, pgaudit, pgcrypto, pgjwt, pgroonga, pgroonga_database, pgrouting, pgrowlocks, pgsodium, pgstattuple, pgtap, plcoffee, pljava, plls, plpgsql_check, postgis, postgis_raster, postgis_sfcgal, postgis_tiger_geocoder, postgis_topology, postgres_fdw, refint, rum, seg, sslinfo, supabase_vault, supautils, tablefunc, tcn, tsm_system_rows, tsm_system_time, unaccent, uuid-ossp, vector, wrappers\", \"supautils.privileged_extensions_superuser\" : \"supabase_admin\"}}"
+    }
+  },
+  "capture": {
+    "image_id": "sha256:b3bfedb107413abb3b8cb0d0874b0414a1dceb3d55bc0c778de6ad22d1f7dc86",
+    "run": "identity-20261004T005811Z-2185734-0",
+    "scope": "Selective public original-image catalog rows and exact public Cron hook/script only; no application rows or credentials."
+  }
+}

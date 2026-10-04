@@ -2,7 +2,7 @@
   "schema": 1,
   "goal": "PROJECT_GOAL.md",
   "method": "docs/engineering/plans/2026-10-03-gauntlet-execution-method.md",
-  "source_commit": "b88e2f1343e16a0210e3e4bcbd3429e3e8c563c3",
+  "source_commit": "73a6a7d990cf75019257b2164574158c07f95165",
   "includes_uncommitted_work": true,
   "status": "active",
   "reference": "docs/engineering/benchmarks/supabase-v0.8.2.source.json",
@@ -1674,6 +1674,42 @@
         "Exact frozen public source matching nine native workflow cases; later evidence-summary edits checked separately.",
         "No comprehensive writer fencing, real Supabase service readiness, fullG2 or release acceptance."
       ]
+    },
+    {
+      "id": "run-20261004T003320Z-1641687-0",
+      "scope": "offline-linux-source-verification",
+      "status": "mechanical-checks-passed",
+      "source_sha256": "138a25d821a4cf02d67129f89a0ee60f23e6c4aef41fe9e1f88cbedd36fa91da",
+      "evidence_directory": ".lab/cron-provenance-source-verification-20261004/run-20261004T003320Z-1641687-0",
+      "evidence_tracked": false,
+      "python_tests": 1341,
+      "bun_tests": 301,
+      "stages_passed": 6,
+      "purpose": "original Cron provenance and bound ACL correction"
+    },
+    {
+      "id": "run-20261004T005620Z-2136189-0",
+      "scope": "offline-linux-source-verification",
+      "status": "mechanical-checks-passed",
+      "source_sha256": "f4e2ba5cd0b096a00bfe3f0020dd6a57f8ab8eb989a803d32c99e656ca263732",
+      "evidence_directory": ".lab/cron-provenance-source-v2-20261004/run-20261004T005620Z-2136189-0",
+      "evidence_tracked": false,
+      "python_tests": 1343,
+      "bun_tests": 301,
+      "stages_passed": 6,
+      "purpose": "original Cron provenance and bound ACL correction"
+    },
+    {
+      "id": "run-20261004T011519Z-2499451-0",
+      "scope": "offline-linux-source-verification",
+      "status": "mechanical-checks-passed",
+      "source_sha256": "43aa3887dbdc3d84990d70875959cee0b882602538f21ec7014b3b52eb71c3d0",
+      "evidence_directory": ".lab/cron-acl-source-verification-20261004/run-20261004T011519Z-2499451-0",
+      "evidence_tracked": false,
+      "python_tests": 1348,
+      "bun_tests": 301,
+      "stages_passed": 6,
+      "purpose": "original Cron provenance and bound ACL correction"
     }
   ],
   "source_safety_changes": [
@@ -4473,7 +4509,7 @@
     }
   },
   "configured_native_effects": {
-    "status": "NOT MET second actual window, corrected ACL projection executes but routine grant model differs",
+    "status": "MET CONFIGURED EFFECTS ONLY; exact original-image Cron and native HTTP accepted, broader native runtime unaccepted",
     "declaration": "COMPLIANCE.md: Configured native owned effects declaration",
     "bootstrap_prerequisite_source_sha256": "85791f0e1061259286822b9686afa817af61d26c6a735380e82d59085e5bcc69",
     "advisor": ".lab/configured-native-effects-advisor-20261003/report.md",
@@ -4592,6 +4628,81 @@
         "stdin_bindings": 40,
         "config_frames": 88,
         "freeze": "released after all actual processes and fresh critic terminal"
+      },
+      {
+        "source_sha256": "138a25d821a4cf02d67129f89a0ee60f23e6c4aef41fe9e1f88cbedd36fa91da",
+        "standalone": ".lab/cron-provenance-preservation-verification-20261004/identity-20261004T003340Z-1649531-0",
+        "effects": ".lab/cron-provenance-configured-verification-20261004/identity-20261004T003715Z-1741381-0",
+        "offline": ".lab/cron-provenance-source-verification-20261004/run-20261004T003320Z-1641687-0",
+        "verdict": "NOT MET, original valid uuid-ossp refused before setup",
+        "bootstrap_prefix_passed": true,
+        "whole_configured_passed": false,
+        "effects_passed": false,
+        "cron_provenance_passed": false,
+        "failure": "RuntimeError: Supautils pg_cron privileged extension context differs",
+        "offline_python_tests": 1341,
+        "offline_bun_tests": 301,
+        "critic": ".lab/cron-public-observer-actual-critic-v1-20261004/review.json",
+        "evidence_tracked": false,
+        "freeze": "released only after all processes and fresh actual critic terminal",
+        "root_absences": [
+          13,
+          20
+        ],
+        "unrun": [
+          "HTTP CID, never created"
+        ]
+      },
+      {
+        "source_sha256": "f4e2ba5cd0b096a00bfe3f0020dd6a57f8ab8eb989a803d32c99e656ca263732",
+        "standalone": ".lab/cron-provenance-preservation-v2-20261004/identity-20261004T005620Z-2136187-0",
+        "effects": ".lab/cron-provenance-configured-v2-20261004/identity-20261004T005811Z-2185734-0",
+        "offline": ".lab/cron-provenance-source-v2-20261004/run-20261004T005620Z-2136189-0",
+        "verdict": "MET PROVENANCE ONLY; whole configured effects failed unchanged ACL model",
+        "bootstrap_prefix_passed": true,
+        "whole_configured_passed": false,
+        "effects_passed": false,
+        "cron_provenance_passed": true,
+        "failure": "RuntimeError: Closed source-declared cron ACL differs",
+        "offline_python_tests": 1343,
+        "offline_bun_tests": 301,
+        "critic": ".lab/cron-provenance-actual-v2-20261004/review.json",
+        "evidence_tracked": false,
+        "freeze": "released only after all processes and fresh actual critic terminal",
+        "root_absences": [
+          13,
+          20
+        ],
+        "unrun": [
+          "HTTP CID, never created"
+        ]
+      },
+      {
+        "source_sha256": "43aa3887dbdc3d84990d70875959cee0b882602538f21ec7014b3b52eb71c3d0",
+        "standalone": ".lab/cron-acl-preservation-verification-20261004/identity-20261004T011519Z-2499454-0",
+        "effects": ".lab/cron-acl-configured-verification-20261004/identity-20261004T011731Z-2552042-0",
+        "offline": ".lab/cron-acl-source-verification-20261004/run-20261004T011519Z-2499451-0",
+        "verdict": "MET CONFIGURED EFFECTS ONLY",
+        "bootstrap_prefix_passed": true,
+        "whole_configured_passed": true,
+        "effects_passed": true,
+        "cron_provenance_passed": true,
+        "failure": null,
+        "offline_python_tests": 1348,
+        "offline_bun_tests": 301,
+        "critic": ".lab/cron-effects-actual-critic-20261004/review.json",
+        "evidence_tracked": false,
+        "freeze": "released only after all processes and fresh actual critic terminal",
+        "cron_writes": 4,
+        "http_successes": 5,
+        "samples": 29,
+        "inactive_stable_samples": 9,
+        "effects_work_seconds": 14.523,
+        "cleanup_operations": 27,
+        "root_absences": [
+          13,
+          21
+        ]
       }
     ],
     "acl_projection_repair": {
@@ -4609,7 +4720,23 @@
       "design_critic": ".lab/configured-native-effects-acl-design-critic-20261003/report.json",
       "independent_controls": 77,
       "actual_critic": ".lab/configured-native-effects-acl-actual-critic-20261003/report.json"
-    }
+    },
+    "configured_effects_accepted": true,
+    "accepted_source_sha256": "43aa3887dbdc3d84990d70875959cee0b882602538f21ec7014b3b52eb71c3d0",
+    "current_public_review": "docs/engineering/reviews/2026-10-04-native-cron-effects.md",
+    "cron_provenance": {
+      "status": "MET PROVENANCE ONLY before ACL correction; revalidated in accepted effects",
+      "upstream_commit": "af61232a627931d1da9d392993780cecb6a472de",
+      "original_image": "sha256:b3bfedb107413abb3b8cb0d0874b0414a1dceb3d55bc0c778de6ad22d1f7dc86",
+      "script_bytes": 737,
+      "script_sha256": "12169cf2fa48df164030dc0519594757b864e4ed1cb1417daeb3c29ec8fb1a8b",
+      "hook_body_bytes": 1194,
+      "hook_body_sha256": "00db212b76cecd4b0794b2f20c414ab4988d675959747cd12d3eb4c6d6736f38",
+      "vendor_routine_grants": 7,
+      "grant": "supabase_admin to postgres EXECUTE WITH GRANT OPTION",
+      "installed_binary_source_attestation": false
+    },
+    "owner_selected_host_scope": "Local isolated Docker on the computer, observed Fedora44 x86_64; no independent physical host or HA acceptance"
   },
   "product_strategy_review": {
     "report": ".lab/product-plan-value-review-20261003/report.md",

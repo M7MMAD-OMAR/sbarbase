@@ -206,3 +206,19 @@ bounded tmpfs database, an owned volume and internal network, with no host ports
 or private data. Transient helpers are named, resource bounded and removed.
 Archives, raw native command outcomes, failure injection and service double
 records are retained. Only exact owned fixture resources are cleaned up.
+
+
+## Original configuration preservation and configured effects
+
+Run these declared fixtures separately against already available immutable public images:
+
+```bash
+sh deploy/verify/identity-run.sh .lab/native-config-preservation configpreserve
+sh deploy/verify/identity-run.sh .lab/native-configured-effects configured-effects
+```
+
+`configpreserve` checks the original configuration and metadata through bounded owned baseline/seed/reader helpers. Its whole fragment budget is 180 seconds, including sixty seconds reserved for cleanup. `configured-effects` preserves that original setup, bootstraps the pinned original image, then verifies unique owned Cron writes and isolated native HTTP echo behavior across enabled, inactive and resumed phases. It admits only the source/file/GUC/image-bound closed routine model, including the exact seven vendor grants; it does not repair privileges to bypass a refusal.
+
+The configured whole budget remains 780 seconds, split into 540 work and 240 cleanup, with ninety seconds for effects and at most twenty-eight cleanup operations. The verifier is limited to one CPU, 256 MiB and 64 PIDs; the database to half a CPU, 512 MiB and 128 PIDs; the HTTP helper to one quarter CPU, 64 MiB and 16 PIDs. No host ports are published. Fresh exact ownership, internal networks and named configuration volumes delimit the fixture. Missing original images refuse; the fixture does not automatically pull or change the old image pin. It does not use application data or retained production resources.
+
+The wrapper binds only the selected local Unix Docker socket, with a read-only bind. That bind does not make Docker API operations read-only; these trusted fixtures create and clean only declared owned resources. Remote or inaccessible daemon endpoints remain refused. Raw command streams, samples, preservation frames and exact cleanup outcomes are retained under the unique output directory. Accepted configured effects are not proof of owned-job restart, native fencing, archive/key/object continuity, full native service recovery, patched security support, all-host portability, physical HA, PITR or production acceptance. See the [accepted scoped review](../../docs/engineering/reviews/2026-10-04-native-cron-effects.md).
