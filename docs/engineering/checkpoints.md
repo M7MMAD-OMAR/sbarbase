@@ -413,3 +413,12 @@ See [factory, preservation and key source](reviews/2026-10-04-native-root-key-so
 ## 2026-10-04: native key filesystem fragment
 
 The [native key review](reviews/2026-10-04-native-root-key-filesystem.md) accepts one native 100:101 private publication and two fresh read-only guards: 889 checks, 48 commands/96 streams/775330 bytes, 1.998531393 seconds. Original 20 public files and 12 untouched subdirectories kept full new ns metadata. Eight exact helper absences and filtered zero consumers establish current key-containing retained-volume handoff. Distinct read-only helper build completion preserves the failed preflight/sourceecho receipts. Provider/server/warm Vault/physical recovery/production remain unaccepted. Source `3b2e32d` CI and build-only Website passed with the conditional empty-host skip.
+
+
+## 2026-10-04: corrected synthetic private diagnostic FIFO fragment
+
+Published documentation head `34e4aee` passed CI 37183462996 with checks, Python floor and Docker install; conditional empty-host acceptance was skipped. Website 37183499961 was manually dispatched and passed build/test/artifact only. Product code remains unchanged since the published key primitive.
+
+The [private FIFO review](reviews/2026-10-04-private-diagnostics-fifo.md) records corrected packet `440ff`: 32 intended synthetic outcomes, 436 saved-data checks, 19 commands/38 streams/118334 bytes, 201838 evidence bytes and 1.188615498 seconds. One native 100:101 detached helper used private bounded tmpfs/spool and a reconstructed scalar reader. Phase/deadline preceded READY publication; completed reader preceded exact-CID release, worker exit 0/OOM false and two exact helper absences. No named volume or retained key resource was touched. Four explicit stub scopes and internal schema parsing are not broader native negatives.
+
+Preserve original endpoint/lifecycle, ACK/reader-exit, manufactured source negatives, signal-phase, uncertain-create/final-deadline and later READY-order findings. The earlier coherent 435-check v3 actual remains separately valid. No runtime warning/error is waived. General secret safety, shared producer transport, effective settings before sensitive SQL, candidate PostgreSQL startup, old Vault continuity, physical/full-service recovery and production remain unaccepted. The shared bridge proposal and cold preflight advice remain unrun.

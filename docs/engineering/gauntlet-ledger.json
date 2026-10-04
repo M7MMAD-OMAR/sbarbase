@@ -2,7 +2,7 @@
   "schema": 1,
   "goal": "PROJECT_GOAL.md",
   "method": "docs/engineering/plans/2026-10-03-gauntlet-execution-method.md",
-  "source_commit": "3b2e32dfcebc71ef1911f1eb964bbf77b8352ed7",
+  "source_commit": "34e4aee729b125acdbb779924186f97f47b11259",
   "includes_uncommitted_work": true,
   "status": "active",
   "reference": "docs/engineering/benchmarks/supabase-v0.8.2.source.json",
@@ -227,6 +227,23 @@
       "zero_consumers": true,
       "critic_reuse": true,
       "startup_wired": false,
+      "grants_G0_or_release_acceptance": false
+    },
+    {
+      "slice": "private-diagnostics-fifo",
+      "verdict": "SPEC_MATCH",
+      "scope": "Corrected single-container synthetic FIFO and scalar reader only",
+      "review": ".lab/patched-diagnostic-transport-v4-actual-critic-20261004/review.json",
+      "evidence": ".lab/patched-diagnostic-transport-v4-build-20261004/run-diagnostic-fifo-440ff8975d984fb198dac7e4eb6a9d44/receipt.json",
+      "independent_checks": 436,
+      "intended_cases": 32,
+      "commands": 19,
+      "raw_streams": 38,
+      "stream_bytes": 118334,
+      "whole_seconds": 1.188615498,
+      "evidence_bytes": 201838,
+      "exact_helper_absences": 2,
+      "critic_reuse": true,
       "grants_G0_or_release_acceptance": false
     }
   ],
@@ -1910,6 +1927,24 @@
       "website_run": 37179873086,
       "website_status": "success",
       "website_scope": "build/test/artifact only, no deployment"
+    },
+    {
+      "scope": "exact published documentation head CI and build-only Website metadata",
+      "commit": "34e4aee729b125acdbb779924186f97f47b11259",
+      "CI_run": 37183462996,
+      "CI_conclusion": "success",
+      "CI_jobs": [
+        "checks",
+        "python-floor",
+        "docker-install"
+      ],
+      "empty_host_acceptance": "conditional skip",
+      "Website_run": 37183499961,
+      "Website_conclusion": "success",
+      "Website_scope": "manual build/test/artifact only, no deployment",
+      "independent_review": ".lab/native-key-filesystem-published-ci-critic-20261004/review.json",
+      "product_implementation_changed": false,
+      "production_accepted": false
     }
   ],
   "source_safety_changes": [
@@ -5150,5 +5185,57 @@
     "powerloss_durability_accepted": false,
     "physical_recovery_accepted": false,
     "production_accepted": false
+  },
+  "private_diagnostics_fifo": {
+    "verdict": "MET_CORRECTED_SYNTHETIC_PRIVATE_DIAGNOSTIC_FIFO_ACTUAL_FRAGMENT_ONLY",
+    "review": ".lab/patched-diagnostic-transport-v4-actual-critic-20261004/review.json",
+    "packet": ".lab/patched-diagnostic-transport-v4-build-20261004/run-diagnostic-fifo-440ff8975d984fb198dac7e4eb6a9d44/receipt.json",
+    "public_review": "docs/engineering/reviews/2026-10-04-private-diagnostics-fifo.md",
+    "independent_checks": 436,
+    "intended_cases": 32,
+    "explicit_stub_cases": 4,
+    "internal_schema_case_separate_reader_process_injection": false,
+    "native_uid": 100,
+    "native_gid": 101,
+    "effective_groups": [
+      101
+    ],
+    "commands": 19,
+    "raw_streams": 38,
+    "stream_bytes": 118334,
+    "evidence_bytes": 201838,
+    "whole_seconds": 1.188615498,
+    "exact_helper_absences": 2,
+    "named_volumes_used": false,
+    "retained_key_volume_touched": false,
+    "private_spool_or_marker_host_read_print_hash": false,
+    "READY_phase_before_commit": true,
+    "reader_complete_before_controller_release": true,
+    "worker_exit_zero_and_no_OOM": true,
+    "create_uncertain": false,
+    "historical_v3_review": ".lab/patched-diagnostic-transport-actual-critic-20261004/review.json",
+    "historical_v3_checks": 435,
+    "historical_v3_scope": "separately observed valid fragment; READY ordering corrected before reuse",
+    "preserved_refusals": [
+      ".lab/patched-diagnostic-transport-design-critic-20261004/review.json",
+      ".lab/patched-diagnostic-transport-v2-design-critic-20261004/review.json",
+      ".lab/patched-diagnostic-prototype-source-critic-20261004/review.json",
+      ".lab/patched-diagnostic-transport-v2-implementation-critic-20261004/review.json"
+    ],
+    "native_negatives_unrun": [
+      "true forced early EOF",
+      "WAIT",
+      "external premature signals",
+      "OOM",
+      "late daemon creation"
+    ],
+    "general_secret_safety_accepted": false,
+    "shared_bridge_accepted": false,
+    "vendor_grammar_accepted": false,
+    "candidate_startup_accepted": false,
+    "Vault_continuity_accepted": false,
+    "physical_recovery_accepted": false,
+    "production_accepted": false,
+    "clean_clone_reproducibility": false
   }
 }

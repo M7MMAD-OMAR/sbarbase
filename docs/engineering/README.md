@@ -18,6 +18,8 @@ Start with the [project goal](../../PROJECT_GOAL.md), [product and portability p
 
 - [Native root key filesystem](reviews/2026-10-04-native-root-key-filesystem.md): accepted private publication, two fresh read-only guards and positive retained key-volume handoff; provider/server/Vault/recovery remain unaccepted.
 
+- [Private diagnostic FIFO mechanics](reviews/2026-10-04-private-diagnostics-fifo.md): accepted 32 synthetic outcomes and 436 independent checks in one detached helper; shared transport, vendor grammar, candidate startup and recovery remain unaccepted.
+
 ## Architecture and control plane
 
 - [ARCHITECTURE-REVIEW](ARCHITECTURE-REVIEW.md): the original foundation review, options and acceptance gates.
