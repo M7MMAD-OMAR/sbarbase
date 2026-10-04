@@ -14,6 +14,8 @@ Start with the [project goal](../../PROJECT_GOAL.md), [product and portability p
 
 - [Patched PostgreSQL observations](reviews/2026-10-04-patched-postgres-observations.md): accepted finite image/configuration/public-script observations and native direct configuration-volume preservation; no server, key-provider or recovery acceptance.
 
+- [Factory data, whole configuration and root key source](reviews/2026-10-04-native-root-key-source.md): accepted fixed public inventories, whole-root prepared baseline handoff and 28 root-key source tests; native key/provider/startup and recovery remain unaccepted.
+
 ## Architecture and control plane
 
 - [ARCHITECTURE-REVIEW](ARCHITECTURE-REVIEW.md): the original foundation review, options and acceptance gates.

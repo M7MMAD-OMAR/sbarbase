@@ -2,11 +2,11 @@
   "schema": 1,
   "goal": "PROJECT_GOAL.md",
   "method": "docs/engineering/plans/2026-10-03-gauntlet-execution-method.md",
-  "source_commit": "c8f286a1febfe5b33c74a3ba0f223d91545bd50c",
+  "source_commit": "f58d6ec2f5ca1a7d78b805cbbbc449e3121f541c",
   "includes_uncommitted_work": true,
   "status": "active",
   "reference": "docs/engineering/benchmarks/supabase-v0.8.2.source.json",
-  "reviewed_date": "2026-10-03",
+  "reviewed_date": "2026-10-04",
   "rounds": [
     {
       "slice": "method",
@@ -90,6 +90,97 @@
       "largest_gap": "Four unresolved image references after DockerHub429; upstream development Compose warning and build-only Studio context remain incomplete.",
       "blinding_limit": "Reused prior critic agent; visible identity. Independent inspection, not fresh-context or anonymous comparison.",
       "grants_G0_G2_or_release_acceptance": false
+    },
+    {
+      "slice": "patched-factory-inventory-order",
+      "verdict": "LOSS",
+      "review": ".lab/patched-factory-first-actual-critic-20261004/review.json",
+      "scope": "Native observation succeeded but closed parser refused counts ordering; original NOT_MET retained."
+    },
+    {
+      "slice": "patched-factory-public-data",
+      "verdict": "SPEC MET",
+      "scope": "Finite public data and metadata only, no initializer execution.",
+      "review": ".lab/patched-factory-corrected-actual-critic-20261004/review.json",
+      "independent_checks": 631,
+      "initializer_files": 61,
+      "include_bytes": 840,
+      "grants_G0_or_release_acceptance": false
+    },
+    {
+      "slice": "patched-initializer-public-data",
+      "verdict": "SPEC MET",
+      "review": ".lab/patched-initializer-data-actual-critic-20261004/review.json",
+      "files": 61,
+      "bytes": 67274,
+      "independent_checks": 1193,
+      "code_executed": false,
+      "grants_G0_or_release_acceptance": false
+    },
+    {
+      "slice": "patched-custom-public-data",
+      "verdict": "SPEC MET",
+      "review": ".lab/patched-custom-data-actual-critic-20261004/review.json",
+      "files": 20,
+      "bytes": 18544,
+      "objects": 33,
+      "directories": 13,
+      "optional_schema_absent": true,
+      "independent_checks": 745,
+      "code_executed": false,
+      "grants_G0_or_release_acceptance": false
+    },
+    {
+      "slice": "patched-whole-root-preservation-design",
+      "verdict": "LOSS",
+      "review": ".lab/patched-whole-preservation-design-critic-20261004/review.json",
+      "scope": "Undeclared readonly-group root metadata drift was admitted; original counterexample and NOT_MET preserved."
+    },
+    {
+      "slice": "patched-whole-root-preservation",
+      "verdict": "SPEC MET",
+      "review": ".lab/patched-whole-preservation-actual-critic-20261004/review.json",
+      "scope": "Public baseline preservation and positive retained owned-volume handoff only.",
+      "independent_checks": 1256,
+      "exact_helper_absences": 8,
+      "zero_consumers": true,
+      "volume_absence_claimed": false,
+      "native_key_or_server_executed": false,
+      "grants_G0_or_release_acceptance": false
+    },
+    {
+      "slice": "native-root-key-source-v1",
+      "verdict": "LOSS",
+      "review": ".lab/native-root-key-source-critic-v1-20261004/review.json",
+      "scope": "Postpublication typed failures and descriptor-close diagnostics required correction; original sources and NOT_MET preserved."
+    },
+    {
+      "slice": "native-root-key-source-byte-binding",
+      "verdict": "LOSS",
+      "review": ".lab/native-root-key-source-actual-critic-20261004/review.json",
+      "scope": "Successful six-stage source gate lacked exact baked frozen-v2 byte capture; original NOT_MET retained.",
+      "observed_python_tests": 1395,
+      "observed_root_key_tests": 28
+    },
+    {
+      "slice": "native-root-key-source-capture",
+      "verdict": "SPEC MET",
+      "review": ".lab/native-root-key-capture-actual-critic-20261004/review.json",
+      "evidence": ".lab/native-root-key-capture-verification-20261004/run-20261004T045817Z-2582809-0/report.json",
+      "scope": "Exact frozen-v2 source and Docker unit tests only.",
+      "source_sha256": "54418ff32151847af9785d7ac492559e072ae6d57828f04ea154df81d3400c0a",
+      "independent_checks": 83,
+      "python_tests": 1395,
+      "root_key_tests": 28,
+      "required_skips": 0,
+      "bun_tests": 301,
+      "baked_module_bytes": 9107,
+      "baked_test_bytes": 14681,
+      "exact_resource_absences": 2,
+      "critic_reuse": "Same independent nonbuilder in separate design and actual scopes due agent thread limits, not a new identity.",
+      "native_key_volume_executed": false,
+      "startup_wired": false,
+      "grants_G0_or_release_acceptance": false
     }
   ],
   "slices": [
@@ -4873,6 +4964,66 @@
       "bootstrap_handoff_accepted": false,
       "durability_accepted": false,
       "initial_root_gate_refusal": ".lab/patched-direct-preservation-build-20261004/root-gate-refusal.json"
+    },
+    "factory_public_data": {
+      "review": ".lab/patched-factory-corrected-actual-critic-20261004/review.json",
+      "initializer_files": 61,
+      "include_files": 3,
+      "include_bytes": 840,
+      "code_executed": false
+    },
+    "initializer_public_data": {
+      "review": ".lab/patched-initializer-data-actual-critic-20261004/review.json",
+      "files": 61,
+      "bytes": 67274,
+      "code_executed": false
+    },
+    "custom_public_data": {
+      "review": ".lab/patched-custom-data-actual-critic-20261004/review.json",
+      "files": 20,
+      "bytes": 18544,
+      "objects": 33,
+      "directories": 13,
+      "symlinks": 0,
+      "optional_schema_absent": true,
+      "code_executed": false
+    },
+    "whole_custom_root_preservation": {
+      "review": ".lab/patched-whole-preservation-actual-critic-20261004/review.json",
+      "packet": ".lab/patched-whole-preservation-build-20261004/evidence-identity-patched17-preserve-2f30af25973c45e69f0ed281d0230102/receipt.json",
+      "independent_checks": 1256,
+      "commands": 47,
+      "raw_streams": 94,
+      "stream_bytes": 446537,
+      "whole_seconds": 9.674947395003983,
+      "original_files": 20,
+      "original_bytes": 18544,
+      "objects": 33,
+      "directories": 13,
+      "exact_helper_absences": 8,
+      "positive_retained_volume": true,
+      "zero_consumers": true,
+      "volume_absence_claimed": false,
+      "key_created": false,
+      "server_executed": false,
+      "durability_accepted": false
     }
+  },
+  "native_root_key_source": {
+    "module": "lab/native_root_key.py",
+    "tests": "lab/test_native_root_key.py",
+    "review": ".lab/native-root-key-capture-actual-critic-20261004/review.json",
+    "verdict": "MET_EXACT_FROZEN_V2_SOURCE_DOCKER_TESTS_AND_CAPTURE_ONLY",
+    "root_key_tests": 28,
+    "baked_module_bytes": 9107,
+    "baked_test_bytes": 14681,
+    "native_uid100_key_volume_executed": false,
+    "candidate_startup_wired": false,
+    "Vault_continuity_accepted": false,
+    "production_accepted": false,
+    "preserved_refusals": [
+      ".lab/native-root-key-source-critic-v1-20261004/review.json",
+      ".lab/native-root-key-source-actual-critic-20261004/review.json"
+    ]
   }
 }
