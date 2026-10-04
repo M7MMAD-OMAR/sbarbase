@@ -1,6 +1,6 @@
 # Patched factory data, whole configuration preservation and root key source
 
-Recorded 2026-10-04. These are separate accepted fragments. PostgreSQL 17.11 startup, provider execution, native key persistence, Vault continuity, physical recovery and production readiness remain unaccepted. The original image pin and its bounded Cron evidence are unchanged.
+Recorded 2026-10-04. These are separate source and public-data fragments. A later [native filesystem review](2026-10-04-native-root-key-filesystem.md) accepts key publication and metadata guards only. PostgreSQL 17.11 startup, provider wiring, Vault continuity, physical recovery and production readiness remain unaccepted. The original image pin and its bounded Cron evidence are unchanged.
 
 ## Public data and configuration preservation
 
@@ -41,4 +41,4 @@ Raw packets are ignored local-only artifacts, not distributed evidence:
 
 Preserve the original factory ordering refusal, whole-root metadata design refusal, first key source refusal and first actual source byte-binding refusal. The corrected factory ordering, readonly root metadata equality and explicit baked public-file capture were separately reviewed. The first byte-binding packet retains its successful test observations and NOT_MET verdict. The same independent nonbuilder reviewed separate design/actual scopes because new agent threads were unavailable; no new reviewer identity is claimed.
 
-Latest previously published source `f58d6ec2f5ca1a7d78b805cbbbc449e3121f541c` passed [CI 37174688429](https://github.com/M7MMAD-OMAR/sbarbase/actions/runs/37174688429), with empty-host acceptance conditionally skipped, and build-only [Website 37174694973](https://github.com/M7MMAD-OMAR/sbarbase/actions/runs/37174694973). Later edits need fresh final source and publication checks. The owner chose this computer as the isolated local server; no external server purchase is a prerequisite. Independent-host portability, physical HA, load capacity and full production acceptance still require their own evidence.
+Latest previously published source `3b2e32dfcebc71ef1911f1eb964bbf77b8352ed7` passed [CI 37179850916](https://github.com/M7MMAD-OMAR/sbarbase/actions/runs/37179850916), with empty-host acceptance conditionally skipped, and build-only [Website 37179873086](https://github.com/M7MMAD-OMAR/sbarbase/actions/runs/37179873086). Later edits need fresh final source and publication checks. The owner chose this computer as the isolated local server; no external server purchase is a prerequisite. Independent-host portability, physical HA, load capacity and full production acceptance still require their own evidence.
