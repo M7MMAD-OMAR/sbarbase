@@ -5236,6 +5236,82 @@
     "Vault_continuity_accepted": false,
     "physical_recovery_accepted": false,
     "production_accepted": false,
-    "clean_clone_reproducibility": false
+    "clean_clone_reproducibility": false,
+    "assessment_scope": "historical single-container synthetic prototype; later bridge assessed separately"
+  },
+  "private_diagnostics_bridge": {
+    "verdict": "MET_THREE_CASE_SYNTHETIC_CROSS_CONTAINER_PRIVATE_DIAGNOSTIC_BRIDGE_ONLY",
+    "review": ".lab/private-diagnostic-bridge-v4-actual-critic-20261004/review.json",
+    "packet": ".lab/private-diagnostic-bridge-v4-build-20261004/run-diagnostic-bridge-f0e157818b7f415b9a2b48d63b9d9278/receipt.json",
+    "public_review": "docs/engineering/reviews/2026-10-04-private-diagnostics-bridge.md",
+    "independent_checks": 2671,
+    "commands": 146,
+    "raw_streams": 292,
+    "stream_bytes": 540226,
+    "pre_receipt_evidence_bytes": 680501,
+    "whole_seconds": 4.704920835,
+    "cases": [
+      {
+        "id": "benign",
+        "gate": "ACCEPTED",
+        "reason": "COMPLETE",
+        "bytes": 16,
+        "lines": 1
+      },
+      {
+        "id": "unknown_marker",
+        "gate": "REFUSED",
+        "reason": "UNKNOWN",
+        "bytes": 74,
+        "lines": 1
+      },
+      {
+        "id": "overflow",
+        "gate": "REFUSED",
+        "reason": "INPUT_BOUND",
+        "producer_bytes": 65537,
+        "spool_bytes": 65536,
+        "lines": 4096
+      }
+    ],
+    "seed_uid": 0,
+    "seed_gid": 0,
+    "seed_added_capabilities": [
+      "CHOWN"
+    ],
+    "actor_uid": 100,
+    "actor_gid": 101,
+    "effective_actor_groups": [
+      101
+    ],
+    "helpers": 7,
+    "exact_helper_cid_and_name_absences": 14,
+    "exact_volume_absences": 2,
+    "writer_terminal_before_completed_attestation_before_USR2": true,
+    "result_reader_completed_before_USR1": true,
+    "create_uncertain": false,
+    "retained_key_volume_touched": false,
+    "private_spool_marker_host_read_print_hash": false,
+    "preserved_refusals": [
+      ".lab/private-diagnostic-bridge-operator-source-critic-20261004/review.json",
+      ".lab/private-diagnostic-bridge-v2-refusal-critic-20261004/review.json",
+      ".lab/private-diagnostic-seed-stage-actual-critic-20261004/review.json"
+    ],
+    "read_only_seed_observer_review": ".lab/private-diagnostic-seed-observer-actual-critic-20261004/review.json",
+    "failed_seed_volumes_retained": true,
+    "fresh_view_source_review": ".lab/private-diagnostic-seed-fresh-view-source-critic-20261004/review.json",
+    "control_publication": "Linux renameat2 NOREPLACE with no fallback",
+    "latest_prior_published_head": "1f8c784d5a8e9592dc4fb81a8463c2a8070f802a",
+    "prior_head_CI": 37186068299,
+    "prior_head_Website_build_only": 37186493777,
+    "vendor_grammar_accepted": false,
+    "live_checkpoint_accepted": false,
+    "credentials_accepted": false,
+    "candidate_startup_accepted": false,
+    "Vault_continuity_accepted": false,
+    "full_recovery_accepted": false,
+    "general_secret_safety_accepted": false,
+    "clean_clone_reproducibility": false,
+    "production_accepted": false
   }
 }

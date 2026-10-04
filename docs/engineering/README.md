@@ -18,7 +18,9 @@ Start with the [project goal](../../PROJECT_GOAL.md), [product and portability p
 
 - [Native root key filesystem](reviews/2026-10-04-native-root-key-filesystem.md): accepted private publication, two fresh read-only guards and positive retained key-volume handoff; provider/server/Vault/recovery remain unaccepted.
 
-- [Private diagnostic FIFO mechanics](reviews/2026-10-04-private-diagnostics-fifo.md): accepted 32 synthetic outcomes and 436 independent checks in one detached helper; shared transport, vendor grammar, candidate startup and recovery remain unaccepted.
+- [Private diagnostic FIFO mechanics](reviews/2026-10-04-private-diagnostics-fifo.md): accepted 32 synthetic outcomes and 436 independent checks in one detached helper; the later bridge is recorded separately, with vendor grammar, candidate startup and recovery still unaccepted.
+
+- [Synthetic diagnostics across containers](reviews/2026-10-04-private-diagnostics-bridge.md): accepted three native writer/receiver cases and 2671 saved-public bindings, with exact seven-helper/two-volume cleanup; vendor startup, live checkpoints and recovery remain unaccepted.
 
 ## Architecture and control plane
 
