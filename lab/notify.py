@@ -576,6 +576,10 @@ def deliver_webhook(config, envelope, secret, timeout=None):
                 return 'delivered', None
             return 'transient', 'webhook_status_' + str(response.status)
     except urllib.error.HTTPError as error:
+        try:
+            error.close()
+        except Exception:
+            return 'transient', 'webhook_unreachable'
         token = 'webhook_status_' + str(error.code)
         if 400 <= error.code < 500:
             return 'failed', token
@@ -611,6 +615,10 @@ def deliver_telegram(config, envelope, timeout=None):
             response.read(4096)
             return ('delivered', None) if 200 <= response.status < 300 else ('transient', 'telegram_status')
     except urllib.error.HTTPError as error:
+        try:
+            error.close()
+        except Exception:
+            return 'transient', 'telegram_unreachable'
         # 429 is Telegram's own rate limit and passes; any other 4xx is a wrong token or chat.
         return ('transient' if error.code == 429 or error.code >= 500 else 'failed'), 'telegram_status'
     except (urllib.error.URLError, socket.timeout, TimeoutError, ConnectionError, OSError):

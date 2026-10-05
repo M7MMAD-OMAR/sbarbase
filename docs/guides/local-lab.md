@@ -2,7 +2,13 @@
 
 # Local lab
 
-Run Sbarbase on your own Linux machine to evaluate it. The full instructions live next to the code in [lab/README.md](../../lab/README.md); this page is the short version and the safety notes you should read first.
+Updated 2026-10-06: complete current-code verification passed 1449 tests with no failures, errors, warnings or skips and independent actual review. Repairs cover SQLite and HTTPError response closure, tempfile ownership and expected test diagnostics. All 52 preparation cases also passed; native PostgreSQL startup, Cron/Vault restart continuity and physical restore remain unaccepted. See [current status](../reference/status.md) for CI results and evidence scope.
+
+The separate public55 V3 role has actual MET: 25 component and 30 pump tests passed, original 290 and added 4 actual mode/byte captures matched, and all three known helpers were removed with no unresolved resources. Public BusyBox V8 help metadata also has actual MET: fixed-path Bash 5.3.3 and BusyBox 1.37.0 help returned zero, with its one helper removed. Neither result accepts private request operation, timeout timing/signal behavior, installed binary source provenance, candidate startup, cold/warm Vault or Cron continuity, physical restore or production.
+
+The preserved warning-window V4 negative run reported 1447 ordinary tests OK but six ResourceWarnings, native 1 and observed window 839 for every warning. Three records have exact sqlite3.Connection type; three report tempfile.py line 484 with NoneType source. Observation windows are not allocation causes, and the three tempfile origins remain unknown. Fresh complete source/identity/mode/full bindings, final-revision CI and manually dispatched empty-host acceptance remain required; published 0e745394 CI and Website results retain only their earlier revision scope.
+
+Use your own Linux machine as a local Docker server to evaluate Sbarbase. The current development work uses declared isolated containers on the user's computer; it does not establish a public-server deployment or an independent clean-host pilot. The full instructions live next to the code in [lab/README.md](../../lab/README.md); this page is the short version and the safety notes you should read first.
 
 ## Before you start
 
@@ -14,9 +20,12 @@ Run Sbarbase on your own Linux machine to evaluate it. The full instructions liv
 
 ## Requirements
 
-Linux with a native Docker daemon, [Bun](https://bun.sh), and Python 3.12 or newer at `/usr/bin/python3` with the `cryptography` module (`python3-cryptography`).
+For the primary container workflow, use Linux container support through Docker and a POSIX shell; see [Install with Docker](docker.md). The legacy foreground developer path below additionally needs a native Linux Docker daemon, [Bun](https://bun.sh), and Python 3.12 or newer at `/usr/bin/python3` with `cryptography` (`python3-cryptography`). Those host tools are not requirements of the primary container workflow.
 
-## Run it
+## Legacy foreground developer path
+
+These procedures run host tooling and retained runtime state. They are not the
+primary container-only installation or source verification workflow.
 
 ```
 bun install --frozen-lockfile
@@ -27,17 +36,25 @@ bun install --frozen-lockfile
 
 To run the pieces by hand instead: `/usr/bin/python3 lab/durable_runtime.py up` starts the runtime, `bun lab/upstream-server.ts` serves the console and API on loopback, and `/usr/bin/python3 lab/durable_runtime.py stop` stops the runtime.
 
-## Tests that are always safe
+## Source verification in Docker
 
-These do not start containers:
+From the repository root, use the public source verification entry point:
 
+```sh
+sh deploy/verify/run.sh
 ```
-bun test
-/usr/bin/python3 -m unittest discover -s lab -p 'test_*.py'
-```
 
-Current results are recorded in [status](../reference/status.md).
+It builds a disposable image with the public source baked in, then runs the
+source checks offline as an unprivileged user with Docker init, no network,
+one CPU, a 1 GiB memory cap and a 512-PID limit. It mounts neither host paths
+nor a Docker socket. This public wrapper uses a writable container filesystem.
+The build installs locked dependencies and needs public package access.
+
+The command starts a verifier container and records its own failed or complete
+evidence. It does not exercise Supabase services, installation, native
+preparation, private transport or recovery. Read [verification scope](../../deploy/verify/README.md)
+and [status](../reference/status.md) for the exact source-bound outcomes.
 
 ## Limits
 
-The local runner is not a production service manager. For a server, see [server deployment](server-deployment.md), which has not yet been rehearsed on a real server.
+The legacy foreground runner is not a production service manager. See [server deployment](server-deployment.md) for the native Linux installation path. The user's local Linux Docker server is valid for declared isolated evaluation; an independent public-server pilot remains unaccepted.

@@ -1,5 +1,6 @@
 """Upgrades: what they refuse, the images a start may replace, and the automatic way back."""
 import contextlib
+import io
 import fcntl
 import json
 import os
@@ -438,7 +439,9 @@ class ControlStateTests(Checkout):
         store(self.catalog, 9, 8)
         with (self.snapshot() / 'control.sqlite').open('ab') as handle:
             handle.write(b'x')
-        self.assertFalse(upgrade.after_start(False))
+        with contextlib.redirect_stderr(io.StringIO()) as said:
+            self.assertFalse(upgrade.after_start(False))
+        self.assertEqual(said.getvalue(), f'The way back did not finish: The control state snapshot does not match its manifest (control.sqlite); nothing was restored. The checkout is back at {self.first[:12]}, but the control state was not put back: restore from the backups taken before the upgrade (lab/backup.py list)\n')
         state = upgrade.load_state()
         self.assertEqual(state['phase'], 'rollback_failed')
         self.assertIn('restore from the backups', state['failure'])
@@ -503,8 +506,10 @@ class ControlStateTests(Checkout):
         with patch.object(upgrade, 'save_state', side_effect=OSError('read-only file system')):
             with self.assertRaises(OSError):
                 upgrade.after_start(True)
-            with patch.object(dev.updates, 'announce_outcome') as announce:
-                self.assertFalse(dev.upgrade_confirmed())
+            with contextlib.redirect_stderr(io.StringIO()) as said:
+                with patch.object(dev.updates, 'announce_outcome') as announce:
+                    self.assertFalse(dev.upgrade_confirmed())
+            self.assertEqual(said.getvalue(), 'The upgrade confirmation was not saved: read-only file system\n')
             announce.assert_not_called()
         self.assertEqual(upgrade.load_state()['phase'], 'applied')
         self.assertTrue(upgrade.HOLD.exists())
@@ -519,7 +524,9 @@ class ControlStateTests(Checkout):
         upgrade.before_start()
         store(self.catalog, 9, 8)
         with patch.object(upgrade, 'move_back', side_effect=upgrade.UpgradeError('git checkout failed')) as failing:
-            self.assertFalse(upgrade.after_start(False, 'Runtime startup failed'))
+            with contextlib.redirect_stderr(io.StringIO()) as said:
+                self.assertFalse(upgrade.after_start(False, 'Runtime startup failed'))
+            self.assertEqual(said.getvalue(), 'The way back did not finish: git checkout failed\n')
         failing.assert_called_once()
         state = upgrade.load_state()
         # Resumable, never rollback_failed with the failed version checked out.

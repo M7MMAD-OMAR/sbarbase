@@ -23,13 +23,14 @@ operation still succeeds. A producer that moved its enqueue out of the transacti
 the negative test, because the record would then survive.
 """
 import importlib.util
+import io
 import json
 import shutil
 import sqlite3
 import subprocess
 import tempfile
 import unittest
-from contextlib import closing
+from contextlib import closing, redirect_stderr
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -200,8 +201,12 @@ class InstallationProducerTests(ProducerCase):
 
     def test_a_failed_start_stage_emits_no_start(self):
         _, run_stage, supervisor = self.stub(up_status=1)
-        with self.assertRaises(SystemExit):
-            self.main(run_stage, supervisor)
+        with io.StringIO() as stderr:
+            with self.assertRaises(SystemExit):
+                with redirect_stderr(stderr):
+                    self.main(run_stage, supervisor)
+            self.assertEqual(stderr.getvalue(),
+                             'Runtime startup failed; the installation runtime reported its own reason above\n')
         self.assertEqual(self.rows("SELECT kind FROM notification_outbox "
                                    "WHERE kind='installation.started'"), [])
         # The runtime was stopped in the finally block, so the stop is still recorded.

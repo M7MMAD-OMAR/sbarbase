@@ -2,9 +2,16 @@
 
 # Deployment readiness
 
-Scope corrections updated 2026-10-04. This matrix preserves September workstation and local-VM rehearsal evidence; individual rows retain their original scope and dates. It is not a newly executed acceptance run.
+Current cutoff, 2026-10-06: the reviewed repairs close SQLite connections in `recovery_bundle` after their original transactions and close `HTTPError` responses in `notify`. They also capture and assert complete expected stderr in 27 fixture methods and register tempfile close/unlink ownership before a fallible write. A newer creator fixture associates its tempfile warning with the HTTPError response lifecycle; it does not establish the allocation causes in earlier warning packets.
 
-Package 0.2.0 is a development snapshot, distinct from the historical 0.1.0 source release. All four jobs in [CI run 37135601249](https://github.com/M7MMAD-OMAR/sbarbase/actions/runs/37135601249) passed for `6c112c3`. Source CI does not establish production capacity or independent public-server acceptance. The [current status](status.md), [native placement contract](../engineering/plans/2026-10-03-native-placement-identity.md) and [gauntlet ledger](../engineering/gauntlet-ledger.json) distinguish accepted fragments from open gates. Configured native effects still refuse at routine ACL admission; native declarations remain unadmitted.
+Current result: **1449 tests passed with zero failures, errors, warnings or skips**, independently reviewed after native exit 0. All 875 public source bindings, both 290-file captures and both 875-entry mode checks matched; all eight test helpers were removed with no unresolved resources. The 52 focused native preparation cases also passed. See the [public regression summary](../evidence/public-regression-2026-10-06.json). This result covers the code snapshot before the documentation reconciliation; final-revision CI remains required. Preparation-only tests do not establish PostgreSQL startup.
+
+The normal `legacy-shared` platform has historical Docker integration evidence for installation, the first project, Auth, REST, Storage, Studio, Realtime, Functions, backups and upgrades. The final revision needs fresh CI and manually dispatched empty-host acceptance. The user's computer is the selected isolated Linux Docker test server; CI provides an additional fresh-host route. Public DNS and a public TLS certificate are future operator configuration.
+
+The experimental `native-dedicated` path remains incomplete: the PostgreSQL 17.11 candidate has not received accepted startup, effective private-safe configuration, real private request operation, cold/warm Cron and Vault continuity, or physical recovery evidence. Retained isolated candidate volumes must not be adopted, read or deleted. Package 0.2.0 remains a development snapshot; production acceptance and a signed release are not established.
+
+[Status](status.md) contains the current evidence links and scope. The matrix below retains its original dates and limits; this edit does not rerun its checks.
+
 
 ## Readiness matrix
 
@@ -44,7 +51,7 @@ Package 0.2.0 is a development snapshot, distinct from the historical 0.1.0 sour
 | Realtime and Edge Functions | implemented as optional per-environment services in the legacy workflow | [docker-realtime-checks.json](../evidence/docker-realtime-checks.json), [docker-functions-checks.json](../evidence/docker-functions-checks.json); these results do not establish native-dedicated feature acceptance |
 | Pooler and operator cron support | not implemented in the legacy workflow | Native-image cron/net bootstrap and probe fragments do not establish an exposed operator feature or accepted native placement |
 
-## Rehearsal order once a server exists
+## Rehearsal order on a selected Linux server
 
 1. `/usr/bin/python3 lab/install_server.py check` on the server. Fix every
    blocker first; a host that fails validation must not be half-installed.
@@ -83,3 +90,23 @@ Package 0.2.0 is a development snapshot, distinct from the historical 0.1.0 sour
 - The bootstrap flow creates the first operator only. Later operators join by
   invitation. There is no MFA, no sign-in rate limit, and no supported repair
   or reset procedure.
+
+## Preserved October verification history
+
+These are preserved statements from earlier source windows, with their original verdicts and links. They do not describe the current V11 outcome. Later HTTPError lifecycle evidence does not retroactively establish their allocation causes.
+
+Current cutoff, 2026-10-05: six independently reviewed source fixes are integrated. Two SQLite paths now close their connections after the original transaction exits; 27 expected-negative fixture methods capture and assert complete stderr in three files; one tempfile fixture owns close and registers unlink before its fallible write. These are source repairs, with fresh full native verification UNRUN. Earlier 875-file source, identity, mode and full results are historical bindings and cannot approve this changed tree.
+
+The separate public55 V3 role has actual MET: 25 component and 30 pump tests passed, original 290 and added 4 actual mode/byte captures matched, and all three known helpers were removed with no unresolved resources. Public BusyBox V8 help metadata also has actual MET: fixed-path Bash 5.3.3 and BusyBox 1.37.0 help returned zero, with its one helper removed. Neither result accepts private request operation, timeout timing/signal behavior, installed binary source provenance, candidate startup, cold/warm Vault or Cron continuity, physical restore or production.
+
+The preserved warning-window V4 negative run reported 1447 ordinary tests OK but six ResourceWarnings, native 1 and observed window 839 for every warning. Three records have exact sqlite3.Connection type; three report tempfile.py line 484 with NoneType source. Observation windows are not allocation causes, and the earlier packet did not establish the three tempfile allocation causes. Fresh complete source/identity/mode/full bindings, final-revision CI and manually dispatched empty-host acceptance remain required; published 0e745394 CI and Website results retain only their earlier revision scope.
+
+Scope corrections updated 2026-10-05. This matrix preserves September workstation and local-VM rehearsal evidence; individual rows retain their original scope and dates. It is not a newly executed acceptance run.
+
+Package 0.2.0 remains a development snapshot, distinct from the historical 0.1.0 release. Published `0e745394` passed [CI 37206229288](https://github.com/M7MMAD-OMAR/sbarbase/actions/runs/37206229288), including Docker installation; empty-host acceptance was SKIPPED and awaits a fresh manual dispatch. [Website 37206294329](https://github.com/M7MMAD-OMAR/sbarbase/actions/runs/37206294329) passed its separate build-only gate. See [status](status.md) for the current source-bound summary; these results do not transfer to later edits.
+
+The local computer is used as an isolated Linux Docker test server, not an independent public-server pilot. Native preparation sources define a guarded prepare-only handoff; no actual native material-preparation result is accepted here. The earlier V9 initV2 run passed 52 focused cases but its actual 1447-case full run is historical NOT_MET, with one failure and 15 errors. The full admission minimum is 1356, not an exact discovery total.
+
+The historical mode/scratch correction had independently accepted source and source/identity build evidence; its old 875 bindings are no longer current after the six integrated source repairs. Its completed full window is NOT_MET: raw unittest reports 1447 tests OK in 51.862 seconds, all 52 focused cases passed, both 290-file captures and both 875-entry mode jobs matched, and all eight known helpers were removed with no unresolved resources. The full helper nevertheless returned native 1 without its required positive terminal. Its original child cause is not established by that packet; 70 expected-negative fixture stderr lines also violate the parent progress grammar. A later independently accepted negative-only numeric diagnostic reports 1447 raw tests OK in 51.835 seconds, stage 7 with six captured warnings, native 1 and exact cleanup. This identifies that diagnostic invocation's warning-gate refusal, not the earlier invocation's precise cause, and does not accept full verification. The reviewed 27-method expected-stderr repair is now integrated together with two SQLite close fixes and one tempfile setup-failure repair. Their changed-source native regression remains UNRUN. The later warning-window diagnostic identifies observation window 839 and limited type metadata, not allocation causes; the earlier packet did not establish the three tempfile allocation causes. Fresh exact-source full verification remains required. Native preparation, private pump, startup, Vault continuity, physical restore and production remain unaccepted.
+
+The pinned original configured-effects fragment has scoped acceptance; earlier routine-ACL refusals remain historical losses. The [native placement contract](../engineering/plans/2026-10-03-native-placement-identity.md) and [ledger](../engineering/gauntlet-ledger.json) retain those boundaries.

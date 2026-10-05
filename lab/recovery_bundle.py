@@ -3,6 +3,7 @@ import base64
 import json
 import secrets
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
@@ -41,7 +42,7 @@ def catalog_ownership(catalog, runtime):
     path = Path(catalog)
     if not path.is_file():
         return None
-    with sqlite3.connect('file:' + str(path) + '?mode=ro', uri=True) as database:
+    with closing(sqlite3.connect('file:' + str(path) + '?mode=ro', uri=True)) as database, database:
         row = database.execute(
             'SELECT o.id, o.name, p.id, p.name, e.id, e.name FROM provision_jobs j '
             'JOIN environments e ON e.id=j.environment JOIN projects p ON p.id=e.project '

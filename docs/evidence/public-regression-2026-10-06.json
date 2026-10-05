@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "date": "2026-10-06",
+  "scope": "isolated_linux_amd64_baked_public_code_regression_before_documentation_reconciliation",
+  "independent_review": "MET",
+  "native_exit": 0,
+  "full_tests": {
+    "discovered": 1449,
+    "run": 1449,
+    "failures": 0,
+    "errors": 0,
+    "warnings": 0,
+    "skips": 0,
+    "expected_failures": 0,
+    "unexpected_successes": 0,
+    "duration_seconds": 76.875
+  },
+  "focused_tests": {
+    "materials": 14,
+    "factory_preparation": 9,
+    "guardian": 29
+  },
+  "public_files": 875,
+  "captures_each": 290,
+  "mode_checks_each": 875,
+  "commands": 96,
+  "complete_streams": 192,
+  "stream_bytes": 11390020,
+  "helpers_removed": 8,
+  "unresolved_resources": 0,
+  "phase_seconds": 93.665458192,
+  "native_postgresql_startup_accepted": false,
+  "cron_vault_restart_accepted": false,
+  "native_physical_restore_accepted": false,
+  "production_accepted": false,
+  "final_revision_ci": "pending"
+}

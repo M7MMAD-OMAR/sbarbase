@@ -4,6 +4,7 @@ import unittest
 from cryptography.exceptions import InvalidTag
 from recovery_bundle import seal, open_bundle, catalog_ownership
 import sqlite3
+from contextlib import closing
 import tempfile
 from pathlib import Path
 
@@ -18,7 +19,7 @@ class RecoveryBundleTests(unittest.TestCase):
     def test_ownership_names_the_hierarchy_of_a_runtime(self):
         with tempfile.TemporaryDirectory() as directory:
             path=Path(directory)/'control.sqlite'
-            with sqlite3.connect(path) as database:
+            with closing(sqlite3.connect(path)) as database, database:
                 database.executescript("""CREATE TABLE organizations(id TEXT,name TEXT);CREATE TABLE projects(id TEXT,organization TEXT,name TEXT);
                   CREATE TABLE environments(id TEXT,project TEXT,name TEXT);CREATE TABLE provision_jobs(environment TEXT,runtime TEXT);
                   INSERT INTO organizations VALUES ('o','Client');INSERT INTO projects VALUES ('p','o','Shop');

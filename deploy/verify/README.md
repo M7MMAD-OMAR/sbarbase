@@ -1,5 +1,11 @@
 # Portable source verification
 
+Updated 2026-10-06: complete current-code verification passed 1449 tests with no failures, errors, warnings or skips and independent actual review. Repairs cover SQLite and HTTPError response closure, tempfile ownership and expected test diagnostics. All 52 preparation cases also passed; native PostgreSQL startup, Cron/Vault restart continuity and physical restore remain unaccepted. See [current status](../../docs/reference/status.md) for CI results and evidence scope.
+
+The separate public55 V3 role has actual MET: 25 component and 30 pump tests passed, original 290 and added 4 actual mode/byte captures matched, and all three known helpers were removed with no unresolved resources. Public BusyBox V8 help metadata also has actual MET: fixed-path Bash 5.3.3 and BusyBox 1.37.0 help returned zero, with its one helper removed. Neither result accepts private request operation, timeout timing/signal behavior, installed binary source provenance, candidate startup, cold/warm Vault or Cron continuity, physical restore or production.
+
+The preserved warning-window V4 negative run reported 1447 ordinary tests OK but six ResourceWarnings, native 1 and observed window 839 for every warning. Three records have exact sqlite3.Connection type; three report tempfile.py line 484 with NoneType source. Observation windows are not allocation causes, and the three tempfile origins remain unknown. Fresh complete source/identity/mode/full bindings, final-revision CI and manually dispatched empty-host acceptance remain required; published 0e745394 CI and Website results retain only their earlier revision scope.
+
 From any checkout, run `sh deploy/verify/run.sh`. The host needs Docker with
 Linux container support and a POSIX shell. Supply an optional output directory
 as the first argument. The default is `.lab/portable-verification`. Each
@@ -73,6 +79,14 @@ normalized while preserving raw logs and original newline counts; residual or
 unclosed controls refuse. Expected warning/error output from unit-test scenarios is not
 a build diagnostic. Other tool logs and unknown formats still require review
 before broader acceptance.
+
+## Native startup preparation entry point
+
+The [native startup preparation contract](native-startup-preparation.md) describes the integrated material executor, shared contracts and independent daemon guardian. Its explicit prepare-only handoff cannot accept server startup. The [source map](../../docs/reference/project-layout.md#native-startup-preparation-sources) lists all eight public files and their focused 14/9/29 regressions. The earlier V9 initV2 run passed all 52 focused cases; its historical actual full run executed 1447 tests and is NOT_MET, with one failure and 15 errors. The full admission minimum is 1356, not an exact count.
+
+Earlier mode, scratch and warning verification attempts remain historical refusals bound to their own source and date. Resource ownership and fixture diagnostics were repaired, and fresh complete verification now passes 1449 tests. This does not transfer native startup or recovery evidence from another run. The [status history](../../docs/reference/status.md) preserves the earlier observations and their limits.
+
+The failure-notification test captures only its expected failed-start invocation and requires the entire known stderr message. Process-boundary tests save and restore actual caller subreaper state through unittest cleanup; a deliberate nested failure covers both original states. The separately reviewed full baked helper enables init only for tests, requires actual Init=true, and keeps the original PID/resource caps. Historical failed packets are retained; passing component tests do not accept private pump, candidate Cron/Vault or physical restore.
 
 ## Frozen public reference metadata
 

@@ -78,7 +78,9 @@ class GuardTests(Checkout):
         self.guard()
         upgrade.before_start()
         store(self.catalog, 9, 8)  # the new version migrated the catalog, then died
-        self.assertEqual(self.guard(), 0)
+        with contextlib.redirect_stderr(io.StringIO()) as said:
+            self.assertEqual(self.guard(), 0)
+        self.assertEqual(said.getvalue(), f'upgrade guard: the previous start of the new version ended before its health checks passed; moving back to {self.first[:12]}\n')
         state = self.state()
         self.assertEqual(self.head(), self.first)
         self.assertEqual((contents(self.catalog), contents(self.keys)), ((2, 3), (0, 1)))
@@ -94,9 +96,13 @@ class GuardTests(Checkout):
     def test_the_next_start_announces_what_the_guard_did_once(self):
         upgrade.start(self.second)
         self.guard()
-        self.guard()  # the new version died: back to the previous one
+        with contextlib.redirect_stderr(io.StringIO()) as said:
+            self.guard()  # the new version died: back to the previous one
+        self.assertEqual(said.getvalue(), f'upgrade guard: the previous start of the new version ended before its health checks passed; moving back to {self.first[:12]}\n')
         self.assertEqual(self.state()['notices'], [{'was': 'applied', 'phase': 'rolling_back'}])
-        self.guard()  # the previous version died too
+        with contextlib.redirect_stderr(io.StringIO()) as said:
+            self.guard()  # the previous version died too
+        self.assertEqual(said.getvalue(), 'upgrade guard: The previous version did not finish a start either; it starts without the health checks now\n')
         self.assertEqual(self.state()['notices'], [{'was': 'applied', 'phase': 'rolling_back'},
                                                   {'was': 'rolling_back', 'phase': 'rollback_failed'}])
         seen = []
@@ -114,7 +120,9 @@ class GuardTests(Checkout):
         upgrade.start(self.second)
         store(self.catalog, 2, 6)
         self.guard()
-        self.assertEqual(self.guard(), 0)
+        with contextlib.redirect_stderr(io.StringIO()) as said:
+            self.assertEqual(self.guard(), 0)
+        self.assertEqual(said.getvalue(), f'upgrade guard: the previous start of the new version ended before its health checks passed; moving back to {self.first[:12]}\n')
         state = self.state()
         self.assertEqual((self.head(), state['phase'], state['restore_pending']), (self.first, 'rolling_back', False))
         self.assertEqual(contents(self.catalog), (2, 6))
@@ -125,15 +133,21 @@ class GuardTests(Checkout):
             self.assertEqual(self.guard(), 0)
             self.assertEqual((self.head(), self.state()['guard']['attempts']), (self.second, attempt))
             self.assertTrue(upgrade.close_attempt())
-        self.assertEqual(self.guard(), 0)
+        with contextlib.redirect_stderr(io.StringIO()) as said:
+            self.assertEqual(self.guard(), 0)
+        self.assertEqual(said.getvalue(), f'upgrade guard: the new version did not pass its health checks in {upgrade_guard.MAX_ATTEMPTS} starts; moving back to {self.first[:12]}\n')
         self.assertEqual(self.head(), self.first)
         self.assertIn('in 3 starts', self.state()['reason'])
 
     def test_the_previous_version_failing_too_records_rollback_failed_on_the_previous_version(self):
         upgrade.start(self.second)
         self.guard()
-        self.guard()  # goes back, and opens the previous version's first attempt
-        self.assertEqual(self.guard(), 0)  # that attempt died too
+        with contextlib.redirect_stderr(io.StringIO()) as said:
+            self.guard()  # goes back, and opens the previous version's first attempt
+        self.assertEqual(said.getvalue(), f'upgrade guard: the previous start of the new version ended before its health checks passed; moving back to {self.first[:12]}\n')
+        with contextlib.redirect_stderr(io.StringIO()) as said:
+            self.assertEqual(self.guard(), 0)  # that attempt died too
+        self.assertEqual(said.getvalue(), 'upgrade guard: The previous version did not finish a start either; it starts without the health checks now\n')
         state = self.state()
         self.assertEqual((state['phase'], self.head()), ('rollback_failed', self.first))
         self.assertIn('did not finish a start either', state['failure'])
@@ -152,7 +166,9 @@ class GuardTests(Checkout):
         self.assertEqual((self.head(), self.state()['moved']), (self.second, False))
         with self.assertRaisesRegex(upgrade.UpgradeError, 'stopped while it moved'):
             upgrade.before_start()
-        self.assertEqual(self.guard(), 0)
+        with contextlib.redirect_stderr(io.StringIO()) as said:
+            self.assertEqual(self.guard(), 0)
+        self.assertEqual(said.getvalue(), f'upgrade guard: the upgrade stopped while it moved the checkout; moving back to {self.first[:12]}\n')
         self.assertEqual((self.head(), self.state()['phase']), (self.first, 'failed'))
         self.assertFalse(upgrade.INTENT.exists())
 
@@ -167,7 +183,9 @@ class GuardTests(Checkout):
         self.assertEqual((self.head(), self.state()['phase']), (self.second, 'applied'))
         self.assertTrue(upgrade.before_start())
         # Its way back still knows which images the previous version runs.
-        self.assertEqual(self.guard(), 0)
+        with contextlib.redirect_stderr(io.StringIO()) as said:
+            self.assertEqual(self.guard(), 0)
+        self.assertEqual(said.getvalue(), f'upgrade guard: the previous start of the new version ended before its health checks passed; moving back to {self.first[:12]}\n')
         self.assertEqual(self.head(), self.first)
         self.assertEqual(json.loads(upgrade.INTENT.read_text())['pins']['rest'], 'sha256:' + '4' * 64)
 
@@ -210,7 +228,9 @@ class GuardTests(Checkout):
         upgrade.before_start()
         store(self.catalog, 9, 8)
         with patch.object(upgrade_guard, 'restore_snapshot', side_effect=OSError('No space left on device')):
-            self.assertEqual(self.guard_status(), 1)
+            with contextlib.redirect_stderr(io.StringIO()) as said:
+                self.assertEqual(self.guard_status(), 1)
+            self.assertEqual(said.getvalue(), f'upgrade guard: the previous start of the new version ended before its health checks passed; moving back to {self.first[:12]}\n')
         self.assertEqual((self.head(), self.state()['phase'], contents(self.catalog)), (self.first, 'rolling_back', (9, 8)))
         self.assertEqual(self.guard(), 0)
         self.assertEqual(contents(self.catalog), (2, 3))
@@ -235,12 +255,16 @@ class GuardTests(Checkout):
                 upgrade.start(self.second)
                 self.guard()
                 upgrade.before_start()
-                with failure(), patch.object(upgrade, 'exclusive', self.no_wait(upgrade.exclusive)):
-                    upgrade.after_start(False, 'boom')
+                with contextlib.redirect_stderr(io.StringIO()) as said:
+                    with failure(), patch.object(upgrade, 'exclusive', self.no_wait(upgrade.exclusive)):
+                        upgrade.after_start(False, 'boom')
+                self.assertEqual(said.getvalue(), 'The way back did not finish: ' + {'the pull of the previous images': 'pull failed', 'the upgrade lock': 'Another upgrade or rollback is running', 'the checkout': 'checkout failed', 'the dependencies': 'bun', 'the restore': 'disk'}[name] + '\n')
                 self.never_ungated_on_the_failed_version()
                 self.assertNotEqual(self.state()['phase'], 'rollback_failed')
                 # The next start's guard takes it from there, with nothing of the new version.
-                self.assertEqual(self.guard(), 0)
+                with contextlib.redirect_stderr(io.StringIO()) as said:
+                    self.assertEqual(self.guard(), 0)
+                self.assertEqual(said.getvalue(), f'upgrade guard: the previous start of the new version ended before its health checks passed; moving back to {self.first[:12]}\n' if name in ('the pull of the previous images', 'the upgrade lock') else '')
                 self.assertEqual(self.head(), self.first)
                 self.never_ungated_on_the_failed_version()
                 self.assertEqual(contents(self.catalog), (2, 3))
@@ -341,7 +365,9 @@ class ForcedMoveTests(Checkout):
 
     def test_a_way_back_blocked_by_a_local_edit_sets_it_aside_and_finishes(self):
         self.rolling_back_with_an_edit()
-        self.assertEqual(self.guard(), 0)
+        with contextlib.redirect_stderr(io.StringIO()) as said:
+            self.assertEqual(self.guard(), 0)
+        self.assertEqual(said.getvalue(), f'upgrade guard: 1 changed file(s) of the checkout were copied to {next(upgrade.UPGRADES.glob("aside-*"))} before the move\n')
         state = self.state()
         self.assertEqual((self.head(), state['phase'], state['moved_back']), (self.first, 'rolling_back', True))
         self.assertTrue(self.tidy())
@@ -365,7 +391,9 @@ class ForcedMoveTests(Checkout):
         upgrade.save_state(state)
         (self.repo.root / 'docs/evidence/acceptance.json').write_text('this server\n')
         (self.repo.root / 'docs/evidence/only-before.json').write_text('this server too\n')  # untracked here
-        self.assertEqual(self.guard(), 0)
+        with contextlib.redirect_stderr(io.StringIO()) as said:
+            self.assertEqual(self.guard(), 0)
+        self.assertEqual(said.getvalue(), f'upgrade guard: evidence written on this server was copied to {next(upgrade.UPGRADES.glob("evidence-*"))} before the move\n')
         self.assertEqual((self.head(), self.state()['moved_back']), (base, True))
         self.assertEqual(self.repo.git('status', '--porcelain', '--untracked-files=all'), '')
         aside = next(upgrade.UPGRADES.glob('evidence-*'))
@@ -384,7 +412,9 @@ class ForcedMoveTests(Checkout):
             self.edited.write_text('{"late": true}')
             return real(commit)
         with patch.object(upgrade, 'pull', edit_then_pull):
-            upgrade.rollback()
+            with contextlib.redirect_stderr(io.StringIO()) as said:
+                upgrade.rollback()
+            self.assertEqual(said.getvalue(), f'upgrade guard: 1 changed file(s) of the checkout were copied to {next(upgrade.UPGRADES.glob("aside-*"))} before the move\n')
         self.assertEqual((self.head(), self.state()['moved_back']), (self.first, True))
         self.assertEqual(self.asides(), {'lab/images.lock.json': '{"late": true}'})
 
@@ -412,8 +442,10 @@ class ForcedMoveTests(Checkout):
             with self.subTest(name):
                 self.setUp()
                 self.rolling_back_with_an_edit()
-                with point, self.assertRaises(Crash):
-                    upgrade_guard.guard(upgrade.layout(), install=install)
+                with contextlib.redirect_stderr(io.StringIO()) as said:
+                    with point, self.assertRaises(Crash):
+                        upgrade_guard.guard(upgrade.layout(), install=install)
+                self.assertEqual(said.getvalue(), f'upgrade guard: 1 changed file(s) of the checkout were copied to {next(upgrade.UPGRADES.glob("aside-*"))} before the move\n')
                 self.assertEqual(self.state()['moved_back'], False)
                 self.assertEqual(self.guard(), 0)
                 self.assertEqual((self.head(), self.state()['moved_back']), (self.first, True))
@@ -431,7 +463,9 @@ class ForcedMoveTests(Checkout):
             upgrade.start(self.second)
         self.assertEqual((self.head(), self.state()['moved']), (self.first, False))
         self.assertFalse(self.tidy())
-        self.assertEqual(self.guard(), 0)
+        with contextlib.redirect_stderr(io.StringIO()) as said:
+            self.assertEqual(self.guard(), 0)
+        self.assertEqual(said.getvalue(), f'upgrade guard: the upgrade stopped while it moved the checkout; moving back to {self.first[:12]}\n' + f'upgrade guard: 1 changed file(s) of the checkout were copied to {next(upgrade.UPGRADES.glob("aside-*"))} before the move\n')
         self.assertEqual((self.head(), self.state()['phase']), (self.first, 'failed'))
         self.assertTrue(self.tidy())
         self.assertIn('postgrest:v1', self.edited.read_text())
@@ -442,11 +476,15 @@ class ForcedMoveTests(Checkout):
         lock = self.repo.root / '.git' / 'index.lock'
         lock.write_text('')
         with patch.object(upgrade_guard, 'git_running', return_value=True):
-            with self.assertRaisesRegex(upgrade_guard.Refused, 'the next start tries again'):
-                self.guard()
+            with contextlib.redirect_stderr(io.StringIO()) as said:
+                with self.assertRaisesRegex(upgrade_guard.Refused, 'the next start tries again'):
+                    self.guard()
+            self.assertEqual(said.getvalue(), f'upgrade guard: the upgrade stopped while it moved the checkout; moving back to {self.first[:12]}\n')
         self.assertTrue(lock.exists())
         self.assertEqual(self.state()['move_failures'], 1)
-        self.assertEqual(self.guard(), 0)
+        with contextlib.redirect_stderr(io.StringIO()) as said:
+            self.assertEqual(self.guard(), 0)
+        self.assertEqual(said.getvalue(), f'upgrade guard: the upgrade stopped while it moved the checkout; moving back to {self.first[:12]}\n' + 'upgrade guard: removed a stale .git/index.lock that no git process holds\n')
         self.assertFalse(lock.exists())
         self.assertEqual((self.head(), self.state()['phase']), (self.first, 'failed'))
         self.assertNotIn('move_failures', self.state())
@@ -471,7 +509,9 @@ class ForcedMoveTests(Checkout):
         state = self.state()
         self.assertEqual((state['phase'], state['moved']), ('applied', False))
         self.assertEqual(self.head(), self.first)  # moved, verified, only the dependencies failed
-        self.assertEqual(self.guard(), 0)
+        with contextlib.redirect_stderr(io.StringIO()) as said:
+            self.assertEqual(self.guard(), 0)
+        self.assertEqual(said.getvalue(), f'upgrade guard: the upgrade stopped while it moved the checkout; moving back to {self.first[:12]}\n')
         self.assertEqual((self.head(), self.state()['phase']), (self.first, 'failed'))
 
     def test_a_crash_during_the_move_back_of_start_is_finished_by_the_next_start(self):
@@ -479,7 +519,9 @@ class ForcedMoveTests(Checkout):
                 patch.object(upgrade, 'move_back', side_effect=Crash()), self.assertRaises(Crash):
             upgrade.start(self.second)
         self.assertEqual((self.head(), self.state()['phase'], self.state()['moved']), (self.second, 'applied', False))
-        self.assertEqual(self.guard(), 0)
+        with contextlib.redirect_stderr(io.StringIO()) as said:
+            self.assertEqual(self.guard(), 0)
+        self.assertEqual(said.getvalue(), f'upgrade guard: the upgrade stopped while it moved the checkout; moving back to {self.first[:12]}\n')
         self.assertEqual((self.head(), self.state()['phase']), (self.first, 'failed'))
         self.assertTrue(self.tidy())
 
@@ -497,14 +539,18 @@ class ForcedMoveTests(Checkout):
             upgrade.start(self.second)
         self.assertEqual((self.state()['phase'], self.state()['moved']), ('applied', False))
         os.chmod(folder, 0o755)
-        self.assertEqual(self.guard(), 0)
+        with contextlib.redirect_stderr(io.StringIO()) as said:
+            self.assertEqual(self.guard(), 0)
+        self.assertEqual(said.getvalue(), f'upgrade guard: the upgrade stopped while it moved the checkout; moving back to {self.first[:12]}\n' + f'upgrade guard: 1 changed file(s) of the checkout were copied to {next(upgrade.UPGRADES.glob("aside-*"))} before the move\n')
         self.assertEqual((self.head(), self.state()['phase']), (self.first, 'failed'))
         self.assertTrue(self.tidy())
 
     def test_a_move_that_keeps_failing_stays_stopped_rather_than_start_the_failed_version(self):
         upgrade.start(self.second)
         self.guard()
-        self.guard()  # died: the way back begins
+        with contextlib.redirect_stderr(io.StringIO()) as said:
+            self.guard()  # died: the way back begins
+        self.assertEqual(said.getvalue(), f'upgrade guard: the previous start of the new version ended before its health checks passed; moving back to {self.first[:12]}\n')
         self.repo.git('checkout', '-q', '--detach', self.second)
         state = self.state()
         state.update({'moved_back': False, 'restored': None, 'guard': None})
@@ -518,7 +564,10 @@ class ForcedMoveTests(Checkout):
                 self.assertEqual(self.guard(), upgrade_guard.STUCK)
             self.assertEqual(said.getvalue().count('\n'), 1)
             self.assertIn('stays stopped', said.getvalue())
-            self.assertEqual(self.guard(), upgrade_guard.STUCK)
+            self.assertEqual(said.getvalue(), f'upgrade guard: the checkout cannot be moved back to {self.first[:12]} (OSError: [Errno 28] No space left on device), and the version it holds must not start without its health checks, so Sbarbase stays stopped. Fix the cause (lab/upgrade.py status), then restart Sbarbase; until then this guard tries again every {upgrade_guard.STUCK_WAIT // 60} minutes\n')
+            with contextlib.redirect_stderr(io.StringIO()) as said:
+                self.assertEqual(self.guard(), upgrade_guard.STUCK)
+            self.assertEqual(said.getvalue(), f'upgrade guard: the checkout cannot be moved back to {self.first[:12]} (OSError: [Errno 28] No space left on device), and the version it holds must not start without its health checks, so Sbarbase stays stopped. Fix the cause (lab/upgrade.py status), then restart Sbarbase; until then this guard tries again every {upgrade_guard.STUCK_WAIT // 60} minutes\n')
         state = self.state()
         self.assertEqual((state['phase'], self.head()), ('rolling_back', self.second))
         self.assertIn('No space left on device', state['stuck']['reason'])
@@ -543,10 +592,14 @@ class ForcedMoveTests(Checkout):
             raise upgrade_guard.Refused('bun install failed for the previous version')
         # The attempt is still open: the way back begins, and the previous version's
         # dependencies fail on every start.
-        for _ in range(upgrade_guard.MAX_ATTEMPTS - 1):
-            with self.assertRaises(upgrade_guard.Refused):
-                upgrade_guard.guard(upgrade.layout(), install=failing)
-        self.assertEqual(upgrade_guard.guard(upgrade.layout(), install=failing), 0)
+        for attempt in range(upgrade_guard.MAX_ATTEMPTS - 1):
+            with contextlib.redirect_stderr(io.StringIO()) as said:
+                with self.assertRaises(upgrade_guard.Refused):
+                    upgrade_guard.guard(upgrade.layout(), install=failing)
+            self.assertEqual(said.getvalue(), f'upgrade guard: the previous start of the new version ended before its health checks passed; moving back to {self.first[:12]}\n' if attempt == 0 else '')
+        with contextlib.redirect_stderr(io.StringIO()) as said:
+            self.assertEqual(upgrade_guard.guard(upgrade.layout(), install=failing), 0)
+        self.assertEqual(said.getvalue(), f'upgrade guard: The checkout is back at {self.first[:12]}, but the way back did not finish (bun install failed for the previous version); it starts without the health checks now\n')
         state = self.state()
         self.assertEqual((state['phase'], self.head()), ('rollback_failed', self.first))
         self.assertIn('bun install failed', state['failure'])
@@ -562,7 +615,9 @@ class ForcedMoveTests(Checkout):
             for _ in range(upgrade_guard.MAX_ATTEMPTS - 1):
                 with self.assertRaises(upgrade_guard.Refused):
                     self.guard()
-            self.assertEqual(self.guard(), 0)
+            with contextlib.redirect_stderr(io.StringIO()) as said:
+                self.assertEqual(self.guard(), 0)
+            self.assertEqual(said.getvalue(), f'upgrade guard: The rollback could not move the checkout back to {self.first[:12]} (checkout failed); Sbarbase stays on the confirmed version {self.second[:12]}\n')
         state = self.state()
         self.assertEqual((state['phase'], self.head()), ('confirmed', self.second))
         self.assertIn('stays on the confirmed version', state['rollback_failure'])
@@ -595,7 +650,9 @@ class ForcedMoveTests(Checkout):
             for _ in range(upgrade_guard.MAX_ATTEMPTS - 1):
                 with self.assertRaises(upgrade_guard.Refused):
                     self.guard()
-            self.assertEqual(self.guard(), upgrade_guard.STUCK)
+            with contextlib.redirect_stderr(io.StringIO()) as said:
+                self.assertEqual(self.guard(), upgrade_guard.STUCK)
+            self.assertEqual(said.getvalue(), f'upgrade guard: the checkout cannot be moved back to {self.first[:12]} (checkout failed), and the version it holds must not start without its health checks, so Sbarbase stays stopped. Fix the cause (lab/upgrade.py status), then restart Sbarbase; until then this guard tries again every {upgrade_guard.STUCK_WAIT // 60} minutes\n')
 
     def test_main_waits_before_it_exits_on_stuck_unless_a_terminal_started_it(self):
         with patch.object(upgrade_guard, 'guard', return_value=upgrade_guard.STUCK), \
@@ -671,8 +728,10 @@ class DevGuardTests(unittest.TestCase):
         heads = iter(['a', 'b'])
         with patch.object(dev.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0)) as run, \
                 patch.object(dev, 'checkout_head', side_effect=lambda: next(heads)):
-            with self.assertRaises(SystemExit) as stopped:
-                dev.run_guard({})
+            with contextlib.redirect_stderr(io.StringIO()) as said:
+                with self.assertRaises(SystemExit) as stopped:
+                    dev.run_guard({})
+            self.assertEqual(said.getvalue(), 'The upgrade guard moved the checkout back to the previous version. Under systemd or Docker Sbarbase starts again by itself; in a terminal, start it again: /usr/bin/python3 lab/dev.py\n')
         self.assertEqual(stopped.exception.code, dev.RESTART_FOR_UPGRADE)
         self.assertEqual(run.call_args.args[0][0], '/usr/bin/python3')
         self.assertTrue(run.call_args.args[0][1].endswith('guard.py'))

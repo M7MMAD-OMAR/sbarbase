@@ -71,10 +71,10 @@ class Main(unittest.TestCase):
                 return intent,execute,error
 
     def setUp(self):
-        handle=tempfile.NamedTemporaryFile('w',suffix='.conf',delete=False)
-        handle.write('local all supabase_admin trust\n');handle.close()
-        self.inventory=handle.name
-        self.addCleanup(Path(self.inventory).unlink)
+        with tempfile.NamedTemporaryFile('w',suffix='.conf',delete=False) as handle:
+            self.inventory=handle.name
+            self.addCleanup(Path(self.inventory).unlink)
+            handle.write('local all supabase_admin trust\n')
 
     def test_the_default_refusal_precedes_the_intent(self):
         intent,execute,error=self.run_main(BASE)

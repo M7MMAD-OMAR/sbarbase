@@ -1,6 +1,7 @@
 """Health-gated upgrade confirmation: the probes, their deadline, and the supervisor's gate."""
 import concurrent.futures
 import contextlib
+import io
 import json
 import sqlite3
 import tempfile
@@ -288,7 +289,9 @@ class MainGateTests(unittest.TestCase):
         state = Path(directory.name) / 'state.json'
         with patch.object(dev, 'UPGRADE_STATE', state):
             with patch.object(upgrade, 'before_start', side_effect=OSError('odd')):
-                self.assertFalse(dev.upgrade_prepare())
+                with contextlib.redirect_stderr(io.StringIO()) as said:
+                    self.assertFalse(dev.upgrade_prepare())
+                self.assertEqual(said.getvalue(), 'Upgrade bookkeeping failed: odd\n')
                 # While an upgrade is pending, broken bookkeeping never lets a version run ungated.
                 state.write_text(json.dumps({'phase': 'applied'}))
                 with self.assertRaisesRegex(RuntimeError, 'bookkeeping failed'):

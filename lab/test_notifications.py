@@ -549,8 +549,45 @@ class TelegramTests(NotificationCase):
             error = notify.urllib.error.HTTPError('u', code, 'm', {}, None)
             with patch.object(notify.urllib.request, 'urlopen', side_effect=error):
                 self.assertEqual(notify.deliver_telegram(config, envelope), (outcome, 'telegram_status'))
+            self.assertTrue(error.closed)
         with patch.object(notify.urllib.request, 'urlopen', side_effect=notify.urllib.error.URLError('down')):
             self.assertEqual(notify.deliver_telegram(config, envelope), ('transient', 'telegram_unreachable'))
+
+
+class HTTPErrorOwnershipTests(unittest.TestCase):
+    def setUp(self):
+        self.envelope = {'kind': 'k', 'severity': 'warning', 'id': 'i', 'delivery': 'd', 'at': 'a', 'occurrences': 1,
+                         'reason': 'r', 'reason_class': 'c', 'actor': 'system', 'summary': 's', 'action': 'a', 'subject': {}}
+        self.telegram = {'telegram': {'chatId': '1', 'token': 'test-token', 'apiBase': 'http://127.0.0.1:9'}}
+        self.webhook = {'webhook': {'url': 'http://127.0.0.1:9'}}
+
+    def test_webhook_http_errors_keep_their_classification_and_close_the_response(self):
+        for code, outcome in ((400, 'failed'), (429, 'failed'), (502, 'transient')):
+            with self.subTest(code=code):
+                error = notify.urllib.error.HTTPError('u', code, 'm', {}, None)
+                self.addCleanup(error.close)
+                with patch.object(notify.urllib.request, 'urlopen', side_effect=error):
+                    self.assertEqual(notify.deliver_webhook(self.webhook, self.envelope, 'secret'),
+                                     (outcome, 'webhook_status_' + str(code)))
+                self.assertTrue(error.closed)
+
+    def test_http_error_close_failure_is_a_transient_transport_failure(self):
+        for transport in ('telegram', 'webhook'):
+            for code in (400, 429, 502):
+                for failure in (OSError, ValueError):
+                    with self.subTest(transport=transport, code=code, failure=failure.__name__):
+                        error = notify.urllib.error.HTTPError('u', code, 'm', {}, None)
+                        self.addCleanup(error.close)
+                        with patch.object(notify.urllib.request, 'urlopen', side_effect=error), \
+                                patch.object(error, 'close', side_effect=failure('close failed')) as close:
+                            if transport == 'telegram':
+                                result = notify.deliver_telegram(self.telegram, self.envelope)
+                                token = 'telegram_unreachable'
+                            else:
+                                result = notify.deliver_webhook(self.webhook, self.envelope, 'secret')
+                                token = 'webhook_unreachable'
+                            self.assertEqual(result, ('transient', token))
+                            close.assert_called_once_with()
 
 
 class ConfigurationTests(NotificationCase):

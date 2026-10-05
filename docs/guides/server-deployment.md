@@ -2,18 +2,17 @@
 
 # Server deployment
 
-Runbook for deploying a sbarbase installation to a Linux server. Status:
-2026-09-20. The deployment path is implemented: preflight, installer, systemd
-supervision, a one-command rehearsal and this runbook. The full source and target
-lifecycle rehearsal passes on the development host (11 of 11 checks,
-`docs/evidence/deployment-rehearsal.json`). It has **not** been run on a real
-server, and two independent adversarial reviews of the deployment code found
-defects that are now fixed
-([review](../engineering/reviews/target-and-deployment-review.md),
-[second review](../engineering/reviews/deployment-tooling-review-2.md)); the fresh target and
-retained adoption paths are proven on disposable fixtures and on the retained
-databases, not through a full restore or install. Read
-[DEPLOYMENT-READINESS](../reference/deployment-readiness.md) for the itemised status.
+Updated 2026-10-06: complete current-code verification passed 1449 tests with no failures, errors, warnings or skips and independent actual review. Repairs cover SQLite and HTTPError response closure, tempfile ownership and expected test diagnostics. All 52 preparation cases also passed; native PostgreSQL startup, Cron/Vault restart continuity and physical restore remain unaccepted. See [current status](../reference/status.md) for CI results and evidence scope.
+
+The separate public55 V3 role has actual MET: 25 component and 30 pump tests passed, original 290 and added 4 actual mode/byte captures matched, and all three known helpers were removed with no unresolved resources. Public BusyBox V8 help metadata also has actual MET: fixed-path Bash 5.3.3 and BusyBox 1.37.0 help returned zero, with its one helper removed. Neither result accepts private request operation, timeout timing/signal behavior, installed binary source provenance, candidate startup, cold/warm Vault or Cron continuity, physical restore or production.
+
+The preserved warning-window V4 negative run reported 1447 ordinary tests OK but six ResourceWarnings, native 1 and observed window 839 for every warning. Three records have exact sqlite3.Connection type; three report tempfile.py line 484 with NoneType source. Observation windows are not allocation causes, and the three tempfile origins remain unknown. Fresh complete source/identity/mode/full bindings, final-revision CI and manually dispatched empty-host acceptance remain required; published 0e745394 CI and Website results retain only their earlier revision scope.
+
+Runbook for the native Linux installation path. The primary container workflow is described in [Install with Docker](docker.md). September workstation and local-VM rehearsals below retain their original scope; they are not fresh production acceptance.
+
+The user's computer is currently used as a local Linux Docker server for isolated declared verification. Published `0e745394` passed Docker installation CI, while empty-host acceptance was skipped and needs a fresh manual dispatch. No independent public-server pilot is established. Current startup tooling defines only an explicit prepare-only material-handoff status; no actual native material-preparation run is accepted by this guide. The earlier V9 initV2 run passed 52 focused tests but its historical actual 1447-case full regression failed with one failure and 15 errors.
+
+Earlier mode, scratch and warning verification attempts remain historical refusals bound to their own source and date. Resource ownership and fixture diagnostics were repaired, and fresh complete verification now passes 1449 tests. This does not transfer native startup or recovery evidence from another run. The [status history](../reference/status.md) preserves the earlier observations and their limits.
 
 ## Prerequisites
 
@@ -294,7 +293,10 @@ installer creates no published ports. Do not expose the management Auth endpoint
 or the provisioning API directly. Set the public URL the console should advertise
 in the proxy, not in the console build.
 
-When Studio lands, each environment's Studio is a second upstream behind the same
+Studio exists as an optional per-environment feature in the legacy shared-engine
+workflow, with separately scoped CI evidence. Its proxy and authentication
+requirements remain essential; native-dedicated Studio is not accepted by that
+legacy result. Each environment's Studio is a second upstream behind the same
 reverse proxy. The shipped proxy terminates exactly one upstream, so it needs a
 second upstream and a host allowlist, or the operator brings their own proxy or an
 SSH tunnel. Studio has no login of its own and its pages carry a database connection
@@ -378,8 +380,10 @@ The step by step versions are [backup and restore](backup-and-restore.md) and [u
 
 - Backup: stop the supervisor, then back up the `pgdata` volumes plus the
   private state directory. The encrypted export and independent-restore path is
-  documented in [INDEPENDENT-RESTORE](../engineering/INDEPENDENT-RESTORE.md); it is the only
-  restore path with recorded evidence.
+  documented in [INDEPENDENT-RESTORE](../engineering/INDEPENDENT-RESTORE.md), a
+  historical independent-restore fixture. Separate legacy Docker and local-VM
+  backup/restore observations are recorded in [status](../reference/status.md);
+  none establishes complete candidate or physical fresh-host recovery.
 - Upgrade: the console's Updates page shows a newer signed release and installs a
   safe one with one click; `lab/upgrade.py` does the same from the command line.
   Each upgrade backs up every environment first, holds application traffic until
@@ -393,11 +397,11 @@ The step by step versions are [backup and restore](backup-and-restore.md) and [u
   [UPSTREAM-UPDATE-POLICY](../engineering/UPSTREAM-UPDATE-POLICY.md), which records
   the rollback pin and any data migration in a dated entry under `docs/upstream/`.
 
-## Known limits at this revision
+## Historical rehearsal evidence and current limits
 
-- No end-to-end install rehearsal has been run on a real server yet. An empty
+- No end-to-end install rehearsal on an independent public server is established. An empty
   server has been simulated in a local virtual machine (Fedora 44 Cloud, clean
-  clone, `lab/vm-rehearsal.sh`), which found and fixed four defects the
+  clone, `lab/vm-rehearsal.sh`), whose later rehearsal found ten defects the
   development host could not show; see
   [deployment readiness](../reference/deployment-readiness.md). The
   documented command itself completed end to end on the development host at
@@ -409,14 +413,25 @@ The step by step versions are [backup and restore](backup-and-restore.md) and [u
 - No production capacity claim: 5888 MiB and 5.75 CPUs are configured ceilings,
   not measured peak demand. Sustained mixed load and 10/100-project capacity are
   unproven.
-- Realtime, Functions, the connection pooler and cron are not implemented.
-- Off-host restore and multi-host coordination are out of scope for this
-  revision.
+- Realtime, Functions and Studio have optional implementations in the legacy
+  workflow, with separately scoped CI observations. They are not thereby
+  accepted for native-dedicated placement. The connection pooler and exposed
+  operator Cron feature remain unimplemented in that legacy workflow; accepted
+  original-image Cron/HTTP fixtures are a separate bounded prerequisite.
+- Legacy encrypted copy/fetch/restore and second-VM restore have scoped
+  historical observations. Complete fresh-host installation recovery, candidate
+  physical restore and coordinated multi-host operation remain unaccepted.
 - Updates from the console and opt-in automatic updates exist, with a health-gated
   way back and a start guard ([upgrades](upgrades.md)). They are covered by unit
-  tests only: nothing about the update channel has run live or in the VM yet.
-- If the supervisor is killed while a new version waits for its health checks, the
-  owned containers keep running. The guard moves the checkout back on the next start,
-  but the preflight then refuses because owned containers are running, so the service
-  can stay down. This follows from the code and has not been rehearsed.
-- The bootstrap flow has no invitations, MFA or rate limiting.
+  tests plus historical clean-runner CI and local-VM observations summarized in
+  [status](../reference/status.md#update-channel-2026-09-25). No real-server,
+  canonical-repository or maintainer-key update-channel acceptance is established.
+- After an unclean supervisor stop, `lab/leftover_runtime.py` provides a
+  lock- and receipt-gated stop of owned containers before preflight, retaining
+  volumes. This correction has source regression evidence only; no live kill
+  rehearsal is established. A live owner or pending receipt/journal still
+  refuses reconciliation. Reinstall the unit to gain its documented preflight
+  cleanup step; this does not establish arbitrary crash recovery.
+- Bootstrap creates the first operator; invitations are a separate legacy
+  feature with scoped local-VM evidence. Management MFA and login rate limiting
+  remain absent. See [status](../reference/status.md) for the historical scope.
