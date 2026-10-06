@@ -248,6 +248,17 @@ _CASE_PENDING_STAGES = {
     'changed-generation-refusal': ['Change installed management generation after original enrollment'],
 }
 
+# These are concrete executable source stages, not full native case runners.
+# Keep the original full-case implementation pending until its complete outcome
+# has actual installed authority and independent original effect corroboration.
+_CASE_STAGE_SOURCES = {
+    'disconnect-before-body-end': ['OriginalHttpTransport.disconnect'],
+    'lost-stop-acknowledgement': ['LocalNativeAuthority.run_stop_fault:after-stop-before-ack',
+                                'LocalNativeAuthority.recover_stop'],
+    'controller-interruption': ['LocalNativeAuthority.run_stop_fault:after-intent'],
+    'multipart-parts': ['exercise_multipart'],
+}
+
 
 def case_matrix(available_prerequisites=(), disabled_features=()):
     """Report implementation and prerequisites separately, with every ID retained."""
@@ -285,6 +296,7 @@ def case_matrix(available_prerequisites=(), disabled_features=()):
         rows.append({'id': key, 'implementation': 'runnable-helper' if helper else 'pending',
                      'helper': helper, 'pending_implementation': _PENDING_IMPLEMENTATIONS.get(key),
                      'pending_case_stages': list(_CASE_PENDING_STAGES.get(key, ())),
+                     'implemented_source_stages': list(_CASE_STAGE_SOURCES.get(key, ())),
                      'helper_scope': ('local-controller-observation' if helper and helper.startswith('run_local_case:')
                                       else 'original-protocol-effects' if helper else None),
                      'prerequisites': prerequisites, 'missing_prerequisites': missing,
@@ -293,6 +305,31 @@ def case_matrix(available_prerequisites=(), disabled_features=()):
                                'prerequisite-unavailable' if missing else 'runtime-unrun',
                      'native_accepted': False})
     return rows
+
+
+def run_protocol_stage(case_id, spec, endpoint, tenant_host, credentials_path, bucket, key):
+    """Concrete original I/O stages only, no callbacks or full-case admission."""
+    from storage_native_authority import OriginalHttpTransport, exercise_multipart
+    if case_id not in ('disconnect-before-body-end', 'multipart-parts'):
+        raise Refused('Unknown original protocol source stage')
+    transport = OriginalHttpTransport(spec, endpoint, tenant_host, credentials_path)
+    result = (transport.disconnect(bucket, key) if case_id == 'disconnect-before-body-end' else
+              exercise_multipart(transport, bucket, key))
+    return {'id': case_id, 'stage': result, 'full_case_completed': False, 'native_settlement_accepted': False}
+
+
+def run_controller_fault_stage(case_id, spec, ledger_root):
+    """Actual original stop fault source, awaiting installed authority and run."""
+    from storage_native_authority import LocalNativeAuthority
+    boundaries = {'lost-stop-acknowledgement': 'after-stop-before-ack',
+                  'controller-interruption': 'after-intent'}
+    if case_id not in boundaries:
+        raise Refused('Unknown original controller fault source stage')
+    authority = LocalNativeAuthority(spec, ledger_root)
+    result = authority.run_stop_fault(boundaries[case_id])
+    if case_id == 'lost-stop-acknowledgement':
+        authority.recover_stop()
+    return {'id': case_id, 'stage': result, 'full_case_completed': False, 'native_settlement_accepted': False}
 
 
 def run_local_case(case_id, spec, ledger_root):

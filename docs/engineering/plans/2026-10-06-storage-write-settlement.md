@@ -339,3 +339,113 @@ terminate/reap its owned process group and persist elapsed/output accounting
 on exceptions or interruption. The output budget includes a conservative
 reservation for structured supervisor metadata. Closed pipes do not establish
 process exit. Reduced-policy private probes exercise these invariants.
+
+
+## Subsequent original protocol and controller source stages
+
+Baseline commit: `727850058d7fedfcd3991d10ebf4398c21c5d6b9`. Its delivered packet,
+retained failed and invalid evidence, controls and native criteria remain intact.
+The new external `native-source-v3` run uses a separately confirmed source budget:
+Python address space 256 MiB, Bun virtual reservation 8 TiB, aggregate process RSS
+768 MiB, CPU and command ceiling 120 seconds, total 180 active seconds including
+failures, controls and independent reviewers, combined retained output 16 MiB.
+The locale and bundled interpreter remain the same. Checks are source only and
+must refuse before network, Docker, services or original resources are touched.
+
+Concrete source stages are distinct from complete case implementations:
+
+- `OriginalHttpTransport.disconnect` sends 64 KiB of an 8 MiB declared original
+  HTTP body and uses TCP reset. Local socket delivery does not establish server
+  consumption or partial file/metadata settlement.
+- `sign_s3_request` signs original `/s3` protocol requests using SigV4. Its
+  synthetic GET vector comes from [AWS's published example](https://docs.aws.amazon.com/AmazonS3/latest/developerguide/sig-v4-header-based-auth.html).
+  `exercise_multipart` creates an upload, sends a 5 MiB first part and 64 KiB
+  final part, checks exact ETags and a complete listing, sends original completion
+  XML, and downloads exact assembled bytes. It does not infer database versions,
+  backend part absence, asynchronous cleanup or writer settlement.
+- `LocalNativeAuthority.run_stop_fault` forks an owned controller, uses an owned
+  process group, and kills it after fsynced intent or after the original stop
+  command returns but before the durable acknowledgement. The pipe notice and
+  original owner ledger identify the reached boundary. Failure and timeout retain
+  ambiguity and do not replay a stop. `run_controller_fault_stage` only observes
+  an ambiguous delivered stop through `recover_stop`; no signal is native proof.
+
+The CLI still refuses `--execute`. All 29 original IDs remain mandatory. The
+case matrix retains 14 helpers and 15 pending complete implementations, while
+separately naming concrete source stages. Neither a protocol success nor a
+source fixture may set full case completion or native admission.
+
+### Exact parent integration proposal
+
+This proposal changes no shared or installed file. Parent integration must bind
+its merged source independently and own the issuer plus every consumer. Current
+baseline file hashes are listed below; these are byte identities, not authority.
+
+- `lab/storage_native_authority.py`: `a2e670c429d8e0823bb1f1b93ec09c92956181d6b9cfcab4edac230198768070`.
+- `lab/durable_runtime.py`: `7dc9256385c07526f473c83685b7489fa0fd8a597475f731126d09fb2fa0afea`.
+- `src/control/storage-settlement-contract.ts`: `c00252ab964406ee560bbf729ba08fb42daaa1ede6c252ee89c6f6027b87823c`.
+- `src/control/catalog.ts`: `7c0f817445854ca85b46653507339daf77bd6c20e20bc5fcc47595694eb82c2f`.
+- `lab/backup.py`: `345464f2aaed497b52ba981298927807dea50b2fd8cec9d6d9b2c193daaff012`.
+- `lab/restore_cutover.py`: `910af356a176224a4d77e4613a91e8ab910a754d50c826de6915835c97677952`.
+- `lab/restore_operation.py`: `24af12bcf7a04d1564d3172ad2a1eaa5cde5f653ff7e9eb60eaa4c4972a19aed`.
+- `lab/migrate-generation.py`: `2996347770aeb1a24817bd2a0ef95dedfe4777c0b36ee77c2bba702668b58f06`.
+
+The insertion point for native authority is
+`lab/storage_native_authority.py:_installed_launch_guard(spec)`. Its current
+body always refuses. The replacement must obtain an installed verifier's current
+operation, generation, management epoch, routing revision and complete ordered
+source inventory under the persistent installation lock. A caller dictionary,
+callback, private receipt or source helper result cannot replace that verifier.
+Every `DockerLocalCommands._run`, `LocalNativeAuthority.observe`, `stop`,
+`recover_stop`, `reconcile`, `run_stop_fault` and `OriginalHttpTransport.s3` or
+`disconnect` already reaches this refusal before its original effect. The
+protocol assignment needs an additional installed binding of exact endpoint,
+network namespace, bucket, key, credentials file identity and per-request durable
+intent before enabling transport. That binding is not implemented by a loopback
+URL or a credential file. This source delta must not make the guard permissive.
+
+At `src/control/storage-settlement-contract.ts:requireNativeStorageSettlement`,
+the current synchronous source refusal must remain until the parent installs
+its real asynchronous verifier. Every transfer, purge, backup and restore
+consumer must await that verifier, recheck source and held or candidate
+generation, epoch, placement, routing and ordered inventory after each await,
+and repeat the final predicate in the same connection and critical section as
+its Catalog mutation. `src/control/catalog.ts:Catalog.transferProject` is a
+concrete existing mutation boundary, its transaction precedes the organization
+update. No prior receipt may authorize that update or retirement of grants.
+Other merged consumers must be identified from the parent's actual merged tree,
+not guessed from this older baseline.
+
+`lab/durable_runtime.py:Runtime.launch` (baseline lines 378 to 426) needs the same
+persistent installation fence before inspect, remove, start, volume or run.
+`Runtime.start` (448 to 490) needs it before shared network, DB, management,
+Storage and publication effects. `Runtime.activate_services` (589 to 650)
+needs it across tenant HTTP changes, SQL/readiness and endpoint publication,
+with reobservation after awaits and a final check before atomic replacement.
+Installer, systemd and worker launch paths need the same authority. Fencing one
+gateway does not stop direct filesystem, SQL, queue or provider writers.
+
+| Pending original case | Concrete source stage or exact next integration |
+| --- | --- |
+| disconnect-before-body-end | `OriginalHttpTransport.disconnect`; add actual server-consumption and residual file/row observation before full result |
+| disconnect-after-file-before-db | Add an owned original DB transaction holder before original upload, observe the actual versioned file before commit, then reset the original request; arbitrary elapsed time is not a barrier |
+| controller-interruption | `LocalNativeAuthority.run_stop_fault('after-intent')`; installed controller recovery must retain unresolved intent without replay |
+| controller-restart-fence | `Runtime.launch` and `Runtime.start` installation lock and persistent fence, then actual controller restart and denied original writer launch |
+| storage-recreation-fence | `Runtime.launch` before remove/start/run plus installed daemon guard, then actual replacement-CID attempt with unchanged protected neighbors |
+| multipart-parts | `exercise_multipart`; extend `DockerLocalCommands.storage_rows` with pinned original multipart tables and bind file/version observer before acceptance |
+| multipart-assembly-interruption | The original multipart completion route plus an observed original assembly/file barrier, actual original process interruption and stopped row/file/version reconciliation |
+| neighbor-upload-preserved | Original SDK transport through the parent's installed selected-source fence, concurrent actual neighbor upload and exact before/after neighbor bytes and immutable identities |
+| queue-pending-active-retry-quarantine | Pinned original `src/internal/queue/queue.ts` workers and `database.ts` authority; enroll every queue writer and original job/retry/quarantine DB under a separately bounded phase |
+| redis-lock-and-metadata-quarantine | Pinned original TUS locker/store configuration and actual Redis key/lock identity; require separately enrolled Redis authority and all writer shutdown before observing state |
+| remote-provider-inflight-settlement | Pinned `src/storage/backend/s3/adapter.ts` original inflight operations; enroll actual provider account/bucket/version authority and await original effects |
+| remote-version-and-part-reconciliation | Original provider version and part listings under the same enrolled provider identity, exact ownership and stopped original writer closure |
+| coherent-backup-and-restore | `lab/backup.py` snapshot-holder boundary and `lab/restore_cutover.py:restore` before stage DB/file swap and publication; integrate the same installed settlement verifier and actual original consumers |
+| sdk-new-write-after-recovery | `Runtime.activate_services` and actual restore publication predicate, then fresh original SDK upload/download through the installed endpoint |
+| exact-owned-cleanup | Add separately enrolled pre-allocation network, volume and CID identities to the installed owner ledger, then exact removals and absence observations with protected-neighbor rechecks; stop ledger alone cannot own allocation cleanup |
+
+Actual changed-generation testing must use the parent's installed Catalog
+mutation under its own current generation/epoch predicate, followed by the
+original observer's specific changed-generation refusal. Altering source fixture
+JSON is not that test. Actual lost-stop acknowledgement uses the delivered
+original stop boundary above, not a generic refusal or fabricated owner record.
+Full original global writer closure, SS3, SS4 and SS5 remain required.

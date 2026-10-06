@@ -1,0 +1,7 @@
+{
+  "chunk_id": "375a4e",
+  "wall_time_seconds": 0.397363402,
+  "exit_code": 0,
+  "original_token_count": 91,
+  "output": "{\"total\": 159, \"failed\": 0, \"skipped\": 0, \"native_accepted\": false, \"reason\": null, \"raw_sha256\": \"c7941f3a2947021e2d8a92e3a404482a791009b89b0e0484cb326b29d874c32b\", \"raw_log\": \"/home/sbarah/.codex/sbarbase-settlement/20261006/native-source-v3/check-python-6.log\", \"peak_group_rss\": 46776320, \"role_seconds_used\": 2.244272875999741, \"role_output_bytes\": 120323}\n"
+}

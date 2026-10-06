@@ -1,0 +1,786 @@
+diff --git a/docs/engineering/plans/2026-10-06-storage-write-settlement.md b/docs/engineering/plans/2026-10-06-storage-write-settlement.md
+index 4f87173..861e512 100644
+--- a/docs/engineering/plans/2026-10-06-storage-write-settlement.md
++++ b/docs/engineering/plans/2026-10-06-storage-write-settlement.md
+@@ -339,3 +339,113 @@ terminate/reap its owned process group and persist elapsed/output accounting
+ on exceptions or interruption. The output budget includes a conservative
+ reservation for structured supervisor metadata. Closed pipes do not establish
+ process exit. Reduced-policy private probes exercise these invariants.
++
++
++## Subsequent original protocol and controller source stages
++
++Baseline commit: `727850058d7fedfcd3991d10ebf4398c21c5d6b9`. Its delivered packet,
++retained failed and invalid evidence, controls and native criteria remain intact.
++The new external `native-source-v3` run uses a separately confirmed source budget:
++Python address space 256 MiB, Bun virtual reservation 8 TiB, aggregate process RSS
++768 MiB, CPU and command ceiling 120 seconds, total 180 active seconds including
++failures, controls and independent reviewers, combined retained output 16 MiB.
++The locale and bundled interpreter remain the same. Checks are source only and
++must refuse before network, Docker, services or original resources are touched.
++
++Concrete source stages are distinct from complete case implementations:
++
++- `OriginalHttpTransport.disconnect` sends 64 KiB of an 8 MiB declared original
++  HTTP body and uses TCP reset. Local socket delivery does not establish server
++  consumption or partial file/metadata settlement.
++- `sign_s3_request` signs original `/s3` protocol requests using SigV4. Its
++  synthetic GET vector comes from [AWS's published example](https://docs.aws.amazon.com/AmazonS3/latest/developerguide/sig-v4-header-based-auth.html).
++  `exercise_multipart` creates an upload, sends a 5 MiB first part and 64 KiB
++  final part, checks exact ETags and a complete listing, sends original completion
++  XML, and downloads exact assembled bytes. It does not infer database versions,
++  backend part absence, asynchronous cleanup or writer settlement.
++- `LocalNativeAuthority.run_stop_fault` forks an owned controller, uses an owned
++  process group, and kills it after fsynced intent or after the original stop
++  command returns but before the durable acknowledgement. The pipe notice and
++  original owner ledger identify the reached boundary. Failure and timeout retain
++  ambiguity and do not replay a stop. `run_controller_fault_stage` only observes
++  an ambiguous delivered stop through `recover_stop`; no signal is native proof.
++
++The CLI still refuses `--execute`. All 29 original IDs remain mandatory. The
++case matrix retains 14 helpers and 15 pending complete implementations, while
++separately naming concrete source stages. Neither a protocol success nor a
++source fixture may set full case completion or native admission.
++
++### Exact parent integration proposal
++
++This proposal changes no shared or installed file. Parent integration must bind
++its merged source independently and own the issuer plus every consumer. Current
++baseline file hashes are listed below; these are byte identities, not authority.
++
++- `lab/storage_native_authority.py`: `a2e670c429d8e0823bb1f1b93ec09c92956181d6b9cfcab4edac230198768070`.
++- `lab/durable_runtime.py`: `7dc9256385c07526f473c83685b7489fa0fd8a597475f731126d09fb2fa0afea`.
++- `src/control/storage-settlement-contract.ts`: `c00252ab964406ee560bbf729ba08fb42daaa1ede6c252ee89c6f6027b87823c`.
++- `src/control/catalog.ts`: `7c0f817445854ca85b46653507339daf77bd6c20e20bc5fcc47595694eb82c2f`.
++- `lab/backup.py`: `345464f2aaed497b52ba981298927807dea50b2fd8cec9d6d9b2c193daaff012`.
++- `lab/restore_cutover.py`: `910af356a176224a4d77e4613a91e8ab910a754d50c826de6915835c97677952`.
++- `lab/restore_operation.py`: `24af12bcf7a04d1564d3172ad2a1eaa5cde5f653ff7e9eb60eaa4c4972a19aed`.
++- `lab/migrate-generation.py`: `2996347770aeb1a24817bd2a0ef95dedfe4777c0b36ee77c2bba702668b58f06`.
++
++The insertion point for native authority is
++`lab/storage_native_authority.py:_installed_launch_guard(spec)`. Its current
++body always refuses. The replacement must obtain an installed verifier's current
++operation, generation, management epoch, routing revision and complete ordered
++source inventory under the persistent installation lock. A caller dictionary,
++callback, private receipt or source helper result cannot replace that verifier.
++Every `DockerLocalCommands._run`, `LocalNativeAuthority.observe`, `stop`,
++`recover_stop`, `reconcile`, `run_stop_fault` and `OriginalHttpTransport.s3` or
++`disconnect` already reaches this refusal before its original effect. The
++protocol assignment needs an additional installed binding of exact endpoint,
++network namespace, bucket, key, credentials file identity and per-request durable
++intent before enabling transport. That binding is not implemented by a loopback
++URL or a credential file. This source delta must not make the guard permissive.
++
++At `src/control/storage-settlement-contract.ts:requireNativeStorageSettlement`,
++the current synchronous source refusal must remain until the parent installs
++its real asynchronous verifier. Every transfer, purge, backup and restore
++consumer must await that verifier, recheck source and held or candidate
++generation, epoch, placement, routing and ordered inventory after each await,
++and repeat the final predicate in the same connection and critical section as
++its Catalog mutation. `src/control/catalog.ts:Catalog.transferProject` is a
++concrete existing mutation boundary, its transaction precedes the organization
++update. No prior receipt may authorize that update or retirement of grants.
++Other merged consumers must be identified from the parent's actual merged tree,
++not guessed from this older baseline.
++
++`lab/durable_runtime.py:Runtime.launch` (baseline lines 378 to 426) needs the same
++persistent installation fence before inspect, remove, start, volume or run.
++`Runtime.start` (448 to 490) needs it before shared network, DB, management,
++Storage and publication effects. `Runtime.activate_services` (589 to 650)
++needs it across tenant HTTP changes, SQL/readiness and endpoint publication,
++with reobservation after awaits and a final check before atomic replacement.
++Installer, systemd and worker launch paths need the same authority. Fencing one
++gateway does not stop direct filesystem, SQL, queue or provider writers.
++
++| Pending original case | Concrete source stage or exact next integration |
++| --- | --- |
++| disconnect-before-body-end | `OriginalHttpTransport.disconnect`; add actual server-consumption and residual file/row observation before full result |
++| disconnect-after-file-before-db | Add an owned original DB transaction holder before original upload, observe the actual versioned file before commit, then reset the original request; arbitrary elapsed time is not a barrier |
++| controller-interruption | `LocalNativeAuthority.run_stop_fault('after-intent')`; installed controller recovery must retain unresolved intent without replay |
++| controller-restart-fence | `Runtime.launch` and `Runtime.start` installation lock and persistent fence, then actual controller restart and denied original writer launch |
++| storage-recreation-fence | `Runtime.launch` before remove/start/run plus installed daemon guard, then actual replacement-CID attempt with unchanged protected neighbors |
++| multipart-parts | `exercise_multipart`; extend `DockerLocalCommands.storage_rows` with pinned original multipart tables and bind file/version observer before acceptance |
++| multipart-assembly-interruption | The original multipart completion route plus an observed original assembly/file barrier, actual original process interruption and stopped row/file/version reconciliation |
++| neighbor-upload-preserved | Original SDK transport through the parent's installed selected-source fence, concurrent actual neighbor upload and exact before/after neighbor bytes and immutable identities |
++| queue-pending-active-retry-quarantine | Pinned original `src/internal/queue/queue.ts` workers and `database.ts` authority; enroll every queue writer and original job/retry/quarantine DB under a separately bounded phase |
++| redis-lock-and-metadata-quarantine | Pinned original TUS locker/store configuration and actual Redis key/lock identity; require separately enrolled Redis authority and all writer shutdown before observing state |
++| remote-provider-inflight-settlement | Pinned `src/storage/backend/s3/adapter.ts` original inflight operations; enroll actual provider account/bucket/version authority and await original effects |
++| remote-version-and-part-reconciliation | Original provider version and part listings under the same enrolled provider identity, exact ownership and stopped original writer closure |
++| coherent-backup-and-restore | `lab/backup.py` snapshot-holder boundary and `lab/restore_cutover.py:restore` before stage DB/file swap and publication; integrate the same installed settlement verifier and actual original consumers |
++| sdk-new-write-after-recovery | `Runtime.activate_services` and actual restore publication predicate, then fresh original SDK upload/download through the installed endpoint |
++| exact-owned-cleanup | Add separately enrolled pre-allocation network, volume and CID identities to the installed owner ledger, then exact removals and absence observations with protected-neighbor rechecks; stop ledger alone cannot own allocation cleanup |
++
++Actual changed-generation testing must use the parent's installed Catalog
++mutation under its own current generation/epoch predicate, followed by the
++original observer's specific changed-generation refusal. Altering source fixture
++JSON is not that test. Actual lost-stop acknowledgement uses the delivered
++original stop boundary above, not a generic refusal or fabricated owner record.
++Full original global writer closure, SS3, SS4 and SS5 remain required.
+diff --git a/lab/disposable-storage-settlement-drill.py b/lab/disposable-storage-settlement-drill.py
+index f2f5fe1..0f93810 100644
+--- a/lab/disposable-storage-settlement-drill.py
++++ b/lab/disposable-storage-settlement-drill.py
+@@ -248,6 +248,17 @@ _CASE_PENDING_STAGES = {
+     'changed-generation-refusal': ['Change installed management generation after original enrollment'],
+ }
+ 
++# These are concrete executable source stages, not full native case runners.
++# Keep the original full-case implementation pending until its complete outcome
++# has actual installed authority and independent original effect corroboration.
++_CASE_STAGE_SOURCES = {
++    'disconnect-before-body-end': ['OriginalHttpTransport.disconnect'],
++    'lost-stop-acknowledgement': ['LocalNativeAuthority.run_stop_fault:after-stop-before-ack',
++                                'LocalNativeAuthority.recover_stop'],
++    'controller-interruption': ['LocalNativeAuthority.run_stop_fault:after-intent'],
++    'multipart-parts': ['exercise_multipart'],
++}
++
+ 
+ def case_matrix(available_prerequisites=(), disabled_features=()):
+     """Report implementation and prerequisites separately, with every ID retained."""
+@@ -285,6 +296,7 @@ def case_matrix(available_prerequisites=(), disabled_features=()):
+         rows.append({'id': key, 'implementation': 'runnable-helper' if helper else 'pending',
+                      'helper': helper, 'pending_implementation': _PENDING_IMPLEMENTATIONS.get(key),
+                      'pending_case_stages': list(_CASE_PENDING_STAGES.get(key, ())),
++                     'implemented_source_stages': list(_CASE_STAGE_SOURCES.get(key, ())),
+                      'helper_scope': ('local-controller-observation' if helper and helper.startswith('run_local_case:')
+                                       else 'original-protocol-effects' if helper else None),
+                      'prerequisites': prerequisites, 'missing_prerequisites': missing,
+@@ -295,6 +307,31 @@ def case_matrix(available_prerequisites=(), disabled_features=()):
+     return rows
+ 
+ 
++def run_protocol_stage(case_id, spec, endpoint, tenant_host, credentials_path, bucket, key):
++    """Concrete original I/O stages only, no callbacks or full-case admission."""
++    from storage_native_authority import OriginalHttpTransport, exercise_multipart
++    if case_id not in ('disconnect-before-body-end', 'multipart-parts'):
++        raise Refused('Unknown original protocol source stage')
++    transport = OriginalHttpTransport(spec, endpoint, tenant_host, credentials_path)
++    result = (transport.disconnect(bucket, key) if case_id == 'disconnect-before-body-end' else
++              exercise_multipart(transport, bucket, key))
++    return {'id': case_id, 'stage': result, 'full_case_completed': False, 'native_settlement_accepted': False}
++
++
++def run_controller_fault_stage(case_id, spec, ledger_root):
++    """Actual original stop fault source, awaiting installed authority and run."""
++    from storage_native_authority import LocalNativeAuthority
++    boundaries = {'lost-stop-acknowledgement': 'after-stop-before-ack',
++                  'controller-interruption': 'after-intent'}
++    if case_id not in boundaries:
++        raise Refused('Unknown original controller fault source stage')
++    authority = LocalNativeAuthority(spec, ledger_root)
++    result = authority.run_stop_fault(boundaries[case_id])
++    if case_id == 'lost-stop-acknowledgement':
++        authority.recover_stop()
++    return {'id': case_id, 'stage': result, 'full_case_completed': False, 'native_settlement_accepted': False}
++
++
+ def run_local_case(case_id, spec, ledger_root):
+     """Call the concrete original observer/controller, never an injected callback.
+ 
+diff --git a/lab/storage_native_authority.py b/lab/storage_native_authority.py
+index dfee043..b0015d6 100644
+--- a/lab/storage_native_authority.py
++++ b/lab/storage_native_authority.py
+@@ -10,14 +10,24 @@ import contextlib
+ import copy
+ import fcntl
+ import hashlib
++import hmac
++import http.client
+ import json
+ import os
+ from pathlib import Path
+ import re
+ import resource
++import signal
++import socket
+ import stat
++import struct
+ import subprocess
+ import tempfile
++import threading
++import time
++from datetime import datetime, timezone
++from urllib.parse import quote, urlsplit
++from xml.etree import ElementTree
+ 
+ from storage_write_settlement import (IMAGE, SOURCE, HEX, UUID, Refused,
+     canonical, closed, digest, exact, integer, require, text, validate_manifest,
+@@ -654,19 +664,85 @@ class LocalNativeAuthority:
+         stopped = all(item['State']['Running'] is False for item in states if item.get('Id') in selected)
+         return decode_inventory(self.spec, material, stopped=stopped)
+ 
+-    def stop(self):
++    def stop(self, fault_boundary=None, _fault_notice_fd=None):
+         _installed_launch_guard(self.spec)
++        require(fault_boundary in (None, 'after-intent', 'after-stop-before-ack'),
++                'Unknown owning controller interruption boundary')
+         with self.ledger.locked() as ledger:
+             require(not ledger.records, 'Stop intent already exists; observe instead of retrying')
+             current = self.observe()
++            if fault_boundary:
++                require(all(not row['stopped'] for row in current['writers']),
++                        'Fault injection requires actual live original writers')
+             ledger.append(self.spec, 'intent', current['observation_sha256'])
++            if fault_boundary == 'after-intent':
++                if _fault_notice_fd is not None:
++                    os.write(_fault_notice_fd, b'after-intent')
++                os.kill(os.getpid(), signal.SIGKILL)
++                raise Refused('Owning controller interruption did not occur')
+             self.commands.stop()
++            if fault_boundary == 'after-stop-before-ack':
++                if _fault_notice_fd is not None:
++                    os.write(_fault_notice_fd, b'after-stop-before-ack')
++                os.kill(os.getpid(), signal.SIGKILL)
++                raise Refused('Owning controller interruption did not occur')
+             ledger.append(self.spec, 'ack', current['observation_sha256'])
+             ended = self.observe()
+             require(all(entry['stopped'] for entry in ended['writers']), 'Original writer exit unobserved')
+             ledger.append(self.spec, 'observed', ended['observation_sha256'])
+             return {'native_admitted': False, 'pending': list(PENDING)}
+ 
++    def run_stop_fault(self, boundary):
++        """Kill the actual owned controller at a precise durable stop boundary.
++
++        The parent reaps only its own fork. It never repeats an ambiguous stop.
++        Neither the signal nor this result proves original writer settlement.
++        """
++        _installed_launch_guard(self.spec)
++        require(boundary in ('after-intent', 'after-stop-before-ack'), 'Unknown stop fault')
++        read_fd, write_fd = os.pipe()
++        try:
++            child = os.fork()
++        except BaseException:
++            os.close(read_fd); os.close(write_fd)
++            raise
++        if child == 0:
++            try:
++                os.close(read_fd)
++                os.setsid()
++                self.stop(fault_boundary=boundary, _fault_notice_fd=write_fd)
++            except BaseException:
++                os._exit(2)
++            os._exit(3)
++        os.close(write_fd)
++        deadline = time.monotonic() + 30
++        reaped = False
++        try:
++            while time.monotonic() < deadline:
++                pid, status = os.waitpid(child, os.WNOHANG)
++                if pid == child:
++                    reaped = True
++                    require(os.WIFSIGNALED(status) and os.WTERMSIG(status) == signal.SIGKILL,
++                            'Actual controller did not reach the requested interruption')
++                    require(os.read(read_fd, 64) == boundary.encode(),
++                            'Actual controller interruption boundary was not reached')
++                    with self.ledger.locked() as ledger:
++                        require(len(ledger.records) == 1 and ledger.records[0]['phase'] == 'intent' and
++                                ledger.records[0]['spec_sha256'] == digest(self.spec),
++                                'Interrupted controller lacks exact durable owned intent')
++                    return {'boundary': boundary, 'controller_signal': signal.SIGKILL,
++                            'native_admitted': False, 'pending': list(PENDING)}
++                time.sleep(.02)
++            raise Refused('Owning controller interruption deadline exceeded')
++        finally:
++            os.close(read_fd)
++            if not reaped:
++                try:
++                    os.killpg(child, signal.SIGKILL)
++                except ProcessLookupError:
++                    os.kill(child, signal.SIGKILL)
++                os.waitpid(child, 0)
++
+     def recover_stop(self):
+         _installed_launch_guard(self.spec)
+         with self.ledger.locked() as ledger:
+@@ -694,3 +770,276 @@ class LocalNativeAuthority:
+             require(exact(before, after), 'Original writer/database observation changed across file/SQL capture')
+             require(result['unresolved'] == [], 'Original native reconciliation remains unresolved')
+             return result
++
++
++def s3_query(pairs):
++    """AWS encoding and ordering, with duplicate query keys retained."""
++    require(type(pairs) in (list, tuple) and len(pairs) <= 32, 'Invalid original S3 query')
++    encoded = []
++    for pair in pairs:
++        require(type(pair) in (list, tuple) and len(pair) == 2 and
++                all(type(value) is str and len(value) <= 4096 for value in pair), 'Invalid S3 query pair')
++        encoded.append(tuple(quote(value, safe='-_.~') for value in pair))
++    return '&'.join(key + '=' + value for key, value in sorted(encoded))
++
++
++def sign_s3_request(method, path, pairs, headers, body, access_key, secret_key, region, stamp):
++    """Pure SigV4, checked against AWS's public synthetic S3 GET vector.
++
++    This return value contains private authorization. It must never be retained
++    as an evidence artifact or included in an exception or process argument.
++    """
++    require(method in ('GET', 'PUT', 'POST', 'DELETE', 'HEAD') and type(body) is bytes and
++            len(body) <= 8 * 1024 * 1024, 'Invalid bounded original S3 payload')
++    text(path, r'/[A-Za-z0-9/_.~%\-]{1,4095}')
++    require(type(headers) is dict and 'host' in headers and len(headers) <= 16, 'Missing signed host')
++    for key, value in headers.items():
++        text(key, r'[a-z0-9-]{1,64}')
++        require(type(value) is str and len(value) <= 4096 and value.isascii() and
++                all(32 <= ord(char) < 127 for char in value), 'Unsafe signed header')
++    for value in (access_key, secret_key):
++        require(type(value) is str and 1 <= len(value) <= 2048 and value.isascii() and
++                all(33 <= ord(char) < 127 for char in value), 'Invalid private signing input')
++    text(access_key, r'[A-Za-z0-9_-]{1,256}')
++    text(region, r'[A-Za-z0-9_-]{1,64}')
++    text(stamp, r'[0-9]{8}T[0-9]{6}Z')
++    require(not (set(headers) & {'authorization', 'x-amz-date', 'x-amz-content-sha256'}),
++            'Signing headers cannot be overridden')
++    signed = {name: ' '.join(value.split()) for name, value in headers.items()}
++    payload_hash = hashlib.sha256(body).hexdigest()
++    signed.update({'x-amz-date': stamp, 'x-amz-content-sha256': payload_hash})
++    names = ';'.join(sorted(signed))
++    canonical_headers = ''.join(name + ':' + signed[name] + '\n' for name in sorted(signed))
++    request = '\n'.join((method, path, s3_query(pairs), canonical_headers, names, payload_hash))
++    scope = stamp[:8] + '/' + region + '/s3/aws4_request'
++    message = '\n'.join(('AWS4-HMAC-SHA256', stamp, scope, hashlib.sha256(request.encode()).hexdigest()))
++    key = ('AWS4' + secret_key).encode()
++    for value in (stamp[:8], region, 's3', 'aws4_request'):
++        key = hmac.new(key, value.encode(), hashlib.sha256).digest()
++    signature = hmac.new(key, message.encode(), hashlib.sha256).hexdigest()
++    signed['authorization'] = ('AWS4-HMAC-SHA256 Credential=' + access_key + '/' + scope +
++                               ',SignedHeaders=' + names + ',Signature=' + signature)
++    return signed
++
++
++def s3_xml(data, expected_root):
++    require(type(data) is bytes and len(data) <= MAX_OUTPUT and
++            b'<!' not in data and b'\x00' not in data, 'Invalid bounded original S3 XML')
++    try:
++        root = ElementTree.fromstring(data)
++    except (ElementTree.ParseError, ValueError):
++        raise Refused('Malformed original S3 response') from None
++    prefix = '{http://s3.amazonaws.com/doc/2006-03-01/}'
++    require(root.tag in (expected_root, prefix + expected_root), 'Original S3 root differs')
++    for element in root.iter():
++        require(not element.attrib and type(element.tag) is str and
++                (not element.tag.startswith('{') or element.tag.startswith(prefix)),
++                'Unexpected original S3 XML namespace or attribute')
++        if element.tag.startswith(prefix):
++            element.tag = element.tag[len(prefix):]
++    return root
++
++
++def _xml_one(root, name):
++    values = root.findall(name)
++    require(len(values) == 1 and len(values[0]) == 0 and values[0].text is not None,
++            'Missing or duplicate original S3 field')
++    return values[0].text
++
++
++def verify_s3_parts(data, bucket, key, upload_id, expected):
++    root = s3_xml(data, 'ListPartsResult')
++    require(_xml_one(root, 'Bucket') == bucket and _xml_one(root, 'Key') == key and
++            _xml_one(root, 'UploadId') == upload_id and _xml_one(root, 'IsTruncated') == 'false',
++            'Original multipart listing is incomplete or belongs elsewhere')
++    actual = []
++    for part in root.findall('Part'):
++        number = _xml_one(part, 'PartNumber')
++        text(number, r'[1-9][0-9]{0,3}')
++        actual.append({'number': int(number), 'etag': _xml_one(part, 'ETag')})
++    require(exact(actual, expected), 'Original multipart part inventory differs')
++    return {'parts_sha256': digest(actual), 'native_admitted': False}
++
++
++def read_protocol_credentials(path):
++    """Read a private credential file via descriptors, without retaining bytes."""
++    require(type(path) is str and Path(path).is_absolute(), 'Explicit private credential path required')
++    fd = _open_root(str(Path(path).parent))
++    file_fd = None
++    try:
++        file_fd = os.open(Path(path).name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=fd)
++        info = os.fstat(file_fd)
++        require(stat.S_ISREG(info.st_mode) and info.st_uid == os.getuid() and
++                stat.S_IMODE(info.st_mode) == 0o600 and info.st_nlink == 1 and info.st_size <= 8192,
++                'Original protocol credential file must be private and owned')
++        result = json_material(os.read(file_fd, 8193))
++        closed(result, ('service_key', 'access_key', 'secret_key', 'region'))
++        for value in result.values():
++            require(type(value) is str and 1 <= len(value) <= 2048 and value.isascii() and
++                    all(33 <= ord(char) < 127 for char in value), 'Invalid private credential format')
++        return result
++    except (OSError, ValueError):
++        raise Refused('Private protocol credentials unavailable') from None
++    finally:
++        if file_fd is not None:
++            os.close(file_fd)
++        os.close(fd)
++
++
++@contextlib.contextmanager
++def _protocol_deadline():
++    """Wall deadline for a later privately owned main-thread native probe."""
++    require(threading.current_thread() is threading.main_thread() and
++            signal.getitimer(signal.ITIMER_REAL) == (0.0, 0.0),
++            'Protocol probe requires an owned main thread with no active timer')
++    previous = signal.getsignal(signal.SIGALRM)
++    def expired(signum, frame):
++        raise Refused('Original protocol wall deadline exceeded')
++    signal.signal(signal.SIGALRM, expired)
++    signal.setitimer(signal.ITIMER_REAL, 45)
++    try:
++        yield
++    finally:
++        signal.setitimer(signal.ITIMER_REAL, 0)
++        signal.signal(signal.SIGALRM, previous)
++
++
++class OriginalHttpTransport:
++    """Concrete bounded original HTTP source, no installed admission yet.
++
++    Assignment/ingress binding and request intents need the parent's installed
++    integration. The existing guard refuses before credential or socket access.
++    Redirects are never followed. Supplied endpoints or credentials are not
++    evidence that this transport owns an original writer or bucket.
++    """
++    def __init__(self, spec, endpoint, tenant_host, credentials_path):
++        self.spec = validate_spec(spec)
++        require(type(endpoint) is str, 'Original endpoint required')
++        root = urlsplit(endpoint)
++        require(root.scheme == 'http' and root.hostname in ('127.0.0.1', '::1') and
++                root.port is not None and 1 <= root.port <= 65535 and
++                root.path in ('', '/') and not root.query and not root.fragment and
++                not root.username and not root.password, 'Unbound original HTTP endpoint')
++        text(tenant_host, r'[A-Za-z0-9][A-Za-z0-9.-]{0,252}')
++        require(type(credentials_path) is str and Path(credentials_path).is_absolute(),
++                'Private credential file path required')
++        self.host, self.port = root.hostname, root.port
++        self.tenant_host, self.credentials_path = tenant_host, credentials_path
++        self.host_header = ('[' + self.host + ']' if ':' in self.host else self.host) + ':' + str(self.port)
++
++    @staticmethod
++    def _path(bucket, key):
++        text(bucket, r'[a-z0-9][a-z0-9-]{1,61}[a-z0-9]')
++        require(type(key) is str and 1 <= len(key) <= 512 and
++                all(part and part not in ('.', '..') for part in key.split('/')), 'Unsafe original object key')
++        return quote(bucket, safe='-_.~') + '/' + quote(key, safe='/-_.~')
++
++    def s3(self, method, bucket, key, pairs, body, max_response=MAX_OUTPUT,
++           content_type='application/octet-stream'):
++        _installed_launch_guard(self.spec)
++        path = '/s3/' + self._path(bucket, key)
++        credentials = read_protocol_credentials(self.credentials_path)
++        stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
++        headers = sign_s3_request(method, path, pairs, {
++            'host': self.host_header, 'x-forwarded-host': self.tenant_host,
++            'x-forwarded-port': str(self.port), 'content-type': content_type},
++            body, credentials['access_key'], credentials['secret_key'], credentials['region'], stamp)
++        require(type(max_response) is int and 0 <= max_response <= MAX_BYTES, 'Invalid response bound')
++        connection = http.client.HTTPConnection(self.host, self.port, timeout=45)
++        deadline = time.monotonic() + 45
++        try:
++            with _protocol_deadline():
++                connection.request(method, path + ('?' + s3_query(pairs) if pairs else ''), body=body, headers=headers)
++                response = connection.getresponse()
++                chunks, size = [], 0
++                while True:
++                    remaining = deadline - time.monotonic()
++                    require(remaining > 0, 'Original S3 response deadline exceeded')
++                    if connection.sock:
++                        connection.sock.settimeout(remaining)
++                    chunk = response.read1(min(65536, max_response + 1 - size))
++                    if not chunk:
++                        break
++                    chunks.append(chunk); size += len(chunk)
++                    require(size <= max_response, 'Original S3 response bound exceeded')
++                data = b''.join(chunks)
++                require(200 <= response.status < 300, 'Original S3 operation failed')
++                return data, response.getheader('etag')
++        except (OSError, http.client.HTTPException):
++            raise Refused('Original S3 transport outcome unavailable; no automatic retry') from None
++        finally:
++            connection.close()
++
++    def disconnect(self, bucket, key):
++        """RST after a partial original body, never a request abort substitute.
++
++        sendall proves local socket delivery only. A later actual server/file/row
++        barrier must corroborate server consumption and residual effects.
++        """
++        _installed_launch_guard(self.spec)
++        path = '/object/' + self._path(bucket, key)
++        credentials = read_protocol_credentials(self.credentials_path)
++        payload = b'\x39' * 65536
++        headers = ('POST ' + path + ' HTTP/1.1\r\nHost: ' + self.host_header +
++                   '\r\nX-Forwarded-Host: ' + self.tenant_host + '\r\nX-Forwarded-Port: ' + str(self.port) +
++                   '\r\nAuthorization: Bearer ' + credentials['service_key'] +
++                   '\r\nContent-Type: application/octet-stream\r\nContent-Length: 8388608' +
++                   '\r\nX-Upsert: false\r\nConnection: close\r\n\r\n').encode('ascii')
++        with _protocol_deadline():
++            connection = None
++            try:
++                connection = socket.create_connection((self.host, self.port), timeout=45)
++                connection.sendall(headers + payload)
++                connection.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack('ii', 1, 0))
++            except OSError:
++                raise Refused('Original partial-body delivery unavailable') from None
++            finally:
++                if connection is not None:
++                    connection.close()
++        return {'sent_bytes': len(payload), 'declared_bytes': 8388608,
++                'outcome': 'local-partial-body-sent', 'native_admitted': False,
++                'pending': ['original-server-body-consumption', 'actual-row-file-version-effects']}
++
++
++def exercise_multipart(transport, bucket, key):
++    """Original create/upload/list/complete/download protocol source.
++
++    It never claims the full multipart native case. Original database parts,
++    versioned backend files, asynchronous cleanup and all writers need separate
++    actual observations. Failed requests retain their ambiguity; no retry or
++    inferred cleanup is issued here.
++    """
++    require(type(transport) is OriginalHttpTransport, 'Concrete original transport required')
++    created, _ = transport.s3('POST', bucket, key, [('uploads', '')], b'')
++    root = s3_xml(created, 'InitiateMultipartUploadResult')
++    require(_xml_one(root, 'Bucket') == bucket and _xml_one(root, 'Key') == key,
++            'Original multipart creation belongs elsewhere')
++    upload_id = _xml_one(root, 'UploadId')
++    text(upload_id, r'[A-Za-z0-9_+/=.-]{1,2048}')
++    first, last = b'\x25' * (5 * 1024 * 1024), b'\x5b' * 65536
++    expected = []
++    for number, payload in enumerate((first, last), 1):
++        _, etag = transport.s3('PUT', bucket, key,
++            [('uploadId', upload_id), ('partNumber', str(number))], payload)
++        text(etag, r'"?[a-fA-F0-9]{32}"?')
++        require(etag.strip('"').lower() == hashlib.md5(payload, usedforsecurity=False).hexdigest(),
++                'Original multipart uploaded part checksum differs')
++        expected.append({'number': number, 'etag': etag})
++    listing, _ = transport.s3('GET', bucket, key, [('uploadId', upload_id)], b'')
++    parts = verify_s3_parts(listing, bucket, key, upload_id, expected)
++    complete = ElementTree.Element('CompleteMultipartUpload')
++    for part in expected:
++        element = ElementTree.SubElement(complete, 'Part')
++        ElementTree.SubElement(element, 'PartNumber').text = str(part['number'])
++        ElementTree.SubElement(element, 'ETag').text = part['etag']
++    completed, _ = transport.s3('POST', bucket, key, [('uploadId', upload_id)],
++                               ElementTree.tostring(complete), content_type='application/xml')
++    root = s3_xml(completed, 'CompleteMultipartUploadResult')
++    require(_xml_one(root, 'Bucket') == bucket and _xml_one(root, 'Key') == key,
++            'Original multipart completion belongs elsewhere')
++    downloaded, _ = transport.s3('GET', bucket, key, [], b'', max_response=len(first) + len(last))
++    require(downloaded == first + last, 'Original multipart assembled bytes differ')
++    return {'outcome': 'original-multipart-protocol-observed', 'parts_sha256': parts['parts_sha256'],
++            'data_sha256': hashlib.sha256(downloaded).hexdigest(), 'native_admitted': False,
++            'pending': ['original-database-parts-and-versions', 'actual-versioned-files',
++                        'original-async-cleanup', 'all-original-writer-settlement']}
+diff --git a/lab/test_disposable_storage_settlement_drill.py b/lab/test_disposable_storage_settlement_drill.py
+index bffb0ee..d27aead 100644
+--- a/lab/test_disposable_storage_settlement_drill.py
++++ b/lab/test_disposable_storage_settlement_drill.py
+@@ -100,6 +100,20 @@ class NativePreparationTests(unittest.TestCase):
+                 self.assertEqual(row['status'], 'prerequisite-unavailable')
+                 self.assertIsNone(row['pending_implementation'])
+ 
++    def test_executable_source_stages_do_not_complete_original_native_cases(self):
++        rows = {row['id']: row for row in drill.case_matrix()}
++        for key in ('disconnect-before-body-end', 'controller-interruption', 'multipart-parts'):
++            self.assertTrue(rows[key]['implemented_source_stages'])
++            self.assertEqual(rows[key]['implementation'], 'pending')
++            self.assertFalse(rows[key]['native_accepted'])
++        from test_storage_native_authority import candidate
++        spec, _ = candidate()
++        with patch('socket.create_connection', side_effect=AssertionError('No native socket')):
++            for key in ('disconnect-before-body-end', 'multipart-parts'):
++                with self.assertRaisesRegex(Refused, 'Installed'):
++                    drill.run_protocol_stage(key, spec, 'http://127.0.0.1:8000', 'tenant.unit',
++                                             '/private/source-only.json', 'unit', 'x')
++
+     def test_disabled_features_cannot_silently_drop_required_cases(self):
+         enabled = sorted({item for row in drill.case_matrix() for item in row['prerequisites']})
+         rows = drill.case_matrix(enabled, ['tus', 'queue', 'redis', 'remote_s3'])
+diff --git a/lab/test_storage_native_authority.py b/lab/test_storage_native_authority.py
+index 624203d..72c1485 100644
+--- a/lab/test_storage_native_authority.py
++++ b/lab/test_storage_native_authority.py
+@@ -589,5 +589,183 @@ class PrivateOriginalFileParsingTests(unittest.TestCase):
+                 local.reconcile()
+ 
+ 
++class OriginalProtocolSourceTests(unittest.TestCase):
++    def test_sigv4_matches_published_aws_s3_vector(self):
++        # Published synthetic keys, not workstation credentials.
++        headers = authority.sign_s3_request('GET', '/test.txt', [],
++            {'host': 'examplebucket.s3.amazonaws.com', 'range': 'bytes=0-9'}, b'',
++            'AKIAIOSFODNN7EXAMPLE', 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
++            'us-east-1', '20130524T000000Z')
++        self.assertTrue(headers['authorization'].endswith(
++            'Signature=f0e8bdb87c964420e857bd35b5d6ed310bd44f0170aba48dd91039c6036bdb41'))
++
++    def test_sigv4_query_encodes_and_sorts_before_signing(self):
++        self.assertEqual(authority.s3_query([('z', '+ /'), ('a', 'z'), ('a', 'a')]),
++                         'a=a&a=z&z=%2B%20%2F')
++
++    def test_signer_refuses_header_injection_and_unhashed_payload(self):
++        for headers, body in [({'host': 'x\r\nevil: 1'}, b''), ({'host': 'x'}, 'text')]:
++            with self.assertRaises(authority.Refused):
++                authority.sign_s3_request('PUT', '/x', [], headers, body,
++                                          'unit', 'private-unit', 'local', '20130524T000000Z')
++
++    def test_xml_requires_expected_root_and_forbids_entities(self):
++        for data in [b'<Error><Code>Bad</Code></Error>',
++                     b'<!DOCTYPE x [<!ENTITY a "value">]><ListPartsResult>&a;</ListPartsResult>']:
++            with self.assertRaises(authority.Refused):
++                authority.s3_xml(data, 'ListPartsResult')
++
++    def test_multipart_parts_detects_truncation_wrong_upload_and_etag(self):
++        good = b'<ListPartsResult><Bucket>unit</Bucket><Key>x</Key><UploadId>u</UploadId><IsTruncated>false</IsTruncated><Part><PartNumber>1</PartNumber><ETag>"abc"</ETag></Part></ListPartsResult>'
++        expected = [{'number': 1, 'etag': '"abc"'}]
++        authority.verify_s3_parts(good, 'unit', 'x', 'u', expected)
++        for old, new in [(b'false', b'true'), (b'<UploadId>u', b'<UploadId>other'),
++                         (b'"abc"', b'"other"'), (b'<PartNumber>1', b'<PartNumber>2')]:
++            with self.assertRaises(authority.Refused):
++                authority.verify_s3_parts(good.replace(old, new), 'unit', 'x', 'u', expected)
++
++    def test_live_http_and_multipart_refuse_before_secret_read_or_socket(self):
++        spec, _ = candidate()
++        with patch('storage_native_authority.read_protocol_credentials', side_effect=AssertionError('No secret read')), \
++             patch('socket.create_connection', side_effect=AssertionError('No socket')):
++            transport = authority.OriginalHttpTransport(spec, 'http://127.0.0.1:8000',
++                'tenant.unit', '/private/source-only.json')
++            for action in [lambda: transport.disconnect('unit', 'x'),
++                           lambda: transport.s3('POST', 'unit', 'x', [('uploads', '')], b''),
++                           lambda: authority.exercise_multipart(transport, 'unit', 'x')]:
++                with self.assertRaisesRegex(authority.Refused, 'Installed'):
++                    action()
++
++    def test_private_protocol_credentials_refuse_symlink_and_open_modes(self):
++        with tempfile.TemporaryDirectory() as root:
++            path = Path(root) / 'credentials.json'
++            path.write_text('{"service_key":"unit","access_key":"unit","secret_key":"private-unit","region":"local"}')
++            os.chmod(path, 0o644)
++            with self.assertRaises(authority.Refused):
++                authority.read_protocol_credentials(str(path))
++            os.chmod(path, 0o600)
++            linked = Path(root) / 'linked'; linked.symlink_to(path)
++            with self.assertRaises(authority.Refused):
++                authority.read_protocol_credentials(str(linked))
++            self.assertEqual(authority.read_protocol_credentials(str(path))['region'], 'local')
++
++    def test_http_assignment_rejects_redirect_targets_and_header_injection(self):
++        spec, _ = candidate()
++        for endpoint, host in [('http://127.0.0.1:8000/path', 'tenant.unit'),
++                               ('http://user@127.0.0.1:8000', 'tenant.unit'),
++                               ('http://external.invalid:8000', 'tenant.unit'),
++                               ('http://127.0.0.1:8000', 'x\r\nevil:1')]:
++            with self.assertRaises(authority.Refused):
++                authority.OriginalHttpTransport(spec, endpoint, host, '/private/source-only.json')
++
++
++    def test_multipart_roundtrip_requires_exact_part_listing_and_assembled_bytes(self):
++        spec, _ = candidate()
++        transport = authority.OriginalHttpTransport(spec, 'http://127.0.0.1:8000',
++            'tenant.unit', '/private/source-only.json')
++        first, last = b'\x25' * (5 * 1024 * 1024), b'\x5b' * 65536
++        etags = ['"' + hashlib.md5(value, usedforsecurity=False).hexdigest() + '"' for value in (first, last)]
++        calls = []
++        def original_request(method, bucket, key, pairs, body, **kwargs):
++            calls.append((method, pairs))
++            self.assertEqual((bucket, key), ('unit', 'x'))
++            index = len(calls)
++            if index == 1:
++                return b'<InitiateMultipartUploadResult><Bucket>unit</Bucket><Key>x</Key><UploadId>u</UploadId></InitiateMultipartUploadResult>', None
++            if index in (2, 3):
++                self.assertEqual(method, 'PUT')
++                self.assertEqual(pairs, [('uploadId', 'u'), ('partNumber', str(index - 1))])
++                self.assertEqual(body, (first, last)[index - 2])
++                return b'', etags[index - 2]
++            if index == 4:
++                parts = ''.join('<Part><PartNumber>' + str(i + 1) + '</PartNumber><ETag>' + tag + '</ETag></Part>' for i, tag in enumerate(etags))
++                return ('<ListPartsResult><Bucket>unit</Bucket><Key>x</Key><UploadId>u</UploadId><IsTruncated>false</IsTruncated>' + parts + '</ListPartsResult>').encode(), None
++            if index == 5:
++                self.assertEqual(kwargs['content_type'], 'application/xml')
++                self.assertIn(etags[0].encode(), body)
++                return b'<CompleteMultipartUploadResult><Bucket>unit</Bucket><Key>x</Key></CompleteMultipartUploadResult>', None
++            self.assertEqual(kwargs['max_response'], len(first) + len(last))
++            return first + last, None
++        with patch.object(transport, 's3', side_effect=original_request):
++            result = authority.exercise_multipart(transport, 'unit', 'x')
++        self.assertEqual(len(calls), 6)
++        self.assertFalse(result['native_admitted'])
++        self.assertIn('actual-versioned-files', result['pending'])
++
++    def test_multipart_error_retains_ambiguity_without_abort_or_retry(self):
++        spec, _ = candidate()
++        transport = authority.OriginalHttpTransport(spec, 'http://127.0.0.1:8000',
++            'tenant.unit', '/private/source-only.json')
++        created = b'<InitiateMultipartUploadResult><Bucket>unit</Bucket><Key>x</Key><UploadId>u</UploadId></InitiateMultipartUploadResult>'
++        with patch.object(transport, 's3', side_effect=[(created, None), authority.Refused('Uncertain delivery')]) as command:
++            with self.assertRaisesRegex(authority.Refused, 'Uncertain delivery'):
++                authority.exercise_multipart(transport, 'unit', 'x')
++            self.assertEqual(command.call_count, 2)
++            self.assertEqual(command.call_args[0][0], 'PUT')
++
++    def test_s3_response_error_or_truncation_never_becomes_success(self):
++        spec, _ = candidate()
++        transport = authority.OriginalHttpTransport(spec, 'http://127.0.0.1:8000',
++            'tenant.unit', '/private/source-only.json')
++        for status, payload in [(302, b''), (500, b''), (200, b'toolong')]:
++            response = unittest.mock.Mock()
++            response.status = status
++            response.read1.side_effect = [payload, b'']
++            connection = unittest.mock.Mock(); connection.getresponse.return_value = response
++            with patch.object(authority, '_installed_launch_guard', return_value={}), \
++                 patch.object(authority, 'read_protocol_credentials', return_value={
++                    'service_key':'unit', 'access_key':'unit', 'secret_key':'private-unit', 'region':'local'}), \
++                 patch('http.client.HTTPConnection', return_value=connection), \
++                 patch.object(authority, '_protocol_deadline', return_value=__import__('contextlib').nullcontext()):
++                with self.assertRaises(authority.Refused):
++                    transport.s3('GET', 'unit', 'x', [], b'', max_response=3)
++                connection.close.assert_called_once()
++
++
++class ControllerFaultSourceTests(unittest.TestCase):
++    def test_fault_launch_refuses_before_fork(self):
++        spec, _ = candidate()
++        with tempfile.TemporaryDirectory() as root, patch('os.fork', side_effect=AssertionError('No process')):
++            os.chmod(root, 0o700)
++            local = authority.LocalNativeAuthority(spec, root)
++            for boundary in ('after-intent', 'after-stop-before-ack'):
++                with self.assertRaisesRegex(authority.Refused, 'Installed'):
++                    local.run_stop_fault(boundary)
++
++    def test_stop_fault_follows_fsynced_intent_and_precise_effect_boundary(self):
++        spec, material = candidate()
++        observation = authority.decode_inventory(spec, material)
++        class Killed(Exception):
++            pass
++        for boundary, effects in [('after-intent', 0), ('after-stop-before-ack', 1)]:
++            with self.subTest(boundary=boundary), tempfile.TemporaryDirectory() as root:
++                os.chmod(root, 0o700)
++                local = authority.LocalNativeAuthority(spec, root)
++                def kill(pid, signum):
++                    self.assertEqual(pid, os.getpid())
++                    self.assertEqual(signum, 9)
++                    # Read only after the exact original ledger append fsync.
++                    records = [json.loads(line) for line in (Path(root) / 'owner.jsonl').read_text().splitlines()]
++                    self.assertEqual([row['phase'] for row in records], ['intent'])
++                    raise Killed()
++                with patch.object(authority, '_installed_launch_guard', return_value={}), \
++                     patch.object(local, 'observe', return_value=observation), \
++                     patch.object(local.commands, 'stop') as stop, patch('os.kill', side_effect=kill):
++                    with self.assertRaises(Killed):
++                        local.stop(fault_boundary=boundary)
++                    self.assertEqual(stop.call_count, effects)
++
++    def test_unknown_fault_cannot_persist_intent_or_run_original_command(self):
++        spec, _ = candidate()
++        with tempfile.TemporaryDirectory() as root:
++            os.chmod(root, 0o700)
++            local = authority.LocalNativeAuthority(spec, root)
++            with patch.object(authority, '_installed_launch_guard', return_value={}), \
++                 patch.object(local.commands, 'stop', side_effect=AssertionError('No original effect')):
++                with self.assertRaises(authority.Refused):
++                    local.stop(fault_boundary='after-ack')
++            self.assertFalse((Path(root) / 'owner.jsonl').exists())
++
++
+ if __name__ == '__main__':
+     unittest.main()

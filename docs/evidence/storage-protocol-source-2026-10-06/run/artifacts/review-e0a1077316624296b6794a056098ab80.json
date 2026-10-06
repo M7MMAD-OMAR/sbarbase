@@ -1,0 +1,40 @@
+{
+  "reviewer": "storage-protocol-ops-v1",
+  "checks": {
+    "python": {
+      "chunk_id": "978106",
+      "wall_time_seconds": 0.405097564,
+      "exit_code": 0,
+      "original_token_count": 91,
+      "output": "{\"total\": 159, \"failed\": 0, \"skipped\": 0, \"native_accepted\": false, \"reason\": null, \"raw_sha256\": \"1dbcade8262b335cac91a0627bd9164e8e383841cf9bb47cf6207249d5979475\", \"raw_log\": \"/home/sbarah/.codex/sbarbase-settlement/20261006/native-source-v3/check-python-10.log\", \"peak_group_rss\": 46723072, \"role_seconds_used\": 3.33486301600351, \"role_output_bytes\": 172611}\n"
+    },
+    "hybrid": {
+      "chunk_id": "2e96bb",
+      "wall_time_seconds": 0.262415742,
+      "exit_code": 0,
+      "original_token_count": 91,
+      "output": "{\"total\": 3, \"failed\": 0, \"skipped\": 0, \"native_accepted\": false, \"reason\": null, \"raw_sha256\": \"f6f19beda56c639036fccf8625061f89f1f2d4ca021ca224b066d3d393622540\", \"raw_log\": \"/home/sbarah/.codex/sbarbase-settlement/20261006/native-source-v3/check-hybrid-11.log\", \"peak_group_rss\": 126984192, \"role_seconds_used\": 3.7036265350034228, \"role_output_bytes\": 174828}\n"
+    },
+    "bun": {
+      "chunk_id": "c944b0",
+      "wall_time_seconds": 0.000018704,
+      "exit_code": 0,
+      "original_token_count": 90,
+      "output": "{\"total\": 78, \"failed\": 0, \"skipped\": 0, \"native_accepted\": false, \"reason\": null, \"raw_sha256\": \"fe89e387f01218c8117f1d3772636deae2a49b4596f1b421b6c9d9ce03feee95\", \"raw_log\": \"/home/sbarah/.codex/sbarbase-settlement/20261006/native-source-v3/check-bun-12.log\", \"peak_group_rss\": 63668224, \"role_seconds_used\": 3.761085684003774, \"role_output_bytes\": 184399}\n"
+    },
+    "control": {
+      "chunk_id": "212657",
+      "wall_time_seconds": 0.247019443,
+      "exit_code": 0,
+      "original_token_count": 63,
+      "output": "{\"total\": 2, \"failed\": 0, \"skipped\": 0, \"native_accepted\": false, \"raw_log\": \"/home/sbarah/.codex/sbarbase-settlement/20261006/native-source-v3/control-check-13.json\", \"raw_sha256\": \"e1fd0bb90fc7c394f96b1435d5688372ad2c1b0103993571a514b60b83314a69\"}\n"
+    }
+  },
+  "review_state": {
+    "chunk_id": "2a8189",
+    "wall_time_seconds": 0.000010529,
+    "exit_code": 0,
+    "original_token_count": 86,
+    "output": "{\n  \"run\": \"/home/sbarah/.codex/sbarbase-settlement/20261006/native-source-v3/run\",\n  \"project\": \"/home/sbarah/.codex/worktrees/09c0/sbarbase\",\n  \"revision_at_dispatch\": 14,\n  \"plan_hash\": \"f9831194ca3341e5098eea524704988ac088e208359bf49887a00c24414a9dc4\",\n  \"source_hash\": \"1aac0f7909f02fc21a3ddebdfd619a1fc8d0c760347d79e2991e61299137c772\"\n}\n"
+  }
+}

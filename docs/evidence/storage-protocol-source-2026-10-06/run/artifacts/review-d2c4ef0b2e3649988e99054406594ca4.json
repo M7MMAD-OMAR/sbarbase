@@ -1,0 +1,7 @@
+{
+  "chunk_id": "ab00fb",
+  "wall_time_seconds": 0.149756962,
+  "exit_code": 0,
+  "original_token_count": 91,
+  "output": "{\"total\": 3, \"failed\": 0, \"skipped\": 0, \"native_accepted\": false, \"reason\": null, \"raw_sha256\": \"3836fcd5a415711e2749c9b6bf3d758c21b974873e13f11489a9e7406514a098\", \"raw_log\": \"/home/sbarah/.codex/sbarbase-settlement/20261006/native-source-v3/check-hybrid-7.log\", \"peak_group_rss\": 129572864, \"role_seconds_used\": 2.5131280470013735, \"role_output_bytes\": 122540}\n"
+}

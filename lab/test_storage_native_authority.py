@@ -589,5 +589,183 @@ class PrivateOriginalFileParsingTests(unittest.TestCase):
                 local.reconcile()
 
 
+class OriginalProtocolSourceTests(unittest.TestCase):
+    def test_sigv4_matches_published_aws_s3_vector(self):
+        # Published synthetic keys, not workstation credentials.
+        headers = authority.sign_s3_request('GET', '/test.txt', [],
+            {'host': 'examplebucket.s3.amazonaws.com', 'range': 'bytes=0-9'}, b'',
+            'AKIAIOSFODNN7EXAMPLE', 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+            'us-east-1', '20130524T000000Z')
+        self.assertTrue(headers['authorization'].endswith(
+            'Signature=f0e8bdb87c964420e857bd35b5d6ed310bd44f0170aba48dd91039c6036bdb41'))
+
+    def test_sigv4_query_encodes_and_sorts_before_signing(self):
+        self.assertEqual(authority.s3_query([('z', '+ /'), ('a', 'z'), ('a', 'a')]),
+                         'a=a&a=z&z=%2B%20%2F')
+
+    def test_signer_refuses_header_injection_and_unhashed_payload(self):
+        for headers, body in [({'host': 'x\r\nevil: 1'}, b''), ({'host': 'x'}, 'text')]:
+            with self.assertRaises(authority.Refused):
+                authority.sign_s3_request('PUT', '/x', [], headers, body,
+                                          'unit', 'private-unit', 'local', '20130524T000000Z')
+
+    def test_xml_requires_expected_root_and_forbids_entities(self):
+        for data in [b'<Error><Code>Bad</Code></Error>',
+                     b'<!DOCTYPE x [<!ENTITY a "value">]><ListPartsResult>&a;</ListPartsResult>']:
+            with self.assertRaises(authority.Refused):
+                authority.s3_xml(data, 'ListPartsResult')
+
+    def test_multipart_parts_detects_truncation_wrong_upload_and_etag(self):
+        good = b'<ListPartsResult><Bucket>unit</Bucket><Key>x</Key><UploadId>u</UploadId><IsTruncated>false</IsTruncated><Part><PartNumber>1</PartNumber><ETag>"abc"</ETag></Part></ListPartsResult>'
+        expected = [{'number': 1, 'etag': '"abc"'}]
+        authority.verify_s3_parts(good, 'unit', 'x', 'u', expected)
+        for old, new in [(b'false', b'true'), (b'<UploadId>u', b'<UploadId>other'),
+                         (b'"abc"', b'"other"'), (b'<PartNumber>1', b'<PartNumber>2')]:
+            with self.assertRaises(authority.Refused):
+                authority.verify_s3_parts(good.replace(old, new), 'unit', 'x', 'u', expected)
+
+    def test_live_http_and_multipart_refuse_before_secret_read_or_socket(self):
+        spec, _ = candidate()
+        with patch('storage_native_authority.read_protocol_credentials', side_effect=AssertionError('No secret read')), \
+             patch('socket.create_connection', side_effect=AssertionError('No socket')):
+            transport = authority.OriginalHttpTransport(spec, 'http://127.0.0.1:8000',
+                'tenant.unit', '/private/source-only.json')
+            for action in [lambda: transport.disconnect('unit', 'x'),
+                           lambda: transport.s3('POST', 'unit', 'x', [('uploads', '')], b''),
+                           lambda: authority.exercise_multipart(transport, 'unit', 'x')]:
+                with self.assertRaisesRegex(authority.Refused, 'Installed'):
+                    action()
+
+    def test_private_protocol_credentials_refuse_symlink_and_open_modes(self):
+        with tempfile.TemporaryDirectory() as root:
+            path = Path(root) / 'credentials.json'
+            path.write_text('{"service_key":"unit","access_key":"unit","secret_key":"private-unit","region":"local"}')
+            os.chmod(path, 0o644)
+            with self.assertRaises(authority.Refused):
+                authority.read_protocol_credentials(str(path))
+            os.chmod(path, 0o600)
+            linked = Path(root) / 'linked'; linked.symlink_to(path)
+            with self.assertRaises(authority.Refused):
+                authority.read_protocol_credentials(str(linked))
+            self.assertEqual(authority.read_protocol_credentials(str(path))['region'], 'local')
+
+    def test_http_assignment_rejects_redirect_targets_and_header_injection(self):
+        spec, _ = candidate()
+        for endpoint, host in [('http://127.0.0.1:8000/path', 'tenant.unit'),
+                               ('http://user@127.0.0.1:8000', 'tenant.unit'),
+                               ('http://external.invalid:8000', 'tenant.unit'),
+                               ('http://127.0.0.1:8000', 'x\r\nevil:1')]:
+            with self.assertRaises(authority.Refused):
+                authority.OriginalHttpTransport(spec, endpoint, host, '/private/source-only.json')
+
+
+    def test_multipart_roundtrip_requires_exact_part_listing_and_assembled_bytes(self):
+        spec, _ = candidate()
+        transport = authority.OriginalHttpTransport(spec, 'http://127.0.0.1:8000',
+            'tenant.unit', '/private/source-only.json')
+        first, last = b'\x25' * (5 * 1024 * 1024), b'\x5b' * 65536
+        etags = ['"' + hashlib.md5(value, usedforsecurity=False).hexdigest() + '"' for value in (first, last)]
+        calls = []
+        def original_request(method, bucket, key, pairs, body, **kwargs):
+            calls.append((method, pairs))
+            self.assertEqual((bucket, key), ('unit', 'x'))
+            index = len(calls)
+            if index == 1:
+                return b'<InitiateMultipartUploadResult><Bucket>unit</Bucket><Key>x</Key><UploadId>u</UploadId></InitiateMultipartUploadResult>', None
+            if index in (2, 3):
+                self.assertEqual(method, 'PUT')
+                self.assertEqual(pairs, [('uploadId', 'u'), ('partNumber', str(index - 1))])
+                self.assertEqual(body, (first, last)[index - 2])
+                return b'', etags[index - 2]
+            if index == 4:
+                parts = ''.join('<Part><PartNumber>' + str(i + 1) + '</PartNumber><ETag>' + tag + '</ETag></Part>' for i, tag in enumerate(etags))
+                return ('<ListPartsResult><Bucket>unit</Bucket><Key>x</Key><UploadId>u</UploadId><IsTruncated>false</IsTruncated>' + parts + '</ListPartsResult>').encode(), None
+            if index == 5:
+                self.assertEqual(kwargs['content_type'], 'application/xml')
+                self.assertIn(etags[0].encode(), body)
+                return b'<CompleteMultipartUploadResult><Bucket>unit</Bucket><Key>x</Key></CompleteMultipartUploadResult>', None
+            self.assertEqual(kwargs['max_response'], len(first) + len(last))
+            return first + last, None
+        with patch.object(transport, 's3', side_effect=original_request):
+            result = authority.exercise_multipart(transport, 'unit', 'x')
+        self.assertEqual(len(calls), 6)
+        self.assertFalse(result['native_admitted'])
+        self.assertIn('actual-versioned-files', result['pending'])
+
+    def test_multipart_error_retains_ambiguity_without_abort_or_retry(self):
+        spec, _ = candidate()
+        transport = authority.OriginalHttpTransport(spec, 'http://127.0.0.1:8000',
+            'tenant.unit', '/private/source-only.json')
+        created = b'<InitiateMultipartUploadResult><Bucket>unit</Bucket><Key>x</Key><UploadId>u</UploadId></InitiateMultipartUploadResult>'
+        with patch.object(transport, 's3', side_effect=[(created, None), authority.Refused('Uncertain delivery')]) as command:
+            with self.assertRaisesRegex(authority.Refused, 'Uncertain delivery'):
+                authority.exercise_multipart(transport, 'unit', 'x')
+            self.assertEqual(command.call_count, 2)
+            self.assertEqual(command.call_args[0][0], 'PUT')
+
+    def test_s3_response_error_or_truncation_never_becomes_success(self):
+        spec, _ = candidate()
+        transport = authority.OriginalHttpTransport(spec, 'http://127.0.0.1:8000',
+            'tenant.unit', '/private/source-only.json')
+        for status, payload in [(302, b''), (500, b''), (200, b'toolong')]:
+            response = unittest.mock.Mock()
+            response.status = status
+            response.read1.side_effect = [payload, b'']
+            connection = unittest.mock.Mock(); connection.getresponse.return_value = response
+            with patch.object(authority, '_installed_launch_guard', return_value={}), \
+                 patch.object(authority, 'read_protocol_credentials', return_value={
+                    'service_key':'unit', 'access_key':'unit', 'secret_key':'private-unit', 'region':'local'}), \
+                 patch('http.client.HTTPConnection', return_value=connection), \
+                 patch.object(authority, '_protocol_deadline', return_value=__import__('contextlib').nullcontext()):
+                with self.assertRaises(authority.Refused):
+                    transport.s3('GET', 'unit', 'x', [], b'', max_response=3)
+                connection.close.assert_called_once()
+
+
+class ControllerFaultSourceTests(unittest.TestCase):
+    def test_fault_launch_refuses_before_fork(self):
+        spec, _ = candidate()
+        with tempfile.TemporaryDirectory() as root, patch('os.fork', side_effect=AssertionError('No process')):
+            os.chmod(root, 0o700)
+            local = authority.LocalNativeAuthority(spec, root)
+            for boundary in ('after-intent', 'after-stop-before-ack'):
+                with self.assertRaisesRegex(authority.Refused, 'Installed'):
+                    local.run_stop_fault(boundary)
+
+    def test_stop_fault_follows_fsynced_intent_and_precise_effect_boundary(self):
+        spec, material = candidate()
+        observation = authority.decode_inventory(spec, material)
+        class Killed(Exception):
+            pass
+        for boundary, effects in [('after-intent', 0), ('after-stop-before-ack', 1)]:
+            with self.subTest(boundary=boundary), tempfile.TemporaryDirectory() as root:
+                os.chmod(root, 0o700)
+                local = authority.LocalNativeAuthority(spec, root)
+                def kill(pid, signum):
+                    self.assertEqual(pid, os.getpid())
+                    self.assertEqual(signum, 9)
+                    # Read only after the exact original ledger append fsync.
+                    records = [json.loads(line) for line in (Path(root) / 'owner.jsonl').read_text().splitlines()]
+                    self.assertEqual([row['phase'] for row in records], ['intent'])
+                    raise Killed()
+                with patch.object(authority, '_installed_launch_guard', return_value={}), \
+                     patch.object(local, 'observe', return_value=observation), \
+                     patch.object(local.commands, 'stop') as stop, patch('os.kill', side_effect=kill):
+                    with self.assertRaises(Killed):
+                        local.stop(fault_boundary=boundary)
+                    self.assertEqual(stop.call_count, effects)
+
+    def test_unknown_fault_cannot_persist_intent_or_run_original_command(self):
+        spec, _ = candidate()
+        with tempfile.TemporaryDirectory() as root:
+            os.chmod(root, 0o700)
+            local = authority.LocalNativeAuthority(spec, root)
+            with patch.object(authority, '_installed_launch_guard', return_value={}), \
+                 patch.object(local.commands, 'stop', side_effect=AssertionError('No original effect')):
+                with self.assertRaises(authority.Refused):
+                    local.stop(fault_boundary='after-ack')
+            self.assertFalse((Path(root) / 'owner.jsonl').exists())
+
+
 if __name__ == '__main__':
     unittest.main()

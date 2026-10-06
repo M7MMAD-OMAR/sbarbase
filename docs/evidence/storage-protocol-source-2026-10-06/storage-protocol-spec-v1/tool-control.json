@@ -1,0 +1,7 @@
+{
+  "chunk_id": "72b67f",
+  "wall_time_seconds": 0.152815558,
+  "exit_code": 0,
+  "original_token_count": 63,
+  "output": "{\"total\": 2, \"failed\": 0, \"skipped\": 0, \"native_accepted\": false, \"raw_log\": \"/home/sbarah/.codex/sbarbase-settlement/20261006/native-source-v3/control-check-9.json\", \"raw_sha256\": \"85d7dd9841f723fea4dc485b977b1154cd0cb85f36b7c96b671e24357d23735b\"}\n"
+}

@@ -1,0 +1,26 @@
+{
+  "name": "sbarbase",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Multi-project self-hosting built on original Supabase services, in development.",
+  "dependencies": {
+    "@supabase/auth-js": "2.116.0",
+    "@supabase/supabase-js": "2.116.0",
+    "lucide-react": "1.47.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@types/bun": "1.4.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "typescript": "7.0.2",
+    "vite": "8.3.0"
+  },
+  "scripts": {
+    "build:ui": "vite build",
+    "typecheck:ui": "tsc --project tsconfig.json",
+    "typecheck:control": "tsc --project tsconfig.control.json",
+    "test": "bun test"
+  }
+}

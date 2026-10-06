@@ -10,14 +10,24 @@ import contextlib
 import copy
 import fcntl
 import hashlib
+import hmac
+import http.client
 import json
 import os
 from pathlib import Path
 import re
 import resource
+import signal
+import socket
 import stat
+import struct
 import subprocess
 import tempfile
+import threading
+import time
+from datetime import datetime, timezone
+from urllib.parse import quote, urlsplit
+from xml.etree import ElementTree
 
 from storage_write_settlement import (IMAGE, SOURCE, HEX, UUID, Refused,
     canonical, closed, digest, exact, integer, require, text, validate_manifest,
@@ -654,18 +664,84 @@ class LocalNativeAuthority:
         stopped = all(item['State']['Running'] is False for item in states if item.get('Id') in selected)
         return decode_inventory(self.spec, material, stopped=stopped)
 
-    def stop(self):
+    def stop(self, fault_boundary=None, _fault_notice_fd=None):
         _installed_launch_guard(self.spec)
+        require(fault_boundary in (None, 'after-intent', 'after-stop-before-ack'),
+                'Unknown owning controller interruption boundary')
         with self.ledger.locked() as ledger:
             require(not ledger.records, 'Stop intent already exists; observe instead of retrying')
             current = self.observe()
+            if fault_boundary:
+                require(all(not row['stopped'] for row in current['writers']),
+                        'Fault injection requires actual live original writers')
             ledger.append(self.spec, 'intent', current['observation_sha256'])
+            if fault_boundary == 'after-intent':
+                if _fault_notice_fd is not None:
+                    os.write(_fault_notice_fd, b'after-intent')
+                os.kill(os.getpid(), signal.SIGKILL)
+                raise Refused('Owning controller interruption did not occur')
             self.commands.stop()
+            if fault_boundary == 'after-stop-before-ack':
+                if _fault_notice_fd is not None:
+                    os.write(_fault_notice_fd, b'after-stop-before-ack')
+                os.kill(os.getpid(), signal.SIGKILL)
+                raise Refused('Owning controller interruption did not occur')
             ledger.append(self.spec, 'ack', current['observation_sha256'])
             ended = self.observe()
             require(all(entry['stopped'] for entry in ended['writers']), 'Original writer exit unobserved')
             ledger.append(self.spec, 'observed', ended['observation_sha256'])
             return {'native_admitted': False, 'pending': list(PENDING)}
+
+    def run_stop_fault(self, boundary):
+        """Kill the actual owned controller at a precise durable stop boundary.
+
+        The parent reaps only its own fork. It never repeats an ambiguous stop.
+        Neither the signal nor this result proves original writer settlement.
+        """
+        _installed_launch_guard(self.spec)
+        require(boundary in ('after-intent', 'after-stop-before-ack'), 'Unknown stop fault')
+        read_fd, write_fd = os.pipe()
+        try:
+            child = os.fork()
+        except BaseException:
+            os.close(read_fd); os.close(write_fd)
+            raise
+        if child == 0:
+            try:
+                os.close(read_fd)
+                os.setsid()
+                self.stop(fault_boundary=boundary, _fault_notice_fd=write_fd)
+            except BaseException:
+                os._exit(2)
+            os._exit(3)
+        os.close(write_fd)
+        deadline = time.monotonic() + 30
+        reaped = False
+        try:
+            while time.monotonic() < deadline:
+                pid, status = os.waitpid(child, os.WNOHANG)
+                if pid == child:
+                    reaped = True
+                    require(os.WIFSIGNALED(status) and os.WTERMSIG(status) == signal.SIGKILL,
+                            'Actual controller did not reach the requested interruption')
+                    require(os.read(read_fd, 64) == boundary.encode(),
+                            'Actual controller interruption boundary was not reached')
+                    with self.ledger.locked() as ledger:
+                        require(len(ledger.records) == 1 and ledger.records[0]['phase'] == 'intent' and
+                                ledger.records[0]['spec_sha256'] == digest(self.spec),
+                                'Interrupted controller lacks exact durable owned intent')
+                    return {'boundary': boundary, 'controller_signal': signal.SIGKILL,
+                            'native_admitted': False, 'pending': list(PENDING)}
+                time.sleep(.02)
+            raise Refused('Owning controller interruption deadline exceeded')
+        finally:
+            os.close(read_fd)
+            if not reaped:
+                try:
+                    os.killpg(child, signal.SIGKILL)
+                except ProcessLookupError:
+                    os.kill(child, signal.SIGKILL)
+                os.waitpid(child, 0)
 
     def recover_stop(self):
         _installed_launch_guard(self.spec)
@@ -694,3 +770,276 @@ class LocalNativeAuthority:
             require(exact(before, after), 'Original writer/database observation changed across file/SQL capture')
             require(result['unresolved'] == [], 'Original native reconciliation remains unresolved')
             return result
+
+
+def s3_query(pairs):
+    """AWS encoding and ordering, with duplicate query keys retained."""
+    require(type(pairs) in (list, tuple) and len(pairs) <= 32, 'Invalid original S3 query')
+    encoded = []
+    for pair in pairs:
+        require(type(pair) in (list, tuple) and len(pair) == 2 and
+                all(type(value) is str and len(value) <= 4096 for value in pair), 'Invalid S3 query pair')
+        encoded.append(tuple(quote(value, safe='-_.~') for value in pair))
+    return '&'.join(key + '=' + value for key, value in sorted(encoded))
+
+
+def sign_s3_request(method, path, pairs, headers, body, access_key, secret_key, region, stamp):
+    """Pure SigV4, checked against AWS's public synthetic S3 GET vector.
+
+    This return value contains private authorization. It must never be retained
+    as an evidence artifact or included in an exception or process argument.
+    """
+    require(method in ('GET', 'PUT', 'POST', 'DELETE', 'HEAD') and type(body) is bytes and
+            len(body) <= 8 * 1024 * 1024, 'Invalid bounded original S3 payload')
+    text(path, r'/[A-Za-z0-9/_.~%\-]{1,4095}')
+    require(type(headers) is dict and 'host' in headers and len(headers) <= 16, 'Missing signed host')
+    for key, value in headers.items():
+        text(key, r'[a-z0-9-]{1,64}')
+        require(type(value) is str and len(value) <= 4096 and value.isascii() and
+                all(32 <= ord(char) < 127 for char in value), 'Unsafe signed header')
+    for value in (access_key, secret_key):
+        require(type(value) is str and 1 <= len(value) <= 2048 and value.isascii() and
+                all(33 <= ord(char) < 127 for char in value), 'Invalid private signing input')
+    text(access_key, r'[A-Za-z0-9_-]{1,256}')
+    text(region, r'[A-Za-z0-9_-]{1,64}')
+    text(stamp, r'[0-9]{8}T[0-9]{6}Z')
+    require(not (set(headers) & {'authorization', 'x-amz-date', 'x-amz-content-sha256'}),
+            'Signing headers cannot be overridden')
+    signed = {name: ' '.join(value.split()) for name, value in headers.items()}
+    payload_hash = hashlib.sha256(body).hexdigest()
+    signed.update({'x-amz-date': stamp, 'x-amz-content-sha256': payload_hash})
+    names = ';'.join(sorted(signed))
+    canonical_headers = ''.join(name + ':' + signed[name] + '\n' for name in sorted(signed))
+    request = '\n'.join((method, path, s3_query(pairs), canonical_headers, names, payload_hash))
+    scope = stamp[:8] + '/' + region + '/s3/aws4_request'
+    message = '\n'.join(('AWS4-HMAC-SHA256', stamp, scope, hashlib.sha256(request.encode()).hexdigest()))
+    key = ('AWS4' + secret_key).encode()
+    for value in (stamp[:8], region, 's3', 'aws4_request'):
+        key = hmac.new(key, value.encode(), hashlib.sha256).digest()
+    signature = hmac.new(key, message.encode(), hashlib.sha256).hexdigest()
+    signed['authorization'] = ('AWS4-HMAC-SHA256 Credential=' + access_key + '/' + scope +
+                               ',SignedHeaders=' + names + ',Signature=' + signature)
+    return signed
+
+
+def s3_xml(data, expected_root):
+    require(type(data) is bytes and len(data) <= MAX_OUTPUT and
+            b'<!' not in data and b'\x00' not in data, 'Invalid bounded original S3 XML')
+    try:
+        root = ElementTree.fromstring(data)
+    except (ElementTree.ParseError, ValueError):
+        raise Refused('Malformed original S3 response') from None
+    prefix = '{http://s3.amazonaws.com/doc/2006-03-01/}'
+    require(root.tag in (expected_root, prefix + expected_root), 'Original S3 root differs')
+    for element in root.iter():
+        require(not element.attrib and type(element.tag) is str and
+                (not element.tag.startswith('{') or element.tag.startswith(prefix)),
+                'Unexpected original S3 XML namespace or attribute')
+        if element.tag.startswith(prefix):
+            element.tag = element.tag[len(prefix):]
+    return root
+
+
+def _xml_one(root, name):
+    values = root.findall(name)
+    require(len(values) == 1 and len(values[0]) == 0 and values[0].text is not None,
+            'Missing or duplicate original S3 field')
+    return values[0].text
+
+
+def verify_s3_parts(data, bucket, key, upload_id, expected):
+    root = s3_xml(data, 'ListPartsResult')
+    require(_xml_one(root, 'Bucket') == bucket and _xml_one(root, 'Key') == key and
+            _xml_one(root, 'UploadId') == upload_id and _xml_one(root, 'IsTruncated') == 'false',
+            'Original multipart listing is incomplete or belongs elsewhere')
+    actual = []
+    for part in root.findall('Part'):
+        number = _xml_one(part, 'PartNumber')
+        text(number, r'[1-9][0-9]{0,3}')
+        actual.append({'number': int(number), 'etag': _xml_one(part, 'ETag')})
+    require(exact(actual, expected), 'Original multipart part inventory differs')
+    return {'parts_sha256': digest(actual), 'native_admitted': False}
+
+
+def read_protocol_credentials(path):
+    """Read a private credential file via descriptors, without retaining bytes."""
+    require(type(path) is str and Path(path).is_absolute(), 'Explicit private credential path required')
+    fd = _open_root(str(Path(path).parent))
+    file_fd = None
+    try:
+        file_fd = os.open(Path(path).name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=fd)
+        info = os.fstat(file_fd)
+        require(stat.S_ISREG(info.st_mode) and info.st_uid == os.getuid() and
+                stat.S_IMODE(info.st_mode) == 0o600 and info.st_nlink == 1 and info.st_size <= 8192,
+                'Original protocol credential file must be private and owned')
+        result = json_material(os.read(file_fd, 8193))
+        closed(result, ('service_key', 'access_key', 'secret_key', 'region'))
+        for value in result.values():
+            require(type(value) is str and 1 <= len(value) <= 2048 and value.isascii() and
+                    all(33 <= ord(char) < 127 for char in value), 'Invalid private credential format')
+        return result
+    except (OSError, ValueError):
+        raise Refused('Private protocol credentials unavailable') from None
+    finally:
+        if file_fd is not None:
+            os.close(file_fd)
+        os.close(fd)
+
+
+@contextlib.contextmanager
+def _protocol_deadline():
+    """Wall deadline for a later privately owned main-thread native probe."""
+    require(threading.current_thread() is threading.main_thread() and
+            signal.getitimer(signal.ITIMER_REAL) == (0.0, 0.0),
+            'Protocol probe requires an owned main thread with no active timer')
+    previous = signal.getsignal(signal.SIGALRM)
+    def expired(signum, frame):
+        raise Refused('Original protocol wall deadline exceeded')
+    signal.signal(signal.SIGALRM, expired)
+    signal.setitimer(signal.ITIMER_REAL, 45)
+    try:
+        yield
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous)
+
+
+class OriginalHttpTransport:
+    """Concrete bounded original HTTP source, no installed admission yet.
+
+    Assignment/ingress binding and request intents need the parent's installed
+    integration. The existing guard refuses before credential or socket access.
+    Redirects are never followed. Supplied endpoints or credentials are not
+    evidence that this transport owns an original writer or bucket.
+    """
+    def __init__(self, spec, endpoint, tenant_host, credentials_path):
+        self.spec = validate_spec(spec)
+        require(type(endpoint) is str, 'Original endpoint required')
+        root = urlsplit(endpoint)
+        require(root.scheme == 'http' and root.hostname in ('127.0.0.1', '::1') and
+                root.port is not None and 1 <= root.port <= 65535 and
+                root.path in ('', '/') and not root.query and not root.fragment and
+                not root.username and not root.password, 'Unbound original HTTP endpoint')
+        text(tenant_host, r'[A-Za-z0-9][A-Za-z0-9.-]{0,252}')
+        require(type(credentials_path) is str and Path(credentials_path).is_absolute(),
+                'Private credential file path required')
+        self.host, self.port = root.hostname, root.port
+        self.tenant_host, self.credentials_path = tenant_host, credentials_path
+        self.host_header = ('[' + self.host + ']' if ':' in self.host else self.host) + ':' + str(self.port)
+
+    @staticmethod
+    def _path(bucket, key):
+        text(bucket, r'[a-z0-9][a-z0-9-]{1,61}[a-z0-9]')
+        require(type(key) is str and 1 <= len(key) <= 512 and
+                all(part and part not in ('.', '..') for part in key.split('/')), 'Unsafe original object key')
+        return quote(bucket, safe='-_.~') + '/' + quote(key, safe='/-_.~')
+
+    def s3(self, method, bucket, key, pairs, body, max_response=MAX_OUTPUT,
+           content_type='application/octet-stream'):
+        _installed_launch_guard(self.spec)
+        path = '/s3/' + self._path(bucket, key)
+        credentials = read_protocol_credentials(self.credentials_path)
+        stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
+        headers = sign_s3_request(method, path, pairs, {
+            'host': self.host_header, 'x-forwarded-host': self.tenant_host,
+            'x-forwarded-port': str(self.port), 'content-type': content_type},
+            body, credentials['access_key'], credentials['secret_key'], credentials['region'], stamp)
+        require(type(max_response) is int and 0 <= max_response <= MAX_BYTES, 'Invalid response bound')
+        connection = http.client.HTTPConnection(self.host, self.port, timeout=45)
+        deadline = time.monotonic() + 45
+        try:
+            with _protocol_deadline():
+                connection.request(method, path + ('?' + s3_query(pairs) if pairs else ''), body=body, headers=headers)
+                response = connection.getresponse()
+                chunks, size = [], 0
+                while True:
+                    remaining = deadline - time.monotonic()
+                    require(remaining > 0, 'Original S3 response deadline exceeded')
+                    if connection.sock:
+                        connection.sock.settimeout(remaining)
+                    chunk = response.read1(min(65536, max_response + 1 - size))
+                    if not chunk:
+                        break
+                    chunks.append(chunk); size += len(chunk)
+                    require(size <= max_response, 'Original S3 response bound exceeded')
+                data = b''.join(chunks)
+                require(200 <= response.status < 300, 'Original S3 operation failed')
+                return data, response.getheader('etag')
+        except (OSError, http.client.HTTPException):
+            raise Refused('Original S3 transport outcome unavailable; no automatic retry') from None
+        finally:
+            connection.close()
+
+    def disconnect(self, bucket, key):
+        """RST after a partial original body, never a request abort substitute.
+
+        sendall proves local socket delivery only. A later actual server/file/row
+        barrier must corroborate server consumption and residual effects.
+        """
+        _installed_launch_guard(self.spec)
+        path = '/object/' + self._path(bucket, key)
+        credentials = read_protocol_credentials(self.credentials_path)
+        payload = b'\x39' * 65536
+        headers = ('POST ' + path + ' HTTP/1.1\r\nHost: ' + self.host_header +
+                   '\r\nX-Forwarded-Host: ' + self.tenant_host + '\r\nX-Forwarded-Port: ' + str(self.port) +
+                   '\r\nAuthorization: Bearer ' + credentials['service_key'] +
+                   '\r\nContent-Type: application/octet-stream\r\nContent-Length: 8388608' +
+                   '\r\nX-Upsert: false\r\nConnection: close\r\n\r\n').encode('ascii')
+        with _protocol_deadline():
+            connection = None
+            try:
+                connection = socket.create_connection((self.host, self.port), timeout=45)
+                connection.sendall(headers + payload)
+                connection.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack('ii', 1, 0))
+            except OSError:
+                raise Refused('Original partial-body delivery unavailable') from None
+            finally:
+                if connection is not None:
+                    connection.close()
+        return {'sent_bytes': len(payload), 'declared_bytes': 8388608,
+                'outcome': 'local-partial-body-sent', 'native_admitted': False,
+                'pending': ['original-server-body-consumption', 'actual-row-file-version-effects']}
+
+
+def exercise_multipart(transport, bucket, key):
+    """Original create/upload/list/complete/download protocol source.
+
+    It never claims the full multipart native case. Original database parts,
+    versioned backend files, asynchronous cleanup and all writers need separate
+    actual observations. Failed requests retain their ambiguity; no retry or
+    inferred cleanup is issued here.
+    """
+    require(type(transport) is OriginalHttpTransport, 'Concrete original transport required')
+    created, _ = transport.s3('POST', bucket, key, [('uploads', '')], b'')
+    root = s3_xml(created, 'InitiateMultipartUploadResult')
+    require(_xml_one(root, 'Bucket') == bucket and _xml_one(root, 'Key') == key,
+            'Original multipart creation belongs elsewhere')
+    upload_id = _xml_one(root, 'UploadId')
+    text(upload_id, r'[A-Za-z0-9_+/=.-]{1,2048}')
+    first, last = b'\x25' * (5 * 1024 * 1024), b'\x5b' * 65536
+    expected = []
+    for number, payload in enumerate((first, last), 1):
+        _, etag = transport.s3('PUT', bucket, key,
+            [('uploadId', upload_id), ('partNumber', str(number))], payload)
+        text(etag, r'"?[a-fA-F0-9]{32}"?')
+        require(etag.strip('"').lower() == hashlib.md5(payload, usedforsecurity=False).hexdigest(),
+                'Original multipart uploaded part checksum differs')
+        expected.append({'number': number, 'etag': etag})
+    listing, _ = transport.s3('GET', bucket, key, [('uploadId', upload_id)], b'')
+    parts = verify_s3_parts(listing, bucket, key, upload_id, expected)
+    complete = ElementTree.Element('CompleteMultipartUpload')
+    for part in expected:
+        element = ElementTree.SubElement(complete, 'Part')
+        ElementTree.SubElement(element, 'PartNumber').text = str(part['number'])
+        ElementTree.SubElement(element, 'ETag').text = part['etag']
+    completed, _ = transport.s3('POST', bucket, key, [('uploadId', upload_id)],
+                               ElementTree.tostring(complete), content_type='application/xml')
+    root = s3_xml(completed, 'CompleteMultipartUploadResult')
+    require(_xml_one(root, 'Bucket') == bucket and _xml_one(root, 'Key') == key,
+            'Original multipart completion belongs elsewhere')
+    downloaded, _ = transport.s3('GET', bucket, key, [], b'', max_response=len(first) + len(last))
+    require(downloaded == first + last, 'Original multipart assembled bytes differ')
+    return {'outcome': 'original-multipart-protocol-observed', 'parts_sha256': parts['parts_sha256'],
+            'data_sha256': hashlib.sha256(downloaded).hexdigest(), 'native_admitted': False,
+            'pending': ['original-database-parts-and-versions', 'actual-versioned-files',
+                        'original-async-cleanup', 'all-original-writer-settlement']}

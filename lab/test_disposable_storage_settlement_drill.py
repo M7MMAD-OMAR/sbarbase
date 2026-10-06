@@ -100,6 +100,20 @@ class NativePreparationTests(unittest.TestCase):
                 self.assertEqual(row['status'], 'prerequisite-unavailable')
                 self.assertIsNone(row['pending_implementation'])
 
+    def test_executable_source_stages_do_not_complete_original_native_cases(self):
+        rows = {row['id']: row for row in drill.case_matrix()}
+        for key in ('disconnect-before-body-end', 'controller-interruption', 'multipart-parts'):
+            self.assertTrue(rows[key]['implemented_source_stages'])
+            self.assertEqual(rows[key]['implementation'], 'pending')
+            self.assertFalse(rows[key]['native_accepted'])
+        from test_storage_native_authority import candidate
+        spec, _ = candidate()
+        with patch('socket.create_connection', side_effect=AssertionError('No native socket')):
+            for key in ('disconnect-before-body-end', 'multipart-parts'):
+                with self.assertRaisesRegex(Refused, 'Installed'):
+                    drill.run_protocol_stage(key, spec, 'http://127.0.0.1:8000', 'tenant.unit',
+                                             '/private/source-only.json', 'unit', 'x')
+
     def test_disabled_features_cannot_silently_drop_required_cases(self):
         enabled = sorted({item for row in drill.case_matrix() for item in row['prerequisites']})
         rows = drill.case_matrix(enabled, ['tus', 'queue', 'redis', 'remote_s3'])

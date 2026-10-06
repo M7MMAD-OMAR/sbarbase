@@ -1,0 +1,101 @@
+{
+  "reviewer": "storage-protocol-ops-v1",
+  "axis": "operational-correctness",
+  "source_hash": "1aac0f7909f02fc21a3ddebdfd619a1fc8d0c760347d79e2991e61299137c772",
+  "plan_hash": "f9831194ca3341e5098eea524704988ac088e208359bf49887a00c24414a9dc4",
+  "verdict": "pass",
+  "findings": [],
+  "artifacts": [
+    "evidence.md",
+    "tool-outputs.json",
+    "inspection-tool-outputs.json",
+    "check-python-10.log",
+    "check-hybrid-11.log",
+    "check-bun-12.log",
+    "control-check-13.json"
+  ],
+  "scope": "Frozen source checkpoint only. No original native case or installed authority accepted.",
+  "native_accepted": false,
+  "native_cases_accepted": 0,
+  "pending_requirements": [
+    "SS3",
+    "SS4",
+    "SS5"
+  ],
+  "pending_native_case_count": 29,
+  "checked_at_revision": 14,
+  "checks": [
+    {
+      "id": "python",
+      "total": 159,
+      "failed": 0,
+      "skipped": 0,
+      "native_accepted": false,
+      "reason": null,
+      "raw_sha256": "1dbcade8262b335cac91a0627bd9164e8e383841cf9bb47cf6207249d5979475",
+      "raw_log": "check-python-10.log",
+      "peak_group_rss": 46723072,
+      "role_seconds_used": 3.33486301600351,
+      "role_output_bytes": 172611,
+      "exit_code": 0
+    },
+    {
+      "id": "hybrid",
+      "total": 3,
+      "failed": 0,
+      "skipped": 0,
+      "native_accepted": false,
+      "reason": null,
+      "raw_sha256": "f6f19beda56c639036fccf8625061f89f1f2d4ca021ca224b066d3d393622540",
+      "raw_log": "check-hybrid-11.log",
+      "peak_group_rss": 126984192,
+      "role_seconds_used": 3.7036265350034228,
+      "role_output_bytes": 174828,
+      "exit_code": 0
+    },
+    {
+      "id": "bun",
+      "total": 78,
+      "failed": 0,
+      "skipped": 0,
+      "native_accepted": false,
+      "reason": null,
+      "raw_sha256": "fe89e387f01218c8117f1d3772636deae2a49b4596f1b421b6c9d9ce03feee95",
+      "raw_log": "check-bun-12.log",
+      "peak_group_rss": 63668224,
+      "role_seconds_used": 3.761085684003774,
+      "role_output_bytes": 184399,
+      "exit_code": 0
+    },
+    {
+      "id": "control",
+      "total": 2,
+      "failed": 0,
+      "skipped": 0,
+      "native_accepted": false,
+      "raw_log": "control-check-13.json",
+      "raw_sha256": "e1fd0bb90fc7c394f96b1435d5688372ad2c1b0103993571a514b60b83314a69",
+      "exit_code": 0
+    }
+  ],
+  "instructions_read": [
+    "/home/sbarah/.codex/AGENTS.md",
+    "/home/sbarah/.codex/skills/checkpoint-workflow/SKILL.md",
+    "/home/sbarah/.codex/skills/checkpoint-workflow/references/roles.md",
+    "/home/sbarah/.codex/skills/checkpoint-workflow/references/cli.md",
+    "/home/sbarah/.codex/skills/checkpoint-workflow/references/host-codex.md",
+    "/home/sbarah/.codex/worktrees/09c0/sbarbase/.agents/skills/graft/SKILL.md"
+  ],
+  "missing_instructions": [
+    "/home/sbarah/AGENTS.md"
+  ],
+  "source_edits": false,
+  "independent_context": true,
+  "limitations": [
+    "Fixed source checks only. No ad hoc reproduction, network, service, Docker, VM, original SDK execution, or installed resource action.",
+    "Controller interruption boundaries were tested with private mocked commands and signals. Actual controller/native interruption remains pending.",
+    "Supervisor controls run real private processes, with expected negative child outcomes. They are not original writer observations.",
+    "Mandatory scoped source documents contain historical evidence statements; these were treated as unverified context. No other reviewer output or prior external report was consulted.",
+    "No integration verifier, launch fence issuer, consumer wiring, shared migration, full runtime/product verification, or provider coverage is accepted."
+  ]
+}

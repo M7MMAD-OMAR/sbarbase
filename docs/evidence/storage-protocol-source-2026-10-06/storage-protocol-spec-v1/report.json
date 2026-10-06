@@ -1,0 +1,23 @@
+{
+  "reviewer": "storage-protocol-spec-v1",
+  "axis": "specification",
+  "source_hash": "1aac0f7909f02fc21a3ddebdfd619a1fc8d0c760347d79e2991e61299137c772",
+  "plan_hash": "f9831194ca3341e5098eea524704988ac088e208359bf49887a00c24414a9dc4",
+  "verdict": "pass",
+  "findings": [],
+  "artifacts": [
+    "evidence.md",
+    "tool-python.json",
+    "tool-hybrid.json",
+    "tool-bun.json",
+    "tool-control.json",
+    "tool-review-state.json",
+    "python.log",
+    "hybrid.log",
+    "bun.log",
+    "control.json",
+    "source-delta.patch"
+  ],
+  "scope": "NS1/NS2/NS3 source checkpoint only; SS3/SS4/SS5 and all 29 complete original native cases remain pending",
+  "native_accepted": false
+}
