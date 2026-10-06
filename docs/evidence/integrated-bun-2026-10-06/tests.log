@@ -1,0 +1,539 @@
+bun test v1.3.14 (0d9b296a)
+transforming...
+✓ 4 modules transformed.
+rendering chunks...
+
+tests/application.test.ts:
+(pass) management login surface excludes signup and admin APIs before forwarding [16.41ms]
+(pass) connection discovery reflects trusted Storage availability after membership checks [49.88ms]
+
+tests/audit.test.ts:
+(pass) owners see their own organization, never another; viewers see none [11.38ms]
+(pass) a project moved to another client shows there only from its arrival, without the other client's ids [6.60ms]
+
+tests/bootstrap.test.ts:
+(pass) bootstrap resumes after intent without duplicate owner or organization [673.97ms]
+(pass) bootstrap resumes after identity-created without duplicate owner or organization [875.05ms]
+(pass) bootstrap resumes after identity-recorded without duplicate owner or organization [351.34ms]
+(pass) bootstrap resumes after catalog without duplicate owner or organization [281.98ms]
+(pass) bootstrap retry cannot restore ownership after membership revocation [10.26ms]
+(pass) existing Auth identity must verify credentials before creating catalog authority [7.81ms]
+(pass) organization discovery is authenticated and reflects current memberships only [3.98ms]
+
+tests/cached-json.test.ts:
+(pass) a cached JSON file is reread after an in-place write or a replacing rename [1.05ms]
+
+tests/catalog.test.ts:
+(pass) cross-organization authority, last owner and read-only membership boundaries [4.94ms]
+(pass) ownership transfer preserves project/environment identity and persists access change [213.41ms]
+
+tests/concurrency.test.ts:
+(pass) one saturated environment leaves room for a neighbor and rejects without forwarding [1.70ms]
+(pass) response headers do not release the slot, consuming or cancelling body does [2.26ms]
+(pass) global ceiling and thrown forward recover without leaked slots [0.84ms]
+(pass) stalled response timeout and request abort cancel upstream body and release once [42.72ms]
+(pass) already aborted work never forwards, hanging cancellation cannot hold a slot [0.74ms]
+(pass) stream errors release capacity and response metadata survives wrapping [0.75ms]
+(pass) separate managed factories share tenant capacity across keys and services [12.01ms]
+(pass) slow upload consumes a slot and abort does not accidentally forward a cancelled body [1.60ms]
+(pass) pre-header deadline frees capacity and cancels a late response from uncooperative transport [21.55ms]
+(pass) pre-header client abort releases slot even if transport never settles [1.78ms]
+(pass) service budget rejects atomically while preserving other services and neighbors [1.45ms]
+(pass) service cap persists across managed factories and API keys [4.08ms]
+(pass) service budget releases after pre-header and response deadlines [66.27ms]
+(pass) disconnected dispatched REST retains capacity until upstream response drains [1.47ms]
+(pass) abandoned REST response drain has a deadline and releases once [27.26ms]
+(pass) abandoned REST drain errors release capacity without downstream errors [1.01ms]
+(pass) a busy environment borrows idle room above its share, up to its ceiling [0.65ms]
+(pass) borrowing stops at the headroom, so a quiet neighbour always finds room at once [0.52ms]
+(pass) without a borrow policy the share is still the ceiling [0.16ms]
+(pass) pressure reports refusals and the peak in flight, then starts a new sample [0.43ms]
+(pass) an invalid borrow policy is refused [0.11ms]
+(pass) the unused share of every recently active neighbour is kept free, not only the headroom [1.81ms]
+(pass) a neighbour turned away while another borrows is charged to the borrower [1.39ms]
+
+tests/console-state.test.ts:
+(pass) the console names each of the four mail states, and an absent entry is unconfigured [0.17ms]
+(pass) the email section renders the recorded facts and never a credential row [0.16ms]
+(pass) the console reads both new surfaces through the existing request helper [0.09ms]
+
+tests/database.test.ts:
+(pass) only a developer login for its own database is let through [0.49ms]
+(pass) the listener declines TLS, forwards an allowed startup byte for byte and refuses the rest before PostgreSQL [60.48ms]
+(pass) the listener is on loopback port 6543 unless set, and can be turned off [0.54ms]
+(pass) owners and admins turn access on and get the password once; a reset needs access on [8.36ms]
+
+tests/deferred-revocation.test.ts:
+(pass) function secrets stay intact when an admin is removed while reading the body [10.24ms]
+(pass) a function is not published when an admin is removed while reading the body [4.22ms]
+(pass) sign-in settings stay intact when an admin is removed while reading the body [5.15ms]
+(pass) no database password is written when an admin is removed while reading the body [3.33ms]
+(pass) function secrets stay intact when an admin is demoted while reading the body [58.69ms]
+(pass) a function is not published when an admin is demoted while reading the body [4.30ms]
+(pass) sign-in settings stay intact when an admin is demoted while reading the body [3.55ms]
+(pass) no database password is written when an admin is demoted while reading the body [5.63ms]
+
+tests/drain.test.ts:
+(pass) pause rejects new work and waits through response consumption without blocking a neighbor [8.51ms]
+(pass) only the active pause lease can resume and early resume does not certify draining [0.56ms]
+(pass) failed upstream settles drain waiters but timeout leaves admission paused [5.72ms]
+(pass) idle pause drains immediately and rejects invalid deadlines [0.37ms]
+(pass) managed factories share pause and resolve new placement only after an explicit drained switch [15.13ms]
+
+tests/durable-fixture.test.ts:
+(pass) durable fixture selection > two served runtimes resolve to their environments in order [0.42ms]
+(pass) durable fixture selection > an excluded runtime is refused before any observation [0.24ms]
+(pass) durable fixture selection > unpublished, paused or fenced runtimes are refused clearly [0.23ms]
+(pass) durable fixture selection > an unknown, duplicated or unprovisioned runtime is refused [0.32ms]
+(pass) durable fixture selection > runtimes in different organizations or a foreign project are refused [0.11ms]
+(pass) durable fixture file > a different earlier fixture is archived byte for byte, then replaced [35.80ms]
+(pass) durable fixture file > rewriting the same fixture archives nothing, and an archive is never overwritten [37.81ms]
+(pass) durable fixture file > a first fixture needs no archive [27.01ms]
+
+tests/functions.test.ts:
+(pass) a deploy needs an entry point and safe relative paths [1.30ms]
+(pass) a deploy writes a new version with the shared files beside it and switches the manifest [3.48ms]
+(pass) secrets are private, never named SUPABASE_, and removed with null [1.56ms]
+(pass) owners and admins deploy; the first deploy turns Edge Functions on; values of secrets never come back [12.23ms]
+(pass) the gateway runs functions with or without a key, and never reaches the runtime's own routes [4.89ms]
+
+tests/gateway.test.ts:
+(pass) missing key [1.40ms]
+(pass) cross environment [0.13ms]
+(pass) disabled environment [0.05ms]
+(pass) unknown environment [0.10ms]
+(pass) encoded slash [0.09ms]
+(pass) forward selected route and strip client-injected internal headers [0.95ms]
+(pass) anonymous JWT used when no bearer supplied [0.52ms]
+(pass) oversize stream rejected before upstream [3.71ms]
+(pass) SDK API-key bearer becomes anonymous upstream token [0.59ms]
+(pass) removed key stops subsequent requests [0.64ms]
+(pass) upstream failure is sanitized [0.85ms]
+(pass) key store failure cannot fall back to static key acceptance [0.40ms]
+(pass) Storage tenant header comes only from trusted configuration and preserves upload headers [1.06ms]
+(pass) unconfigured Storage is unavailable and broken request streams never reach upstream [1.27ms]
+(pass) slow body deadline rejects even when cancellation resolves the pending read [54.10ms]
+(pass) only public and signed Storage reads may omit API keys [2.89ms]
+(pass) a browser on any origin can call the API, and the key still decides what it may do [0.65ms]
+(pass) upstream answers carry the gateway browser headers, not the upstream ones [0.73ms]
+(pass) a browser following an email link or an OAuth redirect reaches Auth without a key, and only there [1.63ms]
+(pass) a Storage upload streams through up to the upload limit; other bodies stay small [10.01ms]
+(pass) the upload limit comes from SBARBASE_UPLOAD_LIMIT_MB [0.53ms]
+
+tests/hierarchy.test.ts:
+(pass) an organization owner reads only the notifications of their own organizations [210.06ms]
+(pass) moving a project cancels its queued job visibly and later events name the new organization [4.10ms]
+(pass) a viewer can neither list nor revoke keys, and another organization cannot revoke them [3.50ms]
+(pass) names are unique where the hierarchy scopes them, and a clash answers 409 [4.21ms]
+(pass) the catalog migrates an older file in place and refuses one written by a newer release [414.53ms]
+(pass) the API refuses an environment past the installation limit before queueing it [3.53ms]
+(pass) the API limit and the runtime guard name the same number [0.28ms]
+(pass) installation operators create organizations; owners list members; failed environments retry [4.26ms]
+
+tests/hold-bypass.test.ts:
+(pass) only the supervisor's own probe of REST or Auth passes, only while the hold is on [1.22ms]
+(pass) the hold stops every other application request and lets the probe through [0.71ms]
+(pass) the probe goes through key resolution and the proxy as an application does [1.94ms]
+(pass) /health fails when the key store cannot be read [0.50ms]
+
+tests/hold.test.ts:
+(pass) the marker holds only while an upgrade waits for confirmation, and its removal applies within the cache [0.75ms]
+(pass) a stale marker never wedges an installation: a finished or unreadable state fails open [0.50ms]
+(pass) held application requests get 503 with Retry-After and CORS; management reads and sign-in pass [0.50ms]
+(pass) while held, management changes answer 409 so none is lost on the way back; reads, sign-in and the update routes pass [0.58ms]
+(pass) /health answers once the catalog reads, and says whether traffic is held [0.16ms]
+
+tests/invitation-accounts.test.ts:
+(pass) invitation accounts against the realm Auth service > an account is created at /admin/users on the Auth service itself [1.22ms]
+(pass) invitation accounts against the realm Auth service > a session token is read at /user on the Auth service itself [0.45ms]
+(pass) invitation accounts against the realm Auth service > a taken email is reported as existing, not as a failure [0.86ms]
+
+tests/invitations.test.ts:
+(pass) an owner invites, the invitee sets a password and joins, and the link works once [7.95ms]
+(pass) nobody grants a role above their own; viewers and strangers cannot invite [4.81ms]
+(pass) unknown, cancelled and expired tokens get the same answer; a short password consumes nothing [5.38ms]
+(pass) an existing account signs in first; only the invited email can redeem with a session [5.11ms]
+(pass) repeated bad tokens are rate limited for the minute [7.61ms]
+(pass) a removed or demoted inviter cannot come back through a link they made (review finding 1) [4.87ms]
+(pass) a new owner by invitation raises the critical owner notice (finding 2) [3.54ms]
+(pass) junk never blocks a valid invitation, and a large body is refused unread (findings 3 and 4) [64.29ms]
+(pass) the realm refusing a password is not mistaken for an existing account (finding 6) [3.47ms]
+(pass) a preview shows what the link offers without joining (finding 7) [3.18ms]
+(pass) only owners invite into the bootstrap organization (finding 7) [2.22ms]
+
+tests/key-http.test.ts:
+(pass) only ready environments can issue keys; actor scope, one-time disclosure and revocation bind gateway [8.09ms]
+
+tests/keys.test.ts:
+(pass) key persists without raw material, isolated revocation survives reopen [32.63ms]
+
+tests/lifecycle.test.ts:
+(pass) deleting an organization that still has projects is refused, and an empty one is deleted [8.35ms]
+(pass) a deleted environment's key returns 401 and the key is revoked [37.59ms]
+(pass) an environment is not deleted while provisioning or a service it runs is still on [4.01ms]
+(pass) a worker that restarts with the receipt of a deleted environment settles it and nothing else [2.48ms]
+(pass) a preflight receipt of a deleted environment gets its recorded decision back, and only that receipt [3.34ms]
+(pass) the organization still sees who deleted an environment [2.88ms]
+(pass) renames keep names unique where the hierarchy scopes them [7.48ms]
+(pass) moving a project revokes its keys and keeps provision_jobs.organization consistent [7.32ms]
+(pass) move and environment delete refuse without the key store instead of skipping revocation [4.29ms]
+
+tests/local-server.test.ts:
+(pass) console port > an unset port stays ephemeral, as the lab expects [0.06ms]
+(pass) console port > a server pins a valid unprivileged port [0.03ms]
+(pass) console port > anything else refuses instead of binding somewhere unexpected [0.08ms]
+(pass) console port > the listener binds the pinned port on loopback [10.24ms]
+(pass) request bodies over the real listener > a POST without a body reaches the handler without one [4.75ms]
+(pass) a refused upload answers with its own status and does not hold up the next request [16.37ms]
+(pass) connections after an early answer > plain: a slow request reusing the connection of a refused one is answered, not cut off [1517.02ms]
+(pass) connections after an early answer > plain: a large unread body closes the connection right after the answer, with the answer intact [14.53ms]
+(pass) connections after an early answer > behind the WebSocket front: a slow request reusing the connection of a refused one is answered, not cut off [1523.78ms]
+(pass) connections after an early answer > behind the WebSocket front: a large unread body closes the connection right after the answer, with the answer intact [18.55ms]
+(pass) connections after an early answer > sustained arrivals at a full REST budget get 200 or 429, never a dropped connection [6208.77ms]
+
+tests/mail-notifications.test.ts:
+(pass) the console mail route answers from the runtime record, never from the catalog table [7.47ms]
+(pass) an environment with no mail entry is unconfigured and an unknown environment matches the neighbour [5.52ms]
+(pass) the mail route follows the neighbouring routes on method, membership and authentication [3.71ms]
+(pass) the notifications route reports the undelivered count from the catalog read the drain uses [5.51ms]
+(pass) the notifications route is owner and admin only, and follows the neighbour error shape [3.88ms]
+(pass) the catalog no longer creates the environment_mail table [202.93ms]
+
+tests/management-mfa.test.ts:
+(pass) native password session cannot call any protected management API before proxy MFA verification [14.64ms]
+(pass) password claims require native validation, native password AMR, bounded session age and session id [7.06ms]
+(pass) existing MFA blocks password-only enrollment, factor substitution and removal of the last verified factor [23.93ms]
+(pass) native factor removal revokes every session, and stale aal2 tokens with a removed factor fail closed [7.76ms]
+(pass) verification attempts share durable actor rate budgets across sessions and controller restarts [594.97ms]
+(pass) failed MFA native transport and closed rate store cannot grant management access [4.33ms]
+(pass) durable mutation lease serializes removals and survives reopening until its bounded expiry [152.08ms]
+(pass) password rate budget is shared by email, ignores untrusted client addresses and denies extra native grants [10.37ms]
+(pass) MFA grants cannot survive a concurrent recovery epoch and owner-only audit omits secrets [4.79ms]
+(pass) every native logout scope invalidates all management sessions before and after success or failure [46.09ms]
+(pass) unexpected logout and unenroll bodies are refused before native calls or grant revocation [3.73ms]
+(pass) recovery terminal audit needs its one-use pending receipt and survives initiator demotion [151.65ms]
+(pass) a streamed management body cannot mutate after local grant revocation and scope stays isolated [5.98ms]
+(pass) a streamed management body rechecks current membership before project mutation [15.29ms]
+
+tests/management.test.ts:
+(pass) management identity uses fixed Auth endpoint, ignores identity headers and rejects anonymous users [4.05ms]
+(pass) HTTP boundary derives actor from authentication, rejects body spoofing, and applies current memberships [3.20ms]
+
+tests/members.test.ts:
+(pass) an owner changes a role and removes a member; the removed member loses access at once [3.26ms]
+(pass) admins and viewers cannot change members, and nobody raises themselves [2.55ms]
+(pass) the last owner stays, an unknown member is not added here, and bad input is refused [2.51ms]
+
+tests/native-placement.test.ts:
+(pass) legacy absence and URL-only placement retain routing without native identity adoption [198.75ms]
+(pass) CAS stages declared identity only in maintenance and refuses activation or identity downgrade [181.58ms]
+(pass) native identity validates distinct maintenance and bound image, container and OIDs [0.97ms]
+(pass) actual gateway and service discovery refuse unadmitted or malformed persisted placement before endpoint resolution [399.59ms]
+(pass) public gateway authorizes keys before disclosing native placement and preserves supported keyless routes [467.38ms]
+
+tests/observe-revocation.test.ts:
+(pass) logs rechecks membership after its reader resolves for a removed actor [4.87ms]
+(pass) logs rechecks membership after its reader resolves for a viewer actor [2.45ms]
+(pass) metrics rechecks membership after its reader resolves for a removed actor [2.84ms]
+(pass) metrics rechecks membership after its reader resolves for a viewer actor [2.46ms]
+
+tests/observe.test.ts:
+(pass) the request log keeps the newest requests and per-minute totals for an hour [1.79ms]
+(pass) the gateway counts answers for known environments only, without the query string [0.49ms]
+(pass) secrets never leave the server in a log line [0.34ms]
+(pass) shared Storage lines are kept only when they name this environment [0.48ms]
+(pass) docker stats lines become memory and processor use per service [0.39ms]
+(pass) members read metrics; only owners and admins read logs [3.94ms]
+
+tests/operator-revocation.test.ts:
+(pass) organization creation refuses an operator demoted while reading its body [6.17ms]
+(pass) organization creation refuses an operator removed while reading its body [3.89ms]
+(pass) organization creation still accepts an operator after a delayed valid body [3.29ms]
+(pass) organization creation refuses an already demoted operator before reading its body [4.77ms]
+(pass) update settings refuses an operator demoted while reading its body [12.94ms]
+(pass) update settings refuses an operator removed while reading its body [5.84ms]
+(pass) update settings still accepts an operator after a delayed valid body [7.11ms]
+(pass) update settings refuses an already demoted operator before reading its body [5.62ms]
+(pass) update apply refuses an operator demoted while reading its body [54.42ms]
+(pass) update apply refuses an operator removed while reading its body [6.64ms]
+(pass) update apply still accepts an operator after a delayed valid body [7.40ms]
+(pass) update apply refuses an already demoted operator before reading its body [5.01ms]
+
+tests/placement.test.ts:
+(pass) maintenance and staged placement survive reopen, stale writers cannot unpause [260.75ms]
+(pass) gateway fails closed during durable maintenance and uses staged target after resume [4.67ms]
+(pass) invalid transitions and credential-bearing placement never mutate routing [3.28ms]
+
+tests/pressure.test.ts:
+(pass) a run of saturated minutes reports once, a calm minute resets the run [2.39ms]
+(pass) borrowing an idle server, however long, never notifies [0.83ms]
+(pass) a quiet environment within its share is never reported [0.33ms]
+(pass) a failing report never escapes the monitor [0.45ms]
+(pass) the catalog writes one saturation notice per window, on every channel [5.87ms]
+(pass) an older catalog keeps its deliveries and gains the Telegram channel [463.23ms]
+
+tests/provision.test.ts:
+(pass) creation queues once, retries keep runtime identity, stale completion cannot win [5.52ms]
+(pass) pending jobs cannot execute after actor revocation or organization transfer [3.68ms]
+(pass) provision status is scoped and hides internal claim and runtime details [4.05ms]
+(pass) safe failure code persists, stale claims cannot change it, retry clears it [4.62ms]
+
+tests/realtime.test.ts:
+(pass) only an environment Realtime socket path is taken as one [0.72ms]
+(pass) a socket reaches only its own Realtime, with the anon token in place of the publishable key [0.71ms]
+(pass) a socket is refused without a live key, for a paused environment, or while Realtime is off [0.19ms]
+(pass) the broadcast API goes to the environment Realtime with its tenant and token; the rest of its API does not [1.26ms]
+(pass) the listener pipes an accepted socket to Realtime and keeps answering plain requests [22.84ms]
+(pass) owners and admins turn Realtime on and off; one change at a time [3.73ms]
+
+tests/relink.test.ts:
+(pass) a restore on a second, fresh installation re-links the environment to its project [8.30ms]
+(pass) re-linking never attaches to an organization or project by name, and refusals change nothing [5.52ms]
+(pass) only installation operators re-link, into organizations they own, and bad input is refused [5.59ms]
+(pass) a runtime deleted here is never re-linked [38.98ms]
+
+tests/sbarbase-cli.test.ts:
+(pass) parsing: commands, flags, aliases and refusals [0.63ms]
+(pass) help and usage errors exit with their own codes, and the help has no long dash [340.62ms]
+(pass) status --json reports service, console, environments with routing, health and last backup, and notifications [295.93ms]
+(pass) status reads routing: a moved environment is checked at its placement, maintenance is not a failure [353.80ms]
+(pass) status is unhealthy without a console, and the text form names what it read [796.36ms]
+(pass) status degrades when the catalog cannot be read and says how to run it [0.89ms]
+(pass) environments lists every environment from the catalog, read only [145.25ms]
+(pass) backups: the last complete backup ignores an interrupted one [165.44ms]
+(pass) backup now and backups list delegate to lab/backup.py, passing its exit code through [164.67ms]
+(pass) restore confirms at a terminal, refuses without one, and delegates with --yes [167.13ms]
+(pass) upgrade delegates to lab/upgrade.py and defaults to check [169.20ms]
+(pass) upgrade reaches the release channel: channel, start --release and rollback --check [203.94ms]
+(pass) upgrade refuses a release that is not a plain tag and flags that do not fit [443.04ms]
+(pass) logs: journalctl for the supervisor, docker logs for a service, a hint inside the container [191.06ms]
+(pass) add-environment signs in and posts exactly what the console posts, then signs out [191.61ms]
+(pass) add-environment reports the API refusals in plain words and signs out anyway [151.91ms]
+(pass) sign-in refusals: no terminal, a wrong password, a loose operator file, no console [324.87ms]
+(pass) rotate-key issues, shows the new key once on stdout, then revokes the one old key [150.89ms]
+(pass) rotate-key refuses to guess between several active keys, and names a failed revoke [188.25ms]
+(pass) studio start and stop go through the management API, never straight to lab/studio.py [171.93ms]
+(pass) share reads and sets the gateway share through the management route, and names its refusals [189.20ms]
+(pass) share: a member who is not an installation operator is told so in plain words [160.08ms]
+(pass) backup now keeps as many backups as the daily run, reading the unit when the shell has no setting [154.12ms]
+(pass) relink sends the ownership a backup records, then points at restore [281.84ms]
+(pass) relink refuses a missing backup, one without ownership and bad arguments before signing in [226.52ms]
+
+tests/server-health.test.ts:
+(pass) memory counters preserve zero swap and compute used from available [1.26ms]
+(pass) missing, duplicate, inconsistent and oversized memory counters stay unavailable [0.14ms]
+(pass) filesystem bytes distinguish available from reserved free space [0.47ms]
+(pass) reader is lazy, caches five seconds and refreshes when the clock moves backwards [0.17ms]
+(pass) server overview requires an installation operator and only permits GET [28.59ms]
+
+tests/settings-validation.test.ts:
+(pass) settings input validation > gateway share requires an integer within the supplied ceiling [0.36ms]
+(pass) settings input validation > function secret names use the backend reserved prefixes and limits [0.41ms]
+(pass) settings input validation > site addresses require HTTP or HTTPS without embedded credentials [0.46ms]
+(pass) settings input validation > redirects retain custom schemes and wildcards while enforcing format and count [0.30ms]
+(pass) settings input validation > enabled providers require credentials while a saved secret may remain empty [0.23ms]
+(pass) settings input validation > provider length and whitespace rules also apply when disabled [0.15ms]
+
+tests/share.test.ts:
+(pass) a client reads its share but not the installation, and cannot change it [8.44ms]
+(pass) the operator sees the allocation, and a raise that would overcommit the gateway is refused [7.78ms]
+(pass) the gate guarantees a raised share and lends above it [1.37ms]
+
+tests/sign-in.test.ts:
+(pass) settings are checked field by field, and an empty secret keeps the saved one [1.17ms]
+(pass) owners and admins save sign-in settings; the secret goes to a private file and never comes back [8.94ms]
+
+tests/signing.test.ts:
+(pass) owners and admins rotate the signing key once at a time; viewers cannot; the secret is never answered [8.32ms]
+(pass) the control handler routes the signing key [2.78ms]
+
+tests/studio-destination.test.ts:
+(pass) Studio browser routing retains its configured origin for /project/default [2.73ms]
+(pass) Studio browser routing retains its configured origin for //alternate.invalid/dummy [0.22ms]
+(pass) Studio browser routing retains its configured origin for /.//alternate.invalid/dummy [0.08ms]
+(pass) Studio browser routing retains its configured origin for /%2f%2falternate.invalid/dummy [0.07ms]
+(pass) Studio auth routing retains its configured origin for a double slash path [1.09ms]
+(pass) Studio rest routing retains its configured origin for a double slash path [0.12ms]
+(pass) Studio storage routing retains its configured origin for a double slash path [0.07ms]
+
+tests/studio-epoch.test.ts:
+(pass) Studio refuses legacy credentials without an epoch even when membership is unchanged [1.70ms]
+(pass) Studio rejects malformed signed epoch values [0.16ms]
+(pass) management revocation prevents an outstanding ticket from entering Studio [0.22ms]
+(pass) entering preserves the ticket epoch and a new issuance works after revocation [0.72ms]
+(pass) revocation during a pending Studio mutation prevents its upstream effect [0.99ms]
+(pass) revocation during a vendor response wait withholds that response [0.53ms]
+(pass) revocation during a pending stream read withholds newly arriving bytes [0.70ms]
+(pass) revocation withholds unread workspace navigation [0.53ms]
+(pass) revocation during switch body reading prevents selection [0.41ms]
+(pass) switch tickets preserve the source epoch and are refused after management revocation [1.24ms]
+(pass) Studio issuance and proxy observe revocation through separate connections to the shared catalog [274.60ms]
+(pass) an unavailable epoch store refuses access before vendor dispatch [0.61ms]
+
+tests/studio-navigation.test.ts:
+(pass) Studio navigation uses live ownership, filters viewers and lists only the selected scope [7.27ms]
+(pass) workspace entry, assets and metadata never reach vendor APIs or contain user HTML [6.85ms]
+(pass) switch creates a fresh target-only ticket without launching or changing Studio [5.33ms]
+(pass) switch rejects sibling-origin CSRF, malformed input, excessive bodies and stopped targets [7.49ms]
+(pass) switch rechecks both target membership and source membership after asynchronous body reads [5.47ms]
+(pass) a stopped upstream cannot be selected even with a stale running catalog row [4.84ms]
+(pass) signed console origin survives entry and switching without trusting arbitrary return addresses [57.68ms]
+(pass) workspace permits same-origin vendor frames while preserving other CSP restrictions [6.99ms]
+
+tests/studio-revocation.test.ts:
+(pass) Studio POST withholds a delayed body when its admin becomes removed [7.64ms]
+(pass) Studio PATCH withholds a delayed body when its admin becomes removed [4.49ms]
+(pass) Studio DELETE withholds a delayed body when its admin becomes removed [5.00ms]
+(pass) Studio POST withholds a delayed body when its admin becomes viewer [4.15ms]
+(pass) Studio PATCH withholds a delayed body when its admin becomes viewer [11.87ms]
+(pass) Studio DELETE withholds a delayed body when its admin becomes viewer [4.67ms]
+(pass) Studio withholds a deferred response when its admin becomes removed [51.33ms]
+(pass) Studio withholds a deferred response when its admin becomes viewer [4.08ms]
+(pass) Studio cancels withheld streaming bytes after revocation [5.03ms]
+(pass) Studio refuses an oversized body before sending any upstream bytes [36.47ms]
+(pass) Studio body deadline refuses a stalled client and cancels its reader [24.37ms]
+(pass) Studio abort during body acquisition never dispatches upstream [3.34ms]
+(pass) Studio body read failure never dispatches upstream [2.92ms]
+(pass) Studio forwards the exact bounded body and preserves vendor headers [4.50ms]
+(pass) Studio preserves a bodyless vendor response [3.96ms]
+(pass) Studio rechecks session expiry after awaiting its body [85.33ms]
+(pass) Studio rechecks session expiry after awaiting its response [104.95ms]
+(pass) Studio refusal does not wait for a stalled cancellation promise [3.82ms]
+(pass) Studio downstream cancellation cancels the vendor without waiting indefinitely [3.80ms]
+(pass) Studio abort while waiting for response bytes cancels the vendor [3.56ms]
+(pass) Studio HEAD discards a vendor body and preserves response status [2.98ms]
+(pass) Studio preserves a not-modified vendor response [3.22ms]
+(pass) Studio maps a failed vendor connection to a bounded proxy error [3.22ms]
+(pass) Studio switching cannot renew a session that expires during the body read [85.18ms]
+(pass) Studio switching times out a stalled body and cancels it [27.08ms]
+(pass) Studio switching rejects excess bytes without waiting for cancellation [5.65ms]
+(pass) Studio byte accounting ignores empty chunks and preserves fragmented input [6.69ms]
+(pass) Studio checks its monotonic deadline even before the timer callback runs [5.30ms]
+(pass) Studio withholds unread workspace metadata after source access is revoked [6.08ms]
+(pass) Studio withholds an unread switch ticket after source access is revoked [10.89ms]
+(pass) Studio withholds selected organization metadata after that membership is revoked [7.51ms]
+(pass) Studio withholds a revoked organization from an unread navigation inventory [5.44ms]
+
+tests/studio.test.ts:
+(pass) each environment is its own Studio origin [33.92ms]
+(pass) tickets and sessions are signed, bound to one environment and one kind, and expire [0.54ms]
+(pass) the console starts, stops and opens Studio only for owners and admins of a ready environment [7.95ms]
+(pass) the Studio origin admits a ticket once, then only its session cookie, and never another environment [1.58ms]
+(pass) Studio server-side calls reach only their own environment, with its own service key [1.49ms]
+
+tests/transfer-key-failure.test.ts:
+(pass) a failed project move rolls ownership and catalog effects back before any revocation [16.99ms]
+(pass) a failed project move rolls ownership and catalog effects back after one ready runtime was revoked [11.71ms]
+(pass) a project move rejects unauthorized before touching keys [22.73ms]
+(pass) a project move rejects name clash before touching keys [46.72ms]
+(pass) a project move rejects running provision before touching keys [5.91ms]
+
+tests/ui-client-boundaries.test.ts:
+(pass) production client boundaries preserve directives, tree shaking and unrelated diagnostics [128.70ms]
+
+tests/ui-static.test.ts:
+(pass) static console exposes only index and generated asset names with a restrictive policy [2.38ms]
+
+tests/ui-theme.test.ts:
+(pass) the console palette covers light, dark and an explicit override [0.35ms]
+(pass) no rule outside the palette hardcodes a colour [0.38ms]
+(pass) the document declares both schemes and the theme is applied before first paint [0.09ms]
+
+tests/updates-routes.test.ts:
+(pass) every updates route answers 403 to anyone who is not an installation operator [6.91ms]
+(pass) wrong methods and unknown actions are refused before anything is read [4.12ms]
+(pass) with nothing recorded yet the view shows the checkout version and the default settings [42.67ms]
+(pass) the view shows the time zone the supervisor reads the window in, and saving settings returns it [49.82ms]
+(pass) releases the check passed over are information, never a refusal of the one on offer [12.60ms]
+(pass) a release that migrates environment databases installs only with the acknowledgement, which the request carries [22.71ms]
+(pass) a safe release does not record an acknowledgement it never needed [10.19ms]
+(pass) the view maps the check, the upgrade record and the request into the console shape [4.61ms]
+(pass) a failed check is reported beside the result the supervisor kept [30.73ms]
+(pass) install follows the supervisor verdict about the very release on offer [8.58ms]
+(pass) an apply is recorded once, privately, and a second one waits for the first [8.73ms]
+(pass) an apply is refused with the supervisor's own sentence unless its verdict allows that version [33.14ms]
+(pass) each sentence shared with the supervisor is word for word in lab/updates.py [3.88ms]
+(pass) an apply needs exactly a version, and check and rollback take no body [4.76ms]
+(pass) a check is recorded even when periodic checking is off [16.17ms]
+(pass) a rollback is offered only for a confirmed upgrade the supervisor judged possible [26.13ms]
+(pass) settings are validated strictly and saved privately [10.69ms]
+(pass) a damaged settings file reads as the defaults, so it never turns automatic updates on [5.49ms]
+
+tests/updates-ui.test.ts:
+(pass) twelve hour clock > the edges of the day convert both ways [0.33ms]
+(pass) twelve hour clock > every minute of the day round-trips [3.52ms]
+(pass) twelve hour clock > malformed values are refused, and the window is described in server time [0.44ms]
+(pass) twelve hour clock > a point in time is shown in twelve hour form [0.41ms]
+(pass) twelve hour clock > the server time zone is named as the supervisor reports it [0.12ms]
+(pass) settings form > an equal settings object from a poll does not reset the form; a saved change does [0.17ms]
+(pass) settings form > a confirmed upgrade asks for a reload from the banner as well as the page [0.09ms]
+(pass) release wording > each class names its status in words [0.17ms]
+(pass) release wording > notes follow the console language and fall back to English [0.08ms]
+(pass) banners > an available release shows until dismissed for that version [0.16ms]
+(pass) banners > a finished upgrade reports its outcome; the automatic way back only [0.12ms]
+(pass) banners > with nothing installable, a newer signed release still earns a notice; an unsigned one does not [0.15ms]
+(pass) banners > a failed way back is critical, first and cannot be dismissed [0.05ms]
+(pass) banners > dismissals survive in storage and a broken storage never throws [0.33ms]
+(pass) install button > enabled exactly as the server judged it, with the server's own sentence when it is not [0.15ms]
+(pass) install button > an apply or rollback under way keeps the page busy and is watched on load [0.11ms]
+(pass) install button > a release whose verdict asks for the acknowledgement is offered behind it [0.29ms]
+(pass) install button > releases passed over are shown as information and never disable the install [0.07ms]
+(pass) responses while the server restarts > gateway errors, a briefly rejected token and 500 read as restarting, never as failure [0.09ms]
+(pass) progress state machine > an upgrade goes queued, running, restarting, checking, then confirmed [0.42ms]
+(pass) progress state machine > an older finished record is never taken for the new outcome [0.10ms]
+(pass) progress state machine > the automatic way back and a failed way back are final states [0.21ms]
+(pass) progress state machine > a request the supervisor refuses ends the watch with its detail [0.29ms]
+(pass) progress state machine > silence past ten minutes times out, not fails; unreachable alone never fails early [0.28ms]
+(pass) progress state machine > a rollback watch ends on the way back, and an operator rollback reads as requested [0.15ms]
+(pass) progress state machine > a check ends when the check time moves or its request finishes [0.12ms]
+(pass) progress state machine > a page loaded mid-upgrade resumes the watch and counts the request under way [0.18ms]
+(pass) progress state machine > every stage has words [0.08ms]
+(pass) wiring > the console shows updates to the operator only and reads the token on every call [0.22ms]
+(pass) wiring > the confirmation states the backup, the pause and the automatic way back [0.14ms]
+(pass) wiring > no long dashes anywhere in the update surfaces [5.91ms]
+
+tests/validation.test.ts:
+(pass) email validation accepts aliases and padded addresses, but rejects malformed or oversized input [0.33ms]
+(pass) invitation email requires the management API domain suffix and retains supported address text [1.04ms]
+(pass) names retain international text and punctuation with only surrounding whitespace removed on submission [0.21ms]
+(pass) login does not apply the new-account password policy or trim existing credentials [0.05ms]
+(pass) new passwords match invitation creation boundaries without trimming their contents [0.06ms]
+(pass) sign-in failures offer safe recovery guidance without exposing account existence [0.14ms]
+
+tests/worker-receipt.test.ts:
+(pass) successful receipt settles exact claim and crash after catalog commit is idempotent [340.65ms]
+(pass) uncertain corrupt and mismatched receipts preserve running claim and prevent settlement [391.30ms]
+(pass) known admission refusal settles once and a receipt from an earlier attempt cannot win [423.74ms]
+(pass) claimed work without a published receipt is recoverable before any effect launch [383.24ms]
+(pass) committed historical refusal can be consumed after API retry without changing newer work [798.80ms]
+(pass) native completion survives process SIGKILL before guardian receipt publication without replay [695.47ms]
+(pass) missing partial and conflicting native evidence cannot resolve pending effects [340.10ms]
+(pass) preflight recovery is exact, bounded and idempotent after commit before receipt consumption [426.10ms]
+(pass) later stages, corrupt native outcomes and legacy protocols cannot authorize preflight retry [300.98ms]
+(pass) preflight history cannot change a newer attempt [324.71ms]
+(pass) recovered preflight cannot execute after its original actor loses authorization [425.77ms]
+(pass) native SIGKILL at preflight preserves the write-ahead recovery boundary [567.62ms]
+(pass) native SIGKILL at database preserves the write-ahead recovery boundary [321.67ms]
+
+website/tests/site.test.ts:
+(pass) ar: ids are unique and every in-page link lands [0.65ms]
+(pass) ar: language, direction and the other language are declared [0.09ms]
+(pass) ar: the walkthrough data agrees with its buttons [0.32ms]
+(pass) ar: the install section holds exactly the five real commands [0.38ms]
+(pass) ar: exactly one maturity badge [0.10ms]
+(pass) ar: no long dashes and no external resources [31.50ms]
+(pass) en: ids are unique and every in-page link lands [0.22ms]
+(pass) en: language, direction and the other language are declared [0.02ms]
+(pass) en: the walkthrough data agrees with its buttons [0.10ms]
+(pass) en: the install section holds exactly the five real commands [0.07ms]
+(pass) en: exactly one maturity badge [0.02ms]
+(pass) en: no long dashes and no external resources [3.13ms]
+(pass) the Arabic request figure is the English one mirrored [0.72ms]
+(pass) the Arabic hierarchy figure is the English one mirrored [0.60ms]
+(pass) sources carry no long dashes [0.48ms]
+(pass) every stylesheet font is self hosted [1.56ms]
+
+ 420 pass
+ 0 fail
+ 7104 expect() calls
+Ran 420 tests across 55 files. [31.18s]

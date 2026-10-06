@@ -1,0 +1,97 @@
+{
+  "schema": 1,
+  "date": "2026-10-06",
+  "status": "accepted-source-contract",
+  "scope": "Studio management revocation epoch integration on the merged local source",
+  "checkpoint_source_hash": "bacbff9d08b0e5864d6812cfa797d21cf36f37b0f81635f6a3b0974cb3b8aa7b",
+  "plan_hash": "1d2d9a15c9a43406ccd4f2d15d2833c6fa8c050893b27cd998ff27446d14c208",
+  "tests": {
+    "total": 64,
+    "failed": 0,
+    "skipped": 0,
+    "assertions": 261,
+    "control_typecheck": "passed"
+  },
+  "reviews": [
+    {
+      "reviewer": "epoch-contract-critic",
+      "axis": "specification",
+      "verdict": "pass"
+    },
+    {
+      "reviewer": "epoch-operational-critic",
+      "axis": "operational",
+      "verdict": "pass"
+    }
+  ],
+  "runtime": {
+    "network": "none",
+    "mounts": [],
+    "memory_mib": 512,
+    "cpus": 0.5,
+    "pids_limit": 128,
+    "capabilities": "all dropped",
+    "cleanup": "both exact containers and image removed; absence checked"
+  },
+  "source_sha256": {
+    "bun.lock": "1a4c44900e416e0570b737142b0193b7a9b94885baa06bcca69441cfd4e14954",
+    "deploy/verify/Dockerfile": "8e578721327b5c20fc7fd28cbc428ba2f98a24b5dcbb8ae319859991e2498b0c",
+    "deploy/verify/Dockerfile.dockerignore": "8d0185b771f0dfe613e817ff848ad1ce396ecec0f894fb8befeb2929f3f7d8e9",
+    "lab/management-check.ts": "530cbb559adf2da25a294a8160621ba9a5a8696eecca2f8e42f79ace7a47fc3a",
+    "lab/management-factor-recovery.ts": "cdffae82b037acadd3194d9d2d1d0376f86872e7860c96cbb011f8addaeccd1b",
+    "lab/management-mfa-browser.ts": "addaa176809532823e71b3479638b7158ca973ae3f6c005cf3d1f3e58a82ea98",
+    "lab/management-mfa-check.ts": "a69a9f1605e102403615603f8f01a3afe00d73962c93eae1f1427e5553a27dde",
+    "lab/upstream-app.ts": "d61b0f621fc286c2dcd595a68effed3f25ff89b439cdcc44d715c112226dc63e",
+    "package.json": "0f4556bbd3c224eb65c88d1d57030d72ef7a532fce0b837557eb9da8913b6524",
+    "src/control/bootstrap.ts": "aaafdf9b11e57b84fbfebddce8e2dd5c9229ea6d97eb1c24f7b182059b838fc1",
+    "src/control/placement.ts": "9b09dcad025c4cbee5a361a331baf5139f5c73c82ef24dcfecb5dba6cabc6e50",
+    "src/control/studio.ts": "2889e9a656dc6cc253c0f0f906ee26294eed17b1e205e992ac51c194143aba30",
+    "src/control/share.ts": "002768253944e1f1073fbdebefa49fbf7df621f779bb17838ec531d7b9b907da",
+    "src/control/invitations.ts": "5e32f1f1bfcc05a2b51bc3b8a3159d3b18d4f00ef2c7cfa4631b1dcd7aec09bb",
+    "src/control/functions.ts": "690fcbb83c24cccfde68b8e8ed9b638d154ba593a8a30c6d8d6b8c7ff04d45a1",
+    "src/control/key-http.ts": "aeae2abc75fe3c3e3c3fa4ec58b341be24e962df008b44e67871298654d3742e",
+    "src/control/observe.ts": "de08de67ae384eb2220c50982713f17fe0f0580ec3c5c5a4985faf33df6ecc09",
+    "src/control/realtime.ts": "440bcab7c7b4668cb1881eb3a4c38807082b0b8f77949363765906175a56eb82",
+    "src/control/sign-in.ts": "5191a3c554c729932d1b3d48a8d0a41d97d66ed1aaa1bc1da3d68698f25b8088",
+    "src/control/database.ts": "98e742e41f779a5851e561d53b5dfb063c44b01d1891401f49dcdd67a65a9c3b",
+    "src/control/signing.ts": "07471ec0f2c0d1dfd5234726a9b4771c6add3ebbdc6ad81c3ae8b061deffce7f",
+    "src/control/handler.ts": "5739bdb47abcdf3788b8ce605a7d843a2afe29332ca17aadbd22f177659898cb",
+    "src/control/keys.ts": "f84ba287fc048dc4eaae7f322439b2eaf4f2740b0cc7aa4635164c635266d1d6",
+    "src/control/http.ts": "32698aacb9e582e527f23b6d9e8a08fdfe20ea504e00141adfebc6199c4d5229",
+    "src/control/updates.ts": "6655230a4bbfce6d3acb108ee6b5f30a2b7060b6e9a46948b9983376c1323faa",
+    "src/control/server-health.ts": "4f32d26f162245bc477aa3c258cd9f817f4db010b0057ee89da0288b9a444ba6",
+    "src/control/studio-workspace.ts": "434d9a3b5d0870c3fc15cc82e8062a3d513c103b0bc4d69170b8c92eda231e77",
+    "src/control/application.ts": "3e3e820e2c1f87f36d5798df9e9dff6a73d7be7fb39263d2972a17545b6a827f",
+    "src/control/auth.ts": "092cf96ffa93dfbdc81251fe27d7e059bfbda4b821727f81dca44f869e76f277",
+    "src/control/catalog.ts": "7c0f817445854ca85b46653507339daf77bd6c20e20bc5fcc47595694eb82c2f",
+    "src/control/management-auth.ts": "e19767ff52a10c1d00d31e97853b43eb078a2964b8ef389d99a4496ec3e12108",
+    "src/control/management-context.ts": "263dcda353857a9e735865fce4daf1ddfadb289fa3aa2810f452d25aef25542a",
+    "src/control/management-security.ts": "08510f936bdc495f15806ddb660040e970029b7d7bee1d6bd64c2abbf40fb120",
+    "tests/management-fixture.ts": "aa89cee41483d04ddf83fed5e6f0a0524f3b7978bfcd8516277829d9f42f0b97",
+    "tests/management-mfa.test.ts": "d3030cfcc3203676b2a93179cb129b1e8a488a6129ec73202b2e760199642e74",
+    "tests/management.test.ts": "0430b3a793f1affd8ce876d2221f7bb69c0ccfd0de15f33c3af54994bc4d99d4",
+    "tests/studio.test.ts": "fa0934195e8ca4b3c57aec011d2cb198e5c56ee2725d0d233f2ae71702d561a9",
+    "tests/studio-destination.test.ts": "6ff9ada28552828ddf8ad9754d6ef871112b8e3a42cfcc2c80b09c43f15a5226",
+    "tests/studio-navigation.test.ts": "1a298478314df5087b0f34c449ce9702881c943db7699e0f8be680db8542b3cd",
+    "tests/studio-revocation.test.ts": "f7a02366995feba6c1456858fe3575553de6b795e2a948deaccb613f47c4b116",
+    "tests/studio-epoch.test.ts": "8fc2c6e1347a9cc08907fa3a80ccc0a4b98f87f5ae1e31a9148ab6319bab3e9a",
+    "tsconfig.json": "353f364976857a7ceaa4e805db600ac7c44155def4b017f5bcd3f84678a4ba1d",
+    "tsconfig.control.json": "d340ab4d221759521c16f961bc194e40cc360db655f1308a7ede33337526535f",
+    "ui/api.ts": "bdfb38435955f738c60a475d2d3b31627d63861b9d2df9835d9997c322128720"
+  },
+  "artifacts_sha256": {
+    "tests.log": "5250dafa034234e66e1372e7bf31833ffa1af66f5830bc01e33cf4970dbdcd30",
+    "types.log": "f13e1fc0be8bbad48b024d07dfc35fa6f1dc8a44af19daec02b4cc97c494dce8",
+    "result.json": "552c91ca776fa91d7244db312ee54b1e9dc82f41b7889001bfc9cec77c654b32",
+    "cleanup.json": "d8035334f545c4bd5d432b5b3672882f666ee4d794720ca575eaba92ad8370ae",
+    "epoch-review-specification.json": "c42e255a30190a3bbf0a902cce9a01fa30d22e9926fc3db3623847d7bfb51b0a",
+    "epoch-review-operational.json": "a767ebc0006e124efa82a1468b8990db4d196c1bff066338b9bc626d20458a6e"
+  },
+  "limitations": [
+    "Two connections to one on-disk SQLite database were exercised in one process; a separate-process runtime scenario was not executed.",
+    "The native Auth and browser evidence belongs to the separate management-security task source; an actual integrated Studio/vendor/Auth runtime gate is still open.",
+    "Revocation withholds effects before dispatch and undelivered bytes; effects already dispatched or bytes already delivered cannot be undone.",
+    "The full portable source runner and complete application/recovery/native placement gates remain unproven.",
+    "Earlier failures are retained in the development checkpoint journal."
+  ]
+}

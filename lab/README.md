@@ -1,5 +1,7 @@
 [العربية](README.ar.md)
 
+The [2026-10-06 local repair review](../docs/reference/review-2026-10-06.md) documents deferred-role refusals, transactional project moves, Studio origin binding, backup timestamp binding, import identifier preservation and migration barriers. Absent retired containers are unsupported without a verified archive route; HBA inventory mismatch preserves the migration record. These local fixes do not establish native or production acceptance.
+
 # Local component laboratory
 
 This index contains isolated compatibility experiments and operator tooling. It is not a production acceptance record. Current capabilities and dated scope are in [status](../docs/reference/status.md); current development follows the [October execution contract](../docs/engineering/plans/2026-10-03-gauntlet-execution-method.md). It initially compares three environment databases on one PostgreSQL 17 instance with original Supabase Auth and PostgREST services. Storage, Realtime, functions, UI, recovery and upgrade gates remain separate work.

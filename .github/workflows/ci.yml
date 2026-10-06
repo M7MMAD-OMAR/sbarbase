@@ -36,6 +36,7 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun test
       - run: bun run typecheck:ui
+      - run: bun run typecheck:control
       - run: bun run build:ui
       - name: Python unit tests
         env:

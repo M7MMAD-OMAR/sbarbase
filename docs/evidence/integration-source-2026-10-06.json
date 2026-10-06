@@ -1,0 +1,160 @@
+{
+  "schema": 1,
+  "date": "2026-10-06",
+  "scope": "offline-linux-source-verification",
+  "source_sha256": "c8bdd3b7b34f647297c83f1afb72dbc7422ffd85bb1e30a7b0add77081f6a6eb",
+  "base_revision": "2c4ec82007a47436ba3e338ac03d1ad5e288df45",
+  "dirty_snapshot_patch_sha256": "de2dfd602467b97eb76a42f2f29031e3c8f9b22cb72f8d7c5adc9ed101501f6a",
+  "untracked_archive_sha256": "d6ca0ee4cc216263463356227d28da46504bc0115dd3e5bfe9522f08c13ca4ab",
+  "image_id": "sha256:117ecb8ac01cea84b62c94243141a8450337b766fa8ec35c740326c043f41b6c",
+  "container_id": "1d5f679a05c6707da3d8550083673494ef5089bce91496954920e31584347c1c",
+  "container_limits": {
+    "memory_bytes": 1073741824,
+    "nano_cpus": 1000000000,
+    "pids_limit": 512,
+    "network_mode": "none",
+    "user": "sbarbase"
+  },
+  "observed": {
+    "python_total": 1511,
+    "python_errors": 35,
+    "python_failures": 0,
+    "bun_pass": 362,
+    "bun_fail": 0
+  },
+  "stages": [
+    {
+      "name": "plan-integrity",
+      "command": [
+        "/usr/bin/python3",
+        "deploy/check_plan.py"
+      ],
+      "status": "passed",
+      "exit_code": 0,
+      "diagnostics": [],
+      "seconds": 0.03
+    },
+    {
+      "name": "python-unit",
+      "command": [
+        "/usr/bin/python3",
+        "deploy/verify/unittest_checks.py"
+      ],
+      "status": "failed",
+      "exit_code": 1,
+      "diagnostics": [],
+      "seconds": 94.84
+    },
+    {
+      "name": "bun-test",
+      "command": [
+        "bun",
+        "test"
+      ],
+      "status": "passed",
+      "exit_code": 0,
+      "diagnostics": [],
+      "seconds": 21.1
+    },
+    {
+      "name": "ui-typecheck",
+      "command": [
+        "bun",
+        "run",
+        "typecheck:ui"
+      ],
+      "status": "passed",
+      "exit_code": 0,
+      "diagnostics": [],
+      "seconds": 1.17
+    },
+    {
+      "name": "control-typecheck",
+      "command": [
+        "bun",
+        "run",
+        "typecheck:control"
+      ],
+      "status": "passed",
+      "exit_code": 0,
+      "diagnostics": [],
+      "seconds": 1.15
+    },
+    {
+      "name": "ui-build",
+      "command": [
+        "bun",
+        "run",
+        "build:ui"
+      ],
+      "status": "passed",
+      "exit_code": 0,
+      "diagnostics": [],
+      "seconds": 1.25
+    },
+    {
+      "name": "python-compile",
+      "command": [
+        "/usr/bin/python3",
+        "-m",
+        "compileall",
+        "-q",
+        "lab",
+        "deploy"
+      ],
+      "status": "passed",
+      "exit_code": 0,
+      "diagnostics": [],
+      "seconds": 0.42
+    }
+  ],
+  "passed": false,
+  "errors": [
+    "ERROR: test_existing_namespace_is_not_adopted (test_private_psql_producer.NamespaceTests.test_existing_namespace_is_not_adopted)",
+    "ERROR: test_failed_admission_and_uncertain_close_latch_before_cleanup (test_private_psql_producer.NamespaceTests.test_failed_admission_and_uncertain_close_latch_before_cleanup)",
+    "ERROR: test_fifo_replacement_is_rejected (test_private_psql_producer.NamespaceTests.test_fifo_replacement_is_rejected)",
+    "ERROR: test_mode_drift_and_extra_entry_are_rejected (test_private_psql_producer.NamespaceTests.test_mode_drift_and_extra_entry_are_rejected)",
+    "ERROR: test_private_readwrite_or_foreign_endpoint_is_rejected (test_private_psql_producer.NamespaceTests.test_private_readwrite_or_foreign_endpoint_is_rejected)",
+    "ERROR: test_real_fifo_io_noninheritance_and_actual_eof (test_private_psql_producer.NamespaceTests.test_real_fifo_io_noninheritance_and_actual_eof)",
+    "ERROR: test_atomic_control_short_write_never_retries_tail (test_private_request_pump.PublicPumpTests.test_atomic_control_short_write_never_retries_tail)",
+    "ERROR: test_changed_namespace_refuses_before_encoding_or_private_endpoint_open (test_private_request_pump.PublicPumpTests.test_changed_namespace_refuses_before_encoding_or_private_endpoint_open)",
+    "ERROR: test_done_and_eof_without_reaping_witness_expires (test_private_request_pump.PublicPumpTests.test_done_and_eof_without_reaping_witness_expires)",
+    "ERROR: test_done_and_proof_do_not_replace_delayed_actual_response_eof (test_private_request_pump.PublicPumpTests.test_done_and_proof_do_not_replace_delayed_actual_response_eof)",
+    "ERROR: test_done_and_reaping_witness_without_eof_expires (test_private_request_pump.PublicPumpTests.test_done_and_reaping_witness_without_eof_expires)",
+    "ERROR: test_early_s_eof_refuses_even_with_mock_driver_proof (test_private_request_pump.PublicPumpTests.test_early_s_eof_refuses_even_with_mock_driver_proof)",
+    "ERROR: test_enxio_exhausts_five_attempts_without_adoption (test_private_request_pump.PublicPumpTests.test_enxio_exhausts_five_attempts_without_adoption)",
+    "ERROR: test_enxio_four_retries_then_fifth_open_succeeds (test_private_request_pump.PublicPumpTests.test_enxio_four_retries_then_fifth_open_succeeds)",
+    "ERROR: test_enxio_is_finite_and_other_open_errors_never_retry (test_private_request_pump.PublicPumpTests.test_enxio_is_finite_and_other_open_errors_never_retry)",
+    "ERROR: test_false_invariant_and_first_diagnostic_byte_latch_all_future_requests (test_private_request_pump.PublicPumpTests.test_false_invariant_and_first_diagnostic_byte_latch_all_future_requests)",
+    "ERROR: test_false_invariant_without_diagnostics_is_refused (test_private_request_pump.PublicPumpTests.test_false_invariant_without_diagnostics_is_refused)",
+    "ERROR: test_false_is_absent_only_for_closed_object_state (test_private_request_pump.PublicPumpTests.test_false_is_absent_only_for_closed_object_state)",
+    "ERROR: test_nonzero_done_refuses_even_with_scalar_eof_and_mock_proof (test_private_request_pump.PublicPumpTests.test_nonzero_done_refuses_even_with_scalar_eof_and_mock_proof)",
+    "ERROR: test_origin_precedes_encoding_and_expired_encoding_opens_no_request_endpoint (test_private_request_pump.PublicPumpTests.test_origin_precedes_encoding_and_expired_encoding_opens_no_request_endpoint)",
+    "ERROR: test_partial_terminal_frame_eof_refuses (test_private_request_pump.PublicPumpTests.test_partial_terminal_frame_eof_refuses)",
+    "ERROR: test_queued_duplicate_done_is_not_hidden_by_completion (test_private_request_pump.PublicPumpTests.test_queued_duplicate_done_is_not_hidden_by_completion)",
+    "ERROR: test_real_fifo_done_before_eof_and_partial_q_chunks (test_private_request_pump.PublicPumpTests.test_real_fifo_done_before_eof_and_partial_q_chunks)",
+    "ERROR: test_real_fifo_eof_before_done_and_partial_q_chunks (test_private_request_pump.PublicPumpTests.test_real_fifo_eof_before_done_and_partial_q_chunks)",
+    "ERROR: test_real_final_s_writer_close_with_exact_frames_and_separate_driver_proof (test_private_request_pump.PublicPumpTests.test_real_final_s_writer_close_with_exact_frames_and_separate_driver_proof)",
+    "ERROR: test_reaping_status_boolean_and_stale_or_missing_witness_do_not_pass (test_private_request_pump.PublicPumpTests.test_reaping_status_boolean_and_stale_or_missing_witness_do_not_pass)",
+    "ERROR: test_result_overflow_is_refused_without_returning_raw_bytes (test_private_request_pump.PublicPumpTests.test_result_overflow_is_refused_without_returning_raw_bytes)",
+    "ERROR: test_s_eof_after_only_stopped_refuses (test_private_request_pump.PublicPumpTests.test_s_eof_after_only_stopped_refuses)",
+    "ERROR: test_scalar_requires_exact_one_lf_and_closed_grammar (test_private_request_pump.PublicPumpTests.test_scalar_requires_exact_one_lf_and_closed_grammar)",
+    "ERROR: test_terminal_eof_waits_for_delayed_proof_without_busy_eof_loop (test_private_request_pump.PublicPumpTests.test_terminal_eof_waits_for_delayed_proof_without_busy_eof_loop)",
+    "ERROR: test_terminal_eof_with_boolean_driver_snapshot_refuses (test_private_request_pump.PublicPumpTests.test_terminal_eof_with_boolean_driver_snapshot_refuses)",
+    "ERROR: test_terminal_eof_with_boolean_driver_status_refuses (test_private_request_pump.PublicPumpTests.test_terminal_eof_with_boolean_driver_status_refuses)",
+    "ERROR: test_terminal_eof_with_unreaped_driver_proof_refuses (test_private_request_pump.PublicPumpTests.test_terminal_eof_with_unreaped_driver_proof_refuses)",
+    "ERROR: test_terminal_eof_without_driver_proof_expires_under_same_whole_deadline (test_private_request_pump.PublicPumpTests.test_terminal_eof_without_driver_proof_expires_under_same_whole_deadline)",
+    "ERROR: test_uncertain_close_latches_and_never_retries_descriptor (test_private_request_pump.PublicPumpTests.test_uncertain_close_latches_and_never_retries_descriptor)"
+  ],
+  "cleanup": {
+    "exact_container_absent": true,
+    "exact_tag_absent": true
+  },
+  "independent_current_checkout_binding": "pending",
+  "production_accepted": false,
+  "limitations": [
+    "This failed run is historical evidence for the frozen pre-repair source only.",
+    "No Supabase services, Auth MFA, backup recovery, load capacity or final release acceptance were exercised.",
+    "Later Studio repair and worktree changes are outside this source snapshot."
+  ]
+}

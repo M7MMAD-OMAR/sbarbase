@@ -1,0 +1,80 @@
+bun test v1.3.14 (0d9b296a)
+
+tests/studio-destination.test.ts:
+(pass) Studio browser routing retains its configured origin for /project/default [8.84ms]
+(pass) Studio browser routing retains its configured origin for //alternate.invalid/dummy [0.57ms]
+(pass) Studio browser routing retains its configured origin for /.//alternate.invalid/dummy [0.20ms]
+(pass) Studio browser routing retains its configured origin for /%2f%2falternate.invalid/dummy [0.15ms]
+(pass) Studio auth routing retains its configured origin for a double slash path [1.46ms]
+(pass) Studio rest routing retains its configured origin for a double slash path [0.13ms]
+(pass) Studio storage routing retains its configured origin for a double slash path [0.09ms]
+
+tests/studio-epoch.test.ts:
+(pass) Studio refuses legacy credentials without an epoch even when membership is unchanged [1.17ms]
+(pass) Studio rejects malformed signed epoch values [0.30ms]
+(pass) management revocation prevents an outstanding ticket from entering Studio [0.35ms]
+(pass) entering preserves the ticket epoch and a new issuance works after revocation [1.37ms]
+(pass) revocation during a pending Studio mutation prevents its upstream effect [1.72ms]
+(pass) revocation during a vendor response wait withholds that response [0.80ms]
+(pass) revocation during a pending stream read withholds newly arriving bytes [1.23ms]
+(pass) revocation withholds unread workspace navigation [3.93ms]
+(pass) revocation during switch body reading prevents selection [1.11ms]
+(pass) switch tickets preserve the source epoch and are refused after management revocation [2.86ms]
+(pass) Studio issuance and proxy observe revocation through separate connections to the shared catalog [312.01ms]
+(pass) an unavailable epoch store refuses access before vendor dispatch [0.74ms]
+
+tests/studio-navigation.test.ts:
+(pass) Studio navigation uses live ownership, filters viewers and lists only the selected scope [12.15ms]
+(pass) workspace entry, assets and metadata never reach vendor APIs or contain user HTML [8.71ms]
+(pass) switch creates a fresh target-only ticket without launching or changing Studio [42.92ms]
+(pass) switch rejects sibling-origin CSRF, malformed input, excessive bodies and stopped targets [9.86ms]
+(pass) switch rechecks both target membership and source membership after asynchronous body reads [8.55ms]
+(pass) a stopped upstream cannot be selected even with a stale running catalog row [6.17ms]
+(pass) signed console origin survives entry and switching without trusting arbitrary return addresses [11.17ms]
+(pass) workspace permits same-origin vendor frames while preserving other CSP restrictions [64.54ms]
+
+tests/studio-revocation.test.ts:
+(pass) Studio POST withholds a delayed body when its admin becomes removed [8.44ms]
+(pass) Studio PATCH withholds a delayed body when its admin becomes removed [5.68ms]
+(pass) Studio DELETE withholds a delayed body when its admin becomes removed [5.94ms]
+(pass) Studio POST withholds a delayed body when its admin becomes viewer [4.37ms]
+(pass) Studio PATCH withholds a delayed body when its admin becomes viewer [63.29ms]
+(pass) Studio DELETE withholds a delayed body when its admin becomes viewer [5.57ms]
+(pass) Studio withholds a deferred response when its admin becomes removed [6.09ms]
+(pass) Studio withholds a deferred response when its admin becomes viewer [4.54ms]
+(pass) Studio cancels withheld streaming bytes after revocation [5.71ms]
+(pass) Studio refuses an oversized body before sending any upstream bytes [5.35ms]
+(pass) Studio body deadline refuses a stalled client and cancels its reader [27.23ms]
+(pass) Studio abort during body acquisition never dispatches upstream [52.99ms]
+(pass) Studio body read failure never dispatches upstream [6.75ms]
+(pass) Studio forwards the exact bounded body and preserves vendor headers [8.92ms]
+(pass) Studio preserves a bodyless vendor response [7.31ms]
+(pass) Studio rechecks session expiry after awaiting its body [87.93ms]
+(pass) Studio rechecks session expiry after awaiting its response [87.08ms]
+(pass) Studio refusal does not wait for a stalled cancellation promise [12.58ms]
+(pass) Studio downstream cancellation cancels the vendor without waiting indefinitely [7.60ms]
+(pass) Studio abort while waiting for response bytes cancels the vendor [5.40ms]
+(pass) Studio HEAD discards a vendor body and preserves response status [4.70ms]
+(pass) Studio preserves a not-modified vendor response [5.94ms]
+(pass) Studio maps a failed vendor connection to a bounded proxy error [4.65ms]
+(pass) Studio switching cannot renew a session that expires during the body read [87.79ms]
+(pass) Studio switching times out a stalled body and cancels it [29.07ms]
+(pass) Studio switching rejects excess bytes without waiting for cancellation [6.29ms]
+(pass) Studio byte accounting ignores empty chunks and preserves fragmented input [6.28ms]
+(pass) Studio checks its monotonic deadline even before the timer callback runs [6.72ms]
+(pass) Studio withholds unread workspace metadata after source access is revoked [5.97ms]
+(pass) Studio withholds an unread switch ticket after source access is revoked [7.14ms]
+(pass) Studio withholds selected organization metadata after that membership is revoked [6.61ms]
+(pass) Studio withholds a revoked organization from an unread navigation inventory [6.26ms]
+
+tests/studio.test.ts:
+(pass) each environment is its own Studio origin [0.26ms]
+(pass) tickets and sessions are signed, bound to one environment and one kind, and expire [0.61ms]
+(pass) the console starts, stops and opens Studio only for owners and admins of a ready environment [7.81ms]
+(pass) the Studio origin admits a ticket once, then only its session cookie, and never another environment [1.88ms]
+(pass) Studio server-side calls reach only their own environment, with its own service key [1.68ms]
+
+ 64 pass
+ 0 fail
+ 261 expect() calls
+Ran 64 tests across 5 files. [1.53s]

@@ -1,5 +1,7 @@
 [العربية](deployment-readiness.ar.md)
 
+The [2026-10-06 local repair review](review-2026-10-06.md) records defensive source changes and their limits. Local regression results do not change the production acceptance status below.
+
 # Deployment readiness
 
 Current cutoff, 2026-10-06: the reviewed repairs close SQLite connections in `recovery_bundle` after their original transactions and close `HTTPError` responses in `notify`. They also capture and assert complete expected stderr in 27 fixture methods and register tempfile close/unlink ownership before a fallible write. A newer creator fixture associates its tempfile warning with the HTTPError response lifecycle; it does not establish the allocation causes in earlier warning packets.

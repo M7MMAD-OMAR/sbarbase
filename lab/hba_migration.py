@@ -190,6 +190,9 @@ def publish_intent(state,*,target,generation,volume,inventory,retired_state):
     state=Path(state)
     if retired_state not in RETIRED_STATES:
         raise ValueError('Migration retired state must be explicit')
+    if retired_state=='absent-verified':
+        raise RuntimeError('Absent retired container migration is unsupported without a verified archive; '
+                           'preserve the generation pin and reconcile the retired state explicitly')
     record=validate({'version':1,'migration':str(uuid.uuid4()),'generation':generation,
                      'old':asdict(target),'volume':volume,'inventory':inventory,'retired_state':retired_state})
     try:os.mkdir(record_directory(state),0o700)
@@ -527,6 +530,9 @@ def execute(docker,state,*,replacement,desired):
     """
     state=Path(state)
     intent=load(state)
+    if intent['retired_state']=='absent-verified':
+        raise RuntimeError('Absent retired container migration is unsupported without a verified archive; '
+                           'preserve the migration record and reconcile the retired state explicitly')
     plan=validate_replacement(intent,replacement)
     if authority.digest(desired)!=intent['inventory']:
         raise RuntimeError('Generation migration inventory changed since the intent')
@@ -556,9 +562,15 @@ def execute(docker,state,*,replacement,desired):
             checkpoint(state,'rules-published',_bind(intent,{'container_id':minted['container_id'],
                                                              'generation':minted['generation'],
                                                              'token':outcome['journal']['token']}))
-        if not done(state,'archived'):
+        comparison=compare_rules(docker,state,intent,captured,minted,desired)
+        if comparison['inventory_matches_observed'] is not True:
+            raise RuntimeError('Observed HBA rules differ from the migration inventory; preserve the migration record')
+        if done(state,'archived'):
+            archived=read_evidence(state,intent['migration'])
+            if archived.get('rules',{}).get('inventory_matches_observed') is not True:
+                raise RuntimeError('Archived HBA migration did not verify the inventory; preserve the migration record')
+        else:
             outcome=outcome_for(state,read_checkpoint(state,'rules-published')['token'])
-            comparison=compare_rules(docker,state,intent,captured,minted,desired)
             archive_evidence(state,intent,captured,minted,new_target,outcome,comparison)
             checkpoint(state,'archived',_bind(intent,{'container_id':minted['container_id'],
                                                       'generation':minted['generation'],
