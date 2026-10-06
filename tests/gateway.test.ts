@@ -1,5 +1,6 @@
 import {test,expect} from 'bun:test';
 import {createGateway, type EnvironmentRoute} from '../src/gateway/handler';
+const nativeFetch=globalThis.fetch;
 const route:EnvironmentRoute={auth:'http://auth:9999',rest:'http://rest:3000',keys:['key-a'],anonymousToken:'anon-a',enabled:true};
 function setup() {
  const calls:{url:string;options:RequestInit}[]=[];
@@ -45,7 +46,7 @@ test('SDK API-key bearer becomes anonymous upstream token',async()=>{
 test('removed key stops subsequent requests',async()=>{
  const registry=new Map([['a_prod',route]]);
  let calls=0;
- const handler=createGateway(registry,(async()=>{calls++;return Response.json([]);}) as typeof fetch);
+ const handler=createGateway(registry,Object.assign(async()=>{calls++;return Response.json([]);}, {preconnect:nativeFetch.preconnect}));
  const request=()=>new Request('http://local/a_prod/rest/v1/items',{headers:{apikey:'key-a'}});
  expect((await handler(request())).status).toBe(200);
  registry.set('a_prod',{...route,keys:[]});
@@ -53,14 +54,14 @@ test('removed key stops subsequent requests',async()=>{
  expect(calls).toBe(1);
 });
 test('upstream failure is sanitized',async()=>{
- const handler=createGateway(new Map([['a_prod',route]]),(async()=>{throw new Error('private upstream detail');}) as typeof fetch);
+ const handler=createGateway(new Map([['a_prod',route]]),Object.assign(async()=>{throw new Error('private upstream detail');}, {preconnect:nativeFetch.preconnect}));
  const response=await handler(new Request('http://local/a_prod/rest/v1/items',{headers:{apikey:'key-a'}}));
  expect(response.status).toBe(502);
  expect(await response.text()).not.toContain('private');
 });
 test('key store failure cannot fall back to static key acceptance',async()=>{
  let forwarded=false;
- const handler=createGateway(new Map([['a_prod',route]]),(async()=>{forwarded=true;return Response.json([]);}) as typeof fetch,()=>{throw new Error('private storage failure');});
+ const handler=createGateway(new Map([['a_prod',route]]),Object.assign(async()=>{forwarded=true;return Response.json([]);}, {preconnect:nativeFetch.preconnect}),()=>{throw new Error('private storage failure');});
  const response=await handler(new Request('http://local/a_prod/rest/v1/items',{headers:{apikey:'key-a'}}));
  expect(response.status).toBe(503);expect(forwarded).toBe(false);
  expect(await response.text()).not.toContain('private');
@@ -87,7 +88,7 @@ test('unconfigured Storage is unavailable and broken request streams never reach
 });
 test('slow body deadline rejects even when cancellation resolves the pending read',async()=>{
  let forwarded=false,cancelled=false;
- const handler=createGateway(new Map([['a_prod',route]]),(async()=>{forwarded=true;return new Response('wrong');}) as typeof fetch,undefined,20);
+ const handler=createGateway(new Map([['a_prod',route]]),Object.assign(async()=>{forwarded=true;return new Response('wrong');}, {preconnect:nativeFetch.preconnect}),undefined,20);
  const delayed=new ReadableStream<Uint8Array>({cancel(){cancelled=true;}});
  expect((await handler(new Request('http://local/a_prod/rest/v1/items',{method:'POST',headers:{apikey:'key-a'},body:delayed}))).status).toBe(400);
  expect(forwarded).toBe(false);expect(cancelled).toBe(true);
@@ -96,7 +97,7 @@ test('slow body deadline rejects even when cancellation resolves the pending rea
 test('only public and signed Storage reads may omit API keys',async()=>{
  let forwarded=0;
  const storage={url:'http://storage:5000',tenantHost:'a_prod.storage.internal'};
- const handler=createGateway(new Map([['a_prod',{...route,storage}]]),(async()=>{forwarded++;return new Response('upstream');}) as typeof fetch);
+ const handler=createGateway(new Map([['a_prod',{...route,storage}]]),Object.assign(async()=>{forwarded++;return new Response('upstream');}, {preconnect:nativeFetch.preconnect}));
  for(const path of ['/object/public/bucket/file','/object/sign/bucket/file?token=capability']) {
   expect((await handler(new Request('http://local/a_prod/storage/v1'+path))).status).toBe(200);
   expect((await handler(new Request('http://local/a_prod/storage/v1'+path,{method:'HEAD'}))).status).toBe(200);

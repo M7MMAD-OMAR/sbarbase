@@ -3,12 +3,22 @@ import {GATEWAY} from '../gateway/shares';
 import {validatePlacement,validatePlacementTransition,resolveRuntimePlacement,placementServices,type RuntimePlacement,type RuntimeRouting} from './placement';
 import {randomUUID,randomBytes,createHash} from 'node:crypto';
 import {chmodSync} from 'node:fs';
+import {ManagementSecurity} from './management-security';
+import {requireCurrentManagement} from './management-context';
 
 export type MembershipRole = 'owner' | 'admin' | 'viewer';
 type Project = {id:string;organization:string;name:string};
 type Environment = {id:string;project:string;name:string};
 /** One environment with its provisioning state, so a listing needs no per row request. */
 export type EnvironmentStatus = Environment&{state:string|null;attempt:number|null;failure:ProvisionFailure|null};
+/** The authorized Studio switcher reads metadata only, without starting another runtime. */
+export type StudioNavigation = {
+  current:{organization:{id:string;name:string};project:{id:string;name:string};environment:{id:string;name:string}};
+  organizations:{id:string;name:string}[];
+  projects:{id:string;name:string}[];
+  environments:{id:string;name:string;ready:boolean;state:string}[];
+  selection:{organization:string;project:string|null};
+};
 export type ProvisionFailure = 'capacity_exceeded' | 'runtime_failed';
 export type ProvisionJob = {environment:string;runtime:string;actor:string;organization:string;state:string;attempt:number;claim:string|null;failure:ProvisionFailure|null};
 
@@ -150,9 +160,11 @@ export function invitationEmail(value:string):string {
 
 export class Catalog {
   private db:Database;
+  readonly managementSecurity:ManagementSecurity;
   private channels:NotificationChannel[];
   constructor(path:string,options?:{channels?:NotificationChannel[]}) {
     this.db=new Database(path,{create:true,strict:true});
+    this.managementSecurity=new ManagementSecurity(this.db);
     if(path!==':memory:') chmodSync(path,0o600);
     this.channels=options?.channels??['email','webhook','telegram'];
     if(!this.channels.length||this.channels.some(channel=>!['email','webhook','telegram'].includes(channel)))
@@ -342,6 +354,7 @@ export class Catalog {
     return value.trim();
   }
   private actor(value:string) {
+    requireCurrentManagement();
     if(typeof value!=='string'||!value||value.length>200||/[\x00-\x20]/.test(value))
       throw new Error('Invalid actor');
     return value;
@@ -484,6 +497,66 @@ export class Catalog {
     this.actor(actor);
     return !!this.db.query<{role:string},[string]>(`SELECT m.role role FROM installation_bootstrap b
       JOIN memberships m ON m.organization=b.organization WHERE b.singleton=1 AND m.actor=? AND m.role IN ('owner','admin')`).get(actor);
+  }
+  /** Native factor operations record identifiers and outcomes, never factor secrets or codes. */
+  recordManagementFactor(actor:string,action:'enrolled'|'verified'|'removal_requested'|'removed'|'removal_failed',factor:string) {
+    this.actor(actor);
+    if(!/^[a-f0-9-]{36}$/i.test(factor))throw new Error('Invalid factor');
+    this.record(actor,'management.mfa.'+action,actor,{factor});
+  }
+  /** The authorization grant and its audit event commit together. */
+  grantManagementMfa(actor:string,session:string,factor:string,verified:number,expires:number,epoch:number):boolean {
+    return this.db.transaction(()=>{
+      if(!this.managementSecurity.grant(actor,session,factor,verified,expires,epoch))return false;
+      this.recordManagementFactor(actor,'verified',factor);return true;
+    }).immediate();
+  }
+  /** Logout ends management access in all sessions even when native logout fails. */
+  revokeManagementLogout(actor:string,outcome:'requested'|'succeeded'|'failed',scope:'global'|'local'|'others') {
+    this.actor(actor);
+    if(!['requested','succeeded','failed'].includes(outcome)||!['global','local','others'].includes(scope))throw new Error('Invalid logout');
+    this.db.transaction(()=>{
+      this.managementSecurity.revoke(actor);
+      this.record(actor,'management.mfa.logout_'+outcome,actor,{scope});
+    }).immediate();
+  }
+  assertManagementRecoveryOwner(actor:string):void {
+    const bootstrap=this.db.query<{organization:string},[]>('SELECT organization FROM installation_bootstrap WHERE singleton=1').get();
+    if(!bootstrap)throw new Error('Forbidden');
+    this.require(actor,bootstrap.organization,['owner']);
+  }
+  /** Private host recovery must have an installation owner and a separately verified MFA session. */
+  revokeManagementMfa(actor:string,target:string,reason:'lost_factor'|'compromised_factor'):string {
+    this.assertManagementRecoveryOwner(actor);
+    if(!/^[a-f0-9-]{36}$/i.test(target)||!['lost_factor','compromised_factor'].includes(reason))throw new Error('Invalid recovery');
+    return this.db.transaction(()=>{
+      this.assertManagementRecoveryOwner(actor);
+      const receipt=randomUUID();
+      this.managementSecurity.revoke(target);
+      this.db.query('INSERT INTO management_mfa_recovery(receipt,actor,target,state,started) VALUES (?,?,?,\'requested\',?)').run(receipt,actor,target,Date.now());
+      this.record(actor,'management.mfa.recovery_requested',target,{reason,receipt});return receipt;
+    }).immediate();
+  }
+  /** A matching pending receipt permits audit completion even if the initiating owner was demoted. */
+  finishManagementMfaRecovery(actor:string,target:string,outcome:'completed'|'failed',receipt:string) {
+    if(!/^[a-f0-9-]{36}$/i.test(target)||!['completed','failed'].includes(outcome)||typeof receipt!=='string'||!/^[a-f0-9-]{36}$/i.test(receipt))throw new Error('Invalid recovery');
+    this.db.transaction(()=>{
+      const pending=this.db.query('SELECT 1 FROM management_mfa_recovery WHERE receipt=? AND actor=? AND target=? AND state=\'requested\'').get(receipt,actor,target);
+      if(!pending)throw new Error('Invalid recovery receipt');
+      this.managementSecurity.revoke(target);
+      this.db.query('UPDATE management_mfa_recovery SET state=?,finished=? WHERE receipt=?').run(outcome,Date.now(),receipt);
+      this.record(actor,'management.mfa.recovery_'+outcome,target,{receipt});
+    }).immediate();
+  }
+  /** Installation owners can inspect security history without exposing it to tenant members. */
+  managementSecurityAudit(actor:string,limit=100):{sequence:number;actor:string;action:string;subject:string;detail:Record<string,string>;at:number}[] {
+    const bootstrap=this.db.query<{organization:string},[]>('SELECT organization FROM installation_bootstrap WHERE singleton=1').get();
+    if(!bootstrap)throw new Error('Forbidden');
+    this.require(actor,bootstrap.organization,['owner']);
+    if(!Number.isSafeInteger(limit)||limit<1||limit>500)throw new Error('Invalid limit');
+    return this.db.query<{sequence:number;actor:string;action:string;subject:string;detail:string;at:number},[number]>(
+      "SELECT sequence,actor,action,subject,detail,at FROM audit_events WHERE action LIKE 'management.mfa.%' ORDER BY sequence DESC LIMIT ?")
+      .all(limit).map(event=>({...event,detail:JSON.parse(event.detail)}));
   }
   /** What happened in one organization, newest first, for its owners and admins. An event is
    * shown when its subject belongs to the organization now: the organization itself, one of its
@@ -716,6 +789,38 @@ export class Catalog {
       "SELECT environment FROM provision_jobs WHERE runtime=? AND state='succeeded'").get(runtime);
     if(!row)return false;
     try{this.environmentProject(actor,row.environment,['owner','admin']);return true;}catch{return false;}
+  }
+  /** One coherent metadata snapshot for an authenticated Studio session and its selections. */
+  studioNavigation(actor:string,runtime:string,organization?:string,project?:string):StudioNavigation {
+    return this.db.transaction(()=>{
+      if(!this.studioAllowed(actor,runtime))throw new Error('Forbidden');
+      const current=this.db.query<{organization:string;organizationName:string;project:string;projectName:string;environment:string;environmentName:string},[string]>(`
+        SELECT o.id organization,o.name organizationName,p.id project,p.name projectName,e.id environment,e.name environmentName
+        FROM provision_jobs j JOIN environments e ON e.id=j.environment
+        JOIN projects p ON p.id=e.project JOIN organizations o ON o.id=p.organization
+        WHERE j.runtime=? AND j.state='succeeded'`).get(runtime);
+      if(!current)throw new Error('Forbidden');
+      const organizations=this.db.query<{id:string;name:string},[string]>(`
+        SELECT o.id,o.name FROM organizations o JOIN memberships m ON m.organization=o.id
+        WHERE m.actor=? AND m.role IN ('owner','admin') ORDER BY o.name COLLATE NOCASE,o.id`).all(actor);
+      const selectedOrganization=organization===undefined?current.organization:organization;
+      if(!organizations.some(item=>item.id===selectedOrganization))throw new Error('Forbidden');
+      const projects=this.db.query<{id:string;name:string},[string]>(`
+        SELECT id,name FROM projects WHERE organization=? ORDER BY name COLLATE NOCASE,id`).all(selectedOrganization);
+      const selectedProject=project===undefined
+        ?(selectedOrganization===current.organization?current.project:projects[0]?.id??null):project;
+      if(selectedProject!==null&&!projects.some(item=>item.id===selectedProject))throw new Error('Forbidden');
+      const environments=selectedProject===null?[]:this.db.query<{id:string;name:string;ready:number;state:string},[string]>(`
+        SELECT e.id,e.name,CASE WHEN j.state='succeeded' THEN 1 ELSE 0 END ready,
+          CASE WHEN j.state='succeeded' THEN COALESCE(s.state,'stopped') ELSE 'unavailable' END state
+        FROM environments e LEFT JOIN provision_jobs j ON j.environment=e.id
+        LEFT JOIN studio_sessions s ON s.runtime=j.runtime
+        WHERE e.project=? ORDER BY e.name COLLATE NOCASE,e.id`).all(selectedProject)
+        .map(item=>({...item,ready:Boolean(item.ready)}));
+      return {current:{organization:{id:current.organization,name:current.organizationName},
+        project:{id:current.project,name:current.projectName},environment:{id:current.environment,name:current.environmentName}},
+        organizations,projects,environments,selection:{organization:selectedOrganization,project:selectedProject}};
+    })();
   }
   requestStudio(actor:string,environment:string,desired:'running'|'stopped'):StudioSession {
     return this.db.transaction(()=>{
@@ -1025,10 +1130,13 @@ export class Catalog {
   }
   /** Moves a project to another organization. Requires owner authority in both. Ids and
    * runtimes stay, so nothing is renamed or copied. Returns the environments whose queued
-   * provisioning it cancelled and the runtimes whose API keys the caller must revoke; the
-   * management route does both (src/control/http.ts). The JWT signing key and the direct
-   * database password are not rotated here (docs/engineering/CONTROL-PLANE.md). */
-  transferProject(actor:string,project:string,destination:string):{cancelled:string[];runtimes:string[]} {
+   * provisioning it cancelled and the runtimes whose API keys must be revoked. The management
+   * route supplies synchronous revocation before this transaction commits, so a key failure
+   * rolls the catalog changes back. Previously revoked keys stay revoked in their own store.
+   * Trusted callers without a callback must revoke the returned runtimes themselves.
+   * The JWT signing key and direct database password are not rotated here
+   * (docs/engineering/CONTROL-PLANE.md). */
+  transferProject(actor:string,project:string,destination:string,revokeRuntime?:(runtime:string)=>void):{cancelled:string[];runtimes:string[]} {
     return this.db.transaction(()=>{
       const source=this.project(actor,project,['owner']);
       this.require(actor,destination,['owner']);
@@ -1053,10 +1161,13 @@ export class Catalog {
       this.notify('project.ownership_changed','critical','project.ownership_changed|'+project,
         {organization:source.organization,project},actor,'ownership_changed',
         {from:source.organization,to:destination});
-      // The caller revokes these runtimes' keys: people of the source organization may hold them.
+      // People of the source organization may hold these runtimes' keys. Revocation must
+      // finish before ownership commits; every refusal above happens before touching keys.
       const runtimes=this.db.query<{runtime:string},[string]>(
         'SELECT j.runtime runtime FROM provision_jobs j JOIN environments e ON e.id=j.environment WHERE e.project=? ORDER BY j.runtime').all(project);
-      return {cancelled:queued.map(job=>job.environment),runtimes:runtimes.map(row=>row.runtime)};
+      const runtimeIds=runtimes.map(row=>row.runtime);
+      if(revokeRuntime)for(const runtime of runtimeIds)revokeRuntime(runtime);
+      return {cancelled:queued.map(job=>job.environment),runtimes:runtimeIds};
     }).immediate();
   }
   /** Owners rename their organization. Organization names are not unique. */

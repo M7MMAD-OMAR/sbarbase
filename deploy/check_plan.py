@@ -1,5 +1,6 @@
 """Validate the durable goal, execution documents and comparison source record."""
 import json
+import importlib.util
 from pathlib import Path
 import re
 
@@ -13,11 +14,17 @@ DOCUMENTS = (
     'docs/engineering/reviews/2026-10-03-docker-portability.md',
 )
 
+_spec = importlib.util.spec_from_file_location(
+    'capability_registry', Path(__file__).resolve().parent / 'verify/capability_registry.py')
+capability_registry = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(capability_registry)
+
 
 def check(root):
     """Return every planning-integrity error without changing the checkout."""
     root = Path(root).resolve()
     errors, texts = [], {}
+    errors.extend(capability_registry.check(root)[1])
     for name in DOCUMENTS:
         path = root / name
         try:
@@ -69,6 +76,9 @@ def check(root):
                 errors.append(f'{name}: open slice has no next action')
             if item.get('status') == 'passed' and not item.get('evidence'):
                 errors.append(f'{name}: passed slice has no evidence reference')
+            if item.get('status') == 'passed':
+                errors.extend(f'{name}: passed slice requires valid coverage proof: {error}'
+                              for error in capability_registry.coverage(root, item.get('id')))
         if ledger.get('status') == 'complete' and any(item.get('status') != 'passed' for item in slices):
             errors.append(f'{name}: complete goal contains unproven slices')
     except (OSError, UnicodeError, ValueError, TypeError) as error:

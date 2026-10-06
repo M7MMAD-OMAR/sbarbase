@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import tempfile
 import unittest
+from host_test_fixture import IsolatedHostCase
 from unittest.mock import patch
 import install_server
 
@@ -15,7 +16,7 @@ def result(returncode=0,stdout=''):
     return type('R',(),{'returncode':returncode,'stdout':stdout,'stderr':''})()
 
 
-class RenderingTests(unittest.TestCase):
+class RenderingTests(IsolatedHostCase):
     def render(self,**overrides):
         values={'root':ROOT,'home':Path('/srv/sbarbase'),'user':'sbarbase','bun_dir':'/srv/sbarbase/.bun/bin'}
         values.update(overrides)
@@ -47,12 +48,15 @@ class RenderingTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             install_server.rendered_unit(ROOT,Path('/srv/x'),'sbarbase','/srv/x/.bun/bin',text=broken)
 
-    def test_the_upgrade_guard_stays_first_in_a_rendered_unit(self):
+    def test_host_admission_precedes_the_upgrade_guard_in_a_rendered_unit(self):
         rendered=self.render()
+        admission='ExecStartPre=/bin/sh '+str(ROOT)+'/deploy/host-preflight.sh --runtime'
+        self.assertEqual([line for line in rendered.splitlines() if line.startswith('ExecStartPre=')][0],admission)
         self.assertIn(install_server.GUARD_LINE,rendered)
         self.assertLess(rendered.index(install_server.GUARD_LINE),rendered.index('lab/install_server.py check'))
         shipped=install_server.SERVICE_UNIT.read_text()
-        for broken in (shipped.replace(install_server.GUARD_LINE+'\n',''),
+        for broken in (shipped.replace(install_server.HOST_ADMISSION_LINE+'\n',''),
+                       shipped.replace(install_server.GUARD_LINE+'\n',''),
                        shipped.replace('Environment=SBARBASE_GUARDED=1\n','')):
             with self.assertRaises(SystemExit):
                 install_server.rendered_unit(ROOT,Path('/srv/x'),'sbarbase','/srv/x/.bun/bin',text=broken)
@@ -60,6 +64,9 @@ class RenderingTests(unittest.TestCase):
         swapped=shipped.replace(install_server.GUARD_LINE,'@guard@').replace(preflight,install_server.GUARD_LINE).replace('@guard@',preflight)
         with self.assertRaisesRegex(SystemExit,'before the upgrade guard'):
             install_server.rendered_unit(ROOT,Path('/srv/x'),'sbarbase','/srv/x/.bun/bin',text=swapped)
+        late=shipped.replace(install_server.HOST_ADMISSION_LINE+'\n','').replace(install_server.GUARD_LINE,install_server.GUARD_LINE+'\n'+install_server.HOST_ADMISSION_LINE)
+        with self.assertRaisesRegex(SystemExit,'host admission first'):
+            install_server.rendered_unit(ROOT,Path('/srv/x'),'sbarbase','/srv/x/.bun/bin',text=late)
 
     def test_the_leftover_stop_runs_between_the_guard_and_the_preflight(self):
         rendered=self.render()
@@ -99,7 +106,7 @@ class RenderingTests(unittest.TestCase):
         self.assertIn('is-active',commands[3])
 
 
-class WriteAccessTests(unittest.TestCase):
+class WriteAccessTests(IsolatedHostCase):
     """A ReadWritePaths entry for a missing directory fails the unit with 226/NAMESPACE."""
 
     def rendered(self,**overrides):
@@ -129,7 +136,7 @@ class WriteAccessTests(unittest.TestCase):
                     self.assertEqual(Path(path),ROOT)
 
 
-class IdentityValidationTests(unittest.TestCase):
+class IdentityValidationTests(IsolatedHostCase):
     """Values from argv are written into a root-owned unit: they must be validated."""
 
     def test_a_service_user_with_a_newline_is_refused(self):
@@ -150,7 +157,7 @@ class IdentityValidationTests(unittest.TestCase):
         self.assertTrue(install_server.validate_service_identity('supabase-ops',Path('/srv/sbarbase'),'/srv/sbarbase/.bun/bin'))
 
 
-class InstallGuardTests(unittest.TestCase):
+class InstallGuardTests(IsolatedHostCase):
     def evidence_path(self):
         directory=tempfile.TemporaryDirectory();self.addCleanup(directory.cleanup)
         return Path(directory.name)/'supervisor-unit.json'

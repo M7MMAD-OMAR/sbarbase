@@ -4,6 +4,7 @@ import {authenticate,reply,type ManagementIdentity} from './auth';
 import {readJsonCached} from '../http/cached-json';
 import {join} from 'node:path';
 import {UPDATES_DIRECTORY,UpdateRefusal,requestUpdate,saveSettings,serverZone,updatesView,validateSettings,type UpdateRequestKind} from './updates';
+import {createServerHealthReader} from './server-health';
 
 /** Runtime state directory, the same tree the runtime writes the catalog in. */
 const MAIL_STATE_DIRECTORY='.lab/upstream';
@@ -109,8 +110,18 @@ function refusal(error:unknown):Response {
  */
 export function managementHandler(catalog:Catalog,identify:ManagementIdentity,mailDirectory=MAIL_STATE_DIRECTORY,keys?:KeyStore,
   updatesDirectory=UPDATES_DIRECTORY,checkout='.') {
+  const serverHealth=createServerHealthReader();
   return async(request:Request):Promise<Response>=>{
     const path=new URL(request.url).pathname;
+    if(path==='/management/v1/server') {
+      if(request.method!=='GET')return reply(405,{message:'Method not allowed'});
+      const actor=await authenticate(identify,request);
+      if(actor instanceof Response)return actor;
+      if(!catalog.installationOperator(actor))return reply(403,{message:'Forbidden'});
+      const response=reply(200,{data:serverHealth()});
+      response.headers.set('Cache-Control','no-store');
+      return response;
+    }
     const item=path.match(/^\/management\/v1\/(organizations|projects|environments)\/([a-f0-9-]{36})$/);
     if(item) {
       if(!['PATCH','DELETE'].includes(request.method))return reply(405,{message:'Method not allowed'});
@@ -145,12 +156,10 @@ export function managementHandler(catalog:Catalog,identify:ManagementIdentity,ma
       try {
         const input=await body(request,['organization']);
         if(typeof input.organization!=='string'||!/^[a-f0-9-]{36}$/.test(input.organization))return reply(400,{message:'Invalid request'});
-        const moved=catalog.transferProject(actor,move[1]!,input.organization);
-        // People of the source organization may hold the keys, so none of them survives the move.
-        // The move is committed first, so a name clash in the destination costs nobody a key.
         let revoked=0;
-        try {for(const runtime of moved.runtimes)revoked+=keys.revokeAll(runtime);}
-        catch {return reply(500,{message:'Project moved; revoking its keys failed'});}
+        // Commit ownership only after every source key has been revoked.
+        const moved=catalog.transferProject(actor,move[1]!,input.organization,
+          runtime=>{revoked+=keys.revokeAll(runtime);});
         return reply(200,{organization:input.organization,cancelled:moved.cancelled,revoked});
       } catch(error) {return refusal(error);}
     }
@@ -174,6 +183,7 @@ export function managementHandler(catalog:Catalog,identify:ManagementIdentity,ma
         // owners and admins make it; the creator becomes its owner.
         if(!catalog.installationOperator(actor))return reply(403,{message:'Forbidden'});
         const input=await body(request);
+        if(!catalog.installationOperator(actor))return reply(403,{message:'Forbidden'});
         return reply(201,{id:catalog.createOrganization(actor,input.name)});
       } catch(error) {
         if(error instanceof InputError||error instanceof Error&&error.message==='Invalid name')
@@ -254,6 +264,7 @@ export function managementHandler(catalog:Catalog,identify:ManagementIdentity,ma
         if(action==='/settings') {
           const settings=validateSettings(await body(request,['check','automatic','window']));
           if(typeof settings==='string')throw new UpdateRefusal(settings,400);
+          if(!catalog.installationOperator(actor))throw new Error('Forbidden');
           // The window is read in the supervisor's time zone, returned beside the settings.
           return reply(200,{data:saveSettings(settings,updatesDirectory),timezone:serverZone(updatesDirectory)});
         }
@@ -266,6 +277,7 @@ export function managementHandler(catalog:Catalog,identify:ManagementIdentity,ma
           if(input.acknowledged!==undefined&&typeof input.acknowledged!=='boolean')throw new InputError();
           version=input.version;acknowledged=input.acknowledged===true;
         } else if(request.body)throw new InputError();
+        if(!catalog.installationOperator(actor))throw new Error('Forbidden');
         requestUpdate(action.slice(1) as UpdateRequestKind,version,updatesDirectory,acknowledged);
         return reply(202,{state:'requested'});
       } catch(error) {return refusal(error);}

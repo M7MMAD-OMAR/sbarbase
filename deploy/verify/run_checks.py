@@ -16,6 +16,7 @@ STAGES = (
     ("python-unit", ["/usr/bin/python3", "deploy/verify/unittest_checks.py"]),
     ("bun-test", ["bun", "test"]),
     ("ui-typecheck", ["bun", "run", "typecheck:ui"]),
+    ("control-typecheck", ["bun", "run", "typecheck:control"]),
     ("ui-build", ["bun", "run", "build:ui"]),
     ("python-compile", ["/usr/bin/python3", "-m", "compileall", "-q", "lab", "deploy"]),
 )
@@ -36,7 +37,7 @@ def plain_terminal_output(output):
 
 def stage_diagnostics(name, output):
     """Recognized compiler/build diagnostics, preserving their log line numbers."""
-    if name not in {"ui-typecheck", "ui-build", "python-compile"}:
+    if name not in {"ui-typecheck", "control-typecheck", "ui-build", "python-compile"}:
         return []
     diagnostics = []
     for number, line in enumerate(plain_terminal_output(output).splitlines(), 1):
@@ -44,7 +45,8 @@ def stage_diagnostics(name, output):
                 or re.search(r"^\s*(?:warning|warn|error|fatal)(?:\s|:|\[)", line, re.I)
                 or re.search(r"^\s*\([!]\)", line)
                 or re.search(r"^\s*\[[A-Z][A-Z0-9_]+\]", line)
-                or re.search(r":\s*\w*(?:Warning|Error):", line)):
+                or re.search(r":\s*\w*(?:Warning|Error):", line)
+                or re.search(r":\s*(?:error|warning)\s+TS[0-9]+\b", line, re.I)):
             diagnostics.append({"line": number, "message": line})
     return diagnostics
 

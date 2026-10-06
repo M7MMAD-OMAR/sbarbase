@@ -20,7 +20,7 @@ CA_CHECKSUM = 'f7025ab9b24cd73215510931037b02d6960d89584d0d00afba81851abdbe6ef1'
 CA_URL = ('https://snapshot.ubuntu.com/ubuntu/' + SNAPSHOT
           + '/pool/main/c/ca-certificates/ca-certificates_20260223_all.deb')
 PACKAGES = {'python3', 'python3-cryptography', 'git', 'openssh-client',
-            'tzdata', 'procps', 'ca-certificates', 'util-linux'}
+            'tzdata', 'procps', 'ca-certificates', 'util-linux', 'coreutils', 'sed', 'mawk'}
 
 
 def instructions(text):
@@ -157,6 +157,8 @@ def validate_contract(text):
         raise ValueError('executable startup missing')
     if ({}, ['lab/docker_profile.py', '/usr/local/lib/sbarbase/docker_profile.py']) not in copies:
         raise ValueError('baked validator missing')
+    if ({}, ['deploy/host-preflight.sh', '/usr/local/lib/sbarbase/host-preflight.sh']) not in copies:
+        raise ValueError('baked capability contract missing')
     if ('ENTRYPOINT', '["/usr/local/bin/sbarbase-start"]') not in parsed:
         raise ValueError('startup entrypoint missing')
 

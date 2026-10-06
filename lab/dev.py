@@ -2,6 +2,7 @@
 import collections
 import datetime
 import console_build_check
+import docker_profile
 import fcntl
 import json
 import notification_producers
@@ -829,7 +830,7 @@ def checkout_head():
 
 
 def run_guard(environment=os.environ):
-    """The upgrade guard (lab/upgrade_guard.py) is the first step of every start. The systemd
+    """The upgrade guard (lab/upgrade_guard.py) follows read-only host admission. The systemd
     unit and the container's start script run it before this process (and say so with
     SBARBASE_GUARDED=1); a start from a terminal runs it here, before taking any lock, since the
     guard takes the supervisor lock itself. When it moved the checkout back, nothing more of
@@ -883,6 +884,7 @@ def main():
             print(__doc__+'\nRun from a terminal; Ctrl+C stops the console, worker and owned runtime while preserving volumes.')
             return
         raise SystemExit('Usage: /usr/bin/python3 lab/dev.py')
+    docker_profile.require_supported()
     os.chdir(ROOT)
     STATE.mkdir(parents=True, exist_ok=True)
     stop_event = threading.Event()
@@ -986,6 +988,10 @@ def main():
 
 if __name__ == '__main__':
     if not sys.argv[1:]:
-        # Before main() takes any lock: the guard takes the supervisor lock itself (run_guard).
+        # Admission precedes the guard, which may persist upgrade or lock state.
+        docker_profile.require_or_exit()
         run_guard()
-    main()
+    try:
+        main()
+    except docker_profile.ProfileError as error:
+        raise SystemExit(str(error)) from None

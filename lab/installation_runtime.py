@@ -1,5 +1,6 @@
 """Source plus retained moved target lifecycle for the local foreground supervisor."""
 import argparse
+import docker_profile
 import datetime
 import fcntl
 import json
@@ -78,6 +79,7 @@ def record_source_stage_usage():
 
 def main(command,*,startup=None):
     if command=='up':
+        docker_profile.require_supported()
         runtime.effect_receipt.require_settled(runtime.STATE)
         if not isinstance(startup,hba_startup.Startup):raise RuntimeError('Explicit installation startup ownership required')
         startup.verify()
@@ -114,6 +116,9 @@ def main(command,*,startup=None):
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser();parser.add_argument('command',choices=('up','stop'));args=parser.parse_args()
+    # A profile refusal is public and read-only, outside diagnostic persistence.
+    if args.command == 'up':
+        docker_profile.require_or_exit()
     try:
         runtime.STATE.mkdir(parents=True,exist_ok=True)
         if args.command=='up':
