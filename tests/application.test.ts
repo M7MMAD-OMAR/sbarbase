@@ -2,18 +2,20 @@ import {test,expect} from 'bun:test';
 import {application} from '../src/control/application';
 import {Catalog} from '../src/control/catalog';
 import {KeyStore} from '../src/control/keys';
+import {managementToken,sessionId,factorId,verifiedFactor} from './management-fixture';
+const nativeFetch=globalThis.fetch;
 
 test('management login surface excludes signup and admin APIs before forwarding',async()=>{
  const catalog=new Catalog(':memory:'),keys=new KeyStore(':memory:');let calls=0;
  const handler=application(catalog,keys,{auth:'http://realm.invalid',anonymousToken:'anon',publishableKey:'public'},()=>undefined,
-  (async()=>{calls++;return Response.json({ok:true});}) as typeof fetch);
+  Object.assign(async()=>{calls++;return Response.json({ok:true});}, {preconnect:nativeFetch.preconnect}));
  try {
   for(const path of ['signup','admin/users','invite','token/extra','%61dmin/users']) {
    expect((await handler(new Request(`http://local/management/auth/v1/${path}`,{method:'POST',headers:{apikey:'public'}}))).status).toBe(404);
   }
   expect((await handler(new Request('http://local/management/auth/v1/user',{method:'PUT'}))).status).toBe(405);
   expect(calls).toBe(0);
-  const allowed=await handler(new Request('http://local/management/auth/v1/token?grant_type=password',{method:'POST',headers:{apikey:'public'}}));
+  const allowed=await handler(new Request('http://local/management/auth/v1/token?grant_type=password',{method:'POST',headers:{apikey:'public','content-type':'application/json'},body:JSON.stringify({email:'owner@example.com',password:'test-password'})}));
   expect(allowed.status).toBe(200);expect(allowed.headers.get('cache-control')).toBe('no-store');expect(calls).toBe(1);
   // The operator login is for the console's own origin only.
   expect(allowed.headers.get('access-control-allow-origin')).toBeNull();
@@ -26,11 +28,13 @@ test('connection discovery reflects trusted Storage availability after membershi
   const org=catalog.createOrganization('owner','O'),project=catalog.createProject('owner',org,'P');
   const environment=catalog.createEnvironment('owner',project,'E');
   const job=catalog.claimProvision()!;catalog.finishProvision(environment,job.claim!,true);
+  const now=Math.floor(Date.now()/1000),token=managementToken('owner','aal2',sessionId,now);
+  catalog.managementSecurity.grant('owner',sessionId,factorId,now,now+3600,0);
   const handler=application(catalog,keys,{auth:'http://realm.invalid',anonymousToken:'anon',publishableKey:'public'},()=>({
    auth:'http://auth.invalid',rest:'http://rest.invalid',storage:{url:'http://storage.invalid',tenantHost:'tenant.storage.internal'},
    keys:[],anonymousToken:'anon',enabled:true}),
-   (async(input)=>{expect(String(input)).toBe('http://realm.invalid/user');return Response.json({id:'owner'});}) as typeof fetch);
-  const response=await handler(new Request(`http://local/management/v1/environments/${environment}/connection`,{headers:{authorization:'Bearer verified'}}));
+   (async(input)=>{expect(String(input)).toBe('http://realm.invalid/user');return Response.json({id:'owner',factors:[verifiedFactor]});}) as typeof fetch);
+  const response=await handler(new Request(`http://local/management/v1/environments/${environment}/connection`,{headers:{authorization:'Bearer '+token}}));
   expect(response.status).toBe(200);expect((await response.json()).services).toEqual(['auth','rest','storage']);
  }finally{catalog.close();keys.close();}
 });

@@ -114,14 +114,21 @@ export function observeHandler(catalog:Catalog,identify:ManagementIdentity,log:R
   const actor=await authenticate(identify,request);
   if(actor instanceof Response)return actor;
   const environment=match[1]!,kind=match[2]!;
-  let runtime:string;
-  try{runtime=catalog.withReadyEnvironment(actor,environment,kind==='logs',job=>job.runtime);}
-  catch(error){
-   const message=error instanceof Error?error.message:'';
-   if(message==='Forbidden')return reply(403,{message:'Forbidden'});
-   if(message==='Environment is not ready')return reply(409,{message});
-   return reply(500,{message:'Management operation failed'});
-  }
+  const access=()=>{
+   try{return catalog.withReadyEnvironment(actor,environment,kind==='logs',job=>job.runtime);}
+   catch(error){
+    const message=error instanceof Error?error.message:'';
+    if(message==='Forbidden')return reply(403,{message:'Forbidden'});
+    if(message==='Environment is not ready')return reply(409,{message});
+    return reply(500,{message:'Management operation failed'});
+   }
+  };
+  const runtime=access();if(runtime instanceof Response)return runtime;
+  const recheck=()=>{
+   const current=access();
+   if(current instanceof Response)return current;
+   return current===runtime?null:reply(409,{message:'Environment is not ready'});
+  };
   if(kind==='metrics'){
    const containers=(['auth','rest','realtime','functions'] as const).map(service=>containerName(runtime,service));
    let cached=statsCache.get(runtime);
@@ -129,7 +136,9 @@ export function observeHandler(catalog:Catalog,identify:ManagementIdentity,log:R
     cached={at:Date.now(),value:reader.stats(containers).catch(()=>[] as ContainerStats[])};
     statsCache.set(runtime,cached);
    }
-   return reply(200,{data:{...log.metrics(runtime),services:await cached.value}});
+   const services=await cached.value;
+   const refused=recheck();if(refused)return refused;
+   return reply(200,{data:{...log.metrics(runtime),services}});
   }
   const source=url.searchParams.get('source')??'requests';
   if(!(SOURCES as readonly string[]).includes(source))return reply(400,{message:`Choose a source: ${SOURCES.join(', ')}`});
@@ -141,6 +150,7 @@ export function observeHandler(catalog:Catalog,identify:ManagementIdentity,log:R
   try {
    // Storage is shared, so read further back to find this environment's own lines.
    const text=await reader.logs(containerName(runtime,service),service==='storage'?Math.min(requested*20,20_000):requested*(errors?5:1));
+   const refused=recheck();if(refused)return refused;
    return reply(200,{data:{source,lines:serviceLines(text,service,runtime,{errors,lines:requested})}});
   } catch {
    return reply(503,{message:'Service logs are unavailable right now'});

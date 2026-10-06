@@ -18,15 +18,15 @@ const sslRequest=()=>{const packet=Buffer.alloc(8);packet.writeInt32BE(8,0);pack
 
 test('only a developer login for its own database is let through',()=>{
  expect(decide({user:`${E}_developer`,database:E})).toEqual({ok:true,user:`${E}_developer`,database:E});
- for(const fields of [{user:'supabase_admin',database:E},{user:`${E}_auth`,database:E},{user:`${E}_developer`,database:OTHER},
-  {user:`${E}_developer`,database:'postgres'},{user:`${E}_developer`},{database:E},{user:`x${E}_developer`,database:E}])
-  expect(decide(fields).ok).toBe(false);
+ const refused:Record<string,string>[]=[{user:'supabase_admin',database:E},{user:`${E}_auth`,database:E},{user:`${E}_developer`,database:OTHER},
+  {user:`${E}_developer`,database:'postgres'},{user:`${E}_developer`},{database:E},{user:`x${E}_developer`,database:E}];
+ for(const fields of refused)expect(decide(fields).ok).toBe(false);
  expect(startupFields(startup({user:'u',database:'d',application_name:'psql'}).subarray(8))).toEqual({user:'u',database:'d',application_name:'psql'});
 });
 
 test('the listener declines TLS, forwards an allowed startup byte for byte and refuses the rest before PostgreSQL',async()=>{
  const received:Buffer[]=[];
- const upstream=createServer(socket=>{socket.on('data',chunk=>{received.push(chunk);socket.write('R-from-postgres');});});
+ const upstream=createServer(socket=>{socket.on('data',chunk=>{if(typeof chunk==='string')throw new Error('Unexpected encoded socket data');received.push(chunk);socket.write('R-from-postgres');});});
  await new Promise<void>(resolve=>upstream.listen(0,'127.0.0.1',()=>resolve()));
  const port=(upstream.address() as {port:number}).port;
  const proxy=await databaseProxy({port:0,host:'127.0.0.1',target:()=>({host:'127.0.0.1',port})});

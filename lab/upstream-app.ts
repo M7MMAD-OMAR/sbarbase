@@ -98,7 +98,9 @@ export function openUpstreamApplication() {
    status:decision.ok?101:decision.status,ms:performance.now()-started});}catch{}
   return decision;
  };
-  const studio=studioProxy({key:studioSessionKey,allowed:(actor,runtime)=>catalog.studioAllowed(actor,runtime),
+  const studio=studioProxy({key:studioSessionKey,allowed:(actor,runtime)=>catalog.studioAllowed(actor,runtime),epoch:actor=>catalog.managementSecurity.epoch(actor),
+   navigation:(actor,runtime,organization,project)=>catalog.studioNavigation(actor,runtime,organization,project),
+   selection:(actor,environment)=>catalog.studio(actor,environment),
    upstream:runtime=>studioState().sessions?.[runtime]?.url});
   const upstream=studioUpstream({
    endpoints:runtime=>(readJsonCached('.lab/upstream/endpoints.json') as Record<string,any>)[runtime],

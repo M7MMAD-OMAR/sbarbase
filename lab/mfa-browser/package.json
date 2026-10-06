@@ -1,0 +1,6 @@
+{
+  "name": "sbarbase-management-mfa-browser-check",
+  "private": true,
+  "version": "1.0.0",
+  "dependencies": {"playwright": "1.62.1"}
+}

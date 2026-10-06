@@ -20,6 +20,7 @@
   "scripts": {
     "build:ui": "vite build",
     "typecheck:ui": "tsc --project tsconfig.json",
+    "typecheck:control": "tsc --project tsconfig.control.json",
     "test": "bun test"
   }
 }
