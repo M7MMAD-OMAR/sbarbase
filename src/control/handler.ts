@@ -5,6 +5,7 @@ import {keyHandler,type ServiceDiscovery} from './key-http';
 import type {ManagementIdentity} from './auth';
 import {studioHandler} from './studio';
 import {signInHandler} from './sign-in';
+import {deploymentSetupHandler} from './deployment-setup';
 import {shareHandler} from './share';
 import {invitationHandler,type InvitationAccounts} from './invitations';
 import {realtimeHandler} from './realtime';
@@ -21,11 +22,12 @@ export function controlHandler(catalog:Catalog,keys:KeyStore,identity:Management
   realtime=realtimeHandler(catalog,identity),observe=observeHandler(catalog,identity,requests,containers),
   functions=functionsHandler(catalog,identity),database=databaseHandler(catalog,identity),
   signing=signingHandler(catalog,identity);
- const share=shareHandler(catalog,identity);
+ const share=shareHandler(catalog,identity),deploymentSetup=deploymentSetupHandler(catalog,identity);
  const invitations=invitationHandler(catalog,identity,accounts);
  return (request:Request)=>{
   const path=new URL(request.url).pathname;
   if(studio&&/\/environments\/[^/]+\/studio(\/|$)/.test(path))return studio(request);
+  if(/\/environments\/[^/]+\/deployment-setup$/.test(path))return deploymentSetup(request);
   if(/\/environments\/[^/]+\/sign-in$/.test(path))return signIn(request);
   if(/\/environments\/[^/]+\/share$/.test(path))return share(request);
   if(path==='/management/invitations/redeem'||/\/organizations\/[^/]+\/invitations(\/|$)/.test(path))return invitations(request);

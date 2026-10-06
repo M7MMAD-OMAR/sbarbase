@@ -10,6 +10,7 @@ import {sessionHasMfa} from './mfa-state';
 import {notificationText} from './mail';
 import {Team} from './Team';
 import {ServerHealth} from './ServerHealth';
+import {DeploymentSetup,deploymentSetupClient} from './DeploymentSetup';
 import {OrganizationSettings} from './OrganizationSettings';
 import {UpdateBanners,Updates,UpdatesProvider} from './Updates';
 import {Empty,ErrorMessage,Loading,NameForm,Refresh,ThemeControl} from './components';
@@ -26,7 +27,7 @@ function Console({session}:{session:Session}){
  const organizations=useData<{data:Organization[];operator?:boolean}>(signal=>request('/organizations','GET',undefined,signal),[request]);
  const [creating,setCreating]=useState(false);
  const [selected,setSelected]=useState(''),[project,setProject]=useState<Project>(),[environment,setEnvironment]=useState<Environment>(),[requestedView,setView]=useState<'projects'|'team'|'settings'|'activity'|'updates'|'server'|'security'>('projects');
- const [projectOrganization,setProjectOrganization]=useState('');
+ const [projectOrganization,setProjectOrganization]=useState(''),[setupOpen,setSetupOpen]=useState(false);
  // The update routes read the token on every call, so a refresh during a long restart
  // neither restarts the watch nor sends a stale token.
  const token=useRef(session.access_token);token.current=session.access_token;
@@ -34,13 +35,15 @@ function Console({session}:{session:Session}){
  const [operator,setOperator]=useState(false);
  useEffect(()=>{if(organizations.data)setOperator(Boolean(organizations.data.operator));},[organizations.data]);
  const organization=organizations.data?.data.find(item=>item.id===selected)??organizations.data?.data[0];
- const home=()=>{setProject(undefined);setProjectOrganization('');setEnvironment(undefined);setView('projects');};
+ const home=()=>{setSetupOpen(false);setProject(undefined);setProjectOrganization('');setEnvironment(undefined);setView('projects');};
  const canAudit=organization?.role==='owner'||organization?.role==='admin';
  const owner=organization?.role==='owner';
  const unavailableView=((requestedView==='team'||requestedView==='activity')&&!canAudit)||(requestedView==='settings'&&!owner)||((requestedView==='updates'||requestedView==='server')&&!operator);
  const view=unavailableView?'projects':requestedView;
  const activeProject=projectOrganization===organization?.id?project:undefined;
  const activeEnvironment=activeProject?environment:undefined;
+ const setupClient=useMemo(()=>activeEnvironment?deploymentSetupClient(activeEnvironment.id,()=>token.current):null,[activeEnvironment?.id]);
+ useEffect(()=>setSetupOpen(false),[activeEnvironment?.id]);
  const openView=(next:typeof requestedView)=>{home();setView(next);};
  const viewLabels={projects:'Projects',team:'Team',settings:'Settings',activity:'Activity',updates:'Updates',server:'Server',security:'Account security'};
  // The update state lives in UpdatesProvider, so its polls render only the banner and the page.
@@ -59,7 +62,7 @@ function Console({session}:{session:Session}){
  <header><nav className="breadcrumb" aria-label="Breadcrumb"><span>{organization?.name??'Sbarbase'}</span><span aria-hidden="true">/</span>
  {view==='projects'&&activeProject?<><button onClick={home}>Projects</button><span aria-hidden="true">/</span>{activeEnvironment?<><button onClick={()=>setEnvironment(undefined)}>{activeProject.name}</button><span aria-hidden="true">/</span><span aria-current="page">{activeEnvironment.name}</span></>:<span aria-current="page">{activeProject.name}</span>}</>:<span aria-current="page">{viewLabels[view]}</span>}</nav></header>
  <main id="content"><JoinInvitation session={session} onJoined={()=>organizations.refresh()}/><ErrorMessage message={organizations.error}/>{organizations.error&&<Refresh onClick={organizations.refresh}/>}
- {view==='security'?<MfaSettings/>:view==='server'&&operator?<ServerHealth request={request}/>:view==='updates'&&operator?<Updates/>:organizations.loading?<Loading/>:!organization?<Empty>No organizations are assigned to your account. Contact your installation owner.</Empty>:view==='team'&&canAudit?<Team key={organization.id} organization={organization} request={request}/>:view==='settings'&&owner?<OrganizationSettings key={organization.id} organization={organization} request={request} onChanged={()=>{home();organizations.refresh();}}/>:view==='activity'&&canAudit?<Activity key={organization.id} organization={organization} request={request} self={session.user.id}/>:activeEnvironment?<Connection key={activeEnvironment.id} environment={activeEnvironment} organization={organization} request={request} onBack={()=>setEnvironment(undefined)}/>:activeProject?<Environments key={activeProject.id} project={activeProject} organization={organization} request={request} onBack={home} onSelect={setEnvironment}/>:<Projects key={organization.id} organization={organization} request={request} onSelect={next=>{setProject(next);setProjectOrganization(organization.id);setEnvironment(undefined);}}/>}</main></div></div></UpdatesProvider>;
+ {view==='security'?<MfaSettings/>:view==='server'&&operator?<ServerHealth request={request}/>:view==='updates'&&operator?<Updates/>:organizations.loading?<Loading/>:!organization?<Empty>No organizations are assigned to your account. Contact your installation owner.</Empty>:view==='team'&&canAudit?<Team key={organization.id} organization={organization} request={request}/>:view==='settings'&&owner?<OrganizationSettings key={organization.id} organization={organization} request={request} onChanged={()=>{home();organizations.refresh();}}/>:view==='activity'&&canAudit?<Activity key={organization.id} organization={organization} request={request} self={session.user.id}/>:activeEnvironment?<>{operator&&<button type="button" onClick={()=>setSetupOpen(current=>!current)}>{setupOpen?'Back to connection':'Domain and email setup'}</button>}{setupOpen&&operator&&setupClient?<DeploymentSetup key={activeEnvironment.id} environmentName={activeEnvironment.name} client={setupClient}/>:<Connection key={activeEnvironment.id} environment={activeEnvironment} organization={organization} request={request} onBack={()=>setEnvironment(undefined)}/>}</>:activeProject?<Environments key={activeProject.id} project={activeProject} organization={organization} request={request} onBack={home} onSelect={setEnvironment}/>:<Projects key={organization.id} organization={organization} request={request} onSelect={next=>{setProject(next);setProjectOrganization(organization.id);setEnvironment(undefined);}}/>}</main></div></div></UpdatesProvider>;
 }
 export function App(){const [session,setSession]=useState<Session|null>(null),[signIn,setSignIn]=useState(false),[mfaVerified,setMfaVerified]=useState(false);useEffect(()=>{const {data}=auth.auth.onAuthStateChange((event,session)=>{
  setSession(session);if(!session||!sessionHasMfa(session.access_token)||event==='SIGNED_IN')setMfaVerified(false);
