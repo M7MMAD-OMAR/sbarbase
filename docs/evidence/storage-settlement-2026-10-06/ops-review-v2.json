@@ -1,0 +1,90 @@
+{
+  "reviewer": "settlement-ops-critic-v2",
+  "axis": "operational-correctness",
+  "source_hash": "13db04977316d05d6c74fb20eb5690fb7f36df26144b1b4b68da9737bbffc12c",
+  "plan_hash": "2a414dc7dacee28995eb660744455122e21822901ef97b6d63cf2e56f3c92786",
+  "verdict": "invalid",
+  "preparation_verdict": "NOT MET",
+  "preparation_verdict_reason": "The required fresh independent review gate is unproven because a coordination inventory exposed the previous operational critic verdict summary before this report was saved. This is not a finding that the current implementation failed the executed tests.",
+  "scope": "SS1 and SS2 source preparation only",
+  "findings": [
+    {
+      "id": "OPS-V2-INDEPENDENCE",
+      "severity": "blocker",
+      "location": "review process, collaboration.list_agents output",
+      "evidence": "The reviewer called collaboration.list_agents while waiting for a coordinator reply. Its output included the completed previous operational critic final verdict summary. No prior report file, run journal, workflow status or export was opened, but seeing this summary violates the no-prior-verdict independent review requirement.",
+      "status": "unresolved",
+      "reproduction": "The collaboration inventory returns completed agents with their final answer summaries.",
+      "required_resolution": "Assign a fresh operational reviewer without this output or prior verdict context."
+    }
+  ],
+  "actual_checks": [
+    {
+      "name": "disk-source-protocol",
+      "command": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=lab python3 -m unittest test_storage_write_settlement -v",
+      "executed": 61,
+      "failed": 0,
+      "status": "passed",
+      "log": "settlement-ops-v2-m971w_cl/python.log",
+      "log_sha256": "53510eb4a221a9f4c220088ae54ea40f53db89e2338d17e74e6a82d26a0f847f"
+    },
+    {
+      "name": "native-preparation-source-tests",
+      "command": "Python unittest NativePreparationTests selected by name, excluding test_sdk_fixture_syntax_is_valid_without_importing_or_running_vendor_services",
+      "executed": 9,
+      "failed": 0,
+      "status": "passed",
+      "note": "The syntax case invokes bun build and was not executed under the assigned no-build constraint. This selected run has no skipped test records.",
+      "log": "settlement-ops-v2-m971w_cl/preparation.log",
+      "log_sha256": "0c250d490575f678fe300c38d457c7b3fc80113d1823e45c7403d223caf492ba"
+    },
+    {
+      "name": "control-contract",
+      "command": "bun test tests/storage-settlement-contract.test.ts",
+      "executed": 78,
+      "failed": 0,
+      "status": "passed",
+      "log": "settlement-ops-v2-m971w_cl/bun.log",
+      "log_sha256": "cda817a6316906bff47cbc549c0f52b0b02ba1a305c6c406989cf1d00f99fd64"
+    }
+  ],
+  "identity_checks": {
+    "before": "hosts.py review-state returned the packet hashes and revision 18 before source inspection",
+    "after": {
+      "run": "/home/sbarah/.codex/sbarbase-settlement/20261006/run",
+      "project": "/home/sbarah/.codex/worktrees/09c0/sbarbase",
+      "revision_at_dispatch": 18,
+      "plan_hash": "2a414dc7dacee28995eb660744455122e21822901ef97b6d63cf2e56f3c92786",
+      "source_hash": "13db04977316d05d6c74fb20eb5690fb7f36df26144b1b4b68da9737bbffc12c"
+    },
+    "unchanged": true
+  },
+  "observations": [
+    "Inspected actual Python disk journal and fixture protocol, typed canonical equality and detached observations, pending-effect terminal retry behavior, private descriptors and modes, and receipt revalidation.",
+    "Inspected strict TypeScript receipt schema, ordered inventory digest and source comparison; nativeAdmitted is always false and native requirement entry point throws.",
+    "Inspected native plan and SDK source preparation, pin agreement across package.json, bun.lock and storage-image.lock.json.",
+    "No original pinned Git checkout blob verification was completed in this role. Source map text inspection does not authenticate installed-image correspondence."
+  ],
+  "remaining_required_unproven": [
+    "SS3 actual original native settlement and interruption evidence for every enabled writer profile",
+    "SS4 installed persistent launch/publication fencing and final consumer authority integration",
+    "SS5 neighbor-preserving shared migration, enabled remote/queue/backend coverage and full merged/runtime acceptance",
+    "Native source-to-installed-image provenance, real original SDK/file/SQL/process observations and production acceptance"
+  ],
+  "constraints": {
+    "home_AGENTS_absent": true,
+    "source_edits": false,
+    "docker_build_pull_or_run": false,
+    "services_database_or_VM": false,
+    "retained_resources": false,
+    "prior_report_files_read": false,
+    "prior_verdict_exposure": true
+  },
+  "artifacts": [
+    "settlement-ops-v2-m971w_cl/python.log",
+    "settlement-ops-v2-m971w_cl/preparation.log",
+    "settlement-ops-v2-m971w_cl/bun.log",
+    "settlement-ops-v2-m971w_cl/review-state-after.json"
+  ],
+  "graft_tokens_saved": 15148
+}

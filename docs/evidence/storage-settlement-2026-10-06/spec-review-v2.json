@@ -1,0 +1,97 @@
+{
+  "reviewer": "settlement-spec-critic-v2",
+  "axis": "specification",
+  "source_hash": "13db04977316d05d6c74fb20eb5690fb7f36df26144b1b4b68da9737bbffc12c",
+  "plan_hash": "2a414dc7dacee28995eb660744455122e21822901ef97b6d63cf2e56f3c92786",
+  "verdict": "pass",
+  "decision": "SPEC MET",
+  "scope": "SS1 and SS2 source preparation only",
+  "findings": [],
+  "requirements_reviewed": [
+    {
+      "id": "SS1",
+      "result": "met at source scope",
+      "evidence": "Read the pinned original upload, file, TUS, multipart, cleanup, worker, signal and shutdown source. Exact commit and all six declared Git blob IDs match. All 86 declared source references resolve within the pinned commit. The official release page links v1.73.1 to a88e8ee and the 2026-09-07 socket-timeout fix. Installed image correspondence remains separate."
+    },
+    {
+      "id": "SS2",
+      "result": "met at source scope",
+      "evidence": "Read all scoped Python and TypeScript implementation and tests. Durable pending records precede fixture fence, stop and consumer effects. Interrupted and malformed journals refuse; restart and receipt checks reobserve exact writer, fence, inventory and reconciliation identities. Strict closed receipt, expected-context and observation schemas reject invalid numbers, unknown fields and malformed identities. Inputs are detached, and the control-side wire copy is frozen. Ordered UTF-8 inventory digests are distinct from sorted manifest/journal checksums. Relabeling fixture data as native never admits native effects or invokes a supplied verifier callback."
+    }
+  ],
+  "executed_checks": [
+    {
+      "command": "python3 -m unittest discover -s lab -p 'test*storage*settlement*.py' -v",
+      "result": "71 tests passed, zero failures, errors or skips",
+      "artifact": "/home/sbarah/.codex/sbarbase-settlement/20261006/spec-v2-python.log"
+    },
+    {
+      "command": "python3 lab/disposable-storage-settlement-drill.py --source-control-check --evidence /home/sbarah/.codex/sbarbase-settlement/20261006/spec-v2-bun.log",
+      "result": "78 tests passed, zero failures or skips; native_accepted false",
+      "artifact": "/home/sbarah/.codex/sbarbase-settlement/20261006/spec-v2-bun.log"
+    },
+    {
+      "command": "Independent Python and Bun stdin probes from this review session",
+      "result": "24 ordered UTF-8 digest cases matched across languages, including numeric property order, Unicode, control characters, special property names and safe integer extrema. 244 control checks passed, including invalid receipt/context/observation fields and missing keys; nativeAdmitted remained false.",
+      "artifact": "/home/sbarah/.codex/sbarbase-settlement/20261006/spec-v2-independent-checks.json"
+    },
+    {
+      "command": "Pinned Git commit/blob inspection and declared reference bounds check",
+      "result": "Pinned commit and six blobs matched, 86 reference spans valid; no em or en dash in scoped files",
+      "artifact": "/home/sbarah/.codex/sbarbase-settlement/20261006/spec-v2-source-reference-check.json"
+    },
+    {
+      "command": "hosts.py review-state before inspection and immediately before report",
+      "result": "Source and plan hashes unchanged",
+      "artifact": "/home/sbarah/.codex/sbarbase-settlement/20261006/spec-v2-final-state.json"
+    }
+  ],
+  "future_integration_contract": [
+    "SB06 retains its separate source/held inventory-generation and epoch CAS, replacement candidate/placement/proof digests, signing generation and retirement checks, original stale-signed-access denial and working new grants. TransferInventoryStore capability is not supplied by this source receipt. These consumer symbols are declared in the plan but are absent from this reviewed checkout.",
+    "SB07 must install the native verifier before enrollment or migration and recheck each physical effect. Selected tenant manifests refuse shared/global writers. Shared all-tenant migration remains a separate mandatory operation.",
+    "SB05 requires all declared runtimes under one installation-wide fence and exact live snapshot-holder database, container, OID, backend PID/start/transaction and transport identities. The current backup.py snapshot/file capture has no import of the new verifier, so this integration remains pending.",
+    "Native-dedicated placement and gateway routing remain unadmitted in the actual reviewed code. Future consumers must revalidate after awaits and inside their final mutation/Catalog transaction."
+  ],
+  "mandatory_pending": [
+    "SS3: actual original SDK, file, SQL and process settlement/interruption evidence for every enabled writer profile, with exact owned cleanup.",
+    "SS4: installed persistent launch/restart/publication authority and checked transfer, purge, backup and restore consumers.",
+    "SS5: implemented neighbor-preserving all-tenant shared migration, enabled queues/Redis/remote/backend coverage and complete merged/runtime acceptance.",
+    "Full PROJECT_GOAL.md and the full product-and-portability plan, including original service functionality, recovery, supported host, integration and release gates."
+  ],
+  "limitations": [
+    "No native settlement verifier exists in this source. Source fixtures, structural statuses, hashes and native JSON labels cannot admit production.",
+    "No Docker build, pull or run, database/service/VM start, retained operation or native runtime case was executed. Only permitted source Python/Bun and private temporary fixtures were used.",
+    "The SDK fixture prepares ordinary and signed upload/download, overwrite and deletion probes. The complete native case suite, installed-image compiled provenance and external dependency runtime semantics remain unproven.",
+    "The provided home AGENTS.md is absent; the available /home/sbarah/.codex/AGENTS.md and supplied no long dash rule were read and applied.",
+    "No implementation edits, prior review artifacts, workflow status/export or journal reads were used. The review input packet and review-state were the checkpoint contract sources."
+  ],
+  "external_sources": [
+    {
+      "title": "Official Storage v1.73.1 release",
+      "url": "https://github.com/supabase/storage/releases/tag/v1.73.1",
+      "observation": "Opened during this review; links the release to a88e8ee and the dated socket-timeout fix."
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "/home/sbarah/.codex/sbarbase-settlement/20261006/spec-v2-python.log",
+      "sha256": "6fdbe7acc83aac8abc650b0a4e99719d915175e16e4b43730ecf3df07eec624f"
+    },
+    {
+      "path": "/home/sbarah/.codex/sbarbase-settlement/20261006/spec-v2-bun.log",
+      "sha256": "7fd558455a90d8b0cad17ca27ccab7f2828eb775a0c9794a8248addab0ea2cee"
+    },
+    {
+      "path": "/home/sbarah/.codex/sbarbase-settlement/20261006/spec-v2-independent-checks.json",
+      "sha256": "bade488b1813e1fe670fcb515fd31de405cb646e26fedeaf087a11d1989787a1"
+    },
+    {
+      "path": "/home/sbarah/.codex/sbarbase-settlement/20261006/spec-v2-source-reference-check.json",
+      "sha256": "606c4313d05b08ec86fa3e0d2ce4ec7f1bb840a6f70ac1bb67341549a419aa05"
+    },
+    {
+      "path": "/home/sbarah/.codex/sbarbase-settlement/20261006/spec-v2-final-state.json",
+      "sha256": "ba335e4a1ef8c896bdc8f6d5965a50334569ecb741a4081c5a78fd4e14d0ebd4"
+    }
+  ]
+}

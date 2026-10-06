@@ -1,0 +1,14 @@
+test_collision_free_plan_requires_actual_random_operation_input (test_disposable_storage_settlement_drill.NativePreparationTests.test_collision_free_plan_requires_actual_random_operation_input) ... ok
+test_complete_structural_inventory_never_grants_actual_native_acceptance (test_disposable_storage_settlement_drill.NativePreparationTests.test_complete_structural_inventory_never_grants_actual_native_acceptance) ... ok
+test_duplicate_success_cannot_replace_a_required_native_case (test_disposable_storage_settlement_drill.NativePreparationTests.test_duplicate_success_cannot_replace_a_required_native_case) ... ok
+test_each_required_actual_case_is_individually_mandatory (test_disposable_storage_settlement_drill.NativePreparationTests.test_each_required_actual_case_is_individually_mandatory) ... ok
+test_execute_refuses_before_subprocess_or_allocation (test_disposable_storage_settlement_drill.NativePreparationTests.test_execute_refuses_before_subprocess_or_allocation) ... ok
+test_fixture_export_is_pure_and_plan_binds_its_exact_bytes (test_disposable_storage_settlement_drill.NativePreparationTests.test_fixture_export_is_pure_and_plan_binds_its_exact_bytes) ... ok
+test_missing_cleanup_and_negative_observations_are_retained_as_failure (test_disposable_storage_settlement_drill.NativePreparationTests.test_missing_cleanup_and_negative_observations_are_retained_as_failure) ... ok
+test_plan_has_no_runtime_effect_and_exact_owned_resources (test_disposable_storage_settlement_drill.NativePreparationTests.test_plan_has_no_runtime_effect_and_exact_owned_resources) ... ok
+test_python_fixture_receipt_roundtrips_strict_control_codec_without_native_admission (test_disposable_storage_settlement_drill.NativePreparationTests.test_python_fixture_receipt_roundtrips_strict_control_codec_without_native_admission) ... ok
+
+----------------------------------------------------------------------
+Ran 9 tests in 0.024s
+
+OK

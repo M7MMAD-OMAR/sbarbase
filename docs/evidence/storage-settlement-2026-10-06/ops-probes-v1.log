@@ -1,0 +1,6 @@
+{"probe": "receipt-substitution", "field": "version", "type": "bool", "executed": ["executed"]}
+{"probe": "receipt-substitution", "field": "management_epoch", "type": "float", "executed": ["executed"]}
+{"probe": "receipt-substitution", "field": "sequence", "type": "float", "executed": ["executed"]}
+{"probe": "cached-observation", "before": "9999999999999999999999999999999999999999999999999999999999999999", "after": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", "phase": "settled", "receipt": "fixture"}
+{"probe": "malformed-manifest", "field": "launch_paths", "type": "TypeError", "message": "cannot use 'dict' as a set element (unhashable type: 'dict')"}
+{"probe": "malformed-manifest", "field": "neighbors", "type": "TypeError", "message": "cannot use 'list' as a set element (unhashable type: 'list')"}

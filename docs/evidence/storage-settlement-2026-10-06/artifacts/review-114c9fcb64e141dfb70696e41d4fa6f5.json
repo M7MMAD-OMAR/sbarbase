@@ -1,0 +1,8 @@
+{
+  "digest_cases": 24,
+  "control_checks": {
+    "checks": 244,
+    "nativeAdmitted": false
+  },
+  "python_fixture_only": true
+}

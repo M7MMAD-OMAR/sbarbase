@@ -1,0 +1,11 @@
+test_actual_process_lock_contention_blocks_second_controller (__main__.OperationalProbes.test_actual_process_lock_contention_blocks_second_controller) ... ok
+test_foreign_manifest_cannot_reuse_settled_receipt (__main__.OperationalProbes.test_foreign_manifest_cannot_reuse_settled_receipt) ... ok
+test_incomplete_record_remains_unchanged_without_callbacks (__main__.OperationalProbes.test_incomplete_record_remains_unchanged_without_callbacks) ... ok
+test_ordered_inventory_python_bun_match_adversarial_property_keys (__main__.OperationalProbes.test_ordered_inventory_python_bun_match_adversarial_property_keys) ... ok
+test_real_exit_after_applied_fixture_effect_never_replays (__main__.OperationalProbes.test_real_exit_after_applied_fixture_effect_never_replays) ... ok
+test_real_exit_after_durable_stop_pending_recovers_current_observation (__main__.OperationalProbes.test_real_exit_after_durable_stop_pending_recovers_current_observation) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.048s
+
+OK
