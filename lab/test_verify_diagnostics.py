@@ -73,3 +73,41 @@ class SourceDiagnosticTests(unittest.TestCase):
 
     def test_clean_output_has_no_diagnostics(self):
         self.assertEqual(RUNNER.stage_diagnostics('ui-build', '✓ built in 143ms\n544 modules transformed\n'), [])
+
+    def test_version_diagnostics_and_nonzero_exit_keep_original_binary_streams(self):
+        import subprocess
+        for code in (0, 7):
+            with self.subTest(code=code), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                evidence = root / 'evidence'
+                command = [sys.executable, '-c',
+                           'import os; os.write(1, b"version\\xff\\n"); '
+                           'os.write(2, b"diagnostic\\xfe\\n"); raise SystemExit(' + str(code) + ')']
+                cwd = Path.cwd()
+                try:
+                    with patch.object(RUNNER, 'ROOT', root), patch.object(RUNNER, 'STAGES', ()), \
+                         patch.object(RUNNER, 'VERSIONS', (('fixture', command),)), \
+                         patch.object(RUNNER, 'source_digest', return_value='fixture-public-source'):
+                        expected = RuntimeError if code == 0 else subprocess.CalledProcessError
+                        with self.assertRaises(expected):
+                            RUNNER.main(evidence_path=evidence)
+                finally:
+                    os.chdir(cwd)
+                self.assertEqual((evidence / 'fixture-versions.txt').read_bytes(), b'version\xff\n')
+                self.assertEqual((evidence / 'fixture-versions.stderr.bin').read_bytes(), b'diagnostic\xfe\n')
+
+    def test_quiet_version_keeps_binary_stdout_and_records_empty_stderr(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            evidence = root / 'evidence'
+            command = [sys.executable, '-c', 'import os; os.write(1, b"version\\xff\\n")']
+            cwd = Path.cwd()
+            try:
+                with patch.object(RUNNER, 'ROOT', root), patch.object(RUNNER, 'STAGES', ()), \
+                     patch.object(RUNNER, 'VERSIONS', (('fixture', command),)), \
+                     patch.object(RUNNER, 'source_digest', return_value='fixture-public-source'):
+                    self.assertEqual(RUNNER.main(evidence_path=evidence), 0)
+            finally:
+                os.chdir(cwd)
+            self.assertEqual((evidence / 'fixture-versions.txt').read_bytes(), b'version\xff\n')
+            self.assertEqual((evidence / 'fixture-versions.stderr.bin').read_bytes(), b'')

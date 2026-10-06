@@ -4,6 +4,7 @@ All native effects go through the existing backup API. Trusted administrator
 SQL archives and the admitted writer contract are required. Ordinary clients
 are fenced by ALLOW_CONNECTIONS, not by connection limits or random names.
 """
+import backup_consistency
 import contextlib
 import json
 import tempfile
@@ -225,7 +226,8 @@ def restore(api, scope, name, now):
                 storage(api, storage_cid, stopped=True)
                 api.helper('mkdir "$1"', '/data/' + api.TENANT_PARENT + '/' + files['stage'], writable=True)
                 with (archive / 'objects.tar').open('rb') as source:
-                    api.helper('cd "$1" && tar -xf -', '/data/' + api.TENANT_PARENT + '/' + files['stage'],
+                    api.helper('python3 -c "$1" "$2"', backup_consistency.EXTRACT_SCRIPT,
+                               '/data/' + api.TENANT_PARENT + '/' + files['stage'],
                                writable=True, stdin=source, text=False)
                 files['restored'] = tree(api, 'sync', files['stage'] + '/' + scope)
                 phase(api, journal, 'old-fenced')

@@ -5,6 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 import tempfile
 import unittest
+from host_test_fixture import IsolatedHostCase
 from unittest.mock import Mock, patch
 import durable_runtime as runtime
 import image_identity
@@ -15,8 +16,9 @@ REF = 'docker.io/postgrest/postgrest@' + INDEX
 PIN = {'id': INDEX, 'tag': 'postgrest/postgrest:v1', 'digests': [REF]}
 
 
-class DurableIdentityTests(unittest.TestCase):
+class DurableIdentityTests(IsolatedHostCase):
     def setUp(self):
+        super().setUp()
         self.stack = ExitStack(); self.addCleanup(self.stack.close)
         self.state = Path(self.stack.enter_context(tempfile.TemporaryDirectory()))
         self.stack.enter_context(patch.object(runtime, 'PRIVATE', self.state))

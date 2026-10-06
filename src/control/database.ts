@@ -45,7 +45,7 @@ export function databaseHandler(catalog:Catalog,identify:ManagementIdentity,dire
   if(actor instanceof Response)return actor;
   const environment=match[1]!;
   try {
-   const state=catalog.databaseAccess(actor,environment);
+   let state=catalog.databaseAccess(actor,environment);
    const details=connection(state.runtime);
    const view=(extra:object={})=>({...catalog.databaseAccess(actor,environment),connection:details,url:connectionString(details),...extra});
    if(request.method==='GET')return reply(200,{data:view()});
@@ -57,6 +57,7 @@ export function databaseHandler(catalog:Catalog,identify:ManagementIdentity,dire
     if(typeof value!=='boolean'||Object.keys(input as object).length!==1)return reply(400,{message:'Send {"enabled": true} or {"enabled": false}'});
     enabled=value;
    } else if(state.desired!=='on')return reply(409,{message:'Turn database access on first'});
+   state=catalog.databaseAccess(actor,environment);
    if(state.state==='pending')return reply(409,{message:'Database access change in progress'});
    // A password is made only when the login is turned on or reset, and shown only in this answer.
    const password=enabled?savePassword(directory,state.runtime):undefined;

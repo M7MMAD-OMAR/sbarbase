@@ -36,10 +36,13 @@ class ProfileTests(unittest.TestCase):
 
     def mounts(self):
         return {'Id': 'a' * 64, 'State': {'Running': True},
-                'Config': {'Labels': {'com.docker.compose.project': 'fixture', 'com.docker.compose.service': 'sbarbase'}},
+                'Config': {'WorkingDir': str(profile.Path.cwd()), 'Labels': {'com.docker.compose.project': 'fixture', 'com.docker.compose.service': 'sbarbase'}},
+                'HostConfig': {'Privileged': False, 'Runtime': 'runc', 'NetworkMode': 'host', 'CgroupnsMode': 'host'},
+                'AppArmorProfile': '',
                 'Mounts': [
             {'Type': 'bind', 'Source': '/var/lib/docker', 'Destination': '/var/lib/docker', 'RW': False},
-            {'Type': 'bind', 'Source': '/var/run/docker.sock', 'Destination': '/var/run/docker.sock', 'RW': True}]}
+            {'Type': 'bind', 'Source': '/var/run/docker.sock', 'Destination': '/var/run/docker.sock', 'RW': True},
+            {'Type': 'bind', 'Source': str(profile.Path.cwd()), 'Destination': str(profile.Path.cwd()), 'RW': True}]}
 
     def test_mounts_must_be_exact_readonly_root_and_local_socket(self):
         profile.controller_mounts(self.profile, self.mounts(), 'a' * 64)
@@ -47,8 +50,26 @@ class ProfileTests(unittest.TestCase):
             info = self.mounts(); info['Mounts'][0][field] = value
             with self.subTest(field=field), self.assertRaises(profile.ProfileError):
                 profile.controller_mounts(self.profile, info, 'a' * 64)
-        info = self.mounts(); info['Mounts'].pop()
+        info = self.mounts(); info['Mounts'].pop(1)
         with self.assertRaises(profile.ProfileError): profile.controller_mounts(self.profile, info, 'a' * 64)
+
+    def test_alternative_controller_security_profiles_refuse(self):
+        profile.controller_security(self.mounts())
+        for key, value in (('Privileged', True), ('Runtime', 'runsc'), ('SecurityOpt', ['seccomp=unconfined']),
+                           ('CapAdd', ['SYS_ADMIN']), ('NetworkMode', 'bridge'), ('CgroupnsMode', 'private')):
+            with self.subTest(key=key):
+                info = self.mounts(); info['HostConfig'][key] = value
+                with self.assertRaises(profile.ProfileError): profile.controller_security(info)
+        info = self.mounts(); info['AppArmorProfile'] = 'custom-policy'
+        with self.assertRaises(profile.ProfileError): profile.controller_security(info)
+
+    def test_checkout_bind_and_working_directory_are_exact(self):
+        cwd = str(profile.Path.cwd())
+        profile.controller_checkout(self.mounts(), cwd)
+        for info in (dict(self.mounts(), Config={'WorkingDir': '/other'}),
+                     dict(self.mounts(), Mounts=[])):
+            with self.subTest(info=info), self.assertRaises(profile.ProfileError):
+                profile.controller_checkout(info, cwd)
 
     def test_controller_identity_is_exact_and_hostname_independent(self):
         info = self.mounts()
@@ -80,7 +101,8 @@ class ProfileTests(unittest.TestCase):
         self.assertFalse(value.container)
 
     def test_validation_refuses_missing_root_before_device_consumption(self):
-        with patch.object(profile, 'docker_json', side_effect=[self.info, [self.mounts()]]), \
+        with patch.object(profile, 'validate_capabilities'), \
+                patch.object(profile, 'docker_json', side_effect=[self.info, [self.mounts()]]), \
                 patch.object(profile, 'controller_id', return_value='a' * 64), \
                 patch.object(profile, 'controller_mounts'), \
                 patch.object(profile.Path, 'is_dir', return_value=False):

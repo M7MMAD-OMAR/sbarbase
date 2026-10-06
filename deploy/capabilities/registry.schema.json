@@ -1,0 +1,332 @@
+{
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_algorithm": {
+      "const": "sbarbase-public-source-v1"
+    },
+    "reference": {
+      "type": "object",
+      "properties": {
+        "repository": {
+          "const": "https://github.com/supabase/supabase"
+        },
+        "tag": {
+          "const": "self-hosted/v0.8.2"
+        },
+        "commit": {
+          "const": "564eab8ad7840b13324f68b1bfac074ef8d51c21"
+        }
+      },
+      "required": [
+        "repository",
+        "tag",
+        "commit"
+      ],
+      "additionalProperties": false
+    },
+    "bindings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "[0-9a-f]{64}"
+          }
+        },
+        "required": [
+          "id",
+          "path",
+          "sha256"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "gauntlet_slices": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "G(?:[0-9]|1[0-2])"
+            },
+            "minItems": 0,
+            "uniqueItems": true
+          },
+          "history": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "pointer": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "path",
+                "pointer"
+              ],
+              "additionalProperties": false
+            },
+            "minItems": 0,
+            "uniqueItems": true
+          },
+          "placements": {
+            "type": "object",
+            "properties": {
+              "legacy-shared": {
+                "$ref": "#/$defs/placement"
+              },
+              "native-dedicated": {
+                "$ref": "#/$defs/placement"
+              },
+              "cloud-only": {
+                "$ref": "#/$defs/placement"
+              }
+            },
+            "required": [
+              "legacy-shared",
+              "native-dedicated",
+              "cloud-only"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "gauntlet_slices",
+          "history",
+          "placements"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    }
+  },
+  "required": [
+    "schema_version",
+    "version",
+    "source_algorithm",
+    "reference",
+    "bindings",
+    "capabilities"
+  ],
+  "additionalProperties": false,
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sbarbase.org/schemas/capability-registry-v1.json",
+  "$defs": {
+    "test": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "gate": {
+          "type": "string",
+          "enum": [
+            "acceptance",
+            "production"
+          ]
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "unit",
+            "runtime"
+          ]
+        },
+        "contract": {
+          "type": "string",
+          "minLength": 1
+        },
+        "runner": {
+          "type": "string",
+          "minLength": 0
+        },
+        "fixtures": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "command": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "required": [
+        "id",
+        "gate",
+        "kind",
+        "contract",
+        "runner",
+        "fixtures",
+        "command"
+      ],
+      "additionalProperties": false
+    },
+    "placement": {
+      "type": "object",
+      "properties": {
+        "host_profile": {
+          "type": "string",
+          "minLength": 1
+        },
+        "contract": {
+          "type": "string",
+          "minLength": 1
+        },
+        "implementation": {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "enum": [
+                "implemented",
+                "partial",
+                "planned",
+                "unsupported"
+              ]
+            },
+            "sources": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "minItems": 0,
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "state",
+            "sources"
+          ],
+          "additionalProperties": false
+        },
+        "acceptance": {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "enum": [
+                "unproven",
+                "claimed"
+              ]
+            },
+            "evidence": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "minItems": 0,
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "state",
+            "evidence"
+          ],
+          "additionalProperties": false
+        },
+        "production": {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "enum": [
+                "unproven",
+                "claimed"
+              ]
+            },
+            "evidence": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "minItems": 0,
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "state",
+            "evidence"
+          ],
+          "additionalProperties": false
+        },
+        "tests": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/test"
+          },
+          "minItems": 2,
+          "uniqueItems": true
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "host_profile",
+        "contract",
+        "implementation",
+        "acceptance",
+        "production",
+        "tests",
+        "limitations"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

@@ -15,8 +15,9 @@
  * Passwords are never read from arguments; the access token is never stored or printed.
  */
 import {Database} from 'bun:sqlite';
-import {existsSync,lstatSync,readdirSync,readFileSync} from 'node:fs';
+import {existsSync,lstatSync,readdirSync,readFileSync,openSync,closeSync,writeSync} from 'node:fs';
 import {join,resolve} from 'node:path';
+import {createClient,type SupabaseClient} from '@supabase/supabase-js';
 import {managementPublishableKey} from './upstream-app';
 
 export const EXIT={ok:0,failed:1,usage:2,refused:3} as const;
@@ -37,6 +38,8 @@ export type Deps={
  fetch:typeof fetch;
  /** One line typed at the terminal; `secret` turns echo off. */
  prompt:(question:string,secret?:boolean)=>Promise<string>;
+ /** Show a native enrollment key only on a private terminal; the closure clears it. */
+ setupAuthenticator?:(secret:string,uri:string)=>Promise<()=>void>;
  stdin:()=>Promise<string>;
  isTTY:boolean;
  out:(text:string)=>void;
@@ -88,6 +91,9 @@ Sign-in, for relink, add-environment, rotate-key, studio and share: your own man
   --password-stdin       read the password from standard input; asked without echo otherwise
   --operator-file PATH   a private 0600 JSON file with email and password (lab/operator_file.py)
 A password is never accepted as an argument. The session token is never stored or printed.
+Authenticator verification requires a private interactive terminal for every signed-in command.
+The authenticator code is asked without echo, never read from arguments, files or environment.
+On first sign-in the native setup key is shown only on the private terminal and then cleared.
 
 Exit codes
   0  done, or everything checked is healthy
@@ -439,21 +445,41 @@ const CONFLICTS:Record<string,string>={
 async function signedIn<T>(deps:Deps,flags:Parsed['flags'],work:(api:Api)=>Promise<T>):Promise<T> {
  const base=consoleState(deps).url;
  if(!base)throw new Refusal('The console is not running, so the management API cannot be reached',EXIT.failed);
- const given=await credentials(deps,flags);
- const headers={apikey:managementPublishableKey,'content-type':'application/json'};
- let response:Response;
+ if(!deps.isTTY)throw new Refusal('Management MFA requires a private interactive terminal. Password input alone cannot authorize this command.',EXIT.refused);
+ const cancellation=new AbortController(),signals=['SIGINT','SIGTERM','SIGHUP'] as const;
+ const cancel=()=>cancellation.abort(),active=()=>{
+  if(cancellation.signal.aborted)throw new Refusal('Command cancelled. Check the installation before retrying.',EXIT.refused);
+ };
+ for(const signal of signals)process.on(signal,cancel);
+ let client:SupabaseClient|undefined,loggedIn=false,cleaning=false;
  try {
-  response=await deps.fetch(base+'/management/auth/v1/token?grant_type=password',
-   {method:'POST',headers,body:JSON.stringify({email:given.email,password:given.password}),redirect:'error'});
- } catch {throw new Refusal('Management sign-in is unreachable',EXIT.failed);}
- const session=await response.json().catch(()=>undefined) as {access_token?:unknown}|undefined;
- const token=response.ok&&typeof session?.access_token==='string'?session.access_token:'';
- if(!token)throw new Refusal('Sign-in failed. Check the email and password.',EXIT.failed);
+ const given=await credentials(deps,flags);
+ active();
+ const endpoint=new URL(base),authPrefix=endpoint.pathname.replace(/\/$/,'')+'/management/auth/v1/';
+ const transport=Object.assign((input:Parameters<typeof fetch>[0],init?:RequestInit)=>{
+  const url=new URL(input instanceof Request?input.url:String(input));
+  if(url.origin!==endpoint.origin||!url.pathname.startsWith(authPrefix))throw new Refusal('Unexpected management authentication endpoint',EXIT.failed);
+  if(!cleaning)active();
+  return deps.fetch(input,{...init,redirect:'error',signal:AbortSignal.any([...(init?.signal?[init.signal]:[]),
+   ...(!cleaning?[cancellation.signal]:[]),AbortSignal.timeout(5000)])});
+ },{preconnect:()=>{}}) as typeof fetch;
+ client=createClient(base.replace(/\/$/,'')+'/management',managementPublishableKey,{
+  auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false},global:{fetch:transport}});
+ const login=await client.auth.signInWithPassword(given);
+ loggedIn=!!login.data.session;active();
+ if(login.error||!login.data.session)throw new Refusal(login.error?.status===429?'Too many sign-in attempts. Try again later.':'Sign-in failed. Check the email and password.',EXIT.failed);
+ await verifyManagementMfa(client,deps,active);active();
+ const session=await client.auth.getSession(),assurance=await client.auth.mfa.getAuthenticatorAssuranceLevel();
+ const token=session.data.session?.access_token;
+ if(session.error||!token||assurance.error||assurance.data.currentLevel!=='aal2')throw new Refusal('Native authenticator verification did not authorize this session.',EXIT.failed);
  const api:Api=async(path,method='GET',body)=>{
-  const answer=await deps.fetch(base+'/management/v1'+path,{method,redirect:'error',
+  active();
+  const answer=await deps.fetch(base+'/management/v1'+path,{method,redirect:'error',signal:AbortSignal.any([cancellation.signal,AbortSignal.timeout(5000)]),
    headers:{authorization:'Bearer '+token,...(body===undefined?{}:{'content-type':'application/json'})},
    ...(body===undefined?{}:{body:JSON.stringify(body)})});
+  active();
   const data=await answer.json().catch(()=>undefined) as {message?:unknown}|undefined;
+  active();
   if(answer.ok)return data;
   const message=typeof data?.message==='string'?data.message:'';
   if(answer.status===401)throw new Refusal('The management session was not accepted. Sign in again.',EXIT.failed);
@@ -463,10 +489,55 @@ async function signedIn<T>(deps:Deps,flags:Parsed['flags'],work:(api:Api)=>Promi
   if(answer.status===404&&message==='Active key not found')throw new Refusal('That key is not active.',EXIT.failed);
   throw new Refusal(`The management API answered ${answer.status}.`,EXIT.failed);
  };
- try {return await work(api);}
+ active();const result=await work(api);active();return result;
+ }catch(error){active();throw error;}
  finally {
-  await deps.fetch(base+'/management/auth/v1/logout',{method:'POST',redirect:'error',
-   headers:{apikey:managementPublishableKey,authorization:'Bearer '+token}}).then(reply=>reply.body?.cancel(),()=>{});
+  cleaning=true;
+  try{if(client&&loggedIn)await client.auth.signOut({scope:'local'}).catch(()=>{});}
+  finally{for(const signal of signals)process.off(signal,cancel);}
+ }
+}
+
+function mfaRefusal(error:{status?:number;code?:string}|null):Refusal {
+ return new Refusal(error?.status===429?'Too many authenticator attempts. Try again later.':
+  error?.code==='mfa_retry'?'Wait for a new authenticator code and run the command again.':
+  error?.status&&error.status>=500?'Management authentication is unavailable. Try again.':
+  'Authenticator verification failed. Run the command again with the current code.',EXIT.failed);
+}
+async function verifyManagementMfa(client:SupabaseClient,deps:Deps,active:()=>void):Promise<void> {
+ const listed=await client.auth.mfa.listFactors();if(listed.error)throw mfaRefusal(listed.error);
+ active();
+ const verified=listed.data.totp;
+ let factor:string,created:string|undefined,clear:(()=>void)|undefined;
+ try {
+  if(!verified.length){
+   if(listed.data.all.some(factor=>factor.status==='verified'))throw new Refusal('This account requires an authenticator supported by the management TOTP workflow.',EXIT.refused);
+   if(!deps.setupAuthenticator)throw new Refusal('A private terminal setup display is required to enroll an authenticator.',EXIT.refused);
+   for(const pending of listed.data.all.filter(factor=>factor.factor_type==='totp'&&factor.status==='unverified')){
+    active();const removed=await client.auth.mfa.unenroll({factorId:pending.id});active();if(removed.error)throw mfaRefusal(removed.error);
+   }
+   const enrolled=await client.auth.mfa.enroll({factorType:'totp',friendlyName:'Sbarbase CLI authenticator '+new Date().toISOString(),issuer:'Sbarbase'});
+   if(enrolled.error)throw mfaRefusal(enrolled.error);created=enrolled.data.id;factor=created;
+   active();
+   clear=await deps.setupAuthenticator(enrolled.data.totp.secret,enrolled.data.totp.uri);
+   active();
+  }else if(verified.length===1)factor=verified[0]!.id;
+  else {
+   deps.err('Choose an authenticator:');verified.forEach((factor,index)=>{
+    const name=factor.friendly_name?.replace(/[^\p{L}\p{N} _.-]/gu,'').trim().slice(0,100)||'Authenticator';
+    deps.err(`  ${index+1}: ${name}`);
+   });
+   const choice=(await deps.prompt('Authenticator number: ')).trim();
+   active();
+   if(!/^[1-9]\d*$/.test(choice)||Number(choice)>verified.length)throw new Refusal('Choose one of the listed authenticator numbers.',EXIT.refused);
+   factor=verified[Number(choice)-1]!.id;
+  }
+  active();const code=(await deps.prompt('Authenticator code: ',true)).trim();active();
+  if(!/^\d{6}$/.test(code))throw new Refusal('A six digit authenticator code is required. No management action was requested.',EXIT.refused);
+  const result=await client.auth.mfa.challengeAndVerify({factorId:factor,code});active();if(result.error)throw mfaRefusal(result.error);
+  created=undefined;
+ }finally{
+  try{clear?.();}finally{if(created)await client.auth.mfa.unenroll({factorId:created}).catch(()=>{});}
  }
 }
 
@@ -723,15 +794,54 @@ export async function main(argv:string[],deps:Deps):Promise<number> {
 
 // ---- The real process ----------------------------------------------------------------
 
-let lines:AsyncIterator<string>|undefined;
-async function readLine():Promise<string> {
- lines??=(console as unknown as AsyncIterable<string>)[Symbol.asyncIterator]();
- const next=await lines.next();
- return next.done?'':next.value;
+function privateTerminal():boolean {
+ try{const descriptor=openSync('/dev/tty','r+');closeSync(descriptor);return true;}catch{return false;}
 }
-
-function echo(on:boolean) {
- Bun.spawnSync(['stty',on?'echo':'-echo'],{stdin:'inherit',stdout:'ignore',stderr:'ignore'});
+/** Canonical input stays in the controlling terminal, including with password-stdin piping. */
+async function terminalPrompt(question:string,secret=false):Promise<string> {
+ const descriptor=openSync('/dev/tty','r+');let previous:string|undefined,interrupted=false;
+ let child:ReturnType<typeof Bun.spawn>|undefined;
+ const stop=()=>{interrupted=true;child?.kill();};
+ const signals=['SIGINT','SIGTERM','SIGHUP'] as const;
+ for(const signal of signals)process.on(signal,stop);
+ try{
+  if(secret){
+   const snapshot=Bun.spawnSync(['stty','-F','/dev/tty','-g'],{stdin:'ignore',stdout:'pipe',stderr:'ignore'});
+   const state=snapshot.stdout.toString().trim();
+   if(snapshot.exitCode!==0||!state||!/^[0-9a-f:]+$/i.test(state))throw new Refusal('The terminal could not secure hidden input.',EXIT.refused);
+   previous=state;
+   const hidden=Bun.spawnSync(['stty','-F','/dev/tty','-echo'],{stdin:'ignore',stdout:'ignore',stderr:'ignore'});
+   if(hidden.exitCode!==0)throw new Refusal('The terminal could not disable input echo.',EXIT.refused);
+  }
+  if(interrupted)throw new Refusal('Terminal input was cancelled.',EXIT.refused);
+  writeSync(descriptor,question);
+  const input=Bun.spawn(['/usr/bin/head','-n','1'],{stdin:descriptor,stdout:'pipe',stderr:'ignore'});child=input;
+  const answer=await new Response(input.stdout).text(),status=await input.exited;
+  if(interrupted||status!==0)throw new Refusal('Terminal input was cancelled.',EXIT.refused);
+  return answer.replace(/\r?\n$/,'');
+ }finally{
+  for(const signal of signals)process.off(signal,stop);
+  try{
+   if(previous){
+    const restored=Bun.spawnSync(['stty','-F','/dev/tty',previous],{stdin:'ignore',stdout:'ignore',stderr:'ignore'});
+    if(restored.exitCode!==0)throw new Refusal('Terminal input settings could not be restored. Run stty sane in your terminal.',EXIT.failed);
+   }
+   if(secret)writeSync(descriptor,'\n');
+  }finally{closeSync(descriptor);}
+ }
+}
+async function setupAuthenticator(secret:string,_uri:string):Promise<()=>void> {
+ if(!/^[A-Z2-7]{16,256}=*$/.test(secret))throw new Refusal('Native authenticator enrollment returned an invalid setup key.',EXIT.failed);
+ const descriptor=openSync('/dev/tty','r+');let cleared=false;
+ const signals=['SIGINT','SIGTERM','SIGHUP'] as const;
+ const clear=()=>{
+  if(cleared)return;cleared=true;for(const signal of signals)process.off(signal,clear);
+  try{writeSync(descriptor,'\x1b[2J\x1b[H\x1b[?1049l');}catch{}finally{closeSync(descriptor);}
+ };
+ try{
+  writeSync(descriptor,'\x1b[?1049h\x1b[2J\x1b[HSbarbase authenticator setup\n\nEnter this key in your authenticator app:\n'+secret+'\n\nKeep this key private.\n');
+  for(const signal of signals)process.on(signal,clear);return clear;
+ }catch{clear();throw new Refusal('The private terminal setup display is unavailable.',EXIT.refused);}
 }
 
 export function processDeps(root=resolve(import.meta.dir,'..')):Deps {
@@ -749,14 +859,10 @@ export function processDeps(root=resolve(import.meta.dir,'..')):Deps {
    return {stdout:await new Response(child.stdout).text(),code:await child.exited};
   },
   fetch,
-  prompt:async(question,secret=false)=>{
-   process.stderr.write(question);
-   if(!secret)return readLine();
-   echo(false);
-   try {return await readLine();} finally {echo(true);process.stderr.write('\n');}
-  },
+  prompt:terminalPrompt,
+  setupAuthenticator,
   stdin:()=>Bun.stdin.text(),
-  isTTY:!!process.stdin.isTTY,
+  isTTY:privateTerminal(),
   out:text=>process.stdout.write(text+'\n'),
   err:text=>process.stderr.write(text+'\n'),
   pidAlive:pid=>{

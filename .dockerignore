@@ -2,3 +2,4 @@
 *
 !deploy/container/start.sh
 !lab/docker_profile.py
+!deploy/host-preflight.sh

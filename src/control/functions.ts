@@ -155,7 +155,7 @@ export function functionsHandler(catalog:Catalog,identify:ManagementIdentity,cod
   const actor=await authenticate(identify,request);
   if(actor instanceof Response)return actor;
   try {
-   const state=catalog.functions(actor,environment!);
+   let state=catalog.functions(actor,environment!);
    const view=()=>{
     const manifest=readManifest(codeRoot,state.runtime);
     return {...catalog.functions(actor,environment!),
@@ -164,7 +164,9 @@ export function functionsHandler(catalog:Catalog,identify:ManagementIdentity,cod
      secrets:Object.keys(readSecrets(secretsRoot,state.runtime)).sort()};
    };
    if(kind==='function-secrets'){
-    const names=changeSecrets(secretsRoot,state.runtime,await body(request));
+    const input=await body(request);
+    state=catalog.functions(actor,environment!);
+    const names=changeSecrets(secretsRoot,state.runtime,input);
     catalog.recordFunction(actor,environment!,'functions.secrets_changed',{count:names.length});
     return reply(200,{data:{secrets:names}});
    }
@@ -182,7 +184,10 @@ export function functionsHandler(catalog:Catalog,identify:ManagementIdentity,cod
     catalog.recordFunction(actor,environment!,'functions.deleted',{name});
     return reply(200,{data:view()});
    }
-   const entry=deploy(codeRoot,state.runtime,name,deployment(await body(request)));
+   const input=deployment(await body(request));
+   // Body reads may outlive membership changes. Recheck before publishing files.
+   state=catalog.functions(actor,environment!);
+   const entry=deploy(codeRoot,state.runtime,name,input);
    catalog.recordFunction(actor,environment!,'functions.deployed',{name,version:entry.version,size:entry.size});
    // The first deploy starts the environment's Edge Functions, as on Supabase.
    if(state.desired==='off'&&state.state!=='pending')catalog.requestFunctions(actor,environment!,true);

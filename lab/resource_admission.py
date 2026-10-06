@@ -2,7 +2,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 import json
-import socket
+import docker_profile
 import subprocess
 
 MIB = 1024**2
@@ -39,7 +39,7 @@ def refusal(snapshot):
 
 
 def docker(*args):
-    result = subprocess.run(['docker', *args], text=True, capture_output=True, timeout=10)
+    result = subprocess.run(docker_profile.docker_command(*args), text=True, capture_output=True, timeout=10)
     if result.returncode:
         raise RuntimeError('Resource measurement unavailable')
     return result.stdout
@@ -59,9 +59,7 @@ def disk_free(container, path, inodes=False):
 
 
 def snapshot():
-    info = json.loads(docker('info', '--format', '{{json .}}'))
-    if info.get('Name') != socket.gethostname() or info.get('OSType') != 'linux':
-        raise RuntimeError('Resource admission requires the native local Linux daemon')
+    docker_profile.require_supported()
     memory = dict(line.split(':', 1) for line in Path('/proc/meminfo').read_text().splitlines())
     fields = memory['MemAvailable'].split()
     if len(fields) != 2 or fields[1] != 'kB':
