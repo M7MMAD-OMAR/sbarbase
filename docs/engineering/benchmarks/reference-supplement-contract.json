@@ -1,0 +1,225 @@
+{
+  "schema": 1,
+  "version": "1.0.0",
+  "scope": "Source inventory and supplemental raw metadata integrity, no build or runtime admission",
+  "reference": {
+    "repository": "https://github.com/supabase/supabase",
+    "tag": "self-hosted/v0.8.2",
+    "tag_object": "47111f95a43ffcc20ab288e29c48ce0b80174bd6",
+    "commit": "564eab8ad7840b13324f68b1bfac074ef8d51c21",
+    "git_root_tree": "8d5b6befca58030fd783d7fdad0b97ad6d5bced0",
+    "raw_commit_sha256": "68afecfaa0283b429df80047aa66518287d801bf7c2cdd02e98b9e686d45de59"
+  },
+  "original_packet": {
+    "path": "docs/engineering/benchmarks/supabase-v0.8.2.bundle.json",
+    "sha256": "9299a0cfbf7c46c2fbbb79bf6dbda290cd4754902906c88b8cbe0ac83dd1db80",
+    "files": 64,
+    "compose_documents": 14,
+    "auxiliary_yaml": 5,
+    "image_references": 23,
+    "diagnostics_retained": 10,
+    "modified": false
+  },
+  "collector_declaration": {
+    "url": "https://codeload.github.com/supabase/supabase/tar.gz/564eab8ad7840b13324f68b1bfac074ef8d51c21",
+    "limits": {
+      "requests": 1,
+      "archive_bytes": 67108864,
+      "expanded_bytes": 536870912,
+      "file_bytes": 16777216,
+      "entries": 50000,
+      "disk_bytes": 134217728,
+      "wall_seconds": 90,
+      "socket_seconds": 10
+    },
+    "anonymous": true,
+    "proxy": false,
+    "credentials": false,
+    "private_config_or_cache": false,
+    "redirects": false,
+    "retries": 0,
+    "image_layers": false,
+    "build_or_runtime": false,
+    "scope": "One public source archive only; external Git commit anchor must be verified before any request. Declaration written before GET. Partial/error output never constitutes a source packet."
+  },
+  "packet_schemas": {
+    "artifact": {
+      "required": [
+        "path",
+        "bytes",
+        "sha256"
+      ],
+      "path": "safe relative regular single-link file, no followed symlinks",
+      "bytes": "positive integer, bool/float forbidden",
+      "sha256": "lowercase 64 hex of raw bytes"
+    },
+    "source": {
+      "required": [
+        "schema",
+        "reference",
+        "baseline",
+        "limits",
+        "archive",
+        "commit_object",
+        "files",
+        "states",
+        "gaps"
+      ],
+      "files_entry": [
+        "path",
+        "mode",
+        "bytes",
+        "sha256",
+        "git_blob"
+      ],
+      "schema": 1,
+      "modes": [
+        "100644",
+        "100755",
+        "120000"
+      ],
+      "source_inventory": "All archive blobs/modes recursively rebuild exact Git root tree bound by hash-verified raw commit; original complete Git tree anchors missing/extra/mode/blob changes. No working tree is extracted."
+    },
+    "supplement": {
+      "required": [
+        "schema",
+        "reference",
+        "baseline",
+        "source",
+        "images",
+        "states"
+      ],
+      "images_entry": [
+        "reference",
+        "root",
+        "platforms",
+        "provenance"
+      ],
+      "platforms": [
+        "linux/amd64",
+        "linux/arm64"
+      ],
+      "platform_entry": [
+        "manifest",
+        "config"
+      ],
+      "provenance": {
+        "state": "unverified",
+        "evidence": []
+      },
+      "coverage": "Exactly all 23 original image references and both platforms. Preserve every previously frozen index/platform/config digest. Missing refs may acquire a dated new root observation, not retroactive old proof."
+    }
+  },
+  "commands": [
+    {
+      "id": "collect-source",
+      "argv": [
+        "python3",
+        "-m",
+        "deploy.verify.reference_supplement",
+        "collect-source",
+        "--commit-object",
+        "<verified-public-commit.raw>",
+        "--budget",
+        "<limits.json>",
+        "--output",
+        "<new-owned-directory>"
+      ],
+      "effect": "one bounded anonymous GET and new owned source artifacts, no extraction or execution"
+    },
+    {
+      "id": "verify-source",
+      "argv": [
+        "python3",
+        "-m",
+        "deploy.verify.reference_supplement",
+        "verify-source",
+        "--packet",
+        "<packet-directory>/source.json"
+      ],
+      "effect": "Offline repeat of commit/archive/tree/inventory verification. Exit0 is source inventory integrity only."
+    },
+    {
+      "id": "verify-metadata",
+      "argv": [
+        "python3",
+        "-m",
+        "deploy.verify.reference_supplement",
+        "verify-supplement",
+        "--packet",
+        "<packet-directory>/supplement.json",
+        "--gate",
+        "metadata"
+      ],
+      "effect": "Offline full source/original 64-file/image/raw config graph integrity. Exit0 is scoped metadata integrity only, not complete REF-SOURCE, distribution or runtime acceptance."
+    },
+    {
+      "id": "distribution-refusal",
+      "argv": [
+        "python3",
+        "-m",
+        "deploy.verify.reference_supplement",
+        "verify-supplement",
+        "--packet",
+        "<packet-directory>/supplement.json",
+        "--gate",
+        "distribution"
+      ],
+      "effect": "Always refuses absent actual authenticated build/provenance/startup/native/security admission. No such executor exists here."
+    }
+  ],
+  "states": {
+    "source_inventory": "may verify exact immutable inventory",
+    "working_tree": "unobserved",
+    "metadata": "may verify complete raw descriptor graph only",
+    "build_inputs": "unproven",
+    "provenance": "unverified",
+    "build": "unrun",
+    "runtime": "unrun",
+    "security": "unproven",
+    "acceptance": "unproven",
+    "production": "unproven"
+  },
+  "integration_proposal": {
+    "existing_files_edited": [],
+    "registry_rows_changed": false,
+    "original_diagnostics_erased": false,
+    "future_admission_hook": "Separately review a capability-verifier adapter that calls this strict verifier and binds source/supplement/baseline hashes; retain original diagnostics and require explicit parser/build-only resolution plus actual complete foundation runtime tests. A boolean supplemental flag or plan cannot override original packet_errors. Do not install this hook in the present delta.",
+    "dependency_rule": "Actual network metadata collection and distribution roles remain queued behind complete REF-SOURCE closure. Local source/descriptor consistency tests are not acceptance of that stage."
+  },
+  "future_roles": [
+    {
+      "id": "isolated-source-verifier",
+      "prerequisites": [
+        "two fresh source reviews",
+        "frozen code/contract/commands",
+        "hash-verified public raw Git commit",
+        "explicit collector declaration"
+      ],
+      "network": "only the one declared public HTTPS source URL, no redirects or private credentials",
+      "limits": "256MiB RAM, no swap,25%CPU,32 processes,128MiB owned disk,90 seconds; no build/runtime",
+      "observations": [
+        "retain command/source hashes, declared caps, request status/raw artifact hashes and source-tree result",
+        "independently inspect public Studio whole-source tree, lockfiles, patches, framework/target and external package/base closure gaps",
+        "never represent verified Git objects as an executed checkout/build"
+      ]
+    },
+    {
+      "id": "future-metadata-and-runtime-role",
+      "prerequisites": [
+        "complete REF-SOURCE closure including public external build inputs",
+        "new exact source/budget/schema/resource reservations",
+        "independent source/proposal review",
+        "coordinated root slot"
+      ],
+      "state": "not launched",
+      "observations": [
+        "all23 original refs and both raw config/platform chains",
+        "authenticated or reproducible publisher/build evidence",
+        "effective configuration and isolated actual startup/native/SDK/recovery/security contracts",
+        "all SB-03 installed-object/patch/application/recovery requirements remain required"
+      ]
+    }
+  ],
+  "verification_scope": "Synthetic offline archive/descriptor fixtures and actual CLI refusals only; no external collection/runtime result is accepted by unit tests."
+}
