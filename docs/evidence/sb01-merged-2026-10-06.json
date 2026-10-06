@@ -1,0 +1,40 @@
+{
+  "schema": 1,
+  "date": "2026-10-06",
+  "status": "passed-component-verification-review-pending",
+  "scope": "Merged SB-01 source registry with deliberately updated management catalog binding",
+  "source_commit": "bbc6e302b90cbac13fe2bbedf9603a0c33ca05a2",
+  "imported_baseline": "022880dbff87cbd9da3f0ccfa547689f53072bcc",
+  "integration": "Delta patch only; baseline not imported",
+  "binding_delta": [
+    {
+      "id": "catalog-schema",
+      "path": "src/control/catalog.ts",
+      "expected": "ef7716b47d47ae130aa60409471fa84fb2b3cedcfdff7c3f7f5d2072a028b713",
+      "actual": "7c0f817445854ca85b46653507339daf77bd6c20e20bc5fcc47595694eb82c2f"
+    }
+  ],
+  "tests": {
+    "total": 37,
+    "failed": 0,
+    "skipped": 0,
+    "control_typecheck": "passed"
+  },
+  "registry_validation": "passed",
+  "planning_integrity": "passed",
+  "acceptance_rows": 105,
+  "all_acceptance_and_production": "unproven",
+  "cleanup": "Exact helper containers and image removed; absence verified",
+  "artifacts_sha256": {
+    "tests.log": "58029f53161746b821c89ba7f0803eec94b963833861603528a8edbdd93f9fed",
+    "types.log": "f13e1fc0be8bbad48b024d07dfc35fa6f1dc8a44af19daec02b4cc97c494dce8",
+    "result.json": "288a3bda5560e4aad71bf8d45c58284e095eb5bd2be4c90a5782d3a2dddb88aa",
+    "cleanup.json": "fb833135ebb69c4bd9e13435655c43129b076d8849cd71968eb7ffbaf4f45d80"
+  },
+  "limits": [
+    "An independent merged-source review remains pending.",
+    "Previous task proof and source identities do not accept this merged source.",
+    "All runtime and production acceptance remains unproven; the upstream reference metadata packet retains unresolved diagnostics.",
+    "The standard portable source runner still requires Python FIFO repair and fresh full-source verification."
+  ]
+}

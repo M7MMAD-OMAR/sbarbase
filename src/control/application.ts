@@ -1,15 +1,15 @@
 import {Catalog} from './catalog';
 import {resolveRuntimePlacement,placementServices,PlacementUnavailable} from './placement';
 import {KeyStore} from './keys';
-import {managementIdentity} from './auth';
+import {managementPasswordIdentity,hasManagementMfa,reply,type PasswordIdentity} from './auth';
+import {managementAuth,type ManagementRealm} from './management-auth';
+import {withManagementAuthorization} from './management-context';
 import {controlHandler} from './handler';
 import type {InvitationAccounts} from './invitations';
 import {managedGateway,routeWithPlacement} from '../gateway/managed';
-import {createGateway,type EnvironmentRoute} from '../gateway/handler';
+import type {EnvironmentRoute} from '../gateway/handler';
 import {observedGateway,RequestLog} from '../gateway/observe';
 import type {ContainerReader} from './observe';
-
-type ManagementRealm={auth:string;anonymousToken:string;publishableKey:string};
 
 /** Compose a fixed management identity realm and scoped application routes.
  * The installer supplies all upstream addresses. No privileged Auth admin route
@@ -25,7 +25,14 @@ export function application(catalog:Catalog,keys:KeyStore,realm:ManagementRealm,
   if(String(input)!=='http://management.internal/auth/v1/user')throw new Error('Unexpected identity request');
   return transport(new URL('/user',auth),init);
  }) as typeof fetch;
- const identity=managementIdentity('http://management.internal',realm.publishableKey,identityTransport);
+ const passwordIdentity=managementPasswordIdentity('http://management.internal',realm.publishableKey,identityTransport);
+ const identityCache=new WeakMap<Request,Promise<PasswordIdentity|null>>();
+ const identify=(request:Request)=>{
+  let value=identityCache.get(request);if(!value){value=passwordIdentity(request);identityCache.set(request,value);}return value;
+ };
+ const identity=async(request:Request)=>{
+  const actor=await identify(request);return actor&&hasManagementMfa(actor,catalog.managementSecurity)?actor.actor:null;
+ };
  const control=controlHandler(catalog,keys,identity,runtime=>{
   try {
    const routing=catalog.runtimeRouting(runtime);
@@ -45,24 +52,28 @@ export function application(catalog:Catalog,keys:KeyStore,realm:ManagementRealm,
    placementServices(resolveRuntimePlacement(runtime,routing));return !!resolve(runtime);
   }catch{return false;}
  });
- const login=createGateway(new Map([['management',{
-  auth:realm.auth,rest:realm.auth,keys:[realm.publishableKey],anonymousToken:realm.anonymousToken,enabled:true
- }]]),transport);
- const methods:Record<string,readonly string[]>={token:['POST'],user:['GET'],logout:['POST'],settings:['GET']};
+ const login=managementAuth(catalog,realm,identify,transport);
  return async(request:Request):Promise<Response>=>{
   const path=new URL(request.url).pathname;
   if(path.startsWith('/management/auth/')) {
-   const route=path.match(/^\/management\/auth\/v1\/([a-z]+)$/)?.[1];
-   if(!route||!methods[route])return Response.json({message:'Unknown authentication route'},{status:404});
-   if(!methods[route].includes(request.method))return Response.json({message:'Method not allowed'},{status:405});
-   const response=await login(request);
-   const headers=new Headers(response.headers);headers.set('cache-control','no-store');
-   // The operator login is for the console on this origin only; no other page may call it.
-   for(const name of [...headers.keys()])if(name.startsWith('access-control-'))headers.delete(name);
-   headers.set('x-content-type-options','nosniff');
-   return new Response(response.body,{status:response.status,headers});
+   if(!path.startsWith('/management/auth/v1/'))return reply(404,{message:'Unknown authentication route'});
+   return login(request);
   }
-  if(path.startsWith('/management/'))return control(request);
+  if(path.startsWith('/management/')){
+   try {
+    if(!catalog.managementSecurity.rate('management:global',1200,60000))return reply(429,{message:'Too many management requests'});
+    // Invitation redemption is public by design; every protected route below requires MFA.
+    if(path!=='/management/invitations/redeem'){
+     const actor=await identify(request);if(!actor)return reply(401,{message:'Password authentication required'});
+     if(!hasManagementMfa(actor,catalog.managementSecurity))return reply(403,{message:'MFA verification required',code:'mfa_required'});
+     if(!catalog.managementSecurity.rate('management:actor:'+actor.actor,120,60000))return reply(429,{message:'Too many management requests'});
+     const current=()=>hasManagementMfa(actor,catalog.managementSecurity);
+     const response=await withManagementAuthorization(current,()=>control(request));
+     return current()?response:reply(403,{message:'MFA verification required',code:'mfa_required'});
+    }
+    return control(request);
+   }catch{return reply(503,{message:'Authentication unavailable'});}
+  }
   return gateway(request);
  };
 }
