@@ -13,6 +13,8 @@ const digest=(token:string)=>createHash('sha256').update(token).digest('hex');
  */
 export class KeyStore {
   private db:Database;
+  private epoch:(runtime:string)=>number=()=>0;
+  useRuntimeEpoch(provider:(runtime:string)=>number){this.epoch=provider;}
   /** While an upgrade waits for its health checks, the supervisor's probe presents a per-start
    * token as its key (src/gateway/hold-bypass.ts). Asked only when no stored key matched, so the
    * store is read on every probe exactly as for an application. */
@@ -27,20 +29,24 @@ export class KeyStore {
         digest TEXT NOT NULL UNIQUE, created_at INTEGER NOT NULL, revoked_at INTEGER
       );
       CREATE INDEX IF NOT EXISTS api_keys_environment ON api_keys(environment);`);
+    if(!this.db.query<{name:string},[]>('PRAGMA table_info(api_keys)').all().some(column=>column.name==='runtime_epoch'))
+      this.db.exec('ALTER TABLE api_keys ADD COLUMN runtime_epoch INTEGER NOT NULL DEFAULT 0');
   }
   issue(environment:string,kind:KeyKind='publishable') {
     if(!/^[a-z][a-z0-9_]{1,30}$/.test(environment)) throw new Error('Invalid environment');
     if(kind!=='publishable' && kind!=='secret') throw new Error('Invalid key kind');
     const token=`sb_${kind}_${randomBytes(32).toString('base64url')}`;
     const id=randomUUID();
-    this.db.query('INSERT INTO api_keys VALUES (?,?,?,?,?,NULL)').run(id,environment,kind,digest(token),Date.now());
+    const epoch=this.epoch(environment);
+    if(!Number.isSafeInteger(epoch)||epoch<0)throw new Error('Invalid runtime epoch');
+    this.db.query('INSERT INTO api_keys(id,environment,kind,digest,created_at,revoked_at,runtime_epoch) VALUES (?,?,?,?,?,NULL,?)').run(id,environment,kind,digest(token),Date.now(),epoch);
     return {id,token};
   }
   resolve(environment:string,token:string):KeyKind|null {
     if(token.length>8192) return null;
-    const row=this.db.query<{kind:KeyKind},[string,string]>(
-      'SELECT kind FROM api_keys WHERE environment=? AND digest=? AND revoked_at IS NULL'
-    ).get(environment,digest(token));
+    const row=this.db.query<{kind:KeyKind},[string,string,number]>(
+      'SELECT kind FROM api_keys WHERE environment=? AND digest=? AND revoked_at IS NULL AND runtime_epoch=?'
+    ).get(environment,digest(token),this.epoch(environment));
     if(row)return row.kind;
     return this.confirmationProbe?.(environment,token)?'publishable':null;
   }
@@ -56,6 +62,12 @@ export class KeyStore {
   revokeAll(environment:string):number {
     return this.db.query('UPDATE api_keys SET revoked_at=? WHERE environment=? AND revoked_at IS NULL')
       .run(Date.now(),environment).changes;
+  }
+  /** Clean up only keys invalidated by an earlier runtime generation. */
+  revokeBeforeEpoch(environment:string,epoch:number):number {
+    if(!Number.isSafeInteger(epoch)||epoch<0)throw new Error('Invalid runtime epoch');
+    return this.db.query('UPDATE api_keys SET revoked_at=? WHERE environment=? AND runtime_epoch<? AND revoked_at IS NULL')
+      .run(Date.now(),environment,epoch).changes;
   }
   list(environment:string):KeyRecord[] {
     return this.db.query<KeyRecord,[string]>('SELECT id,environment,kind,created_at,revoked_at FROM api_keys WHERE environment=? ORDER BY created_at,id').all(environment);

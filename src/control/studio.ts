@@ -33,7 +33,7 @@ export function studioHost(runtime:string):string {
  return runtime.slice(2)+'.studio.localhost';
 }
 
-type Claim={runtime:string;actor:string;expires:number;kind:'ticket'|'session';epoch:number;console?:string};
+type Claim={runtime:string;actor:string;expires:number;kind:'ticket'|'session';epoch:number;runtimeEpoch?:number;console?:string};
 
 function consoleOrigin(value:string|undefined):string|undefined {
  try{const url=new URL(value??'');return ['http:','https:'].includes(url.protocol)&&['localhost','127.0.0.1','[::1]'].includes(url.hostname)&&!url.username&&!url.password&&!url.search&&!url.hash?url.origin:undefined;}catch{return;}
@@ -54,7 +54,7 @@ export function verifyStudio(key:Buffer,token:string|null|undefined,runtime:stri
  let claim:Claim;
  try{claim=JSON.parse(Buffer.from(body,'base64url').toString('utf8'));}catch{return null;}
  if(!claim||claim.kind!==kind||claim.runtime!==runtime||typeof claim.actor!=='string'||!(claim.expires>now)||
-  !Number.isSafeInteger(claim.epoch)||claim.epoch<0)return null;
+  !Number.isSafeInteger(claim.epoch)||claim.epoch<0||claim.runtimeEpoch!==undefined&&(!Number.isSafeInteger(claim.runtimeEpoch)||claim.runtimeEpoch<0))return null;
  return claim;
 }
 
@@ -74,7 +74,7 @@ export function studioHandler(catalog:Catalog,identify:ManagementIdentity,key:()
    if(session) {
     const current=catalog.studio(actor,environment!);
     if(current.state!=='running')return reply(409,{message:'Studio is not running'});
-    const ticket=signStudio(key(),{runtime:current.runtime,actor,expires:Date.now()+TICKET_MS,kind:'ticket',epoch:catalog.managementSecurity.epoch(actor),console:consoleOrigin(new URL(request.url).origin)});
+    const ticket=signStudio(key(),{runtime:current.runtime,actor,expires:Date.now()+TICKET_MS,kind:'ticket',epoch:catalog.managementSecurity.epoch(actor),runtimeEpoch:catalog.runtimeEpoch(current.runtime),console:consoleOrigin(new URL(request.url).origin)});
     return reply(201,{host:studioHost(current.runtime),path:'/__sbarbase/enter?ticket='+encodeURIComponent(ticket)});
    }
    if(request.method==='GET')return reply(200,{data:catalog.studio(actor,environment!)});
@@ -172,7 +172,7 @@ function studioResponseBody(body:ReadableStream<Uint8Array>,allowed:()=>boolean,
 
 /** The browser side: `<id>.studio.localhost` requests, gated by the session cookie. */
 export function studioProxy(options:{key:()=>Buffer;allowed:(actor:string,runtime:string)=>boolean;epoch:(actor:string)=>number;
- upstream:(runtime:string)=>string|undefined;transport?:typeof fetch;
+ runtimeEpoch?:(runtime:string)=>number;upstream:(runtime:string)=>string|undefined;transport?:typeof fetch;
  requestBodyLimit?:number;requestBodyTimeoutMs?:number;
  navigation?:(actor:string,runtime:string,organization?:string,project?:string)=>StudioNavigation;
  selection?:(actor:string,environment:string)=>StudioSession}) {
@@ -181,7 +181,7 @@ export function studioProxy(options:{key:()=>Buffer;allowed:(actor:string,runtim
  if(!Number.isSafeInteger(bodyLimit)||bodyLimit<1||bodyLimit>64*1024*1024||!Number.isSafeInteger(bodyTimeout)||bodyTimeout<1||bodyTimeout>120_000)
   throw new Error('Invalid Studio request body limits');
  const current=(claim:Claim,runtime:string)=>{
-  try{return claim.expires>Date.now()&&claim.epoch===options.epoch(claim.actor)&&options.allowed(claim.actor,runtime);}catch{return false;}
+  try{return claim.expires>Date.now()&&claim.epoch===options.epoch(claim.actor)&&(claim.runtimeEpoch??0)===(options.runtimeEpoch?.(runtime)??0)&&options.allowed(claim.actor,runtime);}catch{return false;}
  };
  return async(request:Request):Promise<Response>=>{
   const url=new URL(request.url);
@@ -190,7 +190,7 @@ export function studioProxy(options:{key:()=>Buffer;allowed:(actor:string,runtim
   if(url.pathname==='/__sbarbase/enter') {
    const claim=verifyStudio(options.key(),url.searchParams.get('ticket'),runtime,'ticket');
    if(!claim||!current(claim,runtime))return page(401,'This Studio link has expired. Open Studio again from the Sbarbase console.');
-   const session=signStudio(options.key(),{runtime,actor:claim.actor,expires:Date.now()+SESSION_MS,kind:'session',epoch:claim.epoch,console:consoleOrigin(claim.console)});
+   const session=signStudio(options.key(),{runtime,actor:claim.actor,expires:Date.now()+SESSION_MS,kind:'session',epoch:claim.epoch,runtimeEpoch:claim.runtimeEpoch??0,console:consoleOrigin(claim.console)});
    return new Response(null,{status:302,headers:{location:options.navigation?'/__sbarbase/workspace':'/project/default','cache-control':'no-store',
     'set-cookie':`${STUDIO_COOKIE}=${session}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_MS/1000}`}});
   }
@@ -223,7 +223,7 @@ export function studioProxy(options:{key:()=>Buffer;allowed:(actor:string,runtim
      if(!allowed()||!current(claim,selected.runtime))return reply(403,{message:'Forbidden'});
      if(selected.desired!=='running'||selected.state!=='running'||!options.upstream(selected.runtime))return reply(409,{message:'Studio is not running here. Start it from the console, then Refresh.'});
      const destination=new URL(url.origin);destination.hostname=studioHost(selected.runtime);destination.pathname='/__sbarbase/enter';
-     destination.searchParams.set('ticket',signStudio(options.key(),{runtime:selected.runtime,actor:claim.actor,expires:Date.now()+TICKET_MS,kind:'ticket',epoch:claim.epoch,console:consoleOrigin(claim.console)}));
+     destination.searchParams.set('ticket',signStudio(options.key(),{runtime:selected.runtime,actor:claim.actor,expires:Date.now()+TICKET_MS,kind:'ticket',epoch:claim.epoch,runtimeEpoch:options.runtimeEpoch?.(selected.runtime)??0,console:consoleOrigin(claim.console)}));
      return guarded(reply(200,{href:destination.href}),()=>allowed()&&current(claim,selected.runtime));
     }catch(error){return reply(error instanceof Error&&error.message==='Forbidden'?403:409,{message:error instanceof Error&&error.message==='Forbidden'?'Forbidden':'Environment is unavailable'});}
    }

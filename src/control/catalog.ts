@@ -5,6 +5,7 @@ import {randomUUID,randomBytes,createHash} from 'node:crypto';
 import {chmodSync} from 'node:fs';
 import {ManagementSecurity} from './management-security';
 import {requireCurrentManagement} from './management-context';
+import {type LifecycleAdmission,type LifecycleResource,type LifecycleOperation,type LifecycleState,RETENTION_MS,inventoryDigest,placementDigest,validateLifecycleCoverage} from './lifecycle-contract';
 
 export type MembershipRole = 'owner' | 'admin' | 'viewer';
 type Project = {id:string;organization:string;name:string};
@@ -128,7 +129,7 @@ function credentialShape(value:string):boolean {
 export const ENVIRONMENT_LIMIT=4;
 
 /** Bumped with each step of Catalog.migrate(). */
-export const CATALOG_SCHEMA_VERSION=3;
+export const CATALOG_SCHEMA_VERSION=4;
 
 export type StudioSession={runtime:string;desired:'running'|'stopped';state:'stopped'|'starting'|'running'|'failed';
   failure:string|null;updatedAt:number|null};
@@ -162,7 +163,9 @@ export class Catalog {
   private db:Database;
   readonly managementSecurity:ManagementSecurity;
   private channels:NotificationChannel[];
-  constructor(path:string,options?:{channels?:NotificationChannel[]}) {
+  private readonly lifecycleAdmission:LifecycleAdmission|undefined;
+  constructor(path:string,options?:{channels?:NotificationChannel[];lifecycleAdmission?:LifecycleAdmission}) {
+    this.lifecycleAdmission=options?.lifecycleAdmission;
     this.db=new Database(path,{create:true,strict:true});
     this.managementSecurity=new ManagementSecurity(this.db);
     if(path!==':memory:') chmodSync(path,0o600);
@@ -244,6 +247,14 @@ export class Catalog {
         runtime TEXT PRIMARY KEY, environment TEXT NOT NULL, project TEXT NOT NULL,
         organization TEXT NOT NULL, actor TEXT NOT NULL, at INTEGER NOT NULL,
         attempt INTEGER NOT NULL, claim TEXT, exit_code INTEGER, receipt_token TEXT, decision TEXT);
+      CREATE TABLE IF NOT EXISTS environment_lifecycle(
+        environment TEXT PRIMARY KEY REFERENCES environments(id), runtime TEXT NOT NULL UNIQUE,
+        state TEXT NOT NULL CHECK(state IN ('active','deleting','deleted','restoring','purging','purged')),
+        epoch INTEGER NOT NULL, deleted_at INTEGER, retain_until INTEGER, operation TEXT NOT NULL,
+        failure TEXT, recovery_receipt TEXT, inventory TEXT, coverage TEXT, actor TEXT, management_epoch INTEGER);
+      CREATE TABLE IF NOT EXISTS lifecycle_effects(
+        operation TEXT NOT NULL, resource TEXT NOT NULL, state TEXT NOT NULL CHECK(state IN ('pending','done')),
+        outcome TEXT, reclaimed_bytes INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(operation,resource));
       CREATE TABLE IF NOT EXISTS audit_events(
         sequence INTEGER PRIMARY KEY AUTOINCREMENT, actor TEXT NOT NULL,
         action TEXT NOT NULL, subject TEXT NOT NULL, detail TEXT NOT NULL, at INTEGER NOT NULL);
@@ -338,7 +349,7 @@ export class Catalog {
   }
   /** Counts the environments that hold or may take a runtime slot: queued, running or ready. */
   private requireEnvironmentCapacity() {
-    const held=this.db.query<{n:number},[]>("SELECT count(*) n FROM provision_jobs WHERE state IN ('queued','running','succeeded')").get()!.n;
+    const held=this.db.query<{n:number},[]>("SELECT count(*) n FROM provision_jobs j WHERE state IN ('queued','running','succeeded') AND NOT EXISTS (SELECT 1 FROM environment_lifecycle l WHERE l.runtime=j.runtime AND l.state='purged')").get()!.n;
     if(held>=ENVIRONMENT_LIMIT)throw new Error('Environment capacity reached');
   }
   schemaVersion():number {
@@ -375,7 +386,7 @@ export class Catalog {
   /** An unknown environment answers Forbidden, exactly like one outside the actor's roles. */
   private environmentProject(actor:string,environment:string,roles:MembershipRole[]):Project {
     const env=this.db.query<Environment,[string]>('SELECT * FROM environments WHERE id=?').get(environment);
-    if(!env) throw new Error('Forbidden');
+    if(!env||this.db.query("SELECT 1 FROM environment_lifecycle WHERE environment=? AND state!='active'").get(environment)) throw new Error('Forbidden');
     return this.project(actor,env.project,roles);
   }
   private job(environment:string):ProvisionJob|null {
@@ -761,14 +772,14 @@ export class Catalog {
     return this.db.transaction(()=>{
       this.project(actor,project,['owner','admin','viewer']);
       return this.db.query<EnvironmentStatus,[string]>(`SELECT e.id,e.project,e.name,j.state,j.attempt,j.failure
-        FROM environments e LEFT JOIN provision_jobs j ON j.environment=e.id WHERE e.project=? ORDER BY e.id`).all(project);
+        FROM environments e LEFT JOIN provision_jobs j ON j.environment=e.id WHERE e.project=? AND NOT EXISTS (SELECT 1 FROM environment_lifecycle l WHERE l.environment=e.id AND l.state!='active') ORDER BY e.id`).all(project);
     })();
   }
   withReadyEnvironment<T>(actor:string,environment:string,write:boolean,operation:(job:ProvisionJob)=>T):T {
     return this.db.transaction(()=>{
       this.environmentProject(actor,environment,write?['owner','admin']:['owner','admin','viewer']);
       const job=this.job(environment);
-      if(!job||job.state!=='succeeded') throw new Error('Environment is not ready');
+      if(!job||job.state!=='succeeded'||this.runtimeDeleted(job.runtime)) throw new Error('Environment is not ready');
       return operation(job);
     }).immediate();
   }
@@ -777,7 +788,7 @@ export class Catalog {
   studio(actor:string,environment:string):StudioSession {
     this.environmentProject(actor,environment,['owner','admin']);
     const job=this.job(environment);
-    if(!job||job.state!=='succeeded')throw new Error('Environment is not ready');
+    if(!job||job.state!=='succeeded'||this.runtimeDeleted(job.runtime))throw new Error('Environment is not ready');
     const row=this.db.query<{desired:string;state:string;failure:string|null;updated_at:number},[string]>(
       'SELECT desired,state,failure,updated_at FROM studio_sessions WHERE runtime=?').get(job.runtime);
     return {runtime:job.runtime,desired:(row?.desired??'stopped') as StudioSession['desired'],
@@ -786,7 +797,7 @@ export class Catalog {
   /** Whether this actor may use Studio for this runtime right now: owner or admin of it. */
   studioAllowed(actor:string,runtime:string):boolean {
     const row=this.db.query<{environment:string},[string]>(
-      "SELECT environment FROM provision_jobs WHERE runtime=? AND state='succeeded'").get(runtime);
+      "SELECT environment FROM provision_jobs WHERE runtime=? AND state='succeeded' AND NOT EXISTS (SELECT 1 FROM environment_lifecycle l WHERE l.runtime=provision_jobs.runtime AND l.state!='active')").get(runtime);
     if(!row)return false;
     try{this.environmentProject(actor,row.environment,['owner','admin']);return true;}catch{return false;}
   }
@@ -840,7 +851,7 @@ export class Catalog {
     const operator=this.installationOperator(actor);
     if(!operator)this.environmentProject(actor,environment,['owner','admin','viewer']);
     const job=this.job(environment);
-    if(!job||job.state!=='succeeded')throw new Error('Environment is not ready');
+    if(!job||job.state!=='succeeded'||this.runtimeDeleted(job.runtime))throw new Error('Environment is not ready');
     const share={share:this.gatewayShare(job.runtime)??GATEWAY.share,default:GATEWAY.share,ceiling:GATEWAY.ceiling,operator};
     return operator?{...share,total:GATEWAY.total,allocated:this.allocatedShares()}:share;
   }
@@ -852,7 +863,7 @@ export class Catalog {
       if(!this.installationOperator(actor))throw new Error('Forbidden');
       if(!Number.isSafeInteger(share)||share<1||share>GATEWAY.ceiling)throw new Error('Invalid share');
       const job=this.job(environment);
-      if(!job||job.state!=='succeeded')throw new Error('Environment is not ready');
+      if(!job||job.state!=='succeeded'||this.runtimeDeleted(job.runtime))throw new Error('Environment is not ready');
       const current=this.gatewayShare(job.runtime)??GATEWAY.share;
       if(share>current&&this.allocatedShares()-current+share>GATEWAY.total)throw new Error('Shares exceed gateway capacity');
       this.db.query(`INSERT INTO gateway_shares(runtime,share,actor,updated_at) VALUES (?,?,?,?)
@@ -868,14 +879,14 @@ export class Catalog {
   }
   private allocatedShares():number {
     return this.db.query<{n:number},[number]>(`SELECT coalesce(sum(coalesce(g.share,?)),0) n FROM provision_jobs j
-      LEFT JOIN gateway_shares g ON g.runtime=j.runtime WHERE j.state='succeeded'`).get(GATEWAY.share)!.n;
+      LEFT JOIN gateway_shares g ON g.runtime=j.runtime WHERE j.state='succeeded' AND NOT EXISTS (SELECT 1 FROM environment_lifecycle l WHERE l.runtime=j.runtime AND l.state='purged')`).get(GATEWAY.share)!.n;
   }
   /** Sign-in settings for one environment. Owners and admins save them; the supervisor applies
    * the pending revision (lab/auth_settings.py) and records the outcome in the same row. */
   signIn(actor:string,environment:string):SignInState {
     this.environmentProject(actor,environment,['owner','admin']);
     const job=this.job(environment);
-    if(!job||job.state!=='succeeded')throw new Error('Environment is not ready');
+    if(!job||job.state!=='succeeded'||this.runtimeDeleted(job.runtime))throw new Error('Environment is not ready');
     const row=this.db.query<{revision:number;applied:number|null;state:string;failure:string|null;updated_at:number},[string]>(
       'SELECT revision,applied,state,failure,updated_at FROM auth_settings WHERE runtime=?').get(job.runtime);
     return {runtime:job.runtime,revision:row?.revision??0,applied:row?.applied??null,
@@ -896,7 +907,7 @@ export class Catalog {
   realtime(actor:string,environment:string):RealtimeState {
     this.environmentProject(actor,environment,['owner','admin']);
     const job=this.job(environment);
-    if(!job||job.state!=='succeeded')throw new Error('Environment is not ready');
+    if(!job||job.state!=='succeeded'||this.runtimeDeleted(job.runtime))throw new Error('Environment is not ready');
     const row=this.db.query<{desired:string;state:string;failure:string|null;updated_at:number},[string]>(
       'SELECT desired,state,failure,updated_at FROM realtime_settings WHERE runtime=?').get(job.runtime);
     return {runtime:job.runtime,desired:(row?.desired??'off') as RealtimeState['desired'],state:(row?.state??'off') as RealtimeState['state'],
@@ -918,7 +929,7 @@ export class Catalog {
   functions(actor:string,environment:string):RealtimeState {
     this.environmentProject(actor,environment,['owner','admin']);
     const job=this.job(environment);
-    if(!job||job.state!=='succeeded')throw new Error('Environment is not ready');
+    if(!job||job.state!=='succeeded'||this.runtimeDeleted(job.runtime))throw new Error('Environment is not ready');
     const row=this.db.query<{desired:string;state:string;failure:string|null;updated_at:number},[string]>(
       'SELECT desired,state,failure,updated_at FROM functions_settings WHERE runtime=?').get(job.runtime);
     return {runtime:job.runtime,desired:(row?.desired??'off') as RealtimeState['desired'],state:(row?.state??'off') as RealtimeState['state'],
@@ -940,7 +951,7 @@ export class Catalog {
   databaseAccess(actor:string,environment:string):RealtimeState {
     this.environmentProject(actor,environment,['owner','admin']);
     const job=this.job(environment);
-    if(!job||job.state!=='succeeded')throw new Error('Environment is not ready');
+    if(!job||job.state!=='succeeded'||this.runtimeDeleted(job.runtime))throw new Error('Environment is not ready');
     const row=this.db.query<{desired:string;state:string;failure:string|null;updated_at:number},[string]>(
       'SELECT desired,state,failure,updated_at FROM database_access WHERE runtime=?').get(job.runtime);
     return {runtime:job.runtime,desired:(row?.desired??'off') as RealtimeState['desired'],state:(row?.state??'off') as RealtimeState['state'],
@@ -962,7 +973,7 @@ export class Catalog {
   signing(actor:string,environment:string):SigningState {
     this.environmentProject(actor,environment,['owner','admin']);
     const job=this.job(environment);
-    if(!job||job.state!=='succeeded')throw new Error('Environment is not ready');
+    if(!job||job.state!=='succeeded'||this.runtimeDeleted(job.runtime))throw new Error('Environment is not ready');
     const row=this.db.query<{state:SigningState['state'];failure:string|null;rotated_at:number|null;updated_at:number},[string]>(
       'SELECT state,failure,rotated_at,updated_at FROM signing_keys WHERE runtime=?').get(job.runtime);
     return {runtime:job.runtime,state:row?.state??'never',failure:row?.failure??null,rotatedAt:row?.rotated_at??null,updatedAt:row?.updated_at??null};
@@ -985,7 +996,7 @@ export class Catalog {
   }
   runtimeReady(runtime:string):boolean {
     return !!this.db.query<{environment:string},[string]>(
-      "SELECT environment FROM provision_jobs WHERE runtime=? AND state='succeeded'").get(runtime);
+      "SELECT environment FROM provision_jobs WHERE runtime=? AND state='succeeded' AND NOT EXISTS (SELECT 1 FROM environment_lifecycle l WHERE l.runtime=provision_jobs.runtime AND l.state!='active')").get(runtime);
   }
   getProvision(actor:string,environment:string):ProvisionJob {
     this.environmentProject(actor,environment,['owner','admin','viewer']);
@@ -1140,6 +1151,8 @@ export class Catalog {
     return this.db.transaction(()=>{
       const source=this.project(actor,project,['owner']);
       this.require(actor,destination,['owner']);
+      if(this.db.query(`SELECT 1 FROM environment_lifecycle l JOIN environments e ON e.id=l.environment
+        WHERE e.project=? AND l.state!='active' LIMIT 1`).get(project))throw new Error('Lifecycle operation is active');
       if(source.organization===destination) return {cancelled:[],runtimes:[]};
       this.unusedProjectName(destination,source.name,project);
       const active=this.db.query<{n:number},[string]>("SELECT count(*) n FROM provision_jobs j JOIN environments e ON e.id=j.environment WHERE e.project=? AND j.state='running'").get(project);
@@ -1223,40 +1236,146 @@ export class Catalog {
       this.record(actor,'environment.renamed',environment,{});
     }).immediate();
   }
-  /** Owners delete an environment from the catalog. The gateway stops routing its runtime at
-   * once and answers 401 to it, as for a revoked key; the caller also revokes its keys. The
-   * runtime's database, containers and files are retained: this removes management, not data.
-   * Refused while provisioning is queued or running, and while anything the supervisor runs
-   * for it is on or changing (Studio, Realtime, Edge Functions, database access, a sign-in
-   * change, a signing key rotation, a paused or moved routing), because deleting those rows
-   * would leave a container or a login that nothing manages any more. A tombstone keeps the
-   * runtime id, so it is never reused, and the last settled worker outcome, so a worker that
-   * restarts with that receipt still settles it. */
+  /** Retain hierarchy, settings and receipts while revoking all runtime access immediately. */
   deleteEnvironment(actor:string,environment:string):{runtime:string|null} {
     return this.db.transaction(()=>{
-      const project=this.environmentProject(actor,environment,['owner']);
+      const project=this.retainedProject(actor,environment,['owner']);
       const job=this.job(environment);
+      const current=this.lifecycleRow(environment);
+      if(current&&current.state!=='active')return {runtime:job?.runtime??null};
       if(job&&['queued','running'].includes(job.state))throw new Error('Provisioning is active');
       if(job&&this.runtimeServicesActive(job.runtime))throw new Error('Environment services are still on');
-      // Recorded against the project, which stays, so its organization still sees who deleted what.
-      this.record(actor,'environment.deleted',project.id,{});
-      if(job) {
-        const result=this.db.query<{claim:string;exit_code:number},[string,number]>(
-          'SELECT claim,exit_code FROM provision_effect_results WHERE environment=? AND attempt=?').get(environment,job.attempt);
-        const decision=this.db.query<{claim:string;receipt_token:string;decision:string},[string,number]>(
-          'SELECT claim,receipt_token,decision FROM provision_recovery_decisions WHERE environment=? AND attempt=?').get(environment,job.attempt);
-        this.db.query(`INSERT INTO deleted_runtimes(runtime,environment,project,organization,actor,at,attempt,claim,exit_code,receipt_token,decision)
-          VALUES (?,?,?,?,?,?,?,?,?,?,?)`).run(job.runtime,environment,project.id,project.organization,actor,Date.now(),
-          job.attempt,result?.claim??decision?.claim??null,result?.exit_code??null,decision?.receipt_token??null,decision?.decision??null);
-        for(const table of ['runtime_routing','studio_sessions','gateway_shares','auth_settings','realtime_settings',
-          'functions_settings','database_access','signing_keys'])
-          this.db.query(`DELETE FROM ${table} WHERE runtime=?`).run(job.runtime);
-        this.db.query('DELETE FROM provision_effect_results WHERE environment=?').run(environment);
-        this.db.query('DELETE FROM provision_recovery_decisions WHERE environment=?').run(environment);
-        this.db.query('DELETE FROM provision_jobs WHERE environment=?').run(environment);
+      if(!job)throw new Error('No provisioning operation');
+      if(!current?.resources.length)throw new Error('Exact ownership inventory unavailable');
+      validateLifecycleCoverage(job.runtime,current.resources,current.coverage);
+      if(!Number.isSafeInteger((current.epoch??0)+1))throw new Error('Runtime epoch exhausted');
+      const at=Date.now(),epoch=(current?.epoch??0)+1,operation=randomUUID();
+      this.db.query(`INSERT INTO environment_lifecycle(environment,runtime,state,epoch,deleted_at,retain_until,operation,actor,management_epoch)
+        VALUES (?,?,'deleting',?,?,?,?,?,?) ON CONFLICT(environment) DO UPDATE SET state='deleting',epoch=excluded.epoch,
+        deleted_at=excluded.deleted_at,retain_until=excluded.retain_until,operation=excluded.operation,failure=NULL,recovery_receipt=NULL,actor=excluded.actor,management_epoch=excluded.management_epoch`)
+        .run(environment,job.runtime,epoch,at,at+RETENTION_MS,operation,actor,this.managementSecurity.epoch(actor));
+      this.record(actor,'environment.deleted',project.id,{environment,runtime:job.runtime,epoch,retain_until:at+RETENTION_MS});
+      return {runtime:job.runtime};
+    }).immediate();
+  }
+  private retainedProject(actor:string,environment:string,roles:MembershipRole[]):Project {
+    const row=this.db.query<Environment,[string]>('SELECT * FROM environments WHERE id=?').get(environment);
+    if(!row)throw new Error('Forbidden');
+    return this.project(actor,row.project,roles);
+  }
+  private lifecycleRow(environment:string):LifecycleOperation|null {
+    const row=this.db.query<any,[string]>('SELECT * FROM environment_lifecycle WHERE environment=?').get(environment);
+    if(!row)return null;
+    return {...row,resources:row.inventory?JSON.parse(row.inventory):[],effects:this.db.query<any,[string]>(
+      'SELECT resource,state,outcome,reclaimed_bytes FROM lifecycle_effects WHERE operation=?').all(row.operation)};
+  }
+  runtimeEpoch(runtime:string):number {
+    return this.db.query<{epoch:number},[string]>('SELECT epoch FROM environment_lifecycle WHERE runtime=?').get(runtime)?.epoch??0;
+  }
+  lifecycle(actor:string,environment:string):LifecycleOperation|null {
+    this.retainedProject(actor,environment,['owner','admin']);
+    return this.lifecycleRow(environment);
+  }
+  retainedEnvironments(actor:string,project:string):LifecycleOperation[] {
+    this.project(actor,project,['owner','admin']);
+    return this.db.query<{environment:string},[string]>(`SELECT l.environment FROM environment_lifecycle l
+      JOIN environments e ON e.id=l.environment WHERE e.project=? AND l.state!='active' ORDER BY l.environment`).all(project)
+      .map(row=>this.lifecycleRow(row.environment)!);
+  }
+  /** Trusted enrollment only, after the adapter verifies every positive ownership identity. */
+  registerLifecycleResources(runtime:string,resources:LifecycleResource[],coverage:string):void {
+    validateLifecycleCoverage(runtime,resources,coverage);
+    this.db.transaction(()=>{
+      const job=this.db.query<ProvisionJob,[string]>('SELECT * FROM provision_jobs WHERE runtime=?').get(runtime);
+      if(!job)throw new Error('Runtime unavailable');
+      const row=this.lifecycleRow(job.environment),inventory=JSON.stringify(resources);
+      if(row?.inventory&&(row.inventory!==inventory||row.coverage!==coverage))throw new Error('Ownership inventory is immutable');
+      if(row&&!['active','deleting','deleted'].includes(row.state))throw new Error('Lifecycle operation is active');
+      this.db.query(`INSERT INTO environment_lifecycle(environment,runtime,state,epoch,operation,inventory,coverage)
+        VALUES (?,?,'active',0,?,?,?) ON CONFLICT(environment) DO UPDATE SET inventory=excluded.inventory,coverage=excluded.coverage`)
+        .run(job.environment,runtime,randomUUID(),inventory,coverage);
+      this.record('system:lifecycle','lifecycle.resources_enrolled',job.environment,{runtime,resources:resources.length,coverage});
+    }).immediate();
+  }
+  restoreEnvironment(actor:string,environment:string,operation:string):LifecycleOperation {
+    return this.requestLifecycle(actor,environment,operation,'restoring');
+  }
+  purgeEnvironment(actor:string,environment:string,operation:string):LifecycleOperation {
+    return this.requestLifecycle(actor,environment,operation,'purging');
+  }
+  private requestLifecycle(actor:string,environment:string,operation:string,state:'restoring'|'purging'):LifecycleOperation {
+    if(!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(operation))throw new Error('Invalid lifecycle operation');
+    return this.db.transaction(()=>{
+      this.retainedProject(actor,environment,['owner']);
+      const row=this.lifecycleRow(environment);
+      if(row?.operation===operation&&(row.state===state||state==='restoring'&&row.state==='active'||state==='purging'&&row.state==='purged'))return row;
+      if(this.db.query('SELECT 1 FROM lifecycle_effects WHERE operation=?').get(operation))throw new Error('Lifecycle operation identity was already used');
+      if(!row||row.state!=='deleted')throw new Error('Lifecycle operation is active');
+      if(!row.resources.length)throw new Error('Exact ownership inventory unavailable');
+      validateLifecycleCoverage(row.runtime,row.resources,row.coverage);
+      if(state==='restoring'&&Date.now()>=row.retain_until!)throw new Error('Retention has expired');
+      let receipt:string|null=null;
+      if(state==='purging') {
+        if(!this.installationOperator(actor))throw new Error('Forbidden');
+        if(Date.now()<row.retain_until!)throw new Error('Retention has not expired');
+        receipt=this.lifecycleAdmission?.(this.lifecycleBinding(row),row.resources)??null;
+        if(!receipt)throw new Error('Complete recovery proof unavailable');
       }
-      this.db.query('DELETE FROM environments WHERE id=?').run(environment);
-      return {runtime:job?.runtime??null};
+      this.db.query('UPDATE environment_lifecycle SET state=?,operation=?,failure=NULL,recovery_receipt=?,actor=?,management_epoch=? WHERE environment=?')
+        .run(state,operation,receipt,actor,this.managementSecurity.epoch(actor),environment);
+      this.record(actor,'lifecycle.'+state+'_requested',environment,{runtime:row.runtime,epoch:row.epoch,operation});
+      return this.lifecycleRow(environment)!;
+    }).immediate();
+  }
+  lifecycleBinding(row:LifecycleOperation) {
+    const routing=this.runtimeRouting(row.runtime);
+    return {environment:row.environment,runtime:row.runtime,epoch:row.epoch,coverage:row.coverage,placement:resolveRuntimePlacement(row.runtime,routing).profile,
+      inventoryDigest:inventoryDigest(row.resources),placementDigest:placementDigest(routing)};
+  }
+  nextLifecycleOperation():LifecycleOperation|null {
+    const row=this.db.query<{environment:string},[]>(`SELECT environment FROM environment_lifecycle WHERE state IN ('deleting','restoring','purging') ORDER BY environment LIMIT 1`).get();
+    return row?this.lifecycleRow(row.environment):null;
+  }
+  assertLifecycleOperation(row:LifecycleOperation):void {
+    const current=this.lifecycleRow(row.environment);
+    if(!current||current.operation!==row.operation||current.epoch!==row.epoch||current.state!==row.state||current.inventory!==row.inventory||current.coverage!==row.coverage||current.actor!==row.actor||current.management_epoch!==row.management_epoch)
+      throw new Error('Stale lifecycle operation');
+    validateLifecycleCoverage(row.runtime,row.resources,row.coverage);
+    if(!row.actor||row.management_epoch!==this.managementSecurity.epoch(row.actor))throw new Error('Lifecycle authority revoked');
+    try{this.retainedProject(row.actor,row.environment,['owner']);
+      if(row.state==='purging'&&!this.installationOperator(row.actor))throw new Error('Forbidden');
+    }catch{throw new Error('Lifecycle authority revoked');}
+    if(row.state==='purging'&&(!row.recovery_receipt||this.lifecycleAdmission?.(this.lifecycleBinding(row),row.resources)!==row.recovery_receipt))
+      throw new Error('Complete recovery proof unavailable');
+  }
+  lifecycleEffect(row:LifecycleOperation,resource:string,outcome?:string,reclaimedBytes=0):void {
+    this.db.transaction(()=>{
+      this.assertLifecycleOperation(row);
+      if(!row.resources.some(item=>item.resource===resource))throw new Error('Unknown lifecycle resource');
+      if(!Number.isSafeInteger(reclaimedBytes)||reclaimedBytes<0)throw new Error('Invalid reclaimed bytes');
+      this.db.query(`INSERT INTO lifecycle_effects(operation,resource,state,outcome,reclaimed_bytes) VALUES (?,?,?,?,?)
+        ON CONFLICT(operation,resource) DO UPDATE SET state=excluded.state,outcome=excluded.outcome,
+        reclaimed_bytes=CASE WHEN excluded.state='pending' THEN lifecycle_effects.reclaimed_bytes ELSE excluded.reclaimed_bytes END`)
+        .run(row.operation,resource,outcome?'done':'pending',outcome??null,reclaimedBytes);
+      if(outcome)this.record('system:lifecycle','lifecycle.resource_'+outcome,row.environment,{operation:row.operation,resource,reclaimedBytes});
+    }).immediate();
+  }
+  blockLifecycle(row:LifecycleOperation,reason:string):void {
+    const current=this.lifecycleRow(row.environment);
+    if(!current||current.operation!==row.operation||current.epoch!==row.epoch||current.state!==row.state)throw new Error('Stale lifecycle operation');
+    this.db.query('UPDATE environment_lifecycle SET failure=? WHERE environment=?').run(reason,row.environment);
+    this.record('system:lifecycle','lifecycle.blocked',row.environment,{operation:row.operation,epoch:row.epoch});
+  }
+  finishLifecycle(row:LifecycleOperation,failure?:string):void {
+    this.db.transaction(()=>{
+      this.assertLifecycleOperation(row);
+      const effects=this.lifecycleRow(row.environment)!.effects;
+      if(!failure&&(!row.resources.length||row.resources.some(item=>!effects.some(effect=>effect.resource===item.resource&&effect.state==='done'))))
+        throw new Error('Lifecycle effects are incomplete');
+      const state:LifecycleState=failure?row.state:row.state==='deleting'?'deleted':row.state==='restoring'?'active':'purged';
+      this.db.query('UPDATE environment_lifecycle SET state=?,failure=?,retain_until=CASE WHEN ? THEN max(retain_until,?) ELSE retain_until END WHERE environment=?')
+        .run(state,failure??null,state==='deleted'&&!failure?1:0,Date.now()+RETENTION_MS,row.environment);
+      this.record('system:lifecycle',failure?'lifecycle.blocked':'lifecycle.'+state,row.environment,{operation:row.operation,epoch:row.epoch});
     }).immediate();
   }
   private runtimeServicesActive(runtime:string):boolean {
@@ -1265,11 +1384,12 @@ export class Catalog {
       !!this.db.query("SELECT 1 FROM studio_sessions WHERE runtime=? AND (desired='running' OR state IN ('starting','running'))").get(runtime)||
       !!this.db.query("SELECT 1 FROM auth_settings WHERE runtime=? AND state='pending'").get(runtime)||
       !!this.db.query("SELECT 1 FROM signing_keys WHERE runtime=? AND state='pending'").get(runtime)||
-      !!this.db.query('SELECT 1 FROM runtime_routing WHERE runtime=? AND (maintenance=1 OR placement IS NOT NULL)').get(runtime);
+      !!this.db.query('SELECT 1 FROM runtime_routing WHERE runtime=? AND maintenance=1').get(runtime);
   }
   /** A runtime whose environment was deleted: the gateway answers it like a revoked key. */
   runtimeDeleted(runtime:string):boolean {
-    return !!this.db.query('SELECT 1 FROM deleted_runtimes WHERE runtime=?').get(runtime);
+    return !!this.db.query(`SELECT 1 FROM deleted_runtimes WHERE runtime=? UNION ALL
+      SELECT 1 FROM environment_lifecycle WHERE runtime=? AND state!='active'`).get(runtime,runtime);
   }
   /** Re-links an environment restored from a backup of another installation to its recorded
    * organization and project, keeping every recorded id and the runtime id, and queues its

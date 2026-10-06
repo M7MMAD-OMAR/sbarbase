@@ -28,6 +28,7 @@ export function routeWithPlacement(configured:EnvironmentRoute|undefined,routing
  * Resolve on every request so routing does not outlive its control-plane state.
  */
 export function managedGateway(catalog:Catalog,keys:KeyStore,resolve:(runtime:string)=>EnvironmentRoute|undefined,transport:typeof fetch=fetch, concurrency=applicationConcurrency) {
+ keys.useRuntimeEpoch(runtime=>catalog.runtimeEpoch(runtime));
  // Its own refusals carry the browser headers too, so a page sees the status, not a network error.
  return async(request:Request):Promise<Response>=>withCors(await route(request),request);
  async function route(request:Request):Promise<Response> {
@@ -39,6 +40,8 @@ export function managedGateway(catalog:Catalog,keys:KeyStore,resolve:(runtime:st
      :Response.json({message:'Unknown environment'},{status:404});
    const match=new URL(request.url).pathname.match(/^\/([a-z][a-z0-9_]{1,30})\/(auth|rest|storage|realtime|functions)\/v1(\/.*)?$/);
    if(!match||!match[2])return Response.json({message:'Unknown route'},{status:404});
+   const epoch=catalog.runtimeEpoch(runtime);
+   const allowed=()=>catalog.runtimeReady(runtime)&&catalog.runtimeEpoch(runtime)===epoch;
    const access=gatewayKeyAccess(request,match[2],match[3]||'/',key=>keys.resolve(runtime,key)==='publishable');
    if(access instanceof Response)return access;
    const routing=catalog.runtimeRouting(runtime);
@@ -49,10 +52,32 @@ export function managedGateway(catalog:Catalog,keys:KeyStore,resolve:(runtime:st
     {status:503,headers:{'retry-after':'1','cache-control':'no-store'}});
    const route=routeWithPlacement(resolve(runtime),routing,resolved);
    if(!route) return Response.json({message:'Environment routing unavailable'},{status:503});
-   return await createGateway(new Map([[runtime,route]]),transport,
-    (environment,key)=>keys.resolve(environment,key)==='publishable',10_000,concurrency)(request);
+   const guardedTransport=(async(input,init)=>{
+    if(!allowed())return Response.json({message:'Invalid API key'},{status:401});
+    const response=await transport(input,init);
+    if(!allowed()){void response.body?.cancel().catch(()=>{});return Response.json({message:'Invalid API key'},{status:401});}
+    return new Response(response.body?epochBody(response.body,allowed):null,{status:response.status,headers:response.headers});
+   }) as typeof fetch;
+   return await createGateway(new Map([[runtime,route]]),guardedTransport,
+    (environment,key)=>allowed()&&keys.resolve(environment,key)==='publishable',10_000,concurrency)(request);
   } catch {
    return Response.json({message:'Environment routing unavailable'},{status:503});
   }
  }
+}
+
+/** Check the captured runtime generation whenever downstream asks for another chunk. */
+function epochBody(body:ReadableStream<Uint8Array>,allowed:()=>boolean):ReadableStream<Uint8Array> {
+ const reader=body.getReader();let finished=false;
+ const close=(cancel:boolean)=>{if(finished)return;finished=true;if(cancel)void reader.cancel().catch(()=>{});reader.releaseLock();};
+ return new ReadableStream<Uint8Array>({
+  async pull(controller){
+   try{
+    if(!allowed())throw new Error('Runtime access revoked');
+    const chunk=await reader.read();
+    if(!allowed())throw new Error('Runtime access revoked');
+    if(chunk.done){controller.close();close(false);}else controller.enqueue(chunk.value);
+   }catch(error){controller.error(error);close(true);}
+  },cancel(){close(true);}
+ },{highWaterMark:0});
 }

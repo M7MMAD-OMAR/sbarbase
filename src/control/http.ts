@@ -92,8 +92,9 @@ const CONFLICTS=new Set(['Name already used','Environment capacity reached','Org
   'Project has environments','Installation organization cannot be deleted','Provisioning is active',
   'Environment services are still on','Runtime was deleted here','Organization name belongs to another organization',
   'Project belongs to another organization','Environment exists with another project or runtime',
-  'Runtime belongs to another environment']);
-const INVALID=new Set(['Invalid name','Invalid ownership','Invalid runtime']);
+  'Runtime belongs to another environment','Lifecycle operation is active','Exact ownership inventory unavailable',
+  'Retention has expired','Retention has not expired','Complete recovery proof unavailable']);
+const INVALID=new Set(['Invalid name','Invalid ownership','Invalid runtime','Invalid lifecycle operation']);
 function refusal(error:unknown):Response {
   const message=error instanceof Error?error.message:'';
   if(error instanceof UpdateRefusal)return reply(error.status,{message});
@@ -122,6 +123,32 @@ export function managementHandler(catalog:Catalog,identify:ManagementIdentity,ma
       response.headers.set('Cache-Control','no-store');
       return response;
     }
+    const lifecycle=path.match(/^\/management\/v1\/environments\/([a-f0-9-]{36})\/(lifecycle|restore|purge)$/);
+    if(lifecycle){
+      const actor=await authenticate(identify,request);
+      if(actor instanceof Response)return actor;
+      try {
+        if(lifecycle[2]==='lifecycle') {
+          if(request.method!=='GET')return reply(405,{message:'Method not allowed'});
+          return reply(200,{data:catalog.lifecycle(actor,lifecycle[1]!)});
+        }
+        if(request.method!=='POST')return reply(405,{message:'Method not allowed'});
+        const input=await body(request,['operation']);
+        if(typeof input.operation!=='string')throw new InputError();
+        if(!keys)return reply(500,{message:'Key revocation unavailable'});
+        const data=lifecycle[2]==='restore'?catalog.restoreEnvironment(actor,lifecycle[1]!,input.operation):
+          catalog.purgeEnvironment(actor,lifecycle[1]!,input.operation);
+        // Catalog authority and epoch commit first. Duplicate requests preserve keys from the restored epoch.
+        if(lifecycle[2]==='restore')keys.revokeBeforeEpoch(data.runtime,data.epoch);
+        return reply(202,{data});
+      }catch(error){return refusal(error);}
+    }
+    const retained=path.match(/^\/management\/v1\/projects\/([a-f0-9-]{36})\/retained-environments$/);
+    if(retained){
+      if(request.method!=='GET')return reply(405,{message:'Method not allowed'});
+      const actor=await authenticate(identify,request);if(actor instanceof Response)return actor;
+      try{return reply(200,{data:catalog.retainedEnvironments(actor,retained[1]!)});}catch(error){return refusal(error);}
+    }
     const item=path.match(/^\/management\/v1\/(organizations|projects|environments)\/([a-f0-9-]{36})$/);
     if(item) {
       if(!['PATCH','DELETE'].includes(request.method))return reply(405,{message:'Method not allowed'});
@@ -143,7 +170,7 @@ export function managementHandler(catalog:Catalog,identify:ManagementIdentity,ma
         const {runtime}=catalog.deleteEnvironment(actor,id);
         // The catalog commits first, so a refusal changes nothing. From then on the gateway
         // answers 401 for the runtime whatever happens to the keys; revoking them keeps it so.
-        try {return reply(200,{deleted:true,revoked:runtime?keys.revokeAll(runtime):0});}
+        try {return reply(200,{deleted:true,revoked:runtime?keys.revokeAll(runtime):0,retentionUntil:catalog.lifecycle(actor,id)?.retain_until??null});}
         catch {return reply(500,{message:'Environment deleted; revoking its keys failed'});}
       } catch(error) {return refusal(error);}
     }

@@ -1,3 +1,4 @@
+import {installedLifecycleAdmission} from '../src/control/lifecycle-recovery';
 import {readFileSync} from 'node:fs';
 import {createClient} from '@supabase/supabase-js';
 import type {InvitationAccounts} from '../src/control/invitations';
@@ -67,7 +68,8 @@ export function openUpstreamApplication() {
  const studioSessionKey=()=>key??=studioKey('.secrets/upstream/studio-session.key');
  const secrets=load('.secrets/upstream/runtime.json');
  const management=load('.lab/upstream/management.json');
- const catalog=new Catalog('.lab/upstream/control.sqlite');
+ const receipt=process.env.SBARBASE_LIFECYCLE_RECOVERY_RECEIPT;
+ const catalog=new Catalog('.lab/upstream/control.sqlite',{lifecycleAdmission:receipt?installedLifecycleAdmission(process.cwd(),receipt):undefined});
  const keys=new KeyStore('.secrets/upstream/managed-keys.sqlite');
  const resolve=(runtime:string):EnvironmentRoute|undefined=>{
   // Refresh private configuration and endpoints after provisioning or restart: the cache
@@ -98,14 +100,14 @@ export function openUpstreamApplication() {
    status:decision.ok?101:decision.status,ms:performance.now()-started});}catch{}
   return decision;
  };
-  const studio=studioProxy({key:studioSessionKey,allowed:(actor,runtime)=>catalog.studioAllowed(actor,runtime),epoch:actor=>catalog.managementSecurity.epoch(actor),
+  const studio=studioProxy({key:studioSessionKey,allowed:(actor,runtime)=>catalog.studioAllowed(actor,runtime),epoch:actor=>catalog.managementSecurity.epoch(actor),runtimeEpoch:runtime=>catalog.runtimeEpoch(runtime),
    navigation:(actor,runtime,organization,project)=>catalog.studioNavigation(actor,runtime,organization,project),
    selection:(actor,environment)=>catalog.studio(actor,environment),
    upstream:runtime=>studioState().sessions?.[runtime]?.url});
   const upstream=studioUpstream({
    endpoints:runtime=>(readJsonCached('.lab/upstream/endpoints.json') as Record<string,any>)[runtime],
    secret:runtime=>(readJsonCached('.secrets/upstream/runtime.json') as {environments:Record<string,any>}).environments[runtime]?.jwt,
-   active:runtime=>!!studioState().sessions?.[runtime]});
+   active:runtime=>catalog.runtimeReady(runtime)&&!!studioState().sessions?.[runtime]});
   // The gate reads each environment's share from the catalog, so a change applies at the next request.
   applicationConcurrency.useShares(runtime=>catalog.gatewayShare(runtime));
   // One monitor per process, over the one application gate: a busy environment's operator notice.
