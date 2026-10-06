@@ -1,7 +1,8 @@
 import {createHmac,randomBytes,timingSafeEqual} from 'node:crypto';
 import {chmodSync,existsSync,readFileSync,writeFileSync} from 'node:fs';
-import {Catalog} from './catalog';
+import {Catalog,type StudioNavigation,type StudioSession} from './catalog';
 import {authenticate,reply,type ManagementIdentity} from './auth';
+import {studioWorkspaceAsset} from './studio-workspace';
 
 /** Studio for one environment, reached in the browser at `<24 hex>.studio.localhost` on the
  * console's own port. Every environment is its own origin, so a Studio session cookie for one
@@ -32,7 +33,11 @@ export function studioHost(runtime:string):string {
  return runtime.slice(2)+'.studio.localhost';
 }
 
-type Claim={runtime:string;actor:string;expires:number;kind:'ticket'|'session'};
+type Claim={runtime:string;actor:string;expires:number;kind:'ticket'|'session';console?:string};
+
+function consoleOrigin(value:string|undefined):string|undefined {
+ try{const url=new URL(value??'');return ['http:','https:'].includes(url.protocol)&&['localhost','127.0.0.1','[::1]'].includes(url.hostname)&&!url.username&&!url.password&&!url.search&&!url.hash?url.origin:undefined;}catch{return;}
+}
 
 export function signStudio(key:Buffer,claim:Claim):string {
  const body=Buffer.from(JSON.stringify(claim)).toString('base64url');
@@ -68,7 +73,7 @@ export function studioHandler(catalog:Catalog,identify:ManagementIdentity,key:()
    if(session) {
     const current=catalog.studio(actor,environment!);
     if(current.state!=='running')return reply(409,{message:'Studio is not running'});
-    const ticket=signStudio(key(),{runtime:current.runtime,actor,expires:Date.now()+TICKET_MS,kind:'ticket'});
+    const ticket=signStudio(key(),{runtime:current.runtime,actor,expires:Date.now()+TICKET_MS,kind:'ticket',console:consoleOrigin(new URL(request.url).origin)});
     return reply(201,{host:studioHost(current.runtime),path:'/__sbarbase/enter?ticket='+encodeURIComponent(ticket)});
    }
    if(request.method==='GET')return reply(200,{data:catalog.studio(actor,environment!)});
@@ -101,7 +106,9 @@ function page(status:number,text:string) {
 
 /** The browser side: `<id>.studio.localhost` requests, gated by the session cookie. */
 export function studioProxy(options:{key:()=>Buffer;allowed:(actor:string,runtime:string)=>boolean;
- upstream:(runtime:string)=>string|undefined;transport?:typeof fetch}) {
+ upstream:(runtime:string)=>string|undefined;transport?:typeof fetch;
+ navigation?:(actor:string,runtime:string,organization?:string,project?:string)=>StudioNavigation;
+ selection?:(actor:string,environment:string)=>StudioSession}) {
  const transport=options.transport??fetch;
  return async(request:Request):Promise<Response>=>{
   const url=new URL(request.url);
@@ -110,24 +117,74 @@ export function studioProxy(options:{key:()=>Buffer;allowed:(actor:string,runtim
   if(url.pathname==='/__sbarbase/enter') {
    const claim=verifyStudio(options.key(),url.searchParams.get('ticket'),runtime,'ticket');
    if(!claim||!options.allowed(claim.actor,runtime))return page(401,'This Studio link has expired. Open Studio again from the Sbarbase console.');
-   const session=signStudio(options.key(),{runtime,actor:claim.actor,expires:Date.now()+SESSION_MS,kind:'session'});
-   return new Response(null,{status:302,headers:{location:'/project/default','cache-control':'no-store',
+   const session=signStudio(options.key(),{runtime,actor:claim.actor,expires:Date.now()+SESSION_MS,kind:'session',console:consoleOrigin(claim.console)});
+   return new Response(null,{status:302,headers:{location:options.navigation?'/__sbarbase/workspace':'/project/default','cache-control':'no-store',
     'set-cookie':`${STUDIO_COOKIE}=${session}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_MS/1000}`}});
   }
   const claim=verifyStudio(options.key(),cookieValue(request.headers.get('cookie'),STUDIO_COOKIE),runtime,'session');
-  if(!claim||!options.allowed(claim.actor,runtime))return page(401,'Open Studio from the Sbarbase console to sign in.');
+  if(!claim||!options.allowed(claim.actor,runtime))return ['/__sbarbase/navigation','/__sbarbase/switch'].includes(url.pathname)
+   ?reply(401,{message:'Open Studio from the Sbarbase console to sign in.'}):page(401,'Open Studio from the Sbarbase console to sign in.');
+  if(url.pathname.startsWith('/__sbarbase/')) {
+   if(!options.navigation)return reply(404,{message:'Workspace navigation is unavailable'});
+   if(url.pathname==='/__sbarbase/switch') {
+    if(request.method!=='POST')return reply(405,{message:'Method not allowed'});
+    if(request.headers.get('origin')!==url.origin)return reply(403,{message:'Forbidden'});
+    if(request.headers.get('content-type')?.split(';')[0]?.trim()!=='application/json')return reply(415,{message:'JSON is required'});
+    const reader=request.body?.getReader();
+    let bytes=new Uint8Array();
+    if(reader)try{for(;;){const chunk=await reader.read();if(chunk.done)break;
+     if(bytes.length+chunk.value.length>512){await reader.cancel();return reply(413,{message:'Request is too large'});}
+     const next=new Uint8Array(bytes.length+chunk.value.length);next.set(bytes);next.set(chunk.value,bytes.length);bytes=next;
+    }}catch{return reply(400,{message:'Invalid request'});}
+    // Membership may change while the bounded body is being read.
+    if(!options.allowed(claim.actor,runtime))return reply(403,{message:'Forbidden'});
+    let environment:string;
+    try{const value=JSON.parse(new TextDecoder().decode(bytes));
+     if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).length!==1||typeof value.environment!=='string'||!/^[a-f0-9-]{36}$/.test(value.environment))throw new Error();
+     environment=value.environment;
+    }catch{return reply(400,{message:'Invalid environment'});}
+    try{
+     if(!options.selection)return reply(404,{message:'Workspace switching is unavailable'});
+     const selected=options.selection(claim.actor,environment);
+     if(!options.allowed(claim.actor,selected.runtime))return reply(403,{message:'Forbidden'});
+     if(selected.desired!=='running'||selected.state!=='running'||!options.upstream(selected.runtime))return reply(409,{message:'Studio is not running here. Start it from the console, then Refresh.'});
+     const destination=new URL(url.origin);destination.hostname=studioHost(selected.runtime);destination.pathname='/__sbarbase/enter';
+     destination.searchParams.set('ticket',signStudio(options.key(),{runtime:selected.runtime,actor:claim.actor,expires:Date.now()+TICKET_MS,kind:'ticket',console:consoleOrigin(claim.console)}));
+     return reply(200,{href:destination.href});
+    }catch(error){return reply(error instanceof Error&&error.message==='Forbidden'?403:409,{message:error instanceof Error&&error.message==='Forbidden'?'Forbidden':'Environment is unavailable'});}
+   }
+   if(!['GET','HEAD'].includes(request.method))return reply(405,{message:'Method not allowed'});
+   if(url.pathname==='/__sbarbase/navigation') {
+    try{const data=options.navigation(claim.actor,runtime,url.searchParams.get('organization')??undefined,url.searchParams.get('project')??undefined);
+     const consoleUrl=new URL(url.origin);consoleUrl.hostname='127.0.0.1';consoleUrl.pathname='/';
+     return reply(200,{...data,consoleUrl:consoleOrigin(claim.console)??consoleUrl.href});
+    }catch(error){return reply(error instanceof Error&&error.message==='Forbidden'?403:500,{message:error instanceof Error&&error.message==='Forbidden'?'Forbidden':'Unable to load workspace'});}
+   }
+   const asset=studioWorkspaceAsset(url.pathname);
+   if(asset)return request.method==='HEAD'?new Response(null,{headers:asset.headers}):asset;
+   return reply(404,{message:'Unknown workspace route'});
+  }
   const target=options.upstream(runtime);
   if(!target)return page(503,'Studio is not running for this environment. Start it from the Sbarbase console.');
   const headers=new Headers();
   for(const [name,value] of request.headers)if(!HOP.has(name))headers.set(name,value);
   const cookies=withoutCookie(request.headers.get('cookie'),STUDIO_COOKIE);
   if(cookies)headers.set('cookie',cookies);else headers.delete('cookie');
-  const response=await transport(new URL(url.pathname+url.search,target),{method:request.method,headers,redirect:'manual',
+  const destination=new URL(target);
+  destination.pathname=url.pathname;destination.search=url.search;
+  const response=await transport(destination,{method:request.method,headers,redirect:'manual',
    ...(['GET','HEAD'].includes(request.method)?{}:{body:request.body,duplex:'half'})} as RequestInit);
   const out=new Headers();
   for(const [name,value] of response.headers)if(!HOP.has(name)&&name!=='set-cookie')out.set(name,value);
   for(const cookie of response.headers.getSetCookie())out.append('set-cookie',cookie);
   out.set('x-frame-options','SAMEORIGIN');
+  if(options.navigation&&out.get('content-type')?.includes('text/html')){
+   const policies=(out.get('content-security-policy')||'').split(',').map(policy=>{
+    const directives=policy.split(';').map(value=>value.trim()).filter(value=>value&&!/^frame-ancestors(?:\s|$)/i.test(value));
+    return [...directives,"frame-ancestors 'self'"].join('; ');
+   });
+   out.set('content-security-policy',policies.join(', '));
+  }
   return new Response(response.body,{status:response.status,headers:out});
  };
 }
@@ -158,7 +215,9 @@ export function studioUpstream(options:{endpoints:(runtime:string)=>Endpoints|un
    if(!endpoints.storage)return Response.json({message:'Unavailable'},{status:503});
    base=endpoints.storage.url;headers.set('x-forwarded-host',endpoints.storage.tenantHost);
   }
-  const response=await transport(new URL(rest+url.search,base),{method:request.method,headers,redirect:'manual',
+  const destination=new URL(base);
+  destination.pathname=rest;destination.search=url.search;
+  const response=await transport(destination,{method:request.method,headers,redirect:'manual',
    ...(['GET','HEAD'].includes(request.method)?{}:{body:request.body,duplex:'half'})} as RequestInit);
   const out=new Headers();
   for(const [name,value] of response.headers)if(!HOP.has(name))out.set(name,value);

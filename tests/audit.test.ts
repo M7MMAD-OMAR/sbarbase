@@ -1,5 +1,5 @@
 import {test,expect} from 'bun:test';
-import {Catalog} from '../src/control/catalog';
+import {Catalog,type AuditEvent} from '../src/control/catalog';
 import {managementHandler} from '../src/control/http';
 
 function two() {
@@ -29,7 +29,7 @@ test('a project moved to another client shows there only from its arrival, witho
  const {catalog,a,b,shop,call}=two();
  catalog.transferProject('alice',shop,b);
  catalog.createEnvironment('alice',shop,'staging');
- const ofB=(await (await call(b,'bob')).json()).data as {action:string;subject:string;detail:Record<string,unknown>}[];
+ const ofB=(await (await call(b,'bob')).json()).data as AuditEvent[];
  const shopEvents=ofB.filter(e=>e.subject.startsWith('Shop'));
  expect(shopEvents.map(e=>e.action)).toEqual(['environment.created','provision.cancelled','project.ownership_changed']);   // not its creation in A
  expect(shopEvents[2]!.detail).toEqual({});

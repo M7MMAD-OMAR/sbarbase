@@ -2,11 +2,12 @@ import {test,expect} from 'bun:test';
 import {application} from '../src/control/application';
 import {Catalog} from '../src/control/catalog';
 import {KeyStore} from '../src/control/keys';
+const nativeFetch=globalThis.fetch;
 
 test('management login surface excludes signup and admin APIs before forwarding',async()=>{
  const catalog=new Catalog(':memory:'),keys=new KeyStore(':memory:');let calls=0;
  const handler=application(catalog,keys,{auth:'http://realm.invalid',anonymousToken:'anon',publishableKey:'public'},()=>undefined,
-  (async()=>{calls++;return Response.json({ok:true});}) as typeof fetch);
+  Object.assign(async()=>{calls++;return Response.json({ok:true});}, {preconnect:nativeFetch.preconnect}));
  try {
   for(const path of ['signup','admin/users','invite','token/extra','%61dmin/users']) {
    expect((await handler(new Request(`http://local/management/auth/v1/${path}`,{method:'POST',headers:{apikey:'public'}}))).status).toBe(404);

@@ -359,8 +359,14 @@ def run_import(e, settings, dry_run=False):
 
         extensions = source.query("SELECT e.extname, n.nspname FROM pg_extension e JOIN pg_namespace n ON n.oid = e.extnamespace")
         present = {row[0] for row in target_rows(e, 'SELECT extname FROM pg_extension')}
-        create = [f'CREATE SCHEMA IF NOT EXISTS "{schema}"; CREATE EXTENSION IF NOT EXISTS "{name}" WITH SCHEMA "{schema}";'
-                  for name, schema in extensions if name not in present and name not in import_inspect.INACTIVE_EXTENSIONS]
+        create = []
+        for name, schema in extensions:
+            if name in present or name in import_inspect.INACTIVE_EXTENSIONS:
+                continue
+            quoted_name = '"' + name.replace('"', '""') + '"'
+            quoted_schema = '"' + schema.replace('"', '""') + '"'
+            create.append(f'CREATE SCHEMA IF NOT EXISTS {quoted_schema}; '
+                          f'CREATE EXTENSION IF NOT EXISTS {quoted_name} WITH SCHEMA {quoted_schema};')
         if create:
             target_sql(e, '\n'.join(create))
         step(f'extensions: {len(create)} added')
