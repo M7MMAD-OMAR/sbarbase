@@ -4,7 +4,7 @@ Documentation=file:/opt/sbarbase/docs/guides/server-deployment.md
 Requires=docker.service
 After=docker.service network-online.target
 Wants=network-online.target
-# Never stop restarting: after a failed upgrade the upgrade guard (first ExecStartPre below)
+# Never stop restarting: after a failed upgrade the upgrade guard below
 # may need several starts to go back, and a start limit would leave the unit failed first.
 StartLimitIntervalSec=0
 
@@ -19,13 +19,15 @@ Environment=HOME=/home/sbarbase
 Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/sbarbase/.bun/bin
 # Tells lab/dev.py that the upgrade guard below already ran for this start.
 Environment=SBARBASE_GUARDED=1
-# First, before any code of the version the checkout holds: the upgrade guard
+# Read-only host admission precedes every lock, upgrade or runtime cleanup effect.
+ExecStartPre=/bin/sh /opt/sbarbase/deploy/host-preflight.sh --runtime
+# After host admission, before startup code: the upgrade guard
 # (lab/upgrade_guard.py). It runs the copy an upgrade took from the version it left
 # when there is one, counts the start while an upgrade waits for its health checks,
 # and moves the checkout back when that version keeps failing, before the lines
 # below read it. Paths are relative: WorkingDirectory applies here too.
 ExecStartPre=/bin/sh -c 'if [ -f .lab/upgrades/guard.py ]; then exec /usr/bin/python3 .lab/upgrades/guard.py; fi; exec /usr/bin/python3 lab/upgrade_guard.py'
-# Second: an owned runtime a killed supervisor left running (Docker, not this unit's cgroup,
+# After the guard: an owned runtime a killed supervisor left running (Docker, not this unit's cgroup,
 # owns its containers) is stopped as the supervisor's own stop does, volumes kept, unless a
 # live supervisor or worker holds its lock or pending authority state needs reconciliation
 # (lab/leftover_runtime.py). Otherwise the preflight below refuses on the running containers

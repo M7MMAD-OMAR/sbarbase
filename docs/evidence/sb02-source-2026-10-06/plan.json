@@ -1,0 +1,126 @@
+{
+  "schema_version": 1,
+  "mode": "feature",
+  "approval": "delegated",
+  "environment": "local-isolated",
+  "requirements": [
+    {
+      "id": "R1",
+      "text": "Source contract: refuse unsupported architecture/cgroups/filesystem/data-root/security/endpoint before host Compose mutations; existing Docker profile canonical admission reused."
+    },
+    {
+      "id": "R2",
+      "text": "Wire relevant startup/install/resource entrypoints before files, locks, dependencies, resources. Primary host path needs only POSIX shell and public Linux utilities plus Docker/Compose."
+    },
+    {
+      "id": "R3",
+      "text": "Replay shell fixtures for malformed/unavailable and unsupported inputs with mutation tripwires and before/after owned trees; run changed callers; fresh independent review."
+    },
+    {
+      "id": "R4",
+      "text": "Truthful initial Linux x86_64 local rootful candidate only, supported-profile acceptance and production unproven; actual clean host/install/reboot/full recovery pending coordinated runtime role."
+    }
+  ],
+  "checkpoints": [
+    {
+      "id": "source",
+      "title": "Host admission implementation and isolated source verification",
+      "covers": [
+        "R1",
+        "R2",
+        "R3",
+        "R4"
+      ],
+      "depends_on": [],
+      "scope": [
+        ".dockerignore",
+        "Dockerfile",
+        "compose.yaml",
+        "deploy/compose.sh",
+        "deploy/host-preflight.sh",
+        "deploy/sbarbase.service",
+        "deploy/server-acceptance.sh",
+        "deploy/verify/runtime_inspect.py",
+        "docs/engineering/HOST-PREFLIGHT.md",
+        "docs/guides/docker.ar.md",
+        "docs/guides/docker.md",
+        "docs/guides/server-deployment.ar.md",
+        "docs/guides/server-deployment.md",
+        "lab/dev.py",
+        "lab/docker_profile.py",
+        "lab/durable_runtime.py",
+        "lab/host_caller_checks.py",
+        "lab/host_test_fixture.py",
+        "lab/install_server.py",
+        "lab/installation_runtime.py",
+        "lab/resource_admission.py",
+        "lab/resource_policy.py",
+        "lab/run.py",
+        "lab/supervised_run_check.py",
+        "lab/test_container_start.py",
+        "lab/test_docker_profile.py",
+        "lab/test_durable_image_identity.py",
+        "lab/test_host_entrypoints.py",
+        "lab/test_host_preflight.py",
+        "lab/test_image_identity.py",
+        "lab/test_install_lock.py",
+        "lab/test_install_server.py",
+        "lab/test_resource_policy.py",
+        "lab/test_runtime_build_inputs.py",
+        "lab/test_supervised_run.py",
+        "lab/test_supervisor_unit.py",
+        "lab/worker.py"
+      ],
+      "gates": {
+        "behavior": {
+          "kind": "command",
+          "checks": [
+            {
+              "id": "fixtures",
+              "argv": [
+                "/usr/bin/python3.14",
+                "-u",
+                "-m",
+                "unittest",
+                "discover",
+                "-s",
+                "lab",
+                "-p",
+                "test_host*.py",
+                "-v"
+              ],
+              "parser": "unittest",
+              "min_tests": 54,
+              "timeout_seconds": 120,
+              "max_attempts": 8
+            },
+            {
+              "id": "callers",
+              "argv": [
+                "/usr/bin/python3.14",
+                "-u",
+                "lab/host_caller_checks.py"
+              ],
+              "parser": "unittest",
+              "min_tests": 200,
+              "timeout_seconds": 120,
+              "max_attempts": 8
+            }
+          ]
+        },
+        "review": {
+          "kind": "review",
+          "reviewers": 2,
+          "axes": [
+            "specification",
+            "standards"
+          ]
+        },
+        "ui": {
+          "kind": "not_applicable",
+          "reason": "No UI work authorized; textual host installer diagnostics tested with fixtures"
+        }
+      }
+    }
+  ]
+}

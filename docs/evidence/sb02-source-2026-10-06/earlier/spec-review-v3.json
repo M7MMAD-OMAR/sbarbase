@@ -1,0 +1,88 @@
+{
+  "reviewer": "sb02-critic-spec-v3",
+  "axis": "specification",
+  "source_hash": "58a494a28a68593802deb7813fc0caf6306c766249d38b5e65501530fe820a8b",
+  "plan_hash": "52766ddead8229b8e775faad06db181a41e17ebb2ab5680ab42fee6db85d3034",
+  "verdict": "fail",
+  "findings": [
+    {
+      "id": "SPEC-V3-1",
+      "severity": "major",
+      "file": "lab/supervised_run_check.py",
+      "location": "unit_text, lines 53 to 73; lab/test_supervised_run.py lines 33, 56 and 66",
+      "requirements": [
+        "R2",
+        "R3"
+      ],
+      "status": "open",
+      "reproduction": "/usr/bin/python3.14 -B -u lab/host_caller_checks.py, entirely through the authorized owned test doubles",
+      "evidence": "My own caller run executed 211 tests in 2.234 seconds and failed three MirrorFidelityTests. The shipped service has four ExecStartPre directives and host-preflight.sh --runtime first. The mirror emitted by unit_text still starts with install_server.GUARD_LINE, then LEFTOVER_LINE and install_server.py check, so it lacks admission before upgrade and cleanup effects. test_the_mirror_uses_the_same_python_and_entry_points shows the omitted admission directive, test_a_leftover_runtime_is_stopped_after_the_guard_and_before_the_preflight fails 4 != 3, and test_the_upgrade_guard_runs_first_and_the_unit_never_stops_restarting still expects guard.py first. This prevents the planned caller behavior gate from passing and leaves the supervised verification entrypoint outside the new ordering. The actual mirror source is influential but absent from the supplied checkpoint source scope. Repair the mirror and its ordering expectations, include its source in the hash scope, and rerun the source-bound caller gate."
+    },
+    {
+      "id": "SPEC-V3-2",
+      "severity": "minor",
+      "file": "docs/guides/server-deployment.md",
+      "location": "lines 27, 143 to 155 and 230 to 243; matching Arabic guidance in docs/guides/server-deployment.ar.md lines 31, 143 to 151 and 218 to 222",
+      "requirements": [
+        "R4"
+      ],
+      "status": "open",
+      "reproduction": "Read the endpoint guidance and compare lab/docker_profile.py from_environment and docker_command. My inert Python call with an empty environment returned docker --host unix:///var/run/docker.sock info; DOCKER_CONTEXT=chosen raised docker_endpoint_override; DOCKER_HOST=unix:///run/custom.sock alone raised host_endpoint_mismatch.",
+      "evidence": "Both deployment guides still say the service and preflight use the socket selected by the account Docker context. Current from_environment always validates the host endpoint, defaults to the declared socket and rejects DOCKER_CONTEXT; docker_command always adds --host. The guides therefore describe an endpoint selection behavior the new source deliberately removes. The primary Docker guide and HOST-PREFLIGHT contract accurately explain fixed endpoint admission, but the linked native guide retains contradictory operational instructions. Update both languages to describe the actual declared local socket, matching DOCKER_HOST and data-root inputs and candidate limitations."
+    }
+  ],
+  "artifacts": [
+    "spec-host-tests-v3.log",
+    "spec-caller-tests-v3.log"
+  ],
+  "executed_checks": [
+    {
+      "command": "/usr/bin/python3.14 -B -u -m unittest discover -s lab -p test_host*.py -v",
+      "result": "pass",
+      "tests": 50,
+      "duration_seconds": 65.406
+    },
+    {
+      "command": "/usr/bin/python3.14 -B -u lab/host_caller_checks.py",
+      "result": "fail",
+      "tests": 211,
+      "failures": 3,
+      "duration_seconds": 2.234
+    },
+    {
+      "command": "/bin/sh -n deploy/compose.sh deploy/host-preflight.sh deploy/container/start.sh",
+      "result": "pass"
+    },
+    {
+      "command": "ast.parse over the 24 Python files in the packet source scope",
+      "result": "pass"
+    },
+    {
+      "command": "hosts.py review-state before source inspection and after checks",
+      "result": "source and plan hashes matched the packet at both observations; final observed revision 29"
+    }
+  ],
+  "positive_source_evidence": [
+    "deploy/compose.sh gates check, up, build, pull, start, restart, bootstrap, smoke and upgrade through deploy/host-preflight.sh before its fixed Docker Compose command. It refuses extra arguments, pins the endpoint, project and compose.yaml, uses --env-file /dev/null and passes declared interpolation inputs only.",
+    "deploy/host-preflight.sh checks existing canonical paths, local socket, architecture, daemon root, cgroup v2, six real resource booleans, required controllers, exact candidate security options, persistent local filesystem observations and whole-disk device mapping. Failed probes and invalid observations have named refusal reasons and actions.",
+    "lab/docker_profile.py validate_capabilities invokes the same shell with a bounded outer timeout, then validates daemon identity and controller mount/security/checkout identity. require_supported pins subsequent Docker calls only after admission succeeds.",
+    "Actual source ordering places admission before installer operation_lock and private directories, supervisor state and locks, worker state and locks, runtime constructors and resource measurement. Shipped and rendered service units put admission before the upgrade guard and leftover cleanup.",
+    "compose.yaml declares create_host_path: false for socket, data root and checkout. Dockerfile and .dockerignore bake the canonical admission script into the controller image.",
+    "The 50 executed host tests replay malformed and unsupported input through fake tools, capture attempted mutations, assert unchanged owned checkout/data trees and exercise caller refusal before lock, state or dependency effects."
+  ],
+  "artifact_preference": {
+    "reference": "d7cbaca764eec368a0f89c78b11b38470580f317",
+    "candidate": "current source hash 58a494a28a68593802deb7813fc0caf6306c766249d38b5e65501530fe820a8b",
+    "binary_choice": "current source",
+    "evidence": "I read the baseline compose.yaml, lab/docker_profile.py and deploy/sbarbase.service with git show. The baseline instructs raw docker compose startup, describes any Linux Docker host, uses a short checkout bind and begins service startup with the upgrade guard. Current source supplies a public shell admission launcher, explicit noncreating checkout bind, canonical capability bridge and admission-first shipped service. Those observable source safeguards make current source preferable, while its caller gate and mirror still fail.",
+    "biggest_remaining_source_gap": "The supervised rehearsal mirror omits admission and its three obsolete ordering assertions fail the planned caller suite.",
+    "scope": "SOURCE artifact preference only, not runtime acceptance and not full product completion"
+  },
+  "limitations": [
+    "No actual Docker/context/info/build/run/pull/exec command, package installation, service change, VM operation or host mutation was executed. Docker commands in tests were owned fakes or mocks.",
+    "Actual filesystem metadata and persistence behavior, resource enforcement, clean host installation, reboot and full application recovery remain unproven and outside SOURCE.",
+    "PROJECT_GOAL remains open. This report does not accept SB-03, supported-profile portability, production or the complete application goal.",
+    "The imported workstation rule file /home/sbarah/AGENTS.md and root AGENTS.md were absent. I followed the explicit supplied no-long-dash rule.",
+    "No prior review reports, defenses or workflow status/export/journal were consulted. Review-state was the only workflow projection used. The report concerns the inspected digest; subsequent repairs require a fresh independent context."
+  ]
+}

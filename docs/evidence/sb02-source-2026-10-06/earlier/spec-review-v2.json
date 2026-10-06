@@ -1,0 +1,89 @@
+{
+  "reviewer": "sb02-critic-spec-v2",
+  "axis": "specification",
+  "source_hash": "03643c505f25b8a410f1094ff5d4f890e33fb5fe911befa36cbba1348b3db391",
+  "plan_hash": "1429965a5284dc4ecca7b6c5065c8b00b0b615e97acfff1509254057740de3b3",
+  "verdict": "fail",
+  "scope": "SOURCE admission preparation only; no host, filesystem, resource, install, reboot or full recovery acceptance",
+  "comparison": {
+    "candidate_a": "Reference source at d7cbaca764eec368a0f89c78b11b38470580f317",
+    "candidate_b": "Current scoped source bound to source_hash",
+    "binary_preference": "candidate_b",
+    "reason": "Candidate B introduces a read-only pre-mutation shell admission boundary, removes the unconfigured native endpoint bypass, pins Compose project/socket/checkout through the documented commands, and adds executable inert refusal checks. Candidate A exposes direct Compose startup and does not enforce these capability checks. This preference is based on actual source behavior, not authorship or product identity.",
+    "largest_source_gap": "A supported installation can later enter its shipped native service startup through mutation-bearing ExecStartPre commands before capability admission.",
+    "largest_runtime_gap": "Neither artifact proves real backing filesystem semantics or actual CPU/memory/pids/IO enforcement, clean host installation, reboot continuity, or full application recovery. Those obligations remain open and cannot be inferred from source fixtures."
+  },
+  "findings": [
+    {
+      "id": "SB02-SPEC-01",
+      "severity": "major",
+      "status": "open",
+      "requirement": "R2",
+      "file": "lab/install_server.py",
+      "location": "rendered_unit, lines 602-609; deploy/sbarbase.service, lines 27-36",
+      "title": "The shipped service startup still mutates before capability admission",
+      "evidence": "deploy/sbarbase.service executes the retained/current upgrade_guard at its first ExecStartPre (line 27), leftover_runtime at its second (line 34), and install_server check only at its third (line 36). lab/install_server.py:602-609 explicitly requires that ordering and rejects a preflight placed before the guard. On a pending applied/rolling_back upgrade, lab/upgrade_guard.py:583-608 takes upgrade and supervisor locks, writes upgrade state and can move the checkout; move_checkout invokes bun_install (lines 298-300 and 409-416). On running owned leftovers, lab/leftover_runtime.py:138 enters probe, whose lines 102-109 create the state directory and lock files before installation_stop. supervise admission at line 638 runs only during render/apply, so it cannot admit every future restart after endpoint or host capability changes. The caller suite passes while test_supervisor_unit.py:51-78 and test_supervised_run.py:61-67 retain assertions that the guard comes first. The legacy service remains a documented installation route and R2 has no exclusion for its startup boundary.",
+      "reproduction": "Source-only trace: start the shipped or rendered unit on a host whose capability now fails with a pending upgrade state. Read the ordered ExecStartPre list: the guard runs and can persist locks/state or install dependencies before install_server check discovers the capability refusal. A running owned leftover similarly reaches lock creation before that check. No actual service start or daemon query was executed for this review.",
+      "requested_change": "Add a separate read-only host capability admission at the first service startup boundary, before the upgrade guard and leftover lock creation. Keep the later installation inventory/headroom preflight after rollback and cleanup as needed. Bind the shipped unit, renderer and any startup mirror into checkpoint scope, and exercise their actual ordered boundary with an inert refusal and unchanged owned-tree/mutation tripwires. Do not treat render-time admission as restart admission."
+    }
+  ],
+  "checks": [
+    {
+      "argv": [
+        "/usr/bin/python3.14",
+        "-u",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "lab",
+        "-p",
+        "test_host*.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "tests": 47,
+      "result": "OK",
+      "seconds_reported": 58.462
+    },
+    {
+      "argv": [
+        "/usr/bin/python3.14",
+        "-u",
+        "lab/host_caller_checks.py"
+      ],
+      "exit_code": 0,
+      "tests": 211,
+      "result": "OK",
+      "seconds_reported": 2.246
+    },
+    {
+      "argv": [
+        "sh",
+        "-n",
+        "deploy/host-preflight.sh",
+        "deploy/compose.sh"
+      ],
+      "exit_code": 0,
+      "result": "syntax accepted"
+    }
+  ],
+  "requirement_assessment": {
+    "R1": "The inspected primary launcher refuses the enumerated architecture, cgroup, filesystem/data-root, endpoint and security failures before its Compose mutations. The existing Python profile invokes the same shell contract and inspects controller identity, security, checkout and exact mounts. AppArmor is optional. Unknown driver/filesystem observations are classified as admission_unproven rather than inherently unsupported; recognized driver identity is not represented as proof of persistence or enforcement.",
+    "R2": "Incomplete: the primary POSIX shell journey uses public Linux utilities and Docker/Compose, and changed Python entrypoints admit before their state/locks/resources. The shipped and rendered native service restart remains a relevant uncovered startup caller as detailed in SB02-SPEC-01.",
+    "R3": "Authorized source checks passed: 47 host fixture tests and 211 caller tests. The shell fixture uses real owned temporary Unix sockets, owned fake tools, Docker mutation tripwires and before/after checkout/data trees. Custom project/socket/checkout routing is exercised for startup, bootstrap, smoke, upgrade, observation and cleanup. These checks omit refusal at the shipped service first ExecStartPre and some caller doubles replace the admission itself; they establish boundary preparation, not runtime support.",
+    "R4": "Documents preserve initial Linux x86_64 local rootful candidate scope, supported-profile and production unproven status, and the broad PROJECT_GOAL.md and portability roadmap. No real filesystem or resource acceptance, clean host install, reboot or full recovery was performed or inferred."
+  },
+  "hash_verification": {
+    "method": "hosts.py review-state --run /tmp/sbarbase-sb02-4887/run --checkpoint source",
+    "revision_at_verification": 21,
+    "source_hash_matches_dispatch": true,
+    "plan_hash_matches_dispatch": true
+  },
+  "limitations": [
+    "No real Docker queries, pulls, builds, runs, VM operations or host changes were authorized or performed.",
+    "No prior review reports, implementer defenses, workflow status/export or journal were inspected.",
+    "This is a source specification review. Future coordinated runtime evidence must use exact final source/image/device/mount/daemon/resource identity bindings and owned cleanup evidence."
+  ],
+  "artifacts": []
+}

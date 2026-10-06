@@ -1,0 +1,56 @@
+{
+  "reviewer": "sb02-critic-ops-v2",
+  "axis": "standards",
+  "source_hash": "03643c505f25b8a410f1094ff5d4f890e33fb5fe911befa36cbba1348b3db391",
+  "plan_hash": "1429965a5284dc4ecca7b6c5065c8b00b0b615e97acfff1509254057740de3b3",
+  "verdict": "fail",
+  "findings": [
+    {
+      "id": "OPS-01",
+      "severity": "major",
+      "file": "deploy/host-preflight.sh",
+      "location": "119; projection parsing at 112-119",
+      "status": "open",
+      "title": "Reject whitespace-only daemon identity before Compose mutation",
+      "evidence": "Owned ShellAdmissionTests harness executed the actual compose.sh up and host-preflight.sh using info={ID: tab}. The projection retained its 20-line layout and sentinel. Command exited 0 with empty stderr and recorded one Compose mutation. The shell only checks that field 5 is nonempty. The Python validate_daemon rejects the same tab-only ID with daemon_identity_missing at lab/docker_profile.py:92-94. This allows host build/start mutation before the controller later refuses missing identity, violating R1 and the documented malformed/unavailable diagnostic boundary.",
+      "reproduction": "PYTHONPATH=lab /usr/bin/python3.14; instantiate test_host_preflight.ShellAdmissionTests, setUp(), run_shell([\"up\"], info={\"ID\":\"\\t\"}), inspect returncode and journal(\"mutations.jsonl\"), then doCleanups(). No real daemon is queried.",
+      "requested_change": "Require a nonblank daemon identity and reject unexpected control bytes in projected scalar observations before any Compose operation. Add inert shell regressions for blank/control identity and bind them to the Python identity contract."
+    }
+  ],
+  "checks": [
+    {
+      "command": "/usr/bin/python3.14 -u -m unittest discover -s lab -p 'test_host*.py' -v",
+      "result": "47 tests passed"
+    },
+    {
+      "command": "/usr/bin/python3.14 -u lab/host_caller_checks.py",
+      "result": "211 tests passed"
+    },
+    {
+      "command": "sh -n deploy/host-preflight.sh deploy/compose.sh deploy/container/start.sh",
+      "result": "passed"
+    },
+    {
+      "command": "Owned projection diagnostic reproductions",
+      "result": "Tab-only ID, OperatingSystem with carriage return, and DriverStatus value with carriage return each exited 0 and reached one Compose stub operation. ID mismatch is the actionable finding; no real Docker command, build, container, VM or host mutation ran."
+    }
+  ],
+  "source_observations": [
+    "Docker projection uses actual Go CPUCfsPeriod and CPUCfsQuota fields, distinct from their CpuCfsPeriod and CpuCfsQuota JSON tags. Info exposes the other six advertised resource fields; IO admission uses cgroup controllers and SOURCE-first sysfs mapping, not fabricated Info fields.",
+    "Endpoint pinning, fixed project/config, scalar user inputs, named unavailable diagnostics, default controller security and exact mounts are present. Startup guards precede changed caller state, locks, dependencies, secrets and diagnostic persistence. Baked shell and Python validator are in the Dockerfile and build context exclusions permit both.",
+    "Primary journey uses public POSIX shell, coreutils, util-linux, sed, awk and Docker/Compose, without requiring host Python, Bun, systemd or private home scripts. English and Arabic documents preserve custom socket/project through wrapper commands. The fixture journeys bind bootstrap, smoke, upgrade, observations and cleanup to the declared endpoint and project.",
+    "Recognized driver/AppArmor identity does not alone declare incompatibility. Unknown profile observations remain unproven. PROJECT_GOAL and broader portability plan remain open."
+  ],
+  "primary_sources": [
+    "https://raw.githubusercontent.com/moby/moby/master/api/types/system/info.go",
+    "https://raw.githubusercontent.com/docker/cli/master/cli/command/system/info.go"
+  ],
+  "artifact_comparison": {
+    "artifact_A": "baseline d7cbaca764eec368a0f89c78b11b38470580f317 source",
+    "artifact_B": "current scoped source",
+    "binary_preference": "B",
+    "reason": "The current artifact adds read-only shell admission, pins the public deployment journey and carries refusal into runtime startup. The baseline lacked the same pre-mutation capability boundary. Preference does not override OPS-01 or establish runtime support. This is an A/B source comparison, not a claim that delivery was blind."
+  },
+  "largest_remaining_gap": "After repairing OPS-01, source fixtures still cannot establish actual IO/CPU/memory/pids enforcement, persistent UID/mode/xattr/rename/fsync behavior, containerd content headroom, clean host installation, native Supabase startup, reboot continuity or complete application recovery. These remain separate unproven promotion gates and require the coordinated runtime role.",
+  "limitations": "SOURCE preparation review only. No actual Docker info/build/run, VM operation or host mutation. No prior review, defense, workflow status/export or journal inspected."
+}

@@ -1,0 +1,172 @@
+{
+  "scope": "SB02 bounded actual capability observation only, proposed role not granted",
+  "source_hash": "38d4d1978a14690db4022b3b399f75fde742ca058553f77c61be644b52385a10",
+  "plan_hash": "24b970e4598a95e81c92d10c36adf172d28fc9d065a1d6ee725b186072da6074",
+  "source_commit": "Final SOURCE delta commit must be recorded before snapshot export; source file hashes bind the prospective contract now.",
+  "source_files": {
+    "Dockerfile": "b65c10646f9f986c5180ab6b4f864109d5ea227495f734537aca92410d5adf05",
+    ".dockerignore": "027aaab3e0ff04aee58512280895fc58db688c576e89919e1c5d17cd2c6818e2",
+    "deploy/container/start.sh": "64247a49c06ac2e1b4edb809d0afd55029c9a737ca6814a33c0d589102664c09",
+    "lab/docker_profile.py": "74ff56108b48c9c23b660442622779861c82a0d9adbab84b3474159dc416f3be",
+    "deploy/host-preflight.sh": "62793c75b3d55a2d8393f8c40fd77ed47fbe55c3fd7dcc1463ac787c48b39b4c"
+  },
+  "inputs": {
+    "endpoint": "unix:///var/run/docker.sock",
+    "socket_source": "/var/run/docker.sock",
+    "data_root": "/var/lib/docker",
+    "container_marker": "1"
+  },
+  "construction": {
+    "context": "Owned public snapshot exported from final SOURCE commit after source acceptance. It includes exactly the reviewed public construction inputs at their recorded hashes. Build uses reviewed Dockerfile and .dockerignore; no host checkout bind in verifier. If the coordinated root already builds the matching controller image, reuse it only after verifying identical construction and baked-input hashes.",
+    "argv": [
+      "timeout",
+      "900",
+      "docker",
+      "--host",
+      "unix:///var/run/docker.sock",
+      "build",
+      "--progress",
+      "plain",
+      "--file",
+      "Dockerfile",
+      "--tag",
+      "sbarbase-sb02-capability:source-38d4d197",
+      "."
+    ],
+    "record": [
+      "public snapshot checksum",
+      "all five construction-input hashes",
+      "build stdout/stderr and exit status",
+      "built immutable image ID and image inspect",
+      "baked shell/profile/start hashes via owned offline inspection"
+    ]
+  },
+  "create_argv": [
+    "docker",
+    "--host",
+    "unix:///var/run/docker.sock",
+    "create",
+    "--name",
+    "sb02-capability-20261006-4887-v5",
+    "--label",
+    "io.sbarbase.verifier=sb02-capability",
+    "--label",
+    "io.sbarbase.source=38d4d1978a14690db4022b3b399f75fde742ca058553f77c61be644b52385a10",
+    "--network",
+    "none",
+    "--read-only",
+    "--memory",
+    "256m",
+    "--memory-swap",
+    "256m",
+    "--cpus",
+    "0.25",
+    "--pids-limit",
+    "64",
+    "--cap-drop",
+    "ALL",
+    "--security-opt",
+    "no-new-privileges",
+    "--cgroupns",
+    "host",
+    "--mount",
+    "type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock,readonly",
+    "--mount",
+    "type=bind,source=/var/lib/docker,target=/var/lib/docker,readonly",
+    "--env",
+    "SBARBASE_CONTAINER=1",
+    "--env",
+    "SBARBASE_DOCKER_PROFILE=local-v1",
+    "--env",
+    "SBARBASE_DOCKER_DATA_ROOT=/var/lib/docker",
+    "--env",
+    "DOCKER_HOST=unix:///var/run/docker.sock",
+    "--entrypoint",
+    "/bin/sh",
+    "VERIFIED_IMAGE_SHA256",
+    "-c",
+    "printf '%s\\n' '64247a49c06ac2e1b4edb809d0afd55029c9a737ca6814a33c0d589102664c09  /usr/local/bin/sbarbase-start' '74ff56108b48c9c23b660442622779861c82a0d9adbab84b3474159dc416f3be  /usr/local/lib/sbarbase/docker_profile.py' '62793c75b3d55a2d8393f8c40fd77ed47fbe55c3fd7dcc1463ac787c48b39b4c  /usr/local/lib/sbarbase/host-preflight.sh' | sha256sum -c - || exit 1; exec /bin/sh /usr/local/lib/sbarbase/host-preflight.sh --runtime"
+  ],
+  "execute_argv": [
+    "timeout",
+    "90",
+    "docker",
+    "--host",
+    "unix:///var/run/docker.sock",
+    "start",
+    "--attach",
+    "EXACT_OWNED_CID"
+  ],
+  "bounds": {
+    "one_owned_verifier": true,
+    "observe_seconds": 90,
+    "cleanup_seconds": 30,
+    "no_published_ports": true,
+    "no_volumes_or_network_creation": true,
+    "no_host_checkout_source_or_evidence_bind": true,
+    "build_seconds": 900,
+    "build_slot": "Separate exclusive construction role; this proposal does not treat build daemon cost as bounded by the verifier limits."
+  },
+  "read_only": {
+    "inside": "Reviewed shell issues only docker info with fixed projection and 15 second bound; runtime mode never runs Compose. It reads root/socket/cgroup/sysfs metadata only.",
+    "outside": "Read existing canonical socket/root before creation; image/container inspect, logs and exact-owned resource inventory.",
+    "socket_caveat": "Readonly socket mount does not restrict Docker API authority. Trusted reviewed source and exact commands constrain this observation."
+  },
+  "mutations": {
+    "build": "Creates exact owned image tag and performs Dockerfile public package/image retrieval as needed. Build requires coordinated exclusive runtime role. No Docker daemon settings are changed.",
+    "container": "Creates/starts/removes only one fresh named resource-bounded verifier. Verify exact CID, image ID and ownership labels before removal.",
+    "cleanup": "After capturing exit/output/inspect, remove only verified owned CID; remove only owned tag after image identity matches. No global prune or ID-less cleanup."
+  },
+  "refusal_and_limits": [
+    "A shell refusal is retained as failure, no bypass or daemon change.",
+    "Unknown driver or containerd content-root/headroom remains admission unproven, no arbitrary profile narrowing.",
+    "No UID/mode/xattr/rename/fsync crash persistence, actual resource enforcement, clean-host install, service startup, reboot, reconnect, full recovery or production acceptance follows from this observation.",
+    "Missing runtime role, independently reviewed final command or exact built-source identity blocks execution."
+  ],
+  "cleanup_argv_templates": [
+    [
+      "docker",
+      "--host",
+      "unix:///var/run/docker.sock",
+      "inspect",
+      "EXACT_OWNED_CID"
+    ],
+    [
+      "docker",
+      "--host",
+      "unix:///var/run/docker.sock",
+      "logs",
+      "EXACT_OWNED_CID"
+    ],
+    [
+      "timeout",
+      "30",
+      "docker",
+      "--host",
+      "unix:///var/run/docker.sock",
+      "rm",
+      "--force",
+      "EXACT_OWNED_CID"
+    ],
+    [
+      "docker",
+      "--host",
+      "unix:///var/run/docker.sock",
+      "image",
+      "rm",
+      "sbarbase-sb02-capability:source-38d4d197"
+    ]
+  ],
+  "before_create": [
+    "Refuse if proposed name or image tag already exists; never take over an existing resource.",
+    "Verify final source commit and public snapshot hashes, build completion and image immutable ID.",
+    "Record before image/container/volume/network inventory; no application-private resource content is inspected.",
+    "Set no alternate Docker context/TLS/API configuration; all actual argv uses the declared local endpoint."
+  ],
+  "after_execute": [
+    "Capture exact CID inspect, verified image ID, ownership labels, exit status, stdout/stderr and before/after inventory.",
+    "If attached execution times out, retain the timeout failure then inspect and remove only the verified owned CID.",
+    "Require exact CID, name, source label and image ID match before cleanup; any mismatch stops cleanup pending reconciliation.",
+    "Capture confirmation exact owned verifier absent and owned tag removed; do not delete the immutable image ID if other tags/resources use it."
+  ]
+}

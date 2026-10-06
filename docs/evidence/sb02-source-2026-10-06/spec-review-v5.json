@@ -1,0 +1,65 @@
+{
+  "reviewer": "sb02-critic-spec-v5",
+  "actor": "sb02-critic-spec-v5",
+  "axis": "specification",
+  "plan_hash": "24b970e4598a95e81c92d10c36adf172d28fc9d065a1d6ee725b186072da6074",
+  "source_hash": "38d4d1978a14690db4022b3b399f75fde742ca058553f77c61be644b52385a10",
+  "verdict": "pass",
+  "findings": [],
+  "review_scope": "SOURCE implementation only, independently inspected without prior reports, defenses or journal.",
+  "baseline_comparison": {
+    "baseline_commit": "d7cbaca764eec368a0f89c78b11b38470580f317",
+    "preference": "current_source",
+    "reason": "The actual baseline directs raw Compose startup without host admission, permits an unconfigured native-profile bypass, lacks controller security/checkout verification, and uses a checkout bind that can create missing source paths. Current source adds the read-only launcher and canonical capability bridge, gates the relevant effect boundaries, pins endpoint/project/checkout/inputs, and refuses missing bind sources. Current source is preferable for the specified SOURCE contract."
+  },
+  "inspection_evidence": [
+    "Read the full deploy/compose.sh and deploy/host-preflight.sh, compose.yaml, lab/docker_profile.py, baked deploy/container/start.sh, Dockerfile and .dockerignore. The wrapper admits check/up/build/pull/start/restart/bootstrap/smoke/upgrade before its fixed Compose command, uses an explicit local endpoint/project/pinned file and --env-file /dev/null, sanitizes interpolation inputs, and keeps ps/logs/down available for observation or cleanup.",
+    "Inspected actual startup/install/resource effect boundaries in lab/dev.py, lab/worker.py, lab/run.py, lab/durable_runtime.py, lab/installation_runtime.py, lab/install_server.py, lab/resource_policy.py and lab/resource_admission.py. Admission precedes startup directories, locks, secret persistence, dependency/image installation, unit rendering/application and resource measurement/device consumption. Read-only installer refusal does not enumerate installation inventory as though an invalid daemon were usable.",
+    "Inspected shipped/rendered service startup ordering, full server acceptance script and supervised service mirror. Admission runs before guard/leftover cleanup and acceptance rehearsal effects. Declared local profile/socket/data root survive the documented account or mirror boundary, and the mirror escapes literal systemd environment values.",
+    "Inspected the English primary and server deployment guidance, corresponding changed Arabic guidance, HOST-PREFLIGHT contract, runtime verification image inspection changes, actual host fixture tests and changed caller interfaces. Profile/socket/root/project/checkout journey is explicit; candidate admission is separated from supported-profile and production acceptance.",
+    "Read applicable project AGENTS.md and checkpoint-workflow role/report contracts. The imported ~/AGENTS.md is absent on this workstation; project rules explicitly repeat the no-long-dash requirement. Local graft instructions were used for initial boundary discovery."
+  ],
+  "requirements_assessment": {
+    "R1": "Met for SOURCE: fail-closed checks cover architecture, cgroups/resources, filesystem/device mapping, daemon data root, security and local endpoint before wrapper Compose mutation; Python startup uses the same capability shell plus canonical controller identity/mount/security/checkout checks.",
+    "R2": "Met for SOURCE: primary launcher requires POSIX shell, public Linux utilities and Docker/Compose. Relevant native, controller, install, resource, service and mirror entrypoints gate their startup effects.",
+    "R3": "Met for independent SOURCE replay and review: actual shell fixture code exercises malformed/unavailable and unsupported inputs using owned fake executables, real owned temporary sockets, mutation tripwires and tree comparisons; changed caller suites passed. The independent fixture invocation exceeded the separate planned engine timeout, as disclosed below.",
+    "R4": "Met for claim scope: current docs and success diagnostic describe only the Linux x86_64 rootful local candidate and retain acceptance/production as unproven."
+  },
+  "executed_checks": [
+    {
+      "command": "/usr/bin/python3.14 -u -m unittest discover -s lab -p 'test_host*.py' -v",
+      "result": "OK",
+      "tests": 54,
+      "unittest_seconds": 137.003,
+      "limitation": "Manual independent invocation completed without an external 120 second timeout. Its observed duration exceeds the plan's 120 second engine gate budget in this concurrent session, so this report does not attest that the behavior gate completed within that budget."
+    },
+    {
+      "command": "/usr/bin/python3.14 -u lab/host_caller_checks.py",
+      "result": "OK",
+      "tests": 211,
+      "unittest_seconds": 2.567
+    },
+    {
+      "command": "sh -n deploy/host-preflight.sh deploy/compose.sh deploy/container/start.sh; bash -n deploy/server-acceptance.sh",
+      "result": "exit 0"
+    },
+    {
+      "command": "Python ast.parse over all 25 scoped .py files",
+      "result": "25 parsed successfully without writing bytecode"
+    },
+    {
+      "command": "git diff --check",
+      "result": "exit 0"
+    },
+    {
+      "command": "hosts.py review-state --run /tmp/sbarbase-sb02-4887/run --checkpoint source",
+      "result": "Initial and final source/plan hashes match the packet; final revision 44."
+    }
+  ],
+  "limitations": [
+    "No real Docker/context/info/build/run/pull/exec, service, package, VM or host mutation was performed. Docker-shaped calls in tests executed owned fakes or mocks.",
+    "Actual filesystem metadata persistence, atomic rename/fsync behavior, measured resource enforcement, image-store headroom, clean host installation, reboot and complete application recovery remain unproven and outside SOURCE.",
+    "Passing unit fixtures, static inspection and this SOURCE preference cannot promote local-v1 to supported-profile or production acceptance."
+  ],
+  "artifacts": []
+}
