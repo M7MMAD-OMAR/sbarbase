@@ -6,6 +6,7 @@ import re
 import shutil
 import tempfile
 import unittest
+from lab.test_capability_registry import copy_inputs, write_synthetic_scope_proofs
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location('plan_acceptance', ROOT / 'deploy/check_plan.py')
@@ -18,6 +19,7 @@ class PlanAcceptance(unittest.TestCase):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         self.root = Path(directory.name)
+        copy_inputs(self.root)
         # Copy the validation inputs, not unrelated diagrams or runtime evidence.
         names = [*checker.DOCUMENTS, 'docs/engineering/gauntlet-ledger.json',
                  'docs/engineering/benchmarks/supabase-v0.8.2.source.json']
@@ -74,6 +76,45 @@ class PlanAcceptance(unittest.TestCase):
         path = self.root / 'docs/engineering/gauntlet-ledger.json'
         path.write_text('[]')
         self.assertTrue(any('invalid or missing ledger' in error for error in checker.check(self.root)))
+
+    def test_all_passed_slices_with_missing_nonempty_references_refuse(self):
+        path = self.root / 'docs/engineering/gauntlet-ledger.json'
+        value = json.loads(path.read_text())
+        value['status'] = 'complete'
+        for item in value['slices']:
+            item['status'] = 'passed'
+            item['evidence'] = 'missing-proof.json'
+        path.write_text(json.dumps(value))
+        errors = checker.check(self.root)
+        self.assertTrue(any('valid coverage proof' in error for error in errors))
+
+    def test_invalid_registry_prevents_planning_acceptance(self):
+        (self.root / 'deploy/capabilities/registry.json').write_text('null')
+        self.assertTrue(any('capability registry' in error for error in checker.check(self.root)))
+
+    def test_governance_only_proof_in_both_local_placements_cannot_close_g0(self):
+        path = self.root / 'docs/engineering/gauntlet-ledger.json'
+        value = json.loads(path.read_text())
+        value['slices'][0].update(status='passed', evidence='governance-proof-only')
+        path.write_text(json.dumps(value))
+        write_synthetic_scope_proofs(self.root, 'SB-01')
+        rows, errors = checker.capability_registry.check(self.root)
+        self.assertEqual(errors, [])
+        self.assertEqual(sum(row['capability'] == 'SB-01' and row['acceptance'] == 'accepted' for row in rows), 2)
+        errors = checker.check(self.root)
+        self.assertTrue(any('foundation-reference-distribution' in error for error in errors))
+
+    def test_security_only_proof_cannot_close_g12_public_release(self):
+        path = self.root / 'docs/engineering/gauntlet-ledger.json'
+        value = json.loads(path.read_text())
+        value['slices'][12].update(status='passed', evidence='security-proof-only')
+        path.write_text(json.dumps(value))
+        write_synthetic_scope_proofs(self.root, 'SB-03')
+        rows, errors = checker.capability_registry.check(self.root)
+        self.assertEqual(errors, [])
+        self.assertEqual(sum(row['capability'] == 'SB-03' and row['acceptance'] == 'accepted' for row in rows), 2)
+        errors = checker.check(self.root)
+        self.assertTrue(any('public-release' in error for error in errors))
 
 
 if __name__ == '__main__':
