@@ -1,0 +1,2262 @@
+{
+  "schema": 1,
+  "version": "1.0.0",
+  "date": "2026-10-06",
+  "status": "source-only-acceptance-plan-runtime-unrun",
+  "scope": "Reference distribution and SB-03 PostgreSQL/security release applicability planning only",
+  "authoring_base_commit": "bbc6e302b90cbac13fe2bbedf9603a0c33ca05a2",
+  "integration_context": {
+    "reported_root_identity": {
+      "algorithm": "sbarbase-public-source-v1",
+      "files": 537,
+      "sha256": "a467711e1024531eb3c26ef2b7b99717313e18b1b59bf63420f646af353e4d2e"
+    },
+    "meaning": "Root-provided context only, not independently verified here and not this proposal identity. Later source changes require new verification. No root source edits."
+  },
+  "reference": {
+    "repository": "https://github.com/supabase/supabase",
+    "tag": "self-hosted/v0.8.2",
+    "tag_object": "47111f95a43ffcc20ab288e29c48ce0b80174bd6",
+    "commit": "564eab8ad7840b13324f68b1bfac074ef8d51c21"
+  },
+  "retained_inputs": [
+    {
+      "path": "docs/engineering/benchmarks/supabase-v0.8.2.source.json",
+      "sha256": "d77a9cba8a3733db85c1235e262b5eb75504dfc92005fec3d281e5aaf0e773ec"
+    },
+    {
+      "path": "docs/engineering/benchmarks/supabase-v0.8.2.bundle.json",
+      "sha256": "9299a0cfbf7c46c2fbbb79bf6dbda290cd4754902906c88b8cbe0ac83dd1db80"
+    },
+    {
+      "path": "deploy/capabilities/registry.json",
+      "sha256": "e849fbf433a085936891fbdd53714f6465816268cd83cc3f7f365cbb5fca3518"
+    },
+    {
+      "path": "deploy/verify/reference_bundle.py",
+      "sha256": "55c8567c77e73faa9ad40c69b00c70669c006a4e7857b38e72e6834d4bde460d"
+    },
+    {
+      "path": "deploy/verify/capability_registry.py",
+      "sha256": "7a8ca02ea575ce057bba42109e337f527b68377abc5fe3c9b5dc00a2bdba6744"
+    },
+    {
+      "path": "lab/distro-image.lock.json",
+      "sha256": "358e66bdd93ef63eddff06b25eb7d4bc29625088b2b69e05c1ba9a4bdac9feb4"
+    },
+    {
+      "path": "lab/images.lock.json",
+      "sha256": "aff28b79f26960e19ad1ea93c1da8ede4d154fba1a9d8956ea94988043cd37f9"
+    }
+  ],
+  "original_packet": {
+    "status": "metadata-collected-with-unresolved-proof",
+    "files": [
+      {
+        "bytes": 12294,
+        "git_blob": "eb130e1cfe9da16117e5f1d9b11ebb9805b21f55",
+        "mode": "100644",
+        "path": "docker/.env.example",
+        "sha256": "d27fb4516702358ac5965fb06d207736abeb3c26c7d949f19b90e88b25e694ef"
+      },
+      {
+        "bytes": 200,
+        "git_blob": "95aa9f9114204497683680cfe7c54b722015f806",
+        "mode": "100644",
+        "path": "docker/.gitattributes",
+        "sha256": "d4e04d7bf92ac4139c6e5b3d0e9f487619769aec27bc7f939bdf190cd5ee7359"
+      },
+      {
+        "bytes": 340,
+        "git_blob": "1f9c3436196b0344538482ffbca81676e0a67759",
+        "mode": "100644",
+        "path": "docker/.gitignore",
+        "sha256": "70924bc1b93a97d5d799d4ca48118286de1af0f848cfee34f09d4f379d989efc"
+      },
+      {
+        "bytes": 51024,
+        "git_blob": "8eafb86b66c2f3b8b6f0f2921e004aafd5b78a41",
+        "mode": "100644",
+        "path": "docker/CHANGELOG.md",
+        "sha256": "0e3be0c5142fa8e4d99c323a2310fb5aaccb90e78a3031d8a2b9d0e4456d4e52"
+      },
+      {
+        "bytes": 144887,
+        "git_blob": "0cc6a74784b9f548194afedd42943381e8c5248a",
+        "mode": "100644",
+        "path": "docker/CONFIG.md",
+        "sha256": "31f191c6333f630b49cde8ea6ef995677725239b71131f0121b8db108f63cba4"
+      },
+      {
+        "bytes": 5267,
+        "git_blob": "8d6f6774b48a0309db7ec7de234b923f6f6e5cc2",
+        "mode": "100644",
+        "path": "docker/README.md",
+        "sha256": "b326e2a0de29f02e3c109cf5008872a4764a5f1048ec44e343634f42258614ac"
+      },
+      {
+        "bytes": 1275,
+        "git_blob": "2328004184a72a636355b286410b83a5b7dcbfc9",
+        "mode": "100644",
+        "path": "docker/dev/data.sql",
+        "sha256": "b844e55d1369b8847294176d348b339bc8689f0fc56448968575403b0857b96d"
+      },
+      {
+        "bytes": 956,
+        "git_blob": "e6b2e76cbde48e6151288612b9159a6dac410ad8",
+        "mode": "100644",
+        "path": "docker/dev/docker-compose.dev.yml",
+        "sha256": "62fe7cdef0c880b6185cf793f155630a4893d7467de9dd47fed32b5eac5f335d"
+      },
+      {
+        "bytes": 1170,
+        "git_blob": "9f99ff3b2a84569517dcbfa66f0d3378e84e399f",
+        "mode": "100644",
+        "path": "docker/docker-compose.caddy.yml",
+        "sha256": "efd31215990e16d8ac1ef77777a79e06aba3ced6578e555a2839f38e972a1c9b"
+      },
+      {
+        "bytes": 487,
+        "git_blob": "93ff2b0cfbc8939f286881a5e26541a2ea95958c",
+        "mode": "100644",
+        "path": "docker/docker-compose.envoy.yml",
+        "sha256": "3ad4ba2e257b66c4824e3fc69d9d0cd30d628431c01090ec4a8efb1705612b19"
+      },
+      {
+        "bytes": 2054,
+        "git_blob": "74793f6dd559827d4c4ad4c0c1ae08693e36d255",
+        "mode": "100644",
+        "path": "docker/docker-compose.kong.yml",
+        "sha256": "267c18cea5e41b8549a2c7a09ebd1d4e3b6851f22bcbe8f94ff3d4d119a96446"
+      },
+      {
+        "bytes": 3019,
+        "git_blob": "ef31af0305128ed784c6abd813ab2dab37eaa764",
+        "mode": "100644",
+        "path": "docker/docker-compose.logs.yml",
+        "sha256": "c3f64c9fb848ea3214637345cf086c6e31b4fe3b6b6c2452f2b916d49f52dd3b"
+      },
+      {
+        "bytes": 1396,
+        "git_blob": "5e6fb54d233546077476953b8d63fdf2216e60be",
+        "mode": "100644",
+        "path": "docker/docker-compose.nginx.yml",
+        "sha256": "6660128425666155329c1ee19a869c970d776a9ebc05665ee2fa093e31e0fccf"
+      },
+      {
+        "bytes": 707,
+        "git_blob": "f87fe8c4828f354d6f73ba171d5d3f6295ed7370",
+        "mode": "100644",
+        "path": "docker/docker-compose.pg15.yml",
+        "sha256": "00d21617e4c989adb0936571c0a07a6f6648a5393be8735602bebf2726c1bb4f"
+      },
+      {
+        "bytes": 808,
+        "git_blob": "a8e37117e1bc3287686886ce5937a46e64d28e67",
+        "mode": "100644",
+        "path": "docker/docker-compose.pg17.yml",
+        "sha256": "bd61c0d7ea268d9c3dbe103277899266a5adeaeb1645a3a35198fed35a617112"
+      },
+      {
+        "bytes": 1801,
+        "git_blob": "d745ed484d506bd4b11a3c9794fa95fec25ffda1",
+        "mode": "100644",
+        "path": "docker/docker-compose.pgbouncer.yml",
+        "sha256": "91bb9ce394dd3adfe1f7f59b413daf046ab1c19443d47f61ca3c17fc8aa5f133"
+      },
+      {
+        "bytes": 1269,
+        "git_blob": "0f6552b70ffa5666d538069cbf738cd4a7982cde",
+        "mode": "100644",
+        "path": "docker/docker-compose.rustfs.yml",
+        "sha256": "8fddd799723a523af7765d23ee042d85ec7c98df8c82dc58e456699bbde8e18b"
+      },
+      {
+        "bytes": 1197,
+        "git_blob": "165463f9d01285abdaafd5c305c3a316fe31113b",
+        "mode": "100644",
+        "path": "docker/docker-compose.s3.yml",
+        "sha256": "489f09f0280c0a63fa97fb70bbc4d48ea95344f772a3eaad6fd1525e3d2697af"
+      },
+      {
+        "bytes": 21240,
+        "git_blob": "a37d39dc7c797b0487a8342855dda3cd1e66e0aa",
+        "mode": "100644",
+        "path": "docker/docker-compose.yml",
+        "sha256": "8ba18fd43e9afba90e8287c8e8afc4bdda1e38d2228e57ff660968bb550da054"
+      },
+      {
+        "bytes": 1760,
+        "git_blob": "af0302a8227eedc9504b6a5520deef4591bb5f5a",
+        "mode": "100755",
+        "path": "docker/reset.sh",
+        "sha256": "ac3043803e542fca77ba769860842b0385adb95b42cc5d533c51f16555ba4cde"
+      },
+      {
+        "bytes": 10768,
+        "git_blob": "397816869d651cfb27cde92ea1cc76866fc838a3",
+        "mode": "100755",
+        "path": "docker/run.sh",
+        "sha256": "839b4e11c685cb4f876ce2fe5e329037cefcb0cc7aed22c1cd14fcd921d9c68e"
+      },
+      {
+        "bytes": 16530,
+        "git_blob": "007d0c2464789703bac58548fbb4a4380d3d9c6d",
+        "mode": "100755",
+        "path": "docker/setup.sh",
+        "sha256": "b063655b6388924b33f331633e800c12179a48b53d217c059f674ec8b8e27189"
+      },
+      {
+        "bytes": 281,
+        "git_blob": "e7a7641c8e8a127b6eafa14732ddda2dfbc52778",
+        "mode": "100644",
+        "path": "docker/tests/docker-compose.rustfs.test.yml",
+        "sha256": "2717d9601b1df25e22459994128938c0be88aa7457dfe1233e464dfbf6642201"
+      },
+      {
+        "bytes": 399,
+        "git_blob": "c2e34f4d1ae15ef11e46c202a2473cbc5421189c",
+        "mode": "100644",
+        "path": "docker/tests/docker-compose.s3.test.yml",
+        "sha256": "4bd9129a118328de4425af125b6783612ba0b1a041e1c34dcdd559feb8c88825"
+      },
+      {
+        "bytes": 15072,
+        "git_blob": "1f58ae35a6968ea21050250c84365dbce2c0ab59",
+        "mode": "100644",
+        "path": "docker/tests/test-auth-keys.sh",
+        "sha256": "f2d40989645291746a2f53840d0efbc261b5a379371c140a80ec5322549ac46b"
+      },
+      {
+        "bytes": 4511,
+        "git_blob": "85a64b6d78e15fba0080a622b0745e038a519dc3",
+        "mode": "100644",
+        "path": "docker/tests/test-container-logs.sh",
+        "sha256": "854903da3f1f7608891e9191e6948189ac8009fb57b1da89adf7e205e526b226"
+      },
+      {
+        "bytes": 11476,
+        "git_blob": "16aeb1f8f1aa5f3cca73a40c47cced89e296053e",
+        "mode": "100644",
+        "path": "docker/tests/test-pg17-upgrade.sh",
+        "sha256": "8d461dd67b046f65438d99d7cad2836c6ddd66f6b48d8747d81e0261add9ad64"
+      },
+      {
+        "bytes": 13764,
+        "git_blob": "9c0d619a6fa72120a0bcb78efbe4935ddaa54311",
+        "mode": "100644",
+        "path": "docker/tests/test-s3-backend.sh",
+        "sha256": "1ded4eec34668667a656544cc7394f3c00194611cb3a963ccd1305c0e3e20648"
+      },
+      {
+        "bytes": 10716,
+        "git_blob": "36518dfdc3ce2393c2b7db7fed126b0f614f42c8",
+        "mode": "100644",
+        "path": "docker/tests/test-s3.sh",
+        "sha256": "aaaaa08f3f8313aee13a7b2e92a74254da00ac15def9471054df2bb1913c07ae"
+      },
+      {
+        "bytes": 20435,
+        "git_blob": "d842cc9dcfc119f621c50afab09687365d190b8f",
+        "mode": "100644",
+        "path": "docker/tests/test-self-hosted.sh",
+        "sha256": "d488956d99ede126947df683f7ce850fc070faaeea38dd26fdb8156a0ea16f84"
+      },
+      {
+        "bytes": 19398,
+        "git_blob": "c1bc0e770c1a909a4a410e708668507d2020966a",
+        "mode": "100644",
+        "path": "docker/tests/test-update.sh",
+        "sha256": "02da0e6f9f383aacc87584f0b293410d088d9f6f6ca9c5cc3f6307c17e29bf8e"
+      },
+      {
+        "bytes": 3566,
+        "git_blob": "4fa6a3e2e67b87048d5b82057afa84a96c3e81ea",
+        "mode": "100644",
+        "path": "docker/tests/test-upgrades-manifest.sh",
+        "sha256": "0e45c1728da72533d1728422be3fad1c947bf7ae498003c0e086c0a027261dbf"
+      },
+      {
+        "bytes": 24236,
+        "git_blob": "cf3313b639ff2d05429f4937fd1b7c05d1521c14",
+        "mode": "100755",
+        "path": "docker/update.sh",
+        "sha256": "a0c8f1630af9a076a8fd723444de88eda5a91b3284199acb500d0da72cb7fdd6"
+      },
+      {
+        "bytes": 2902,
+        "git_blob": "21704448b09e5642a8b414c33b7a9c3f78278348",
+        "mode": "100644",
+        "path": "docker/upgrades.json",
+        "sha256": "ae0f0ed6a9869e4cfdfbcd24307a4ae100b41c76167e815b2bdee5fc63a25d87"
+      },
+      {
+        "bytes": 7601,
+        "git_blob": "f921b6e876ab783de4077434c07bace2741a27e1",
+        "mode": "100644",
+        "path": "docker/utils/add-new-auth-keys.sh",
+        "sha256": "afeddcb0c4e2f6a4ee5775a357d90ae7e804a6ff3e5160725468ce7ac0daad0f"
+      },
+      {
+        "bytes": 4466,
+        "git_blob": "40c9122f3733895a305c73219c84c538367119a8",
+        "mode": "100644",
+        "path": "docker/utils/db-passwd.sh",
+        "sha256": "8ed0b3b97532a1309379fba0f28ee3aefcdc01e1d1d48d28ac7ff4955228f87c"
+      },
+      {
+        "bytes": 4727,
+        "git_blob": "da1fc19218cf50146e9ca6f7313248ba94d22a2e",
+        "mode": "100644",
+        "path": "docker/utils/generate-keys.sh",
+        "sha256": "6299efc24ce94d771ca4abb8ac96b67624cc4ac9a4b13ee0c2a8f0071aa3d619"
+      },
+      {
+        "bytes": 4295,
+        "git_blob": "d13b1707337679b2ceb70fb112b093e54b3f7516",
+        "mode": "100644",
+        "path": "docker/utils/reassign-owner.sh",
+        "sha256": "ac91162f0144e899c9a9f2b58818485a1c9ccd390b3942ad9bb52c41e7944171"
+      },
+      {
+        "bytes": 3363,
+        "git_blob": "7ab951670add659a92e71450429a7e697d652e1c",
+        "mode": "100644",
+        "path": "docker/utils/rotate-new-api-keys.sh",
+        "sha256": "4955fc70b856174dea9014bb461d5d6e0ff271c2925561f24c855c357bde628d"
+      },
+      {
+        "bytes": 34854,
+        "git_blob": "c05a7b25718934dd214ab9eed8b3ccb1e0a5aa08",
+        "mode": "100644",
+        "path": "docker/utils/upgrade-pg17.sh",
+        "sha256": "0a3fd8a6bd095c9982418aae544ce4143190c0872757f1a57faa72091a4bf220"
+      },
+      {
+        "bytes": 7891,
+        "git_blob": "6eb4e17fe2d16247fcb3e5275b79600de9169286",
+        "mode": "100644",
+        "path": "docker/versions.md",
+        "sha256": "cbdbf7febc7d4a4c23ac5f7a3d8e39455832332db6219da0f6021ef705765219"
+      },
+      {
+        "bytes": 5901,
+        "git_blob": "2d47842d6b44dfc0e05619086c00a5a17d28fcd1",
+        "mode": "100644",
+        "path": "docker/volumes/api/envoy/cds.yaml",
+        "sha256": "1d7514b891370ed27c25911df008887402e16ab09273e6e433225bb7f09f7905"
+      },
+      {
+        "bytes": 1366,
+        "git_blob": "2c67584a30e151879e11b21939b9f1ed9857a38f",
+        "mode": "100755",
+        "path": "docker/volumes/api/envoy/docker-entrypoint.sh",
+        "sha256": "8a0c9503764de32ba39e0d81e73629457b13ec42ef19897e30e4918c996d0508"
+      },
+      {
+        "bytes": 677,
+        "git_blob": "def443b68817921d98180b58d558006a2f86233f",
+        "mode": "100644",
+        "path": "docker/volumes/api/envoy/envoy.yaml",
+        "sha256": "3697f23b0be9ec5b829f937c600eb9b878f1f778ab510b42ad5e4f14742447e9"
+      },
+      {
+        "bytes": 50085,
+        "git_blob": "1a3c3451886177d9361d7ed5762a0f823ada0a13",
+        "mode": "100644",
+        "path": "docker/volumes/api/envoy/lds.template.yaml",
+        "sha256": "9d9a6d6ea0a372be99e165d995f012d383d5cc8473b92a06b7aa0bbd73566c3d"
+      },
+      {
+        "bytes": 2743,
+        "git_blob": "daf1d5e9a1a91e5cc6ce9cad7151ba465b4a9d40",
+        "mode": "100755",
+        "path": "docker/volumes/api/kong-entrypoint.sh",
+        "sha256": "399394576635f7477dfee32e870f509567fc496f0dc86a5a6611f58d1099031f"
+      },
+      {
+        "bytes": 12695,
+        "git_blob": "84433c13657d4fd7131e87e0122bee98a1e494d4",
+        "mode": "100644",
+        "path": "docker/volumes/api/kong.yml",
+        "sha256": "acdce0ff4ac9e1dfa496733df7ca97cc89a9632de4b727af3f3a0d600ada2db7"
+      },
+      {
+        "bytes": 83,
+        "git_blob": "6236ae1bccc21f929362bb617947174ccd1519d3",
+        "mode": "100644",
+        "path": "docker/volumes/db/_supabase.sql",
+        "sha256": "9dce462adc04137d6afabcf28efa60a6c355270a4b32d7af58891ac4eb964c5f"
+      },
+      {
+        "bytes": 0,
+        "git_blob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+        "mode": "100755",
+        "path": "docker/volumes/db/init/data.sql",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 98,
+        "git_blob": "09a728366624abe35e2a54cdda333a5c5d5f3ebe",
+        "mode": "100644",
+        "path": "docker/volumes/db/jwt.sql",
+        "sha256": "c1d3f5c01e44646c2e533c5a1c111821cc49cb5a4c2534e08cddad61d8fb0339"
+      },
+      {
+        "bytes": 144,
+        "git_blob": "255c0f407b8d5b1c72b75c4daad0ca4fe3ff3eef",
+        "mode": "100644",
+        "path": "docker/volumes/db/logs.sql",
+        "sha256": "f0463ce5030907acef49326d2bffd36002df0718035071be7c99bd7fc897c63d"
+      },
+      {
+        "bytes": 144,
+        "git_blob": "162c5b96aae50ab4c03b034a2d096898b1df4cd0",
+        "mode": "100644",
+        "path": "docker/volumes/db/pooler.sql",
+        "sha256": "df97ebe148d94cfb92a5e37ebf972dfd496be195f0915ecf14396b2cf50efecb"
+      },
+      {
+        "bytes": 117,
+        "git_blob": "4d4b9ffb912b9312dd78257956c180f12913264d",
+        "mode": "100644",
+        "path": "docker/volumes/db/realtime.sql",
+        "sha256": "7e9e442e7fc4dae05544c07b67bede37a00d84644304dfce4d937134cb4c8f88"
+      },
+      {
+        "bytes": 379,
+        "git_blob": "8f7161a6db66d75288722b60577ed30c81cc4f62",
+        "mode": "100644",
+        "path": "docker/volumes/db/roles.sql",
+        "sha256": "3ad717b225daa38aa982da26750f35641eb404e1eb5e69a763c22236ab96c1b2"
+      },
+      {
+        "bytes": 9070,
+        "git_blob": "fe273decb89efc18c75e6f4a77953402c8f36555",
+        "mode": "100644",
+        "path": "docker/volumes/db/webhooks.sql",
+        "sha256": "05a61316b899374253891cbba66ce073d9273f33983c3f47961eda3aa26c2823"
+      },
+      {
+        "bytes": 136,
+        "git_blob": "db206e8f4672a6a07efdc38f487de0ecfd3dee52",
+        "mode": "100644",
+        "path": "docker/volumes/functions/deno.jsonc",
+        "sha256": "a9a29da36c2576f755dd868b9f553a02afdf7d7bccf52e97e65c7f68cf36bfef"
+      },
+      {
+        "bytes": 1341,
+        "git_blob": "50d0e6be8c46df9090503441a92f2fc4c522f93c",
+        "mode": "100644",
+        "path": "docker/volumes/functions/hello/index.ts",
+        "sha256": "65e7d7ce5d898dd285e660cbab54521fca4bf990c41370f51fad5b4d4cae5f42"
+      },
+      {
+        "bytes": 6901,
+        "git_blob": "6bfad388a8aaa122d15b14d17d7cf720a2dd4aa3",
+        "mode": "100644",
+        "path": "docker/volumes/functions/main/index.ts",
+        "sha256": "9b7978abd7fd4af39e4f407f8a956137aa99e6ffaeb2190a5e29c8e1787d2da6"
+      },
+      {
+        "bytes": 8367,
+        "git_blob": "f63bfd8ad10182a677811f66cfd58ad4217cbe50",
+        "mode": "100644",
+        "path": "docker/volumes/logs/vector.yml",
+        "sha256": "8f9fa080e3cd8107ac3e6d3bf8d6aa8959b6845d3cd8d5144fb8f28a45607a41"
+      },
+      {
+        "bytes": 1103,
+        "git_blob": "06f05e1b4acde4c34b25a136c6a701e651655a44",
+        "mode": "100644",
+        "path": "docker/volumes/pooler/pooler.exs",
+        "sha256": "d844e49f8915021ccbf6af6b769fef7909a723346bfc8f94ddb0433a328e49b1"
+      },
+      {
+        "bytes": 482,
+        "git_blob": "b899e5ecf1d4b7fa7d33590928aaae536ed9b700",
+        "mode": "100644",
+        "path": "docker/volumes/proxy/caddy/Caddyfile",
+        "sha256": "7c571b03cbc5ebdc10a0d7f05e5caae3ff3e6c4a4543624cf08a52ac654fb01e"
+      },
+      {
+        "bytes": 2479,
+        "git_blob": "f7dd77b5dad37fa8e7a11feab2d4bd4366d76884",
+        "mode": "100644",
+        "path": "docker/volumes/proxy/nginx/supabase-nginx.conf.tpl",
+        "sha256": "0c5313ca29d735b46cc159001c62525e985a113e6f66c39be1cda298fa51f101"
+      },
+      {
+        "bytes": 0,
+        "git_blob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+        "mode": "100644",
+        "path": "docker/volumes/snippets/.gitkeep",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "bytes": 0,
+        "git_blob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+        "mode": "100644",
+        "path": "docker/volumes/storage/.gitkeep",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ],
+    "compose_documents": [
+      {
+        "images": [
+          "inbucket/inbucket:3.0.3"
+        ],
+        "model_sha256": "8d7942d471ec39ad64e1a23f0fe66b234b02cb01d9aa5f0ccc877e9660d6c0ed",
+        "path": "docker/dev/docker-compose.dev.yml",
+        "services": {
+          "auth": {
+            "build": null,
+            "image": null
+          },
+          "db": {
+            "build": null,
+            "image": null
+          },
+          "mail": {
+            "build": null,
+            "image": "inbucket/inbucket:3.0.3"
+          },
+          "meta": {
+            "build": null,
+            "image": null
+          },
+          "storage": {
+            "build": null,
+            "image": null
+          },
+          "studio": {
+            "build": {
+              "context": "..",
+              "dockerfile": "apps/studio/Dockerfile",
+              "target": "dev"
+            },
+            "image": null
+          }
+        }
+      },
+      {
+        "images": [
+          "caddy:2"
+        ],
+        "model_sha256": "b6096d5bb03a78c7374e2754fc56b7c75f94a1e0cde332c7209b7762009db814",
+        "path": "docker/docker-compose.caddy.yml",
+        "services": {
+          "api-gw": {
+            "build": null,
+            "image": null
+          },
+          "caddy": {
+            "build": null,
+            "image": "caddy:2"
+          }
+        }
+      },
+      {
+        "images": [],
+        "model_sha256": "31702f81e9d4fde307969a3670058379399c60a35db3c0437191558352e1ae9d",
+        "path": "docker/docker-compose.envoy.yml",
+        "services": {}
+      },
+      {
+        "images": [
+          "kong/kong:3.9.3"
+        ],
+        "model_sha256": "cf2dd284899026fe48521e8a856bfe3d9eb1d3e2055c5b8c2d3d023add9f248b",
+        "path": "docker/docker-compose.kong.yml",
+        "services": {
+          "api-gw": {
+            "build": null,
+            "image": "kong/kong:3.9.3"
+          }
+        }
+      },
+      {
+        "images": [
+          "supabase/logflare:1.50.10",
+          "timberio/vector:0.53.0-alpine"
+        ],
+        "model_sha256": "3ead48ac34316aba35f6bd0bc84a9e6171707064b09d8cca3f8bc375854c242b",
+        "path": "docker/docker-compose.logs.yml",
+        "services": {
+          "analytics": {
+            "build": null,
+            "image": "supabase/logflare:1.50.10"
+          },
+          "studio": {
+            "build": null,
+            "image": null
+          },
+          "vector": {
+            "build": null,
+            "image": "timberio/vector:0.53.0-alpine"
+          }
+        }
+      },
+      {
+        "images": [
+          "jonasal/nginx-certbot:6.2.0-nginx1.31.5"
+        ],
+        "model_sha256": "ccc7acbd4d40cb665500679c98ceb20071b57d0cb12b045549fea79f277e8692",
+        "path": "docker/docker-compose.nginx.yml",
+        "services": {
+          "api-gw": {
+            "build": null,
+            "image": null
+          },
+          "nginx": {
+            "build": null,
+            "image": "jonasal/nginx-certbot:6.2.0-nginx1.31.5"
+          }
+        }
+      },
+      {
+        "images": [
+          "supabase/postgres:15.8.1.085"
+        ],
+        "model_sha256": "dce36fe4aa43950c7a9fb41623234f4c64424bb38ab0b6f21cdf360c2b54d167",
+        "path": "docker/docker-compose.pg15.yml",
+        "services": {
+          "db": {
+            "build": null,
+            "image": "supabase/postgres:15.8.1.085"
+          }
+        }
+      },
+      {
+        "images": [
+          "supabase/postgres:17.6.1.136"
+        ],
+        "model_sha256": "df499dd45b05af21a4ec3470421b1f44693d8dc4c964225ce91c3d8905cc4202",
+        "path": "docker/docker-compose.pg17.yml",
+        "services": {
+          "db": {
+            "build": null,
+            "image": "supabase/postgres:17.6.1.136"
+          }
+        }
+      },
+      {
+        "images": [
+          "edoburu/pgbouncer:v1.25.2-p0"
+        ],
+        "model_sha256": "4cea070d7766340728351ee45177229113aabb3d93deb5af1bdbb50804b8aab9",
+        "path": "docker/docker-compose.pgbouncer.yml",
+        "services": {
+          "pgbouncer": {
+            "build": null,
+            "image": "edoburu/pgbouncer:v1.25.2-p0"
+          }
+        }
+      },
+      {
+        "images": [
+          "rustfs/rc",
+          "rustfs/rustfs:v1.0.0-rc.5"
+        ],
+        "model_sha256": "379c5f20014ae15c5d74fffb5e1fda17ba391b4cbeb806e3acf32ce214a1abf5",
+        "path": "docker/docker-compose.rustfs.yml",
+        "services": {
+          "rustfs": {
+            "build": null,
+            "image": "rustfs/rustfs:v1.0.0-rc.5"
+          },
+          "rustfs-createbucket": {
+            "build": null,
+            "image": "rustfs/rc"
+          },
+          "storage": {
+            "build": null,
+            "image": null
+          }
+        }
+      },
+      {
+        "images": [
+          "cgr.dev/chainguard/minio",
+          "cgr.dev/chainguard/minio-client:latest-dev"
+        ],
+        "model_sha256": "2b8faa95d4964f0b41411af56fbf4df7646863de625f2850d64e5e409e016a5f",
+        "path": "docker/docker-compose.s3.yml",
+        "services": {
+          "minio": {
+            "build": null,
+            "image": "cgr.dev/chainguard/minio"
+          },
+          "minio-createbucket": {
+            "build": null,
+            "image": "cgr.dev/chainguard/minio-client:latest-dev"
+          },
+          "storage": {
+            "build": null,
+            "image": null
+          }
+        }
+      },
+      {
+        "images": [
+          "darthsim/imgproxy:v3.31.4",
+          "envoyproxy/envoy:v1.39.1",
+          "postgrest/postgrest:v14.17",
+          "supabase/edge-runtime:v1.76.2",
+          "supabase/gotrue:v2.196.0",
+          "supabase/postgres-meta:v0.99.0",
+          "supabase/postgres:17.6.1.136",
+          "supabase/realtime:v2.134.10",
+          "supabase/storage-api:v1.74.0",
+          "supabase/studio:2026.09.07-sha-7996410",
+          "supabase/supavisor:2.9.12"
+        ],
+        "model_sha256": "33df0e383a0037cb7bc859963a9dc3df0d5c85ec2c4528dcc263e92390be6ece",
+        "path": "docker/docker-compose.yml",
+        "services": {
+          "api-gw": {
+            "build": null,
+            "image": "envoyproxy/envoy:v1.39.1"
+          },
+          "auth": {
+            "build": null,
+            "image": "supabase/gotrue:v2.196.0"
+          },
+          "db": {
+            "build": null,
+            "image": "supabase/postgres:17.6.1.136"
+          },
+          "functions": {
+            "build": null,
+            "image": "supabase/edge-runtime:v1.76.2"
+          },
+          "imgproxy": {
+            "build": null,
+            "image": "darthsim/imgproxy:v3.31.4"
+          },
+          "meta": {
+            "build": null,
+            "image": "supabase/postgres-meta:v0.99.0"
+          },
+          "realtime": {
+            "build": null,
+            "image": "supabase/realtime:v2.134.10"
+          },
+          "rest": {
+            "build": null,
+            "image": "postgrest/postgrest:v14.17"
+          },
+          "storage": {
+            "build": null,
+            "image": "supabase/storage-api:v1.74.0"
+          },
+          "studio": {
+            "build": null,
+            "image": "supabase/studio:2026.09.07-sha-7996410"
+          },
+          "supavisor": {
+            "build": null,
+            "image": "supabase/supavisor:2.9.12"
+          }
+        }
+      },
+      {
+        "images": [],
+        "model_sha256": "ecdb1862f3e9b64ca62b5952fe3425794111753a0731b1d0b48cdce497f94cef",
+        "path": "docker/tests/docker-compose.rustfs.test.yml",
+        "services": {
+          "rustfs": {
+            "build": null,
+            "image": null
+          }
+        }
+      },
+      {
+        "images": [],
+        "model_sha256": "8d58bf84ab5aa210bcf32376275a48aece9aec78d6ced36bb662a614827828ba",
+        "path": "docker/tests/docker-compose.s3.test.yml",
+        "services": {
+          "minio": {
+            "build": null,
+            "image": null
+          }
+        }
+      }
+    ],
+    "auxiliary_yaml": [
+      {
+        "classification": "pinned-non-compose-service-configuration",
+        "path": "docker/volumes/api/envoy/cds.yaml",
+        "sha256": "1d7514b891370ed27c25911df008887402e16ab09273e6e433225bb7f09f7905"
+      },
+      {
+        "classification": "pinned-non-compose-service-configuration",
+        "path": "docker/volumes/api/envoy/envoy.yaml",
+        "sha256": "3697f23b0be9ec5b829f937c600eb9b878f1f778ab510b42ad5e4f14742447e9"
+      },
+      {
+        "classification": "pinned-non-compose-service-configuration",
+        "path": "docker/volumes/api/envoy/lds.template.yaml",
+        "sha256": "9d9a6d6ea0a372be99e165d995f012d383d5cc8473b92a06b7aa0bbd73566c3d"
+      },
+      {
+        "classification": "pinned-non-compose-service-configuration",
+        "path": "docker/volumes/api/kong.yml",
+        "sha256": "acdce0ff4ac9e1dfa496733df7ca97cc89a9632de4b727af3f3a0d600ada2db7"
+      },
+      {
+        "classification": "pinned-non-compose-service-configuration",
+        "path": "docker/volumes/logs/vector.yml",
+        "sha256": "8f9fa080e3cd8107ac3e6d3bf8d6aa8959b6845d3cd8d5144fb8f28a45607a41"
+      }
+    ],
+    "parser_and_build_diagnostics": [
+      "docker/dev/docker-compose.dev.yml: native parser diagnostic: level=warning msg=\"<public-checkout>/docker/dev/docker-compose.dev.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion\"\n",
+      "docker/dev/docker-compose.dev.yml: build-only service image cannot be frozen: studio"
+    ],
+    "config_digest_evidence": "descriptor in hash-verified manifest; platform identity from buildx registry config inspection; raw config bytes not retained",
+    "retained_image_inventory": [
+      {
+        "reference": "caddy:2",
+        "historical_root_digest": "sha256:13b7fbadd017b042956fddbceedeeea12bb1e560534f9b3df281269dbcc61813",
+        "historical_errors": [],
+        "historical_platforms": {
+          "linux/amd64": {
+            "architecture": "amd64",
+            "config_digest": "sha256:5e0a314e87ee77965b977aca1699c2888aac0847287a7c0400d2bcbddde9e526",
+            "manifest_digest": "sha256:86d4376ad067063d998533bf06e0c78b97cc8d99cd7cc66f84393165a95a65ed",
+            "os": "linux"
+          },
+          "linux/arm64": {
+            "architecture": "arm64",
+            "config_digest": "sha256:d9c844672e8ec6ed6fcde3f46bd28c1aaf46180eb68591713ed88b893e3d11e0",
+            "manifest_digest": "sha256:ed9acd2f75ce6cd125d05a1c9f625fdc47bc979d10a1da1ba9363d0d2c9f9f2c",
+            "os": "linux"
+          }
+        },
+        "current_observation": null,
+        "raw_config_bytes_verified": false,
+        "publisher_source_provenance_verified": false,
+        "runtime_executed": false
+      },
+      {
+        "reference": "cgr.dev/chainguard/minio",
+        "historical_root_digest": "sha256:0f95aa412a12351a95bb43c3b54b66440eb0aa022bb3f3458942678a489e915b",
+        "historical_errors": [],
+        "historical_platforms": {
+          "linux/amd64": {
+            "architecture": "amd64",
+            "config_digest": "sha256:36bb2012c9a4f7e4d031e04dea6dcf0527795c1c9d9251990b454b0b68e58d30",
+            "manifest_digest": "sha256:3261db2bfe721fcc9fba19b4bca478c6db8a51ccf44c53ee16a60128dd071fbd",
+            "os": "linux"
+          },
+          "linux/arm64": {
+            "architecture": "arm64",
+            "config_digest": "sha256:6252fe38f2a89eadab04b6b59c99285d3bf74cd89fa0103a660b656fe366ab9a",
+            "manifest_digest": "sha256:d893b681ec21a47b3e3c0e68922d4a7b18030ad43f9935b26fda90039850c987",
+            "os": "linux"
+          }
+        },
+        "current_observation": null,
+        "raw_config_bytes_verified": false,
+        "publisher_source_provenance_verified": false,
+        "runtime_executed": false
+      },
+      {
+        "reference": "cgr.dev/chainguard/minio-client:latest-dev",
+        "historical_root_digest": "sha256:f99f0052305eefdc41a40cb7ac555734566e47e06871360eb28997e5c24d8e16",
+        "historical_errors": [],
+        "historical_platforms": {
+          "linux/amd64": {
+            "architecture": "amd64",
+            "config_digest": "sha256:d80b9b2947d1c5544ad444ac4378183bbf214c308838c45253a9c55be9379c29",
+            "manifest_digest": "sha256:2dba6251488015302f1f941d13cf8fc83e0e7d2b14b5085a1c9e40e4fbaa6064",
+            "os": "linux"
+          },
+          "linux/arm64": {
+            "architecture": "arm64",
+            "config_digest": "sha256:7fc1fc3d31da72546f2f5221408369cda20bbaf8a21c6b35ac4dfe791f8ee6e4",
+            "manifest_digest": "sha256:a41284c6343243087686393f0bd6cf4600532092ac0aeb24f27689cb6b404537",
+            "os": "linux"
+          }
+        },
+        "current_observation": null,
+        "raw_config_bytes_verified": false,
+        "publisher_source_provenance_verified": false,
+        "runtime_executed": false
+      },
+      {
+        "reference": "darthsim/imgproxy:v3.31.4",
+        "historical_root_digest": "sha256:73c5dda13199745b0d2d00e4149d4a589c5b2e205dbf335ca05eca8276b54712",
+        "historical_errors": [],
+        "historical_platforms": {
+          "linux/amd64": {
+            "architecture": "amd64",
+            "config_digest": "sha256:2d800dee5db7ad184e3c146756aff521a6ae3461796eefc1ad7e98827e7b9a75",
+            "manifest_digest": "sha256:80200afeaa85c4abb58bbcb84deadab6d6cf5c79ac7af0694ff22e2b5de1477b",
+            "os": "linux"
+          },
+          "linux/arm64": {
+            "architecture": "arm64",
+            "config_digest": "sha256:2d1880dfaf2891290f015d5d371909bc09696a75c5a129ec447238b5f04c99a6",
+            "manifest_digest": "sha256:658c826d4f46f8f9955d0e71ec14a7aab5a01e171233587b8d1d166e548a243a",
+            "os": "linux"
+          }
+        },
+        "current_observation": null,
+        "raw_config_bytes_verified": false,
+        "publisher_source_provenance_verified": false,
+        "runtime_executed": false
+      },
+      {
+        "reference": "edoburu/pgbouncer:v1.25.2-p0",
+        "historical_root_digest": "sha256:7d7a27d9e90985cab5cf42256f5c13a3120baa4b055b69df37beb272b89b2340",
+        "historical_errors": [],
+        "historical_platforms": {
+          "linux/amd64": {
+            "architecture": "amd64",
+            "config_digest": "sha256:c3521b1bf434204a5ab584408cec15eff27e0efcf825bf91e1bb697826da2836",
+            "manifest_digest": "sha256:68969403ee54dbf98601b49a1e92db644a9fdeed5c40969f7f0adce5193ac5b8",
+            "os": "linux"
+          },
+          "linux/arm64": {
+            "architecture": "arm64",
+            "config_digest": "sha256:f1ec599652759f1293434ad55e6c83bbf37e0841dc907e85cddd262b12531372",
+            "manifest_digest": "sha256:a7f51a178b15e58dbdac312e09a7636fe587333b064b411589b5bc93c8ded5df",
+            "os": "linux"
+          }
+        },
+        "current_observation": null,
+        "raw_config_bytes_verified": false,
+        "publisher_source_provenance_verified": false,
+        "runtime_executed": false
+      },
+      {
+        "reference": "envoyproxy/envoy:v1.39.1",
+        "historical_root_digest": "sha256:57e14a549d7bd43c8d3f6d03e8cfa653e037d4b38e133acd9b54f38c524401b4",
+        "historical_errors": [],
+        "historical_platforms": {
+          "linux/amd64": {
+            "architecture": "amd64",
+            "config_digest": "sha256:ef41fe510c94b2a96c03e5f19a0bdce3ec92819c430401229e94faf768af792f",
+            "manifest_digest": "sha256:be87c8b52663c1164a5bdf3c5419017a269cb3d8c74be1ec93638a71f1ffbd4b",
+            "os": "linux"
+          },
+          "linux/arm64": {
+            "architecture": "arm64",
+            "config_digest": "sha256:ef846ec85aabf01a2ff7176a185260e476ca43d20478f57281d88f7a66d5671f",
+            "manifest_digest": "sha256:b21240e552b588017072424716c0bce30000f49deed6262bde55b042b5acfd97",
+            "os": "linux"
+          }
+        },
+        "current_observation": null,
+        "raw_config_bytes_verified": false,
+        "publisher_source_provenance_verified": false,
+        "runtime_executed": false
+      },
+      {
+        "reference": "inbucket/inbucket:3.0.3",
+        "historical_root_digest": null,
+        "historical_errors": [
+          "uninspected: Docker Hub 429 observed; no retry performed"
+        ],
+        "historical_platforms": {
+          "linux/amd64": {
+            "error": "uninspected: Docker Hub rate limit observed before this newly retained dev ref"
+          },
+          "linux/arm64": {
+            "error": "uninspected: Docker Hub rate limit observed before this newly retained dev ref"
+          }
+        },
+        "current_observation": {
+          "reference": "inbucket/inbucket:3.0.3",
+          "platforms": {
+            "linux/amd64": {
+              "manifest_digest": "sha256:89cf7cdd7e46933082653eed90728689fa14dc5da91f1cb6e8bb046dd6d876e4",
+              "config_digest": "sha256:f5b6afda5922f49febd0168fab507635d40642d20d9038d5230159720459ba50",
+              "raw_config_retained": false,
+              "source_provenance": "unproven",
+              "config_platform_verification": "unrun",
+              "layers_downloaded": false
+            },
+            "linux/arm64": {
+              "manifest_digest": "sha256:b714fe862b212dbaa46d417d0f4cb9b0d1a9ad81b88a18b98aa6dda429bf0f2d",
+              "config_digest": "sha256:e50d7c2197ff536d529815cbc742ee4d891b7d85de8c3a04f4e9b073d9259b09",
+              "raw_config_retained": false,
+              "source_provenance": "unproven",
+              "config_platform_verification": "unrun",
+              "layers_downloaded": false
+            }
+          },
+          "selector": "3.0.3",
+          "request": "inbucket-inbucket-root",
+          "digest": "sha256:dc912ab76de647ca2a363fe285515e512e964cf699166773f3c2c73f5e7f71c0",
+          "status": "public manifest bytes observed, execution and provenance unproven"
+        },
+        "raw_config_bytes_verified": false,
+        "publisher_source_provenance_verified": false,
+        "runtime_executed": false
+      },
+      {
+        "reference": "jonasal/nginx-certbot:6.2.0-nginx1.31.5",
+        "historical_root_digest": "sha256:7fb7b4e0eb3cc904407ddfc3922dd585f12f62e9d5cefdc6648bb3c7f9d94360",
+        "historical_errors": [],
+        "historical_platforms": {
+          "linux/amd64": {
+            "architecture": "amd64",
+            "config_digest": "sha256:cc5519f2d5d687ad5e71aa09cd2ffd33b5d23486a2292f6b97b2adc974852193",
+            "manifest_digest": "sha256:133f39cd8897f6987b56d1f6a182ec7ec4173490c10009a745a91dc94e0e9de4",
+            "os": "linux"
+          },
+          "linux/arm64": {
+            "architecture": "arm64",
+            "config_digest": "sha256:76e63943826d8070483c918f4c0a2dff619665ef5cc6206b255cce3b5c4b3877",
+            "manifest_digest": "sha256:92fa4354d01dfa77c2c36fe568a0b6475686921e88e7f07e5f3af8bb65624628",
+            "os": "linux"
+          }
+        },
+        "current_observation": null,
+        "raw_config_bytes_verified": false,
+        "publisher_source_provenance_verified": false,
+        "runtime_executed": false
+      },
+      {
+        "reference": "kong/kong:3.9.3",
+        "historical_root_digest": "sha256:9a2ae6699a2ce0d60592eb176555d3594a22782c20cc6557a61ff3a7e8b559a3",
+        "historical_errors": [],
+        "historical_platforms": {
+          "linux/amd64": {
+            "architecture": "amd64",
+            "config_digest": "sha256:6d4c2325ad063b075cc10b36cef0d6660cba17e171111f148936daec82bc5c78",
+            "manifest_digest": "sha256:61591af560fc9ba4d1e2fcc8be87f28e374c4b2f4a8f0e637702ee12dcaddade",
+            "os": "linux"
+          },
+          "linux/arm64": {
+            "architecture": "arm64",
+            "config_digest": "sha256:8d322da687d34d6aa98ca9b4b79eb1d9d109c2a5528378f49c77a9726125d430",
+            "manifest_digest": "sha256:593eb498a15df86e7753dc589aa84fdcec374598edd213ca9ab4d66c04a36813",
+            "os": "linux"
+          }
+        },
+        "current_observation": null,
+        "raw_config_bytes_verified": false,
+        "publisher_source_provenance_verified": false,
+        "runtime_executed": false
+      },
+      {
+        "reference": "postgrest/postgrest:v14.17",
+        "historical_root_digest": "sha256:c9dc201e555f5d8e37e7f39cdd4df0229774996e213bfd7de8d10ac609030f2c",
+        "historical_errors": [],
+        "historical_platforms": {
+          "linux/amd64": {
+            "architecture": "amd64",
+            "config_digest": "sha256:fc3d286fec899d5a5bebbb98eac771ced1ccaa44deac8ce2fc23fe5d262eb3d9",
+            "manifest_digest": "sha256:aa7e96af2d01219a09bc00c75de28171b1f9fda17ea455a931e4fb6d317089e0",
+            "os": "linux"
+          },
+          "linux/arm64": {
+            "architecture": "arm64",
+            "config_digest": "sha256:cb74937ed5bf5c90e9ccfedcf2b6655488cc6800d464010b56285055a5704009",
+            "manifest_digest": "sha256:b48f6387a6cab5013eb19401361a316a3a9cf7f4c2893ea98f54f8a3effbe178",
+            "os": "linux"
+          }
+        },
+        "current_observation": null,
+        "raw_config_bytes_verified": false,
+        "publisher_source_provenance_verified": false,
+        "runtime_executed": false
+      },
+      {
+        "reference": "rustfs/rc",
+        "historical_root_digest": "sha256:ab024bfebee49a750ce886b4c70963ccd9ddaa03f491704a90710641d7a26699",
+        "historical_errors": [],
+        "historical_platforms": {
+          "linux/amd64": {
+            "architecture": "amd64",
+            "config_digest": "sha256:22829f2da18d75e599a6f79b36d49f516a698961e946be8b95b5deece7f43ce9",
+            "manifest_digest": "sha256:d6de0f9e756939553ea18265f77056da034dae536671a57a07f1354bb7333d23",
+            "os": "linux"
+          },
+          "linux/arm64": {
+            "architecture": "arm64",
+            "config_digest": "sha256:ce5a0636cb997ea70e4801f995246b775cb4a1f79e5bf81aade337fb5495bd68",
+            "manifest_digest": "sha256:67beaa523de00042cd8b2a29f1e341e066a8406769982ac8022e7864d8fe6458",
+            "os": "linux"
+          }
+        },
+        "current_observation": null,
+        "raw_config_bytes_verified": false,
+        "publisher_source_provenance_verified": false,
+        "runtime_executed": false
+      },
+      {
+        "reference": "rustfs/rustfs:v1.0.0-rc.5",
+        "historical_root_digest": "sha256:b7014e0ce2bc703c1316b3ef760e29dfae61fe4a50d1a66fa89638e0f8ea211f",
+        "historical_errors": [],
+        "historical_platforms": {
+          "linux/amd64": {
+            "architecture": "amd64",
+            "config_digest": "sha256:7e07bea491a80d841d3045f65b79d96318ec1cac4996129773d4470ffcc3995e",
+            "manifest_digest": "sha256:cb3c64639fb935d19cb8d5e4ba1c93a5b32ca582aa7f5f247e42b052237cefa6",
+            "os": "linux"
+          },
+          "linux/arm64": {
+            "architecture": "arm64",
+            "config_digest": "sha256:6063afb658b569520afbac082418f17b369fa72f4702a6a90a4a010b13117124",
+            "manifest_digest": "sha256:570a94437ab9c7b61a8bd1305be6297d572e273f136262398ea06bf4dc033bef",
+            "os": "linux"
+          }
+        },
+        "current_observation": null,
+        "raw_config_bytes_verified": false,
+        "publisher_source_provenance_verified": false,
+        "runtime_executed": false
+      },
+      {
+        "reference": "supabase/edge-runtime:v1.76.2",
+        "historical_root_digest": "sha256:edd22bef4477b900d5c300e287ce9b18bff9b81a0291bee14ee0b7c7b71a2899",
+        "historical_errors": [],
+        "historical_platforms": {
+          "linux/amd64": {
+            "architecture": "amd64",
+            "config_digest": "sha256:4ddc035dcf37b087ff06a38e54036867e4d82ce3c70b6a0567825c878e984e06",
+            "manifest_digest": "sha256:b331c6422f4f4bebd6052357da5f3c87610128c8cb530390ca024eb68cf4bf2e",
+            "os": "linux"
+          },
+          "linux/arm64": {
+            "architecture": "arm64",
+            "config_digest": "sha256:4f0facc86dfcbba641b93f47fd5e6ce568c1a813013ad122cd7d3320e27659b7",
+            "manifest_digest": "sha256:3115aa7254d84e35704fad8abbcef7e759b645213ffb3b9238a7862659b704c2",
+            "os": "linux"
+          }
+        },
+        "current_observation": null,
+        "raw_config_bytes_verified": false,
+        "publisher_source_provenance_verified": false,
+        "runtime_executed": false
+      },
+      {
+        "reference": "supabase/gotrue:v2.196.0",
+        "historical_root_digest": "sha256:c0c25187a6b835e65a6f6e6c6b39d090e832d40e6de5186f2c038e0411944232",
+        "historical_errors": [],
+        "historical_platforms": {
+          "linux/amd64": {
+            "architecture": "amd64",
+            "config_digest": "sha256:688edbb786f6d736edaa478438f23c7044a22a6a5f19502a7138d38caca6c2f6",
+            "manifest_digest": "sha256:7e813221b93fbf54b515036438550e483bfaf057b9db52fe9bc1ce91c47e817e",
+            "os": "linux"
+          },
+          "linux/arm64": {
+            "architecture": "arm64",
+            "config_digest": "sha256:e88fac3e0cf252752039d92855cbfaea0960c705ad6a9c5faa1bb16d22e622b8",
+            "manifest_digest": "sha256:93bfec0a41cfe3ed81d03c9c1c8807fd230b8ecea260cf999b8a7204ccc7d5cf",
+            "os": "linux"
+          }
+        },
+        "current_observation": {
+          "reference": "supabase/gotrue:v2.196.0",
+          "platforms": {
+            "linux/amd64": {
+              "manifest_digest": "sha256:7e813221b93fbf54b515036438550e483bfaf057b9db52fe9bc1ce91c47e817e",
+              "config_digest": "sha256:688edbb786f6d736edaa478438f23c7044a22a6a5f19502a7138d38caca6c2f6",
+              "raw_config_retained": false,
+              "source_provenance": "unproven",
+              "config_platform_verification": "unrun",
+              "layers_downloaded": false
+            },
+            "linux/arm64": {
+              "manifest_digest": "sha256:93bfec0a41cfe3ed81d03c9c1c8807fd230b8ecea260cf999b8a7204ccc7d5cf",
+              "config_digest": "sha256:e88fac3e0cf252752039d92855cbfaea0960c705ad6a9c5faa1bb16d22e622b8",
+              "raw_config_retained": false,
+              "source_provenance": "unproven",
+              "config_platform_verification": "unrun",
+              "layers_downloaded": false
+            }
+          },
+          "selector": "sha256:c0c25187a6b835e65a6f6e6c6b39d090e832d40e6de5186f2c038e0411944232",
+          "request": "supabase-gotrue-root",
+          "digest": "sha256:c0c25187a6b835e65a6f6e6c6b39d090e832d40e6de5186f2c038e0411944232",
+          "status": "public manifest bytes observed, execution and provenance unproven"
+        },
+        "raw_config_bytes_verified": false,
+        "publisher_source_provenance_verified": false,
+        "runtime_executed": false
+      },
+      {
+        "reference": "supabase/logflare:1.50.10",
+        "historical_root_digest": "sha256:879e4e8e2b6089e0018774f3fd72a55a0bc8afacef656f97f32b56242c6110b1",
+        "historical_errors": [],
+        "historical_platforms": {
+          "linux/amd64": {
+            "architecture": "amd64",
+            "config_digest": "sha256:f1cecf600c04b803d09e2877a832c520131d83073a7925e40ea0488575c89997",
+            "manifest_digest": "sha256:a5e346c92e7e9bf4a12fafccaba3a34803fd9af2e1ac5c20cbd12c33072b0fa2",
+            "os": "linux"
+          },
+          "linux/arm64": {
+            "architecture": "arm64",
+            "config_digest": "sha256:266285b8c954c5093d71b7bcd1855f63f46ae91e186eadb45df42d4392c32e6a",
+            "manifest_digest": "sha256:8356f1d7b8a3417c77d5f58b709618066a2087a23f3700d11772a10f4b754fc3",
+            "os": "linux"
+          }
+        },
+        "current_observation": null,
+        "raw_config_bytes_verified": false,
+        "publisher_source_provenance_verified": false,
+        "runtime_executed": false
+      },
+      {
+        "reference": "supabase/postgres-meta:v0.99.0",
+        "historical_root_digest": "sha256:9a079ac1c94d89629262822a4bd1902d5b1be4adb464e5a0a8fd078aaed72158",
+        "historical_errors": [],
+        "historical_platforms": {
+          "linux/amd64": {
+            "architecture": "amd64",
+            "config_digest": "sha256:645aad8dfdd7fe43451263cccff8efe01b0b88c684d4d7e309933d76a7a8ea53",
+            "manifest_digest": "sha256:09b00cdd401f830cc8db5c7da14468e99d04a63900371b1ec06463674ac4877e",
+            "os": "linux"
+          },
+          "linux/arm64": {
+            "architecture": "arm64",
+            "config_digest": "sha256:797a1e33d78057b01345f7ada3a3f096ee6322630db13ebdc631e59ceac5a5c0",
+            "manifest_digest": "sha256:472f73e565a3ba64b56b12c7706bf2f4e0c4840f3ce853b32f254127f9775aec",
+            "os": "linux"
+          }
+        },
+        "current_observation": null,
+        "raw_config_bytes_verified": false,
+        "publisher_source_provenance_verified": false,
+        "runtime_executed": false
+      },
+      {
+        "reference": "supabase/postgres:15.8.1.085",
+        "historical_root_digest": "sha256:af083ef64d0408c8f098ee6f5c364a59b26f36fbc0f3a334a62c5c1d57362e9b",
+        "historical_errors": [],
+        "historical_platforms": {
+          "linux/amd64": {
+            "architecture": "amd64",
+            "config_digest": "sha256:8613ba8eab946dff6674a2db6aab75b80aa101da39035fe20f62b0c7591ab35d",
+            "manifest_digest": "sha256:caae3d066f437332d593011e3e7ecf78ab005ce9b89378efd53f97f0410563ad",
+            "os": "linux"
+          },
+          "linux/arm64": {
+            "architecture": "arm64",
+            "config_digest": "sha256:a5a0c2b809d5415edff7c010d9facf29063cb138f88ed3a66efdf24b83e79a96",
+            "manifest_digest": "sha256:4e4ce13a16fa33bae61c878d11ec002584b3a55114ccdcab79bc1dda3fe5e767",
+            "os": "linux"
+          }
+        },
+        "current_observation": null,
+        "raw_config_bytes_verified": false,
+        "publisher_source_provenance_verified": false,
+        "runtime_executed": false
+      },
+      {
+        "reference": "supabase/postgres:17.6.1.136",
+        "historical_root_digest": "sha256:f371b5f3f2ac0a05703f33d6e6134515fb2498cab708fb948a0aeb7481467c00",
+        "historical_errors": [],
+        "historical_platforms": {
+          "linux/amd64": {
+            "architecture": "amd64",
+            "config_digest": "sha256:f519727303f0af6862882be2a30f420e28710d4209226e681aaddb2c01d12d9b",
+            "manifest_digest": "sha256:5a4314708484bec672de2c09653a5c01fb1c84a998564ac231b0325e2238ed5b",
+            "os": "linux"
+          },
+          "linux/arm64": {
+            "architecture": "arm64",
+            "config_digest": "sha256:c5ac0bc3cd8d4896da4a75d2d8ed5a2c0c2bd11ef3cb023f1159d673025f168a",
+            "manifest_digest": "sha256:a9946f08d31e8eb1149229c94e5c26603a9233116807cbbd93d75179cbac516a",
+            "os": "linux"
+          }
+        },
+        "current_observation": null,
+        "raw_config_bytes_verified": false,
+        "publisher_source_provenance_verified": false,
+        "runtime_executed": false
+      },
+      {
+        "reference": "supabase/realtime:v2.134.10",
+        "historical_root_digest": "sha256:cbcc6a7986fc28b6dcffa798b077d5fb9c69cd25500371ab49147a86d7edbb03",
+        "historical_errors": [],
+        "historical_platforms": {
+          "linux/amd64": {
+            "architecture": "amd64",
+            "config_digest": "sha256:902ac8c3569967c01f4d45ece4c9fac3528b848dbc2504e65dd7131506331ca1",
+            "manifest_digest": "sha256:c1d078d929608f3eb4d441e30317bbdccc1bfcc1169efa3d1a26d4252417cc76",
+            "os": "linux"
+          },
+          "linux/arm64": {
+            "architecture": "arm64",
+            "config_digest": "sha256:b8d3b632580ef7c5ab365c951f12c7d4cc2721fd8ecbb8713eb5e0c8cd6b637b",
+            "manifest_digest": "sha256:e210c80f91d0efa6e82dbc048e0fefb6efb6e36c4aa3fbda506f45c6d713472a",
+            "os": "linux"
+          }
+        },
+        "current_observation": null,
+        "raw_config_bytes_verified": false,
+        "publisher_source_provenance_verified": false,
+        "runtime_executed": false
+      },
+      {
+        "reference": "supabase/storage-api:v1.74.0",
+        "historical_root_digest": "sha256:f1546fac6d1c7e345428ac904bfaa7be7cecd50a1f549fe1cf38c628a7b15c85",
+        "historical_errors": [],
+        "historical_platforms": {
+          "linux/amd64": {
+            "architecture": "amd64",
+            "config_digest": "sha256:cbd50858d9a1d085d301f10a5f4ab5c3214e44674cfa111f2a1226cc391c1ad9",
+            "manifest_digest": "sha256:63da55733ce9d7592d860739acb94f0b6189d880b7565d247ee5b195be854db1",
+            "os": "linux"
+          },
+          "linux/arm64": {
+            "architecture": "arm64",
+            "config_digest": "sha256:12d73c06d98535551f649ced5a3b8a5facb7af8a61099212ad09c67f0c907b8b",
+            "manifest_digest": "sha256:61f9c2d8cb83b0fef00ad0f1b7fe4b830bb5cb39985c944c2f92c9b097f9746c",
+            "os": "linux"
+          }
+        },
+        "current_observation": null,
+        "raw_config_bytes_verified": false,
+        "publisher_source_provenance_verified": false,
+        "runtime_executed": false
+      },
+      {
+        "reference": "supabase/studio:2026.09.07-sha-7996410",
+        "historical_root_digest": null,
+        "historical_errors": [
+          "docker command refused (1): ERROR: httpReadSeeker: failed open: unexpected status from GET request to https://registry-1.docker.io/v2/supabase/studio/manifests/sha256:94a2a9d2906e8b4109e55159a62e241c3044709a492913ea8edd34b14973d288: 429 Too Many Requests\ntoomanyrequests: You have reached your unauthenticated pull rate limit. https://www.docker.com/increase-rate-limit\n"
+        ],
+        "historical_platforms": {
+          "linux/amd64": {
+            "error": "uninspected: root metadata failed"
+          },
+          "linux/arm64": {
+            "error": "uninspected: root metadata failed"
+          }
+        },
+        "current_observation": {
+          "reference": "supabase/studio:2026.09.07-sha-7996410",
+          "platforms": {
+            "linux/amd64": {
+              "manifest_digest": "sha256:0f797270d236090c79fd26a97a1e5d1cf7ec5f36e93b9b4c3c453e1cb1aeadab",
+              "config_digest": "sha256:b31d7b34419903abd247d616f4cb6a96328829a1c6c0e48ce22e12e2aefb09de",
+              "raw_config_retained": false,
+              "source_provenance": "unproven",
+              "config_platform_verification": "unrun",
+              "layers_downloaded": false
+            },
+            "linux/arm64": {
+              "manifest_digest": "sha256:a844098545b1f1f897b9c0987aa50b3d3dffcc395baf77aa433dd83c9688b064",
+              "config_digest": "sha256:b296d3a09a63e971ffb495883ffc3218120473073c410d40da09755ebb01751d",
+              "raw_config_retained": false,
+              "source_provenance": "unproven",
+              "config_platform_verification": "unrun",
+              "layers_downloaded": false
+            }
+          },
+          "selector": "2026.09.07-sha-7996410",
+          "request": "supabase-studio-root",
+          "digest": "sha256:94a2a9d2906e8b4109e55159a62e241c3044709a492913ea8edd34b14973d288",
+          "status": "public manifest bytes observed, execution and provenance unproven"
+        },
+        "raw_config_bytes_verified": false,
+        "publisher_source_provenance_verified": false,
+        "runtime_executed": false
+      },
+      {
+        "reference": "supabase/supavisor:2.9.12",
+        "historical_root_digest": null,
+        "historical_errors": [
+          "docker command refused (1): ERROR: unexpected status from HEAD request to https://registry-1.docker.io/v2/supabase/supavisor/manifests/2.9.12: 429 Too Many Requests\n"
+        ],
+        "historical_platforms": {
+          "linux/amd64": {
+            "error": "uninspected: root metadata failed"
+          },
+          "linux/arm64": {
+            "error": "uninspected: root metadata failed"
+          }
+        },
+        "current_observation": {
+          "reference": "supabase/supavisor:2.9.12",
+          "platforms": {
+            "linux/amd64": {
+              "manifest_digest": "sha256:68ec476a3cfed150fb067995e12bd751b4dd5872acb9f7d9ce762d63ffd4f64d",
+              "config_digest": "sha256:62ee50feec095d81cef2d2b3e8572203eb4aad9b93f9a18258bc4cf6f31dce9c",
+              "raw_config_retained": false,
+              "source_provenance": "unproven",
+              "config_platform_verification": "unrun",
+              "layers_downloaded": false
+            },
+            "linux/arm64": {
+              "manifest_digest": "sha256:6015311c8b6c415f80e2a99a3daa25773e8684451260bb6e25bf90b5b4645b32",
+              "config_digest": "sha256:43faafc3a5d10a74967639f4516ba178c786786a13ef8e65cd95d75e7b7d3cca",
+              "raw_config_retained": false,
+              "source_provenance": "unproven",
+              "config_platform_verification": "unrun",
+              "layers_downloaded": false
+            }
+          },
+          "selector": "2.9.12",
+          "request": "supabase-supavisor-root",
+          "digest": "sha256:464b93a60ba8c96bc06dad7f241562d6613b2a994922307717b05f432ae415c2",
+          "status": "public manifest bytes observed, execution and provenance unproven"
+        },
+        "raw_config_bytes_verified": false,
+        "publisher_source_provenance_verified": false,
+        "runtime_executed": false
+      },
+      {
+        "reference": "timberio/vector:0.53.0-alpine",
+        "historical_root_digest": "sha256:ca92d617e905953c3f852e7e88061f7039460e733522e3f0c21bc6ae946b2558",
+        "historical_errors": [
+          "docker command refused (1): ERROR: unexpected status from HEAD request to https://registry-1.docker.io/v2/timberio/vector/manifests/0.53.0-alpine: 429 Too Many Requests\n"
+        ],
+        "historical_platforms": {
+          "linux/amd64": {
+            "error": "uninspected: root metadata failed"
+          },
+          "linux/arm64": {
+            "error": "uninspected: root metadata failed"
+          }
+        },
+        "current_observation": {
+          "reference": "timberio/vector:0.53.0-alpine",
+          "platforms": {
+            "linux/amd64": {
+              "manifest_digest": "sha256:7a74872eb7791f65357b200813bcf613c8dedcac561b4f1a68f9d290f6e6a40c",
+              "config_digest": "sha256:dbd1d86387c3fe901ff1bd17910a779744a5312597815296d08153ec06d2f346",
+              "raw_config_retained": false,
+              "source_provenance": "unproven",
+              "config_platform_verification": "unrun",
+              "layers_downloaded": false
+            },
+            "linux/arm64": {
+              "manifest_digest": "sha256:d2d5381f69b885c1b10d396623bf8d5ce825bcb8f8efcdb14a3154223c13b3b7",
+              "config_digest": "sha256:e7f63a77a2a67f809d40b35b956f5402c3358bf2b2839338b52b6ed533ba8a2e",
+              "raw_config_retained": false,
+              "source_provenance": "unproven",
+              "config_platform_verification": "unrun",
+              "layers_downloaded": false
+            }
+          },
+          "selector": "sha256:ca92d617e905953c3f852e7e88061f7039460e733522e3f0c21bc6ae946b2558",
+          "request": "timberio-vector-root",
+          "digest": "sha256:ca92d617e905953c3f852e7e88061f7039460e733522e3f0c21bc6ae946b2558",
+          "status": "public manifest bytes observed, execution and provenance unproven"
+        },
+        "raw_config_bytes_verified": false,
+        "publisher_source_provenance_verified": false,
+        "runtime_executed": false
+      }
+    ]
+  },
+  "public_observations": {
+    "scope": "Public read-only source and registry metadata, no runtime or acceptance",
+    "request_limits": {
+      "requests": 40,
+      "bytes_per_response": 2097152,
+      "wall_seconds": 480,
+      "connect_timeout": 8,
+      "read_timeout": 15,
+      "redirects": false,
+      "retries": 0
+    },
+    "requests": [
+      {
+        "id": "tag-ref",
+        "url": "https://api.github.com/repos/supabase/supabase/git/ref/tags/self-hosted/v0.8.2",
+        "observed_at": "2026-10-06T07:35:10.561678+00:00",
+        "status": 403,
+        "headers": {
+          "Date": "Tue, 06 Oct 2026 07:35:10 GMT",
+          "Content-Type": "application/json; charset=utf-8"
+        },
+        "bytes": 280,
+        "sha256": "ed0e333cd387d77a505fa6faac6579745660d7ba722447da6258aa569fdd56e0",
+        "body": "tag-ref.body"
+      },
+      {
+        "id": "tag-object",
+        "url": "https://api.github.com/repos/supabase/supabase/git/tags/47111f95a43ffcc20ab288e29c48ce0b80174bd6",
+        "observed_at": "2026-10-06T07:35:10.994897+00:00",
+        "status": 403,
+        "headers": {
+          "Date": "Tue, 06 Oct 2026 07:35:11 GMT",
+          "Content-Type": "application/json; charset=utf-8"
+        },
+        "bytes": 280,
+        "sha256": "ed0e333cd387d77a505fa6faac6579745660d7ba722447da6258aa569fdd56e0",
+        "body": "tag-object.body"
+      },
+      {
+        "id": "commit",
+        "url": "https://api.github.com/repos/supabase/supabase/git/commits/564eab8ad7840b13324f68b1bfac074ef8d51c21",
+        "observed_at": "2026-10-06T07:35:11.095683+00:00",
+        "status": 403,
+        "headers": {
+          "Date": "Tue, 06 Oct 2026 07:35:11 GMT",
+          "Content-Type": "application/json; charset=utf-8"
+        },
+        "bytes": 280,
+        "sha256": "ed0e333cd387d77a505fa6faac6579745660d7ba722447da6258aa569fdd56e0",
+        "body": "commit.body"
+      },
+      {
+        "id": "core-compose",
+        "url": "https://raw.githubusercontent.com/supabase/supabase/564eab8ad7840b13324f68b1bfac074ef8d51c21/docker/docker-compose.yml",
+        "observed_at": "2026-10-06T07:35:11.194289+00:00",
+        "status": 200,
+        "headers": {
+          "Content-Type": "text/plain; charset=utf-8",
+          "ETag": "W/\"788319d6bc05fbf5c730bee2173b18c7754f5b6075099b983ec2a576a62302ef\"",
+          "Date": "Tue, 06 Oct 2026 07:35:11 GMT"
+        },
+        "bytes": 21240,
+        "sha256": "8ba18fd43e9afba90e8287c8e8afc4bdda1e38d2228e57ff660968bb550da054",
+        "body": "core-compose.body"
+      },
+      {
+        "id": "dev-compose",
+        "url": "https://raw.githubusercontent.com/supabase/supabase/564eab8ad7840b13324f68b1bfac074ef8d51c21/docker/dev/docker-compose.dev.yml",
+        "observed_at": "2026-10-06T07:35:11.670789+00:00",
+        "status": 200,
+        "headers": {
+          "Content-Type": "text/plain; charset=utf-8",
+          "ETag": "W/\"252594b5c56b80847aebfd3719209e403ca4f6d943c1ea9325ce16e8d32774af\"",
+          "Date": "Tue, 06 Oct 2026 07:35:11 GMT"
+        },
+        "bytes": 956,
+        "sha256": "62fe7cdef0c880b6185cf793f155630a4893d7467de9dd47fed32b5eac5f335d",
+        "body": "dev-compose.body"
+      },
+      {
+        "id": "studio-dockerfile",
+        "url": "https://raw.githubusercontent.com/supabase/supabase/564eab8ad7840b13324f68b1bfac074ef8d51c21/apps/studio/Dockerfile",
+        "observed_at": "2026-10-06T07:35:12.104525+00:00",
+        "status": 200,
+        "headers": {
+          "Content-Type": "text/plain; charset=utf-8",
+          "ETag": "W/\"568cef337e87457dbe74c28921ef2974dc180fc2b91a7d404b97d8c4b85ffcf3\"",
+          "Date": "Tue, 06 Oct 2026 07:35:12 GMT"
+        },
+        "bytes": 4228,
+        "sha256": "e998ba05d068468d08b73c90d2a149bcdaa961557ee6b23bb0f00478398b99da",
+        "body": "studio-dockerfile.body"
+      },
+      {
+        "id": "root-package",
+        "url": "https://raw.githubusercontent.com/supabase/supabase/564eab8ad7840b13324f68b1bfac074ef8d51c21/package.json",
+        "observed_at": "2026-10-06T07:35:12.484251+00:00",
+        "status": 200,
+        "headers": {
+          "Content-Type": "text/plain; charset=utf-8",
+          "ETag": "W/\"1f79b1aedebe9a1feb03a542e28cff52f3f7f0154d0bc123deda864f506c47ae\"",
+          "Date": "Tue, 06 Oct 2026 07:35:12 GMT"
+        },
+        "bytes": 4976,
+        "sha256": "2c43689381277a9e277a7424501d45e25ed6d2f300444465cb205063fb4ee9db",
+        "body": "root-package.body"
+      },
+      {
+        "id": "root-workspace",
+        "url": "https://raw.githubusercontent.com/supabase/supabase/564eab8ad7840b13324f68b1bfac074ef8d51c21/pnpm-workspace.yaml",
+        "observed_at": "2026-10-06T07:35:12.810382+00:00",
+        "status": 200,
+        "headers": {
+          "Content-Type": "text/plain; charset=utf-8",
+          "ETag": "W/\"421e84f379ac871326b72def29d00bd57b7279c7c5de840d0127527c729bd5cd\"",
+          "Date": "Tue, 06 Oct 2026 07:35:13 GMT"
+        },
+        "bytes": 4231,
+        "sha256": "addd98ede43ec304917395384f7332ae2ec734e5a9bb23a6c62ab13f67cf05bd",
+        "body": "root-workspace.body"
+      },
+      {
+        "id": "auth-advisory",
+        "url": "https://api.github.com/repos/supabase/auth/security-advisories/GHSA-v36f-qvww-8w8m",
+        "observed_at": "2026-10-06T07:35:13.143713+00:00",
+        "status": 403,
+        "headers": {
+          "Date": "Tue, 06 Oct 2026 07:35:13 GMT",
+          "Content-Type": "application/json; charset=utf-8"
+        },
+        "bytes": 280,
+        "sha256": "ed0e333cd387d77a505fa6faac6579745660d7ba722447da6258aa569fdd56e0",
+        "body": "auth-advisory.body"
+      },
+      {
+        "id": "pg-security",
+        "url": "https://www.postgresql.org/support/security/",
+        "observed_at": "2026-10-06T07:35:13.238332+00:00",
+        "status": 200,
+        "headers": {
+          "Date": "Tue, 06 Oct 2026 04:02:59 GMT",
+          "Content-Type": "text/html; charset=utf-8"
+        },
+        "bytes": 68581,
+        "sha256": "98216dcbad668071c4599fd717cdd1708d0dcf208c801948678018d464f356c9",
+        "body": "pg-security.body"
+      },
+      {
+        "id": "pg-supabase-notice",
+        "url": "https://supabase.com/changelog/postgres-15-19-17-11-breaking-changes",
+        "observed_at": "2026-10-06T07:35:14.263312+00:00",
+        "status": 200,
+        "headers": {
+          "Content-Type": "text/html; charset=utf-8",
+          "Date": "Tue, 06 Oct 2026 07:26:48 GMT",
+          "Etag": "W/\"12efts4a2ry5auj\""
+        },
+        "bytes": 247379,
+        "sha256": "41b20cc85852ee17258ebc8d89a28a595e43228daa64ae0cd7141d4eaba3b4d5",
+        "body": "pg-supabase-notice.body"
+      },
+      {
+        "id": "auth-supabase-studio",
+        "url": "https://auth.docker.io/token?service=registry.docker.io&scope=repository:supabase/studio:pull",
+        "observed_at": "2026-10-06T07:35:14.615463+00:00",
+        "status": 200,
+        "headers": {
+          "Date": "Tue, 06 Oct 2026 07:35:14 GMT",
+          "Content-Type": "application/json"
+        },
+        "bytes": 5493,
+        "body_retained": false
+      },
+      {
+        "id": "supabase-studio-root",
+        "url": "https://registry-1.docker.io/v2/supabase/studio/manifests/2026.09.07-sha-7996410",
+        "observed_at": "2026-10-06T07:35:14.916388+00:00",
+        "status": 200,
+        "headers": {
+          "Date": "Tue, 06 Oct 2026 07:35:15 GMT",
+          "Content-Type": "application/vnd.oci.image.index.v1+json",
+          "docker-content-digest": "sha256:94a2a9d2906e8b4109e55159a62e241c3044709a492913ea8edd34b14973d288",
+          "etag": "\"sha256:94a2a9d2906e8b4109e55159a62e241c3044709a492913ea8edd34b14973d288\"",
+          "ratelimit-limit": "100;w=3600",
+          "ratelimit-remaining": "99;w=3600"
+        },
+        "bytes": 1609,
+        "sha256": "94a2a9d2906e8b4109e55159a62e241c3044709a492913ea8edd34b14973d288",
+        "body": "supabase-studio-root.body",
+        "digest_computed": "sha256:94a2a9d2906e8b4109e55159a62e241c3044709a492913ea8edd34b14973d288",
+        "header_digest_matches": true
+      },
+      {
+        "id": "supabase-studio-amd64",
+        "url": "https://registry-1.docker.io/v2/supabase/studio/manifests/sha256:0f797270d236090c79fd26a97a1e5d1cf7ec5f36e93b9b4c3c453e1cb1aeadab",
+        "observed_at": "2026-10-06T07:35:15.785247+00:00",
+        "status": 200,
+        "headers": {
+          "Date": "Tue, 06 Oct 2026 07:35:16 GMT",
+          "Content-Type": "application/vnd.oci.image.manifest.v1+json",
+          "docker-content-digest": "sha256:0f797270d236090c79fd26a97a1e5d1cf7ec5f36e93b9b4c3c453e1cb1aeadab",
+          "etag": "\"sha256:0f797270d236090c79fd26a97a1e5d1cf7ec5f36e93b9b4c3c453e1cb1aeadab\"",
+          "ratelimit-limit": "100;w=3600",
+          "ratelimit-remaining": "99;w=3600"
+        },
+        "bytes": 2012,
+        "sha256": "0f797270d236090c79fd26a97a1e5d1cf7ec5f36e93b9b4c3c453e1cb1aeadab",
+        "body": "supabase-studio-amd64.body",
+        "digest_computed": "sha256:0f797270d236090c79fd26a97a1e5d1cf7ec5f36e93b9b4c3c453e1cb1aeadab",
+        "header_digest_matches": true
+      },
+      {
+        "id": "supabase-studio-arm64",
+        "url": "https://registry-1.docker.io/v2/supabase/studio/manifests/sha256:a844098545b1f1f897b9c0987aa50b3d3dffcc395baf77aa433dd83c9688b064",
+        "observed_at": "2026-10-06T07:35:16.217705+00:00",
+        "status": 200,
+        "headers": {
+          "Date": "Tue, 06 Oct 2026 07:35:16 GMT",
+          "Content-Type": "application/vnd.oci.image.manifest.v1+json",
+          "docker-content-digest": "sha256:a844098545b1f1f897b9c0987aa50b3d3dffcc395baf77aa433dd83c9688b064",
+          "etag": "\"sha256:a844098545b1f1f897b9c0987aa50b3d3dffcc395baf77aa433dd83c9688b064\"",
+          "ratelimit-limit": "100;w=3600",
+          "ratelimit-remaining": "98;w=3600"
+        },
+        "bytes": 2012,
+        "sha256": "a844098545b1f1f897b9c0987aa50b3d3dffcc395baf77aa433dd83c9688b064",
+        "body": "supabase-studio-arm64.body",
+        "digest_computed": "sha256:a844098545b1f1f897b9c0987aa50b3d3dffcc395baf77aa433dd83c9688b064",
+        "header_digest_matches": true
+      },
+      {
+        "id": "auth-supabase-supavisor",
+        "url": "https://auth.docker.io/token?service=registry.docker.io&scope=repository:supabase/supavisor:pull",
+        "observed_at": "2026-10-06T07:35:16.616809+00:00",
+        "status": 200,
+        "headers": {
+          "Date": "Tue, 06 Oct 2026 07:35:16 GMT",
+          "Content-Type": "application/json"
+        },
+        "bytes": 5501,
+        "body_retained": false
+      },
+      {
+        "id": "supabase-supavisor-root",
+        "url": "https://registry-1.docker.io/v2/supabase/supavisor/manifests/2.9.12",
+        "observed_at": "2026-10-06T07:35:16.903180+00:00",
+        "status": 200,
+        "headers": {
+          "Date": "Tue, 06 Oct 2026 07:35:17 GMT",
+          "Content-Type": "application/vnd.oci.image.index.v1+json",
+          "docker-content-digest": "sha256:464b93a60ba8c96bc06dad7f241562d6613b2a994922307717b05f432ae415c2",
+          "etag": "\"sha256:464b93a60ba8c96bc06dad7f241562d6613b2a994922307717b05f432ae415c2\"",
+          "ratelimit-limit": "100;w=3600",
+          "ratelimit-remaining": "98;w=3600"
+        },
+        "bytes": 1609,
+        "sha256": "464b93a60ba8c96bc06dad7f241562d6613b2a994922307717b05f432ae415c2",
+        "body": "supabase-supavisor-root.body",
+        "digest_computed": "sha256:464b93a60ba8c96bc06dad7f241562d6613b2a994922307717b05f432ae415c2",
+        "header_digest_matches": true
+      },
+      {
+        "id": "supabase-supavisor-amd64",
+        "url": "https://registry-1.docker.io/v2/supabase/supavisor/manifests/sha256:68ec476a3cfed150fb067995e12bd751b4dd5872acb9f7d9ce762d63ffd4f64d",
+        "observed_at": "2026-10-06T07:35:17.249334+00:00",
+        "status": 200,
+        "headers": {
+          "Date": "Tue, 06 Oct 2026 07:35:17 GMT",
+          "Content-Type": "application/vnd.oci.image.manifest.v1+json",
+          "docker-content-digest": "sha256:68ec476a3cfed150fb067995e12bd751b4dd5872acb9f7d9ce762d63ffd4f64d",
+          "etag": "\"sha256:68ec476a3cfed150fb067995e12bd751b4dd5872acb9f7d9ce762d63ffd4f64d\"",
+          "ratelimit-limit": "100;w=3600",
+          "ratelimit-remaining": "97;w=3600"
+        },
+        "bytes": 1623,
+        "sha256": "68ec476a3cfed150fb067995e12bd751b4dd5872acb9f7d9ce762d63ffd4f64d",
+        "body": "supabase-supavisor-amd64.body",
+        "digest_computed": "sha256:68ec476a3cfed150fb067995e12bd751b4dd5872acb9f7d9ce762d63ffd4f64d",
+        "header_digest_matches": true
+      },
+      {
+        "id": "supabase-supavisor-arm64",
+        "url": "https://registry-1.docker.io/v2/supabase/supavisor/manifests/sha256:6015311c8b6c415f80e2a99a3daa25773e8684451260bb6e25bf90b5b4645b32",
+        "observed_at": "2026-10-06T07:35:17.576796+00:00",
+        "status": 200,
+        "headers": {
+          "Date": "Tue, 06 Oct 2026 07:35:17 GMT",
+          "Content-Type": "application/vnd.oci.image.manifest.v1+json",
+          "docker-content-digest": "sha256:6015311c8b6c415f80e2a99a3daa25773e8684451260bb6e25bf90b5b4645b32",
+          "etag": "\"sha256:6015311c8b6c415f80e2a99a3daa25773e8684451260bb6e25bf90b5b4645b32\"",
+          "ratelimit-limit": "100;w=3600",
+          "ratelimit-remaining": "97;w=3600"
+        },
+        "bytes": 1623,
+        "sha256": "6015311c8b6c415f80e2a99a3daa25773e8684451260bb6e25bf90b5b4645b32",
+        "body": "supabase-supavisor-arm64.body",
+        "digest_computed": "sha256:6015311c8b6c415f80e2a99a3daa25773e8684451260bb6e25bf90b5b4645b32",
+        "header_digest_matches": true
+      },
+      {
+        "id": "auth-timberio-vector",
+        "url": "https://auth.docker.io/token?service=registry.docker.io&scope=repository:timberio/vector:pull",
+        "observed_at": "2026-10-06T07:35:17.907975+00:00",
+        "status": 200,
+        "headers": {
+          "Date": "Tue, 06 Oct 2026 07:35:18 GMT",
+          "Content-Type": "application/json"
+        },
+        "bytes": 5493,
+        "body_retained": false
+      },
+      {
+        "id": "timberio-vector-root",
+        "url": "https://registry-1.docker.io/v2/timberio/vector/manifests/sha256:ca92d617e905953c3f852e7e88061f7039460e733522e3f0c21bc6ae946b2558",
+        "observed_at": "2026-10-06T07:35:18.109360+00:00",
+        "status": 200,
+        "headers": {
+          "Date": "Tue, 06 Oct 2026 07:35:18 GMT",
+          "Content-Type": "application/vnd.oci.image.index.v1+json",
+          "docker-content-digest": "sha256:ca92d617e905953c3f852e7e88061f7039460e733522e3f0c21bc6ae946b2558",
+          "etag": "\"sha256:ca92d617e905953c3f852e7e88061f7039460e733522e3f0c21bc6ae946b2558\"",
+          "ratelimit-limit": "100;w=3600",
+          "ratelimit-remaining": "96;w=3600"
+        },
+        "bytes": 3161,
+        "sha256": "ca92d617e905953c3f852e7e88061f7039460e733522e3f0c21bc6ae946b2558",
+        "body": "timberio-vector-root.body",
+        "digest_computed": "sha256:ca92d617e905953c3f852e7e88061f7039460e733522e3f0c21bc6ae946b2558",
+        "header_digest_matches": true
+      },
+      {
+        "id": "timberio-vector-amd64",
+        "url": "https://registry-1.docker.io/v2/timberio/vector/manifests/sha256:7a74872eb7791f65357b200813bcf613c8dedcac561b4f1a68f9d290f6e6a40c",
+        "observed_at": "2026-10-06T07:35:18.453939+00:00",
+        "status": 200,
+        "headers": {
+          "Date": "Tue, 06 Oct 2026 07:35:18 GMT",
+          "Content-Type": "application/vnd.oci.image.manifest.v1+json",
+          "docker-content-digest": "sha256:7a74872eb7791f65357b200813bcf613c8dedcac561b4f1a68f9d290f6e6a40c",
+          "etag": "\"sha256:7a74872eb7791f65357b200813bcf613c8dedcac561b4f1a68f9d290f6e6a40c\"",
+          "ratelimit-limit": "100;w=3600",
+          "ratelimit-remaining": "96;w=3600"
+        },
+        "bytes": 1428,
+        "sha256": "7a74872eb7791f65357b200813bcf613c8dedcac561b4f1a68f9d290f6e6a40c",
+        "body": "timberio-vector-amd64.body",
+        "digest_computed": "sha256:7a74872eb7791f65357b200813bcf613c8dedcac561b4f1a68f9d290f6e6a40c",
+        "header_digest_matches": true
+      },
+      {
+        "id": "timberio-vector-arm64",
+        "url": "https://registry-1.docker.io/v2/timberio/vector/manifests/sha256:d2d5381f69b885c1b10d396623bf8d5ce825bcb8f8efcdb14a3154223c13b3b7",
+        "observed_at": "2026-10-06T07:35:18.792794+00:00",
+        "status": 200,
+        "headers": {
+          "Date": "Tue, 06 Oct 2026 07:35:19 GMT",
+          "Content-Type": "application/vnd.oci.image.manifest.v1+json",
+          "docker-content-digest": "sha256:d2d5381f69b885c1b10d396623bf8d5ce825bcb8f8efcdb14a3154223c13b3b7",
+          "etag": "\"sha256:d2d5381f69b885c1b10d396623bf8d5ce825bcb8f8efcdb14a3154223c13b3b7\"",
+          "ratelimit-limit": "100;w=3600",
+          "ratelimit-remaining": "95;w=3600"
+        },
+        "bytes": 1428,
+        "sha256": "d2d5381f69b885c1b10d396623bf8d5ce825bcb8f8efcdb14a3154223c13b3b7",
+        "body": "timberio-vector-arm64.body",
+        "digest_computed": "sha256:d2d5381f69b885c1b10d396623bf8d5ce825bcb8f8efcdb14a3154223c13b3b7",
+        "header_digest_matches": true
+      },
+      {
+        "id": "auth-inbucket-inbucket",
+        "url": "https://auth.docker.io/token?service=registry.docker.io&scope=repository:inbucket/inbucket:pull",
+        "observed_at": "2026-10-06T07:35:19.134868+00:00",
+        "status": 200,
+        "headers": {
+          "Date": "Tue, 06 Oct 2026 07:35:19 GMT",
+          "Content-Type": "application/json"
+        },
+        "bytes": 5496,
+        "body_retained": false
+      },
+      {
+        "id": "inbucket-inbucket-root",
+        "url": "https://registry-1.docker.io/v2/inbucket/inbucket/manifests/3.0.3",
+        "observed_at": "2026-10-06T07:35:19.325021+00:00",
+        "status": 200,
+        "headers": {
+          "Date": "Tue, 06 Oct 2026 07:35:19 GMT",
+          "Content-Type": "application/vnd.docker.distribution.manifest.list.v2+json",
+          "docker-content-digest": "sha256:dc912ab76de647ca2a363fe285515e512e964cf699166773f3c2c73f5e7f71c0",
+          "etag": "\"sha256:dc912ab76de647ca2a363fe285515e512e964cf699166773f3c2c73f5e7f71c0\"",
+          "ratelimit-limit": "100;w=3600",
+          "ratelimit-remaining": "95;w=3600"
+        },
+        "bytes": 1079,
+        "sha256": "dc912ab76de647ca2a363fe285515e512e964cf699166773f3c2c73f5e7f71c0",
+        "body": "inbucket-inbucket-root.body",
+        "digest_computed": "sha256:dc912ab76de647ca2a363fe285515e512e964cf699166773f3c2c73f5e7f71c0",
+        "header_digest_matches": true
+      },
+      {
+        "id": "inbucket-inbucket-amd64",
+        "url": "https://registry-1.docker.io/v2/inbucket/inbucket/manifests/sha256:89cf7cdd7e46933082653eed90728689fa14dc5da91f1cb6e8bb046dd6d876e4",
+        "observed_at": "2026-10-06T07:35:19.664480+00:00",
+        "status": 200,
+        "headers": {
+          "Date": "Tue, 06 Oct 2026 07:35:19 GMT",
+          "Content-Type": "application/vnd.docker.distribution.manifest.v2+json",
+          "docker-content-digest": "sha256:89cf7cdd7e46933082653eed90728689fa14dc5da91f1cb6e8bb046dd6d876e4",
+          "etag": "\"sha256:89cf7cdd7e46933082653eed90728689fa14dc5da91f1cb6e8bb046dd6d876e4\"",
+          "ratelimit-limit": "100;w=3600",
+          "ratelimit-remaining": "94;w=3600"
+        },
+        "bytes": 1988,
+        "sha256": "89cf7cdd7e46933082653eed90728689fa14dc5da91f1cb6e8bb046dd6d876e4",
+        "body": "inbucket-inbucket-amd64.body",
+        "digest_computed": "sha256:89cf7cdd7e46933082653eed90728689fa14dc5da91f1cb6e8bb046dd6d876e4",
+        "header_digest_matches": true
+      },
+      {
+        "id": "inbucket-inbucket-arm64",
+        "url": "https://registry-1.docker.io/v2/inbucket/inbucket/manifests/sha256:b714fe862b212dbaa46d417d0f4cb9b0d1a9ad81b88a18b98aa6dda429bf0f2d",
+        "observed_at": "2026-10-06T07:35:19.999195+00:00",
+        "status": 200,
+        "headers": {
+          "Date": "Tue, 06 Oct 2026 07:35:20 GMT",
+          "Content-Type": "application/vnd.docker.distribution.manifest.v2+json",
+          "docker-content-digest": "sha256:b714fe862b212dbaa46d417d0f4cb9b0d1a9ad81b88a18b98aa6dda429bf0f2d",
+          "etag": "\"sha256:b714fe862b212dbaa46d417d0f4cb9b0d1a9ad81b88a18b98aa6dda429bf0f2d\"",
+          "ratelimit-limit": "100;w=3600",
+          "ratelimit-remaining": "94;w=3600"
+        },
+        "bytes": 1988,
+        "sha256": "b714fe862b212dbaa46d417d0f4cb9b0d1a9ad81b88a18b98aa6dda429bf0f2d",
+        "body": "inbucket-inbucket-arm64.body",
+        "digest_computed": "sha256:b714fe862b212dbaa46d417d0f4cb9b0d1a9ad81b88a18b98aa6dda429bf0f2d",
+        "header_digest_matches": true
+      },
+      {
+        "id": "auth-supabase-gotrue",
+        "url": "https://auth.docker.io/token?service=registry.docker.io&scope=repository:supabase/gotrue:pull",
+        "observed_at": "2026-10-06T07:35:20.431216+00:00",
+        "status": 200,
+        "headers": {
+          "Date": "Tue, 06 Oct 2026 07:35:20 GMT",
+          "Content-Type": "application/json"
+        },
+        "bytes": 5493,
+        "body_retained": false
+      },
+      {
+        "id": "supabase-gotrue-root",
+        "url": "https://registry-1.docker.io/v2/supabase/gotrue/manifests/sha256:c0c25187a6b835e65a6f6e6c6b39d090e832d40e6de5186f2c038e0411944232",
+        "observed_at": "2026-10-06T07:35:20.685954+00:00",
+        "status": 200,
+        "headers": {
+          "Date": "Tue, 06 Oct 2026 07:35:20 GMT",
+          "Content-Type": "application/vnd.oci.image.index.v1+json",
+          "docker-content-digest": "sha256:c0c25187a6b835e65a6f6e6c6b39d090e832d40e6de5186f2c038e0411944232",
+          "etag": "\"sha256:c0c25187a6b835e65a6f6e6c6b39d090e832d40e6de5186f2c038e0411944232\"",
+          "ratelimit-limit": "100;w=3600",
+          "ratelimit-remaining": "93;w=3600"
+        },
+        "bytes": 1609,
+        "sha256": "c0c25187a6b835e65a6f6e6c6b39d090e832d40e6de5186f2c038e0411944232",
+        "body": "supabase-gotrue-root.body",
+        "digest_computed": "sha256:c0c25187a6b835e65a6f6e6c6b39d090e832d40e6de5186f2c038e0411944232",
+        "header_digest_matches": true
+      },
+      {
+        "id": "supabase-gotrue-amd64",
+        "url": "https://registry-1.docker.io/v2/supabase/gotrue/manifests/sha256:7e813221b93fbf54b515036438550e483bfaf057b9db52fe9bc1ce91c47e817e",
+        "observed_at": "2026-10-06T07:35:21.102542+00:00",
+        "status": 200,
+        "headers": {
+          "Date": "Tue, 06 Oct 2026 07:35:21 GMT",
+          "Content-Type": "application/vnd.oci.image.manifest.v1+json",
+          "docker-content-digest": "sha256:7e813221b93fbf54b515036438550e483bfaf057b9db52fe9bc1ce91c47e817e",
+          "etag": "\"sha256:7e813221b93fbf54b515036438550e483bfaf057b9db52fe9bc1ce91c47e817e\"",
+          "ratelimit-limit": "100;w=3600",
+          "ratelimit-remaining": "93;w=3600"
+        },
+        "bytes": 1431,
+        "sha256": "7e813221b93fbf54b515036438550e483bfaf057b9db52fe9bc1ce91c47e817e",
+        "body": "supabase-gotrue-amd64.body",
+        "digest_computed": "sha256:7e813221b93fbf54b515036438550e483bfaf057b9db52fe9bc1ce91c47e817e",
+        "header_digest_matches": true
+      },
+      {
+        "id": "supabase-gotrue-arm64",
+        "url": "https://registry-1.docker.io/v2/supabase/gotrue/manifests/sha256:93bfec0a41cfe3ed81d03c9c1c8807fd230b8ecea260cf999b8a7204ccc7d5cf",
+        "observed_at": "2026-10-06T07:35:21.593966+00:00",
+        "status": 200,
+        "headers": {
+          "Date": "Tue, 06 Oct 2026 07:35:21 GMT",
+          "Content-Type": "application/vnd.oci.image.manifest.v1+json",
+          "docker-content-digest": "sha256:93bfec0a41cfe3ed81d03c9c1c8807fd230b8ecea260cf999b8a7204ccc7d5cf",
+          "etag": "\"sha256:93bfec0a41cfe3ed81d03c9c1c8807fd230b8ecea260cf999b8a7204ccc7d5cf\"",
+          "ratelimit-limit": "100;w=3600",
+          "ratelimit-remaining": "92;w=3600"
+        },
+        "bytes": 1431,
+        "sha256": "93bfec0a41cfe3ed81d03c9c1c8807fd230b8ecea260cf999b8a7204ccc7d5cf",
+        "body": "supabase-gotrue-arm64.body",
+        "digest_computed": "sha256:93bfec0a41cfe3ed81d03c9c1c8807fd230b8ecea260cf999b8a7204ccc7d5cf",
+        "header_digest_matches": true
+      }
+    ],
+    "request_count": 31,
+    "elapsed_seconds": 11.386566260000109,
+    "new_docker_hub_429_observed": false,
+    "prior_429_preserved": true,
+    "git_tag_observation": {
+      "command": [
+        "timeout",
+        "20",
+        "git",
+        "-c",
+        "credential.helper=",
+        "-c",
+        "http.extraHeader=",
+        "-c",
+        "core.askPass=",
+        "ls-remote",
+        "--tags",
+        "https://github.com/supabase/supabase.git",
+        "refs/tags/self-hosted/v0.8.2",
+        "refs/tags/self-hosted/v0.8.2^{}"
+      ],
+      "exit": 0,
+      "stdout_sha256": "d057d5e45add1f8d8835aa657b7ae6627d52ffff4de2fea46641e94e1497eaa9",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "matches_original_tag_and_peeled_commit": true
+    },
+    "pinned_core_raw_sha256": "8ba18fd43e9afba90e8287c8e8afc4bdda1e38d2228e57ff660968bb550da054",
+    "full_source_closure_verified": false,
+    "layers_downloaded": false,
+    "runtime_executed": false
+  },
+  "stages": [
+    {
+      "id": "REF-SOURCE",
+      "owner_role": "reference custodian",
+      "depends_on": [],
+      "objective": "Obtain exact public annotated tag and peeled commit; freeze all 64 docker entries and the full monorepo build closure for dev Studio.",
+      "mandatory_evidence": [
+        "Compare Git blob IDs, bytes, modes and sorted inventory with the unchanged original packet. Reject truncated tree, symlinks and checkout conversion.",
+        "Classify all 14 Compose documents and five auxiliary YAML files; retain parser diagnostics and exact include/override order.",
+        "Resolve dev context relative to its actual Compose project directory; retain apps/studio/Dockerfile, workspace files, lockfile, patches, package source, base image, framework, build target and build arguments. Verify all COPY and package dependencies; five sampled files are not closure."
+      ],
+      "status": "planned",
+      "runner_argv": null
+    },
+    {
+      "id": "REF-METADATA",
+      "owner_role": "reference custodian",
+      "depends_on": [
+        "REF-SOURCE"
+      ],
+      "objective": "Produce a new supplemental packet while retaining the original packet and failures.",
+      "mandatory_evidence": [
+        "For all 23 references retain raw immutable index or single manifest, both declared platform manifests, and raw config blobs; hash every descriptor edge and validate config os/architecture.",
+        "The new observations cover five references only. Do not fill missing config bytes, missing architecture, source provenance or build-only output with guessed values.",
+        "Treat current mutable tag observations as dated observations. Preserve original frozen digests and require explicit drift review before any revision.",
+        "Resolve source provenance from authenticated publisher build evidence or a separately declared reproducible public build with full material closure. OCI labels alone are self-attested. Record unsupported or unavailable evidence explicitly.",
+        "Preserve all original parser/build-only/429 errors. New successful observations supplement history; they do not make the original packet acceptable. The existing foundation verifier still rejects that packet."
+      ],
+      "status": "planned",
+      "runner_argv": null
+    },
+    {
+      "id": "REF-PROFILE",
+      "owner_role": "runtime and host maintainer",
+      "depends_on": [
+        "REF-METADATA"
+      ],
+      "objective": "Declare one disposable amd64 Linux/engine/profile and a finite execution contract before obtaining a runtime slot.",
+      "mandatory_evidence": [
+        "Bind distribution/kernel/engine/Compose/cgroup/filesystem/data-root/security enforcement, placement, network policy and exact resource limits. SB-02 source preflight alone is not an observed clean-host install.",
+        "Freeze complete redacted effective configuration, ordered overlays, generated dummy credentials and credential-safe commitment policy, fixtures, SDK versions, endpoints, commands, timers, cleanup ownership and failure criteria.",
+        "Publish resource reservation and require root coordination before any Docker/build/native workload. Add arm64 only after matching actual suite, not manifest presence."
+      ],
+      "status": "planned",
+      "runner_argv": null
+    },
+    {
+      "id": "REF-DISTRIBUTION",
+      "owner_role": "distribution maintainer",
+      "depends_on": [
+        "REF-PROFILE"
+      ],
+      "objective": "Implement and observe all six existing foundation acceptance tests on a fresh public clone.",
+      "mandatory_evidence": [
+        "Freeze exact registry runner/argv and fixture bindings for public-clone-immutable-linux-build, no-private-source-runtime, reference-image-packet, release-capability-evidence-identity, required-missing-check-refusal and distribution-reproducibility. Current empty commands remain refusals.",
+        "Use no private SQL/HBA, retained native volume, workstation path, inherited credential or hidden local artifact. Confirm no secret appears in logs or release assets.",
+        "Build twice on independent clean environments using identical pinned inputs. Compare declared reproducible outputs or explicitly identify and constrain nonreproducible fields. Verify release hashes/signatures and package inventory.",
+        "Start the original isolated reference with the declared configuration and perform matched SDK operations. Missing startup or native continuity evidence blocks runtime acceptance even if metadata verifies."
+      ],
+      "status": "planned",
+      "runner_argv": null
+    },
+    {
+      "id": "SB03-APPLICABILITY",
+      "owner_role": "security and database maintainer",
+      "depends_on": [
+        "REF-SOURCE"
+      ],
+      "objective": "Inventory actual installed software and application objects before selecting a patch route.",
+      "mandatory_evidence": [
+        "Distinguish original reference PostgreSQL 17.6.1.136, candidate native lock 17.6.1.166 and legacy postgres:17-alpine. Image tag spelling is not observed server_version_num, package version, extension version or backport provenance.",
+        "Capture actual server and pg_dump/psql client versions, immutable image/config identities, binary/package provenance, extension versions, collation/encoding and role/owner/ACL/RLS/custom-schema inventory for every affected environment.",
+        "Map dated upstream advisories to actual packages, enabled provider/routing options and lower-trust principals. Record affected, not-affected-with-evidence or unknown for each, never infer safe from an empty search.",
+        "Choose in-place compatible patch, separately declared patched bundle, or migration/restore only after compatibility and recoverability review. A patched bar requires explicit amendment and rerun of affected comparisons; never rewrite v0.8.2."
+      ],
+      "status": "planned",
+      "runner_argv": null
+    },
+    {
+      "id": "SB03-REHEARSAL",
+      "owner_role": "security and database maintainer",
+      "depends_on": [
+        "REF-DISTRIBUTION",
+        "SB03-APPLICABILITY"
+      ],
+      "objective": "Implement one aggregate complete-contract runner with mandatory named subchecks and independent review.",
+      "mandatory_evidence": [
+        "Freeze executable aggregate manifest before running. Each security case below must produce positive assertions and raw observations. No skips or fake zero-case success.",
+        "Use disposable dummy data and principals; lower-trust access denial and unchanged control cases before and after remediation, failure/crash/recovery and secure rollback route.",
+        "Preserve upstream service contracts, owners/ACL/RLS/views/custom schema and object bytes. Security patch success cannot substitute for native startup, SDK flow, Cron continuity or fenced recovery.",
+        "No production exploitability conclusion follows from version metadata. Source review supports but cannot replace scoped runtime evidence."
+      ],
+      "status": "planned",
+      "runner_argv": null
+    },
+    {
+      "id": "RELEASE",
+      "owner_role": "release maintainer",
+      "depends_on": [
+        "REF-DISTRIBUTION",
+        "SB03-REHEARSAL"
+      ],
+      "objective": "Gate G12 with current complete evidence for every claimed slice and profile.",
+      "mandatory_evidence": [
+        "Require current public-release tests claimed-profile-acceptance, all-claimed-slices-current, public-pilot, seven-day-soak, licenses, contributor-setup, vulnerability-reporting and support-windows.",
+        "Record pilot and seven-day observation interval, workloads, restarts, errors, recovery points and remediation. Required coverage cannot be narrowed to turn a refusal into success.",
+        "Publish licenses/SBOM, dependency scope and vulnerability disposition, contributor instructions, disclosure channel, component/host support windows and upgrade/recovery policy.",
+        "Production uses separate production contract and actual independent-host recovery/workload proof. Unit/source/metadata/security-only proofs never close G12 or inherit production."
+      ],
+      "status": "planned",
+      "runner_argv": null
+    }
+  ],
+  "sb03_security_cases": [
+    {
+      "id": "SB03-PG-IDENTITY",
+      "boundary": "Version/backport applicability",
+      "required_observation": "Observed server/client/extension version and verified package/build source for original and selected patch route; vendor patch disposition per relevant advisory.",
+      "status": "unrun"
+    },
+    {
+      "id": "SB03-LTREE",
+      "boundary": "ltree indexes",
+      "required_observation": "Inventory encoding/collation and affected index operator classes plus deep-label values; compare indexed and sequential query results after declared remediation.",
+      "status": "unrun"
+    },
+    {
+      "id": "SB03-PGCRYPTO",
+      "boundary": "Legacy cipher data",
+      "required_observation": "Owner-approved dummy symmetric and asymmetric legacy-cipher fixtures; correct-key/wrong-key behavior, modern-cipher re-encryption and byte-safe recovery. Production secret/data scan requires separate approval and privacy contract.",
+      "status": "unrun"
+    },
+    {
+      "id": "SB03-BTREE-GIST",
+      "boundary": "Floating point indexes",
+      "required_observation": "NaN and ordinary float fixtures plus index/operator-class inventory; equality/range results agree with control queries after repair.",
+      "status": "unrun"
+    },
+    {
+      "id": "SB03-OPERATORS",
+      "boundary": "Custom selectivity operators",
+      "required_observation": "Recreate non-extension custom operators using the intended non-superuser workflow; reject unauthorized privilege escalation and verify affected restore/branch routes.",
+      "status": "unrun"
+    },
+    {
+      "id": "SB03-OWNERSHIP",
+      "boundary": "Studio database role transition",
+      "required_observation": "Inventory all schemas, owners, ACLs, RLS, security-invoker views, sequences/publications and custom owners; preserve effective application access. Upstream public-only migration is insufficient for arbitrary custom schemas.",
+      "status": "unrun"
+    },
+    {
+      "id": "SB03-AUTH",
+      "boundary": "Auth provider advisories",
+      "required_observation": "Bind actual Auth binary provenance/provider configuration and advisory version range; issuer/nonce/session negative cases with dummy providers and no external victims.",
+      "status": "unrun"
+    },
+    {
+      "id": "SB03-GATEWAY",
+      "boundary": "Gateway and key boundary",
+      "required_observation": "Bind effective Envoy/Kong route configuration; normalized path/header/API-key and stale-key denial for enabled services. Reference gateway is Envoy; a Kong override is an explicit profile.",
+      "status": "unrun"
+    },
+    {
+      "id": "SB03-APP",
+      "boundary": "Matched application flow",
+      "required_observation": "Before/after Auth login/refresh, Data API isolation/RLS, exact Storage bytes and each enabled Realtime/Functions/Studio/Cron contract with pinned SDK and identical fixture.",
+      "status": "unrun"
+    },
+    {
+      "id": "SB03-RECOVERY",
+      "boundary": "Patch interruption and recovery",
+      "required_observation": "Capture coherent DB/object/credential-policy recovery set, rehearse interrupted update and restore on a different isolated host with original host unavailable; stale principals denied and new writes verified.",
+      "status": "unrun"
+    },
+    {
+      "id": "SB03-SUPPLY",
+      "boundary": "Component and host supply chain",
+      "required_observation": "Dated vendor advisories for every image/package/base/client/extension, verified SBOM/provenance and patch disposition; image digest alone is no signature, source proof or safe configuration.",
+      "status": "unrun"
+    },
+    {
+      "id": "SB03-NEGATIVE",
+      "boundary": "Complete-contract refusal",
+      "required_observation": "Missing cases, skipped/empty assertions, stale source/profile/fixtures/time, raw log tampering, unsupported architecture and changed remediation must refuse; verify through actual CLI before claiming acceptance.",
+      "status": "unrun"
+    }
+  ],
+  "advisory_examples": [
+    {
+      "id": "PG-2026-09-25",
+      "source": "https://supabase.com/changelog/postgres-15-19-17-11-breaking-changes",
+      "classification": "requires-actual-version-and-object-applicability",
+      "cases": [
+        "SB03-LTREE",
+        "SB03-PGCRYPTO",
+        "SB03-BTREE-GIST",
+        "SB03-OPERATORS"
+      ],
+      "limit": "Notice is not proof of image contents, installed backports or exploitability."
+    },
+    {
+      "id": "GHSA-v36f-qvww-8w8m",
+      "source": "https://github.com/supabase/auth/security/advisories/GHSA-v36f-qvww-8w8m",
+      "affected_range": "<2.185.0",
+      "patched": "2.185.0",
+      "declared_reference_tag": "v2.196.0",
+      "classification": "declared-version-outside-range-runtime-provenance-unverified",
+      "limit": "No actual binary/provider configuration verified; this one advisory is not full Auth security coverage."
+    }
+  ],
+  "proof_contract": {
+    "existing_registry_ids": [
+      "foundation-reference-distribution",
+      "SB-03",
+      "public-release",
+      "SB-13a",
+      "native-cron-effects"
+    ],
+    "history_ledger": "docs/engineering/gauntlet-ledger.json",
+    "registry_changed": false,
+    "acceptance_granted": false,
+    "production_granted": false,
+    "future_bindings": [
+      "portable-source-bytes-modes-inventory",
+      "registry-and-schemas",
+      "original-reference-and-any-declared-amendment",
+      "effective-config-and-ordered-overlays",
+      "immutable-images-index-platform-config-build-provenance",
+      "host-profile-placement",
+      "fixtures-and-SDK-versions",
+      "exact-runner-command-and-required-test-manifest",
+      "raw-observation-and-all-logs",
+      "observed-at-expiry",
+      "independent-review-identity"
+    ],
+    "reject": [
+      "missing",
+      "failed",
+      "skipped",
+      "empty",
+      "stale",
+      "unknown-placement",
+      "source-mutation",
+      "raw-observation-mismatch",
+      "tampered-bytes",
+      "unit-proof-for-runtime",
+      "Cron-fragment-for-native-admission",
+      "security-only-proof-for-G12",
+      "unresolved-original-reference-packet"
+    ],
+    "implementation_required": "All stage runner argv are explicitly null. This document is not an executable acceptance suite. Original registry empty runtime commands and original reference packet continue to refuse."
+  },
+  "decision_gaps": [
+    "No full public monorepo/Studio build closure frozen.",
+    "No new raw config blob bytes or binary/package build provenance validated.",
+    "No independently executed reference startup, native admission or matched SDK/recovery comparison.",
+    "No actual installed-object security applicability inventory or selected proven patch route.",
+    "No full current source acceptance is imported from parent or historical reports.",
+    "No current G0/G12/security/production acceptance is granted."
+  ],
+  "primary_sources": [
+    "https://raw.githubusercontent.com/supabase/supabase/564eab8ad7840b13324f68b1bfac074ef8d51c21/docker/docker-compose.yml",
+    "https://raw.githubusercontent.com/supabase/supabase/564eab8ad7840b13324f68b1bfac074ef8d51c21/apps/studio/Dockerfile",
+    "https://github.com/supabase/supabase/releases/tag/self-hosted%2Fv0.8.2",
+    "https://distribution.github.io/distribution/spec/api/",
+    "https://github.com/opencontainers/image-spec/blob/main/image-index.md",
+    "https://slsa.dev/spec/v1.2/provenance",
+    "https://www.postgresql.org/support/security/",
+    "https://supabase.com/changelog/46081-self-hosted-supabase-switching-studio-from-supabase-admin-to-postgres-breaking-change"
+  ]
+}
