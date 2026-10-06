@@ -1,0 +1,107 @@
+{
+  "schema": 1,
+  "date": "2026-10-06",
+  "verified_code_commit": "066f5ec774fb2c863758c17b25f81e0e51f7503b",
+  "scope": "fresh_CI_code_checks_Docker_integration_and_empty_host_systemd_rehearsal",
+  "ci": {
+    "run": 37388098529,
+    "url": "https://github.com/M7MMAD-OMAR/sbarbase/actions/runs/37388098529",
+    "conclusion": "success",
+    "jobs": {
+      "checks": "success",
+      "python-floor": "success",
+      "docker-install": "success",
+      "empty-host-acceptance": "success"
+    }
+  },
+  "website": {
+    "run": 37388119460,
+    "url": "https://github.com/M7MMAD-OMAR/sbarbase/actions/runs/37388119460",
+    "conclusion": "success",
+    "scope": "build_and_tests_only"
+  },
+  "empty_host": {
+    "passed": true,
+    "checks": 12,
+    "startup_attempts": 1,
+    "installed_systemd_unit_verified": true,
+    "bootstrap_checks": 21
+  },
+  "docker_evidence": [
+    {
+      "file": "docker-backup-restore.json",
+      "passed": true,
+      "checks": 15
+    },
+    {
+      "file": "docker-database-checks.json",
+      "passed": true,
+      "checks": 16
+    },
+    {
+      "file": "docker-first-project.json",
+      "passed": true,
+      "checks": 15
+    },
+    {
+      "file": "docker-functions-checks.json",
+      "passed": true,
+      "checks": 24
+    },
+    {
+      "file": "docker-import-checks.json",
+      "passed": true,
+      "checks": 12
+    },
+    {
+      "file": "docker-observe-checks.json",
+      "passed": true,
+      "checks": 20
+    },
+    {
+      "file": "docker-offsite-checks.json",
+      "passed": true,
+      "checks": 12
+    },
+    {
+      "file": "docker-realtime-checks.json",
+      "passed": true,
+      "checks": 20
+    },
+    {
+      "file": "docker-sign-in-checks.json",
+      "passed": true,
+      "checks": 15
+    },
+    {
+      "file": "docker-signing-checks.json",
+      "passed": true,
+      "checks": 18
+    },
+    {
+      "file": "docker-studio-checks.json",
+      "passed": true,
+      "checks": 22
+    },
+    {
+      "file": "docker-upgrade-checks.json",
+      "passed": true,
+      "checks": 45
+    },
+    {
+      "file": "docker-upload-checks.json",
+      "passed": true,
+      "checks": 20
+    }
+  ],
+  "historical_artifact_excluded": "docker-install-checks.json retains its September timestamp and is not fresh evidence",
+  "count_policy": "Counts have separate overlapping scopes and are not additive",
+  "scope_limits": [
+    "No host reboot, public DNS or public TLS certificate tested",
+    "Legacy shared platform integration, not native-dedicated cold/warm continuity",
+    "S3-compatible fixture, not a real remote provider",
+    "Signing and upgrade fixtures use local test releases",
+    "Native physical restore and all-host support remain unaccepted"
+  ],
+  "production_accepted": false
+}

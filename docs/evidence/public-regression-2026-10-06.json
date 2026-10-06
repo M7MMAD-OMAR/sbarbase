@@ -33,5 +33,10 @@
   "cron_vault_restart_accepted": false,
   "native_physical_restore_accepted": false,
   "production_accepted": false,
-  "final_revision_ci": "pending"
+  "final_revision_ci": {
+    "verified_code_commit": "066f5ec774fb2c863758c17b25f81e0e51f7503b",
+    "summary": "ci-acceptance-2026-10-06.json",
+    "conclusion": "success",
+    "documentation_follow_up_not_in_code_snapshot": true
+  }
 }
