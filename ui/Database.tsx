@@ -2,9 +2,12 @@ import {useEffect,useState} from 'react';
 import {Database as DatabaseIcon,Square,RotateCcw,Copy} from 'lucide-react';
 import {useData,type Api} from './api';
 import {ErrorMessage,Loading} from './components';
+import {DatabaseWorkflow} from './DatabaseWorkflow';
+import type {WorkflowEndpoint,WorkflowBudget} from '../src/control/database-workflow';
 
 type State={desired:'on'|'off';state:'off'|'pending'|'on'|'failed';failure:string|null;url:string;
- connection:{host:string;port:number;user:string;database:string}};
+ connection:{host:string;port:number;user:string;database:string};
+ workflow?:{runtime:string;endpoints:WorkflowEndpoint[];budget:WorkflowBudget|null;pooling:'pending';capacity:'unmeasured'}};
 const LABELS:Record<State['state'],string>={off:'Off',pending:'Applying…',on:'On',failed:'Not applied'};
 
 /** Direct database access: a PostgreSQL connection string for migrations, psql and ORMs. */
@@ -34,5 +37,7 @@ export function DatabaseSection({path,request}:{path:string;request:Api}){
      <button disabled={busy||current.state==='pending'} onClick={()=>void act('PUT','',{enabled:false})}><Square aria-hidden="true"/>Turn off</button></>
    :<button className="primary" disabled={busy||current.state==='pending'} onClick={()=>void act('PUT','',{enabled:true})}><DatabaseIcon aria-hidden="true"/>Turn on database access</button>}</div>
   <p className="small muted">The address is on the server itself (port {current.connection.port}). From your computer, open an SSH tunnel first: <code>ssh -L {current.connection.port}:127.0.0.1:{current.connection.port} you@your-server</code>.</p>
+  {current.workflow&&<><p className="small muted">Connection pooling is pending native admission. The current address uses direct access.</p>
+   <DatabaseWorkflow runtime={current.workflow.runtime} endpoints={current.workflow.endpoints} budget={current.workflow.budget??undefined}/></>}
  </>}</section>;
 }

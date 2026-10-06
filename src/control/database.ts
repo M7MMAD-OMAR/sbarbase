@@ -3,6 +3,9 @@ import {join} from 'node:path';
 import {randomBytes} from 'node:crypto';
 import {Catalog} from './catalog';
 import {authenticate,reply,type ManagementIdentity} from './auth';
+import {requireCurrentManagement} from './management-context';
+import {databaseListen} from '../http/database-proxy';
+import type {WorkflowEndpoint} from './database-workflow';
 
 /** Direct database access for one environment (docs/guides/database-access.md).
  *
@@ -43,11 +46,25 @@ export function databaseHandler(catalog:Catalog,identify:ManagementIdentity,dire
   if(!(reset?['POST']:['GET','PUT']).includes(request.method))return reply(405,{message:'Method not allowed'});
   const actor=await authenticate(identify,request);
   if(actor instanceof Response)return actor;
+  const epoch=catalog.managementSecurity.epoch(actor);
   const environment=match[1]!;
   try {
-   let state=catalog.databaseAccess(actor,environment);
+   let state=catalog.databaseWorkflowState(actor,environment,epoch);
    const details=connection(state.runtime);
-   const view=(extra:object={})=>({...catalog.databaseAccess(actor,environment),connection:details,url:connectionString(details),...extra});
+   const runtime=state.runtime;
+   const current=()=>{
+    requireCurrentManagement();
+    return catalog.databaseWorkflowState(actor,environment,epoch,runtime);
+   };
+   const view=(extra:object={})=>{
+    const value=current();
+    const endpoint:WorkflowEndpoint={...details,host:details.host.includes(':')?`[${details.host}]`:details.host,
+     mode:'direct',ready:value.desired==='on'&&value.state==='on'&&!!databaseListen()};
+    const result={...value,connection:details,url:connectionString(details),
+     workflow:{runtime,endpoints:[endpoint],budget:null,pooling:'pending',capacity:'unmeasured'},...extra};
+    current();
+    return result;
+   };
    if(request.method==='GET')return reply(200,{data:view()});
    let enabled=true;
    if(!reset){
@@ -57,7 +74,7 @@ export function databaseHandler(catalog:Catalog,identify:ManagementIdentity,dire
     if(typeof value!=='boolean'||Object.keys(input as object).length!==1)return reply(400,{message:'Send {"enabled": true} or {"enabled": false}'});
     enabled=value;
    } else if(state.desired!=='on')return reply(409,{message:'Turn database access on first'});
-   state=catalog.databaseAccess(actor,environment);
+   state=current();
    if(state.state==='pending')return reply(409,{message:'Database access change in progress'});
    // A password is made only when the login is turned on or reset, and shown only in this answer.
    const password=enabled?savePassword(directory,state.runtime):undefined;

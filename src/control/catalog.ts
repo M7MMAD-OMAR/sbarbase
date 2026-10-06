@@ -946,6 +946,16 @@ export class Catalog {
     return {runtime:job.runtime,desired:(row?.desired??'off') as RealtimeState['desired'],state:(row?.state??'off') as RealtimeState['state'],
       failure:row?.failure??null,updatedAt:row?.updated_at??null};
   }
+  /** One read-only direct workflow snapshot under current management and owner authority. */
+  databaseWorkflowState(actor:string,environment:string,epoch:number,expectedRuntime?:string):RealtimeState {
+    return this.db.transaction(()=>{
+      if(!Number.isSafeInteger(epoch)||epoch<0||this.managementSecurity.epoch(actor)!==epoch)
+        throw new Error('Forbidden');
+      const state=this.databaseAccess(actor,environment);
+      if(expectedRuntime!==undefined&&state.runtime!==expectedRuntime)throw new Error('Forbidden');
+      return state;
+    }).immediate();
+  }
   requestDatabaseAccess(actor:string,environment:string,on:boolean):RealtimeState {
     return this.db.transaction(()=>{
       const current=this.databaseAccess(actor,environment);
