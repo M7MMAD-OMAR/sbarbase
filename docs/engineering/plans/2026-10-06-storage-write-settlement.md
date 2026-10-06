@@ -204,3 +204,138 @@ The native SDK source presently prepares ordinary/signed upload/download,
 overwrite and deletion probes. The remaining actual native case harnesses and
 installed authority are pending SS3/SS4 implementation and assigned runtime
 roles. A plan with every test ID is not an executable complete native suite.
+
+
+## Authorized native source follow-up
+
+The coordinator verified the first delta and authorized source changes only in
+this drill, its test, this plan and new exclusive `lab/storage_native_authority.py`
+and `lab/test_storage_native_authority.py`. Original-native executions, Docker,
+services, VMs and retained resources remain unassigned. The earlier SS1/SS2
+acceptance applies to commit `75660a82777689080cd441cc583d6e2522c26100`, not later
+source bytes. A new independently reviewed source checkpoint must bind this
+follow-up. Every one of the 29 native case IDs needs its own executable logic
+or explicit implementation-pending entry. Unavailable real dependencies and
+unimplemented logic are separate states; neither counts as a successful case.
+
+Source checks will freeze exact commands before execution. Each check is at
+most 120 seconds, Python test address space at most 256 MiB, Bun has its own
+declared address-space and aggregate resident-memory ceilings, and the combined
+source-test role at most 180 active seconds and 16 MiB output. Only owned private
+files and bounded test processes are permitted. Original SDK syntax/protocol
+negative units and cross-language checks remain source fixtures, not original
+service observations. Separate source test phases avoid inheriting Python's
+small address-space ceiling in Bun. Queue, Redis and remote-provider cases need
+separately admitted real dependency phases and provider authority.
+
+### Proposed minimal coordinated Runtime integration
+
+This is a proposal against actual source; no shared Runtime path was edited.
+The complete `Runtime.launch` caller graph includes start, activate_services,
+reconcile_auth, reconcile_mail, realtime_start, functions_start and management,
+plus provision, resume, rotate_signing, functions_turn, realtime_turn and
+resume_published_environments. Guarding a gateway or one visible start command
+does not cover this graph.
+
+1. In `lab/durable_runtime.py` Runtime.launch, currently lines 378 through 426,
+   acquire the installed installation-wide launch/effect guard before inspect,
+   replacement removal, start, volume creation or run. Bind each exact daemon,
+   namespace, container/image/config/mount/resource, operation, generation,
+   management epoch and source inventory. Keep the guard across the mutation,
+   durably record pending intent first and reobserve immutable current identity
+   after any external command. Default refusal must survive process restart,
+   lost acknowledgement, direct launch callers and container recreation.
+2. In Runtime.start, currently lines 448 through 490, check installation-wide
+   maintenance authority before any shared network/database/management or
+   original Storage start, and before publishing database.json or resuming
+   published environments. One shared multi-tenant Storage container requires
+   complete all-tenant coverage and preserved neighbors. A selected-tenant
+   manifest cannot stop that shared writer.
+3. In Runtime.activate_services, currently lines 589 through 650, hold the same
+   persistent publication guard around original Storage tenant POST/PATCH and
+   endpoint publication. Revalidate after HTTP/readiness/SQL operations and
+   immediately before atomic endpoints.json replacement. Compare authoritative
+   current operation, generation, epoch, routing revision and complete ordered
+   inventory inside the final publication critical section. Preserve original
+   native tenant secrets/config, routes and new-working/stale-denied grant
+   semantics. Auth/Rest/realtime/functions callers must not indirectly reopen
+   publication during a held Storage generation.
+
+The coordinator should own this shared-file delta and the installed guard
+issuer/consumer binding. Proposed API obligations are an installed guard's
+exclusive acquisition, before-effect durable intent, immutable reobservation
+and final same-authority publication check. The new source authority has no
+installed issuer or publication integration and cannot supply a native receipt
+or mint admission. Existing source receipt/default refusal remains in force.
+Installer/systemd/worker restarts and Catalog publication outside this Runtime
+module also require the same installed guard; closing these three spans alone
+cannot satisfy SS4 or SS5. Backup snapshot holders and all tenant migration
+remain separate coordinated requirements.
+
+
+The follow-up source matrix declares 14 helpers, not 14 completed native cases:
+nine original SDK/HTTP helpers and five local controller/observation helpers.
+Fifteen IDs retain explicit pending implementation. Actual lost-stop-ack delivery
+and installed generation mutation remain explicit pending stages even where a
+recovery or refusal oracle exists. Local commands are gated before subprocess
+by missing installed authority. Shared coverage, credential fencing, compiled
+provenance and every enabled queue/TUS/multipart/Redis/provider barrier remain
+unproven. Source row/file comparisons never admit native settlement.
+
+The initial frozen follow-up source profile separates 128 planned pure Python cases,
+three Python/Bun source cases, and 78 Bun contract cases. These are planned
+counts until the commands execute. Python allocation/address-space soft limit
+is 256 MiB; pure Python test processes also use that hard limit. The hybrid
+phase reserves a larger hard ceiling only so its fixed child setup can set Bun's
+separate limit immediately before exec. No Python code allocates above its
+256 MiB soft limit. Bun's virtual address-space ceiling is 8 TiB; aggregate
+resident memory of each owned test process group is capped at 768 MiB by the
+supervisor. Source role active time is 180 seconds, command time 120 seconds and
+combined captured output 16 MiB. The supervisor binds exact helper/source bytes,
+serializes its cumulative budget and kills only its own process group on a bound
+failure. Profile scripts and actual logs are evidence artifacts, not production
+or portable source dependencies. Normal project reproduction still uses Python
+unittest and Bun commands.
+
+
+The first bounded source attempts failed during import, before any test ran.
+Own-process mapping inspection identified glibc locale-archive as a 233381888
+byte virtual mapping. Changing allocator/JIT settings did not resolve it; these
+failed observations remain retained. The final source commands explicitly use
+`LC_ALL=C` and `PYTHONUTF8=1`, with the existing bundled Python interpreter.
+The 256 MiB limit is unchanged. This locale choice affects only source check
+processes and does not rewrite original service configuration or object metadata.
+
+
+Implementer inspection found two additional reconciliation obligations. Two new regression tests failed on the
+earlier bytes: direct reconciliation accepted running writers or changed
+stopped observations. Those failures remain historical evidence. The repair requires the ledger lock, exact completed observed-stop
+ownership, detached validated stopped observations and mandatory database
+container/config/image/start/process identity before and after file/SQL capture.
+The repaired profile plans 144 pure Python cases, three Python/Bun cases and
+78 Bun cases. These become verified counts only after bounded execution. Two
+new fresh critics must review the repaired source. Native admission remains
+false and the installed execution guard still refuses before subprocess.
+
+
+Signed SDK helpers require both standard and signed ingress prerequisites;
+disabling either leaves the signed cases unavailable. Complete unique original
+writer observations preserve enrolled manifest order even when the daemon
+inventory is inspected by sorted CID. Private source regressions exercise these
+feature and multi-writer ordering obligations without original service effects.
+
+
+The bounded source role also requires two real private-process supervisor
+regressions: a reduced retained-output ceiling and a child that closes both
+output pipes before termination. These are supervisor-control checks, never
+original Storage writer evidence. Their commands and helper/source bindings
+must be frozen before execution and their elapsed time/output charged to the
+same role budget. Native admission stays false.
+
+
+The supervisor must continue monitoring until both process termination and
+pipe closure, clip retained bytes to the remaining role allowance, and always
+terminate/reap its owned process group and persist elapsed/output accounting
+on exceptions or interruption. The output budget includes a conservative
+reservation for structured supervisor metadata. Closed pipes do not establish
+process exit. Reduced-policy private probes exercise these invariants.

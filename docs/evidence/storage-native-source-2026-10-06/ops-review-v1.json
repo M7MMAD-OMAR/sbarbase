@@ -1,0 +1,17 @@
+{
+  "reviewer": "native-source-ops-critic-v1",
+  "axis": "operational-correctness",
+  "plan_hash": "9af5054961109ad1f0cc09655b44d97929bb7c33093d071dcf9569aaec552d03",
+  "source_hash": "5f7e8c518ad156f3a76f605861ced7130a52bbfd12c6e3e66ce5d0bd719043cd",
+  "verdict": "pass",
+  "findings": [],
+  "artifacts": [
+    "ops-evidence-v1.md",
+    "profile.json",
+    "bounded-checks.py",
+    "run-python.py",
+    "check-python-9.log",
+    "check-hybrid-13.log",
+    "check-bun-14.log"
+  ]
+}

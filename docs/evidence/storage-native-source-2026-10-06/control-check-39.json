@@ -1,0 +1,38 @@
+{
+  "total": 2,
+  "failed": 2,
+  "skipped": 0,
+  "native_accepted": false,
+  "seconds": 0.04313430399997742,
+  "observations": [
+    {
+      "id": "output-cap",
+      "passed": false,
+      "runner_returncode": 1,
+      "retained_output_bytes": 0,
+      "budget": {
+        "active_seconds": 0,
+        "output_bytes": 0,
+        "checks": []
+      },
+      "private_child_survived_runner": false,
+      "runner_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "runner_stderr_sha256": "38a8000653db619c94b19e0bb1bb82b56f898b8df65c8c59aec9eeac1087b236"
+    },
+    {
+      "id": "closed-pipes",
+      "passed": false,
+      "runner_returncode": 1,
+      "retained_output_bytes": 0,
+      "budget": {
+        "active_seconds": 0,
+        "output_bytes": 0,
+        "checks": []
+      },
+      "private_child_survived_runner": false,
+      "runner_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "runner_stderr_sha256": "3434f0ed185ebf9b61552f6c2c11f6989da695e94a332f21fb043f70e93709c0"
+    }
+  ],
+  "harness_error": null
+}

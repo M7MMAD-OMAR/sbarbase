@@ -1,0 +1,21 @@
+{
+  "purpose": "static byte/mode inventory, no behavior or runtime proof",
+  "argv": [
+    "env",
+    "LC_ALL=C",
+    "PYTHONUTF8=1",
+    "PYTHONMALLOC=malloc",
+    "/home/sbarah/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+    "/home/sbarah/.codex/sbarbase-settlement/20261006/native-source-v2/final-byte-audit.py"
+  ],
+  "script_sha256": "957dac56e6a886f97367b38ee1b55bc9a6dcb8ebb05bac479e2f2ef2e8474892",
+  "bounds": {
+    "python_as_bytes": 268435456,
+    "command_seconds": 120,
+    "role_seconds": 180,
+    "output_bytes": 16777216
+  },
+  "native_authorized": false,
+  "delivery_paths_sha256": "d471bcab03469c6806803dadb4df4bc30fae9326534ac139d9a4eab400996284",
+  "phase": "preliminary public-source identity and five authorized source bytes"
+}

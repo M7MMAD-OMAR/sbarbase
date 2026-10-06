@@ -1,0 +1,58 @@
+{
+  "total": 2,
+  "failed": 2,
+  "skipped": 0,
+  "native_accepted": false,
+  "seconds": 3.0912403099973744,
+  "observations": [
+    {
+      "id": "output-cap",
+      "passed": false,
+      "runner_returncode": 1,
+      "retained_output_bytes": 24576,
+      "budget": {
+        "active_seconds": 0.015597446999890963,
+        "checks": [
+          {
+            "argv": [
+              "/home/sbarah/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+              "/tmp/private-supervisor-lrv89uxc/child.py"
+            ],
+            "log": "check-python-1.log",
+            "output_bytes": 24576,
+            "peak_group_rss": 13684736,
+            "phase": "python",
+            "reason": "Combined output bound exceeded",
+            "returncode": -9,
+            "seconds": 0.015597446999890963
+          }
+        ],
+        "output_bytes": 24576
+      },
+      "private_child_survived_runner": false,
+      "private_identity_created": true,
+      "runner_stdout": "{\"total\": 0, \"failed\": 1, \"skipped\": 0, \"native_accepted\": false, \"reason\": \"Combined output bound exceeded\", \"raw_sha256\": \"9ab50e8c4b1deb044f03c271562e113d4b260729051134258096ae972467f931\", \"raw_log\": \"/tmp/private-supervisor-lrv89uxc/check-python-1.log\", \"peak_group_rss\": 13684736, \"role_seconds_used\": 0.015597446999890963, \"role_output_bytes\": 24576}\n",
+      "runner_stderr": "",
+      "runner_stdout_sha256": "c59998dbd3f6136f7aaee450d0b2163b12166141a13d0378b93321488dc83dbd",
+      "runner_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "closed-pipes",
+      "passed": false,
+      "runner_returncode": 1,
+      "retained_output_bytes": 0,
+      "budget": {
+        "active_seconds": 0,
+        "output_bytes": 0,
+        "checks": []
+      },
+      "private_child_survived_runner": true,
+      "private_identity_created": true,
+      "runner_stdout": "",
+      "runner_stderr": "Traceback (most recent call last):\n  File \"/tmp/private-supervisor-psps2cgn/bounded-checks.py\", line 55, in <module>\n    proc.wait(timeout=3)\n  File \"/home/sbarah/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/subprocess.py\", line 1264, in wait\n    return self._wait(timeout=timeout)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/sbarah/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/subprocess.py\", line 2045, in _wait\n    raise TimeoutExpired(self.args, timeout)\nsubprocess.TimeoutExpired: Command '['/home/sbarah/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3', '/tmp/private-supervisor-psps2cgn/child.py']' timed out after 3 seconds\n",
+      "runner_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "runner_stderr_sha256": "f865a8502bdfb809dedc9eecb965c640d66e7d48c32b8bf061008d3ec088e931"
+    }
+  ],
+  "harness_error": null
+}

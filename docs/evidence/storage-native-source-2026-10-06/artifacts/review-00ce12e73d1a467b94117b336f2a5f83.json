@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "status": "refrozen-C-locale-after-measured-locale-archive-mapping",
+  "commands": {
+    "python": [
+      "env",
+      "LC_ALL=C",
+      "PYTHONUTF8=1",
+      "PYTHONMALLOC=malloc",
+      "/home/sbarah/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+      "/home/sbarah/.codex/sbarbase-settlement/20261006/native-source-v2/bounded-checks.py",
+      "--check",
+      "python"
+    ],
+    "hybrid": [
+      "env",
+      "LC_ALL=C",
+      "PYTHONUTF8=1",
+      "PYTHONMALLOC=malloc",
+      "/home/sbarah/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+      "/home/sbarah/.codex/sbarbase-settlement/20261006/native-source-v2/bounded-checks.py",
+      "--check",
+      "hybrid"
+    ],
+    "bun": [
+      "env",
+      "LC_ALL=C",
+      "PYTHONUTF8=1",
+      "PYTHONMALLOC=malloc",
+      "/home/sbarah/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+      "/home/sbarah/.codex/sbarbase-settlement/20261006/native-source-v2/bounded-checks.py",
+      "--check",
+      "bun"
+    ]
+  },
+  "bounds": {
+    "python_as_bytes": 268435456,
+    "bun_as_bytes": 8796093022208,
+    "group_rss_bytes": 805306368,
+    "check_seconds": 120,
+    "role_active_seconds": 180,
+    "role_output_bytes": 16777216
+  },
+  "expected_case_counts": {
+    "python": 128,
+    "hybrid": 3,
+    "bun": 78
+  },
+  "native_execution_authorized": false,
+  "bindings": [
+    {
+      "path": "/home/sbarah/.codex/worktrees/09c0/sbarbase/lab/storage_native_authority.py",
+      "sha256": "eb43847c6b2617adcdf250fcd2ed6aaf1add0c1eb512dee2801571f8170390fb"
+    },
+    {
+      "path": "/home/sbarah/.codex/worktrees/09c0/sbarbase/lab/test_storage_native_authority.py",
+      "sha256": "341a884ebceffe17ab4d7402a8980f031b0b78c87a4e9ee81c9aaf0c143350c7"
+    },
+    {
+      "path": "/home/sbarah/.codex/worktrees/09c0/sbarbase/lab/disposable-storage-settlement-drill.py",
+      "sha256": "43756421b1d7b175bae6049c9bc85ea64690b7cc92f5fbc4c38c431728216d24"
+    },
+    {
+      "path": "/home/sbarah/.codex/worktrees/09c0/sbarbase/lab/test_disposable_storage_settlement_drill.py",
+      "sha256": "b0c8901f4f0ab20ebc004e4387f718a9452a5979c96f5c219e2d79446460492c"
+    },
+    {
+      "path": "/home/sbarah/.codex/worktrees/09c0/sbarbase/docs/engineering/plans/2026-10-06-storage-write-settlement.md",
+      "sha256": "5dfb5c40b9533e2176a00b9b31f3531394956333d88758256ff0803570398d56"
+    },
+    {
+      "path": "/home/sbarah/.codex/sbarbase-settlement/20261006/native-source-v2/run-python.py",
+      "sha256": "16f5db8adf0d854e0a17aac284607da0140cf5e65296423519f24ecb0e0db9a3"
+    },
+    {
+      "path": "/home/sbarah/.codex/sbarbase-settlement/20261006/native-source-v2/bounded-checks.py",
+      "sha256": "4517f29c6446f5d3ae930841e55c456b73109924776eb04c80cb4c3f0213fa5d"
+    }
+  ],
+  "python_environment": {
+    "PYTHONMALLOC": "malloc",
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "PYTHON_JIT": "0",
+    "LC_ALL": "C",
+    "PYTHONUTF8": "1"
+  },
+  "python_executable": "/home/sbarah/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3"
+}

@@ -1,0 +1,25 @@
+{
+  "reviewer": "native-source-spec-v2",
+  "axis": "specification",
+  "source_hash": "7fd894ae5221d448411e404f0d33cace38683637d16e52121ec80e66023c923e",
+  "plan_hash": "9af5054961109ad1f0cc09655b44d97929bb7c33093d071dcf9569aaec552d03",
+  "verdict": "invalid",
+  "findings": [],
+  "artifacts": ["spec-evidence-v2.md"],
+  "reason": "The authorized scoped source plan exposed prior candidate reviewer verdict history. The coordinator confirmed that this context cannot provide fresh independent acceptance and instructed the reviewer to stop. Source inspection is incomplete and no approved checks were executed.",
+  "acceptance_scope": {
+    "NS1": "unproven by this invalid review",
+    "NS2": "unproven by this invalid review",
+    "NS3": "unproven by this invalid review",
+    "SS3": "open",
+    "SS4": "open",
+    "SS5": "open"
+  },
+  "checks_executed": [],
+  "hash_verification": "The first hosts.py review-state matched the packet at revision 30. After the coordinator removed embedded candidate verdict history, the final review-state returned a changed source hash. The report preserves packet identity as the inspected input and cannot be imported as current acceptance.",
+  "current_state_at_final_verification": {
+    "revision": 30,
+    "plan_hash": "9af5054961109ad1f0cc09655b44d97929bb7c33093d071dcf9569aaec552d03",
+    "source_hash": "6ecf6f0539a4865fbd8db515d6facabc4e00c7befbfa70c48f37adcfc67876f5"
+  }
+}
