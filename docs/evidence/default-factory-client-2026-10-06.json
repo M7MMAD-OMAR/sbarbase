@@ -1,0 +1,47 @@
+{
+  "date": "2026-10-06",
+  "scope": "exact-default-installed-psql-public-version-only",
+  "environment": "isolated local Linux amd64 Docker on the user workstation",
+  "factory": {
+    "registry_reference": "public.ecr.aws/supabase/postgres@sha256:b3bfedb107413abb3b8cb0d0874b0414a1dceb3d55bc0c778de6ad22d1f7dc86",
+    "public_image_fields_verified": 9,
+    "ordered_layers_verified": 29,
+    "inherited_labels": null,
+    "helper_healthcheck_disabled": true
+  },
+  "client": {
+    "installed_path": "/nix/var/nix/profiles/default/bin/psql",
+    "arguments": [
+      "--version"
+    ],
+    "observed_version": "17.6",
+    "configured_user": "100:101",
+    "effective_uid_accepted": false
+  },
+  "actual": {
+    "native_exit_code": 0,
+    "commands": 15,
+    "streams": 30,
+    "stream_bytes": 23254,
+    "all_commands_quiet_exit_zero": true,
+    "all_streams_eof": true,
+    "independent_actual_review": "MET",
+    "root_actual_closure": "MET"
+  },
+  "closure": {
+    "native_wait_exit_code": 0,
+    "oom_observed": false,
+    "forced_removal": false,
+    "exact_helper_absence_verified": true,
+    "unresolved": []
+  },
+  "boundaries": {
+    "private_sql_session_accepted": false,
+    "database_startup_accepted": false,
+    "restart_accepted": false,
+    "cron_vault_continuity_accepted": false,
+    "physical_restore_accepted": false,
+    "full_restoration_accepted": false,
+    "production_accepted": false
+  }
+}

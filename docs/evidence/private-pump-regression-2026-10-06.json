@@ -68,8 +68,17 @@
     "baseline_revision": "6c86b1044249881f781e5b3f1139c8c209d20c84",
     "baseline_result": "SUCCESS",
     "baseline_run": "https://github.com/M7MMAD-OMAR/sbarbase/actions/runs/37402639965",
-    "scope": "baseline before the four public component additions",
-    "four_additions_ci_verified": false
+    "scope": "Baseline observation retained; published component additions passed the three ordinary-push CI jobs at 9666947. This does not transfer empty-host or native startup acceptance to that revision.",
+    "four_additions_ci_verified": true,
+    "published_revision": "9666947344e5132c3d16e5336a8141f41c06e5ef",
+    "published_result": "SUCCESS",
+    "published_run": "https://github.com/M7MMAD-OMAR/sbarbase/actions/runs/37404496379",
+    "published_jobs": {
+      "checks": "SUCCESS",
+      "python-floor": "SUCCESS",
+      "docker-install": "SUCCESS",
+      "empty-host-acceptance": "SKIPPED"
+    }
   },
   "historical_scope": {
     "complete_source_test_count": 1449,
