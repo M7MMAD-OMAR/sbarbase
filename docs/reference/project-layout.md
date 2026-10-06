@@ -47,6 +47,17 @@ These eight public files are integrated preparation tooling and its source regre
 
 `lab/test_notification_producers.py` separately asserts the exact expected startup-failure diagnostic. The guardian test fixture restores the caller's original subreaper state, including nested test failure cleanup. Full source results and native preparation results remain separate evidence gates.
 
+## Private SQL completion sources
+
+These public source components define the finite private SQL completion protocol. The complete frozen 881-file public source run passed 1504 tests with no failures, errors, warnings or skips; independent actual review and root closure passed. See the [public source regression evidence](../evidence/private-pump-regression-2026-10-06.json). The last CI result, `6c86`, covers the baseline before these four additions. For native execution, installed native client provenance, private startup/session authority, the owned restart lease, Cron/Vault cold/warm continuity and full restoration remain UNRUN and unaccepted.
+
+| Source | Responsibility |
+|---|---|
+| `deploy/verify/private_psql_producer.py` | Fixed selector encoding, exclusive namespace guards, control framing and transfer budgets |
+| `deploy/verify/private_request_pump.py` | Bounded request/completion lifecycle, closed outcomes and refusal on uncertainty |
+| `lab/test_private_psql_producer.py` | 25 public component regressions |
+| `lab/test_private_request_pump.py` | 30 public pump regressions |
+
 ## Current authority and verification
 
 The [project goal](../../PROJECT_GOAL.md), [product plan](../engineering/plans/2026-10-03-product-and-portability-plan.md) and [execution method](../engineering/plans/2026-10-03-gauntlet-execution-method.md) define current development. The [native placement contract](../engineering/plans/2026-10-03-native-placement-identity.md) separates experimental dedicated placement from the existing shared runtime. The [ledger](../engineering/gauntlet-ledger.json) records source-bound fragments, passes and losses; local packet references are not distributed public evidence. Dated September plans and checkpoints remain historical records.

@@ -1,0 +1,88 @@
+{
+  "date": "2026-10-06",
+  "scope": "complete-source-regressions-for-frozen-881-file-public-source",
+  "production_accepted": false,
+  "publication_status": "accepted-complete-public-source-regression",
+  "observation_provenance": "actual bounded Docker execution with independent actual review and complete root closure",
+  "independent_actual_review": "MET",
+  "source": {
+    "frozen_public_files": 881,
+    "additions": [
+      "deploy/verify/private_psql_producer.py",
+      "deploy/verify/private_request_pump.py",
+      "lab/test_private_psql_producer.py",
+      "lab/test_private_request_pump.py"
+    ],
+    "base_revision": "6c86b1044249881f781e5b3f1139c8c209d20c84",
+    "documentation_followup_outside_test_snapshot": true,
+    "formatting_followup": {
+      "path": "deploy/verify/private_psql_producer.py",
+      "change": "removed one empty EOF line after regression run",
+      "ast_unchanged": true
+    }
+  },
+  "full": {
+    "native_exit_code": 0,
+    "duration_seconds": 70.78473650599994,
+    "discovered": 1504,
+    "run": 1504,
+    "failures": 0,
+    "errors": 0,
+    "warnings": 0,
+    "skips": 0,
+    "expected_failures": 0,
+    "unittest_duration_seconds": 61.044,
+    "unittest_result": "OK",
+    "unexpected_successes": 0
+  },
+  "focused_roles": {
+    "materials": 14,
+    "factory": 9,
+    "guardian": 29
+  },
+  "public_components": {
+    "producer_tests": 25,
+    "pump_tests": 30,
+    "scope": "public source component regressions; no installed private client or native startup acceptance"
+  },
+  "closure": {
+    "public_file_captures": {
+      "count": 294,
+      "passes": 2
+    },
+    "mode_captures": {
+      "count": 881,
+      "passes": 2
+    },
+    "commands": 96,
+    "streams": 192,
+    "stream_bytes": 11561201,
+    "helpers": 8,
+    "all_helper_wait_exit_codes": 0,
+    "oom_observed": false,
+    "forced_removal": false,
+    "exact_helper_absence_verified": true,
+    "unresolved": []
+  },
+  "ci": {
+    "baseline_revision": "6c86b1044249881f781e5b3f1139c8c209d20c84",
+    "baseline_result": "SUCCESS",
+    "baseline_run": "https://github.com/M7MMAD-OMAR/sbarbase/actions/runs/37402639965",
+    "scope": "baseline before the four public component additions",
+    "four_additions_ci_verified": false
+  },
+  "historical_scope": {
+    "complete_source_test_count": 1449,
+    "source_revision": "066f5ec774fb2c863758c17b25f81e0e51f7503b",
+    "preserved": true
+  },
+  "native_acceptance": {
+    "installed_private_client_provenance": "UNRUN",
+    "private_startup_session_authority": "UNRUN",
+    "owned_restart_lease": "UNRUN",
+    "cron_vault_cold_warm_continuity": "UNRUN",
+    "physical_restore": "UNRUN",
+    "full_restoration": "UNRUN"
+  },
+  "root_actual_closure": "MET"
+}
