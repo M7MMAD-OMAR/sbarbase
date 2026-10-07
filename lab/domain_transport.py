@@ -213,7 +213,13 @@ def certificate(directory, reference, hostname, now=None):
         if cert.public_key().public_bytes(*form) != private.public_key().public_bytes(*form):
             refuse('certificate_key_pair')
         now = now or datetime.datetime.now(datetime.timezone.utc)
-        if not cert.not_valid_before_utc <= now < cert.not_valid_after_utc:
+        try:
+            valid_before, valid_after = cert.not_valid_before_utc, cert.not_valid_after_utc
+        except AttributeError:
+            # Cryptography before 42 returns naive datetimes already expressed in UTC.
+            valid_before = cert.not_valid_before.replace(tzinfo=datetime.timezone.utc)
+            valid_after = cert.not_valid_after.replace(tzinfo=datetime.timezone.utc)
+        if not valid_before <= now < valid_after:
             refuse('certificate_expired_or_not_yet_valid')
         names = cert.extensions.get_extension_for_class(x509.SubjectAlternativeName).value.get_values_for_type(x509.DNSName)
         def matches(name):
@@ -223,7 +229,7 @@ def certificate(directory, reference, hostname, now=None):
         if not any(matches(name.lower()) for name in names):
             refuse('certificate_hostname')
         return {'fingerprint': cert.fingerprint(__import__('cryptography.hazmat.primitives.hashes', fromlist=['SHA256']).SHA256()).hex(),
-                'expires_at': cert.not_valid_after_utc.isoformat(), 'renewal_due': (cert.not_valid_after_utc - now).total_seconds() <= 30 * 86400,
+                'expires_at': valid_after.isoformat(), 'renewal_due': (valid_after - now).total_seconds() <= 30 * 86400,
                 'key_pair': True, 'public_trust': False}
     except SetupRefusal:
         raise

@@ -245,6 +245,39 @@ class CertificateTests(unittest.TestCase):
         result = domain.certificate(self.root, 'bundle-a', 'localhost', self.now)
         self.assertTrue(result['key_pair']); self.assertFalse(result['public_trust']); self.assertFalse(result['renewal_due'])
 
+    def check_certificate_datetime_api(self, modern):
+        native = x509.load_pem_x509_certificate((self.bundle / 'chain.pem').read_bytes())
+        before = (self.now - datetime.timedelta(days=2)).replace(microsecond=0)
+        after = (self.now + datetime.timedelta(days=60)).replace(microsecond=0)
+        class CertificateApi:
+            def __getattr__(self, name):
+                if name in ('not_valid_before_utc', 'not_valid_after_utc'):
+                    if not modern:
+                        raise AttributeError(name)
+                    return before if name == 'not_valid_before_utc' else after
+                if name in ('not_valid_before', 'not_valid_after'):
+                    if modern:
+                        raise AssertionError('Modern certificate must not use the legacy datetime API')
+                    return (before if name == 'not_valid_before' else after).replace(tzinfo=None)
+                return getattr(native, name)
+        with patch('cryptography.x509.load_pem_x509_certificate', return_value=CertificateApi()):
+            result = domain.certificate(self.root, 'bundle-a', 'localhost', self.now)
+            self.assertEqual(result['expires_at'], after.isoformat())
+            self.assertTrue(result['key_pair']); self.assertFalse(result['public_trust']); self.assertFalse(result['renewal_due'])
+            self.assertTrue(domain.certificate(self.root, 'bundle-a', 'localhost', before)['key_pair'])
+            for instant in (before - datetime.timedelta(seconds=1), after, after + datetime.timedelta(seconds=1)):
+                with self.subTest(modern=modern, instant=instant), self.assertRaisesRegex(domain.SetupRefusal, 'expired_or_not_yet_valid'):
+                    domain.certificate(self.root, 'bundle-a', 'localhost', instant)
+            self.assertTrue(domain.certificate(self.root, 'bundle-a', 'localhost', after - datetime.timedelta(days=30))['renewal_due'])
+            with self.assertRaisesRegex(domain.SetupRefusal, 'certificate_hostname'):
+                domain.certificate(self.root, 'bundle-a', 'wrong.example.org', self.now)
+
+    def test_legacy_certificate_datetime_api_preserves_utc_validation(self):
+        self.check_certificate_datetime_api(modern=False)
+
+    def test_modern_certificate_datetime_api_avoids_legacy_properties(self):
+        self.check_certificate_datetime_api(modern=True)
+
     def test_wrong_hostname_refused(self):
         with self.assertRaisesRegex(domain.SetupRefusal, 'certificate_hostname'):
             domain.certificate(self.root, 'bundle-a', 'other.example.org', self.now)

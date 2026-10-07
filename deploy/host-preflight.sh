@@ -194,8 +194,13 @@ case "$source" in /dev/*)
     ;;
 esac
 if [ -z "$device" ]; then
-    numbers=$(findmnt -no MAJ:MIN --target "$root" 2>/dev/null) || refuse io_device_unavailable 'The data root block device query failed' 'Use a local block backed data root'
-    printf '%s\n' "$numbers" | awk '/^[1-9][0-9]*:[0-9]+$/ {good=1} END {exit !(good && NR==1)}' || refuse io_device_unavailable 'The data root has no unambiguous block device' 'Expose the source block device or valid mount device numbers'
+    numbers=$(findmnt -rno MAJ:MIN --target "$root" 2>/dev/null) || refuse io_device_unavailable 'The data root block device query failed' 'Use a local block backed data root'
+    if ! printf '%s\n' "$numbers" | awk '/^[1-9][0-9]*:[0-9]+$/ {good=1} END {exit !(good && NR==1)}'; then
+        if printf '%s\n' "$numbers" | awk '/^[0-9]+:[0-9]+$/ && length($0)<=21 {good=1} END {exit !(good && NR==1)}'; then
+            printf '%s\n' "local-v1 mount block-device numbers: $numbers" >&2
+        fi
+        refuse io_device_unavailable 'The data root has no unambiguous block device' 'Expose the source block device or valid mount device numbers'
+    fi
     device=$(readlink -e -- "/sys/dev/block/$numbers") || refuse io_device_unavailable 'The block device is missing from sysfs' 'Expose the host block device sysfs entries'
 fi
 [ "$(stat -L -c %F -- "$device" 2>/dev/null)" = directory ] || refuse io_device_unavailable 'The sysfs block device is not resolvable' 'Expose the host block device sysfs entries'

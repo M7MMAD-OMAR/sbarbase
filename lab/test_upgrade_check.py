@@ -58,6 +58,12 @@ class CandidateTests(unittest.TestCase):
 
     @unittest.skipIf(shutil.which('bun') is None, 'bun is not installed')
     def test_the_migrated_catalog_is_one_the_previous_version_refuses(self):
+        # Both real catalog versions use the checkout's frozen installed dependencies.
+        # The candidate tree is temporary and cannot discover them through its ancestors.
+        dependencies = ROOT / 'node_modules'
+        self.assertTrue((dependencies / '@supabase' / 'supabase-js').is_dir(),
+                        'Install frozen Bun dependencies before running catalog upgrade probes')
+        (self.base / 'node_modules').symlink_to(dependencies, target_is_directory=True)
         path = self.base / 'control.sqlite'
         driver = ("import {{Catalog}} from '{root}/src/control/catalog.ts';"
                   "const c=new Catalog('{path}');console.log(c.schemaVersion());c.close?.();")

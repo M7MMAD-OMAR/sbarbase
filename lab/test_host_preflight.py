@@ -55,8 +55,11 @@ if name == 'uname':
     output(config.get({'-s': 'host_os', '-m': 'host_arch', '-n': 'host_name'}[args[0]], {'-s': 'Linux', '-m': 'x86_64', '-n': 'fixture-node'}[args[0]]))
 if name == 'findmnt':
     if config.get('findmnt_fail'): sys.exit(1)
-    field = args[args.index('-o') + 1] if '-o' in args else args[args.index('-no') + 1]
-    output(config.get({'FSTYPE': 'filesystem', 'MAJ:MIN': 'numbers', 'SOURCE': 'source', 'OPTIONS': 'mount_options'}[field], {'FSTYPE': 'ext4', 'MAJ:MIN': '8:0', 'SOURCE': '/dev/root', 'OPTIONS': 'rw,relatime'}[field]))
+    field = args[args.index('-o') + 1] if '-o' in args else args[args.index('-rno' if '-rno' in args else '-no') + 1]
+    value = config.get({'FSTYPE': 'filesystem', 'MAJ:MIN': 'numbers', 'SOURCE': 'source', 'OPTIONS': 'mount_options'}[field], {'FSTYPE': 'ext4', 'MAJ:MIN': '8:0', 'SOURCE': '/dev/root', 'OPTIONS': 'rw,relatime'}[field])
+    if field == 'MAJ:MIN' and not any(flag in args for flag in ('-r', '--raw', '-rno')):
+        value = '  ' + value + ' '
+    output(value)
 if name == 'cat' and args == ['/sys/fs/cgroup/cgroup.controllers']:
     if config.get('cgroup_fail'): sys.exit(1)
     output(config.get('controllers', 'cpuset cpu io memory hugetlb pids rdma misc'))
@@ -267,6 +270,25 @@ class ShellAdmissionTests(unittest.TestCase):
         self.config.pop('controllers')
         self.refusal('io_device_unavailable', changes={'numbers': '0:41'})
         self.refusal('io_device_unavailable', changes={'numbers': '8:0', 'device_fail': True})
+
+    def test_mount_device_numbers_request_raw_output_before_strict_validation(self):
+        result = self.run_shell(changes={'numbers': '8:0'}, runtime=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        probes = [row['args'] for row in self.journal() if row['tool'] == 'findmnt' and 'MAJ:MIN' in row['args']]
+        self.assertEqual(probes, [['-rno', 'MAJ:MIN', '--target', str(self.data)]])
+
+    def test_raw_mount_numbers_still_refuse_zero_and_ambiguous_identity(self):
+        for numbers in ('0:41', '8:0\n8:1', '0:41\njunk', '0:123456789012345678901', '', '  8:0 '):
+            with self.subTest(numbers=numbers):
+                result = self.run_shell(['up'], changes={'numbers': numbers})
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('[io_device_unavailable]', result.stderr)
+                self.assertEqual(self.journal('mutations.jsonl'), [])
+                if numbers == '0:41':
+                    self.assertIn('local-v1 mount block-device numbers: 0:41\n', result.stderr)
+                else:
+                    self.assertNotIn('local-v1 mount block-device numbers:', result.stderr)
+                    self.assertNotIn(numbers or 'junk', result.stderr)
 
     def test_partition_requires_the_runtime_whole_disk_mapping(self):
         result = self.run_shell(changes={'partition': True})

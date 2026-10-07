@@ -1,0 +1,88 @@
+{
+  "schema": 1,
+  "date": "2026-10-07",
+  "scope": "Focused source hotfix verification, not native acceptance",
+  "failed_integration": {
+    "commit": "19d781b1879871cda5b628cb55ae4594861679fd",
+    "run": 37587959272,
+    "url": "https://github.com/M7MMAD-OMAR/sbarbase/actions/runs/37587959272",
+    "conclusion": "failure",
+    "jobs": {
+      "checks": "success",
+      "python-floor": "failure",
+      "docker-install": "failure",
+      "empty-host-acceptance": "skipped"
+    }
+  },
+  "focused_checks": [
+    {
+      "module": "test_domain_transport.py",
+      "tests": 40,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "exit_code": 0
+    },
+    {
+      "module": "test_upgrade_check.py",
+      "tests": 26,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "exit_code": 0
+    },
+    {
+      "module": "test_host_preflight.py",
+      "tests": 33,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "exit_code": 0,
+      "groups": [
+        {
+          "tests": 17,
+          "seconds": 73.183
+        },
+        {
+          "tests": 16,
+          "seconds": 44.518
+        }
+      ]
+    }
+  ],
+  "source_review": "Independent six-file review found no blocking source defect. No native acceptance was run by the reviewer.",
+  "limits": {
+    "memory": "512M",
+    "cpu_percent": 50,
+    "tasks": 128,
+    "docker_endpoint": "unreachable",
+    "native_services_tested": false,
+    "production_ready": false
+  },
+  "source_bindings": {
+    ".github/workflows/ci.yml": {
+      "sha256": "5dd0917a90a36ec38ad965da455ab0a03694ad3be3d2e0b1e53951454e330580",
+      "mode": "0o644"
+    },
+    "deploy/host-preflight.sh": {
+      "sha256": "0104f9f6b3dead119139f46b33ceb9c497e9189093423b4104eca00f0b06c71d",
+      "mode": "0o755"
+    },
+    "lab/domain_transport.py": {
+      "sha256": "5f32688c19c6d73ec7ff1809894bc3f81459db19f56635b41c204d00295d3a4a",
+      "mode": "0o644"
+    },
+    "lab/test_domain_transport.py": {
+      "sha256": "b494350cadd80c6c82594a51249d1ba6e24c7391f0c0277b58da8f59e046d489",
+      "mode": "0o644"
+    },
+    "lab/test_host_preflight.py": {
+      "sha256": "c76ebf5cf6d9431c8cac8a6c86cae7472079ac707dded60dd5ef92b26ea9fd9e",
+      "mode": "0o644"
+    },
+    "lab/test_upgrade_check.py": {
+      "sha256": "da658d5f75e363e5326ffb1b1a2925dcf96f67dd6e4f10fb2e28ae2bb2cbabf7",
+      "mode": "0o644"
+    }
+  }
+}

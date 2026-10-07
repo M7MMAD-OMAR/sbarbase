@@ -62,6 +62,7 @@ jobs:
           bun-version: 1.3.14
       - name: System Python dependencies
         run: sudo apt-get update -q && sudo apt-get install -y -q python3-cryptography
+      - run: bun install --frozen-lockfile
       - run: /usr/bin/python3 --version
       - name: Every lab and deploy script compiles on 3.12
         # Not every live probe or deploy helper is imported by a unit test.
