@@ -1,0 +1,68 @@
+{
+  "schema": 1,
+  "workflow_run": 37600158231,
+  "workflow_head": "e08ed3b2684bdf04f0288c7162747a2783177026",
+  "artifact_id": 11473055957,
+  "job_conclusion": "success",
+  "independent_exact_content_review": "MET",
+  "files": [
+    {
+      "file": "console-build.json",
+      "bytes": 1574,
+      "sha256": "2051dbbba01bd89541872ced5affa299b2a6d0af4e6fd6cf369cb61c3db2e223"
+    },
+    {
+      "file": "console-serve.json",
+      "bytes": 3694,
+      "sha256": "4ffdfea84b2fabec90791dd36c8e00d1bebea530714418e73f9a71eab1507079"
+    },
+    {
+      "file": "run-manifest.json",
+      "bytes": 3694,
+      "sha256": "db816f78bf47dfd601611138ac85c84d857df1e0b714bea92516b7d6d3868ac0"
+    },
+    {
+      "file": "server-acceptance-latest.json",
+      "bytes": 5141,
+      "sha256": "e4ad8d297b8a4c1db0f8b697972145123b02a67d1ead72ef66bc7d3137ef8df2"
+    },
+    {
+      "file": "server-acceptance-rehearsal.json",
+      "bytes": 5141,
+      "sha256": "e4ad8d297b8a4c1db0f8b697972145123b02a67d1ead72ef66bc7d3137ef8df2"
+    },
+    {
+      "file": "supervisor-unit.json",
+      "bytes": 4719,
+      "sha256": "30f092c864a42a2da068770960152c5212804bf03149e1a9989baf10fc61db05"
+    },
+    {
+      "file": "tls-termination.json",
+      "bytes": 3425,
+      "sha256": "3a9b4946cf522518ab5eca53c523e1e302c05996abb84b7d4f952d3948b47812"
+    }
+  ],
+  "fresh_reports": 6,
+  "unique_checklist_assertions": 58,
+  "duplicate_rehearsal_copy_checks_not_added": 12,
+  "structured_reports_without_check_counts": [
+    "console-build.json",
+    "supervisor-unit.json"
+  ],
+  "live_auth_bootstrap_reported_checks": 21,
+  "unit": {
+    "installed": true,
+    "enabled": true,
+    "verified": true,
+    "observed_active_state": "inactive in pre-restore rehearsal JSON; active after actual final unit restoration",
+    "preparation_start_deferred": true,
+    "shipped_system_unit_live_start_proven": true,
+    "final_restore_active_and_console_answers": true
+  },
+  "scope": "Fresh Ubuntu runner one-command installation. Direct rehearsal runtime starts, verifies Auth bootstrap, shuts down cleanly and observes no running owned containers. The script then starts the shipped system unit and independently requires active state and console response. Static and TLS stub reports retain separate scope.",
+  "public_certificate_proven": false,
+  "physical_reboot_proven": false,
+  "kali_proven": false,
+  "lost_source_recovery_proven": false,
+  "production_accepted": false
+}

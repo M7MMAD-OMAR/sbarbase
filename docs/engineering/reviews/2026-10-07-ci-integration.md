@@ -33,3 +33,15 @@ The manually dispatched run 37596046599 exposed a standalone installation prefli
 The independently reviewed report collector uploads only changed allowlisted reports from reached steps. The Docker contract has thirteen reports; the server contract has six reports and requires identical rehearsal/latest copies. Historical tracked evidence is preserved and excluded from current artifacts. Partial failures retain both the step outcome and the report outcome. Native command bodies are unchanged. Empty-host acceptance now runs on every main push as well as explicit manual acceptance requests.
 
 Root verified 46 focused endpoint and artifact tests with zero failures, errors or skips under a 512 MiB, 50 percent CPU, 128 task and 60 second boundary. The separate source fixture validated the thirteen actual downloaded Docker report schemas. Source review is MET; revised native CI execution remains pending. See `docs/evidence/ci-artifact-scope-checks-2026-10-07.json`.
+
+## Current all-job native acceptance checkpoint
+
+Core commit `e08ed3b2684bdf04f0288c7162747a2783177026` passed all four jobs in [CI 37600158231](https://github.com/M7MMAD-OMAR/sbarbase/actions/runs/37600158231). The checks job passed 914 Bun tests and two 2102-case Python suites, including an unavailable Docker endpoint. The Python 3.12 floor passed 2102 tests. [Website 37600311118](https://github.com/M7MMAD-OMAR/sbarbase/actions/runs/37600311118) passed build and tests without deploying a service.
+
+The independently reviewed current [native evidence](../../evidence/ci-e08ed3b-2026-10-07/summary.json) contains thirteen Docker reports with 254 passing checks, and six empty-host reports with 58 unique checklist assertions. The 21 live Auth bootstrap checks are separately reported. The copied rehearsal report is not counted twice. Each artifact manifest binds exact bytes, changed baselines and reached successful steps; the historical installation transcription is excluded.
+
+The empty-host JSON records the inactive unit during direct rehearsal. The later native log and fail-closed script guards establish that the shipped system unit was restored, became active and its console answered. This resolves the canonical Docker endpoint/socket regression and proves the live system-service path on the Ubuntu runner. It does not prove a physical reboot, public certificate, complete lost-source recovery, original-factory Cron continuity or all 105 capability requirements.
+
+A separate [Fedora systemd descriptor proof](../../evidence/systemd-scope-fd-probe-2026-10-07/summary.json) observes the reviewed systemd binary preserving five held descriptors through same-PID Python execution under explicit resource limits. The exact probe source is archived. It launches no QEMU guest or Docker container and does not install guest construction authority.
+
+Independent review accepted the exact native artifact bodies, the scoped final unit-log projection, six checkpoint pages and four server/layout pages. This documentation publication preserves e08ed3b as the native core identity. Further source changes require their own checks; production acceptance remains open.

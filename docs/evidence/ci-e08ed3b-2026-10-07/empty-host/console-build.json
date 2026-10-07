@@ -1,0 +1,39 @@
+{
+ "scope": "Install step \"console built\", isolated: the production UI build is run and the produced page is checked for a non-empty index and for every local asset it references. Not a browser render, not a serving check, not the console API.",
+ "build": {
+  "command": "bun run build:ui",
+  "exit": 0,
+  "seconds": 1.4,
+  "tail": ".lab/ui/assets/lucide-BPfgEGrT.js               16.21 kB \u2502 gzip:  5.80 kB\n.lab/ui/assets/react-runtime-BPeupeul.js       218.84 kB \u2502 gzip: 68.25 kB\n.lab/ui/assets/index-3tezawbv.js               351.85 kB \u2502 gzip: 90.50 kB\n\n\u2713 built in 255ms\n$ vite build"
+ },
+ "page": {
+  "page_bytes": 797,
+  "page_sha256": "d310aaf01b5c36ce3cc3ea684ca9f90d3454621a2648c2cf9acfc9e4d77152af",
+  "assets": {
+   "assets/sbarbase-mark-96-BpB05cjQ.webp": {
+    "bytes": 7904,
+    "sha256": "8d85121a5fee99c4fb61c3309486461f607d7ed23ac78fdd08728be2ee946ba6"
+   },
+   "assets/index-3tezawbv.js": {
+    "bytes": 351859,
+    "sha256": "84f48aec2ba613953e17a6e0aaa9e1f152ef7435ea5dab7f2592ac8032c6ece6"
+   },
+   "assets/react-runtime-BPeupeul.js": {
+    "bytes": 218849,
+    "sha256": "fa49b9439cc058ab069068094eda638052dd3a909f5e9910b295a437c08d5efc"
+   },
+   "assets/lucide-BPfgEGrT.js": {
+    "bytes": 16215,
+    "sha256": "8825e2cd6eb30435bba7235487036ed291ae423c0963f838fc9a378b69bc1d2c"
+   },
+   "assets/index-DT-Aamp3.css": {
+    "bytes": 25514,
+    "sha256": "5578a4b0982c5813c7e6efd03fd2fa1210756b9cac05b428d778d34ed40e12a7"
+   }
+  },
+  "referenced": 5
+ },
+ "problems": [],
+ "run_at": "2026-10-07T09:29:14+00:00",
+ "passed": true
+}

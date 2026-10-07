@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "kind": "Reviewed native log projection, not an additional downloaded report",
+  "workflow_run": 37600158231,
+  "job": 112724736262,
+  "source_head": "e08ed3b2684bdf04f0288c7162747a2783177026",
+  "private_full_log_sha256": "57a2f167eda62fa78f1997a9eee0799b38baf50cfa67d977a0766d74ba95328c",
+  "independent_review": "MET",
+  "observations": [
+    {
+      "at": "2026-10-07T09:31:32.8679400Z",
+      "message": "== restore the supervised installation"
+    },
+    {
+      "at": "2026-10-07T09:31:48.2077494Z",
+      "message": "ok: sbarbase.service active again and its console answers"
+    },
+    {
+      "at": "2026-10-07T09:31:48.3351941Z",
+      "message": "Server acceptance: PASSED"
+    }
+  ],
+  "source_guards": "server-acceptance.sh restores sbarbase.service, requires systemctl is-active --quiet and bounded console wait before publication",
+  "pre_restore_json_inactive_preserved": true,
+  "physical_reboot_proven": false,
+  "production_accepted": false
+}

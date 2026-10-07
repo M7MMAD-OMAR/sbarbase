@@ -2,7 +2,7 @@
 
 # Project layout
 
-Layout update, 2026-10-07: database workflow, administrative transfer, Storage settlement, lifecycle and recovery dependency sources have entered the integration tree. Final release source assembly and production acceptance remain open. This page locates source; [status](status.md) records test evidence and its scope. Product files must not depend on a developer's private machine paths.
+Layout update, 2026-10-07: current `e08ed3b` passes all four CI jobs, including Docker and empty-host installation; see [the source-bound evidence](../evidence/ci-e08ed3b-2026-10-07/summary.json). `deploy/ci-artifacts.py` collects only fresh allowlisted CI reports. `lab/private_directories.py` creates and validates private runtime directory parents. Native recovery, Cron continuity and production acceptance remain open. Product paths are computed from the installation, without a developer-machine dependency.
 
 ## Historical verification records
 
@@ -10,7 +10,7 @@ Historical checkpoint, 2026-10-06: complete snapshot verification passed 1449 te
 
 The separate public55 V3 role has actual MET: 25 component and 30 pump tests passed, original 290 and added 4 actual mode/byte captures matched, and all three known helpers were removed with no unresolved resources. Public BusyBox V8 help metadata also has actual MET: fixed-path Bash 5.3.3 and BusyBox 1.37.0 help returned zero, with its one helper removed. Neither result accepts private request operation, timeout timing/signal behavior, installed binary source provenance, candidate startup, cold/warm Vault or Cron continuity, physical restore or production.
 
-The preserved warning-window V4 negative run reported 1447 ordinary tests OK but six ResourceWarnings, native 1 and observed window 839 for every warning. Three records have exact sqlite3.Connection type; three report tempfile.py line 484 with NoneType source. Observation windows are not allocation causes, and the three tempfile origins remain unknown. Fresh complete source/identity/mode/full bindings, final-revision CI and manually dispatched empty-host acceptance remain required; published 0e745394 CI and Website results retain only their earlier revision scope.
+The preserved warning-window V4 negative run reported 1447 ordinary tests OK but six ResourceWarnings, native 1 and observed window 839 for every warning. Three records have exact sqlite3.Connection type; three report tempfile.py line 484 with NoneType source. Observation windows are not allocation causes, and the three tempfile origins remain unknown. At that historical checkpoint, fresh complete source/identity/mode/full bindings, final-revision CI and manually dispatched empty-host acceptance remained required; published 0e745394 CI and Website results retain only their earlier revision scope.
 
 Sbarbase is a development project built on original Supabase services. The repository separates the control plane, operator tooling, container packaging, verification and public documentation. This map describes the tree, not production acceptance.
 
@@ -86,6 +86,6 @@ The Docker-only source verification command is:
 sh deploy/verify/run.sh
 ```
 
-Run it from the repository root. It creates a disposable bounded verifier, executes without network access and writes evidence under the ignored `.lab/` directory. See [verification scope](../../deploy/verify/README.md) for its limits. The exact published `0e745394` CI run passed disposable Docker installation; its optional manually dispatched empty-host gate was SKIPPED and still needs a fresh dispatch. Source and documentation edits need fresh gates; source gates do not establish complete recovery, independent-host support or production readiness.
+Run it from the repository root. It creates a disposable bounded verifier, executes without network access and writes evidence under the ignored `.lab/` directory. See [verification scope](../../deploy/verify/README.md) for its limits. The historical `0e745394` Docker run skipped its optional empty-host gate. Current `e08ed3b` passes Docker and automatic main-push empty-host acceptance; its archived evidence retains those precise scopes. Source and documentation edits need fresh gates; source gates do not establish complete recovery, independent-host support or production readiness.
 
 Local `.lab/` evidence and `.secrets/` are private state, not publication artifacts. Dependency directories and build outputs are generated. They are not part of the public source tree or a substitute for reproducible release artifacts.

@@ -1,0 +1,123 @@
+{
+ "scope": "TLS termination check: a self-signed certificate, deploy/console-tls-proxy.ts terminating HTTPS in front of a stub upstream that serves the real built console page, HTTP to HTTPS redirection, the transport security headers, the proxy's handling of attacker supplied hosts and oversized bodies, and its own refusals. Not a public certificate, not a running installation, not the operator's chosen proxy (nginx, Caddy, the platform proxy).",
+ "run_at": "2026-10-07T09:29:27+00:00",
+ "checks": [
+  {
+   "check": "stub upstream serving the real built page",
+   "ok": true,
+   "detail": "['{\"port\":41245}']"
+  },
+  {
+   "check": "proxy announced its HTTPS port",
+   "ok": true,
+   "detail": "['TLS termination: https://127.0.0.1:39657 -> http://127.0.0.1:41245']"
+  },
+  {
+   "check": "proxy binds the HTTPS and the redirect port it was given",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "the built page is served over HTTPS unchanged",
+   "ok": true,
+   "detail": "status 200 bytes 797 vs 797"
+  },
+  {
+   "check": "HTTPS carries the transport security header",
+   "ok": true,
+   "detail": "max-age=31536000; includeSubDomains"
+  },
+  {
+   "check": "HTTPS forbids content sniffing",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "an asset is served over HTTPS byte for byte",
+   "ok": true,
+   "detail": "/assets/sbarbase-mark-96-BpB05cjQ.webp"
+  },
+  {
+   "check": "a management route is reachable through the proxy",
+   "ok": true,
+   "detail": "status 200"
+  },
+  {
+   "check": "the proxy tells the upstream the original protocol was https",
+   "ok": true,
+   "detail": "b'https'"
+  },
+  {
+   "check": "a client supplied Host header cannot override the configured public host",
+   "ok": true,
+   "detail": "b'console.example.com'"
+  },
+  {
+   "check": "plain HTTP is redirected to HTTPS",
+   "ok": true,
+   "detail": "status 308 location https://console.example.com/some/path?x=1"
+  },
+  {
+   "check": "the redirect never points at a client supplied host",
+   "ok": true,
+   "detail": "status 308 location https://console.example.com/some/path"
+  },
+  {
+   "check": "a declared body over the limit is answered 413 without being read",
+   "ok": true,
+   "detail": "status 413"
+  },
+  {
+   "check": "a body within the limit still reaches the upstream",
+   "ok": true,
+   "detail": "status 405"
+  },
+  {
+   "check": "a chunked body over the limit is refused without being buffered in full",
+   "ok": true,
+   "detail": "status 413"
+  },
+  {
+   "check": "a chunked body within the limit still reaches the upstream",
+   "ok": true,
+   "detail": "status 405"
+  },
+  {
+   "check": "a group or world readable key is refused",
+   "ok": true,
+   "detail": "Bun v1.3.14 (Linux x64)"
+  },
+  {
+   "check": "a non-loopback upstream is refused",
+   "ok": true,
+   "detail": "Bun v1.3.14 (Linux x64)"
+  },
+  {
+   "check": "a missing certificate argument is refused",
+   "ok": true,
+   "detail": "Bun v1.3.14 (Linux x64)"
+  },
+  {
+   "check": "a missing public host is refused",
+   "ok": true,
+   "detail": "Bun v1.3.14 (Linux x64)"
+  },
+  {
+   "check": "a public host that is not a bare host name is refused",
+   "ok": true,
+   "detail": "Bun v1.3.14 (Linux x64)"
+  },
+  {
+   "check": "the proxy shut down on SIGTERM",
+   "ok": true,
+   "detail": "exit 0"
+  },
+  {
+   "check": "both ports are released after shutdown",
+   "ok": true,
+   "detail": "https 39657 http 59323"
+  }
+ ],
+ "count": 23,
+ "passed": true
+}

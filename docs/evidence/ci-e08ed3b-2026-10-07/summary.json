@@ -1,0 +1,60 @@
+{
+  "schema": 1,
+  "code_head": "e08ed3b2684bdf04f0288c7162747a2783177026",
+  "ci": {
+    "run": 37600158231,
+    "url": "https://github.com/M7MMAD-OMAR/sbarbase/actions/runs/37600158231",
+    "conclusion": "success",
+    "jobs": {
+      "checks": "success",
+      "python-floor": "success",
+      "docker-install": "success",
+      "empty-host-acceptance": "success"
+    }
+  },
+  "website": {
+    "run": 37600311118,
+    "conclusion": "success",
+    "scope": "Build and tests, no deployment"
+  },
+  "bun_tests": 914,
+  "python_suites": [
+    {
+      "environment": "Python 3.12 floor",
+      "tests": 2102,
+      "seconds": 153.729
+    },
+    {
+      "environment": "Runner default Python",
+      "tests": 2102,
+      "seconds": 178.673
+    },
+    {
+      "environment": "Runner default Python, unavailable Docker",
+      "tests": 2102,
+      "seconds": 169.707
+    }
+  ],
+  "docker": {
+    "summary": "docker/summary.json",
+    "fresh_reports": 13,
+    "passing_checks": 254
+  },
+  "empty_host": {
+    "summary": "empty-host/summary.json",
+    "fresh_reports": 6,
+    "unique_checklist_assertions": 58,
+    "nested_live_auth_bootstrap_checks": 21,
+    "shipped_system_unit_live_start": true,
+    "duplicate_latest_copy_not_counted": true
+  },
+  "publication": "Exact original native JSON bytes plus explicitly labelled root summaries and reviewed log projection. Later documentation commits do not transfer native code-head acceptance.",
+  "remaining": {
+    "physical_reboot": "unproven",
+    "full_lost_source_recovery": "unproven",
+    "original_factory_cron_restart_recovery": "unproven",
+    "kali_guest": "unproven",
+    "all_105_capability_requirements": "unproven",
+    "production": "unproven"
+  }
+}

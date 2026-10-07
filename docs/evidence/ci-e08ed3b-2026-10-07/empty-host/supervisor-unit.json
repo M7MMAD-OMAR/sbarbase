@@ -1,0 +1,23 @@
+{
+ "scope": "Supervisor unit: the shipped unit is rendered for this installation (paths, service user and Bun directory), verified with systemd-analyze, and the exact install commands are recorded. With --apply and root the unit is installed, reloaded, enabled and started, and the run fails unless it becomes active and its console then answers over loopback within the stated bound. Not a substitute for the server acceptance run, which requires the unit to be installed.",
+ "installation_root": "/home/runner/work/sbarbase/sbarbase",
+ "service_user": "runner",
+ "home": "/home/runner",
+ "bun_dir": "/home/runner/.bun/bin",
+ "rendered": "[Unit]\nDescription=sbarbase installation supervisor (owned Supabase placement, console and worker)\nDocumentation=file:/home/runner/work/sbarbase/sbarbase/docs/guides/server-deployment.md\nRequires=docker.service\nAfter=docker.service network-online.target\nWants=network-online.target\n# Never stop restarting: after a failed upgrade the upgrade guard below\n# may need several starts to go back, and a start limit would leave the unit failed first.\nStartLimitIntervalSec=0\n\n[Service]\nType=simple\nUser=runner\nGroup=runner\nWorkingDirectory=/home/runner/work/sbarbase/sbarbase\nEnvironment=HOME=/home/runner\n# A system service does not inherit a user-local Bun; the supervisor and its\n# preflight both need it on PATH.\nEnvironment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/runner/.bun/bin\n# Tells lab/dev.py that the upgrade guard below already ran for this start.\nEnvironment=SBARBASE_GUARDED=1\n# Read-only host admission precedes every lock, upgrade or runtime cleanup effect.\nExecStartPre=/bin/sh /home/runner/work/sbarbase/sbarbase/deploy/host-preflight.sh --runtime\n# After host admission, before startup code: the upgrade guard\n# (lab/upgrade_guard.py). It runs the copy an upgrade took from the version it left\n# when there is one, counts the start while an upgrade waits for its health checks,\n# and moves the checkout back when that version keeps failing, before the lines\n# below read it. Paths are relative: WorkingDirectory applies here too.\nExecStartPre=/bin/sh -c 'if [ -f .lab/upgrades/guard.py ]; then exec /usr/bin/python3 .lab/upgrades/guard.py; fi; exec /usr/bin/python3 lab/upgrade_guard.py'\n# After the guard: an owned runtime a killed supervisor left running (Docker, not this unit's cgroup,\n# owns its containers) is stopped as the supervisor's own stop does, volumes kept, unless a\n# live supervisor or worker holds its lock or pending authority state needs reconciliation\n# (lab/leftover_runtime.py). Otherwise the preflight below refuses on the running containers\n# and the service stays down. A checkout the guard moved back to a version without that file\n# skips the step.\nExecStartPre=/bin/sh -c 'if [ -f lab/leftover_runtime.py ]; then exec /usr/bin/python3 lab/leftover_runtime.py; fi'\n# Preflight refuses on insufficient headroom, missing pins or pending authority state.\nExecStartPre=/usr/bin/python3 /home/runner/work/sbarbase/sbarbase/lab/install_server.py check\nExecStart=/usr/bin/python3 /home/runner/work/sbarbase/sbarbase/lab/dev.py\n# Covers every ExecStartPre: the guard's way back runs bun install before the\n# preflight, which the 90 second default does not leave room for.\nTimeoutStartSec=600\n# dev.py stops the owned runtime on SIGTERM; allow its 90 second budget.\nTimeoutStopSec=150\nKillMode=mixed\nRestart=on-failure\nRestartSec=10\n# After an update or rollback from the console moved the checkout, dev.py stops cleanly\n# and exits 42 (RESTART_FOR_UPGRADE) so the new version starts. on-failure already\n# restarts it; this keeps it so if the restart policy above ever changes.\nRestartForceExitStatus=42\n# The supervisor needs Docker access; keep it out of the docker group only if an\n# equivalent socket permission already applies to this user.\nSupplementaryGroups=docker\nNoNewPrivileges=yes\nPrivateTmp=yes\nProtectSystem=full\nReadWritePaths=/home/runner/work/sbarbase/sbarbase\n\n[Install]\nWantedBy=multi-user.target\n",
+ "rendered_path": "/home/runner/work/sbarbase/sbarbase/.lab/rendered-sbarbase.service",
+ "verify": "passed",
+ "running_as_root": true,
+ "applied": true,
+ "start_deferred": true,
+ "console": "deferred: the unit is enabled and starts once the installation exists",
+ "service_account": "present",
+ "install_commands": [
+  "sudo install -m 0644 /home/runner/work/sbarbase/sbarbase/.lab/rendered-sbarbase.service /etc/systemd/system/sbarbase.service",
+  "sudo systemctl daemon-reload",
+  "sudo systemctl enable --now sbarbase.service",
+  "systemctl is-active sbarbase.service"
+ ],
+ "run_at": "2026-10-07T09:29:28+00:00",
+ "passed": true
+}

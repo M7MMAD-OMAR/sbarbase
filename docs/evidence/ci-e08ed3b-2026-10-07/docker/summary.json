@@ -1,0 +1,85 @@
+{
+  "schema": 1,
+  "artifact": 11473172989,
+  "workflow_head": "e08ed3b2684bdf04f0288c7162747a2783177026",
+  "workflow_run": 37600158231,
+  "independent_exact_content_review": "MET",
+  "fresh_reports": 13,
+  "checks": 254,
+  "files": [
+    {
+      "file": "docker-backup-restore.json",
+      "bytes": 2044,
+      "sha256": "86eaf0f0b4a2e559d395286686f832a51810fc876963d35067cb196d5160a926"
+    },
+    {
+      "file": "docker-database-checks.json",
+      "bytes": 2930,
+      "sha256": "7f3590cb97790f5e2784d471f6663caeeda463f70a4ab311667dc08aa3b65032"
+    },
+    {
+      "file": "docker-first-project.json",
+      "bytes": 2193,
+      "sha256": "1ddccea3057793f4f329ccf12a28a8f787ca596f3ba35f99cba312defd775cc4"
+    },
+    {
+      "file": "docker-functions-checks.json",
+      "bytes": 3840,
+      "sha256": "b8171eb5f312157f3ab2fc3b15a7b01a37a454eaa8fcd98c28ef37efd249c952"
+    },
+    {
+      "file": "docker-import-checks.json",
+      "bytes": 2752,
+      "sha256": "28945e6e793acd613375ece1be8686d81d902fc879758960997b14b7254b89a8"
+    },
+    {
+      "file": "docker-offsite-checks.json",
+      "bytes": 2657,
+      "sha256": "5e88f95526ca4986bb31b271eae709fa9b0a8c144eb633e0b37a5950bf5b7cac"
+    },
+    {
+      "file": "docker-observe-checks.json",
+      "bytes": 2803,
+      "sha256": "cc2d2c446aebf9b747c61d867d64df752c22e081f49e33d6889ce758a7c82c5d"
+    },
+    {
+      "file": "docker-realtime-checks.json",
+      "bytes": 2951,
+      "sha256": "1d4825306b22bc93dd13fab74bc81c7a4786b1a3e77d2b316cd47cc3428fb953"
+    },
+    {
+      "file": "docker-sign-in-checks.json",
+      "bytes": 2315,
+      "sha256": "c7216063472a7d8201a67400bfae3de531e59fb64c97855141eb34479dc8924f"
+    },
+    {
+      "file": "docker-signing-checks.json",
+      "bytes": 2705,
+      "sha256": "696addb7577f10714da024882906b830e623c3f5b0f4d415ed41390c68f6c88b"
+    },
+    {
+      "file": "docker-studio-checks.json",
+      "bytes": 3049,
+      "sha256": "ba59d07bf6c70c17631213401dc748d8b8a0753a9239f28ca3eeaaff6d0a6c72"
+    },
+    {
+      "file": "docker-upgrade-checks.json",
+      "bytes": 10140,
+      "sha256": "8af81dedf69ba72ea9ad8b523de4fb2b7875998b32fb2ce1c0345323872a644d"
+    },
+    {
+      "file": "docker-upload-checks.json",
+      "bytes": 2857,
+      "sha256": "bf8c6c9aa986e3aab15d5eeb198017cbf547b63871f79bc1c2a5df07566054f4"
+    },
+    {
+      "file": "run-manifest.json",
+      "bytes": 7206,
+      "sha256": "da4a3e04272fef6ec8e340d68ea7af9a4cab650fc83b3cfbd05005ef870d644c"
+    }
+  ],
+  "historical_install_transcription_excluded": true,
+  "upgrade_scope": "Six derived local release stages; row counts and selected catalog digest, not every table",
+  "offsite_scope": "S3Mock ciphertext fetch and in-place environment restore, not lost-source complete installation recovery",
+  "production_accepted": false
+}

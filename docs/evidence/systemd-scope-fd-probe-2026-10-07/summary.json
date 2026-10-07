@@ -1,0 +1,36 @@
+{
+  "scope": "sbarbase-fd-probe-998fc93941814d79ab830012d92b3d8e.scope",
+  "guest_launched": false,
+  "docker_used": false,
+  "passed": true,
+  "systemd_sha256": "f2e6b4cfc7e58b4aeccc81fb3521c92f28c1a17449caa8e20915d22ff0efe29c",
+  "descriptors": 5,
+  "same_pid_exec": true,
+  "same_descriptor_identities": true,
+  "resource_properties": {
+    "ActiveState": "active",
+    "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/sbarbase-fd-probe-998fc93941814d79ab830012d92b3d8e.scope",
+    "CPUQuotaPerSecUSec": "500ms",
+    "MemoryMax": "268435456",
+    "MemorySwapMax": "0",
+    "TasksMax": "16"
+  },
+  "child_exit": 0,
+  "scope_inactive_or_absent": true,
+  "retained_pidfd": true,
+  "cgroup_member_verified": true,
+  "scope_limit": "Owned ephemeral scope, Python payload only; no QEMU or guest acceptance",
+  "schema": 1,
+  "source_sha256": "2424fff722052cf8c7f515560562c66e748bcbdffd418b6111809cfd50164a72",
+  "observed_os": "Fedora Linux 44",
+  "scope_review": "MET for disposable Python descriptor preservation only",
+  "outer_bounds": {
+    "memory": "512M",
+    "cpu_quota": "50%",
+    "tasks": 128,
+    "runtime_seconds": 30
+  },
+  "guest_acceptance": false,
+  "production_acceptance": false,
+  "portable_guest_effect_authority": "uninstalled"
+}

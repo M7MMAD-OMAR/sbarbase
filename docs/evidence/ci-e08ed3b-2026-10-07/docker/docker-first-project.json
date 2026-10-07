@@ -1,0 +1,92 @@
+{
+  "check": "first-project",
+  "recorded": "2026-10-07T09:31:46.403Z",
+  "through": "loopback",
+  "passed": true,
+  "count": 15,
+  "seconds": 17,
+  "ids": {
+    "organization": "5e2a95bd-6913-438f-badd-25b906a1c7ce",
+    "project": "32a64476-8b42-4729-bd68-89060c80f261",
+    "environment": "7ce7aa18-a5a2-4724-9d0e-d5f5874bb5a5",
+    "apiPath": "/e_003f343352301206ed74c885",
+    "keyId": "cb76f128-9b14-4a30-98b5-3c0220a459a6"
+  },
+  "checks": [
+    {
+      "check": "operator native MFA session authorizes management",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "the operator sees the client created at install",
+      "ok": true,
+      "detail": "status 200"
+    },
+    {
+      "check": "a project is created",
+      "ok": true,
+      "detail": "status 201"
+    },
+    {
+      "check": "an environment is queued for provisioning",
+      "ok": true,
+      "detail": "status 202"
+    },
+    {
+      "check": "the worker provisions the environment",
+      "ok": true,
+      "detail": "state succeeded after 16 s"
+    },
+    {
+      "check": "connection details name the gateway path",
+      "ok": true,
+      "detail": "status 200"
+    },
+    {
+      "check": "a publishable key is issued once",
+      "ok": true,
+      "detail": "status 201"
+    },
+    {
+      "check": "Auth answers through the gateway",
+      "ok": true,
+      "detail": "status 200"
+    },
+    {
+      "check": "an application user can sign up with supabase-js",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "REST answers through the gateway",
+      "ok": true,
+      "detail": "status 200"
+    },
+    {
+      "check": "Storage answers through the gateway with supabase-js",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "a browser on another domain is allowed to call the API",
+      "ok": true,
+      "detail": "status 204"
+    },
+    {
+      "check": "the browser can read the answer",
+      "ok": true,
+      "detail": "status 200"
+    },
+    {
+      "check": "the key is revoked",
+      "ok": true,
+      "detail": "status 200"
+    },
+    {
+      "check": "the gateway refuses the revoked key",
+      "ok": true,
+      "detail": "status 401"
+    }
+  ]
+}

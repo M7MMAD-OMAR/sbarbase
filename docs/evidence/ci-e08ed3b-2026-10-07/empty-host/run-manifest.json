@@ -1,0 +1,101 @@
+{
+  "schema": 1,
+  "workflow_run": "37600158231",
+  "run_attempt": "1",
+  "workflow_head": "e08ed3b2684bdf04f0288c7162747a2783177026",
+  "contract": "empty-host",
+  "reports": [
+    {
+      "file": "console-build.json",
+      "step": "empty_host",
+      "step_outcome": "success",
+      "baseline_sha256": "18fbef8072c0785d05daaed303eb66687fce33082fed6b7dc2c1f1c3f65b88b8",
+      "included": true,
+      "report_schema": "console-build",
+      "observed_sha256": "2051dbbba01bd89541872ced5affa299b2a6d0af4e6fd6cf369cb61c3db2e223",
+      "report_passed": true,
+      "problem_count": 0,
+      "classification": "current_changed_report",
+      "bytes": 1574
+    },
+    {
+      "file": "console-serve.json",
+      "step": "empty_host",
+      "step_outcome": "success",
+      "baseline_sha256": "253d567e67e68c3a61f300c9be1c2934c432ee6ef4b83e89ce87a18ab92f60ca",
+      "included": true,
+      "report_schema": "checks",
+      "observed_sha256": "4ffdfea84b2fabec90791dd36c8e00d1bebea530714418e73f9a71eab1507079",
+      "count": 23,
+      "report_passed": true,
+      "all_checks_true": true,
+      "classification": "current_changed_report",
+      "bytes": 3694
+    },
+    {
+      "file": "tls-termination.json",
+      "step": "empty_host",
+      "step_outcome": "success",
+      "baseline_sha256": "d3ff946b7cb37c235d88e27b5b6b0e086bcef8a88ec24817547fc244f8c01083",
+      "included": true,
+      "report_schema": "checks",
+      "observed_sha256": "3a9b4946cf522518ab5eca53c523e1e302c05996abb84b7d4f952d3948b47812",
+      "count": 23,
+      "report_passed": true,
+      "all_checks_true": true,
+      "classification": "current_changed_report",
+      "bytes": 3425
+    },
+    {
+      "file": "supervisor-unit.json",
+      "step": "empty_host",
+      "step_outcome": "success",
+      "baseline_sha256": "60a5e97181915b0a7cf530756e7aa02ca341a9853d84c2ffc008ddae3266c3df",
+      "included": true,
+      "report_schema": "supervisor-unit",
+      "observed_sha256": "30f092c864a42a2da068770960152c5212804bf03149e1a9989baf10fc61db05",
+      "report_passed": true,
+      "applied": true,
+      "start_deferred": true,
+      "classification": "current_changed_report",
+      "bytes": 4719
+    },
+    {
+      "file": "server-acceptance-rehearsal.json",
+      "step": "empty_host",
+      "step_outcome": "success",
+      "baseline_sha256": "93e2a3b03165ff5f8c2397c6dc99f353636a18d7aeb3ca8188fa632c3a402a37",
+      "included": true,
+      "report_schema": "checks",
+      "observed_sha256": "e4ad8d297b8a4c1db0f8b697972145123b02a67d1ead72ef66bc7d3137ef8df2",
+      "count": 12,
+      "report_passed": true,
+      "all_checks_true": true,
+      "classification": "current_changed_report",
+      "bytes": 5141
+    },
+    {
+      "file": "server-acceptance-latest.json",
+      "step": "empty_host",
+      "step_outcome": "success",
+      "baseline_sha256": "93e2a3b03165ff5f8c2397c6dc99f353636a18d7aeb3ca8188fa632c3a402a37",
+      "included": true,
+      "report_schema": "checks",
+      "observed_sha256": "e4ad8d297b8a4c1db0f8b697972145123b02a67d1ead72ef66bc7d3137ef8df2",
+      "count": 12,
+      "report_passed": true,
+      "all_checks_true": true,
+      "classification": "current_changed_report",
+      "bytes": 5141
+    }
+  ],
+  "excluded_historical": [
+    {
+      "file": "docker-install-checks.json",
+      "baseline_sha256": "8f847c3c00a74d6fdd017097580ca38a247ae8151607f519cd2d45af1db52d17",
+      "reason": "Checked-in historical transcription; never a current probe output"
+    }
+  ],
+  "packaging_valid": true,
+  "scope": "Workflow head identifies the run input, not derived upgrade release commits. Included reports retain their own scope and passed state. No production acceptance implied."
+}
