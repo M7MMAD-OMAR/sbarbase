@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "recorded_date": "2026-10-08",
+  "scope": "Source7 bounded diagnostics repair and published CI observation",
+  "ci_commit": "0d732333f563055c7e414ff75faca033219cb7f7",
+  "ci_run": 37682575608,
+  "ci_conclusion": "success",
+  "tests": {
+    "count": 10,
+    "seconds": 0.293,
+    "result": "PASS",
+    "reviewer_execution": false,
+    "profile": {
+      "MemoryMax": "512M",
+      "MemorySwapMax": 0,
+      "CPUQuota": "50%",
+      "TasksMax": 128,
+      "RuntimeMaxSec": 60,
+      "LimitNOFILE": 8192
+    }
+  },
+  "independent_source_review": "MET_IMPLEMENTED_REPAIR_ONLY",
+  "earlier_source5_source6_functional_failure": "Inherited child RLIMIT_FSIZE1MiB also limited dpkg and Bun regular output files",
+  "guest_boot": "NOT_RUN",
+  "full_supabase_installation": "NOT_RUN",
+  "full_fresh_target_restore": "NOT_RUN",
+  "production_accepted": false
+}

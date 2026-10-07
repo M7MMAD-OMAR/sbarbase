@@ -1,0 +1,10 @@
+{
+  "guest_offline_install.py": {
+    "bytes": 31023,
+    "sha256": "d57951252999d7dab91f3c20c710639c52afb44059631110900ea8ddbad87ffc"
+  },
+  "test_guest_offline_install.py": {
+    "bytes": 8173,
+    "sha256": "ae201bd2bf0fa4a6e7c01fae3076a6abb400fb5112097ca04a844f144afa48a7"
+  }
+}

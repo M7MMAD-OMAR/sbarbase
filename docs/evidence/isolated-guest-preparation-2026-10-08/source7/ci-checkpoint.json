@@ -1,0 +1,32 @@
+{
+  "conclusion": "success",
+  "headSha": "0d732333f563055c7e414ff75faca033219cb7f7",
+  "jobs": [
+    {
+      "name": "python-floor",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/M7MMAD-OMAR/sbarbase/actions/runs/37682575608/job/113002140025"
+    },
+    {
+      "name": "checks",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/M7MMAD-OMAR/sbarbase/actions/runs/37682575608/job/113002140617"
+    },
+    {
+      "name": "docker-install",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/M7MMAD-OMAR/sbarbase/actions/runs/37682575608/job/113004636305"
+    },
+    {
+      "name": "empty-host-acceptance",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/M7MMAD-OMAR/sbarbase/actions/runs/37682575608/job/113004636391"
+    }
+  ],
+  "status": "completed",
+  "url": "https://github.com/M7MMAD-OMAR/sbarbase/actions/runs/37682575608"
+}
