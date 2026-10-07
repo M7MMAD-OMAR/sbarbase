@@ -25,7 +25,8 @@ class InstallLockHandoffTests(IsolatedHostCase):
         self.directory=tempfile.TemporaryDirectory();self.addCleanup(self.directory.cleanup)
         self.state=Path(self.directory.name)/'upstream'
         self.state.mkdir(parents=True)
-        self.private=Path(self.directory.name)/'private'
+        self.root=Path(self.directory.name)
+        self.private=self.root/'.secrets'/'upstream'
         self.probes=[]
 
     def install(self,install_result=None,extra=None):
@@ -44,6 +45,7 @@ class InstallLockHandoffTests(IsolatedHostCase):
             return result()
 
         with patch.object(install_server,'preflight',return_value=[]), \
+             patch.object(install_server,'ROOT',self.root), \
              patch.object(install_server,'STATE',self.state), \
              patch.object(install_server,'PRIVATE',self.private), \
              patch.object(install_server,'pinned_images',return_value=[]), \
@@ -63,6 +65,7 @@ class InstallLockHandoffTests(IsolatedHostCase):
 
     def test_the_installer_releases_the_lock_even_when_a_step_fails(self):
         with patch.object(install_server,'preflight',return_value=[]), \
+             patch.object(install_server,'ROOT',self.root), \
              patch.object(install_server,'STATE',self.state), \
              patch.object(install_server,'PRIVATE',self.private), \
              patch.object(install_server,'pinned_images',return_value=[]), \

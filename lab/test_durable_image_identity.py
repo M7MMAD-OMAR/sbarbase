@@ -105,9 +105,11 @@ class DurableIdentityTests(IsolatedHostCase):
 
     def test_hba_receives_daemon_id_and_existing_authority_is_not_rewritten(self):
         startup = Mock(); writer = Mock()
-        private = self.state / 'private'; private.mkdir()
+        private = self.state / '.secrets' / 'upstream'
+        private.parent.mkdir(mode=0o700); private.mkdir(mode=0o700)
         (private / 'runtime.json').write_text(json.dumps({'management': {}}))
         with patch.object(runtime, 'PRIVATE', private), patch.object(runtime, 'STATE', self.state), \
+             patch.object(runtime.lab, 'ROOT', self.state), \
              patch.object(runtime.lab, 'docker', self.docker), \
              patch('subprocess.run', return_value=SimpleNamespace(returncode=0)), \
              patch.object(runtime.hba_runtime, 'SourceHBA', return_value=writer) as hba, \

@@ -73,3 +73,5 @@ The container holds the control plane: the supervisor, the provisioning worker, 
 - `init: true`, because the supervisor refuses to run as process 1.
 
 Access to the Docker socket is equivalent to root on the host, as it is for the systemd install; the [threat model](../explain/threat-model.md) explains why that is accepted for now.
+
+Startup creates `.secrets` and `.secrets/upstream` with mode `0700` and the service account owner. Existing unsafe modes, different owners and symlinks are refused; see [private-directory remediation](server-deployment.md#private-directory-permissions) before restarting a refused older checkout.

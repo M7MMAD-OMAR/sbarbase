@@ -2,7 +2,9 @@
 
 # Server deployment
 
-Updated 2026-10-06: complete current-code verification passed 1449 tests with no failures, errors, warnings or skips and independent actual review. Repairs cover SQLite and HTTPError response closure, tempfile ownership and expected test diagnostics. All 52 preparation cases also passed; native PostgreSQL startup, Cron/Vault restart continuity and physical restore remain unaccepted. See [current status](../reference/status.md) for CI results and evidence scope.
+Integration status, 2026-10-07: general checks and Python compatibility passed after `85ca190`; private-directory setup then failed after console startup. Full recovery and production remain unaccepted. See [current status](../reference/status.md); the following checkpoint paragraphs preserve historical snapshots and their limits.
+
+Historical checkpoint, 2026-10-06: complete snapshot verification passed 1449 tests with no failures, errors, warnings or skips and independent actual review. Repairs cover SQLite and HTTPError response closure, tempfile ownership and expected test diagnostics. All 52 preparation cases also passed; native PostgreSQL startup, Cron/Vault restart continuity and physical restore remain unaccepted. See [current status](../reference/status.md) for CI results and evidence scope.
 
 The separate public55 V3 role has actual MET: 25 component and 30 pump tests passed, original 290 and added 4 actual mode/byte captures matched, and all three known helpers were removed with no unresolved resources. Public BusyBox V8 help metadata also has actual MET: fixed-path Bash 5.3.3 and BusyBox 1.37.0 help returned zero, with its one helper removed. Neither result accepts private request operation, timeout timing/signal behavior, installed binary source provenance, candidate startup, cold/warm Vault or Cron continuity, physical restore or production.
 
@@ -12,7 +14,7 @@ Runbook for the native Linux installation path. The primary container workflow i
 
 The user's computer is currently used as a local Linux Docker server for isolated declared verification. Published `0e745394` passed Docker installation CI, while empty-host acceptance was skipped and needs a fresh manual dispatch. No independent public-server pilot is established. Current startup tooling defines only an explicit prepare-only material-handoff status; no actual native material-preparation run is accepted by this guide. The earlier V9 initV2 run passed 52 focused tests but its historical actual 1447-case full regression failed with one failure and 15 errors.
 
-Earlier mode, scratch and warning verification attempts remain historical refusals bound to their own source and date. Resource ownership and fixture diagnostics were repaired, and fresh complete verification now passes 1449 tests. This does not transfer native startup or recovery evidence from another run. The [status history](../reference/status.md) preserves the earlier observations and their limits.
+Earlier mode, scratch and warning verification attempts remain historical refusals bound to their own source and date. Resource ownership and fixture diagnostics were repaired, and complete verification of that earlier snapshot passed 1449 tests. This does not transfer native startup or recovery evidence from another run. The [status history](../reference/status.md) preserves the earlier observations and their limits.
 
 ## Prerequisites
 
@@ -435,3 +437,7 @@ The step by step versions are [backup and restore](backup-and-restore.md) and [u
 - Bootstrap creates the first operator; invitations are a separate legacy
   feature with scoped local-VM evidence. Management MFA and login rate limiting
   remain absent. See [status](../reference/status.md) for the historical scope.
+
+## Private directory permissions
+
+Installation and startup create `.secrets` and `.secrets/upstream` with mode `0700`, owned by the account running the service. Symlinks and existing directories with a different owner or mode are refused. If a new version refuses an older checkout whose parent was created as `0755`, stop the installation normally and verify both directories are real directories owned by the service account before setting only these two directory modes to `0700`. The shipped Docker image runs as root inside the container. This repair does not require changing ownership or internal file modes; retain all secret data and backups. `Runtime private directory ownership or mode refused` and `Runtime private directory identity changed` require correcting permissions or the checkout path before retrying.

@@ -84,5 +84,32 @@
       "sha256": "da658d5f75e363e5326ffb1b1a2925dcf96f67dd6e4f10fb2e28ae2bb2cbabf7",
       "mode": "0o644"
     }
+  },
+  "published_commit": "85ca190bac011e5afb96966ee3727e34b90cf369",
+  "actual_rerun": {
+    "run": 37590201983,
+    "url": "https://github.com/M7MMAD-OMAR/sbarbase/actions/runs/37590201983",
+    "commit": "85ca190bac011e5afb96966ee3727e34b90cf369",
+    "conclusion": "failure",
+    "jobs": {
+      "checks": "success",
+      "python-floor": "success",
+      "docker-install": "failure",
+      "empty-host-acceptance": "skipped"
+    },
+    "python_floor": {
+      "tests": 2078,
+      "result": "OK",
+      "seconds": 155.77
+    },
+    "docker": {
+      "storage_admission": "passed",
+      "console_startup": "passed",
+      "failed_step": "First operator (generated, never printed)",
+      "failure": "Private secrets directory owner/mode assertion",
+      "project_creation": "not_reached",
+      "restore": "not_reached"
+    },
+    "production_ready": false
   }
 }

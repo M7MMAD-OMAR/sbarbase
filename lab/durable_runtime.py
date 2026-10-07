@@ -27,6 +27,7 @@ import source_fence
 import mail_config
 import auth_settings
 import mail_state
+import private_directories
 
 MAIL_KEY_PREFIXES = ('GOTRUE_SMTP_', 'GOTRUE_MAILER_', 'GOTRUE_RATE_LIMIT_')
 
@@ -339,8 +340,7 @@ class Runtime:
     def __init__(self,*,startup=None,operation_fd=None,worker_runtime=None):
         docker_profile.require_supported()
         STATE.mkdir(parents=True, exist_ok=True)
-        PRIVATE.mkdir(mode=0o700, parents=True, exist_ok=True)
-        os.chmod(PRIVATE, 0o700)
+        private_directories.prepare(lab.ROOT)
         # Verify ignore rules before persisting generated credentials.
         import subprocess
         if subprocess.run(['git', 'check-ignore', '-q', str(PRIVATE/'runtime.json')], cwd=lab.ROOT).returncode:

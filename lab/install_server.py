@@ -29,6 +29,7 @@ import console_build_check
 import pinned_images_check
 import docker_profile
 import image_identity
+import private_directories
 ROOT=Path(__file__).resolve().parent.parent
 STATE=ROOT/'.lab'/'upstream'
 PRIVATE=ROOT/'.secrets'/'upstream'
@@ -383,8 +384,7 @@ def install(bootstrap_file):
     if not report(checks):raise SystemExit('Preflight failed; nothing was installed')
     lock=operation_lock()
     try:
-        PRIVATE.mkdir(mode=0o700,parents=True,exist_ok=True)
-        os.chmod(PRIVATE,0o700)
+        private_directories.prepare(ROOT)
         print('step 1/5  state and secret directories prepared')
         ensure_images()
         print('step 2/5  pinned images present and verified')

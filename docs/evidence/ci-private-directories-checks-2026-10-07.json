@@ -1,0 +1,81 @@
+{
+  "schema": 1,
+  "date": "2026-10-07",
+  "scope": "Shared product private-directory preparation; source review and focused fixture tests",
+  "observed_failure": {
+    "commit": "85ca190bac011e5afb96966ee3727e34b90cf369",
+    "run": 37590201983,
+    "failed_step": "First operator (generated, never printed)",
+    "root_cause": "Recursive creation of the private leaf left its missing .secrets ancestor with default 0755 permissions"
+  },
+  "change": {
+    "callers": [
+      "lab/install_server.py",
+      "lab/durable_runtime.py"
+    ],
+    "fresh_directories_mode": "0700",
+    "owner": "effective runtime user",
+    "existing_unsafe_directories": "refused without chmod or adoption",
+    "unchanged": [
+      "CI first-operator private-directory assertion",
+      "capability registry acceptance states"
+    ]
+  },
+  "focused_verification": {
+    "tests": 83,
+    "failures": 0,
+    "errors": 0,
+    "skips": 0,
+    "exit_code": 0,
+    "seconds": 3.322,
+    "memory": "512M",
+    "cpu_percent": 50,
+    "tasks": 128,
+    "docker_endpoint": "unreachable"
+  },
+  "independent_source_review": "MET for six files; no native execution by reviewer",
+  "source_bindings": {
+    "lab/private_directories.py": {
+      "sha256": "ec301e03c66ae323ab0e0b388c332c0658a7aa0c5f716244325b56e63770785e",
+      "mode": "0o644"
+    },
+    "lab/install_server.py": {
+      "sha256": "29713d2d17f6b629704672753af78e45daef9d65624170e899345c70c1f16bd1",
+      "mode": "0o644"
+    },
+    "lab/durable_runtime.py": {
+      "sha256": "6f7d93868ade2fe18a969384029831e4c83df79bd6fe90167feb74f686e7ed9d",
+      "mode": "0o644"
+    },
+    "lab/test_private_directories.py": {
+      "sha256": "e236ae09145ffc504834179acb8b9814ed5e27c199443f54ac5c1af5a290fb22",
+      "mode": "0o644"
+    },
+    "lab/test_install_lock.py": {
+      "sha256": "7389a1438c6e9af32739b85066a9393d0a4eb8a31860f1af51d033ecde0fe2af",
+      "mode": "0o644"
+    },
+    "lab/test_durable_image_identity.py": {
+      "sha256": "40a468be1db2a7bbc0e3ee8330b380df88fc6ac23aa85c51df6a18bd7d1a7db4",
+      "mode": "0o644"
+    }
+  },
+  "native_rerun_accepted": false,
+  "production_ready": false,
+  "full_python_verification": {
+    "tests": 2086,
+    "failures": 0,
+    "errors": 0,
+    "skips": 0,
+    "exit_code": 0,
+    "reported_seconds": 243.427,
+    "wrapper_seconds": 245.28,
+    "memory": "512M",
+    "cpu_percent": 50,
+    "tasks": 128,
+    "service_seconds": 300,
+    "docker_endpoint": "unreachable",
+    "result": "OK",
+    "native_acceptance": false
+  }
+}
