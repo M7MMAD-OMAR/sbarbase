@@ -1,0 +1,29 @@
+{
+  "run": "37611426068",
+  "head": "976250b1625e86066e198ce6f1bf2c7424fd82c3",
+  "all_four_jobs_passed": true,
+  "fresh_artifacts": [
+    {
+      "contract": "docker",
+      "artifact_id": 11479531294,
+      "reports": 13,
+      "unique_assertions": 254,
+      "zip_bytes": 15020,
+      "zip_sha256": "1861b3ffc69d48eb6beba7c46e5ad4628d483b831c290c1823f6660f9078eb21"
+    },
+    {
+      "contract": "empty-host",
+      "artifact_id": 11477474714,
+      "reports": 6,
+      "unique_assertions": 58,
+      "zip_bytes": 10259,
+      "zip_sha256": "87037f06a14a4ae94e27501156ba7e6c2ef661de83c96ce3629843e0ad9ede93"
+    }
+  ],
+  "empty_host_unit_json": "Pre-restore inactive snapshot retained; final native job log independently observed restored active unit and answering console",
+  "guest_started_by_root": false,
+  "full_recovery_proven": false,
+  "production_ready": false,
+  "final_unit_native_log_projection": "empty-host-final-unit-observation.json",
+  "workflow_url": "https://github.com/M7MMAD-OMAR/sbarbase/actions/runs/37611426068"
+}

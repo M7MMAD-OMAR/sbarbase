@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "kind": "Fixed native CI log projection, no additional assertion count",
+  "workflow_run": 37611426068,
+  "job": 112761722922,
+  "source_head": "976250b1625e86066e198ce6f1bf2c7424fd82c3",
+  "private_full_log_sha256": "63c4641627dcfdb39ccdaabed9f3164b2961b3d506ed38abda47a38024bc7ce1",
+  "observations": [
+    {
+      "at": "2026-10-07T11:11:49.0579879Z",
+      "message": "== restore the supervised installation"
+    },
+    {
+      "at": "2026-10-07T11:12:06.7605685Z",
+      "message": "ok: sbarbase.service active again and its console answers"
+    },
+    {
+      "at": "2026-10-07T11:12:06.9251475Z",
+      "message": "Server acceptance: PASSED"
+    }
+  ],
+  "pre_restore_json_inactive_preserved": true,
+  "physical_reboot_proven": false,
+  "full_recovery_proven": false,
+  "production_accepted": false
+}
