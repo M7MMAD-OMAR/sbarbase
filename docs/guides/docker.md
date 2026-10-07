@@ -2,11 +2,11 @@
 
 # Install with Docker
 
-The container installation targets a local rootful Linux Docker Engine with Compose 2.15 or later. Python, Bun and the Docker CLI come inside the Sbarbase image, so the host's own Python version does not matter. The CI workflow describes a clean-machine installation rehearsal; its existence does not establish a passing runtime result for the current checkout. Independent-host trials and measured resource enforcement remain required before publishing a supported-host matrix.
+The primary route uses `deploy/compose.sh`, which checks the declared host before any Compose build, pull or startup mutation. The initial candidate is Linux x86_64 with a local rootful Docker Engine, cgroup v2, the required resource controllers and default runc/builtin seccomp. Python, Bun and the Docker CLI come inside the Sbarbase image. The host needs POSIX shell, Docker/Compose and public Linux utilities, not Python, Bun or systemd. **Supported-profile acceptance and production remain unproven** until clean host installation, resource enforcement, reboot and full recovery are verified. Read the [host admission contract](../engineering/HOST-PREFLIGHT.md) for exact prerequisites, diagnostics and evidence limits.
 
 Size the server first with [choosing a server](choosing-a-server.md).
 
-The default Docker data root is `/var/lib/docker` and socket is `/var/run/docker.sock`. If the daemon uses different absolute paths, set `SBARBASE_DOCKER_DATA_ROOT` to its reported `DockerRootDir` and `SBARBASE_DOCKER_SOCKET` to its local Unix socket before Compose creates the controller. These settings select existing paths; they do not reconfigure or migrate Docker. Bind mounts refuse missing sources rather than creating empty directories. The controller checks the daemon root, its own full container identity, project/service labels and both bind mounts before recovery or provisioning.
+The default Docker data root is `/var/lib/docker` and socket is `/var/run/docker.sock`. If the daemon uses different absolute paths, set `SBARBASE_DOCKER_DATA_ROOT` to its reported `DockerRootDir` and `SBARBASE_DOCKER_SOCKET` to its local Unix socket before the launcher checks and creates the controller. These settings select existing paths; they do not reconfigure or migrate Docker. Bind mounts refuse missing sources rather than creating empty directories. The controller checks the daemon root, its own full container identity, project/service labels and both bind mounts before recovery or provisioning.
 
 `DOCKER_CONTEXT`, `DOCKER_TLS` and `DOCKER_TLS_VERIFY` are cleared inside the controller, and its CLI uses the mounted socket. The Compose invocation itself must target the intended local daemon. Remote daemons, Docker Desktop and rootless profiles have not passed the required tests and the explicit `local-v1` profile refuses them. A custom data root also requires a runtime declaring `local-v1` compatibility. Rollback to a runtime without that declaration stays stopped rather than silently using its historical default root.
 
@@ -15,18 +15,21 @@ The default Docker data root is `/var/lib/docker` and socket is `/var/run/docker
 ```bash
 git clone https://github.com/M7MMAD-OMAR/sbarbase /opt/sbarbase
 cd /opt/sbarbase
-docker compose up -d --build
+deploy/compose.sh check
+deploy/compose.sh up
 ```
 
-The first start pulls the pinned Supabase images (about 2.4 GB) and takes a few minutes. Follow it with `docker compose logs -f`; it is ready when the log says `Local Sbarbase API: http://127.0.0.1:8790`.
+Export deployment inputs explicitly before running the launcher. It pins this checkout, the local socket and the Compose project, passes only declared interpolation values, and ignores `.env`. `DOCKER_HOST` must agree with the declared socket; conflicting Docker context/TLS/API or Compose file/profile overrides are refused. `check` is read-only and never creates missing data paths, volumes, containers or packages. Raw `docker compose up` bypasses the host check and is outside this installation route.
+
+The first start pulls the pinned Supabase images (about 2.4 GB) and takes a few minutes. Inspect its recent output with `deploy/compose.sh logs`; it is ready when the log says `Local Sbarbase API: http://127.0.0.1:8790`.
 
 ## 2. Create the first operator
 
 ```bash
-docker compose exec sbarbase python3 lab/bootstrap.py
+deploy/compose.sh bootstrap
 ```
 
-It asks for an email, a client (organization) name and a password, without echoing the password. Then open the console at `http://127.0.0.1:8790` on the server (for example through `ssh -L 8790:127.0.0.1:8790 your-server`), sign in, create a project and an environment, and copy its connection details and key.
+The fixed bootstrap command preserves the socket, checkout and project selected by the launcher. It asks for an email, a client (organization) name and a password, without echoing the password. Then open the console at `http://127.0.0.1:8790` on the server (for example through `ssh -L 8790:127.0.0.1:8790 your-server`), sign in, create a project and an environment, and copy its connection details and key.
 
 ## 3. Put HTTPS in front
 
@@ -36,14 +39,14 @@ The console and the API listen on loopback only. Publish them through the TLS pr
 
 | Task | Command |
 |---|---|
-| Status and logs | `docker compose ps`, `docker compose logs -f` |
-| Health check | `docker compose exec sbarbase python3 lab/install_server.py smoke` |
-| Stop everything cleanly | `docker compose down` |
-| Start again | `docker compose up -d` |
+| Status and logs | `deploy/compose.sh ps`, `deploy/compose.sh logs` |
+| Health check | `deploy/compose.sh smoke` |
+| Stop everything cleanly | `deploy/compose.sh down` |
+| Start again | `deploy/compose.sh up` |
 | Update Sbarbase | the console's Updates page, or see [updates](#updates) below |
 | Back up / restore | see [backup and restore](backup-and-restore.md); daily backups run on their own |
 
-`restart: unless-stopped` brings Sbarbase back after a reboot once Docker itself starts at boot (`systemctl enable docker`). Data lives in Docker volumes and in the checkout's `.lab/` and `.secrets/` folders; `docker compose down` keeps all of it.
+`restart: unless-stopped` brings Sbarbase back after a reboot once Docker itself starts at boot (configure Docker to start at boot using the host distribution's service manager). Data lives in Docker volumes and in the checkout's `.lab/` and `.secrets/` folders; `deploy/compose.sh down` keeps all of it.
 
 ## Updates
 
@@ -54,8 +57,8 @@ Two settings in `compose.yaml` concern updates. `TZ` sets the container's time z
 A plain restart reuses the image and the container `compose.yaml` created. A release whose class is "needs a rebuild" changes one of them, so it is installed on the server, and the container is rebuilt:
 
 ```bash
-docker compose exec sbarbase python3 lab/upgrade.py start --release vX.Y.Z --allow-class rebuild
-docker compose up -d --build
+deploy/compose.sh upgrade vX.Y.Z
+deploy/compose.sh up
 ```
 
 Do not update with `git pull`: that skips the backup, the control snapshot and the way back. The first move onto the version with the update channel is a rebuild too; the [upgrades guide](upgrades.md) has the steps. The update channel has unit and CI coverage and a local rehearsal-VM run: [vm-channel-checks.json](../evidence/vm-channel-checks.json) records 114 checks on 2026-09-26 using releases signed with a throwaway key. It has not been accepted on an independent public server, and no upstream release adoption is established by that rehearsal.

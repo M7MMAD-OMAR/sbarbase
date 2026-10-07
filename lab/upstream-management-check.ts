@@ -1,3 +1,4 @@
+import {liveManagementClient,liveManagementLogin} from './live-management-auth';
 import {createClient} from '@supabase/supabase-js';
 import {internalToken,managementPublishableKey,openUpstreamApplication} from './upstream-app';
 
@@ -20,7 +21,7 @@ const neighbor=app.catalog.getProvision('durable-probe-owner',probe.environments
 const suffix=crypto.randomUUID(),email=`manager-${suffix}@example.com`,password=`Local-${suffix}`;
 let owner:string|undefined,keyId:string|undefined,rawKey:string|undefined;
 const path=`/management/v1/environments/${job.environment}`;
-const client=()=>createClient(base+'/management',managementPublishableKey,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
+const client=()=>liveManagementClient(base,managementPublishableKey);
 const control=(tail:string,method:string,token:string)=>fetch(base+path+tail,{method,headers:{authorization:'Bearer '+token}});
 try {
  const provisioned=await fetch(management.auth+'/admin/users',{method:'POST',headers:{
@@ -33,7 +34,7 @@ try {
  const managementClient=client();
  const blocked=await managementClient.auth.signUp({email:'blocked-'+email,password});
  check('public management gateway blocks signup',!!blocked.error);
- const login=await managementClient.auth.signInWithPassword({email,password});
+ const login=await liveManagementLogin(managementClient,base,{email,password},{fresh:true});
  check('SDK management password login works',!login.error&&login.data.user?.id===owner);
  if(!login.data.session)throw new Error('No management session');
  let adminToken=login.data.session.access_token;
@@ -67,7 +68,7 @@ try {
  await command(['/usr/bin/python3','lab/durable_runtime.py','up']);
  app=openUpstreamApplication();server=Bun.serve({hostname:'127.0.0.1',port:0,fetch:app.handler});base=`http://127.0.0.1:${server.port}`;
  management=await Bun.file('.lab/upstream/management.json').json();
- const after=await client().auth.signInWithPassword({email,password});
+ const after=await liveManagementLogin(client(),base,{email,password},{fresh:true});
  check('management identity survives runtime restart',!after.error&&after.data.user?.id===owner);
  if(!after.data.session)throw new Error('No restarted management session');adminToken=after.data.session.access_token;
  const persistent=await fetch(`${base}/${job.runtime}/rest/v1/`,{headers:{apikey:rawKey!}});

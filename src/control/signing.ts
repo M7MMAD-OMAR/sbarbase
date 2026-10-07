@@ -1,3 +1,4 @@
+import {bindReadyEnvironmentPublication} from './ready-publication';
 import {Catalog} from './catalog';
 import {authenticate,reply,type ManagementIdentity} from './auth';
 
@@ -18,7 +19,8 @@ export function signingHandler(catalog:Catalog,identify:ManagementIdentity) {
   if(actor instanceof Response)return actor;
   const environment=match[1]!;
   try {
-   return rotate?reply(202,{data:catalog.requestSigningRotation(actor,environment)}):reply(200,{data:catalog.signing(actor,environment)});
+   const data=rotate?catalog.requestSigningRotation(actor,environment):catalog.signing(actor,environment);
+   return bindReadyEnvironmentPublication(reply(rotate?202:200,{data}),catalog,actor,environment,data.runtime,true);
   } catch(error) {
    const message=error instanceof Error?error.message:'';
    if(message==='Forbidden')return reply(403,{message:'Forbidden'});

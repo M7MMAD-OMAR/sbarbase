@@ -2,21 +2,25 @@ import {test,expect} from 'bun:test';
 import {Catalog} from '../src/control/catalog';
 import {managementHandler} from '../src/control/http';
 import {managementIdentity} from '../src/control/auth';
+import {managementToken,sessionId,factorId,verifiedFactor} from './management-fixture';
 
 test('management identity uses fixed Auth endpoint, ignores identity headers and rejects anonymous users',async()=>{
  const seen:string[]=[];
+ const catalog=new Catalog(':memory:'),now=Math.floor(Date.now()/1000),owner=managementToken('alice','aal2',sessionId,now),anonymous=managementToken('alice','aal1');
+ catalog.managementSecurity.grant('alice',sessionId,factorId,now,now+3600,0);
  const transport=(async(input,init)=>{
   seen.push(String(input));const token=new Headers(init?.headers).get('authorization');
-  if(token==='Bearer owner') return Response.json({id:'alice',is_anonymous:false});
-  if(token==='Bearer anonymous') return Response.json({id:'alice',is_anonymous:true});
+  if(token==='Bearer '+owner) return Response.json({id:'alice',is_anonymous:false,factors:[verifiedFactor]});
+  if(token==='Bearer '+anonymous) return Response.json({id:'alice',is_anonymous:true});
   return Response.json({msg:'invalid token'},{status:401});
  }) as typeof fetch;
- const identify=managementIdentity('https://management.example','management-key',transport);
+ const identify=managementIdentity('https://management.example','management-key',transport,catalog.managementSecurity);
  const request=(token:string)=>new Request('https://app.example',{headers:{authorization:`Bearer ${token}`,'x-user-id':'alice'}});
- expect(await identify(request('owner'))).toBe('alice');
+ expect(await identify(request(owner))).toBe('alice');
  expect(await identify(request('application-token'))).toBeNull();
- expect(await identify(request('anonymous'))).toBeNull();
+ expect(await identify(request(anonymous))).toBeNull();
  expect(seen.every(url=>url==='https://management.example/auth/v1/user')).toBe(true);
+ catalog.close();
 });
 
 test('HTTP boundary derives actor from authentication, rejects body spoofing, and applies current memberships',async()=>{

@@ -152,8 +152,9 @@ class NativeModel:
         assert all(not row['allow_connections'] for row in self.dbs.values()), 'both database OIDs must stay fenced through object operations'
         if script == 'mkdir "$1"':
             return SimpleNamespace(stderr='', stdout='')
-        if script.startswith('cd "$1"'):
-            stage = args[0].split('/')[-1]
+        if script == 'python3 -c "$1" "$2"':
+            assert args[0] == backup.backup_consistency.EXTRACT_SCRIPT
+            stage = args[1].split('/')[-1]
             self.trees[stage + '/' + E] = self.identity('2')
             if self.fail == 'files':
                 raise backup.BackupError('injected')

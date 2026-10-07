@@ -1,0 +1,10 @@
+{
+  "lab/storage_native_authority.py": "a2e670c429d8e0823bb1f1b93ec09c92956181d6b9cfcab4edac230198768070",
+  "lab/durable_runtime.py": "7dc9256385c07526f473c83685b7489fa0fd8a597475f731126d09fb2fa0afea",
+  "src/control/storage-settlement-contract.ts": "c00252ab964406ee560bbf729ba08fb42daaa1ede6c252ee89c6f6027b87823c",
+  "src/control/catalog.ts": "7c0f817445854ca85b46653507339daf77bd6c20e20bc5fcc47595694eb82c2f",
+  "lab/backup.py": "345464f2aaed497b52ba981298927807dea50b2fd8cec9d6d9b2c193daaff012",
+  "lab/restore_cutover.py": "910af356a176224a4d77e4613a91e8ab910a754d50c826de6915835c97677952",
+  "lab/restore_operation.py": "24af12bcf7a04d1564d3172ad2a1eaa5cde5f653ff7e9eb60eaa4c4972a19aed",
+  "lab/migrate-generation.py": "2996347770aeb1a24817bd2a0ef95dedfe4777c0b36ee77c2bba702668b58f06"
+}

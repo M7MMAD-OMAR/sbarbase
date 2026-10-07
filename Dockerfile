@@ -15,10 +15,11 @@ RUN dpkg-deb --extract /tmp/ca-certificates.deb /tmp/ca-bootstrap \
  && printf 'APT::Snapshot "20261002T000000Z";\nAcquire::https::CaInfo "/etc/ssl/certs/ca-certificates.crt";\n' > /etc/apt/apt.conf.d/50snapshot \
  && apt-get update -q -o APT::Update::Error-Mode=any \
  && DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends \
-      python3 python3-cryptography git openssh-client tzdata procps ca-certificates util-linux \
+      python3 python3-cryptography git openssh-client tzdata procps ca-certificates util-linux coreutils sed mawk \
  && rm -rf /var/lib/apt/lists/* \
  && rm -rf /tmp/ca-certificates.deb /tmp/ca-bootstrap \
  && git config --system --add safe.directory '*'
 COPY --chmod=0755 deploy/container/start.sh /usr/local/bin/sbarbase-start
 COPY lab/docker_profile.py /usr/local/lib/sbarbase/docker_profile.py
+COPY deploy/host-preflight.sh /usr/local/lib/sbarbase/host-preflight.sh
 ENTRYPOINT ["/usr/local/bin/sbarbase-start"]

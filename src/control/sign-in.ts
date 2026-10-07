@@ -1,3 +1,5 @@
+import {bindReadyEnvironmentPublication} from './ready-publication';
+import {refreshCurrentManagement} from './management-context';
 import {existsSync,mkdirSync,readFileSync,renameSync,writeFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {Catalog} from './catalog';
@@ -114,15 +116,18 @@ export function signInHandler(catalog:Catalog,identify:ManagementIdentity,direct
   if(actor instanceof Response)return actor;
   const environment=match[1]!;
   try {
-   const state=catalog.signIn(actor,environment);
+   let state=catalog.signIn(actor,environment);
+   const answer=(response:Response)=>bindReadyEnvironmentPublication(response,catalog,actor,environment,state.runtime,true);
    const callback_url=`${publicUrl()}/${state.runtime}/auth/v1/callback`;
-   if(request.method==='GET')return reply(200,{data:{...state,callback_url,settings:view(readSettings(directory,state.runtime))}});
+   if(request.method==='GET')return answer(reply(200,{data:{...state,callback_url,settings:view(readSettings(directory,state.runtime))}}));
    let input:unknown;
    try{input=await request.json();}catch{return reply(400,{message:'Invalid JSON'});}
+   await refreshCurrentManagement();
+   state=catalog.signIn(actor,environment);
    const settings=settingsFromInput(input,readSettings(directory,state.runtime));
    writeSettings(directory,state.runtime,settings);
    const saved=catalog.requestSignIn(actor,environment,settings.revision);
-   return reply(202,{data:{...saved,callback_url,settings:view(settings)}});
+   return answer(reply(202,{data:{...saved,callback_url,settings:view(settings)}}));
   } catch(error) {
    if(error instanceof SettingsError)return reply(400,{message:`Check the ${error.message.replace(/_/g,' ')} setting`});
    if(error instanceof Error&&error.message==='Forbidden')return reply(403,{message:'Forbidden'});

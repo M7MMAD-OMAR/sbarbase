@@ -1,0 +1,66 @@
+# Reference distribution and SB-03 acceptance plan
+
+2026-10-06. This is a source-only planning artifact. Metadata observations establish byte identities for selected public inputs. They grant no reference startup, native admission, SB-03 security, G0, G12 or production acceptance. Every execution stage and security case remains planned or unrun. The [machine-readable plan](supabase-v0.8.2.reference-acceptance-plan.json) contains exact identities, response hashes, owners, prerequisites and mandatory evidence.
+
+The authoring base is `bbc6e302b90cbac13fe2bbedf9603a0c33ca05a2`. Root separately reported a 537-file public-source identity, `a467711e1024531eb3c26ef2b7b99717313e18b1b59bf63420f646af353e4d2e`, after later integration changes. That report is context, not this proposal's identity or an acceptance result. This work changes only the two new planning documents and a separate review record. Existing registry, verifier, ledger, retained baseline, runtime and native files stay unchanged.
+
+The governing contracts remain the [product plan](../plans/2026-10-03-product-and-portability-plan.md) and [execution method](../plans/2026-10-03-gauntlet-execution-method.md). SB-03 concerns PostgreSQL and security release applicability. Administrative security is a separate G4 dependency. Security-only success cannot close the complete G12 release gate.
+
+## Preserve the original bar
+
+The original remains Supabase `self-hosted/v0.8.2`, annotated tag object `47111f95a43ffcc20ab288e29c48ce0b80174bd6`, peeled commit `564eab8ad7840b13324f68b1bfac074ef8d51c21`. A bounded public Git query returned both exact values on this review date. The raw core Compose file still hashes to `8ba18fd43e9afba90e8287c8e8afc4bdda1e38d2228e57ff660968bb550da054`. [Pinned upstream Compose](https://raw.githubusercontent.com/supabase/supabase/564eab8ad7840b13324f68b1bfac074ef8d51c21/docker/docker-compose.yml).
+
+The original [source identity](supabase-v0.8.2.source.json) and [reference packet](supabase-v0.8.2.bundle.json) are unchanged. The packet retains 64 docker files, 14 Compose documents, five auxiliary YAML configurations and 23 distinct image references. The JSON plan explicitly retains every file, service, image, platform descriptor and historical error. Every profile must name its ordered overrides; optional configurations remain in the inventory even when a selected runtime profile excludes them. Unsupported or uninspectable profiles stay explicit.
+
+The packet still has ten derived diagnostics: a dev Compose parser warning, build-only Studio, four registry refusals or uninspected records, and four incomplete metadata results. No diagnostic has been erased or downgraded by this plan. The current foundation verifier reads that original packet and continues to refuse acceptance. Any future compatible supplemental packet and verifier binding change requires a separate implementation contract, fresh tests and independent review; adding this plan cannot override the refusal.
+
+## What was observed publicly
+
+The retained HTTP collector made 31 GET requests in about 11.4 seconds, with at most 40 requests, 2 MiB per response, 480 seconds overall, 8-second connection and 15-second read timeouts. It followed no redirects, performed no retries, downloaded no image layers, and used only anonymous public registry tokens. Token response bodies and authorization headers were not retained. Raw non-token responses, request metadata and hashes are retained outside source; the JSON plan includes their public addresses and identities. A separate Git query had a 20-second bound and exited zero. This collection is a one-time observation, not a scheduled retry or availability guarantee.
+
+Four GitHub API requests returned HTTP 403 rate-limit bodies, which are preserved. The Git result independently corroborates the pinned tag; it does not erase those API refusals. Docker Hub did not return a new 429 in this observation. Its earlier 429 evidence remains unchanged in the original packet.
+
+| Reference | New public root manifest observation | Remaining proof |
+| --- | --- | --- |
+| Studio `2026.09.07-sha-7996410` | Root `94a2a9d2...`, both platform descriptors and raw platform manifests | Raw config, binary/source provenance, startup |
+| Supavisor `2.9.12` | Root `464b93a6...`, both platform descriptors and raw platform manifests | Same gaps |
+| Vector `0.53.0-alpine` | Original frozen root `ca92d617...`, both platform manifests | Same gaps |
+| Inbucket `3.0.3` | Root `dc912ab7...`, both platform manifests | Same gaps |
+| Auth `v2.196.0`, control observation | Original frozen root `c0c25187...`, both platform manifests | Same gaps |
+
+Full digests and raw response SHA-256 values are in the JSON. Existing immutable digests were used when the original packet supplied them. Newly resolved tags are dated observations and must not retroactively become original frozen image evidence. Other historical images were not re-queried in this bounded pass.
+
+Index, platform manifest and config digest are different identities. A manifest descriptor is not retained config bytes or a verified platform binary. For every declared architecture, the future packet must verify raw config bytes against its descriptor and actual `os`/`architecture`, as well as every parent/child manifest hash. It must reject absent, ambiguous or mismatched platforms. [Registry content addressing](https://distribution.github.io/distribution/spec/api/) and the [OCI image index specification](https://github.com/opencontainers/image-spec/blob/main/image-index.md) define the relevant relationships.
+
+A content digest does not authenticate a source revision, publisher, build system or execution. Labels are self-attested unless supported by independently verified evidence. Require authenticated publisher provenance or a separately declared reproducible public build with complete inputs and an explicit trust policy. No provenance availability was established in this pass. [SLSA provenance](https://slsa.dev/spec/v1.2/provenance).
+
+## Distribution work in dependency order
+
+1. **REF-SOURCE, reference custodian:** independently obtain the exact commit and complete regular-file/mode/blob inventory. Freeze the public monorepo build closure needed by dev Studio, not only the docker subtree. The [pinned Dockerfile](https://raw.githubusercontent.com/supabase/supabase/564eab8ad7840b13324f68b1bfac074ef8d51c21/apps/studio/Dockerfile) uses monorepo pruning and external base/package inputs. The sampled Dockerfile, root package and workspace files are not a complete closure. Freeze base image digests, dependency lockfiles, patches, target, framework, build arguments and all source inputs before building.
+2. **REF-METADATA, reference custodian:** produce a separately versioned supplemental image/config/provenance packet for every original reference and both proposed architectures. Preserve original diagnostics. Resolve build-only output by a declared reproducible build, never by substituting an easier registry image or dropping dev Studio from the full inventory. If a patched reference is necessary, amend the bar explicitly and rerun affected comparisons while retaining the original identity.
+3. **REF-PROFILE, runtime and host maintainer:** propose one actual disposable amd64 profile, complete effective configuration and matched fixtures. Freeze OS/kernel/engine/Compose/cgroups/filesystem/security enforcement, placement, CPU/RAM/disk/network limits, SDK, commands, timeout and cleanup. SB-02 source checks do not establish clean-host runtime. Obtain a coordinated runtime slot before any build or startup. Native arm64 remains unaccepted until it passes the same applicable suite.
+4. **REF-DISTRIBUTION, distribution maintainer:** implement and observe every existing foundation test on a fresh public clone. Bind exact runner argv and fixtures before execution. Verify no private source, retained volume or workstation dependency is needed. Compare declared reproducible outputs from two independent clean builds, verify release inventory and identity, and demonstrate required-check refusals. Actual isolated startup and matched SDK observations remain separate mandatory execution evidence.
+
+The original six foundation test IDs are preserved in the JSON stage contract. Runner argv remain explicitly null in this proposal; the registry's empty commands are not made executable by documentation. A fresh independent critic must observe the implemented commands and every mandatory case before acceptance.
+
+## SB-03 applicability and rehearsal
+
+First inventory actual software and actual objects. The original reference declares Supabase PostgreSQL `17.6.1.136`; the candidate native lock declares `17.6.1.166`; legacy placement uses a plain `postgres:17-alpine` digest. These are distinct inputs. Neither tag text nor a historical patched-image trial identifies the current server/client binaries, enabled extensions, installed backports or selected rollout route.
+
+The September 25 upstream notice calls for version and object checks covering ltree, legacy pgcrypto ciphers, float btree_gist indexes and custom selectivity operators. Treat those as applicability questions with dummy rehearsal fixtures and before/after application checks, not an assertion that an installation is exploitable. Inventory every relevant database, encoding/collation, extension, index and operator; use an owner-approved privacy contract before examining application ciphertext. [Supabase PostgreSQL maintenance notice](https://supabase.com/changelog/postgres-15-19-17-11-breaking-changes), [PostgreSQL security records](https://www.postgresql.org/support/security/).
+
+Also inventory owners, ACLs, RLS, views and custom schemas before a Studio role transition. A migration limited to public cannot establish compatibility for arbitrary custom schemas. [Upstream role transition](https://supabase.com/changelog/46081-self-hosted-supabase-switching-studio-from-supabase-admin-to-postgres-breaking-change).
+
+The Auth advisory GHSA-v36f-qvww-8w8m lists affected versions below 2.185.0 and a fix in 2.185.0. The declared reference tag v2.196.0 lies outside that range. This is a version-label comparison only; binary provenance, provider configuration and safe behavior remain unverified, and one advisory cannot establish complete Auth coverage. [Publisher advisory](https://github.com/supabase/auth/security/advisories/GHSA-v36f-qvww-8w8m).
+
+The JSON declares twelve mandatory subchecks for a future `SB-03.complete-contract` aggregate: version/backport identity, ltree, pgcrypto, btree_gist, operators, ownership, Auth, gateway/key boundaries, matched application flow, interrupted patch/recovery, component/host supply chain, and actual refusal behavior. Bind affected, demonstrably not affected, or unknown separately for each advisory and configuration. An empty advisory search is never a safe disposition. Component dependencies, client tooling, base images and host maintenance need their own dated evidence.
+
+Choose a patch route only after that inventory: a compatible in-place patch, a separately declared patched bundle, or an explicit migration/restore. Freeze affected object identities, remediation, immutable before/after images, application control and negative cases, maintenance/recovery point, credential policy and failure criteria. Test coherent data/object recovery, original-host-unavailable recovery and new writes. Do not silently roll back to vulnerable software or treat a failed patch as authorization to weaken security. No private SQL/HBA, live production probe or native retained resource is part of this plan.
+
+## Evidence admission and release
+
+Future proof must bind the actual current public source bytes/modes/inventory, registry/schema identities, reference and declared amendment, effective configuration, images/provenance, profile/placement, fixtures/SDK, exact command/test manifest, raw observations/logs, time/expiry and independent review. Missing, failed, skipped, empty, stale, tampered or mismatched evidence refuses. Unit proof cannot substitute for runtime. Cron effects alone cannot accept SB-13a, and security-only proof cannot accept G12. Production is a separate gate. Checksums establish integrity, not execution provenance or reviewer independence.
+
+G12 requires current complete acceptance for every claimed slice/profile, actual public pilot and seven-day soak, licenses, contributor setup, vulnerability reporting and support windows. A complete SB-03 result supplies only its slice. Keep one history ledger, `docs/engineering/gauntlet-ledger.json`, and the existing capability registry as the acceptance authority. This plan creates neither a second ledger nor accepted rows. Changes after a proof require new identity and revalidation; root's earlier source reviews and this metadata pass cannot be transferred to a later artifact.
+
+The next implementation handoff must declare exact source reservations, runner and fixture schemas, supported profile and finite resource contract before executing any stage. The current delivery is the checked plan and independent source review only. Full source, runtime, native, security release, recovery and production gaps remain explicit.

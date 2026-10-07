@@ -1,0 +1,119 @@
+{
+  "schema": 1,
+  "observed_date": "2026-10-07",
+  "scope": "unit_tests_types_and_build_only",
+  "source_base_commit": "2c4ec82007a47436ba3e338ac03d1ad5e288df45",
+  "results": {
+    "bun": {
+      "passed": 914,
+      "failed": 0,
+      "skipped": 0,
+      "exit_code": 0
+    },
+    "python_daemon_unreachable": {
+      "total": 2074,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 0
+    },
+    "control_types": {
+      "exit_code": 0
+    },
+    "ui_types": {
+      "exit_code": 0
+    },
+    "ui_build": {
+      "exit_code": 0
+    },
+    "ci_shell_syntax": {
+      "exit_code": 0
+    }
+  },
+  "prior_negative_observations": [
+    {
+      "check": "bun",
+      "passed": 912,
+      "failed": 2,
+      "resolution": "Two source fixture assumptions corrected; refusal and revocation assertions retained."
+    },
+    {
+      "check": "python",
+      "total": 2073,
+      "failures": 4,
+      "errors": 26,
+      "resolution": "Stale catalog binding checksum and three inherited environment fixture errors corrected."
+    },
+    {
+      "check": "python",
+      "total": 2074,
+      "failures": 0,
+      "errors": 1,
+      "failed_test": "test_native_startup_materials.PasswordTests.test_changed_expected_witness_refused",
+      "resolution": "Cause remains unconfirmed. 1900 focused repetitions and final full run passed; no protection changed."
+    }
+  ],
+  "resource_limits": {
+    "unit_memory_mib": 512,
+    "cpu_percent": 50,
+    "tasks": 128,
+    "bun_seconds": 60,
+    "python_seconds": 300,
+    "docker_endpoint": "unix:///nonexistent/docker.sock"
+  },
+  "sources": {
+    ".github/workflows/ci.yml": {
+      "sha256": "716f379ec4bd5ee44c6cfdb0553ae3a5afdee25a633e1040e6f402ff6ca8bcc3",
+      "bytes": 16077
+    },
+    "deploy/ci-docker.sh": {
+      "sha256": "9d1021773b9f9c3a474cfe04d91fd3c886260ba2d2ffb786b0ad797901aeab1c",
+      "bytes": 6011
+    },
+    "deploy/capabilities/registry.json": {
+      "sha256": "f4e86065e6d58693c47f049e6e693f394c771f0c704bf31b821563a9a21d4f92",
+      "bytes": 235853
+    },
+    "lab/live-management-auth.ts": {
+      "sha256": "1731a6c182fa370da966331890305bd691fd22874c373939df09afc9039c153d",
+      "bytes": 9248
+    },
+    "lab/live-management-auth-bridge.ts": {
+      "sha256": "94af914f2546167757263834917e220d76325c60071f2fe2a83268ccc1a9b463",
+      "bytes": 680
+    },
+    "lab/live_management_auth.py": {
+      "sha256": "9084d174480c536d8eab7eae1c195ae43b98b1564944c832c84ce8f70d690d66",
+      "bytes": 1014
+    },
+    "lab/test_host_entrypoints.py": {
+      "sha256": "8d1e8166a6041e9364ac64e24260f81e1671772039a7fe0cde61175c88ad23a1",
+      "bytes": 17750
+    },
+    "lab/test_supervised_run.py": {
+      "sha256": "5d75c20acb1418a91b2481920618f777cc4641525cd01a25a7e0ef05712aa696",
+      "bytes": 7253
+    },
+    "tests/native-placement.test.ts": {
+      "sha256": "6fa8d509e61e2a07f102b442f2483d47fe2e3f07b2733817cae1b00e12eba40d",
+      "bytes": 12992
+    },
+    "tests/database-workflow.test.ts": {
+      "sha256": "4de4131c946fccb036c719cd55638288ecbcbde791b468828c78b26f5233c7b0",
+      "bytes": 23990
+    },
+    "src/control/catalog.ts": {
+      "sha256": "021538a4ae0a9bf4048e16ecdf70d7427ee4fb5bfdc618e6c05613fcb4bf20e5",
+      "bytes": 117688
+    },
+    "tsconfig.control.json": {
+      "sha256": "f3bcea2dacaf555a2c3731c6af1b3022c7192befbc06751ac2d16aadc4e0d12c",
+      "bytes": 238
+    }
+  },
+  "native_services_verified": false,
+  "fresh_os_install_verified": false,
+  "full_restore_verified": false,
+  "current_github_ci_verified": false,
+  "production_ready": false
+}

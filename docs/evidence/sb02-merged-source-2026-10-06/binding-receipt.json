@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-10-06T10:55:28.177713+00:00",
+  "reason": "Deliberate current source binding update after SB02 delta import; no acceptance promotion",
+  "changes": [
+    {
+      "id": "compose",
+      "path": "compose.yaml",
+      "before": "0d46fc504dcb7c183319b9a76d386aa43a3a23f1277ccbea41697dc700b8da1a",
+      "after": "344cee41a8b5299ea96a99a8fe6eafddd59d2fe7c8bd36315e5a04e28fbd475d"
+    },
+    {
+      "id": "host-config",
+      "path": "lab/docker_profile.py",
+      "before": "fea735fd19c3f64833c7d651383c3c584e990d7e1dcda167bbb1759e4c3e3a2e",
+      "after": "74ff56108b48c9c23b660442622779861c82a0d9adbab84b3474159dc416f3be"
+    }
+  ],
+  "before_exit": 1,
+  "before_errors": [
+    "capability registry: compose: binding checksum mismatch"
+  ],
+  "after_exit": 0,
+  "after_errors": [],
+  "acceptance_rows": 105,
+  "all_acceptance_and_production_unproven": true,
+  "capabilities_unchanged": true,
+  "current_source": {
+    "algorithm": "sbarbase-public-source-v1",
+    "files": 537,
+    "sha256": "a467711e1024531eb3c26ef2b7b99717313e18b1b59bf63420f646af353e4d2e"
+  }
+}

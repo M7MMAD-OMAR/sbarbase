@@ -1,0 +1,562 @@
+{
+  "schema_version": 1,
+  "reviewer": "merged-component-operational-critic",
+  "axis": "operational",
+  "reviewed_at": "2026-10-06T07:22:34.654474+00:00",
+  "binding": {
+    "run": "/home/sbarah/.codex/sbarbase-integration/20261006/checkpoint-merged-components",
+    "project": "/home/sbarah/R/Projects/P/sbarbase",
+    "revision_at_dispatch": 10,
+    "plan_hash": "846e1e940068f22d0b4b7f8fdb7553e72ea88f00a000682c733e9ac5640fe9ca",
+    "source_hash": "dd4b6db6a8f060f4fbfb7af21cb80a051ace5e0839c6241f9e1ab6a8a5a7fdda"
+  },
+  "verdict_scope": "Current merged native MFA CLI, SB-04 backup/restore, registry, management and Studio source component integration only.",
+  "review_actions": {
+    "implementation_edited": false,
+    "docker_operated_by_reviewer": false,
+    "host_source_tests_executed_by_reviewer": false,
+    "prior_review_verdicts_consulted": false,
+    "workflow_status_export_or_journal_consulted": false,
+    "artifact_observations_independently_verified": true,
+    "source_context": "Graft map, retrieval, skeletons and exact source spans. Graft automatically refreshed its ignored generated graph. No implementation files were edited.",
+    "machine_rules": "/home/sbarah/AGENTS.md was absent; supplied user/project rules were applied."
+  },
+  "pre_run_safety": {
+    "checker_sha256": "feb0304e5f5078ccadcbe14a03c91fa0050d2624a60a4931c9e359cfaf5a72a5",
+    "guard_sha256": "feb7e09a5d91b4fddbc811936d7cef0d5a998302fdbc37f892c58183d181bca7",
+    "coordinator_sha256": "6149ca1cbe1e7d99733b30db6f6b2bd47a9a76ee8a789c965502affa8ad91f85",
+    "ownership": "Random owner and image tag recorded before build, exact container names before create, exact returned CIDs and image identity afterward. The separate guard reconciles exact names/CIDs with label, name and available image identity checks. No global or prefix cleanup.",
+    "containment": "Seven sequential non-root containers with no network or mounts, all capabilities dropped, no new privileges, 512 MiB RAM and swap ceiling, 0.5 CPU and 128 PIDs. Env contains public runtime paths only.",
+    "build_limits": "Pinned public Bun and Ubuntu bases, checked public bootstrap package and frozen lockfile. Public network can be used during build. Build timeout is 120 seconds; build CPU/memory are not governed by the test-container limits. Existing content-addressed layers were cached. A new owned tag/image config and fresh test containers do not mean no-cache builds.",
+    "parsing": "Unique Bun/unittest summaries, zero failures/skips, per-suite minimums 430/72/65/60; exit checks claim zero tests. Strict absence requires code 1, [] output and a complete exact target error with known prefix/case variations.",
+    "cleanup_guard": "Separate outer coordinator runs reconciliation after the 600 second engine gate, outside the checker process group. Its engine observation limit is 650 seconds; reconciliation is separately bounded. Normal run and exact final absence are observed. Universal daemon cancellation, power failure and killing the outer coordinator are unproven."
+  },
+  "observed_execution": {
+    "engine": {
+      "argv": [
+        "python3",
+        "/home/sbarah/.codex/sbarbase-integration/20261006/check-merged-components.py",
+        "feb0304e5f5078ccadcbe14a03c91fa0050d2624a60a4931c9e359cfaf5a72a5",
+        "/home/sbarah/.codex/sbarbase-integration/20261006/merged-source-guarded-2"
+      ],
+      "artifacts": [
+        {
+          "bytes": 5184,
+          "path": "artifacts/check-merged-source-guarded-2.log",
+          "sha256": "f4d11721ff18549b4d9627548e11f6f8c0daa18493b746e72e23b715a395faaa"
+        }
+      ],
+      "attempt": 1,
+      "check_id": "merged-source",
+      "counts": {
+        "failed": 0,
+        "skipped": 0,
+        "total": 627
+      },
+      "cwd": "/home/sbarah/R/Projects/P/sbarbase",
+      "duration_seconds": 58.895541,
+      "environment": "local-isolated",
+      "gate": "behavior",
+      "id": "9264d6276a1a4dfeb5f8f2ecb03c9a3a",
+      "plan_hash": "846e1e940068f22d0b4b7f8fdb7553e72ea88f00a000682c733e9ac5640fe9ca",
+      "reason": null,
+      "returncode": 0,
+      "source_hash": "dd4b6db6a8f060f4fbfb7af21cb80a051ace5e0839c6241f9e1ab6a8a5a7fdda",
+      "time": "2026-10-06T07:19:29.274968+00:00",
+      "verdict": "pass"
+    },
+    "containers": [
+      {
+        "name": "bun",
+        "cid": "02468779de3c98bd297e15716eb16a634703c57c579229a7513ad6b8d576aba5",
+        "argv": [
+          "bun",
+          "test",
+          "tests",
+          "--timeout",
+          "10000"
+        ],
+        "counts": {
+          "total": 430,
+          "failed": 0,
+          "skipped": 0
+        },
+        "started": "2026-10-06T07:18:31.912000638Z",
+        "finished": "2026-10-06T07:18:59.328556442Z",
+        "exit": 0,
+        "oom": false,
+        "network": "none",
+        "mounts": [],
+        "user": "sbarbase",
+        "memory_bytes": 536870912,
+        "memory_swap_bytes": 536870912,
+        "nano_cpus": 500000000,
+        "pids_limit": 128
+      },
+      {
+        "name": "types",
+        "cid": "78e81a8d58cf7e11a26679826e3c2d6ea827139bd35f11aa85608b8807c1dea1",
+        "argv": [
+          "bun",
+          "run",
+          "typecheck:control"
+        ],
+        "counts": {
+          "total": 0,
+          "failed": 0,
+          "skipped": 0
+        },
+        "started": "2026-10-06T07:19:00.144281645Z",
+        "finished": "2026-10-06T07:19:02.146455016Z",
+        "exit": 0,
+        "oom": false,
+        "network": "none",
+        "mounts": [],
+        "user": "sbarbase",
+        "memory_bytes": 536870912,
+        "memory_swap_bytes": 536870912,
+        "nano_cpus": 500000000,
+        "pids_limit": 128
+      },
+      {
+        "name": "backup",
+        "cid": "a164fdbec0fd984ede80b75c4cee29ac2dbe17bcf1c3e7033a72f8c42c27ba3a",
+        "argv": [
+          "python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "lab",
+          "-p",
+          "test_backup*.py"
+        ],
+        "counts": {
+          "total": 72,
+          "failed": 0,
+          "skipped": 0
+        },
+        "started": "2026-10-06T07:19:02.442526517Z",
+        "finished": "2026-10-06T07:19:06.143453594Z",
+        "exit": 0,
+        "oom": false,
+        "network": "none",
+        "mounts": [],
+        "user": "sbarbase",
+        "memory_bytes": 536870912,
+        "memory_swap_bytes": 536870912,
+        "nano_cpus": 500000000,
+        "pids_limit": 128
+      },
+      {
+        "name": "restore",
+        "cid": "ca6f3044bbcf5d3c83785f4fd1407378b3739525feee6480200c032a6bf496e8",
+        "argv": [
+          "python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "lab",
+          "-p",
+          "test_restore*.py"
+        ],
+        "counts": {
+          "total": 65,
+          "failed": 0,
+          "skipped": 0
+        },
+        "started": "2026-10-06T07:19:06.721587867Z",
+        "finished": "2026-10-06T07:19:14.331635424Z",
+        "exit": 0,
+        "oom": false,
+        "network": "none",
+        "mounts": [],
+        "user": "sbarbase",
+        "memory_bytes": 536870912,
+        "memory_swap_bytes": 536870912,
+        "nano_cpus": 500000000,
+        "pids_limit": 128
+      },
+      {
+        "name": "fixtures-registry",
+        "cid": "19609d435f795641a0e657b1d97d8f410944b8ce80cac7dffa5dfb04cf6110ec",
+        "argv": [
+          "python3",
+          "-m",
+          "unittest",
+          "-v",
+          "lab.test_disposable_recovery_drill",
+          "lab.test_disposable_storage_backup_drill",
+          "lab.test_capability_registry",
+          "lab.test_plan_acceptance"
+        ],
+        "counts": {
+          "total": 60,
+          "failed": 0,
+          "skipped": 0
+        },
+        "started": "2026-10-06T07:19:14.880082658Z",
+        "finished": "2026-10-06T07:19:25.890306301Z",
+        "exit": 0,
+        "oom": false,
+        "network": "none",
+        "mounts": [],
+        "user": "sbarbase",
+        "memory_bytes": 536870912,
+        "memory_swap_bytes": 536870912,
+        "nano_cpus": 500000000,
+        "pids_limit": 128
+      },
+      {
+        "name": "registry",
+        "cid": "fd44008e1687ae6161f133a55d98a7975d2a32d3bf1d22bb73a180a4f7766ef6",
+        "argv": [
+          "python3",
+          "deploy/verify/capability_registry.py",
+          "validate"
+        ],
+        "counts": {
+          "total": 0,
+          "failed": 0,
+          "skipped": 0
+        },
+        "started": "2026-10-06T07:19:26.348390664Z",
+        "finished": "2026-10-06T07:19:26.87907761Z",
+        "exit": 0,
+        "oom": false,
+        "network": "none",
+        "mounts": [],
+        "user": "sbarbase",
+        "memory_bytes": 536870912,
+        "memory_swap_bytes": 536870912,
+        "nano_cpus": 500000000,
+        "pids_limit": 128
+      },
+      {
+        "name": "plan",
+        "cid": "29e70cf7e786c1f2d413138a8958ea355240563928bcf765172c1e6036f0c7c1",
+        "argv": [
+          "python3",
+          "deploy/check_plan.py"
+        ],
+        "counts": {
+          "total": 0,
+          "failed": 0,
+          "skipped": 0
+        },
+        "started": "2026-10-06T07:19:27.143060423Z",
+        "finished": "2026-10-06T07:19:27.429886498Z",
+        "exit": 0,
+        "oom": false,
+        "network": "none",
+        "mounts": [],
+        "user": "sbarbase",
+        "memory_bytes": 536870912,
+        "memory_swap_bytes": 536870912,
+        "nano_cpus": 500000000,
+        "pids_limit": 128
+      }
+    ],
+    "counts": {
+      "total": 627,
+      "failed": 0,
+      "skipped": 0
+    },
+    "image_id": "sha256:0dac4bb10ac3a2594a14f4c16db29264ba9f325048db793d6ab4e064edc00927",
+    "portable_root_image_identity": {
+      "root": {
+        "algorithm": "sbarbase-public-source-v1",
+        "files": 531,
+        "sha256": "2c1f7e3416b64b0e66f85ae590573672443c391a80467b193b4f56bbf815b420"
+      },
+      "image": {
+        "algorithm": "sbarbase-public-source-v1",
+        "files": 531,
+        "sha256": "2c1f7e3416b64b0e66f85ae590573672443c391a80467b193b4f56bbf815b420"
+      },
+      "matched": true,
+      "returncode": 0
+    },
+    "raw_normal_cleanup_verified": 8,
+    "raw_guard_absence_verified": 15,
+    "sequential_timestamps_verified": true,
+    "registry_status_rows": 105,
+    "registry_all_acceptance_and_production_unproven": true
+  },
+  "source_review": [
+    {
+      "requirement": "R1",
+      "locations": [
+        "lab/sbarbase.ts:401-542",
+        "lab/sbarbase.ts:797-875",
+        "src/control/management-auth.ts:9-134",
+        "src/control/auth.ts:64-67",
+        "src/control/catalog.ts:508-522",
+        "src/control/management-security.ts:58-62",
+        "src/control/application.ts:18-79",
+        "src/control/studio.ts:174-283",
+        "tests/sbarbase-cli.test.ts:480-666"
+      ],
+      "assessment": "Private controlling terminal admission occurs before credentials/login. Original pinned SDK challenge/verification must yield aal2 before protected work. Scoped transport refuses redirects, uses five second deadlines, and cancellation prevents subsequent requests/output. Private setup cleanup and bounded local signout remain present. Logout intentionally revokes actor-wide grants and Studio epoch, as documented. No source integration blocker found."
+    },
+    {
+      "requirement": "R2",
+      "locations": [
+        "lab/backup.py:328-373",
+        "lab/backup.py:516-539",
+        "lab/backup_consistency.py:13-77",
+        "lab/backup_consistency.py:ARCHIVE_SCRIPT/EXTRACT_SCRIPT",
+        "lab/restore_files.py:15-35",
+        "lab/restore_cutover.py:128-268",
+        "lab/backup_offsite.py:373-406",
+        "lab/offsite.py:394-472",
+        "lab/test_backup_consistency.py:63-120"
+      ],
+      "assessment": "Storage inventory imports the exact exported repeatable-read snapshot while its holder remains open. Version paths, MD5 content, size and native MIME/cache metadata must agree before manifest publication; unsupported mtime/unknown ETags refuse. PAX archive/extraction preserves ns mtime, mode, owner/group and allowed native xattrs. Existing encrypted packaging carries objects.tar intact and verifies decrypted files before atomic publication. Restore keeps writers stopped and database identities fenced while extracting and swapping staged files. Fresh-host application recovery remains unproven."
+    },
+    {
+      "requirement": "R3",
+      "locations": [
+        "deploy/verify/capability_registry.py:167-204",
+        "deploy/verify/capability_registry.py:207-279",
+        "deploy/verify/capability_registry.py:292-417",
+        "lab/test_capability_registry.py:146-158",
+        "lab/test_capability_registry.py:320-377",
+        "deploy/capabilities/registry.json",
+        "docs/engineering/CLI-MFA.md"
+      ],
+      "assessment": "Source path inventory, complete bytes and modes, registry/bindings, scope, required commands, raw observations and execution identities bind proof. Before/after source identity invalidates stale proof. Runtime scopes cannot inherit unit-only proof. Current raw validation leaves all 105 placement rows unproven for acceptance and production."
+    },
+    {
+      "requirement": "R4",
+      "assessment": "Fresh actual observations match the exact v3 checker argv and plan/source hashes. All seven admission/terminal records match the owned ledger and one public image. Portable root and image source identities match for 531 files. Normal cleanup and independent exact ID/name/tag absence are proved by raw observations."
+    }
+  ],
+  "retained_failure": {
+    "path": "merged-source-guarded-1",
+    "accepted": false,
+    "checker_failed": true,
+    "engine_failed": true,
+    "original_guard_raw": "merged-source-guarded-1/guard.stdout",
+    "projection_note": "The initial guard-result projection was reconstructed after a disclosed accidental manual overwrite. It equals the untouched original failure stdout. Original checker/engine failed evidence remains unchanged. Later strict reconciliation is separate.",
+    "narrow_harness_repairs": "Exact Docker absence classification corrected to actual raw error casing; Bun minimum raised to 430 and aggregate estimate corrected to actual full count 627. No implementation/source change was used to obtain success."
+  },
+  "required_unaccepted_scopes": [
+    "Full standard source verifier runner",
+    "Original vendor Auth/Storage/Studio runtime on the current root",
+    "Real terminal and original Auth deployment validation",
+    "Fresh-host complete application recovery",
+    "Broader SB-06 transfer and rotation contract",
+    "Production, public release, soak, workload and independent-host support",
+    "Universal daemon-side cancellation safety, power failure or terminating the outer cleanup coordinator"
+  ],
+  "trust_limits": "Reviewer independence is the fresh agent context; full-write local coordinator, Docker daemon and artifact authorship remain self-attested trust boundaries. Raw records were inspected and correlated; this reviewer did not execute the reported Docker tests.",
+  "artifact_identity": [
+    {
+      "path": "merged-source-guarded-2/result.json",
+      "bytes": 6830,
+      "sha256": "67aabcfe1f544e5f8b967f5081b1847c915abcfb264d7fc92a99bc1a5bbba2ab"
+    },
+    {
+      "path": "merged-source-guarded-2/ledger.json",
+      "bytes": 1087,
+      "sha256": "e4ec2bcb4d7794ffe459dbc3100a2a68158624bf1bcbb34536027bffe4f003ff"
+    },
+    {
+      "path": "merged-source-guarded-2/guard-result.json",
+      "bytes": 6133,
+      "sha256": "befe1afc90ab4cc081bf3f32b6ab4b82d604d7e27522cbfe05bf4d0a2a301388"
+    },
+    {
+      "path": "merged-source-guarded-2/guard.stdout",
+      "bytes": 4943,
+      "sha256": "ec9b7da80b52774cc6d2b5444370f88843c37a30be6895f590addf17904b1cd5"
+    },
+    {
+      "path": "merged-source-guarded-2/guard.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "merged-source-guarded-2/engine-check.stdout",
+      "bytes": 1024,
+      "sha256": "cbd613a07c791ee9bf9610f5c929278032192e9d760f275fffeb86d45f04c312"
+    },
+    {
+      "path": "merged-source-guarded-2/engine-check.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "merged-source-guarded-2/build.log",
+      "bytes": 3889,
+      "sha256": "b1ddd43077228c6dbab8efdb6b3bc301fb2b62eaf3e95681d797aae6055cb6b6"
+    },
+    {
+      "path": "merged-source-guarded-2/image-id",
+      "bytes": 71,
+      "sha256": "a314e1389e174671d1fad774894ca79ef88e30332b1668b2ccd587e083807020"
+    },
+    {
+      "path": "merged-source-guarded-2/root-image-identity.json",
+      "bytes": 366,
+      "sha256": "d65a4a976c670e428e507f6a20bc27a5947945fd21aff354af63cb94c2aab382"
+    },
+    {
+      "path": "merged-source-guarded-2/root-identity.stdout",
+      "bytes": 143,
+      "sha256": "db953bde1b6a852dcd5899dc2eafb60e2c377a970675a98df3e1ea345097c526"
+    },
+    {
+      "path": "merged-source-guarded-2/root-identity.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "merged-source-guarded-2/bun.log",
+      "bytes": 41986,
+      "sha256": "3a37176e26eff72edbf244aa15376659a758f7e2454a12bd5ade56e3315e17ac"
+    },
+    {
+      "path": "merged-source-guarded-2/bun-admission.json",
+      "bytes": 6766,
+      "sha256": "b1e95e51207d87e9e66b2d63b8452772ce1242b6fed6a11266d1a08334064460"
+    },
+    {
+      "path": "merged-source-guarded-2/bun-terminal.json",
+      "bytes": 7313,
+      "sha256": "93e8b927b7891bd322c27d346048e59a646c5fa8bacf03287c7dda7b732e51a2"
+    },
+    {
+      "path": "merged-source-guarded-2/types.log",
+      "bytes": 38,
+      "sha256": "f13e1fc0be8bbad48b024d07dfc35fa6f1dc8a44af19daec02b4cc97c494dce8"
+    },
+    {
+      "path": "merged-source-guarded-2/types-admission.json",
+      "bytes": 6726,
+      "sha256": "1d8c13e8bf3f1be269a25e6bbe09f914d754b323238e54e5fdde83791847835e"
+    },
+    {
+      "path": "merged-source-guarded-2/types-terminal.json",
+      "bytes": 7273,
+      "sha256": "f4bd7601654f76404d5ed02faa0006fa8df690c2fbe1b96a8061aa9216eb4976"
+    },
+    {
+      "path": "merged-source-guarded-2/backup.log",
+      "bytes": 599,
+      "sha256": "dac57bf43ffbffb8d4c5f6065dccb6757d7c98a4a6bce93ee536cf16c32eacac"
+    },
+    {
+      "path": "merged-source-guarded-2/backup-admission.json",
+      "bytes": 6865,
+      "sha256": "abd4c35f3e60532191998ee4598decf7e437f1d037682370c33291a8cf36dbcf"
+    },
+    {
+      "path": "merged-source-guarded-2/backup-terminal.json",
+      "bytes": 7412,
+      "sha256": "2e05d73d053b515db164d55438ae8d9f5b21b7f83ff1c664961c7db8ad3ce30c"
+    },
+    {
+      "path": "merged-source-guarded-2/restore.log",
+      "bytes": 164,
+      "sha256": "b24ec09581e3862519305b1f6e7118131b82ed31e9d8b32ba0cddf5a96e19f72"
+    },
+    {
+      "path": "merged-source-guarded-2/restore-admission.json",
+      "bytes": 6868,
+      "sha256": "11ef2af2c9050b3da0454f305a30a2899f649257c4b0cfcc2dea8af0d79d58bb"
+    },
+    {
+      "path": "merged-source-guarded-2/restore-terminal.json",
+      "bytes": 7415,
+      "sha256": "63cece3836260d19b8ad93d34cbcfca8d5d319ae1fbdb0f8ef1ab8c59e2fe7ec"
+    },
+    {
+      "path": "merged-source-guarded-2/fixtures-registry.log",
+      "bytes": 10805,
+      "sha256": "e3ea8698836efafe95c670c6e3f530008129c8fc34a3b6577d72a491b148bfd0"
+    },
+    {
+      "path": "merged-source-guarded-2/fixtures-registry-admission.json",
+      "bytes": 7072,
+      "sha256": "b0ed0fc16a8518a5360e3e857de719cf0a90186b85e1bac4b921e9a846b68175"
+    },
+    {
+      "path": "merged-source-guarded-2/fixtures-registry-terminal.json",
+      "bytes": 7619,
+      "sha256": "01c8a5316a1e2ca536923251191ab4c09485a098a52dd4b1ccccf5cdb83df6aa"
+    },
+    {
+      "path": "merged-source-guarded-2/registry.log",
+      "bytes": 231505,
+      "sha256": "1345998b2affe1729372cbf37e0a039d62cd27b65532cf24eafea456b6db5150"
+    },
+    {
+      "path": "merged-source-guarded-2/registry-admission.json",
+      "bytes": 6785,
+      "sha256": "f25cd04f7a63c714795670e1ae8dde40cfa5489b1fe4660dbdba07d95f5a87c9"
+    },
+    {
+      "path": "merged-source-guarded-2/registry-terminal.json",
+      "bytes": 7331,
+      "sha256": "1d97b45609ad20a660feee0c32e8330cf6309159d67dbb472fefc8910ccda2d1"
+    },
+    {
+      "path": "merged-source-guarded-2/plan.log",
+      "bytes": 61,
+      "sha256": "5ec48d585468c1ee469f70146b244d0b40e8ac58c65cb1dcf61298bff87fbe85"
+    },
+    {
+      "path": "merged-source-guarded-2/plan-admission.json",
+      "bytes": 6715,
+      "sha256": "cf9e5b1ae3f0126d276b56373ac870688bf15adaa5e5066004f6ae456925a3d9"
+    },
+    {
+      "path": "merged-source-guarded-2/plan-terminal.json",
+      "bytes": 7262,
+      "sha256": "a3f7041831d830a0762a63d9e325ade4cb2308c1dbecc3bdb2e5cf95f9b699c9"
+    },
+    {
+      "path": "merged-source-guarded-1/result.json",
+      "bytes": 5512,
+      "sha256": "ae48b591c714d31fdc6f8e6cf78cc900ba15cd4b7b63805f4bcfda3b8f177caf"
+    },
+    {
+      "path": "merged-source-guarded-1/engine-check.stdout",
+      "bytes": 1078,
+      "sha256": "63eab8f047668b8527d920a660f40945add49bc7b60483d3f5878b6df5e42c51"
+    },
+    {
+      "path": "merged-source-guarded-1/guard.stdout",
+      "bytes": 100,
+      "sha256": "785e71896fa924dcbb3da95d0db0bc3b26c9349e0417e1aecc101a6bfbf30b99"
+    },
+    {
+      "path": "merged-source-guarded-1/guard-record-preservation-note.json",
+      "bytes": 414,
+      "sha256": "c8f334339a24c49677339043e6e92e2d8fe10ad8a140ede36ee3a8f3545ac09f"
+    },
+    {
+      "path": "merged-source-guarded-1/guard-strict-reconciliation-3.json",
+      "bytes": 6133,
+      "sha256": "a2ada891a695df7c409b295ea06d0ddb7ee68e99727ff9409b5baff636c70ae0"
+    },
+    {
+      "path": "check-merged-components.py",
+      "bytes": 8757,
+      "sha256": "feb0304e5f5078ccadcbe14a03c91fa0050d2624a60a4931c9e359cfaf5a72a5"
+    },
+    {
+      "path": "reconcile-merged-check.py",
+      "bytes": 4987,
+      "sha256": "feb7e09a5d91b4fddbc811936d7cef0d5a998302fdbc37f892c58183d181bca7"
+    },
+    {
+      "path": "run-merged-check-with-guard.py",
+      "bytes": 1228,
+      "sha256": "6149ca1cbe1e7d99733b30db6f6b2bd47a9a76ee8a789c965502affa8ad91f85"
+    }
+  ]
+}

@@ -20,7 +20,8 @@ def directives(text):
 class MirrorFidelityTests(unittest.TestCase):
     def test_the_mirror_uses_the_same_python_and_entry_points(self):
         shipped=directives((ROOT/'deploy'/'sbarbase.service').read_text())
-        mirror=directives(supervised.unit_text())
+        with patch.dict(os.environ,{},clear=True):
+            mirror=directives(supervised.unit_text())
         # The shipped unit runs from /opt/sbarbase on a server; the mirror runs from
         # this checkout, so compare the interpreter and the script path inside it.
         def entry(value):
@@ -35,10 +36,12 @@ class MirrorFidelityTests(unittest.TestCase):
                              key+' differs from the shipped unit')
 
     def test_the_mirror_keeps_the_preflight_gate_and_the_working_directory(self):
-        mirror=directives(supervised.unit_text())
-        self.assertIn('upgrade_guard.py',mirror['ExecStartPre'][0])
-        self.assertIn('lab/leftover_runtime.py',mirror['ExecStartPre'][1])
-        self.assertTrue(mirror['ExecStartPre'][2].endswith('lab/install_server.py check'))
+        with patch.dict(os.environ,{},clear=True):
+            mirror=directives(supervised.unit_text())
+        self.assertTrue(mirror['ExecStartPre'][0].endswith('deploy/host-preflight.sh --runtime'))
+        self.assertIn('upgrade_guard.py',mirror['ExecStartPre'][1])
+        self.assertIn('lab/leftover_runtime.py',mirror['ExecStartPre'][2])
+        self.assertTrue(mirror['ExecStartPre'][3].endswith('lab/install_server.py check'))
         self.assertEqual(mirror['WorkingDirectory'][0],str(ROOT))
         self.assertIn('PATH=',mirror['Environment'][1])
         self.assertEqual(mirror['Restart'][0],'no')
@@ -53,18 +56,19 @@ class MirrorFidelityTests(unittest.TestCase):
         so the step that stops them comes between the guard and the preflight, and a checkout the
         guard moved back to a version without the file skips it instead of failing the start."""
         shipped=directives((ROOT/'deploy'/'sbarbase.service').read_text())['ExecStartPre']
-        self.assertEqual(len(shipped),3)
-        self.assertIn('upgrade_guard.py',shipped[0])
-        self.assertEqual(shipped[1],"/bin/sh -c 'if [ -f lab/leftover_runtime.py ]; then exec /usr/bin/python3 lab/leftover_runtime.py; fi'")
-        self.assertTrue(shipped[2].endswith('lab/install_server.py check'))
+        self.assertEqual(len(shipped),4)
+        self.assertTrue(shipped[0].endswith('deploy/host-preflight.sh --runtime'))
+        self.assertIn('upgrade_guard.py',shipped[1])
+        self.assertEqual(shipped[2],"/bin/sh -c 'if [ -f lab/leftover_runtime.py ]; then exec /usr/bin/python3 lab/leftover_runtime.py; fi'")
+        self.assertTrue(shipped[3].endswith('lab/install_server.py check'))
 
-    def test_the_upgrade_guard_runs_first_and_the_unit_never_stops_restarting(self):
+    def test_host_admission_precedes_upgrade_guard_and_the_unit_keeps_restarting(self):
         text=(ROOT/'deploy'/'sbarbase.service').read_text()
         shipped=directives(text)
-        # Before any code of the checked out version, the preflight included: a preflight that
-        # fails after an upgrade is one of the starts the guard counts.
-        self.assertIn(".lab/upgrades/guard.py",shipped['ExecStartPre'][0])
-        self.assertIn("lab/upgrade_guard.py'",shipped['ExecStartPre'][0])
+        # The guard counts compatible starts before the installation inventory check.
+        self.assertTrue(shipped['ExecStartPre'][0].endswith('deploy/host-preflight.sh --runtime'))
+        self.assertIn(".lab/upgrades/guard.py",shipped['ExecStartPre'][1])
+        self.assertIn("lab/upgrade_guard.py'",shipped['ExecStartPre'][1])
         self.assertIn('SBARBASE_GUARDED=1',shipped['Environment'])
         unit=text.split('[Service]')[0]
         self.assertIn('StartLimitIntervalSec=0',unit)
@@ -85,6 +89,11 @@ class MirrorFidelityTests(unittest.TestCase):
 class ServiceEnvironmentTests(unittest.TestCase):
     """A service does not inherit the caller's shell, so what it needs must be stated."""
 
+    def test_the_mirror_refuses_an_endpoint_that_differs_from_the_declared_socket(self):
+        with patch.dict(os.environ,{'DOCKER_HOST':'unix:///nonexistent/docker.sock'},clear=True):
+            with self.assertRaisesRegex(supervised.docker_profile.ProfileError,'host_endpoint_mismatch'):
+                supervised.unit_text()
+
     def test_only_present_docker_settings_are_forwarded(self):
         with patch.dict(os.environ,{'DOCKER_HOST':'unix:///var/run/docker.sock'},clear=False):
             os.environ.pop('DOCKER_CONTEXT',None)
@@ -96,7 +105,7 @@ class ServiceEnvironmentTests(unittest.TestCase):
     def test_the_mirror_unit_carries_the_docker_host_when_the_shell_has_one(self):
         with patch.dict(os.environ,{'DOCKER_HOST':'unix:///var/run/docker.sock'},clear=False):
             text=supervised.unit_text()
-        self.assertIn('Environment=DOCKER_HOST=unix:///var/run/docker.sock',text)
+        self.assertIn('Environment="DOCKER_HOST=unix:///var/run/docker.sock"',text)
         with patch.dict(os.environ,{},clear=True):
             self.assertNotIn('Environment=DOCKER_HOST=',supervised.unit_text())
 

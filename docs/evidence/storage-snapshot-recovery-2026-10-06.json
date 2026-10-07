@@ -1,0 +1,667 @@
+{
+  "schema": 1,
+  "baseline": "4a0e6c8da045a02030f1b5223205ebc7374ae4aa",
+  "slice": "SB-04 and dependent SB-05 fixture",
+  "status": "scoped-storage-and-db-file-runtime-verified-full-application-unproven",
+  "source_files": {
+    "docs/engineering/reviews/2026-10-06-storage-snapshot-recovery.md": "f4d4b1e01c171189a5aae54e3e7c391c9cd6d9a2b7ed950f2bcbed57419d3cad",
+    "lab/backup.py": "345464f2aaed497b52ba981298927807dea50b2fd8cec9d6d9b2c193daaff012",
+    "lab/backup_consistency.py": "9acbc5480718fe1eea9b68333ec0f24713ed910cfc475734e6f00c285f2351c6",
+    "lab/disposable-recovery-drill.py": "6cc247988c520bf3962c6ddf3a5591b4a5733e2bc9a94653fe10ac65a8b93315",
+    "lab/restore_cutover.py": "910af356a176224a4d77e4613a91e8ab910a754d50c826de6915835c97677952",
+    "lab/test_backup.py": "95b9f2139e9dac2f81f00d5f86d55f1e8dace3ddd20d7b76f99d6b22a644f909",
+    "lab/test_backup_consistency.py": "d0781dc8699ff0de7135a190846f6255eda4b8868370b12bd41dff08f04c2add",
+    "lab/test_disposable_recovery_drill.py": "6e649b2f97a59e0c1d6ee151bffe8be0b5ee4d32ac309969dbacc81aef3d3d3a",
+    "lab/test_restore_cutover.py": "14f77013ac436909b942af90fbc217a4883c673f97de362ff3f063463ed4dbc6",
+    "lab/disposable-storage-backup-drill.py": "4e878b05d353e04d4da370c9381c6abcaabbf4e5148ca7db2a8613704f0a13cd",
+    "lab/test_disposable_storage_backup_drill.py": "dc16d1e6a3c1e15c5cc0c3c9386336ea351b0839f6e99c1bd7465735276a1be0"
+  },
+  "requirements": [
+    {
+      "id": "SB-04",
+      "status": "native-storage-runtime-verified",
+      "scope": "native UUID version paths with quoted MD5 file fingerprints; reject unsupported metadata before manifest"
+    },
+    {
+      "id": "SB-05",
+      "status": "incomplete",
+      "scope": "Actual disposable DB/file/config/role recovery plus separate original Storage HTTP backup restore; full application enabled-feature recovery remains unproven"
+    }
+  ],
+  "source_checks": [
+    {
+      "command": [
+        "systemd-run",
+        "--user",
+        "--scope",
+        "--quiet",
+        "-p",
+        "MemoryMax=512M",
+        "-p",
+        "CPUQuota=50%",
+        "python3",
+        "-u",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "lab",
+        "-p",
+        "test_backup*.py"
+      ],
+      "counts": {
+        "failed": 0,
+        "skipped": 0,
+        "total": 72
+      },
+      "command_evidence": {
+        "argv": [
+          "systemd-run",
+          "--user",
+          "--scope",
+          "--quiet",
+          "-p",
+          "MemoryMax=512M",
+          "-p",
+          "CPUQuota=50%",
+          "python3",
+          "-u",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "lab",
+          "-p",
+          "test_backup*.py"
+        ],
+        "artifacts": [
+          {
+            "bytes": 599,
+            "path": "artifacts/check-ready-unit-1.log",
+            "sha256": "97c9d2b843e1f897a371e863ea464a36b62d0a967eeb5147a210e0d2bc62523a"
+          }
+        ],
+        "attempt": 1,
+        "check_id": "unit",
+        "counts": {
+          "failed": 0,
+          "skipped": 0,
+          "total": 72
+        },
+        "cwd": "/home/sbarah/.codex/worktrees/58ac/sbarbase",
+        "duration_seconds": 4.337289,
+        "environment": "local-isolated",
+        "gate": "behavior",
+        "id": "7edc1fcf20f24fd99d34d9fcab1677bc",
+        "plan_hash": "3927d9c5791f9a8b8fc2b3fc30e855733dd2d94b7636b14656c465a8162f712a",
+        "reason": null,
+        "returncode": 0,
+        "source_hash": "0a424f749229d79def0e297f1ec9ec8102f633e8091ae754ed334cbaf4e46fcf",
+        "time": "2026-10-06T06:40:42.548486+00:00",
+        "verdict": "pass"
+      }
+    },
+    {
+      "command": [
+        "systemd-run",
+        "--user",
+        "--scope",
+        "--quiet",
+        "-p",
+        "MemoryMax=512M",
+        "-p",
+        "CPUQuota=50%",
+        "python3",
+        "-u",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "lab",
+        "-p",
+        "test_restore*.py"
+      ],
+      "counts": {
+        "failed": 0,
+        "skipped": 0,
+        "total": 65
+      },
+      "command_evidence": {
+        "argv": [
+          "systemd-run",
+          "--user",
+          "--scope",
+          "--quiet",
+          "-p",
+          "MemoryMax=512M",
+          "-p",
+          "CPUQuota=50%",
+          "python3",
+          "-u",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "lab",
+          "-p",
+          "test_restore*.py"
+        ],
+        "artifacts": [
+          {
+            "bytes": 164,
+            "path": "artifacts/check-ready-restore-1.log",
+            "sha256": "6418b303c147b72d4825e4a6f65d5f18c06fdf9b172cc5320e2a95f220d5b1b7"
+          }
+        ],
+        "attempt": 1,
+        "check_id": "restore",
+        "counts": {
+          "failed": 0,
+          "skipped": 0,
+          "total": 65
+        },
+        "cwd": "/home/sbarah/.codex/worktrees/58ac/sbarbase",
+        "duration_seconds": 6.257999,
+        "environment": "local-isolated",
+        "gate": "behavior",
+        "id": "caedea14728f49d5b1d17428d7b69443",
+        "plan_hash": "3927d9c5791f9a8b8fc2b3fc30e855733dd2d94b7636b14656c465a8162f712a",
+        "reason": null,
+        "returncode": 0,
+        "source_hash": "0a424f749229d79def0e297f1ec9ec8102f633e8091ae754ed334cbaf4e46fcf",
+        "time": "2026-10-06T06:41:11.049638+00:00",
+        "verdict": "pass"
+      }
+    },
+    {
+      "command": [
+        "systemd-run",
+        "--user",
+        "--scope",
+        "--quiet",
+        "-p",
+        "MemoryMax=512M",
+        "-p",
+        "CPUQuota=50%",
+        "python3",
+        "-u",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "lab",
+        "-p",
+        "test_disposable_recovery_drill.py"
+      ],
+      "counts": {
+        "failed": 0,
+        "skipped": 0,
+        "total": 14
+      },
+      "verification": "Independent critic and fresh final engine fixture-source gate both passed 14 tests",
+      "command_evidence": {
+        "argv": [
+          "systemd-run",
+          "--user",
+          "--scope",
+          "--quiet",
+          "-p",
+          "MemoryMax=512M",
+          "-p",
+          "CPUQuota=50%",
+          "python3",
+          "-u",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "lab",
+          "-p",
+          "test_disposable_recovery_drill.py"
+        ],
+        "artifacts": [
+          {
+            "bytes": 113,
+            "path": "artifacts/check-ready-fixture-2.log",
+            "sha256": "591908f8ebbe623a3d3659dcfff3bb80ff781ef8db2ea993f6d24cd4581362b8"
+          }
+        ],
+        "attempt": 1,
+        "check_id": "fixture-source",
+        "counts": {
+          "failed": 0,
+          "skipped": 0,
+          "total": 14
+        },
+        "cwd": "/home/sbarah/.codex/worktrees/58ac/sbarbase",
+        "duration_seconds": 0.288863,
+        "environment": "local-isolated",
+        "gate": "behavior",
+        "id": "de9d88246fdd4d219fc8a16866fde8ad",
+        "plan_hash": "3927d9c5791f9a8b8fc2b3fc30e855733dd2d94b7636b14656c465a8162f712a",
+        "reason": null,
+        "returncode": 0,
+        "source_hash": "0a424f749229d79def0e297f1ec9ec8102f633e8091ae754ed334cbaf4e46fcf",
+        "time": "2026-10-06T06:49:06.365256+00:00",
+        "verdict": "pass"
+      }
+    },
+    {
+      "command": [
+        "systemd-run",
+        "--user",
+        "--scope",
+        "--quiet",
+        "-p",
+        "MemoryMax=512M",
+        "-p",
+        "CPUQuota=50%",
+        "python3",
+        "-u",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "lab",
+        "-p",
+        "test_disposable_storage_backup_drill.py"
+      ],
+      "counts": {
+        "total": 9,
+        "failed": 0,
+        "skipped": 0
+      },
+      "verification": "Independent critic reran current final source"
+    }
+  ],
+  "red_green": {
+    "baseline_delete": "manifest incorrectly published",
+    "baseline_same_size_overwrite": "manifest incorrectly published",
+    "candidate_delete": "refused-before-manifest",
+    "candidate_same_size_overwrite": "refused-before-manifest",
+    "scope": "temporary real files; SQL dump mocked"
+  },
+  "independent_reviews": {
+    "source": {
+      "source_hash": "0a424f749229d79def0e297f1ec9ec8102f633e8091ae754ed334cbaf4e46fcf",
+      "plan_hash": "3927d9c5791f9a8b8fc2b3fc30e855733dd2d94b7636b14656c465a8162f712a",
+      "reviewer": "sb04-independent-critic",
+      "axis": "specification",
+      "verdict": "pass",
+      "scope": "Final current SB-04 source admission and supported file metadata preservation, plus source inspection of the two public disposable fixtures. Runtime verdicts belong in separate native and final DB/file reports.",
+      "findings": [
+        {
+          "id": "SB04-MTIME",
+          "severity": "major",
+          "evidence": "Initial EXTRACT_SCRIPT admitted an archive with source mtime_ns 1600000000000000000 but restored current mtime_ns 1791266278784582312. Pinned native file backend uses file mtime as lastModified and for If-Modified-Since.",
+          "resolution": "fixed",
+          "reason": "Independently inspected Decimal PAX nanosecond extraction and reran temporary-file round trip with source mtime_ns 1600000000123456789. Versioned file and all tenant directories match mtime, mode, UID and GID; supported xattr round-trip test passes."
+        },
+        {
+          "id": "SB05-ROLE-INVENTORY",
+          "severity": "major",
+          "evidence": "Earlier drill payload had empty auth/storage role dictionaries and a fixed rest setting; target recreated roles from constants rather than recovered inventory despite its cluster contract.",
+          "resolution": "fixed",
+          "reason": "Current role_inventory captures admitted scoped role attributes, defaults and membership options. replay_roles consumes recovered inventory, applies rotated passwords, replays memberships and checks equality. This is source verification only; native SQL replay remains unrun by this critic."
+        }
+      ],
+      "observations": [
+        "Read actual backup.py, backup_consistency.py, restore_cutover.py, restore_files.py, recovery_bundle.py, disposable-recovery-drill.py and affected tests. No implementation edits.",
+        "Inventory query imports the exact exported PostgreSQL snapshot while the exporting transaction remains open. It is not a separate live-row inventory.",
+        "Real temporary-file deletion and same-length replacement tests refuse before manifest publication; unchanged versioned MD5 object is admitted.",
+        "Independently executed discovery: test_backup*.py 72 tests pass; test_restore*.py 65 tests pass; test_disposable_recovery_drill.py 9 tests pass.",
+        "Native mtime ETags, missing/non-UUID object versions and unsupported metadata are explicit refusals.",
+        "Current source/plan hashes confirmed with hosts.py review-state immediately before report.",
+        "Final independently executed discovery under current unchanged source: 72 backup, 65 restore, 10 DB/file drill-source and 9 native Storage drill-source tests pass.",
+        "DB/file fixture now seeds target recovery_original_marker before first-rename interruption and queries exact target-write-before-restore value after explicit rollback. Source repair is discriminating; final native SQL rerun is a separate gate.",
+        "Reviewed final readiness delta: exact immutable image/owner/name, running/no-OOM/not-paused/not-restarting and native healthy state must precede privileged-role SQL admission. Starting/unhealthy never probe role SQL; unavailable health refuses. Independently reran 14 DB/file source tests and 9 native source tests after this delta, all pass. Earlier 72+65 suites passed before fixture-only readiness change."
+      ],
+      "limitations": [
+        "No containers or retained resources operated by this critic. Actual disposable public-clone DB recovery, native SQL replay and race execution are not certified by this source report.",
+        "Complete Auth/REST/Storage application recovery, signed URLs, Realtime, Functions, Vault, cron, queues, webhooks, subscriptions, S3/TUS/Iceberg and management identities remain unproven. Separate native-review.json supports service-role Storage HTTP behavior only.",
+        "MD5 is the native fingerprint, not cryptographic byte equality. Independently demonstrated two distinct 128-byte blocks with the same MD5 79054025255fb1a26e4bc422aef54eb4 are admitted interchangeably. Contract excludes hostile same-version volume writes and intentional collisions; ordinary native overwrite allocates a new UUID version. No valid ordinary native API reuse path was demonstrated.",
+        "This source review was not identity blinded. Neutral A/B source evaluation is a separate reviewer responsibility.",
+        "Machine-wide /home/sbarah/AGENTS.md was unavailable. Repeated no-long-dash instruction was followed.",
+        "Pinned default ETag configuration is MD5; earlier report language calling mtime the native default was incorrect. Mtime-configured objects explicitly refuse. Legacy archives without PAX retain existing limitations.",
+        "Native Storage HTTP proof is separately reviewed in native-review.json and is manual source-bound evidence. Final repaired DB/file rollback marker runtime gate is pending at source review time.",
+        "Native actual proof remains bound to previous broad source b6f8e059ac728042c332d5227cc175cf273ba7f237d4ce9ab58514a2d1e3a41e. It executed before this fixture-only health repair and is not retargeted to new source. Core backup/consistency/restore files are unchanged."
+      ],
+      "unresolved_findings": [],
+      "artifacts": [],
+      "correction": "This report supersedes the earlier source hash review for source scope only. Earlier source evidence and historical runtime failures remain retained."
+    },
+    "blind_binary": {
+      "choice": "A",
+      "mapping": "A is candidate, B is imported baseline",
+      "source_only": true,
+      "five_shared_tests": {
+        "A": "5 pass",
+        "B": "2 race assertion failures, 2 new-module import errors, 1 pass"
+      },
+      "limitation": "neutral packet predates explicit UUID rejection; final source review covers subsequent change"
+    },
+    "native_storage": {
+      "source_hash": "b6f8e059ac728042c332d5227cc175cf273ba7f237d4ce9ab58514a2d1e3a41e",
+      "plan_hash": "3927d9c5791f9a8b8fc2b3fc30e855733dd2d94b7636b14656c465a8162f712a",
+      "reviewer": "sb04-independent-critic",
+      "axis": "specification",
+      "verdict": "pass",
+      "findings": [],
+      "scope": "Original pinned Storage service-role HTTP upload, overwrite/delete snapshot races, environment backup and shipped fenced restore. Manual source-bound runtime evidence, separate from engine DB/file behavior gate.",
+      "observations": [
+        "Independently inspected native fixture and tests plus inherited DB/file fixture, helper lifecycle and owner-checked cleanup. No source edits or container operations by critic.",
+        "Native ordinary upload records one UUID version and quoted MD5 ed16fa43db4f9640bb34e10c4b701c1c for 31 original bytes. No ETag environment override and no fixture edit of native Storage metadata found.",
+        "Native overwrite race snapshot UUID 8a850e4b-43f6-4cae-b639-1f60a202f1ea changes to e5f56654-a5e4-4b82-8492-22bc4019615e, equal byte length 31, MD5 changes to 48e95c91781dcf2c5eb90da6e8dcc14d. Changed file SHA256 matches x*31. These actual observations discriminate a real overwrite from a successful no-op HTTP call.",
+        "Native delete race snapshot metadata exists; live metadata and native files are empty. Both native races explicitly refuse before complete manifest.",
+        "Ordinary untouched native object produces a verified complete shipped backup. Shipped restore returns the original UUID, full metadata row, native file SHA256 and MIME/cache xattrs exactly, and native HTTP download returns original bytes.",
+        "Helper pauses a previously-running Storage writer before inherited helper pauses DB, restarts DB first and resumes only previously-running Storage. Already-fenced Storage remains stopped.",
+        "Cleanup checks owner label for each exact recorded unique container/volume/network name, removes only those resources and reports success only after cleanup returns. No wildcard resource deletion in source.",
+        "Independently executed final current source discovery: 72 backup, 65 restore, 10 DB/file drill-source and 9 native drill-source tests pass.",
+        "Independently checked all binding.files hashes against actual current source and checked native output metadata, races, file SHA256 values, exact restored observations, 18 unique checks and 7 unproven features."
+      ],
+      "correction_to_prior_review": "Earlier review wording calling mtime the native default was incorrect. Pinned native configuration defaults to MD5 and this fixture does not override it. Mtime-configured objects are an explicit refusal case.",
+      "evidence_identity": {
+        "native_output_sha256": "cc6569764b62629f35d3c733af111cd003516b44dc28c4cde4d498ac7d52ba6b",
+        "source_binding_sha256": "4462c46ec016264b1aef9944469004d85e419631e39617c46b90b9ba1f31fddf",
+        "source_files": {
+          "lab/disposable-storage-backup-drill.py": "4e878b05d353e04d4da370c9381c6abcaabbf4e5148ca7db2a8613704f0a13cd",
+          "lab/test_disposable_storage_backup_drill.py": "dc16d1e6a3c1e15c5cc0c3c9386336ea351b0839f6e99c1bd7465735276a1be0",
+          "lab/disposable-recovery-drill.py": "b9993e45b4f3f6980c0dfd85e312809f0a6c1154a6a0ac300eece442d250e09a",
+          "lab/backup.py": "345464f2aaed497b52ba981298927807dea50b2fd8cec9d6d9b2c193daaff012",
+          "lab/backup_consistency.py": "9acbc5480718fe1eea9b68333ec0f24713ed910cfc475734e6f00c285f2351c6",
+          "lab/restore_cutover.py": "910af356a176224a4d77e4613a91e8ab910a754d50c826de6915835c97677952"
+        }
+      },
+      "limitations": [
+        "Critic reviewed sanitized observations and source, not the running process live. Native run is manual source-bound evidence, not an engine behavior gate; command and binding are coordinator-recorded.",
+        "No independent container inventory commands were run by critic. Cleanup is supported by successful source cleanup path; coordinator additionally reports empty owned container/volume/network inventories.",
+        "Same-daemon same-cluster restore and service-role HTTP only. Enduser Auth, cross-tenant isolation, signed URLs, fresh-host full application recovery, platform secret rotation, external object stores and native feature recovery remain unproven.",
+        "Native HTTP download status and bytes are checked. MIME/cache database metadata and xattrs are checked; response MIME/cache headers and If-Modified-Since behavior are not directly asserted by this runtime fixture.",
+        "No executed official application-stack comparison. Reference tag/commit and candidate image manifests identify inputs only.",
+        "The source runner logs post-race mutation observations but does not itself assert every mutation effect. This critic verified the current recorded effects; future runtime evidence must be checked independently or add effect assertions.",
+        "Source-bound DB/file rollback marker repair is present but final actual SQL rerun remains pending at time of this native report. Old actual3 cannot establish repaired marker preservation.",
+        "Full SB-05 remains open.",
+        "After this native runtime, inherited fixture readiness and its source tests were strengthened. This report preserves executed broad source b6f8e059ac728042c332d5227cc175cf273ba7f237d4ce9ab58514a2d1e3a41e, not current unexecuted native source 0a424f749229d79def0e297f1ec9ec8102f633e8091ae754ed334cbaf4e46fcf. Core backup/consistency/restore exact hashes are unchanged; stricter health-gate native execution is not claimed."
+      ],
+      "artifacts": [
+        "native-storage-attempt1.json",
+        "native-source-binding.json"
+      ],
+      "component_scope": "Executed native proof for unchanged SB-04 backup/consistency/restore components plus historical native fixture as bound in native-source-binding.json."
+    },
+    "historical_drill": {
+      "source_hash": "c4765368790bd96998213b18ad99d84ff1ae65694ab81a271cfbe48950575b62",
+      "plan_hash": "3927d9c5791f9a8b8fc2b3fc30e855733dd2d94b7636b14656c465a8162f712a",
+      "reviewer": "sb04-independent-critic",
+      "axis": "specification",
+      "verdict": "fail",
+      "scope": "Historical successful actual3 DB/file run only. 31 executed checks are supported as scoped evidence; this is not final drill acceptance or complete application recovery.",
+      "findings": [
+        {
+          "id": "SB04-ROLLBACK-ORIGINAL-WRITE",
+          "severity": "major",
+          "evidence": "The plan requires original writes to survive first-rename interruption and rollback. execute() creates target ENVIRONMENT as an empty database before the interrupted restore. After the interruption_reached sentinel, recovery asserts rolled-back and app_data.records absent. An empty database cannot discriminate preservation from loss of preexisting target writes. The historical run therefore supports restoration of the original empty placeholder, not the advertised original-write preservation contract.",
+          "file": "lab/disposable-recovery-drill.py",
+          "required_fix": "Seed a distinct marker row into the original target database before first-rename interruption, then query its exact value after explicit rollback. Rerun the actual pinned DB/file drill against the repaired source and retain this earlier scoped evidence."
+        }
+      ],
+      "observations": [
+        "Read actual current fixture, backup and recovery helpers, successful drill.json, actual3 command evidence and raw command log, plus drill-attempt1.json and drill-attempt2.json.",
+        "Actual3 bound command returned zero after 103.884102 seconds, logged 31 executed, 0 failed and 16 skipped. drill.json has 31 unique check labels, the same 16 unproven features, and explicit empty application_services_started.",
+        "The current first-rename interruption sentinel is discriminating about reaching original-renamed. Earlier attempt2 lacked that direct evidence; its record remains refused and does not replace the final successful run.",
+        "Readiness injection requires a complete-restore marker; subsequent native INSERT of post-reopen row plus trigger audit and post-recovery equality checks discriminate against data replay or loss after reopening.",
+        "Snapshot races run native pg_dump, then mutate the versioned file and live metadata while exported snapshot remains held. Inventory imports that exported snapshot. Both mutation cases refuse before manifest; these are DB/file mutations, not Storage HTTP mutations.",
+        "Disk envelope and separate 32-byte key are read and authenticated before source deletion. Source DB container/volume and source object volume are removed; original BACKUPS are removed. Target volumes are newly allocated only after exact native absence. Target archives and scoped roles come from recovered envelope data.",
+        "Cleanup operates only recorded unique resource names and checks their exact owner label before native removal. The successful main path reports cleanup only after cleanup completes without failures.",
+        "Credential probe forces SCRAM over loopback and tests the same target roles/database with rotated and old password values. Each rotated password returns SELECT 1 and each old password fails. JWT probe proves a changed secret value only.",
+        "Independently executed 10 current source tests for the disposable drill without Docker; all passed.",
+        "Relevant broad source/plan hashes matched actual3 via hosts.py review-state immediately before report preparation."
+      ],
+      "historical_evidence": {
+        "drill_json_sha256": "2de37e81900b38b5f254eb3ea00e7409f003b0a10c02b1a4859fecb82817ce0c",
+        "actual3_json_sha256": "3cc3d80bb8e9478d6170846d2d68c2fdc2b2980e1771ceaa9d2c2df5d4235a98",
+        "raw_log_sha256": "80f7a6927a99277cea20f604571da4a52d84eaf7bafb4905a9bd9dbd6b673e4f",
+        "relevant_source_sha256": {
+          "backup.py": "345464f2aaed497b52ba981298927807dea50b2fd8cec9d6d9b2c193daaff012",
+          "backup_consistency.py": "9acbc5480718fe1eea9b68333ec0f24713ed910cfc475734e6f00c285f2351c6",
+          "restore_cutover.py": "910af356a176224a4d77e4613a91e8ab910a754d50c826de6915835c97677952",
+          "restore_files.py": "db4c1ea6c2aca2bd13826e0e6c68760ee9f07079c3fd276ca210ec04eeffe80c",
+          "restore_operation.py": "24af12bcf7a04d1564d3172ad2a1eaa5cde5f653ff7e9eb60eaa4c4972a19aed",
+          "restore_sql.py": "567b3648230fd46a0aa3fcb2aa93615430997a99c84232769def659cd4eb45e1",
+          "recovery_bundle.py": "c84c9ad20fa2e54fe81a74df72e6182c145ce5423f26a3e7c25703dd8eee75df",
+          "image_identity.py": "6478f49364022c1bf99c17e74ad07a14556b6957ad879587b92f9fb99d7422d5",
+          "disposable-recovery-drill.py": "b9993e45b4f3f6980c0dfd85e312809f0a6c1154a6a0ac300eece442d250e09a"
+        }
+      },
+      "limitations": [
+        "Critic inspected recorded native execution and discriminating source checks; did not run containers or independently observe the original process live.",
+        "This is a same-daemon fresh-cluster rehearsal, not a second-host recovery or lost-workstation test. Envelope/key remain in private temporary host state; original plaintext expected values remain in memory for comparisons. Target archives are loaded from authenticated disk envelope.",
+        "Recovery interruption is a deterministic caught exception at a durable phase, not SIGKILL, power loss or filesystem crash.",
+        "Old database password rejection is supported; HTTP JWT invalidation, signed URL portability and management identity recovery remain unproven.",
+        "The 16 named unproven features are not passed or waived. Minimal fixture auth/storage schemas and stopped writer descriptors do not establish actual application service recovery.",
+        "Fresh target neighbor data is an independent target fixture. Source neighbor data was not transferred.",
+        "MIME/cache xattr equality and object content SHA256 are checked in the actual DB/file run. HTTP metadata behavior needs separate native Storage proof.",
+        "Native default mtime objects refuse backup; hostile same-version writers and intentional MD5 collision equivalence are excluded.",
+        "Current source may later change as separate native Storage HTTP work proceeds. This historical source identity cannot certify those additions or a final repaired drill."
+      ],
+      "artifacts": [
+        "drill.json",
+        "actual3.json",
+        "run/artifacts/check-906b044387d94c45bcd200a8613e33de.log"
+      ]
+    },
+    "drill": {
+      "source_hash": "0a424f749229d79def0e297f1ec9ec8102f633e8091ae754ed334cbaf4e46fcf",
+      "plan_hash": "3927d9c5791f9a8b8fc2b3fc30e855733dd2d94b7636b14656c465a8162f712a",
+      "reviewer": "sb04-independent-critic",
+      "axis": "specification",
+      "verdict": "pass",
+      "scope": "Final actual5 SQL/file disposable recovery fixture only. 32 executed actual checks accepted; 16 unproven features remain open. Full application recovery and complete SB-05 are not accepted.",
+      "findings": [
+        {
+          "id": "SB04-ROLLBACK-ORIGINAL-WRITE",
+          "severity": "major",
+          "evidence": "Historical actual3 restored an empty original target placeholder, so it could not discriminate preservation of preexisting target writes.",
+          "resolution": "fixed",
+          "reason": "Current source seeds recovery_original_marker with target-write-before-restore before interruption, requires the original-renamed sentinel, explicitly rolls back and queries the marker exact value. Final actual5 under current source returns zero and records that specific marker check among 32 executed checks. This is new runtime evidence, not retargeted historical actual3."
+        }
+      ],
+      "observations": [
+        "Independently reread final drill.json, current repaired source, actual5 command artifact, extracted final-actual-5 engine token and fixture-final-proof.json. No source edits or container operations by critic.",
+        "Final actual5 is bound to source 0a424f749229d79def0e297f1ec9ec8102f633e8091ae754ed334cbaf4e46fcf and plan 3927d9c5791f9a8b8fc2b3fc30e855733dd2d94b7636b14656c465a8162f712a. Native command returned zero after 512.123044 seconds within the unchanged 600-second planned timeout; command evidence records 32 executed, zero failed and 16 unproven.",
+        "Repaired first-rename test proves the durable phase was reached and exact original target marker data remains after explicit rollback. A restored archive activation or empty recreated target cannot satisfy both absence of app_data.records and preservation of the marker value.",
+        "Readiness failure requires complete-restore guidance after reopening. Native post-reopen INSERT and trigger audit are verified after recovery without replay, so the final run discriminates against rollback or replay losing new writes.",
+        "Final native DB/file snapshot deletion and same-length replacement checks explicitly refuse before manifest. This fixture directly mutates file bytes and metadata while exported database snapshot remains held; real Storage HTTP races are separately supported by native-review.json historical binding.",
+        "Encrypted disk envelope and independently generated 32-byte key authenticate before source resources are deleted. Source database/object volumes and source archives are removed; fresh target roles, settings and archives come from recovered envelope data. Wrong-key decryption refuses.",
+        "Admitted role properties/defaults/membership options equal captured source inventory after replay. Target SCRAM connection probes accept rotated scoped auth/rest/storage passwords and reject old passwords for identical role/database queries. JWT secret equality change alone is asserted.",
+        "Final data checks cover custom schema rows/enums/functions/view/trigger, RLS behavior and grants, database connection limit, scoped database search path, object metadata/content SHA256/MIME-cache xattrs and shared tenant registrations. Target neighbor fixture remains intact.",
+        "Readiness now requires exact image/name/owner, running/no-OOM/not-paused/not-restarting, native healthy state and expected privileged role. Current 14 fixture source tests pass and are engine-bound to the same final source.",
+        "Cleanup source checks exact recorded owned names and labels before removal. Final drill output reports successful cleanup. Coordinator also reports final owned-prefix container/volume inventories empty; critic did not execute inventory commands."
+      ],
+      "evidence_identity": {
+        "drill_json_sha256": "12ca78e624625b8964cfc0a3352603b60e1e59b674dd1b5da9ed26d4636323f9",
+        "actual5_log_sha256": "12a0455cff146b6054cba133f504ad66dc9e6d857e10641339835771a87b924e",
+        "actual5_binding_sha256": "b57ef0225e6c2a8f6750426f2abaaecb543e66b2785661b8f1720daba23d95c6",
+        "fixture_final_proof_sha256": "869a3f97c012100a7e89909dfda48e71a9f2fb42052392e090adb8ab1b4dd81e",
+        "source_fixture_sha256": "6cc247988c520bf3962c6ddf3a5591b4a5733e2bc9a94653fe10ac65a8b93315"
+      },
+      "limitations": [
+        "This is recorded native execution inspection, not a second live run by critic. Source and command/output binding were independently checked; no containers operated.",
+        "Same-daemon fresh-cluster SQL/file rehearsal, not independent-host application recovery. Envelope/key and expected source comparisons remain in private temporary host state or process memory.",
+        "Interruption is a deterministic caught exception at a durable phase, not SIGKILL, power failure or filesystem crash. Native helper restarts DB deliberately to keep one running test container.",
+        "Minimal fixture auth/storage schemas and stopped application writer descriptors do not establish actual Auth, REST or Storage application migrations/readiness. 16 listed unproven features remain unproven, not waived.",
+        "Neighbor is a separately seeded target fixture, not source neighbor data transferred to a new host.",
+        "JWT change is not HTTP token invalidation; signed URLs, management identity, platform credential rotation, optional native features, external object stores and full SB-05 remain open.",
+        "Separate successful native Storage HTTP evidence retains executed b6f8e059ac728042c332d5227cc175cf273ba7f237d4ce9ab58514a2d1e3a41e binding. Core backup/consistency/restore components are unchanged; native HTTP execution under the new fixture health gate is not claimed.",
+        "Earlier report wording calling mtime the native default was incorrect. Pinned native configuration defaults to MD5; mtime-configured objects explicitly refuse.",
+        "Reviewer is independent of implementation but this follow-up is not identity blinded. The authorized final token inspection initially returned broad journal snapshots including earlier gate history; subsequent extraction and checks used only final-actual-5 evidence. No other reviewer verdict is used as source or runtime proof.",
+        "Historical failed marker review and earlier failed attempts remain retained. Prior allocation failure exact cause remains unproven and is not inferred from final success."
+      ],
+      "unresolved_findings": [],
+      "artifacts": [
+        "drill.json",
+        "critic-final-actual5-binding.json",
+        "fixture-final-proof.json",
+        "run/artifacts/check-final-actual-5.log"
+      ]
+    }
+  },
+  "runtime": {
+    "status": "fixture-verified-complete-application-unproven",
+    "counts": {
+      "executed": 32,
+      "failed": 0,
+      "required_unproven": 16
+    },
+    "fresh_cluster": true,
+    "resources": {
+      "database_cpus": 0.5,
+      "database_memory_mib": 512,
+      "helper_cpus": 0.5,
+      "helper_memory_mib": 256,
+      "max_running_test_containers": 1,
+      "network": "none",
+      "published_ports": [],
+      "state": "private temporary directory"
+    },
+    "cleanup": "all exact owned disposable resources removed",
+    "source_database_and_volume_deleted_before_restore": true,
+    "source_object_volume_deleted_before_restore": true,
+    "evidence_file": "docs/evidence/disposable-recovery-drill-2026-10-06.json",
+    "failed_attempts": [
+      {
+        "attempt": 1,
+        "scope": "before DB allocation",
+        "cause": "exact Docker absence format differs; allocated empty volumes cleaned; toolchain call insertion absent, no Python proof from this attempt"
+      },
+      {
+        "attempt": 2,
+        "scope": "source fixture and target setup",
+        "cause": "fresh target lacked tenant parent; first-rename rollback assertion was insufficient and is superseded"
+      },
+      {
+        "attempt": 4,
+        "scope": "source allocation",
+        "cause": "Database statement failed after privileged-role readiness, owned cleanup completed. Temporary probes demonstrated role readiness while native health starting; exact failure cause unproven. Fixture now requires native healthy state and exact identity."
+      }
+    ],
+    "source_hash": "0a424f749229d79def0e297f1ec9ec8102f633e8091ae754ed334cbaf4e46fcf",
+    "plan_hash": "3927d9c5791f9a8b8fc2b3fc30e855733dd2d94b7636b14656c465a8162f712a",
+    "command_evidence": {
+      "argv": [
+        "systemd-run",
+        "--user",
+        "--scope",
+        "--quiet",
+        "-p",
+        "MemoryMax=512M",
+        "-p",
+        "CPUQuota=50%",
+        "python3",
+        "-u",
+        "lab/disposable-recovery-drill.py",
+        "run",
+        "--output",
+        "/tmp/sbarbase-sb04-checkpoint/drill.json"
+      ],
+      "artifacts": [
+        {
+          "bytes": 419,
+          "path": "artifacts/check-final-actual-5.log",
+          "sha256": "12a0455cff146b6054cba133f504ad66dc9e6d857e10641339835771a87b924e"
+        }
+      ],
+      "attempt": 1,
+      "check_id": "actual",
+      "counts": {
+        "failed": 0,
+        "skipped": 16,
+        "total": 48
+      },
+      "cwd": "/home/sbarah/.codex/worktrees/58ac/sbarbase",
+      "duration_seconds": 512.123044,
+      "environment": "local-isolated",
+      "gate": "behavior",
+      "id": "7e301aac45634c0391815c7b64b267d8",
+      "plan_hash": "3927d9c5791f9a8b8fc2b3fc30e855733dd2d94b7636b14656c465a8162f712a",
+      "reason": null,
+      "returncode": 0,
+      "source_hash": "0a424f749229d79def0e297f1ec9ec8102f633e8091ae754ed334cbaf4e46fcf",
+      "time": "2026-10-06T06:48:51.523685+00:00",
+      "verdict": "pass"
+    },
+    "evidence_sha256": "12ca78e624625b8964cfc0a3352603b60e1e59b674dd1b5da9ed26d4636323f9",
+    "preexisting_original_write_survives_rollback": true,
+    "new_writes_after_reopening_survive_recovery": true,
+    "historical_31_check_run": "Source and observations retained in prior review; it did not discriminate original target write preservation and is superseded by the 32-check run"
+  },
+  "limitations": [
+    "Native mtime ETags and non-UUID versions explicitly refuse",
+    "Hostile same-version writes and intentional MD5 collisions are outside contract",
+    "Complete application service and external-feature recovery is unproven"
+  ],
+  "source_hash": "0a424f749229d79def0e297f1ec9ec8102f633e8091ae754ed334cbaf4e46fcf",
+  "plan_hash": "3927d9c5791f9a8b8fc2b3fc30e855733dd2d94b7636b14656c465a8162f712a",
+  "native_storage_runtime": {
+    "status": "native-storage-fixture-verified-full-recovery-unproven",
+    "counts": {
+      "executed": 18,
+      "failed": 0,
+      "required_unproven": 7
+    },
+    "evidence_file": "docs/evidence/disposable-storage-backup-drill-2026-10-06.json",
+    "evidence_sha256": "cc6569764b62629f35d3c733af111cd003516b44dc28c4cde4d498ac7d52ba6b",
+    "source_binding": {
+      "source_hash": "b6f8e059ac728042c332d5227cc175cf273ba7f237d4ce9ab58514a2d1e3a41e",
+      "plan_hash": "3927d9c5791f9a8b8fc2b3fc30e855733dd2d94b7636b14656c465a8162f712a",
+      "files": {
+        "lab/disposable-storage-backup-drill.py": "4e878b05d353e04d4da370c9381c6abcaabbf4e5148ca7db2a8613704f0a13cd",
+        "lab/test_disposable_storage_backup_drill.py": "dc16d1e6a3c1e15c5cc0c3c9386336ea351b0839f6e99c1bd7465735276a1be0",
+        "lab/disposable-recovery-drill.py": "b9993e45b4f3f6980c0dfd85e312809f0a6c1154a6a0ac300eece442d250e09a",
+        "lab/backup.py": "345464f2aaed497b52ba981298927807dea50b2fd8cec9d6d9b2c193daaff012",
+        "lab/backup_consistency.py": "9acbc5480718fe1eea9b68333ec0f24713ed910cfc475734e6f00c285f2351c6",
+        "lab/restore_cutover.py": "910af356a176224a4d77e4613a91e8ab910a754d50c826de6915835c97677952"
+      },
+      "command": [
+        "systemd-run",
+        "--user",
+        "--scope",
+        "--quiet",
+        "-p",
+        "MemoryMax=512M",
+        "-p",
+        "CPUQuota=50%",
+        "python3",
+        "-u",
+        "lab/disposable-storage-backup-drill.py",
+        "run",
+        "--output",
+        "/tmp/sbarbase-sb04-checkpoint/native-storage-attempt1.json"
+      ],
+      "binding": "Post-launch unchanged source hash matches final source gates; manual actual native command, not an engine behavior gate"
+    },
+    "etag_override": false,
+    "native_metadata_edited": false,
+    "owned_cleanup_inventory": "containers, volumes and networks empty after terminal process",
+    "source_transition": "Native HTTP execution predates fixture-only readiness tightening. Its executed source binding is retained; core backup, consistency and restore hashes are unchanged.",
+    "review_sha256": "55731d552d610c0718cc16043560830895b10ced886a3384f34a64cc1be75947"
+  },
+  "source_checkpoint": {
+    "status": "accepted",
+    "source_hash": "0a424f749229d79def0e297f1ec9ec8102f633e8091ae754ed334cbaf4e46fcf",
+    "plan_hash": "3927d9c5791f9a8b8fc2b3fc30e855733dd2d94b7636b14656c465a8162f712a",
+    "checks": {
+      "backup": 72,
+      "restore": 65,
+      "failed": 0
+    },
+    "review": "independent specification critic passes"
+  },
+  "checkpoint_acceptance": {
+    "source": "accepted",
+    "drill": "accepted",
+    "source_hash": "0a424f749229d79def0e297f1ec9ec8102f633e8091ae754ed334cbaf4e46fcf",
+    "plan_hash": "3927d9c5791f9a8b8fc2b3fc30e855733dd2d94b7636b14656c465a8162f712a",
+    "scope": "Source admission and disposable DB/file fixture only; manual native HTTP evidence uses its retained prior source identity"
+  }
+}

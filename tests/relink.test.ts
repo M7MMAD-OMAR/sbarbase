@@ -1,3 +1,4 @@
+import {randomUUID} from 'node:crypto';
 import {test,expect} from 'bun:test';
 import {Catalog,type Ownership} from '../src/control/catalog';
 import {managementHandler} from '../src/control/http';
@@ -117,6 +118,7 @@ test('a runtime deleted here is never re-linked',async()=>{
     const environment=catalog.createEnvironment('nina',project,'production');
     const job=catalog.claimProvision()!;catalog.finishProvision(environment,job.claim!,true);
     const backup=recorded(catalog,'nina',environment);
+    catalog.registerLifecycleResources(job.runtime,[{kind:'container',id:'a'.repeat(64),runtime:job.runtime,installation:randomUUID(),resource:randomUUID()}],'disposable-fixture');
     catalog.deleteEnvironment('nina',environment);
     expect(await relink('nina',backup)).toEqual({status:409,body:{message:'Runtime was deleted here'}});
   } finally {catalog.close();}

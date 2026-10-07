@@ -1,0 +1,154 @@
+{
+  "schema": 1,
+  "reviewer": "sb06-cli-operational-critic",
+  "axis": "operational",
+  "source_hash": "dbcb63bf84e8e0d8c2d6e1cebe37d530a675cc6888adb34a19a73074fd755cf9",
+  "plan_hash": "0c382303fb64c6bad511421fd7b576cf1d39c4b2f1d66ce0fb006ebab27cd0e4",
+  "verdict": "pass",
+  "spec_verdict": "SPEC MET",
+  "findings": [],
+  "scope": "Dependent management CLI Auth and Linux terminal development fragment. Accepts native MFA before protected CLI requests, credential and terminal secrecy, cancellation refusal, bounded fixture execution and cleanup. Does not accept vendor parity, production operation, container release, host portability, full SB-06 transfer rotation or recovery.",
+  "inspection": {
+    "independent": true,
+    "builder_conversation_seen": false,
+    "other_reviewer_report_seen_before_verdict": false,
+    "containers_started_by_reviewer": 0,
+    "implementation_changes_by_reviewer": 0,
+    "source_files_hash_verified": 36,
+    "source_aggregate_recomputed": true,
+    "plan_hash_recomputed": true,
+    "current_behavior_artifact_hashes_verified": 3,
+    "core_server_and_ui_unchanged_from": "e315ef6b6e7da1c9e1eb3117dabeb9d3f708326a"
+  },
+  "behavior": {
+    "native_cli": {
+      "total": 101,
+      "failed": 0,
+      "skipped": 0,
+      "duration_seconds": 32.613632
+    },
+    "repository_unit": {
+      "total": 386,
+      "failed": 0,
+      "skipped": 0
+    },
+    "control_types": "pass",
+    "actual_terminal_scenarios": [
+      {
+        "scenario": "success",
+        "exit_code": 0,
+        "total": 7,
+        "failed": 0,
+        "skipped": 0,
+        "capacity_refused": false
+      },
+      {
+        "scenario": "success-password-stdin",
+        "exit_code": 0,
+        "total": 6,
+        "failed": 0,
+        "skipped": 0,
+        "capacity_refused": false
+      },
+      {
+        "scenario": "success-operator-file",
+        "exit_code": 0,
+        "total": 6,
+        "failed": 0,
+        "skipped": 0,
+        "capacity_refused": false
+      },
+      {
+        "scenario": "prompt-cancel",
+        "exit_code": 3,
+        "total": 8,
+        "failed": 0,
+        "skipped": 0,
+        "capacity_refused": false
+      },
+      {
+        "scenario": "verify-cancel",
+        "exit_code": 3,
+        "total": 9,
+        "failed": 0,
+        "skipped": 0,
+        "capacity_refused": false
+      },
+      {
+        "scenario": "stty-failure",
+        "exit_code": 3,
+        "total": 5,
+        "failed": 0,
+        "skipped": 0,
+        "capacity_refused": false
+      },
+      {
+        "scenario": "headless-password-stdin",
+        "exit_code": 3,
+        "total": 5,
+        "failed": 0,
+        "skipped": 0,
+        "capacity_refused": false
+      },
+      {
+        "scenario": "headless-operator-file",
+        "exit_code": 3,
+        "total": 5,
+        "failed": 0,
+        "skipped": 0,
+        "capacity_refused": false
+      }
+    ]
+  },
+  "observations": [
+    "Every inventoried file matches its SHA-256. Independently recomputed source and plan hashes equal the frozen packet. All three current behavior records bind to these hashes, exit zero and retain artifact bytes matching their recorded hashes.",
+    "Actual original Auth enrollment, challenge and verification authorizes CLI environment creation. A later login uses the existing authenticator, verifies natively, receives protected organization access and preserves the expected duplicate-name conflict. Native wrong code refuses protected API access and leaves catalog state unchanged.",
+    "Actual terminal password, password-stdin with a controlling terminal, and owner-only 0600 operator-file inputs each complete native MFA and an authorized environment creation with exit zero. No capacity override or manufactured ready-worker state is used.",
+    "The real PTY password and TOTP input disables echo and restores the original terminal settings. Password-stdin remains a separate pipe while the child retains only its own generated controlling PTY.",
+    "The setup key is written only to the controlling terminal alternate screen and cleared afterward. The terminal runner records separate stdout/stderr bytes and private terminal bytes only in memory, compares them against the actual private password, setup secret and typed code, and exports sanitized checks only. The native in-process check additionally excludes session tokens from CLI output.",
+    "Actual prompt cancellation and interruption after original native verification both exit 3, deliver the intended interruption, clear the alternate screen, restore echo, send zero protected requests and create no environment. The native-verification cancellation uses a private acknowledgment marker rather than relying only on timing.",
+    "A fixture-local stty wrapper actually disables echo and reports failure. The real CLI refuses before protected work and restores the original terminal settings. The wrapper cannot modify any host terminal because it operates on the child controlling PTY.",
+    "Both actual headless password-stdin and headless operator-file scenarios exit 3 before any Auth request and protected work, without catalog mutation or exposed private values.",
+    "The actual CLI launcher uses processDeps with the generated private root and an exact generated loopback-origin fetch guard. Only /management/ paths are allowed; redirects are refused, five-second deadlines apply, and cancellation signals are preserved. Native upstream requests are separately restricted to the fresh Auth origin.",
+    "The fixture creates only uniquely named owner-labeled PostgreSQL 512MiB/.5CPU and Auth 256MiB/.25CPU on an internal network without host port publishing. DB storage is disposable tmpfs. The Bun driver, PTY runner and actual CLI children remain under MemoryMax 256M and CPUQuota 25%, with a bounded 100-second lifetime.",
+    "Cleanup tracks planned exact resource names, checks generated owner labels before destructive removal and verifies no resources remain through successful owner-filtered inventories. All 60 recorded preexisting running-container IDs remain identical after cleanup; missing is empty.",
+    "The first native attempt remains a retained 40-check failure with two failed assertions. It is historical evidence and is not retroactively accepted by the corrected 101-check packet."
+  ],
+  "cleanup": {
+    "owned_resources_absent": true,
+    "recorded_running_container_preservation": true,
+    "running_before_count": 60,
+    "running_after_count": 60,
+    "inventories_identical": true,
+    "missing": [],
+    "limitation": "Matching snapshots establish preservation of recorded running IDs for this run only. They do not establish health, data integrity, or absence of transient restart of every host resource."
+  },
+  "largest_remaining_gap": "Deployment and portability evidence remains outside this development fragment. The terminal workflow uses host Bun, Python, user systemd, stty and /usr/bin/head; it still needs separately declared container release and supported-host acceptance.",
+  "limitations": [
+    "This reviewer inspected retained native execution evidence and source without independently rerunning containers or PTY processes.",
+    "Private terminal transcripts intentionally remain unavailable as exported artifacts; secrecy observations come from executable comparisons against actual private values, supplemented by source inspection.",
+    "Handled interruption is proved at the prompt and after native verification before protected work. It cannot reverse a management action already completed by the server, and SIGKILL cannot restore terminal settings or clear the display.",
+    "External terminal recorders can capture a displayed native setup key. The documented workflow requires a private unrecorded terminal.",
+    "The earlier core fixture unrelated-container preservation=false remains historical and is not changed or resolved by this CLI run.",
+    "No browser or graphical parity claim is made for this terminal slice."
+  ],
+  "artifacts": [
+    "native-cli.json",
+    "native-cli-attempt1.json",
+    "full-source-inventory.json",
+    "verified-status.json",
+    "workflow/artifacts/check-cli-types-four-slots-1.log",
+    "workflow/artifacts/check-cli-unit-four-slots-1.log",
+    "workflow/artifacts/check-cli-native-four-slots-2.log"
+  ],
+  "artifact_sha256": {
+    "native-cli.json": "be37dd9dc2be19894ec6b067448d093777c6e3ffe5dee5ad3c18f635f42eeeca",
+    "native-cli-attempt1.json": "ef36be16f99b2ce1bfa2f1c48e77041f014bea8a012d66409ae066ee5fb278b8",
+    "full-source-inventory.json": "3a55148cd3a07503151e673ebe23d15c879134241311cdc0cd074ce7972cc07b",
+    "verified-status.json": "9baf7ca77fee8a66b8eabe3baf01d22528076f5ba51d17aa9f69e279d5a7cefd",
+    "workflow/artifacts/check-cli-types-four-slots-1.log": "f13e1fc0be8bbad48b024d07dfc35fa6f1dc8a44af19daec02b4cc97c494dce8",
+    "workflow/artifacts/check-cli-unit-four-slots-1.log": "e6f1f5f80675e030752ee90782f2bd01b9891c142dbf37fae33625c55966db6a",
+    "workflow/artifacts/check-cli-native-four-slots-2.log": "51cf6e607c1a3d31cecfc5ce0a4d34b88d3d5a06d0297df6c292566bea33619c"
+  },
+  "time": "2026-10-06T07:05:13.971384+00:00"
+}

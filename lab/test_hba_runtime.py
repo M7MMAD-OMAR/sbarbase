@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import tempfile
 import unittest
 from unittest.mock import Mock,patch
+from host_test_fixture import admitted_host_fixture
 import uuid
 import atomic_hba
 import durable_runtime
@@ -98,9 +99,10 @@ class SourceHBATests(unittest.TestCase):
 
 class StartupEntryTests(unittest.TestCase):
     def test_missing_ownership_refuses_before_constructing_source_or_target(self):
-        with patch.object(durable_runtime.effect_receipt,'require_settled'),patch.object(durable_runtime,'Runtime') as source,patch.object(installation_runtime,'TargetRuntime') as target:
+        with admitted_host_fixture() as admission, patch.object(durable_runtime.effect_receipt,'require_settled'),patch.object(durable_runtime,'Runtime') as source,patch.object(installation_runtime,'TargetRuntime') as target:
             with self.assertRaisesRegex(RuntimeError,'startup ownership'):installation_runtime.main('up')
             source.assert_not_called();target.assert_not_called()
+            admission.assert_called_once()
 
     def test_expired_source_context_refuses_before_service_or_sql_mutation(self):
         source=object.__new__(durable_runtime.Runtime)

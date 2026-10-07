@@ -1,0 +1,1 @@
+{"total": 130, "failed": 2, "skipped": 0, "native_accepted": false, "reason": null, "raw_sha256": "5996ebb3d25e8a5788639a1f76b203a97298e3c03866be7d1215da4b04918d0e", "raw_log": "/home/sbarah/.codex/sbarbase-settlement/20261006/native-source-v2/check-python-15.log", "peak_group_rss": 28889088, "role_seconds_used": 2.4788757870086275, "role_output_bytes": 124320}

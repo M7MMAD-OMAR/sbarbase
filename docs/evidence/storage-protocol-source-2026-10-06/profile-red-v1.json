@@ -1,0 +1,154 @@
+{
+  "schema_version": 1,
+  "status": "coordinator-confirmed-red-source-profile",
+  "commands": {
+    "python": [
+      "env",
+      "LC_ALL=C",
+      "PYTHONUTF8=1",
+      "PYTHONMALLOC=malloc",
+      "/home/sbarah/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+      "/home/sbarah/.codex/sbarbase-settlement/20261006/native-source-v3/bounded-checks.py",
+      "--check",
+      "python"
+    ],
+    "hybrid": [
+      "env",
+      "LC_ALL=C",
+      "PYTHONUTF8=1",
+      "PYTHONMALLOC=malloc",
+      "/home/sbarah/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+      "/home/sbarah/.codex/sbarbase-settlement/20261006/native-source-v3/bounded-checks.py",
+      "--check",
+      "hybrid"
+    ],
+    "bun": [
+      "env",
+      "LC_ALL=C",
+      "PYTHONUTF8=1",
+      "PYTHONMALLOC=malloc",
+      "/home/sbarah/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+      "/home/sbarah/.codex/sbarbase-settlement/20261006/native-source-v3/bounded-checks.py",
+      "--check",
+      "bun"
+    ],
+    "control": [
+      "env",
+      "LC_ALL=C",
+      "PYTHONUTF8=1",
+      "PYTHONMALLOC=malloc",
+      "/home/sbarah/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+      "/home/sbarah/.codex/sbarbase-settlement/20261006/native-source-v3/control-checks.py"
+    ]
+  },
+  "bounds": {
+    "python_as_bytes": 268435456,
+    "bun_as_bytes": 8796093022208,
+    "group_rss_bytes": 805306368,
+    "check_seconds": 120,
+    "role_active_seconds": 180,
+    "role_output_bytes": 16777216,
+    "control_supervisor_python_soft_as_bytes": 268435456,
+    "control_supervisor_python_hard_controlplane_bytes": 8796093022208,
+    "control_fixture_child_python_hard_as_bytes": 268435456,
+    "supervisor_metadata_reserved_bytes_per_check": 1024
+  },
+  "expected_case_counts": {
+    "python": 155,
+    "hybrid": 3,
+    "bun": 78,
+    "control": 2
+  },
+  "native_execution_authorized": false,
+  "bindings": [
+    {
+      "path": "/home/sbarah/.codex/worktrees/09c0/sbarbase/lab/storage_native_authority.py",
+      "sha256": "a2e670c429d8e0823bb1f1b93ec09c92956181d6b9cfcab4edac230198768070"
+    },
+    {
+      "path": "/home/sbarah/.codex/worktrees/09c0/sbarbase/lab/test_storage_native_authority.py",
+      "sha256": "2b7403a3c1121e4af423bb06aee166a32ab68a091478067c1a3968665672e7b4"
+    },
+    {
+      "path": "/home/sbarah/.codex/worktrees/09c0/sbarbase/lab/disposable-storage-settlement-drill.py",
+      "sha256": "bf384615e07bc63a898a320bc454a4e928576332b03afad706c577137686efcf"
+    },
+    {
+      "path": "/home/sbarah/.codex/worktrees/09c0/sbarbase/lab/test_disposable_storage_settlement_drill.py",
+      "sha256": "4ee3e51a1ea3171dd4969d645c2a8186216bd1c24c497e6c41d09408e9ea0308"
+    },
+    {
+      "path": "/home/sbarah/.codex/worktrees/09c0/sbarbase/lab/storage_write_settlement.py",
+      "sha256": "256ab175a13b3280374bfcaeb7abe9f037b0010d02985a1bb8d7567ccd043a3b"
+    },
+    {
+      "path": "/home/sbarah/.codex/worktrees/09c0/sbarbase/lab/test_storage_write_settlement.py",
+      "sha256": "75e38dbeefbffaad428c2cd4638635f521ed9571bc81da70f6e3d9bf87f67d2c"
+    },
+    {
+      "path": "/home/sbarah/.codex/worktrees/09c0/sbarbase/src/control/storage-settlement-contract.ts",
+      "sha256": "c00252ab964406ee560bbf729ba08fb42daaa1ede6c252ee89c6f6027b87823c"
+    },
+    {
+      "path": "/home/sbarah/.codex/worktrees/09c0/sbarbase/tests/storage-settlement-contract.test.ts",
+      "sha256": "7fe13adee8718478b1cf3ede277d409067c68d8f157db554b9953b57bde34a77"
+    },
+    {
+      "path": "/home/sbarah/.codex/worktrees/09c0/sbarbase/docs/engineering/plans/2026-10-06-storage-write-settlement.md",
+      "sha256": "f0e005c0da67a3aa63c63c2fcf363f9e22dea59911a8070b7de45b32fc39bae8"
+    },
+    {
+      "path": "/home/sbarah/.codex/worktrees/09c0/sbarbase/docs/engineering/reviews/2026-10-06-storage-writer-source-map.md",
+      "sha256": "beef8edb1fcddd99d4713571041824b2a96db98dba3e655935873f992975e1fd"
+    },
+    {
+      "path": "/home/sbarah/.codex/worktrees/09c0/sbarbase/lab/storage-image.lock.json",
+      "sha256": "6913ec4af576eff98bcd2e84cf816ae082407479314ab299c49da16d2090321f"
+    },
+    {
+      "path": "/home/sbarah/.codex/worktrees/09c0/sbarbase/lab/durable_runtime.py",
+      "sha256": "7dc9256385c07526f473c83685b7489fa0fd8a597475f731126d09fb2fa0afea"
+    },
+    {
+      "path": "/home/sbarah/.codex/worktrees/09c0/sbarbase/package.json",
+      "sha256": "0f4556bbd3c224eb65c88d1d57030d72ef7a532fce0b837557eb9da8913b6524"
+    },
+    {
+      "path": "/home/sbarah/.codex/worktrees/09c0/sbarbase/bun.lock",
+      "sha256": "1a4c44900e416e0570b737142b0193b7a9b94885baa06bcca69441cfd4e14954"
+    },
+    {
+      "path": "/home/sbarah/.codex/worktrees/09c0/sbarbase/PROJECT_GOAL.md",
+      "sha256": "6368ceb219314c05477e0c1233c69430a4b0c261366e5f5d4bda2fcd2f9fc145"
+    },
+    {
+      "path": "/home/sbarah/.codex/worktrees/09c0/sbarbase/docs/engineering/plans/2026-10-03-product-and-portability-plan.md",
+      "sha256": "a87ebb7fdf83679b2d27743c47ad25990effb4927d4aa03ab46510157de36151"
+    },
+    {
+      "path": "/home/sbarah/.codex/sbarbase-settlement/20261006/native-source-v3/run-python.py",
+      "sha256": "16f5db8adf0d854e0a17aac284607da0140cf5e65296423519f24ecb0e0db9a3"
+    },
+    {
+      "path": "/home/sbarah/.codex/sbarbase-settlement/20261006/native-source-v3/bounded-checks.py",
+      "sha256": "8506d7fd92d2c50f27e597b7f59d4f1172cbb21dcffc06e003ce935e0404d6c0"
+    },
+    {
+      "path": "/home/sbarah/.codex/sbarbase-settlement/20261006/native-source-v3/control-checks.py",
+      "sha256": "e497aa7c1e06a6aba0523da5fd3203bf83310e4d8c62a732cbd59e748b7bb5e1"
+    },
+    {
+      "path": "/home/sbarah/.codex/sbarbase-settlement/20261006/native-source-v3/plan.json",
+      "sha256": "3c730f4302221f9b6a84f815cbb20fc33c8df3b1fa35100a0d8fb93477af390f"
+    }
+  ],
+  "python_environment": {
+    "PYTHONMALLOC": "malloc",
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "PYTHON_JIT": "0",
+    "LC_ALL": "C",
+    "PYTHONUTF8": "1"
+  },
+  "python_executable": "/home/sbarah/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+  "base_commit": "727850058d7fedfcd3991d10ebf4398c21c5d6b9"
+}

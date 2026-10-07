@@ -35,8 +35,10 @@ no path.
    a repeated migration.
 2. **Preconditions.** No pending HBA journal, no pending worker-effect receipt,
    and no active authority anywhere in the old state. The old container must be
-   verifiably gone (absence verification that treats inspection errors as fatal)
-   or explicitly stopped with the operator asserting it will not return. The
+   explicitly stopped with the operator asserting it will not return. An absent
+   retired container is unsupported without a verified archive route. A new
+   absent-container request refuses before publishing intent; an existing such
+   intent remains a startup barrier and refuses before effects. The
    volume identity must match the recorded one; a different volume is a
    different database and must not be migrated silently.
 3. **Order of effects.** Initialize the new generation in the new container
@@ -82,8 +84,8 @@ tests inside the disposable fixture that `lab/fresh-worker-check.py` builds
 one begins:
 
 1. `intent` (the record itself, exclusive and fsynced, blocks startup);
-2. `old-captured` (the retired container stopped with the operator's assertion, or
-   verifiably gone, with its mounts, volume identity and last observed HBA digest);
+2. `old-captured` (the retired container stopped with the operator's assertion,
+   with its mounts, volume identity and last observed HBA digest);
 3. `retired-archived` (the retired generation's record and that digest);
 4. `new-captured` (the retired container removed by exact id and the replacement
    created with its tier label and its per-device block IO limits on the same
@@ -93,8 +95,11 @@ one begins:
    archive-then-publish);
 7. `rules-published` (the owned single-attempt pipeline, parser and reload
    acknowledged);
-8. `archived` (the re-derived rules compared with the retired digest, then the
-   record removed).
+8. `archived` (the observed rules must match the desired inventory before
+   archival and completion; comparison with the retired digest remains evidence).
+   Every retry rechecks the current rules, including a retry with an existing
+   archive. A mismatch, or an older archive that did not verify the inventory,
+   preserves the record and startup barrier.
 
 The five crash tests are named `after-intent`, `after-old-captured`,
 `after-recreated`, `after-generation` and `after-rules`. Each one kills the

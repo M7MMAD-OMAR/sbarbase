@@ -2,6 +2,7 @@ import {Catalog} from './catalog';
 import {KeyStore} from './keys';
 import {PlacementUnavailable} from './placement';
 import {authenticate,reply,type ManagementIdentity} from './auth';
+import {bindReadyEnvironmentPublication} from './ready-publication';
 
 /** Publishable keys only. Never accepts a client-supplied runtime, role or actor.
  * Raw key material is returned once; list responses contain only metadata.
@@ -20,11 +21,12 @@ export function keyHandler(catalog:Catalog,keys:KeyStore,identify:ManagementIden
   if(actor instanceof Response) return actor;
   if(request.body) return reply(400,{message:'This endpoint does not accept a body'});
   try {
-   return catalog.withReadyEnvironment(actor,environment,action==='keys',job=>{
-    if(action==='connection') return reply(200,{environment,apiPath:`/${job.runtime}`,services:services(job.runtime)});
-    if(method==='GET') return reply(200,{data:keys.list(job.runtime)});
-    if(method==='POST') return reply(201,keys.issue(job.runtime,'publishable'));
-    return keys.revoke(job.runtime,keyId!)?reply(200,{revoked:true}):reply(404,{message:'Active key not found'});
+    return catalog.withReadyEnvironment(actor,environment,action==='keys',job=>{
+     const answer=(response:Response)=>bindReadyEnvironmentPublication(response,catalog,actor,environment,job.runtime,action==='keys');
+     if(action==='connection') return answer(reply(200,{environment,apiPath:`/${job.runtime}`,services:services(job.runtime)}));
+     if(method==='GET') return answer(reply(200,{data:keys.list(job.runtime)}));
+     if(method==='POST') return answer(reply(201,keys.issue(job.runtime,'publishable')));
+     return answer(keys.revoke(job.runtime,keyId!)?reply(200,{revoked:true}):reply(404,{message:'Active key not found'}));
    });
   } catch(error) {
    if(error instanceof PlacementUnavailable)return reply(503,{message:error.message});

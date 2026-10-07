@@ -1,0 +1,147 @@
+{
+  "schema": 1,
+  "checkpoint": "management-cli-mfa",
+  "source_hash": "dbcb63bf84e8e0d8c2d6e1cebe37d530a675cc6888adb34a19a73074fd755cf9",
+  "plan_hash": "0c382303fb64c6bad511421fd7b576cf1d39c4b2f1d66ce0fb006ebab27cd0e4",
+  "reviewer": "sb06-cli-specification-critic",
+  "axis": "specification",
+  "verdict": "pass",
+  "decision": "SPEC MET",
+  "scope": "Dependent management CLI native MFA and terminal functional contract only, after accepted core MFA checkpoint e315ef6b. Existing management commands must pass original native MFA before protected API use, preserve private password input compatibility, hide setup/password/TOTP material, refuse headless authentication and stop on cancellation.",
+  "summary": "The frozen source implements original SDK native TOTP enrollment or existing-factor challenge and verify, requires aal2 before protected work, displays enrollment material only through the controlling terminal, restores checked terminal state, refuses headless use before authentication and propagates command cancellation. Final actual pinned Auth evidence has 101 passing checks with no failures or skips across eight real terminal scenarios. No unresolved specification finding remains in this scope.",
+  "largest_remaining_gap": "Production deployment, portability to other hosts and terminals, and full platform acceptance remain outside this native CLI checkpoint. This report does not claim those goals are met.",
+  "findings": [
+    {
+      "id": "CLI-SPEC-01",
+      "severity": "major",
+      "evidence": "The independent initial actual processDeps and PTY schedule sent SIGTERM while first-enrollment verification was pending. The setup display cleared but protected mutation still ran and the command exited 0, recorded in cli-signal-race-initial.json.",
+      "resolution": "fixed",
+      "reason": "The command now registers cancellation before credentials and prompts, propagates an AbortSignal through native SDK and protected API requests, checks active state around awaited work, and uses fresh cleanup logout. The repaired independent schedule exits 3, makes no protected mutation, restores echo, clears the setup display and records logout. Final original Auth verify-cancel evidence confirms native verification completed before interruption and no protected request followed; prompt-cancel also refuses and restores terminal state."
+    },
+    {
+      "id": "CLI-SPEC-02",
+      "severity": "minor",
+      "evidence": "The initial terminal evidence joined stdout and stderr to the private PTY and could not establish the secret output boundary. Early headless proof only excluded protected requests, and successful password-stdin and operator-file terminal compatibility had no actual process observation.",
+      "resolution": "fixed",
+      "reason": "The final runner uses separate stdout and stderr pipes with a distinct controlling private terminal. All eight terminal cases check those streams for authentication secrets. Password-stdin and private operator-file cases use real processDeps and successfully create environments after TOTP on the private terminal. Both headless variants exit 3 with zero requests to native Auth or protected management paths."
+    },
+    {
+      "id": "CLI-SPEC-03",
+      "severity": "minor",
+      "evidence": "native-cli-attempt1.json retained 40 checks with two failure entries for an operator-file success that exceeded the real environment limit. A proposed share-based replacement would require a succeeded provision job, but the fixture only queued environments.",
+      "resolution": "fixed",
+      "reason": "The final fixture uses exactly four successful environment creates without changing capacity, fabricating a worker or deleting catalog state. The existing-factor repeat verifies natively, reads organizations successfully and receives the normal duplicate-name environment conflict. Three actual terminal success modes create environments and exit 0. All negative terminal cases require zero protected requests, preventing capacity refusal from hiding a cancellation regression."
+    },
+    {
+      "id": "CLI-SPEC-04",
+      "severity": "minor",
+      "evidence": "Two independent repaired recorder attempts initially reported a missing display clear and missing logout, retained in cli-signal-race-repaired-attempt1.json and cli-signal-race-cleanup-probe-attempt1.json.",
+      "resolution": "dismissed",
+      "reason": "The first recorder stopped at process exit before draining final PTY output. The second compared a literal logout path and missed its scope=local query string. Corrected recording drains the PTY and compares the URL pathname. cli-signal-race-repaired-with-cleanup.json records display cleared and logout requested. These are retained collector diagnostics, not product failures."
+    }
+  ],
+  "observations": {
+    "native_total": 101,
+    "native_failed": 0,
+    "native_skipped": 0,
+    "native_auth": "Original pinned Supabase Auth v2.196.0, image sha256:c0c25187a6b835e65a6f6e6c6b39d090e832d40e6de5186f2c038e0411944232",
+    "sdk": "Pinned @supabase/supabase-js and @supabase/auth-js 2.116.0",
+    "terminal_scenarios": {
+      "success": {
+        "exit_code": 0,
+        "failed": 0,
+        "capacity_refused": false
+      },
+      "success-password-stdin": {
+        "exit_code": 0,
+        "failed": 0,
+        "capacity_refused": false
+      },
+      "success-operator-file": {
+        "exit_code": 0,
+        "failed": 0,
+        "capacity_refused": false
+      },
+      "prompt-cancel": {
+        "exit_code": 3,
+        "failed": 0,
+        "capacity_refused": false
+      },
+      "verify-cancel": {
+        "exit_code": 3,
+        "failed": 0,
+        "capacity_refused": false
+      },
+      "stty-failure": {
+        "exit_code": 3,
+        "failed": 0,
+        "capacity_refused": false
+      },
+      "headless-password-stdin": {
+        "exit_code": 3,
+        "failed": 0,
+        "capacity_refused": false
+      },
+      "headless-operator-file": {
+        "exit_code": 3,
+        "failed": 0,
+        "capacity_refused": false
+      }
+    },
+    "native_audit_counts": [
+      "challenge_created|7",
+      "factor_in_progress|6",
+      "login|8",
+      "logout|8",
+      "token_revoked|6",
+      "user_signedup|9",
+      "verification_attempted|6"
+    ],
+    "owned_cleanup": true,
+    "before_inventory_missing_ids": [],
+    "current_behavior_gates": {
+      "control-types": "pass",
+      "native-cli": "pass",
+      "repository-unit": "pass"
+    },
+    "independent_focused_cli_tests": "35 pass, 0 fail, 324 expectations observed earlier on the unchanged CLI product source."
+  },
+  "limitations": [
+    "The critic performed source inspection and a bounded independent SDK/mock HTTP schedule through real terminal dependencies. Original Auth observations came from the reviewed frozen native fixture packet; the critic did not start containers.",
+    "The native authenticator codes were computed by the fixture and validated by original Auth. This is functional evidence, not a human authenticator or production pilot.",
+    "No graphical parity reference was supplied. This checkpoint has terminal functional evidence and no graphical parity claim.",
+    "External terminal recording can capture the intentionally displayed setup key. SIGKILL cannot permit application terminal cleanup. These limits are documented and do not authorize secret output to stdout, stderr or new credential storage.",
+    "The failed first native run and both corrected recorder diagnostics remain available and are not counted as successful runs.",
+    "No other final critic report was read before saving this independent verdict."
+  ],
+  "artifacts": [
+    "native-cli.json",
+    "native-cli-attempt1.json",
+    "full-source-inventory.json",
+    "frozen-status.json",
+    "verified-status.json",
+    "specification-independent-verification.json",
+    "cli-final-source.patch",
+    "critic-signal-schedule.py",
+    "cli-signal-race-initial.json",
+    "cli-signal-race-repaired-attempt1.json",
+    "cli-signal-race-repaired.json",
+    "cli-signal-race-cleanup-probe-attempt1.json",
+    "cli-signal-race-repaired-with-cleanup.json"
+  ],
+  "artifact_hashes": {
+    "native-cli.json": "be37dd9dc2be19894ec6b067448d093777c6e3ffe5dee5ad3c18f635f42eeeca",
+    "native-cli-attempt1.json": "ef36be16f99b2ce1bfa2f1c48e77041f014bea8a012d66409ae066ee5fb278b8",
+    "full-source-inventory.json": "3a55148cd3a07503151e673ebe23d15c879134241311cdc0cd074ce7972cc07b",
+    "frozen-status.json": "f8dcbe382036fdc61f5a0929f6b059a3164019f7c3307aa1fe2723e8d3a537d6",
+    "verified-status.json": "9baf7ca77fee8a66b8eabe3baf01d22528076f5ba51d17aa9f69e279d5a7cefd",
+    "specification-independent-verification.json": "a0381057c5cd527ecaad3dcabd3412ebf580c8e48351dbb0f66f396c42d94d5c",
+    "cli-final-source.patch": "3efc6416adca730b794fc50225aa5e094cb4c7fef7da2360645dc3c0364655d2",
+    "critic-signal-schedule.py": "3d130bb6331cbf23a06e9a0da0e3c8967937bccd437b8c24ae34c071c01196ce",
+    "cli-signal-race-initial.json": "86745c645388a0a06c0df3923fc071d79688d67f624e8cb998dd8df8bb04d3f6",
+    "cli-signal-race-repaired-attempt1.json": "68f0ac91425e077c1b8670ef6809d92b6ffa9c69b5dc2413bac9d9d30077cdde",
+    "cli-signal-race-repaired.json": "277c365ba39e5f6eb81e93bda4a0e5b6094dea4e2e24db34ff229f30147b87b4",
+    "cli-signal-race-cleanup-probe-attempt1.json": "ef68486a9faebe3133b555632ddf5c40ae0d4deda85dec169a136576b3f5cf21",
+    "cli-signal-race-repaired-with-cleanup.json": "bcba4a4142049c012ce08a5483a1ad9bdb1b745c35246b88eeec2ef6937c83f9"
+  }
+}

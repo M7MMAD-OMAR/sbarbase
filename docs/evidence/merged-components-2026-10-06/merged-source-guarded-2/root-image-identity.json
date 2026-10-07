@@ -1,0 +1,14 @@
+{
+  "root": {
+    "algorithm": "sbarbase-public-source-v1",
+    "files": 531,
+    "sha256": "2c1f7e3416b64b0e66f85ae590573672443c391a80467b193b4f56bbf815b420"
+  },
+  "image": {
+    "algorithm": "sbarbase-public-source-v1",
+    "files": 531,
+    "sha256": "2c1f7e3416b64b0e66f85ae590573672443c391a80467b193b4f56bbf815b420"
+  },
+  "matched": true,
+  "returncode": 0
+}

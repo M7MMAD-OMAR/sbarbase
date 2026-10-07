@@ -1,5 +1,6 @@
 """Keep an OS lock alive in the worker process, including after wrapper exit."""
 import fcntl
+import docker_profile
 import effect_lease
 import hba_journal
 import os
@@ -17,6 +18,7 @@ parser.add_argument('--settle-only', action='store_true', help='Settle a known o
 args = parser.parse_args()
 profile = 'upstream' if args.upstream else 'component'
 state = root / '.lab' / 'upstream' if profile == 'upstream' else root / '.lab'
+docker_profile.require_or_exit()
 state.mkdir(parents=True, exist_ok=True)
 inherited = os.environ.get('SBARBASE_WORKER_FD')
 if inherited:

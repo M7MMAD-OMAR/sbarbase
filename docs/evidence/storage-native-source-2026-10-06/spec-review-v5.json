@@ -1,0 +1,19 @@
+{
+  "reviewer": "native-source-spec-v5",
+  "axis": "specification",
+  "source_hash": "ec66680820c951169cdc9ca9447bda7e34e222d8e5f3285cd260f3e3e9f16bc2",
+  "plan_hash": "da6738391268ea0dcba1edf5f66b526ab2ab186d0444a5dec57df842dd6a9bc8",
+  "verdict": "pass",
+  "findings": [],
+  "artifacts": [
+    "spec-evidence-v5.md",
+    "check-python-45.log",
+    "check-hybrid-46.log",
+    "check-bun-47.log",
+    "control-check-50.json",
+    "profile.json",
+    "bounded-checks.py",
+    "run-python.py",
+    "control-checks.py"
+  ]
+}

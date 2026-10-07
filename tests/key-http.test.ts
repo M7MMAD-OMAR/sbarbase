@@ -3,6 +3,7 @@ import {Catalog} from '../src/control/catalog';
 import {KeyStore} from '../src/control/keys';
 import {keyHandler} from '../src/control/key-http';
 import {managedGateway} from '../src/gateway/managed';
+const nativeFetch=globalThis.fetch;
 
 test('only ready environments can issue keys; actor scope, one-time disclosure and revocation bind gateway',async()=>{
  const catalog=new Catalog(':memory:'),keys=new KeyStore(':memory:');
@@ -24,7 +25,7 @@ test('only ready environments can issue keys; actor scope, one-time disclosure a
   expect(await (await request('alice')).text()).not.toContain(token);
   expect((await request('bob',f,`keys/${id}`,'DELETE')).status).toBe(404);
   const gateway=managedGateway(catalog,keys,()=>({auth:'http://auth.invalid',rest:'http://rest.invalid',keys:[],anonymousToken:'internal',enabled:true}),
-   (async()=>Response.json({ok:true})) as typeof fetch);
+   Object.assign(async()=>Response.json({ok:true}), {preconnect:nativeFetch.preconnect}));
   const call=()=>gateway(new Request(`http://localhost/${runtime}/rest/v1/`,{headers:{apikey:token}}));
   expect((await call()).status).toBe(200);
   expect((await request('alice',e,`keys/${id}`,'DELETE')).status).toBe(200);

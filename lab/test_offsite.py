@@ -389,6 +389,44 @@ class PushAndFetchTests(unittest.TestCase):
         self.assertFalse(target.exists())
         self.assertFalse(list(target.parent.glob(f'.{stamp}.fetching-*')))
 
+    def test_fetch_rejects_an_authenticated_copy_renamed_to_another_backup_time(self):
+        original_stamp, original_target = self.prepare_fetch()
+        requested_stamp = '20260902T030000Z'
+        original_base = f'sbarbase/{E}/{original_stamp}/'
+        requested_base = f'sbarbase/{E}/{requested_stamp}/'
+        for key, ciphertext in list(MemoryBucket.objects.items()):
+            if key.startswith(original_base):
+                MemoryBucket.objects[requested_base + key[len(original_base):]] = ciphertext
+        requested_target = original_target.with_name(requested_stamp)
+        with self.assertRaisesRegex(offsite.OffsiteError, 'creation time'):
+            offsite.fetch(E, requested_stamp, self.config)
+        self.assertFalse(requested_target.exists())
+        self.assertFalse(list(requested_target.parent.glob(f'.{requested_stamp}.fetching-*')))
+        manifest = offsite.fetch(E, original_stamp, self.config)
+        self.assertEqual(manifest['created_at'], original_stamp)
+        self.assertEqual(backup.verify(E, original_target), manifest)
+        self.assertEqual((original_target / 'database.dump').read_bytes(), b'dump')
+
+    def test_fetch_rejects_missing_or_malformed_authenticated_creation_time(self):
+        stamp, target = self.prepare_fetch()
+        key = f'sbarbase/{E}/{stamp}/manifest.json.sbb'
+        source = target.parent / 'manifest-source.json'
+        offsite.decrypt_stream(io.BytesIO(MemoryBucket.objects[key]), source, PASS)
+        manifest = json.loads(source.read_text())
+        for created_at in (None, False, 20260901, '', '2026-09-01T03:00:00Z'):
+            with self.subTest(created_at=created_at):
+                malformed = dict(manifest)
+                if created_at is None:
+                    malformed.pop('created_at')
+                else:
+                    malformed['created_at'] = created_at
+                source.write_text(json.dumps(malformed))
+                MemoryBucket(self.config).put_file(key, source, PASS)
+                with self.assertRaisesRegex(offsite.OffsiteError, 'creation time'):
+                    offsite.fetch(E, stamp, self.config)
+                self.assertFalse(target.exists())
+                self.assertFalse(list(target.parent.glob(f'.{stamp}.fetching-*')))
+
     def test_fetch_concurrent_destination_is_not_replaced(self):
         stamp, target = self.prepare_fetch()
         original = offsite._promote_directory

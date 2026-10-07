@@ -346,7 +346,7 @@ def device():
     import docker_profile
     try:
         profile = docker_profile.from_environment()
-        daemon_id = docker_profile.validated_identity(profile) if docker_profile.configured() else 'legacy-native'
+        daemon_id = docker_profile.validated_identity(profile)
     except docker_profile.ProfileError as error:
         raise ResourcePolicyError(error.reason) from error
     key = (profile.data_root, daemon_id)

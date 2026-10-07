@@ -1,0 +1,83 @@
+{
+  "reviewer": "sb02-critic-spec",
+  "axis": "specification",
+  "source_hash": "4e095002d08e20e6a0d4e6a64c82219518997cba578acc4c3746ad8b232edd30",
+  "plan_hash": "3fd1dcc6f60d7ccaf1d5cfdb8a34882346d29bda69a1bf3c8c1eb6d4bf4db96a",
+  "verdict": "fail",
+  "findings": [
+    {
+      "id": "SPEC-01",
+      "severity": "medium",
+      "file": "deploy/host-preflight.sh",
+      "location": "lines 51 to 76; deploy/compose.sh lines 45 to 49",
+      "status": "open",
+      "title": "Reject multiline scalar deployment inputs before Compose mutation",
+      "requirements": [
+        "R3",
+        "PROJECT_GOAL.md constraint 4"
+      ],
+      "reproduction": "With the existing ShellAdmissionTests owned fixture, call run_shell([\"up\"], env={\"SBARBASE_CONSOLE_PORT\": \"8790\\njunk\"}) with an actual newline between 8790 and junk. Also exercise SBARBASE_PUBLIC_URL=\"https://example.com\\nhttps://user:password@host\" and SBARBASE_DATABASE_BIND=\"127.0.0.1\\njunk\". Each should fail with a named input refusal and an empty mutations.jsonl. These additional reproductions were not executed because only the two packet commands and syntax checks were permitted.",
+      "evidence": "The port awk action sets good=1 on a valid record and END returns !good without checking NR or invalid records. With 8790 followed by a newline and junk, the first record sets good and the second record is ignored; the conflict comparison produces 8790 followed by newline and 0, which differs from the default database port. The URL matcher likewise retains good after ignoring a second credential-bearing or malformed record. The IPv4 matcher ignores non-four-field records. Project and backup/upload range validators have the same record-count flaw. The launcher then passes these complete original values into Compose at lines 45 to 49. The existing declared-input tests cover single-record malformed values, but no multiline scalar case.",
+      "impact": "A malformed installation input passes admission and reaches the Compose up/build mutation boundary. For console/public URL values, Compose treats the environment value as an opaque string and can create the controller before its application later rejects or misuses the setting. This breaks the intended pre-mutation diagnostic contract and is a source-slice blocker.",
+      "recommended_fix": "Validate each scalar as exactly one complete record, reject embedded control characters before parsing, and ensure no invalid record can be ignored. Add owned shell fixture cases for valid-prefix and valid-suffix multiline values covering project, both ports, IPv4 bind, public/release URLs and backup/upload values; require the named refusal, no Docker mutation and unchanged owned trees."
+    }
+  ],
+  "checks": [
+    {
+      "argv": [
+        "/usr/bin/python3.14",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "lab",
+        "-p",
+        "test_host*.py",
+        "-v"
+      ],
+      "result": "pass",
+      "tests": 42
+    },
+    {
+      "argv": [
+        "/usr/bin/python3.14",
+        "lab/host_caller_checks.py"
+      ],
+      "result": "pass",
+      "tests": 211
+    },
+    {
+      "argv": [
+        "sh",
+        "-n",
+        "deploy/host-preflight.sh",
+        "deploy/compose.sh"
+      ],
+      "result": "pass"
+    }
+  ],
+  "comparison": {
+    "candidate_a": "Actual scoped baseline source artifacts at d7cbaca764eec368a0f89c78b11b38470580f317",
+    "candidate_b": "Actual scoped working source artifacts at the verified source hash",
+    "choice": "candidate_b",
+    "binary_reason": "Candidate B adds canonical read-only admission before host Compose mutations, gates the actual controller and startup/install/resource boundaries, pins endpoints and existing bind paths, and supplies isolated refusal evidence. Candidate A lacks the shell installation gate and retains configured-only bypasses. Candidate B is the stronger artifact against the contract, but its remaining multiline-input refusal defect prevents SOURCE acceptance."
+  },
+  "largest_remaining_gap": {
+    "source": "SPEC-01, scalar input admission can accept extra malformed lines. Blocks SOURCE acceptance.",
+    "runtime": "Actual enforcement and persistence evidence, clean host installation, real original-stack startup, reboot/reconnection and full application recovery remain unproven. These block promoted host-profile/runtime acceptance, but their honest deferred status alone does not block a repaired SOURCE slice."
+  },
+  "coverage_notes": [
+    "Architecture, cgroup v2/controllers and advertised resource booleans, filesystem durability prerequisites/device mapping, data-root canonical identity, rootful security profile and local endpoint are checked before the launcher invokes mutating Compose commands. Unknown storage, filesystem and runtime profiles are described as admission unproven rather than inherently incapable. AppArmor is optional.",
+    "The baked controller validator runs before upgrade guard/dependency installation and again after rollback; controller mounts/security/checkout identity are checked. Changed Python startup/install/resource callers gate before their state or provisioning boundary. Primary host launcher depends on public shell/Linux utilities and Docker/Compose, not host Python/Bun/systemd or private workstation tooling.",
+    "No real Docker, image build/run, VM, host service mutation, broader regression suite or actual host promotion was performed. Scoped unit successes do not establish production or full-product completion."
+  ],
+  "hash_verification": {
+    "run": "/tmp/sbarbase-sb02-4887/run",
+    "project": "/home/sbarah/.codex/worktrees/4887/sbarbase",
+    "revision_at_dispatch": 14,
+    "plan_hash": "3fd1dcc6f60d7ccaf1d5cfdb8a34882346d29bda69a1bf3c8c1eb6d4bf4db96a",
+    "source_hash": "4e095002d08e20e6a0d4e6a64c82219518997cba578acc4c3746ad8b232edd30"
+  },
+  "plan_change_note": "Dispatch packet retained plan hash 5032b3b2f7cce6a7d82119c7ecbbee250e30f81b404ff3d2e567491b63b286a2. Coordinator explicitly disclosed the sole plan change as adding Python -u to behavior command argv to avoid buffered stdout confusing the engine parser, with requirements/scope/axes unchanged. This report binds the live verified plan hash immediately before writing.",
+  "rules_note": "The user supplied the no-long-dashes rule. ~/AGENTS.md was absent; no project AGENTS.md was present. Implementation source was not edited and prior reviewer reports/verdicts were not consulted."
+}

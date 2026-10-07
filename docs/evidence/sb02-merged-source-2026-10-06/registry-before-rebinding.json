@@ -1,0 +1,9 @@
+{
+  "errors": [
+    "capability registry: compose: binding checksum mismatch"
+  ],
+  "history_ledger": "docs/engineering/gauntlet-ledger.json",
+  "proof_trust": "self-attested; checksums do not prove execution or reviewer independence",
+  "schema_version": 1,
+  "status": []
+}

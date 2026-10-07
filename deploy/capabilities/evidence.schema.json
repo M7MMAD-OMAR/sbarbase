@@ -1,0 +1,453 @@
+{
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "scope": {
+      "type": "object",
+      "properties": {
+        "capability": {
+          "type": "string",
+          "minLength": 1
+        },
+        "placement": {
+          "type": "string",
+          "enum": [
+            "legacy-shared",
+            "native-dedicated",
+            "cloud-only"
+          ]
+        },
+        "gate": {
+          "type": "string",
+          "enum": [
+            "acceptance",
+            "production"
+          ]
+        },
+        "contract": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "capability",
+        "placement",
+        "gate",
+        "contract"
+      ],
+      "additionalProperties": false
+    },
+    "source": {
+      "type": "object",
+      "properties": {
+        "algorithm": {
+          "const": "sbarbase-public-source-v1"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "[0-9a-f]{64}"
+        },
+        "files": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "algorithm",
+        "sha256",
+        "files"
+      ],
+      "additionalProperties": false
+    },
+    "registry_sha256": {
+      "type": "string",
+      "pattern": "[0-9a-f]{64}"
+    },
+    "bindings_sha256": {
+      "type": "string",
+      "pattern": "[0-9a-f]{64}"
+    },
+    "reference": {
+      "type": "object",
+      "properties": {
+        "repository": {
+          "const": "https://github.com/supabase/supabase"
+        },
+        "tag": {
+          "const": "self-hosted/v0.8.2"
+        },
+        "commit": {
+          "const": "564eab8ad7840b13324f68b1bfac074ef8d51c21"
+        }
+      },
+      "required": [
+        "repository",
+        "tag",
+        "commit"
+      ],
+      "additionalProperties": false
+    },
+    "host_profile": {
+      "type": "string",
+      "minLength": 1
+    },
+    "observed_at": {
+      "type": "string",
+      "minLength": 1
+    },
+    "expires_at": {
+      "type": "string",
+      "minLength": 1
+    },
+    "tests": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "unit",
+              "runtime"
+            ]
+          },
+          "contract": {
+            "type": "string",
+            "minLength": 1
+          },
+          "fixtures": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "passed",
+              "failed",
+              "skipped"
+            ]
+          },
+          "exit_code": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "assertions": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "failures": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "errors": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "skipped": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "command": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "logs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "[0-9a-f]{64}"
+                }
+              },
+              "required": [
+                "path",
+                "sha256"
+              ],
+              "additionalProperties": false
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "observation": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "[0-9a-f]{64}"
+              }
+            },
+            "required": [
+              "path",
+              "sha256"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "contract",
+          "fixtures",
+          "outcome",
+          "exit_code",
+          "assertions",
+          "failures",
+          "errors",
+          "skipped",
+          "command",
+          "logs",
+          "observation"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    }
+  },
+  "required": [
+    "schema_version",
+    "scope",
+    "source",
+    "registry_sha256",
+    "bindings_sha256",
+    "reference",
+    "host_profile",
+    "observed_at",
+    "expires_at",
+    "tests"
+  ],
+  "additionalProperties": false,
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sbarbase.org/schemas/capability-evidence-v1.json",
+  "$defs": {
+    "execution_identity": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "type": "integer",
+          "const": 1
+        },
+        "scope": {
+          "type": "object",
+          "properties": {
+            "capability": {
+              "type": "string",
+              "minLength": 1
+            },
+            "placement": {
+              "type": "string",
+              "enum": [
+                "legacy-shared",
+                "native-dedicated",
+                "cloud-only"
+              ]
+            },
+            "gate": {
+              "type": "string",
+              "enum": [
+                "acceptance",
+                "production"
+              ]
+            },
+            "contract": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "capability",
+            "placement",
+            "gate",
+            "contract"
+          ],
+          "additionalProperties": false
+        },
+        "source": {
+          "type": "object",
+          "properties": {
+            "algorithm": {
+              "const": "sbarbase-public-source-v1"
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "[0-9a-f]{64}"
+            },
+            "files": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "required": [
+            "algorithm",
+            "sha256",
+            "files"
+          ],
+          "additionalProperties": false
+        },
+        "registry_sha256": {
+          "type": "string",
+          "pattern": "[0-9a-f]{64}"
+        },
+        "bindings_sha256": {
+          "type": "string",
+          "pattern": "[0-9a-f]{64}"
+        },
+        "reference": {
+          "type": "object",
+          "properties": {
+            "repository": {
+              "const": "https://github.com/supabase/supabase"
+            },
+            "tag": {
+              "const": "self-hosted/v0.8.2"
+            },
+            "commit": {
+              "const": "564eab8ad7840b13324f68b1bfac074ef8d51c21"
+            }
+          },
+          "required": [
+            "repository",
+            "tag",
+            "commit"
+          ],
+          "additionalProperties": false
+        },
+        "host_profile": {
+          "type": "string",
+          "minLength": 1
+        },
+        "observed_at": {
+          "type": "string",
+          "minLength": 1
+        },
+        "expires_at": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "schema_version",
+        "scope",
+        "source",
+        "registry_sha256",
+        "bindings_sha256",
+        "reference",
+        "host_profile",
+        "observed_at",
+        "expires_at"
+      ],
+      "additionalProperties": false
+    },
+    "raw_observation": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "unit",
+            "runtime"
+          ]
+        },
+        "contract": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fixtures": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "passed",
+            "failed",
+            "skipped"
+          ]
+        },
+        "exit_code": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "assertions": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failures": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "errors": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "skipped": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "command": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "execution": {
+          "$ref": "#/$defs/execution_identity"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "contract",
+        "fixtures",
+        "outcome",
+        "exit_code",
+        "assertions",
+        "failures",
+        "errors",
+        "skipped",
+        "command",
+        "execution"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

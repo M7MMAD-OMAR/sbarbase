@@ -1,7 +1,7 @@
-# Sbarbase on any Linux host that has Docker. From the checkout:
+# Sbarbase local-v1 Linux candidate. Admission precedes Docker mutations:
 #
-#   docker compose up -d --build
-#   docker compose exec sbarbase python3 lab/bootstrap.py
+#   deploy/compose.sh up
+#   deploy/compose.sh bootstrap
 #
 # The control plane runs in this container and starts the pinned Supabase
 # services as sibling containers through the host's Docker daemon. The checkout
@@ -64,4 +64,8 @@ services:
         read_only: true
         bind:
           create_host_path: false
-      - ${SBARBASE_ROOT:-${PWD}}:${SBARBASE_ROOT:-${PWD}}
+      - type: bind
+        source: ${SBARBASE_ROOT:-${PWD}}
+        target: ${SBARBASE_ROOT:-${PWD}}
+        bind:
+          create_host_path: false

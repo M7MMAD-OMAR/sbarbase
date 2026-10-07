@@ -11,6 +11,7 @@ import threading
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+from host_test_fixture import admitted_host_fixture
 
 import dev
 import notification_producers
@@ -746,7 +747,7 @@ class RestartTests(ProducerCase):
 
             def run(self):
                 stages.append('supervisor')
-        with patch.object(dev, 'STATE', state), patch.object(notification_producers, 'CATALOG', self.catalog), \
+        with admitted_host_fixture() as admission, patch.object(dev, 'STATE', state), patch.object(notification_producers, 'CATALOG', self.catalog), \
                 patch.object(dev, 'run_stage', run_stage), patch.object(dev, 'upgrade_prepare', return_value=False), \
                 patch.object(dev, 'settle_leftover'), \
                 patch.object(dev, 'upgrade_outcome', return_value=False), patch.object(dev, 'upgrade_notices'), \
@@ -755,6 +756,7 @@ class RestartTests(ProducerCase):
                 patch('builtins.print'):
             with self.assertRaises(SystemExit) as raised:
                 dev.main()
+        admission.assert_called_once()
         self.assertEqual(raised.exception.code, dev.RESTART_FOR_UPGRADE)
         self.assertNotEqual(dev.RESTART_FOR_UPGRADE, 0)
         self.assertEqual(stages[-2:], ['supervisor', 'stop'])

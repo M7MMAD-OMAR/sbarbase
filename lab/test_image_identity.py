@@ -3,6 +3,7 @@ import json
 import subprocess
 import tempfile
 import unittest
+from host_test_fixture import IsolatedHostCase
 from pathlib import Path
 from unittest.mock import patch
 import image_identity as identity
@@ -22,7 +23,7 @@ def result(value,code=0):
     return subprocess.CompletedProcess([],code,json.dumps(value),'Error response from daemon: No such image: postgres@'+PIN+'\n' if code else '')
 
 
-class ReferenceTests(unittest.TestCase):
+class ReferenceTests(IsolatedHostCase):
     def test_version_tag_is_never_used_as_runtime_reference(self):
         self.assertEqual(identity.reference(pin()),REF)
 
@@ -49,7 +50,7 @@ class ReferenceTests(unittest.TestCase):
             with self.subTest(value=value),self.assertRaises(identity.IdentityError):identity.immutable(value)
 
 
-class ResolutionTests(unittest.TestCase):
+class ResolutionTests(IsolatedHostCase):
     def test_index_and_config_shaped_daemon_ids_both_resolve(self):
         for daemon_id in (PIN,OTHER):
             self.assertEqual(identity.resolved_id(REF,{'Id':daemon_id,'RepoDigests':['postgres@'+PIN]}),daemon_id)
@@ -74,7 +75,7 @@ class ResolutionTests(unittest.TestCase):
         self.assertIn('exactly one',error)
 
 
-class InstallerTests(unittest.TestCase):
+class InstallerTests(IsolatedHostCase):
     def test_inventory_uses_qualified_reference_and_proves_config_id(self):
         calls=[]
         def docker(*args,**kwargs):
@@ -109,7 +110,7 @@ class InstallerTests(unittest.TestCase):
                 with patch.object(install_server,'ROOT',root),patch.object(install_server,'LOCKS',('fixture.json',)),self.assertRaises(identity.IdentityError):install_server.pinned_images()
 
 
-class InspectFailureTests(unittest.TestCase):
+class InspectFailureTests(IsolatedHostCase):
     def test_nonmissing_failures_block_even_after_a_truly_missing_entry(self):
         missing=subprocess.CompletedProcess([],1,'[]\n','Error response from daemon: No such image: postgres@'+PIN+'\n')
         for error in ('permission denied','Cannot connect to the Docker daemon','',
@@ -130,7 +131,7 @@ class InspectFailureTests(unittest.TestCase):
         self.assertIn(native_error,findings[0][1])
 
 
-class MissingEvidenceTests(unittest.TestCase):
+class MissingEvidenceTests(IsolatedHostCase):
     def test_native_missing_alias_is_bound_to_requested_reference(self):
         for alias in ('postgres','docker.io/library/postgres','index.docker.io/library/postgres'):
             self.assertTrue(identity.is_missing(REF,'[]\n','Error response from daemon: No such image: '+alias+'@'+PIN+'\n'))

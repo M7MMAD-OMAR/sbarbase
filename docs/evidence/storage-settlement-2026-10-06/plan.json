@@ -1,0 +1,163 @@
+{
+  "schema_version": 1,
+  "mode": "feature",
+  "approval": "delegated",
+  "environment": "local-isolated",
+  "requirements": [
+    {
+      "id": "SS1",
+      "text": "Pinned exact original writer ownership and lifetime source map"
+    },
+    {
+      "id": "SS2",
+      "text": "Durable exact source inventory/recovery protocol and strict cross-consumer receipt preparation, no native admission"
+    },
+    {
+      "id": "SS3",
+      "text": "Actual original native positive settlement and interruption evidence for every enabled writer profile"
+    },
+    {
+      "id": "SS4",
+      "text": "Installed launch/publication fencing and checked transfer/purge/backup/restore integrations"
+    },
+    {
+      "id": "SS5",
+      "text": "Implemented neighbor-preserving shared migration, enabled remote/queue/backend coverage and full merged/runtime acceptance"
+    }
+  ],
+  "checkpoints": [
+    {
+      "id": "source",
+      "title": "Source contract preparation",
+      "covers": [
+        "SS1",
+        "SS2"
+      ],
+      "depends_on": [],
+      "scope": [
+        "lab/storage_write_settlement.py",
+        "lab/test_storage_write_settlement.py",
+        "lab/disposable-storage-settlement-drill.py",
+        "lab/test_disposable_storage_settlement_drill.py",
+        "src/control/storage-settlement-contract.ts",
+        "tests/storage-settlement-contract.test.ts",
+        "docs/engineering/plans/2026-10-06-storage-write-settlement.md",
+        "docs/engineering/reviews/2026-10-06-storage-writer-source-map.md",
+        "lab/storage-image.lock.json",
+        "package.json",
+        "bun.lock",
+        "PROJECT_GOAL.md",
+        "docs/engineering/plans/2026-10-03-product-and-portability-plan.md"
+      ],
+      "gates": {
+        "behavior": {
+          "kind": "command",
+          "checks": [
+            {
+              "id": "python",
+              "argv": [
+                "python3",
+                "-m",
+                "unittest",
+                "discover",
+                "-s",
+                "lab",
+                "-p",
+                "test*storage*settlement*.py",
+                "-v"
+              ],
+              "parser": "unittest",
+              "min_tests": 20,
+              "timeout_seconds": 60,
+              "max_attempts": 3
+            },
+            {
+              "id": "bun",
+              "argv": [
+                "python3",
+                "lab/disposable-storage-settlement-drill.py",
+                "--source-control-check",
+                "--evidence",
+                "/home/sbarah/.codex/sbarbase-settlement/20261006/bun-v2.log"
+              ],
+              "parser": "json",
+              "min_tests": 20,
+              "timeout_seconds": 60,
+              "max_attempts": 3
+            }
+          ]
+        },
+        "review": {
+          "kind": "review",
+          "reviewers": 2,
+          "axes": [
+            "specification",
+            "operational-correctness"
+          ]
+        },
+        "ui": {
+          "kind": "not_applicable",
+          "reason": "No user interface change"
+        }
+      }
+    },
+    {
+      "id": "native",
+      "title": "Original native and installed consumer acceptance",
+      "covers": [
+        "SS3",
+        "SS4",
+        "SS5"
+      ],
+      "depends_on": [
+        "source"
+      ],
+      "scope": [
+        "lab/storage_write_settlement.py",
+        "lab/test_storage_write_settlement.py",
+        "lab/disposable-storage-settlement-drill.py",
+        "lab/test_disposable_storage_settlement_drill.py",
+        "src/control/storage-settlement-contract.ts",
+        "tests/storage-settlement-contract.test.ts",
+        "docs/engineering/plans/2026-10-06-storage-write-settlement.md",
+        "docs/engineering/reviews/2026-10-06-storage-writer-source-map.md",
+        "lab/storage-image.lock.json",
+        "package.json",
+        "bun.lock",
+        "PROJECT_GOAL.md",
+        "docs/engineering/plans/2026-10-03-product-and-portability-plan.md"
+      ],
+      "gates": {
+        "behavior": {
+          "kind": "command",
+          "checks": [
+            {
+              "id": "actual-native",
+              "argv": [
+                "python3",
+                "lab/disposable-storage-settlement-drill.py",
+                "--execute"
+              ],
+              "parser": "json",
+              "min_tests": 20,
+              "timeout_seconds": 60,
+              "max_attempts": 1
+            }
+          ]
+        },
+        "review": {
+          "kind": "review",
+          "reviewers": 2,
+          "axes": [
+            "native-runtime",
+            "neighbor-preservation"
+          ]
+        },
+        "ui": {
+          "kind": "not_applicable",
+          "reason": "Separate product UI scope"
+        }
+      }
+    }
+  ]
+}

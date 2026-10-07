@@ -1,0 +1,339 @@
+{
+  "auth_bootstrap": "Original pinned GoTrue migrations only; process removed before Storage starts",
+  "checks": [
+    "local Linux daemon required for unpublished bridge HTTP",
+    "native HTTP delete race refuses before complete manifest",
+    "native HTTP overwrite race refuses before complete manifest",
+    "native pinned Storage Python and file metadata toolchain available before data allocation",
+    "ordinary untouched native upload produces complete shipped backup",
+    "ordinary upload produces one native metadata reference",
+    "original GoTrue bootstrap creates native Auth tables and uid function",
+    "original Storage HTTP delete succeeds",
+    "original Storage HTTP deletion removes download access",
+    "original Storage HTTP deletion removes native metadata",
+    "original Storage HTTP overwrite succeeds",
+    "original Storage HTTP returns expected checkpoint bytes",
+    "original Storage HTTP upload succeeds",
+    "original Storage admin registers scoped native tenant",
+    "original Storage migrations create native object metadata",
+    "original Storage service role creates private bucket",
+    "shipped restore preserves original native bytes and xattrs",
+    "shipped restore returns original native metadata and version"
+  ],
+  "cleanup": "all exact owned disposable resources removed",
+  "etag_configuration_override": false,
+  "native_metadata_edited_by_fixture": false,
+  "observations": [
+    {
+      "metadata_rows": [
+        {
+          "bucket_id": "fixture",
+          "metadata": {
+            "cacheControl": "max-age=60",
+            "contentLength": 31,
+            "eTag": "\"ed16fa43db4f9640bb34e10c4b701c1c\"",
+            "httpStatusCode": 200,
+            "lastModified": "2026-10-06T06:27:54.193Z",
+            "mimetype": "text/plain",
+            "size": 31
+          },
+          "name": "object.txt",
+          "version": "1a38eadc-304d-457d-b318-dfc45534ca46"
+        }
+      ],
+      "native_files": [
+        {
+          "bytes": 31,
+          "path": "fixture/object.txt/1a38eadc-304d-457d-b318-dfc45534ca46",
+          "sha256": "a8d08100bff8f774aea26df8d921908f537eb0a754acb95cf1481efd3cbcc07e",
+          "xattrs": {
+            "user.supabase.cache-control": "bWF4LWFnZT02MA==",
+            "user.supabase.content-type": "dGV4dC9wbGFpbg=="
+          }
+        }
+      ],
+      "phase": "ordinary-native-upload"
+    },
+    {
+      "metadata_rows": [
+        {
+          "bucket_id": "fixture",
+          "metadata": {
+            "cacheControl": "max-age=60",
+            "contentLength": 31,
+            "eTag": "\"48e95c91781dcf2c5eb90da6e8dcc14d\"",
+            "httpStatusCode": 200,
+            "lastModified": "2026-10-06T06:28:53.786Z",
+            "mimetype": "text/plain",
+            "size": 31
+          },
+          "name": "object.txt",
+          "version": "6e62cdd3-05a6-42ec-8fdf-96560ad5b963"
+        }
+      ],
+      "native_files": [
+        {
+          "bytes": 31,
+          "path": "fixture/object.txt/6e62cdd3-05a6-42ec-8fdf-96560ad5b963",
+          "sha256": "0f46e4b0802fee6fed599682a16287d0397699cfd742025482c086a70979e56a",
+          "xattrs": {
+            "user.supabase.cache-control": "bWF4LWFnZT02MA==",
+            "user.supabase.content-type": "dGV4dC9wbGFpbg=="
+          }
+        }
+      ],
+      "phase": "ordinary-native-overwrite"
+    },
+    {
+      "metadata_rows": [],
+      "native_files": [],
+      "phase": "ordinary-native-delete"
+    },
+    {
+      "metadata_rows": [
+        {
+          "bucket_id": "fixture",
+          "metadata": {
+            "cacheControl": "max-age=60",
+            "contentLength": 31,
+            "eTag": "\"48e95c91781dcf2c5eb90da6e8dcc14d\"",
+            "httpStatusCode": 200,
+            "lastModified": "2026-10-06T06:29:44.706Z",
+            "mimetype": "text/plain",
+            "size": 31
+          },
+          "name": "object.txt",
+          "version": "e5f56654-a5e4-4b82-8492-22bc4019615e"
+        }
+      ],
+      "native_files": [
+        {
+          "bytes": 31,
+          "path": "fixture/object.txt/e5f56654-a5e4-4b82-8492-22bc4019615e",
+          "sha256": "0f46e4b0802fee6fed599682a16287d0397699cfd742025482c086a70979e56a",
+          "xattrs": {
+            "user.supabase.cache-control": "bWF4LWFnZT02MA==",
+            "user.supabase.content-type": "dGV4dC9wbGFpbg=="
+          }
+        }
+      ],
+      "phase": "after-overwrite-race"
+    },
+    {
+      "metadata_rows": [],
+      "native_files": [],
+      "phase": "after-delete-race"
+    },
+    {
+      "metadata_rows": [
+        {
+          "bucket_id": "fixture",
+          "metadata": {
+            "cacheControl": "max-age=60",
+            "contentLength": 31,
+            "eTag": "\"ed16fa43db4f9640bb34e10c4b701c1c\"",
+            "httpStatusCode": 200,
+            "lastModified": "2026-10-06T06:27:54.193Z",
+            "mimetype": "text/plain",
+            "size": 31
+          },
+          "name": "object.txt",
+          "version": "1a38eadc-304d-457d-b318-dfc45534ca46"
+        }
+      ],
+      "native_files": [
+        {
+          "bytes": 31,
+          "path": "fixture/object.txt/1a38eadc-304d-457d-b318-dfc45534ca46",
+          "sha256": "a8d08100bff8f774aea26df8d921908f537eb0a754acb95cf1481efd3cbcc07e",
+          "xattrs": {
+            "user.supabase.cache-control": "bWF4LWFnZT02MA==",
+            "user.supabase.content-type": "dGV4dC9wbGFpbg=="
+          }
+        }
+      ],
+      "phase": "after-shipped-restore"
+    }
+  ],
+  "races": [
+    {
+      "live_metadata_after_race": [
+        {
+          "bucket_id": "fixture",
+          "metadata": {
+            "cacheControl": "max-age=60",
+            "contentLength": 31,
+            "eTag": "\"48e95c91781dcf2c5eb90da6e8dcc14d\"",
+            "httpStatusCode": 200,
+            "lastModified": "2026-10-06T06:29:44.706Z",
+            "mimetype": "text/plain",
+            "size": 31
+          },
+          "name": "object.txt",
+          "version": "e5f56654-a5e4-4b82-8492-22bc4019615e"
+        }
+      ],
+      "outcome": "explicit-refusal-before-manifest",
+      "scenario": "overwrite",
+      "snapshot_metadata": [
+        {
+          "bucket_id": "fixture",
+          "metadata": {
+            "cacheControl": "max-age=60",
+            "contentLength": 31,
+            "eTag": "\"ed16fa43db4f9640bb34e10c4b701c1c\"",
+            "httpStatusCode": 200,
+            "lastModified": "2026-10-06T06:29:43.049Z",
+            "mimetype": "text/plain",
+            "size": 31
+          },
+          "name": "object.txt",
+          "version": "8a850e4b-43f6-4cae-b639-1f60a202f1ea"
+        }
+      ]
+    },
+    {
+      "live_metadata_after_race": [],
+      "outcome": "explicit-refusal-before-manifest",
+      "scenario": "delete",
+      "snapshot_metadata": [
+        {
+          "bucket_id": "fixture",
+          "metadata": {
+            "cacheControl": "max-age=60",
+            "contentLength": 31,
+            "eTag": "\"ed16fa43db4f9640bb34e10c4b701c1c\"",
+            "httpStatusCode": 200,
+            "lastModified": "2026-10-06T06:30:34.069Z",
+            "mimetype": "text/plain",
+            "size": 31
+          },
+          "name": "object.txt",
+          "version": "fc067624-5d81-4ef7-a292-dd6397edfd03"
+        }
+      ]
+    }
+  ],
+  "reference": {
+    "candidate_locks": {
+      "distro-image.lock.json": {
+        "pins": {
+          "digests": [
+            "public.ecr.aws/supabase/postgres@sha256:b3bfedb107413abb3b8cb0d0874b0414a1dceb3d55bc0c778de6ad22d1f7dc86"
+          ],
+          "id": "sha256:b3bfedb107413abb3b8cb0d0874b0414a1dceb3d55bc0c778de6ad22d1f7dc86",
+          "tag": "public.ecr.aws/supabase/postgres:17.6.1.166"
+        },
+        "sha256": "358e66bdd93ef63eddff06b25eb7d4bc29625088b2b69e05c1ba9a4bdac9feb4"
+      },
+      "functions-image.lock.json": {
+        "pins": {
+          "digests": [
+            "public.ecr.aws/supabase/edge-runtime@sha256:5f555406dc0705d775323c58e27e856cca7b5b8d0ab726cc6a30b11fcfc7c6b3"
+          ],
+          "id": "sha256:5f555406dc0705d775323c58e27e856cca7b5b8d0ab726cc6a30b11fcfc7c6b3",
+          "tag": "public.ecr.aws/supabase/edge-runtime:v1.77.0"
+        },
+        "sha256": "72a770cba090b3d4dcd9aaad384e7008da385236309d05137c297d6b08057d7d"
+      },
+      "images.lock.json": {
+        "pins": {
+          "auth": {
+            "digests": [
+              "public.ecr.aws/supabase/gotrue@sha256:c0c25187a6b835e65a6f6e6c6b39d090e832d40e6de5186f2c038e0411944232"
+            ],
+            "id": "sha256:c0c25187a6b835e65a6f6e6c6b39d090e832d40e6de5186f2c038e0411944232",
+            "tag": "public.ecr.aws/supabase/gotrue:v2.196.0"
+          },
+          "db": {
+            "digests": [
+              "postgres@sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73"
+            ],
+            "id": "sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73",
+            "tag": "postgres:17-alpine"
+          },
+          "rest": {
+            "digests": [
+              "public.ecr.aws/supabase/postgrest@sha256:2f8e7b656f09db697a8875177694b417b35cb76c21370de07fc54e711e902326"
+            ],
+            "id": "sha256:2f8e7b656f09db697a8875177694b417b35cb76c21370de07fc54e711e902326",
+            "tag": "public.ecr.aws/supabase/postgrest:v14.15"
+          }
+        },
+        "sha256": "aff28b79f26960e19ad1ea93c1da8ede4d154fba1a9d8956ea94988043cd37f9"
+      },
+      "realtime-image.lock.json": {
+        "pins": {
+          "digests": [
+            "public.ecr.aws/supabase/realtime@sha256:7a6d995635f747b566079e51b1a1388dded8b2d0dfef1eda5afe98f6c9e5567e"
+          ],
+          "id": "sha256:7a6d995635f747b566079e51b1a1388dded8b2d0dfef1eda5afe98f6c9e5567e",
+          "tag": "public.ecr.aws/supabase/realtime:v2.138.1"
+        },
+        "sha256": "358d489115a2f8e3aa6195a1a4d50f8d93d902ef9373256675dd12bf851dd0ea"
+      },
+      "storage-image.lock.json": {
+        "pins": {
+          "digests": [
+            "public.ecr.aws/supabase/storage-api@sha256:c24fb33cc2fa38d0f9582a30312907fc56da333fb9ba0646833186197e4982f3"
+          ],
+          "id": "sha256:c24fb33cc2fa38d0f9582a30312907fc56da333fb9ba0646833186197e4982f3",
+          "tag": "public.ecr.aws/supabase/storage-api:v1.73.1"
+        },
+        "sha256": "6913ec4af576eff98bcd2e84cf816ae082407479314ab299c49da16d2090321f"
+      },
+      "studio-image.lock.json": {
+        "pins": {
+          "meta": {
+            "digests": [
+              "public.ecr.aws/supabase/postgres-meta@sha256:9a079ac1c94d89629262822a4bd1902d5b1be4adb464e5a0a8fd078aaed72158"
+            ],
+            "id": "sha256:9a079ac1c94d89629262822a4bd1902d5b1be4adb464e5a0a8fd078aaed72158",
+            "tag": "public.ecr.aws/supabase/postgres-meta:v0.99.0"
+          },
+          "studio": {
+            "digests": [
+              "public.ecr.aws/supabase/studio@sha256:94a2a9d2906e8b4109e55159a62e241c3044709a492913ea8edd34b14973d288"
+            ],
+            "id": "sha256:94a2a9d2906e8b4109e55159a62e241c3044709a492913ea8edd34b14973d288",
+            "tag": "public.ecr.aws/supabase/studio:2026.09.07-sha-7996410"
+          }
+        },
+        "sha256": "5fa0eb84549aeff64027e0c6af15e16fb5ab7249e0b684762326581a5591b219"
+      }
+    },
+    "commit": "564eab8ad7840b13324f68b1bfac074ef8d51c21",
+    "comparison": "Pinned reference identity only; official application runtime comparison not performed",
+    "repository": "https://github.com/supabase/supabase",
+    "tag": "self-hosted/v0.8.2",
+    "tag_object": "47111f95a43ffcc20ab288e29c48ce0b80174bd6"
+  },
+  "required_unproven": [
+    "enduser_auth",
+    "cross_tenant_isolation",
+    "signed_urls",
+    "fresh_host_full_application",
+    "platform_secret_rotation",
+    "external_object_store",
+    "native_feature_recovery"
+  ],
+  "resources": {
+    "aggregate_running_cpus": 0.5,
+    "aggregate_running_memory_mib": 512,
+    "auth_bootstrap_cpus": 0.25,
+    "auth_bootstrap_memory_mib": 256,
+    "database_cpus": 0.25,
+    "database_memory_mib": 256,
+    "helper_cpus": 0.5,
+    "helper_memory_mib": 256,
+    "max_running_containers": 2,
+    "network": "owned internal bridge",
+    "published_ports": [],
+    "storage_cpus": 0.25,
+    "storage_memory_mib": 256
+  },
+  "restore": "Actual existing fenced environment restore followed by original Storage HTTP download",
+  "schema": 1,
+  "scope": "Original pinned Storage service-role HTTP behavior and shipped environment backup restore",
+  "status": "native-storage-fixture-verified-full-recovery-unproven"
+}

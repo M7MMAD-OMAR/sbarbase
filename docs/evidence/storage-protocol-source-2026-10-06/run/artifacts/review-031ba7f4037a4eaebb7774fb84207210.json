@@ -1,0 +1,7 @@
+{
+  "chunk_id": "8ce493",
+  "wall_time_seconds": 0.000010727,
+  "exit_code": 0,
+  "original_token_count": 90,
+  "output": "{\"total\": 78, \"failed\": 0, \"skipped\": 0, \"native_accepted\": false, \"reason\": null, \"raw_sha256\": \"d9b3d6e33236c757c661029cde91bb6af4729c44ec61c32a6bef9d875321c81e\", \"raw_log\": \"/home/sbarah/.codex/sbarbase-settlement/20261006/native-source-v3/check-bun-8.log\", \"peak_group_rss\": 63414272, \"role_seconds_used\": 2.560455234000983, \"role_output_bytes\": 132111}\n"
+}

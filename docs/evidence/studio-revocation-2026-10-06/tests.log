@@ -1,0 +1,66 @@
+bun test v1.3.14 (0d9b296a)
+
+tests/studio-destination.test.ts:
+(pass) Studio browser routing retains its configured origin for /project/default [4.41ms]
+(pass) Studio browser routing retains its configured origin for //alternate.invalid/dummy [0.35ms]
+(pass) Studio browser routing retains its configured origin for /.//alternate.invalid/dummy [0.16ms]
+(pass) Studio browser routing retains its configured origin for /%2f%2falternate.invalid/dummy [0.10ms]
+(pass) Studio auth routing retains its configured origin for a double slash path [0.93ms]
+(pass) Studio rest routing retains its configured origin for a double slash path [0.08ms]
+(pass) Studio storage routing retains its configured origin for a double slash path [0.05ms]
+
+tests/studio-navigation.test.ts:
+(pass) Studio navigation uses live ownership, filters viewers and lists only the selected scope [6.00ms]
+(pass) workspace entry, assets and metadata never reach vendor APIs or contain user HTML [4.29ms]
+(pass) switch creates a fresh target-only ticket without launching or changing Studio [5.64ms]
+(pass) switch rejects sibling-origin CSRF, malformed input, excessive bodies and stopped targets [4.13ms]
+(pass) switch rechecks both target membership and source membership after asynchronous body reads [3.16ms]
+(pass) a stopped upstream cannot be selected even with a stale running catalog row [2.59ms]
+(pass) signed console origin survives entry and switching without trusting arbitrary return addresses [5.76ms]
+(pass) workspace permits same-origin vendor frames while preserving other CSP restrictions [62.88ms]
+
+tests/studio-revocation.test.ts:
+(pass) Studio POST withholds a delayed body when its admin becomes removed [2.79ms]
+(pass) Studio PATCH withholds a delayed body when its admin becomes removed [1.79ms]
+(pass) Studio DELETE withholds a delayed body when its admin becomes removed [1.79ms]
+(pass) Studio POST withholds a delayed body when its admin becomes viewer [1.97ms]
+(pass) Studio PATCH withholds a delayed body when its admin becomes viewer [1.67ms]
+(pass) Studio DELETE withholds a delayed body when its admin becomes viewer [1.72ms]
+(pass) Studio withholds a deferred response when its admin becomes removed [2.48ms]
+(pass) Studio withholds a deferred response when its admin becomes viewer [1.80ms]
+(pass) Studio cancels withheld streaming bytes after revocation [2.37ms]
+(pass) Studio refuses an oversized body before sending any upstream bytes [2.19ms]
+(pass) Studio body deadline refuses a stalled client and cancels its reader [22.53ms]
+(pass) Studio abort during body acquisition never dispatches upstream [2.44ms]
+(pass) Studio body read failure never dispatches upstream [1.87ms]
+(pass) Studio forwards the exact bounded body and preserves vendor headers [2.29ms]
+(pass) Studio preserves a bodyless vendor response [1.93ms]
+(pass) Studio rechecks session expiry after awaiting its body [82.47ms]
+(pass) Studio rechecks session expiry after awaiting its response [82.93ms]
+(pass) Studio refusal does not wait for a stalled cancellation promise [3.02ms]
+(pass) Studio downstream cancellation cancels the vendor without waiting indefinitely [3.07ms]
+(pass) Studio abort while waiting for response bytes cancels the vendor [2.79ms]
+(pass) Studio HEAD discards a vendor body and preserves response status [1.97ms]
+(pass) Studio preserves a not-modified vendor response [2.09ms]
+(pass) Studio maps a failed vendor connection to a bounded proxy error [1.94ms]
+(pass) Studio switching cannot renew a session that expires during the body read [82.77ms]
+(pass) Studio switching times out a stalled body and cancels it [25.95ms]
+(pass) Studio switching rejects excess bytes without waiting for cancellation [3.95ms]
+(pass) Studio byte accounting ignores empty chunks and preserves fragmented input [3.59ms]
+(pass) Studio checks its monotonic deadline even before the timer callback runs [3.30ms]
+(pass) Studio withholds unread workspace metadata after source access is revoked [3.37ms]
+(pass) Studio withholds an unread switch ticket after source access is revoked [2.88ms]
+(pass) Studio withholds selected organization metadata after that membership is revoked [3.58ms]
+(pass) Studio withholds a revoked organization from an unread navigation inventory [2.75ms]
+
+tests/studio.test.ts:
+(pass) each environment is its own Studio origin [0.09ms]
+(pass) tickets and sessions are signed, bound to one environment and one kind, and expire [0.22ms]
+(pass) the console starts, stops and opens Studio only for owners and admins of a ready environment [4.05ms]
+(pass) the Studio origin admits a ticket once, then only its session cookie, and never another environment [1.20ms]
+(pass) Studio server-side calls reach only their own environment, with its own service key [1.23ms]
+
+ 52 pass
+ 0 fail
+ 227 expect() calls
+Ran 52 tests across 4 files. [761.00ms]

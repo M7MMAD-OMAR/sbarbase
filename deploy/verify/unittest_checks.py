@@ -1,9 +1,12 @@
 """Run built-in unittest without accepting skipped or empty discovery."""
 import sys
+from pathlib import Path
 import unittest
 
 
 def main():
+    # Direct script execution must also resolve imports from the repository root.
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
     suite = unittest.defaultTestLoader.discover("lab", pattern="test_*.py")
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     if not result.testsRun:

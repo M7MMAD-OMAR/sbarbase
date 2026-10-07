@@ -34,6 +34,7 @@ from contextlib import closing, redirect_stderr
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
+from host_test_fixture import admitted_host_fixture
 
 import dev
 import notify
@@ -183,12 +184,15 @@ class InstallationProducerTests(ProducerCase):
         return stages, run_stage, StubSupervisor
 
     def main(self, run_stage, supervisor):
-        with patch.object(dev, 'run_stage', run_stage), patch.object(dev, 'settle_leftover'), \
+        with admitted_host_fixture() as admission, patch.object(dev, 'run_stage', run_stage), patch.object(dev, 'settle_leftover'), \
              patch.object(dev.console_build_check, 'is_fresh', return_value=(True, 'fresh')), \
              patch.object(dev, 'Supervisor', supervisor), \
              patch.object(dev.os, 'chdir'), \
              patch.object(dev.sys, 'argv', ['dev.py']):
-            dev.main()
+            try:
+                dev.main()
+            finally:
+                admission.assert_called_once()
 
     def test_a_completed_start_and_stop_emit_their_events(self):
         stages, run_stage, supervisor = self.stub()

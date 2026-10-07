@@ -1,3 +1,4 @@
+import {liveManagementClient,liveManagementLogin} from './live-management-auth';
 // First project check: what a new operator does after installing, end to end.
 //
 // Usage: bun lab/first-project-check.ts <operator.json> [--evidence PATH] [--base URL]
@@ -41,10 +42,10 @@ async function finish(){
 }
 
 try {
- const management=createClient(`${base}/management`,MANAGEMENT_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
- const login=await management.auth.signInWithPassword({email:operator.email,password:operator.password});
+ const management=liveManagementClient(base,MANAGEMENT_KEY);
+ const login=await liveManagementLogin(management,base,{email:operator.email,password:operator.password});
  const token=login.data.session?.access_token;
- if(!record('operator logs in through the management Auth realm',!!token,login.error?.message??''))await finish();
+ if(!record('operator native MFA session authorizes management',!!token,login.error?.message??''))await finish();
  const call=async(method:string,path:string,body?:unknown)=>{
   const response=await fetch(`${base}/management/v1${path}`,{method,headers:{authorization:`Bearer ${token}`,...(body?{'content-type':'application/json'}:{})},body:body?JSON.stringify(body):undefined});
   return {status:response.status,json:await response.json().catch(()=>null) as any};

@@ -1,3 +1,4 @@
+import {liveManagementClient,liveManagementLogin} from './live-management-auth';
 // Deploy Edge Functions from a Supabase project folder to one Sbarbase environment.
 //
 // Usage:
@@ -56,8 +57,8 @@ async function password():Promise<string> {
 const email=process.env.SBARBASE_EMAIL;
 if(!email){console.error('Set SBARBASE_EMAIL to your operator email.');process.exit(2);}
 const base=consoleUrl.replace(/\/+$/,'');
-const management=createClient(`${base}/management`,MANAGEMENT_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
-const login=await management.auth.signInWithPassword({email,password:await password()});
+const management=liveManagementClient(base,MANAGEMENT_KEY);
+const login=await liveManagementLogin(management,base,{email,password:await password()});
 const token=login.data.session?.access_token;
 if(!token){console.error('Sign-in failed: '+(login.error?.message??'no session'));process.exit(1);}
 

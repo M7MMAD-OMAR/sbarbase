@@ -1,0 +1,462 @@
+{
+  "scope": "synthetic external fixtures, never runtime execution or root acceptance",
+  "observations": [
+    {
+      "name": "synthetic-source-baseline",
+      "command": [
+        "systemd-run",
+        "--user",
+        "--quiet",
+        "--scope",
+        "-p",
+        "MemoryMax=256M",
+        "-p",
+        "CPUQuota=25%",
+        "env",
+        "PYTHONDONTWRITEBYTECODE=1",
+        "python3",
+        "/home/sbarah/R/Projects/P/sbarbase/deploy/verify/capability_registry.py",
+        "accept",
+        "--root",
+        "/home/sbarah/.codex/sbarbase-integration/20261006/sb01-merged-readonly/integration-critic/tmpog35g6bi",
+        "--capability",
+        "SB-01",
+        "--placement",
+        "legacy-shared"
+      ],
+      "exit": 0,
+      "errors": [],
+      "accepted": [
+        [
+          "SB-01",
+          "legacy-shared"
+        ]
+      ]
+    },
+    {
+      "name": "changed-source-refusal",
+      "command": [
+        "systemd-run",
+        "--user",
+        "--quiet",
+        "--scope",
+        "-p",
+        "MemoryMax=256M",
+        "-p",
+        "CPUQuota=25%",
+        "env",
+        "PYTHONDONTWRITEBYTECODE=1",
+        "python3",
+        "/home/sbarah/R/Projects/P/sbarbase/deploy/verify/capability_registry.py",
+        "accept",
+        "--root",
+        "/home/sbarah/.codex/sbarbase-integration/20261006/sb01-merged-readonly/integration-critic/tmpog35g6bi",
+        "--capability",
+        "SB-01",
+        "--placement",
+        "legacy-shared"
+      ],
+      "exit": 1,
+      "errors": [
+        "SB-01/legacy-shared: acceptance: source identity mismatch",
+        "SB-01/legacy-shared: acceptance: claimed state lacks valid proof",
+        "SB-01/legacy-shared: acceptance: required current proof missing"
+      ],
+      "accepted": []
+    },
+    {
+      "name": "changed-source-envelope-rebind-refusal",
+      "command": [
+        "systemd-run",
+        "--user",
+        "--quiet",
+        "--scope",
+        "-p",
+        "MemoryMax=256M",
+        "-p",
+        "CPUQuota=25%",
+        "env",
+        "PYTHONDONTWRITEBYTECODE=1",
+        "python3",
+        "/home/sbarah/R/Projects/P/sbarbase/deploy/verify/capability_registry.py",
+        "accept",
+        "--root",
+        "/home/sbarah/.codex/sbarbase-integration/20261006/sb01-merged-readonly/integration-critic/tmpog35g6bi",
+        "--capability",
+        "SB-01",
+        "--placement",
+        "legacy-shared"
+      ],
+      "exit": 1,
+      "errors": [
+        "SB-01/legacy-shared: acceptance: raw observation disagrees with reported test",
+        "SB-01/legacy-shared: acceptance: claimed state lacks valid proof",
+        "SB-01/legacy-shared: acceptance: required current proof missing"
+      ],
+      "accepted": []
+    },
+    {
+      "name": "synthetic-binding-baseline",
+      "command": [
+        "systemd-run",
+        "--user",
+        "--quiet",
+        "--scope",
+        "-p",
+        "MemoryMax=256M",
+        "-p",
+        "CPUQuota=25%",
+        "env",
+        "PYTHONDONTWRITEBYTECODE=1",
+        "python3",
+        "/home/sbarah/R/Projects/P/sbarbase/deploy/verify/capability_registry.py",
+        "accept",
+        "--root",
+        "/home/sbarah/.codex/sbarbase-integration/20261006/sb01-merged-readonly/integration-critic/tmpni7scqq5",
+        "--capability",
+        "SB-01",
+        "--placement",
+        "legacy-shared"
+      ],
+      "exit": 0,
+      "errors": [],
+      "accepted": [
+        [
+          "SB-01",
+          "legacy-shared"
+        ]
+      ]
+    },
+    {
+      "name": "changed-binding-refusal",
+      "command": [
+        "systemd-run",
+        "--user",
+        "--quiet",
+        "--scope",
+        "-p",
+        "MemoryMax=256M",
+        "-p",
+        "CPUQuota=25%",
+        "env",
+        "PYTHONDONTWRITEBYTECODE=1",
+        "python3",
+        "/home/sbarah/R/Projects/P/sbarbase/deploy/verify/capability_registry.py",
+        "validate",
+        "--root",
+        "/home/sbarah/.codex/sbarbase-integration/20261006/sb01-merged-readonly/integration-critic/tmpni7scqq5"
+      ],
+      "exit": 1,
+      "errors": [
+        "capability registry: catalog-schema: binding checksum mismatch"
+      ],
+      "accepted": []
+    },
+    {
+      "name": "changed-binding-registry-only-refusal",
+      "command": [
+        "systemd-run",
+        "--user",
+        "--quiet",
+        "--scope",
+        "-p",
+        "MemoryMax=256M",
+        "-p",
+        "CPUQuota=25%",
+        "env",
+        "PYTHONDONTWRITEBYTECODE=1",
+        "python3",
+        "/home/sbarah/R/Projects/P/sbarbase/deploy/verify/capability_registry.py",
+        "accept",
+        "--root",
+        "/home/sbarah/.codex/sbarbase-integration/20261006/sb01-merged-readonly/integration-critic/tmpni7scqq5",
+        "--capability",
+        "SB-01",
+        "--placement",
+        "legacy-shared"
+      ],
+      "exit": 1,
+      "errors": [
+        "SB-01/legacy-shared: acceptance: source identity mismatch",
+        "SB-01/legacy-shared: acceptance: claimed state lacks valid proof",
+        "SB-01/legacy-shared: acceptance: required current proof missing"
+      ],
+      "accepted": []
+    },
+    {
+      "name": "changed-binding-envelope-rebind-refusal",
+      "command": [
+        "systemd-run",
+        "--user",
+        "--quiet",
+        "--scope",
+        "-p",
+        "MemoryMax=256M",
+        "-p",
+        "CPUQuota=25%",
+        "env",
+        "PYTHONDONTWRITEBYTECODE=1",
+        "python3",
+        "/home/sbarah/R/Projects/P/sbarbase/deploy/verify/capability_registry.py",
+        "accept",
+        "--root",
+        "/home/sbarah/.codex/sbarbase-integration/20261006/sb01-merged-readonly/integration-critic/tmpni7scqq5",
+        "--capability",
+        "SB-01",
+        "--placement",
+        "legacy-shared"
+      ],
+      "exit": 1,
+      "errors": [
+        "SB-01/legacy-shared: acceptance: raw observation disagrees with reported test",
+        "SB-01/legacy-shared: acceptance: claimed state lacks valid proof",
+        "SB-01/legacy-shared: acceptance: required current proof missing"
+      ],
+      "accepted": []
+    },
+    {
+      "name": "synthetic-cron-fragment-accepts",
+      "command": [
+        "systemd-run",
+        "--user",
+        "--quiet",
+        "--scope",
+        "-p",
+        "MemoryMax=256M",
+        "-p",
+        "CPUQuota=25%",
+        "env",
+        "PYTHONDONTWRITEBYTECODE=1",
+        "python3",
+        "/home/sbarah/R/Projects/P/sbarbase/deploy/verify/capability_registry.py",
+        "accept",
+        "--root",
+        "/home/sbarah/.codex/sbarbase-integration/20261006/sb01-merged-readonly/integration-critic/tmpswt31bs6",
+        "--capability",
+        "native-cron-effects",
+        "--placement",
+        "native-dedicated"
+      ],
+      "exit": 0,
+      "errors": [],
+      "accepted": [
+        [
+          "native-cron-effects",
+          "native-dedicated"
+        ]
+      ]
+    },
+    {
+      "name": "synthetic-cron-does-not-accept-sb13a",
+      "command": [
+        "systemd-run",
+        "--user",
+        "--quiet",
+        "--scope",
+        "-p",
+        "MemoryMax=256M",
+        "-p",
+        "CPUQuota=25%",
+        "env",
+        "PYTHONDONTWRITEBYTECODE=1",
+        "python3",
+        "/home/sbarah/R/Projects/P/sbarbase/deploy/verify/capability_registry.py",
+        "accept",
+        "--root",
+        "/home/sbarah/.codex/sbarbase-integration/20261006/sb01-merged-readonly/integration-critic/tmpswt31bs6",
+        "--capability",
+        "SB-13a",
+        "--placement",
+        "native-dedicated"
+      ],
+      "exit": 1,
+      "errors": [
+        "SB-13a/native-dedicated: acceptance: required current proof missing"
+      ],
+      "accepted": [
+        [
+          "native-cron-effects",
+          "native-dedicated"
+        ]
+      ]
+    },
+    {
+      "name": "synthetic-G0-component-accepts",
+      "command": [
+        "systemd-run",
+        "--user",
+        "--quiet",
+        "--scope",
+        "-p",
+        "MemoryMax=256M",
+        "-p",
+        "CPUQuota=25%",
+        "env",
+        "PYTHONDONTWRITEBYTECODE=1",
+        "python3",
+        "/home/sbarah/R/Projects/P/sbarbase/deploy/verify/capability_registry.py",
+        "accept",
+        "--root",
+        "/home/sbarah/.codex/sbarbase-integration/20261006/sb01-merged-readonly/integration-critic/tmpxp_78n49",
+        "--capability",
+        "SB-01",
+        "--placement",
+        "legacy-shared"
+      ],
+      "exit": 0,
+      "errors": [],
+      "accepted": [
+        [
+          "SB-01",
+          "legacy-shared"
+        ],
+        [
+          "SB-01",
+          "native-dedicated"
+        ]
+      ]
+    },
+    {
+      "name": "synthetic-G0-planning-refusal",
+      "command": [
+        "systemd-run",
+        "--user",
+        "--quiet",
+        "--scope",
+        "-p",
+        "MemoryMax=256M",
+        "-p",
+        "CPUQuota=25%",
+        "env",
+        "PYTHONDONTWRITEBYTECODE=1",
+        "python3",
+        "/home/sbarah/.codex/sbarbase-integration/20261006/sb01-merged-readonly/integration-critic/tmpxp_78n49/deploy/check_plan.py"
+      ],
+      "exit": 1,
+      "errors": [
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: foundation-reference-distribution/legacy-shared: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: foundation-reference-distribution/native-dedicated: acceptance: required current proof missing"
+      ]
+    },
+    {
+      "name": "synthetic-G12-component-accepts",
+      "command": [
+        "systemd-run",
+        "--user",
+        "--quiet",
+        "--scope",
+        "-p",
+        "MemoryMax=256M",
+        "-p",
+        "CPUQuota=25%",
+        "env",
+        "PYTHONDONTWRITEBYTECODE=1",
+        "python3",
+        "/home/sbarah/R/Projects/P/sbarbase/deploy/verify/capability_registry.py",
+        "accept",
+        "--root",
+        "/home/sbarah/.codex/sbarbase-integration/20261006/sb01-merged-readonly/integration-critic/tmp8moewcvb",
+        "--capability",
+        "SB-03",
+        "--placement",
+        "legacy-shared"
+      ],
+      "exit": 0,
+      "errors": [],
+      "accepted": [
+        [
+          "SB-03",
+          "legacy-shared"
+        ],
+        [
+          "SB-03",
+          "native-dedicated"
+        ]
+      ]
+    },
+    {
+      "name": "synthetic-G12-planning-refusal",
+      "command": [
+        "systemd-run",
+        "--user",
+        "--quiet",
+        "--scope",
+        "-p",
+        "MemoryMax=256M",
+        "-p",
+        "CPUQuota=25%",
+        "env",
+        "PYTHONDONTWRITEBYTECODE=1",
+        "python3",
+        "/home/sbarah/.codex/sbarbase-integration/20261006/sb01-merged-readonly/integration-critic/tmp8moewcvb/deploy/check_plan.py"
+      ],
+      "exit": 1,
+      "errors": [
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: SB-01/legacy-shared: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: SB-01/native-dedicated: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: SB-02/legacy-shared: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: SB-02/native-dedicated: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: SB-04/legacy-shared: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: SB-04/native-dedicated: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: SB-05/legacy-shared: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: SB-05/native-dedicated: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: SB-06/legacy-shared: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: SB-06/native-dedicated: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: SB-07/legacy-shared: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: SB-07/native-dedicated: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: SB-08/legacy-shared: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: SB-08/native-dedicated: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: SB-09/legacy-shared: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: SB-09/native-dedicated: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: SB-10/legacy-shared: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: SB-10/native-dedicated: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: SB-11/legacy-shared: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: SB-11/native-dedicated: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: SB-12/legacy-shared: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: SB-12/native-dedicated: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: SB-13a/legacy-shared: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: SB-13a/native-dedicated: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: SB-13b/legacy-shared: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: SB-13b/native-dedicated: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: SB-14/legacy-shared: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: SB-14/native-dedicated: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: SB-15/legacy-shared: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: SB-15/native-dedicated: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: SB-16/legacy-shared: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: SB-16/native-dedicated: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: SB-17/legacy-shared: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: SB-17/native-dedicated: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: SB-18/legacy-shared: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: SB-18/native-dedicated: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: sql-rest-rpc-rls/legacy-shared: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: sql-rest-rpc-rls/native-dedicated: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: auth-core/legacy-shared: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: auth-core/native-dedicated: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: auth-advanced/legacy-shared: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: auth-advanced/native-dedicated: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: api-keys/legacy-shared: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: api-keys/native-dedicated: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: storage-standard/legacy-shared: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: storage-standard/native-dedicated: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: storage-advanced/legacy-shared: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: storage-advanced/native-dedicated: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: realtime/legacy-shared: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: realtime/native-dedicated: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: functions/legacy-shared: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: functions/native-dedicated: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: studio/legacy-shared: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: studio/native-dedicated: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: database-features/legacy-shared: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: database-features/native-dedicated: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: backups-pitr-replicas/legacy-shared: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: backups-pitr-replicas/native-dedicated: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: management-api/legacy-shared: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: management-api/native-dedicated: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: foundation-reference-distribution/legacy-shared: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: foundation-reference-distribution/native-dedicated: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: public-release/legacy-shared: acceptance: required current proof missing",
+        "docs/engineering/gauntlet-ledger.json: passed slice requires valid coverage proof: public-release/native-dedicated: acceptance: required current proof missing"
+      ]
+    }
+  ]
+}

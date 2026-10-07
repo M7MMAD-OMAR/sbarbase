@@ -1,3 +1,5 @@
+import {bindReadyEnvironmentPublication} from './ready-publication';
+import {refreshCurrentManagement} from './management-context';
 import {Catalog} from './catalog';
 import {authenticate,reply,type ManagementIdentity} from './auth';
 
@@ -13,12 +15,14 @@ export function realtimeHandler(catalog:Catalog,identify:ManagementIdentity) {
   if(actor instanceof Response)return actor;
   const environment=match[1]!;
   try {
-   if(request.method==='GET')return reply(200,{data:catalog.realtime(actor,environment)});
+   const answer=(status:number,data:ReturnType<Catalog['realtime']>)=>bindReadyEnvironmentPublication(reply(status,{data}),catalog,actor,environment,data.runtime,true);
+   if(request.method==='GET')return answer(200,catalog.realtime(actor,environment));
    let input:unknown;
    try{input=await request.json();}catch{return reply(400,{message:'Invalid JSON'});}
+   await refreshCurrentManagement();
    const enabled=(input as {enabled?:unknown}|null)?.enabled;
    if(typeof enabled!=='boolean'||Object.keys(input as object).length!==1)return reply(400,{message:'Send {"enabled": true} or {"enabled": false}'});
-   return reply(202,{data:catalog.requestRealtime(actor,environment,enabled)});
+   return answer(202,catalog.requestRealtime(actor,environment,enabled));
   } catch(error) {
    const message=error instanceof Error?error.message:'';
    if(message==='Forbidden')return reply(403,{message:'Forbidden'});

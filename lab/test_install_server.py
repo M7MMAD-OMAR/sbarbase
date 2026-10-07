@@ -5,6 +5,7 @@ import json
 import os
 import tempfile
 import unittest
+from host_test_fixture import IsolatedHostCase
 import install_server
 
 
@@ -12,8 +13,9 @@ def result(returncode=0,stdout='',stderr=''):
     return type('R',(),{'returncode':returncode,'stdout':stdout,'stderr':stderr})()
 
 
-class TargetClassificationTests(unittest.TestCase):
+class TargetClassificationTests(IsolatedHostCase):
     def setUp(self):
+        super().setUp()
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
         self.state=Path(self.temp.name)
 
@@ -50,7 +52,7 @@ class TargetClassificationTests(unittest.TestCase):
         self.assertEqual(findings,[])
 
 
-class PlanTests(unittest.TestCase):
+class PlanTests(IsolatedHostCase):
     def test_plan_lists_the_verified_steps(self):
         source=(Path(__file__).resolve().parent/'install_server.py').read_text()
         for step in ('check','plan','install','smoke'):
@@ -60,7 +62,7 @@ class PlanTests(unittest.TestCase):
         self.assertIn('installation_runtime.py',source)
 
 
-class InterpreterPreflightTests(unittest.TestCase):
+class InterpreterPreflightTests(IsolatedHostCase):
     def findings(self,version,imports=True):
         def fake(command,**kwargs):
             if command[-1]=='import cryptography':return result(0 if imports else 1)
@@ -85,7 +87,7 @@ class InterpreterPreflightTests(unittest.TestCase):
         self.assertIn('python3-cryptography',findings[0][1])
 
 
-class UnreachableDaemonPreflightTests(unittest.TestCase):
+class UnreachableDaemonPreflightTests(IsolatedHostCase):
     """Without a daemon the preflight must not guess about images or containers."""
 
     def preflight(self,side_effect):
@@ -119,7 +121,7 @@ class UnreachableDaemonPreflightTests(unittest.TestCase):
 
 if __name__=='__main__':unittest.main()
 
-class InterruptedFirstInstallTests(unittest.TestCase):
+class InterruptedFirstInstallTests(IsolatedHostCase):
     """Found by the first empty-VM install: a failed first launch was called a retained source."""
 
     def findings(self,started_at):
@@ -147,7 +149,7 @@ class InterruptedFirstInstallTests(unittest.TestCase):
         self.assertIn('adopt it with lab/adopt-retained.py source',blockers[0])
 
 
-class PinnedImagePullTests(unittest.TestCase):
+class PinnedImagePullTests(IsolatedHostCase):
     """Found by the second empty-VM rehearsal: a 1.7 GB pull hit the 600 s command timeout."""
 
     def test_a_pull_has_its_own_long_budget_and_shows_progress(self):
@@ -177,10 +179,11 @@ class PinnedImagePullTests(unittest.TestCase):
         self.assertEqual(waits,list(install_server.PULL_BACKOFF[:2]),'each retry waits longer than the one before')
 
 
-class ConsoleWaitTests(unittest.TestCase):
+class ConsoleWaitTests(IsolatedHostCase):
     """systemd says active the moment dev.py is executed; a start counts once the console answers."""
 
     def setUp(self):
+        super().setUp()
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
         self.state=Path(self.temp.name)
 
@@ -325,7 +328,7 @@ class ConsoleWaitTests(unittest.TestCase):
         self.assertFalse(record['start_deferred'])
 
 
-class DockerProfilePreflightTests(unittest.TestCase):
+class DockerProfilePreflightTests(IsolatedHostCase):
     def test_direct_images_command_refuses_before_image_mutations(self):
         import docker_profile
         import sys
@@ -389,4 +392,4 @@ class DockerProfilePreflightTests(unittest.TestCase):
              patch.object(docker_profile,'configured',return_value=True), \
              patch.object(docker_profile,'validate',return_value='fixture-daemon') as validate:
             self.assertEqual(install_server.daemon(),[])
-        validate.assert_called_once_with()
+        validate.assert_called_once_with(docker_profile.from_environment())

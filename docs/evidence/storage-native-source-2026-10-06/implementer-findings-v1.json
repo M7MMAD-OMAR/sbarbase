@@ -1,0 +1,21 @@
+{
+  "scope_hash": "5f7e8c518ad156f3a76f605861ced7130a52bbfd12c6e3e66ce5d0bd719043cd",
+  "origin": "implementer post-review direct source inspection plus read-only builder assessment",
+  "not_native_proof": true,
+  "findings": [
+    {
+      "id": "DIRECT-RECONCILE-CLOSURE",
+      "status": "open",
+      "path": "lab/storage_native_authority.py",
+      "function": "LocalNativeAuthority.reconcile",
+      "issue": "Missing local stopped-writer check, exact observed owner-ledger binding and detached before/after observation consistency; current installed guard denies but implemented source cannot delegate these obligations to future guard or caller."
+    },
+    {
+      "id": "DATABASE-INCARNATION",
+      "status": "open",
+      "path": "lab/storage_native_authority.py",
+      "function": "DockerLocalCommands.storage_rows",
+      "issue": "Uses exact declared CID/name and checks returned OID but lacks mandatory actual database enrollment, registry-pin/config-image association, immutable start/process/ns/config proof before and after SQL/file capture."
+    }
+  ]
+}

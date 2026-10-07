@@ -2,6 +2,7 @@ import {useEffect,useState} from 'react';
 import {Code2,Plus,Square,Trash2,KeyRound,Copy} from 'lucide-react';
 import {useData,type Api} from './api';
 import {ErrorMessage,Loading,Empty} from './components';
+import {secretErrors,type FieldErrors} from './settings-validation';
 
 type Fn={name:string;verify_jwt:boolean;updated_at:number;size:number;path:string};
 type State={desired:'on'|'off';state:'off'|'pending'|'on'|'failed';failure:string|null;functions:Fn[];secrets:string[]};
@@ -18,11 +19,12 @@ export function FunctionsSection({path,request,environmentId}:{path:string;reque
  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[editing,setEditing]=useState(false),[confirm,setConfirm]=useState('');
  const [name,setName]=useState(''),[code,setCode]=useState(STARTER),[verify,setVerify]=useState(true);
  const [secretName,setSecretName]=useState(''),[secretValue,setSecretValue]=useState(''),[copied,setCopied]=useState('');
+ const [fields,setFields]=useState<FieldErrors>({});
  const current=data.data?.data;
  useEffect(()=>{if(current?.state!=='pending')return;const timer=setTimeout(data.refresh,3000);return()=>clearTimeout(timer);},[current?.state,data.data]);
  async function act(run:()=>Promise<unknown>){setBusy(true);setError('');try{await run();data.refresh();return true;}catch(e){setError((e as Error).message);return false;}finally{setBusy(false);}}
  async function deploy(){if(await act(()=>request(`${path}/functions/${name.trim()}`,'PUT',{files:{'index.ts':code},verify_jwt:verify}))){setEditing(false);setName('');setCode(STARTER);}}
- async function saveSecret(){if(await act(()=>request(path+'/function-secrets','PUT',{secrets:{[secretName.trim()]:secretValue}}))){setSecretName('');setSecretValue('');}}
+ async function saveSecret(){const invalid=secretErrors(secretName,secretValue);setFields(invalid);const first=Object.keys(invalid)[0];if(first){document.getElementById(first)?.focus();return;}if(await act(()=>request(path+'/function-secrets','PUT',{secrets:{[secretName]:secretValue}}))){setSecretName('');setSecretValue('');}}
  async function copy(text:string){try{await navigator.clipboard.writeText(text);setCopied('Copied to clipboard.');}catch{setCopied('Copy unavailable. Select and copy the text manually.');}}
  const command=`SBARBASE_EMAIL=you@example.com bun lab/functions-deploy.ts ${location.origin} ${environmentId} supabase/functions`;
  return <section className="details"><h2>Edge Functions</h2>
@@ -50,8 +52,9 @@ export function FunctionsSection({path,request,environmentId}:{path:string;reque
   <h3>Secrets</h3>
   <p className="small muted">Read in a function with <code>Deno.env.get('NAME')</code>. Values are never shown again after you save them.</p>
   {current.secrets.length>0&&<p className="small">{current.secrets.map(secret=><span key={secret} className="secret-chip"><code>{secret}</code><button aria-label={`Remove ${secret}`} disabled={busy} onClick={()=>void act(()=>request(path+'/function-secrets','PUT',{secrets:{[secret]:null}}))}><Trash2 aria-hidden="true"/></button></span>)}</p>}
-  <div className="form-row"><input aria-label="Secret name" placeholder="STRIPE_SECRET_KEY" value={secretName} onChange={event=>setSecretName(event.target.value.toUpperCase())}/>
-   <input aria-label="Secret value" type="password" placeholder="value" value={secretValue} onChange={event=>setSecretValue(event.target.value)}/>
-   <button disabled={busy||!/^[A-Z_][A-Z0-9_]{0,127}$/.test(secretName)||!secretValue} onClick={()=>void saveSecret()}><KeyRound aria-hidden="true"/>Save secret</button></div>
+  <div className="form-row"><input id="secret-name" aria-label="Secret name" placeholder="STRIPE_SECRET_KEY" maxLength={128} value={secretName} aria-invalid={Boolean(fields['secret-name'])} aria-describedby={fields['secret-name']?'secret-name-error':undefined} onChange={event=>{const name=event.target.value.toUpperCase();setSecretName(name);const message=name?secretErrors(name,secretValue)['secret-name']:undefined;setFields(message?{'secret-name':message}:{});}}/>
+   <input id="secret-value" aria-label="Secret value" type="password" placeholder="value" maxLength={65536} value={secretValue} aria-invalid={Boolean(fields['secret-value'])} aria-describedby={fields['secret-value']?'secret-value-error':undefined} onChange={event=>{setSecretValue(event.target.value);const invalid=secretErrors(secretName,event.target.value);if(!secretName)delete invalid['secret-name'];setFields(invalid);}}/>
+   <button disabled={busy||Object.keys(secretErrors(secretName,secretValue)).length>0} onClick={()=>void saveSecret()}><KeyRound aria-hidden="true"/>Save secret</button></div>
+  {Object.entries(fields).map(([id,message])=><p key={id} id={id+'-error'} className="field-error" role="alert">{message}</p>)}
  </>}</section>;
 }

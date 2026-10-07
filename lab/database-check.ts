@@ -1,3 +1,4 @@
+import {liveManagementClient,liveManagementLogin} from './live-management-auth';
 // Direct database access check: a developer connects with a PostgreSQL client and runs a migration.
 //
 // Usage: bun lab/database-check.ts <operator.json> [--evidence PATH]
@@ -47,10 +48,10 @@ async function query(url:string,text:string):Promise<{ok:true;rows:any[]}|{ok:fa
 }
 
 try {
- const management=createClient(`${base}/management`,MANAGEMENT_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
- const login=await management.auth.signInWithPassword({email:operator.email,password:operator.password});
+ const management=liveManagementClient(base,MANAGEMENT_KEY);
+ const login=await liveManagementLogin(management,base,{email:operator.email,password:operator.password});
  const token=login.data.session?.access_token;
- if(!record('operator logs in',!!token,login.error?.message??''))finish();
+ if(!record('operator native MFA session authorizes management',!!token,login.error?.message??''))finish();
  const call=async(method:string,path:string,body?:unknown)=>{
   const response=await fetch(`${base}/management/v1${path}`,{method,headers:{authorization:`Bearer ${token}`,...(body!==undefined?{'content-type':'application/json'}:{})},
    body:body===undefined?undefined:JSON.stringify(body)});

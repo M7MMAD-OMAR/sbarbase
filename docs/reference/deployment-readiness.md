@@ -1,10 +1,32 @@
 [العربية](deployment-readiness.ar.md)
 
+The [2026-10-06 local repair review](review-2026-10-06.md) records defensive source changes and their limits. Local regression results do not change the production acceptance status below.
+
 # Deployment readiness
 
-Current cutoff, 2026-10-06: the reviewed repairs close SQLite connections in `recovery_bundle` after their original transactions and close `HTTPError` responses in `notify`. They also capture and assert complete expected stderr in 27 fixture methods and register tempfile close/unlink ownership before a fallible write. A newer creator fixture associates its tempfile warning with the HTTPError response lifecycle; it does not establish the allocation causes in earlier warning packets.
+## Integration status, 2026-10-07
 
-Current result: **1504 tests passed with zero failures, errors, warnings or skips**, independently reviewed after native exit 0. All 881 public source bindings, both 294-file captures and both 881-entry mode checks matched; all eight helpers were removed with no unresolved resources. This includes 55 regressions for the two newly published private SQL completion components and the 52 focused preparation cases. See the [current public regression summary](../evidence/private-pump-regression-2026-10-06.json). The [earlier 1449-case result](../evidence/public-regression-2026-10-06.json) retains its original snapshot. [CI at `6c86b10`](https://github.com/M7MMAD-OMAR/sbarbase/actions/runs/37402639965) passed for the preceding baseline; it excludes the four additions. Component and preparation tests do not establish installed private client compatibility, PostgreSQL startup, Cron/Vault continuity or full restoration.
+Production readiness remains unproven. Source integration is still changing, so there is no final merged-source release acceptance. Historical green tests and CI runs apply only to their recorded source and environment. The [integration programme](../engineering/plans/2026-10-06-integration-programme.md) records the remaining full completion contract.
+
+Current CI repair checkpoint: 914 Bun tests and 2074 Python tests passed, with no failures or skips. Control and UI type checks and UI build passed. Python used an unreachable Docker endpoint. These are unit and build results; native services and current GitHub CI remain unverified. The [current checkpoint](../engineering/reviews/2026-10-07-ci-integration.md) preserves the earlier failed observations and the unresolved cause of one intermittent witness test error.
+
+The completed focused Namespace regression ran 61 cases successfully. The subsequent full-standard attempt ran 1623 Python tests with 9 failures and 21 errors and exited 1. Its other six stages passed, including 430 Bun tests and all 41 required targeted regressions. The whole attempt remains failed. Ten fixture and runner source repairs were then applied; those edits require fresh verification on the final assembled source.
+
+Reviewed deltas for database workflow, Storage settlement, administrative transfer, lifecycle and recovery dependencies have entered the integration tree. Component checks at intermediate snapshots do not accept the later tree. The final standard suite, current independent reviews, installed original-service behavior, complete fresh-target recovery, supported-host installation, browser/provider checks and pilot operation remain required. All 105 capability acceptance and production rows remain unproven.
+
+The target stays portable Linux with Docker and original Supabase services. The current source admission route requires local rootful Linux Docker Engine 25 or newer, Compose 2.20 or newer, x86_64 and the required runtime capabilities. Desktop, ARM, rootless and an advertised SELinux security option are refused by the current profile; [host admission](../engineering/HOST-PREFLIGHT.md) records the contract. A local computer supplies an isolated test host without a machine-specific product dependency. A separate Linux VM installation and reboot route on that computer is planned; its construction authority and native acceptance are not established. Windows Docker Desktop support remains a gap, and a Windows-hosted full Linux VM is only a prospective untested route. An external server is not required to continue local work.
+
+Published historical CI: [run 37411721539](https://github.com/M7MMAD-OMAR/sbarbase/actions/runs/37411721539) succeeded for commit `2c4ec82007a47436ba3e338ac03d1ad5e288df45`. Checks, Python compatibility and Docker installation passed; the empty-host acceptance job was skipped. It does not accept the current uncommitted source or a fresh host.
+
+The [curated historical integration summary](../evidence/historical-integration-observations-2026-10-07.json) records the exact counts, public source identities and reviewed metadata lineage. It preserves the failed original native result and distinguishes physical resource absence from refused positive owner and guard closure. It is an observation record, not current acceptance.
+
+## Historical evidence before the current integration
+
+The following results retain their original dates, source identities and limits. They do not certify the current tree.
+
+Historical repair checkpoint, 2026-10-06: the reviewed repairs close SQLite connections in `recovery_bundle` after their original transactions and close `HTTPError` responses in `notify`. They also capture and assert complete expected stderr in 27 fixture methods and register tempfile close/unlink ownership before a fallible write. A newer creator fixture associates its tempfile warning with the HTTPError response lifecycle; it does not establish the allocation causes in earlier warning packets.
+
+Historical regression result: **1504 tests passed with zero failures, errors, warnings or skips**, independently reviewed after native exit 0. All 881 public source bindings, both 294-file captures and both 881-entry mode checks matched; all eight helpers were removed with no unresolved resources. This includes 55 regressions for the two newly published private SQL completion components and the 52 focused preparation cases. See the [historical public regression summary](../evidence/private-pump-regression-2026-10-06.json). The [earlier 1449-case result](../evidence/public-regression-2026-10-06.json) retains its original snapshot. [CI at `6c86b10`](https://github.com/M7MMAD-OMAR/sbarbase/actions/runs/37402639965) passed for the preceding baseline; it excludes the four additions. Component and preparation tests do not establish installed private client compatibility, PostgreSQL startup, Cron/Vault continuity or full restoration.
 
 [CI 37388098529](https://github.com/M7MMAD-OMAR/sbarbase/actions/runs/37388098529) passed all four jobs for code commit `066f5ec`, including Python 3.12, Docker integration and fresh-host systemd acceptance. [Website 37388119460](https://github.com/M7MMAD-OMAR/sbarbase/actions/runs/37388119460) passed build and tests only. See the [CI acceptance summary](../evidence/ci-acceptance-2026-10-06.json); its runtime evidence remains bound to that exact code commit.
 
@@ -15,7 +37,7 @@ The experimental `native-dedicated` path remains incomplete: the PostgreSQL 17.1
 [Status](status.md) contains the current evidence links and scope. The matrix below retains its original dates and limits; this edit does not rerun its checks.
 
 
-## Readiness matrix
+## Historical readiness matrix
 
 | Requirement | Status | Evidence or gap |
 |---|---|---|
@@ -69,7 +91,9 @@ The experimental `native-dedicated` path remains incomplete: the PostgreSQL 17.1
 5. Keep the evidence files with the deployment record. A rehearsal that fails
    is evidence too: the refusal is recorded, not hidden.
 
-## Honest gaps that remain after a successful server rehearsal
+## Historical legacy rehearsal gaps, documentation checkpoint 2026-10-06
+
+The integrated source now contains durable management grant and rate-limit primitives, administrative transfer/history modules and lifecycle authority and recovery modules. Their presence supersedes the unqualified source-absence wording below. Installed native MFA and rate enforcement, complete credential transfer, interrupted deletion and reclamation, neighbor safety and recovery still need current integrated evidence. The historical bullets retain what their earlier legacy snapshot lacked; they do not describe the present source or grant production acceptance.
 
 - Sustained mixed load, connection saturation and 10/100-project capacity are
   still unmeasured; a short rehearsal proves availability, not capacity.
@@ -95,7 +119,7 @@ The experimental `native-dedicated` path remains incomplete: the PostgreSQL 17.1
 
 ## Preserved October verification history
 
-These are preserved statements from earlier source windows, with their original verdicts and links. They do not describe the current V11 outcome. Later HTTPError lifecycle evidence does not retroactively establish their allocation causes.
+These are preserved statements from earlier source windows, with their original verdicts and links. They do not describe the subsequent historical V11 outcome. Later HTTPError lifecycle evidence does not retroactively establish their allocation causes.
 
 Current cutoff, 2026-10-05: six independently reviewed source fixes are integrated. Two SQLite paths now close their connections after the original transaction exits; 27 expected-negative fixture methods capture and assert complete stderr in three files; one tempfile fixture owns close and registers unlink before its fallible write. These are source repairs, with fresh full native verification UNRUN. Earlier 875-file source, identity, mode and full results are historical bindings and cannot approve this changed tree.
 

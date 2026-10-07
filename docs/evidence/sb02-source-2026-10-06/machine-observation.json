@@ -1,0 +1,139 @@
+{
+  "scope": "machine-observation only; not clean-host acceptance",
+  "at": "2026-10-06T06:49:10.106737+00:00",
+  "queries": [
+    {
+      "argv": [
+        "docker",
+        "context",
+        "show"
+      ],
+      "exit": 0
+    },
+    {
+      "argv": [
+        "docker",
+        "context",
+        "inspect",
+        "default",
+        "--format",
+        "{{json .Endpoints.docker}}"
+      ],
+      "exit": 0
+    },
+    {
+      "argv": [
+        "docker",
+        "--host",
+        "unix:///var/run/docker.sock",
+        "info",
+        "--format",
+        "{{json .}}"
+      ],
+      "exit": 0
+    },
+    {
+      "argv": [
+        "readlink",
+        "-e",
+        "/var/lib/docker"
+      ],
+      "exit": 0
+    },
+    {
+      "argv": [
+        "stat",
+        "-c",
+        "%d",
+        "/var/lib/docker"
+      ],
+      "exit": 0
+    },
+    {
+      "argv": [
+        "findmnt",
+        "-n",
+        "-T",
+        "/var/lib/docker",
+        "-o",
+        "FSTYPE,MAJ:MIN"
+      ],
+      "exit": 0
+    },
+    {
+      "argv": [
+        "docker",
+        "compose",
+        "version",
+        "--short"
+      ],
+      "exit": 0
+    },
+    {
+      "argv": [
+        "docker",
+        "--host",
+        "unix:///var/run/docker.sock",
+        "info",
+        "--format",
+        "{{json .}}"
+      ],
+      "exit": 0,
+      "reason": "Resolve actual IO capability field names for source contract"
+    }
+  ],
+  "production": "unproven",
+  "selected_context": "default",
+  "endpoint": "unix:///var/run/docker.sock",
+  "daemon": {
+    "OSType": "linux",
+    "Architecture": "x86_64",
+    "OperatingSystem": "Fedora Linux 44 (Forty Four)",
+    "Name": "muhmad",
+    "ID": "cad8a98e-5c5d-49f5-bd16-df9af52d2026",
+    "DockerRootDir": "/var/lib/docker",
+    "CgroupVersion": "2",
+    "CgroupDriver": "systemd",
+    "Driver": "overlayfs",
+    "DriverStatus": [
+      [
+        "driver-type",
+        "io.containerd.snapshotter.v1"
+      ]
+    ],
+    "SecurityOptions": [
+      "name=seccomp,profile=builtin",
+      "name=cgroupns"
+    ],
+    "KernelVersion": "7.2.8-200.fc44.x86_64",
+    "ServerVersion": "29.8.2",
+    "MemoryLimit": true,
+    "SwapLimit": true,
+    "CpuCfsPeriod": true,
+    "CpuCfsQuota": true,
+    "CPUShares": true,
+    "PidsLimit": true,
+    "BlkioWeight": null,
+    "BlkioReadBps": null,
+    "BlkioWriteBps": null,
+    "BlkioReadIOps": null,
+    "BlkioWriteIOps": null
+  },
+  "data_root_queries": {
+    "readlink -e /var/lib/docker": "/var/lib/docker",
+    "stat -c %d /var/lib/docker": "39",
+    "findmnt -n -T /var/lib/docker -o FSTYPE,MAJ:MIN": "btrfs   0:37"
+  },
+  "compose_version": "5.3.1",
+  "resource_fields": {
+    "MemoryLimit": true,
+    "SwapLimit": true,
+    "CpuCfsPeriod": true,
+    "CpuCfsQuota": true,
+    "CPUShares": true,
+    "CPUSet": true,
+    "PidsLimit": true,
+    "CgroupDriver": "systemd",
+    "CgroupVersion": "2"
+  }
+}

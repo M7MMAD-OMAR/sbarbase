@@ -1,3 +1,5 @@
+import {bindManagementPublication,managementPublication,requireOrganizationPublication} from './management-publication';
+import {refreshCurrentManagement} from './management-context';
 import {Catalog,type MembershipRole} from './catalog';
 import {authenticate,reply,type ManagementIdentity} from './auth';
 
@@ -75,12 +77,19 @@ export function invitationHandler(catalog:Catalog,identify:ManagementIdentity,ac
   if(actor instanceof Response)return actor;
   try {
    if(id){catalog.cancelInvitation(actor,organization!,id);return reply(200,{cancelled:true});}
-   if(request.method==='GET')return reply(200,{data:catalog.listInvitations(actor,organization!)});
+   if(request.method==='GET')return managementPublication(catalog,()=>reply(200,{data:catalog.listInvitations(actor,organization!)}));
    const input=await json(request);
+   await refreshCurrentManagement();
    if(!input||Object.keys(input).some(key=>!['email','role'].includes(key))||typeof input.email!=='string'||typeof input.role!=='string')
     return reply(400,{message:'Invalid request'});
    const created=catalog.createInvitation(actor,organization!,input.email,input.role as MembershipRole);
-   return reply(201,{data:created});
+   const response=reply(201,{data:created});
+   return bindManagementPublication(response,catalog,()=>{
+    const ownersOnly=input.role==='owner'||catalog.installationBootstrap()?.organization===organization;
+    requireOrganizationPublication(catalog,actor,organization!,ownersOnly?['owner']:['owner','admin']);
+    if(!catalog.listInvitations(actor,organization!).some(item=>item.id===created.id))throw new Error('Forbidden');
+    return response;
+   });
   } catch(error) {
    const message=error instanceof Error?error.message:'';
    if(message==='Forbidden')return reply(403,{message:'Forbidden'});

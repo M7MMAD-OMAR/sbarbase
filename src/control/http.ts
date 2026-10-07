@@ -1,9 +1,13 @@
+import {bindManagementPublication,managementPublication,requireOperatorPublication,requireOrganizationPublication} from './management-publication';
+import {refreshCurrentManagement} from './management-context';
+import {refreshLifecycleRequest} from './lifecycle-authority';
 import {Catalog,type MembershipRole,type Ownership} from './catalog';
 import type {KeyStore} from './keys';
 import {authenticate,reply,type ManagementIdentity} from './auth';
 import {readJsonCached} from '../http/cached-json';
 import {join} from 'node:path';
 import {UPDATES_DIRECTORY,UpdateRefusal,requestUpdate,saveSettings,serverZone,updatesView,validateSettings,type UpdateRequestKind} from './updates';
+import {createServerHealthReader} from './server-health';
 
 /** Runtime state directory, the same tree the runtime writes the catalog in. */
 const MAIL_STATE_DIRECTORY='.lab/upstream';
@@ -67,6 +71,7 @@ async function body(request:Request,allowed:string[]=['name'],optional:string[]=
   const expired=new Promise<never>((_,reject)=>{timer=setTimeout(()=>{
     reject(new InputError());void reader.cancel().catch(()=>{});
   },5000);});
+  let result:Record<string,unknown>;
   try {
     while(true) {
       const chunk=await Promise.race([reader.read(),expired]);
@@ -80,9 +85,11 @@ async function body(request:Request,allowed:string[]=['name'],optional:string[]=
       allowed.some(k=>!(k in parsed)))
       throw new InputError();
     if(allowed.includes('name')&&typeof parsed.name!=='string')throw new InputError();
-    return parsed;
+    result=parsed;
   } catch {throw new InputError();}
   finally {clearTimeout(timer);reader.releaseLock();}
+  await refreshCurrentManagement();
+  return result;
 }
 
 /** The refusals these routes answer with 409 and their fixed message: the request conflicts
@@ -91,8 +98,9 @@ const CONFLICTS=new Set(['Name already used','Environment capacity reached','Org
   'Project has environments','Installation organization cannot be deleted','Provisioning is active',
   'Environment services are still on','Runtime was deleted here','Organization name belongs to another organization',
   'Project belongs to another organization','Environment exists with another project or runtime',
-  'Runtime belongs to another environment']);
-const INVALID=new Set(['Invalid name','Invalid ownership','Invalid runtime']);
+  'Runtime belongs to another environment','Lifecycle operation is active','Exact ownership inventory unavailable',
+  'Retention has expired','Retention has not expired','Complete recovery proof unavailable']);
+const INVALID=new Set(['Invalid name','Invalid ownership','Invalid runtime','Invalid lifecycle operation']);
 function refusal(error:unknown):Response {
   const message=error instanceof Error?error.message:'';
   if(error instanceof UpdateRefusal)return reply(error.status,{message});
@@ -109,8 +117,46 @@ function refusal(error:unknown):Response {
  */
 export function managementHandler(catalog:Catalog,identify:ManagementIdentity,mailDirectory=MAIL_STATE_DIRECTORY,keys?:KeyStore,
   updatesDirectory=UPDATES_DIRECTORY,checkout='.') {
+  const serverHealth=createServerHealthReader();
   return async(request:Request):Promise<Response>=>{
     const path=new URL(request.url).pathname;
+    if(path==='/management/v1/server') {
+      if(request.method!=='GET')return reply(405,{message:'Method not allowed'});
+      const actor=await authenticate(identify,request);
+      if(actor instanceof Response)return actor;
+      if(!catalog.installationOperator(actor))return reply(403,{message:'Forbidden'});
+      const response=reply(200,{data:serverHealth()});
+      response.headers.set('Cache-Control','no-store');
+      return bindManagementPublication(response,catalog,()=>{requireOperatorPublication(catalog,actor);return response;});
+    }
+    const lifecycle=path.match(/^\/management\/v1\/environments\/([a-f0-9-]{36})\/(lifecycle|restore|purge|resume)$/);
+    if(lifecycle){
+      const actor=await authenticate(identify,request);
+      if(actor instanceof Response)return actor;
+      try {
+        if(lifecycle[2]==='lifecycle') {
+          if(request.method!=='GET')return reply(405,{message:'Method not allowed'});
+          return managementPublication(catalog,()=>reply(200,{data:catalog.lifecycle(actor,lifecycle[1]!)}));
+        }
+        if(request.method!=='POST')return reply(405,{message:'Method not allowed'});
+        const input=await body(request,['operation']);
+        if(typeof input.operation!=='string')throw new InputError();
+        if(!keys)return reply(500,{message:'Key revocation unavailable'});
+        await refreshLifecycleRequest(catalog);
+        const data=lifecycle[2]==='resume'?catalog.resumeLifecycleOperation(actor,lifecycle[1]!,input.operation):lifecycle[2]==='restore'?catalog.restoreEnvironment(actor,lifecycle[1]!,input.operation):
+          catalog.purgeEnvironment(actor,lifecycle[1]!,input.operation);
+        // Catalog authority and epoch commit first. Duplicate requests preserve keys from the restored epoch.
+        if(lifecycle[2]==='restore')keys.revokeBeforeEpoch(data.runtime,data.epoch);
+        const response=reply(202,{data});
+        return bindManagementPublication(response,catalog,()=>{catalog.lifecycle(actor,lifecycle[1]!);return response;});
+      }catch(error){return refusal(error);}
+    }
+    const retained=path.match(/^\/management\/v1\/projects\/([a-f0-9-]{36})\/retained-environments$/);
+    if(retained){
+      if(request.method!=='GET')return reply(405,{message:'Method not allowed'});
+      const actor=await authenticate(identify,request);if(actor instanceof Response)return actor;
+      try{return managementPublication(catalog,()=>reply(200,{data:catalog.retainedEnvironments(actor,retained[1]!)}));}catch(error){return refusal(error);}
+    }
     const item=path.match(/^\/management\/v1\/(organizations|projects|environments)\/([a-f0-9-]{36})$/);
     if(item) {
       if(!['PATCH','DELETE'].includes(request.method))return reply(405,{message:'Method not allowed'});
@@ -129,10 +175,14 @@ export function managementHandler(catalog:Catalog,identify:ManagementIdentity,ma
         if(kind==='organizations'){catalog.deleteOrganization(actor,id);return reply(200,{deleted:true});}
         if(kind==='projects'){catalog.deleteProject(actor,id);return reply(200,{deleted:true});}
         if(!keys)return reply(500,{message:'Key revocation unavailable'});
+        await refreshLifecycleRequest(catalog);
         const {runtime}=catalog.deleteEnvironment(actor,id);
         // The catalog commits first, so a refusal changes nothing. From then on the gateway
         // answers 401 for the runtime whatever happens to the keys; revoking them keeps it so.
-        try {return reply(200,{deleted:true,revoked:runtime?keys.revokeAll(runtime):0});}
+        try {
+          const revoked=runtime?keys.revokeAll(runtime):0,response=reply(200,{deleted:true,revoked,retentionUntil:catalog.lifecycle(actor,id)?.retain_until??null});
+          return bindManagementPublication(response,catalog,()=>reply(200,{deleted:true,revoked,retentionUntil:catalog.lifecycle(actor,id)?.retain_until??null}));
+        }
         catch {return reply(500,{message:'Environment deleted; revoking its keys failed'});}
       } catch(error) {return refusal(error);}
     }
@@ -145,13 +195,16 @@ export function managementHandler(catalog:Catalog,identify:ManagementIdentity,ma
       try {
         const input=await body(request,['organization']);
         if(typeof input.organization!=='string'||!/^[a-f0-9-]{36}$/.test(input.organization))return reply(400,{message:'Invalid request'});
-        const moved=catalog.transferProject(actor,move[1]!,input.organization);
-        // People of the source organization may hold the keys, so none of them survives the move.
-        // The move is committed first, so a name clash in the destination costs nobody a key.
         let revoked=0;
-        try {for(const runtime of moved.runtimes)revoked+=keys.revokeAll(runtime);}
-        catch {return reply(500,{message:'Project moved; revoking its keys failed'});}
-        return reply(200,{organization:input.organization,cancelled:moved.cancelled,revoked});
+        // Commit ownership only after every source key has been revoked.
+        const moved=catalog.transferProject(actor,move[1]!,input.organization,
+          runtime=>{revoked+=keys.revokeAll(runtime);});
+        const response=reply(200,{organization:input.organization,cancelled:moved.cancelled,revoked});
+        return bindManagementPublication(response,catalog,()=>{
+          requireOrganizationPublication(catalog,actor,input.organization as string,['owner']);
+          if(!catalog.listProjects(actor,input.organization as string).some(project=>project.id===move[1]))throw new Error('Forbidden');
+          return response;
+        });
       } catch(error) {return refusal(error);}
     }
     if(path==='/management/v1/relink') {
@@ -160,7 +213,15 @@ export function managementHandler(catalog:Catalog,identify:ManagementIdentity,ma
       if(actor instanceof Response)return actor;
       try {
         const input=await body(request,['runtime','ownership']);
-        return reply(200,{data:catalog.relinkEnvironment(actor,input.ownership as Ownership,input.runtime as string)});
+        const data=catalog.relinkEnvironment(actor,input.ownership as Ownership,input.runtime as string),response=reply(200,{data});
+        const epoch=catalog.runtimeEpoch(data.runtime);
+        return bindManagementPublication(response,catalog,()=>{
+          requireOperatorPublication(catalog,actor);
+          const job=catalog.getProvision(actor,data.environment);
+          if(job.runtime!==data.runtime||catalog.runtimeEpoch(job.runtime)!==epoch||job.organization!==data.organization||
+            !catalog.listEnvironments(actor,data.project).some(environment=>environment.id===data.environment))throw new Error('Forbidden');
+          return response;
+        });
       } catch(error) {return refusal(error);}
     }
     if(path==='/management/v1/organizations') {
@@ -169,12 +230,14 @@ export function managementHandler(catalog:Catalog,identify:ManagementIdentity,ma
       if(actor instanceof Response)return actor;
       try {
         if(request.method==='GET')
-          return reply(200,{data:catalog.listOrganizations(actor),operator:catalog.installationOperator(actor)});
+          return managementPublication(catalog,()=>reply(200,{data:catalog.listOrganizations(actor),operator:catalog.installationOperator(actor)}));
         // A new client is an installation decision, so only the bootstrap organization's
         // owners and admins make it; the creator becomes its owner.
         if(!catalog.installationOperator(actor))return reply(403,{message:'Forbidden'});
         const input=await body(request);
-        return reply(201,{id:catalog.createOrganization(actor,input.name)});
+        if(!catalog.installationOperator(actor))return reply(403,{message:'Forbidden'});
+        const id=catalog.createOrganization(actor,input.name),response=reply(201,{id});
+        return bindManagementPublication(response,catalog,()=>{requireOperatorPublication(catalog,actor);requireOrganizationPublication(catalog,actor,id,['owner']);return response;});
       } catch(error) {
         if(error instanceof InputError||error instanceof Error&&error.message==='Invalid name')
           return reply(400,{message:'Invalid request'});
@@ -191,11 +254,13 @@ export function managementHandler(catalog:Catalog,identify:ManagementIdentity,ma
         if(request.method==='PUT') {
           let input:unknown;
           try{input=await request.json();}catch{return reply(400,{message:'Invalid request'});}
+          await refreshCurrentManagement();
           const value=input&&typeof input==='object'&&!Array.isArray(input)&&Object.keys(input).length===1?(input as {role?:unknown}).role:undefined;
           if(typeof value!=='string'||!['owner','admin','viewer'].includes(value))return reply(400,{message:'Invalid request'});
           role=value as MembershipRole;
         }
-        return reply(200,{data:catalog.changeMember(actor,member[1]!,decodeURIComponent(member[2]!),role)});
+        const data=catalog.changeMember(actor,member[1]!,decodeURIComponent(member[2]!),role);
+        return bindManagementPublication(reply(200,{data}),catalog,()=>reply(200,{data:catalog.listMembers(actor,member[1]!)}));
       } catch(error) {
         const message=error instanceof Error?error.message:'';
         if(message==='Forbidden')return reply(403,{message:'Forbidden'});
@@ -209,7 +274,7 @@ export function managementHandler(catalog:Catalog,identify:ManagementIdentity,ma
       if(request.method!=='GET')return reply(405,{message:'Method not allowed'});
       const actor=await authenticate(identify,request);
       if(actor instanceof Response)return actor;
-      try {return reply(200,{data:catalog.listMembers(actor,members[1]!)});}
+      try {return managementPublication(catalog,()=>reply(200,{data:catalog.listMembers(actor,members[1]!)}));}
       catch(error) {
         if(error instanceof Error&&error.message==='Forbidden')return reply(403,{message:'Forbidden'});
         return reply(500,{message:'Management operation failed'});
@@ -220,7 +285,7 @@ export function managementHandler(catalog:Catalog,identify:ManagementIdentity,ma
       if(request.method!=='GET')return reply(405,{message:'Method not allowed'});
       const actor=await authenticate(identify,request);
       if(actor instanceof Response)return actor;
-      try {return reply(200,{data:catalog.auditEvents(actor,audit[1]!)});}
+      try {return managementPublication(catalog,()=>reply(200,{data:catalog.auditEvents(actor,audit[1]!)}));}
       catch(error) {
         if(error instanceof Error&&error.message==='Forbidden')return reply(403,{message:'Forbidden'});
         return reply(500,{message:'Management operation failed'});
@@ -250,12 +315,14 @@ export function managementHandler(catalog:Catalog,identify:ManagementIdentity,ma
       if(actor instanceof Response)return actor;
       try {
         if(!catalog.installationOperator(actor))throw new Error('Forbidden');
-        if(action==='')return reply(200,{data:updatesView(updatesDirectory,checkout)});
+        if(action==='')return managementPublication(catalog,()=>{requireOperatorPublication(catalog,actor);return reply(200,{data:updatesView(updatesDirectory,checkout)});});
         if(action==='/settings') {
           const settings=validateSettings(await body(request,['check','automatic','window']));
           if(typeof settings==='string')throw new UpdateRefusal(settings,400);
+          if(!catalog.installationOperator(actor))throw new Error('Forbidden');
           // The window is read in the supervisor's time zone, returned beside the settings.
-          return reply(200,{data:saveSettings(settings,updatesDirectory),timezone:serverZone(updatesDirectory)});
+          const response=reply(200,{data:saveSettings(settings,updatesDirectory),timezone:serverZone(updatesDirectory)});
+          return bindManagementPublication(response,catalog,()=>{requireOperatorPublication(catalog,actor);return response;});
         }
         let version:string|undefined,acknowledged=false;
         if(action==='/apply') {
@@ -266,6 +333,7 @@ export function managementHandler(catalog:Catalog,identify:ManagementIdentity,ma
           if(input.acknowledged!==undefined&&typeof input.acknowledged!=='boolean')throw new InputError();
           version=input.version;acknowledged=input.acknowledged===true;
         } else if(request.body)throw new InputError();
+        if(!catalog.installationOperator(actor))throw new Error('Forbidden');
         requestUpdate(action.slice(1) as UpdateRequestKind,version,updatesDirectory,acknowledged);
         return reply(202,{state:'requested'});
       } catch(error) {return refusal(error);}
@@ -279,7 +347,10 @@ export function managementHandler(catalog:Catalog,identify:ManagementIdentity,ma
         // organizations, so one client never reads another client's ids or failure reasons.
         if(!catalog.listOrganizations(actor).some(membership=>NOTIFICATION_ROLES.includes(membership.role)))
           return reply(403,{message:'Forbidden'});
-        return reply(200,{data:notificationState(catalog,actor)});
+        return managementPublication(catalog,()=>{
+          if(!catalog.listOrganizations(actor).some(membership=>NOTIFICATION_ROLES.includes(membership.role)))throw new Error('Forbidden');
+          return reply(200,{data:notificationState(catalog,actor)});
+        });
       } catch {return reply(500,{message:'Management operation failed'});}
     }
     const mail=path.match(/^\/management\/v1\/environments\/([a-f0-9-]{36})\/mail$/);
@@ -294,7 +365,12 @@ export function managementHandler(catalog:Catalog,identify:ManagementIdentity,ma
         // membership check, the same Forbidden answer for an unknown environment, and the
         // same unconfigured state for an environment that has no mail entry.
         const job=catalog.getProvision(actor,id);
-        return reply(200,{data:mailEntry(mailEntries(mailDirectory),job.runtime)});
+        const epoch=catalog.runtimeEpoch(job.runtime);
+        return managementPublication(catalog,()=>{
+          const current=catalog.getProvision(actor,id);
+          if(current.runtime!==job.runtime||catalog.runtimeEpoch(current.runtime)!==epoch)throw new Error('Forbidden');
+          return reply(200,{data:mailEntry(mailEntries(mailDirectory),current.runtime)});
+        });
       } catch(error) {
         if(error instanceof Error&&error.message==='Forbidden')return reply(403,{message:'Forbidden'});
         return reply(500,{message:'Management operation failed'});
@@ -310,15 +386,27 @@ export function managementHandler(catalog:Catalog,identify:ManagementIdentity,ma
     const id=match[2];if(!id) return reply(404,{message:'Unknown route'});
     try {
       if(match[1]==='environments') {
-        const job=catalog.getProvision(actor,id);
-        return reply(200,{environment:job.environment,state:job.state,attempt:job.attempt,...(job.failure?{failure:job.failure}:{})});
+        return managementPublication(catalog,()=>{
+          const current=catalog.getProvision(actor,id);
+          return reply(200,{environment:current.environment,state:current.state,attempt:current.attempt,...(current.failure?{failure:current.failure}:{})});
+        });
       }
-      if(request.method==='GET') return reply(200,{data:match[1]==='organizations'
-        ?catalog.listProjects(actor,id):catalog.listEnvironments(actor,id)});
+      if(request.method==='GET') return managementPublication(catalog,()=>reply(200,{data:match[1]==='organizations'
+        ?catalog.listProjects(actor,id):catalog.listEnvironments(actor,id)}));
       const input=await body(request);
       const created=match[1]==='organizations'?catalog.createProject(actor,id,input.name)
         :catalog.createEnvironment(actor,id,input.name);
-      return reply(match[1]==='organizations'?201:202,{id:created,state:match[1]==='organizations'?'metadata_only':'queued'});
+      const response=reply(match[1]==='organizations'?201:202,{id:created,state:match[1]==='organizations'?'metadata_only':'queued'});
+      return bindManagementPublication(response,catalog,()=>{
+        if(match[1]==='organizations'){
+          requireOrganizationPublication(catalog,actor,id,['owner','admin']);
+          if(!catalog.listProjects(actor,id).some(project=>project.id===created))throw new Error('Forbidden');
+        }else {
+          const job=catalog.getProvision(actor,created);
+          requireOrganizationPublication(catalog,actor,job.organization,['owner','admin']);
+        }
+        return response;
+      });
     } catch(error) {
       if(error instanceof InputError||error instanceof Error&&error.message==='Invalid name')
         return reply(400,{message:'Invalid request'});

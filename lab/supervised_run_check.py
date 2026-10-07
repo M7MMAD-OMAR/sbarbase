@@ -25,6 +25,7 @@ import urllib.request
 from pathlib import Path
 
 import install_server
+import docker_profile
 
 ROOT=Path(__file__).resolve().parent.parent
 UNIT_NAME='sbar-supervised-check.service'
@@ -36,22 +37,25 @@ PUBLISHABLE='sb_publishable_sbarbase_local_management'
 
 
 def docker_environment():
-    """Docker settings a service must inherit on a host whose CLI config differs.
-
-    The shipped unit relies on the daemon socket the host's Docker context resolves
-    to. Where a shell reaches the daemon through DOCKER_HOST (a non-default context
-    such as Docker Desktop), a unit without it cannot reach the daemon at all, so
-    the check forwards it and says so in the evidence.
-    """
+    """Retain validated local deployment declarations across the service boundary."""
+    docker_profile.from_environment()
     forwarded={}
-    for name in ('DOCKER_HOST','DOCKER_CONTEXT'):
+    for name in ('DOCKER_HOST','SBARBASE_DOCKER_PROFILE','SBARBASE_DOCKER_SOCKET','SBARBASE_DOCKER_DATA_ROOT'):
         value=os.environ.get(name)
         if value:forwarded[name]=value
     return forwarded
 
 
+def unit_environment(name,value):
+    """Quote a literal systemd assignment and escape specifier expansion."""
+    if any(ord(character)<32 or ord(character)==127 for character in value):
+        raise docker_profile.ProfileError('deployment_scalar_invalid')
+    escaped=value.replace('\\','\\\\').replace('"','\\"').replace('%','%%')
+    return f'Environment="{name}={escaped}"\n'
+
+
 def unit_text():
-    docker_lines=''.join(f'Environment={name}={value}\n' for name,value in docker_environment().items())
+    docker_lines=''.join(unit_environment(name,value) for name,value in docker_environment().items())
     return f"""[Unit]
 Description=sbarbase supervised-path check (temporary)
 
@@ -61,7 +65,8 @@ WorkingDirectory={ROOT}
 Environment=HOME={Path.home()}
 Environment=PATH={os.environ.get('PATH','/usr/local/bin:/usr/bin:/bin')}
 Environment=SBARBASE_GUARDED=1
-{docker_lines}{install_server.GUARD_LINE}
+{docker_lines}ExecStartPre=/bin/sh {ROOT}/deploy/host-preflight.sh --runtime
+{install_server.GUARD_LINE}
 {install_server.LEFTOVER_LINE}
 ExecStartPre=/usr/bin/python3 {ROOT}/lab/install_server.py check
 ExecStart=/usr/bin/python3 {ROOT}/lab/dev.py
@@ -132,6 +137,7 @@ def main():
     parser=argparse.ArgumentParser(description='supervised-path check')
     parser.add_argument('--timeout',type=int,default=420)
     args=parser.parse_args()
+    docker_profile.require_or_exit()
     checks=[]
     def record(label,ok,detail=''):
         checks.append({'check':label,'ok':bool(ok),'detail':detail})
@@ -184,8 +190,7 @@ def main():
                        'installed at /etc/systemd/system, not HTTPS, not an empty-host install.'),
               'unit':'user unit '+UNIT_NAME+' (temporary, mirrors deploy/sbarbase.service)',
               'docker_forwarded':docker_environment(),
-              'docker_note':('Forwarded because this host reaches the daemon through DOCKER_HOST while its docker context '
-                             'points elsewhere; a server whose context resolves to the native socket needs neither.'),
+              'docker_note':'Declared local profile, socket and data root are forwarded; Docker contexts cannot select this endpoint.',
               'run_at':datetime.datetime.now().astimezone().isoformat(timespec='seconds'),
               'checks':checks,'count':len(checks),'passed':passed}
     EVIDENCE.parent.mkdir(parents=True,exist_ok=True)

@@ -1,0 +1,7 @@
+{
+  "chunk_id": "d44d69",
+  "wall_time_seconds": 0.000009467,
+  "exit_code": 0,
+  "original_token_count": 86,
+  "output": "{\n  \"run\": \"/home/sbarah/.codex/sbarbase-settlement/20261006/native-source-v3/run\",\n  \"project\": \"/home/sbarah/.codex/worktrees/09c0/sbarbase\",\n  \"revision_at_dispatch\": 14,\n  \"plan_hash\": \"f9831194ca3341e5098eea524704988ac088e208359bf49887a00c24414a9dc4\",\n  \"source_hash\": \"1aac0f7909f02fc21a3ddebdfd619a1fc8d0c760347d79e2991e61299137c772\"\n}\n"
+}

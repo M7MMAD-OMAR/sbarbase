@@ -1,0 +1,59 @@
+#0 building with "default" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 2.64kB done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/oven/bun:1.3.14@sha256:e10577f0db68676a7024391c6e5cb4b879ebd17188ab750cf10024a6d700e5c4
+#2 DONE 1.3s
+
+#3 [internal] load metadata for docker.io/library/ubuntu:26.04@sha256:3595d7fc4286a33fad0fd853a4063e654287a9c3787437d7937c94ca3f7a804e
+#3 DONE 1.4s
+
+#4 [stage-1 3/8] ADD --checksum=sha256:f7025ab9b24cd73215510931037b02d6960d89584d0d00afba81851abdbe6ef1 https://snapshot.ubuntu.com/ubuntu/20261002T000000Z/pool/main/c/ca-certificates/ca-certificates_20260223_all.deb /tmp/ca-certificates.deb
+#4 DONE 0.0s
+
+#5 [stage-1 1/8] FROM docker.io/library/ubuntu:26.04@sha256:3595d7fc4286a33fad0fd853a4063e654287a9c3787437d7937c94ca3f7a804e
+#5 resolve docker.io/library/ubuntu:26.04@sha256:3595d7fc4286a33fad0fd853a4063e654287a9c3787437d7937c94ca3f7a804e 0.0s done
+#5 DONE 0.0s
+
+#6 [bun 1/1] FROM docker.io/oven/bun:1.3.14@sha256:e10577f0db68676a7024391c6e5cb4b879ebd17188ab750cf10024a6d700e5c4
+#6 resolve docker.io/oven/bun:1.3.14@sha256:e10577f0db68676a7024391c6e5cb4b879ebd17188ab750cf10024a6d700e5c4 0.0s done
+#6 DONE 0.0s
+
+#7 [internal] load build context
+#7 transferring context: 714.05kB 0.1s done
+#7 DONE 0.1s
+
+#8 [stage-1 2/8] COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
+#8 CACHED
+
+#9 [stage-1 3/8] ADD --checksum=sha256:f7025ab9b24cd73215510931037b02d6960d89584d0d00afba81851abdbe6ef1 https://snapshot.ubuntu.com/ubuntu/20261002T000000Z/pool/main/c/ca-certificates/ca-certificates_20260223_all.deb /tmp/ca-certificates.deb
+#9 CACHED
+
+#10 [stage-1 4/8] RUN dpkg-deb --extract /tmp/ca-certificates.deb /tmp/ca-bootstrap  && mkdir -p /etc/ssl/certs  && cat /tmp/ca-bootstrap/usr/share/ca-certificates/mozilla/*.crt > /etc/ssl/certs/ca-certificates.crt  && printf 'APT::Snapshot "20261002T000000Z";\nAcquire::https::CaInfo "/etc/ssl/certs/ca-certificates.crt";\n' > /etc/apt/apt.conf.d/50snapshot  && apt-get update -q -o APT::Update::Error-Mode=any  && DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends       python3 python3-cryptography git openssh-client systemd procps       ca-certificates util-linux tzdata  && rm -rf /var/lib/apt/lists/*  && rm -rf /tmp/ca-certificates.deb /tmp/ca-bootstrap  && mkdir -p /usr/local/share/sbarbase-source-verification  && printf 'public-source-verification-v1\n' > /usr/local/share/sbarbase-source-verification/public-tree  && chmod 0444 /usr/local/share/sbarbase-source-verification/public-tree  && useradd --create-home --uid 10001 sbarbase  && mkdir -p /opt/sbarbase /evidence  && chown sbarbase:sbarbase /opt/sbarbase /evidence
+#10 CACHED
+
+#11 [stage-1 5/8] WORKDIR /opt/sbarbase
+#11 CACHED
+
+#12 [stage-1 6/8] COPY --chown=sbarbase:sbarbase package.json bun.lock ./
+#12 CACHED
+
+#13 [stage-1 7/8] RUN bun install --frozen-lockfile
+#13 CACHED
+
+#14 [stage-1 8/8] COPY --chown=sbarbase:sbarbase . .
+#14 DONE 0.5s
+
+#15 exporting to image
+#15 exporting layers
+#15 exporting layers 0.7s done
+#15 exporting manifest sha256:4e438afa63f60406140c0563d44e2bb0f8d9d13c7e26cc19a06bec903a41fc10 done
+#15 exporting config sha256:329c95808694453b8be02f253d5d44d05c1ed8b6c7ebdc26278b5c9ea25a38f2 done
+#15 exporting attestation manifest sha256:f0b1e9a89c3a9f81a1448d8b5ba0e1d9940c90beb8c85a1f57aff960aa723b93 done
+#15 exporting manifest list sha256:64c92ccd1b951890e6519df8e148f59a9962ebd2af7350a958b1f79e829fdda9 done
+#15 naming to docker.io/library/sbarbase-merged-check:7e03e467cb4ac855521e4a0bb121e107 done
+#15 unpacking to docker.io/library/sbarbase-merged-check:7e03e467cb4ac855521e4a0bb121e107
+#15 unpacking to docker.io/library/sbarbase-merged-check:7e03e467cb4ac855521e4a0bb121e107 0.3s done
+#15 DONE 1.1s

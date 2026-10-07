@@ -1,0 +1,187 @@
+{
+  "schema": 1,
+  "failed": 0,
+  "observations": [
+    {
+      "reference": "3c5a4ab656c924e5ed39c5a2f3f005cc136ce211d329d2be8826f62583dedfe7",
+      "absence_verified": true,
+      "argv": [
+        "docker",
+        "inspect",
+        "3c5a4ab656c924e5ed39c5a2f3f005cc136ce211d329d2be8826f62583dedfe7"
+      ],
+      "returncode": 1,
+      "stdout": "[]\n",
+      "stderr": "error: no such object: 3c5a4ab656c924e5ed39c5a2f3f005cc136ce211d329d2be8826f62583dedfe7\n"
+    },
+    {
+      "reference": "5aa5981ad909a8f6fd2df2d267cdca84b305e30fbebe9979cbd7e7bd28e8edd4",
+      "absence_verified": true,
+      "argv": [
+        "docker",
+        "inspect",
+        "5aa5981ad909a8f6fd2df2d267cdca84b305e30fbebe9979cbd7e7bd28e8edd4"
+      ],
+      "returncode": 1,
+      "stdout": "[]\n",
+      "stderr": "error: no such object: 5aa5981ad909a8f6fd2df2d267cdca84b305e30fbebe9979cbd7e7bd28e8edd4\n"
+    },
+    {
+      "reference": "4280c288c6754e74f3b633ffb56654ae5c641514f1af640427a7884e1f17bfbb",
+      "absence_verified": true,
+      "argv": [
+        "docker",
+        "inspect",
+        "4280c288c6754e74f3b633ffb56654ae5c641514f1af640427a7884e1f17bfbb"
+      ],
+      "returncode": 1,
+      "stdout": "[]\n",
+      "stderr": "error: no such object: 4280c288c6754e74f3b633ffb56654ae5c641514f1af640427a7884e1f17bfbb\n"
+    },
+    {
+      "reference": "2bb763642e5c467520d397e3bdd0f20619a3d3fa7d46f4a7df53388a901a94b0",
+      "absence_verified": true,
+      "argv": [
+        "docker",
+        "inspect",
+        "2bb763642e5c467520d397e3bdd0f20619a3d3fa7d46f4a7df53388a901a94b0"
+      ],
+      "returncode": 1,
+      "stdout": "[]\n",
+      "stderr": "error: no such object: 2bb763642e5c467520d397e3bdd0f20619a3d3fa7d46f4a7df53388a901a94b0\n"
+    },
+    {
+      "reference": "d1db7d7824f729cdde7390aac033aafcec9ca098ab60daa09cd293bfce82a2d4",
+      "absence_verified": true,
+      "argv": [
+        "docker",
+        "inspect",
+        "d1db7d7824f729cdde7390aac033aafcec9ca098ab60daa09cd293bfce82a2d4"
+      ],
+      "returncode": 1,
+      "stdout": "[]\n",
+      "stderr": "error: no such object: d1db7d7824f729cdde7390aac033aafcec9ca098ab60daa09cd293bfce82a2d4\n"
+    },
+    {
+      "reference": "dbab7003b0a5e946544f7ce66d47259201b1c6deed1516d237ad2575331c7d4f",
+      "absence_verified": true,
+      "argv": [
+        "docker",
+        "inspect",
+        "dbab7003b0a5e946544f7ce66d47259201b1c6deed1516d237ad2575331c7d4f"
+      ],
+      "returncode": 1,
+      "stdout": "[]\n",
+      "stderr": "error: no such object: dbab7003b0a5e946544f7ce66d47259201b1c6deed1516d237ad2575331c7d4f\n"
+    },
+    {
+      "reference": "0a1e0854d557addbfa1367f5aaf35d66aee179211eb7d3180a4dfdb3013e9e72",
+      "absence_verified": true,
+      "argv": [
+        "docker",
+        "inspect",
+        "0a1e0854d557addbfa1367f5aaf35d66aee179211eb7d3180a4dfdb3013e9e72"
+      ],
+      "returncode": 1,
+      "stdout": "[]\n",
+      "stderr": "error: no such object: 0a1e0854d557addbfa1367f5aaf35d66aee179211eb7d3180a4dfdb3013e9e72\n"
+    },
+    {
+      "reference": "sb-merged-7e03e467cb4ac855521e4a0bb121e107-bun",
+      "absence_verified": true,
+      "argv": [
+        "docker",
+        "inspect",
+        "sb-merged-7e03e467cb4ac855521e4a0bb121e107-bun"
+      ],
+      "returncode": 1,
+      "stdout": "[]\n",
+      "stderr": "error: no such object: sb-merged-7e03e467cb4ac855521e4a0bb121e107-bun\n"
+    },
+    {
+      "reference": "sb-merged-7e03e467cb4ac855521e4a0bb121e107-types",
+      "absence_verified": true,
+      "argv": [
+        "docker",
+        "inspect",
+        "sb-merged-7e03e467cb4ac855521e4a0bb121e107-types"
+      ],
+      "returncode": 1,
+      "stdout": "[]\n",
+      "stderr": "error: no such object: sb-merged-7e03e467cb4ac855521e4a0bb121e107-types\n"
+    },
+    {
+      "reference": "sb-merged-7e03e467cb4ac855521e4a0bb121e107-backup",
+      "absence_verified": true,
+      "argv": [
+        "docker",
+        "inspect",
+        "sb-merged-7e03e467cb4ac855521e4a0bb121e107-backup"
+      ],
+      "returncode": 1,
+      "stdout": "[]\n",
+      "stderr": "error: no such object: sb-merged-7e03e467cb4ac855521e4a0bb121e107-backup\n"
+    },
+    {
+      "reference": "sb-merged-7e03e467cb4ac855521e4a0bb121e107-restore",
+      "absence_verified": true,
+      "argv": [
+        "docker",
+        "inspect",
+        "sb-merged-7e03e467cb4ac855521e4a0bb121e107-restore"
+      ],
+      "returncode": 1,
+      "stdout": "[]\n",
+      "stderr": "error: no such object: sb-merged-7e03e467cb4ac855521e4a0bb121e107-restore\n"
+    },
+    {
+      "reference": "sb-merged-7e03e467cb4ac855521e4a0bb121e107-fixtures-registry",
+      "absence_verified": true,
+      "argv": [
+        "docker",
+        "inspect",
+        "sb-merged-7e03e467cb4ac855521e4a0bb121e107-fixtures-registry"
+      ],
+      "returncode": 1,
+      "stdout": "[]\n",
+      "stderr": "error: no such object: sb-merged-7e03e467cb4ac855521e4a0bb121e107-fixtures-registry\n"
+    },
+    {
+      "reference": "sb-merged-7e03e467cb4ac855521e4a0bb121e107-registry",
+      "absence_verified": true,
+      "argv": [
+        "docker",
+        "inspect",
+        "sb-merged-7e03e467cb4ac855521e4a0bb121e107-registry"
+      ],
+      "returncode": 1,
+      "stdout": "[]\n",
+      "stderr": "error: no such object: sb-merged-7e03e467cb4ac855521e4a0bb121e107-registry\n"
+    },
+    {
+      "reference": "sb-merged-7e03e467cb4ac855521e4a0bb121e107-plan",
+      "absence_verified": true,
+      "argv": [
+        "docker",
+        "inspect",
+        "sb-merged-7e03e467cb4ac855521e4a0bb121e107-plan"
+      ],
+      "returncode": 1,
+      "stdout": "[]\n",
+      "stderr": "error: no such object: sb-merged-7e03e467cb4ac855521e4a0bb121e107-plan\n"
+    },
+    {
+      "image_tag": "sbarbase-merged-check:7e03e467cb4ac855521e4a0bb121e107",
+      "absence_verified": true,
+      "argv": [
+        "docker",
+        "image",
+        "inspect",
+        "sbarbase-merged-check:7e03e467cb4ac855521e4a0bb121e107"
+      ],
+      "returncode": 1,
+      "stdout": "[]\n",
+      "stderr": "Error response from daemon: No such image: sbarbase-merged-check:7e03e467cb4ac855521e4a0bb121e107\n"
+    }
+  ]
+}

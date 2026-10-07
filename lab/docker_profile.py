@@ -14,8 +14,10 @@ CONTROLLER_ENDPOINT = 'unix:///var/run/docker.sock'
 
 
 class ProfileError(RuntimeError):
-    def __init__(self, reason):
-        super().__init__('Docker profile refused: ' + reason)
+    def __init__(self, reason, detail=None):
+        super().__init__(detail or ('Docker profile refused: ' + reason +
+                         '. Action: check the declared local-v1 inputs with deploy/compose.sh check; '
+                         'use the candidate described in docs/engineering/HOST-PREFLIGHT.md.'))
         self.reason = reason
 
 
@@ -66,7 +68,7 @@ def from_environment(env=None):
         endpoint = validate_endpoint(env.get('DOCKER_HOST', ''), env)
         if endpoint != CONTROLLER_ENDPOINT:
             raise ProfileError('controller_endpoint_mismatch')
-    elif configured(env):
+    else:
         endpoint = validate_endpoint(env.get('DOCKER_HOST') or 'unix://' + DEFAULT_SOCKET, env)
         if endpoint != 'unix://' + socket:
             raise ProfileError('host_endpoint_mismatch')
@@ -121,6 +123,30 @@ def controller_mounts(profile, info, expected_id):
             raise ProfileError('controller_mount_access_mismatch')
 
 
+def controller_security(info):
+    """Refuse a controller started with an alternative security configuration."""
+    host = info.get('HostConfig')
+    if not isinstance(host, dict) or type(host.get('Privileged')) is not bool:
+        raise ProfileError('controller_security_inspection_invalid')
+    if (host['Privileged'] or host.get('SecurityOpt') not in (None, [])
+            or host.get('CapAdd') not in (None, []) or host.get('CapDrop') not in (None, [])
+            or host.get('Runtime') != 'runc' or host.get('UsernsMode') not in (None, '')
+            or host.get('NetworkMode') != 'host' or host.get('CgroupnsMode') != 'host'
+            or info.get('AppArmorProfile') not in ('', 'docker-default')):
+        raise ProfileError('controller_security_profile_unvalidated')
+
+
+def controller_checkout(info, checkout):
+    checkout = normalized_path(checkout, 'checkout_path_invalid')
+    mounts = info.get('Mounts', [])
+    found = [item for item in mounts if item.get('Destination') == checkout]
+    if (len(found) != 1 or found[0].get('Type') != 'bind'
+            or normalized_path(found[0].get('Source')) != checkout
+            or found[0].get('RW') is not True
+            or info.get('Config', {}).get('WorkingDir') != checkout):
+        raise ProfileError('controller_checkout_mismatch')
+
+
 def controller_id(cgroup_text=None):
     text = Path('/proc/self/cgroup').read_text() if cgroup_text is None else cgroup_text
     identities = set()
@@ -134,9 +160,15 @@ def controller_id(cgroup_text=None):
     return identities.pop()
 
 
+def docker_command(*args):
+    selected = from_environment()
+    endpoint = CONTROLLER_ENDPOINT if selected.container else 'unix://' + selected.socket
+    return ['docker', '--host', endpoint, *args]
+
+
 def docker_json(*args):
     try:
-        result = subprocess.run(['docker', *args], capture_output=True, text=True, timeout=15)
+        result = subprocess.run(docker_command(*args), capture_output=True, text=True, timeout=15)
     except (OSError, subprocess.SubprocessError) as error:
         raise ProfileError('docker_probe_unavailable') from error
     if result.returncode:
@@ -147,9 +179,56 @@ def docker_json(*args):
         raise ProfileError('docker_probe_invalid') from error
 
 
+def capability_script():
+    """Use the baked admission contract after an update, or the checkout copy."""
+    module = Path(__file__).resolve()
+    if module.parent == Path('/usr/local/lib/sbarbase'):
+        return module.with_name('host-preflight.sh')
+    return module.parent.parent / 'deploy' / 'host-preflight.sh'
+
+
+def validate_capabilities(profile):
+    """The host launcher and runtime use the same read-only capability checks."""
+    environment = dict(os.environ, SBARBASE_DOCKER_PROFILE='local-v1',
+                       SBARBASE_DOCKER_DATA_ROOT=profile.data_root,
+                       SBARBASE_DOCKER_SOCKET=profile.socket,
+                       SBARBASE_CONTAINER='1' if profile.container else '',
+                       DOCKER_HOST=CONTROLLER_ENDPOINT if profile.container else 'unix://' + profile.socket)
+    try:
+        result = subprocess.run(['/bin/sh', str(capability_script()), '--runtime'],
+                                env=environment, capture_output=True, text=True, timeout=45)
+    except (OSError, subprocess.SubprocessError) as error:
+        raise ProfileError('host_capability_probe_unavailable') from error
+    if result.returncode:
+        # The shell emits its own safe diagnostic, never daemon stderr or user secrets.
+        diagnostic = result.stderr.strip()
+        match = re.fullmatch(r'Docker profile refused \[([a-z0-9_]+)\]: [^\n]+', diagnostic)
+        if not match:
+            raise ProfileError('host_capability_probe_invalid')
+        raise ProfileError(match.group(1), diagnostic)
+    if result.stdout.strip() != 'local-v1 preflight passed; supported-profile acceptance unproven; production unproven':
+        raise ProfileError('host_capability_probe_invalid')
+
+
+def require_or_exit():
+    try:
+        return require_supported()
+    except ProfileError as error:
+        raise SystemExit(str(error)) from None
+
+
+def require_supported():
+    """Reject before mutation, then pin subsequent Docker calls to this endpoint."""
+    selected = from_environment()
+    daemon_id = validate(selected)
+    os.environ['DOCKER_HOST'] = CONTROLLER_ENDPOINT if selected.container else 'unix://' + selected.socket
+    return daemon_id
+
+
 def validated_identity(profile=None):
     """Return the daemon identity only after validating the mounted container profile."""
     profile = from_environment() if profile is None else profile
+    validate_capabilities(profile)
     daemon_id = validate_daemon(profile, docker_json('info', '--format', '{{json .}}'))
     if profile.container:
         identity = controller_id()
@@ -157,6 +236,8 @@ def validated_identity(profile=None):
         if not isinstance(records, list) or len(records) != 1:
             raise ProfileError('controller_identity_ambiguous')
         controller_mounts(profile, records[0], identity)
+        controller_security(records[0])
+        controller_checkout(records[0], os.environ.get('SBARBASE_ROOT') or str(Path.cwd()))
     if not Path(profile.data_root).is_dir():
         raise ProfileError('docker_data_root_unavailable')
     return daemon_id

@@ -2,6 +2,7 @@ import {useEffect,useState} from 'react';
 import {Copy,Plus,Save,Trash2} from 'lucide-react';
 import {useData,type Api} from './api';
 import {ErrorMessage,Loading} from './components';
+import {signInErrors,type FieldErrors} from './settings-validation';
 
 type Provider={enabled:boolean;client_id:string;secret_set?:boolean;secret?:string;url:string};
 type Settings={site_url:string;redirect_urls:string[];signup:boolean;anonymous:boolean;providers:Record<string,Provider>};
@@ -23,9 +24,13 @@ export function SignInSection({path,request}:{path:string;request:Api}){
  const current=data.data?.data;
  const [form,setForm]=useState<Settings>(EMPTY),[redirects,setRedirects]=useState(''),[adding,setAdding]=useState('');
  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[copied,setCopied]=useState('');
+ const [validated,setValidated]=useState(false);
+ const fields:FieldErrors=validated?signInErrors(form.site_url,redirects,form.providers):{};
+ const field=(id:string)=>({disabled:busy,'aria-invalid':Boolean(fields[id]),'aria-describedby':fields[id]?id+'-error':undefined});
+ const fieldMessage=(id:string)=>fields[id]?<p id={id+'-error'} className="field-error" role="alert">{fields[id]}</p>:null;
  useEffect(()=>{
   if(!current)return;
-  const saved=current.settings??EMPTY;
+  const saved=current.settings??EMPTY;setValidated(false);
   setForm({...saved,providers:Object.fromEntries(Object.entries(saved.providers).map(([name,entry])=>[name,{...entry,secret:''}]))});
   setRedirects(saved.redirect_urls.join('\n'));
  },[current?.settings]);
@@ -33,6 +38,7 @@ export function SignInSection({path,request}:{path:string;request:Api}){
  const provider=(name:string,change:Partial<Provider>)=>setForm(value=>({...value,providers:{...value.providers,[name]:{...value.providers[name]!,...change}}}));
  function remove(name:string){setForm(value=>{const providers={...value.providers};delete providers[name];return {...value,providers};});}
  async function save(){
+  if(busy)return;const invalid=signInErrors(form.site_url,redirects,form.providers);setValidated(true);const first=Object.keys(invalid)[0];if(first){document.getElementById(first)?.focus();return;}
   setBusy(true);setError('');
   try {
    const providers=Object.fromEntries(Object.entries(form.providers).map(([name,{enabled,client_id,secret,url}])=>
@@ -50,30 +56,34 @@ export function SignInSection({path,request}:{path:string;request:Api}){
   <p><span className={'state '+(current.state==='applied'?'applied':current.state==='failed'?'failed':current.state==='pending'?'running':'')}>{STATE_TEXT[current.state]}</span></p>
   {current.state==='failed'&&current.failure&&<p className="notice">{current.failure}</p>}
   <label htmlFor="site-url">Site URL</label>
-  <input id="site-url" value={form.site_url} onChange={event=>setForm({...form,site_url:event.target.value})} placeholder="https://app.example.com"/>
+  <input id="site-url" type="url" required maxLength={2048} {...field('site-url')} value={form.site_url} onChange={event=>setForm({...form,site_url:event.target.value})} placeholder="https://app.example.com"/>
+  {fieldMessage('site-url')}
   <p className="small muted">Your application's address. Auth sends people here when no other address is allowed.</p>
   <label htmlFor="redirects">Other allowed redirect addresses</label>
-  <textarea id="redirects" value={redirects} onChange={event=>setRedirects(event.target.value)} placeholder={'https://app.example.com/**\nmyapp://callback'}/>
+  <textarea id="redirects" {...field('redirects')} value={redirects} onChange={event=>setRedirects(event.target.value)} placeholder={'https://app.example.com/**\nmyapp://callback'}/>
+  {fieldMessage('redirects')}
   <p className="small muted">One per line. <code>*</code> and <code>**</code> match parts of an address.</p>
-  <label className="check"><input type="checkbox" checked={form.signup} onChange={event=>setForm({...form,signup:event.target.checked})}/>Allow new users to sign up</label>
-  <label className="check"><input type="checkbox" checked={form.anonymous} onChange={event=>setForm({...form,anonymous:event.target.checked})}/>Allow anonymous sign-ins</label>
+  <label className="check"><input type="checkbox" disabled={busy} checked={form.signup} onChange={event=>setForm({...form,signup:event.target.checked})}/>Allow new users to sign up</label>
+  <label className="check"><input type="checkbox" disabled={busy} checked={form.anonymous} onChange={event=>setForm({...form,anonymous:event.target.checked})}/>Allow anonymous sign-ins</label>
   <h3>Sign-in providers</h3>
   <label htmlFor="callback">Callback address to give each provider</label>
   <div className="form-row"><input id="callback" readOnly value={current.callback_url}/><button onClick={()=>void copy(current.callback_url)}><Copy aria-hidden="true"/>Copy</button></div>
   <p className="small muted" role="status">{copied}</p>
   {Object.entries(form.providers).map(([name,entry])=><div className="provider" key={name}>
-   <div className="form-row"><strong>{PROVIDERS[name]?.label??name}</strong><label className="check"><input type="checkbox" checked={entry.enabled} onChange={event=>provider(name,{enabled:event.target.checked})}/>Enabled</label>
-    <button className="secondary" onClick={()=>remove(name)}><Trash2 aria-hidden="true"/>Remove</button></div>
-   <label htmlFor={name+'-client'}>Client ID</label><input id={name+'-client'} value={entry.client_id} onChange={event=>provider(name,{client_id:event.target.value})}/>
-   <label htmlFor={name+'-secret'}>Client secret</label><input id={name+'-secret'} type="password" autoComplete="off" value={entry.secret??''}
+   <div className="form-row"><strong>{PROVIDERS[name]?.label??name}</strong><label className="check"><input type="checkbox" disabled={busy} checked={entry.enabled} onChange={event=>provider(name,{enabled:event.target.checked})}/>Enabled</label>
+    <button className="secondary" disabled={busy} onClick={()=>remove(name)}><Trash2 aria-hidden="true"/>Remove</button></div>
+   <label htmlFor={name+'-client'}>Client ID</label><input id={name+'-client'} required={entry.enabled} maxLength={512} {...field(name+'-client')} value={entry.client_id} onChange={event=>provider(name,{client_id:event.target.value})}/>
+   {fieldMessage(name+'-client')}
+   <label htmlFor={name+'-secret'}>Client secret</label><input id={name+'-secret'} type="password" autoComplete="off" required={entry.enabled&&!entry.secret_set} maxLength={4096} {...field(name+'-secret')} value={entry.secret??''}
     placeholder={entry.secret_set?'Saved. Leave empty to keep it.':''} onChange={event=>provider(name,{secret:event.target.value})}/>
+   {fieldMessage(name+'-secret')}
    {PROVIDERS[name]?.url&&<><label htmlFor={name+'-url'}>Server address{PROVIDERS[name]!.url==='optional'?' (optional)':''}</label>
-    <input id={name+'-url'} value={entry.url} onChange={event=>provider(name,{url:event.target.value})} placeholder="https://"/></>}
+    <input id={name+'-url'} type="url" required={entry.enabled&&PROVIDERS[name]?.url==='required'} maxLength={2048} {...field(name+'-url')} value={entry.url} onChange={event=>provider(name,{url:event.target.value})} placeholder="https://"/>{fieldMessage(name+'-url')}</>}
   </div>)}
   {available.length>0&&<div className="form-row"><label className="sr-only" htmlFor="add-provider">Add a provider</label>
-   <select id="add-provider" value={adding} onChange={event=>setAdding(event.target.value)}><option value="">Choose a provider…</option>
+   <select id="add-provider" disabled={busy} value={adding} onChange={event=>setAdding(event.target.value)}><option value="">Choose a provider…</option>
     {available.map(name=><option key={name} value={name}>{PROVIDERS[name]!.label}</option>)}</select>
-   <button disabled={!adding} onClick={()=>{provider(adding,{enabled:true,client_id:'',secret:'',url:''});setAdding('');}}><Plus aria-hidden="true"/>Add provider</button></div>}
+   <button disabled={busy||!adding} onClick={()=>{provider(adding,{enabled:true,client_id:'',secret:'',url:''});setAdding('');}}><Plus aria-hidden="true"/>Add provider</button></div>}
   <div className="form-row actions"><button className="primary" disabled={busy||current.state==='pending'} onClick={()=>void save()}><Save aria-hidden="true"/>Save and apply</button></div>
   <p className="small muted">Saving restarts this environment's Auth with the new settings. Users and sessions are kept. If Auth does not start, the previous settings stay in use.</p>
  </>}</section>;

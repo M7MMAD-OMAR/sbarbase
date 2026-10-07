@@ -45,8 +45,38 @@ function errorPacket(message:string) {
  return Buffer.concat([header,fields]);
 }
 
-export function databaseProxy(options:{port:number;host:string;target:()=>{host:string;port:number}|undefined;
- log?:(line:string)=>void}) {
+type ProxyOptions={port:number;host:string;target:()=>{host:string;port:number}|undefined;log?:(line:string)=>void};
+type ProxyHandle={port:number;stop:()=>void};
+type DirectEndpoint={host:string;port:number;ready:boolean};
+const observedProxies=new WeakMap<ProxyHandle,()=>DirectEndpoint>();
+const directOwners=new WeakMap<DirectDatabase,{proxy?:ProxyHandle;closed:boolean;starting:boolean}>();
+
+/** One application's listener lifetime. Successful real binds alone establish availability. */
+export class DirectDatabase {
+ constructor(){directOwners.set(this,{closed:false,starting:false});}
+ async start(options:ProxyOptions):Promise<void>{
+  const owned=directOwners.get(this)!;
+  if(owned.closed||owned.starting||owned.proxy)throw new Error('Database listener already started or stopped');
+  owned.starting=true;
+  try{
+   const proxy=await databaseProxy(options);
+   if(owned.closed){proxy.stop();return;}
+   owned.proxy=proxy;
+  }finally{owned.starting=false;}
+ }
+ stop(){
+  const owned=directOwners.get(this)!;owned.closed=true;owned.proxy?.stop();owned.proxy=undefined;
+ }
+}
+
+export function directDatabaseEndpoint(direct?:DirectDatabase):DirectEndpoint|undefined {
+ const owned=direct&&directOwners.get(direct);
+ return owned&&!owned.closed&&owned.proxy?observedProxies.get(owned.proxy)?.():undefined;
+}
+
+export function databaseProxy(options:ProxyOptions) {
+ // Retain the exact address and forwarding callback used for this listener's lifetime.
+ options=Object.freeze({...options});
  const sockets=new Set<Socket>();
  const server=createServer(client=>{
   sockets.add(client);client.once('close',()=>sockets.delete(client));
@@ -86,12 +116,21 @@ export function databaseProxy(options:{port:number;host:string;target:()=>{host:
   client.on('data',onData);
  });
  server.maxConnections=64;
- return new Promise<{port:number;stop:()=>void}>((resolve,reject)=>{
+ return new Promise<ProxyHandle>((resolve,reject)=>{
   server.once('error',reject);
   server.listen(options.port,options.host,()=>{
    server.off('error',reject);
    const address=server.address();
-   resolve({port:typeof address==='object'&&address?address.port:options.port,stop(){for(const socket of sockets)socket.destroy();server.close();}});
+   const boundHost=typeof address==='object'&&address?address.address:options.host;
+   let stopped=false;
+   const handle={port:typeof address==='object'&&address?address.port:options.port,
+    stop(){stopped=true;for(const socket of sockets)socket.destroy();server.close();}};
+   observedProxies.set(handle,()=>{
+    let ready=false;
+    try{ready=!stopped&&server.listening&&!!options.target();}catch{}
+    return {host:boundHost==='0.0.0.0'||boundHost==='::'?'127.0.0.1':boundHost,port:handle.port,ready};
+   });
+   resolve(handle);
   });
  });
 }

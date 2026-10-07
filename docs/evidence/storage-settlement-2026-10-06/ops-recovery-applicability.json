@@ -1,0 +1,30 @@
+{
+  "comparison": {
+    "run": true,
+    "engine": true,
+    "project": true,
+    "plan_hash": true,
+    "source_hash": true,
+    "requirements": true,
+    "checkpoint": true,
+    "reviewer": true,
+    "axis": true
+  },
+  "original_dispatch_revision": 18,
+  "current_dispatch_revision": 27,
+  "source_hash": "13db04977316d05d6c74fb20eb5690fb7f36df26144b1b4b68da9737bbffc12c",
+  "plan_hash": "2a414dc7dacee28995eb660744455122e21822901ef97b6d63cf2e56f3c92786",
+  "original_retained_log_counts": {
+    "python": 71,
+    "bun": 78,
+    "independent_adversarial": 6
+  },
+  "rerun_original_tests": false,
+  "retained_evidence_sha256": {
+    "ops-v3-python.log": "4ac313d0e375d616982bbcac681fc02139de74bed0c44580e1b1cad4bca1cb76",
+    "ops-v3-bun.log": "e5d0be9a6637346154bdb4168b9f16475df724781fe23efe4fc5c48b32781105",
+    "ops-v3-adversarial.py": "415e9ec53de3abeb12be1862e6ba8b85816326c5e9ba5a6434e00ef6036a91b5",
+    "ops-v3-adversarial.log": "a9d12419e82cd6e4a715c2c28f7602b09654310a3252cc46bedfcfbc1c3d6435",
+    "ops-v3-source-observations.json": "a1d57d3751cc3f6d14fdd76c90cb18bed85761ce74c38f3e2156fe29036c933c"
+  }
+}

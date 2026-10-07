@@ -1,0 +1,7 @@
+Loader diagnostic: test_storage_write_settlement (268435456, 268435456) VmSize:	  247860 kB VmRSS:	   16208 kB
+Loader diagnostic: test_disposable_storage_settlement_drill (268435456, 268435456) VmSize:	  261404 kB VmRSS:	   26184 kB
+Traceback (most recent call last):
+  File "/home/sbarah/.codex/sbarbase-settlement/20261006/native-source-v2/run-python.py", line 23, in <module>
+  File "/usr/lib64/python3.14/unittest/loader.py", line 141, in loadTestsFromName
+  File "/home/sbarah/.codex/worktrees/09c0/sbarbase/lab/test_disposable_storage_settlement_drill.py", line 18, in <module>
+MemoryError

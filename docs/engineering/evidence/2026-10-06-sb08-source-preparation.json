@@ -1,0 +1,273 @@
+{
+  "schema_version": 1,
+  "outcome": "accepted bounded SOURCE preparation only",
+  "full_sb08_status": "open",
+  "source_hash": "0313bfade66bf7cee59fcdc7b02473a1751359d13fbf08692a05706225bebfc5",
+  "plan_hash": "57875db8822b0c5b94f28af63e7061de082a7d8f50d148011d46f0f1f0e83e7a",
+  "baseline_commit": "5f2ba222513a127e98e5936093d678d339129702",
+  "public_import_identity": "2fc47eca54cf0798d5ba2f5ba52bfdee18c89a27d4767925a72c2acf8af37d18",
+  "product_files": [
+    {
+      "path": "lab/domain_transport.py",
+      "bytes": 19809,
+      "sha256": "05e3c9f8c4cc3257e83c8de3996963b552aa75c318c1d7ece62ab537b428a237",
+      "mode": 420
+    },
+    {
+      "path": "lab/test_domain_transport.py",
+      "bytes": 22919,
+      "sha256": "d2270bcec3849d06850daab02fa9cfb9d72fe00fd41ace7fa7c6fe4ab930e07b",
+      "mode": 420
+    },
+    {
+      "path": "src/control/deployment-setup.ts",
+      "bytes": 11798,
+      "sha256": "9e18c880942b6fa0201cd61f81e94fbb18b45c8d8c48b8ec7e4e365629528d82",
+      "mode": 420
+    },
+    {
+      "path": "tests/deployment-setup.test.ts",
+      "bytes": 14485,
+      "sha256": "80e66f86c3a119e6209c65fd96df759991f4b685c13620a43fe257dfce3a8a8e",
+      "mode": 420
+    },
+    {
+      "path": "ui/DeploymentSetup.tsx",
+      "bytes": 10497,
+      "sha256": "22254ed24a988949877fd1eb12d75a83c90c8681ac9331cdbd02ec7ca09d196c",
+      "mode": 420
+    },
+    {
+      "path": "docs/engineering/plans/2026-10-06-sb08-domains-tls-email.md",
+      "bytes": 12962,
+      "sha256": "3596898667c3a65b23f00fe1e276f97bcff511144fc3231c74ed6f2da96c68f7",
+      "mode": 420
+    },
+    {
+      "path": "src/control/handler.ts",
+      "bytes": 2714,
+      "sha256": "e7aea56393ebb16e1a8cfff0eb942b94228bb313dd04ab96300eb6722ecd91d3",
+      "mode": 420
+    },
+    {
+      "path": "ui/App.tsx",
+      "bytes": 9858,
+      "sha256": "63cd48a10e16af8b4afce3eba730183bcfaf56094ce58a760b53cd9186ecc9ce",
+      "mode": 420
+    }
+  ],
+  "frozen_inputs": {
+    "path": "/home/sbarah/.codex/sbarbase-integration/20261006/sb08-source-3838/repair-role-1/frozen-inputs-final.json",
+    "bytes": 98025,
+    "sha256": "4988d5516897fc06e3fc118eeeaf22acd196239cae79ff90d8a4cde6c71447cb"
+  },
+  "profile": {
+    "path": "/home/sbarah/.codex/sbarbase-integration/20261006/sb08-source-3838/repair-role-1/profile.json",
+    "bytes": 1290,
+    "sha256": "8e30c1bd2b373e5def972d4d41f728704f63a76ec45e55822488857743a78a23"
+  },
+  "checks": {
+    "python": {
+      "counts": {
+        "total": 37,
+        "failed": 0,
+        "skipped": 0
+      },
+      "observation": {
+        "path": "/home/sbarah/.codex/sbarbase-integration/20261006/sb08-source-3838/repair-role-1/python-observation.json",
+        "bytes": 806,
+        "sha256": "4e7a991f691f6ca4e690a7b3c012b42cc8537ab497451ec0a7bc85db02941f77"
+      },
+      "logs": [
+        {
+          "path": "/home/sbarah/.codex/sbarbase-integration/20261006/sb08-source-3838/repair-role-1/python-1791292403597699759.log",
+          "bytes": 4843,
+          "sha256": "6d5df76dc14c16e4b48d5464706644b9a07c5fa28fcf1cc39a809a3a6be9cca0"
+        }
+      ],
+      "limits": {
+        "memory.max": "536870912",
+        "memory.swap.max": "0",
+        "cpu.max": "50000 100000",
+        "pids.max": "128"
+      }
+    },
+    "bun": {
+      "counts": {
+        "total": 23,
+        "failed": 0,
+        "skipped": 0
+      },
+      "observation": {
+        "path": "/home/sbarah/.codex/sbarbase-integration/20261006/sb08-source-3838/repair-role-1/bun-observation.json",
+        "bytes": 690,
+        "sha256": "3fee80a44be386678e6d5a843bdbfd1fb62bd4c62f2a50e07c4b3c2174ae7ff9"
+      },
+      "logs": [
+        {
+          "path": "/home/sbarah/.codex/sbarbase-integration/20261006/sb08-source-3838/repair-role-1/bun-1791292434221058493.log",
+          "bytes": 2086,
+          "sha256": "94da9f757f70888ee30d8ed1c9a4c3f744b2eb9a0072ad569d153c18926334dc"
+        }
+      ],
+      "limits": {
+        "memory.max": "536870912",
+        "memory.swap.max": "0",
+        "cpu.max": "50000 100000",
+        "pids.max": "128"
+      }
+    },
+    "browser": {
+      "counts": {
+        "total": 9,
+        "failed": 0,
+        "skipped": 0
+      },
+      "observation": {
+        "path": "/home/sbarah/.codex/sbarbase-integration/20261006/sb08-source-3838/repair-role-1/browser-observation.json",
+        "bytes": 1189,
+        "sha256": "21dcc44101a418e71562208978d082d2f1e5c26daa4d2fb3ef80e26700d60b36"
+      },
+      "logs": [
+        {
+          "path": "/home/sbarah/.codex/sbarbase-integration/20261006/sb08-source-3838/repair-role-1/browser-1791292484556045929.log",
+          "bytes": 35,
+          "sha256": "623859dfa76261d8c0520fc1a84173b7b6b18332739862bac77a0fce23218b65"
+        }
+      ],
+      "limits": {
+        "memory.max": "536870912",
+        "memory.swap.max": "0",
+        "cpu.max": "50000 100000",
+        "pids.max": "128"
+      }
+    },
+    "types": {
+      "counts": {
+        "typechecks": 2,
+        "failed": 0
+      },
+      "observation": {
+        "path": "/home/sbarah/.codex/sbarbase-integration/20261006/sb08-source-3838/repair-role-1/types-observation.json",
+        "bytes": 1177,
+        "sha256": "ecb54cdffc99246b996fdaeda2494d10f87f97e572a6c041b66f80682d5822f3"
+      },
+      "logs": [
+        {
+          "path": "/home/sbarah/.codex/sbarbase-integration/20261006/sb08-source-3838/repair-role-1/types-1791292453457010353.log",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "/home/sbarah/.codex/sbarbase-integration/20261006/sb08-source-3838/repair-role-1/types-1791292454569672710.log",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ],
+      "limits": {
+        "memory.max": "536870912",
+        "memory.swap.max": "0",
+        "cpu.max": "50000 100000",
+        "pids.max": "128"
+      }
+    }
+  },
+  "reviews": {
+    "spec": {
+      "reviewer": "sb08-spec-3838-r3",
+      "verdict": "pass",
+      "artifact": {
+        "path": "/home/sbarah/.codex/sbarbase-integration/20261006/sb08-source-3838/repair-role-1/spec-review-r3.json",
+        "bytes": 5364,
+        "sha256": "59b843552fb0b7c891d32ff1a43dfd540aebc6a1ef2739b2a87dcbc88039dc52"
+      }
+    },
+    "ops": {
+      "reviewer": "sb08-ops-3838-r3",
+      "verdict": "pass",
+      "artifact": {
+        "path": "/home/sbarah/.codex/sbarbase-integration/20261006/sb08-source-3838/repair-role-1/ops-review-r3.json",
+        "bytes": 5618,
+        "sha256": "c46d88c5e74a0ddc457f5dd0446a84c6cfddb67f53c00c15a87c03f445f483e3"
+      }
+    },
+    "ui": {
+      "reviewer": "sb08-ops-3838-r3",
+      "verdict": "pass",
+      "artifact": {
+        "path": "/home/sbarah/.codex/sbarbase-integration/20261006/sb08-source-3838/repair-role-1/ui-review-r3.json",
+        "bytes": 3595,
+        "sha256": "ebb95b787432dabfcf9ee1bc5e8cb17200b1426b2c29f2f94a38ffeebc191cb8"
+      }
+    }
+  },
+  "budget": {
+    "original_role_seconds": 167.243909,
+    "original_ceiling_seconds": 180,
+    "repair_role_seconds": 27.276567,
+    "repair_ceiling_seconds": 60,
+    "combined_seconds": 194.520476,
+    "output_bytes_original": 97746,
+    "output_bytes_repair": 18597
+  },
+  "workflow": {
+    "run": "/home/sbarah/.codex/sbarbase-integration/20261006/sb08-source-3838/repair-role-1/run",
+    "revision": 21,
+    "checkpoint": "source",
+    "status": "accepted",
+    "approval": "delegated"
+  },
+  "ui_artifacts": [
+    {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261006/sb08-source-3838/repair-role-1/browser-1791292478668/reference.png",
+      "bytes": 59201,
+      "sha256": "2a0e759cd79f27e3fafe8fbdd69686874574748b4769c1c9454ca65e37b2839e"
+    },
+    {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261006/sb08-source-3838/repair-role-1/browser-1791292478668/capture.png",
+      "bytes": 83755,
+      "sha256": "7640abc308cd9b5170beac99e4ad95f6c994f0edef54092995906907d5fd94a4"
+    },
+    {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261006/sb08-source-3838/repair-role-1/browser-1791292478668/desktop.png",
+      "bytes": 152348,
+      "sha256": "ed1e3d2e9af095acadcd7ef13345d9cf07ba15565845424405aa4336f8c6895f"
+    },
+    {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261006/sb08-source-3838/repair-role-1/browser-1791292478668/mobile.png",
+      "bytes": 127511,
+      "sha256": "1beabd0a34e2209dda4366f641c99d7020cf0a759577668625232095881c13c5"
+    },
+    {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261006/sb08-source-3838/repair-role-1/browser-1791292478668/observations.json",
+      "bytes": 479,
+      "sha256": "b0c4fb01306a2b51a7d50c1784a900027246308d935ad6c211d1caa7c34bb82d"
+    },
+    {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261006/sb08-source-3838/repair-role-1/browser-1791292478668/browser-argv.json",
+      "bytes": 888,
+      "sha256": "5ef6f4040ba8eb7221346f44fb9bdce7a7ce2e92da30fe86d26f08104a4af67c"
+    }
+  ],
+  "history": {
+    "earlier_reports": "Retained under original evidence directory, including schema-rejected reports. Earlier source-bound observations are stale after repairs. No rejected report is represented as imported.",
+    "original_run": "/home/sbarah/.codex/sbarbase-integration/20261006/sb08-source-3838/run",
+    "rejected_report_observation": {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261006/sb08-source-3838/spec-r1-schema-rejection-observation.json",
+      "bytes": 314,
+      "sha256": "22828943b70626ee92523af340d24b48739919cc894283cfd8faf308ae42b103"
+    },
+    "original_source_role_status": "latest specification review failed before repair; no complete SB08 acceptance"
+  },
+  "pending": [
+    "actual runtime activation and Auth/SMTP reconciliation adapters",
+    "accepted merged current host/SB06/SB07 native binding",
+    "public DNS/provider and explicitly owned SMTP test recipient inputs",
+    "original Auth confirmation/reset/OAuth and management recovery mail",
+    "Studio and WebSocket browser flows",
+    "managed certificate issuance, renewal, rollback and reboot",
+    "shared installation TLS/SMTP recovery/retention/capability inventory admission",
+    "full SB08 D1-D7 public and native independent acceptance"
+  ],
+  "integration_note": "Only the dedicated delta after the imported baseline is deliverable. Root assembly must preserve SB07 runtime epoch/key wiring and rerun current merged gates; these isolated hashes do not accept the assembled root."
+}

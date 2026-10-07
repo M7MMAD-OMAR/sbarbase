@@ -1,0 +1,9 @@
+off-host copy 20260924T030000Z: 4 backup(s) encrypted and uploaded, 0 older set(s) removed from the target
+off-host copy 20260922T030000Z: 4 backup(s) encrypted and uploaded, 0 older set(s) removed from the target
+off-host copy 20260923T030000Z: 4 backup(s) encrypted and uploaded, 0 older set(s) removed from the target
+off-host copy 20260924T030000Z: 4 backup(s) encrypted and uploaded, 1 older set(s) removed from the target
+........................................................................
+----------------------------------------------------------------------
+Ran 72 tests in 2.907s
+
+OK

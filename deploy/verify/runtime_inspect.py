@@ -38,11 +38,15 @@ def inspect():
     tools = {name: command(*args) for name, args in (
         ('bun', ('bun', '--version')), ('docker', ('docker', '--version')),
         ('git', ('git', '--version')), ('ssh', ('ssh', '-V')),
-        ('findmnt', ('findmnt', '--version')), ('ps', ('ps', '--version')))}
+        ('findmnt', ('findmnt', '--version')), ('ps', ('ps', '--version')),
+        ('timeout', ('timeout', '--version')), ('readlink', ('readlink', '--version')),
+        ('stat', ('stat', '--version')), ('tr', ('tr', '--version')),
+        ('sed', ('sed', '--version')), ('awk', ('awk', '-W', 'version')))}
     if tools['bun'] != '1.3.14' or not tools['docker'].startswith('Docker version 29.8.2,'):
         raise ValueError('runtime copied tool version differs from pinned image')
     files = {}
-    for path in ('/usr/local/bin/sbarbase-start', '/usr/local/lib/sbarbase/docker_profile.py'):
+    for path in ('/usr/local/bin/sbarbase-start', '/usr/local/lib/sbarbase/docker_profile.py',
+                 '/usr/local/lib/sbarbase/host-preflight.sh'):
         target = Path(path)
         files[path] = {'sha256': hashlib.sha256(target.read_bytes()).hexdigest(),
                        'mode': oct(target.stat().st_mode & 0o777)}

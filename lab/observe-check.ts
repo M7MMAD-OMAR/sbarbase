@@ -1,3 +1,4 @@
+import {liveManagementClient,liveManagementLogin} from './live-management-auth';
 // Logs and metrics check: an operator reads an environment's usage and logs after an application used it.
 //
 // Usage: bun lab/observe-check.ts <operator.json> [--evidence PATH]
@@ -36,10 +37,10 @@ function finish():never {
 }
 
 try {
- const management=createClient(`${base}/management`,MANAGEMENT_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
- const login=await management.auth.signInWithPassword({email:operator.email,password:operator.password});
+ const management=liveManagementClient(base,MANAGEMENT_KEY);
+ const login=await liveManagementLogin(management,base,{email:operator.email,password:operator.password});
  const token=login.data.session?.access_token;
- if(!record('operator logs in',!!token,login.error?.message??''))finish();
+ if(!record('operator native MFA session authorizes management',!!token,login.error?.message??''))finish();
  const call=async(method:string,path:string)=>{
   const response=await fetch(`${base}/management/v1${path}`,{method,headers:{authorization:`Bearer ${token}`}});
   return {status:response.status,text:await response.text()};

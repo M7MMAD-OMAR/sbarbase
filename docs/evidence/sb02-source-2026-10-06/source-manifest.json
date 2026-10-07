@@ -1,0 +1,157 @@
+{
+  "schema_version": 1,
+  "scope": "SOURCE admission preparation; actual supported-host/install/reboot/resource/recovery acceptance unproven",
+  "baseline_commit": "d7cbaca764eec368a0f89c78b11b38470580f317",
+  "source_hash": "38d4d1978a14690db4022b3b399f75fde742ca058553f77c61be644b52385a10",
+  "plan_hash": "24b970e4598a95e81c92d10c36adf172d28fc9d065a1d6ee725b186072da6074",
+  "files": {
+    ".dockerignore": {
+      "sha256": "027aaab3e0ff04aee58512280895fc58db688c576e89919e1c5d17cd2c6818e2",
+      "mode": "0o644"
+    },
+    "Dockerfile": {
+      "sha256": "b65c10646f9f986c5180ab6b4f864109d5ea227495f734537aca92410d5adf05",
+      "mode": "0o644"
+    },
+    "compose.yaml": {
+      "sha256": "344cee41a8b5299ea96a99a8fe6eafddd59d2fe7c8bd36315e5a04e28fbd475d",
+      "mode": "0o644"
+    },
+    "deploy/compose.sh": {
+      "sha256": "e9e603b4259d151a70cda5a4245d27562b63b7233203d2bb18de42febc6b8b59",
+      "mode": "0o755"
+    },
+    "deploy/host-preflight.sh": {
+      "sha256": "62793c75b3d55a2d8393f8c40fd77ed47fbe55c3fd7dcc1463ac787c48b39b4c",
+      "mode": "0o755"
+    },
+    "deploy/sbarbase.service": {
+      "sha256": "57f398ac40f85bbcfacfd325783aaac3e187322b5a0b6fb4b7cd20d155ae9cca",
+      "mode": "0o644"
+    },
+    "deploy/server-acceptance.sh": {
+      "sha256": "9f41ef3eb0394fdf7a383d7977eb3cef75b7d5e0a447cedfe7cbbb4488b03cc9",
+      "mode": "0o755"
+    },
+    "deploy/verify/runtime_inspect.py": {
+      "sha256": "a88552f170fc32710f0ddae14c926f6762aa44e03863104d69d9e2d31d26c29f",
+      "mode": "0o644"
+    },
+    "docs/engineering/HOST-PREFLIGHT.md": {
+      "sha256": "b921d8692ed47651522a9edaa72b0fa35a318ba67fd7e319cb2f35df3a9e09f0",
+      "mode": "0o644"
+    },
+    "docs/guides/docker.ar.md": {
+      "sha256": "aa31920b7e0e89d88b9d5ad7cc34b955e57c3b004bb334015326643f3360f4b5",
+      "mode": "0o644"
+    },
+    "docs/guides/docker.md": {
+      "sha256": "72a4feb06505e6ebb1b9d7240dba075dbd2cd30a41e89dce859028d00b3dbae8",
+      "mode": "0o644"
+    },
+    "docs/guides/server-deployment.ar.md": {
+      "sha256": "f1d5367b49843f9a3ba28325b9002bfca3ec608a3023e31a5f1fad7fa954e75a",
+      "mode": "0o644"
+    },
+    "docs/guides/server-deployment.md": {
+      "sha256": "36cc47856ddc47fea75d610443237468644a391216603f649347726d18336f78",
+      "mode": "0o644"
+    },
+    "lab/dev.py": {
+      "sha256": "8bbb85ae638ad751369edbc7c7915a99578376bc4645f6b589ce0a87fea42f0f",
+      "mode": "0o644"
+    },
+    "lab/docker_profile.py": {
+      "sha256": "74ff56108b48c9c23b660442622779861c82a0d9adbab84b3474159dc416f3be",
+      "mode": "0o644"
+    },
+    "lab/durable_runtime.py": {
+      "sha256": "7dc9256385c07526f473c83685b7489fa0fd8a597475f731126d09fb2fa0afea",
+      "mode": "0o644"
+    },
+    "lab/host_caller_checks.py": {
+      "sha256": "50b8efb5f99021666d3566e964632cf20213a787cf548f109fce864f497828e1",
+      "mode": "0o644"
+    },
+    "lab/host_test_fixture.py": {
+      "sha256": "575c390331a0aa3e82cb4eb6a7177239247cb7f2b2804d1858265532eec32f7d",
+      "mode": "0o644"
+    },
+    "lab/install_server.py": {
+      "sha256": "188d1be3d6f29fbf4a7b76da414c6e5be5931fcd3dcd22aa76147dabc631e44d",
+      "mode": "0o644"
+    },
+    "lab/installation_runtime.py": {
+      "sha256": "d72b717db53875bc0f575a7e3455ca43b22ee7e6d020e5100ec56f60c7a12bc9",
+      "mode": "0o644"
+    },
+    "lab/resource_admission.py": {
+      "sha256": "86c06f15222052730809b5c454b7d86580c948c8788849efdcfcaa03b0d899b1",
+      "mode": "0o644"
+    },
+    "lab/resource_policy.py": {
+      "sha256": "8ace36332d848e7a97d9ca195622787fc211e6a195648c8f3e3e3e5d52740817",
+      "mode": "0o644"
+    },
+    "lab/run.py": {
+      "sha256": "3cec802f2fb11766c5c6141b43cad7cfd7f341eed836b4f0941f21ad25e9b76b",
+      "mode": "0o644"
+    },
+    "lab/supervised_run_check.py": {
+      "sha256": "c060b4283cbdd439f866937ebdda67d626887d5953eb0d99554c7c260ce0b987",
+      "mode": "0o644"
+    },
+    "lab/test_container_start.py": {
+      "sha256": "d488082800b421da1fa06326579dc314ee604b27e58f86c91b6320803f6465b7",
+      "mode": "0o644"
+    },
+    "lab/test_docker_profile.py": {
+      "sha256": "7fefcee74f13eea1b009c80ffaa80c69b5ec74826c1f849e572671c49b9c8975",
+      "mode": "0o644"
+    },
+    "lab/test_durable_image_identity.py": {
+      "sha256": "1da949fd93590114ca3cbf8c6a463d6e0b0cb5da44422a58c7c20a2cb0a376e8",
+      "mode": "0o644"
+    },
+    "lab/test_host_entrypoints.py": {
+      "sha256": "6d7883f7695de55f3a44c7459d87f86a93ec0d26a8369f46dcdbc6162fa7b3f3",
+      "mode": "0o644"
+    },
+    "lab/test_host_preflight.py": {
+      "sha256": "94a94bbdf017de58c9cbc83e674091192c3fdbbb1fc6686f7e459d2e102b2807",
+      "mode": "0o644"
+    },
+    "lab/test_image_identity.py": {
+      "sha256": "0c0c253e1de5df1dd85e7cbcec1682bfe260a63f7549429cc9a5d5f326df01db",
+      "mode": "0o644"
+    },
+    "lab/test_install_lock.py": {
+      "sha256": "d1d028aa2ae74f2bdcc286020a8d94331adb605304b3c5b77c75e4e2bc1c0d10",
+      "mode": "0o644"
+    },
+    "lab/test_install_server.py": {
+      "sha256": "5e6261048617aff5a8cbb3e39ea249f52356b60e42fd0cba315c822873f418d9",
+      "mode": "0o644"
+    },
+    "lab/test_resource_policy.py": {
+      "sha256": "bfe8a23a2114c2176b7f5cc081671b6313a2a563e44259468a5abe11d4f12175",
+      "mode": "0o644"
+    },
+    "lab/test_runtime_build_inputs.py": {
+      "sha256": "ff76a6bbe83f110e8be9a82c938590bf04c9527b183ce2726616f52a481ae4de",
+      "mode": "0o644"
+    },
+    "lab/test_supervised_run.py": {
+      "sha256": "1a6a8acb4b04402af3b6dbf875d5dd85fc3684bf947c7143797941d3bbfc9c8b",
+      "mode": "0o644"
+    },
+    "lab/test_supervisor_unit.py": {
+      "sha256": "437df54218170b1c2ea1c775cf1f1311a84b15dfea1ab4df21eac43a49d99aea",
+      "mode": "0o644"
+    },
+    "lab/worker.py": {
+      "sha256": "3f72980c1d9ae5f3462b6c0478104bb3582aaba41772aa40c853ad9690222cb9",
+      "mode": "0o644"
+    }
+  }
+}

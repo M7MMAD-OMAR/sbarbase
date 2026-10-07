@@ -23,15 +23,24 @@ const conflicts:Record<string,string>={
  'Environment services are still on':'Turn off Studio, Realtime, Edge Functions and database access for this environment first, and wait for changes in progress to finish.'};
 export function api(token:string):Api {
  return async(path,method='GET',body,signal)=>{
-  const response=await fetch('/management/v1'+path,{method,signal,headers:{authorization:'Bearer '+token,...(body===undefined?{}:{'content-type':'application/json'})},
-   ...(body===undefined?{}:{body:JSON.stringify(body)})});
+  let response:Response;
+  try{response=await fetch('/management/v1'+path,{method,signal,headers:{authorization:'Bearer '+token,...(body===undefined?{}:{'content-type':'application/json'})},
+   ...(body===undefined?{}:{body:JSON.stringify(body)})});}
+  catch(error){if(signal?.aborted)throw error;throw new Error('Unable to reach the server. Check your connection and try again.');}
   if(response.status===401){void auth.auth.signOut({scope:'local'});throw new Error('Your session expired. Sign in again.');}
+  if(response.status===403){
+   const denied=await response.clone().json().catch(()=>null) as {code?:string}|null;
+   if(denied?.code==='mfa_required'){void auth.auth.signOut({scope:'local'});throw new Error('Verify your authenticator again. Sign in to continue.');}
+  }
   if(response.status===409){
    const message=await response.json().then(value=>(value as {message?:string}).message).catch(()=>undefined);
    throw new Error(conflicts[message??'']??'This environment is not provisioned yet.');
   }
-  if(!response.ok)throw new Error(response.status===403?'You no longer have permission for this action.':'The request failed. Refresh and try again.');
-  return response.json();
+  if(!response.ok)throw new Error(response.status===403?'You no longer have permission for this action.':
+   response.status===400||response.status===422?'Check the entered values and try again.':
+   response.status===429?'Too many requests. Wait a moment and try again.':
+   response.status>=500?'The server is temporarily unavailable. Try again.':'The request failed. Refresh and try again.');
+  try{return await response.json();}catch{throw new Error('The server returned an unreadable response. Try again.');}
  };
 }
 export function useData<T>(load:(signal:AbortSignal)=>Promise<T>,dependencies:unknown[]) {

@@ -8,6 +8,7 @@ import {KeyStore} from '../src/control/keys';
 import {application} from '../src/control/application';
 import {managedGateway} from '../src/gateway/managed';
 import {resolveRuntimePlacement,validatePlacement,type NativePlacement} from '../src/control/placement';
+import {managementToken,sessionId,factorId,verifiedFactor} from './management-fixture';
 
 function fixture(){
  const directory=mkdtempSync(join(tmpdir(),'sbar-placement-'));
@@ -82,14 +83,20 @@ test('native identity validates distinct maintenance and bound image, container 
 
 test('actual gateway and service discovery refuse unadmitted or malformed persisted placement before endpoint resolution',async()=>{
  const f=fixture();let endpoints=0,applicationTransport=0,gatewayTransport=0;
+ const now=Math.floor(Date.now()/1000),outsiderSession='55555555-5555-4555-8555-555555555555';
+ const ownerToken=managementToken('owner','aal2',sessionId,now),outsiderToken=managementToken('outsider','aal2',outsiderSession,now);
+ f.catalog.managementSecurity.grant('owner',sessionId,factorId,now,now+3600,0);
+ f.catalog.managementSecurity.grant('outsider',outsiderSession,factorId,now,now+3600,0);
  const endpoint=()=>{endpoints++;return configured;};
  const key=f.keys.issue(f.runtime);
  const gateway=managedGateway(f.catalog,f.keys,endpoint,(async(_input)=>{gatewayTransport++;return new Response();}) as typeof fetch);
  const handler=application(f.catalog,f.keys,{auth:'http://realm.invalid',anonymousToken:'anon',publishableKey:'public'},endpoint,
   (async(input,init)=>{applicationTransport++;expect(String(input)).toBe('http://realm.invalid/user');
-   return Response.json({id:new Headers(init?.headers).get('authorization')==='Bearer outsider'?'outsider':'owner'});}) as typeof fetch);
+   const header=new Headers(init?.headers).get('authorization');
+   if(header!=='Bearer '+ownerToken&&header!=='Bearer '+outsiderToken)return Response.json({message:'Invalid fixture token'},{status:401});
+   return Response.json({id:header==='Bearer '+outsiderToken?'outsider':'owner',factors:[verifiedFactor]});}) as typeof fetch);
  const request=()=>new Request(`http://local/${f.runtime}/rest/v1/`,{headers:{apikey:key.token}});
- const discovery=()=>new Request(`http://local/management/v1/environments/${f.environment}/connection`,{headers:{authorization:'Bearer verified'}});
+ const discovery=()=>new Request(`http://local/management/v1/environments/${f.environment}/connection`,{headers:{authorization:'Bearer '+ownerToken}});
  const db=new Database(f.path);
  try{
   f.catalog.changeRuntimeRouting(f.runtime,0,'pause');f.catalog.changeRuntimeRouting(f.runtime,1,'stage',native(f.runtime));
@@ -102,8 +109,9 @@ test('actual gateway and service discovery refuse unadmitted or malformed persis
   expect(await refused.json()).toEqual({message:'Native dedicated placement is not admitted'});
   expect((await handler(request())).status).toBe(503);
   expect((await handler(discovery())).status).toBe(503);
-  expect((await handler(new Request(`http://local/management/v1/environments/${f.environment}/connection`,{headers:{authorization:'Bearer outsider'}}))).status).toBe(403);
-  expect(endpoints).toBe(0);expect(gatewayTransport).toBe(0);expect(applicationTransport).toBe(2);
+  expect((await handler(new Request(`http://local/management/v1/environments/${f.environment}/connection`,{headers:{authorization:'Bearer '+outsiderToken}}))).status).toBe(403);
+  // Protected discovery checks native Auth at admission, handler authentication and response publication.
+  expect(endpoints).toBe(0);expect(gatewayTransport).toBe(0);expect(applicationTransport).toBe(6);
   for(const invalid of [{...native(f.runtime),version:2},{...native(f.runtime),profile:'unknown'},
    {...native(f.runtime),runtime:'e_'+'f'.repeat(24)}, {...native(f.runtime),maintenance:undefined}]){
    db.query('UPDATE runtime_routing SET placement=? WHERE runtime=?').run(JSON.stringify(invalid),f.runtime);
@@ -111,7 +119,7 @@ test('actual gateway and service discovery refuse unadmitted or malformed persis
    expect((await handler(request())).status).toBe(503);
    expect((await handler(discovery())).status).toBe(503);
   }
-  expect(endpoints).toBe(0);expect(gatewayTransport).toBe(0);expect(applicationTransport).toBe(6);
+  expect(endpoints).toBe(0);expect(gatewayTransport).toBe(0);expect(applicationTransport).toBe(18);
  }finally{db.close();f.close();}
 });
 

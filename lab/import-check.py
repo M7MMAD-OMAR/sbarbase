@@ -32,6 +32,8 @@ checks = []
 started = time.time()
 
 
+from live_management_auth import management_login
+
 def record(check, ok, detail=''):
     checks.append({'check': check, 'ok': bool(ok), 'detail': detail})
     print(('ok:   ' if ok else 'FAIL: ') + check + (f'  {detail}' if detail else ''), flush=True)
@@ -63,10 +65,9 @@ def main():
     operator = json.loads(Path(args.operator).read_text())
     base = json.loads((ROOT / '.lab' / 'upstream' / 'server.json').read_text())['url']
     try:
-        status, login = call(f'{base}/management/auth/v1/token?grant_type=password', 'POST',
-                             {'email': operator['email'], 'password': operator['password']}, {'apikey': MANAGEMENT_KEY})
+        status, login = management_login(base, operator)
         token = (login or {}).get('access_token')
-        if not record('operator logs in', status == 200 and token, f'status {status}'):
+        if not record('operator native MFA session authorizes management', status == 200 and token, f'status {status}'):
             return finish(args.evidence)
         manage = lambda path, method='GET', body=None: call(f'{base}/management/v1{path}', method, body, {'authorization': f'Bearer {token}'})
         organization = manage('/organizations')[1]['data'][0]

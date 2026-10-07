@@ -1,0 +1,23 @@
+{
+  "reviewer": "native-source-ops-v2",
+  "axis": "operational-correctness",
+  "source_hash": "7fd894ae5221d448411e404f0d33cace38683637d16e52121ec80e66023c923e",
+  "plan_hash": "9af5054961109ad1f0cc09655b44d97929bb7c33093d071dcf9569aaec552d03",
+  "verdict": "invalid",
+  "findings": [
+    {
+      "id": "OPS-V2-CANCELED-CONTEXT",
+      "severity": "blocker",
+      "file": "docs/engineering/plans/2026-10-06-storage-write-settlement.md",
+      "status": "unresolved",
+      "evidence": "The coordinator canceled this attempt after identifying candidate review verdict history in the authorized source plan. I loaded that plan as architectural input in two commands, whose combined output was truncated. I did not consciously identify the candidate verdict statement, but cannot assert an unexposed review context. No approved dynamic checks ran and the operational assessment is incomplete. This is a review validity finding, not an implementation defect verdict."
+    },
+    {
+      "id": "OPS-V2-SOURCE-DRIFT",
+      "severity": "blocker",
+      "status": "unresolved",
+      "evidence": "Final hosts.py review-state returned source_hash 6ecf6f0539a4865fbd8db515d6facabc4e00c7befbfa70c48f37adcfc67876f5, differing from packet source_hash 7fd894ae5221d448411e404f0d33cace38683637d16e52121ec80e66023c923e. The plan_hash remained 9af5054961109ad1f0cc09655b44d97929bb7c33093d071dcf9569aaec552d03. The coordinator confirmed editing the source plan to remove candidate verdict history. This report retains the packet input identity and cannot establish acceptance of current source."
+    }
+  ],
+  "artifacts": ["ops-evidence-v2.md"]
+}

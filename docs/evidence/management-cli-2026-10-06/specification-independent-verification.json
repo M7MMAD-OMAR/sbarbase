@@ -1,0 +1,215 @@
+{
+  "reviewer": "sb06-cli-specification-critic",
+  "verified_at": "2026-10-06T07:05:21.885026+00:00",
+  "source_hash": "dbcb63bf84e8e0d8c2d6e1cebe37d530a675cc6888adb34a19a73074fd755cf9",
+  "plan_hash": "0c382303fb64c6bad511421fd7b576cf1d39c4b2f1d66ce0fb006ebab27cd0e4",
+  "files_count": 36,
+  "files": {
+    "bun.lock": {
+      "sha256": "1a4c44900e416e0570b737142b0193b7a9b94885baa06bcca69441cfd4e14954",
+      "mode": 420
+    },
+    "docs/engineering/CLI-MFA.md": {
+      "sha256": "76f3f2a1302f8794638c92592a89b6dcb0ad476e3149c89a915aa2e1c032dee3",
+      "mode": 420
+    },
+    "lab/images.lock.json": {
+      "sha256": "aff28b79f26960e19ad1ea93c1da8ede4d154fba1a9d8956ea94988043cd37f9",
+      "mode": 420
+    },
+    "lab/management-cli-check.ts": {
+      "sha256": "3a111c9ed525b2b24c305d238a20da10d5f5945faa5adbfeafa9c4ceb9893606",
+      "mode": 420
+    },
+    "lab/management-cli-terminal.py": {
+      "sha256": "7436a6d05175083923c18291d4c97e8684eb2f20f3bf5d8117ff7aa602a922c4",
+      "mode": 420
+    },
+    "lab/management-mfa-command.py": {
+      "sha256": "be0b6a493cdbb8c341174ffb5fafe7b6629387340317927b3149d6356d253db2",
+      "mode": 420
+    },
+    "lab/management-mfa-fixture.py": {
+      "sha256": "746feb82467c04fb05261fb842e324e31042ff0da75410e968efd7735b2d8d39",
+      "mode": 420
+    },
+    "lab/management-mfa-unit.py": {
+      "sha256": "8f970b3bf9000659e8f605cc81e9f0766833ff30c9bb52b24fa13b4fee8dc8de",
+      "mode": 420
+    },
+    "lab/sbarbase.ts": {
+      "sha256": "1572cf331c417e3aa5ff329fc18161e4271e1389028db0a419062b0e5845a72e",
+      "mode": 420
+    },
+    "lab/upstream-app.ts": {
+      "sha256": "144ffcc1c0d1eaefde63c30ddfd336c1a5a2e7f28f12f5b2399a0eeba75a9cce",
+      "mode": 420
+    },
+    "package.json": {
+      "sha256": "0f4556bbd3c224eb65c88d1d57030d72ef7a532fce0b837557eb9da8913b6524",
+      "mode": 420
+    },
+    "src/control/application.ts": {
+      "sha256": "3e3e820e2c1f87f36d5798df9e9dff6a73d7be7fb39263d2972a17545b6a827f",
+      "mode": 420
+    },
+    "src/control/auth.ts": {
+      "sha256": "092cf96ffa93dfbdc81251fe27d7e059bfbda4b821727f81dca44f869e76f277",
+      "mode": 420
+    },
+    "src/control/bootstrap.ts": {
+      "sha256": "aaafdf9b11e57b84fbfebddce8e2dd5c9229ea6d97eb1c24f7b182059b838fc1",
+      "mode": 420
+    },
+    "src/control/handler.ts": {
+      "sha256": "5739bdb47abcdf3788b8ce605a7d843a2afe29332ca17aadbd22f177659898cb",
+      "mode": 420
+    },
+    "src/control/invitations.ts": {
+      "sha256": "5e32f1f1bfcc05a2b51bc3b8a3159d3b18d4f00ef2c7cfa4631b1dcd7aec09bb",
+      "mode": 420
+    },
+    "src/control/key-http.ts": {
+      "sha256": "aeae2abc75fe3c3e3c3fa4ec58b341be24e962df008b44e67871298654d3742e",
+      "mode": 420
+    },
+    "src/control/keys.ts": {
+      "sha256": "f84ba287fc048dc4eaae7f322439b2eaf4f2740b0cc7aa4635164c635266d1d6",
+      "mode": 420
+    },
+    "src/control/placement.ts": {
+      "sha256": "9b09dcad025c4cbee5a361a331baf5139f5c73c82ef24dcfecb5dba6cabc6e50",
+      "mode": 420
+    },
+    "src/control/realtime.ts": {
+      "sha256": "440bcab7c7b4668cb1881eb3a4c38807082b0b8f77949363765906175a56eb82",
+      "mode": 420
+    },
+    "src/control/share.ts": {
+      "sha256": "002768253944e1f1073fbdebefa49fbf7df621f779bb17838ec531d7b9b907da",
+      "mode": 420
+    },
+    "src/control/signing.ts": {
+      "sha256": "07471ec0f2c0d1dfd5234726a9b4771c6add3ebbdc6ad81c3ae8b061deffce7f",
+      "mode": 420
+    },
+    "src/control/updates.ts": {
+      "sha256": "6655230a4bbfce6d3acb108ee6b5f30a2b7060b6e9a46948b9983376c1323faa",
+      "mode": 420
+    },
+    "src/control/catalog.ts": {
+      "sha256": "7c0f817445854ca85b46653507339daf77bd6c20e20bc5fcc47595694eb82c2f",
+      "mode": 420
+    },
+    "src/control/database.ts": {
+      "sha256": "98e742e41f779a5851e561d53b5dfb063c44b01d1891401f49dcdd67a65a9c3b",
+      "mode": 420
+    },
+    "src/control/functions.ts": {
+      "sha256": "690fcbb83c24cccfde68b8e8ed9b638d154ba593a8a30c6d8d6b8c7ff04d45a1",
+      "mode": 420
+    },
+    "src/control/http.ts": {
+      "sha256": "32698aacb9e582e527f23b6d9e8a08fdfe20ea504e00141adfebc6199c4d5229",
+      "mode": 420
+    },
+    "src/control/observe.ts": {
+      "sha256": "de08de67ae384eb2220c50982713f17fe0f0580ec3c5c5a4985faf33df6ecc09",
+      "mode": 420
+    },
+    "src/control/sign-in.ts": {
+      "sha256": "5191a3c554c729932d1b3d48a8d0a41d97d66ed1aaa1bc1da3d68698f25b8088",
+      "mode": 420
+    },
+    "src/control/studio.ts": {
+      "sha256": "95d7887e1ec05c64cd35d71906ff678af6f6a520f78e51cda7433b0388c82d39",
+      "mode": 420
+    },
+    "src/control/server-health.ts": {
+      "sha256": "4f32d26f162245bc477aa3c258cd9f817f4db010b0057ee89da0288b9a444ba6",
+      "mode": 420
+    },
+    "src/control/studio-workspace.ts": {
+      "sha256": "434d9a3b5d0870c3fc15cc82e8062a3d513c103b0bc4d69170b8c92eda231e77",
+      "mode": 420
+    },
+    "src/control/management-security.ts": {
+      "sha256": "08510f936bdc495f15806ddb660040e970029b7d7bee1d6bd64c2abbf40fb120",
+      "mode": 420
+    },
+    "src/control/management-auth.ts": {
+      "sha256": "e19767ff52a10c1d00d31e97853b43eb078a2964b8ef389d99a4496ec3e12108",
+      "mode": 420
+    },
+    "src/control/management-context.ts": {
+      "sha256": "263dcda353857a9e735865fce4daf1ddfadb289fa3aa2810f452d25aef25542a",
+      "mode": 420
+    },
+    "tests/sbarbase-cli.test.ts": {
+      "sha256": "c959abf4a4393ca93634a74a297d048a6536a3202df8aa65108b428ebdefbbf7",
+      "mode": 420
+    }
+  },
+  "native_source_files_match": true,
+  "native": {
+    "total": 101,
+    "failed": 0,
+    "skipped": 0,
+    "terminal_scenarios": {
+      "success": {
+        "exit_code": 0,
+        "failed": 0,
+        "capacity_refused": false
+      },
+      "success-password-stdin": {
+        "exit_code": 0,
+        "failed": 0,
+        "capacity_refused": false
+      },
+      "success-operator-file": {
+        "exit_code": 0,
+        "failed": 0,
+        "capacity_refused": false
+      },
+      "prompt-cancel": {
+        "exit_code": 3,
+        "failed": 0,
+        "capacity_refused": false
+      },
+      "verify-cancel": {
+        "exit_code": 3,
+        "failed": 0,
+        "capacity_refused": false
+      },
+      "stty-failure": {
+        "exit_code": 3,
+        "failed": 0,
+        "capacity_refused": false
+      },
+      "headless-password-stdin": {
+        "exit_code": 3,
+        "failed": 0,
+        "capacity_refused": false
+      },
+      "headless-operator-file": {
+        "exit_code": 3,
+        "failed": 0,
+        "capacity_refused": false
+      }
+    },
+    "cleanup": true,
+    "missing_before_inventory_ids": [],
+    "auth_image_matches_pinned_v2_196_0": true
+  },
+  "checks_reperformed": [
+    "canonical source manifest hash",
+    "canonical plan hash",
+    "all 36 file identities",
+    "raw native totals and every boolean check",
+    "actual terminal result exits and failure counts",
+    "native fixture source hash identities",
+    "native owned cleanup and before inventory preservation",
+    "current behavior gate source identity"
+  ],
+  "independent_execution": "Earlier independent actual processDeps plus controlling PTY and explicit mock HTTP signal schedule reproduced original protected mutation after SIGTERM, then observed exit 3, no protected mutation, restored echo, cleared setup display and logout request after repair. Focused CLI unit execution observed 35 passing, 0 failing tests. Original native process evidence is supplied by the frozen reviewed fixture packet, not by containers started by this critic."
+}

@@ -46,7 +46,7 @@ def run(command,*,check=True,stdin=None,env=None,cwd=None):
 
 
 def docker(*args,**kwargs):
-    return run(['docker',*args],**kwargs)
+    return run(docker_profile.docker_command(*args),**kwargs)
 
 
 def pinned_images():
@@ -101,6 +101,8 @@ def resolved_endpoint():
 
 def daemon():
     findings=[]
+    try:docker_profile.from_environment()
+    except docker_profile.ProfileError as error:return [('blocker',str(error))]
     result=docker('info','--format','{{json .}}',check=False)
     if result.returncode:
         endpoint=resolved_endpoint()
@@ -112,12 +114,9 @@ def daemon():
     except (ValueError,TypeError):
         return [('blocker','Docker daemon information invalid; profile and inventory were not inspected')]
     if info.get('OSType')!='linux':findings.append(('blocker','Native Linux containers required'))
-    if docker_profile.configured():
-        try:docker_profile.validate()
-        except docker_profile.ProfileError as error:
-            findings.append(('blocker','Docker profile refused: '+error.reason))
-    elif info.get('Name')!=os.uname().nodename:
-        findings.append(('warning','Docker daemon host differs from this host: remote daemons are not supported'))
+    try:docker_profile.require_supported()
+    except docker_profile.ProfileError as error:
+        findings.append(('blocker',str(error)))
     return findings
 
 
@@ -361,9 +360,8 @@ def pull_image(label,reference,position,runner=subprocess.run,sleep=time.sleep):
 
 def ensure_images():
     """Pull every pinned image that is not local, by digest, then verify each one."""
-    if docker_profile.configured():
-        try:docker_profile.validate()
-        except docker_profile.ProfileError as error:raise SystemExit(str(error)) from error
+    try:docker_profile.require_supported()
+    except docker_profile.ProfileError as error:raise SystemExit(str(error)) from error
     pins=pinned_images()
     missing=[]
     for label,digest,reference in pins:
@@ -531,7 +529,9 @@ def smoke():
 
 SERVICE_UNIT=ROOT/'deploy'/'sbarbase.service'
 SERVICE_UNIT_PATH=Path('/etc/systemd/system/sbarbase.service')
-# The upgrade guard (lab/upgrade_guard.py) runs first on every start. Its line has relative
+# Host admission precedes the guard and every mutating startup step.
+HOST_ADMISSION_LINE='ExecStartPre=/bin/sh /opt/sbarbase/deploy/host-preflight.sh --runtime'
+# The upgrade guard (lab/upgrade_guard.py) follows host admission. Its line has relative
 # paths only, so rendering never changes it, and a rendered unit must still carry it.
 GUARD_LINE=("ExecStartPre=/bin/sh -c 'if [ -f .lab/upgrades/guard.py ]; then exec /usr/bin/python3 .lab/upgrades/guard.py; fi; "
             "exec /usr/bin/python3 lab/upgrade_guard.py'")
@@ -544,7 +544,7 @@ UNIT_ANCHORS=('WorkingDirectory=/opt/sbarbase','User=sbarbase','Group=sbarbase',
               'Environment=HOME=/home/sbarbase','ExecStart=/usr/bin/python3 /opt/sbarbase/lab/dev.py',
               'ExecStartPre=/usr/bin/python3 /opt/sbarbase/lab/install_server.py check',
               'ReadWritePaths=/opt/sbarbase','Documentation=file:/opt/sbarbase/docs/guides/server-deployment.md',
-              GUARD_LINE,LEFTOVER_LINE,'Environment=SBARBASE_GUARDED=1','StartLimitIntervalSec=0')
+              HOST_ADMISSION_LINE,GUARD_LINE,LEFTOVER_LINE,'Environment=SBARBASE_GUARDED=1','StartLimitIntervalSec=0')
 
 
 def validate_service_identity(user,home,bun_dir):
@@ -582,6 +582,7 @@ def rendered_unit(root,home,user,bun_dir,text=None):
         .replace('Environment=HOME=/home/sbarbase','Environment=HOME='+str(home))
         .replace(':/home/sbarbase/.bun/bin',':'+str(bun_dir))
         .replace('ExecStartPre=/usr/bin/python3 /opt/sbarbase/','ExecStartPre=/usr/bin/python3 '+str(root)+'/')
+        .replace(HOST_ADMISSION_LINE,'ExecStartPre=/bin/sh '+str(root)+'/deploy/host-preflight.sh --runtime')
         .replace('ExecStart=/usr/bin/python3 /opt/sbarbase/','ExecStart=/usr/bin/python3 '+str(root)+'/')
         # Only the checkout is granted write access: a ReadWritePaths entry for a
         # directory that does not exist makes systemd fail the unit with
@@ -595,13 +596,19 @@ def rendered_unit(root,home,user,bun_dir,text=None):
               'Environment=HOME='+str(home),
               'ExecStart=/usr/bin/python3 '+str(root)+'/lab/dev.py',
               'ExecStartPre=/usr/bin/python3 '+str(root)+'/lab/install_server.py check',
+              'ExecStartPre=/bin/sh '+str(root)+'/deploy/host-preflight.sh --runtime',
               'ReadWritePaths='+str(root),
               'Documentation=file:'+str(root)+'/docs/guides/server-deployment.md',
               ':'+str(bun_dir),GUARD_LINE,LEFTOVER_LINE,'Environment=SBARBASE_GUARDED=1')
     for wanted in expected:
         if wanted not in rendered:
             raise SystemExit('Rendered unit does not carry '+repr(wanted)+'; refusing it')
-    # The guard must come first: a failing preflight is one of the starts it has to count.
+    # Read-only capability admission must be the first startup command, including restarts.
+    admission='ExecStartPre=/bin/sh '+str(root)+'/deploy/host-preflight.sh --runtime'
+    startup=[line for line in rendered.splitlines() if line.startswith('ExecStartPre=')]
+    if not startup or startup[0]!=admission:
+        raise SystemExit('Rendered unit must run host admission first; refusing it')
+    # The guard counts compatible starts before the installation inventory preflight.
     preflight=rendered.index('ExecStartPre=/usr/bin/python3 '+str(root)+'/lab/install_server.py check')
     if rendered.index(GUARD_LINE)>preflight:
         raise SystemExit('Rendered unit runs the preflight before the upgrade guard; refusing it')
@@ -636,6 +643,8 @@ def supervise(apply=False,service_user='sbarbase',home=None,bun_dir=None,evidenc
     and restart until the installation that follows (the acceptance's rehearsal) creates
     them. Whoever installs next starts the unit and waits for its console.
     """
+    # Gate even render/verify: those steps create installation files.
+    docker_profile.require_supported()
     home=home or Path('/home')/service_user
     if bun_dir is None:
         found=shutil.which('bun')

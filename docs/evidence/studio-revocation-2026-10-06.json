@@ -1,0 +1,82 @@
+{
+  "schema": 1,
+  "date": "2026-10-06",
+  "scope": "Studio proxy authorization, body acquisition and guarded response delivery",
+  "source_sha256": "2edb815e1d107c29a6ac1489500c4e390472e35bbe741573c63b1a6d447d0273",
+  "source_hash_kind": "local checkpoint identity; includes project identity and scoped source bytes/modes",
+  "plan_sha256": "77291feba2b032f960a0f0b0c066da4bf70329a286867527ae137531ed974bb8",
+  "base_revision": "2c4ec82007a47436ba3e338ac03d1ad5e288df45",
+  "includes_uncommitted_source": true,
+  "accepted": "source-contract-only",
+  "requirements": [
+    "STUDIO-01",
+    "STUDIO-02",
+    "STUDIO-03"
+  ],
+  "executed_tests": 52,
+  "failed": 0,
+  "skipped": 0,
+  "control_typecheck": "passed",
+  "independent_reviews": [
+    {
+      "reviewer": "studio-contract-review",
+      "axis": "specification",
+      "verdict": "pass",
+      "report_sha256": "df24ecbd3d30b46cfc608091321d3dce00023a329dfda5cd56640303d89aeec3"
+    },
+    {
+      "reviewer": "integration-critic-operational",
+      "axis": "operational",
+      "verdict": "pass",
+      "report_sha256": "540503bbfea138514c6192a337d175356ff83ced48c94af7d5c4d8f09248fdbe"
+    }
+  ],
+  "source_files_sha256": {
+    "bun.lock": "1a4c44900e416e0570b737142b0193b7a9b94885baa06bcca69441cfd4e14954",
+    "deploy/verify/Dockerfile": "8e578721327b5c20fc7fd28cbc428ba2f98a24b5dcbb8ae319859991e2498b0c",
+    "deploy/verify/Dockerfile.dockerignore": "8d0185b771f0dfe613e817ff848ad1ce396ecec0f894fb8befeb2929f3f7d8e9",
+    "lab/upstream-app.ts": "144ffcc1c0d1eaefde63c30ddfd336c1a5a2e7f28f12f5b2399a0eeba75a9cce",
+    "package.json": "0f4556bbd3c224eb65c88d1d57030d72ef7a532fce0b837557eb9da8913b6524",
+    "src/control/bootstrap.ts": "aaafdf9b11e57b84fbfebddce8e2dd5c9229ea6d97eb1c24f7b182059b838fc1",
+    "src/control/placement.ts": "9b09dcad025c4cbee5a361a331baf5139f5c73c82ef24dcfecb5dba6cabc6e50",
+    "src/control/auth.ts": "da1a70a0204ea1359d71269946de8930b28036db402f3baab12b292d5e37e099",
+    "src/control/studio.ts": "d93362f24fdbefbb9664d9c6954422b1c4499a502e82fd8d32f889ba5ce1f019",
+    "src/control/share.ts": "002768253944e1f1073fbdebefa49fbf7df621f779bb17838ec531d7b9b907da",
+    "src/control/invitations.ts": "5e32f1f1bfcc05a2b51bc3b8a3159d3b18d4f00ef2c7cfa4631b1dcd7aec09bb",
+    "src/control/application.ts": "482accd90547583571b68d64322cfacb130509c09beedaafedd511f40ceb64a6",
+    "src/control/functions.ts": "690fcbb83c24cccfde68b8e8ed9b638d154ba593a8a30c6d8d6b8c7ff04d45a1",
+    "src/control/key-http.ts": "aeae2abc75fe3c3e3c3fa4ec58b341be24e962df008b44e67871298654d3742e",
+    "src/control/observe.ts": "de08de67ae384eb2220c50982713f17fe0f0580ec3c5c5a4985faf33df6ecc09",
+    "src/control/realtime.ts": "440bcab7c7b4668cb1881eb3a4c38807082b0b8f77949363765906175a56eb82",
+    "src/control/sign-in.ts": "5191a3c554c729932d1b3d48a8d0a41d97d66ed1aaa1bc1da3d68698f25b8088",
+    "src/control/database.ts": "98e742e41f779a5851e561d53b5dfb063c44b01d1891401f49dcdd67a65a9c3b",
+    "src/control/signing.ts": "07471ec0f2c0d1dfd5234726a9b4771c6add3ebbdc6ad81c3ae8b061deffce7f",
+    "src/control/handler.ts": "5739bdb47abcdf3788b8ce605a7d843a2afe29332ca17aadbd22f177659898cb",
+    "src/control/catalog.ts": "ef7716b47d47ae130aa60409471fa84fb2b3cedcfdff7c3f7f5d2072a028b713",
+    "src/control/keys.ts": "f84ba287fc048dc4eaae7f322439b2eaf4f2740b0cc7aa4635164c635266d1d6",
+    "src/control/http.ts": "32698aacb9e582e527f23b6d9e8a08fdfe20ea504e00141adfebc6199c4d5229",
+    "src/control/updates.ts": "6655230a4bbfce6d3acb108ee6b5f30a2b7060b6e9a46948b9983376c1323faa",
+    "src/control/server-health.ts": "4f32d26f162245bc477aa3c258cd9f817f4db010b0057ee89da0288b9a444ba6",
+    "src/control/studio-workspace.ts": "434d9a3b5d0870c3fc15cc82e8062a3d513c103b0bc4d69170b8c92eda231e77",
+    "tests/studio.test.ts": "256ea880ee6a35240d66a48999e5e923b251e314601334419a864fdd9d357840",
+    "tests/studio-destination.test.ts": "83cec6b83a27c8362f7aa484cad5134d41de0863f5cb1adf2e400a60cacd8f53",
+    "tests/studio-navigation.test.ts": "73fd8ac201bd18f77ac63362ad5a17684449caf44ffda9152e479fcc7e2ec394",
+    "tests/studio-revocation.test.ts": "2bf39a32b19cd2cb1c6125a866e29c29c34ad0dad82243639d577b69a7a67a43",
+    "tsconfig.json": "353f364976857a7ceaa4e805db600ac7c44155def4b017f5bcd3f84678a4ba1d",
+    "tsconfig.control.json": "d340ab4d221759521c16f961bc194e40cc360db655f1308a7ede33337526535f"
+  },
+  "artifacts": {
+    "tests.log": "7a87235def3f333a7fcf4c9d3f576fb6f52ff6cead53e4cbc4dda409f5c075a7",
+    "types.log": "f13e1fc0be8bbad48b024d07dfc35fa6f1dc8a44af19daec02b4cc97c494dce8",
+    "result.json": "4be3dfae9780d51d2553762e7f330bd53d331e7c974e2a539b4bbccb032a3b30"
+  },
+  "reproduction": "sh deploy/verify/run.sh; the standard offline runner discovers the Studio tests and control typecheck",
+  "production_accepted": false,
+  "limitations": [
+    "Focused tests use in-memory catalogs and dummy vendor transports.",
+    "Does not accept actual Supabase Auth, native MFA integration, browser/vendor compatibility, aggregate capacity or whole platform.",
+    "Effects already dispatched and bytes already delivered cannot be undone.",
+    "Navigation body consumption refuses any change to the authorized metadata snapshot and needs Refresh.",
+    "Independent reviews inspected current source and captured execution; reviewers did not execute live vendor workloads."
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "reviewer": "merged-component-specification-critic",
+  "axis": "specification",
+  "source_hash": "dd4b6db6a8f060f4fbfb7af21cb80a051ace5e0839c6241f9e1ab6a8a5a7fdda",
+  "plan_hash": "846e1e940068f22d0b4b7f8fdb7553e72ea88f00a000682c733e9ac5640fe9ca",
+  "verdict": "pass",
+  "findings": [],
+  "artifacts": [
+    "merged-specification-support.json"
+  ]
+}

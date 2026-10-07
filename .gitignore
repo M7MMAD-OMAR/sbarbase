@@ -5,6 +5,7 @@ node_modules/
 sbarbase-handoff.zip
 __pycache__/
 .worktrees/
+.lock
 
 # graft's local graph cache: regenerable, not committed (run `graft build`).
 /graft/

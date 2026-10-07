@@ -1,0 +1,74 @@
+{
+  "schema": 1,
+  "date": "2026-10-06",
+  "status": "task-native-cli-slice-verified-merged-source-verification-separate",
+  "commit": "b21e61522869e399f4d396d88aa60d88c804151c",
+  "task_source_hash": "dbcb63bf84e8e0d8c2d6e1cebe37d530a675cc6888adb34a19a73074fd755cf9",
+  "task_plan_hash": "0c382303fb64c6bad511421fd7b576cf1d39c4b2f1d66ce0fb006ebab27cd0e4",
+  "scope": "Original Auth and private terminal CLI in isolated task source. Six final CLI files match imported root bytes and modes; this does not transfer native execution to the changed integrated application.",
+  "tests": {
+    "native_auth_and_terminal": 101,
+    "actual_terminal_scenarios": 8,
+    "failed": 0,
+    "skipped": 0,
+    "task_repository": 386,
+    "control_types": "passed"
+  },
+  "independent_reviews": 2,
+  "owned_cleanup_verified": true,
+  "unrelated_running_ids_preserved": 60,
+  "scoped_files": [
+    {
+      "path": "lab/sbarbase.ts",
+      "sha256": "1572cf331c417e3aa5ff329fc18161e4271e1389028db0a419062b0e5845a72e",
+      "matches_task": true
+    },
+    {
+      "path": "lab/management-cli-check.ts",
+      "sha256": "3a111c9ed525b2b24c305d238a20da10d5f5945faa5adbfeafa9c4ceb9893606",
+      "matches_task": true
+    },
+    {
+      "path": "lab/management-cli-terminal.py",
+      "sha256": "7436a6d05175083923c18291d4c97e8684eb2f20f3bf5d8117ff7aa602a922c4",
+      "matches_task": true
+    },
+    {
+      "path": "lab/management-mfa-fixture.py",
+      "sha256": "746feb82467c04fb05261fb842e324e31042ff0da75410e968efd7735b2d8d39",
+      "matches_task": true
+    },
+    {
+      "path": "tests/sbarbase-cli.test.ts",
+      "sha256": "c959abf4a4393ca93634a74a297d048a6536a3202df8aa65108b428ebdefbbf7",
+      "matches_task": true
+    },
+    {
+      "path": "docs/engineering/CLI-MFA.md",
+      "sha256": "76f3f2a1302f8794638c92592a89b6dcb0ad476e3149c89a915aa2e1c032dee3",
+      "matches_task": true
+    }
+  ],
+  "artifacts_sha256": {
+    "native-cli.json": "be37dd9dc2be19894ec6b067448d093777c6e3ffe5dee5ad3c18f635f42eeeca",
+    "native-cli-attempt1.json": "ef36be16f99b2ce1bfa2f1c48e77041f014bea8a012d66409ae066ee5fb278b8",
+    "cli-signal-race-initial.json": "86745c645388a0a06c0df3923fc071d79688d67f624e8cb998dd8df8bb04d3f6",
+    "cli-signal-race-repaired-with-cleanup.json": "bcba4a4142049c012ce08a5483a1ad9bdb1b745c35246b88eeec2ef6937c83f9",
+    "cli-signal-race-cleanup-probe-attempt1.json": "ef68486a9faebe3133b555632ddf5c40ae0d4deda85dec169a136576b3f5cf21",
+    "specification-review.json": "502ae23283b2c9828bff52b84a6b390c01566affa3aa0394bedb18e3449e097b",
+    "operational-review.json": "1bae510fee53c168c374c97019d19353cd32130b2975e4f5ad1317c26e3b3833",
+    "specification-independent-verification.json": "a0381057c5cd527ecaad3dcabd3412ebf580c8e48351dbb0f66f396c42d94d5c",
+    "accepted-status.json": "62d7ac03dc3835f467e2f98d972c3dad65f21fc234b98bf820148c943d8d0aec",
+    "workflow/artifacts/check-cli-native-four-slots-2.log": "51cf6e607c1a3d31cecfc5ce0a4d34b88d3d5a06d0297df6c292566bea33619c",
+    "workflow/artifacts/check-cli-unit-four-slots-1.log": "e6f1f5f80675e030752ee90782f2bd01b9891c142dbf37fae33625c55966db6a",
+    "workflow/artifacts/check-cli-types-four-slots-1.log": "f13e1fc0be8bbad48b024d07dfc35fa6f1dc8a44af19daec02b4cc97c494dce8"
+  },
+  "full_retained_archive_sha256": "f0efb40e95c29149e164df43bd684ae3620526172b3d99084015d985c0a22aab",
+  "limits": [
+    "Full standard source verification and native integrated application execution remain unproven.",
+    "Original vendor Studio, fresh-host portability/recovery and production remain unproven.",
+    "General project transfer credential rotation remains incomplete.",
+    "The historical core host-preservation diagnostic remains false and is not resolved by this separate CLI proof.",
+    "Failed native attempt, initial cancellation failure and recorder diagnostics remain retained."
+  ]
+}

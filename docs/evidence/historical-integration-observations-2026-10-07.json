@@ -1,0 +1,328 @@
+{
+  "schema": "sbarbase.historical-integration-observations.v1",
+  "date": "2026-10-07",
+  "classification": "Curated historical public metadata observations, not current acceptance or production proof",
+  "scope": "Dated focused and failed standard verification, scoped source applications, intermediate component checks and historical published CI",
+  "current_final_source_identity_declared": false,
+  "current_merged_tree_accepted": false,
+  "production_acceptance": false,
+  "focused_namespace": {
+    "decision": "MET",
+    "scope": "FOCUSED61_OWNED_OVERLAY_RUNTIME_ONLY",
+    "native_exit": 0,
+    "tests_run": 61,
+    "producer_cases": 31,
+    "pump_cases": 30,
+    "zero_failure_error_skip_expected_unexpected": true,
+    "source_identity": {
+      "algorithm": "sha256-per-file",
+      "scope": "Exact four public producer, pump and regression files from the historical focused snapshots",
+      "inventory": [
+        {
+          "path": "deploy/verify/private_psql_producer.py",
+          "bytes": 11782,
+          "mode": 420,
+          "sha256": "e8c2a41317fc12e5b6c541369048c09e47d35daeab43eef650ab9534e884e73f"
+        },
+        {
+          "path": "deploy/verify/private_request_pump.py",
+          "bytes": 17480,
+          "mode": 420,
+          "sha256": "e9f401e59b65ccb0222de60fac49a0b2b8c2cbef8db4bf0cb27bc034368b4b22"
+        },
+        {
+          "path": "lab/test_private_psql_producer.py",
+          "bytes": 17090,
+          "mode": 420,
+          "sha256": "2a3a4e082fd303c62b578cfbf439c071df4ee4ef4511b9b9aca4a0d2a1794257"
+        },
+        {
+          "path": "lab/test_private_request_pump.py",
+          "bytes": 18761,
+          "mode": 420,
+          "sha256": "b94fdf1b491c57b9b462821b5b0e79b37ac330c5ed305e7d1ee082f99e063941"
+        }
+      ]
+    },
+    "independent_actual_review": "MET at exact focused61 scope, as recorded by original root closure",
+    "exact_owned_cleanup_proven": true,
+    "unresolved_resources": 0,
+    "cleanup_errors": 0,
+    "whole_standard_accepted": false,
+    "private_psql_cron_vault_execution_accepted": false,
+    "production_acceptance": false
+  },
+  "full_standard_v8": {
+    "decision": "NOT_MET",
+    "scope": "FULL_STANDARD_CURRENT953_OWNED_OVERLAY_RUNTIME_ONLY",
+    "original_native_exit": 1,
+    "python_tests": 1623,
+    "python_failures": 9,
+    "python_errors": 21,
+    "negative_occurrences": 30,
+    "bun_pass": 430,
+    "bun_fail": 0,
+    "required41_actual_ok": true,
+    "other_six_stages_passed": true,
+    "capture_membership_count": 953,
+    "public_product_context_before_repairs": {
+      "algorithm": "sbarbase-public-source-v1",
+      "files": 537,
+      "sha256": "2fc47eca54cf0798d5ba2f5ba52bfdee18c89a27d4767925a72c2acf8af37d18"
+    },
+    "independent_actual_review": "NOT_MET at original failed full-standard scope, with native exit1 retained",
+    "physical_exact_owned_cid_name_absence_proven": true,
+    "owner_positive_cleanup_accepted": false,
+    "guard_positive_cleanup_accepted": false,
+    "physical_absence_does_not_rewrite_original_negative_cleanup": true,
+    "original_owner_unresolved_count": 1,
+    "original_result_preserved": true,
+    "time_limits_reset": false,
+    "production_acceptance": false
+  },
+  "ten_source_repairs": {
+    "scope": "EXACT_TEN_PARENT_AUTHORIZED_TRACKED_SOURCE_APPLICATION_ONLY",
+    "files_applied": 10,
+    "original_identity": {
+      "algorithm": "sbarbase-public-source-v1",
+      "files": 537,
+      "sha256": "2fc47eca54cf0798d5ba2f5ba52bfdee18c89a27d4767925a72c2acf8af37d18"
+    },
+    "new_identity": {
+      "algorithm": "sbarbase-public-source-v1",
+      "files": 537,
+      "sha256": "65e948ef3ecc1e707a30e325a58b7b13a00c4fcf13a94d95d65b2560890c3558"
+    },
+    "exact_candidate_bytes_modes_applied": true,
+    "unlisted527_full_bytes_modes_unchanged": true,
+    "genuine_source_review_gate_count": 5,
+    "runtime_acceptance_transferred": false,
+    "new_native_execution": false,
+    "production_acceptance": false
+  },
+  "scoped_source_applications": [
+    {
+      "area": "SB-09 database workflow",
+      "scope": "Eight-file scoped delta application; baseline not merged",
+      "files_applied": 8,
+      "changed_existing_files": 3,
+      "new_files": 5,
+      "source_identity": {
+        "algorithm": "sbarbase-public-source-v1",
+        "files": 542,
+        "sha256": "7c2dbf874cd9c823945f5d310263fc8ae29f0e2b2d0d930baa74aa7420d578f9"
+      },
+      "native_acceptance": false,
+      "production_acceptance": false
+    },
+    {
+      "area": "Storage settlement",
+      "scope": "Scoped application including historical source/evidence material; public product additions distinct from total files",
+      "files_applied": 429,
+      "source_identity": {
+        "algorithm": "sbarbase-public-source-v1",
+        "files": 552,
+        "sha256": "5e9805f91dd2925875ea6344228b2e3a5239f1ee86e190a521d6f89ae6acefb6"
+      },
+      "original_native_cases_accepted": 0,
+      "original_native_cases_required": 29,
+      "complete_native_stage_implementations_pending_at_this_application": 15,
+      "native_acceptance": false,
+      "production_acceptance": false
+    },
+    {
+      "area": "SB-06 administrative transfer",
+      "scope": "Exact source delivery without baseline merge",
+      "files_applied": 13,
+      "source_identity": {
+        "algorithm": "sbarbase-public-source-v1",
+        "files": 564,
+        "sha256": "01b57c68711592b728b79d02083a1d23a962b49844a467a34e8ecf8ced12abf4"
+      },
+      "native_transfer_T1_T11_acceptance": false,
+      "production_acceptance": false
+    },
+    {
+      "area": "SB-05 recovery dependencies",
+      "scope": "EXACT11_SB05_AND_TWO_FILE_OPERATION_RESERVATION_APPLICATION",
+      "exact_source_files_added": 11,
+      "source_identity": {
+        "algorithm": "sbarbase-public-source-v1",
+        "files": 592,
+        "sha256": "326d907533fb886d0fcf922c9b45a76f7a5e22dab3c5f3d8f5b9a210b178747f"
+      },
+      "native_acceptance": false,
+      "production_acceptance": false
+    },
+    {
+      "area": "Lifecycle authority",
+      "scope": "Exact11 delta, preserve Root UUID reservation, SB05 Source and32MiB fixture change",
+      "files_applied": 11,
+      "candidate_public_source_identity": {
+        "algorithm": "sbarbase-public-source-v1",
+        "sha256": "8468a5daf65c2e4208c47198fca62362ae1cd944b857302ef48c2d62e8a928f3"
+      },
+      "schema_conflict_resolution": "Preserved both global operation unique index and authorization table",
+      "source_tests_executed_at_application": false,
+      "native_acceptance": false,
+      "production_acceptance": false
+    }
+  ],
+  "intermediate596": {
+    "source_identity": {
+      "algorithm": "sbarbase-public-source-v1",
+      "files": 596,
+      "sha256": "6eed4618bba049521f5f858644fce54ac3b4c23870cc4c732531c44e7b871c0a"
+    },
+    "actual_checks": [
+      {
+        "id": "consumer-operational-source-types",
+        "parsed": {
+          "exit_code": 0
+        },
+        "cleanup_proven": true
+      },
+      {
+        "id": "integrated-storage-transfer-python-source",
+        "parsed": {
+          "exit_code": 0,
+          "executed_tests": 401
+        },
+        "cleanup_proven": true
+      },
+      {
+        "id": "consumer-source-regressions",
+        "parsed": {
+          "exit_code": 0,
+          "passed": 686,
+          "failed": 0,
+          "skipped": 0,
+          "missing_required_pass_titles": []
+        },
+        "cleanup_proven": true
+      }
+    ],
+    "fresh_independent_reviews_accepted": 0,
+    "full_original105_completion": "unproven",
+    "current_tree_acceptance_transferred": false
+  },
+  "initial_factor606": {
+    "source_identity": {
+      "algorithm": "sbarbase-public-source-v1",
+      "files": 606,
+      "sha256": "c35fc3012dd4d6c2dfdde8f3310b1e776663301a6c349e70f6eeaddca4c16ccd"
+    },
+    "scope": "Exact three-file initial-factor source application against605",
+    "changed_files": 3,
+    "authored_regressions": 6,
+    "actual_source_tests_types_or_independent_review_against606": false,
+    "native_browser_freshhost_provider_pilot_acceptance": false,
+    "current_tree_acceptance_transferred": false
+  },
+  "published_historical_ci": {
+    "run": 37411721539,
+    "url": "https://github.com/M7MMAD-OMAR/sbarbase/actions/runs/37411721539",
+    "commit": "2c4ec82007a47436ba3e338ac03d1ad5e288df45",
+    "conclusion": "success",
+    "jobs": {
+      "checks": "success",
+      "python_compatibility": "success",
+      "docker_installation": "success",
+      "empty_host_acceptance": "skipped"
+    },
+    "observation_provenance": "Coordinator fresh read-only GitHub observations; independently reviewed supplied metadata, no remote rerun from this documentation role",
+    "current_tree_accepted": false,
+    "fresh_host_accepted": false
+  },
+  "reviewed_metadata_lineage": {
+    "documentation_v1_independent_reader": {
+      "decision": "NOT_MET",
+      "scope": "SEVEN_DOCUMENTATION_CANDIDATES_READER_SOURCE_ONLY",
+      "new_claim_receipt_checks_verified": 10,
+      "historical_observation_only": true,
+      "findings": [
+        "Missing distributed historical summary",
+        "Undated legacy absence assertions"
+      ]
+    },
+    "original_public_receipt_sha256": [
+      {
+        "record": "Focused61 root closure",
+        "bytes": 17270,
+        "mode": 420,
+        "sha256": "8c89d193447a0ba36e0ed59768c236f74e203e0f6025bad4fb14dc8c15ab2824"
+      },
+      {
+        "record": "Failed full-standardV8 root closure",
+        "bytes": 36750,
+        "mode": 420,
+        "sha256": "c56585856eb3204163a079dba345479b55dbd3e71a1ed93fef941c0099ee8219"
+      },
+      {
+        "record": "Ten source repairs application",
+        "bytes": 4199,
+        "mode": 420,
+        "sha256": "8d045c723b8888c8b8bffae59308f3789c8bf4826c945a81941ea4baa1a473c1"
+      },
+      {
+        "record": "SB09 scoped application",
+        "bytes": 3293,
+        "mode": 420,
+        "sha256": "0ddc1f6b0f97e54b193b81f1638ea0be765bb7280238e8fae80fc7d56c90f318"
+      },
+      {
+        "record": "Storage scoped application",
+        "bytes": 1556,
+        "mode": 420,
+        "sha256": "99f746061081cbd4b74a9cd7d5145e0a473975e0151e0b53e0d31f73a519c4ea"
+      },
+      {
+        "record": "SB06 scoped application",
+        "bytes": 3111,
+        "mode": 420,
+        "sha256": "937575ab8f7c89a88c72c34680ab9eaea8aad8c6f8395dc0d4557ae79354ce22"
+      },
+      {
+        "record": "SB05 scoped application",
+        "bytes": 3404,
+        "mode": 420,
+        "sha256": "8824e79eafeaa7f9bc8deb109f257b0d0eeae69018c5219c217942601a0bf971"
+      },
+      {
+        "record": "Lifecycle authority application",
+        "bytes": 2947,
+        "mode": 420,
+        "sha256": "31ad226da9c12970d0f734d2b2cef74dacccbe5b65ca53dc68890a3efd7bb49e"
+      },
+      {
+        "record": "Intermediate596 component summary",
+        "bytes": 1782,
+        "mode": 420,
+        "sha256": "976a851a8c61ae3727af4eeacdfd100f4d2fe2cd3b4da5b929e2cd7690c49d51"
+      },
+      {
+        "record": "Initial-factor606 application",
+        "bytes": 1519,
+        "mode": 420,
+        "sha256": "8588e8dbbb80284de6a7b84b78e944f48110fc9c5b2df026d0f76ca95e610a76"
+      }
+    ],
+    "original_receipts_remain_unchanged": true,
+    "public_summary_does_not_distribute_complete_raw_native_proof": true
+  },
+  "remaining_requirements": {
+    "all_capability_acceptance_and_production_rows": 105,
+    "all_rows_state": "unproven",
+    "final_merged_source_tests_pending": true,
+    "fresh_current_independent_reviews_pending": true,
+    "installed_native_assurance_transfer_deletion_pending": true,
+    "full_recovery_supported_hosts_browser_providers_and_pilot_pending": true
+  },
+  "privacy_and_distribution": {
+    "personal_absolute_paths_included": false,
+    "private_payloads_or_authority_packets_included": false,
+    "local_ignored_paths_required_for_operator_use": false,
+    "secret_bearing_raw_command_streams_included": false,
+    "historical_counts_are_not_current_acceptance": true
+  }
+}

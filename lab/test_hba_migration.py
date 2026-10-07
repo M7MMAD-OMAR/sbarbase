@@ -311,26 +311,30 @@ class PreconditionTests(Fixture,unittest.TestCase):
             self.execute()
         self.assertEqual([args for args in self.docker.calls if args[0]=='stop'],[('stop',TARGET.container_id,)])
 
-    def test_an_absent_retired_container_is_recreated_on_the_recorded_volume(self):
+    def test_an_absent_retired_container_refuses_before_publishing_intent(self):
         state=Path(self.temp.name)/'absent'
         state.mkdir()
         hba_generation.publish(state,TARGET,self.generation)
-        record=migration.publish_intent(state,target=TARGET,generation=self.generation,volume='fixture-pgdata',
-                                        inventory=authority.digest(DESIRED),retired_state='absent-verified')
-        migration.checkpoint(state,'old-captured',{'migration':record['migration'],
-                                                   'intent':authority.digest(authority.canonical(record)),
-                                                   'retired':{'container_id':None,'identity':'absent-verified','mounts':[],
-                                                              'volume':'fixture-pgdata','hba_digest':None}})
-        with patch('resource_policy.io_flags',return_value=['--device-read-bps','/dev/x:1mb']) as flags:
-            identifier,mounts=migration.create_replacement(self.docker,state,record,
-                                                           migration.validate_replacement(record,self.replacement()))
-        self.assertEqual(identifier,NEW_CONTAINER)
-        self.assertEqual([args for args in self.docker.calls if args[0]=='rm'],[])
-        run=[args for args in self.docker.calls if args[0]=='run'][0]
-        self.assertIn('io.sbarbase.tier=system',run)
-        self.assertIn('fixture-net',run)
-        flags.assert_called_once_with('system.db')
-        self.assertEqual(mounts[0]['name'],'fixture-pgdata')
+        pinned=hba_generation.load(state)
+        self.docker.retired=None
+        self.docker.cp_failure={migration.HBA_PATH,authority.PATH}
+        with patch('resource_policy.io_flags',return_value=['--device-read-bps','/dev/x:1mb']):
+            with self.assertRaisesRegex(RuntimeError,'Absent retired container.*verified archive'):
+                migration.migrate(self.docker,state,target=TARGET,replacement=self.replacement(),
+                                  desired=DESIRED,volume='fixture-pgdata',retired_state='absent-verified')
+        self.assertFalse(migration.present(state))
+        self.assertEqual(hba_generation.load(state),pinned)
+        self.assertEqual(self.docker.calls,[])
+
+    def test_an_existing_absent_intent_refuses_reconciliation_before_effects(self):
+        legacy={**self.intent,'retired_state':'absent-verified'}
+        migration.intent_path(self.state).write_text(authority.encode(legacy))
+        with self.assertRaisesRegex(RuntimeError,'Absent retired container.*verified archive'):
+            self.execute()
+        self.assertEqual(migration.load(self.state),legacy)
+        self.assertTrue(migration.present(self.state))
+        self.assertFalse(migration.done(self.state,'old-captured'))
+        self.assertEqual(self.docker.calls,[])
 
     def test_the_retired_authority_registry_is_preserved_for_audit(self):
         self.docker.retired_rules=None
@@ -429,15 +433,49 @@ class EvidenceTests(Fixture,unittest.TestCase):
         self.assertEqual(identical['difference'],'identical')
         self.assertTrue(identical['inventory_matches_observed'] and identical['retired_matches_observed'])
 
-    def test_a_deliberate_rule_difference_is_reported_and_not_swallowed(self):
+    def test_a_rule_inventory_mismatch_preserves_the_migration_barrier(self):
         self.docker.published=revision()+'local all all trust\n'
         self.docker.retired_rules=None
-        self.execute()
-        rules=migration.read_evidence(self.state,self.intent['migration'])['rules']
-        self.assertEqual(rules['difference'],'different')
-        self.assertFalse(rules['inventory_matches_observed'])
-        self.assertFalse(rules['retired_matches_observed'])
-        self.assertNotEqual(rules['observed_rules_digest'],rules['retired_rules_digest'])
+        with self.assertRaisesRegex(RuntimeError,'Observed HBA rules differ from the migration inventory'):
+            self.execute()
+        self.assertTrue(migration.present(self.state))
+        self.assertTrue(migration.done(self.state,'rules-published'))
+        self.assertFalse(migration.done(self.state,'archived'))
+        archive=migration.archive_directory(self.state,self.intent['migration'])
+        self.assertFalse((archive/migration.EVIDENCE).exists())
+        self.assertFalse((migration.record_directory(self.state)/migration.COMPLETED).exists())
+        with self.assertRaisesRegex(RuntimeError,'Generation migration requires reconciliation'):
+            hba_startup.require_clear(self.state)
+
+    def test_archived_retry_rechecks_current_rules_before_removing_the_barrier(self):
+        with patch.object(migration,'finish',side_effect=RuntimeError('completion interrupted')):
+            with self.assertRaisesRegex(RuntimeError,'completion interrupted'):
+                self.execute()
+        archive=migration.archive_directory(self.state,self.intent['migration'])/migration.EVIDENCE
+        preserved=archive.read_bytes()
+        self.docker.published=revision()+'local all all trust\n'
+        with self.assertRaisesRegex(RuntimeError,'Observed HBA rules differ from the migration inventory'):
+            self.execute()
+        self.assertTrue(migration.present(self.state))
+        self.assertTrue(migration.done(self.state,'archived'))
+        self.assertEqual(archive.read_bytes(),preserved)
+        self.assertFalse((migration.record_directory(self.state)/migration.COMPLETED).exists())
+
+    def test_legacy_archived_mismatch_never_authorizes_completion(self):
+        with patch.object(migration,'finish',side_effect=RuntimeError('completion interrupted')):
+            with self.assertRaisesRegex(RuntimeError,'completion interrupted'):
+                self.execute()
+        archive=migration.archive_directory(self.state,self.intent['migration'])/migration.EVIDENCE
+        legacy=migration.read_evidence(self.state,self.intent['migration'])
+        legacy['rules']['inventory_matches_observed']=False
+        legacy['rules']['difference']='different'
+        archive.write_text(authority.encode(legacy))
+        preserved=archive.read_bytes()
+        with self.assertRaisesRegex(RuntimeError,'Archived HBA migration did not verify the inventory'):
+            self.execute()
+        self.assertTrue(migration.present(self.state))
+        self.assertEqual(archive.read_bytes(),preserved)
+        self.assertFalse((migration.record_directory(self.state)/migration.COMPLETED).exists())
 
     def test_completion_removes_the_record_and_reconciliation_refuses_twice(self):
         self.docker.published=revision()+DESIRED

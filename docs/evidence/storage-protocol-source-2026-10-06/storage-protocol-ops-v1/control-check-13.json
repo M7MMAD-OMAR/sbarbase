@@ -1,0 +1,80 @@
+{
+  "total": 2,
+  "failed": 0,
+  "skipped": 0,
+  "native_accepted": false,
+  "seconds": 0.329202916000213,
+  "observations": [
+    {
+      "id": "output-cap",
+      "passed": true,
+      "runner_returncode": 1,
+      "retained_output_bytes": 3072,
+      "budget": {
+        "active_seconds": 0.04719426200608723,
+        "checks": [
+          {
+            "argv": [
+              "/home/sbarah/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+              "/tmp/private-supervisor-85sp48q6/child.py"
+            ],
+            "log": "check-python-1.log",
+            "metadata_reserved_bytes": 1024,
+            "observed_output_bytes": 16384,
+            "output_bytes": 4096,
+            "peak_group_rss": 13619200,
+            "phase": "python",
+            "reason": "Combined retained output bound exceeded",
+            "retained_output_bytes": 3072,
+            "returncode": -9,
+            "seconds": 0.04719426200608723
+          }
+        ],
+        "metadata_reservation_v1": 0,
+        "output_bytes": 4096
+      },
+      "private_child_survived_runner": false,
+      "private_identity_created": true,
+      "runner_stdout": "{\"total\": 0, \"failed\": 1, \"skipped\": 0, \"native_accepted\": false, \"reason\": \"Combined retained output bound exceeded\", \"raw_sha256\": \"6ae2dd899de6c6f44d60302c256dafc3059278a5d7f18f46bad463ccfdb3acfe\", \"raw_log\": \"/tmp/private-supervisor-85sp48q6/check-python-1.log\", \"peak_group_rss\": 13619200, \"role_seconds_used\": 0.04719426200608723, \"role_output_bytes\": 4096}\n",
+      "runner_stderr": "",
+      "runner_stdout_sha256": "5f7c9fa859a500423fea57dd83dc458558b059479bc5c24991c48e27aab5aab6",
+      "runner_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "closed-pipes",
+      "passed": true,
+      "runner_returncode": 1,
+      "retained_output_bytes": 0,
+      "budget": {
+        "active_seconds": 0.1860437159994035,
+        "checks": [
+          {
+            "argv": [
+              "/home/sbarah/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+              "/tmp/private-supervisor-83wgjos2/child.py"
+            ],
+            "log": "check-python-1.log",
+            "metadata_reserved_bytes": 1024,
+            "observed_output_bytes": 0,
+            "output_bytes": 1024,
+            "peak_group_rss": 13742080,
+            "phase": "python",
+            "reason": "Active time bound exceeded",
+            "retained_output_bytes": 0,
+            "returncode": -9,
+            "seconds": 0.1860437159994035
+          }
+        ],
+        "metadata_reservation_v1": 0,
+        "output_bytes": 1024
+      },
+      "private_child_survived_runner": false,
+      "private_identity_created": true,
+      "runner_stdout": "{\"total\": 0, \"failed\": 1, \"skipped\": 0, \"native_accepted\": false, \"reason\": \"Active time bound exceeded\", \"raw_sha256\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\", \"raw_log\": \"/tmp/private-supervisor-83wgjos2/check-python-1.log\", \"peak_group_rss\": 13742080, \"role_seconds_used\": 0.1860437159994035, \"role_output_bytes\": 1024}\n",
+      "runner_stderr": "",
+      "runner_stdout_sha256": "deff46d4da355639aeff8ad4cbf672bed79c157000f4403a8adff57d978537c6",
+      "runner_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "harness_error": null
+}

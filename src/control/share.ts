@@ -1,3 +1,5 @@
+import {bindManagementPublication,managementPublication,requireOperatorPublication} from './management-publication';
+import {refreshCurrentManagement} from './management-context';
 import {Catalog} from './catalog';
 import {authenticate,reply,type ManagementIdentity} from './auth';
 
@@ -13,12 +15,16 @@ export function shareHandler(catalog:Catalog,identify:ManagementIdentity) {
   if(actor instanceof Response)return actor;
   const environment=match[1]!;
   try {
-   if(request.method==='GET')return reply(200,{data:catalog.gatewayShareState(actor,environment)});
+   if(request.method==='GET')return managementPublication(catalog,()=>reply(200,{data:catalog.gatewayShareState(actor,environment)}));
    let input:unknown;
    try{input=await request.json();}catch{return reply(400,{message:'Invalid JSON'});}
+   await refreshCurrentManagement();
    const share=input&&typeof input==='object'&&!Array.isArray(input)&&Object.keys(input).length===1?(input as {share?:unknown}).share:undefined;
    if(typeof share!=='number')return reply(400,{message:'Invalid request'});
-   return reply(200,{data:catalog.setGatewayShare(actor,environment,share)});
+   const response=reply(200,{data:catalog.setGatewayShare(actor,environment,share)});
+   return bindManagementPublication(response,catalog,()=>{
+    requireOperatorPublication(catalog,actor);return reply(200,{data:catalog.gatewayShareState(actor,environment)});
+   });
   } catch(error) {
    const message=error instanceof Error?error.message:'';
    if(message==='Forbidden')return reply(403,{message:'Forbidden'});

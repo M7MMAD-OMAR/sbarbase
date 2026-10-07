@@ -15,6 +15,7 @@ import threading
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+from host_test_fixture import admitted_host_fixture
 
 import dev
 import upgrade
@@ -771,9 +772,12 @@ class MainTests(unittest.TestCase):
         def run(supervisor):
             if error is not None:
                 raise error
-        with patch.object(dev.Supervisor, 'run', run), contextlib.redirect_stderr(io.StringIO()), \
+        with admitted_host_fixture() as admission, patch.object(dev.Supervisor, 'run', run), contextlib.redirect_stderr(io.StringIO()), \
                 contextlib.redirect_stdout(io.StringIO()):
-            dev.main()
+            try:
+                dev.main()
+            finally:
+                admission.assert_called_once()
 
     def test_any_exception_in_the_gated_start_takes_the_way_back(self):
         for error in (TypeError('new code'), ImportError('missing'), subprocess.TimeoutExpired(['studio'], 300),

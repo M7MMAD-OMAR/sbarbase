@@ -76,7 +76,7 @@ class Namespace:
             info = os.fstat(root_fd)
             require(stat.S_ISDIR(info.st_mode) and info.st_uid == 100 and info.st_gid == 101
                     and stat.S_IMODE(info.st_mode) == 0o700, 'ADAPTER_ROOT_REFUSED')
-            require(os.listdir(root_fd) == [], 'ADAPTER_NOT_FRESH')
+            require(self.members() == [], 'ADAPTER_NOT_FRESH')
             for name in NAMES:
                 os.mkfifo(name, 0o600, dir_fd=root_fd)
             self.witness = self.snapshot()
@@ -84,8 +84,36 @@ class Namespace:
             self.failed = True
             raise TransportRefusal('NAMESPACE_PREPARATION_REFUSED') from None
 
+    def members(self):
+        fresh = None
+        try:
+            require(not self.failed, 'NAMESPACE_MEMBERSHIP_REFUSED')
+            before = os.fstat(self.root)
+            require(stat.S_ISDIR(before.st_mode) and before.st_uid == 100 and before.st_gid == 101
+                    and stat.S_IMODE(before.st_mode) == 0o700, 'ADAPTER_ROOT_REFUSED')
+            expected = signature(before)
+            fresh = os.open('.', os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+                            dir_fd=self.root)
+            require(signature(os.fstat(fresh)) == expected, 'NAMESPACE_MEMBERSHIP_REFUSED')
+            result = os.listdir(fresh)
+            require(signature(os.fstat(fresh)) == expected
+                    and signature(os.fstat(self.root)) == expected, 'NAMESPACE_MEMBERSHIP_REFUSED')
+            return result
+        except BaseException:
+            self.failed = True
+            raise TransportRefusal('NAMESPACE_MEMBERSHIP_REFUSED') from None
+        finally:
+            if fresh is not None:
+                try:
+                    os.close(fresh)
+                except BaseException:
+                    self.failed = True
+                    # Evidence only: never retry or adopt an uncertain descriptor.
+                    self.uncertain_close_fd = fresh
+                    raise TransportRefusal('NAMESPACE_MEMBERSHIP_REFUSED') from None
+
     def snapshot(self):
-        require(not self.failed and set(os.listdir(self.root)) == set(NAMES), 'NAMESPACE_MEMBERSHIP_REFUSED')
+        require(not self.failed and set(self.members()) == set(NAMES), 'NAMESPACE_MEMBERSHIP_REFUSED')
         root = os.fstat(self.root)
         require(stat.S_ISDIR(root.st_mode) and root.st_uid == 100 and root.st_gid == 101
                 and stat.S_IMODE(root.st_mode) == 0o700, 'ADAPTER_ROOT_REFUSED')

@@ -1,0 +1,35 @@
+{
+  "checkpoint_source_hash": "bbb92b39793f1ab0514a4e7e8bfa4503f345cf683919936b97f1f40f1fbf1f05",
+  "files": [
+    {
+      "path": "lab/storage_native_authority.py",
+      "sha256": "af17de6747762d3ca0f84118ea221808c1322069bde13251bf3903b6cddf08d9",
+      "bytes": 40122,
+      "mode": 420
+    },
+    {
+      "path": "lab/test_storage_native_authority.py",
+      "sha256": "ecd68df24927aaa5c8be0917b52b8ef4ae72e992b7b7e6213020b0b54493fa8a",
+      "bytes": 31500,
+      "mode": 420
+    },
+    {
+      "path": "lab/disposable-storage-settlement-drill.py",
+      "sha256": "43756421b1d7b175bae6049c9bc85ea64690b7cc92f5fbc4c38c431728216d24",
+      "bytes": 27622,
+      "mode": 420
+    },
+    {
+      "path": "lab/test_disposable_storage_settlement_drill.py",
+      "sha256": "4ee3e51a1ea3171dd4969d645c2a8186216bd1c24c497e6c41d09408e9ea0308",
+      "bytes": 16541,
+      "mode": 420
+    },
+    {
+      "path": "docs/engineering/plans/2026-10-06-storage-write-settlement.md",
+      "sha256": "d7362018c1c827bf5e5157f96a4c99cb3f6661e5ee31340d5bb45e9076e51d11",
+      "bytes": 20880,
+      "mode": 420
+    }
+  ]
+}

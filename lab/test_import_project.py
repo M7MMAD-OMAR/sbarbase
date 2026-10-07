@@ -49,6 +49,40 @@ class SettingsTests(unittest.TestCase):
                 import_project.read_settings(io.StringIO(bad))
 
 
+class ExtensionTests(unittest.TestCase):
+    def extension_statements(self, extensions, present=()):
+        class ReachedSchemaDump(Exception):
+            pass
+
+        statements = []
+        facts = {'auth_users': 0, 'buckets': 0, 'objects': {'count': 0}}
+        assessment = {'refusals': [], 'warnings': [], 'manual': [], 'summary': {}}
+        with patch.object(import_project, 'Source') as source_class, \
+             patch.object(import_project, 'target_rows', side_effect=[[[0, 0, 0, 0]], [[name] for name in present]]), \
+             patch.object(import_project, 'target_sql', side_effect=lambda e, sql: statements.append(sql)), \
+             patch.object(import_project, 'ensure_developer'), \
+             patch.object(import_project.import_inspect, 'gather', return_value=facts), \
+             patch.object(import_project.import_inspect, 'assess', return_value=assessment), \
+             patch('sys.stdout', new_callable=io.StringIO):
+            source = source_class.return_value
+            source.query.return_value = extensions
+            source.dump.side_effect = ReachedSchemaDump
+            with self.assertRaises(ReachedSchemaDump):
+                import_project.run_import(E, {'database_url': 'postgresql://unused'})
+            source.close.assert_called_once()
+        return statements
+
+    def test_extension_and_schema_names_are_serialized_as_identifiers(self):
+        self.assertEqual(self.extension_statements([('hstore', 'extensions')]), [
+            'CREATE SCHEMA IF NOT EXISTS "extensions"; CREATE EXTENSION IF NOT EXISTS "hstore" WITH SCHEMA "extensions";'])
+        self.assertEqual(self.extension_statements([('extension"name', 'schema"name')]), [
+            'CREATE SCHEMA IF NOT EXISTS "schema""name"; CREATE EXTENSION IF NOT EXISTS "extension""name" WITH SCHEMA "schema""name";'])
+
+    def test_existing_and_inactive_extensions_are_not_created(self):
+        self.assertEqual(self.extension_statements([('hstore', 'extensions'), ('pg_cron', 'cron'), ('pg_net', 'net')],
+                                                   present=('hstore',)), [])
+
+
 class DeveloperTests(unittest.TestCase):
     def test_an_open_developer_login_keeps_its_password(self):
         statements = []

@@ -1,0 +1,84 @@
+{
+  "reviewer": "settlement-ops-critic-v3",
+  "axis": "operational-correctness",
+  "source_hash": "13db04977316d05d6c74fb20eb5690fb7f36df26144b1b4b68da9737bbffc12c",
+  "plan_hash": "2a414dc7dacee28995eb660744455122e21822901ef97b6d63cf2e56f3c92786",
+  "verdict": "pass",
+  "findings": [],
+  "artifacts": [
+    "ops-v3-python.log",
+    "ops-v3-bun.log",
+    "ops-v3-adversarial.py",
+    "ops-v3-adversarial.log",
+    "ops-v3-source-observations.json",
+    "ops-v3-review-state-after.json"
+  ],
+  "scope": "SS1 and SS2 source contract preparation only",
+  "checks": [
+    {
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "lab",
+        "-p",
+        "test*storage*settlement*.py",
+        "-v"
+      ],
+      "total": 71,
+      "failed": 0,
+      "skipped": 0,
+      "result": "pass",
+      "artifact": "ops-v3-python.log"
+    },
+    {
+      "command": [
+        "python3",
+        "lab/disposable-storage-settlement-drill.py",
+        "--source-control-check",
+        "--evidence",
+        "/home/sbarah/.codex/sbarbase-settlement/20261006/ops-v3-bun.log"
+      ],
+      "total": 78,
+      "failed": 0,
+      "skipped": 0,
+      "result": "pass",
+      "native_accepted": false,
+      "artifact": "ops-v3-bun.log"
+    },
+    {
+      "command": [
+        "python3",
+        "/home/sbarah/.codex/sbarbase-settlement/20261006/ops-v3-adversarial.py"
+      ],
+      "total": 6,
+      "failed": 0,
+      "skipped": 0,
+      "result": "pass",
+      "artifact": "ops-v3-adversarial.log"
+    }
+  ],
+  "observations": [
+    "Read actual scoped settlement protocol, drill preparation, Python fixtures, TypeScript source receipt codec, Bun tests, source map, source plan and durable project constraints.",
+    "The pinned upstream HEAD is a88e8eea60b69ee629f99f17b21cdb6578a2272a. Six mapped blob IDs and their checkout bytes match Git objects. All 84 mapped line spans are within exact local source files.",
+    "Inspected actual upstream request body/disconnect signals, file pipeline without request signal usage, fresh metadata transaction signal, unawaited multipart staging cleanup, queue inline fallback and shutdown ownership. The source map retains their lifetime distinctions and explicitly limits its provenance claims.",
+    "Source protocol records durable pending phases, uses private descriptor-bound journal files, rejects incomplete and corrupt logs, reobserves fence and writer identity after restart, and makes pending consumer effects terminal for automatic retry.",
+    "Independent fork-based fixture probes confirmed real process exit after applied fixture effect retains effect-pending and refuses replay; process exit after durable stop-pending recovers current stopped observations without repeating stop; another process cannot acquire the live journal lock.",
+    "Independent probes confirmed foreign operation, management epoch, generation and actor cannot reuse a settled receipt, incomplete journal bytes are preserved without callbacks, and 12 adversarial ordered JSON inventories match between Python and Bun.",
+    "Receipt comparison detaches and freezes source data, checks current journal, fence and ordered inventories, and always returns nativeAdmitted false. The Python lifecycle verifier and native drill execute path refuse installed authority.",
+    "Before review, hosts.py review-state returned revision 19 with packet hashes. After review, revision 20 retained identical source and plan hashes. Revision movement did not alter scoped source.",
+    "No scoped implementation files or upstream checkout files were modified. Authored artifacts contain no long dashes."
+  ],
+  "limitations": [
+    "This pass covers source preparation only and supplies no original native runtime settlement or application acceptance.",
+    "SS3 actual original native positive and interruption evidence, SS4 installed fencing and consumer integrations, and SS5 shared migration, enabled provider coverage and full merged/runtime acceptance remain mandatory pending work.",
+    "No Docker build, pull, run, service, VM, network runtime, retained-resource inspection or installed binary execution occurred. Only Python, Bun source checks and owned temporary files/processes were used.",
+    "Independent process-exit probes are source fixtures. They do not prove original Storage process shutdown, filesystem flush, SQL cancellation, remote provider settlement or launch fencing.",
+    "Installed image to source correspondence, complete native writer enumeration, external dependency semantics and operational cleanup remain unverified.",
+    "Imported ~/AGENTS.md is absent. Available /home/sbarah/.codex/AGENTS.md and supplied no-long-dashes instructions were read and applied.",
+    "Full workstation write capability and reviewer identity labels are trust limitations, not an authentication boundary.",
+    "Local v1.73.1 tag resolution was unavailable in the supplied checkout. This review verified the exact pinned commit and mapped source blobs; it did not independently revalidate the public release page association."
+  ]
+}

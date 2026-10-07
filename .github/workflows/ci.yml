@@ -36,6 +36,7 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun test
       - run: bun run typecheck:ui
+      - run: bun run typecheck:control
       - run: bun run build:ui
       - name: Python unit tests
         env:
@@ -79,69 +80,93 @@ jobs:
     # Two more broken upgrades each wait out a failed start (one a 120 s health deadline) and a
     # container restart back onto the previous version.
     timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
     env:
       SBARBASE_CONSOLE_PORT: '8790'
+      BASH_ENV: ${{ github.workspace }}/deploy/ci-docker.sh
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Declare and admit the local Docker profile
+        run: |
+          socket=$(readlink -e /var/run/docker.sock)
+          [ "$socket" = /run/docker.sock ]
+          root=$(sudo docker --host unix:///run/docker.sock info --format '{{.DockerRootDir}}')
+          root=$(sudo readlink -e -- "$root")
+          export SBARBASE_ROOT="$GITHUB_WORKSPACE" SBARBASE_DOCKER_PROFILE=local-v1
+          export SBARBASE_DOCKER_SOCKET="$socket" SBARBASE_DOCKER_DATA_ROOT="$root"
+          export SBARBASE_COMPOSE_PROJECT="sbarbase-ci-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          export SBARBASE_CI_RUN="$(python3 -c 'import uuid; print(uuid.uuid4())')"
+          export SBARBASE_LIVE_AUTH_FILE="$GITHUB_WORKSPACE/.secrets/ci-native-auth.json"
+          ci_route check
+          for input in SBARBASE_ROOT SBARBASE_DOCKER_PROFILE SBARBASE_DOCKER_SOCKET SBARBASE_DOCKER_DATA_ROOT SBARBASE_COMPOSE_PROJECT SBARBASE_CI_RUN SBARBASE_LIVE_AUTH_FILE; do
+            printf '%s=%s\n' "$input" "${!input}" >> "$GITHUB_ENV"
+          done
+          echo 'SBARBASE_CI_SETUP=1' >> "$GITHUB_ENV"
       - name: Build and start
-        run: docker compose up -d --build
+        run: ci_route up
       - name: Wait for the console
         run: |
           for i in $(seq 1 180); do
             curl -fsS -o /dev/null http://127.0.0.1:8790/ && exit 0
-            restarts=$(docker inspect -f '{{.RestartCount}}' "$(docker compose ps -aq sbarbase)")
-            [ "$restarts" = 0 ] || { echo "the control plane restarted $restarts time(s)"; docker compose logs --tail 120; exit 1; }
+            restarts=$(ci_docker inspect -f '{{.RestartCount}}' "$(ci_compose ps -aq sbarbase)")
+            [ "$restarts" = 0 ] || { echo "the control plane restarted $restarts time(s)"; ci_compose logs --tail 120; exit 1; }
             sleep 5
           done
-          docker compose logs --tail 80; exit 1
+          ci_compose logs --tail 80; exit 1
       - name: First operator (generated, never printed)
         run: |
-          mkdir -p .secrets
+          ci_exec sbarbase python3 -c 'import os,stat; from pathlib import Path; p=Path(".secrets"); p.mkdir(mode=0o700,exist_ok=True); s=p.lstat(); assert stat.S_ISDIR(s.st_mode) and s.st_uid==os.getuid() and stat.S_IMODE(s.st_mode)==0o700'
           python3 -c 'import json,secrets;print(json.dumps({"email":"operator@example.com","password":secrets.token_urlsafe(24),"organization":"Docker rehearsal"}))' \
-            | docker compose exec -T sbarbase python3 lab/operator_file.py --stdin "$PWD/.secrets/operator.json"
-          docker compose exec -T sbarbase sh -c 'python3 lab/bootstrap.py --stdin < .secrets/operator.json'
+            | ci_exec sbarbase python3 lab/operator_file.py --stdin "$PWD/.secrets/operator.json"
+          ci_exec sbarbase sh -c 'python3 lab/bootstrap.py --stdin < .secrets/operator.json'
+          ci_exec sbarbase python3 -c 'import json,os,sys,uuid; from pathlib import Path; run=str(uuid.UUID(sys.argv[1])); p=Path(os.environ["SBARBASE_LIVE_AUTH_FILE"]); fd=os.open(p,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600); f=os.fdopen(fd,"w"); json.dump({"schema":1,"run":run,"accounts":[]},f); f.flush(); os.fsync(f.fileno()); f.close()' "$SBARBASE_CI_RUN"
       - name: First project through supabase-js
-        run: docker compose exec -T sbarbase bun lab/first-project-check.ts "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-first-project.json"
+        run: ci_exec sbarbase bun lab/first-project-check.ts "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-first-project.json"
       - name: Back up, change, restore, compare
-        run: docker compose exec -T sbarbase python3 lab/backup-check.py --evidence "$PWD/docs/evidence/docker-backup-restore.json"
+        run: ci_exec sbarbase python3 lab/backup-check.py --evidence "$PWD/docs/evidence/docker-backup-restore.json"
       - name: Encrypted off-site copy to S3-compatible storage, fetched and restored
         # A throwaway S3-compatible store stands in for R2, B2 or S3; its credentials exist only for this run.
         run: |
-          key=ci$(openssl rand -hex 8); secret=$(openssl rand -hex 24)
-          # MinIO from its own registry; S3Mock if that is unavailable (it does not check signatures,
-          # which the unit tests cover against the AWS worked example).
-          if docker run -d --name offsite-s3 -p 127.0.0.1:9100:9000 -e MINIO_ROOT_USER="$key" -e MINIO_ROOT_PASSWORD="$secret" \
-              quay.io/minio/minio:latest server /data; then peer=minio; else
-            docker run -d --name offsite-s3 -p 127.0.0.1:9100:9090 adobe/s3mock:latest; peer=s3mock; fi
-          for i in $(seq 1 90); do curl -sS -o /dev/null http://127.0.0.1:9100/ && break; sleep 1; done
-          docker compose exec -T -e OFFSITE_KEY_ID="$key" -e OFFSITE_SECRET="$secret" sbarbase python3 lab/offsite-check.py \
-            --endpoint http://127.0.0.1:9100 --bucket sbarbase-ci --peer "$peer" --evidence "$PWD/docs/evidence/docker-offsite-checks.json"
-          docker rm -f offsite-s3
+          export OFFSITE_KEY_ID=ci$(openssl rand -hex 8) OFFSITE_SECRET=$(openssl rand -hex 24)
+          trap ci_offsite_cleanup EXIT
+          # Resolve the pulled image to its immutable ID before owned creation.
+          # S3Mock retains the original fallback; unit tests cover AWS signatures.
+          ci_offsite_start
+          ready=false
+          for i in $(seq 1 90); do
+            if curl -sS -o /dev/null http://127.0.0.1:9100/; then ready=true; break; fi
+            sleep 1
+          done
+          [ "$ready" = true ]
+          ci_exec -e OFFSITE_KEY_ID="$OFFSITE_KEY_ID" -e OFFSITE_SECRET="$OFFSITE_SECRET" sbarbase python3 lab/offsite-check.py \
+            --endpoint http://127.0.0.1:9100 --bucket sbarbase-ci --peer "$SBARBASE_OFFSITE_PEER" --evidence "$PWD/docs/evidence/docker-offsite-checks.json"
       - name: Studio for the environment, behind the console login
-        run: docker compose exec -T sbarbase bun lab/studio-check.ts "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-studio-checks.json"
+        run: ci_exec sbarbase bun lab/studio-check.ts "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-studio-checks.json"
       - name: Sign-in settings and an OAuth provider
-        run: docker compose exec -T sbarbase bun lab/sign-in-check.ts "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-sign-in-checks.json"
+        run: ci_exec sbarbase bun lab/sign-in-check.ts "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-sign-in-checks.json"
       - name: Realtime for the environment
-        run: docker compose exec -T sbarbase bun lab/realtime-check.ts "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-realtime-checks.json"
+        run: ci_exec sbarbase bun lab/realtime-check.ts "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-realtime-checks.json"
       - name: Edge Functions from a Supabase functions folder
-        run: docker compose exec -T sbarbase bun lab/functions-check.ts "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-functions-checks.json"
+        run: ci_exec sbarbase bun lab/functions-check.ts "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-functions-checks.json"
       - name: Direct database access and a migration
-        run: docker compose exec -T sbarbase bun lab/database-check.ts "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-database-checks.json"
+        run: ci_exec sbarbase bun lab/database-check.ts "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-database-checks.json"
       - name: Import a Supabase-shaped project into a new environment
-        run: docker compose exec -T sbarbase python3 lab/import-check.py "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-import-checks.json"
+        run: ci_exec sbarbase python3 lab/import-check.py "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-import-checks.json"
       - name: Rotate the environment's signing key
-        run: docker compose exec -T sbarbase python3 lab/signing-check.py "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-signing-checks.json"
+        run: ci_exec sbarbase python3 lab/signing-check.py "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-signing-checks.json"
       - name: Logs and metrics for the environment
-        run: docker compose exec -T sbarbase bun lab/observe-check.ts "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-observe-checks.json"
+        run: ci_exec sbarbase bun lab/observe-check.ts "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-observe-checks.json"
       - name: Uploads larger than a MiB, then a new upload limit
         run: |
-          docker compose exec -T sbarbase bun lab/upload-check.ts "$PWD/.secrets/operator.json" --limit-mb 50 --evidence "$PWD/docs/evidence/docker-upload-checks.json"
+          ci_exec sbarbase bun lab/upload-check.ts "$PWD/.secrets/operator.json" --limit-mb 50 --evidence "$PWD/docs/evidence/docker-upload-checks.json"
           # A new limit applies at the next start by recreating the shared Storage container.
-          SBARBASE_UPLOAD_LIMIT_MB=64 docker compose up -d
+          SBARBASE_UPLOAD_LIMIT_MB=64 ci_route up
           for i in $(seq 1 120); do curl -fsS -o /dev/null http://127.0.0.1:8790/ && break; sleep 5; done
-          docker compose exec -T sbarbase sh -c 'test "$SBARBASE_UPLOAD_LIMIT_MB" = 64'
-          docker compose exec -T sbarbase bun lab/upload-check.ts "$PWD/.secrets/operator.json" --limit-mb 64 --append --evidence "$PWD/docs/evidence/docker-upload-checks.json"
-          SBARBASE_UPLOAD_LIMIT_MB=50 docker compose up -d
+          ci_exec sbarbase sh -c 'test "$SBARBASE_UPLOAD_LIMIT_MB" = 64'
+          ci_exec sbarbase bun lab/upload-check.ts "$PWD/.secrets/operator.json" --limit-mb 64 --append --evidence "$PWD/docs/evidence/docker-upload-checks.json"
+          SBARBASE_UPLOAD_LIMIT_MB=50 ci_route up
           for i in $(seq 1 120); do curl -fsS -o /dev/null http://127.0.0.1:8790/ && break; sleep 5; done
       - name: Upgrade, broken upgrades that move back by themselves, and a refused unsigned tag
         # Each broken version compares users, files, buckets and the control catalog with the
@@ -157,29 +182,29 @@ jobs:
               case "$p" in failed|rollback_failed) break ;; esac
               sleep 5
             done
-            echo "upgrade phase: $p (expected $1)"; docker compose logs --tail 120; return 1
+            echo "upgrade phase: $p (expected $1)"; ci_compose logs --tail 120; return 1
           }
-          check() { docker compose exec -T sbarbase python3 lab/upgrade-check.py "$@"; }
-          upgrade() { docker compose exec -T sbarbase python3 lab/upgrade.py "$@"; }
+          check() { ci_exec sbarbase python3 lab/upgrade-check.py "$@"; }
+          upgrade() { ci_exec sbarbase python3 lab/upgrade.py "$@"; }
           check before base="$base" good="$good" bad="$bad" migrates="$migrates" unhealthy="$unhealthy"
           upgrade start --to "$good"
-          docker compose restart
+          ci_route restart
           phase confirmed
           check after upgraded
           # PostgREST never answers: the start fails and the supervisor moves back.
           upgrade start --to "$bad"
-          docker compose restart
+          ci_route restart
           phase rolled_back
           upgrade status
           check after rolled-back
           # The catalog is migrated, then the console stops: the snapshot goes back with the checkout.
           upgrade start --to "$migrates"
-          docker compose restart
+          ci_route restart
           phase rolled_back
           check after migration-rolled-back
           # Everything starts but /health never passes: traffic is held, then the deadline moves it back.
           upgrade start --to "$unhealthy"
-          docker compose restart
+          ci_route restart
           sudo python3 lab/upgrade-check.py hold
           phase rolled_back
           check after health-rolled-back
@@ -189,22 +214,23 @@ jobs:
             upgraded rolled-back migration-rolled-back hold health-rolled-back unsigned
       - name: Restart and come back
         run: |
-          docker compose restart
+          ci_route restart
           for i in $(seq 1 120); do curl -fsS -o /dev/null http://127.0.0.1:8790/ && break; sleep 5; done
-          docker compose exec -T sbarbase python3 lab/install_server.py smoke
+          ci_route smoke
       - name: Clean stop
         run: |
-          docker compose down
-          test -z "$(docker ps -q --filter label=io.sbarbase.owner)"
+          ci_route down
+          test -z "$(ci_compose ps -aq)"
+          test -z "$(ci_docker ps -q --filter label=io.sbarbase.owner)"
       - name: Logs on failure
         if: failure()
         # A throwaway runner: its generated credentials exist only for this run.
         run: |
           # The upgrade checks recorded so far, marked incomplete (the file is kept below).
-          docker compose exec -T sbarbase python3 lab/upgrade-check.py evidence "$PWD/docs/evidence/docker-upgrade-checks.json" \
+          ci_exec sbarbase python3 lab/upgrade-check.py evidence "$PWD/docs/evidence/docker-upgrade-checks.json" \
             upgraded rolled-back migration-rolled-back hold health-rolled-back unsigned || true
-          docker compose logs --tail 200 || true
-          for c in $(docker ps -aq --filter name=-realtime) $(docker ps -aq --filter name=-functions); do echo "== $(docker inspect -f '{{.Name}}' $c)"; docker logs --tail 80 $c 2>&1; done || true
+          ci_compose logs --tail 200 || true
+          for c in $(ci_docker ps -aq --filter label=io.sbarbase.owner=durable-upstream) $(ci_docker ps -aq --filter label=io.sbarbase.owner=recovery-target); do echo "== $(ci_docker inspect -f '{{.Name}}' "$c")"; ci_docker logs --tail 80 "$c" 2>&1; done || true
           sudo sh -c 'for f in .lab/upstream/diagnostics/*.log; do echo "== $f"; tail -n 40 "$f"; done' || true
       - name: Keep the evidence
         if: always()
@@ -213,6 +239,15 @@ jobs:
           name: docker-install-evidence
           path: docs/evidence/docker-*.json
           retention-days: 30
+      - name: Close the owned CI installation after failure
+        if: always() && env.SBARBASE_CI_SETUP == '1'
+        run: |
+          result=0
+          ci_offsite_cleanup || result=1
+          ci_route down || result=1
+          test -z "$(ci_compose ps -aq)" || result=1
+          test -z "$(ci_docker ps -q --filter label=io.sbarbase.owner)" || result=1
+          exit "$result"
 
   empty-host-acceptance:
     if: github.event_name == 'workflow_dispatch' && inputs.acceptance

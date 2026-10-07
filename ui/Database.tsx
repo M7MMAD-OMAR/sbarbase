@@ -2,9 +2,12 @@ import {useEffect,useState} from 'react';
 import {Database as DatabaseIcon,Square,RotateCcw,Copy} from 'lucide-react';
 import {useData,type Api} from './api';
 import {ErrorMessage,Loading} from './components';
+import {DatabaseWorkflow} from './DatabaseWorkflow';
+import {databaseTunnel,type WorkflowEndpoint,type WorkflowBudget} from '../src/control/database-workflow';
 
 type State={desired:'on'|'off';state:'off'|'pending'|'on'|'failed';failure:string|null;url:string;
- connection:{host:string;port:number;user:string;database:string}};
+ connection:{host:string;port:number;user:string;database:string};
+ workflow?:{runtime:string;endpoints:WorkflowEndpoint[];budget:WorkflowBudget|null;pooling:'pending';capacity:'unmeasured'}};
 const LABELS:Record<State['state'],string>={off:'Off',pending:'Applying…',on:'On',failed:'Not applied'};
 
 /** Direct database access: a PostgreSQL connection string for migrations, psql and ORMs. */
@@ -12,6 +15,7 @@ export function DatabaseSection({path,request}:{path:string;request:Api}){
  const data=useData<{data:State}>(signal=>request(path+'/database','GET',undefined,signal),[path,request]);
  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[secret,setSecret]=useState(''),[copied,setCopied]=useState('');
  const current=data.data?.data;
+ const tunnel=current?databaseTunnel(current.connection):undefined;
  useEffect(()=>{if(current?.state!=='pending')return;const timer=setTimeout(data.refresh,3000);return()=>clearTimeout(timer);},[current?.state,data.data]);
  async function act(method:string,suffix:string,body?:unknown){
   setBusy(true);setError('');setCopied('');
@@ -33,6 +37,8 @@ export function DatabaseSection({path,request}:{path:string;request:Api}){
    ?<><button disabled={busy||current.state==='pending'} onClick={()=>void act('POST','/password')}><RotateCcw aria-hidden="true"/>New password</button>
      <button disabled={busy||current.state==='pending'} onClick={()=>void act('PUT','',{enabled:false})}><Square aria-hidden="true"/>Turn off</button></>
    :<button className="primary" disabled={busy||current.state==='pending'} onClick={()=>void act('PUT','',{enabled:true})}><DatabaseIcon aria-hidden="true"/>Turn on database access</button>}</div>
-  <p className="small muted">The address is on the server itself (port {current.connection.port}). From your computer, open an SSH tunnel first: <code>ssh -L {current.connection.port}:127.0.0.1:{current.connection.port} you@your-server</code>.</p>
+  {tunnel&&<p className="small muted">To connect through SSH, run <code>{tunnel.command}</code> on your computer. Then use <code>{tunnel.url}</code>, replacing <code>[YOUR-PASSWORD]</code> with your saved password.</p>}
+  {current.workflow&&<><p className="small muted">Connection pooling is pending native admission. The current address uses direct access.</p>
+   <DatabaseWorkflow runtime={current.workflow.runtime} endpoints={current.workflow.endpoints} budget={current.workflow.budget??undefined}/></>}
  </>}</section>;
 }

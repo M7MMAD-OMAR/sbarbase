@@ -1,0 +1,68 @@
+{
+  "schema": 1,
+  "status": "preparation-only",
+  "image": {
+    "url": "https://cloud-images.ubuntu.com/releases/noble/release-20260926/ubuntu-24.04-server-cloudimg-amd64.img",
+    "sha256": "6a81c37564db9b1ee84e141922625e1d7c5b389b99bb3c572e0243607d5bb4d2",
+    "signer": "D2EB44626FDDC30B513D5BB71A5D6C4C7DB87C81"
+  },
+  "packages": [
+    {
+      "name": "docker-ce",
+      "version": "5:29.8.2-1~ubuntu.24.04~noble",
+      "sha256": "b53a44a6ff13277710978adbdbfea27fcdd7ac9f198017e733d2b8dc2343f8dc",
+      "bytes": 24358876
+    },
+    {
+      "name": "docker-ce-cli",
+      "version": "5:29.8.2-1~ubuntu.24.04~noble",
+      "sha256": "008b3b49b474136063fe0fbe8999b0e77c3e8556d7f7de21f98f05715e2f76ba",
+      "bytes": 17549632
+    },
+    {
+      "name": "containerd.io",
+      "version": "2.3.6-1~ubuntu.24.04~noble",
+      "sha256": "2eb8c6e244fe6886f2fa2eee9ec418c4b9bb44eb44fca748504f57c23341aed2",
+      "bytes": 23155464
+    },
+    {
+      "name": "docker-buildx-plugin",
+      "version": "0.37.1-1~ubuntu.24.04~noble",
+      "sha256": "3c398af6eea280ddb57f32334d83867efd2bf07c4bc1be75fbd0a61c490ea925",
+      "bytes": 17272004
+    },
+    {
+      "name": "docker-compose-plugin",
+      "version": "5.6.0-1~ubuntu.24.04~noble",
+      "sha256": "132266d499d9873aafcbe5b515997b8abd714914fa32a62ccac705c1ede7ca81",
+      "bytes": 8079740
+    }
+  ],
+  "helpers": [
+    {
+      "name": "qemu-system-x86_64",
+      "path": "/usr/bin/qemu-system-x86_64",
+      "sha256": "27cd395848940fc6482256d85096fc64bc4fe3f3e909824d51c202f8314cd9e9"
+    },
+    {
+      "name": "qemu-img",
+      "path": "/usr/bin/qemu-img",
+      "sha256": "4362e911c13bb90e39b69479462cd4adb840749b582f4892ca114eb7e94dcf2e"
+    },
+    {
+      "name": "genisoimage",
+      "path": "/usr/bin/genisoimage",
+      "sha256": "73444004f0e95190264cd7e098108e760960cf63ba833b669487b01d5bb83e99"
+    }
+  ],
+  "candidate_endpoints": [
+    "auth.docker.io",
+    "production.cloudfront.docker.com",
+    "registry-1.docker.io",
+    "snapshot.ubuntu.com"
+  ],
+  "payload_bytes_verified": false,
+  "final_source": null,
+  "build_input_closure": null,
+  "native_authority": "uninstalled"
+}

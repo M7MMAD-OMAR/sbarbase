@@ -16,11 +16,9 @@
 #   deploy/server-acceptance.sh --rehearse --install-unit \
 #        --service-user ops-account --home /srv/ops-account --bun-dir /srv/ops-account/.bun/bin
 #
-# Every step runs as that account, so name the Docker endpoint when the account's
-# Docker context does not resolve to the daemon the unit will use (a workstation
-# with Docker Desktop, a non-default context, a socket systemd must be told
-# about). The unit itself carries no DOCKER_HOST: on such a host add it to the
-# unit with a drop-in, as docs/guides/server-deployment.md describes.
+# Every step uses the declared local socket and data root. For nondefault paths,
+# provide SBARBASE_DOCKER_SOCKET and SBARBASE_DOCKER_DATA_ROOT to both this run
+# and the service drop-in. Any DOCKER_HOST must match the declared socket.
 #
 #   deploy/server-acceptance.sh --rehearse --docker-host unix:///var/run/docker.sock
 #
@@ -86,9 +84,7 @@ if [ -n "$BUN_DIR" ]; then
   printf 'ok: bun directory %s added to PATH\n' "$BUN_DIR"
 fi
 
-# The steps run as the installation's account, and that account's Docker context
-# may resolve elsewhere than the daemon the unit will use, so the endpoint is
-# named explicitly when the host needs it. It is forwarded to every step below.
+# The steps use the declared local socket. Context selection cannot override admission.
 if [ -n "$DOCKER_HOST_ARG" ]; then
   case "$DOCKER_HOST_ARG" in
     *[[:space:]]*) fail "--docker-host must be a single endpoint with no whitespace: $DOCKER_HOST_ARG" ;;
@@ -117,6 +113,10 @@ run_as_installation() {
   fi
   local environment=("PATH=$PATH")
   if [ -n "${DOCKER_HOST:-}" ]; then environment+=("DOCKER_HOST=$DOCKER_HOST"); fi
+  local name
+  for name in SBARBASE_DOCKER_PROFILE SBARBASE_DOCKER_SOCKET SBARBASE_DOCKER_DATA_ROOT; do
+    if [ -n "${!name:-}" ]; then environment+=("$name=${!name}"); fi
+  done
   sudo -u "$SERVICE_USER" -H env "${environment[@]}" "$@"
 }
 # systemd reports the unit active the moment dev.py is executed; the console
@@ -129,6 +129,10 @@ console_answers() {
 unit_control() {
   if [ "$(id -u)" = "0" ]; then systemctl "$@"; else sudo -n systemctl "$@"; fi
 }
+
+step "read-only host admission"
+sh "$REPO_ROOT/deploy/host-preflight.sh" --runtime || fail "host admission refused before prerequisites or rehearsal effects"
+export DOCKER_HOST="unix://$(readlink -e -- "${SBARBASE_DOCKER_SOCKET:-/var/run/docker.sock}")"
 
 step "prerequisites"
 for tool in docker bun git; do

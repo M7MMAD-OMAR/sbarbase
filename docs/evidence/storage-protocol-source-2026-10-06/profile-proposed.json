@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "status": "proposed-source-profile-awaiting-coordinator-confirmation",
+  "commands": {
+    "python": [
+      "env",
+      "LC_ALL=C",
+      "PYTHONUTF8=1",
+      "PYTHONMALLOC=malloc",
+      "/home/sbarah/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+      "/home/sbarah/.codex/sbarbase-settlement/20261006/native-source-v3/bounded-checks.py",
+      "--check",
+      "python"
+    ],
+    "hybrid": [
+      "env",
+      "LC_ALL=C",
+      "PYTHONUTF8=1",
+      "PYTHONMALLOC=malloc",
+      "/home/sbarah/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+      "/home/sbarah/.codex/sbarbase-settlement/20261006/native-source-v3/bounded-checks.py",
+      "--check",
+      "hybrid"
+    ],
+    "bun": [
+      "env",
+      "LC_ALL=C",
+      "PYTHONUTF8=1",
+      "PYTHONMALLOC=malloc",
+      "/home/sbarah/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+      "/home/sbarah/.codex/sbarbase-settlement/20261006/native-source-v3/bounded-checks.py",
+      "--check",
+      "bun"
+    ],
+    "control": [
+      "env",
+      "LC_ALL=C",
+      "PYTHONUTF8=1",
+      "PYTHONMALLOC=malloc",
+      "/home/sbarah/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+      "/home/sbarah/.codex/sbarbase-settlement/20261006/native-source-v3/control-checks.py"
+    ]
+  },
+  "bounds": {
+    "python_as_bytes": 268435456,
+    "bun_as_bytes": 8796093022208,
+    "group_rss_bytes": 805306368,
+    "check_seconds": 120,
+    "role_active_seconds": 180,
+    "role_output_bytes": 16777216,
+    "control_supervisor_python_soft_as_bytes": 268435456,
+    "control_supervisor_python_hard_controlplane_bytes": 8796093022208,
+    "control_fixture_child_python_hard_as_bytes": 268435456,
+    "supervisor_metadata_reserved_bytes_per_check": 1024
+  },
+  "expected_case_counts": {
+    "python": 144,
+    "hybrid": 3,
+    "bun": 78,
+    "control": 2
+  },
+  "native_execution_authorized": false,
+  "bindings": [],
+  "python_environment": {
+    "PYTHONMALLOC": "malloc",
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "PYTHON_JIT": "0",
+    "LC_ALL": "C",
+    "PYTHONUTF8": "1"
+  },
+  "python_executable": "/home/sbarah/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+  "base_commit": "727850058d7fedfcd3991d10ebf4398c21c5d6b9"
+}

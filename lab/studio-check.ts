@@ -1,3 +1,4 @@
+import {liveManagementClient,liveManagementLogin} from './live-management-auth';
 // Studio check: an operator opens Supabase Studio for an environment, end to end.
 //
 // Usage: bun lab/studio-check.ts <operator.json> [--evidence PATH]
@@ -53,10 +54,10 @@ function studio(host:string,path:string,options:{method?:string;cookie?:string;b
 }
 
 try {
- const management=createClient(`${base}/management`,MANAGEMENT_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
- const login=await management.auth.signInWithPassword({email:operator.email,password:operator.password});
+ const management=liveManagementClient(base,MANAGEMENT_KEY);
+ const login=await liveManagementLogin(management,base,{email:operator.email,password:operator.password});
  const token=login.data.session?.access_token;
- if(!record('operator logs in',!!token,login.error?.message??''))await finish();
+ if(!record('operator native MFA session authorizes management',!!token,login.error?.message??''))await finish();
  const call=async(method:string,path:string)=>{
   const response=await fetch(`${base}/management/v1${path}`,{method,headers:{authorization:`Bearer ${token}`}});
   return {status:response.status,json:await response.json().catch(()=>null) as any};

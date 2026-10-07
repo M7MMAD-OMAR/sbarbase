@@ -1,9 +1,14 @@
+import {randomUUID} from 'node:crypto';
 import {test,expect} from 'bun:test';
 import {Catalog} from '../src/control/catalog';
 import {KeyStore} from '../src/control/keys';
 import {managementHandler} from '../src/control/http';
 import {managedGateway} from '../src/gateway/managed';
 import {ConcurrencyGate} from '../src/gateway/concurrency';
+
+function enroll(catalog:Catalog,runtime:string){
+ catalog.registerLifecycleResources(runtime,[{kind:'container',id:'a'.repeat(64),runtime,installation:randomUUID(),resource:randomUUID()}],'disposable-fixture');
+}
 
 /** Rename, move and delete through the management API, with the catalog's role checks. */
 function setup() {
@@ -14,7 +19,7 @@ function setup() {
   const project=catalog.createProject('alice',a,'Shop');
   const environment=catalog.createEnvironment('alice',project,'production');
   const job=catalog.claimProvision()!;catalog.finishProvision(environment,job.claim!,true);
-  const runtime=catalog.getProvision('alice',environment).runtime;
+  const runtime=catalog.getProvision('alice',environment).runtime;enroll(catalog,runtime);
   const handler=managementHandler(catalog,async request=>request.headers.get('authorization'),'.',keys);
   const call=async(actor:string,method:string,path:string,input?:unknown)=>{
     const response=await handler(new Request('http://local/management/v1/'+path,{method,
@@ -53,15 +58,16 @@ test('a deleted environment\'s key returns 401 and the key is revoked',async()=>
     expect((await s.call('vera','DELETE',`environments/${s.environment}`)).status).toBe(403);
     expect((await s.call('adam','DELETE',`environments/${s.environment}`)).status).toBe(403);
     const deleted=await s.call('alice','DELETE',`environments/${s.environment}`);
-    expect(deleted).toEqual({status:200,body:{deleted:true,revoked:1}});
+    expect(deleted).toMatchObject({status:200,body:{deleted:true,revoked:1}});
+    expect(deleted.body.retentionUntil).toBeNumber();
     const answer=await s.app(token);
     expect(answer.status).toBe(401);
     expect(await answer.json()).toEqual({message:'Invalid API key'});
     expect(s.keys.list(s.runtime).find(key=>key.id===id)?.revoked_at).toBeNumber();
-    // Gone from the catalog: an unknown id answers 403, the project may now be deleted.
+    // Retained metadata stays protected and keeps its parent hierarchy.
     expect((await s.call('alice','PATCH',`environments/${s.environment}`,{name:'x'})).status).toBe(403);
     expect(s.catalog.listEnvironments('alice',s.project)).toEqual([]);
-    expect((await s.call('alice','DELETE',`projects/${s.project}`)).status).toBe(200);
+    expect((await s.call('alice','DELETE',`projects/${s.project}`)).status).toBe(409);
     // A runtime nobody ever had is still unknown.
     const unknown=await (managedGateway(s.catalog,s.keys,()=>undefined))(new Request('http://local/e_000000000000000000000000/rest/v1/'));
     expect(unknown.status).toBe(404);
@@ -90,7 +96,7 @@ test('a worker that restarts with the receipt of a deleted environment settles i
     const environment=catalog.createEnvironment('alice',project,'production');
     const job=catalog.claimProvision()!;
     catalog.applyProvisionReceipt(environment,job.runtime,job.claim!,job.attempt,0);
-    catalog.deleteEnvironment('alice',environment);
+    enroll(catalog,job.runtime);catalog.deleteEnvironment('alice',environment);
     expect(()=>catalog.applyProvisionReceipt(environment,job.runtime,job.claim!,job.attempt,0)).not.toThrow();
     expect(()=>catalog.applyProvisionReceipt(environment,job.runtime,'another-claim',job.attempt,0)).toThrow('Provisioning receipt mismatch');
     expect(()=>catalog.applyProvisionReceipt(environment,job.runtime,job.claim!,job.attempt,75)).toThrow('Provisioning receipt mismatch');
@@ -108,7 +114,7 @@ test('a preflight receipt of a deleted environment gets its recorded decision ba
       job=catalog.claimProvision()!;
     }
     expect(catalog.recoverPreflightReceipt(environment,job.runtime,job.claim!,job.attempt,'t3')).toBe('failed');
-    catalog.deleteEnvironment('alice',environment);
+    enroll(catalog,job.runtime);catalog.deleteEnvironment('alice',environment);
     expect(catalog.recoverPreflightReceipt(environment,job.runtime,job.claim!,job.attempt,'t3')).toBe('failed');
     expect(()=>catalog.recoverPreflightReceipt(environment,job.runtime,job.claim!,job.attempt,'t4')).toThrow('Preflight receipt mismatch');
     expect(()=>catalog.recoverPreflightReceipt(environment,job.runtime,job.claim!,job.attempt-1,'t2')).toThrow('Preflight receipt mismatch');

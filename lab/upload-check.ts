@@ -1,3 +1,4 @@
+import {liveManagementClient,liveManagementLogin} from './live-management-auth';
 // Upload check: files larger than a MiB go through the gateway to Storage and come back intact.
 //
 // Usage: bun lab/upload-check.ts <operator.json> --limit-mb N [--evidence PATH]
@@ -38,10 +39,10 @@ function finish():never {
 const digest=(bytes:Uint8Array)=>createHash('sha256').update(bytes).digest('hex');
 
 try {
- const management=createClient(`${base}/management`,MANAGEMENT_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
- const login=await management.auth.signInWithPassword({email:operator.email,password:operator.password});
+ const management=liveManagementClient(base,MANAGEMENT_KEY);
+ const login=await liveManagementLogin(management,base,{email:operator.email,password:operator.password});
  const token=login.data.session?.access_token;
- if(!record('operator logs in',!!token,login.error?.message??''))finish();
+ if(!record('operator native MFA session authorizes management',!!token,login.error?.message??''))finish();
  const get=async(path:string,method='GET')=>(await fetch(`${base}/management/v1${path}`,{method,headers:{authorization:`Bearer ${token}`}})).json() as Promise<any>;
  const organization=(await get('/organizations')).data?.[0];
  const project=(await get(`/organizations/${organization.id}/projects`)).data?.[0];

@@ -283,6 +283,8 @@ class RestoreTests(Fixture):
             return None
         with patch.object(backup.subprocess, 'Popen', Session), patch.object(backup, 'run', run), \
              patch.object(backup, 'helper', lambda *a, **k: None), patch.object(backup, 'ownership', return_value=None), \
+             patch.object(backup.backup_consistency, 'inventory', return_value=[]), \
+             patch.object(backup.backup_consistency, 'validate', return_value={'contract':'fixture'}), \
              patch.object(backup, 'storage_image', return_value='sha256:storage'), \
              patch.object(backup.tarfile, 'open', side_effect=lambda path: __import__('contextlib').nullcontext(
                  type('A', (), {'getmembers': lambda self: []})())):

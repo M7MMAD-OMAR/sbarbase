@@ -1,0 +1,50 @@
+{
+  "upstream_head": "a88e8eea60b69ee629f99f17b21cdb6578a2272a",
+  "blobs": {
+    "src/storage/uploader.ts": {
+      "expected": "22f9ae83a4a278a029387aa257c61d8a745ec82c",
+      "actual": "22f9ae83a4a278a029387aa257c61d8a745ec82c",
+      "working_file_matches_blob": true
+    },
+    "src/storage/backend/file.ts": {
+      "expected": "9385972ecd5fb7542923e4308674459584056382",
+      "actual": "9385972ecd5fb7542923e4308674459584056382",
+      "working_file_matches_blob": true
+    },
+    "src/http/plugins/signals.ts": {
+      "expected": "ac21722f18514db9c70106f261a41c40ba4433dc",
+      "actual": "ac21722f18514db9c70106f261a41c40ba4433dc",
+      "working_file_matches_blob": true
+    },
+    "src/internal/queue/queue.ts": {
+      "expected": "940cfbea12c269ef20467879f5db713c8ba66f8a",
+      "actual": "940cfbea12c269ef20467879f5db713c8ba66f8a",
+      "working_file_matches_blob": true
+    },
+    "src/start/server.ts": {
+      "expected": "9ee862326bc704447af2d4d513507a11f9a23ed6",
+      "actual": "9ee862326bc704447af2d4d513507a11f9a23ed6",
+      "working_file_matches_blob": true
+    },
+    "package.json": {
+      "expected": "5fac8d940b533216d5c0f35b9ae8a0b2c51672c0",
+      "actual": "5fac8d940b533216d5c0f35b9ae8a0b2c51672c0",
+      "working_file_matches_blob": true
+    }
+  },
+  "scoped_long_dash_counts": {
+    "lab/storage_write_settlement.py": 0,
+    "lab/test_storage_write_settlement.py": 0,
+    "lab/disposable-storage-settlement-drill.py": 0,
+    "lab/test_disposable_storage_settlement_drill.py": 0,
+    "src/control/storage-settlement-contract.ts": 0,
+    "tests/storage-settlement-contract.test.ts": 0,
+    "docs/engineering/plans/2026-10-06-storage-write-settlement.md": 0,
+    "docs/engineering/reviews/2026-10-06-storage-writer-source-map.md": 0,
+    "lab/storage-image.lock.json": 0,
+    "package.json": 0,
+    "PROJECT_GOAL.md": 0,
+    "docs/engineering/plans/2026-10-03-product-and-portability-plan.md": 0
+  },
+  "source_span_count": 84
+}

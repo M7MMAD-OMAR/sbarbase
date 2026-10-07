@@ -1,0 +1,24 @@
+# Independent reference distribution and SB-03 plan review
+
+Date: 2026-10-06. Verdict: **SPEC MET for the source-only planning contract**. No blocking plan defect was found. This review grants no distribution, reference startup, native admission, SB-03 security, G0, G12, recovery or production acceptance.
+
+The reviewed proposal is the new [plan JSON](../benchmarks/supabase-v0.8.2.reference-acceptance-plan.json) and [plan Markdown](../benchmarks/supabase-v0.8.2.reference-acceptance-plan.md). The reviewer received fresh context, had no implementation role and made no source edits. Artifact identity was visible; this was not a blinded comparison. Review used read-only source inspection and trusted standard-library data/hash checks under 256 MiB memory and 25% CPU limits. It ran no target code, network query, Docker, database or full suite.
+
+The authoring base remains `bbc6e302b90cbac13fe2bbedf9603a0c33ca05a2`. The reviewer independently checked all 916 tracked regular files and modes before and after and found no changes. Its snapshot SHA-256 was `d45e1d9bc2388f025061fadeb9ff3048a4f74a779c290b00ecc07486764e1c7d`. That is the reviewer's separate integrity inventory, not product-source or runtime acceptance. Only the two new plan documents existed as untracked source at the time of review; this review record was added afterward.
+
+The proposal identity is `6bea220f694ba7c56392869e3e6944b2e1911d7755bc0cd33cce43c9e2f2308b`, using `sha256-canonical-object-path-size-filehash-list-v1`: UTF-8 canonical JSON of an array of object rows sorted by path, each with `path`, `bytes`, `sha256`, sorted keys and compact comma/colon separators. Both rows were unchanged before and after:
+
+| Proposal input | Bytes | SHA-256 |
+| --- | --- | --- |
+| Plan JSON | 99229 | `6762c028d27b6f793862b73f5b4e432781fc241c874781f94508082920a4ead9` |
+| Plan Markdown | 13229 | `d5e1407281dee16967e51507f8c3f290b8d27df824ad0e070a7dc7ac8f27793e` |
+
+Independent observations covered the complete original 64-file inventory, 14 Compose documents with every service/build/image declaration, five auxiliary YAML files and 23 image references. All ten derived original diagnostics remained. The critic independently hashed 19 original root manifests and checked 38 platform/config descriptor relationships. It checked 31 request records, all 26 retained non-token raw response bodies, five newly observed roots, ten new platform manifest edges and the exact public Git tag/peeled-commit output. No raw config, binary provenance, build closure or startup was inferred from those descriptors.
+
+The seven stages form an acyclic dependency order with maintainer roles and mandatory evidence. All runner argv are null. The twelve SB-03 cases explicitly require actual installed software/object applicability, a selected patch route, application and lower-trust control cases, coherent recovery, client and supply-chain coverage, and actual rejection of incomplete evidence. Administrative security, native continuity, complete public release and production remain distinct obligations.
+
+The critic preserved two evidence-boundary clarifications. Initial verification passed 188 of 189 checks; its only failure was the author's ambiguous shorthand for object rows versus array rows. The clarified object-row encoding reproduces the supplied identity without source changes. All 59 additional checks passed. Separately, the exact Auth advisory range was supported by a retained successful official web-tool publisher page. The critic read and hashed that transcript but did not independently authenticate its collection. The original API HTTP 403 and later direct HTML connection timeout remain preserved as failures, not evidence for that range. None of these checks establishes execution provenance.
+
+The external detailed report JSON SHA-256 is `66351392ef847010ffb136e390deb6714ebaef92d0c4a353677e475b1480ca06`; its Markdown SHA-256 is `1d945fa09f02e8153bd899d8f6c1d3dcc02320fd5da8c8fb6991151b7b501c64`. Detailed raw observations are retained outside source for integration review. They are not distributed proof references in the registry, and a clean public clone does not include that external corpus. The public plan supplies primary-source addresses and hashes for future independent collection.
+
+The largest remaining gap is actual installed-object applicability and a proven remediation route with matched before/after application and recovery observations. Distribution also needs complete public Studio/build inputs, raw configs, authenticated or reproducible build provenance, implemented commands and isolated startup. These gaps block future acceptance and were correctly left open in the proposal. Any later source, configuration, fixture or proof change requires a new identity and fresh applicable review. This source-only verdict cannot be transferred to root's later integrated source or used as a security release verdict.

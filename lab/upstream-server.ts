@@ -4,7 +4,7 @@ import {openUpstreamApplication,studioState} from './upstream-app';
 import {studioRuntime} from '../src/control/studio';
 import {isRealtimeSocket} from '../src/gateway/realtime';
 import {readFileSync,unlinkSync} from 'node:fs';
-import {databaseListen,databaseProxy} from '../src/http/database-proxy';
+import {databaseListen} from '../src/http/database-proxy';
 import {readJsonCached} from '../src/http/cached-json';
 import {upgradeHold} from '../src/gateway/hold';
 import {confirmationProbe,holdExceptProbe} from '../src/gateway/hold-bypass';
@@ -47,15 +47,15 @@ const studioTimer=setInterval(async()=>{
 },2000);
 // Direct database access (migrations, psql, an ORM): developer logins only, to their own database.
 const databaseAt=databaseListen();
-const database=databaseAt?await databaseProxy({...databaseAt,log:line=>console.log(line),target:()=>{
+if(databaseAt)await app.database.start({...databaseAt,log:line=>console.log(line),target:()=>{
  if(held())return undefined;
  try{const value=readJsonCached('.lab/upstream/database.json') as {host?:string;port?:number};
   return value.host&&value.port?{host:value.host,port:value.port}:undefined;}catch{return undefined;}
-}}).catch(error=>{console.error('Direct database access unavailable:',(error as Error).message);return undefined;}):undefined;
+}}).catch(error=>{console.error('Direct database access unavailable:',(error as Error).message);});
 await Bun.write('.lab/upstream/server.json',JSON.stringify({url:`http://127.0.0.1:${server.port}`,pid:process.pid}));
 console.log(`Local Sbarbase API: http://127.0.0.1:${server.port}`);
 function stop(){
- clearInterval(studioTimer);internal?.stop(true);database?.stop();server.stop(true);app.close();
+ clearInterval(studioTimer);internal?.stop(true);server.stop(true);app.close();
  try {if(JSON.parse(readFileSync('.lab/upstream/server.json','utf8')).pid===process.pid)unlinkSync('.lab/upstream/server.json');}catch {}
  process.exit(0);
 }

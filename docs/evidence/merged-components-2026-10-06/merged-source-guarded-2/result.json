@@ -1,0 +1,252 @@
+{
+  "total": 627,
+  "failed": 0,
+  "skipped": 0,
+  "evidence": "/home/sbarah/.codex/sbarbase-integration/20261006/merged-source-guarded-2",
+  "checker_sha256": "feb0304e5f5078ccadcbe14a03c91fa0050d2624a60a4931c9e359cfaf5a72a5",
+  "observations": [
+    {
+      "name": "bun",
+      "argv": [
+        "bun",
+        "test",
+        "tests",
+        "--timeout",
+        "10000"
+      ],
+      "parser": "bun",
+      "counts": {
+        "total": 430,
+        "failed": 0,
+        "skipped": 0
+      },
+      "returncode": 0,
+      "passed": true,
+      "cid": "02468779de3c98bd297e15716eb16a634703c57c579229a7513ad6b8d576aba5"
+    },
+    {
+      "name": "types",
+      "argv": [
+        "bun",
+        "run",
+        "typecheck:control"
+      ],
+      "parser": "exit",
+      "counts": {
+        "total": 0,
+        "failed": 0,
+        "skipped": 0
+      },
+      "returncode": 0,
+      "passed": true,
+      "cid": "78e81a8d58cf7e11a26679826e3c2d6ea827139bd35f11aa85608b8807c1dea1"
+    },
+    {
+      "name": "backup",
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "lab",
+        "-p",
+        "test_backup*.py"
+      ],
+      "parser": "unittest",
+      "counts": {
+        "total": 72,
+        "failed": 0,
+        "skipped": 0
+      },
+      "returncode": 0,
+      "passed": true,
+      "cid": "a164fdbec0fd984ede80b75c4cee29ac2dbe17bcf1c3e7033a72f8c42c27ba3a"
+    },
+    {
+      "name": "restore",
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "lab",
+        "-p",
+        "test_restore*.py"
+      ],
+      "parser": "unittest",
+      "counts": {
+        "total": 65,
+        "failed": 0,
+        "skipped": 0
+      },
+      "returncode": 0,
+      "passed": true,
+      "cid": "ca6f3044bbcf5d3c83785f4fd1407378b3739525feee6480200c032a6bf496e8"
+    },
+    {
+      "name": "fixtures-registry",
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "-v",
+        "lab.test_disposable_recovery_drill",
+        "lab.test_disposable_storage_backup_drill",
+        "lab.test_capability_registry",
+        "lab.test_plan_acceptance"
+      ],
+      "parser": "unittest",
+      "counts": {
+        "total": 60,
+        "failed": 0,
+        "skipped": 0
+      },
+      "returncode": 0,
+      "passed": true,
+      "cid": "19609d435f795641a0e657b1d97d8f410944b8ce80cac7dffa5dfb04cf6110ec"
+    },
+    {
+      "name": "registry",
+      "argv": [
+        "python3",
+        "deploy/verify/capability_registry.py",
+        "validate"
+      ],
+      "parser": "exit",
+      "counts": {
+        "total": 0,
+        "failed": 0,
+        "skipped": 0
+      },
+      "returncode": 0,
+      "passed": true,
+      "cid": "fd44008e1687ae6161f133a55d98a7975d2a32d3bf1d22bb73a180a4f7766ef6"
+    },
+    {
+      "name": "plan",
+      "argv": [
+        "python3",
+        "deploy/check_plan.py"
+      ],
+      "parser": "exit",
+      "counts": {
+        "total": 0,
+        "failed": 0,
+        "skipped": 0
+      },
+      "returncode": 0,
+      "passed": true,
+      "cid": "29e70cf7e786c1f2d413138a8958ea355240563928bcf765172c1e6036f0c7c1"
+    }
+  ],
+  "cleanup": [
+    {
+      "cid": "02468779de3c98bd297e15716eb16a634703c57c579229a7513ad6b8d576aba5",
+      "removed": true,
+      "absence_verified": true,
+      "argv": [
+        "docker",
+        "inspect",
+        "02468779de3c98bd297e15716eb16a634703c57c579229a7513ad6b8d576aba5"
+      ],
+      "returncode": 1,
+      "stdout": "[]\n",
+      "stderr": "error: no such object: 02468779de3c98bd297e15716eb16a634703c57c579229a7513ad6b8d576aba5\n"
+    },
+    {
+      "cid": "78e81a8d58cf7e11a26679826e3c2d6ea827139bd35f11aa85608b8807c1dea1",
+      "removed": true,
+      "absence_verified": true,
+      "argv": [
+        "docker",
+        "inspect",
+        "78e81a8d58cf7e11a26679826e3c2d6ea827139bd35f11aa85608b8807c1dea1"
+      ],
+      "returncode": 1,
+      "stdout": "[]\n",
+      "stderr": "error: no such object: 78e81a8d58cf7e11a26679826e3c2d6ea827139bd35f11aa85608b8807c1dea1\n"
+    },
+    {
+      "cid": "a164fdbec0fd984ede80b75c4cee29ac2dbe17bcf1c3e7033a72f8c42c27ba3a",
+      "removed": true,
+      "absence_verified": true,
+      "argv": [
+        "docker",
+        "inspect",
+        "a164fdbec0fd984ede80b75c4cee29ac2dbe17bcf1c3e7033a72f8c42c27ba3a"
+      ],
+      "returncode": 1,
+      "stdout": "[]\n",
+      "stderr": "error: no such object: a164fdbec0fd984ede80b75c4cee29ac2dbe17bcf1c3e7033a72f8c42c27ba3a\n"
+    },
+    {
+      "cid": "ca6f3044bbcf5d3c83785f4fd1407378b3739525feee6480200c032a6bf496e8",
+      "removed": true,
+      "absence_verified": true,
+      "argv": [
+        "docker",
+        "inspect",
+        "ca6f3044bbcf5d3c83785f4fd1407378b3739525feee6480200c032a6bf496e8"
+      ],
+      "returncode": 1,
+      "stdout": "[]\n",
+      "stderr": "error: no such object: ca6f3044bbcf5d3c83785f4fd1407378b3739525feee6480200c032a6bf496e8\n"
+    },
+    {
+      "cid": "19609d435f795641a0e657b1d97d8f410944b8ce80cac7dffa5dfb04cf6110ec",
+      "removed": true,
+      "absence_verified": true,
+      "argv": [
+        "docker",
+        "inspect",
+        "19609d435f795641a0e657b1d97d8f410944b8ce80cac7dffa5dfb04cf6110ec"
+      ],
+      "returncode": 1,
+      "stdout": "[]\n",
+      "stderr": "error: no such object: 19609d435f795641a0e657b1d97d8f410944b8ce80cac7dffa5dfb04cf6110ec\n"
+    },
+    {
+      "cid": "fd44008e1687ae6161f133a55d98a7975d2a32d3bf1d22bb73a180a4f7766ef6",
+      "removed": true,
+      "absence_verified": true,
+      "argv": [
+        "docker",
+        "inspect",
+        "fd44008e1687ae6161f133a55d98a7975d2a32d3bf1d22bb73a180a4f7766ef6"
+      ],
+      "returncode": 1,
+      "stdout": "[]\n",
+      "stderr": "error: no such object: fd44008e1687ae6161f133a55d98a7975d2a32d3bf1d22bb73a180a4f7766ef6\n"
+    },
+    {
+      "cid": "29e70cf7e786c1f2d413138a8958ea355240563928bcf765172c1e6036f0c7c1",
+      "removed": true,
+      "absence_verified": true,
+      "argv": [
+        "docker",
+        "inspect",
+        "29e70cf7e786c1f2d413138a8958ea355240563928bcf765172c1e6036f0c7c1"
+      ],
+      "returncode": 1,
+      "stdout": "[]\n",
+      "stderr": "error: no such object: 29e70cf7e786c1f2d413138a8958ea355240563928bcf765172c1e6036f0c7c1\n"
+    },
+    {
+      "image_tag": "sbarbase-merged-check:8d7fd1dd24cdc5f4ecdf6018edc6b5c1",
+      "removed": true,
+      "absence_verified": true,
+      "argv": [
+        "docker",
+        "image",
+        "inspect",
+        "sbarbase-merged-check:8d7fd1dd24cdc5f4ecdf6018edc6b5c1"
+      ],
+      "returncode": 1,
+      "stdout": "[]\n",
+      "stderr": "Error response from daemon: No such image: sbarbase-merged-check:8d7fd1dd24cdc5f4ecdf6018edc6b5c1\n"
+    }
+  ],
+  "image_id": "sha256:0dac4bb10ac3a2594a14f4c16db29264ba9f325048db793d6ab4e064edc00927"
+}

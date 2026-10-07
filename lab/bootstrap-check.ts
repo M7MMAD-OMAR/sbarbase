@@ -1,4 +1,6 @@
-import {mkdtempSync,rmSync,readFileSync,statSync} from 'node:fs';
+import {resolve} from 'node:path';
+import {liveManagementClient,liveManagementLogin} from './live-management-auth';
+import {mkdtempSync,rmSync,readFileSync,statSync,writeFileSync} from 'node:fs';
 import {createClient} from '@supabase/supabase-js';
 import {Catalog} from '../src/control/catalog';
 import {KeyStore} from '../src/control/keys';
@@ -19,6 +21,8 @@ const auth=bootstrapAuth(management.auth,values.management.jwt);
 const suffix=crypto.randomUUID(),input={email:`bootstrap-${suffix}@example.com`,password:`Local-${suffix}`,organization:'Bootstrap probe'};
 let identity:string|undefined,server:ReturnType<typeof Bun.serve>|undefined;
 try {
+ const nativeDescriptor=resolve(directory,'native-auth.json');
+ writeFileSync(nativeDescriptor,JSON.stringify({schema:1,run:crypto.randomUUID(),accounts:[]}),{mode:0o600,flag:'wx'});
  let crashed=false;
  try{await bootstrapOperator(catalog,auth,journal,input,phase=>{if(phase==='identity-created')throw new Error('Simulated interruption');});}
  catch(error){if((error as Error).message==='Simulated interruption')crashed=true;else throw error;}
@@ -47,8 +51,8 @@ try {
  check('missing journal cannot initialize another owner',missingRejected);
  const fetchHandler=application(catalog,keys,{auth:management.auth,publishableKey:managementPublishableKey,anonymousToken:internalToken(values.management.jwt,'anon')},()=>undefined);
  server=Bun.serve({hostname:'127.0.0.1',port:0,fetch:fetchHandler});const base=`http://127.0.0.1:${server.port}`;
- const sdk=createClient(base+'/management',managementPublishableKey,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
- const login=await sdk.auth.signInWithPassword({email:input.email,password:input.password});
+ const sdk=liveManagementClient(base,managementPublishableKey);
+ const login=await liveManagementLogin(sdk,base,{email:input.email,password:input.password},{fresh:true,path:nativeDescriptor});
  check('bootstrapped operator logs in through composed API',!login.error&&login.data.user?.id===identity);
  if(!login.data.session)throw new Error('No operator session');
  const headers={authorization:'Bearer '+login.data.session.access_token,'content-type':'application/json'};

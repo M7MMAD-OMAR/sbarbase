@@ -1,6 +1,7 @@
 import {Catalog} from './catalog';
 import {authenticate,reply,type ManagementIdentity} from './auth';
 import type {RequestLog} from '../gateway/observe';
+import {bindReadyEnvironmentPublication} from './ready-publication';
 
 /** Logs and metrics for one environment.
  *
@@ -114,14 +115,24 @@ export function observeHandler(catalog:Catalog,identify:ManagementIdentity,log:R
   const actor=await authenticate(identify,request);
   if(actor instanceof Response)return actor;
   const environment=match[1]!,kind=match[2]!;
-  let runtime:string;
-  try{runtime=catalog.withReadyEnvironment(actor,environment,kind==='logs',job=>job.runtime);}
-  catch(error){
-   const message=error instanceof Error?error.message:'';
-   if(message==='Forbidden')return reply(403,{message:'Forbidden'});
-   if(message==='Environment is not ready')return reply(409,{message});
-   return reply(500,{message:'Management operation failed'});
-  }
+  const access=()=>{
+   try{return catalog.withReadyEnvironment(actor,environment,kind==='logs',job=>job.runtime);}
+   catch(error){
+    const message=error instanceof Error?error.message:'';
+    if(message==='Forbidden')return reply(403,{message:'Forbidden'});
+    if(message==='Environment is not ready')return reply(409,{message});
+    return reply(500,{message:'Management operation failed'});
+   }
+  };
+   const runtime=access();if(runtime instanceof Response)return runtime;
+   const epoch=catalog.runtimeEpoch(runtime);
+   const answer=(data:unknown)=>bindReadyEnvironmentPublication(reply(200,{data}),catalog,actor,
+    environment,runtime,kind==='logs',epoch);
+  const recheck=()=>{
+   const current=access();
+   if(current instanceof Response)return current;
+    return current===runtime&&catalog.runtimeEpoch(runtime)===epoch?null:reply(409,{message:'Environment is not ready'});
+  };
   if(kind==='metrics'){
    const containers=(['auth','rest','realtime','functions'] as const).map(service=>containerName(runtime,service));
    let cached=statsCache.get(runtime);
@@ -129,19 +140,22 @@ export function observeHandler(catalog:Catalog,identify:ManagementIdentity,log:R
     cached={at:Date.now(),value:reader.stats(containers).catch(()=>[] as ContainerStats[])};
     statsCache.set(runtime,cached);
    }
-   return reply(200,{data:{...log.metrics(runtime),services:await cached.value}});
+   const services=await cached.value;
+   const refused=recheck();if(refused)return refused;
+    return answer({...log.metrics(runtime),services});
   }
   const source=url.searchParams.get('source')??'requests';
   if(!(SOURCES as readonly string[]).includes(source))return reply(400,{message:`Choose a source: ${SOURCES.join(', ')}`});
   const errors=url.searchParams.get('errors')==='1';
   const requested=Number(url.searchParams.get('lines')??'200');
   if(!Number.isInteger(requested)||requested<1||requested>MAX_LINES)return reply(400,{message:`Ask for 1 to ${MAX_LINES} lines`});
-  if(source==='requests')return reply(200,{data:{source,requests:log.recent(runtime,{errors,limit:requested})}});
+   if(source==='requests')return answer({source,requests:log.recent(runtime,{errors,limit:requested})});
   const service=source as Exclude<Source,'requests'>;
   try {
    // Storage is shared, so read further back to find this environment's own lines.
    const text=await reader.logs(containerName(runtime,service),service==='storage'?Math.min(requested*20,20_000):requested*(errors?5:1));
-   return reply(200,{data:{source,lines:serviceLines(text,service,runtime,{errors,lines:requested})}});
+   const refused=recheck();if(refused)return refused;
+    return answer({source,lines:serviceLines(text,service,runtime,{errors,lines:requested})});
   } catch {
    return reply(503,{message:'Service logs are unavailable right now'});
   }

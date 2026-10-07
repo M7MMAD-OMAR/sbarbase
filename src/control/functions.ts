@@ -1,3 +1,5 @@
+import {bindReadyEnvironmentPublication} from './ready-publication';
+import {refreshCurrentManagement} from './management-context';
 import {mkdirSync,readFileSync,readdirSync,renameSync,rmSync,statSync,writeFileSync} from 'node:fs';
 import {dirname,join} from 'node:path';
 import {randomBytes} from 'node:crypto';
@@ -140,7 +142,10 @@ async function body(request:Request):Promise<unknown> {
   if(size>MAX_BODY){void reader.cancel().catch(()=>{});throw new DeployError('body: at most 10 MiB');}
   chunks.push(item.value);
  }
- try{return JSON.parse(Buffer.concat(chunks).toString('utf8'));}catch{throw new DeployError('body: JSON');}
+ let input:unknown;
+ try{input=JSON.parse(Buffer.concat(chunks).toString('utf8'));}catch{throw new DeployError('body: JSON');}
+ await refreshCurrentManagement();
+ return input;
 }
 
 export function functionsHandler(catalog:Catalog,identify:ManagementIdentity,codeRoot='.lab/upstream/functions',
@@ -155,7 +160,8 @@ export function functionsHandler(catalog:Catalog,identify:ManagementIdentity,cod
   const actor=await authenticate(identify,request);
   if(actor instanceof Response)return actor;
   try {
-   const state=catalog.functions(actor,environment!);
+   let state=catalog.functions(actor,environment!);
+   const answer=(response:Response)=>bindReadyEnvironmentPublication(response,catalog,actor,environment!,state.runtime,true);
    const view=()=>{
     const manifest=readManifest(codeRoot,state.runtime);
     return {...catalog.functions(actor,environment!),
@@ -164,29 +170,35 @@ export function functionsHandler(catalog:Catalog,identify:ManagementIdentity,cod
      secrets:Object.keys(readSecrets(secretsRoot,state.runtime)).sort()};
    };
    if(kind==='function-secrets'){
-    const names=changeSecrets(secretsRoot,state.runtime,await body(request));
+    const input=await body(request);
+    state=catalog.functions(actor,environment!);
+    const names=changeSecrets(secretsRoot,state.runtime,input);
     catalog.recordFunction(actor,environment!,'functions.secrets_changed',{count:names.length});
-    return reply(200,{data:{secrets:names}});
+    return answer(reply(200,{data:{secrets:names}}));
    }
-   if(!name&&request.method==='GET')return reply(200,{data:view()});
+   if(!name&&request.method==='GET')return answer(reply(200,{data:view()}));
    if(!name){
     let input:unknown;
     try{input=await request.json();}catch{return reply(400,{message:'Invalid JSON'});}
+    await refreshCurrentManagement();
     const enabled=(input as {enabled?:unknown}|null)?.enabled;
     if(typeof enabled!=='boolean'||Object.keys(input as object).length!==1)return reply(400,{message:'Send {"enabled": true} or {"enabled": false}'});
     catalog.requestFunctions(actor,environment!,enabled);
-    return reply(202,{data:view()});
+    return answer(reply(202,{data:view()}));
    }
    if(request.method==='DELETE'){
-    if(!remove(codeRoot,state.runtime,name))return reply(404,{message:'Function not found'});
+    if(!remove(codeRoot,state.runtime,name))return answer(reply(404,{message:'Function not found'}));
     catalog.recordFunction(actor,environment!,'functions.deleted',{name});
-    return reply(200,{data:view()});
+    return answer(reply(200,{data:view()}));
    }
-   const entry=deploy(codeRoot,state.runtime,name,deployment(await body(request)));
+   const input=deployment(await body(request));
+   // Body reads may outlive membership changes. Recheck before publishing files.
+   state=catalog.functions(actor,environment!);
+   const entry=deploy(codeRoot,state.runtime,name,input);
    catalog.recordFunction(actor,environment!,'functions.deployed',{name,version:entry.version,size:entry.size});
    // The first deploy starts the environment's Edge Functions, as on Supabase.
    if(state.desired==='off'&&state.state!=='pending')catalog.requestFunctions(actor,environment!,true);
-   return reply(201,{data:{...view(),deployed:{name,...entry}}});
+   return answer(reply(201,{data:{...view(),deployed:{name,...entry}}}));
   } catch(error) {
    const message=error instanceof Error?error.message:'';
    if(error instanceof DeployError)return reply(400,{message:`Check the ${message}`});

@@ -1,5 +1,6 @@
 """Owned, bounded local component lab. Never manages unrelated containers."""
 import argparse
+import docker_profile
 import effect_receipt
 import fcntl
 import re
@@ -23,7 +24,7 @@ IMAGES = {'db': 'postgres:17-alpine', 'auth': 'public.ecr.aws/supabase/gotrue:v2
 
 
 def docker(*args, data=None, check=True):
-    result = subprocess.run(['docker', *args], input=data, text=True, capture_output=True)
+    result = subprocess.run(docker_profile.docker_command(*args), input=data, text=True, capture_output=True)
     if check and result.returncode:
         # Docker/SQL errors may contain generated credentials. Do not echo them.
         raise RuntimeError(f'Docker operation {args[0]} failed; exit {result.returncode}')
@@ -193,6 +194,7 @@ def launch_services(e, v, pins):
 
 
 def up():
+    docker_profile.require_supported()
     available = int(next(x.split()[1] for x in Path('/proc/meminfo').read_text().splitlines() if x.startswith('MemAvailable:')))
     if available < 6 * 1024 * 1024:
         raise RuntimeError('Less than 6 GiB available; do not start the lab now')
@@ -279,6 +281,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('command', choices=['up', 'status', 'stop'])
     args = parser.parse_args()
+    if args.command == 'up':
+        docker_profile.require_or_exit()
     STATE.mkdir(exist_ok=True)
     operation_lock = (STATE / 'operation.lock').open('w')
     try:

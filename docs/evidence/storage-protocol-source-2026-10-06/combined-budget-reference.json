@@ -1,0 +1,8 @@
+{
+  "v2_frozen_budget_path": "/home/sbarah/.codex/sbarbase-settlement/20261006/native-source-v2/budget.json",
+  "v2_frozen_budget_sha256": "a7bb3faf369e3742d6b943513f032f569ad07d38abc62f24c72fba3889c894bd",
+  "v2_active_seconds": 13.291846863008752,
+  "v2_charged_output_bytes": 4222514,
+  "v3_separately_confirmed_budget_path": "/home/sbarah/.codex/sbarbase-settlement/20261006/native-source-v3/budget.json",
+  "note": "Two distinct coordinator-authorized source roles. v2 not reset or overwritten. Combined totals must be recomputed from the final v3 ledger, never claimed as one native role."
+}

@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-06",
+  "status": "reviewed-child-source-delta-imported-merged-behavior-unproven",
+  "scope": "SB02 host capability admission, fixed Compose route and startup/installer effect boundaries",
+  "delta_commit": "e5976d97ea55d86bed7ccbcafecf10b9d54f8a4e",
+  "baseline_commit": "d7cbaca764eec368a0f89c78b11b38470580f317",
+  "patch_sha256": "370be44100463ae8dccef297a3c9093834fb8396902c036f2344c51b803058fd",
+  "child_source_hash": "38d4d1978a14690db4022b3b399f75fde742ca058553f77c61be644b52385a10",
+  "child_plan_hash": "24b970e4598a95e81c92d10c36adf172d28fc9d065a1d6ee725b186072da6074",
+  "import_verification": {
+    "delta_files_committed_bytes_and_git_modes": 80,
+    "source_manifest_bytes_and_filesystem_modes": 37,
+    "python_ast_files": 25,
+    "shell_syntax": "passed",
+    "diff_check": "passed",
+    "registry_validation": "passed after deliberate two-checksum rebinding"
+  },
+  "child_behavior_evidence": {
+    "host_entrypoint_fixtures": 54,
+    "focused_caller_tests": 211,
+    "failures": 0,
+    "skips": 0,
+    "fresh_independent_source_reviews": 2,
+    "scope": "Owned doubles in child checkout; no actual supported-host or merged-runtime acceptance",
+    "independent_spec_replay_seconds": 137.003,
+    "independent_spec_replay_limitation": "Manual replay exceeded planned 120 second engine bound; engine behavior gate separately completed within its bound"
+  },
+  "registry": {
+    "changed_existing_bindings": [
+      "compose",
+      "host-config"
+    ],
+    "capabilities_unchanged": true,
+    "rows": 105,
+    "acceptance": "all unproven",
+    "production": "all unproven"
+  },
+  "preserved_failures": {
+    "source": "Original child failing fixtures/reviews remain in sb02-source-2026-10-06/earlier and workflow",
+    "runtime_proposal_v5": "Independent OPS-RUNTIME-001 remains failed; corrected runtime contract requires fresh review",
+    "root_import_comparison": "Patch applied successfully, then raw evidence child filesystem modes differed from Git modes. Reconciled committed bytes/Git modes; no second apply and no evidence byte edits."
+  },
+  "required_unproven": [
+    "Current merged full standard verification and independent reviews",
+    "Real candidate-host resource enforcement and metadata/crash persistence",
+    "Containerd content-root mapping and disk headroom",
+    "Clean host installation and original Supabase native feature behavior",
+    "Reboot, reconnect, update and complete distinct-host encrypted application recovery",
+    "Remaining full programme acceptance and production requirements"
+  ],
+  "artifacts_sha256": {
+    "import-receipt.json": "aeaecf71183d1966bfad581ddff50c8e861bfcb40b8822fed6f7124778a5a360",
+    "binding-receipt.json": "b59dc7cdff8b39ebe7838f3d090144f458a029dbf4d4b3dae3cc71a3658c0266",
+    "source-syntax.json": "557cb475591f5aca7835b7d7fdadde56c9543b42a1c460d0da6dd90520f56cc5",
+    "registry-before-rebinding.json": "1746fb56acdcc5a1afd18d2e9a980fe2994f42ace4c7c303eb340b4a3fecd2e2",
+    "registry-before-rebinding.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "registry-after-rebinding.json": "09cd2afa357d993a578436ae7e641adfe9b9d6ac4a09ca0fe657bb86ce5791f9",
+    "registry-after-rebinding.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

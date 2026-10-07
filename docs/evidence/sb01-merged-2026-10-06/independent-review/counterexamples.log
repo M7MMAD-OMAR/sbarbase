@@ -1,0 +1,67 @@
+[
+  {
+    "name": "synthetic-source-baseline",
+    "exit": 0,
+    "errors": 0
+  },
+  {
+    "name": "changed-source-refusal",
+    "exit": 1,
+    "errors": 3
+  },
+  {
+    "name": "changed-source-envelope-rebind-refusal",
+    "exit": 1,
+    "errors": 3
+  },
+  {
+    "name": "synthetic-binding-baseline",
+    "exit": 0,
+    "errors": 0
+  },
+  {
+    "name": "changed-binding-refusal",
+    "exit": 1,
+    "errors": 1
+  },
+  {
+    "name": "changed-binding-registry-only-refusal",
+    "exit": 1,
+    "errors": 3
+  },
+  {
+    "name": "changed-binding-envelope-rebind-refusal",
+    "exit": 1,
+    "errors": 3
+  },
+  {
+    "name": "synthetic-cron-fragment-accepts",
+    "exit": 0,
+    "errors": 0
+  },
+  {
+    "name": "synthetic-cron-does-not-accept-sb13a",
+    "exit": 1,
+    "errors": 1
+  },
+  {
+    "name": "synthetic-G0-component-accepts",
+    "exit": 0,
+    "errors": 0
+  },
+  {
+    "name": "synthetic-G0-planning-refusal",
+    "exit": 1,
+    "errors": 2
+  },
+  {
+    "name": "synthetic-G12-component-accepts",
+    "exit": 0,
+    "errors": 0
+  },
+  {
+    "name": "synthetic-G12-planning-refusal",
+    "exit": 1,
+    "errors": 64
+  }
+]

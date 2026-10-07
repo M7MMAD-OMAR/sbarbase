@@ -1,14 +1,16 @@
 import {test,expect,afterAll} from 'bun:test';
 import {Database} from 'bun:sqlite';
-import {chmodSync,mkdirSync,mkdtempSync,rmSync,writeFileSync} from 'node:fs';
+import {chmodSync,mkdirSync,mkdtempSync,rmSync,writeFileSync,readFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {Catalog} from '../src/control/catalog';
 import {main,parse,backupsOf,EXIT,type Deps} from '../lab/sbarbase';
 import {managementPublishableKey} from '../lab/upstream-app';
+import {managementToken,verifiedFactor,factorId,otherFactorId,challengeId} from './management-fixture';
 
-const TOKEN='access-token-that-must-never-print';
+const TOKEN=managementToken('alice','aal2'),PASSWORD_TOKEN=managementToken('alice','aal1');
 const PASSWORD='correct horse battery staple';
+const CODE='123456',SECRET='JBSWY3DPEHPK3PXP';
 const NEW_KEY='sb_publishable_new_key_shown_once';
 const CONSOLE='http://127.0.0.1:8790';
 const roots:string[]=[];
@@ -44,29 +46,48 @@ function installation(options:{console?:boolean}={}) {
  return {root,production,staging,runtime,stagingRuntime,project:shop,organization:org};
 }
 
-type Call={url:string;method:string;headers:Record<string,string>;body?:string};
+type Call={url:string;method:string;headers:Record<string,string>;body?:string;redirect?:RequestRedirect;signal?:AbortSignal|null};
 
 /** Deps with every external effect recorded: children, HTTP, prompts and output. */
 function harness(root:string,options:{routes?:(call:Call)=>Response|undefined;tty?:boolean;answers?:string[];
- stdin?:string;env?:Record<string,string>;container?:boolean;unit?:boolean;code?:number;unitEnvironment?:string}={}) {
+ stdin?:string;env?:Record<string,string>;container?:boolean;unit?:boolean;code?:number;unitEnvironment?:string;
+ factors?:{id:string;status:string;factor_type:string;friendly_name?:string}[];codes?:string[];
+ authRoutes?:(call:Call)=>Response|undefined;verifyAal?:'aal1'|'aal2';setupFailure?:boolean}={}) {
  const runs:string[][]=[],calls:Call[]=[],out:string[]=[],err:string[]=[],prompts:{question:string;secret:boolean}[]=[];
- const answers=[...(options.answers??[])];
+ const answers=[...(options.answers??[])],codes=[...(options.codes??[])],setup:{secret:string;uri:string}[]=[],cleared:string[]=[];
+ let factors=options.factors??[{...verifiedFactor,friendly_name:'Primary authenticator'}];
+ const session=(token:string)=>({access_token:token,refresh_token:'refresh-token-never-print',expires_in:3600,token_type:'bearer',user:{id:'alice',factors}});
  const deps:Deps={
   root,env:options.env??{},
   run:async argv=>{runs.push(argv);return options.code??0;},
   capture:async argv=>{runs.push(argv);return {code:0,stdout:argv[1]==='show'?options.unitEnvironment??'Environment=\n':'active\n'};},
   fetch:(async(input:RequestInfo|URL,init?:RequestInit)=>{
    const call={url:String(input),method:init?.method??'GET',headers:Object.fromEntries(new Headers(init?.headers).entries()),
-    body:typeof init?.body==='string'?init.body:undefined};
+    body:typeof init?.body==='string'?init.body:undefined,redirect:init?.redirect,signal:init?.signal};
    calls.push(call);
    if(call.url.endsWith('/health')||call.url.endsWith(':3000/'))return new Response('ok');
+   const authAnswer=options.authRoutes?.(call);if(authAnswer)return authAnswer;
    if(call.url===CONSOLE+'/management/auth/v1/token?grant_type=password')
-    return Response.json(JSON.parse(call.body!).password===PASSWORD?{access_token:TOKEN}:{message:'Invalid login'},
+    return Response.json(JSON.parse(call.body!).password===PASSWORD?session(PASSWORD_TOKEN):{message:'Invalid login'},
      {status:JSON.parse(call.body!).password===PASSWORD?200:400});
-   if(call.url===CONSOLE+'/management/auth/v1/logout')return new Response(null,{status:204});
+   if(call.url===CONSOLE+'/management/auth/v1/user')return Response.json({id:'alice',factors});
+   if(call.url===CONSOLE+'/management/auth/v1/factors'){
+    factors=[...factors,{id:otherFactorId,status:'unverified',factor_type:'totp'}];
+    return Response.json({id:otherFactorId,type:'totp',totp:{secret:SECRET,uri:'otpauth://totp/Sbarbase?secret='+SECRET,qr_code:'native-qr'}});
+   }
+   if(call.url.endsWith('/challenge'))return Response.json({id:challengeId});
+   if(call.url.endsWith('/verify')){
+    if(JSON.parse(call.body!).code!==CODE)return Response.json({message:'Private native code diagnostic '+SECRET},{status:400});
+    factors=factors.map(factor=>({...factor,status:'verified'}));return Response.json(session(options.verifyAal==='aal1'?PASSWORD_TOKEN:TOKEN));
+   }
+   if(call.method==='DELETE'&&call.url.includes('/auth/v1/factors/')){
+    factors=factors.filter(factor=>!call.url.endsWith(factor.id));return Response.json({id:otherFactorId});
+   }
+   if(call.url===CONSOLE+'/management/auth/v1/logout?scope=local')return new Response(null,{status:204});
    return options.routes?.(call)??Response.json({message:'Unknown route'},{status:404});
   }) as typeof fetch,
-  prompt:async(question,secret=false)=>{prompts.push({question,secret});return answers.shift()??'';},
+  prompt:async(question,secret=false)=>{prompts.push({question,secret});return question==='Authenticator code: '?(codes.shift()??CODE):answers.shift()??'';},
+  setupAuthenticator:async(secret,uri)=>{setup.push({secret,uri});if(options.setupFailure)throw new Error('Private display failure '+SECRET);return()=>{cleared.push(secret);};},
   stdin:async()=>options.stdin??'',
   isTTY:options.tty??false,
   out:text=>out.push(text),err:text=>err.push(text),
@@ -76,7 +97,7 @@ function harness(root:string,options:{routes?:(call:Call)=>Response|undefined;tt
  };
  if(options.unit)writeFileSync(deps.unitPath,'[Unit]\n');
  const printed=()=>out.join('\n')+'\n'+err.join('\n');
- return {deps,runs,calls,out,err,prompts,printed};
+ return {deps,runs,calls,out,err,prompts,printed,setup,cleared};
 }
 
 test('parsing: commands, flags, aliases and refusals',()=>{
@@ -325,16 +346,16 @@ function api(state:{organization:string;project:string;environment:string;keys:{
 
 test('add-environment signs in and posts exactly what the console posts, then signs out',async()=>{
  const {root,organization,project,production}=installation();
- const run=harness(root,{env:{SBARBASE_EMAIL:'owner@example.com'},stdin:PASSWORD+'\n',
+ const run=harness(root,{tty:true,env:{SBARBASE_EMAIL:'owner@example.com'},stdin:PASSWORD+'\n',
   routes:api({organization,project,environment:production,keys:[]})});
  expect(await main(['add-environment','Acme/shop','preview','--password-stdin'],run.deps)).toBe(EXIT.ok);
  const token=run.calls.find(call=>call.url.includes('/management/auth/v1/token'))!;
  expect(token.headers.apikey).toBe(managementPublishableKey);
- expect(JSON.parse(token.body!)).toEqual({email:'owner@example.com',password:PASSWORD});
+ expect(JSON.parse(token.body!)).toEqual({email:'owner@example.com',password:PASSWORD,gotrue_meta_security:{}});
  const create=run.calls.find(call=>call.method==='POST'&&call.url.endsWith(`/projects/${project}/environments`))!;
  expect(create.headers['content-type']).toBe('application/json');
  expect(JSON.parse(create.body!)).toEqual({name:'preview'});
- expect(run.calls.at(-1)!.url).toBe(CONSOLE+'/management/auth/v1/logout');
+ expect(run.calls.at(-1)!.url).toBe(CONSOLE+'/management/auth/v1/logout?scope=local');
  expect(run.out.join('\n')).toContain('Acme/shop/preview is queued');
  expect(run.printed()).not.toContain(TOKEN);
  expect(run.printed()).not.toContain(PASSWORD);
@@ -346,9 +367,9 @@ test('add-environment reports the API refusals in plain words and signs out anyw
  const run=harness(root,{tty:true,answers:['owner@example.com',PASSWORD],
   routes:api({organization,project,environment:production,keys:[],conflict:'Environment capacity reached'})});
  expect(await main(['add-environment',project,'preview'],run.deps)).toBe(EXIT.failed);
- expect(run.prompts).toEqual([{question:'Operator email: ',secret:false},{question:'Password: ',secret:true}]);
+ expect(run.prompts).toEqual([{question:'Operator email: ',secret:false},{question:'Password: ',secret:true},{question:'Authenticator code: ',secret:true}]);
  expect(run.err.join('\n')).toContain('environment limit');
- expect(run.calls.at(-1)!.url).toBe(CONSOLE+'/management/auth/v1/logout');
+ expect(run.calls.at(-1)!.url).toBe(CONSOLE+'/management/auth/v1/logout?scope=local');
  const missing=harness(root,{tty:true,answers:['owner@example.com',PASSWORD],routes:api({organization,project,environment:production,keys:[]})});
  expect(await main(['add-environment','nothing','preview'],missing.deps)).toBe(EXIT.refused);
 });
@@ -357,20 +378,20 @@ test('sign-in refusals: no terminal, a wrong password, a loose operator file, no
  const {root,organization,project,production}=installation();
  const routes=api({organization,project,environment:production,keys:[]});
  const headless=harness(root,{routes});
- expect(await main(['add-environment','shop','x'],headless.deps)).toBe(EXIT.usage);
+ expect(await main(['add-environment','shop','x'],headless.deps)).toBe(EXIT.refused);
  expect(headless.calls).toEqual([]);
- const wrong=harness(root,{routes,env:{SBARBASE_EMAIL:'a@example.com'},stdin:'nope\n'});
+ const wrong=harness(root,{tty:true,routes,env:{SBARBASE_EMAIL:'a@example.com'},stdin:'nope\n'});
  expect(await main(['add-environment','shop','x','--password-stdin'],wrong.deps)).toBe(EXIT.failed);
  expect(wrong.err.join('\n')).toContain('Sign-in failed');
  expect(wrong.printed()).not.toContain('nope');
  const file=join(root,'operator.json');
  writeFileSync(file,JSON.stringify({email:'owner@example.com',password:PASSWORD,organization:'Acme'}));
  chmodSync(file,0o644);
- const loose=harness(root,{routes});
+ const loose=harness(root,{tty:true,routes});
  expect(await main(['add-environment','shop','x','--operator-file',file],loose.deps)).toBe(EXIT.refused);
  expect(loose.calls).toEqual([]);
  chmodSync(file,0o600);
- const fromFile=harness(root,{routes});
+ const fromFile=harness(root,{tty:true,routes});
  expect(await main(['add-environment','shop','x','--operator-file',file],fromFile.deps)).toBe(EXIT.ok);
  const down=installation({console:false});
  expect(await main(['add-environment','shop','x','--operator-file',file],harness(down.root).deps)).toBe(EXIT.failed);
@@ -379,7 +400,7 @@ test('sign-in refusals: no terminal, a wrong password, a loose operator file, no
 test('rotate-key issues, shows the new key once on stdout, then revokes the one old key',async()=>{
  const {root,organization,project,production}=installation();
  const old={id:'aaaaaaaa-2222-4333-8444-555555555555',kind:'publishable',created_at:1,revoked_at:null};
- const run=harness(root,{env:{SBARBASE_EMAIL:'owner@example.com'},stdin:PASSWORD,
+ const run=harness(root,{tty:true,env:{SBARBASE_EMAIL:'owner@example.com'},stdin:PASSWORD,
   routes:api({organization,project,environment:production,keys:[old,{...old,id:'bbbbbbbb-2222-4333-8444-555555555555',revoked_at:5}]})});
  expect(await main(['rotate-key','Acme/shop/production','--password-stdin'],run.deps)).toBe(EXIT.ok);
  const writes=run.calls.filter(call=>call.url.includes('/keys')).map(call=>call.method+' '+call.url.slice(call.url.indexOf('/environments')));
@@ -393,11 +414,11 @@ test('rotate-key issues, shows the new key once on stdout, then revokes the one 
 test('rotate-key refuses to guess between several active keys, and names a failed revoke',async()=>{
  const {root,organization,project,production,runtime}=installation();
  const keys=['aaaaaaaa','cccccccc'].map(prefix=>({id:prefix+'-2222-4333-8444-555555555555',kind:'publishable',created_at:1,revoked_at:null}));
- const ambiguous=harness(root,{env:{SBARBASE_EMAIL:'o@example.com'},stdin:PASSWORD,routes:api({organization,project,environment:production,keys})});
+ const ambiguous=harness(root,{tty:true,env:{SBARBASE_EMAIL:'o@example.com'},stdin:PASSWORD,routes:api({organization,project,environment:production,keys})});
  expect(await main(['rotate-key',runtime,'--password-stdin'],ambiguous.deps)).toBe(EXIT.refused);
  expect(ambiguous.calls.some(call=>call.method==='POST'&&call.url.endsWith('/keys'))).toBe(false);
  expect(ambiguous.err.join('\n')).toContain('--revoke');
- const chosen=harness(root,{env:{SBARBASE_EMAIL:'o@example.com'},stdin:PASSWORD,routes:api({organization,project,environment:production,keys,failRevoke:true})});
+ const chosen=harness(root,{tty:true,env:{SBARBASE_EMAIL:'o@example.com'},stdin:PASSWORD,routes:api({organization,project,environment:production,keys,failRevoke:true})});
  expect(await main(['rotate-key',production,'--revoke','cccccccc','--password-stdin'],chosen.deps)).toBe(EXIT.failed);
  expect(chosen.out).toEqual([NEW_KEY]);
  expect(chosen.err.join('\n')).toContain('still active');
@@ -406,7 +427,7 @@ test('rotate-key refuses to guess between several active keys, and names a faile
 
 test('studio start and stop go through the management API, never straight to lab/studio.py',async()=>{
  const {root,organization,project,production}=installation();
- const run=harness(root,{env:{SBARBASE_EMAIL:'o@example.com'},stdin:PASSWORD,routes:api({organization,project,environment:production,keys:[]})});
+ const run=harness(root,{tty:true,env:{SBARBASE_EMAIL:'o@example.com'},stdin:PASSWORD,routes:api({organization,project,environment:production,keys:[]})});
  expect(await main(['studio','start','shop/production','--password-stdin'],run.deps)).toBe(EXIT.ok);
  expect(await main(['studio','stop',production,'--password-stdin'],run.deps)).toBe(EXIT.ok);
  expect(run.calls.filter(call=>call.url.endsWith('/studio')).map(call=>call.method)).toEqual(['POST','DELETE']);
@@ -417,20 +438,20 @@ test('studio start and stop go through the management API, never straight to lab
 test('share reads and sets the gateway share through the management route, and names its refusals',async()=>{
  const {root,organization,project,production}=installation();
  const routes=api({organization,project,environment:production,keys:[]});
- const read=harness(root,{env:{SBARBASE_EMAIL:'o@example.com'},stdin:PASSWORD,routes});
+ const read=harness(root,{tty:true,env:{SBARBASE_EMAIL:'o@example.com'},stdin:PASSWORD,routes});
  expect(await main(['share','shop/production','--password-stdin'],read.deps)).toBe(EXIT.ok);
  expect(read.out).toEqual(['Share 4 (default 4, ceiling 32)','Allocated 12 of 64 across every ready environment']);
- const set=harness(root,{env:{SBARBASE_EMAIL:'o@example.com'},stdin:PASSWORD,routes});
+ const set=harness(root,{tty:true,env:{SBARBASE_EMAIL:'o@example.com'},stdin:PASSWORD,routes});
  expect(await main(['share',production,'8','--password-stdin'],set.deps)).toBe(EXIT.ok);
  const put=set.calls.find(call=>call.method==='PUT')!;
  expect(put.url).toBe(`${CONSOLE}/management/v1/environments/${production}/share`);
  expect(put.headers['content-type']).toBe('application/json');
  expect(JSON.parse(put.body!)).toEqual({share:8});
  expect(set.out[0]).toContain('Share set to 8');
- const full=harness(root,{env:{SBARBASE_EMAIL:'o@example.com'},stdin:PASSWORD,routes});
+ const full=harness(root,{tty:true,env:{SBARBASE_EMAIL:'o@example.com'},stdin:PASSWORD,routes});
  expect(await main(['share',production,'30','--password-stdin'],full.deps)).toBe(EXIT.failed);
  expect(full.err.join('\n')).toContain('gateway capacity');
- const invalid=harness(root,{env:{SBARBASE_EMAIL:'o@example.com'},stdin:PASSWORD,routes});
+ const invalid=harness(root,{tty:true,env:{SBARBASE_EMAIL:'o@example.com'},stdin:PASSWORD,routes});
  expect(await main(['share',production,'50','--password-stdin'],invalid.deps)).toBe(EXIT.failed);
  expect(invalid.err.join('\n')).toContain('whole number');
  expect(await main(['share',production,'0'],harness(root).deps)).toBe(EXIT.usage);
@@ -440,7 +461,7 @@ test('share reads and sets the gateway share through the management route, and n
 
 test('share: a member who is not an installation operator is told so in plain words',async()=>{
  const {root,production}=installation();
- const run=harness(root,{env:{SBARBASE_EMAIL:'o@example.com'},stdin:PASSWORD,
+ const run=harness(root,{tty:true,env:{SBARBASE_EMAIL:'o@example.com'},stdin:PASSWORD,
   routes:()=>Response.json({message:'Forbidden'},{status:403})});
  expect(await main(['share',production,'8','--password-stdin'],run.deps)).toBe(EXIT.failed);
  expect(run.err.join('\n')).toContain('no permission');
@@ -472,7 +493,7 @@ test('relink sends the ownership a backup records, then points at restore',async
   environment:{id:crypto.randomUUID(),name:'production'}};
  mkdirSync(join(root,'.lab','backups',runtime,stamp),{recursive:true});
  writeFileSync(join(root,'.lab','backups',runtime,stamp,'manifest.json'),JSON.stringify({version:1,runtime,ownership}));
- const run=harness(root,{env:{SBARBASE_EMAIL:'owner@example.com'},stdin:PASSWORD+'\n',routes:call=>
+ const run=harness(root,{tty:true,env:{SBARBASE_EMAIL:'owner@example.com'},stdin:PASSWORD+'\n',routes:call=>
   call.method==='POST'&&call.url===CONSOLE+'/management/v1/relink'?Response.json({data:{state:'queued',
    created:{organization:true,project:true,environment:true}}}):undefined});
  expect(await main(['relink',runtime,stamp,'--password-stdin'],run.deps)).toBe(EXIT.ok);
@@ -480,11 +501,11 @@ test('relink sends the ownership a backup records, then points at restore',async
  expect(JSON.parse(sent.body!)).toEqual({runtime,ownership});
  expect(run.out.join('\n')).toContain(`sbarbase restore ${runtime} ${stamp}`);
  expect(run.out.join('\n')).toContain('created: organization, project, environment');
- expect(run.calls.at(-1)!.url).toBe(CONSOLE+'/management/auth/v1/logout');
+ expect(run.calls.at(-1)!.url).toBe(CONSOLE+'/management/auth/v1/logout?scope=local');
  expect(run.printed()).not.toContain(TOKEN);
  expect(run.runs).toEqual([]);
  // A conflict is explained, and nothing is ever attached by name.
- const refused=harness(root,{env:{SBARBASE_EMAIL:'owner@example.com'},stdin:PASSWORD+'\n',routes:call=>
+ const refused=harness(root,{tty:true,env:{SBARBASE_EMAIL:'owner@example.com'},stdin:PASSWORD+'\n',routes:call=>
   call.url.endsWith('/management/v1/relink')?Response.json({message:'Organization name belongs to another organization'},{status:409}):undefined});
  expect(await main(['relink',runtime,stamp,'--password-stdin'],refused.deps)).toBe(EXIT.failed);
  expect(refused.err.join('\n')).toContain('never attached by name');
@@ -501,4 +522,130 @@ test('relink refuses a missing backup, one without ownership and bad arguments b
  expect(bare.calls).toEqual([]);
  expect(await main(['relink','../etc','20260923T030000Z'],harness(root).deps)).toBe(EXIT.usage);
  expect(await main(['relink',runtime,'latest'],harness(root).deps)).toBe(EXIT.usage);
+});
+
+test('existing authenticator is challenged through original SDK and only its verified token reaches management',async()=>{
+ const {root,organization,project,production}=installation();
+ const run=harness(root,{tty:true,env:{SBARBASE_EMAIL:'owner@example.com'},stdin:PASSWORD,routes:api({organization,project,environment:production,keys:[]})});
+ expect(await main(['add-environment','shop','preview','--password-stdin'],run.deps)).toBe(EXIT.ok);
+ const authCalls=run.calls.filter(call=>call.url.includes('/management/auth/'));
+ expect(authCalls.map(call=>call.url.slice((CONSOLE+'/management/auth/v1').length))).toEqual([
+  '/token?grant_type=password','/user','/factors/'+factorId+'/challenge','/factors/'+factorId+'/verify','/logout?scope=local']);
+ expect(authCalls.every(call=>call.redirect==='error'&&call.signal instanceof AbortSignal)).toBe(true);
+ expect(authCalls.find(call=>call.url.endsWith('/challenge'))?.headers.authorization).toBe('Bearer '+PASSWORD_TOKEN);
+ expect(JSON.parse(authCalls.find(call=>call.url.endsWith('/verify'))!.body!)).toEqual({challenge_id:challengeId,code:CODE});
+ expect(run.calls.filter(call=>call.url.includes('/management/v1/')).every(call=>call.headers.authorization==='Bearer '+TOKEN)).toBe(true);
+ expect(run.prompts).toEqual([{question:'Authenticator code: ',secret:true}]);expect(run.setup).toEqual([]);
+ expect(run.printed()).not.toContain(PASSWORD_TOKEN);expect(run.printed()).not.toContain(TOKEN);expect(run.printed()).not.toContain(CODE);
+});
+
+test('first enrollment shows native setup only in private display hook and clears it before completing',async()=>{
+ const {root,organization,project,production}=installation();
+ const run=harness(root,{tty:true,factors:[],env:{SBARBASE_EMAIL:'owner@example.com'},stdin:PASSWORD,routes:api({organization,project,environment:production,keys:[]})});
+ expect(await main(['add-environment','shop','preview','--password-stdin'],run.deps)).toBe(EXIT.ok);
+ expect(run.setup).toEqual([{secret:SECRET,uri:'otpauth://totp/Sbarbase?secret='+SECRET}]);expect(run.cleared).toEqual([SECRET]);
+ const enroll=run.calls.find(call=>call.url===CONSOLE+'/management/auth/v1/factors')!;
+ expect(JSON.parse(enroll.body!).factor_type).toBe('totp');expect(JSON.parse(enroll.body!).issuer).toBe('Sbarbase');
+ expect(run.calls.some(call=>call.url.endsWith('/factors/'+otherFactorId+'/verify'))).toBe(true);
+ expect(run.prompts.every(prompt=>prompt.secret)).toBe(true);
+ expect(run.printed()).not.toContain(SECRET);expect(run.printed()).not.toContain(CODE);expect(run.printed()).not.toContain(PASSWORD);
+ expect(readFileSync(join(root,'.lab','upstream','server.json'),'utf8')).not.toContain(SECRET);
+});
+
+test('first enrollment cleans its private display and pending native factor on code or display failure',async()=>{
+ const {root,production}=installation();
+ for(const mode of ['wrong-code','invalid-code','display']){
+  const run=harness(root,{tty:true,factors:[],env:{SBARBASE_EMAIL:'owner@example.com'},stdin:PASSWORD,
+   codes:[mode==='invalid-code'?'':mode==='wrong-code'?'654321':CODE],setupFailure:mode==='display'});
+  expect(await main(['studio','start',production,'--password-stdin'],run.deps)).toBe(mode==='invalid-code'?EXIT.refused:EXIT.failed);
+  expect(run.calls.some(call=>call.url.includes('/management/v1/'))).toBe(false);
+  expect(run.calls.some(call=>call.method==='DELETE'&&call.url.endsWith('/factors/'+otherFactorId))).toBe(true);
+  expect(run.calls.at(-1)?.url).toBe(CONSOLE+'/management/auth/v1/logout?scope=local');
+  if(mode!=='display')expect(run.cleared).toEqual([SECRET]);
+  expect(run.printed()).not.toContain(SECRET);expect(run.printed()).not.toContain(PASSWORD);expect(run.printed()).not.toContain('654321');
+ }
+});
+
+test('bad code, native rate limit, outage and an aal1 verification response all refuse before protected work',async()=>{
+ const {root,production}=installation();
+ for(const mode of ['wrong','rate','unavailable','aal1']){
+  const run=harness(root,{tty:true,env:{SBARBASE_EMAIL:'owner@example.com'},stdin:PASSWORD,codes:[mode==='wrong'?'654321':CODE],verifyAal:mode==='aal1'?'aal1':undefined,
+   authRoutes:call=>call.url.endsWith('/verify')&&(mode==='rate'||mode==='unavailable')?Response.json({message:SECRET},{status:mode==='rate'?429:503}):undefined});
+  expect(await main(['studio','start',production,'--password-stdin'],run.deps)).toBe(EXIT.failed);
+  expect(run.calls.some(call=>call.url.includes('/management/v1/'))).toBe(false);expect(run.calls.at(-1)?.url).toBe(CONSOLE+'/management/auth/v1/logout?scope=local');
+  expect(run.printed()).not.toContain(SECRET);expect(run.printed()).not.toContain(TOKEN);expect(run.printed()).not.toContain(CODE);
+ }
+});
+
+test('headless password input refuses before login and codes in environment or stdin cannot replace hidden prompt',async()=>{
+ const {root,production}=installation();
+ const headless=harness(root,{tty:false,env:{SBARBASE_EMAIL:'owner@example.com',SBARBASE_TOTP:CODE},stdin:PASSWORD+'\n'+CODE});
+ expect(await main(['studio','start',production,'--password-stdin'],headless.deps)).toBe(EXIT.refused);expect(headless.calls).toEqual([]);
+ expect(headless.err.join('\n')).toContain('private interactive terminal');
+ const ignored=harness(root,{tty:true,env:{SBARBASE_EMAIL:'owner@example.com',SBARBASE_TOTP:CODE},stdin:PASSWORD+'\n'+CODE,codes:['']});
+ expect(await main(['studio','start',production,'--password-stdin'],ignored.deps)).toBe(EXIT.refused);
+ expect(ignored.calls.some(call=>call.url.includes('/management/v1/'))).toBe(false);
+ expect(()=>parse(['studio','start',production,'--totp='+CODE])).toThrow('Unknown option');expect(ignored.printed()).not.toContain(CODE);
+});
+
+test('multiple factor names are sanitized and the selected native factor alone is challenged',async()=>{
+ const {root,organization,project,production}=installation();
+ const run=harness(root,{tty:true,env:{SBARBASE_EMAIL:'owner@example.com'},stdin:PASSWORD,answers:['2'],
+  factors:[{...verifiedFactor,friendly_name:'Primary\x1b[31m\n'},{...verifiedFactor,id:otherFactorId,friendly_name:'Backup'}],routes:api({organization,project,environment:production,keys:[]})});
+ expect(await main(['add-environment','shop','preview','--password-stdin'],run.deps)).toBe(EXIT.ok);
+ expect(run.calls.some(call=>call.url.endsWith('/factors/'+otherFactorId+'/challenge'))).toBe(true);
+ expect(run.err.join('\n')).not.toContain('\x1b');expect(run.prompts).toEqual([{question:'Authenticator number: ',secret:false},{question:'Authenticator code: ',secret:true}]);
+ const bad=harness(root,{tty:true,env:{SBARBASE_EMAIL:'owner@example.com'},stdin:PASSWORD,answers:['3'],factors:[verifiedFactor,{...verifiedFactor,id:otherFactorId}]});
+ expect(await main(['studio','start',production,'--password-stdin'],bad.deps)).toBe(EXIT.refused);expect(bad.calls.some(call=>call.url.endsWith('/challenge'))).toBe(false);
+});
+
+test('cancelled hidden prompt signs out without echoing private error details',async()=>{
+ const {root,production}=installation();
+ const run=harness(root,{tty:true,env:{SBARBASE_EMAIL:'owner@example.com'},stdin:PASSWORD});run.deps.prompt=async()=>{throw new Error('Cannot disable echo '+SECRET);};
+ expect(await main(['studio','start',production,'--password-stdin'],run.deps)).toBe(EXIT.failed);
+ expect(run.calls.some(call=>call.url.includes('/management/v1/'))).toBe(false);expect(run.calls.at(-1)?.url).toBe(CONSOLE+'/management/auth/v1/logout?scope=local');
+ expect(run.printed()).not.toContain(SECRET);
+});
+
+test('command cancellation during password, factor listing, verification or code input prevents protected work',async()=>{
+ const {root,production}=installation();
+ for(const phase of ['password','listing','verification','code']){
+  const before=process.listenerCount('SIGINT');
+  const run=harness(root,{tty:true,env:{SBARBASE_EMAIL:'owner@example.com'},stdin:PASSWORD,factors:phase==='code'?[]:undefined,
+   authRoutes:call=>{
+    if(phase==='password'&&call.url.endsWith('/token?grant_type=password')||phase==='listing'&&call.url.endsWith('/user')||phase==='verification'&&call.url.endsWith('/verify'))process.emit('SIGINT');
+    return undefined;
+   }});
+  if(phase==='code')run.deps.prompt=async()=>{process.emit('SIGINT');return CODE;};
+  expect(await main(['studio','start',production,'--password-stdin'],run.deps)).toBe(EXIT.refused);
+  expect(run.calls.some(call=>call.url.includes('/management/v1/'))).toBe(false);
+  expect(run.calls.at(-1)?.url).toBe(CONSOLE+'/management/auth/v1/logout?scope=local');expect(run.calls.at(-1)?.signal?.aborted).toBe(false);
+  if(phase==='code')expect(run.cleared).toEqual([SECRET]);
+  expect(process.listenerCount('SIGINT')).toBe(before);expect(run.printed()).not.toContain(SECRET);expect(run.printed()).not.toContain(CODE);
+ }
+});
+
+test('cancellation after a protected read prevents every following request and mutation',async()=>{
+ const {root,organization,project,production}=installation();
+ const routes=api({organization,project,environment:production,keys:[]});
+ const run=harness(root,{tty:true,env:{SBARBASE_EMAIL:'owner@example.com'},stdin:PASSWORD,routes:call=>{
+  if(call.url.endsWith('/management/v1/organizations'))process.emit('SIGTERM');return routes(call);
+ }});
+ expect(await main(['add-environment','shop','preview','--password-stdin'],run.deps)).toBe(EXIT.refused);
+ expect(run.calls.filter(call=>call.url.includes('/management/v1/')).map(call=>call.method)).toEqual(['GET']);
+ expect(run.calls.at(-1)?.url).toBe(CONSOLE+'/management/auth/v1/logout?scope=local');
+});
+
+test('cancellation while decoding a successful mutation suppresses completion output',async()=>{
+ const {root,production}=installation();
+ const run=harness(root,{tty:true,env:{SBARBASE_EMAIL:'owner@example.com'},stdin:PASSWORD,routes:call=>{
+  if(call.url.includes('/management/v1/')){
+   const response=Response.json({state:'starting'});
+   response.json=async()=>{process.emit('SIGHUP');return {state:'starting'};};return response;
+  }
+  return undefined;
+ }});
+ expect(await main(['studio','start',production,'--password-stdin'],run.deps)).toBe(EXIT.refused);
+ expect(run.out).toEqual([]);expect(run.err.join('\n')).toContain('Command cancelled');
+ expect(run.calls.at(-1)?.url).toBe(CONSOLE+'/management/auth/v1/logout?scope=local');
 });

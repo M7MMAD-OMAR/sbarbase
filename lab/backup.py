@@ -65,6 +65,7 @@ import time
 from pathlib import Path
 
 import image_identity
+import backup_consistency
 
 ROOT = Path(__file__).resolve().parent.parent
 STATE = ROOT / '.lab' / 'upstream'
@@ -341,11 +342,18 @@ def create(e, keep=DEFAULT_KEEP, now=None, reason=None, protected=None):
     with os.fdopen(fd, 'wb') as handle, snapshot(e) as (exported, before):
         run(['docker', 'exec', admitted['db'], 'pg_dump', '-U', 'supabase_admin', '-Fc', f'--snapshot={exported}', '-d', e],
             stdout=handle, text=False)
-    # Files after the database: a file written in between is extra, never missing.
+        try:
+            object_rows = backup_consistency.inventory(sys.modules[__name__], e, exported)
+        except backup_consistency.ConsistencyError as error:
+            raise BackupError(str(error)) from None
+    # Bind referenced native files to the exact exported database snapshot.
     fd = os.open(target / 'objects.tar', os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(fd, 'wb') as handle:
-        helper(f'cd /data/{TENANT_PARENT} 2>/dev/null && [ -d "$1" ] && exec tar -cf - "$1"; '
-               'mkdir -p /tmp/empty/"$1" && cd /tmp/empty && exec tar -cf - "$1"', e, stdout=handle, text=False)
+        helper('python3 -c "$1" "$2"', backup_consistency.ARCHIVE_SCRIPT, e, stdout=handle, text=False)
+    try:
+        consistency = backup_consistency.validate(target / 'objects.tar', e, object_rows, before['storage.objects'])
+    except backup_consistency.ConsistencyError as error:
+        raise BackupError(str(error)) from None
     with tarfile.open(target / 'objects.tar') as archive:
         files = sum(1 for member in archive.getmembers() if member.isfile())
     manifest = {
@@ -354,7 +362,7 @@ def create(e, keep=DEFAULT_KEEP, now=None, reason=None, protected=None):
                      'sha256': digest(target / 'database.dump')},
         'objects': {'file': 'objects.tar', 'bytes': (target / 'objects.tar').stat().st_size,
                     'sha256': digest(target / 'objects.tar'), 'files': files},
-        'counts': before,
+        'counts': before, 'storage_consistency': consistency,
         'images': {'db': json.loads((ROOT / 'lab' / 'distro-image.lock.json').read_text())['id'],
                    'storage': storage_image()},
     }

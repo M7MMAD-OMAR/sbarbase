@@ -1,5 +1,6 @@
 import {test,expect} from 'bun:test';
 import {ConcurrencyGate} from '../src/gateway/concurrency';
+const nativeFetch=globalThis.fetch;
 const request=()=>new Request('http://localhost/');
 const empty=async()=>new Response(null,{status:204});
 
@@ -74,7 +75,7 @@ test('separate managed factories share tenant capacity across keys and services'
  const environment=catalog.createEnvironment('owner',project,'env'),job=catalog.claimProvision()!;catalog.finishProvision(environment,job.claim!,true);
  const first=keys.issue(job.runtime),second=keys.issue(job.runtime);
  const complete:((r:Response)=>void)[]=[];
- const transport=(()=>new Promise<Response>(resolve=>complete.push(resolve))) as typeof fetch;
+ const transport=Object.assign(()=>new Promise<Response>(resolve=>complete.push(resolve)), {preconnect:nativeFetch.preconnect});
  const route=()=>({auth:'http://upstream',rest:'http://upstream',storage:{url:'http://upstream',tenantHost:'owned.storage'},keys:[],anonymousToken:'anon',enabled:true});
  // One gate shared by both factories, with the application gate's policy but not its process state.
  const gate=new ConcurrencyGate(8,32,30_000,30_000,{ceiling:24,headroom:8});
@@ -95,7 +96,7 @@ test('separate managed factories share tenant capacity across keys and services'
 test('slow upload consumes a slot and abort does not accidentally forward a cancelled body',async()=>{
  const {createGateway}=await import('../src/gateway/handler');
  const gate=new ConcurrencyGate(1,1);let calls=0;
- const transport=(async()=>{calls++;return new Response(null,{status:204});}) as typeof fetch;
+ const transport=Object.assign(async()=>{calls++;return new Response(null,{status:204});}, {preconnect:nativeFetch.preconnect});
  const handler=createGateway(new Map([['owned',{auth:'http://upstream',rest:'http://upstream',keys:['key'],anonymousToken:'anon',enabled:true}]]),transport,undefined,1000,gate);
  const abort=new AbortController();
  const pending=handler(new Request('http://localhost/owned/rest/v1/',{method:'POST',headers:{apikey:'key'},body:new ReadableStream({pull:()=>new Promise(()=>{}),cancel:()=>new Promise(()=>{})}),signal:abort.signal,duplex:'half'} as RequestInit));
@@ -161,7 +162,7 @@ test('service cap persists across managed factories and API keys',async()=>{
  const environment=catalog.createEnvironment('owner',project,'env'),job=catalog.claimProvision()!;catalog.finishProvision(environment,job.claim!,true);
  const first=keys.issue(job.runtime),second=keys.issue(job.runtime);
  const complete:((r:Response)=>void)[]=[];
- const transport=(()=>new Promise<Response>(resolve=>complete.push(resolve))) as typeof fetch;
+ const transport=Object.assign(()=>new Promise<Response>(resolve=>complete.push(resolve)), {preconnect:nativeFetch.preconnect});
  const route=()=>({auth:'http://upstream',rest:'http://upstream',keys:[],anonymousToken:'anon',enabled:true,serviceConcurrency:{rest:1}});
  const a=managedGateway(catalog,keys,route,transport),b=managedGateway(catalog,keys,route,transport);
  const req=(key:string,service='rest')=>new Request(`http://localhost/${job.runtime}/${service}/v1/`,{headers:{apikey:key}});

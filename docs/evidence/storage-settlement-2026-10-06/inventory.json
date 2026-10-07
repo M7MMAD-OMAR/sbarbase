@@ -1,0 +1,648 @@
+{
+  "schema_version": 1,
+  "scope": "SS1/SS2 source preparation only",
+  "checkpoint_status": "source accepted; native pending; run active",
+  "base_commit": "e626baf710886b69138e246b251069841a39862d",
+  "scope_hash": "13db04977316d05d6c74fb20eb5690fb7f36df26144b1b4b68da9737bbffc12c",
+  "plan_hash": "2a414dc7dacee28995eb660744455122e21822901ef97b6d63cf2e56f3c92786",
+  "public_source": {
+    "algorithm": "sbarbase-public-source-v1",
+    "files": 543,
+    "sha256": "5c6e3059ca261ab9edd7fe2829b275d0082ec0d00a4d6d80ae8263ac7744625f"
+  },
+  "native_admitted": false,
+  "tests": {
+    "python": 71,
+    "bun": 78,
+    "failed": 0,
+    "skipped": 0
+  },
+  "reviewers": [
+    "settlement-spec-critic-v2",
+    "settlement-ops-critic-v3"
+  ],
+  "pending": [
+    "SS3 actual original native evidence",
+    "SS4 installed authority and consumers",
+    "SS5 shared migration and all enabled providers",
+    "full merged product/runtime acceptance",
+    "TypeScript compiler typecheck"
+  ],
+  "inventory_excludes": [
+    "this inventory document"
+  ],
+  "records": [
+    {
+      "path": "docs/engineering/plans/2026-10-06-storage-write-settlement.md",
+      "sha256": "f380f5b221f8bc513a4d025111b58ee6e13d71183f1421472a0542c60adbc45e",
+      "bytes": 13515,
+      "mode": 420
+    },
+    {
+      "path": "docs/engineering/reviews/2026-10-06-storage-settlement-source.md",
+      "sha256": "4d33223bb06f9b5910a9dc42613b9440c93afb1a5e5073879e0d0a96ec21945e",
+      "bytes": 8902,
+      "mode": 420
+    },
+    {
+      "path": "docs/engineering/reviews/2026-10-06-storage-writer-source-map.md",
+      "sha256": "beef8edb1fcddd99d4713571041824b2a96db98dba3e655935873f992975e1fd",
+      "bytes": 29436,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/artifacts/check-source-bun-review-recovery.log",
+      "sha256": "9db5a849323ab0160ce4567ed2e37ad74992c02ad0eb8b5b76f48befbdc16b4d",
+      "bytes": 149,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/artifacts/check-source-bun-v1.log",
+      "sha256": "30beac809381d7eb4511fe3440eed8daa2271b8479ab30d46b74defbd3422b37",
+      "bytes": 8588,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/artifacts/check-source-bun-v2.log",
+      "sha256": "37c1d2e0e9844b542f43601e716e46f47592d6202f4488cb88c13d006e68e3c4",
+      "bytes": 149,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/artifacts/check-source-bun-v3.log",
+      "sha256": "e9dcbb7cc14638a14fddb24abb0ec9be3c2d36306a60e7f2ec09b227116de7b1",
+      "bytes": 149,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/artifacts/check-source-python-review-recovery.log",
+      "sha256": "636d7eb04bce265173c9d6c12ae4f9d092d5870fa94c139fd3e8a9d8d9f8869a",
+      "bytes": 13230,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/artifacts/check-source-python-v1.log",
+      "sha256": "32729a56e619f53f79ccd1c7d78b553e77ad365e96539c15d6017931e9b6a257",
+      "bytes": 12293,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/artifacts/check-source-python-v2.log",
+      "sha256": "d509fba5b0fe4c693dfafca188342f50826695a10bb32b0ca4443a64fafc85ad",
+      "bytes": 12293,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/artifacts/check-source-python-v3.log",
+      "sha256": "547839491be57be486cf6cbc15728c07aa354f79d8143f6520f17c5ead7555b2",
+      "bytes": 13230,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/artifacts/report-0babdbbbd0514dbaba8db0e6814ffc14.json",
+      "sha256": "0f9f4e9a624d588cbe0f19ea594ad1d810370a4b74a17c4e1ac1fe88f46fb321",
+      "bytes": 7336,
+      "mode": 384
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/artifacts/report-3337702e94524a5ebc8c108528e2dc90.json",
+      "sha256": "ee62cd059874cad809528e6f914068d1099eee0fd1253dd18b385512c3fb7208",
+      "bytes": 5361,
+      "mode": 384
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/artifacts/report-3e8952749ac84ec0ad0eaff993b6ed31.json",
+      "sha256": "ac12b28a8e9c8157762a25558132b05dc9930d4aa7b05c93f90e412d81c9f7ff",
+      "bytes": 4452,
+      "mode": 384
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/artifacts/report-47bce1ca83e34509860b0b87fc9da2a9.json",
+      "sha256": "868657a8e3f3a9f9c081f0868536d5b00a3c152b2c9e1402ccb9d1da0061794c",
+      "bytes": 5558,
+      "mode": 384
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/artifacts/report-8264fae99e764f6db2a4ca72a9cc180b.json",
+      "sha256": "44b9e9816c085405a2d3e3ff7296f1331bb509c28f715d1705a52519fed2336d",
+      "bytes": 5970,
+      "mode": 384
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/artifacts/report-ba63651fe06a46ae9abfe5438fe3ceb2.json",
+      "sha256": "efb5e68cc30aba6d7e76c1a9c0fc739140da3db112574c93d81ce5e90a6147ee",
+      "bytes": 7062,
+      "mode": 384
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/artifacts/report-f8d6f36bffab403d836743983112b51e.json",
+      "sha256": "e5444fb1c56a8a9e0a1c82b4928dad0a7b0498735ac09812c92af15125dcb93c",
+      "bytes": 4594,
+      "mode": 384
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/artifacts/review-0922332e873543658461cde892fd30a0.py",
+      "sha256": "415e9ec53de3abeb12be1862e6ba8b85816326c5e9ba5a6434e00ef6036a91b5",
+      "bytes": 6797,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/artifacts/review-114c9fcb64e141dfb70696e41d4fa6f5.json",
+      "sha256": "bade488b1813e1fe670fcb515fd31de405cb646e26fedeaf087a11d1989787a1",
+      "bytes": 130,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/artifacts/review-126b3281a3284c9dbd06095b5f1c026d.log",
+      "sha256": "e5d0be9a6637346154bdb4168b9f16475df724781fe23efe4fc5c48b32781105",
+      "bytes": 8547,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/artifacts/review-131169f94a9d4e8ba0a380cfae176916.json",
+      "sha256": "606c4313d05b08ec86fa3e0d2ce4ec7f1bb840a6f70ac1bb67341549a419aa05",
+      "bytes": 23974,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/artifacts/review-15d59ea574c942c782ed0eb33f09ce7a.py",
+      "sha256": "ebd5a9ab77cefa617867794c4b862d2e0893fe3ce5d5b029ed565d6c68eb3c76",
+      "bytes": 1920,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/artifacts/review-1788c6c31d0042e69ad7c2037cab77a6.json",
+      "sha256": "b27ca032114f444d3bcb2cfaa48732448b6659aa362ae6cd533fe2c3e7da3f12",
+      "bytes": 326,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/artifacts/review-1a2dfef0e22b441486205a0ba1dbec79.log",
+      "sha256": "7fd558455a90d8b0cad17ca27ccab7f2828eb775a0c9794a8248addab0ea2cee",
+      "bytes": 8547,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/artifacts/review-1cfbb2e4d79b4cd7b32624a99a345557.json",
+      "sha256": "4f2f39ff8109b6c17e500299732120fcb4726dfacce335f569850b65b74bff06",
+      "bytes": 326,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/artifacts/review-5106f1241dd143e1b8f1a62b4d8d8e71.json",
+      "sha256": "878c608c91fd6643a482c7ad4e8781d730aa9b5fa93d68f3d56a2cbccd460474",
+      "bytes": 619,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/artifacts/review-51f74765f98c4f1e91129387e3075af0.log",
+      "sha256": "4ac313d0e375d616982bbcac681fc02139de74bed0c44580e1b1cad4bca1cb76",
+      "bytes": 13230,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/artifacts/review-58747ff81e414e42b7900600ec323dc0.log",
+      "sha256": "6fdbe7acc83aac8abc650b0a4e99719d915175e16e4b43730ecf3df07eec624f",
+      "bytes": 13230,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/artifacts/review-5a9d0743f1e2413c9b6943e877c1a007.log",
+      "sha256": "0c250d490575f678fe300c38d457c7b3fc80113d1823e45c7403d223caf492ba",
+      "bytes": 1917,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/artifacts/review-67aaae58dca049f39a118991ebb72d0f.json",
+      "sha256": "bade488b1813e1fe670fcb515fd31de405cb646e26fedeaf087a11d1989787a1",
+      "bytes": 130,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/artifacts/review-6ac087a0786d44d99ed90759ba8469cb.json",
+      "sha256": "a4aae70306840c8590a43ca5e895c0525945eb10cbf1ef3ab3754b7bbf47c10e",
+      "bytes": 1121,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/artifacts/review-772953f37e3a43578be339198181f15c.json",
+      "sha256": "2cd0a1790ed539c5d5ba1c33dbf57e2707bb2a9138854625310adc7abe25f829",
+      "bytes": 7290,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/artifacts/review-7abe7cb1c3674729b1d99ab12b7ee0a2.log",
+      "sha256": "7fd558455a90d8b0cad17ca27ccab7f2828eb775a0c9794a8248addab0ea2cee",
+      "bytes": 8547,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/artifacts/review-82ccceeb2e064a96a3836cee946cc5a4.json",
+      "sha256": "606c4313d05b08ec86fa3e0d2ce4ec7f1bb840a6f70ac1bb67341549a419aa05",
+      "bytes": 23974,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/artifacts/review-8da3aade90874bbd870ace7bcf1d12f6.log",
+      "sha256": "e5d0be9a6637346154bdb4168b9f16475df724781fe23efe4fc5c48b32781105",
+      "bytes": 8547,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/artifacts/review-8fe734f92094473ea99dae456a1c86a8.log",
+      "sha256": "4ac313d0e375d616982bbcac681fc02139de74bed0c44580e1b1cad4bca1cb76",
+      "bytes": 13230,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/artifacts/review-917b39da259a4fbab11bd901925cdca3.json",
+      "sha256": "ba335e4a1ef8c896bdc8f6d5965a50334569ecb741a4081c5a78fd4e14d0ebd4",
+      "bytes": 326,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/artifacts/review-9a327964ce564983abf61944b7d627b1.py",
+      "sha256": "415e9ec53de3abeb12be1862e6ba8b85816326c5e9ba5a6434e00ef6036a91b5",
+      "bytes": 6797,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/artifacts/review-a34293105adf4d21b8350cec07312b8f.json",
+      "sha256": "5c3e0b21e133dc3f93a9f7fedcae21c5cf38dab6280cd6c21f431c223b58f942",
+      "bytes": 603,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/artifacts/review-a3e20319e23e41a6a4eab825806730ae.log",
+      "sha256": "a9d12419e82cd6e4a715c2c28f7602b09654310a3252cc46bedfcfbc1c3d6435",
+      "bytes": 1046,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/artifacts/review-aae2d2c8f0354bb18fb0d07bc7325991.log",
+      "sha256": "6fdbe7acc83aac8abc650b0a4e99719d915175e16e4b43730ecf3df07eec624f",
+      "bytes": 13230,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/artifacts/review-b1d6edd011964fddb70a1bcde1db090c.json",
+      "sha256": "a1d57d3751cc3f6d14fdd76c90cb18bed85761ce74c38f3e2156fe29036c933c",
+      "bytes": 1969,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/artifacts/review-b3bd9a8e0ca748a280d1b84d0a43edaa.log",
+      "sha256": "a9d12419e82cd6e4a715c2c28f7602b09654310a3252cc46bedfcfbc1c3d6435",
+      "bytes": 1046,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/artifacts/review-e47fdac0533c41bcaa968ad490a11e90.log",
+      "sha256": "53510eb4a221a9f4c220088ae54ea40f53db89e2338d17e74e6a82d26a0f847f",
+      "bytes": 11182,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/artifacts/review-ec2198775b2c4206b031b8cb7b459a25.json",
+      "sha256": "a1d57d3751cc3f6d14fdd76c90cb18bed85761ce74c38f3e2156fe29036c933c",
+      "bytes": 1969,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/artifacts/review-efd40fc55cbd4f57ac59820c3bb2026b.log",
+      "sha256": "cda817a6316906bff47cbc549c0f52b0b02ba1a305c6c406989cf1d00f99fd64",
+      "bytes": 8547,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/artifacts/review-f58deff73ec748248abe38c684edd8ea.json",
+      "sha256": "5ad71c817d3b8d5f0e47c362aeb24085b11654f3879a9eecee6576e9352567cb",
+      "bytes": 326,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/bun-final.log",
+      "sha256": "da9df5a8fe70354f508dbcf9e8c8b80201b9f27a60873b5641d0d56500b1c5b2",
+      "bytes": 8547,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/bun-review-recovery.log",
+      "sha256": "3335e3afa12ddc4e2c6a762537208ad1867fddec96d496bf86a430116891db2a",
+      "bytes": 8547,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/bun-v2.log",
+      "sha256": "d5b6cc6cd2f9a75ea00ca2af399a5cb3263028bcef285ffa061864a7f2200fba",
+      "bytes": 8547,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/check-source-bun-review-recovery.log",
+      "sha256": "9db5a849323ab0160ce4567ed2e37ad74992c02ad0eb8b5b76f48befbdc16b4d",
+      "bytes": 149,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/check-source-bun-v1.log",
+      "sha256": "30beac809381d7eb4511fe3440eed8daa2271b8479ab30d46b74defbd3422b37",
+      "bytes": 8588,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/check-source-bun-v3.log",
+      "sha256": "e9dcbb7cc14638a14fddb24abb0ec9be3c2d36306a60e7f2ec09b227116de7b1",
+      "bytes": 149,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/check-source-python-review-recovery.log",
+      "sha256": "636d7eb04bce265173c9d6c12ae4f9d092d5870fa94c139fd3e8a9d8d9f8869a",
+      "bytes": 13230,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/check-source-python-v3.log",
+      "sha256": "547839491be57be486cf6cbc15728c07aa354f79d8143f6520f17c5ead7555b2",
+      "bytes": 13230,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/checkpoint-before-review-recovery.json",
+      "sha256": "8492ee3f93bb333021443fa503ccf26380359955747f247bd7547121e8683cce",
+      "bytes": 6566,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/checkpoint-events.jsonl",
+      "sha256": "483d371b5a569e52546f92f56a919c378998a82ed1383aacaa78bb9d14534868",
+      "bytes": 426345,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/checkpoint-export.json",
+      "sha256": "dd4863a92c775a355422e4250145718a01f6549a81b84fdbe17d43fb4d567f3d",
+      "bytes": 6320,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/ops-probes-v1.log",
+      "sha256": "05b658693e7912300cf984601ceae226990710e8f46da3c04b3b8e97c2ba88f1",
+      "bytes": 832,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/ops-probes-v1.py",
+      "sha256": "a00edb7d9b74c67e981b058d4e4fdf2673b263cce70069703ef9b903a07215a7",
+      "bytes": 2456,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/ops-recovery-applicability.json",
+      "sha256": "a4aae70306840c8590a43ca5e895c0525945eb10cbf1ef3ab3754b7bbf47c10e",
+      "bytes": 1121,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/ops-recovery-review-state.json",
+      "sha256": "4f2f39ff8109b6c17e500299732120fcb4726dfacce335f569850b65b74bff06",
+      "bytes": 326,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/ops-review-recovery.json",
+      "sha256": "8615384a17932afb3bb58d1b4f33433fed95d1fcc6637398a62f6717cd600cde",
+      "bytes": 6237,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/ops-review-v1.json",
+      "sha256": "99bc0256a56ea4ae81348055174e8ebe7e31a5735ea5193b7acfb4a427447d8e",
+      "bytes": 7878,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/ops-review-v2.json",
+      "sha256": "0c9d850810e017101fa3b2e380a59efb012e5d9c293778b6db4d75bb2a81d802",
+      "bytes": 4975,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/ops-review-v3.json",
+      "sha256": "ea49e69eabc337e69cde42353934d93d9f8a67f1c3638f602f308d99c56f46d3",
+      "bytes": 5113,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/ops-v3-adversarial.log",
+      "sha256": "a9d12419e82cd6e4a715c2c28f7602b09654310a3252cc46bedfcfbc1c3d6435",
+      "bytes": 1046,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/ops-v3-adversarial.py",
+      "sha256": "415e9ec53de3abeb12be1862e6ba8b85816326c5e9ba5a6434e00ef6036a91b5",
+      "bytes": 6797,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/ops-v3-bun.log",
+      "sha256": "e5d0be9a6637346154bdb4168b9f16475df724781fe23efe4fc5c48b32781105",
+      "bytes": 8547,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/ops-v3-python.log",
+      "sha256": "4ac313d0e375d616982bbcac681fc02139de74bed0c44580e1b1cad4bca1cb76",
+      "bytes": 13230,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/ops-v3-review-state-after.json",
+      "sha256": "b27ca032114f444d3bcb2cfaa48732448b6659aa362ae6cd533fe2c3e7da3f12",
+      "bytes": 326,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/ops-v3-source-observations.json",
+      "sha256": "a1d57d3751cc3f6d14fdd76c90cb18bed85761ce74c38f3e2156fe29036c933c",
+      "bytes": 1969,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/plan.json",
+      "sha256": "9f302c36f9c002eb9a1a72f296960029e8c682f0928a443c1d336668e052d8fa",
+      "bytes": 4745,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/python-cross-codec.log",
+      "sha256": "a55a8ed02870eb74a4e8e0e32d29e2dc0b12275df1defa430c8400ee438bb19d",
+      "bytes": 13102,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/python-initial.log",
+      "sha256": "fd30b55137d6ee24f6231408f6d7b66cae731a935502b379179dafd643a2518a",
+      "bytes": 11029,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/python-repair-v3.log",
+      "sha256": "6fdbe7acc83aac8abc650b0a4e99719d915175e16e4b43730ecf3df07eec624f",
+      "bytes": 13230,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/python-transition-fixed.log",
+      "sha256": "8f989ce440dc84c4eeeebd0281e267e006a7bcc46d1dc01426c9d5d8d50ef0a6",
+      "bytes": 11821,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/python-transition.log",
+      "sha256": "a4f2a4dde104c75578e78a15ea48a8d6ee0ddb888706c5dc242439f004ef33ed",
+      "bytes": 13728,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/settlement-ops-v2-m971w_cl/bun.log",
+      "sha256": "cda817a6316906bff47cbc549c0f52b0b02ba1a305c6c406989cf1d00f99fd64",
+      "bytes": 8547,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/settlement-ops-v2-m971w_cl/preparation.log",
+      "sha256": "0c250d490575f678fe300c38d457c7b3fc80113d1823e45c7403d223caf492ba",
+      "bytes": 1917,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/settlement-ops-v2-m971w_cl/python.log",
+      "sha256": "53510eb4a221a9f4c220088ae54ea40f53db89e2338d17e74e6a82d26a0f847f",
+      "bytes": 11182,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/settlement-ops-v2-m971w_cl/review-state-after.json",
+      "sha256": "5ad71c817d3b8d5f0e47c362aeb24085b11654f3879a9eecee6576e9352567cb",
+      "bytes": 326,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/source-accepted.json",
+      "sha256": "a0ffb0fb9400c29c8466a472ce6483961ca22155c0783fc96f0c00765e80c012",
+      "bytes": 6163,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/spec-recovery-identity-check.json",
+      "sha256": "5c3e0b21e133dc3f93a9f7fedcae21c5cf38dab6280cd6c21f431c223b58f942",
+      "bytes": 603,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/spec-review-import-v2.json",
+      "sha256": "98c6b21fe816a04161e0819c4c320c4877d174d494471d1596aa237b87a04e67",
+      "bytes": 7652,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/spec-review-recovery.json",
+      "sha256": "0a75b6ca844310ee556b37ab40fd791fa7fd2b3344ac2d56bf25a73d2b0e5a59",
+      "bytes": 6452,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/spec-review-v1-reproduction.json",
+      "sha256": "878c608c91fd6643a482c7ad4e8781d730aa9b5fa93d68f3d56a2cbccd460474",
+      "bytes": 619,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/spec-review-v1-reproduction.py",
+      "sha256": "ebd5a9ab77cefa617867794c4b862d2e0893fe3ce5d5b029ed565d6c68eb3c76",
+      "bytes": 1920,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/spec-review-v1.json",
+      "sha256": "405c2934c88c59181d478bf3af2e1103becaf2a2cb5e2b98639a1d98c4aaafb2",
+      "bytes": 6304,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/spec-review-v2.json",
+      "sha256": "2cd0a1790ed539c5d5ba1c33dbf57e2707bb2a9138854625310adc7abe25f829",
+      "bytes": 7290,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/spec-v2-bun.log",
+      "sha256": "7fd558455a90d8b0cad17ca27ccab7f2828eb775a0c9794a8248addab0ea2cee",
+      "bytes": 8547,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/spec-v2-final-state.json",
+      "sha256": "ba335e4a1ef8c896bdc8f6d5965a50334569ecb741a4081c5a78fd4e14d0ebd4",
+      "bytes": 326,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/spec-v2-independent-checks.json",
+      "sha256": "bade488b1813e1fe670fcb515fd31de405cb646e26fedeaf087a11d1989787a1",
+      "bytes": 130,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/spec-v2-python.log",
+      "sha256": "6fdbe7acc83aac8abc650b0a4e99719d915175e16e4b43730ecf3df07eec624f",
+      "bytes": 13230,
+      "mode": 420
+    },
+    {
+      "path": "docs/evidence/storage-settlement-2026-10-06/spec-v2-source-reference-check.json",
+      "sha256": "606c4313d05b08ec86fa3e0d2ce4ec7f1bb840a6f70ac1bb67341549a419aa05",
+      "bytes": 23974,
+      "mode": 420
+    },
+    {
+      "path": "lab/disposable-storage-settlement-drill.py",
+      "sha256": "78cc855b9a36ace8463e1909d50dfb151be2ad89b096100083df3391ffe2d02d",
+      "bytes": 11984,
+      "mode": 420
+    },
+    {
+      "path": "lab/storage_write_settlement.py",
+      "sha256": "256ab175a13b3280374bfcaeb7abe9f037b0010d02985a1bb8d7567ccd043a3b",
+      "bytes": 29278,
+      "mode": 420
+    },
+    {
+      "path": "lab/test_disposable_storage_settlement_drill.py",
+      "sha256": "fed549a64160c5a4cc11ec081412201931a956865a5534ed84940ba5bec0b513",
+      "bytes": 6688,
+      "mode": 420
+    },
+    {
+      "path": "lab/test_storage_write_settlement.py",
+      "sha256": "75e38dbeefbffaad428c2cd4638635f521ed9571bc81da70f6e3d9bf87f67d2c",
+      "bytes": 38999,
+      "mode": 420
+    },
+    {
+      "path": "src/control/storage-settlement-contract.ts",
+      "sha256": "c00252ab964406ee560bbf729ba08fb42daaa1ede6c252ee89c6f6027b87823c",
+      "bytes": 10150,
+      "mode": 420
+    },
+    {
+      "path": "tests/storage-settlement-contract.test.ts",
+      "sha256": "7fe13adee8718478b1cf3ede277d409067c68d8f157db554b9953b57bde34a77",
+      "bytes": 16416,
+      "mode": 420
+    }
+  ]
+}

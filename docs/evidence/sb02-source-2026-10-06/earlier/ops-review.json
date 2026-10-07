@@ -1,0 +1,86 @@
+{
+  "reviewer": "sb02-critic-ops",
+  "axis": "standards",
+  "source_hash": "4e095002d08e20e6a0d4e6a64c82219518997cba578acc4c3746ad8b232edd30",
+  "plan_hash": "3fd1dcc6f60d7ccaf1d5cfdb8a34882346d29bda69a1bf3c8c1eb6d4bf4db96a",
+  "verdict": "fail",
+  "findings": [
+    {
+      "id": "OPS-01",
+      "severity": "major",
+      "status": "open",
+      "classification": "source",
+      "file": "docs/guides/docker.md",
+      "location": "lines 24, 29, 42 to 44, 59; Arabic counterpart lines 20, 25, 38 to 40, 56; deploy/compose.sh lines 41 to 51",
+      "title": "Documented bootstrap and management commands lose the admitted deployment selection",
+      "reproduction": "In any existing checkout, export SBARBASE_COMPOSE_PROJECT=owned-fixture while leaving COMPOSE_PROJECT_NAME unset, then follow deploy/compose.sh up with the documented docker compose exec sbarbase python3 lab/bootstrap.py. The wrapper targets owned-fixture using its child-only COMPOSE_PROJECT_NAME and --project-name. Raw Compose does not recognize SBARBASE_COMPOSE_PROJECT and instead derives the project from the checkout directory. The same mismatch affects logs, smoke, down and upgrade. Likewise, selecting only SBARBASE_DOCKER_SOCKET does not set DOCKER_HOST in the parent shell, so raw Docker uses its own saved/default endpoint. No actual Docker call was made for this source reproduction.",
+      "evidence": "deploy/compose.sh uses exec env -i and passes the selected project and Unix endpoint only to its Docker child. It offers ps/logs/down but the English and Arabic guides still prescribe raw Compose for those operations, and it offers no equivalent bootstrap, smoke or upgrade command. compose.yaml has no top-level name that consumes SBARBASE_COMPOSE_PROJECT. Official Compose project precedence recognizes -p, COMPOSE_PROJECT_NAME, top-level name and directory basename, not SBARBASE_COMPOSE_PROJECT: https://docs.docker.com/compose/how-tos/project-name/. Compose inherits Docker endpoint inputs independently: https://docs.docker.com/compose/how-tos/environment-variables/envvars/. Existing inert launcher test confirms a selected project crosses into the child environment, but no fixture covers the next documented operator command.",
+      "impact": "An admitted custom deployment cannot complete the documented first-operator journey without undocumented arguments. Observation and cleanup may select an absent or different project or endpoint, defeating the deployment isolation promised by the new launcher.",
+      "recommendation": "Route documented operational commands through the same fixed project, endpoint, Compose file and env-file selection, or provide exact explicit commands that preserve every admitted input. Add inert custom-project/custom-socket journey checks with a conflicting ambient default and .env so bootstrap, smoke, logs and cleanup target the admitted deployment."
+    }
+  ],
+  "checks": [
+    {
+      "command": "/usr/bin/python3.14 -m unittest discover -s lab -p 'test_host*.py' -v",
+      "result": "pass",
+      "tests": 42,
+      "elapsed_seconds": 30.278,
+      "scope": "owned inert shell fixtures and caller boundary doubles"
+    },
+    {
+      "command": "/usr/bin/python3.14 lab/host_caller_checks.py",
+      "result": "pass",
+      "tests": 211,
+      "elapsed_seconds": 3.024,
+      "scope": "source callers with admission, daemon and effect doubles"
+    },
+    {
+      "command": "sh -n deploy/host-preflight.sh deploy/compose.sh",
+      "result": "pass",
+      "scope": "shell syntax only"
+    }
+  ],
+  "primary_source_checks": [
+    {
+      "source": "https://raw.githubusercontent.com/moby/moby/v25.0.0/api/types/system/info.go",
+      "result": "The projection uses real Go fields CPUCfsPeriod and CPUCfsQuota; their JSON tags CpuCfsPeriod and CpuCfsQuota are correctly distinct. The other projected daemon fields and resource booleans exist in the minimum declared Engine generation."
+    },
+    {
+      "source": "https://raw.githubusercontent.com/moby/moby/v28.3.3/api/types/system/info.go",
+      "result": "The projected fields also exist in this later pinned primary source. No invented IO limit Info field is used."
+    },
+    {
+      "source": "https://raw.githubusercontent.com/docker/cli/v28.3.3/cli/command/system/info.go",
+      "result": "CLI dockerInfo embeds system.Info and executes templates against that object, supporting the chosen Go field capitalization."
+    },
+    {
+      "source": "https://raw.githubusercontent.com/docker/cli/v28.3.3/cli/config/config.go",
+      "result": "Default Docker configuration can resolve through the current account when HOME is absent. Removing HOME alone therefore does not prove an authentication-config failure, and no such speculative finding is raised."
+    }
+  ],
+  "observations": [
+    "The shell checks architecture, cgroup v2, required feature booleans and controllers, exact security options, filesystem access and backing block device before its fixed startup/build/pull mutations. Docker queries have a 15 second timeout; the Python bridge has a 45 second outer timeout and JSON queries have a 15 second timeout.",
+    "The sentinel and line count reject incomplete projection output. Missing tools, inaccessible paths, failed probes and malformed booleans fail closed with safe public diagnostics. Shell fixtures check mutation tripwires and unchanged owned checkout/data-root trees.",
+    "The Python admission is reused before relevant startup state, locks, secrets, installation dependencies and resource measurements. The controller validates full identity, project/service labels, exact root/socket/checkout binds, working directory and the declared default security configuration. Baked admission precedes the upgrade guard and is repeated after rollback.",
+    "SOURCE maps before MAJ:MIN fallback, strips Btrfs subvolume notation and resolves partition IO limits to the whole disk consistently with resource_policy. Advertised controls and this mapping do not demonstrate enforcement or multidisk filesystem behavior.",
+    "Unknown filesystem, storage driver and runtime observations are treated as admission unproven. AppArmor is optional, and alternative security technologies are evidence-scoped candidate exclusions rather than inherently unsupported technologies.",
+    "Raw Docker access remains an explicit operator bypass boundary. The baked check limits controller startup after a raw Compose bypass; it cannot prevent raw Compose from creating host resources before that check.",
+    "The docs explicitly keep supported-profile acceptance and production unproven. Real filesystem UID/mode/xattr/rename/fsync behavior, actual resource limits, containerd content-root headroom, clean-host install, reboot and full application recovery remain pending. This report does not narrow PROJECT_GOAL.md or the full 2026-10-03 roadmap."
+  ],
+  "anonymous_comparison": {
+    "artifact_A": "Source artifact at the supplied fixed baseline",
+    "artifact_B": "Scoped source artifact inspected at the current source hash",
+    "binary_preference": "B",
+    "reason": "B provides a reusable read-only admission contract, endpoint pinning, earlier refusal and replayable inert fixtures, while A retains an unconfigured resource-policy bypass and lacks the shell host launcher. B is preferred as source preparation but its current operational journey still fails OPS-01.",
+    "largest_remaining_source_gap": "Preserve admitted deployment identity through documented bootstrap, observation, health, upgrade and cleanup commands.",
+    "largest_remaining_product_gap": "Actual clean-host installation and full recovery, including filesystem durability and resource enforcement, remain unproven runtime obligations."
+  },
+  "evidence_scope": "SOURCE review only. No real Docker queries, builds, runs, VMs, host package changes, daemon changes, reboot or runtime acceptance were performed.",
+  "hash_verification": {
+    "tool": "hosts.py review-state",
+    "revision": 16,
+    "immediately_before_submission": true,
+    "note": "Live state is authoritative. The input packet retained the earlier argv-only plan hash; the parent disclosed the -u command change and authorized binding the unchanged source and live plan."
+  },
+  "artifacts": []
+}

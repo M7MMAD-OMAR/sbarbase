@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-10-06T10:56:28.284282+00:00",
+  "scope": "Merged source syntax only, no fixture or host acceptance",
+  "python_files_ast_parsed": 25,
+  "checks": [
+    {
+      "argv": [
+        "sh",
+        "-n",
+        "deploy/host-preflight.sh",
+        "deploy/compose.sh",
+        "deploy/container/start.sh"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "bash",
+        "-n",
+        "deploy/server-acceptance.sh"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  ]
+}

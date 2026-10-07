@@ -1,0 +1,32 @@
+[
+  {
+    "argv": [
+      "docker",
+      "rm",
+      "-f",
+      "sb-studio-23f2ce1e5679"
+    ],
+    "returncode": 0,
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "docker",
+      "rm",
+      "-f",
+      "sb-studio-23f2ce1e5679-types"
+    ],
+    "returncode": 0,
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "docker",
+      "image",
+      "rm",
+      "sbarbase-studio-check:studio-check-a757258fdbe9"
+    ],
+    "returncode": 0,
+    "stderr": ""
+  }
+]

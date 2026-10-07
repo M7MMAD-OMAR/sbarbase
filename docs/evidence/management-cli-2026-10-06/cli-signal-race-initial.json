@@ -1,0 +1,9 @@
+{
+  "case": "SIGTERM during first-enrollment native verification with actual processDeps and explicit mock HTTP",
+  "signal_sent": true,
+  "native_verify_entered": true,
+  "protected_mutation_ran_after_signal": true,
+  "exit_code": 0,
+  "echo_restored": true,
+  "private_setup_screen_cleared": true
+}

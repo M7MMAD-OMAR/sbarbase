@@ -1,0 +1,12 @@
+Loader diagnostic: test_storage_write_settlement (268435456, 8796093022208) VmSize:	   38124 kB VmRSS:	   17412 kB
+Loader diagnostic: test_disposable_storage_settlement_drill (268435456, 8796093022208) VmSize:	   45436 kB VmRSS:	   26840 kB
+Loader diagnostic: test_storage_native_authority (268435456, 8796093022208) VmSize:	   45436 kB VmRSS:	   26876 kB
+test_protocol_helper_negative_units_under_declared_bun_phase (test_disposable_storage_settlement_drill.NativePreparationTests.test_protocol_helper_negative_units_under_declared_bun_phase)
+Mock unit checks only; these cannot be listed as original-native cases. ... ok
+test_python_fixture_receipt_roundtrips_strict_control_codec_without_native_admission (test_disposable_storage_settlement_drill.NativePreparationTests.test_python_fixture_receipt_roundtrips_strict_control_codec_without_native_admission) ... ok
+test_sdk_fixture_syntax_is_valid_without_importing_or_running_vendor_services (test_disposable_storage_settlement_drill.NativePreparationTests.test_sdk_fixture_syntax_is_valid_without_importing_or_running_vendor_services) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.099s
+
+OK

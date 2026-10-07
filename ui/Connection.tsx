@@ -1,5 +1,5 @@
 import {useEffect,useState} from 'react';
-import {ArrowLeft,Copy,Plus,ExternalLink,Play,Square} from 'lucide-react';
+import {ArrowLeft,Copy,Plus,ExternalLink,Play,Square,Database,Shield,Layers,Activity,KeyRound,LayoutGrid} from 'lucide-react';
 import {useData,type Api,type Organization,type Environment} from './api';
 import {mailDetails,mailState,type MailEntry} from './mail';
 import {ErrorMessage,Loading,Empty,Refresh} from './components';
@@ -9,6 +9,7 @@ import {MetricsSection,LogsSection} from './Observe';
 import {FunctionsSection} from './Functions';
 import {DatabaseSection} from './Database';
 import {SigningSection} from './Signing';
+import {shareError} from './settings-validation';
 type Key={id:string;kind:string;created_at:number;revoked_at:number|null};
 type Studio={desired:'running'|'stopped';state:'stopped'|'starting'|'running'|'failed';failure:string|null};
 const studioLabels:Record<string,string>={stopped:'Stopped',starting:'Starting',running:'Running',failed:'Failed'};
@@ -41,40 +42,49 @@ type Share={share:number;default:number;ceiling:number;operator:boolean;total?:n
 function ShareSection({path,request}:{path:string;request:Api}){
  const share=useData<{data:Share}>(signal=>request(path+'/share','GET',undefined,signal),[path,request]);
  const [value,setValue]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[saved,setSaved]=useState('');
+ const [fieldError,setFieldError]=useState('');
  const current=share.data?.data;
  useEffect(()=>{if(current)setValue(String(current.share));},[current?.share]);
- async function save(){setBusy(true);setError('');setSaved('');
+ async function save(){if(!current)return;const invalid=shareError(value,current.ceiling);setFieldError(invalid);if(invalid){document.getElementById('share')?.focus();return;}setBusy(true);setError('');setSaved('');
   try{await request(path+'/share','PUT',{share:Number(value)});share.refresh();setSaved('Saved. It applies to the next request.');}
   catch(e){setError((e as Error).message);}finally{setBusy(false);}}
  return <section className="details"><h2>Gateway share</h2><p className="muted small">Requests this environment can always run at once. When the server has idle room it may borrow more, up to {current?.ceiling??24}; neighbours that are active keep their own share.</p>
  <ErrorMessage message={error||share.error}/>{share.loading?<Loading/>:current&&<><p><strong>{current.share}</strong> <span className="muted small">requests at a time{current.share===current.default?' (default)':''}.{current.operator?` ${current.allocated} of ${current.total} allocated across the installation.`:''}</span></p>
- {current.operator?<div className="form-row"><label className="sr-only" htmlFor="share">Share</label><input id="share" type="number" min={1} max={current.ceiling} value={value} onChange={event=>setValue(event.target.value)}/>
- <button className="primary" disabled={busy||!value||Number(value)===current.share} onClick={()=>void save()}>Save share</button></div>:<p className="small muted">The installation operator can change it.</p>}
+ {current.operator?<><div className="form-row"><label className="sr-only" htmlFor="share">Share</label><input id="share" type="number" min={1} max={current.ceiling} step={1} value={value} aria-invalid={Boolean(fieldError)} aria-describedby={fieldError?'share-error':undefined} onChange={event=>{setValue(event.target.value);setFieldError(shareError(event.target.value,current.ceiling));}}/>
+ <button className="primary" disabled={busy||Boolean(shareError(value,current.ceiling))||Number(value)===current.share} onClick={()=>void save()}>Save share</button></div>{fieldError&&<p id="share-error" className="field-error" role="alert">{fieldError}</p>}</>:<p className="small muted">The installation operator can change it.</p>}
  <p className="small muted" role="status">{saved}</p></>}</section>;
 }
 export function Connection({environment,organization,request,onBack}:{environment:Environment;organization:Organization;request:Api;onBack:()=>void}){
  const path=`/environments/${environment.id}`,canWrite=organization.role!=='viewer';
- const info=useData<{apiPath:string;services:string[]}>(signal=>request(path+'/connection','GET',undefined,signal),[environment.id,request]);
- const keys=useData<{data:Key[]}>(signal=>canWrite?request(path+'/keys','GET',undefined,signal):Promise.resolve({data:[]}),[environment.id,request,canWrite]);
- const mail=useData<{data:MailEntry}>(signal=>request(path+'/mail','GET',undefined,signal),[environment.id,request]);
+ const [section,setSection]=useState('overview');
+ const sections=[{id:'overview',label:'Overview',Icon:LayoutGrid},...(canWrite?[{id:'database',label:'Database Studio',Icon:Database},{id:'authentication',label:'Authentication',Icon:Shield},{id:'services',label:'Services',Icon:Layers}]:[]),{id:'usage',label:'Usage',Icon:Activity},{id:'keys',label:'API keys',Icon:KeyRound}];
+ const activeSection=sections.some(item=>item.id===section)?section:'overview';
+ const info=useData<{apiPath:string;services:string[]}|undefined>(signal=>activeSection==='overview'?request(path+'/connection','GET',undefined,signal):Promise.resolve(undefined),[environment.id,request,activeSection]);
+ const keys=useData<{data:Key[]}|undefined>(signal=>activeSection==='keys'&&canWrite?request(path+'/keys','GET',undefined,signal):Promise.resolve(undefined),[environment.id,request,canWrite,activeSection]);
+ const mail=useData<{data:MailEntry}|undefined>(signal=>activeSection==='overview'?request(path+'/mail','GET',undefined,signal):Promise.resolve(undefined),[environment.id,request,activeSection]);
  const mailView=mailState(mail.data?.data),mailRows=mailDetails(mail.data?.data);
  const [raw,setRaw]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[confirm,setConfirm]=useState<string>(),[copied,setCopied]=useState('');
  async function copy(text:string){try{await navigator.clipboard.writeText(text);setCopied('Copied to clipboard.');}catch{setCopied('Copy unavailable. Select and copy the value manually.');}}
  async function issue(){setBusy(true);setError('');try{const result=await request(path+'/keys','POST');setRaw(result.token);keys.refresh();}catch(e){setError((e as Error).message);}finally{setBusy(false);}}
  async function revoke(id:string){setBusy(true);setError('');try{await request(path+'/keys/'+id,'DELETE');setConfirm(undefined);setRaw('');keys.refresh();}catch(e){setError((e as Error).message);}finally{setBusy(false);}}
- return <><button className="back" onClick={onBack}><ArrowLeft aria-hidden="true"/>Environments</button><div className="page-heading"><div><h1>{environment.name}</h1><p className="muted">Connect your application.</p></div></div>
+ return <><button className="back" onClick={onBack}><ArrowLeft aria-hidden="true"/>Environments</button><div className="page-heading"><div><h1>{environment.name}</h1><p className="muted">Manage your database, services and application connection.</p></div></div><nav className="environment-nav" aria-label="Environment sections">{sections.map(({id,label,Icon})=><button key={id} className={activeSection===id?'selected':''} aria-current={activeSection===id?'page':undefined} onClick={()=>setSection(id)}><Icon aria-hidden="true"/>{label}</button>)}</nav>
+ {activeSection==='overview'&&<div className="environment-overview">
  <ErrorMessage message={info.error}/>{info.error&&<Refresh onClick={info.refresh}/>} {info.loading?<Loading/>:info.data&&<section className="details"><h2>Connection</h2><label htmlFor="project-url">Project URL</label><div className="form-row"><input id="project-url" readOnly value={location.origin+info.data.apiPath}/><button onClick={()=>copy(location.origin+info.data!.apiPath)}><Copy aria-hidden="true"/>Copy URL</button></div><p className="small muted">Available services: {info.data.services.join(', ')}</p></section>}
  <section className="details"><h2>Email</h2><ErrorMessage message={mail.error}/>{mail.error&&<Refresh onClick={mail.refresh}/>} {mail.loading?<Loading/>:<><p><span className={'state '+mailView.state}>{mailView.label}</span></p><p className="muted small">{mailView.text}</p>{mailRows.map(row=><p className="small" key={row.label}><span className="muted">{row.label}: </span>{row.value}</p>)}</>}</section>
+ </div>}{activeSection==='authentication'&&<div>
  {canWrite&&<SignInSection path={path} request={request}/>}
- {canWrite&&<RealtimeSection path={path} request={request}/>}
- {canWrite&&<DatabaseSection path={path} request={request}/>}
  {canWrite&&<SigningSection path={path} request={request}/>}
- {canWrite&&<FunctionsSection path={path} request={request} environmentId={environment.id}/>}
+ </div>}{activeSection==='services'&&<div>
+ {canWrite&&<RealtimeSection path={path} request={request}/>}
+  {canWrite&&<FunctionsSection path={path} request={request} environmentId={environment.id}/>}
+ </div>}{activeSection==='database'&&<div>
  {canWrite&&<StudioSection path={path} request={request}/>}
+ {canWrite&&<DatabaseSection path={path} request={request}/>}
+ </div>}{activeSection==='usage'&&<div>
  <ShareSection path={path} request={request}/>
  <MetricsSection path={path} request={request}/>
  {canWrite&&<LogsSection path={path} request={request}/>}
- <section className="keys-section"><div className="page-heading"><div><h2>Publishable keys</h2><p className="muted small">Use these in your application. Row level security still applies.</p></div>{canWrite&&<button className="primary" onClick={issue} disabled={busy||!!raw}><Plus aria-hidden="true"/>Create key</button>}</div>
+ </div>}{activeSection==='keys'&&<div><section className="keys-section"><div className="page-heading"><div><h2>Publishable keys</h2><p className="muted small">Use these in your application. Row level security still applies.</p></div>{canWrite&&<button className="primary" onClick={issue} disabled={busy||!!raw}><Plus aria-hidden="true"/>Create key</button>}</div>
  <ErrorMessage message={error||keys.error}/>{raw&&<div className="new-key"><label htmlFor="new-key">Save this key now. It is only shown once.</label><textarea id="new-key" readOnly value={raw}/><div className="form-row"><button onClick={()=>copy(raw)}><Copy aria-hidden="true"/>Copy key</button><button onClick={()=>{setRaw('');setCopied('');}}>I have saved this key</button></div></div>}
- <p className="small muted" role="status">{copied}</p>{!canWrite?<Empty>An organization owner or admin can manage keys.</Empty>:keys.loading?<Loading/>:keys.data?.data.length?<div className="table-wrap"><table><thead><tr><th>Key ID</th><th>Created</th><th>Status</th><th>Action</th></tr></thead><tbody>{keys.data.data.map(key=><tr key={key.id}><td><code>{key.id.slice(0,8)}</code></td><td>{new Date(key.created_at).toLocaleDateString()}</td><td>{key.revoked_at?'Revoked':'Active'}</td><td>{!key.revoked_at&&(confirm===key.id?<div className="confirm"><span>Revoke this key?</span><button className="danger" disabled={busy} onClick={()=>revoke(key.id)}>Confirm revoke</button><button onClick={()=>setConfirm(undefined)}>Cancel</button></div>:<button disabled={busy} onClick={()=>setConfirm(key.id)}>Revoke</button>)}</td></tr>)}</tbody></table></div>:!keys.error&&<Empty>No publishable keys yet.</Empty>}</section></>;
+ <p className="small muted" role="status">{copied}</p>{!canWrite?<Empty>An organization owner or admin can manage keys.</Empty>:keys.loading?<Loading/>:keys.data?.data.length?<div className="table-wrap"><table><thead><tr><th>Key ID</th><th>Created</th><th>Status</th><th>Action</th></tr></thead><tbody>{keys.data.data.map(key=><tr key={key.id}><td><code>{key.id.slice(0,8)}</code></td><td>{new Date(key.created_at).toLocaleDateString()}</td><td>{key.revoked_at?'Revoked':'Active'}</td><td>{!key.revoked_at&&(confirm===key.id?<div className="confirm"><span>Revoke this key?</span><button className="danger" disabled={busy} onClick={()=>revoke(key.id)}>Confirm revoke</button><button onClick={()=>setConfirm(undefined)}>Cancel</button></div>:<button disabled={busy} onClick={()=>setConfirm(key.id)}>Revoke</button>)}</td></tr>)}</tbody></table></div>:!keys.error&&<Empty>No publishable keys yet.</Empty>}</section></div>}</>;
 }

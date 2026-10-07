@@ -2,7 +2,11 @@
 
 # Project layout
 
-Updated 2026-10-06: complete current-code verification passed 1449 tests with no failures, errors, warnings or skips and independent actual review. Repairs cover SQLite and HTTPError response closure, tempfile ownership and expected test diagnostics. All 52 preparation cases also passed; native PostgreSQL startup, Cron/Vault restart continuity and physical restore remain unaccepted. See [current status](status.md) for CI results and evidence scope.
+Layout update, 2026-10-07: database workflow, administrative transfer, Storage settlement, lifecycle and recovery dependency sources have entered the integration tree. Final release source assembly and production acceptance remain open. This page locates source; [status](status.md) records test evidence and its scope. Product files must not depend on a developer's private machine paths.
+
+## Historical verification records
+
+Historical checkpoint, 2026-10-06: complete snapshot verification passed 1449 tests with no failures, errors, warnings or skips and independent actual review. Repairs cover SQLite and HTTPError response closure, tempfile ownership and expected test diagnostics. All 52 preparation cases also passed; native PostgreSQL startup, Cron/Vault restart continuity and physical restore remain unaccepted. See [current status](status.md) for CI results and evidence scope.
 
 The separate public55 V3 role has actual MET: 25 component and 30 pump tests passed, original 290 and added 4 actual mode/byte captures matched, and all three known helpers were removed with no unresolved resources. Public BusyBox V8 help metadata also has actual MET: fixed-path Bash 5.3.3 and BusyBox 1.37.0 help returned zero, with its one helper removed. Neither result accepts private request operation, timeout timing/signal behavior, installed binary source provenance, candidate startup, cold/warm Vault or Cron continuity, physical restore or production.
 
@@ -30,6 +34,20 @@ Sbarbase is a development project built on original Supabase services. The repos
 
 The root package declares version 0.2.0 as a development snapshot. [Changelog](../../CHANGELOG.md) preserves the historical 0.1.0 source release. [Status](status.md) is the current capability summary, while [deployment readiness](deployment-readiness.md) distinguishes rehearsed workflows from remaining gates.
 
+## Additional integration sources
+
+These paths exist in the inspected integration snapshot. Their presence does not establish native operation or completion of the full capability.
+
+| Area | Source locations |
+|---|---|
+| Database workflow | `src/control/database-workflow.ts`, `lab/pooler_migration_contract.py` |
+| Administrative transfer | `src/control/transfer-history.ts`, `lab/transfer-history-check.py` |
+| Storage settlement | `src/control/storage-settlement-contract.ts`, `lab/disposable-storage-settlement-drill.py` |
+| Lifecycle and authority | `src/control/lifecycle.ts`, `src/control/lifecycle-authority.ts`, `lab/lifecycle_native_authority.py` |
+| Recovery dependencies | `src/control/lifecycle-recovery.ts`, `lab/lifecycle_recovery.py`, `lab/recovery_bundle.py` |
+
+The [integration programme](../engineering/plans/2026-10-06-integration-programme.md) retains the full completion requirements. Ignored local development packets are not dependencies of the published product.
+
 ## Native startup preparation sources
 
 These eight public files are integrated preparation tooling and its source regressions. They do not constitute an accepted candidate server or private transport. Read [the preparation contract](../../deploy/verify/native-startup-preparation.md) before any native operation.
@@ -49,13 +67,13 @@ These eight public files are integrated preparation tooling and its source regre
 
 ## Private SQL completion sources
 
-These public source components define the finite private SQL completion protocol. The complete frozen 881-file public source run passed 1504 tests with no failures, errors, warnings or skips; independent actual review and root closure passed. See the [public source regression evidence](../evidence/private-pump-regression-2026-10-06.json). The last CI result, `6c86`, covers the baseline before these four additions. For native execution, installed native client provenance, private startup/session authority, the owned restart lease, Cron/Vault cold/warm continuity and full restoration remain UNRUN and unaccepted.
+These public source components define the finite private SQL completion protocol. The complete frozen 881-file public source run passed 1504 tests with no failures, errors, warnings or skips; independent actual review and root closure passed. See the [public source regression evidence](../evidence/private-pump-regression-2026-10-06.json). The historical CI result, `6c86`, covers the baseline before these four additions. For native execution, installed native client provenance, private startup/session authority, the owned restart lease, Cron/Vault cold/warm continuity and full restoration remain UNRUN and unaccepted.
 
 | Source | Responsibility |
 |---|---|
 | `deploy/verify/private_psql_producer.py` | Fixed selector encoding, exclusive namespace guards, control framing and transfer budgets |
 | `deploy/verify/private_request_pump.py` | Bounded request/completion lifecycle, closed outcomes and refusal on uncertainty |
-| `lab/test_private_psql_producer.py` | 25 public component regressions |
+| `lab/test_private_psql_producer.py` | 31 public component regressions |
 | `lab/test_private_request_pump.py` | 30 public pump regressions |
 
 ## Current authority and verification

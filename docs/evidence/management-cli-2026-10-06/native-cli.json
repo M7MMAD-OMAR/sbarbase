@@ -1,0 +1,867 @@
+{
+  "schema": 1,
+  "owner": "sb06-mfa-8fdb591c4d2b",
+  "images": {
+    "db": {
+      "id": "sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73",
+      "digests": [
+        "postgres@sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73"
+      ]
+    },
+    "auth": {
+      "id": "sha256:c0c25187a6b835e65a6f6e6c6b39d090e832d40e6de5186f2c038e0411944232",
+      "digests": [
+        "public.ecr.aws/supabase/gotrue@sha256:c0c25187a6b835e65a6f6e6c6b39d090e832d40e6de5186f2c038e0411944232"
+      ]
+    }
+  },
+  "limits": {
+    "db": {
+      "memory": 536870912,
+      "nano_cpus": 500000000
+    },
+    "auth": {
+      "memory": 268435456,
+      "nano_cpus": 250000000
+    }
+  },
+  "checks": [
+    {
+      "name": "original Auth provisions disposable CLI identity",
+      "ok": true
+    },
+    {
+      "name": "CLI first sign-in completes actual native enrollment",
+      "ok": true
+    },
+    {
+      "name": "CLI delivers native setup only to private terminal hook",
+      "ok": true
+    },
+    {
+      "name": "CLI enrollment performs original challenge and verify",
+      "ok": true
+    },
+    {
+      "name": "CLI verified session creates requested environment",
+      "ok": true
+    },
+    {
+      "name": "CLI MFA and password prompts hide input",
+      "ok": true
+    },
+    {
+      "name": "CLI output contains no password, setup secret, code or access token",
+      "ok": true
+    },
+    {
+      "name": "CLI signs out the original native session after command",
+      "ok": true
+    },
+    {
+      "name": "CLI existing authenticator verifies before expected duplicate-name refusal",
+      "ok": true
+    },
+    {
+      "name": "CLI later sign-in does not create another authenticator",
+      "ok": true
+    },
+    {
+      "name": "CLI later verified command preserves existing environment conflict",
+      "ok": true
+    },
+    {
+      "name": "CLI native wrong code refuses protected command",
+      "ok": true
+    },
+    {
+      "name": "CLI wrong code leaves catalog unchanged",
+      "ok": true
+    },
+    {
+      "name": "CLI failed MFA signs out native password session",
+      "ok": true
+    },
+    {
+      "name": "CLI headless MFA refuses before authentication",
+      "ok": true
+    },
+    {
+      "name": "CLI failure messages expose no credentials or codes",
+      "ok": true
+    },
+    {
+      "name": "original Auth provisions terminal success identity",
+      "ok": true
+    },
+    {
+      "name": "terminal success reports only sanitized observations",
+      "ok": true
+    },
+    {
+      "name": "actual CLI terminal disables password echo",
+      "ok": true
+    },
+    {
+      "name": "actual CLI terminal disables TOTP echo",
+      "ok": true
+    },
+    {
+      "name": "actual CLI terminal success has expected exit",
+      "ok": true
+    },
+    {
+      "name": "actual CLI private setup display clears on success",
+      "ok": true
+    },
+    {
+      "name": "actual CLI terminal restores original echo state",
+      "ok": true
+    },
+    {
+      "name": "actual CLI terminal never echoes password or typed TOTP",
+      "ok": true
+    },
+    {
+      "name": "actual CLI stdout and stderr contain no authentication secrets",
+      "ok": true
+    },
+    {
+      "name": "terminal success catalog mutation matches authorization",
+      "ok": true
+    },
+    {
+      "name": "terminal success protected requests match authorization",
+      "ok": true
+    },
+    {
+      "name": "original Auth provisions terminal success-password-stdin identity",
+      "ok": true
+    },
+    {
+      "name": "terminal success-password-stdin reports only sanitized observations",
+      "ok": true
+    },
+    {
+      "name": "actual CLI terminal disables TOTP echo",
+      "ok": true
+    },
+    {
+      "name": "actual CLI terminal success-password-stdin has expected exit",
+      "ok": true
+    },
+    {
+      "name": "actual CLI private setup display clears on success-password-stdin",
+      "ok": true
+    },
+    {
+      "name": "actual CLI terminal restores original echo state",
+      "ok": true
+    },
+    {
+      "name": "actual CLI terminal never echoes password or typed TOTP",
+      "ok": true
+    },
+    {
+      "name": "actual CLI stdout and stderr contain no authentication secrets",
+      "ok": true
+    },
+    {
+      "name": "terminal success-password-stdin catalog mutation matches authorization",
+      "ok": true
+    },
+    {
+      "name": "terminal success-password-stdin protected requests match authorization",
+      "ok": true
+    },
+    {
+      "name": "original Auth provisions terminal success-operator-file identity",
+      "ok": true
+    },
+    {
+      "name": "terminal success-operator-file reports only sanitized observations",
+      "ok": true
+    },
+    {
+      "name": "actual CLI terminal disables TOTP echo",
+      "ok": true
+    },
+    {
+      "name": "actual CLI terminal success-operator-file has expected exit",
+      "ok": true
+    },
+    {
+      "name": "actual CLI private setup display clears on success-operator-file",
+      "ok": true
+    },
+    {
+      "name": "actual CLI terminal restores original echo state",
+      "ok": true
+    },
+    {
+      "name": "actual CLI terminal never echoes password or typed TOTP",
+      "ok": true
+    },
+    {
+      "name": "actual CLI stdout and stderr contain no authentication secrets",
+      "ok": true
+    },
+    {
+      "name": "terminal success-operator-file catalog mutation matches authorization",
+      "ok": true
+    },
+    {
+      "name": "terminal success-operator-file protected requests match authorization",
+      "ok": true
+    },
+    {
+      "name": "original Auth provisions terminal prompt-cancel identity",
+      "ok": true
+    },
+    {
+      "name": "terminal prompt-cancel reports only sanitized observations",
+      "ok": true
+    },
+    {
+      "name": "actual CLI terminal disables password echo",
+      "ok": true
+    },
+    {
+      "name": "actual CLI terminal disables TOTP echo",
+      "ok": true
+    },
+    {
+      "name": "actual CLI terminal prompt-cancel has expected exit",
+      "ok": true
+    },
+    {
+      "name": "actual CLI private setup display clears on prompt-cancel",
+      "ok": true
+    },
+    {
+      "name": "actual CLI terminal restores original echo state",
+      "ok": true
+    },
+    {
+      "name": "actual CLI terminal never echoes password or typed TOTP",
+      "ok": true
+    },
+    {
+      "name": "actual CLI stdout and stderr contain no authentication secrets",
+      "ok": true
+    },
+    {
+      "name": "actual CLI prompt-cancel delivered interruption",
+      "ok": true
+    },
+    {
+      "name": "terminal prompt-cancel catalog mutation matches authorization",
+      "ok": true
+    },
+    {
+      "name": "terminal prompt-cancel protected requests match authorization",
+      "ok": true
+    },
+    {
+      "name": "original Auth provisions terminal verify-cancel identity",
+      "ok": true
+    },
+    {
+      "name": "terminal verify-cancel reports only sanitized observations",
+      "ok": true
+    },
+    {
+      "name": "actual CLI terminal disables password echo",
+      "ok": true
+    },
+    {
+      "name": "actual CLI terminal disables TOTP echo",
+      "ok": true
+    },
+    {
+      "name": "actual CLI terminal verify-cancel has expected exit",
+      "ok": true
+    },
+    {
+      "name": "actual CLI private setup display clears on verify-cancel",
+      "ok": true
+    },
+    {
+      "name": "actual CLI terminal restores original echo state",
+      "ok": true
+    },
+    {
+      "name": "actual CLI terminal never echoes password or typed TOTP",
+      "ok": true
+    },
+    {
+      "name": "actual CLI stdout and stderr contain no authentication secrets",
+      "ok": true
+    },
+    {
+      "name": "actual CLI verify-cancel delivered interruption",
+      "ok": true
+    },
+    {
+      "name": "actual CLI cancellation follows original native verification",
+      "ok": true
+    },
+    {
+      "name": "terminal verify-cancel catalog mutation matches authorization",
+      "ok": true
+    },
+    {
+      "name": "terminal verify-cancel protected requests match authorization",
+      "ok": true
+    },
+    {
+      "name": "original Auth provisions terminal stty-failure identity",
+      "ok": true
+    },
+    {
+      "name": "terminal stty-failure reports only sanitized observations",
+      "ok": true
+    },
+    {
+      "name": "actual CLI terminal stty-failure has expected exit",
+      "ok": true
+    },
+    {
+      "name": "actual CLI private setup display clears on stty-failure",
+      "ok": true
+    },
+    {
+      "name": "actual CLI terminal restores original echo state",
+      "ok": true
+    },
+    {
+      "name": "actual CLI terminal never echoes password or typed TOTP",
+      "ok": true
+    },
+    {
+      "name": "actual CLI stdout and stderr contain no authentication secrets",
+      "ok": true
+    },
+    {
+      "name": "terminal stty-failure catalog mutation matches authorization",
+      "ok": true
+    },
+    {
+      "name": "terminal stty-failure protected requests match authorization",
+      "ok": true
+    },
+    {
+      "name": "original Auth provisions terminal headless-password-stdin identity",
+      "ok": true
+    },
+    {
+      "name": "terminal headless-password-stdin reports only sanitized observations",
+      "ok": true
+    },
+    {
+      "name": "actual CLI terminal headless-password-stdin has expected exit",
+      "ok": true
+    },
+    {
+      "name": "actual CLI private setup display clears on headless-password-stdin",
+      "ok": true
+    },
+    {
+      "name": "actual CLI terminal restores original echo state",
+      "ok": true
+    },
+    {
+      "name": "actual CLI terminal never echoes password or typed TOTP",
+      "ok": true
+    },
+    {
+      "name": "actual CLI stdout and stderr contain no authentication secrets",
+      "ok": true
+    },
+    {
+      "name": "terminal headless-password-stdin catalog mutation matches authorization",
+      "ok": true
+    },
+    {
+      "name": "terminal headless-password-stdin protected requests match authorization",
+      "ok": true
+    },
+    {
+      "name": "actual headless-password-stdin refuses before any native Auth request",
+      "ok": true
+    },
+    {
+      "name": "original Auth provisions terminal headless-operator-file identity",
+      "ok": true
+    },
+    {
+      "name": "terminal headless-operator-file reports only sanitized observations",
+      "ok": true
+    },
+    {
+      "name": "actual CLI terminal headless-operator-file has expected exit",
+      "ok": true
+    },
+    {
+      "name": "actual CLI private setup display clears on headless-operator-file",
+      "ok": true
+    },
+    {
+      "name": "actual CLI terminal restores original echo state",
+      "ok": true
+    },
+    {
+      "name": "actual CLI terminal never echoes password or typed TOTP",
+      "ok": true
+    },
+    {
+      "name": "actual CLI stdout and stderr contain no authentication secrets",
+      "ok": true
+    },
+    {
+      "name": "terminal headless-operator-file catalog mutation matches authorization",
+      "ok": true
+    },
+    {
+      "name": "terminal headless-operator-file protected requests match authorization",
+      "ok": true
+    },
+    {
+      "name": "actual headless-operator-file refuses before any native Auth request",
+      "ok": true
+    }
+  ],
+  "cleanup": true,
+  "total": 101,
+  "failed": 0,
+  "skipped": 0,
+  "terminal_observations": [
+    {
+      "scenario": "success",
+      "checks": [
+        {
+          "name": "actual CLI terminal disables password echo",
+          "ok": true
+        },
+        {
+          "name": "actual CLI terminal disables TOTP echo",
+          "ok": true
+        },
+        {
+          "name": "actual CLI terminal success has expected exit",
+          "ok": true
+        },
+        {
+          "name": "actual CLI private setup display clears on success",
+          "ok": true
+        },
+        {
+          "name": "actual CLI terminal restores original echo state",
+          "ok": true
+        },
+        {
+          "name": "actual CLI terminal never echoes password or typed TOTP",
+          "ok": true
+        },
+        {
+          "name": "actual CLI stdout and stderr contain no authentication secrets",
+          "ok": true
+        }
+      ],
+      "total": 7,
+      "failed": 0,
+      "skipped": 0,
+      "exit_code": 0,
+      "capacity_refused": false
+    },
+    {
+      "scenario": "success-password-stdin",
+      "checks": [
+        {
+          "name": "actual CLI terminal disables TOTP echo",
+          "ok": true
+        },
+        {
+          "name": "actual CLI terminal success-password-stdin has expected exit",
+          "ok": true
+        },
+        {
+          "name": "actual CLI private setup display clears on success-password-stdin",
+          "ok": true
+        },
+        {
+          "name": "actual CLI terminal restores original echo state",
+          "ok": true
+        },
+        {
+          "name": "actual CLI terminal never echoes password or typed TOTP",
+          "ok": true
+        },
+        {
+          "name": "actual CLI stdout and stderr contain no authentication secrets",
+          "ok": true
+        }
+      ],
+      "total": 6,
+      "failed": 0,
+      "skipped": 0,
+      "exit_code": 0,
+      "capacity_refused": false
+    },
+    {
+      "scenario": "success-operator-file",
+      "checks": [
+        {
+          "name": "actual CLI terminal disables TOTP echo",
+          "ok": true
+        },
+        {
+          "name": "actual CLI terminal success-operator-file has expected exit",
+          "ok": true
+        },
+        {
+          "name": "actual CLI private setup display clears on success-operator-file",
+          "ok": true
+        },
+        {
+          "name": "actual CLI terminal restores original echo state",
+          "ok": true
+        },
+        {
+          "name": "actual CLI terminal never echoes password or typed TOTP",
+          "ok": true
+        },
+        {
+          "name": "actual CLI stdout and stderr contain no authentication secrets",
+          "ok": true
+        }
+      ],
+      "total": 6,
+      "failed": 0,
+      "skipped": 0,
+      "exit_code": 0,
+      "capacity_refused": false
+    },
+    {
+      "scenario": "prompt-cancel",
+      "checks": [
+        {
+          "name": "actual CLI terminal disables password echo",
+          "ok": true
+        },
+        {
+          "name": "actual CLI terminal disables TOTP echo",
+          "ok": true
+        },
+        {
+          "name": "actual CLI terminal prompt-cancel has expected exit",
+          "ok": true
+        },
+        {
+          "name": "actual CLI private setup display clears on prompt-cancel",
+          "ok": true
+        },
+        {
+          "name": "actual CLI terminal restores original echo state",
+          "ok": true
+        },
+        {
+          "name": "actual CLI terminal never echoes password or typed TOTP",
+          "ok": true
+        },
+        {
+          "name": "actual CLI stdout and stderr contain no authentication secrets",
+          "ok": true
+        },
+        {
+          "name": "actual CLI prompt-cancel delivered interruption",
+          "ok": true
+        }
+      ],
+      "total": 8,
+      "failed": 0,
+      "skipped": 0,
+      "exit_code": 3,
+      "capacity_refused": false
+    },
+    {
+      "scenario": "verify-cancel",
+      "checks": [
+        {
+          "name": "actual CLI terminal disables password echo",
+          "ok": true
+        },
+        {
+          "name": "actual CLI terminal disables TOTP echo",
+          "ok": true
+        },
+        {
+          "name": "actual CLI terminal verify-cancel has expected exit",
+          "ok": true
+        },
+        {
+          "name": "actual CLI private setup display clears on verify-cancel",
+          "ok": true
+        },
+        {
+          "name": "actual CLI terminal restores original echo state",
+          "ok": true
+        },
+        {
+          "name": "actual CLI terminal never echoes password or typed TOTP",
+          "ok": true
+        },
+        {
+          "name": "actual CLI stdout and stderr contain no authentication secrets",
+          "ok": true
+        },
+        {
+          "name": "actual CLI verify-cancel delivered interruption",
+          "ok": true
+        },
+        {
+          "name": "actual CLI cancellation follows original native verification",
+          "ok": true
+        }
+      ],
+      "total": 9,
+      "failed": 0,
+      "skipped": 0,
+      "exit_code": 3,
+      "capacity_refused": false
+    },
+    {
+      "scenario": "stty-failure",
+      "checks": [
+        {
+          "name": "actual CLI terminal stty-failure has expected exit",
+          "ok": true
+        },
+        {
+          "name": "actual CLI private setup display clears on stty-failure",
+          "ok": true
+        },
+        {
+          "name": "actual CLI terminal restores original echo state",
+          "ok": true
+        },
+        {
+          "name": "actual CLI terminal never echoes password or typed TOTP",
+          "ok": true
+        },
+        {
+          "name": "actual CLI stdout and stderr contain no authentication secrets",
+          "ok": true
+        }
+      ],
+      "total": 5,
+      "failed": 0,
+      "skipped": 0,
+      "exit_code": 3,
+      "capacity_refused": false
+    },
+    {
+      "scenario": "headless-password-stdin",
+      "checks": [
+        {
+          "name": "actual CLI terminal headless-password-stdin has expected exit",
+          "ok": true
+        },
+        {
+          "name": "actual CLI private setup display clears on headless-password-stdin",
+          "ok": true
+        },
+        {
+          "name": "actual CLI terminal restores original echo state",
+          "ok": true
+        },
+        {
+          "name": "actual CLI terminal never echoes password or typed TOTP",
+          "ok": true
+        },
+        {
+          "name": "actual CLI stdout and stderr contain no authentication secrets",
+          "ok": true
+        }
+      ],
+      "total": 5,
+      "failed": 0,
+      "skipped": 0,
+      "exit_code": 3,
+      "capacity_refused": false
+    },
+    {
+      "scenario": "headless-operator-file",
+      "checks": [
+        {
+          "name": "actual CLI terminal headless-operator-file has expected exit",
+          "ok": true
+        },
+        {
+          "name": "actual CLI private setup display clears on headless-operator-file",
+          "ok": true
+        },
+        {
+          "name": "actual CLI terminal restores original echo state",
+          "ok": true
+        },
+        {
+          "name": "actual CLI terminal never echoes password or typed TOTP",
+          "ok": true
+        },
+        {
+          "name": "actual CLI stdout and stderr contain no authentication secrets",
+          "ok": true
+        }
+      ],
+      "total": 5,
+      "failed": 0,
+      "skipped": 0,
+      "exit_code": 3,
+      "capacity_refused": false
+    }
+  ],
+  "browser_captures": {},
+  "native_audit_counts": [
+    "challenge_created|7",
+    "factor_in_progress|6",
+    "login|8",
+    "logout|8",
+    "token_revoked|6",
+    "user_signedup|9",
+    "verification_attempted|6"
+  ],
+  "unrelated_running_containers_preserved": true,
+  "running_container_inventory": {
+    "before": [
+      "c926ebfb2928",
+      "5a5d303058dc",
+      "5b01a66c95e7",
+      "9df6f548b98c",
+      "bae7052eaafc",
+      "3eafc5c5d944",
+      "996c087c534a",
+      "de211243b250",
+      "3adbb77ef31c",
+      "d79abe9097d8",
+      "0cccd4780564",
+      "c5f0a6283b71",
+      "fcd245140150",
+      "40545388b538",
+      "382d8bd42a55",
+      "f06cd5a366b9",
+      "7ff07fabe2de",
+      "2813805e84a7",
+      "57c07be32dda",
+      "f3865a1ae52e",
+      "907cddb1a31c",
+      "d30c0013f815",
+      "b0a561f055da",
+      "dcb1cf1fbf76",
+      "dd180ea929e0",
+      "50f02dea6605",
+      "bfd239d521b5",
+      "ff05ebcec2d8",
+      "0109355ec626",
+      "b440699e5a84",
+      "ee88863cbf7b",
+      "a2bd0bd2a503",
+      "d8aeef6a12e5",
+      "6836aed8cbbc",
+      "45a5411d5d63",
+      "b0d564ec6087",
+      "93bf2be2c3e2",
+      "08b9afe8f0a3",
+      "2555a4252ce8",
+      "0769db91f9c6",
+      "9cfb0da9960a",
+      "9be5dd1e2ea5",
+      "fd9c6107c0af",
+      "51436890bb10",
+      "3019d5275db3",
+      "077322e71196",
+      "6299fbc72bce",
+      "25f0b3596320",
+      "cd03123bc159",
+      "f018cc2c8795",
+      "cc95898ac27b",
+      "fa76e762aa8a",
+      "49234e84376a",
+      "5dcf40ec361a",
+      "adac7083c878",
+      "226720c0385a",
+      "1124082c1a3e",
+      "91b9df2d4c0a",
+      "6ffd9109e7f6",
+      "e79e5c0f8344"
+    ],
+    "after": [
+      "c926ebfb2928",
+      "5a5d303058dc",
+      "5b01a66c95e7",
+      "9df6f548b98c",
+      "bae7052eaafc",
+      "3eafc5c5d944",
+      "996c087c534a",
+      "de211243b250",
+      "3adbb77ef31c",
+      "d79abe9097d8",
+      "0cccd4780564",
+      "c5f0a6283b71",
+      "fcd245140150",
+      "40545388b538",
+      "382d8bd42a55",
+      "f06cd5a366b9",
+      "7ff07fabe2de",
+      "2813805e84a7",
+      "57c07be32dda",
+      "f3865a1ae52e",
+      "907cddb1a31c",
+      "d30c0013f815",
+      "b0a561f055da",
+      "dcb1cf1fbf76",
+      "dd180ea929e0",
+      "50f02dea6605",
+      "bfd239d521b5",
+      "ff05ebcec2d8",
+      "0109355ec626",
+      "b440699e5a84",
+      "ee88863cbf7b",
+      "a2bd0bd2a503",
+      "d8aeef6a12e5",
+      "6836aed8cbbc",
+      "45a5411d5d63",
+      "b0d564ec6087",
+      "93bf2be2c3e2",
+      "08b9afe8f0a3",
+      "2555a4252ce8",
+      "0769db91f9c6",
+      "9cfb0da9960a",
+      "9be5dd1e2ea5",
+      "fd9c6107c0af",
+      "51436890bb10",
+      "3019d5275db3",
+      "077322e71196",
+      "6299fbc72bce",
+      "25f0b3596320",
+      "cd03123bc159",
+      "f018cc2c8795",
+      "cc95898ac27b",
+      "fa76e762aa8a",
+      "49234e84376a",
+      "5dcf40ec361a",
+      "adac7083c878",
+      "226720c0385a",
+      "1124082c1a3e",
+      "91b9df2d4c0a",
+      "6ffd9109e7f6",
+      "e79e5c0f8344"
+    ],
+    "missing": []
+  },
+  "contract": "cli",
+  "source": {
+    "lab/management-mfa-fixture.py": "746feb82467c04fb05261fb842e324e31042ff0da75410e968efd7735b2d8d39",
+    "lab/management-cli-check.ts": "3a111c9ed525b2b24c305d238a20da10d5f5945faa5adbfeafa9c4ceb9893606"
+  }
+}

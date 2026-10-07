@@ -1,0 +1,7 @@
+{
+  "schema": 1,
+  "initial_raw_authoritative": "guard.stdout",
+  "initial_result_reconstructed_from_raw_stdout": true,
+  "reason": "Manual reinspection initially reused the result filename; the new successful observation is separated and the initial failure projection restored. Original engine result, checker result and guard stdout remain unchanged.",
+  "later_reconciliation": "guard-reconciliation-2.json"
+}

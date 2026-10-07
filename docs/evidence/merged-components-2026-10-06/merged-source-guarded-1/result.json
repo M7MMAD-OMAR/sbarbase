@@ -1,0 +1,215 @@
+{
+  "total": 627,
+  "failed": 1,
+  "skipped": 0,
+  "evidence": "/home/sbarah/.codex/sbarbase-integration/20261006/merged-source-guarded-1",
+  "checker_sha256": "e27d3db83d0c1b6336711b2460e8ab510f8b3e772c9a2e20daeed23580d4d61d",
+  "observations": [
+    {
+      "name": "bun",
+      "argv": [
+        "bun",
+        "test",
+        "tests",
+        "--timeout",
+        "10000"
+      ],
+      "parser": "bun",
+      "counts": {
+        "total": 430,
+        "failed": 0,
+        "skipped": 0
+      },
+      "returncode": 0,
+      "passed": true,
+      "cid": "3c5a4ab656c924e5ed39c5a2f3f005cc136ce211d329d2be8826f62583dedfe7"
+    },
+    {
+      "name": "types",
+      "argv": [
+        "bun",
+        "run",
+        "typecheck:control"
+      ],
+      "parser": "exit",
+      "counts": {
+        "total": 0,
+        "failed": 0,
+        "skipped": 0
+      },
+      "returncode": 0,
+      "passed": true,
+      "cid": "5aa5981ad909a8f6fd2df2d267cdca84b305e30fbebe9979cbd7e7bd28e8edd4"
+    },
+    {
+      "name": "backup",
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "lab",
+        "-p",
+        "test_backup*.py"
+      ],
+      "parser": "unittest",
+      "counts": {
+        "total": 72,
+        "failed": 0,
+        "skipped": 0
+      },
+      "returncode": 0,
+      "passed": true,
+      "cid": "4280c288c6754e74f3b633ffb56654ae5c641514f1af640427a7884e1f17bfbb"
+    },
+    {
+      "name": "restore",
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "lab",
+        "-p",
+        "test_restore*.py"
+      ],
+      "parser": "unittest",
+      "counts": {
+        "total": 65,
+        "failed": 0,
+        "skipped": 0
+      },
+      "returncode": 0,
+      "passed": true,
+      "cid": "2bb763642e5c467520d397e3bdd0f20619a3d3fa7d46f4a7df53388a901a94b0"
+    },
+    {
+      "name": "fixtures-registry",
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "-v",
+        "lab.test_disposable_recovery_drill",
+        "lab.test_disposable_storage_backup_drill",
+        "lab.test_capability_registry",
+        "lab.test_plan_acceptance"
+      ],
+      "parser": "unittest",
+      "counts": {
+        "total": 60,
+        "failed": 0,
+        "skipped": 0
+      },
+      "returncode": 0,
+      "passed": true,
+      "cid": "d1db7d7824f729cdde7390aac033aafcec9ca098ab60daa09cd293bfce82a2d4"
+    },
+    {
+      "name": "registry",
+      "argv": [
+        "python3",
+        "deploy/verify/capability_registry.py",
+        "validate"
+      ],
+      "parser": "exit",
+      "counts": {
+        "total": 0,
+        "failed": 0,
+        "skipped": 0
+      },
+      "returncode": 0,
+      "passed": true,
+      "cid": "dbab7003b0a5e946544f7ce66d47259201b1c6deed1516d237ad2575331c7d4f"
+    },
+    {
+      "name": "plan",
+      "argv": [
+        "python3",
+        "deploy/check_plan.py"
+      ],
+      "parser": "exit",
+      "counts": {
+        "total": 0,
+        "failed": 0,
+        "skipped": 0
+      },
+      "returncode": 0,
+      "passed": true,
+      "cid": "0a1e0854d557addbfa1367f5aaf35d66aee179211eb7d3180a4dfdb3013e9e72"
+    }
+  ],
+  "cleanup": [
+    {
+      "cid": "3c5a4ab656c924e5ed39c5a2f3f005cc136ce211d329d2be8826f62583dedfe7",
+      "removed": true,
+      "absence_verified": false
+    },
+    {
+      "cid": "3c5a4ab656c924e5ed39c5a2f3f005cc136ce211d329d2be8826f62583dedfe7",
+      "error": "Exact owned absence remains unproven"
+    },
+    {
+      "cid": "5aa5981ad909a8f6fd2df2d267cdca84b305e30fbebe9979cbd7e7bd28e8edd4",
+      "removed": true,
+      "absence_verified": false
+    },
+    {
+      "cid": "5aa5981ad909a8f6fd2df2d267cdca84b305e30fbebe9979cbd7e7bd28e8edd4",
+      "error": "Exact owned absence remains unproven"
+    },
+    {
+      "cid": "4280c288c6754e74f3b633ffb56654ae5c641514f1af640427a7884e1f17bfbb",
+      "removed": true,
+      "absence_verified": false
+    },
+    {
+      "cid": "4280c288c6754e74f3b633ffb56654ae5c641514f1af640427a7884e1f17bfbb",
+      "error": "Exact owned absence remains unproven"
+    },
+    {
+      "cid": "2bb763642e5c467520d397e3bdd0f20619a3d3fa7d46f4a7df53388a901a94b0",
+      "removed": true,
+      "absence_verified": false
+    },
+    {
+      "cid": "2bb763642e5c467520d397e3bdd0f20619a3d3fa7d46f4a7df53388a901a94b0",
+      "error": "Exact owned absence remains unproven"
+    },
+    {
+      "cid": "d1db7d7824f729cdde7390aac033aafcec9ca098ab60daa09cd293bfce82a2d4",
+      "removed": true,
+      "absence_verified": false
+    },
+    {
+      "cid": "d1db7d7824f729cdde7390aac033aafcec9ca098ab60daa09cd293bfce82a2d4",
+      "error": "Exact owned absence remains unproven"
+    },
+    {
+      "cid": "dbab7003b0a5e946544f7ce66d47259201b1c6deed1516d237ad2575331c7d4f",
+      "removed": true,
+      "absence_verified": false
+    },
+    {
+      "cid": "dbab7003b0a5e946544f7ce66d47259201b1c6deed1516d237ad2575331c7d4f",
+      "error": "Exact owned absence remains unproven"
+    },
+    {
+      "cid": "0a1e0854d557addbfa1367f5aaf35d66aee179211eb7d3180a4dfdb3013e9e72",
+      "removed": true,
+      "absence_verified": false
+    },
+    {
+      "cid": "0a1e0854d557addbfa1367f5aaf35d66aee179211eb7d3180a4dfdb3013e9e72",
+      "error": "Exact owned absence remains unproven"
+    },
+    {
+      "image_tag": "sbarbase-merged-check:7e03e467cb4ac855521e4a0bb121e107",
+      "removed": true,
+      "absence_verified": true
+    }
+  ],
+  "image_id": "sha256:64c92ccd1b951890e6519df8e148f59a9962ebd2af7350a958b1f79e829fdda9"
+}

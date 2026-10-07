@@ -263,6 +263,106 @@ class NamespaceTests(unittest.TestCase):
             transport.Namespace(self.root)
 
 
+    def test_membership_uses_fresh_description_when_original_view_is_stale(self):
+        real_listdir = os.listdir
+        seen = []
+        def stale_original(fd):
+            seen.append(fd)
+            return [] if fd == self.root else real_listdir(fd)
+        with patch.object(transport.os, 'listdir', side_effect=stale_original):
+            namespace = transport.Namespace(self.root)
+            namespace.renew()
+        self.assertTrue(seen)
+        self.assertNotIn(self.root, seen)
+        expected = transport.signature(os.fstat(self.root))
+        fresh = os.open('.', os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+                        dir_fd=self.root)
+        try:
+            self.assertNotEqual(fresh, self.root)
+            self.assertEqual(transport.signature(os.fstat(fresh)), expected)
+            self.assertEqual(transport.signature(os.fstat(self.root)), expected)
+            self.assertEqual(set(real_listdir(fresh)), set(transport.NAMES))
+            self.assertEqual(transport.signature(os.fstat(fresh)), expected)
+            self.assertEqual(transport.signature(os.fstat(self.root)), expected)
+        finally:
+            os.close(fresh)
+
+    def test_fresh_membership_rejects_extra_entry(self):
+        namespace = transport.Namespace(self.root)
+        os.mkfifo(self.path / 'extra', 0o600)
+        with self.assertRaises(transport.TransportRefusal):
+            namespace.renew()
+        self.assertTrue(namespace.failed)
+
+    def test_fresh_membership_rejects_missing_fifo(self):
+        namespace = transport.Namespace(self.root)
+        os.unlink(self.path / 'Q')
+        with self.assertRaises(transport.TransportRefusal):
+            namespace.renew()
+        self.assertTrue(namespace.failed)
+
+    def test_fresh_description_identity_drift_latches_before_close(self):
+        namespace = transport.Namespace(self.root)
+        admitted_fstat = transport.os.fstat
+        real_close = os.close
+        closed = []
+        def drift(fd):
+            info = admitted_fstat(fd)
+            if fd != self.root:
+                return SimpleNamespace(st_dev=info.st_dev + 1, st_ino=info.st_ino, st_mode=info.st_mode,
+                                       st_uid=info.st_uid, st_gid=info.st_gid, st_nlink=info.st_nlink)
+            return info
+        def close(fd):
+            self.assertTrue(namespace.failed)
+            self.assertNotEqual(fd, self.root)
+            closed.append(fd)
+            real_close(fd)
+        with patch.object(transport.os, 'fstat', side_effect=drift):
+            with patch.object(transport.os, 'close', side_effect=close):
+                with self.assertRaises(transport.TransportRefusal):
+                    namespace.renew()
+        self.assertEqual(len(closed), 1)
+        self.assertTrue(namespace.failed)
+        self.assertIsNone(namespace.uncertain_close_fd)
+
+    def test_membership_body_and_close_failure_never_retries_descriptor(self):
+        namespace = transport.Namespace(self.root)
+        real_close = os.close
+        attempts = []
+        def uncertain_close(fd):
+            self.assertTrue(namespace.failed)
+            self.assertNotEqual(fd, self.root)
+            attempts.append(fd)
+            self.addCleanup(real_close, fd)
+            raise OSError('controlled membership close uncertainty')
+        with patch.object(transport.os, 'listdir', side_effect=OSError('controlled membership read failure')):
+            with patch.object(transport.os, 'close', side_effect=uncertain_close):
+                with self.assertRaises(transport.TransportRefusal):
+                    namespace.renew()
+        self.assertEqual(len(attempts), 1)
+        self.assertEqual(namespace.uncertain_close_fd, attempts[0])
+        with patch.object(transport.os, 'open') as later_open:
+            with self.assertRaises(transport.TransportRefusal):
+                namespace.members()
+        later_open.assert_not_called()
+        self.assertEqual(namespace.uncertain_close_fd, attempts[0])
+
+    def test_membership_successful_body_close_uncertainty_latches(self):
+        namespace = transport.Namespace(self.root)
+        real_close = os.close
+        attempts = []
+        def uncertain_close(fd):
+            self.assertNotEqual(fd, self.root)
+            attempts.append(fd)
+            self.addCleanup(real_close, fd)
+            raise OSError('controlled membership close uncertainty')
+        with patch.object(transport.os, 'close', side_effect=uncertain_close):
+            with self.assertRaises(transport.TransportRefusal):
+                namespace.renew()
+        self.assertTrue(namespace.failed)
+        self.assertEqual(len(attempts), 1)
+        self.assertEqual(namespace.uncertain_close_fd, attempts[0])
+
 class ClosureTests(unittest.TestCase):
     def test_one_close_failure_does_not_skip_other_owned_descriptors(self):
         attempts = []

@@ -1,0 +1,59 @@
+{
+  "schema": 1,
+  "date": "2026-10-06",
+  "status": "passed-frozen-component-verification-and-independent-review",
+  "scope": "Merged SB-01 source registry with deliberately updated management catalog binding",
+  "source_commit": "bbc6e302b90cbac13fe2bbedf9603a0c33ca05a2",
+  "imported_baseline": "022880dbff87cbd9da3f0ccfa547689f53072bcc",
+  "integration": "Delta patch only; baseline not imported",
+  "binding_delta": [
+    {
+      "id": "catalog-schema",
+      "path": "src/control/catalog.ts",
+      "expected": "ef7716b47d47ae130aa60409471fa84fb2b3cedcfdff7c3f7f5d2072a028b713",
+      "actual": "7c0f817445854ca85b46653507339daf77bd6c20e20bc5fcc47595694eb82c2f"
+    }
+  ],
+  "tests": {
+    "total": 37,
+    "failed": 0,
+    "skipped": 0,
+    "control_typecheck": "passed"
+  },
+  "registry_validation": "passed",
+  "planning_integrity": "passed",
+  "acceptance_rows": 105,
+  "all_acceptance_and_production": "unproven",
+  "cleanup": "Exact helper containers and image removed; absence verified",
+  "artifacts_sha256": {
+    "tests.log": "58029f53161746b821c89ba7f0803eec94b963833861603528a8edbdd93f9fed",
+    "types.log": "f13e1fc0be8bbad48b024d07dfc35fa6f1dc8a44af19daec02b4cc97c494dce8",
+    "result.json": "288a3bda5560e4aad71bf8d45c58284e095eb5bd2be4c90a5782d3a2dddb88aa",
+    "cleanup.json": "fb833135ebb69c4bd9e13435655c43129b076d8849cd71968eb7ffbaf4f45d80"
+  },
+  "limits": [
+    "The independent review applies to the frozen 523-file portable identity, before later backup and CLI source integration; it does not accept the current full source.",
+    "Previous task proof and source identities do not accept this merged source.",
+    "All runtime and production acceptance remains unproven; the upstream reference metadata packet retains unresolved diagnostics.",
+    "The standard portable source runner still requires Python FIFO repair and fresh full-source verification."
+  ],
+  "reviewed_source": {
+    "algorithm": "sbarbase-public-source-v1",
+    "files": 523,
+    "sha256": "602283dbbd8db422e610b19f19299ca75bcabb893291352d5339bb21ff10664f"
+  },
+  "independent_review": {
+    "report": "docs/evidence/sb01-merged-2026-10-06/independent-review/report.md",
+    "focused_tests": 37,
+    "cli_observations": 13,
+    "functional_blocking_findings": 0,
+    "artifacts_sha256": {
+      "report.md": "6d6bce4d17102a0d10d7d7b24472bf1841f87e729f5d81d12cc1aebc0bbcef38",
+      "audit-result.json": "db6f3179bfda77f8c704f6d434816b76d0bdb22f4e31ea3170778149b7041828",
+      "counterexamples-result.json": "50b43b888a235891b511bcf35d2001f606b5b02dfe557aa1e4c0adfb9ed2bfa7",
+      "focused-tests.log": "cedd822bccbc24a289088d9f5d9f2a04717e8a78aca5d24ac2a12fee85c5df50",
+      "counterexamples.log": "107d854c2e1309eeb228c7e0d1dde91dd2a64a2eebceb4716b2915f3c213a394"
+    },
+    "scope": "Frozen source registry and planning evidence boundaries only. Later SB-04 and CLI imports change the current root source identity and require fresh integration checks."
+  }
+}

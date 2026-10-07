@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "mode": "migration",
+  "approval": "delegated",
+  "environment": "local-isolated",
+  "requirements": [
+    {
+      "id": "R1",
+      "text": "Integrate the exact final native-MFA CLI scoped bytes with the existing management and Studio epoch boundary; preserve private-terminal admission, cancellation and signout."
+    },
+    {
+      "id": "R2",
+      "text": "Integrate exact SB-04 snapshot inventory and file metadata preservation with existing encrypted backup and fenced restore. Full fresh-host application recovery is outside this component acceptance and remains required by the programme."
+    },
+    {
+      "id": "R3",
+      "text": "Keep registry proof invalidation and all unproven runtime/production scopes truthful after integration."
+    },
+    {
+      "id": "R4",
+      "text": "Fresh public-image source checks run against stable current merged bytes without host source mounts, network or private credentials, with exact owned cleanup."
+    }
+  ],
+  "checkpoints": [
+    {
+      "id": "merged-components",
+      "title": "Merged CLI, SB-04 and registry source integration",
+      "covers": [
+        "R1",
+        "R2",
+        "R3",
+        "R4"
+      ],
+      "depends_on": [],
+      "scope": [
+        "src/**/*.ts",
+        "tests/*.ts",
+        "lab/*.ts",
+        "lab/*.py",
+        "lab/*.sh",
+        "lab/*.sql",
+        "tsconfig.control.json",
+        "tsconfig.json",
+        "package.json",
+        "bun.lock",
+        "deploy/verify/*.py",
+        "deploy/verify/*.sh",
+        "deploy/verify/Dockerfile",
+        "deploy/verify/Dockerfile.dockerignore",
+        "deploy/check_plan.py",
+        "deploy/capabilities/*.json",
+        "docs/engineering/CLI-MFA.md"
+      ],
+      "gates": {
+        "behavior": {
+          "kind": "command",
+          "checks": [
+            {
+              "id": "merged-source",
+              "argv": [
+                "python3",
+                "/home/sbarah/.codex/sbarbase-integration/20261006/check-merged-components.py",
+                "feb0304e5f5078ccadcbe14a03c91fa0050d2624a60a4931c9e359cfaf5a72a5",
+                "/home/sbarah/.codex/sbarbase-integration/20261006/merged-source-guarded-2"
+              ],
+              "parser": "json",
+              "min_tests": 627,
+              "timeout_seconds": 600,
+              "max_attempts": 3
+            }
+          ]
+        },
+        "review": {
+          "kind": "review",
+          "reviewers": 2,
+          "axes": [
+            "specification",
+            "operational"
+          ]
+        },
+        "ui": {
+          "kind": "not_applicable",
+          "reason": "No new visible UI change in these deltas. Existing end-to-end Studio and vendor runtime acceptance remains required separately."
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "allowImportingTsExtensions": true
+  },
+  "include": [
+    "src/**/*.ts",
+    "tests/**/*.ts",
+    "lab/live-management-auth.ts",
+    "lab/live-management-auth-bridge.ts"
+  ]
+}

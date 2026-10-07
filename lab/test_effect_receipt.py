@@ -4,6 +4,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
+from host_test_fixture import admitted_host_fixture
 import durable_runtime
 import installation_runtime
 import effect_receipt
@@ -20,10 +21,11 @@ class EffectReceiptTests(unittest.TestCase):
                     with self.assertRaises(Exception):instance.start()
                     with self.assertRaises(Exception):instance.provision('e_fixture')
                     inspect.assert_not_called()
-                    with patch.object(installation_runtime,'TargetRuntime') as target:
+                    with admitted_host_fixture() as admission, patch.object(installation_runtime,'TargetRuntime') as target:
                         with self.assertRaisesRegex(RuntimeError,'reconcile'):
                             installation_runtime.main('up')
                         target.assert_not_called()
+                        admission.assert_called_once()
 
     def test_pending_publication_is_exclusive_and_durable_before_return(self):
         with tempfile.TemporaryDirectory() as directory:

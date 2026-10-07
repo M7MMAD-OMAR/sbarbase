@@ -1,3 +1,4 @@
+import {liveManagementClient,liveManagementLogin} from './live-management-auth';
 // Shared pieces of the live checks that sign in as the operator and write one evidence file:
 // the operator file, the installation's address, the check list with its evidence, the
 // management sign-in and a caller for the management API. Used by the checks added for the
@@ -36,10 +37,10 @@ export function checkList(name:string,evidencePath:string,extra:()=>Record<strin
  return {checks,record,finish};
 }
 
-/** Signs in through the management Auth realm; the token is undefined when it refuses. */
+/** Restores or verifies a genuine native MFA management session; refuses on missing private setup. */
 export async function signIn(base:string,email:string,password:string) {
- const client=createClient(`${base}/management`,managementPublishableKey,{auth:{persistSession:false,autoRefreshToken:false}});
- const login=await client.auth.signInWithPassword({email,password});
+ const client=liveManagementClient(base,managementPublishableKey);
+ const login=await liveManagementLogin(client,base,{email,password});
  return {token:login.data.session?.access_token,userId:login.data.user?.id,error:login.error?.message??''};
 }
 

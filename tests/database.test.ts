@@ -3,7 +3,7 @@ import {connect,createServer} from 'node:net';
 import {mkdtempSync,readFileSync,rmSync,statSync} from 'node:fs';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
-import {databaseProxy,databaseListen,decide,startupFields} from '../src/http/database-proxy';
+import {databaseProxy,databaseListen,decide,startupFields,DirectDatabase,directDatabaseEndpoint} from '../src/http/database-proxy';
 import {databaseHandler,connection,connectionString} from '../src/control/database';
 import {Catalog} from '../src/control/catalog';
 
@@ -18,15 +18,15 @@ const sslRequest=()=>{const packet=Buffer.alloc(8);packet.writeInt32BE(8,0);pack
 
 test('only a developer login for its own database is let through',()=>{
  expect(decide({user:`${E}_developer`,database:E})).toEqual({ok:true,user:`${E}_developer`,database:E});
- for(const fields of [{user:'supabase_admin',database:E},{user:`${E}_auth`,database:E},{user:`${E}_developer`,database:OTHER},
-  {user:`${E}_developer`,database:'postgres'},{user:`${E}_developer`},{database:E},{user:`x${E}_developer`,database:E}])
-  expect(decide(fields).ok).toBe(false);
+ const refused:Record<string,string>[]=[{user:'supabase_admin',database:E},{user:`${E}_auth`,database:E},{user:`${E}_developer`,database:OTHER},
+  {user:`${E}_developer`,database:'postgres'},{user:`${E}_developer`},{database:E},{user:`x${E}_developer`,database:E}];
+ for(const fields of refused)expect(decide(fields).ok).toBe(false);
  expect(startupFields(startup({user:'u',database:'d',application_name:'psql'}).subarray(8))).toEqual({user:'u',database:'d',application_name:'psql'});
 });
 
 test('the listener declines TLS, forwards an allowed startup byte for byte and refuses the rest before PostgreSQL',async()=>{
  const received:Buffer[]=[];
- const upstream=createServer(socket=>{socket.on('data',chunk=>{received.push(chunk);socket.write('R-from-postgres');});});
+ const upstream=createServer(socket=>{socket.on('data',chunk=>{if(typeof chunk==='string')throw new Error('Unexpected encoded socket data');received.push(chunk);socket.write('R-from-postgres');});});
  await new Promise<void>(resolve=>upstream.listen(0,'127.0.0.1',()=>resolve()));
  const port=(upstream.address() as {port:number}).port;
  const proxy=await databaseProxy({port:0,host:'127.0.0.1',target:()=>({host:'127.0.0.1',port})});
@@ -57,6 +57,28 @@ test('the listener is on loopback port 6543 unless set, and can be turned off',(
  for(const bad of [{SBARBASE_DATABASE_PORT:'80'},{SBARBASE_DATABASE_PORT:'x'},{SBARBASE_DATABASE_BIND:'example.com'}])
   expect(()=>databaseListen(bad)).toThrow();
  expect(connectionString(connection(E,{}))).toBe(`postgresql://${E}_developer:[YOUR-PASSWORD]@127.0.0.1:6543/${E}`);
+});
+
+test('supported IPv6 loopback uses bracketed plain and one-time secret URLs',()=>{
+ const details=connection(E,{SBARBASE_DATABASE_BIND:'::1',SBARBASE_DATABASE_PORT:'6543'});
+ expect(databaseListen({SBARBASE_DATABASE_BIND:'::1'})).toEqual({host:'::1',port:6543});
+ expect(connectionString(details)).toBe(`postgresql://${E}_developer:[YOUR-PASSWORD]@[::1]:6543/${E}`);
+ expect(connectionString(details,'one_time_password')).toBe(`postgresql://${E}_developer:one_time_password@[::1]:6543/${E}`);
+ expect(new URL(connectionString(details,'one_time_password')).hostname).toBe('[::1]');
+});
+
+test('untrusted listener flags cannot establish server owned availability',()=>{
+ expect(directDatabaseEndpoint({ready:true,host:'127.0.0.1',port:6543} as unknown as DirectDatabase)).toBeUndefined();
+ const owned=new DirectDatabase();expect(directDatabaseEndpoint(owned)).toBeUndefined();owned.stop();
+ expect(directDatabaseEndpoint(owned)).toBeUndefined();
+});
+
+test('an owned stop during asynchronous bind cannot publish a late listener',async()=>{
+ const owned=new DirectDatabase();
+ const starting=owned.start({host:'127.0.0.1',port:0,target:()=>({host:'127.0.0.1',port:1})});
+ owned.stop();await starting;
+ expect(directDatabaseEndpoint(owned)).toBeUndefined();
+ await expect(owned.start({host:'127.0.0.1',port:0,target:()=>undefined})).rejects.toThrow('already started or stopped');
 });
 
 test('owners and admins turn access on and get the password once; a reset needs access on',async()=>{

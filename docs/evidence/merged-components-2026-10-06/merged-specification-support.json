@@ -1,0 +1,288 @@
+{
+  "reviewer": "merged-component-specification-critic",
+  "axis": "specification",
+  "source_hash": "dd4b6db6a8f060f4fbfb7af21cb80a051ace5e0839c6241f9e1ab6a8a5a7fdda",
+  "plan_hash": "846e1e940068f22d0b4b7f8fdb7553e72ea88f00a000682c733e9ac5640fe9ca",
+  "scope": "R1 through R4, merged component source integration only",
+  "method": "Independent read-only source and test inspection using graft, byte and permission-mode comparisons, and supplied actual raw execution observations. No source tests, Docker commands, native workloads or network workloads executed by this reviewer. No previous reviewer verdicts or checkpoint journal/status consulted.",
+  "rules_note": "/home/sbarah/AGENTS.md was absent. Available project instructions and checkpoint role instructions were applied.",
+  "requirements": [
+    {
+      "id": "R1",
+      "assessment": "Satisfied for component integration",
+      "evidence": [
+        "lab/sbarbase.ts:445: private controlling terminal admission precedes credential acquisition and native Auth requests; cancellation signals surround password, factors, verification and protected work; fresh bounded cleanup permits native local signout.",
+        "lab/sbarbase.ts:507: native factor listing, original enrollment and challengeAndVerify; management work requires current aal2.",
+        "lab/sbarbase.ts:797: controlling terminal uses hidden input and restored stty settings; alternate setup display clears on success, error and handled interruption.",
+        "src/control/management-auth.ts:65: verification grant uses captured current management epoch and validated native session/factor.",
+        "src/control/management-security.ts:47: grant requires current epoch and post-revocation timestamp; every logout invalidates all grants.",
+        "src/control/studio.ts:183: tickets, sessions, deferred mutations and response streams recheck current epoch.",
+        "Fresh Bun raw log executes all 35 CLI, 14 management MFA and 12 Studio epoch cases. Supplied native CLI packet has 101 actual checks with zero failures/skips and eight real terminal scenarios; this is prior narrow native evidence, not a current full integrated vendor gate."
+      ]
+    },
+    {
+      "id": "R2",
+      "assessment": "Satisfied for component integration",
+      "evidence": [
+        "lab/backup.py:328: pg_dump and Storage inventory use one exported snapshot; manifest is written only after referenced file validation.",
+        "lab/backup_consistency.py:13: Storage rows import the exact exported transaction snapshot.",
+        "lab/backup_consistency.py:29: archive requires native UUID paths, matching size and content MD5, and matching native content-type/cache-control metadata; mtime-only or unknown ETags refuse.",
+        "lab/backup_consistency.py:82: PAX archive and extraction preserve nanosecond mtime, mode, uid/gid and selected native Storage xattrs.",
+        "lab/restore_cutover.py:128: existing OID fencing, writer stop, staged file extraction, durable intent and explicit recovery remain in place.",
+        "lab/offsite.py:394: existing encryption sends database.dump, objects.tar and manifest.json, with complete marker last; fetch verifies before private promotion.",
+        "Actual narrow Storage raw observations show untouched upload, shipped fenced restore, restored original bytes/version/metadata/xattrs, and explicit overwrite/delete refusal before manifest. Full fresh-host application recovery remains unproven.",
+        "Fresh image executes 72 backup, 65 restore and relevant recovery-fixture isolation tests."
+      ]
+    },
+    {
+      "id": "R3",
+      "assessment": "Satisfied",
+      "evidence": [
+        "deploy/verify/capability_registry.py:167: complete portable inventory binds source bytes and modes.",
+        "deploy/verify/capability_registry.py:292: proofs bind registry, config/fixture/reference, scope, host, execution identities, counts, raw observations and bounded freshness windows.",
+        "deploy/verify/capability_registry.py:365: current-source mutation invalidates derived acceptance; production requires valid implemented acceptance.",
+        "Fresh registry raw JSON has no errors and all 105 acceptance/production placement rows are unproven. Fresh fixture-registry log executes source mutation/deletion, raw rebinding, stale evidence and production separation checks.",
+        "Fresh plan output explicitly says planning integrity passes and runtime acceptance is not established."
+      ]
+    },
+    {
+      "id": "R4",
+      "assessment": "Satisfied for final attempt2",
+      "evidence": [
+        "Public Bun/Ubuntu image built from digest-pinned public Dockerfile with frozen dependencies and private-context exclusions.",
+        "All seven actual admission and terminal inspections show network none, no mounts, no host binds, non-root sbarbase user, public runtime environment only, all capabilities dropped and no-new-privileges. Each command exits 0 without OOM.",
+        "Raw summaries independently total Bun430 + backup72 + restore65 + fixture-registry60 = 627, with zero failures/skips; control typecheck, registry validation and planning integrity also exit0.",
+        "Final normal cleanup records exit1, stdout[] and exact-reference Docker absence for seven owned CIDs and owned image tag; external guard separately records all seven CIDs, seven names and tag absent.",
+        "Engine raw check evidence binds the final v3 plan and unchanged source hashes. Root and image registry identities match all 531 inventory files, bytes and modes at SHA256 2c1f7e3416b64b0e66f85ae590573672443c391a80467b193b4f56bbf815b420."
+      ]
+    }
+  ],
+  "integration_identity": {
+    "cli": [
+      {
+        "path": "lab/sbarbase.ts",
+        "sha256": "1572cf331c417e3aa5ff329fc18161e4271e1389028db0a419062b0e5845a72e",
+        "matches_task_bytes_and_mode": true
+      },
+      {
+        "path": "lab/management-cli-check.ts",
+        "sha256": "3a111c9ed525b2b24c305d238a20da10d5f5945faa5adbfeafa9c4ceb9893606",
+        "matches_task_bytes_and_mode": true
+      },
+      {
+        "path": "lab/management-cli-terminal.py",
+        "sha256": "7436a6d05175083923c18291d4c97e8684eb2f20f3bf5d8117ff7aa602a922c4",
+        "matches_task_bytes_and_mode": true
+      },
+      {
+        "path": "lab/management-mfa-fixture.py",
+        "sha256": "746feb82467c04fb05261fb842e324e31042ff0da75410e968efd7735b2d8d39",
+        "matches_task_bytes_and_mode": true
+      },
+      {
+        "path": "tests/sbarbase-cli.test.ts",
+        "sha256": "c959abf4a4393ca93634a74a297d048a6536a3202df8aa65108b428ebdefbbf7",
+        "matches_task_bytes_and_mode": true
+      },
+      {
+        "path": "docs/engineering/CLI-MFA.md",
+        "sha256": "76f3f2a1302f8794638c92592a89b6dcb0ad476e3149c89a915aa2e1c032dee3",
+        "matches_task_bytes_and_mode": true
+      }
+    ],
+    "sb04_commit": "06d91de7321688e545a1c98c75ef5db3a3890ddf",
+    "sb04_patch_sha256": "febc84b7fb9f8b4b819856eb21e773c25edb68114b72d4619db46ad32c402b33",
+    "sb04": [
+      {
+        "path": "lab/backup.py",
+        "sha256": "345464f2aaed497b52ba981298927807dea50b2fd8cec9d6d9b2c193daaff012",
+        "matches_task_bytes_and_mode": true
+      },
+      {
+        "path": "lab/backup_consistency.py",
+        "sha256": "9acbc5480718fe1eea9b68333ec0f24713ed910cfc475734e6f00c285f2351c6",
+        "matches_task_bytes_and_mode": true
+      },
+      {
+        "path": "lab/disposable-recovery-drill.py",
+        "sha256": "6cc247988c520bf3962c6ddf3a5591b4a5733e2bc9a94653fe10ac65a8b93315",
+        "matches_task_bytes_and_mode": true
+      },
+      {
+        "path": "lab/restore_cutover.py",
+        "sha256": "910af356a176224a4d77e4613a91e8ab910a754d50c826de6915835c97677952",
+        "matches_task_bytes_and_mode": true
+      },
+      {
+        "path": "lab/test_backup.py",
+        "sha256": "95b9f2139e9dac2f81f00d5f86d55f1e8dace3ddd20d7b76f99d6b22a644f909",
+        "matches_task_bytes_and_mode": true
+      },
+      {
+        "path": "lab/test_backup_consistency.py",
+        "sha256": "d0781dc8699ff0de7135a190846f6255eda4b8868370b12bd41dff08f04c2add",
+        "matches_task_bytes_and_mode": true
+      },
+      {
+        "path": "lab/test_disposable_recovery_drill.py",
+        "sha256": "6e649b2f97a59e0c1d6ee151bffe8be0b5ee4d32ac309969dbacc81aef3d3d3a",
+        "matches_task_bytes_and_mode": true
+      },
+      {
+        "path": "lab/test_restore_cutover.py",
+        "sha256": "14f77013ac436909b942af90fbc217a4883c673f97de362ff3f063463ed4dbc6",
+        "matches_task_bytes_and_mode": true
+      },
+      {
+        "path": "lab/disposable-storage-backup-drill.py",
+        "sha256": "4e878b05d353e04d4da370c9381c6abcaabbf4e5148ca7db2a8613704f0a13cd",
+        "matches_task_bytes_and_mode": true
+      },
+      {
+        "path": "lab/test_disposable_storage_backup_drill.py",
+        "sha256": "dc16d1e6a3c1e15c5cc0c3c9386336ea351b0839f6e99c1bd7465735276a1be0",
+        "matches_task_bytes_and_mode": true
+      }
+    ]
+  },
+  "failed_attempt_history": "Attempt1 remains failed. Work commands passed, but its capitalized absence assumption rejected the actual lowercase Docker errors. Exact first-attempt resources were later independently recorded absent with strict raw observations. Initial guard projection was overwritten during manual reinspection, then reconstructed from retained authoritative original guard.stdout; preservation note discloses this. Final attempt2 uses a new ledger/output, strict exact-reference absence classifier and separate successful raw cleanup.",
+  "test_inventory_correction": "Compared actual prior integrated Bun and fresh raw pass inventories: only CLI changes from25 to35; all other per-file counts unchanged. Exact 627 minimum replaces mistaken632 estimate without dropping tests.",
+  "required_unproven": [
+    "Full standard verifier across final merged programme scope",
+    "Current integrated original vendor/runtime acceptance",
+    "Full fresh-host application recovery",
+    "SB-06 transfer and credential rotation",
+    "Production acceptance and deployment"
+  ],
+  "limits": "Component specification pass does not establish any required_unproven scope. Supplied native fixture observations are narrow earlier component evidence. Host full-write review separation is an asserted workflow boundary, not cryptographic independence.",
+  "raw_evidence": [
+    {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261006/merged-source-guarded-2/backup-admission.json",
+      "sha256": "abd4c35f3e60532191998ee4598decf7e437f1d037682370c33291a8cf36dbcf"
+    },
+    {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261006/merged-source-guarded-2/backup-terminal.json",
+      "sha256": "2e05d73d053b515db164d55438ae8d9f5b21b7f83ff1c664961c7db8ad3ce30c"
+    },
+    {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261006/merged-source-guarded-2/backup.log",
+      "sha256": "dac57bf43ffbffb8d4c5f6065dccb6757d7c98a4a6bce93ee536cf16c32eacac"
+    },
+    {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261006/merged-source-guarded-2/build.log",
+      "sha256": "b1ddd43077228c6dbab8efdb6b3bc301fb2b62eaf3e95681d797aae6055cb6b6"
+    },
+    {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261006/merged-source-guarded-2/bun-admission.json",
+      "sha256": "b1e95e51207d87e9e66b2d63b8452772ce1242b6fed6a11266d1a08334064460"
+    },
+    {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261006/merged-source-guarded-2/bun-terminal.json",
+      "sha256": "93e8b927b7891bd322c27d346048e59a646c5fa8bacf03287c7dda7b732e51a2"
+    },
+    {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261006/merged-source-guarded-2/bun.log",
+      "sha256": "3a37176e26eff72edbf244aa15376659a758f7e2454a12bd5ade56e3315e17ac"
+    },
+    {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261006/merged-source-guarded-2/engine-check.stdout",
+      "sha256": "cbd613a07c791ee9bf9610f5c929278032192e9d760f275fffeb86d45f04c312"
+    },
+    {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261006/merged-source-guarded-2/fixtures-registry-admission.json",
+      "sha256": "b0ed0fc16a8518a5360e3e857de719cf0a90186b85e1bac4b921e9a846b68175"
+    },
+    {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261006/merged-source-guarded-2/fixtures-registry-terminal.json",
+      "sha256": "01c8a5316a1e2ca536923251191ab4c09485a098a52dd4b1ccccf5cdb83df6aa"
+    },
+    {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261006/merged-source-guarded-2/fixtures-registry.log",
+      "sha256": "e3ea8698836efafe95c670c6e3f530008129c8fc34a3b6577d72a491b148bfd0"
+    },
+    {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261006/merged-source-guarded-2/guard-result.json",
+      "sha256": "befe1afc90ab4cc081bf3f32b6ab4b82d604d7e27522cbfe05bf4d0a2a301388"
+    },
+    {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261006/merged-source-guarded-2/guard.stdout",
+      "sha256": "ec9b7da80b52774cc6d2b5444370f88843c37a30be6895f590addf17904b1cd5"
+    },
+    {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261006/merged-source-guarded-2/ledger.json",
+      "sha256": "e4ec2bcb4d7794ffe459dbc3100a2a68158624bf1bcbb34536027bffe4f003ff"
+    },
+    {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261006/merged-source-guarded-2/plan-admission.json",
+      "sha256": "cf9e5b1ae3f0126d276b56373ac870688bf15adaa5e5066004f6ae456925a3d9"
+    },
+    {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261006/merged-source-guarded-2/plan-terminal.json",
+      "sha256": "a3f7041831d830a0762a63d9e325ade4cb2308c1dbecc3bdb2e5cf95f9b699c9"
+    },
+    {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261006/merged-source-guarded-2/plan.log",
+      "sha256": "5ec48d585468c1ee469f70146b244d0b40e8ac58c65cb1dcf61298bff87fbe85"
+    },
+    {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261006/merged-source-guarded-2/registry-admission.json",
+      "sha256": "f25cd04f7a63c714795670e1ae8dde40cfa5489b1fe4660dbdba07d95f5a87c9"
+    },
+    {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261006/merged-source-guarded-2/registry-terminal.json",
+      "sha256": "1d97b45609ad20a660feee0c32e8330cf6309159d67dbb472fefc8910ccda2d1"
+    },
+    {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261006/merged-source-guarded-2/registry.log",
+      "sha256": "1345998b2affe1729372cbf37e0a039d62cd27b65532cf24eafea456b6db5150"
+    },
+    {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261006/merged-source-guarded-2/restore-admission.json",
+      "sha256": "11ef2af2c9050b3da0454f305a30a2899f649257c4b0cfcc2dea8af0d79d58bb"
+    },
+    {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261006/merged-source-guarded-2/restore-terminal.json",
+      "sha256": "63cece3836260d19b8ad93d34cbcfca8d5d319ae1fbdb0f8ef1ab8c59e2fe7ec"
+    },
+    {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261006/merged-source-guarded-2/restore.log",
+      "sha256": "b24ec09581e3862519305b1f6e7118131b82ed31e9d8b32ba0cddf5a96e19f72"
+    },
+    {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261006/merged-source-guarded-2/result.json",
+      "sha256": "67aabcfe1f544e5f8b967f5081b1847c915abcfb264d7fc92a99bc1a5bbba2ab"
+    },
+    {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261006/merged-source-guarded-2/root-identity.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261006/merged-source-guarded-2/root-identity.stdout",
+      "sha256": "db953bde1b6a852dcd5899dc2eafb60e2c377a970675a98df3e1ea345097c526"
+    },
+    {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261006/merged-source-guarded-2/root-image-identity.json",
+      "sha256": "d65a4a976c670e428e507f6a20bc27a5947945fd21aff354af63cb94c2aab382"
+    },
+    {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261006/merged-source-guarded-2/types-admission.json",
+      "sha256": "1d8c13e8bf3f1be269a25e6bbe09f914d754b323238e54e5fdde83791847835e"
+    },
+    {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261006/merged-source-guarded-2/types-terminal.json",
+      "sha256": "f4bd7601654f76404d5ed02faa0006fa8df690c2fbe1b96a8061aa9216eb4976"
+    },
+    {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261006/merged-source-guarded-2/types.log",
+      "sha256": "f13e1fc0be8bbad48b024d07dfc35fa6f1dc8a44af19daec02b4cc97c494dce8"
+    }
+  ],
+  "graft_tokens_saved_estimate": 1464163,
+  "current_review_state": {
+    "run": "/home/sbarah/.codex/sbarbase-integration/20261006/checkpoint-merged-components",
+    "project": "/home/sbarah/R/Projects/P/sbarbase",
+    "revision_at_dispatch": 10,
+    "plan_hash": "846e1e940068f22d0b4b7f8fdb7553e72ea88f00a000682c733e9ac5640fe9ca",
+    "source_hash": "dd4b6db6a8f060f4fbfb7af21cb80a051ace5e0839c6241f9e1ab6a8a5a7fdda"
+  }
+}

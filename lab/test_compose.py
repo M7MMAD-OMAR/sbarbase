@@ -15,13 +15,30 @@ class ComposeTests(unittest.TestCase):
 
     def test_paths_and_loopback_mean_the_same_inside_and_outside(self):
         self.assertIn('network_mode: host', self.compose)
-        self.assertIn('- ${SBARBASE_ROOT:-${PWD}}:${SBARBASE_ROOT:-${PWD}}', self.compose)
+        self.assertIn(
+            '      - type: bind\n'
+            '        source: ${SBARBASE_ROOT:-${PWD}}\n'
+            '        target: ${SBARBASE_ROOT:-${PWD}}\n'
+            '        bind:\n'
+            '          create_host_path: false', self.compose)
         self.assertIn('SBARBASE_ROOT: ${SBARBASE_ROOT:-${PWD}}', self.compose)
 
     def test_the_daemon_and_its_disk_are_reachable(self):
-        self.assertIn('source: ${SBARBASE_DOCKER_SOCKET:-/var/run/docker.sock}', self.compose)
-        self.assertIn('source: ${SBARBASE_DOCKER_DATA_ROOT:-/var/lib/docker}', self.compose)
-        self.assertEqual(self.compose.count('create_host_path: false'), 2)
+        self.assertIn(
+            '      - type: bind\n'
+            '        source: ${SBARBASE_DOCKER_SOCKET:-/var/run/docker.sock}\n'
+            '        target: /var/run/docker.sock\n'
+            '        bind:\n'
+            '          create_host_path: false', self.compose)
+        self.assertIn(
+            '      - type: bind\n'
+            '        source: ${SBARBASE_DOCKER_DATA_ROOT:-/var/lib/docker}\n'
+            '        target: ${SBARBASE_DOCKER_DATA_ROOT:-/var/lib/docker}\n'
+            '        read_only: true\n'
+            '        bind:\n'
+            '          create_host_path: false', self.compose)
+        self.assertEqual(self.compose.count('create_host_path: false'), 3)
+        self.assertEqual(self.compose.count('      - type: bind'), 3)
         self.assertIn('DOCKER_HOST: unix:///var/run/docker.sock', self.compose)
         self.assertIn('DOCKER_CONTEXT: ""', self.compose)
 

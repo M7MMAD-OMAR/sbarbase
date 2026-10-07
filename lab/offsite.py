@@ -460,6 +460,8 @@ def fetch(e, stamp, config=None):
             finally:
                 response.close()
         manifest = backup.verify(e, partial, staged_stamp=stamp)
+        if type(manifest.get('created_at')) is not str or manifest['created_at'] != stamp:
+            raise OffsiteError('Backup creation time does not match the requested backup name')
         _sync_directory(partial)
         _promote_directory(partial, target)
         promoted = True
