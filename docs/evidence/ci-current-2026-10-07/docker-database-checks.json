@@ -1,0 +1,90 @@
+{
+  "check": "database",
+  "recorded": "2026-10-07T08:31:45.027Z",
+  "passed": true,
+  "count": 16,
+  "seconds": 11,
+  "scope": "Direct database access for one environment on a running installation: turned on through the management API, a PostgreSQL client through the loopback listener running a Supabase-style migration (a table with row level security, a trigger on auth.users, a Storage policy), the result seen through supabase-js, other logins and databases refused, a password reset, and access turned off.",
+  "checks": [
+    {
+      "check": "operator native MFA session authorizes management",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "a provisioned environment exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "direct access starts off",
+      "ok": true,
+      "detail": "postgresql://e_a26e9ff9260b7ec83df3dbb6_developer:[YOUR-PASSWORD]@127.0.0.1:6543/e_a26e9ff9260b7ec83df3dbb6"
+    },
+    {
+      "check": "an owner turns it on and sees the password once",
+      "ok": true,
+      "detail": "status 202"
+    },
+    {
+      "check": "the supervisor opens the developer login",
+      "ok": true,
+      "detail": "on "
+    },
+    {
+      "check": "the password is never shown again",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "a PostgreSQL client connects as the developer login to its own database",
+      "ok": true,
+      "detail": "{\"user\":\"e_a26e9ff9260b7ec83df3dbb6_developer\",\"database\":\"e_a26e9ff9260b7ec83df3dbb6\"}"
+    },
+    {
+      "check": "a Supabase-style migration runs: a table with a policy, a trigger on auth.users and a Storage policy",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "the trigger created a profile at sign-up, readable through the API",
+      "ok": true,
+      "detail": "1 row(s)"
+    },
+    {
+      "check": "the superuser is refused at the listener",
+      "ok": true,
+      "detail": "Only an environment developer login (e_…_developer) can connect here"
+    },
+    {
+      "check": "another database is refused at the listener",
+      "ok": true,
+      "detail": "The developer login connects to its own database, e_a26e9ff9260b7ec83df3dbb6"
+    },
+    {
+      "check": "a wrong password is refused by PostgreSQL",
+      "ok": true,
+      "detail": "password authentication failed for user \"e_a26e9ff9260b7ec83df3dbb6_developer\""
+    },
+    {
+      "check": "a new password is issued and applied",
+      "ok": true,
+      "detail": "status 202 on"
+    },
+    {
+      "check": "the old password stops working and the new one works",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "the owner turns access off",
+      "ok": true,
+      "detail": "off "
+    },
+    {
+      "check": "the developer login cannot connect once access is off",
+      "ok": true,
+      "detail": "role \"e_a26e9ff9260b7ec83df3dbb6_developer\" is not permitted to log in"
+    }
+  ]
+}

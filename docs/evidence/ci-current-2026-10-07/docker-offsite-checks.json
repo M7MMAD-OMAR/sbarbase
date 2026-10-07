@@ -1,0 +1,70 @@
+{
+  "check": "offsite",
+  "recorded": "2026-10-07T08:29:55+00:00",
+  "passed": true,
+  "count": 12,
+  "seconds": 28,
+  "scope": "Encrypted off-site copies for one environment on a running installation, against a throwaway s3mock as the S3-compatible storage: configured from stdin, a backup copied off the server by itself, only ciphertext in the bucket, the local backup removed, a wrong passphrase refused, the copy fetched and restored.",
+  "checks": [
+    {
+      "check": "the storage has a bucket for the copies",
+      "ok": true,
+      "detail": "status 200"
+    },
+    {
+      "check": "a published environment exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "off-site copies are configured and proven with a test object",
+      "ok": true,
+      "detail": "off-site copies go to sbarbase-ci/sbarbase and keep 5 per environment\nKeep the passphrase somewhere other than this server: the copies cannot be read without it."
+    },
+    {
+      "check": "the settings are private",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "a backup copies itself off the server",
+      "ok": true,
+      "detail": "backup e_a26e9ff9260b7ec83df3dbb6 20261007T082933Z: database 166207 B, 1 file(s), 1 user(s); copied 2 backup(s) off the server"
+    },
+    {
+      "check": "the copy is listed in the bucket",
+      "ok": true,
+      "detail": "e_a26e9ff9260b7ec83df3dbb6  20261007T082841Z\ne_a26e9ff9260b7ec83df3dbb6  20261007T082933Z"
+    },
+    {
+      "check": "the storage holds only ciphertext",
+      "ok": true,
+      "detail": "166251 bytes stored for 166207 bytes of dump"
+    },
+    {
+      "check": "a wrong passphrase cannot read the copy",
+      "ok": true,
+      "detail": "The file does not decrypt: a wrong passphrase, or a damaged or truncated copy"
+    },
+    {
+      "check": "a failed fetch leaves nothing behind",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "the copy comes back and matches its manifest",
+      "ok": true,
+      "detail": "fetched e_a26e9ff9260b7ec83df3dbb6 20261007T082933Z: database 166207 B, 1 file(s); restore it with: backup.py restore e_a26e9ff9260b7ec83df3dbb6 20261007T082933Z"
+    },
+    {
+      "check": "the fetched backup restores the environment",
+      "ok": true,
+      "detail": "restored e_a26e9ff9260b7ec83df3dbb6 from 20261007T082933Z; the previous state is kept as e_a26e9ff9260b7ec83df3dbb6_pre_20261007t082936z until: backup.py discard-previous e_a26e9ff9260b7ec83df3dbb6"
+    },
+    {
+      "check": "a backup already off the server is not copied again",
+      "ok": true,
+      "detail": "copied 0 backup(s) off the server"
+    }
+  ]
+}

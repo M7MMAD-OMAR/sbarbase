@@ -54,11 +54,12 @@ class ScriptFixture:
             path.write_text(source)
             path.chmod(0o755)
 
-    def run(self,*args):
+    def run(self,*args,env=None):
         environment=dict(os.environ)
         environment['PATH']=str(self.root/'bin')+os.pathsep+environment.get('PATH','')
         environment['SBARBASE_DOCKER_SOCKET']=str(self.socket)
         environment['FIXTURE_DOCKER_CALLS']=str(self.docker_calls)
+        if env:environment.update(env)
         return subprocess.run([str(self.script),'--python',sys.executable,*args],
                               capture_output=True,text=True,timeout=30,cwd=self.root,env=environment)
 
@@ -70,6 +71,50 @@ def run(*args,env=None):
 
 
 class ServerAcceptanceTests(unittest.TestCase):
+    def test_admitted_socket_alias_stays_bound_when_switching_installation_account(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture=ScriptFixture(directory)
+            alias=fixture.root/'socket-alias'
+            alias.symlink_to(fixture.socket)
+            shutil.copy2(ROOT/'lab'/'docker_profile.py',fixture.root/'lab'/'docker_profile.py')
+            (fixture.root/'lab'/'install_server.py').write_text(
+                'import os,sys,docker_profile\n'
+                'assert sys.argv[1:]==["check"]\n'
+                'profile=docker_profile.from_environment()\n'
+                'assert profile.socket==os.environ["FIXTURE_CANONICAL_SOCKET"]\n'
+                'assert os.environ["DOCKER_HOST"]=="unix://"+profile.socket\n'
+                'assert os.environ["FIXTURE_ACCOUNT_SWITCH"]=="yes"\n'
+                'print("fixture canonical endpoint preserved")\n')
+            (fixture.root/'bin'/'id').write_text('#!/bin/sh\n[ "$1" = -u ] || exit 64\necho 0\n')
+            (fixture.root/'bin'/'sudo').write_text(
+                '#!/bin/sh\n[ "$1" = -u ] && [ "$2" = fixture-account ] && [ "$3" = -H ] || exit 64\n'
+                'shift 3\nexport FIXTURE_ACCOUNT_SWITCH=yes\nexec "$@"\n')
+            for name in ('id','sudo'):(fixture.root/'bin'/name).chmod(0o755)
+            (fixture.root/'deploy'/'host-preflight.sh').write_text(
+                '#!/bin/sh\nset -eu\n'
+                'selected=$(readlink -e -- "$SBARBASE_DOCKER_SOCKET")\n'
+                'requested=$(readlink -e -- "${DOCKER_HOST#unix://}")\n'
+                '[ "$selected" = "$requested" ] || exit 1\n')
+            result=fixture.run('--service-user','fixture-account','--docker-host','unix://'+str(alias),
+                env={'SBARBASE_DOCKER_SOCKET':str(alias),'FIXTURE_CANONICAL_SOCKET':str(fixture.socket)})
+            self.assertEqual(result.returncode,0,result.stderr)
+            self.assertIn('fixture canonical endpoint preserved',result.stdout)
+
+    def test_different_socket_refuses_before_installation_account_or_docker_calls(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture=ScriptFixture(directory)
+            other=fixture.root/'other-endpoint';other.touch()
+            (fixture.root/'deploy'/'host-preflight.sh').write_text(
+                '#!/bin/sh\nset -eu\n'
+                'selected=$(readlink -e -- "$SBARBASE_DOCKER_SOCKET")\n'
+                'requested=$(readlink -e -- "${DOCKER_HOST#unix://}")\n'
+                '[ "$selected" = "$requested" ] || { echo "host_endpoint_mismatch" >&2; exit 1; }\n')
+            result=fixture.run('--docker-host','unix://'+str(other))
+            self.assertNotEqual(result.returncode,0)
+            self.assertIn('host_endpoint_mismatch',result.stderr)
+            self.assertFalse(fixture.docker_calls.exists())
+            self.assertNotIn('fixture preflight status',result.stdout)
+
     def test_the_script_is_executable_and_strict(self):
         self.assertTrue(SCRIPT.exists())
         self.assertTrue(SCRIPT.stat().st_mode & stat.S_IXUSR)

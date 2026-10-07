@@ -1,0 +1,85 @@
+{
+  "check": "sign-in",
+  "recorded": "2026-10-07T08:30:35.679Z",
+  "passed": true,
+  "count": 15,
+  "seconds": 12,
+  "scope": "Sign-in settings for one environment on a running installation: a site URL, redirect addresses and a GitHub provider saved through the management API and applied by recreating that environment's Auth; a keyless OAuth start and email link through the gateway as a browser sends them; the provider removed again. No real provider was contacted.",
+  "checks": [
+    {
+      "check": "operator native MFA session authorizes management",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "a provisioned environment exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "a publishable key is issued for the check",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "an environment starts with the default sign-in settings",
+      "ok": true,
+      "detail": "status 200"
+    },
+    {
+      "check": "an unsafe site URL is refused",
+      "ok": true,
+      "detail": "status 400"
+    },
+    {
+      "check": "an owner saves a site URL, redirects and GitHub",
+      "ok": true,
+      "detail": "status 202"
+    },
+    {
+      "check": "the provider secret is never sent back",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "the supervisor recreates Auth with the settings",
+      "ok": true,
+      "detail": "state applied "
+    },
+    {
+      "check": "Auth offers GitHub sign-in",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "a browser starts a GitHub sign-in without a key",
+      "ok": true,
+      "detail": "status 302"
+    },
+    {
+      "check": "GitHub is told this environment's callback address",
+      "ok": true,
+      "detail": "http://localhost/e_a26e9ff9260b7ec83df3dbb6/auth/v1/callback"
+    },
+    {
+      "check": "an email link reaches Auth without a key and returns to the application",
+      "ok": true,
+      "detail": "status 303"
+    },
+    {
+      "check": "email sign-up still works after the recreate",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "the owner removes the provider",
+      "ok": true,
+      "detail": "status 202"
+    },
+    {
+      "check": "GitHub sign-in is gone once applied",
+      "ok": true,
+      "detail": "state applied"
+    }
+  ]
+}

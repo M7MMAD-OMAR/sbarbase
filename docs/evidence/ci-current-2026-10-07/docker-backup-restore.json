@@ -1,0 +1,78 @@
+{
+  "probe": "lab/backup-check.py",
+  "run_at": "2026-10-07T08:29:02+00:00",
+  "scope": "Per-environment backup and in-place restore on one running installation: database rows, auth users and Storage files return exactly to the backup, while other environments keep running. Backups stay on this host; copying them elsewhere is a separate step.",
+  "environment": "e_a26e9ff9260b7ec83df3dbb6",
+  "checks": [
+    {
+      "check": "a published environment exists",
+      "passed": true
+    },
+    {
+      "check": "a bucket is created through Storage",
+      "passed": true,
+      "detail": "status 200"
+    },
+    {
+      "check": "an object is uploaded through Storage",
+      "passed": true,
+      "detail": "status 200"
+    },
+    {
+      "check": "backup completes while the environment serves",
+      "passed": true,
+      "detail": "20261007T082841Z"
+    },
+    {
+      "check": "backup holds the uploaded file",
+      "passed": true,
+      "detail": "1 file(s)"
+    },
+    {
+      "check": "backup verifies against its digests",
+      "passed": true
+    },
+    {
+      "check": "the environment changed after the backup",
+      "passed": true
+    },
+    {
+      "check": "restore completes and Auth answers again",
+      "passed": true
+    },
+    {
+      "check": "rows are exactly those at backup time",
+      "passed": true
+    },
+    {
+      "check": "a row written after the backup is gone",
+      "passed": true,
+      "detail": "at-backup"
+    },
+    {
+      "check": "a file deleted after the backup is back",
+      "passed": true,
+      "detail": "status 200"
+    },
+    {
+      "check": "a file written after the backup is gone",
+      "passed": true,
+      "detail": "status 400"
+    },
+    {
+      "check": "other environments were never stopped",
+      "passed": true
+    },
+    {
+      "check": "the state set aside by the restore is discarded on request",
+      "passed": true
+    },
+    {
+      "check": "no previous database remains",
+      "passed": true,
+      "detail": "0"
+    }
+  ],
+  "count": 15,
+  "passed": true
+}

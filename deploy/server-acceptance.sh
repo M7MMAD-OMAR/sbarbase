@@ -132,7 +132,9 @@ unit_control() {
 
 step "read-only host admission"
 sh "$REPO_ROOT/deploy/host-preflight.sh" --runtime || fail "host admission refused before prerequisites or rehearsal effects"
-export DOCKER_HOST="unix://$(readlink -e -- "${SBARBASE_DOCKER_SOCKET:-/var/run/docker.sock}")"
+# Carry the admitted canonical socket with its endpoint into the installation account.
+SBARBASE_DOCKER_SOCKET="$(readlink -e -- "${SBARBASE_DOCKER_SOCKET:-/var/run/docker.sock}")" || fail "admitted Docker socket no longer resolves"
+export SBARBASE_DOCKER_SOCKET DOCKER_HOST="unix://$SBARBASE_DOCKER_SOCKET"
 
 step "prerequisites"
 for tool in docker bun git; do

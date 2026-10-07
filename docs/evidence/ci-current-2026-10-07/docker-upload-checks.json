@@ -1,0 +1,110 @@
+{
+  "check": "upload",
+  "recorded": "2026-10-07T08:34:13.163Z",
+  "passed": true,
+  "count": 20,
+  "seconds": 7,
+  "scope": "File uploads larger than a MiB through the gateway to the shared Storage with supabase-js: a 20 MiB file uploaded and downloaded byte for byte, a file just under the installation upload limit accepted and one just over it refused.",
+  "checks": [
+    {
+      "check": "operator native MFA session authorizes management",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "a provisioned environment exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "an application user signs in",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "a private bucket exists for the check",
+      "ok": true,
+      "detail": "NOTICE:  policy \"upload_check_write\" for relation \"storage.objects\" does not exist, skipping\nNOTICE:  policy \"upload_check_read\" for relation \"storage.objects\" does not exist, skipping\n"
+    },
+    {
+      "check": "a 20 MiB file uploads through the gateway",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "the 20 MiB file downloads byte for byte",
+      "ok": true,
+      "detail": "20971520 bytes"
+    },
+    {
+      "check": "a 49 MiB file, under the 50 MiB limit, uploads",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "a 51 MiB file, over the limit, is refused",
+      "ok": true,
+      "detail": "413 Request too large"
+    },
+    {
+      "check": "the next request after a refusal answers promptly",
+      "ok": true,
+      "detail": "31 ms"
+    },
+    {
+      "check": "the refused file is not stored",
+      "ok": true,
+      "detail": "twenty.bin,under.bin"
+    },
+    {
+      "check": "operator native MFA session authorizes management",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "a provisioned environment exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "an application user signs in",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "a private bucket exists for the check",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "a 20 MiB file uploads through the gateway",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "the 20 MiB file downloads byte for byte",
+      "ok": true,
+      "detail": "20971520 bytes"
+    },
+    {
+      "check": "a 63 MiB file, under the 64 MiB limit, uploads",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "a 65 MiB file, over the limit, is refused",
+      "ok": true,
+      "detail": "413 Request too large"
+    },
+    {
+      "check": "the next request after a refusal answers promptly",
+      "ok": true,
+      "detail": "34 ms"
+    },
+    {
+      "check": "the refused file is not stored",
+      "ok": true,
+      "detail": "twenty.bin,under.bin"
+    }
+  ]
+}

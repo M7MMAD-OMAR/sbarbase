@@ -1,7 +1,7 @@
 name: CI
 # Unit tests, the console typecheck and build, and the Python suite on every push
-# and pull request. The empty-host acceptance job is manual: it installs the whole
-# placement on a fresh runner, which is the free clean-server rehearsal until a
+# and pull request. Empty-host acceptance runs on main pushes and explicit manual
+# requests: it installs the whole placement on a standard fresh runner until a
 # real server exists. A runner is ephemeral, so it proves an install from nothing,
 # not reboots, retained volumes or a public certificate.
 on:
@@ -89,6 +89,13 @@ jobs:
       BASH_ENV: ${{ github.workspace }}/deploy/ci-docker.sh
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Snapshot report provenance outside the checkout
+        id: artifact_baseline
+        run: |
+          timeout --signal=TERM --kill-after=1s 15s python3 deploy/ci-artifacts.py prepare \
+            --root "$GITHUB_WORKSPACE" \
+            --directory "$RUNNER_TEMP/sbarbase-evidence-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            --run "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" --head "$GITHUB_SHA"
       - name: Declare and admit the local Docker profile
         run: |
           socket=$(readlink -e /var/run/docker.sock)
@@ -124,10 +131,13 @@ jobs:
           ci_exec sbarbase sh -c 'python3 lab/bootstrap.py --stdin < .secrets/operator.json'
           ci_exec sbarbase python3 -c 'import json,os,sys,uuid; from pathlib import Path; run=str(uuid.UUID(sys.argv[1])); p=Path(os.environ["SBARBASE_LIVE_AUTH_FILE"]); fd=os.open(p,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600); f=os.fdopen(fd,"w"); json.dump({"schema":1,"run":run,"accounts":[]},f); f.flush(); os.fsync(f.fileno()); f.close()' "$SBARBASE_CI_RUN"
       - name: First project through supabase-js
+        id: first_project
         run: ci_exec sbarbase bun lab/first-project-check.ts "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-first-project.json"
       - name: Back up, change, restore, compare
+        id: backup_restore
         run: ci_exec sbarbase python3 lab/backup-check.py --evidence "$PWD/docs/evidence/docker-backup-restore.json"
       - name: Encrypted off-site copy to S3-compatible storage, fetched and restored
+        id: offsite
         # A throwaway S3-compatible store stands in for R2, B2 or S3; its credentials exist only for this run.
         run: |
           export OFFSITE_KEY_ID=ci$(openssl rand -hex 8) OFFSITE_SECRET=$(openssl rand -hex 24)
@@ -144,22 +154,31 @@ jobs:
           ci_exec -e OFFSITE_KEY_ID="$OFFSITE_KEY_ID" -e OFFSITE_SECRET="$OFFSITE_SECRET" sbarbase python3 lab/offsite-check.py \
             --endpoint http://127.0.0.1:9100 --bucket sbarbase-ci --peer "$SBARBASE_OFFSITE_PEER" --evidence "$PWD/docs/evidence/docker-offsite-checks.json"
       - name: Studio for the environment, behind the console login
+        id: studio
         run: ci_exec sbarbase bun lab/studio-check.ts "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-studio-checks.json"
       - name: Sign-in settings and an OAuth provider
+        id: sign_in
         run: ci_exec sbarbase bun lab/sign-in-check.ts "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-sign-in-checks.json"
       - name: Realtime for the environment
+        id: realtime
         run: ci_exec sbarbase bun lab/realtime-check.ts "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-realtime-checks.json"
       - name: Edge Functions from a Supabase functions folder
+        id: functions
         run: ci_exec sbarbase bun lab/functions-check.ts "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-functions-checks.json"
       - name: Direct database access and a migration
+        id: database
         run: ci_exec sbarbase bun lab/database-check.ts "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-database-checks.json"
       - name: Import a Supabase-shaped project into a new environment
+        id: import_project
         run: ci_exec sbarbase python3 lab/import-check.py "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-import-checks.json"
       - name: Rotate the environment's signing key
+        id: signing
         run: ci_exec sbarbase python3 lab/signing-check.py "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-signing-checks.json"
       - name: Logs and metrics for the environment
+        id: observe
         run: ci_exec sbarbase bun lab/observe-check.ts "$PWD/.secrets/operator.json" --evidence "$PWD/docs/evidence/docker-observe-checks.json"
       - name: Uploads larger than a MiB, then a new upload limit
+        id: upload
         run: |
           ci_exec sbarbase bun lab/upload-check.ts "$PWD/.secrets/operator.json" --limit-mb 50 --evidence "$PWD/docs/evidence/docker-upload-checks.json"
           # A new limit applies at the next start by recreating the shared Storage container.
@@ -170,6 +189,7 @@ jobs:
           SBARBASE_UPLOAD_LIMIT_MB=50 ci_route up
           for i in $(seq 1 120); do curl -fsS -o /dev/null http://127.0.0.1:8790/ && break; sleep 5; done
       - name: Upgrade, broken upgrades that move back by themselves, and a refused unsigned tag
+        id: upgrade
         # Each broken version compares users, files, buckets and the control catalog with the
         # recording before the first upgrade. The evidence file is written once, at the end: a
         # changed tracked file would make the next `upgrade.py start` refuse.
@@ -233,12 +253,22 @@ jobs:
           ci_compose logs --tail 200 || true
           for c in $(ci_docker ps -aq --filter label=io.sbarbase.owner=durable-upstream) $(ci_docker ps -aq --filter label=io.sbarbase.owner=recovery-target); do echo "== $(ci_docker inspect -f '{{.Name}}' "$c")"; ci_docker logs --tail 80 "$c" 2>&1; done || true
           sudo sh -c 'for f in .lab/upstream/diagnostics/*.log; do echo "== $f"; tail -n 40 "$f"; done' || true
+      - name: Classify and collect changed reports
+        if: always() && steps.artifact_baseline.outcome == 'success'
+        env:
+          CI_EVIDENCE_STEP_OUTCOMES: ${{ toJSON(steps) }}
+        run: |
+          timeout --signal=TERM --kill-after=1s 15s python3 \
+            "$RUNNER_TEMP/sbarbase-evidence-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT/collector.py" collect \
+            --root "$GITHUB_WORKSPACE" \
+            --directory "$RUNNER_TEMP/sbarbase-evidence-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
       - name: Keep the evidence
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: docker-install-evidence
-          path: docs/evidence/docker-*.json
+          path: ${{ runner.temp }}/sbarbase-evidence-${{ github.run_id }}-${{ github.run_attempt }}/reports
+          if-no-files-found: error
           retention-days: 30
       - name: Close the owned CI installation after failure
         if: always() && env.SBARBASE_CI_SETUP == '1'
@@ -251,12 +281,19 @@ jobs:
           exit "$result"
 
   empty-host-acceptance:
-    if: github.event_name == 'workflow_dispatch' && inputs.acceptance
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.acceptance)
     needs: checks
     runs-on: ubuntu-26.04
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Snapshot acceptance report provenance
+        id: artifact_baseline
+        run: |
+          timeout --signal=TERM --kill-after=1s 15s python3 deploy/ci-artifacts.py prepare \
+            --contract empty-host --root "$GITHUB_WORKSPACE" \
+            --directory "$RUNNER_TEMP/sbarbase-acceptance-evidence-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            --run "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" --head "$GITHUB_SHA"
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: 1.3.14
@@ -269,14 +306,25 @@ jobs:
           /usr/bin/python3 -c 'import json,secrets;print(json.dumps({"email":"operator@example.com","password":secrets.token_urlsafe(24),"organization":"CI rehearsal"}))' \
             | /usr/bin/python3 lab/operator_file.py --stdin "$RUNNER_TEMP/operator.json"
       - name: One-command acceptance on an empty host
+        id: empty_host
         run: |
           sudo deploy/server-acceptance.sh --rehearse --install-unit \
             --service-user "$USER" --home "$HOME" --bun-dir "$(dirname "$(command -v bun)")" \
             --docker-host unix:///var/run/docker.sock --bootstrap-file "$RUNNER_TEMP/operator.json"
+      - name: Classify and collect fresh acceptance reports
+        if: always() && steps.artifact_baseline.outcome == 'success'
+        env:
+          CI_EVIDENCE_STEP_OUTCOMES: ${{ toJSON(steps) }}
+        run: |
+          timeout --signal=TERM --kill-after=1s 15s python3 \
+            "$RUNNER_TEMP/sbarbase-acceptance-evidence-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT/collector.py" collect \
+            --root "$GITHUB_WORKSPACE" \
+            --directory "$RUNNER_TEMP/sbarbase-acceptance-evidence-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
       - name: Keep the evidence
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: empty-host-acceptance-evidence
-          path: docs/evidence/*.json
+          path: ${{ runner.temp }}/sbarbase-acceptance-evidence-${{ github.run_id }}-${{ github.run_attempt }}/reports
+          if-no-files-found: error
           retention-days: 30

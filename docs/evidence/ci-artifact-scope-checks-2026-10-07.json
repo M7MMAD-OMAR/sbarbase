@@ -1,0 +1,38 @@
+{
+  "schema": 1,
+  "scope": "Reviewed CI report provenance and automatic empty-host scheduling, source fixtures only",
+  "paths": [
+    {
+      "path": ".github/workflows/ci.yml",
+      "proposed_sha256": "80396d453ce552e51116dc84e4d1167e25d853d9ceaa3a4db2ce08b44995f7c4",
+      "mode": "0o644"
+    },
+    {
+      "path": "deploy/ci-artifacts.py",
+      "proposed_sha256": "b141623bb59b6203856dcab884404a50271b8b166fa5ec39d087f6ce4c699600",
+      "mode": "0o644"
+    },
+    {
+      "path": "lab/test_ci_artifacts.py",
+      "proposed_sha256": "403142c00939677b4e2b5bb2bb0dfbad254b71e3b68420cf4ff4821ab6bd5b39",
+      "mode": "0o644"
+    }
+  ],
+  "independent_source_review": "MET",
+  "focused_tests": 46,
+  "failures": 0,
+  "errors": 0,
+  "skips": 0,
+  "bounds": {
+    "memory": "512M",
+    "cpu_quota": "50%",
+    "tasks": 128,
+    "runtime_seconds": 60
+  },
+  "current_downloaded_docker_reports": 13,
+  "current_downloaded_docker_checks": 254,
+  "empty_host_expected_reports": 6,
+  "native_run_bodies_changed": false,
+  "revised_native_execution": false,
+  "production_accepted": false
+}

@@ -1,0 +1,110 @@
+{
+  "check": "realtime",
+  "recorded": "2026-10-07T08:31:19.780Z",
+  "passed": true,
+  "count": 20,
+  "seconds": 44,
+  "scope": "Realtime for one environment on a running installation: turned on through the management API, then used by two supabase-js clients through the gateway for broadcast, presence and database changes on a table with row level security, and the broadcast REST API; a wrong key refused; turned off again.",
+  "checks": [
+    {
+      "check": "operator native MFA session authorizes management",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "a provisioned environment exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "Realtime starts off",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "a socket is refused while Realtime is off",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "an owner turns Realtime on",
+      "ok": true,
+      "detail": "status 202"
+    },
+    {
+      "check": "the supervisor starts the environment's Realtime",
+      "ok": true,
+      "detail": "state on  after 37 s"
+    },
+    {
+      "check": "connection details list Realtime",
+      "ok": true,
+      "detail": "auth,rest,storage,realtime"
+    },
+    {
+      "check": "a new public table is published to Realtime",
+      "ok": true,
+      "detail": "NOTICE:  policy \"probe_read\" for relation \"public.realtime_probe\" does not exist, skipping\nNOTICE:  policy \"probe_write\" for relation \"public.realtime_probe\" does not exist, skipping\n"
+    },
+    {
+      "check": "a wrong key never reaches Realtime",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "a client subscribes to broadcast, presence and database changes",
+      "ok": true,
+      "detail": "SUBSCRIBED"
+    },
+    {
+      "check": "a second client joins the same channel",
+      "ok": true,
+      "detail": "SUBSCRIBED"
+    },
+    {
+      "check": "a broadcast from one client reaches the other",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "both clients see each other in presence",
+      "ok": true,
+      "detail": "2 present"
+    },
+    {
+      "check": "Realtime confirms it is listening for database changes",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "a visitor inserts a row through REST",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "the insert arrives as a database change",
+      "ok": true,
+      "detail": "{\"id\":1,\"body\":\"hello database\"}"
+    },
+    {
+      "check": "the broadcast REST API answers through the gateway",
+      "ok": true,
+      "detail": "status 202"
+    },
+    {
+      "check": "the owner turns Realtime off",
+      "ok": true,
+      "detail": "status 202"
+    },
+    {
+      "check": "Realtime is off again",
+      "ok": true,
+      "detail": "state off"
+    },
+    {
+      "check": "a socket is refused once Realtime is off",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

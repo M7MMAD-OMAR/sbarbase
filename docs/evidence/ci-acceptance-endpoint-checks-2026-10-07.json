@@ -1,0 +1,40 @@
+{
+  "schema": 1,
+  "date": "2026-10-07",
+  "failed_run": 37596046599,
+  "failed_job": 112710993732,
+  "source_commit": "baafbad551efa153a78e4d3d5e6722ad4e63946f",
+  "failure": "host_endpoint_mismatch at standalone acceptance preflight",
+  "cause": "The shell canonicalized DOCKER_HOST but did not export its matching SBARBASE_DOCKER_SOCKET to the installation account",
+  "fix": "After unchanged successful host admission, export canonical socket and derive endpoint from the same value. Preserve Python strict endpoint identity and existing sudo forwarding.",
+  "focused_tests": {
+    "tests": 32,
+    "failures": 0,
+    "errors": 0,
+    "skips": 0,
+    "exit_code": 0,
+    "seconds": 0.902,
+    "docker_endpoint": "unreachable",
+    "memory": "512M",
+    "cpu_percent": 50,
+    "tasks": 128
+  },
+  "original_regression": {
+    "tests": 1,
+    "failures": 1,
+    "expected_reason": "host_endpoint_mismatch"
+  },
+  "independent_source_review": "MET for both paths; all15 registry bindings match and registry unchanged",
+  "source_bindings": {
+    "deploy/server-acceptance.sh": {
+      "sha256": "b7eb3f31982121a766358417bce1b686acb40de3d03d841f2e3e848133078d41",
+      "mode": "0o755"
+    },
+    "lab/test_server_acceptance.py": {
+      "sha256": "f2e6c3589357d8b2289483c4297631e89287f9cd9e5bc643a23f2c7f56c2cd36",
+      "mode": "0o644"
+    }
+  },
+  "native_rerun_accepted": false,
+  "production_ready": false
+}

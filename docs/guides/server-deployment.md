@@ -2,7 +2,7 @@
 
 # Server deployment
 
-Integration status, 2026-10-07: general checks and Python compatibility passed after `85ca190`; private-directory setup then failed after console startup. Full recovery and production remain unaccepted. See [current status](../reference/status.md); the following checkpoint paragraphs preserve historical snapshots and their limits.
+Integration status, 2026-10-07: Docker installation CI passed after `baafbad`, with 2086 Python tests and 254 current native checks. Manual standalone-service acceptance failed at the socket configuration handoff; its repair needs an actual rerun. Full recovery and production remain unaccepted. See [current status](../reference/status.md); the following checkpoint paragraphs preserve historical snapshots and their limits.
 
 Historical checkpoint, 2026-10-06: complete snapshot verification passed 1449 tests with no failures, errors, warnings or skips and independent actual review. Repairs cover SQLite and HTTPError response closure, tempfile ownership and expected test diagnostics. All 52 preparation cases also passed; native PostgreSQL startup, Cron/Vault restart continuity and physical restore remain unaccepted. See [current status](../reference/status.md) for CI results and evidence scope.
 

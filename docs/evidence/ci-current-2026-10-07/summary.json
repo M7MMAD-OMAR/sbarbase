@@ -1,0 +1,131 @@
+{
+  "schema": 1,
+  "date": "2026-10-07",
+  "source_commit": "baafbad551efa153a78e4d3d5e6722ad4e63946f",
+  "ci": {
+    "run": 37592809221,
+    "url": "https://github.com/M7MMAD-OMAR/sbarbase/actions/runs/37592809221",
+    "conclusion": "success",
+    "jobs": {
+      "checks": "success",
+      "python-floor": "success",
+      "docker-install": "success",
+      "empty-host-acceptance": "skipped"
+    }
+  },
+  "website": {
+    "run": 37595879418,
+    "url": "https://github.com/M7MMAD-OMAR/sbarbase/actions/runs/37595879418",
+    "conclusion": "success",
+    "scope": "Build and tests; no deployment"
+  },
+  "current_native_reports": {
+    "files": 13,
+    "checks": 254,
+    "passed": 254,
+    "inventory": [
+      {
+        "name": "docker-backup-restore.json",
+        "bytes": 2044,
+        "sha256": "1f280f3adbf958ff927bba2cd9cfa7018afda3e75f6880b3e347deb653436a43"
+      },
+      {
+        "name": "docker-first-project.json",
+        "bytes": 2193,
+        "sha256": "155136b86448c7953c2d91dd13422d6fe3c12806c28b16fe7bc5d56ea401953a"
+      },
+      {
+        "name": "docker-database-checks.json",
+        "bytes": 2930,
+        "sha256": "686781f6f7a66cbf34659a80bcafbde74736ec0a21e9cc7e73834e98d3626f24"
+      },
+      {
+        "name": "docker-functions-checks.json",
+        "bytes": 3839,
+        "sha256": "f4689a71f0489c170b6611bf175921b5246ce654391bea24add74238a22a7ed2"
+      },
+      {
+        "name": "docker-import-checks.json",
+        "bytes": 2752,
+        "sha256": "29c1018931ed4e35f56c99667b17ca96ca9aef6cf5a2016b2c14ab612600ce03"
+      },
+      {
+        "name": "docker-observe-checks.json",
+        "bytes": 2803,
+        "sha256": "0d0a773ae509287498e1fa8cf722c58abcd8a59e0fea298943ef6675372d1be1"
+      },
+      {
+        "name": "docker-offsite-checks.json",
+        "bytes": 2657,
+        "sha256": "ef863c5b1b0a22e90efdaa10536c745687bec92d28b07d49b68a2311fe217e43"
+      },
+      {
+        "name": "docker-realtime-checks.json",
+        "bytes": 2951,
+        "sha256": "78b7897653aab2091c0dd1466e5a31485ac76a7d68e89dc6eb8a69aa99ba05c2"
+      },
+      {
+        "name": "docker-sign-in-checks.json",
+        "bytes": 2315,
+        "sha256": "077e257ddf841d4bb4fcc5c3a43586abb8541be2a738ad0f795b4100fdd80359"
+      },
+      {
+        "name": "docker-signing-checks.json",
+        "bytes": 2705,
+        "sha256": "803f6e4b713002252135a4481536175b78abffafe67ed0d74f840baf5e1fe124"
+      },
+      {
+        "name": "docker-studio-checks.json",
+        "bytes": 3049,
+        "sha256": "09e7888a52a40382d0be2b1f2cff073b78949745b679c3a89a73a40cd7a5f70a"
+      },
+      {
+        "name": "docker-upgrade-checks.json",
+        "bytes": 10140,
+        "sha256": "0018e1cb6dcbc85308654c3cc158a35011a118215ccc49afd339aa810365cc49"
+      },
+      {
+        "name": "docker-upload-checks.json",
+        "bytes": 2857,
+        "sha256": "b7bb6cf7395ba0ec291b5fa61629feec7684775b8ef1038dfd363130e0c012c8"
+      }
+    ]
+  },
+  "excluded_historical_artifact": {
+    "name": "docker-install-checks.json",
+    "checks": 15,
+    "date": "2026-09-24",
+    "run": 35946158322,
+    "commit": "c2d51528b89a3a566f8f6e94f42e4e317d981b52",
+    "sha256": "8f847c3c00a74d6fdd017097580ca38a247ae8151607f519cd2d45af1db52d17",
+    "reason": "Unchanged historical transcription bundled by a broad artifact glob; not current execution evidence"
+  },
+  "upgrade_scope": "Checks include intentionally derived candidate commits and six successful upgrade/refusal/rollback stages. Comparisons cover recorded rows and selected catalog digest, not every table.",
+  "python_floor": {
+    "tests": 2086,
+    "result": "OK",
+    "seconds": 121.101
+  },
+  "manual_empty_host": {
+    "run": 37596046599,
+    "status": "completed",
+    "accepted": false,
+    "empty_host_job": "failure",
+    "reason": "host_endpoint_mismatch at standalone installation preflight",
+    "repair": "Canonical socket and Docker endpoint paired after successful admission; focused 32 tests and independent source review passed; published native rerun required",
+    "conclusion": "failure",
+    "jobs": {
+      "checks": "success",
+      "python-floor": "success",
+      "docker-install": "success",
+      "empty-host-acceptance": "failure"
+    }
+  },
+  "limits": {
+    "full_fresh_target_recovery_accepted": false,
+    "cron_continuity_accepted": false,
+    "local_guest_accepted": false,
+    "all_105_requirements_accepted": false,
+    "production_ready": false
+  }
+}
