@@ -1,0 +1,42 @@
+{
+  "schema": 1,
+  "recorded_date": "2026-10-08",
+  "scope": "published CI checkpoint and local preparation status",
+  "published_commit": "1c4449ff4c530029096453d32fc12c2d73de93f1",
+  "ci": {
+    "url": "https://github.com/M7MMAD-OMAR/sbarbase/actions/runs/37621550367",
+    "jobs": 4,
+    "conclusion": "success"
+  },
+  "local_tests": {
+    "public_application_build": {
+      "status": "PASS",
+      "network_disabled": true,
+      "published_source_files": 1690,
+      "cache_entries": 6557,
+      "scope": "fixed published source and dependency bytes only"
+    },
+    "guest_installer_source5": {
+      "tests": 6,
+      "seconds": 0.178,
+      "status": "PASS",
+      "scope": "real subprocess group settlement, bounded raw log, output and pipe deadlines",
+      "guest_boot": false,
+      "independent_source_review": "MET_IMPLEMENTED_REPAIR_ONLY",
+      "reviewer_execution": false
+    }
+  },
+  "guest_boot": "NOT_RUN",
+  "full_fresh_target_restore": "NOT_RUN",
+  "production_accepted": false,
+  "pending": [
+    "genuine actor and private observer integration",
+    "isolated guest boot and Docker image import",
+    "full Supabase installation",
+    "cold and warm Cron continuity",
+    "complete recovery to a fresh target",
+    "supported host and operational acceptance"
+  ],
+  "product_target": "portable Linux Docker with original Supabase services",
+  "workstation_specific_product_dependencies": false
+}

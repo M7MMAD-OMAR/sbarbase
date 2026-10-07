@@ -4,7 +4,15 @@ The [2026-10-06 local repair review](review-2026-10-06.md) records defensive sou
 
 # Deployment readiness
 
-## Integration status, 2026-10-07
+## Current checkpoint, 2026-10-08
+
+Production acceptance remains unproven. The latest verified published code is `1c4449ff4c530029096453d32fc12c2d73de93f1`: [CI 37621550367](https://github.com/M7MMAD-OMAR/sbarbase/actions/runs/37621550367) completed all four jobs successfully, including Docker installation and empty-host acceptance. The [current checkpoint record](../evidence/isolated-guest-preparation-2026-10-08/ci-checkpoint.json) preserves the exact commit and job conclusions. It accepts that run's scope and does not accept later experimental source.
+
+The user's computer is the selected host for an isolated Linux server experiment. No external server is required to continue. A local preparation build completed with networking disabled against 1690 published source files and 6557 cache entries. Six actual installer regression tests passed after repairs to process group settlement, diagnostic size limits, original I/O deadlines and log descriptor custody. These are preparation observations; guest boot, installation of the complete Supabase runtime and complete restoration to a fresh target have not run. The [preparation status](../evidence/isolated-guest-preparation-2026-10-08/summary.json) records those limits. The [independent source review](../evidence/isolated-guest-preparation-2026-10-08/independent-review.md) accepts the installer repair only. Operational actor integration remains under review and this checkpoint is not a production release.
+
+The deployment target remains portable Linux Docker with original Supabase services. Local VM helper experiments do not become required workstation paths or byte pins in the product. The following 2026-10-07 section preserves its earlier source checkpoint.
+
+## Previous integration checkpoint, 2026-10-07
 
 Production readiness remains unproven. Source integration is still changing, so there is no final merged-source release acceptance. Historical green tests and CI runs apply only to their recorded source and environment. The [integration programme](../engineering/plans/2026-10-06-integration-programme.md) records the remaining full completion contract.
 
