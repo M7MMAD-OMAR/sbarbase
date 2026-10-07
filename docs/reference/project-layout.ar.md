@@ -45,6 +45,9 @@
 | تسوية Storage | `src/control/storage-settlement-contract.ts`, `lab/disposable-storage-settlement-drill.py` |
 | دورة الحياة وسلطتها | `src/control/lifecycle.ts`, `src/control/lifecycle-authority.ts`, `lab/lifecycle_native_authority.py` |
 | متطلبات الاستعادة | `src/control/lifecycle-recovery.ts`, `lab/lifecycle_recovery.py`, `lab/recovery_bundle.py` |
+| مواد استعادة إدارة المنصة كاملة | `lab/sqlite_material.py`, `lab/original_schema_fixture.ts`, `lab/test_sqlite_material.py` |
+
+يحفظ مساعد SQLite قواعد بيانات Catalog والمفاتيح المدارة الخاصة كاملة، ويجهز ملفات مستعادة جديدة دون استبدال ملفات موجودة. تستخدم اختباراته المصدرية الستة عشر أصناف Catalog وKeyStore الأصلية للتحقق من صفوف كل الجداول وإلغاء المفاتيح وسلوك أجيال التشغيل. يبقى إيقاف الكتابة الفعلي والتحقق من مصدر المخطط وسياسة الجلسات الإدارية القديمة وأذونات التنفيذ وإعادة بناء الخدمات كاملة مطلوبا قبل تفعيلها.
 
 تحفظ [خطة الدمج](../engineering/plans/2026-10-06-integration-programme.md) متطلبات الإكمال. تبقى الحزم المحلية المتجاهلة مواد تطوير، وليست تبعيات للمنتج المنشور.
 

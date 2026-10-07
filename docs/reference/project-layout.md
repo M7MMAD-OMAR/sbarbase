@@ -45,6 +45,9 @@ These paths exist in the inspected integration snapshot. Their presence does not
 | Storage settlement | `src/control/storage-settlement-contract.ts`, `lab/disposable-storage-settlement-drill.py` |
 | Lifecycle and authority | `src/control/lifecycle.ts`, `src/control/lifecycle-authority.ts`, `lab/lifecycle_native_authority.py` |
 | Recovery dependencies | `src/control/lifecycle-recovery.ts`, `lab/lifecycle_recovery.py`, `lab/recovery_bundle.py` |
+| Complete control recovery material | `lab/sqlite_material.py`, `lab/original_schema_fixture.ts`, `lab/test_sqlite_material.py` |
+
+The SQLite material helper captures complete private Catalog and managed-key databases and prepares exclusive restored files. Its 16 source tests use the original Catalog and KeyStore constructors to verify every table row, key revocation and runtime epoch behavior. Native writer quiescence, original schema provenance, recovery policy for old management sessions and execution leases, and full service reconstruction remain required before activation.
 
 The [integration programme](../engineering/plans/2026-10-06-integration-programme.md) retains the full completion requirements. Ignored local development packets are not dependencies of the published product.
 
