@@ -1,0 +1,7 @@
+# Installer dependency reproducibility
+
+The installer previously skipped dependency setup whenever `node_modules` existed and used an unfrozen install when it did run. Every installer invocation now runs `bun install --frozen-lockfile` before building the console and starting the runtime, matching the existing upgrade path. Inconsistent package and lock state can therefore refuse installation instead of silently changing the lockfile or bypassing dependency setup.
+
+The existing operation lock, checked subprocess result, and lock release on failure remain intact. Dependency setup may use the registry or cache and may take longer on an existing installation. This change does not independently audit every installed module byte or establish an offline application build closure.
+
+Validation: 65 existing installer preflight, operation lock, and host entry point SOURCE tests passed in 2.056 seconds under the bounded check wrapper with Docker unreachable. The initial wrapper loaded no product tests because its lab module search path was missing; the corrected wrapper added that path without changing a product test. The actual updated dependency function then succeeded, followed by the original UI build and console artifact verifier, also under the bounded wrapper with Docker unreachable. Independent SOURCE review accepted the exact installer delta and retained error handling. Native installation and recovery remain subject to their separate acceptance checks.

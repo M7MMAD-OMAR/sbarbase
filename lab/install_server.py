@@ -329,8 +329,7 @@ def bootstrap_payload(path):
 
 
 def npm_install():
-    if not (ROOT/'node_modules').exists():
-        run(['bun','install'],cwd=ROOT)
+    run(['bun','install','--frozen-lockfile'],cwd=ROOT)
 
 
 # The distro PostgreSQL image is about 1.7 GB. The first empty-VM rehearsal on a
