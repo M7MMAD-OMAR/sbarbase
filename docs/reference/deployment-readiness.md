@@ -4,9 +4,9 @@ The [2026-10-06 local repair review](review-2026-10-06.md) records defensive sou
 
 # Deployment readiness
 
-## Current checkpoint, 2026-10-08
+## Current checkpoint, 2026-10-09
 
-Production acceptance remains unproven. The latest verified published checkpoint is `0d732333f563055c7e414ff75faca033219cb7f7`: [CI 37682575608](https://github.com/M7MMAD-OMAR/sbarbase/actions/runs/37682575608) completed all four jobs successfully, including Docker installation and empty-host acceptance. The [exact CI observation](../evidence/isolated-guest-preparation-2026-10-08/source7/ci-checkpoint.json) preserves the commit and job conclusions. This run does not accept the later experimental Source7 candidate.
+Production acceptance remains unproven. The latest verified published checkpoint is `aad7b5403ad14140e9d9499668e863d7488ce15b`: [CI 37688338269](https://github.com/M7MMAD-OMAR/sbarbase/actions/runs/37688338269) completed all four jobs successfully, including Docker installation and empty-host acceptance. The [exact CI observation](../evidence/isolated-guest-preparation-2026-10-08/source7/ci-aad7b540.json) preserves the commit and job conclusions. This commit publishes the Source7 repair evidence. Its CI does not execute or accept the experimental guest installer or the full local VM recovery route.
 
 The user's computer is the selected host for an isolated Linux server experiment. No external server is required to continue. A local preparation build completed with networking disabled against 1690 published source files and 6557 cache entries. Ten actual Source7 regression tests passed, including a large regular application file and concurrent complete diagnostic streams. Source7 repairs a newly confirmed flaw in the historical Source5 and Source6 candidates: their child file size limit also restricted dpkg and Bun application outputs. The parent now limits each diagnostic stream alone. It also verifies fresh source archives without fixing the historical commit or file count. The [Source7 record](../evidence/isolated-guest-preparation-2026-10-08/source7/summary.json) and [independent review](../evidence/isolated-guest-preparation-2026-10-08/source7/independent-review.md) accept the implemented repair only. The earlier [Source5 record](../evidence/isolated-guest-preparation-2026-10-08/summary.json) is preserved as history.
 

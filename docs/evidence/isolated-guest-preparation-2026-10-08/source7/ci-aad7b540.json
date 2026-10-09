@@ -1,0 +1,30 @@
+{
+  "observed_utc": "2026-10-09T11:35:33.106397+00:00",
+  "headSha": "aad7b5403ad14140e9d9499668e863d7488ce15b",
+  "status": "completed",
+  "conclusion": "success",
+  "url": "https://github.com/M7MMAD-OMAR/sbarbase/actions/runs/37688338269",
+  "jobs": [
+    {
+      "name": "checks",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "python-floor",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "docker-install",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "empty-host-acceptance",
+      "status": "completed",
+      "conclusion": "success"
+    }
+  ],
+  "scope": "CI for exact published commit. Experimental Source7 guest installer execution and full local VM restore remain unaccepted."
+}
