@@ -1,0 +1,944 @@
+{
+  "Auth_Mail_active_repair_status": {
+    "Native_accepted": false,
+    "Root_checkout_code_applied": false,
+    "Root_read_actual_sink_guard_changes": true,
+    "Source_executed": false,
+    "coherent_freeze_pending": true,
+    "incomplete_Root_snapshot_removed": true,
+    "independent_acceptance": false,
+    "later_management_source_sha256": "2d1b483a97803c6babfaa93c86995290b0ca5d8348c3b9b10e3539ceb3ee790f",
+    "mixed_active_snapshot_sealing_refused": true,
+    "observed_auth_source_sha256": "59dadf556dbde83c6a28ee0ebae6943ef3667950c38cd959c383183c49e184d3",
+    "observed_management_source_sha256": "e471cd0730376942d2945f95cd1ee1406b8c9d4b75813088a537c291b44a53bd",
+    "status": "ACTIVE_REPAIR_IN_PROGRESS_NOT_FROZEN"
+  },
+  "Functions_initial_secret_first_refusal_refinement": {
+    "Native_failure_observed": false,
+    "Root_manifest": "/home/sbarah/.codex/sbarbase-integration/20261007/Root-functions-initial-secret-first-refusal-refinement-20261007/manifest.json",
+    "Root_manifest_sha256": "2837b76ab94c740601a4b0d61af3ca344a55f35557519a719d67b98848cbccf1",
+    "Source_executed": false,
+    "first_refusal": "private_bytes zero-size check31, before JSON parse",
+    "prior_causal_report_preserved_and_corrected": true
+  },
+  "Source720_auth_mail_sink_ordering_negative": {
+    "Native_accepted": false,
+    "Root_manifest": "/home/sbarah/.codex/sbarbase-integration/20261007/Root-source720-auth-mail-private-sink-negative-20261007/manifest.json",
+    "Root_manifest_sha256": "5664a381ea800dd6835186a3175cb3c767e0a46ed08f0b2f1bb730e7a3d4a896",
+    "Source_executed": false,
+    "repair_state": "requested_distinct_successor",
+    "status": "SOURCE720_STATIC_AUTH_MAIL_SINK_ORDERING_GAP"
+  },
+  "Source720_full_native_gap_reconciliation": {
+    "Native_accepted": false,
+    "Source_executed": false,
+    "eight_named_result_producers_missing": true,
+    "manifest": "/home/sbarah/.codex/sbarbase-integration/20261007/Root-source720-full-native-gap-reconciliation-20261007/manifest.json",
+    "manifest_sha256": "e5cf478655818c1747a0d33e4a9d1da9799ce264bd630afe7222c161b9cc219d",
+    "original_full_native_gate_missing": true,
+    "original_negative_reviews_verified_and_preserved": [
+      {
+        "manifest": "/home/sbarah/.codex/sbarbase-integration/20261007/sb06-full-native-protocol-verifier701-prerequisite-mapping-20261007/manifest.json",
+        "sha256": "8c91706cacb8e70ffe11962e1675523e8be1da816a506f862fd9aaadfad7d1bb",
+        "verified_artifact_rows": 6
+      },
+      {
+        "manifest": "/home/sbarah/.codex/sbarbase-integration/20261007/sb06-optional-settings160-static-review-20261007/manifest.json",
+        "sha256": "50b6898a053c79a34ec91373af3b2dc552d15680d5a0f863c8102a298b008708",
+        "verified_artifact_rows": 5
+      },
+      {
+        "manifest": "/home/sbarah/.codex/sbarbase-integration/20261007/sb06-storage-signing701-journal-name-static-supplement-20261007/manifest.json",
+        "sha256": "0c18150bfcd9c342fd79fc90d1d6af6aea0d6a039b6f561ee3e59d38d4ecf608",
+        "verified_artifact_rows": 3
+      }
+    ]
+  },
+  "Source720_independent_sealed_review": {
+    "Native_accepted": false,
+    "Root_confirmed_common_admission_spans": "lab/transfer_auth_settings_mutation.py:126-143",
+    "Root_verified_report_rows": 6,
+    "Source_executed": false,
+    "manifest": "/home/sbarah/.codex/sbarbase-integration/20261007/sb06-mail-optional-legacy-connected720-static-review-20261007/manifest.json",
+    "manifest_sha256": "5ae2a5c33f56b329406bbd9166d6384cb2e483989dbafac684e4e746299abe32",
+    "new_coherent_successor_required": true,
+    "remaining_P1": "Auth and Mail private file sinks and common admission need final genuine synchronous human checks after intervening reads",
+    "structural_only_closures": [
+      "Functions actual launch and env file sinks",
+      "optional final data assertion before last human CAS and COMMIT",
+      "supplied Mail FD code entrypoint",
+      "shared legacy entry and final hooks"
+    ],
+    "verdict": "REQUEST_CHANGES"
+  },
+  "Source720_original701_exact_delta": {
+    "Native_accepted": false,
+    "Root_checkout_code_applied": false,
+    "Root_manifest": "/home/sbarah/.codex/sbarbase-integration/20261007/Root-source720-original701-delta-reconciliation-20261007/manifest.json",
+    "Root_manifest_sha256": "099fb89bdb4e5c55e726526a9fa9067be3cc4ffccebd25d0475c3034633467a1",
+    "Source_executed": false,
+    "ancestor_manifest_sha256": "0ebf990ad365db3f28e707370adeaea03668d9cbda30f30ab39d5bf8cfb9531a",
+    "ancestor_rows": 701,
+    "candidate_manifest_sha256": "c450fd87059f88bf898bfc4d0fee7c51093045fc28531f06a48b5413e9bef0ed",
+    "candidate_rows": 720,
+    "declared_ancestor_and_candidate_rows_exactly_match": true,
+    "declared_delta_sha256": "b0ce99246a680f113d58a0667c8014978b17dd0093d7b0bbe637a5451662f1ea",
+    "exact_added_rows": 19,
+    "exact_changed_rows": 25,
+    "execution_granted": false,
+    "limits": [
+      "Exact source ancestry and path presence do not prove behavior, Native provenance or full acceptance",
+      "Independent Source720 final review remains in progress",
+      "Prior Source701, optional160 and isolated129 findings remain preserved; later structural corrections do not rewrite original verdicts"
+    ],
+    "management_mutation_CODE_PATHS_all_present": 65,
+    "removed_rows": 0,
+    "status": "DECLARED_SOURCE_DELTA_VERIFIED_NOT_EXECUTED",
+    "unchanged_rows": 676
+  },
+  "composition": {
+    "historical_catalog_merge_receipt_matches_latest_observed_body": false,
+    "historical_receipt_limit": "The earlier receipt records merge provenance. Later observed deltas require their own review.",
+    "reviewed_catalog_baseline_preserved_in_observed_delta": true,
+    "reviewed_five_counterparts": "Four exact bodies retained. HTTP adds only ready/readiness fields inside its existing management publication renderer."
+  },
+  "connected_source720_case_definition_check": {
+    "all_ids_resolve_to_unique_actual_AST_class_and_method": true,
+    "counts": {
+      "test_transfer_legacy_operational_companion": 39,
+      "test_transfer_legacy_publication_integration": 5,
+      "test_transfer_mail_managed_path": 5,
+      "test_transfer_management_mutation": 28,
+      "test_transfer_optional_settings_primitives": 23,
+      "test_transfer_settings_dispatch": 7
+    },
+    "distinct_case_ids": 107,
+    "does_not_prove_test_success_or_Native_acceptance": true,
+    "exact_proposal_and_manifest_case_list_equal": true,
+    "execution": false
+  },
+  "connected_source720_reconciliation": {
+    "Native_accepted": false,
+    "Root_checkout_code_applied": false,
+    "Root_receipt_manifest": "/home/sbarah/.codex/sbarbase-integration/20261007/Root-connected-source720-reconciliation-20261007/manifest.json",
+    "Root_receipt_manifest_sha256": "5a9a6cffcc658f7b7815cc1f30e1e190afe06bb9e57ee55b0ebbf002467c74ae",
+    "Source_executed": false,
+    "UNRUN_case_ids": 107,
+    "canonical_identity": "3a5c512b4b50acbec34fa2e9a48820f4453fb4f3c67d5f92188077d6a759c0e1",
+    "current_goal_turn_classification": "progress",
+    "declared_import_sites_verified_against_AST_and_present_targets": 1593,
+    "delta_sha256": "b0ce99246a680f113d58a0667c8014978b17dd0093d7b0bbe637a5451662f1ea",
+    "execution_granted": false,
+    "import_resolution_exhaustiveness_claimed": false,
+    "limits": [
+      "Source metadata and syntax do not prove behavior or Native authority",
+      "Independent review of pre-effect checks and shared final publication is pending",
+      "Full original scope remains open, including T1-T11, 105 capability contracts, Storage29, fresh host, recovery, browser, providers and seven day pilot",
+      "Private protocol witness from earlier code may refuse a changed module; no cross-code continuation migration is claimed",
+      "Signing ordinal repair validates retained metadata but does not prove live signing cutoff or sidecar race protection"
+    ],
+    "original_execution_ledgers_changed": false,
+    "prior_goal_turn_classification": "no_progress_status_response",
+    "proposal_sha256": "f31f6f3efb7bbb4fdadde40ee8eddd3be8b099962f40c0e434c18ba91816091a",
+    "python_AST_parsed_without_import": 429,
+    "source_manifest": "/home/sbarah/.codex/sbarbase-integration/20261006/sb06-root-operative-transfer-20261006/mail-optional-legacy-connected-full-source-readonly-successor-20261007/manifest.json",
+    "source_manifest_sha256": "c450fd87059f88bf898bfc4d0fee7c51093045fc28531f06a48b5413e9bef0ed",
+    "status": "SOURCE_METADATA_RECONCILED_NOT_EXECUTED",
+    "verified_sha256_bytes_and_retained_modes": true,
+    "verified_source_rows": 720
+  },
+  "fixture_frames_and_gateway_launcher_source_correction": {
+    "Native_accepted": false,
+    "Source_executed": false,
+    "authenticated_launcher_not_yet_complete": true,
+    "data_only_source_authored": true,
+    "gateway_Python_as_Bun_script_defect_found_and_source_fixed": true,
+    "manifest": "/home/sbarah/.codex/sbarbase-integration/20261007/Root-transfer-fixture-launcher-source-preparation-20261007/manifest.json",
+    "sha256": "9218cfd33a37a5caa4fae3ba84a727acd4c0758fdaf1b8aaf278fd4ec606d841"
+  },
+  "full_client36_contract_and_original_fixture_issuer": {
+    "Native_accepted": false,
+    "Source_executed": false,
+    "actual_client_supplier_assigned": true,
+    "fixture_issuer_absent": true,
+    "manifest": "/home/sbarah/.codex/sbarbase-integration/20261007/Root-full-client36-original-issuer-handoff-reconciliation-20261007/manifest.json",
+    "sha256": "80009218c52b027412c4925967c1e35e62f94412d07747e8b847127293a38dfc",
+    "verified_metadata_artifacts": 2,
+    "verified_source_pins": 36
+  },
+  "full_native_acceptance": false,
+  "full_native_client_supplier_preparation": {
+    "Native_accepted": false,
+    "Native_dedicated_Gateway_shared_prerequisite_open": true,
+    "Source_executed": false,
+    "eight_missing_result_producers_scope_preserved": true,
+    "fixed_actual_worker_and_issuer_contract": "requested_from_shared_owner",
+    "new_proposed_module": "lab/transfer_client_protocols.py",
+    "no_callback_or_fixture_success_authority": true,
+    "original_public_pre_intent_witness_required": true,
+    "owned_fixture_gate_absent_unproved": true
+  },
+  "functions724_delete_response_static_reconciliation": {
+    "Native_accepted": false,
+    "Root_manifest": "/home/sbarah/.codex/sbarbase-integration/20261007/Root-functions724-delete-response-static-reconciliation-20261007/manifest.json",
+    "Root_manifest_sha256": "323e8d1004bd0cce80a9978044f099f122791f3fa7ec412f80f4395e9675ec65",
+    "Source_executed": false,
+    "actual_operation_result_transport_required": true,
+    "severity": "P2"
+  },
+  "functions724_independent_compatibility_review": {
+    "Native_accepted": false,
+    "Native_two_suppliers_and_operation_result_transport_incomplete": true,
+    "Root_review_artifact_rows_verified": 6,
+    "Source_executed": false,
+    "manifest_sha256": "0c01f9e631f11bab067582761b964ba00f710803bb86cc8508c6194404a1a9a3",
+    "prior722_F1_structurally_closed": true,
+    "remaining_D1_P2": "Native DELETE chooses response status from stale existence snapshot before real child admission",
+    "verdict": "REQUEST_CHANGES"
+  },
+  "functions727_response_and_boundary10_source": {
+    "Native_accepted": false,
+    "Source_executed": false,
+    "delete_status_stale_read_structurally_removed": true,
+    "manifest": "/home/sbarah/.codex/sbarbase-integration/20261007/Root-functions727-response-and-boundaries10-reconciliation-20261007/manifest.json",
+    "new_cases_authored_unrun": 10,
+    "operation_metadata_projection_open": true,
+    "sha256": "ad9da5f527981c22782bc466ed6dabc846f9ebf46ceb793736fd06bb91512224",
+    "verified_source_rows": 727
+  },
+  "functions_file_mutation_actual_caller_mapping": {
+    "Native_accepted": false,
+    "Root_verified_artifact_rows": 17,
+    "Root_verified_current_original_bodies_sha_bytes_mode": 11,
+    "Source_executed": false,
+    "fixed_Native_contract_pending": true,
+    "manifest": "/home/sbarah/.codex/sbarbase-integration/20261007/sb06-functions-file-mutation-caller-parity-mapping-20261007/manifest.json",
+    "manifest_sha256": "b839f07a8d8fd0db8002bdde788135a8fa849dce45b3071f2c16140956dd0a1a",
+    "production_module_authored": false,
+    "pure_payload_implementation": "in_progress_by_isolated_helper",
+    "pure_payload_interface_agreed": true
+  },
+  "functions_material162_supplier_static_reconciliation": {
+    "Native_accepted": false,
+    "Source_executed": false,
+    "authored_cases_unrun": 43,
+    "canonical_description_additive_correction_verified": true,
+    "manifest": "/home/sbarah/.codex/sbarbase-integration/20261007/Root-functions-material162-supplier-static-reconciliation-20261007/manifest.json",
+    "selective_main_Source_integration_ready_for_preparation": true,
+    "sha256": "43fd51ce50f953f7c114df8c7f0e9671804c8b22f6bbd0aed1d4fe8e614b3fbd",
+    "verified_artifact_rows": 162
+  },
+  "functions_material722_contract_and_payload24_reconciliation": {
+    "AST_parsed_without_import": 429,
+    "Native_accepted": false,
+    "Root_code_applied": false,
+    "Root_confirmed_contract_P1": "transfer-serving.ts120-122 requires singleton receipt; genuine retained v5 plus v6 receipt upgrade accepted by owner Python observer is rejected by serving reader",
+    "Root_manifest": "/home/sbarah/.codex/sbarbase-integration/20261007/Root-functions-material722-contract-and-payload24-reconciliation-20261007/manifest.json",
+    "Root_manifest_sha256": "771aa54abc352796475126849825af622dcccb47d94ac3ddd360ca2e65b9ea00",
+    "Source_executed": false,
+    "actual_native_supplier_implementation": "delegated_to_existing_isolated_helper_under_fixed_contract",
+    "canonical_identity": "5ed40cb80584479ca693ddc93ed75230768651ccf531cb521c26087e531f6bda",
+    "coherent_installed_closure": false,
+    "contract_manifest_sha256": "9882bf6676bcb155daf90cbcf39d0cb40987043cbf9cccc902377554f09eb3f5",
+    "contract_review_verdict": "REQUEST_CHANGES",
+    "contract_sha256": "198c67ebf5a345e91e6d965a64ecd3b11b3edf20e316fbcd7a9e73ce1eb5d2f4",
+    "contract_source_rows_verified": 722,
+    "declared_absent_import_sites_verified": 3,
+    "declared_absent_outputs": 3,
+    "declared_local_import_sites_verified": 1595,
+    "execution_granted": false,
+    "graft_this_turn": {
+      "calls": 1,
+      "tokens_saved": 2465
+    },
+    "independent_contract_review_manifest_sha256": "d0124df039547134053ee68003f93bdb8d7ddaac3c42e356c32363c61b789ad9",
+    "independent_contract_review_rows_verified": 6,
+    "limits": [
+      "Partial contract inputs and a pure data parser are not installed production acceptance",
+      "All107 earlier and24 new data cases remain UNRUN",
+      "Real deployment, reload, Native producer, dual publication, interruption and full integration still require proof",
+      "Full original capability105, Storage29, NativeT1-T11, host, recovery, browser, providers and seven-day pilot scope remains mandatory"
+    ],
+    "main_shared_prerequisites": [
+      "TS exact preserved5+6 schema receipt compatibility",
+      "Functions secrets readers cover legitimate cumulative JSON size",
+      "real delete404 check before committed pending admission",
+      "preserve original deploy auto-enable and failed/desired/state/CID behavior",
+      "actual HTTP and supervisor integration and final mounted source/code pin closure"
+    ],
+    "new_shared_corrections": "reported_authored_by_main_not_yet_exact_successor_verified",
+    "original_ledgers_changed": false,
+    "pure24_distinct_UNRUN_method_definitions_verified": true,
+    "pure_payload_artifact_rows_verified": 24,
+    "pure_payload_manifest_sha256": "c42dc79be39a4c33f667e1ef6788d39a83f890c9c39315ba4b51e45c5490f825",
+    "pure_production_sha256": "24c8bdb9a82ac97c428972b2841772ed924f9d7e53463915615160615fca78a6",
+    "pure_supplier_confers_Native_authority": false,
+    "pure_test_source_sha256": "564989f205f713814e289d6e94b1aad6923a007fa3b01c82146877a6bc6bd1be",
+    "status": "PARTIAL_FUNCTIONS_SUPPLIER_CONTRACT_AND_PURE_DATA_SOURCE_VERIFIED",
+    "v5_R1_structurally_closed_only": true,
+    "v5_review_rows_verified": 5,
+    "v5_scoped_staging_review_manifest_sha256": "759df4d29a726048542d4e8154e8dc23ae8afb2c5ba6b80ca29651d02654870a"
+  },
+  "functions_material724_compatibility_supplier_metadata": {
+    "AST_parsed": 431,
+    "Native_accepted": false,
+    "Root_declared_import_sites_verified": 1598,
+    "Root_declared_missing_output_import_sites_verified": 3,
+    "Root_verified_source_rows": 724,
+    "Source_executed": false,
+    "actual_Native_supplier_implementation": "in_progress_by_isolated_helper_under_updated_contract",
+    "canonical_identity": "f038dd56f4830b005d9ecb3de29143d92e6612cd54ec286189bdd34b40fee89a",
+    "coherent_installed_closure": false,
+    "contract_sha256": "d5b7c957d2f1cd57c3e01fd62b8a8d8401b5b4fec2bc61b94d04eae5022a8f94",
+    "declared_Native_outputs_absent": 2,
+    "execution_granted": false,
+    "independent_review": "REQUEST_CHANGES",
+    "legacy_pins_verified": 122,
+    "manifest_sha256": "3fab7724e95fe7260b63bddd4d0c85c9547bc2f9e9e7b28b9140d2f191f8c4ce",
+    "pure24_exact_supplier_retained": true
+  },
+  "functions_operation_outcome_and_realtime_decision_static_review": {
+    "each_snapshot_files_verified": 735,
+    "each_snapshot_python_ast_bodies": 438,
+    "execution_ledgers_changed": false,
+    "functions_source735_manifest_sha256": "d609b19a12c36ec18fa54fd9939770b98264671a1e5d9a0309c95c23f4290118",
+    "goal_complete": false,
+    "mode_description_correction": {
+      "each_snapshot_mode_counts": {
+        "0644_to_0444": 727,
+        "0755_to_0555": 8
+      },
+      "individual_declared_mode_checks_passed": true,
+      "manifest": "/home/sbarah/.codex/sbarbase-integration/20261007/Root-functions-outcome-review-mode-description-correction-20261007/manifest.json",
+      "sha256": "a0f768a9f4f515a7264e86baaacf044c935a50724334df530b3440f9ce1d7db6"
+    },
+    "native_accepted": false,
+    "next_transport_requirement": "Preserve genuine issuer process and original live client pipes across actual worker execution; no receipt-only process continuity.",
+    "operation_outcome": "captured audit result and exact current paired head receipt reviewed",
+    "realtime": "decision connected; actual handshake and frame transport still missing",
+    "realtime_decision_source735_manifest_sha256": "c677b38b3bcbbe8ac0492f7b5d003dd8c81bab991333d3432153a195967d529e",
+    "root_code_applied": false,
+    "root_manifest": "/home/sbarah/.codex/sbarbase-integration/20261007/Root-functions-operation-outcome-and-realtime-decision-static-review-20261007/manifest.json",
+    "root_manifest_sha256": "2680d0af68b159dabaff4db001d1006ea62d6c8fbfe4bc5b73846fe3eba01b64",
+    "source_executed": false,
+    "status": "static_review_only_unexecuted"
+  },
+  "goal_complete": false,
+  "human_auth_final_publisher_source701": {
+    "H2_status": "closed structurally in this distinct successor only",
+    "Native_acceptance": false,
+    "Root_code_application": false,
+    "Root_reconciliation_manifest_sha256": "506ea213948f8bab25e80cbec4a7d6ae5321f35328bdb41c4fd5574fa6a47648",
+    "Source_execution": false,
+    "actual_python_import_sites_verified": 1417,
+    "auth_sql_cases_authored_unrun": 23,
+    "commit_line": 294,
+    "historical701_negative_review_manifest_sha256": "75156ee5c0a65aa0416bdd3fbf57cb8517bba845a5873146b91bf40147d73b85",
+    "historical_negative_preserved": true,
+    "human_final_sync_line": 293,
+    "independent_review_artifacts_Root_verified": 5,
+    "independent_successor_review_manifest_sha256": "5d843fd270efd2c1f607d3af4aa3d9023eaff98ff7a704772649c0daa6e6d6cc",
+    "retained_files_verified": 701,
+    "source_canonical_identity": "ee1a37e00fe819ddae644ffd7ff670f5f16af6961944081307a00a874fbe29b1",
+    "source_manifest_sha256": "0ebf990ad365db3f28e707370adeaea03668d9cbda30f30ab39d5bf8cfb9531a",
+    "status": "Root verified static repair only"
+  },
+  "human_factor_cas_exact_scope": {
+    "Native_acceptance": false,
+    "Source_execution": false,
+    "T1_both_organization_transfer_acceptance": false,
+    "T1_contract_span_supplement": {
+      "manifest_sha256": "a01299d8e39f9fd6a8a6acf247f4affaa65a21193a8ed08d3b978151106cef17",
+      "verified_artifacts": 3
+    },
+    "current_Native_factor_query_at_final_sync": false,
+    "final_synchronous_proof": "Cached genuinely issued Native user/session/factor proof checked against current same-writer Catalog factor, grant, epoch, revocation, expiry, password age and private identity",
+    "independent_review": {
+      "manifest_sha256": "a27fd811a33c670532923ccc924dbdc0fb2fd47f59af0d089a54806524c777ec",
+      "verified_artifacts": 5
+    },
+    "managed_revocation_order": "Current Catalog revocation precedes provider unenroll/logout/recovery mutation",
+    "new_concrete_managed_path_defect_found": false,
+    "original_transfer_plan_sha256": "7d98ea87b8322b491523490beb72afc0fe0b6f99ca07b005fa02858183778db8",
+    "out_of_band_provider_deletion_boundary": "unproved, not inferred as a new defect"
+  },
+  "independent_strict_review": {
+    "all_five_report_artifacts_root_verified": true,
+    "cases_in_that_review": 30,
+    "compiled_alias_parity": false,
+    "manifest_sha256": "bffdc5c5f63afb1e7c4599bb3e6acb7aac3a16aac5c3fa2729a2775f5d6e0157",
+    "new_actionable_findings": 0,
+    "prior_findings": "Iterator bypass, changing array copy and redundant same-slot aliases are structurally closed.",
+    "successor_consistency_repair": "The distinct reader12 successor normalizes prepared initial values once and adds one unrun targeted case."
+  },
+  "legacy116_independent_review": {
+    "Native_acceptance": false,
+    "Runtime_sql_mandatory_producer_refusal": "not a confirmed finding; exact original decorator can return no context",
+    "Source_execution": false,
+    "artifacts_Root_verified": true,
+    "distinct_repair_successor": "being sealed",
+    "exact_callee_supplement_manifest_sha256": "97847a37564b5dd849324e2b38ba3966a604ec5766b587a95ec88ce8a2c45c1f",
+    "findings": [
+      "Whole global runtime file identity can invalidate a neighboring enrolled deployment after a legitimate store",
+      "Missing pending abandonment and partial capability recovery leaves a committed enrollment stuck"
+    ],
+    "manifest_sha256": "34442e28c6722626d4dc628cf6147383b5eb6a6cbae6a00643f4789ce30548d7"
+  },
+  "legacy126_durable_readonly_successor": {
+    "Native_acceptance": false,
+    "Root_code_application": false,
+    "Root_input_reconciliation_manifest_sha256": "0fa5b4b9453f6690ddaf9399e8db263732b18300f7020817b49a8869003cede3",
+    "Source_execution": false,
+    "authored_cases_unrun": 39,
+    "canonical_identity": "6e826b0da8c787de14addc7f4605a4655732e9900d01d8ab44d765340b0a0bf4",
+    "confirmed_review_followups": [
+      {
+        "kind": "shared publisher integration",
+        "status": "absent in immutable126 Dependencies, active publisher now contains actual entry/final pending hooks, final data assertion and finally cleanup; coherent integrated freeze not yet supplied"
+      },
+      {
+        "kind": "human freshness before private capability effect",
+        "native_census_line": 426,
+        "path": "lab/transfer_legacy_enrollment.py",
+        "private_effect_line": 428,
+        "refresh_line": 422,
+        "status": "Closed structurally in distinct successor129; original126 negative preserved"
+      }
+    ],
+    "manifest_sha256": "bbf536f803b72298a92cbd8f9843a09fa7eab4f3f984b630e0d8a5dec20392a5",
+    "rows_Root_verified": 126,
+    "status": "source authored, independent review and shared production integration open"
+  },
+  "legacy129_private_effect_repair": {
+    "L4": "closed structurally only",
+    "Native_acceptance": false,
+    "Root_code_application": false,
+    "Root_independent_report_verification_addendum_manifest_sha256": "3215cbeec82afb8864484b5880194c9057602ecbf48d79a43885656c7c1a81b7",
+    "Root_structural_reconciliation_manifest_sha256": "d6a90a1ca01717ac0456112eb99803f8f1cdc725c5fa72b6176c628fadd4ecf9",
+    "Source_execution": false,
+    "canonical_identity": "69e522192f3d903122c039263fb31c457a73a54b8f388f96a4e55c0c52ae66d4",
+    "cases_unrun": 39,
+    "genuine_operator_sync_line": 428,
+    "original126_review_artifacts_Root_verified": 6,
+    "original126_review_manifest_sha256": "d20844c69a3df79b32cd13061158b75d284308e7026529b6ebaaf9ec1fcf5df3",
+    "private_create_line": 429,
+    "shared_integration": "active Source hooks and consumers authored, coherent final freeze pending",
+    "source_manifest_sha256": "971c2e85349588b9065ce8bee9b82759c1da40ecf0d9fa2fdfe50a8a50bee335",
+    "source_rows_Root_verified": 129,
+    "successor129_review_artifacts_Root_verified": 5,
+    "successor129_review_manifest_sha256": "adc8b90e89f9fafef25c0d560e368336304a6dd74129446c045e1e0a4fbdd9f4",
+    "unchanged_source_and_supplier_files": 103
+  },
+  "legacy_durable_readonly_contract": {
+    "checkpoint116_all_inputs_verified": true,
+    "checkpoint_cases_authored_unrun": 13,
+    "fresh_human_mfa": "Required for every enrollment, replacement, revocation, management mutation and transfer.",
+    "implementation": "A distinct successor is implementing live observation and recovery. Checkpoint116 deliberately remains unavailable and is not operational preservation.",
+    "lifetime": "Explicit owner-issued readonly service observation survives human bearer expiry and later Native factor changes. Current enrolled Catalog epoch, membership, independent revocation and original resource bindings still govern it.",
+    "neighbor_binding_gate": "The checkpoint enrolls the mutable whole runtime file. Its successor must preserve unrelated environments while verifying selected and protected material.",
+    "original_service_source_basis": "16c8d7de3cacd8cb82d9119f41e0bc610e0b661e8ad74ce841c8716b13a379dc",
+    "root_contract_manifest_sha256": "4ccd08380d8ac3e2d3a0c1348e39d5551d4ebd8777c24d32a20c4f516ad00ff8",
+    "scope": "Cannot issue signing, producer, migration or transfer authority."
+  },
+  "limits": [
+    "Independent review closes three binding defects structurally. All 31 binding cases and eight attempt cases remain unrun.",
+    "Recorded enrollment observations do not prove live Native authority.",
+    "This observation is not a coherent executable Source freeze.",
+    "Original ABI12 negative evidence is retained."
+  ],
+  "management_v6_functions_configuration20_static_review": {
+    "full_goal_complete": false,
+    "functions_configuration_cases_unrun": 8,
+    "management_cases_unrun": 12,
+    "manifest": "/home/sbarah/.codex/sbarbase-integration/20261007/Root-management-v6-functions-token20-static-review-20261007/manifest.json",
+    "manifest_sha256": "4f843a83aa6333e6e9fed48294de3f4836c8738eeb8da235dbff31448b642c9a",
+    "native_execution": false,
+    "source_execution": false,
+    "static_only": true
+  },
+  "native_execution": false,
+  "observed_bodies_and_receipts": 8,
+  "optional_functions_studio_producer_contract": {
+    "Native_acceptance": false,
+    "Source_execution": false,
+    "canonical_identity": "3eb4d4f3c76f0fa81fefa016d7c3d8b825a0d772ddc43feccf12c4b5796d1ca8",
+    "manifest_sha256": "7af1b0326adaece7b7861335e75996e4f8b103a588e396e79cf850e9d235bd14",
+    "rows_Root_verified": 11,
+    "separate_required_effect_paths": [
+      "Functions code deploy/delete/secrets",
+      "Studio reset, startup and signing",
+      "Legacy fresh human mutations"
+    ],
+    "status": "Exact two-kind contract supplied; isolated actual producer implementation active"
+  },
+  "original_execution_ledgers_changed": false,
+  "reader_successor12": {
+    "all12_inputs_verified": true,
+    "checked_connection_brand": "Binding proxy identity only, never Native authority.",
+    "effect_attempt_cases_authored_unrun": 8,
+    "new_prepare_case_unrun": true,
+    "original_issuer_negative_review_preserved": "1a4b55264305324deb359080c5b983efda949ff616383bf5f85519cd55fa9539",
+    "prepared_initial_values_normalized_once": true,
+    "root_reconciliation_manifest_sha256": "0ae6bcc3527c196be192aba4f82df88074549e76d98c3ef145f2f65b6502bc10",
+    "runtime_acceptance": false,
+    "source_manifest_sha256": "9f64ab3ee3cb3bdca320b0a39ce15333bc5918fab43f4f76586b9bb9fc92753b",
+    "structural_repairs": [
+      "Each final private-file comparison uses one paired bytes and inode observation.",
+      "Both readers require the effect result from the exact current attempt.",
+      "Both readers bind protected engine, management and daemon metadata to original issuance."
+    ]
+  },
+  "readonly_observation_manifest_sha256": "eca239b184eb5772966f8cc1fe552307863317e2fbc403c78b4955be6cb8c80a",
+  "remaining_scope": [
+    "Persistent legacy public and management caller compatibility",
+    "Authenticated once-only queue payload issuance",
+    "F1/F2 ordinary management producer dual-writer closure",
+    "Typed lifecycle restore, purge, rekey and genuine lost-source recovery",
+    "All 105 capability-placement contracts, Storage29 and NativeT1-T11",
+    "Seven stages, fresh-host acceptance, rendered browser, real providers, pilot and seven days"
+  ],
+  "root_code_application": false,
+  "root_full105_canonical_registry_gap_current_20261008": {
+    "Native_accepted": false,
+    "Source_executed": false,
+    "acceptance_unproven_in_registry": 105,
+    "capabilities": 35,
+    "contracts": 105,
+    "contracts_with_incomplete_registry_acceptance_execution_declarations": 103,
+    "contracts_with_incomplete_registry_production_execution_declarations": 105,
+    "full_goal_complete": false,
+    "independent_review": {
+      "Native_accepted": false,
+      "Root_verified_bodies": 3,
+      "Source_executed": false,
+      "all_declared_runner_paths_present": true,
+      "manifest_sha256": "5bbd6feb3638ebc257ea1829d7878f367ee71a50a75d56899f01eb2b55a43cc7",
+      "required_acceptance_test_declarations": 171,
+      "required_production_test_declarations": 105,
+      "status": "NO_METADATA_FINDINGS",
+      "unique_declared_runner_paths": 19
+    },
+    "limitation": "Registry declarations and current runner file existence only. Does not prove absence of private runnable Source, establish runtime failure or invalidate narrow historical evidence. All original requirements remain mandatory.",
+    "manifest": "/home/sbarah/.codex/sbarbase-integration/20261008/Root-complete105-canonical-registry-gap-observation-20261008/manifest.json",
+    "manifest_sha256": "879dd30a97883a2a9cd8fe4f15cfd23ca22473ec3a39f92d8e077cb813d875ab",
+    "placements": 3,
+    "production_unproven_in_registry": 105,
+    "registry_sha256": "f4e86065e6d58693c47f049e6e693f394c771f0c704bf31b821563a9a21d4f92",
+    "status": "CANONICAL_REGISTRY_OBSERVATION_ONLY"
+  },
+  "root_owned_driver_and_setup_current_20261008": {
+    "Native_accepted": false,
+    "Root_applied": false,
+    "Source_executed": false,
+    "actual_Root_driver": {
+      "bytes": 8113,
+      "flow": "Genuine issuer open_wire before same-process original admission/worker, retained original locks/clients, stable member IDs and once-only actual audit rows before/after actual final publication.",
+      "immutable_manifest_sha256": "5d7a50d216c212d90b5e9902b2f03d5a14ccb6fd4b76c734c4a3b8cf72870f10",
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261007/Root-owned-transfer-check-source-preparation-20261008/Source/lab/transfer-check.py",
+      "sha256": "c8d7697bfd80024e33ea18520b738835f89ea68a5e924647af586f758fad24d5"
+    },
+    "full_goal_complete": false,
+    "held_studio_binary_successor": {
+      "changed_artifacts_verified": 7,
+      "manifest_sha256": "0e6d427de5393f2635d9a87c7699168c9513c9288d5aa98d75ecf80df5126b7a",
+      "whole_source_acceptance": false
+    },
+    "issuer_collector_successor": {
+      "Python_AST_only": 15,
+      "manifest_sha256": "815dcedb5e22586c7d5f2e7da1790e5269c776de2e1f8dce85e693ac1e8aa823",
+      "remaining": "Outer actual scope/escaped daemon descendant containment, EOF/reap/accounting and final fsync runtime proof remain unproved.",
+      "resolved_static_findings": [
+        "Nonzero/signal installer exit triggers original group stop before reap.",
+        "Nonblocking read readiness tolerates BlockingIOError."
+      ],
+      "verified_artifacts": 22
+    },
+    "mandatory_scope_preserved": "105 capability-placement contracts, Storage29, NativeT1-T11, seven stages, fresh host, lost-source recovery, rendered browser, real providers and pilot plus seven days.",
+    "open_findings": [
+      "Owned setup orchestration server/drain must use fixed genuine aggregate setup deadline API, not new30/180-second ceilings.",
+      "Operation-only public arrival cutoff matches initiator actor while genuine reauthorization may change final actor; actual final-actor binding must be reviewed/repaired."
+    ],
+    "remaining": "Full eight client/producer results, complete Native50 case suite, complete installed source closure and public cross-process retained client continuity. No execution grant or budget reset.",
+    "status": "SOURCE_PREPARATION_ONLY"
+  },
+  "root_persistent_fixture_transport_source": {
+    "bytes": 12532,
+    "close_source": "Authored narrow close state, actual EOF drain, trailing stdout refusal, bounded stderr and exact original process reap plus stopped original daemon lifetime checks; unrun and under review.",
+    "current_goal_turn_progress": "Connected actual durable start APIs, fixed last-boundary owner sync, verified issuer call correction and exposed original supervisor lock ownership obstacle.",
+    "durable_start_source": "Actual reserve_start before Popen, genuine final owner sync immediately before Popen, complete_start only after process/pipe/lifetime proof and before registry, genuine assert_started for later I/O.",
+    "exported_apis": [
+      "OriginalFixtureTransport.launch(initial_session,owned_fixture)",
+      "OriginalFixtureTransport.exchange(authority,command,body)",
+      "lookup(authority,source,operation)"
+    ],
+    "genuine_binding": "Real issuer peer and daemon inspection, retained original process and pipe identities, exact operation/source/runtime/head and process lifetime.",
+    "goal_complete": false,
+    "issuer_call_signature_defect": "Found three positional owner arguments to keyword-only _write_new; supplier corrected them. All six current calls verified by stdlib AST.",
+    "native_accepted": false,
+    "path": "/home/sbarah/.codex/sbarbase-integration/20261007/Root-persistent-fixture-transport-source-preparation-20261007/Source/lab/transfer_fixture_transport.py",
+    "previous_goal_turn_classification": "progress: actual transport launch, lookup and close bodies authored",
+    "prior_draft_sha256": "0fbfd66bbcf893cadbca853429e33b42503cf1ac64c6372c43b5f8119c319eb7",
+    "python_ast_parsed": true,
+    "remaining": [
+      "Source-only transport and close review require actual Native evidence.",
+      "Auth before-effect journal and once-only private token retention are being authored by client supplier.",
+      "Main owns real standalone-console and original one-shot/request-worker orchestration; ordinary dev supervisor cannot release worker lock while alive.",
+      "Final close must run on genuine held writer after all member/client observations and before candidate sealing and ownership release.",
+      "Current one-selected-runtime fixture is insufficient for arbitrary multi-environment project acceptance.",
+      "No real owned setup or persistent client exchange has executed."
+    ],
+    "root_applied": false,
+    "same_process_start_attempt_barrier": true,
+    "sha256": "6085e9d525931a1e1f93dbca8d081d28fa87db843e0788d47b6adb507bd5425a",
+    "socket_rpc_extension": "See root_socket_rpc_source_extension; actual fixed supplier dispatch, no callbacks.",
+    "source_executed": false,
+    "status": "actual_draft_authored_unrun",
+    "topology": "Original installed worker class may execute in same original owned launcher with genuine worker.lock and effect.lock exclusion. Ordinary CLI remains unchanged."
+  },
+  "root_reconciliation_manifest_sha256": "aef5f22d87b153a77ac046b3b558aa76eeccf492dfaa87a7028bb582f791b6e6",
+  "root_socket_rpc_source_extension": {
+    "authority": "Actual fixed dispatch_socket(authority,source,operation,frame); parser data and reply observations grant no authority. Genuine issuer/peer/durable-start checks retained around I/O.",
+    "files": [
+      {
+        "AST_parsed": true,
+        "bytes": 11905,
+        "path": "/home/sbarah/.codex/sbarbase-integration/20261007/Root-persistent-fixture-transport-source-preparation-20261007/Source/lab/transfer_fixture_frames.py",
+        "sha256": "053db4bcc3487549b90f26ef373768d60b85386b6aaa1a7ab9fe5744899b7a76"
+      },
+      {
+        "AST_parsed": true,
+        "bytes": 12532,
+        "path": "/home/sbarah/.codex/sbarbase-integration/20261007/Root-persistent-fixture-transport-source-preparation-20261007/Source/lab/transfer_fixture_transport.py",
+        "sha256": "6085e9d525931a1e1f93dbca8d081d28fa87db843e0788d47b6adb507bd5425a"
+      },
+      {
+        "AST_parsed": true,
+        "bytes": 5669,
+        "path": "/home/sbarah/.codex/sbarbase-integration/20261007/Root-persistent-fixture-transport-source-preparation-20261007/Source/lab/test_transfer_fixture_socket_frames.py",
+        "sha256": "30d886ff6bfb00a3d5689ca36981c85ab4ef94ba65cc955f45e1c3b6c5746498",
+        "unrun_methods": 14
+      }
+    ],
+    "goal_complete": false,
+    "native_accepted": false,
+    "observed_date": "2026-10-08",
+    "protocol": "Fixed socket/socket_result private frames, verify only, strict independent sequence, one awaiting reply, slots0/1 new SDK peers and2 old JWT negative probe, connect once, text or canonical base64 <=65536 decoded bytes, no open sockets at command result.",
+    "remaining": [
+      "Actual default pinned SDK custom transport and exact old-JWT negative join still require integration and Native evidence.",
+      "Bootstrap console takeover and fresh owner-session orchestration remain under integration.",
+      "Final closed retry, producer fences, held DirectDatabase/Studio/meta and coherent source closure are unfinished.",
+      "Ordinary public spawned admission needs authentic cross-process probe ownership; same-process owned gate is insufficient."
+    ],
+    "root_applied": false,
+    "source_executed": false,
+    "source_snapshots_independently_verified": [
+      {
+        "files": 736,
+        "manifest_sha256": "79552e03832d7b037ee3f752b03ebbfe319f29d2d11c06ca998edf28a8f3ebcd",
+        "python_ast_bodies": 439
+      },
+      {
+        "files": 737,
+        "manifest_sha256": "3a18992aa2029568539db4f1861c62fd3aca770147936120616775572c7e4d3f",
+        "python_ast_bodies": 440
+      }
+    ],
+    "status": "actual_source_authored_unrun",
+    "traffic_bound": "Cumulative stdin writes plus stdout/stderr reads bounded to2MiB.",
+    "verification": "stdlib AST and exact file identities only;14 pure data cases authored but unrun."
+  },
+  "root_storage_peer_and_database_scope_progress_20261008": {
+    "Native_accepted": false,
+    "Root_applied": false,
+    "Source_executed": false,
+    "T9_original_controller_slot_maps": {
+      "Root_verified_addendum_rows": 5,
+      "Root_verified_rows": 16,
+      "Source_executed": false,
+      "actual_original_Native_controller_supplied": false,
+      "latest_v4_addendum_manifest_sha256": "51c2b0b7f6e8314eea47de69e4ffdd9a38a3eadcab5e5ecaa3597e351ded3a18",
+      "manifest_sha256": "c17c5af5fa9b72a842928e4c2adfdc7b28687b244be1b358ccf4f473cae24ed0"
+    },
+    "actual_root_driver_current": {
+      "Source_executed": false,
+      "bytes": 8764,
+      "full_native50_passed": false,
+      "manifest_sha256": "c6f99948427d253f8a96c353bed1a93df44f34bd6f1989faa247b08edc3ebfef",
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261007/Root-owned-transfer-check-source-preparation-20261008/Source/lab/transfer-check.py",
+      "sha256": "8a4f8f0b8abbf4017e2dff5d77d3d5f97c9bf0883a267e40d1e5c8883e1ddd1e"
+    },
+    "actual_storage_stage_entry_launch_successor749": {
+      "Native_accepted": false,
+      "Root_Python_AST_only": 448,
+      "Root_applied": false,
+      "Root_verified_review_bodies": 3,
+      "Root_verified_source_bodies": 749,
+      "Source_executed": false,
+      "canonical_identity": "95292f5b3675e1b3d1e06edf8681cdc60281bab2aa9728793f93ea09be6e5ce7",
+      "changes_from_preserved_negative749": 5,
+      "execution_proposal": false,
+      "independent_review_manifest_sha256": "fac696ff65190db96f37b5a25be4d390fb92748500db52f989da1f9416631f47",
+      "manifest_sha256": "1c2261421ab20adbf1977d5b21d149e20b20a3510e197d58154fdaa86f6e5654",
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261006/sb06-root-operative-transfer-20261006/storage-committed-stage-entry-and-launch-final-human-full-source-readonly-successor-20261008/manifest.json",
+      "remaining": [
+        "Held original/replacement Node broker, genuine peer and signing-key ownership, actual committed per-await leases and current durable service capability remain unimplemented.",
+        "Nested final verifier still refuses helper launch; a complete stage-aware final read supplier remains required.",
+        "Original SB06 Native controller/deadline/capture authority is absent from supplied Source, no setup45 or SB07 reuse.",
+        "realtime.py native child capture still has fixed90/unbounded internal output, not repaired by this checkpoint.",
+        "Full source, Native, T9, owned fixture50 and complete eight-flag acceptance remain false."
+      ],
+      "structurally_resolved": [
+        "STAGE749-S1",
+        "STAGE749-S2"
+      ]
+    },
+    "actual_storage_stage_preparation": {
+      "remaining": "Held Node broker/current signing/new capability and nested final stage reader remain missing.",
+      "status": "Main reports authored original stage schema, paired reserve/observe committed/reacquire helper caller, checkpoint pending. No Source or Native execution."
+    },
+    "actual_storage_stage_source749": {
+      "Native_accepted": false,
+      "Root_Python_AST_only": 448,
+      "Root_applied": false,
+      "Root_verified_source_bodies": 749,
+      "Source_executed": false,
+      "canonical_identity": "c8b559f44beaeb16b8f1f820853fe18a9df9f8826f6d376e135f8d5d826927ac",
+      "execution_proposal": false,
+      "independent_database_rebase_review": "requested",
+      "independent_stage_review": "Concrete P1 found and main confirms: new writer entry calls pending-stage current_publication before _active context exists. Reacquisition aborts before helper. Source749 remains unaccepted, distinct successor pending.",
+      "manifest_sha256": "5af516350530af16662a6f9d6295143ebc4a053a8edeaa1051d616e7d8068571",
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261006/sb06-root-operative-transfer-20261006/storage-committed-stage-and-database65-full-source-readonly-preparation-20261008/manifest.json",
+      "remaining": [
+        "Held original/replacement Node broker, genuine peer and signing-key ownership, actual committed per-await leases and current durable service capability remain unimplemented.",
+        "Nested final verifier still refuses helper launch; a complete stage-aware final read supplier remains required.",
+        "Original SB06 Native controller/deadline/capture authority is absent from supplied Source, no setup45 or SB07 reuse.",
+        "realtime.py native child capture still has fixed90/unbounded internal output, not repaired by this checkpoint.",
+        "Full source, Native, T9, owned fixture50 and complete eight-flag acceptance remain false."
+      ],
+      "retained_mode_counts": {
+        "0444": 741,
+        "0555": 8
+      },
+      "stage_entry_accepted": false
+    },
+    "artifacts": {
+      "database54_negative_review": {
+        "path": "/home/sbarah/.codex/sbarbase-integration/20261008/sb06-database-producer54-selected-writer-static-review-20261008/manifest.json",
+        "sha256": "05a7f3323bf35c5508f6f10b9b5264f90604aca28a80f0fb814dab30c983f629"
+      },
+      "database_public34_review": {
+        "path": "/home/sbarah/.codex/sbarbase-integration/20261008/sb06-database-settings-public-disclosure-v7-successor-static-review-20261008/manifest.json",
+        "sha256": "4e19c6836666e470270080022a458bc10d338e5237dccfcbe52491c6e43c2dc1"
+      },
+      "storage_peer_source": {
+        "path": "/home/sbarah/.codex/sbarbase-integration/20261007/Root-held-transfer-storage-peer-source-preparation-20261008/Checkpoints/original-selected-peer-data-source-20261008/manifest.json",
+        "sha256": "9d7d4801deb6529e54514638305b3e683b4c3ae5a255f691b30aed3381ea7896"
+      }
+    },
+    "database_actual_selective_import": {
+      "Native_accepted": false,
+      "Root_Python_AST_only": 3,
+      "Root_verified_actual_WIP_bodies": 3,
+      "Source_executed": false,
+      "full_closure_rebase_pending": true,
+      "receipt": "/home/sbarah/.codex/sbarbase-integration/20261006/sb06-root-operative-transfer-20261006/database65-three-selective-source-import-20261008.json",
+      "receipt_sha256": "602f1a6f0658cbc5f977fccba57d3ae972090f109e75380e15bcaf6119f74f3a"
+    },
+    "database_codepin_and_final_caller_successor_audit": {
+      "Native_accepted": false,
+      "Root_verified_report_artifacts": 33,
+      "Source_executed": false,
+      "manifest_sha256": "c005eb0292a680e99fc9a9ad5bf892acf1f8ae7c21fabbdd6aa3258eabba6bf9",
+      "structurally_resolved": [
+        "DBI-C1",
+        "DBI-C3"
+      ],
+      "unresolved": [
+        "DBI-C2 raw nested capture/90 deadline",
+        "Original Nativecontroller/admission/installed version7 effects andT9"
+      ]
+    },
+    "database_integration_audit": {
+      "Native_accepted": false,
+      "Root_verified_artifacts": 33,
+      "Source_executed": false,
+      "findings": [
+        "DBI-C1 actual database.ts/database-publication.ts absent from selected77 management CODE_PATHS; main reports authored fix, successor not yet verified.",
+        "DBI-C2 actual realtime.py nested worker capture_output=True timeout90 lacks bounded raw capture/count forwarding and current outer deadline proof.",
+        "DBI-C3 selected shared34 packet omits actual final application.ts publication caller; its codepin exists but source closure is not proved."
+      ],
+      "manifest_sha256": "fb039af5f759d2d28ca5ac9716cdb15d2666cc265acdb35e1107c4c9aa4ca17a",
+      "status": "SOURCE_ONLY_INTEGRATION_PREREQUISITES"
+    },
+    "database_producer54": "REQUEST_CHANGES: installation-only assert_operator_sync conflicts with selected-runtime writer. Helper prepares successor with actual assert_current_sync(runtime_id); no import approved.",
+    "database_producer_selected_scope_successor": {
+      "Native_accepted": false,
+      "Python_AST_only": 31,
+      "Root_source_selection": "Three owned bodies only, after critic closure and full caller/schema/pin rebase; supplier evidence is not overlay.",
+      "Source_executed": false,
+      "artifacts_verified": 65,
+      "independent_review": "DBPROD-S1 structurally resolved, sealed critic review and all review bodies verified by Root.",
+      "owned_producer_sha256": "0902d6da78d4fb6266dd7b151f2ef3ea6950770b5aa110da86aa279d8ca51dc1",
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261007/sb06-database-settings-native-source-preparation-20261008/Checkpoints/database-producer-selected-writer-human-proof-source-successor-v2-20261008/manifest.json",
+      "sha256": "c9084e0510d5dd52d2835bb668bceb33a27617456f26c36431624f1cb96a2587"
+    },
+    "database_public34": "Independent static review structurally resolves v7 receipt CHECK and public operation-bound fresh-password disclosure paths. No execution or installed closure claim.",
+    "full_fixture_source_assembly_contract": "Requested exact transitive AST/data dependency mapping for current selected Root driver, issuer, client, frames, transport and readonly SDK206 against main749. Main749 alone omits those owned fixture modules; no full closed assembly or Source execution grant inferred.",
+    "full_goal_complete": false,
+    "mandatory_scope": "105 capability-placement contracts, Storage29, NativeT1-T11, seven stages, fresh host, lost-source recovery, rendered browser, real providers, pilot plus seven days.",
+    "original_outer_native_controller": "Absent from current indexed and retained main inputs. Original full-transfer-plan is a gate specification, not an issued controller/role. Generic startup guardian, SB07 role and expired setup45 are not substitutes.",
+    "original_source_role": {
+      "active_seconds": 155.15069524599443,
+      "captured_bytes": 428382,
+      "execution_issued": false,
+      "ledger_sha256": "87ed7fc3921d8956364d94c2142bfbf9cfccbf2af4539bb00761f4e9c2593719"
+    },
+    "remaining": [
+      "Actual coherent shared Source import and codepin/caller/schema rebase",
+      "Storage genuine committed lease before ACK and exact original launcher/code comparison",
+      "Original SB06 outer-stage deadline and diagnostic capture data plumbing for destination T9",
+      "Full coherent source closure and actual admitted execution",
+      "All original programme requirements remain mandatory"
+    ],
+    "sealed_independent_successor_reviews": {
+      "database_scope": {
+        "path": "/home/sbarah/.codex/sbarbase-integration/20261008/sb06-database-producer65-selected-proof-successor-static-review-20261008/manifest.json",
+        "sha256": "3c24ea4be65230ce8a23d2dc9a4151d476368b894f5d13f9a7bcaf1289010e16"
+      },
+      "peer_ordering": {
+        "path": "/home/sbarah/.codex/sbarbase-integration/20261008/sb06-storage-peer17-final-pair-successor-static-review-20261008/manifest.json",
+        "sha256": "8f70990da754dba93f0f6cef8c2531b8c3117311158b34ba3c8a902df6080dcd"
+      },
+      "peer_span_supplement": {
+        "path": "/home/sbarah/.codex/sbarbase-integration/20261008/sb06-storage-peer17-final-pair-span-supplement-20261008/manifest.json",
+        "sha256": "4271c1b8aa61298888fcf1211607b4117cf3fec392edb991ac91da82315bd62b"
+      }
+    },
+    "sealed_review_bodies_Root_verified": 11,
+    "source_selection_approved": "Three owned database bodies and owned peer module only; original execution role admission and complete coherent installed closure remain required.",
+    "status": "SOURCE_PREPARATION_ONLY",
+    "storage_peer_initial_negative": "Independent review found final peer snapshot preceded further native reads, allowing stale data. Original17 preserved; successor reorders all native selection reads before final paired proc/socket observations.",
+    "storage_peer_source": {
+      "Python_AST_only": 10,
+      "claim": "Exact original or replacement socket/container observations are data only. Caller launcher/code comparison and actual committed lease remain required.",
+      "independent_review": "requested",
+      "owned_bytes": 7415,
+      "owned_sha256": "51dbd1c5583cbd04df6851fa63991fccf9d1249ae48e80cac6be023c7e63c6c9",
+      "verified_artifacts": 17
+    },
+    "storage_peer_successor": {
+      "Native_accepted": false,
+      "Source_executed": false,
+      "artifacts_verified": 17,
+      "independent_review": "PEER-S1 structurally resolved, sealed critic review plus exact span correction and all review bodies verified by Root.",
+      "owned_bytes": 7491,
+      "owned_sha256": "8ead740fd5f0ef0dacbaa612ff6e420d5b71b15ae13b28f21e6577e87d22f17c",
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261007/Root-held-transfer-storage-peer-source-preparation-20261008/Checkpoints/final-peer-after-native-reads-source-successor-20261008/manifest.json",
+      "sha256": "991a32a6298c4130f532037445f53cd5807cf5e6d61ec4ab0f9768041931bfae"
+    }
+  },
+  "sdk206_wire_correction_and_material_dispatch": {
+    "Native_accepted": false,
+    "Source_executed": false,
+    "incorrect_Root_DEL_claim_corrected": true,
+    "manifest": "/home/sbarah/.codex/sbarbase-integration/20261007/Root-sdk206-wire-correction-and-material-dispatch-reconciliation-20261007/manifest.json",
+    "material_dispatch_rows_verified": 9,
+    "sdk_source_rows_verified": 206,
+    "sha256": "41b9cbc4c385c728091d9d05fa4177742c6a1bef3ca8061b34f45dba65a4d00f"
+  },
+  "selected_current_dependency_composition": {
+    "Root_code_application": false,
+    "Source35_actual_source_passes": 35,
+    "Source35_functions_studio_selected_bodies": 5,
+    "current_Root_publication_epoch_UI_imports": 14,
+    "current_Root_recovery_imports": 2,
+    "ordinary_human_producer_and_history_integration": "incomplete",
+    "status": "Exact frozen Source bodies verified",
+    "whole_snapshot_overlay": false
+  },
+  "serving_findings": {
+    "S1": "Static repair adds the original generation-zero inventory and exact runtime enrollment entry/native digest checks in TypeScript.",
+    "S2": "All eight serving test calls now pass seven arguments, matching the original broker signature. The seven test methods remain unrun.",
+    "S3": "Open: persistent legacy installations still require a genuine enrolled operational capability and integration with all public and management consumers.",
+    "S4": "Static repair selects authorization, job metadata and readiness inside one Catalog transaction."
+  },
+  "sink_v3_v4_supplier_and_functions_secret_reconciliation": {
+    "Native_accepted": false,
+    "Root_manifest": "/home/sbarah/.codex/sbarbase-integration/20261007/Root-sink-v3-v4-supplier-and-functions-secret-reconciliation-20261007/manifest.json",
+    "Root_manifest_sha256": "60c825c2b12867749df4a3fcf8d31409bc021a92b22a1b623f2e29d010c74b9e",
+    "Source_executed": false,
+    "independent_review_in_progress": true,
+    "new_Functions_initial_secret_regression_confirmed_statically": true,
+    "versions": [
+      {
+        "Root_verified_source_rows": 720,
+        "canonical_identity": "8ac6c78dd6126071f25816230c27356db555aa07e604fed34c254fb4639d9029",
+        "embedded_legacy_pin_count": 122,
+        "embedded_legacy_pin_mismatches": [
+          {
+            "actual": "0fdb3b523fe026c55e2a7d25ffa9278b022660f55efa115544e0aa18fb9852fe",
+            "expected": "057f4e350cb6e1a30c51a594c9bc49395ac8b3521038b11cd7e76394b04788f6",
+            "path": "lab/transfer_auth_settings_mutation.py"
+          },
+          {
+            "actual": "40ff8271938236739bb6db808bba7ea9e5b1715a8af9f30fe57fb82860287c13",
+            "expected": "9469641af0825cfe0979194c4f3665b6ad480e7b92e197590bbce0abf422dd5d",
+            "path": "lab/transfer_management_mutation.py"
+          },
+          {
+            "actual": "a4ad2b8466784d826879893c4cd97d3931f19559c0b5dc0a641367dce9fdf503",
+            "expected": "18a35379b8f95c35b437b242af5cd9af22dae6473b3bc75b48c11fafb20e20c7",
+            "path": "lab/transfer_optional_settings_mutation.py"
+          }
+        ],
+        "manifest_sha256": "792e4e256b103c10597623129214907c9db28164b75376f1a6cf86ffc114418a",
+        "version": "v3"
+      },
+      {
+        "Root_verified_source_rows": 720,
+        "canonical_identity": "90bdde9c3b0d3952cba9662a358d81693a39f8f5b5bcf19173e475e4b95ca25e",
+        "embedded_legacy_pin_count": 122,
+        "embedded_legacy_pin_mismatches": [],
+        "manifest_sha256": "a6a9b972ee28d99ba1d6a81ce181f382c5c71de39334240ce299d04a19333eb3",
+        "version": "v4"
+      }
+    ]
+  },
+  "sink_v5_staged_functions_secret_source_reconciliation": {
+    "AST_parsed": 429,
+    "Native_accepted": false,
+    "R1_structurally_closed_only": true,
+    "Root_manifest": "/home/sbarah/.codex/sbarbase-integration/20261007/Root-sink-v5-staged-functions-secret-source-reconciliation-20261007/manifest.json",
+    "Root_manifest_sha256": "14a9b39b4ac3b55bde94877482211b61125fb070cf1ed1c65501908dec3a285b",
+    "Source_executed": false,
+    "declared_import_sites_verified": 1595,
+    "independent_review_pending": false,
+    "independent_scoped_review_manifest_sha256": "759df4d29a726048542d4e8154e8dc23ae8afb2c5ba6b80ca29651d02654870a",
+    "input_manifest_sha256": "b1173a270bfd7567d96d40ff83169d26c6ff268f6073f1f97486d3ac56b3a552",
+    "legacy_pins_verified": 122,
+    "original107_cases_UNRUN": true,
+    "prior_v3_v4_review_artifacts_verified": 7,
+    "review_rows_Root_verified": 5,
+    "source_rows_verified": 720,
+    "test_direct_call_census": {
+      "Native_initialization_proof": false,
+      "literal_direct_calls_to_initial_functions_secret": 0,
+      "scope": "Literal AST census only, no transitive or dynamic execution claim",
+      "selected_modules": 6
+    }
+  },
+  "source_execution": false,
+  "status": "STATIC_RECONCILIATION_ONLY",
+  "storage_journal_step_repairs": {
+    "Native_accepted": false,
+    "Root_checkout_applied": false,
+    "Source_executed": false,
+    "integration_manifest_sha256": "4c55f64701d4421a5f00a0b6f583d512f2d0f6150d191701326cf7585c45e844",
+    "original_negative_snapshots_preserved": true,
+    "private_operative_applied": true,
+    "protocol_sha256": "2345b8fb26ea9b9b273fa7538c68339daf9b4eab5ecd16b038a76b8fbd198c87",
+    "remaining_native_protocols_verified": false,
+    "signing_sha256": "340bac156506bee1bf61fa18e2ad17cd6fd1d8e145fd38b8332317df63092bf1"
+  },
+  "strict_test_cases_authored_unrun": 31
+}

@@ -1,0 +1,40 @@
+{
+  "Root_HEAD_at_review": "1c4449ff4c530029096453d32fc12c2d73de93f1",
+  "acceptance": {
+    "Native": false,
+    "Root_source_applied": false,
+    "Source_executed": false,
+    "build": false,
+    "full_objective": false,
+    "installed_backend": false,
+    "rendered_browser": false,
+    "typecheck": false
+  },
+  "all34_regular_artifact_hash_size_modes_verified_by_Root": true,
+  "artifact_inventory_sha256": "a84c8f246bb65814fbc81f1905fc2d8ef652999c56820669d08f93df01a5f3b8",
+  "independent_critic": {
+    "all3_artifacts_verified_by_Root": true,
+    "manifest": "/home/sbarah/.codex/sbarbase-integration/20261007/sb06-serving-ui-cli-successor34-static-review-20261007/manifest.json",
+    "sha256": "26d8bfd0f2bc8f5a080d1b574e21311e17a5c31931c3e0b57bc70d14a8963a60",
+    "status": "SOURCE30_P2_CLOSED_IN_DISTINCT34_STATIC_ONLY"
+  },
+  "integration": "Root independently verified the six exact reviewed Source bodies in the operative private backend WIP, its copy receipt and six unchanged Root ancestors. Backend and precise three-way Catalog/HTTP merge remain unfinished.",
+  "observed_at_utc": "2026-10-07T13:10:09.753314+00:00",
+  "only_production_delta_from_prior30": "Per-row unavailable environment name and actual shared operator guidance in Environments, without changing readiness, polling or Retry gates",
+  "other_five_Source_bodies_unchanged": true,
+  "packet_manifest": {
+    "path": "/home/sbarah/.codex/sbarbase-integration/20261007/sb06-serving-ui-cli-unavailable-guidance-source-successor-complete-20261007/manifest.json",
+    "sha256": "73e9f44a98a003cca0f212327489f2e09ff09117303494bba2eed6bd080e5b34"
+  },
+  "physical35_closure_verified_by_Root": true,
+  "prior30_and_intermediate33_preserved": true,
+  "private_WIP_copy_reconciliation": {
+    "path": "/home/sbarah/.codex/sbarbase-integration/20261007/Root-serving-ui34-private-copy-reconciliation-20261007/manifest.json",
+    "sha256": "2b1b9afbca888fcf6b887609f6ee760b76590ff88295d8423e34d99b1a3651e0"
+  },
+  "six_current_Root_ancestors_exact": true,
+  "six_full_patches_exactly_regenerated_by_Root": true,
+  "status": "UI_CLI_SOURCE_PREPARATION_STATIC_REVIEWED_NOT_APPLIED",
+  "unrun_CLI_cases": 8,
+  "unrun_targeted_UI_proposal": "Environments.succeeded_unavailable_guidance"
+}
