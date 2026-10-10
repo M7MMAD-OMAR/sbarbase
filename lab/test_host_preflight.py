@@ -392,14 +392,15 @@ class ShellAdmissionTests(unittest.TestCase):
                  'SBARBASE_DOCKER_SOCKET', 'SBARBASE_ROOT', 'SBARBASE_COMPOSE_PROJECT',
                  'COMPOSE_PROJECT_NAME', 'SBARBASE_CONSOLE_PORT', 'SBARBASE_DATABASE_PORT',
                  'SBARBASE_DATABASE_BIND', 'SBARBASE_PUBLIC_URL', 'SBARBASE_RELEASE_SOURCE',
-                 'SBARBASE_BACKUP_HOUR', 'SBARBASE_BACKUP_KEEP', 'SBARBASE_UPLOAD_LIMIT_MB', 'TZ',
+                 'SBARBASE_BACKUP_HOUR', 'SBARBASE_BACKUP_KEEP', 'SBARBASE_MANAGEMENT_SESSION_SECONDS', 'SBARBASE_UPLOAD_LIMIT_MB', 'TZ',
                  'DOCKER_HOST', 'DOCKER_CONTEXT', 'DOCKER_TLS', 'DOCKER_TLS_VERIFY',
                  'DOCKER_CERT_PATH', 'DOCKER_API_VERSION', 'COMPOSE_FILE', 'COMPOSE_PROFILES',
                  'COMPOSE_ENV_FILES', 'COMPOSE_DISABLE_ENV_FILE')
         valid = dict(self.env, SBARBASE_DOCKER_PROFILE='local-v1', SBARBASE_CONSOLE_PORT='8790',
                      SBARBASE_DATABASE_PORT='6543', SBARBASE_DATABASE_BIND='127.0.0.1',
                      SBARBASE_PUBLIC_URL='https://example.com', SBARBASE_RELEASE_SOURCE='https://example.com/releases',
-                     SBARBASE_BACKUP_HOUR='3', SBARBASE_BACKUP_KEEP='7', SBARBASE_UPLOAD_LIMIT_MB='50', TZ='UTC')
+                     SBARBASE_BACKUP_HOUR='3', SBARBASE_BACKUP_KEEP='7', SBARBASE_MANAGEMENT_SESSION_SECONDS='86400',
+                     SBARBASE_UPLOAD_LIMIT_MB='50', TZ='UTC')
         for name in names:
             for control in ('\n', '\r', '\t'):
                 for value in (valid.get(name, '') + control + 'junk', control + valid.get(name, ''),

@@ -1,3 +1,4 @@
+import {managementSessionSeconds} from './management-session';
 import {createHash} from 'node:crypto';
 import {reply,hasManagementMfa,hasManagementAccess,type PasswordIdentity} from './auth';
 import type {Catalog} from './catalog';
@@ -124,7 +125,7 @@ export function managementAuth(catalog:Catalog,realm:ManagementRealm,
     const checked=await identify(new Request(request.url,{headers:{authorization:'Bearer '+result.access_token}}));
     if(!checked||checked.actor!==actor)return unavailable();
     if(checked.aal==='aal1'&&checked.verifiedAt===0&&!checked.factors.some(factor=>factor.status==='verified')&&
-     !security.grantPassword(actor,checked.session,checked.passwordAt,checked.passwordAt+43200,loginEpoch,policyEpoch))
+     !security.grantPassword(actor,checked.session,checked.passwordAt,checked.passwordAt+managementSessionSeconds(),loginEpoch,policyEpoch))
      return unavailable();
    }
    if(response.ok&&route==='verify'){
@@ -134,7 +135,7 @@ export function managementAuth(catalog:Catalog,realm:ManagementRealm,
     if(lease&&!security.holds(identity!.actor,lease))throw new Error('Security lease expired');
     if(!checked||checked.actor!==identity!.actor||checked.session!==identity!.session||checked.aal!=='aal2'||!checked.verifiedAt||
       !checked.factors.some(entry=>entry.id===factor![1]&&entry.status==='verified'&&entry.factor_type==='totp'))return unavailable();
-    if(!catalog.grantManagementMfa(checked.actor,checked.session,factor![1]!,checked.verifiedAt,checked.passwordAt+43200,epoch,!identity!.factors.some(entry=>entry.status==='verified')))
+    if(!catalog.grantManagementMfa(checked.actor,checked.session,factor![1]!,checked.verifiedAt,checked.passwordAt+managementSessionSeconds(),epoch,!identity!.factors.some(entry=>entry.status==='verified')))
      return reply(409,{message:'Wait for a new authenticator code and verify again',code:'mfa_retry'});
    }
    if(response.ok&&route==='enroll'){

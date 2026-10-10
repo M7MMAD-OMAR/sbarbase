@@ -43,6 +43,9 @@ services:
       # Where the update check reads signed releases. Empty means the canonical repository;
       # set it only for a mirror you control.
       SBARBASE_RELEASE_SOURCE: ${SBARBASE_RELEASE_SOURCE:-}
+      # How long one password sign-in keeps a management session alive, in seconds (3600 to
+      # 2592000). Empty or invalid means 43200, twelve hours.
+      SBARBASE_MANAGEMENT_SESSION_SECONDS: ${SBARBASE_MANAGEMENT_SESSION_SECONDS:-}
       # The address people and OAuth providers reach this server at, for example
       # https://api.example.com. Auth builds email links and callbacks from it.
       SBARBASE_PUBLIC_URL: ${SBARBASE_PUBLIC_URL:-}

@@ -1,5 +1,7 @@
 """SQLite tests for the installed Python password and MFA effect guard."""
 import copy
+import os
+from unittest.mock import patch
 import sqlite3
 import unittest
 from lab.management_access import current_grant, factor_matches
@@ -57,6 +59,18 @@ class OptionalMfaAuthority(unittest.TestCase):
         self.db.execute('UPDATE management_password_grant SET expires=60000')
         with self.assertRaises(ValueError):
             self.check(now=44100)
+
+    def test_configured_password_window_does_not_override_revocation(self):
+        self.value['identity']['expiresAt'] = 100000
+        self.db.execute('UPDATE management_password_grant SET expires=100000')
+        with patch.dict(os.environ, {'SBARBASE_MANAGEMENT_SESSION_SECONDS': '43200'}):
+            with self.assertRaises(ValueError):
+                self.check(now=50900)
+        with patch.dict(os.environ, {'SBARBASE_MANAGEMENT_SESSION_SECONDS': '2592000'}):
+            self.assertEqual(self.check(now=50900), (100000,))
+            self.db.execute('UPDATE management_mfa_epoch SET epoch=3')
+            with self.assertRaises(ValueError):
+                self.check(now=50900)
 
     def test_mode_cannot_be_inferred_or_substituted(self):
         original = copy.deepcopy(self.value)

@@ -1,4 +1,5 @@
 """Catalog-bound native authentication checks shared by lifecycle effect processes."""
+from management_session import management_session_seconds
 
 
 def factor_matches(value, factors):
@@ -21,7 +22,7 @@ def current_grant(connection, value, factors, now):
     if (not policy or policy[1] != value.get('policyEpoch') or (epoch[0] if epoch else 0) != value['epoch']
             or not factor_matches(value, identity['factors']) or not factor_matches(value, factors)
             or identity['expiresAt'] <= now or not 0 < identity['passwordAt'] <= now
-            or now - identity['passwordAt'] >= 43200):
+            or now - identity['passwordAt'] >= management_session_seconds()):
         raise ValueError('Lifecycle authority revoked')
     if value['authorization'] == 'password':
         grant = connection.execute('''SELECT expires FROM management_password_grant

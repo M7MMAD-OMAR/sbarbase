@@ -1,8 +1,9 @@
 import {createClient} from '@supabase/supabase-js';
 import {useEffect,useState} from 'react';
 import {classifyStatus,type Outcome,type UpdateSettings,type UpdatesView} from './releases';
+import {createSessionStorage,SESSION_STORAGE_KEY} from './session-storage';
 export const auth=createClient(location.origin+'/management','sb_publishable_sbarbase_local_management',{
- auth:{persistSession:false,autoRefreshToken:true,detectSessionInUrl:false}});
+ auth:{persistSession:true,storage:createSessionStorage(),storageKey:SESSION_STORAGE_KEY,autoRefreshToken:true,detectSessionInUrl:false}});
 export type Organization={id:string;name:string;role:'owner'|'admin'|'viewer'};
 export type Project={id:string;name:string};
 export type Environment=Project&{state?:string|null;failure?:'capacity_exceeded'|'runtime_failed'|null};
