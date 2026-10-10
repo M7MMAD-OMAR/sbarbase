@@ -1,0 +1,28 @@
+{
+  "conclusion": "success",
+  "headSha": "aad7b5403ad14140e9d9499668e863d7488ce15b",
+  "jobs": [
+    {
+      "conclusion": "success",
+      "name": "checks",
+      "status": "completed"
+    },
+    {
+      "conclusion": "success",
+      "name": "python-floor",
+      "status": "completed"
+    },
+    {
+      "conclusion": "success",
+      "name": "docker-install",
+      "status": "completed"
+    },
+    {
+      "conclusion": "success",
+      "name": "empty-host-acceptance",
+      "status": "completed"
+    }
+  ],
+  "status": "completed",
+  "url": "https://github.com/M7MMAD-OMAR/sbarbase/actions/runs/37688338269"
+}

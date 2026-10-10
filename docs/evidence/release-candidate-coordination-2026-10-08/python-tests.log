@@ -1,0 +1,607 @@
+...........................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................off-host copy 20260924T030000Z: 4 backup(s) encrypted and uploaded, 0 older set(s) removed from the target
+off-host copy 20260922T030000Z: 4 backup(s) encrypted and uploaded, 0 older set(s) removed from the target
+off-host copy 20260923T030000Z: 4 backup(s) encrypted and uploaded, 0 older set(s) removed from the target
+off-host copy 20260924T030000Z: 4 backup(s) encrypted and uploaded, 1 older set(s) removed from the target
+ok: host preflight passed
+ok: built console page is intact
+ok: supervisor started and owns the console
+ok: console serves the built page
+ok: management identity realm reachable through the console
+ok: every recorded environment route answered
+ok: the shipped supervisor unit is not required for this run
+ok: supervisor shut down cleanly
+ok: no owned container left running
+ok: host preflight passed
+ok: built console page is intact
+ok: supervisor started and owns the console
+ok: console serves the built page
+ok: management identity realm reachable through the console
+ok: every recorded environment route answered
+ok: operator bootstrap checks passed against the live management Auth
+ok: the shipped supervisor unit is not required for this run
+ok: supervisor shut down cleanly
+ok: no owned container left running
+ok: host preflight passed
+FAIL: installation steps completed  BlockingIOError: [Errno 11] Resource temporarily unavailable
+ok: host preflight passed
+FAIL: installation steps completed  Runtime startup failed: lock held
+FAIL: preflight: Host headroom insufficient: 100 MiB available, plan needs 8448 MiB
+ok: host preflight passed
+ok: built console page is intact
+retry: attempt 1: Supervisor exited during startup; host_memory_headroom
+ok: supervisor started and owns the console
+FAIL: console serves the built page
+FAIL: management identity realm reachable through the console
+ok: every recorded environment route answered
+ok: the shipped supervisor unit is not required for this run
+ok: supervisor shut down cleanly
+ok: no owned container left running
+ok: host preflight passed
+ok: built console page is intact
+retry: attempt 1: Supervisor exited during startup; host_memory_headroom
+retry: attempt 2: Supervisor exited during startup; host_memory_headroom
+FAIL: supervisor started and owns the console  attempt 2: Supervisor exited during startup; host_memory_headroom
+ok: host preflight passed
+ok: built console page is intact
+retry: attempt 1: Supervisor exited during startup; reason line
+FAIL: supervisor started and owns the console  attempt 1: Supervisor exited during startup; reason line
+ok: host preflight passed
+ok: built console page is intact
+ok: supervisor started and owns the console
+ok: console serves the built page
+ok: management identity realm reachable through the console
+ok: every recorded environment route answered
+ok: the shipped supervisor unit is not required for this run
+ok: supervisor shut down cleanly
+ok: no owned container left running
+ok: host preflight passed
+ok: built console page is intact
+ok: supervisor started and owns the console
+ok: console serves the built page
+ok: management identity realm reachable through the console
+ok: every recorded environment route answered
+FAIL: the shipped supervisor unit is installed for an acceptance run  sbarbase.service is not installed at /etc/systemd/system; a server acceptance run requires it
+ok: supervisor shut down cleanly
+ok: no owned container left running
+ blocker  Docker profile refused: architecture_unvalidated. Action: check the declared local-v1 inputs with deploy/compose.sh check; use the candidate described in docs/engineering/HOST-PREFLIGHT.md.
+    info  Pinned images were not inspected and installation containers were not enumerated: Docker daemon or profile validation failed from this process
+Preflight: 1 blocker(s), 0 action(s)
+Preflight: 0 blocker(s), 0 action(s)
+step 1/5  state and secret directories prepared
+step 2/5  pinned images present and verified
+Preflight: 0 blocker(s), 0 action(s)
+step 1/5  state and secret directories prepared
+step 2/5  pinned images present and verified
+step 3/5  console built and verified
+Preflight: 0 blocker(s), 0 action(s)
+step 1/5  state and secret directories prepared
+step 2/5  pinned images present and verified
+step 3/5  console built and verified
+step 4/5  owned runtime started
+step 5/5  operator bootstrap skipped; run: /usr/bin/python3 lab/bootstrap.py
+Installation ready. Supervise it with deploy/sbarbase.service or the foreground supervisor
+(bun lab/upstream-server.ts starts the console API beside the owned runtime).
+Smoke test (console running): /usr/bin/python3 lab/install_server.py smoke
+deferred: the unit is enabled and starts once the installation exists
+rendered unit verified
+evidence: /tmp/tmputetpv97/unit.json
+unit installed and enabled; not started yet
+console answered
+rendered unit verified
+evidence: /tmp/tmp323lu853/unit.json
+unit installed and started
+console answered
+rendered unit verified
+evidence: /tmp/tmps7dcw1v_/unit.json
+unit installed and started
+no answer
+ blocker  Docker profile refused: docker_data_root_mismatch. Action: check the declared local-v1 inputs with deploy/compose.sh check; use the candidate described in docs/engineering/HOST-PREFLIGHT.md.
+Docker profile: 1 blocker(s), 0 action(s)
+ blocker  Docker profile refused: docker_data_root_mismatch. Action: check the declared local-v1 inputs with deploy/compose.sh check; use the candidate described in docs/engineering/HOST-PREFLIGHT.md.
+    info  Pinned images were not inspected and installation containers were not enumerated: Docker daemon or profile validation failed from this process
+Preflight: 1 blocker(s), 0 action(s)
+pulling 1/5 db (attempt 1 of 4; the first install downloads several GB)
+.pulling 1/5 db (attempt 1 of 4; the first install downloads several GB)
+pull of db failed; trying again in 15 s (layers already downloaded are kept)
+pulling 1/5 db (attempt 2 of 4; the first install downloads several GB)
+pull of db failed; trying again in 45 s (layers already downloaded are kept)
+pulling 1/5 db (attempt 3 of 4; the first install downloads several GB)
+.pulling 1/5 db (attempt 1 of 4; the first install downloads several GB)
+pull of db exceeded 3600 s
+pull of db failed; trying again in 15 s (layers already downloaded are kept)
+pulling 1/5 db (attempt 2 of 4; the first install downloads several GB)
+pull of db exceeded 3600 s
+pull of db failed; trying again in 45 s (layers already downloaded are kept)
+pulling 1/5 db (attempt 3 of 4; the first install downloads several GB)
+pull of db exceeded 3600 s
+pull of db failed; trying again in 90 s (layers already downloaded are kept)
+pulling 1/5 db (attempt 4 of 4; the first install downloads several GB)
+pull of db exceeded 3600 s
+................................................................................................................................................................................................................................................................................Environment mail configuration is unchanged.
+Environment Auth service recreated to apply the mail configuration.
+console build up to date: fresh
+console build up to date: fresh
+Provisioning worker exited; reconciling retained operations.
+..................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................staged db in lab/images.lock.json
+previous pin (rollback): sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+new pin: sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+complete the review entry before adopting: /tmp/tmpbsytxqkf/docs/upstream/2026-10-08-db-postgres-17.1.md
+then run: bun run test && /usr/bin/python3 -m unittest discover -s lab -p "test_*.py"
+staged db in lab/images.lock.json
+previous pin (rollback): sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+new pin: sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+complete the review entry before adopting: /tmp/tmp3my14hpn/docs/upstream/2026-10-08-db-postgres-17.1.md
+then run: bun run test && /usr/bin/python3 -m unittest discover -s lab -p "test_*.py"
+staged db in lab/images.lock.json
+previous pin (rollback): sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+new pin: sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+complete the review entry before adopting: /tmp/tmpimnq6dlz/docs/upstream/2026-10-08-db-postgres-17.1.md
+then run: bun run test && /usr/bin/python3 -m unittest discover -s lab -p "test_*.py"
+pin verification: 0 problem(s), 8 pinned component(s)
+problem  lab/images.lock.json:db uses a floating tag postgres:latest
+pin verification: 1 problem(s), 8 pinned component(s)
+problem  lab/images.lock.json:auth is not pinned to a sha256 digest
+pin verification: 1 problem(s), 8 pinned component(s)
+{"errors": ["public/image:v1: incomplete or invalid metadata: missing immutable sha256 digest"], "status": "refused"}
+{"errors": ["fresh pinned source inventory differs"], "status": "refused"}
+       management-auth  missing endpoint
+                     >  console: server.json missing (console not started)
+note: service account sbarbase does not exist on this host; the unit will not start until it does
+rendered unit verified
+evidence: /tmp/tmp_1iuumy_/supervisor-unit.json
+dry run: install it with  sudo /usr/bin/python3 lab/install_server.py supervise --apply
+note: service account sbarbase does not exist on this host; the unit will not start until it does
+rendered unit verified
+evidence: /tmp/tmpyicncsm_/supervisor-unit.json
+dry run: install it with  sudo /usr/bin/python3 lab/install_server.py supervise --apply
+rendered unit verified
+evidence: /tmp/tmpknbfooq4/supervisor-unit.json
+dry run: install it with  sudo /usr/bin/python3 lab/install_server.py supervise --apply
+now      540290d08225
+target   663d29e20124  (663d29e20124291308180aed72120febad726d80: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at 663d29e20124. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+now      540290d08225
+target   663d29e20124  (663d29e20124291308180aed72120febad726d80: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at 663d29e20124. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+now      540290d08225
+target   663d29e20124  (663d29e20124291308180aed72120febad726d80: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at 663d29e20124. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+The checkout is back at 540290d08225. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+now      540290d08225
+target   663d29e20124  (663d29e20124291308180aed72120febad726d80: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at 663d29e20124. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+The checkout is back at 540290d08225. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+now      540290d08225
+target   663d29e20124  (663d29e20124291308180aed72120febad726d80: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at 663d29e20124. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+now      540290d08225
+target   663d29e20124  (663d29e20124291308180aed72120febad726d80: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at 663d29e20124. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+The checkout is back at 540290d08225.
+now      187bec27a41e
+target   ee069c46a37e  (ee069c46a37e6ba75749b4ffffc71eb8782b7f75: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at ee069c46a37e. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+now      187bec27a41e
+target   ee069c46a37e  (ee069c46a37e6ba75749b4ffffc71eb8782b7f75: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at ee069c46a37e. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+now      187bec27a41e
+target   ee069c46a37e  (ee069c46a37e6ba75749b4ffffc71eb8782b7f75: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at ee069c46a37e. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+The checkout is back at 187bec27a41e. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+now      187bec27a41e
+target   ee069c46a37e  (ee069c46a37e6ba75749b4ffffc71eb8782b7f75: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at ee069c46a37e. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+now      3680cfef8248
+target   08182360ec7f  (08182360ec7f75b0e0ba750105bdf47f4169ff53: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v2 -> postgrest:v3
+The checkout is at 08182360ec7f. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+The checkout is back at 3680cfef8248. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+now      187bec27a41e
+target   ee069c46a37e  (ee069c46a37e6ba75749b4ffffc71eb8782b7f75: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at ee069c46a37e. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+now      187bec27a41e
+target   ee069c46a37e  (ee069c46a37e6ba75749b4ffffc71eb8782b7f75: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+refused  A backup or restore is running; wait for it to finish
+now      187bec27a41e
+target   ee069c46a37e  (ee069c46a37e6ba75749b4ffffc71eb8782b7f75: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at ee069c46a37e. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+now      7758441ab1c9
+target   9efb636406b7  (9efb636406b72133ac5148019a396cd476a6e6b6: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at 9efb636406b7. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+The checkout is back at 7758441ab1c9.
+now      7758441ab1c9
+target   9efb636406b7  (9efb636406b72133ac5148019a396cd476a6e6b6: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at 9efb636406b7. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+The checkout is back at 7758441ab1c9.
+now      7758441ab1c9
+target   9efb636406b7  (9efb636406b72133ac5148019a396cd476a6e6b6: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at 9efb636406b7. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+now      7758441ab1c9
+target   9efb636406b7  (9efb636406b72133ac5148019a396cd476a6e6b6: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at 9efb636406b7. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+now      7758441ab1c9
+target   9efb636406b7  (9efb636406b72133ac5148019a396cd476a6e6b6: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at 9efb636406b7. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+The checkout is back at 7758441ab1c9.
+now      7758441ab1c9
+target   9efb636406b7  (9efb636406b72133ac5148019a396cd476a6e6b6: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+now      7758441ab1c9
+target   9efb636406b7  (9efb636406b72133ac5148019a396cd476a6e6b6: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at 9efb636406b7. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+The checkout is back at 7758441ab1c9.
+now      7758441ab1c9
+target   9efb636406b7  (9efb636406b72133ac5148019a396cd476a6e6b6: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at 9efb636406b7. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+The checkout is back at 7758441ab1c9.
+now      7758441ab1c9
+target   9efb636406b7  (9efb636406b72133ac5148019a396cd476a6e6b6: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at 9efb636406b7. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+now      7758441ab1c9
+target   9efb636406b7  (9efb636406b72133ac5148019a396cd476a6e6b6: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+refused  The checkout has local changes to tracked files; commit or discard them first
+now      af7e5ed75001
+target   4cea1e0c06dd  (4cea1e0c06dd9eaa4b387dcb9baf3b524f320e3c: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at 4cea1e0c06dd. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+now      af7e5ed75001
+target   4cea1e0c06dd  (4cea1e0c06dd9eaa4b387dcb9baf3b524f320e3c: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at 4cea1e0c06dd. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+The checkout is back at af7e5ed75001. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+now      ee006b8413b5
+target   8de0bb5b26ac  (8de0bb5b26ac65bd9e0ae0a1128ed3b07115134c: 2 commit(s) ahead, 1 behind)
+image    no pinned image changes
+Evidence written on this server was copied to /tmp/tmpzt6buabw/state/upgrades/evidence-20261008T011410Z before the move
+The checkout is at 8de0bb5b26ac. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+now      af7e5ed75001
+target   4cea1e0c06dd  (4cea1e0c06dd9eaa4b387dcb9baf3b524f320e3c: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+now      af7e5ed75001
+target   4cea1e0c06dd  (4cea1e0c06dd9eaa4b387dcb9baf3b524f320e3c: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at 4cea1e0c06dd. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+now      86204ddb7eba
+target   077f7853dfe6  (077f7853dfe6fca9f505b1f2c577e0262544fff0: 2 commit(s) ahead, 1 behind)
+image    no pinned image changes
+Evidence written on this server was copied to /tmp/tmpedy030dk/state/upgrades/evidence-20261008T011410Z before the move
+The checkout is at 077f7853dfe6. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+now      af7e5ed75001
+target   4cea1e0c06dd  (4cea1e0c06dd9eaa4b387dcb9baf3b524f320e3c: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at 4cea1e0c06dd. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+now      66921b596f3e
+target   51dfae862fb7  (51dfae862fb7c2c8b068fa4b702c346c1a910fcd: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at 51dfae862fb7. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+The checkout is back at 66921b596f3e.
+now      0ac02bc412a0
+target   0da1fe961868  (0da1fe96186855a24b975e116f2fafe659eb62ca: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at 0da1fe961868. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+now      0ac02bc412a0
+target   0da1fe961868  (0da1fe96186855a24b975e116f2fafe659eb62ca: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at 0da1fe961868. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+The checkout is back at 0ac02bc412a0.
+now      0ac02bc412a0
+target   0da1fe961868  (0da1fe96186855a24b975e116f2fafe659eb62ca: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at 0da1fe961868. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+The checkout is back at 0ac02bc412a0.
+now      ad78e4336822
+target   1c9fa278b5d7  (1c9fa278b5d71b02880f5f8447383f4088d80dd0: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at 1c9fa278b5d7. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+The checkout is back at ad78e4336822.
+now      ad78e4336822
+target   1c9fa278b5d7  (1c9fa278b5d71b02880f5f8447383f4088d80dd0: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at 1c9fa278b5d7. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+now      ad78e4336822
+target   1c9fa278b5d7  (1c9fa278b5d71b02880f5f8447383f4088d80dd0: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at 1c9fa278b5d7. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+now      ad78e4336822
+target   1c9fa278b5d7  (1c9fa278b5d71b02880f5f8447383f4088d80dd0: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at 1c9fa278b5d7. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+now      ad78e4336822
+target   1c9fa278b5d7  (1c9fa278b5d71b02880f5f8447383f4088d80dd0: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+now      ad78e4336822
+target   1c9fa278b5d7  (1c9fa278b5d71b02880f5f8447383f4088d80dd0: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+now      802302226d26
+target   42f1ed7b5248  (42f1ed7b524840df2924dcd1fbaab486a0cc2843: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+now      802302226d26
+target   42f1ed7b5248  (42f1ed7b524840df2924dcd1fbaab486a0cc2843: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+now      802302226d26
+target   42f1ed7b5248  (42f1ed7b524840df2924dcd1fbaab486a0cc2843: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at 42f1ed7b5248. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+now      802302226d26
+target   42f1ed7b5248  (42f1ed7b524840df2924dcd1fbaab486a0cc2843: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+now      802302226d26
+target   42f1ed7b5248  (42f1ed7b524840df2924dcd1fbaab486a0cc2843: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+now      802302226d26
+target   42f1ed7b5248  (42f1ed7b524840df2924dcd1fbaab486a0cc2843: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at 42f1ed7b5248. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+now      802302226d26
+target   42f1ed7b5248  (42f1ed7b524840df2924dcd1fbaab486a0cc2843: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at 42f1ed7b5248. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+now      d40b32714bd2
+target   7ab44d4dd93c  (7ab44d4dd93c69a00ca5bfbc59f65499448fe64b: 2 commit(s) ahead, 1 behind)
+image    no pinned image changes
+The checkout is at 7ab44d4dd93c. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+now      b55f0742bc9b
+target   574ee066d437  (574ee066d43751d0b792240bde42aa09918d4e3e: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at 574ee066d437. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+now      b55f0742bc9b
+target   574ee066d437  (574ee066d43751d0b792240bde42aa09918d4e3e: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at 574ee066d437. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+now      b55f0742bc9b
+target   574ee066d437  (574ee066d43751d0b792240bde42aa09918d4e3e: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at 574ee066d437. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+The checkout is back at b55f0742bc9b. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+now      abe5104e3e2f
+target   fc00fda957d1  (fc00fda957d11074c3c88eacdb37fd0a809023ae: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at fc00fda957d1. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+The checkout is back at abe5104e3e2f.
+now      abe5104e3e2f
+target   fc00fda957d1  (fc00fda957d11074c3c88eacdb37fd0a809023ae: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at fc00fda957d1. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+now      abe5104e3e2f
+target   fc00fda957d1  (fc00fda957d11074c3c88eacdb37fd0a809023ae: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at fc00fda957d1. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+now      abe5104e3e2f
+target   fc00fda957d1  (fc00fda957d11074c3c88eacdb37fd0a809023ae: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at fc00fda957d1. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+now      abe5104e3e2f
+target   fc00fda957d1  (fc00fda957d11074c3c88eacdb37fd0a809023ae: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at fc00fda957d1. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+now      abe5104e3e2f
+target   fc00fda957d1  (fc00fda957d11074c3c88eacdb37fd0a809023ae: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+now      61e928924a2c
+target   5945bed88d5a  (5945bed88d5ac7dc6859c05a839e47d65fabf739: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at 5945bed88d5a. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+now      61e928924a2c
+target   5945bed88d5a  (5945bed88d5ac7dc6859c05a839e47d65fabf739: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at 5945bed88d5a. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+now      61e928924a2c
+target   5945bed88d5a  (5945bed88d5ac7dc6859c05a839e47d65fabf739: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at 5945bed88d5a. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+now      61e928924a2c
+target   5945bed88d5a  (5945bed88d5ac7dc6859c05a839e47d65fabf739: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at 5945bed88d5a. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+now      61e928924a2c
+target   5945bed88d5a  (5945bed88d5ac7dc6859c05a839e47d65fabf739: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at 5945bed88d5a. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+now      61e928924a2c
+target   5945bed88d5a  (5945bed88d5ac7dc6859c05a839e47d65fabf739: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at 5945bed88d5a. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+now      2567075d7415
+target   445a72df4217  (445a72df42178d6fc4683876c95ba2ca63e4b2de: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at 445a72df4217. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+now      2567075d7415
+target   445a72df4217  (445a72df42178d6fc4683876c95ba2ca63e4b2de: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at 445a72df4217. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+now      2567075d7415
+target   445a72df4217  (445a72df42178d6fc4683876c95ba2ca63e4b2de: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at 445a72df4217. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+now      2567075d7415
+target   445a72df4217  (445a72df42178d6fc4683876c95ba2ca63e4b2de: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at 445a72df4217. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+now      2567075d7415
+target   445a72df4217  (445a72df42178d6fc4683876c95ba2ca63e4b2de: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at 445a72df4217. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+now      3c280be393c0
+target   fce1a342183a  (fce1a342183a34f4a98ea588b2dc3fe9ba022f08: 2 commit(s) ahead, 1 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at fce1a342183a. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+now      2567075d7415
+target   445a72df4217  (445a72df42178d6fc4683876c95ba2ca63e4b2de: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at 445a72df4217. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+now      2567075d7415
+target   445a72df4217  (445a72df42178d6fc4683876c95ba2ca63e4b2de: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at 445a72df4217. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+now      2567075d7415
+target   445a72df4217  (445a72df42178d6fc4683876c95ba2ca63e4b2de: 1 commit(s) ahead, 0 behind)
+image    images.lock.json:rest: postgrest:v1 -> postgrest:v2
+The checkout is at 445a72df4217. Restart Sbarbase now:
+  docker compose up -d --build   (or: sudo systemctl restart sbarbase)
+If the new version does not start, Sbarbase moves back by itself.
+
+Portable source verification passed.
+
+Running ui-build: /usr/bin/python3 -c print("\x1b]8;;https://example.invalid\x07warning: visible linked warning\x1b]8;;\x07")
+]8;;https://example.invalidwarning: visible linked warning]8;;
+FAIL: ui-build emitted 1 build/compiler diagnostics
+
+Running python-compile: /usr/bin/python3 -c print("later stage executed")
+later stage executed
+.......
+----------------------------------------------------------------------
+Ran 2118 tests in 159.134s
+
+OK
+
+Portable source verification failed.

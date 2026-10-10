@@ -1,0 +1,129 @@
+{
+  "head": "aad7b5403ad14140e9d9499668e863d7488ce15b",
+  "source_hashes_before": {
+    "lab/install_server.py": "d1a47e25ffb221ba217ceed7a64e582c1be395dd565ba1172966d3c8757287e2",
+    "package.json": "0f4556bbd3c224eb65c88d1d57030d72ef7a532fce0b837557eb9da8913b6524",
+    "bun.lock": "1a4c44900e416e0570b737142b0193b7a9b94885baa06bcca69441cfd4e14954"
+  },
+  "source_hashes_after": {
+    "lab/install_server.py": "d1a47e25ffb221ba217ceed7a64e582c1be395dd565ba1172966d3c8757287e2",
+    "package.json": "0f4556bbd3c224eb65c88d1d57030d72ef7a532fce0b837557eb9da8913b6524",
+    "bun.lock": "1a4c44900e416e0570b737142b0193b7a9b94885baa06bcca69441cfd4e14954"
+  },
+  "selected_source_unchanged": true,
+  "checks": [
+    {
+      "name": "installer",
+      "command": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "lab",
+        "-p",
+        "test_install_server.py"
+      ],
+      "exit": 0,
+      "seconds": 1.818,
+      "log": "installer.log",
+      "log_sha256": "d4897de71d957c1faf5efc4f639d90269b645a406b97a3a04194b102229f7ed5"
+    },
+    {
+      "name": "ui-types",
+      "command": [
+        "bun",
+        "run",
+        "typecheck:ui"
+      ],
+      "exit": 0,
+      "seconds": 0.315,
+      "log": "ui-types.log",
+      "log_sha256": "5ab2254a8fc792807b32a862227e4ed6e33f0ecbcfa9e9c595bf199636cd71ec"
+    },
+    {
+      "name": "control-types",
+      "command": [
+        "bun",
+        "run",
+        "typecheck:control"
+      ],
+      "exit": 0,
+      "seconds": 0.366,
+      "log": "control-types.log",
+      "log_sha256": "f13e1fc0be8bbad48b024d07dfc35fa6f1dc8a44af19daec02b4cc97c494dce8"
+    },
+    {
+      "name": "bun-tests",
+      "command": [
+        "bun",
+        "test"
+      ],
+      "exit": 0,
+      "seconds": 16.152,
+      "log": "bun-tests.log",
+      "log_sha256": "63fafe448beb67c2bb0fa8fcae2a5b882e93ef812093a6dae2589c2f1f9c1423"
+    },
+    {
+      "name": "docs-links",
+      "command": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "lab",
+        "-p",
+        "test_docs_links.py"
+      ],
+      "exit": 0,
+      "seconds": 0.411,
+      "log": "docs-links.log",
+      "log_sha256": "630cbe11702760389dd68f9e83bd34bf099dcf02f694971541f0370b080b53ec"
+    },
+    {
+      "name": "python-tests",
+      "command": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "lab",
+        "-p",
+        "test_*.py"
+      ],
+      "timeout_seconds": 600,
+      "exit": 0,
+      "seconds": 159.644,
+      "log": "python-tests.log",
+      "docker_endpoint": "unix:///nonexistent/docker.sock",
+      "log_sha256": "564554b476c3ae909b3859444acaed9b389f62fcbb8f069905b7408d81d89adc",
+      "executed_tests": 2118,
+      "skipped_tests": 0
+    }
+  ],
+  "production_accepted": false,
+  "schema": 1,
+  "recorded_date": "2026-10-08",
+  "scope": "Local source checks and queried published CI, no release acceptance",
+  "candidate_ci": "ci.json",
+  "direct_conversation_delivery": "UNAVAILABLE",
+  "owner_acknowledgements": [],
+  "freeze_status": "PROPOSED_ONLY",
+  "source_hash_scope": "Only the files named in source_hashes_before and source_hashes_after; not a whole-source immutability proof",
+  "python_full_suite": "PASS",
+  "independent_review": "NOT_PERFORMED",
+  "machine_reboot": "NOT_RUN",
+  "fresh_target_full_restore": "NOT_RUN",
+  "public_tls": "NOT_RUN",
+  "log_interpretation": "Python suite intentionally tests failed portable verification and compiler diagnostics. The unittest result is 2118 tests, OK, exit 0. These fixture messages are retained in raw logs.",
+  "head_after_checks": "aad7b5403ad14140e9d9499668e863d7488ce15b",
+  "selected_hashes_after_all_checks": {
+    "lab/install_server.py": "d1a47e25ffb221ba217ceed7a64e582c1be395dd565ba1172966d3c8757287e2",
+    "package.json": "0f4556bbd3c224eb65c88d1d57030d72ef7a532fce0b837557eb9da8913b6524",
+    "bun.lock": "1a4c44900e416e0570b737142b0193b7a9b94885baa06bcca69441cfd4e14954"
+  },
+  "selected_source_unchanged_after_all_checks": true,
+  "working_tree_patch": "working-tree.patch"
+}

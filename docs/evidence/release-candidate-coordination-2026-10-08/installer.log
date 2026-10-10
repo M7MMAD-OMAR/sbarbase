@@ -1,0 +1,40 @@
+........................deferred: the unit is enabled and starts once the installation exists
+rendered unit verified
+evidence: /tmp/tmpc691szl0/unit.json
+unit installed and enabled; not started yet
+console answered
+rendered unit verified
+evidence: /tmp/tmpr2rotk1e/unit.json
+unit installed and started
+console answered
+rendered unit verified
+evidence: /tmp/tmpmtq0afn0/unit.json
+unit installed and started
+no answer
+ blocker  Docker profile refused: docker_data_root_mismatch. Action: check the declared local-v1 inputs with deploy/compose.sh check; use the candidate described in docs/engineering/HOST-PREFLIGHT.md.
+Docker profile: 1 blocker(s), 0 action(s)
+ blocker  Docker profile refused: docker_data_root_mismatch. Action: check the declared local-v1 inputs with deploy/compose.sh check; use the candidate described in docs/engineering/HOST-PREFLIGHT.md.
+    info  Pinned images were not inspected and installation containers were not enumerated: Docker daemon or profile validation failed from this process
+Preflight: 1 blocker(s), 0 action(s)
+pulling 1/5 db (attempt 1 of 4; the first install downloads several GB)
+.pulling 1/5 db (attempt 1 of 4; the first install downloads several GB)
+pull of db failed; trying again in 15 s (layers already downloaded are kept)
+pulling 1/5 db (attempt 2 of 4; the first install downloads several GB)
+pull of db failed; trying again in 45 s (layers already downloaded are kept)
+pulling 1/5 db (attempt 3 of 4; the first install downloads several GB)
+.pulling 1/5 db (attempt 1 of 4; the first install downloads several GB)
+pull of db exceeded 3600 s
+pull of db failed; trying again in 15 s (layers already downloaded are kept)
+pulling 1/5 db (attempt 2 of 4; the first install downloads several GB)
+pull of db exceeded 3600 s
+pull of db failed; trying again in 45 s (layers already downloaded are kept)
+pulling 1/5 db (attempt 3 of 4; the first install downloads several GB)
+pull of db exceeded 3600 s
+pull of db failed; trying again in 90 s (layers already downloaded are kept)
+pulling 1/5 db (attempt 4 of 4; the first install downloads several GB)
+pull of db exceeded 3600 s
+..........
+----------------------------------------------------------------------
+Ran 36 tests in 1.641s
+
+OK

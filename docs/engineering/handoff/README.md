@@ -1,5 +1,9 @@
 # Handoff for agents
 
+Release coordination requested on 2026-10-08 is recorded in the
+[candidate handoff](2026-10-08-release-candidate.md), including the latest
+queried CI identity, owner acknowledgement gaps and remaining release gates.
+
 Current state and next step for a coding agent (Claude Code, Codex, Hermes or another) continuing this work. Updated 2026-10-04. Human-facing documentation starts at [docs/README.md](../../README.md); this folder is for continuity only.
 
 ## Read first
