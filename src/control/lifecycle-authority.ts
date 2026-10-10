@@ -3,7 +3,7 @@ import {spawnSync} from 'node:child_process';
 import {createHash,randomUUID} from 'node:crypto';
 import {constants,openSync,closeSync,fstatSync,readFileSync,writeFileSync,fsyncSync,linkSync,unlinkSync,mkdirSync,lstatSync,realpathSync} from 'node:fs';
 import {resolve,join} from 'node:path';
-import {managementPasswordIdentity,hasManagementMfa,type PasswordIdentity} from './auth';
+import {managementPasswordIdentity,hasManagementAccess,type PasswordIdentity} from './auth';
 import type {Catalog} from './catalog';
 import type {LifecycleOperation} from './lifecycle-contract';
 
@@ -16,7 +16,7 @@ const uuid=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 type Binding=Pick<LifecycleOperation,'environment'|'runtime'|'operation'|'state'|'epoch'|'inventory'|'coverage'|'actor'|'management_epoch'>;
 function binding(row:Binding):Binding {return {environment:row.environment,runtime:row.runtime,operation:row.operation,state:row.state,
  epoch:row.epoch,inventory:row.inventory,coverage:row.coverage,actor:row.actor,management_epoch:row.management_epoch};}
-type Material={version:1;binding:Binding;realm:LifecycleRealm;bearer:string;identity:PasswordIdentity;factor:string;epoch:number;catalog:string;catalogIdentity:string};
+type Material={version:1;binding:Binding;realm:LifecycleRealm;bearer:string;identity:PasswordIdentity;factor:string|null;authorization:'mfa'|'password';policyEpoch:number;epoch:number;catalog:string;catalogIdentity:string};
 function fileIdentity(path:string):string {
  const s=lstatSync(path);if(!s.isFile()||s.isSymbolicLink()||s.nlink!==1||s.uid!==process.getuid?.()||(s.mode&0o077))return refused();
  return `${s.dev}:${s.ino}`;
@@ -74,7 +74,9 @@ export class LifecycleAuthorizationStore {
   try{const s=fstatSync(fd);if(!s.isFile()||s.nlink!==1||s.uid!==process.getuid?.()||(s.mode&0o077)||s.size>32768||`${s.dev}:${s.ino}`!==expectedIdentity)return refused();
    const value=JSON.parse(readFileSync(fd,'utf8')) as Material;
     if(hash(value)!==digest||value.version!==1||value.catalog!==this.catalog||value.catalogIdentity!==this.catalogIdentity||hash(value.binding)!==hash(binding(row)))return refused();
-    if(typeof value.factor!=='string'||!uuid.test(value.factor)||!value.identity.factors.some(factor=>
+    if(value.authorization==='password'){
+     if(value.factor!==null||value.identity.aal!=='aal1'||value.identity.verifiedAt!==0||value.identity.factors.some(factor=>factor.status==='verified')||!Number.isSafeInteger(value.policyEpoch))return refused();
+    }else if(value.authorization!=='mfa'||typeof value.factor!=='string'||!uuid.test(value.factor)||!value.identity.factors.some(factor=>
      factor.id===value.factor&&factor.status==='verified'&&factor.factor_type==='totp'))return refused();
    return value;
   }finally{closeSync(fd);}
@@ -84,21 +86,21 @@ export class LifecycleAuthorizationStore {
 export class NativeLifecycleAuthority {
  private fresh:PasswordIdentity|null=null;private digest:string|null=null;private material:Material|null=null;
   private constructor(private catalog:Catalog,private store:LifecycleAuthorizationStore,private bearer:string,
-   private realm:LifecycleRealm,private identity:PasswordIdentity,private readonly factor:string,private epoch:number,private transport:typeof fetch){}
+   private realm:LifecycleRealm,private identity:PasswordIdentity,private readonly factor:string|null,private epoch:number,private policyEpoch:number,private transport:typeof fetch){}
  static async request(catalog:Catalog,store:LifecycleAuthorizationStore,request:Request,transport:typeof fetch=fetch){
   if(!store.fixture&&transport!==fetch)return refused();store.assertOwned();const realm=await store.realm();
   const bearer=request.headers.get('authorization');if(!bearer||bearer.length>8192||!/^Bearer \S+$/i.test(bearer))return refused();
   const identify=managementPasswordIdentity(realm.auth,realm.key,transport),identity=await identify(new Request('http://management.internal',{headers:{authorization:bearer}}));
-   if(!identity||!hasManagementMfa(identity,catalog.managementSecurity))return refused();
+   if(!identity||!hasManagementAccess(identity,catalog.managementSecurity))return refused();
    const factor=catalog.managementSecurity.grantedFactor(identity.actor,identity.session,identity.verifiedAt,
     identity.factors.filter(value=>value.status==='verified'&&value.factor_type==='totp').map(value=>value.id));
-   if(!factor)return refused();
-   const authority=new NativeLifecycleAuthority(catalog,store,bearer,realm,identity,factor,catalog.managementSecurity.epoch(identity.actor),transport);
+   if(identity.aal!=='aal1'&&!factor)return refused();
+   const authority=new NativeLifecycleAuthority(catalog,store,bearer,realm,identity,factor,catalog.managementSecurity.epoch(identity.actor),catalog.managementSecurity.policy().epoch,transport);
   await authority.refresh();return authority;
  }
  static async resume(catalog:Catalog,store:LifecycleAuthorizationStore,row:LifecycleOperation){
   const digest=catalog.lifecycleAuthorizationDigest(row.operation);if(!digest)return refused();const value=store.load(row,digest,catalog.lifecycleAuthorizationIdentity(row.operation));
-   const authority=new NativeLifecycleAuthority(catalog,store,value.bearer,value.realm,value.identity,value.factor,value.epoch,store.transport);
+   const authority=new NativeLifecycleAuthority(catalog,store,value.bearer,value.realm,value.identity,value.factor,value.epoch,value.policyEpoch,store.transport);
   authority.material=value;authority.digest=digest;await authority.refresh(row);return authority;
  }
  actor(){return this.identity.actor;}
@@ -106,7 +108,7 @@ export class NativeLifecycleAuthority {
  run<T>(work:()=>T):T{return scope.run(this,work);}
  capture(row:Binding,renewal=false):{digest:string;identity:string} {
   this.assertCurrent();if(row.coverage!=='disposable-fixture'&&this.store.fixture||!renewal&&this.identity.actor!==row.actor)return refused();
-   const value:Material={version:1,binding:binding(row),realm:this.realm,bearer:this.bearer,identity:this.identity,factor:this.factor,epoch:this.epoch,
+   const value:Material={version:1,binding:binding(row),realm:this.realm,bearer:this.bearer,identity:this.identity,factor:this.factor,authorization:this.factor===null?'password':'mfa',policyEpoch:this.policyEpoch,epoch:this.epoch,
    catalog:this.store.catalog,catalogIdentity:this.store.catalogIdentity};
   const digest=this.store.save(value);this.fresh={...this.identity,factors:this.store.verifyNative(row.operation,digest,this.store.identity(row.operation,digest))};this.assertCurrent();this.material=value;this.digest=digest;return {digest,identity:this.store.identity(row.operation,digest)};
  }
@@ -119,7 +121,9 @@ export class NativeLifecycleAuthority {
    this.fresh=identity;this.assertCurrent(row);
   }
   private hasOriginalGrant(identity:PasswordIdentity):boolean {
-   return hasManagementMfa(identity,this.catalog.managementSecurity)&&this.catalog.managementSecurity.grantedFactor(
+   if(this.catalog.managementSecurity.policy().epoch!==this.policyEpoch||!hasManagementAccess(identity,this.catalog.managementSecurity))return false;
+   if(this.factor===null)return identity.aal==='aal1';
+   return this.catalog.managementSecurity.grantedFactor(
     identity.actor,identity.session,identity.verifiedAt,
     identity.factors.filter(factor=>factor.status==='verified'&&factor.factor_type==='totp').map(factor=>factor.id))===this.factor;
   }
@@ -129,7 +133,7 @@ export class NativeLifecycleAuthority {
   this.store.assertOwned();if(!this.fresh||this.catalog.managementSecurity.epoch(this.identity.actor)!==this.epoch||
     !this.hasOriginalGrant(this.fresh))return refused();
   if(row){if(row.coverage!=='disposable-fixture'&&this.store.fixture)return refused();const digest=this.catalog.lifecycleAuthorizationDigest(row.operation);if(!digest)return refused();
-    const material=this.store.load(row,digest,this.catalog.lifecycleAuthorizationIdentity(row.operation));if(material.bearer!==this.bearer||hash(material.identity)!==hash(this.identity)||material.factor!==this.factor||material.epoch!==this.epoch||hash(material.realm)!==hash(this.realm))return refused();
+    const material=this.store.load(row,digest,this.catalog.lifecycleAuthorizationIdentity(row.operation));if(material.bearer!==this.bearer||hash(material.identity)!==hash(this.identity)||material.factor!==this.factor||material.policyEpoch!==this.policyEpoch||material.epoch!==this.epoch||hash(material.realm)!==hash(this.realm))return refused();
    if(this.digest&&digest!==this.digest)return refused();this.digest=digest;this.material=material;
    this.fresh={...this.identity,factors:this.store.verifyNative(row.operation,digest,this.catalog.lifecycleAuthorizationIdentity(row.operation)!)};
     if(!this.hasOriginalGrant(this.fresh)||this.catalog.managementSecurity.epoch(this.identity.actor)!==this.epoch)return refused();

@@ -58,9 +58,9 @@ export class CurrentTransferHistoryQuery {
  }
  #identity(identity:PasswordIdentity|null):PasswordIdentity {
   const now=Math.floor(Date.now()/1000);
-  if(!identity||!uuid(identity.actor)||!uuid(identity.session)||identity.aal!=='aal2'||!whole(identity.passwordAt)||
+  if(!identity||!uuid(identity.actor)||!uuid(identity.session)||!['aal1','aal2'].includes(identity.aal)||!whole(identity.passwordAt)||
    !whole(identity.verifiedAt)||identity.passwordAt<1||identity.passwordAt>now||now-identity.passwordAt>=43200||
-   identity.verifiedAt<1||identity.verifiedAt>now||!Array.isArray(identity.factors)||identity.factors.length>16||
+   (identity.aal==='aal2'?identity.verifiedAt<1:identity.verifiedAt!==0)||identity.verifiedAt>now||!Array.isArray(identity.factors)||identity.factors.length>16||
    identity.factors.some(factor=>!factor||!uuid(factor.id)||typeof factor.status!=='string'||typeof factor.factor_type!=='string'))
    fail('CURRENT_MANAGEMENT_AUTHENTICATION_REQUIRED');
   return {...identity,factors:identity.factors.map(factor=>({...factor}))};
@@ -81,13 +81,23 @@ export class CurrentTransferHistoryQuery {
   try {
    const now=Math.floor(Date.now()/1000),verified=this.#identity(identity);
    if(tokenExpiresAt<=Date.now())fail('CURRENT_MANAGEMENT_AUTHENTICATION_REQUIRED');
-   const grant=this.db.query<any,any>(`SELECT g.factor,g.expires,g.epoch,COALESCE(e.epoch,0) current_epoch,COALESCE(e.revoked,0) revoked
+   let grant=this.db.query<any,any>(`SELECT g.factor,g.expires,g.epoch,COALESCE(e.epoch,0) current_epoch,COALESCE(e.revoked,0) revoked
     FROM management_mfa_grant g LEFT JOIN management_mfa_epoch e ON e.actor=g.actor
     WHERE g.actor=? AND g.session=? AND g.verified=?`).get(verified.actor,verified.session,verified.verifiedAt);
+   if(verified.aal==='aal1'){
+    const policy=this.db.query<any,any>('SELECT mfa_required,epoch FROM management_auth_policy WHERE singleton=1').get();
+    grant=this.db.query<any,any>(`SELECT g.expires,g.epoch,COALESCE(e.epoch,0) current_epoch,g.policy_epoch
+     FROM management_password_grant g LEFT JOIN management_mfa_epoch e ON e.actor=g.actor
+     WHERE g.actor=? AND g.session=? AND g.password=?`).get(verified.actor,verified.session,verified.passwordAt);
+    if(!policy||policy.mfa_required!==0||verified.factors.some(factor=>factor.status==='verified')||!grant||
+     !whole(grant.expires)||grant.expires<=now||grant.epoch!==query.managementEpoch||grant.current_epoch!==query.managementEpoch||grant.policy_epoch!==policy.epoch)
+     fail('CURRENT_MANAGEMENT_AUTHORITY_REFUSED');
+   }else {
    if(!grant||!whole(grant.expires)||grant.expires>Math.floor(Number.MAX_SAFE_INTEGER/1000)||grant.expires<=now||
     !whole(grant.revoked)||verified.verifiedAt<=grant.revoked||grant.epoch!==query.managementEpoch||grant.current_epoch!==query.managementEpoch||
     !verified.factors.some(factor=>factor.id===grant.factor&&factor.status==='verified'&&factor.factor_type==='totp'))
     fail('CURRENT_MANAGEMENT_AUTHORITY_REFUSED');
+   }
    const live=this.db.query<any,any>(`SELECT p.organization,e.project,j.runtime,j.state provision_state,
     m.role,l.state,l.epoch,l.operation,l.actor,l.management_epoch,l.inventory,l.coverage
     FROM environments e JOIN projects p ON p.id=e.project JOIN provision_jobs j ON j.environment=e.id

@@ -9,6 +9,7 @@ import sys
 import urllib.request
 import durable_runtime as native
 import run
+from management_access import factor_matches
 
 
 def private_json(path, expected_identity=None):
@@ -54,9 +55,7 @@ def original_user(material_path, digest, identity):
     value = private_json(path, identity)
     if hashlib.sha256(json.dumps(value, ensure_ascii=False, separators=(',', ':')).encode()).hexdigest() != digest:
         raise ValueError('Retained original Auth unavailable')
-    factor = value.get('factor')
-    if type(factor) is not str or not any(item.get('id') == factor and item.get('status') == 'verified'
-                                        and item.get('factor_type') == 'totp' for item in value['identity']['factors']):
+    if not factor_matches(value, value['identity']['factors']):
         raise ValueError('Retained original Auth unavailable')
     before = realm()
     if before != value['realm']:
@@ -74,8 +73,7 @@ def original_user(material_path, digest, identity):
         user = json.loads(raw)
     if realm() != before or user.get('is_anonymous') or user.get('id') != value['identity']['actor']:
         raise ValueError('Retained original Auth unavailable')
-    if not any(item.get('id') == factor and item.get('status') == 'verified' and item.get('factor_type') == 'totp'
-               for item in user.get('factors', [])):
+    if not factor_matches(value, user.get('factors', [])):
         raise ValueError('Retained original Auth unavailable')
     return {'factors': [{key: factor[key] for key in ('id', 'status', 'factor_type')} for factor in user.get('factors', [])]}
 

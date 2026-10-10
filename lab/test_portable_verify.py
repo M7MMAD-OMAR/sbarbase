@@ -52,6 +52,7 @@ class PortableVerificationTests(unittest.TestCase):
             create = next(command for command in commands if command.startswith("create "))
             self.assertIn("--init", create)
             self.assertIn("--network none", create)
+            self.assertIn("--tmpfs /tmp:rw,exec,nosuid,nodev,size=512m,mode=1777", create)
             self.assertNotIn("--mount", create)
             self.assertNotIn("--volume", create)
             self.assertNotIn("docker.sock", create)

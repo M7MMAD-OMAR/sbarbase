@@ -52,7 +52,7 @@ type Call={url:string;method:string;headers:Record<string,string>;body?:string;r
 function harness(root:string,options:{routes?:(call:Call)=>Response|undefined;tty?:boolean;answers?:string[];
  stdin?:string;env?:Record<string,string>;container?:boolean;unit?:boolean;code?:number;unitEnvironment?:string;
  factors?:{id:string;status:string;factor_type:string;friendly_name?:string}[];codes?:string[];
- authRoutes?:(call:Call)=>Response|undefined;verifyAal?:'aal1'|'aal2';setupFailure?:boolean}={}) {
+ mfaRequired?:boolean;authRoutes?:(call:Call)=>Response|undefined;verifyAal?:'aal1'|'aal2';setupFailure?:boolean}={}) {
  const runs:string[][]=[],calls:Call[]=[],out:string[]=[],err:string[]=[],prompts:{question:string;secret:boolean}[]=[];
  const answers=[...(options.answers??[])],codes=[...(options.codes??[])],setup:{secret:string;uri:string}[]=[],cleared:string[]=[];
  let factors=options.factors??[{...verifiedFactor,friendly_name:'Primary authenticator'}];
@@ -70,6 +70,7 @@ function harness(root:string,options:{routes?:(call:Call)=>Response|undefined;tt
    if(call.url===CONSOLE+'/management/auth/v1/token?grant_type=password')
     return Response.json(JSON.parse(call.body!).password===PASSWORD?session(PASSWORD_TOKEN):{message:'Invalid login'},
      {status:JSON.parse(call.body!).password===PASSWORD?200:400});
+   if(call.url===CONSOLE+'/management/auth/v1/policy')return Response.json({needs_mfa:options.mfaRequired!==false||factors.some(factor=>factor.status==='verified'),authorized:options.mfaRequired===false&&!factors.some(factor=>factor.status==='verified')});
    if(call.url===CONSOLE+'/management/auth/v1/user')return Response.json({id:'alice',factors});
    if(call.url===CONSOLE+'/management/auth/v1/factors'){
     factors=[...factors,{id:otherFactorId,status:'unverified',factor_type:'totp'}];
@@ -317,10 +318,10 @@ test('logs: journalctl for the supervisor, docker logs for a service, a hint ins
  expect(await main(['logs','kernel'],harness(root).deps)).toBe(EXIT.usage);
 });
 
-function api(state:{organization:string;project:string;environment:string;keys:{id:string;kind:string;created_at:number;revoked_at:number|null}[];failRevoke?:boolean;conflict?:string}) {
+function api(state:{organization:string;project:string;environment:string;keys:{id:string;kind:string;created_at:number;revoked_at:number|null}[];failRevoke?:boolean;conflict?:string},acceptedToken=TOKEN) {
  return (call:Call)=>{
   const path=call.url.slice((CONSOLE+'/management/v1').length);
-  if(call.headers.authorization!=='Bearer '+TOKEN)return Response.json({message:'Authentication required'},{status:401});
+  if(call.headers.authorization!=='Bearer '+acceptedToken)return Response.json({message:'Authentication required'},{status:401});
   if(path==='/organizations')return Response.json({data:[{id:state.organization,name:'Acme',role:'owner'}],operator:true});
   if(path===`/organizations/${state.organization}/projects`)return Response.json({data:[{id:state.project,name:'shop'}]});
   if(path===`/projects/${state.project}/environments`&&call.method==='POST') {
@@ -530,7 +531,7 @@ test('existing authenticator is challenged through original SDK and only its ver
  expect(await main(['add-environment','shop','preview','--password-stdin'],run.deps)).toBe(EXIT.ok);
  const authCalls=run.calls.filter(call=>call.url.includes('/management/auth/'));
  expect(authCalls.map(call=>call.url.slice((CONSOLE+'/management/auth/v1').length))).toEqual([
-  '/token?grant_type=password','/user','/factors/'+factorId+'/challenge','/factors/'+factorId+'/verify','/logout?scope=local']);
+  '/token?grant_type=password','/policy','/user','/factors/'+factorId+'/challenge','/factors/'+factorId+'/verify','/logout?scope=local']);
  expect(authCalls.every(call=>call.redirect==='error'&&call.signal instanceof AbortSignal)).toBe(true);
  expect(authCalls.find(call=>call.url.endsWith('/challenge'))?.headers.authorization).toBe('Bearer '+PASSWORD_TOKEN);
  expect(JSON.parse(authCalls.find(call=>call.url.endsWith('/verify'))!.body!)).toEqual({challenge_id:challengeId,code:CODE});
@@ -648,4 +649,13 @@ test('cancellation while decoding a successful mutation suppresses completion ou
  expect(await main(['studio','start',production,'--password-stdin'],run.deps)).toBe(EXIT.refused);
  expect(run.out).toEqual([]);expect(run.err.join('\n')).toContain('Command cancelled');
  expect(run.calls.at(-1)?.url).toBe(CONSOLE+'/management/auth/v1/logout?scope=local');
+});
+
+ test('optional MFA CLI uses the audited password session and asks for no authenticator',async()=>{
+ const {root,organization,project,production}=installation();
+ const run=harness(root,{tty:true,mfaRequired:false,factors:[],env:{SBARBASE_EMAIL:'owner@example.com'},stdin:PASSWORD,routes:api({organization,project,environment:production,keys:[]},PASSWORD_TOKEN)});
+ const outcome=await main(['add-environment','shop','preview','--password-stdin'],run.deps);expect(outcome,run.err.join(' ')).toBe(EXIT.ok);
+ expect(run.setup).toEqual([]);expect(run.prompts.some(prompt=>prompt.question==='Authenticator code: ')).toBe(false);
+ expect(run.calls.filter(call=>call.url.includes('/management/v1/')).every(call=>call.headers.authorization==='Bearer '+PASSWORD_TOKEN)).toBe(true);
+ expect(run.calls.some(call=>call.url.includes('/challenge')||call.url.includes('/verify'))).toBe(false);
 });

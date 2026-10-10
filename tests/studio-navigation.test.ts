@@ -46,9 +46,9 @@ test('Studio navigation uses live ownership, filters viewers and lists only the 
 test('workspace entry, assets and metadata never reach vendor APIs or contain user HTML',async()=>{
  const f=fixture();try{
   const ticket=signStudio(key,{runtime:f.runtime,actor:'alice',epoch:0,kind:'ticket',expires:Date.now()+60_000});
-  expect((await f.proxy(new Request(f.origin+'/__sbarbase/enter?ticket='+ticket))).headers.get('location')).toBe('/__sbarbase/workspace');
+  expect((await f.proxy(new Request(f.origin+'/__sbarbase/enter?ticket='+ticket))).headers.get('location')).toBe('/project/default');
   const html=await f.proxy(f.request('/__sbarbase/workspace'));expect(html.status).toBe(200);
-  expect(await html.text()).not.toContain('<img src=x');expect(html.headers.get('content-security-policy')).toContain("frame-ancestors 'none'");
+  const body=await html.text();expect(body).not.toContain('<img src=x');expect(body).not.toContain('<iframe');expect(html.headers.get('content-security-policy')).toContain("frame-ancestors 'none'");
   for(const path of ['/__sbarbase/workspace.js','/__sbarbase/workspace.css','/__sbarbase/navigation']){
    const response=await f.proxy(f.request(path));expect(response.status).toBe(200);expect(response.headers.get('cache-control')).toBe('no-store');
   }
@@ -111,11 +111,11 @@ test('signed console origin survives entry and switching without trusting arbitr
  }finally{f.catalog.close();}
 });
 
- test('workspace permits same-origin vendor frames while preserving other CSP restrictions',async()=>{
+ test('native Studio keeps vendor body and security headers without an embedding shell',async()=>{
  const f=fixture();try{
   const response=await f.proxy(f.request('/project/default/editor'));
-  expect(await response.text()).toBe('original vendor');expect(response.headers.get('x-frame-options')).toBe('SAMEORIGIN');
-  expect(response.headers.get('content-security-policy')).toBe("default-src 'self'; script-src 'nonce-vendor'; frame-ancestors 'self'");
+  expect(await response.text()).toBe('original vendor');expect(response.headers.get('x-frame-options')).toBe('DENY');
+  expect(response.headers.get('content-security-policy')).toBe("default-src 'self'; script-src 'nonce-vendor'; frame-ancestors 'none'");
   const plain=studioProxy({key:()=>key,epoch:()=>0,allowed:()=>true,upstream:()=> 'http://vendor.internal',transport:(async()=>new Response('vendor',{headers:{'content-type':'text/html','content-security-policy':"frame-ancestors 'none'"}})) as unknown as typeof fetch});
   expect((await plain(f.request('/project/default/editor'))).headers.get('content-security-policy')).toBe("frame-ancestors 'none'");
  }finally{f.catalog.close();}

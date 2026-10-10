@@ -11,6 +11,7 @@ import stat
 import time
 import urllib.request
 from lifecycle_auth_realm import realm, private_json
+from management_access import current_grant
 import durable_runtime as native
 
 _current = ContextVar('original_lifecycle_authority', default=None)
@@ -97,25 +98,15 @@ class NativeLifecycleAuthority:
             segments = bearer[7:].split('.')
             require(len(segments) == 3)
             claims = json.loads(base64.urlsafe_b64decode(segments[1] + '=' * (-len(segments[1]) % 4)))
-            require(claims['sub'] == identity['actor'] and claims['session_id'] == identity['session'] and claims['aal'] == 'aal2'
+            require(claims['sub'] == identity['actor'] and claims['session_id'] == identity['session'] and claims['aal'] == identity['aal']
                     and claims['exp'] == identity['expiresAt'])
             def timestamp(method):
                 now = int(time.time())
                 return max([0] + [item['timestamp'] for item in claims['amr'] if type(item) is dict and item.get('method') == method
                                  and type(item.get('timestamp')) is int and 0 < item['timestamp'] <= now])
-            require(timestamp('password') == identity['passwordAt'] and timestamp('totp') == identity['verifiedAt'] > 0)
+            require(timestamp('password') == identity['passwordAt'] and timestamp('totp') == identity['verifiedAt'])
             actor = identity['actor']
-            grant = connection.execute('''SELECT g.factor,g.expires,g.epoch,COALESCE(e.epoch,0),COALESCE(e.revoked,0)
-              FROM management_mfa_grant g LEFT JOIN management_mfa_epoch e ON e.actor=g.actor
-              WHERE g.actor=? AND g.session=? AND g.verified=?''', (actor, identity['session'], identity['verifiedAt'])).fetchone()
-            factors = {factor['id'] for factor in user.get('factors', []) if factor.get('status') == 'verified' and factor.get('factor_type') == 'totp'}
-            original_factors = {factor['id'] for factor in identity['factors'] if factor['status'] == 'verified' and factor['factor_type'] == 'totp'}
-            original_factor = value.get('factor')
-            require(type(original_factor) is str and original_factor in original_factors and original_factor in factors)
-            now = int(time.time())
-            require(type(claims['exp']) is int and claims['exp'] > now and 0 < identity['passwordAt'] <= now
-                    and now - identity['passwordAt'] < 43200 and grant and grant[0] == original_factor
-                    and grant[1] > now and grant[2] == grant[3] == value['epoch'] and identity['verifiedAt'] > grant[4])
+            grant = current_grant(connection, value, user.get('factors', []), int(time.time()))
             require(connection.execute('''SELECT 1 FROM environments e JOIN projects p ON p.id=e.project
               JOIN memberships m ON m.organization=p.organization WHERE e.id=? AND m.actor=? AND m.role='owner' ''',
                                        (row['environment'], actor)).fetchone())
@@ -125,12 +116,8 @@ class NativeLifecycleAuthority:
             current_row = connection.execute('SELECT * FROM environment_lifecycle WHERE operation=?', (row['operation'],)).fetchone()
             current_authorization = connection.execute('SELECT current_digest,current_identity FROM lifecycle_authorizations WHERE operation=?', (row['operation'],)).fetchone()
             require(current_row and all(current_row[key] == row[key] for key in keys) and tuple(current_authorization or ()) == tuple(current))
-            fresh_grant = connection.execute('''SELECT g.factor,g.expires,g.epoch,COALESCE(e.epoch,0),COALESCE(e.revoked,0)
-              FROM management_mfa_grant g LEFT JOIN management_mfa_epoch e ON e.actor=g.actor
-              WHERE g.actor=? AND g.session=? AND g.verified=?''', (actor, identity['session'], identity['verifiedAt'])).fetchone()
-            require(fresh_grant and tuple(fresh_grant) == tuple(grant))
-            final_now = int(time.time())
-            require(claims['exp'] > final_now and grant[1] > final_now and final_now - identity['passwordAt'] < 43200)
+            fresh_grant = current_grant(connection, value, user.get('factors', []), int(time.time()))
+            require(fresh_grant == grant)
             final = self.catalog.stat()
             require(f'{final.st_dev}:{final.st_ino}' == self.catalog_identity)
         finally:

@@ -1,0 +1,90 @@
+[
+  {
+    "width": 1440,
+    "height": 900,
+    "scale": 1,
+    "source": "http://127.0.0.1:44841/assets/cactus-photo-384-Ck2SdOzi.webp",
+    "resources": [
+      {
+        "url": "http://127.0.0.1:44841/assets/cactus-photo-384-Ck2SdOzi.webp",
+        "bytes": 208834
+      }
+    ],
+    "bounds": {
+      "x": 769,
+      "y": 56.5,
+      "width": 623,
+      "height": 557.3125,
+      "top": 56.5,
+      "right": 1392,
+      "bottom": 613.8125,
+      "left": 769
+    }
+  },
+  {
+    "width": 1440,
+    "height": 900,
+    "scale": 2,
+    "source": "http://127.0.0.1:44841/assets/cactus-photo-768-MRKMhO2I.webp",
+    "resources": [
+      {
+        "url": "http://127.0.0.1:44841/assets/cactus-photo-768-MRKMhO2I.webp",
+        "bytes": 768182
+      }
+    ],
+    "bounds": {
+      "x": 769,
+      "y": 56.5,
+      "width": 623,
+      "height": 557.3125,
+      "top": 56.5,
+      "right": 1392,
+      "bottom": 613.8125,
+      "left": 769
+    }
+  },
+  {
+    "width": 900,
+    "height": 900,
+    "scale": 1,
+    "source": "http://127.0.0.1:44841/assets/cactus-photo-384-Ck2SdOzi.webp",
+    "resources": [
+      {
+        "url": "http://127.0.0.1:44841/assets/cactus-photo-384-Ck2SdOzi.webp",
+        "bytes": 208834
+      }
+    ],
+    "bounds": {
+      "x": 483,
+      "y": 48.5,
+      "width": 385,
+      "height": 588.78125,
+      "top": 48.5,
+      "right": 868,
+      "bottom": 637.28125,
+      "left": 483
+    }
+  },
+  {
+    "width": 390,
+    "height": 844,
+    "scale": 2,
+    "source": "http://127.0.0.1:44841/assets/cactus-photo-384-Ck2SdOzi.webp",
+    "resources": [
+      {
+        "url": "http://127.0.0.1:44841/assets/cactus-photo-384-Ck2SdOzi.webp",
+        "bytes": 208834
+      }
+    ],
+    "bounds": {
+      "x": 0,
+      "y": 0,
+      "width": 0,
+      "height": 0,
+      "top": 0,
+      "right": 0,
+      "bottom": 0,
+      "left": 0
+    }
+  }
+]

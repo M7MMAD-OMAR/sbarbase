@@ -10,33 +10,8 @@ import {FunctionsSection} from './Functions';
 import {DatabaseSection} from './Database';
 import {SigningSection} from './Signing';
 import {shareError} from './settings-validation';
+import {StudioSection} from './Studio';
 type Key={id:string;kind:string;created_at:number;revoked_at:number|null};
-type Studio={desired:'running'|'stopped';state:'stopped'|'starting'|'running'|'failed';failure:string|null};
-const studioLabels:Record<string,string>={stopped:'Stopped',starting:'Starting',running:'Running',failed:'Failed'};
-/** Supabase Studio for this environment: started on demand, opened with the console's own login. */
-function StudioSection({path,request}:{path:string;request:Api}){
- const studio=useData<{data:Studio}>(signal=>request(path+'/studio','GET',undefined,signal),[path,request]);
- const [busy,setBusy]=useState(false),[error,setError]=useState('');
- const current=studio.data?.data;
- const waiting=!!current&&(current.desired==='running'?current.state!=='running'&&!(current.state==='failed'&&current.failure):current.state!=='stopped'&&current.state!=='failed');
- useEffect(()=>{if(!waiting)return;const timer=setTimeout(studio.refresh,3000);return()=>clearTimeout(timer);},[waiting,studio.data]);
- async function change(method:'POST'|'DELETE'){setBusy(true);setError('');try{await request(path+'/studio',method);studio.refresh();}catch(e){setError((e as Error).message);}finally{setBusy(false);}}
- async function open(){
-  // Opened before the request so the browser does not treat it as an unrequested pop-up.
-  const tab=window.open('about:blank','_blank');setError('');
-  try{const {host,path:entry}=await request(path+'/studio/session','POST') as {host:string;path:string};
-   const url=`${location.protocol}//${host}${location.port?':'+location.port:''}${entry}`;
-   if(tab){tab.opener=null;tab.location.href=url;}else location.href=url;}
-  catch(e){tab?.close();setError((e as Error).message);}
- }
- const label=current?(waiting?(current.desired==='running'?'Starting':'Stopping'):studioLabels[current.state]??'Unknown'):'';
- return <section className="details"><h2>Studio</h2><p className="muted small">Supabase Studio for this environment: tables, SQL editor, users and storage. It starts when you need it and uses your console sign-in.</p>
- <ErrorMessage message={error||studio.error}/>{studio.loading?<Loading/>:current&&<><p><span className={'state '+(current.state==='running'&&!waiting?'succeeded':current.state==='failed'?'failed':waiting?'running':'')}>{label}</span></p>
- {current.state==='failed'&&current.failure&&<p className="notice">{current.failure}</p>}
- <div className="form-row">{current.state==='running'&&current.desired==='running'?<><button className="primary" onClick={()=>void open()}><ExternalLink aria-hidden="true"/>Open Studio</button><button disabled={busy} onClick={()=>void change('DELETE')}><Square aria-hidden="true"/>Stop</button></>
- :<button className="primary" disabled={busy||waiting} onClick={()=>void change('POST')}><Play aria-hidden="true"/>{waiting?'Starting…':'Start Studio'}</button>}</div>
- <p className="small muted">Studio opens at its own address on this console's port. From another computer, reach the console through an SSH tunnel to the server.</p></>}</section>;
-}
 type Share={share:number;default:number;ceiling:number;operator:boolean;total?:number;allocated?:number};
 /** The environment's guaranteed share of the gateway. Installation operators change it when a saturation notice arrives. */
 function ShareSection({path,request}:{path:string;request:Api}){
@@ -57,7 +32,7 @@ function ShareSection({path,request}:{path:string;request:Api}){
 export function Connection({environment,organization,request,onBack}:{environment:Environment;organization:Organization;request:Api;onBack:()=>void}){
  const path=`/environments/${environment.id}`,canWrite=organization.role!=='viewer';
  const [section,setSection]=useState('overview');
- const sections=[{id:'overview',label:'Overview',Icon:LayoutGrid},...(canWrite?[{id:'database',label:'Database Studio',Icon:Database},{id:'authentication',label:'Authentication',Icon:Shield},{id:'services',label:'Services',Icon:Layers}]:[]),{id:'usage',label:'Usage',Icon:Activity},{id:'keys',label:'API keys',Icon:KeyRound}];
+ const sections=[{id:'overview',label:'Overview',Icon:LayoutGrid},...(canWrite?[{id:'database',label:'Database connection',Icon:Database},{id:'authentication',label:'Sign-in settings',Icon:Shield},{id:'services',label:'Services',Icon:Layers}]:[]),{id:'usage',label:'Usage',Icon:Activity},{id:'keys',label:'API keys',Icon:KeyRound}];
  const activeSection=sections.some(item=>item.id===section)?section:'overview';
  const info=useData<{apiPath:string;services:string[]}|undefined>(signal=>activeSection==='overview'?request(path+'/connection','GET',undefined,signal):Promise.resolve(undefined),[environment.id,request,activeSection]);
  const keys=useData<{data:Key[]}|undefined>(signal=>activeSection==='keys'&&canWrite?request(path+'/keys','GET',undefined,signal):Promise.resolve(undefined),[environment.id,request,canWrite,activeSection]);
@@ -67,7 +42,8 @@ export function Connection({environment,organization,request,onBack}:{environmen
  async function copy(text:string){try{await navigator.clipboard.writeText(text);setCopied('Copied to clipboard.');}catch{setCopied('Copy unavailable. Select and copy the value manually.');}}
  async function issue(){setBusy(true);setError('');try{const result=await request(path+'/keys','POST');setRaw(result.token);keys.refresh();}catch(e){setError((e as Error).message);}finally{setBusy(false);}}
  async function revoke(id:string){setBusy(true);setError('');try{await request(path+'/keys/'+id,'DELETE');setConfirm(undefined);setRaw('');keys.refresh();}catch(e){setError((e as Error).message);}finally{setBusy(false);}}
- return <><button className="back" onClick={onBack}><ArrowLeft aria-hidden="true"/>Environments</button><div className="page-heading"><div><h1>{environment.name}</h1><p className="muted">Manage your database, services and application connection.</p></div></div><nav className="environment-nav" aria-label="Environment sections">{sections.map(({id,label,Icon})=><button key={id} className={activeSection===id?'selected':''} aria-current={activeSection===id?'page':undefined} onClick={()=>setSection(id)}><Icon aria-hidden="true"/>{label}</button>)}</nav>
+ return <><button className="back" onClick={onBack}><ArrowLeft aria-hidden="true"/>Environments</button><div className="page-heading"><div><h1>{environment.name}</h1><p className="muted">Open Supabase Studio or connect your application. Advanced settings are available below.</p></div></div><nav className="environment-nav" aria-label="Environment sections">{sections.map(({id,label,Icon})=><button key={id} className={activeSection===id?'selected':''} aria-current={activeSection===id?'page':undefined} onClick={()=>setSection(id)}><Icon aria-hidden="true"/>{label}</button>)}</nav>
+ {canWrite&&(activeSection==='overview'||activeSection==='database')&&<StudioSection path={path} request={request} compact={activeSection==='overview'} environmentName={environment.name}/>}
  {activeSection==='overview'&&<div className="environment-overview">
  <ErrorMessage message={info.error}/>{info.error&&<Refresh onClick={info.refresh}/>} {info.loading?<Loading/>:info.data&&<section className="details"><h2>Connection</h2><label htmlFor="project-url">Project URL</label><div className="form-row"><input id="project-url" readOnly value={location.origin+info.data.apiPath}/><button onClick={()=>copy(location.origin+info.data!.apiPath)}><Copy aria-hidden="true"/>Copy URL</button></div><p className="small muted">Available services: {info.data.services.join(', ')}</p></section>}
  <section className="details"><h2>Email</h2><ErrorMessage message={mail.error}/>{mail.error&&<Refresh onClick={mail.refresh}/>} {mail.loading?<Loading/>:<><p><span className={'state '+mailView.state}>{mailView.label}</span></p><p className="muted small">{mailView.text}</p>{mailRows.map(row=><p className="small" key={row.label}><span className="muted">{row.label}: </span>{row.value}</p>)}</>}</section>
@@ -78,7 +54,6 @@ export function Connection({environment,organization,request,onBack}:{environmen
  {canWrite&&<RealtimeSection path={path} request={request}/>}
   {canWrite&&<FunctionsSection path={path} request={request} environmentId={environment.id}/>}
  </div>}{activeSection==='database'&&<div>
- {canWrite&&<StudioSection path={path} request={request}/>}
  {canWrite&&<DatabaseSection path={path} request={request}/>}
  </div>}{activeSection==='usage'&&<div>
  <ShareSection path={path} request={request}/>

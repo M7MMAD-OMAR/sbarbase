@@ -4,6 +4,7 @@ Working plans, design drafts and their reviews. Implementation and acceptance ar
 
 | Date | File | Topic | Status |
 |---|---|---|---|
+| 2026-10-10 | [management-project-workflow](2026-10-10-management-project-workflow.md) | Optional MFA policy and session authority, automatic production creation, visible Supabase dashboard and bilingual docs | source implementation with local verification; deployment acceptance separate |
 | 2026-10-03 | [gauntlet-execution-method](2026-10-03-gauntlet-execution-method.md) | Linux Docker-only execution, named Supabase reference, independent critics, reproducible tests and complete acceptance scope | execution contract; bounded source verifier implemented; full runtime and release gates remain open |
 | 2026-10-03 | [native-placement-identity](2026-10-03-native-placement-identity.md) | Catalog authority, explicit legacy identity, versioned engine/application/maintenance declaration and protected read-only routing | implemented and independently accepted for read-only declarations/routing; native activation and remaining consumers unaccepted |
 | 2026-10-03 | [product-and-portability-plan](2026-10-03-product-and-portability-plan.md) | current community evidence, cloud compatibility, supported environments, recovery, guided operations and staged multi-server growth | research-backed proposal; no new runtime or release acceptance |

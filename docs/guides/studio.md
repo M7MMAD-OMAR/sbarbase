@@ -6,10 +6,12 @@ Each environment can open the original Supabase Studio: the table editor, the SQ
 
 ## Open it
 
-1. Sign in to the console and open an environment's connection page.
-2. Under **Studio**, press **Start Studio**. It takes a few seconds the first time.
-3. Press **Open Studio**. Studio opens in a new tab on its own address, `<id>.studio.localhost` on the console's port.
-4. When you are done, press **Stop**.
+1. Sign in and create a project. Sbarbase creates **production** and opens a waiting tab from your Create action.
+2. Production is provisioned, then Studio is started and opened automatically in that tab. The console stays open. **Stay in console**, or closing the waiting tab, cancels the automatic dashboard opening.
+3. An existing project shows **Open Supabase dashboard**. Press it once to start Studio when needed and enter its original full page on `<id>.studio.localhost`, using the console port and sign-in. No custom bar or iframe is added to native Studio.
+4. **Connection details** opens environment settings. **Database connection** includes **Stop dashboard** and direct database controls. **Sign-in settings** configures the self-hosted Auth service; native user management remains in Studio.
+
+If the browser blocks the waiting tab, the dashboard is prepared and the console offers the normal Open button. If startup fails, the temporary tab closes and a retryable error stays in the console. **Retry dashboard status** recovers a failed status request. If provisioning fails, use **Retry** in the environment row. These retries do not create another project. The default production name does not certify deployment readiness.
 
 Only owners and admins of the client can start, open or stop Studio. Viewers do not see it.
 
@@ -31,6 +33,7 @@ Studio's Logs, Realtime and Edge Functions pages expect Supabase's own platform 
 
 - Every environment has its own Studio address, and a session for one never opens another.
 - The console gives a one-minute ticket; the ticket becomes an eight-hour session cookie for that address only. Without it, nothing reaches Studio.
+- Changing MFA policy or logging out revokes dashboard sessions through the actor epoch.
 - Losing the owner or admin role closes access on the next request.
 - Studio signs in to the database with its own login, which exists only while Studio runs and gets a new password on every start. It is not a superuser and owns nothing.
 - Stopping Studio, or restarting Sbarbase, closes that login and removes both containers.

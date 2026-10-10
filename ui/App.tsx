@@ -1,12 +1,11 @@
 import {useEffect,useMemo,useRef,useState} from 'react';
 import type {Session} from '@supabase/supabase-js';
 import {Activity as ActivityIcon,CircleArrowUp,Folder,LogOut,Plus,Settings,Users,Server} from 'lucide-react';
-import {api,auth,updatesApi,useData,type Api,type Organization,type Project,type Environment} from './api';
+import {api,auth,managementPolicy,updatesApi,useData,type Api,type Organization,type Project,type Environment} from './api';
 import {Brand} from './Brand';
 import {Attribution} from './Attribution';
 import {Login} from './Login';import {Projects} from './Projects';import {Environments} from './Environments';import {Connection} from './Connection';import {Activity} from './Activity';import {AcceptInvitation,JoinInvitation,inviteToken} from './Invite';
 import {MfaGate,MfaSettings} from './Mfa';
-import {sessionHasMfa} from './mfa-state';
 import {notificationText} from './mail';
 import {Team} from './Team';
 import {ServerHealth} from './ServerHealth';
@@ -25,17 +24,19 @@ function NotificationCount({request}:{request:Api}){
 function Console({session}:{session:Session}){
  const request=useMemo(()=>api(session.access_token),[session.access_token]);
  const organizations=useData<{data:Organization[];operator?:boolean}>(signal=>request('/organizations','GET',undefined,signal),[request]);
- const [creating,setCreating]=useState(false);
+ const [creating,setCreating]=useState(false),[dashboardEnvironment,setDashboardEnvironment]=useState<string>();
  const [selected,setSelected]=useState(''),[project,setProject]=useState<Project>(),[environment,setEnvironment]=useState<Environment>(),[requestedView,setView]=useState<'projects'|'team'|'settings'|'activity'|'updates'|'server'|'security'>('projects');
  const [projectOrganization,setProjectOrganization]=useState(''),[setupOpen,setSetupOpen]=useState(false);
  // The update routes read the token on every call, so a refresh during a long restart
  // neither restarts the watch nor sends a stale token.
+ const dashboardTab=useRef<Window|null>(null);
+ useEffect(()=>()=>{dashboardTab.current?.close();},[]);
  const token=useRef(session.access_token);token.current=session.access_token;
  const updatesClient=useMemo(()=>updatesApi(()=>token.current),[]);
  const [operator,setOperator]=useState(false);
  useEffect(()=>{if(organizations.data)setOperator(Boolean(organizations.data.operator));},[organizations.data]);
  const organization=organizations.data?.data.find(item=>item.id===selected)??organizations.data?.data[0];
- const home=()=>{setSetupOpen(false);setProject(undefined);setProjectOrganization('');setEnvironment(undefined);setView('projects');};
+ const home=()=>{dashboardTab.current?.close();dashboardTab.current=null;setDashboardEnvironment(undefined);setSetupOpen(false);setProject(undefined);setProjectOrganization('');setEnvironment(undefined);setView('projects');};
  const canAudit=organization?.role==='owner'||organization?.role==='admin';
  const owner=organization?.role==='owner';
  const unavailableView=((requestedView==='team'||requestedView==='activity')&&!canAudit)||(requestedView==='settings'&&!owner)||((requestedView==='updates'||requestedView==='server')&&!operator);
@@ -62,11 +63,21 @@ function Console({session}:{session:Session}){
  <header><nav className="breadcrumb" aria-label="Breadcrumb"><span>{organization?.name??'Sbarbase'}</span><span aria-hidden="true">/</span>
  {view==='projects'&&activeProject?<><button onClick={home}>Projects</button><span aria-hidden="true">/</span>{activeEnvironment?<><button onClick={()=>setEnvironment(undefined)}>{activeProject.name}</button><span aria-hidden="true">/</span><span aria-current="page">{activeEnvironment.name}</span></>:<span aria-current="page">{activeProject.name}</span>}</>:<span aria-current="page">{viewLabels[view]}</span>}</nav></header>
  <main id="content"><JoinInvitation session={session} onJoined={()=>organizations.refresh()}/><ErrorMessage message={organizations.error}/>{organizations.error&&<Refresh onClick={organizations.refresh}/>}
- {view==='security'?<MfaSettings/>:view==='server'&&operator?<ServerHealth request={request}/>:view==='updates'&&operator?<Updates/>:organizations.loading?<Loading/>:!organization?<Empty>No organizations are assigned to your account. Contact your installation owner.</Empty>:view==='team'&&canAudit?<Team key={organization.id} organization={organization} request={request}/>:view==='settings'&&owner?<OrganizationSettings key={organization.id} organization={organization} request={request} onChanged={()=>{home();organizations.refresh();}}/>:view==='activity'&&canAudit?<Activity key={organization.id} organization={organization} request={request} self={session.user.id}/>:activeEnvironment?<>{operator&&<button type="button" onClick={()=>setSetupOpen(current=>!current)}>{setupOpen?'Back to connection':'Domain and email setup'}</button>}{setupOpen&&operator&&setupClient?<DeploymentSetup key={activeEnvironment.id} environmentName={activeEnvironment.name} client={setupClient}/>:<Connection key={activeEnvironment.id} environment={activeEnvironment} organization={organization} request={request} onBack={()=>setEnvironment(undefined)}/>}</>:activeProject?<Environments key={activeProject.id} project={activeProject} organization={organization} request={request} onBack={home} onSelect={setEnvironment}/>:<Projects key={organization.id} organization={organization} request={request} onSelect={next=>{setProject(next);setProjectOrganization(organization.id);setEnvironment(undefined);}}/>}</main></div></div></UpdatesProvider>;
+ {view==='security'?<MfaSettings/>:view==='server'&&operator?<ServerHealth request={request}/>:view==='updates'&&operator?<Updates/>:organizations.loading?<Loading/>:!organization?<Empty>No organizations are assigned to your account. Contact your installation owner.</Empty>:view==='team'&&canAudit?<Team key={organization.id} organization={organization} request={request}/>:view==='settings'&&owner?<OrganizationSettings key={organization.id} organization={organization} request={request} onChanged={()=>{home();organizations.refresh();}}/>:view==='activity'&&canAudit?<Activity key={organization.id} organization={organization} request={request} self={session.user.id}/>:activeEnvironment?<>{operator&&<button type="button" onClick={()=>setSetupOpen(current=>!current)}>{setupOpen?'Back to connection':'Domain and email setup'}</button>}{setupOpen&&operator&&setupClient?<DeploymentSetup key={activeEnvironment.id} environmentName={activeEnvironment.name} client={setupClient}/>:<Connection key={activeEnvironment.id} environment={activeEnvironment} organization={organization} request={request} onBack={()=>setEnvironment(undefined)}/>}</>:activeProject?<Environments key={activeProject.id} project={activeProject} autoOpenEnvironment={dashboardEnvironment} autoOpenTab={dashboardTab.current} onCancelAutoOpen={()=>{dashboardTab.current=null;setDashboardEnvironment(undefined);}} organization={organization} request={request} onBack={home} onSelect={setEnvironment}/>:<Projects key={organization.id} organization={organization} request={request} onSelect={(next,createdEnvironment,tab)=>{dashboardTab.current=tab??null;setDashboardEnvironment(createdEnvironment);setProject(next);setProjectOrganization(organization.id);setEnvironment(undefined);}}/>}</main></div></div></UpdatesProvider>;
 }
-export function App(){const [session,setSession]=useState<Session|null>(null),[signIn,setSignIn]=useState(false),[mfaVerified,setMfaVerified]=useState(false);useEffect(()=>{const {data}=auth.auth.onAuthStateChange((event,session)=>{
- setSession(session);if(!session||!sessionHasMfa(session.access_token)||event==='SIGNED_IN')setMfaVerified(false);
- if(event==='MFA_CHALLENGE_VERIFIED'&&session&&sessionHasMfa(session.access_token))setMfaVerified(true);
- });return()=>data.subscription.unsubscribe();},[]);
+function ManagementGate({session}:{session:Session}){
+ const policy=useData(signal=>managementPolicy(undefined,signal),[session.access_token]);
+ const authorized=useRef(false);if(policy.data)authorized.current=policy.data.authorized;
+ if(policy.loading&&authorized.current)return <Console session={session}/>;
+ if(policy.loading)return <main className="auth-layout"><Loading/></main>;
+ if(policy.error)return <main className="auth-layout"><ErrorMessage message={policy.error}/><Refresh onClick={policy.refresh}/><button onClick={()=>void auth.auth.signOut({scope:'local'})}>Sign out</button></main>;
+ if(policy.data?.authorized)return <Console session={session}/>;
+ if(policy.data&&!policy.data.needs_mfa)return <main className="auth-layout"><p>Your management session ended. Sign in again to continue.</p><button onClick={()=>void auth.auth.signOut({scope:'local'})}>Back to sign in</button></main>;
+ return <MfaGate onVerified={policy.refresh}/>;
+}
+export function App(){
+ const [session,setSession]=useState<Session|null>(null),[signIn,setSignIn]=useState(false);
+ useEffect(()=>{const {data}=auth.auth.onAuthStateChange((_event,next)=>setSession(next));return()=>data.subscription.unsubscribe();},[]);
  const token=inviteToken();
- return session?mfaVerified?<Console session={session}/>:<MfaGate onVerified={()=>setMfaVerified(true)}/>:token&&!signIn?<AcceptInvitation token={token} onSignIn={()=>setSignIn(true)}/>:<Login/>;}
+ return session?<ManagementGate session={session}/>:token&&!signIn?<AcceptInvitation token={token} onSignIn={()=>setSignIn(true)}/>:<Login/>;
+}

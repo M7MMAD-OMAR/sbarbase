@@ -42,6 +42,10 @@ sudo deploy/server-acceptance.sh --rehearse --install-unit --first-project --ser
 
 The last command installs the service, creates a first project, proves supabase-js works through it and checks that the service comes back after a reboot.
 
+## Project setup and sign-in
+
+New projects automatically create and provision a production environment, then start and open the original Supabase Studio in a new tab while keeping the console open. Choose **Stay in console** to cancel automatic opening. Existing projects retain **Open Supabase dashboard**. Studio opens as its original full page, without an added navigation bar or iframe. Management MFA is required by default; the installation owner can make it optional with a fresh authenticator verification under **Account security**. Enrolled accounts still verify MFA. See [Studio](docs/guides/studio.md), [management MFA](docs/engineering/MANAGEMENT-MFA.md), the [UX research and journey audit](docs/design/USER-JOURNEY.md) and the [complete implementation plan](docs/engineering/plans/2026-10-10-management-project-workflow.md).
+
 ## Documentation
 
 | | |

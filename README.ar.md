@@ -22,6 +22,10 @@
 
 <p align="center"><img src="docs/diagrams/hierarchy.ar.svg" width="820" alt="العملاء والمشاريع والبيئات على خادم واحد"></p>
 
+## إنشاء المشروع وأمان الدخول
+
+ينشئ المشروع الجديد بيئة production ويجهزها تلقائياً، ثم يشغّل Studio الأصلي ويفتحه تلقائياً في تبويب جديد مع إبقاء النظام مفتوحاً. يلغي **Stay in console** الفتح التلقائي. للمشاريع الموجودة يبقى زر **Open Supabase dashboard**. تظهر صفحة Studio الأصلية كاملة دون شريط إضافي أو iframe. MFA مطلوب افتراضياً، ويمكن لمالك التثبيت جعله اختيارياً من **Account security** بعد التحقق برمز حديث. الحسابات التي فعّلت عاملاً تبقى مطالبة بالتحقق منه. راجع [دليل Studio](docs/guides/studio.ar.md) و[مصادقة الإدارة](docs/engineering/MANAGEMENT-MFA.ar.md) و[بحث تجربة المستخدم](docs/design/USER-JOURNEY.ar.md) و[الخطة المتكاملة](docs/engineering/plans/2026-10-10-management-project-workflow.md).
+
 ## التثبيت
 
 على خادم Linux متوافق مع متطلبات Docker Engine وCompose والفحص المسبق، ثلاثة أوامر ([التثبيت عبر Docker](docs/guides/docker.ar.md)):

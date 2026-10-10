@@ -35,7 +35,7 @@ function passwordClaims(token:string,actor:string,factors:PasswordIdentity['fact
     return {actor,session:claims.session_id,aal:claims.aal,expiresAt:claims.exp,passwordAt,verifiedAt,factors};
   }catch{return null;}
 }
-/** Password sessions can enroll and challenge native MFA, but cannot use management APIs. */
+/** Native password identities supply factor observations and the session binding. */
 export function managementPasswordIdentity(url:string,key:string,transport:typeof fetch=fetch):(request:Request)=>Promise<PasswordIdentity|null> {
   const endpoint=new URL(url);
   if(!['https:','http:'].includes(endpoint.protocol)||endpoint.username||endpoint.password)
@@ -68,10 +68,19 @@ export function hasManagementMfa(identity:PasswordIdentity,security:ManagementSe
     identity.aal==='aal2'&&identity.verifiedAt>0&&security.granted(identity.actor,identity.session,
     identity.verifiedAt,identity.factors.filter(factor=>factor.status==='verified'&&factor.factor_type==='totp').map(factor=>factor.id));
 }
+/** Password access needs an audited native login, optional policy and no verified factors. */
+export function hasManagementAccess(identity:PasswordIdentity,security:ManagementSecurity):boolean {
+ if(hasManagementMfa(identity,security))return true;
+ const now=Math.floor(Date.now()/1000);
+ return identity.aal==='aal1'&&identity.verifiedAt===0&&!identity.factors.some(factor=>factor.status==='verified')&&
+  Number.isSafeInteger(identity.expiresAt)&&identity.expiresAt>now&&Number.isSafeInteger(identity.passwordAt)&&
+  identity.passwordAt>0&&identity.passwordAt<=now&&now-identity.passwordAt<43200&&
+  security.passwordGranted(identity.actor,identity.session,identity.passwordAt,now);
+}
 export function managementIdentity(url:string,key:string,transport:typeof fetch=fetch,security?:ManagementSecurity):ManagementIdentity {
   const identify=managementPasswordIdentity(url,key,transport);
   return async request=>{
     const identity=await identify(request);
-    return identity&&security&&hasManagementMfa(identity,security)?identity.actor:null;
+    return identity&&security&&hasManagementAccess(identity,security)?identity.actor:null;
   };
 }

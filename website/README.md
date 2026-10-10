@@ -34,6 +34,17 @@ A clean technical page in four parts: a hero (headline, one sentence, a single "
 
 Everything is readable without JavaScript. The walkthrough is an illustration, not live traffic; it pauses offscreen and in hidden tabs.
 
+## Image delivery
+
+The video poster is a 1920 by 1080 WebP. The social card remains a 1200 by 630 JPEG. Original source JPEGs are preserved under `docs/design/masters/website-*.jpg`; regenerating outputs always uses those sources, so repeated compression does not accumulate. With the public Pillow 12.3.0 dependency installed, run `python3 website/optimize_images.py` from the repository root, then `bun run --cwd website build` and `bun website/image-loading-browser.ts`. Python is an optional authoring tool, not a website runtime or build dependency. Measurements and compatibility limits are in [WEBSITE-IMAGE-DELIVERY.md](../docs/design/WEBSITE-IMAGE-DELIVERY.md).
+
+Install the tracked browser test dependencies and Chromium before the first browser check, from the repository root:
+
+```sh
+bun install --cwd lab/mfa-browser --frozen-lockfile
+bun run --cwd lab/mfa-browser playwright install chromium
+```
+
 ## GitHub and Cloudflare
 
 Source: https://github.com/M7MMAD-OMAR/sbarbase. GitHub Actions checks and packages the site. Deployments currently use authenticated Wrangler. Native Cloudflare Builds connection requires Workers Builds Configuration access, which the current local OAuth session does not grant. Do not claim push-to-deploy is enabled until that connection is verified.

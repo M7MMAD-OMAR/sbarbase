@@ -1,0 +1,130 @@
+[
+  {
+    "lang": "ar",
+    "viewportWidth": 1440,
+    "viewportHeight": 900,
+    "scale": 1,
+    "poster": "http://127.0.0.1:37807/media/explainer-poster.webp",
+    "width": 1920,
+    "height": 1080,
+    "posterEntries": [
+      {
+        "url": "http://127.0.0.1:37807/media/explainer-poster.webp",
+        "bytes": 51672
+      }
+    ],
+    "social": {
+      "bytes": 49606,
+      "type": "image/jpeg",
+      "width": 1200,
+      "height": 630
+    },
+    "videoBounds": {
+      "x": 200,
+      "y": 468.296875,
+      "width": 1040,
+      "height": 585,
+      "top": 468.296875,
+      "right": 1240,
+      "bottom": 1053.296875,
+      "left": 200
+    },
+    "direction": "rtl"
+  },
+  {
+    "lang": "ar",
+    "viewportWidth": 390,
+    "viewportHeight": 900,
+    "scale": 1,
+    "poster": "http://127.0.0.1:37807/media/explainer-poster.webp",
+    "width": 1920,
+    "height": 1080,
+    "posterEntries": [
+      {
+        "url": "http://127.0.0.1:37807/media/explainer-poster.webp",
+        "bytes": 51672
+      }
+    ],
+    "social": {
+      "bytes": 49606,
+      "type": "image/jpeg",
+      "width": 1200,
+      "height": 630
+    },
+    "videoBounds": {
+      "x": 16,
+      "y": 410.578125,
+      "width": 358,
+      "height": 201.375,
+      "top": 410.578125,
+      "right": 374,
+      "bottom": 611.953125,
+      "left": 16
+    },
+    "direction": "rtl"
+  },
+  {
+    "lang": "en",
+    "viewportWidth": 1440,
+    "viewportHeight": 900,
+    "scale": 1,
+    "poster": "http://127.0.0.1:37807/media/explainer-poster.webp",
+    "width": 1920,
+    "height": 1080,
+    "posterEntries": [
+      {
+        "url": "http://127.0.0.1:37807/media/explainer-poster.webp",
+        "bytes": 51672
+      }
+    ],
+    "social": {
+      "bytes": 49606,
+      "type": "image/jpeg",
+      "width": 1200,
+      "height": 630
+    },
+    "videoBounds": {
+      "x": 200,
+      "y": 452.109375,
+      "width": 1040,
+      "height": 585,
+      "top": 452.109375,
+      "right": 1240,
+      "bottom": 1037.109375,
+      "left": 200
+    },
+    "direction": "ltr"
+  },
+  {
+    "lang": "en",
+    "viewportWidth": 390,
+    "viewportHeight": 900,
+    "scale": 1,
+    "poster": "http://127.0.0.1:37807/media/explainer-poster.webp",
+    "width": 1920,
+    "height": 1080,
+    "posterEntries": [
+      {
+        "url": "http://127.0.0.1:37807/media/explainer-poster.webp",
+        "bytes": 51672
+      }
+    ],
+    "social": {
+      "bytes": 49606,
+      "type": "image/jpeg",
+      "width": 1200,
+      "height": 630
+    },
+    "videoBounds": {
+      "x": 16,
+      "y": 400.984375,
+      "width": 358,
+      "height": 201.375,
+      "top": 400.984375,
+      "right": 374,
+      "bottom": 602.359375,
+      "left": 16
+    },
+    "direction": "ltr"
+  }
+]

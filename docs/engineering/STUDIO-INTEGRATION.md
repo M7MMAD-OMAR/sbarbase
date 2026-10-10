@@ -11,6 +11,8 @@ use a per-start `<e>_studio` login (not a superuser, BYPASSRLS, read only on `au
 `lab/studio.py`, `src/control/studio.ts`; check: `lab/studio-check.ts` in the CI Docker job; operator
 guide: [Studio](../guides/studio.md). Sections below remain the original study.
 
+Update 2026-10-10: new project creation prepares production and automatically opens the original Studio in a reserved tab. Ticket entry now goes directly to `/project/default`; the optional workspace selector contains no iframe. Native HTML and framing policies are preserved. Cancellation, popup blocking and local retry retain the console. See [the researched journey audit](../design/USER-JOURNEY.md) and [current guide](../guides/studio.md).
+
 ## 0. Evidence base, and how to read the labels
 
 Labels used in this document:

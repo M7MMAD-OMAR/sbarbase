@@ -1,7 +1,7 @@
 import {Catalog} from './catalog';
 import {resolveRuntimePlacement,placementServices,PlacementUnavailable} from './placement';
 import {KeyStore} from './keys';
-import {managementPasswordIdentity,hasManagementMfa,reply,type PasswordIdentity} from './auth';
+import {managementPasswordIdentity,hasManagementAccess,reply,type PasswordIdentity} from './auth';
 import {managementAuth,type ManagementRealm} from './management-auth';
 import {withManagementAuthorization,refreshCurrentManagement} from './management-context';
 import {NativeLifecycleAuthority} from './lifecycle-authority';
@@ -37,7 +37,7 @@ export function application(catalog:Catalog,keys:KeyStore,realm:ManagementRealm,
  };
  const identity=async(request:Request)=>{
   await refreshCurrentManagement();
-  const actor=await identify(request);return actor&&hasManagementMfa(actor,catalog.managementSecurity)?actor.actor:null;
+  const actor=await identify(request);return actor&&hasManagementAccess(actor,catalog.managementSecurity)?actor.actor:null;
  };
  const control=controlHandler(catalog,keys,identity,runtime=>{
   try {
@@ -68,20 +68,22 @@ export function application(catalog:Catalog,keys:KeyStore,realm:ManagementRealm,
   if(path.startsWith('/management/')){
    try {
     if(!catalog.managementSecurity.rate('management:global',1200,60000))return reply(429,{message:'Too many management requests'});
-    // Invitation redemption is public by design; every protected route below requires MFA.
+    // Invitation redemption is public by design; every protected route below enforces the current authentication policy.
     if(path!=='/management/invitations/redeem'){
      const actor=await identify(request);if(!actor)return reply(401,{message:'Password authentication required'});
-     if(!hasManagementMfa(actor,catalog.managementSecurity))return reply(403,{message:'MFA verification required',code:'mfa_required'});
+     if(!hasManagementAccess(actor,catalog.managementSecurity))return reply(403,{message:'MFA verification required',code:'mfa_required'});
      if(!catalog.managementSecurity.rate('management:actor:'+actor.actor,120,60000))return reply(429,{message:'Too many management requests'});
-     const bearer=request.headers.get('authorization'),epoch=catalog.managementSecurity.epoch(actor.actor);
+     const bearer=request.headers.get('authorization'),epoch=catalog.managementSecurity.epoch(actor.actor),policyEpoch=catalog.managementSecurity.policy().epoch;
+     const passwordMode=actor.aal==='aal1';
      const grantedFactor=catalog.managementSecurity.grantedFactor(actor.actor,actor.session,actor.verifiedAt,
       actor.factors.filter(factor=>factor.status==='verified'&&factor.factor_type==='totp').map(factor=>factor.id));
      const grantedFactors=new Set(grantedFactor?[grantedFactor]:[]);
      let fresh:PasswordIdentity|null=actor;
      const current=()=>!!fresh&&request.headers.get('authorization')===bearer&&!request.signal.aborted&&
-      catalog.managementSecurity.epoch(actor.actor)===epoch&&hasManagementMfa(fresh,catalog.managementSecurity)&&
+      catalog.managementSecurity.epoch(actor.actor)===epoch&&catalog.managementSecurity.policy().epoch===policyEpoch&&hasManagementAccess(fresh,catalog.managementSecurity)&&
+      (passwordMode||
       catalog.managementSecurity.granted(actor.actor,actor.session,actor.verifiedAt,
-       fresh.factors.filter(factor=>factor.status==='verified'&&factor.factor_type==='totp'&&grantedFactors.has(factor.id)).map(factor=>factor.id));
+       fresh.factors.filter(factor=>factor.status==='verified'&&factor.factor_type==='totp'&&grantedFactors.has(factor.id)).map(factor=>factor.id)));
      const refresh=async()=>{
       if(!current())throw new Error('Forbidden');
       // Invalidate the old native observation while the exact original bearer is looked up.

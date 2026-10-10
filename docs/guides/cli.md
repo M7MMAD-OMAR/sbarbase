@@ -4,6 +4,8 @@
 
 `sbarbase` is one command for the tasks an operator does every week: check the server, take a backup, restore one, add an environment, rotate a key, upgrade, open Studio and read logs. It adds nothing new. Each subcommand runs a tool that already exists or calls the management API the console uses, with the same checks and the same refusals.
 
+Management commands read the installation MFA policy after password login. Optional policy allows accounts without verified factors to proceed without a code prompt; accounts with enabled factors still verify MFA. Policy changes belong to the installation owner in **Account security**. See [the authentication contract](../engineering/CLI-MFA.md).
+
 ## Run it
 
 The command is `deploy/sbarbase` in the installation directory. It runs `lab/sbarbase.ts` with Bun from that directory, wherever you call it from. It finds Bun on the PATH, in the running account's `~/.bun/bin`, or on the PATH the installed unit gives the service; `SBARBASE_BUN` names it outright. Run it as the service account, which owns the state:

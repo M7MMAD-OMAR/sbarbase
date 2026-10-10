@@ -523,6 +523,19 @@ export class Catalog {
     return !!this.db.query<{role:string},[string]>(`SELECT m.role role FROM installation_bootstrap b
       JOIN memberships m ON m.organization=b.organization WHERE b.singleton=1 AND m.actor=? AND m.role IN ('owner','admin')`).get(actor);
   }
+  /** Installation owners change policy; policy changes end every console and Studio session. */
+  setManagementMfaPolicy(actor:string,required:boolean,authorize?:()=>boolean):void {
+    this.db.transaction(()=>{
+      this.assertManagementRecoveryOwner(actor);
+      if(authorize&&!authorize())throw new Error('Forbidden');
+      if(this.managementSecurity.policy().mfa_required===required)return;
+      this.managementSecurity.setPolicy(required);
+      const actors=this.db.query<{actor:string},[]>(`SELECT actor FROM memberships UNION SELECT actor FROM management_mfa_epoch
+        UNION SELECT actor FROM management_mfa_grant UNION SELECT actor FROM management_password_grant`).all();
+      for(const entry of actors)this.managementSecurity.revoke(entry.actor);
+      this.record(actor,'management.mfa.policy_changed',actor,{mfa_required:required});
+    }).immediate();
+  }
   /** Native factor operations record identifiers and outcomes, never factor secrets or codes. */
   recordManagementFactor(actor:string,action:'enrolled'|'verified'|'removal_requested'|'removed'|'removal_failed',factor:string) {
     this.actor(actor);
@@ -530,8 +543,9 @@ export class Catalog {
     this.record(actor,'management.mfa.'+action,actor,{factor});
   }
   /** The authorization grant and its audit event commit together. */
-  grantManagementMfa(actor:string,session:string,factor:string,verified:number,expires:number,epoch:number):boolean {
+  grantManagementMfa(actor:string,session:string,factor:string,verified:number,expires:number,epoch:number,firstEnrollment=false):boolean {
     return this.db.transaction(()=>{
+      if(firstEnrollment){if(this.managementSecurity.epoch(actor)!==epoch)return false;this.managementSecurity.promote(actor);epoch++;}
       if(!this.managementSecurity.grant(actor,session,factor,verified,expires,epoch))return false;
       this.recordManagementFactor(actor,'verified',factor);return true;
     }).immediate();
@@ -761,6 +775,13 @@ export class Catalog {
       this.unusedProjectName(organization,title);
       this.db.query('INSERT INTO projects VALUES (?,?,?)').run(id,organization,title);
       this.record(actor,'project.created',id,{organization});return id;
+    }).immediate();
+  }
+  /** Public creation commits project, production and provisioning intent together. */
+  createProjectWithProduction(actor:string,organization:string,name:string):{id:string;environment:string} {
+    return this.db.transaction(()=>{
+      const id=this.createProject(actor,organization,name);
+      return {id,environment:this.createEnvironment(actor,id,'production')};
     }).immediate();
   }
   createEnvironment(actor:string,project:string,name:string):string {

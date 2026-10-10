@@ -1,5 +1,5 @@
 import {useEffect,useState,type FormEvent} from 'react';
-import {auth} from './api';
+import {auth,managementPolicy,useData} from './api';
 import {Brand} from './Brand';
 import {ErrorMessage,Loading} from './components';
 import {mfaError} from './mfa-state';
@@ -8,10 +8,10 @@ type Factor={id:string;friendly_name?:string;status:string;factor_type:string};
 type Enrollment={id:string;totp:{qr_code:string;secret:string;uri:string}};
 
 /** All codes and enrollment secrets go directly through original Supabase Auth MFA. */
-function Authenticator({factors,onVerified,onCancel}:{factors:Factor[];onVerified:()=>void;onCancel?:()=>void}){
+function Authenticator({factors,onVerified,onCancel,enrollmentOnly=false}:{factors:Factor[];onVerified:()=>void;onCancel?:()=>void;enrollmentOnly?:boolean}){
  const verified=factors.filter(factor=>factor.factor_type==='totp'&&factor.status==='verified');
  const [selected,setSelected]=useState(verified[0]?.id??''),[enrollment,setEnrollment]=useState<Enrollment>(),[code,setCode]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');
- const enrolling=!!onCancel||!verified.length;
+ const enrolling=enrollmentOnly||!verified.length;
  async function enroll(){
   if(busy)return;setBusy(true);setError('');
   try {
@@ -63,20 +63,26 @@ export function MfaGate({onVerified}:{onVerified:()=>void}){
 }
 
 export function MfaSettings(){
+ const policy=useData(signal=>managementPolicy(undefined,signal),[]);
+ const [policyTarget,setPolicyTarget]=useState<boolean>(),[policyError,setPolicyError]=useState('');
  const [factors,setFactors]=useState<Factor[]>(),[adding,setAdding]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState('');
  async function load(){const {data,error}=await auth.auth.mfa.listFactors();if(error)setError(mfaError(error));else setFactors(data.all);}
  useEffect(()=>{void load().catch(()=>setError('Unable to reach the server. Try again.'));},[]);
  async function remove(factor:Factor){
   if(busy)return;setBusy(true);setError('');
-  try {const {error}=await auth.auth.mfa.unenroll({factorId:factor.id});if(error)setError('The authenticator could not be removed. Verify your session and keep another verified authenticator.');
+  try {const {error}=await auth.auth.mfa.unenroll({factorId:factor.id});if(error)setError('The authenticator could not be removed. Verify your session and check the installation MFA policy.');
    else{await auth.auth.refreshSession();await load();}}
   catch{setError('Unable to reach the server. Try again.');}finally{setBusy(false);}
  }
  if(!factors)return error?<ErrorMessage message={error}/>:<Loading/>;
- if(adding)return <Authenticator factors={factors} onVerified={()=>{setAdding(false);void load();}} onCancel={()=>{setAdding(false);void load();}}/>;
+ if(policyTarget!==undefined)return <><p>Verify a current code to {policyTarget?'require MFA for this installation':'allow password sign-in for accounts without MFA'}. This ends all console and dashboard sessions.</p><ErrorMessage message={policyError}/><Authenticator factors={factors} onCancel={()=>setPolicyTarget(undefined)} onVerified={()=>{void managementPolicy(policyTarget).then(()=>auth.auth.signOut({scope:'local'})).catch(error=>setPolicyError((error as Error).message));}}/></>;
+ if(adding)return <Authenticator enrollmentOnly factors={factors} onVerified={()=>{setAdding(false);void load();}} onCancel={()=>{setAdding(false);void load();}}/>;
  const verified=factors.filter(factor=>factor.factor_type==='totp'&&factor.status==='verified');
- return <section><h1>Account security</h1><p>Add a second authenticator and keep it in a separate safe place. You must keep at least one verified authenticator.</p>
-  <ErrorMessage message={error}/><ul>{verified.map(factor=><li key={factor.id}>{factor.friendly_name??'Authenticator'} <button disabled={busy||verified.length<2} onClick={()=>void remove(factor)}>Remove</button></li>)}</ul>
+ return <section><h1>Account security</h1><p>Protect your account with an authenticator. You can add a spare and keep it in a separate safe place.</p>
+  <ErrorMessage message={error}/><ul>{verified.map(factor=><li key={factor.id}>{factor.friendly_name??'Authenticator'} <button disabled={busy||(policy.data?.mfa_required!==false&&verified.length<2)} onClick={()=>void remove(factor)}>Remove</button></li>)}</ul>
+  {!verified.length&&<p className="muted">{policy.data?.mfa_required===false?'MFA is optional. You can sign in with your password or add an authenticator.':'This installation requires an authenticator.'}</p>}
+  <ErrorMessage message={policy.error}/>
+  {policy.data?.can_manage_policy&&<section className="details"><h2>Installation sign-in policy</h2><p>{policy.data.mfa_required?'MFA is required for every management account.':'MFA is optional. Accounts with an enabled authenticator still verify it at sign-in.'}</p><button disabled={busy} onClick={()=>{setPolicyError('');setPolicyTarget(!policy.data!.mfa_required);}}>{policy.data.mfa_required?'Make MFA optional':'Require MFA'}</button><p className="small muted">A fresh authenticator code is required to change this setting. All active console and Supabase dashboard sessions will end.</p></section>}
   <button className="primary" disabled={busy} onClick={()=>setAdding(true)}>Add authenticator</button>
  </section>;
 }

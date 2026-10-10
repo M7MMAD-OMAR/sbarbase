@@ -442,3 +442,19 @@ test('still live MFA expiry changes before final publication invalidate the capa
  f.db.query('UPDATE management_mfa_grant SET expires=?').run(Math.floor(Date.now()/1000)+120);
  expect(()=>f.check(capability)).toThrow('CURRENT_HISTORY_CHANGED');
 });
+
+test('password transfer history keeps current policy, session grant and epoch checks',async()=>{
+ const f=fixture();const passwordAt=Math.floor(Date.now()/1000)-5;
+ f.catalog.managementSecurity.setPolicy(false);f.auth({aal:'aal1',verifiedAt:0,passwordAt,factors:[]});
+ f.catalog.managementSecurity.grantPassword(actor,session,passwordAt,passwordAt+43200,0,f.catalog.managementSecurity.policy().epoch);
+ const result=await f.run();expect(result.capability.nativeRetirementAdmitted).toBe(false);
+ f.catalog.managementSecurity.revoke(actor);
+ expect(()=>f.db.transaction(()=>f.check(result.capability)).immediate()).toThrow();
+});
+test('password transfer history refuses enrollment observed on the final lookup',async()=>{
+ const f=fixture(),passwordAt=Math.floor(Date.now()/1000)-5;
+ f.catalog.managementSecurity.setPolicy(false);f.auth({aal:'aal1',verifiedAt:0,passwordAt,factors:[]});
+ f.catalog.managementSecurity.grantPassword(actor,session,passwordAt,passwordAt+43200,0,f.catalog.managementSecurity.policy().epoch);
+ f.identify(call=>{if(call===2)f.auth({factors:[{id:factor,status:'verified',factor_type:'totp'}]});});
+ await expect(f.run()).rejects.toThrow();
+});

@@ -60,9 +60,8 @@ try {
  if(!record('a project is created',project.status===201&&!!project.json?.id,`status ${project.status}`))await finish();
  ids.project=project.json.id;
 
- const environment=await call('POST',`/projects/${ids.project}/environments`,{name:'production'});
- if(!record('an environment is queued for provisioning',environment.status===202&&!!environment.json?.id,`status ${environment.status}`))await finish();
- ids.environment=environment.json.id;
+ if(!record('production is queued automatically with the project',project.json?.state==='queued'&&!!project.json?.environment))await finish();
+ ids.environment=project.json.environment;
 
  let state='queued',failure='';
  const deadline=Date.now()+10*60_000;

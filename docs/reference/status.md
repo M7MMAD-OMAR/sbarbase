@@ -2,6 +2,11 @@
 
 # Status
 
+## Management and first-project update, 2026-10-10
+
+Current source adds an owner-controlled optional MFA policy, audited password session authority for unenrolled accounts, automatic production creation and a visible one-click Supabase dashboard entry. Required MFA remains the installation default. The [complete plan](../engineering/plans/2026-10-10-management-project-workflow.md) records source checks and limitations; this update does not establish a public deployment or new native service acceptance.
+
+
 ## Integration status, 2026-10-07
 
 Production readiness remains unproven. Source integration is still changing, so there is no final merged-source release acceptance. Historical green tests and CI runs apply only to their recorded source and environment. The [integration programme](../engineering/plans/2026-10-06-integration-programme.md) records the remaining full completion contract.

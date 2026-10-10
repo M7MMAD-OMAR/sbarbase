@@ -4,7 +4,10 @@ import {randomUUID} from 'node:crypto';
 /** Durable admission and native MFA grants, shared by every controller using the catalog. */
 export class ManagementSecurity {
  constructor(private db:Database){
-  db.exec(`CREATE TABLE IF NOT EXISTS management_rate(
+  db.exec(`CREATE TABLE IF NOT EXISTS management_auth_policy(singleton INTEGER PRIMARY KEY CHECK(singleton=1),mfa_required INTEGER NOT NULL DEFAULT 1,epoch INTEGER NOT NULL DEFAULT 0);
+   INSERT OR IGNORE INTO management_auth_policy(singleton) VALUES (1);
+   CREATE TABLE IF NOT EXISTS management_password_grant(session TEXT PRIMARY KEY,actor TEXT NOT NULL,password INTEGER NOT NULL,epoch INTEGER NOT NULL,policy_epoch INTEGER NOT NULL,expires INTEGER NOT NULL);
+   CREATE TABLE IF NOT EXISTS management_rate(
    bucket TEXT PRIMARY KEY,count INTEGER NOT NULL,expires INTEGER NOT NULL);
    CREATE TABLE IF NOT EXISTS management_mfa_epoch(actor TEXT PRIMARY KEY,epoch INTEGER NOT NULL,revoked INTEGER NOT NULL DEFAULT 0);
    CREATE TABLE IF NOT EXISTS management_mfa_grant(
@@ -15,6 +18,29 @@ export class ManagementSecurity {
    state TEXT NOT NULL CHECK(state IN ('requested','completed','failed')),started INTEGER NOT NULL,finished INTEGER);`);
   if(!db.query<{name:string},[]>('PRAGMA table_info(management_mfa_epoch)').all().some(column=>column.name==='revoked'))
    db.exec('ALTER TABLE management_mfa_epoch ADD COLUMN revoked INTEGER NOT NULL DEFAULT 0');
+ }
+ policy():{mfa_required:boolean;epoch:number} {
+  const row=this.db.query<{mfa_required:number;epoch:number},[]>('SELECT mfa_required,epoch FROM management_auth_policy WHERE singleton=1').get()!;
+  return {mfa_required:row.mfa_required===1,epoch:row.epoch};
+ }
+ setPolicy(required:boolean):void {
+  this.db.query('UPDATE management_auth_policy SET mfa_required=?,epoch=epoch+1 WHERE singleton=1').run(required?1:0);
+ }
+ grantPassword(actor:string,session:string,password:number,expires:number,epoch:number,policyEpoch:number):boolean {
+  return this.db.transaction(()=>{
+  if(this.epoch(actor)!==epoch||this.policy().epoch!==policyEpoch)return false;
+  this.db.query('DELETE FROM management_password_grant WHERE expires<=?').run(Math.floor(Date.now()/1000));
+  this.db.query(`INSERT INTO management_password_grant VALUES (?,?,?,?,?,?) ON CONFLICT(session) DO UPDATE SET
+   actor=excluded.actor,password=excluded.password,epoch=excluded.epoch,policy_epoch=excluded.policy_epoch,expires=excluded.expires`)
+   .run(session,actor,password,epoch,policyEpoch,expires);
+  return true;
+  }).immediate();
+ }
+ passwordGranted(actor:string,session:string,password:number,now=Math.floor(Date.now()/1000)):boolean {
+  const policy=this.policy();
+  return !policy.mfa_required&&!!this.db.query(`SELECT 1 FROM management_password_grant
+   WHERE actor=? AND session=? AND password=? AND epoch=? AND policy_epoch=? AND expires>?`)
+   .get(actor,session,password,this.epoch(actor),policy.epoch,now);
  }
  /** No token, password, email or client supplied address is persisted. */
  rate(bucket:string,limit:number,windowMs:number,now=Date.now()):boolean {
@@ -63,11 +89,19 @@ export class ManagementSecurity {
  granted(actor:string,session:string,verified:number,factors:readonly string[],now=Math.floor(Date.now()/1000)):boolean {
   return this.grantedFactor(actor,session,verified,factors,now)!==null;
  }
+ /** First verified enrollment ends password and Studio sessions without rejecting the new verification. */
+ promote(actor:string):void {
+  this.db.query(`INSERT INTO management_mfa_epoch(actor,epoch,revoked) VALUES (?,1,0)
+   ON CONFLICT(actor) DO UPDATE SET epoch=epoch+1`).run(actor);
+  this.db.query('DELETE FROM management_password_grant WHERE actor=?').run(actor);
+  this.db.query('DELETE FROM management_mfa_grant WHERE actor=?').run(actor);
+ }
  revoke(actor:string):void {
   this.db.transaction(()=>{
    this.db.query(`INSERT INTO management_mfa_epoch(actor,epoch,revoked) VALUES (?,1,?)
     ON CONFLICT(actor) DO UPDATE SET epoch=epoch+1,revoked=MAX(revoked,excluded.revoked)`).run(actor,Math.floor(Date.now()/1000));
    this.db.query('DELETE FROM management_mfa_grant WHERE actor=?').run(actor);
+   this.db.query('DELETE FROM management_password_grant WHERE actor=?').run(actor);
   }).immediate();
  }
 }

@@ -394,9 +394,9 @@ export function managementHandler(catalog:Catalog,identify:ManagementIdentity,ma
       if(request.method==='GET') return managementPublication(catalog,()=>reply(200,{data:match[1]==='organizations'
         ?catalog.listProjects(actor,id):catalog.listEnvironments(actor,id)}));
       const input=await body(request);
-      const created=match[1]==='organizations'?catalog.createProject(actor,id,input.name)
-        :catalog.createEnvironment(actor,id,input.name);
-      const response=reply(match[1]==='organizations'?201:202,{id:created,state:match[1]==='organizations'?'metadata_only':'queued'});
+      const project=match[1]==='organizations'?catalog.createProjectWithProduction(actor,id,input.name):null;
+      const created=project?.id??catalog.createEnvironment(actor,id,input.name);
+      const response=reply(match[1]==='organizations'?201:202,{id:created,state:'queued',...(project?{environment:project.environment}:{})});
       return bindManagementPublication(response,catalog,()=>{
         if(match[1]==='organizations'){
           requireOrganizationPublication(catalog,actor,id,['owner','admin']);

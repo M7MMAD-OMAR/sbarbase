@@ -7,6 +7,15 @@ export type Organization={id:string;name:string;role:'owner'|'admin'|'viewer'};
 export type Project={id:string;name:string};
 export type Environment=Project&{state?:string|null;failure?:'capacity_exceeded'|'runtime_failed'|null};
 export type Api=(path:string,method?:string,body?:unknown,signal?:AbortSignal)=>Promise<any>;
+export type MfaPolicy={mfa_required:boolean;epoch:number;needs_mfa:boolean;authorized:boolean;can_manage_policy:boolean};
+export async function managementPolicy(required?:boolean,signal?:AbortSignal):Promise<MfaPolicy> {
+ const {data}=await auth.auth.getSession();
+ const response=await fetch('/management/auth/v1/policy',{method:required===undefined?'GET':'PATCH',signal,
+  headers:{apikey:'sb_publishable_sbarbase_local_management',authorization:'Bearer '+data.session?.access_token,
+   ...(required===undefined?{}:{'content-type':'application/json'})},...(required===undefined?{}:{body:JSON.stringify({mfa_required:required})})});
+ if(!response.ok)throw new Error(response.status===403?'Verify a fresh authenticator code as the installation owner to change this setting.':'Unable to read or save the authentication policy. Try again.');
+ return response.json();
+}
 /** The 409 answers the management API gives, in the words the console shows. */
 const conflicts:Record<string,string>={
  'Name already used':'That name is already used here. Choose another name.',

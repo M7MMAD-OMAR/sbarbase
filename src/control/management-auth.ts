@@ -1,5 +1,5 @@
 import {createHash} from 'node:crypto';
-import {reply,hasManagementMfa,type PasswordIdentity} from './auth';
+import {reply,hasManagementMfa,hasManagementAccess,type PasswordIdentity} from './auth';
 import type {Catalog} from './catalog';
 
 export type ManagementRealm={auth:string;anonymousToken:string;publishableKey:string};
@@ -30,11 +30,11 @@ export function managementAuth(catalog:Catalog,realm:ManagementRealm,
   const url=new URL(request.url),path=url.pathname.slice('/management/auth/v1'.length);
   const factor=path.match(new RegExp('^/factors/('+UUID+')(?:/(challenge|verify))?$'));
   const route=path==='/factors'?'enroll':factor?(factor[2]??'unenroll'):path.slice(1);
-  const methods:Record<string,string>={token:'POST',user:'GET',logout:'POST',settings:'GET',enroll:'POST',challenge:'POST',verify:'POST',unenroll:'DELETE'};
-  if(!methods[route]||(!factor&&!['/token','/user','/logout','/settings','/factors'].includes(path)))return reply(404,{message:'Unknown authentication route'});
+  const methods:Record<string,string>={policy:request.method==='PATCH'?'PATCH':'GET',token:'POST',user:'GET',logout:'POST',settings:'GET',enroll:'POST',challenge:'POST',verify:'POST',unenroll:'DELETE'};
+  if(!methods[route]||(!factor&&!['/policy','/token','/user','/logout','/settings','/factors'].includes(path)))return reply(404,{message:'Unknown authentication route'});
   if(request.method!==methods[route])return reply(405,{message:'Method not allowed'});
   if(request.headers.get('apikey')!==realm.publishableKey)return reply(401,{message:'Invalid API key'});
-  if(['user','settings','logout','unenroll'].includes(route)&&request.body)return reply(400,{message:'This authentication route does not accept a body'});
+  if((['user','settings','logout','unenroll'].includes(route)||route==='policy'&&request.method==='GET')&&request.body)return reply(400,{message:'This authentication route does not accept a body'});
   let identity:PasswordIdentity|null=null,payload:Record<string,unknown>|undefined,epoch=0,revoke=false,lease:string|null=null;
   try {
   try {
@@ -56,13 +56,28 @@ export function managementAuth(catalog:Catalog,realm:ManagementRealm,
     if(route!=='settings'){
      identity=await identify(request);if(!identity)return reply(401,{message:'Password authentication required'});
      if(!security.rate('auth:actor:'+identity.actor,120,60000))return limited();
-     if(['enroll','verify','unenroll'].includes(route)){
+     if(['enroll','verify','unenroll'].includes(route)||route==='policy'&&request.method==='PATCH'){
       lease=security.lease(identity.actor);if(!lease)return reply(409,{message:'Another account security operation is in progress',code:'mfa_operation_pending'});
       const fresh=await identify(new Request(request.url,{headers:request.headers}));
       if(!fresh||fresh.actor!==identity.actor||fresh.session!==identity.session)return reply(401,{message:'Password authentication required'});
       identity=fresh;
      }
      epoch=security.epoch(identity.actor);
+    }
+    if(route==='policy'){
+     let owner=false;try{catalog.assertManagementRecoveryOwner(identity!.actor);owner=true;}catch{}
+     if(request.method==='GET')return reply(200,{...security.policy(),needs_mfa:security.policy().mfa_required||identity!.factors.some(factor=>factor.status==='verified'),
+      authorized:hasManagementAccess(identity!,security),can_manage_policy:owner});
+     payload=await body(request);
+     if(Object.keys(payload).length!==1||typeof payload.mfa_required!=='boolean')return reply(400,{message:'Invalid MFA policy'});
+     const checked=await identify(new Request(request.url,{headers:request.headers,signal:request.signal}));
+     if(!checked||checked.actor!==identity!.actor||checked.session!==identity!.session||!security.holds(identity!.actor,lease!)||!owner||!hasManagementMfa(checked,security)||Math.floor(Date.now()/1000)-checked.verifiedAt>300)
+      return reply(403,{message:'An installation owner must verify a fresh authenticator code to change MFA policy',code:'mfa_required'});
+     try{catalog.setManagementMfaPolicy(identity!.actor,payload.mfa_required,()=>security.epoch(identity!.actor)===epoch&&
+      security.holds(identity!.actor,lease!)&&hasManagementMfa(checked,security)&&Math.floor(Date.now()/1000)-checked.verifiedAt<=300);}catch(error){
+      if(error instanceof Error&&error.message==='Forbidden')return reply(403,{message:'MFA verification required',code:'mfa_required'});throw error;
+     }
+     return reply(200,{...security.policy(),sign_in_required:true});
     }
     if(route==='logout')catalog.revokeManagementLogout(identity!.actor,'requested',(url.searchParams.get('scope')??'global') as 'global'|'local'|'others');
     if(route==='enroll'||route==='challenge'||route==='verify'){
@@ -86,7 +101,7 @@ export function managementAuth(catalog:Catalog,realm:ManagementRealm,
      const owned=identity!.factors.find(entry=>entry.id===factor![1]&&entry.factor_type==='totp');
      if(!owned)return reply(403,{message:'Factor unavailable'});
      if(owned.status==='verified'&&(!hasManagementMfa(identity!,security)||
-       !identity!.factors.some(entry=>entry.id!==owned.id&&entry.status==='verified'&&entry.factor_type==='totp')))
+       security.policy().mfa_required&&!identity!.factors.some(entry=>entry.id!==owned.id&&entry.status==='verified'&&entry.factor_type==='totp')))
        return reply(403,{message:'Verify another authenticator before removing this one'});
      if(!security.rate('auth:unenroll:'+identity!.actor,5,3600000))return limited();
      revoke=owned.status==='verified';
@@ -102,6 +117,16 @@ export function managementAuth(catalog:Catalog,realm:ManagementRealm,
    response=await transport(new URL(path+url.search,realm.auth),{method:request.method,headers,redirect:'error',
     signal:AbortSignal.timeout(5000),...(payload===undefined?{}:{body:JSON.stringify(payload)})});
    if(lease&&!security.holds(identity!.actor,lease))throw new Error('Security lease expired');
+   if(response.ok&&route==='token'&&url.searchParams.get('grant_type')==='password'){
+    const result=await response.clone().json() as {access_token?:string;user?:{id?:string}};
+    if(typeof result.access_token!=='string'||typeof result.user?.id!=='string')return unavailable();
+    const actor=result.user.id,loginEpoch=security.epoch(actor),policyEpoch=security.policy().epoch;
+    const checked=await identify(new Request(request.url,{headers:{authorization:'Bearer '+result.access_token}}));
+    if(!checked||checked.actor!==actor)return unavailable();
+    if(checked.aal==='aal1'&&checked.verifiedAt===0&&!checked.factors.some(factor=>factor.status==='verified')&&
+     !security.grantPassword(actor,checked.session,checked.passwordAt,checked.passwordAt+43200,loginEpoch,policyEpoch))
+     return unavailable();
+   }
    if(response.ok&&route==='verify'){
     const result=await response.clone().json() as {access_token?:string};
     if(typeof result.access_token!=='string')return unavailable();
@@ -109,7 +134,7 @@ export function managementAuth(catalog:Catalog,realm:ManagementRealm,
     if(lease&&!security.holds(identity!.actor,lease))throw new Error('Security lease expired');
     if(!checked||checked.actor!==identity!.actor||checked.session!==identity!.session||checked.aal!=='aal2'||!checked.verifiedAt||
       !checked.factors.some(entry=>entry.id===factor![1]&&entry.status==='verified'&&entry.factor_type==='totp'))return unavailable();
-    if(!catalog.grantManagementMfa(checked.actor,checked.session,factor![1]!,checked.verifiedAt,checked.passwordAt+43200,epoch))
+    if(!catalog.grantManagementMfa(checked.actor,checked.session,factor![1]!,checked.verifiedAt,checked.passwordAt+43200,epoch,!identity!.factors.some(entry=>entry.status==='verified')))
      return reply(409,{message:'Wait for a new authenticator code and verify again',code:'mfa_retry'});
    }
    if(response.ok&&route==='enroll'){

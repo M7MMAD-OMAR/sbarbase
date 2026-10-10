@@ -39,7 +39,8 @@ fi
 built=1
 docker image inspect "$image" > "$output/image.json"
 container=$(docker create --init --network none --cap-drop ALL \
-    --security-opt no-new-privileges --pids-limit 512 --memory 1g --memory-swap 1g --cpus 1 "$image")
+    --security-opt no-new-privileges --pids-limit 512 --memory 1g --memory-swap 1g --cpus 1 \
+    --tmpfs /tmp:rw,exec,nosuid,nodev,size=512m,mode=1777 "$image")
 status=0
 docker start --attach "$container" || status=$?
 docker cp "$container:/evidence/." "$output/"

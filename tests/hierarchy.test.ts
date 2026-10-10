@@ -123,7 +123,8 @@ test('names are unique where the hierarchy scopes them, and a clash answers 409'
     expect((await create(`organizations/${a}/projects`,'Shop')).status).toBe(409);
     // The same name in another organization is a different project.
     expect((await create(`organizations/${b}/projects`,'Shop')).status).toBe(201);
-    expect((await create(`projects/${project}/environments`,'production')).status).toBe(202);
+    expect(catalog.listEnvironments('alice',project).map(environment=>environment.name)).toEqual(['production']);
+    expect((await create(`projects/${project}/environments`,'staging')).status).toBe(202);
     expect((await create(`projects/${project}/environments`,'production')).status).toBe(409);
     // A move may not create a duplicate in the destination.
     expect(()=>catalog.transferProject('alice',project,b)).toThrow('Name already used');

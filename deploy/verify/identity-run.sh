@@ -228,7 +228,12 @@ else
 fi
 docker image inspect "$image" > "$output/image.json"
 verify_image_id=$(cat "$output/image-id")
+subnet_admission=''
+if [ "$mode" = bootstrap ] || [ "$mode" = configured-effects ]; then
+    subnet_admission=$(python3 "$repo/deploy/verify/fixture_subnet.py" "$run" "$output")
+fi
 container=$(docker create --entrypoint /usr/bin/python3 --env "SBARBASE_FIXTURE_ID=$run" --env "SBARBASE_VERIFY_IMAGE_ID=$verify_image_id" --env GOMAXPROCS=1 --init --network none --cap-drop ALL --security-opt no-new-privileges \
+    --env "SBARBASE_FIXTURE_SUBNET_ADMISSION=$subnet_admission" \
     --pids-limit 64 --memory 256m --cpus 1 \
     --mount "type=bind,source=$socket,target=/var/run/docker.sock,readonly" "$image" "$probe")
 status=0

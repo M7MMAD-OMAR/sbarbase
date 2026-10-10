@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'lab'))
 import native_config_preservation_inspect as preservation
 import image_identity
+from fixture_subnet import admit_receipt
 from run_checks import source_digest
 
 ORIGINAL_ARTIFACT_PATHS = (
@@ -305,7 +306,22 @@ def main(behavior=None, *, bootstrap=False, configured_effects=False):
         step = 'original startup'
         if bootstrap:
             created.append(('network', names['net']))
-        native(['docker', 'network', 'create', '--internal', '--label', 'io.sbarbase.owner=' + owner, names['net']])
+        subnet_args = []
+        if bootstrap:
+            admission = admit_receipt(os.environ.get('SBARBASE_FIXTURE_SUBNET_ADMISSION'), fixture)
+            report['bootstrap']['subnet_admission'] = admission
+            subnet_args = ['--subnet', admission['subnet']]
+        native(['docker', 'network', 'create', '--internal', *subnet_args, '--label', 'io.sbarbase.owner=' + owner, names['net']])
+        if bootstrap:
+            observed = image_identity.record(native(['docker', 'network', 'inspect', names['net']]).stdout)
+            configs = observed.get('IPAM', {}).get('Config')
+            if (observed.get('Name') != names['net'] or observed.get('Driver') != 'bridge'
+                    or observed.get('Internal') is not True or observed.get('Containers') != {}
+                    or observed.get('Labels') != {'io.sbarbase.owner': owner}
+                    or not isinstance(configs, list) or len(configs) != 1
+                    or configs[0].get('Subnet') != admission['subnet']):
+                raise RuntimeError('Created fixture network differs from admitted subnet')
+            report['bootstrap']['subnet_created_verified'] = True
         if not bootstrap:
             created.append(('network', names['net']))
         for kind in (('data',) if bootstrap else ('data', 'config')):

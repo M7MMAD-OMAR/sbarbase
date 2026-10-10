@@ -8,7 +8,7 @@ const nativeFetch=globalThis.fetch;
 test('management login surface excludes signup and admin APIs before forwarding',async()=>{
  const catalog=new Catalog(':memory:'),keys=new KeyStore(':memory:');let calls=0;
  const handler=application(catalog,keys,{auth:'http://realm.invalid',anonymousToken:'anon',publishableKey:'public'},()=>undefined,
-  Object.assign(async()=>{calls++;return Response.json({ok:true});}, {preconnect:nativeFetch.preconnect}));
+  Object.assign(async(input:RequestInfo|URL)=>{calls++;return String(input).endsWith('/user')?Response.json({id:'owner',factors:[]}):Response.json({access_token:managementToken('owner','aal1'),user:{id:'owner'}});}, {preconnect:nativeFetch.preconnect}));
  try {
   for(const path of ['signup','admin/users','invite','token/extra','%61dmin/users']) {
    expect((await handler(new Request(`http://local/management/auth/v1/${path}`,{method:'POST',headers:{apikey:'public'}}))).status).toBe(404);
@@ -16,7 +16,7 @@ test('management login surface excludes signup and admin APIs before forwarding'
   expect((await handler(new Request('http://local/management/auth/v1/user',{method:'PUT'}))).status).toBe(405);
   expect(calls).toBe(0);
   const allowed=await handler(new Request('http://local/management/auth/v1/token?grant_type=password',{method:'POST',headers:{apikey:'public','content-type':'application/json'},body:JSON.stringify({email:'owner@example.com',password:'test-password'})}));
-  expect(allowed.status).toBe(200);expect(allowed.headers.get('cache-control')).toBe('no-store');expect(calls).toBe(1);
+  expect(allowed.status).toBe(200);expect(allowed.headers.get('cache-control')).toBe('no-store');expect(calls).toBe(2);
   // The operator login is for the console's own origin only.
   expect(allowed.headers.get('access-control-allow-origin')).toBeNull();
  }finally{catalog.close();keys.close();}

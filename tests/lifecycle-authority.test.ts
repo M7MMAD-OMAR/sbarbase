@@ -36,6 +36,7 @@ function fixture(){
   set factors(value:typeof factors){factors=value;},set processIdentity(value:string){processIdentity=value;},
   async delete(){const authority=await authorize();authority.run(()=>catalog.deleteEnvironment('owner',environment));return catalog.lifecycle('owner',environment)!;},
   restart(){catalog.close();catalog=new Catalog(path);connect();},
+  passwordMode(){factors=[];catalog.managementSecurity.setPolicy(false);token=managementToken('owner','aal1',sessionId,now);catalog.managementSecurity.grantPassword('owner',sessionId,now-5,now+43200,catalog.managementSecurity.epoch('owner'),catalog.managementSecurity.policy().epoch);},
   longBearer(){token=managementToken('owner','aal2',sessionId,now,{exp:now+100000});},
   renew(){token=managementToken('owner','aal2',randomUUID(),now);const claims=JSON.parse(Buffer.from(token.split('.')[1]!,'base64url').toString());
    catalog.managementSecurity.grant('owner',claims.session_id,factorId,now,now+50000,catalog.managementSecurity.epoch('owner'));},
@@ -215,5 +216,32 @@ test('explicit lifecycle renewal can bind a different currently granted factor w
   expect(renewed.resources).toEqual(before.resources);expect(renewed.epoch).toBe(before.epoch);
   await runLifecycleOperation(f.catalog,adapter,renewed);
   expect(f.catalog.lifecycle('owner',f.environment)!.state).toBe('deleted');
+ }finally{f.close();}
+});
+
+for(const fault of ['factor-enrollment','policy-toggle','logout','native-session-revocation','token-expiry'] as const){
+ test(`password lifecycle authority refuses ${fault} before later effects and resume`,async()=>{
+  const f=fixture();try{f.passwordMode();const row=await f.delete();let effects=0;
+   const observed:LifecycleAdapter=async input=>{
+    if(input.action==='quarantine')effects++;
+    const result=await adapter(input);
+    if(input.action==='inspect'){
+     if(fault==='factor-enrollment')f.factors=[verifiedFactor];
+     if(fault==='policy-toggle'){f.catalog.setManagementMfaPolicy('owner',true);f.catalog.setManagementMfaPolicy('owner',false);}
+     if(fault==='logout')f.catalog.managementSecurity.revoke('owner');
+     if(fault==='native-session-revocation')f.nativeOk=false;
+     if(fault==='token-expiry')f.now+=3601;
+    }return result;
+   };
+   await expect(runLifecycleOperation(f.catalog,observed,row)).rejects.toThrow();expect(effects).toBe(0);
+   await expect(NativeLifecycleAuthority.resume(f.catalog,f.catalog.lifecycleAuthorizationStore!,row)).rejects.toThrow();
+  }finally{f.close();}
+ });
+}
+test('password lifecycle authority completes and survives owned controller restart with the same native session',async()=>{
+ const f=fixture();try{f.passwordMode();const row=await f.delete();f.restart();
+  const authority=await NativeLifecycleAuthority.resume(f.catalog,f.catalog.lifecycleAuthorizationStore!,row);
+  await authority.run(()=>runLifecycleOperation(f.catalog,adapter,row));
+  expect(f.catalog.lifecycleAuthorizationOperation(row.operation)!.state).toBe('deleted');
  }finally{f.close();}
 });

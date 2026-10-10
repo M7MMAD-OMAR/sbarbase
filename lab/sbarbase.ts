@@ -445,7 +445,7 @@ const CONFLICTS:Record<string,string>={
 async function signedIn<T>(deps:Deps,flags:Parsed['flags'],work:(api:Api)=>Promise<T>):Promise<T> {
  const base=consoleState(deps).url;
  if(!base)throw new Refusal('The console is not running, so the management API cannot be reached',EXIT.failed);
- if(!deps.isTTY)throw new Refusal('Management MFA requires a private interactive terminal. Password input alone cannot authorize this command.',EXIT.refused);
+ if(!deps.isTTY)throw new Refusal('Management sign-in requires a private interactive terminal.',EXIT.refused);
  const cancellation=new AbortController(),signals=['SIGINT','SIGTERM','SIGHUP'] as const;
  const cancel=()=>cancellation.abort(),active=()=>{
   if(cancellation.signal.aborted)throw new Refusal('Command cancelled. Check the installation before retrying.',EXIT.refused);
@@ -468,10 +468,14 @@ async function signedIn<T>(deps:Deps,flags:Parsed['flags'],work:(api:Api)=>Promi
  const login=await client.auth.signInWithPassword(given);
  loggedIn=!!login.data.session;active();
  if(login.error||!login.data.session)throw new Refusal(login.error?.status===429?'Too many sign-in attempts. Try again later.':'Sign-in failed. Check the email and password.',EXIT.failed);
- await verifyManagementMfa(client,deps,active);active();
+ const policyResponse=await transport(base+'/management/auth/v1/policy',{headers:{apikey:managementPublishableKey,authorization:'Bearer '+login.data.session.access_token}});
+ if(!policyResponse.ok)throw new Refusal('Unable to read the management authentication policy.',EXIT.failed);
+ const policy=await policyResponse.json() as {needs_mfa?:boolean;authorized?:boolean};
+ if(typeof policy.needs_mfa!=='boolean'||typeof policy.authorized!=='boolean')throw new Refusal('Invalid management authentication policy.',EXIT.failed);
+ if(policy.needs_mfa)await verifyManagementMfa(client,deps,active);active();
  const session=await client.auth.getSession(),assurance=await client.auth.mfa.getAuthenticatorAssuranceLevel();
  const token=session.data.session?.access_token;
- if(session.error||!token||assurance.error||assurance.data.currentLevel!=='aal2')throw new Refusal('Native authenticator verification did not authorize this session.',EXIT.failed);
+ if(session.error||!token||assurance.error||(policy.needs_mfa?assurance.data.currentLevel!=='aal2':!policy.authorized||assurance.data.currentLevel!=='aal1'))throw new Refusal('Native authenticator verification did not authorize this session.',EXIT.failed);
  const api:Api=async(path,method='GET',body)=>{
   active();
   const answer=await deps.fetch(base+'/management/v1'+path,{method,redirect:'error',signal:AbortSignal.any([cancellation.signal,AbortSignal.timeout(5000)]),

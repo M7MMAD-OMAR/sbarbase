@@ -193,7 +193,7 @@ export function studioProxy(options:{key:()=>Buffer;allowed:(actor:string,runtim
    const claim=verifyStudio(options.key(),url.searchParams.get('ticket'),runtime,'ticket');
    if(!claim||!current(claim,runtime))return page(401,'This Studio link has expired. Open Studio again from the Sbarbase console.');
    const session=signStudio(options.key(),{runtime,actor:claim.actor,expires:Date.now()+SESSION_MS,kind:'session',epoch:claim.epoch,runtimeEpoch:claim.runtimeEpoch??0,console:consoleOrigin(claim.console)});
-   return new Response(null,{status:302,headers:{location:options.navigation?'/__sbarbase/workspace':'/project/default','cache-control':'no-store',
+   return new Response(null,{status:302,headers:{location:'/project/default','cache-control':'no-store',
     'set-cookie':`${STUDIO_COOKIE}=${session}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_MS/1000}`}});
   }
   const claim=verifyStudio(options.key(),cookieValue(request.headers.get('cookie'),STUDIO_COOKIE),runtime,'session');
@@ -268,14 +268,7 @@ export function studioProxy(options:{key:()=>Buffer;allowed:(actor:string,runtim
   const out=new Headers();
   for(const [name,value] of response.headers)if(!HOP.has(name)&&name!=='set-cookie')out.set(name,value);
   for(const cookie of response.headers.getSetCookie())out.append('set-cookie',cookie);
-  out.set('x-frame-options','SAMEORIGIN');
-  if(options.navigation&&out.get('content-type')?.includes('text/html')){
-   const policies=(out.get('content-security-policy')||'').split(',').map(policy=>{
-    const directives=policy.split(';').map(value=>value.trim()).filter(value=>value&&!/^frame-ancestors(?:\s|$)/i.test(value));
-    return [...directives,"frame-ancestors 'self'"].join('; ');
-   });
-   out.set('content-security-policy',policies.join(', '));
-  }
+  if(!out.has('x-frame-options'))out.set('x-frame-options','SAMEORIGIN');
   if(request.method==='HEAD'){
    if(response.body)void response.body.cancel().catch(()=>{});
    return new Response(null,{status:response.status,headers:out});
