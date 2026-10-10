@@ -1,5 +1,6 @@
 import {createClient} from '@supabase/supabase-js';
 import type {ManagementSecurity} from './management-security';
+import {managementSessionSeconds} from './management-session';
 
 export type ManagementIdentity = (request:Request)=>Promise<string|null>;
 
@@ -31,7 +32,7 @@ function passwordClaims(token:string,actor:string,factors:PasswordIdentity['fact
     const timestamp=(method:string)=>Math.max(0,...claims.amr.filter((entry:any)=>entry?.method===method&&
       Number.isSafeInteger(entry.timestamp)&&entry.timestamp>0&&entry.timestamp<=now).map((entry:any)=>entry.timestamp));
     const passwordAt=timestamp('password'),verifiedAt=timestamp('totp');
-    if(!passwordAt||now-passwordAt>=43200)return null;
+    if(!passwordAt||now-passwordAt>=managementSessionSeconds())return null;
     return {actor,session:claims.session_id,aal:claims.aal,expiresAt:claims.exp,passwordAt,verifiedAt,factors};
   }catch{return null;}
 }
@@ -64,7 +65,7 @@ export function managementPasswordIdentity(url:string,key:string,transport:typeo
 export function hasManagementMfa(identity:PasswordIdentity,security:ManagementSecurity):boolean {
   const now=Math.floor(Date.now()/1000);
   return Number.isSafeInteger(identity.expiresAt)&&identity.expiresAt>now&&
-    Number.isSafeInteger(identity.passwordAt)&&identity.passwordAt>0&&identity.passwordAt<=now&&now-identity.passwordAt<43200&&
+    Number.isSafeInteger(identity.passwordAt)&&identity.passwordAt>0&&identity.passwordAt<=now&&now-identity.passwordAt<managementSessionSeconds()&&
     identity.aal==='aal2'&&identity.verifiedAt>0&&security.granted(identity.actor,identity.session,
     identity.verifiedAt,identity.factors.filter(factor=>factor.status==='verified'&&factor.factor_type==='totp').map(factor=>factor.id));
 }

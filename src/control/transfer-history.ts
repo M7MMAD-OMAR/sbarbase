@@ -1,6 +1,7 @@
 import {Database} from 'bun:sqlite';
 import {createHash} from 'node:crypto';
 import type {PasswordIdentity} from './auth';
+import {managementSessionSeconds} from './management-session';
 import {validatePlacement} from './placement';
 import {TransferInventoryStore,type InventoryGeneration} from './transfer-store';
 
@@ -59,7 +60,7 @@ export class CurrentTransferHistoryQuery {
  #identity(identity:PasswordIdentity|null):PasswordIdentity {
   const now=Math.floor(Date.now()/1000);
   if(!identity||!uuid(identity.actor)||!uuid(identity.session)||identity.aal!=='aal2'||!whole(identity.passwordAt)||
-   !whole(identity.verifiedAt)||identity.passwordAt<1||identity.passwordAt>now||now-identity.passwordAt>=43200||
+   !whole(identity.verifiedAt)||identity.passwordAt<1||identity.passwordAt>now||now-identity.passwordAt>=managementSessionSeconds()||
    identity.verifiedAt<1||identity.verifiedAt>now||!Array.isArray(identity.factors)||identity.factors.length>16||
    identity.factors.some(factor=>!factor||!uuid(factor.id)||typeof factor.status!=='string'||typeof factor.factor_type!=='string'))
    fail('CURRENT_MANAGEMENT_AUTHENTICATION_REQUIRED');

@@ -1,6 +1,7 @@
 import {createHash} from 'node:crypto';
 import {reply,hasManagementMfa,type PasswordIdentity} from './auth';
 import type {Catalog} from './catalog';
+import {managementSessionSeconds} from './management-session';
 
 export type ManagementRealm={auth:string;anonymousToken:string;publishableKey:string};
 const UUID='[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}';
@@ -109,7 +110,7 @@ export function managementAuth(catalog:Catalog,realm:ManagementRealm,
     if(lease&&!security.holds(identity!.actor,lease))throw new Error('Security lease expired');
     if(!checked||checked.actor!==identity!.actor||checked.session!==identity!.session||checked.aal!=='aal2'||!checked.verifiedAt||
       !checked.factors.some(entry=>entry.id===factor![1]&&entry.status==='verified'&&entry.factor_type==='totp'))return unavailable();
-    if(!catalog.grantManagementMfa(checked.actor,checked.session,factor![1]!,checked.verifiedAt,checked.passwordAt+43200,epoch))
+    if(!catalog.grantManagementMfa(checked.actor,checked.session,factor![1]!,checked.verifiedAt,checked.passwordAt+managementSessionSeconds(),epoch))
      return reply(409,{message:'Wait for a new authenticator code and verify again',code:'mfa_retry'});
    }
    if(response.ok&&route==='enroll'){

@@ -11,6 +11,7 @@ import stat
 import time
 import urllib.request
 from lifecycle_auth_realm import realm, private_json
+from management_session import management_session_seconds
 import durable_runtime as native
 
 _current = ContextVar('original_lifecycle_authority', default=None)
@@ -114,7 +115,7 @@ class NativeLifecycleAuthority:
             require(type(original_factor) is str and original_factor in original_factors and original_factor in factors)
             now = int(time.time())
             require(type(claims['exp']) is int and claims['exp'] > now and 0 < identity['passwordAt'] <= now
-                    and now - identity['passwordAt'] < 43200 and grant and grant[0] == original_factor
+                    and now - identity['passwordAt'] < management_session_seconds() and grant and grant[0] == original_factor
                     and grant[1] > now and grant[2] == grant[3] == value['epoch'] and identity['verifiedAt'] > grant[4])
             require(connection.execute('''SELECT 1 FROM environments e JOIN projects p ON p.id=e.project
               JOIN memberships m ON m.organization=p.organization WHERE e.id=? AND m.actor=? AND m.role='owner' ''',
@@ -130,7 +131,7 @@ class NativeLifecycleAuthority:
               WHERE g.actor=? AND g.session=? AND g.verified=?''', (actor, identity['session'], identity['verifiedAt'])).fetchone()
             require(fresh_grant and tuple(fresh_grant) == tuple(grant))
             final_now = int(time.time())
-            require(claims['exp'] > final_now and grant[1] > final_now and final_now - identity['passwordAt'] < 43200)
+            require(claims['exp'] > final_now and grant[1] > final_now and final_now - identity['passwordAt'] < management_session_seconds())
             final = self.catalog.stat()
             require(f'{final.st_dev}:{final.st_ino}' == self.catalog_identity)
         finally:
