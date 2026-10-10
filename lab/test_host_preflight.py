@@ -254,9 +254,15 @@ class ShellAdmissionTests(unittest.TestCase):
         for options in ([], ['name=rootless'], ['name=selinux'], ['name=userns'],
                         ['name=apparmor', 'name=seccomp,profile=custom', 'name=cgroupns'],
                         ['name=apparmor', 'name=seccomp,profile=builtin'],
+                        ['name=apparmor,profile=custom', 'name=seccomp,profile=builtin', 'name=cgroupns'],
                         ['name=apparmor', 'name=seccomp,profile=builtin', 'name=cgroupns', 'unknown']):
             with self.subTest(options=options):
                 self.refusal('security_profile_unvalidated', info={'SecurityOptions': options})
+
+    def test_docker_default_apparmor_label_is_accepted(self):
+        result = self.run_shell(['up'], info={'SecurityOptions': [
+            'name=apparmor,profile=default', 'name=seccomp,profile=builtin', 'name=cgroupns']})
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_resource_features_fail_closed(self):
         for name in ('MemoryLimit', 'SwapLimit', 'CpuCfsPeriod', 'CpuCfsQuota', 'CPUShares', 'PidsLimit'):

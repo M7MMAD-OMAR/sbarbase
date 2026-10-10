@@ -142,7 +142,7 @@ case "$security" in *'|') ;; *) refuse daemon_security_options_invalid 'The secu
 seen_app=0; seen_sec=0; seen_cg=0
 oldifs=$IFS; IFS='|'; set -- $security; IFS=$oldifs
 for option do
-    case "$option" in name=apparmor) [ "$seen_app" = 0 ] || refuse daemon_security_options_invalid 'Duplicate AppArmor security option' 'Repair daemon diagnostics'; seen_app=1;;
+    case "$option" in name=apparmor|name=apparmor,profile=default) [ "$seen_app" = 0 ] || refuse daemon_security_options_invalid 'Duplicate AppArmor security option' 'Repair daemon diagnostics'; seen_app=1;;
         name=seccomp,profile=builtin) [ "$seen_sec" = 0 ] || refuse daemon_security_options_invalid 'Duplicate seccomp security option' 'Repair daemon diagnostics'; seen_sec=1;;
         name=cgroupns) [ "$seen_cg" = 0 ] || refuse daemon_security_options_invalid 'Duplicate cgroup namespace security option' 'Repair daemon diagnostics'; seen_cg=1;;
         *) refuse security_profile_unvalidated 'A daemon security option differs from the candidate contract' 'Use rootful Docker with builtin seccomp and cgroup namespaces; other profiles need separate evidence';;
