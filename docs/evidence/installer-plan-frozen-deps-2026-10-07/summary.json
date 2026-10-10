@@ -1,0 +1,36 @@
+{
+  "Source_execution_budget_charged": false,
+  "acceptance": {
+    "Native": false,
+    "full_objective": false,
+    "runtime_proven": false
+  },
+  "after": {
+    "bytes": 41732,
+    "mode": 420,
+    "sha256": "d1a47e25ffb221ba217ceed7a64e582c1be395dd565ba1172966d3c8757287e2"
+  },
+  "base_commit": "1c4449ff4c530029096453d32fc12c2d73de93f1",
+  "before": {
+    "bytes": 41696,
+    "sha256": "a32e13850cd2fbce1e6bacc658f166cc510ab552c3a430a4dd81a338633036e9"
+  },
+  "change": "Plan now names bun install --frozen-lockfile and the current every-installation behavior. Exact byte comparison proves only one print string changed.",
+  "line": 738,
+  "not_executed": [
+    "Source imports",
+    "tests",
+    "plan command",
+    "dependency installation",
+    "installer",
+    "Native"
+  ],
+  "observed_at_utc": "2026-10-07T12:47:47.257550+00:00",
+  "path": "/home/sbarah/R/Projects/P/sbarbase/lab/install_server.py",
+  "status": "INSTALLER_PLAN_DISPLAY_CORRECTED_STATIC_ONLY",
+  "verification": {
+    "exact_single_literal_replacement": true,
+    "git_diff_check_exit": 0,
+    "runtime_command_matches_text_statically": true
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "Root_evidence_manifest": {
+    "path": "/home/sbarah/.codex/sbarbase-integration/20261007/Root-current1c444-CI-terminal-observation-20261007/manifest.json",
+    "sha256": "63ff4409aab53bf08cd16853927daf802abf7a107272edf67b63f7227e0838e1"
+  },
+  "all_four_official_jobs_success": true,
+  "fixed_final_service_active_and_console_answers_log_observed": true,
+  "fresh_official_artifact_metadata": [
+    {
+      "archive_download_url": "https://api.github.com/repos/M7MMAD-OMAR/sbarbase/actions/artifacts/11483006177/zip",
+      "created_at": "2026-10-07T12:39:59Z",
+      "digest": "sha256:e15c3bb7bad9a9606215a4cd67f534d7e7c63ba0fb89b88630e92f7981347c4f",
+      "expired": false,
+      "expires_at": "2026-11-06T12:39:58Z",
+      "id": 11483006177,
+      "name": "empty-host-acceptance-evidence",
+      "size_in_bytes": 10253,
+      "updated_at": "2026-10-07T12:39:59Z",
+      "url": "https://api.github.com/repos/M7MMAD-OMAR/sbarbase/actions/artifacts/11483006177",
+      "workflow_run": {
+        "head_branch": "main",
+        "head_repository_id": 1378482968,
+        "head_sha": "1c4449ff4c530029096453d32fc12c2d73de93f1",
+        "id": 37621550367,
+        "repository_id": 1378482968
+      }
+    },
+    {
+      "archive_download_url": "https://api.github.com/repos/M7MMAD-OMAR/sbarbase/actions/artifacts/11482803268/zip",
+      "created_at": "2026-10-07T12:49:41Z",
+      "digest": "sha256:6fdbe6ad33978bf4cd7edd5c707edf7573d8531e88c2fa4f8d42cfe0602e2cd0",
+      "expired": false,
+      "expires_at": "2026-11-06T12:49:40Z",
+      "id": 11482803268,
+      "name": "docker-install-evidence",
+      "size_in_bytes": 15007,
+      "updated_at": "2026-10-07T12:49:41Z",
+      "url": "https://api.github.com/repos/M7MMAD-OMAR/sbarbase/actions/artifacts/11482803268",
+      "workflow_run": {
+        "head_branch": "main",
+        "head_repository_id": 1378482968,
+        "head_sha": "1c4449ff4c530029096453d32fc12c2d73de93f1",
+        "id": 37621550367,
+        "repository_id": 1378482968
+      }
+    }
+  ],
+  "head": "1c4449ff4c530029096453d32fc12c2d73de93f1",
+  "limitations": {
+    "Root_local_plan_print_change_covered": false,
+    "Source_execution_grant_created": false,
+    "all_four_official_jobs_success": true,
+    "archive_bytes_independently_verified": false,
+    "fixed_final_service_active_and_console_answers_log_observed": true,
+    "full_105_Storage29_T1_T11_acceptance": false,
+    "full_lost_source_recovery_verified": false,
+    "full_objective_accepted": false,
+    "new_UI_CLI34_or_backend_WIP_covered": false,
+    "physical_reboot_verified": false,
+    "workflow_restarted": false
+  },
+  "run": 37621550367,
+  "workflow_url": "https://github.com/M7MMAD-OMAR/sbarbase/actions/runs/37621550367"
+}

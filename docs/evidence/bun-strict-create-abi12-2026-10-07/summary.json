@@ -1,0 +1,140 @@
+{
+  "kind": "SCOPED_ACTUAL_BUN_ABI12_BASELINE_NEGATIVE_SOURCE_EVIDENCE",
+  "observed_at": "2026-10-07T12:27:04.530800+00:00",
+  "scope": "Builtin disposable strict reference and proposed positional validation, numeric URI and exclusive initial file creation only",
+  "result": {
+    "cases": 12,
+    "passed": 11,
+    "failed": 1,
+    "raw_ordered_cases": [
+      [
+        "fail",
+        "SB06 strict ABI original strict constructor refuses a missing positional value"
+      ],
+      [
+        "pass",
+        "SB06 strict ABI original strict constructor accepts its documented bare named alias"
+      ],
+      [
+        "pass",
+        "SB06 strict ABI numeric URI positional guard refuses a missing value before writing"
+      ],
+      [
+        "pass",
+        "SB06 strict ABI positional guard preserves original refusal for excess values"
+      ],
+      [
+        "pass",
+        "SB06 strict ABI cached positional guard cannot reuse an earlier value when a binding is missing"
+      ],
+      [
+        "pass",
+        "SB06 strict ABI positional guard preserves explicit null and scalar bindings"
+      ],
+      [
+        "pass",
+        "SB06 strict ABI positional guard rejects undefined and unsupported named objects before writing"
+      ],
+      [
+        "pass",
+        "SB06 strict ABI exclusive initial file creation retains its private inode with numeric no CREATE"
+      ],
+      [
+        "pass",
+        "SB06 strict ABI exclusive initial creation refuses an existing file without truncating it"
+      ],
+      [
+        "pass",
+        "SB06 strict ABI exclusive initial creation refuses a symlink and leaves both paths unchanged"
+      ],
+      [
+        "pass",
+        "SB06 strict ABI numeric existing main still refuses absent URI without an exclusive creation"
+      ],
+      [
+        "pass",
+        "SB06 strict ABI no CREATE attached URI retains strict positional validation and rollback"
+      ]
+    ],
+    "genuine_reference_failure": "Original strict constructor did not reject zero-argument execution of a statement with a positional parameter. The call returned changes1 and lastInsertRowid1.",
+    "subsequent_row_value_not_observed_because_assertion_failed": true,
+    "Source_group_accepted": false,
+    "warning_free_raw_diagnostics": true
+  },
+  "proof": {
+    "actual_report": {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261007/sb06-bun-sqlite-strict-create-abi12-complete-binding-execution-proposal-20261007/bun-sqlite-strict-create-abi12-actual.json",
+      "sha256": "7a5eebe8fe396c54db5b831527256e498c282abb9e7ea6e28a6a996412168f4e"
+    },
+    "Root_reconciliation": {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261007/sb06-bun-sqlite-strict-create-abi12-complete-binding-execution-proposal-20261007/root-evidence-reconciliation.json",
+      "sha256": "4f5eb25c924e6c0bc1e830120a36a88059fa592acb38bb3f7a0d79e61b78354c"
+    },
+    "ledger_link": {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261007/sb06-bun-sqlite-strict-create-abi12-complete-binding-execution-proposal-20261007/root-ledger-reconciliation-link.json",
+      "sha256": "c0fb597e0145b153b703fabdd80be598fc726f8437166c422de60ce435da9aff"
+    },
+    "corrected_exact_controller_tool_completion": {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261007/sb06-bun-sqlite-strict-create-abi12-complete-binding-execution-proposal-20261007/root-controller-tool-completion-corrected.json",
+      "sha256": "a720ca8188629bf4db253823637ae42cbd55436ab96fc8d69304bb7ac4162701"
+    },
+    "original_metadata_serializer_negative_retained": {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261007/sb06-bun-sqlite-strict-create-abi12-complete-binding-execution-proposal-20261007/root-controller-tool-completion.json",
+      "sha256": "1a2d3dafba8269d5e04aa31577864a5554885a55d7bc5615df650d7b0a8a09d1"
+    },
+    "packet_manifest": {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261007/sb06-bun-sqlite-strict-create-abi12-complete-binding-execution-proposal-20261007/manifest.json",
+      "sha256": "b5997f62a12653340ad30687e2c859871c490056cc4fceccc957961afaf5f355"
+    },
+    "critic_helper_review_manifest": {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261007/sb06-bun-sqlite-strict-create-abi12-helper45-static-review-20261007/manifest.json",
+      "sha256": "0b889223b7584177be9f78d0c30188347aae75c968dd81fa5d9cb66f3a5f662f"
+    },
+    "same_critic_actual_negative_metadata_review_pending": false,
+    "all45_and37_unchanged": true,
+    "full_EOF_nested_and_wrapper_reaps_verified": true,
+    "unit_notfound": true,
+    "Root_full_cgroup_scan": {
+      "directories_visited": 235,
+      "matches": [],
+      "errors": []
+    },
+    "same_critic_actual_negative_metadata_review": {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261007/sb06-bun-sqlite-strict-create-abi12-actual-negative-metadata-review-20261007/manifest.json",
+      "sha256": "4b6c99356d0b1dfe74b2f92c57cee08174a665ce69a921ab16bafb05fe6f7652",
+      "artifacts_independently_verified": 3,
+      "verdict": "VERIFIED_ACTUAL_ABI12_REFERENCE_NEGATIVE_SOURCE_ONLY"
+    }
+  },
+  "source": {
+    "files": 1,
+    "identity": "353a07505000b1dacb9585b2b012e83e67343fc5997f90366ac31b94cbd74842",
+    "fixture_sha256": "54ba9772311bc8c48d90f719e5c1c55ecfcc2c3a828d3faa1f1b83aa28592475",
+    "builtin_imports": 6,
+    "installed_Bun_header": "bun test v1.3.14 (0d9b296a)",
+    "Root_runtime_source_applied": false
+  },
+  "accounting": {
+    "whole15_charged_before_effects_without_refund": true,
+    "Source_was_not_rerun": true,
+    "raw_stdout_bytes": 3309,
+    "raw_stderr_bytes": 2042,
+    "manager_bytes": 155,
+    "summary_bytes": 266,
+    "nested_bytes_separately_charged": 2070,
+    "total_double_capture_bytes": 7842,
+    "Root_complete_EOF_wall_clock_seconds": 0.326,
+    "precise_parent_monotonic_timer": false,
+    "controller_diagnostic_seconds": 0.2799278169986792,
+    "original_cumulative_seconds": 155.15069524599443,
+    "original_cumulative_bytes": 428382,
+    "later_checks": 28,
+    "both_pending_null_after_Root_proof": true,
+    "original_role_ledger_sha256": "87ed7fc3921d8956364d94c2142bfbf9cfccbf2af4539bb00761f4e9c2593719",
+    "budget_reset_or_borrowed": false
+  },
+  "next_action": "Preserve this actual negative. Do not infer original missing-positional strict guarantees or a full named binding wrapper from this primitive. Any stronger binding policy needs explicit review and compatibility evidence. Continue coherent serving bootstrap and presentation work.",
+  "Native_accepted": false,
+  "production_accepted": false,
+  "full_goal_complete": false
+}
