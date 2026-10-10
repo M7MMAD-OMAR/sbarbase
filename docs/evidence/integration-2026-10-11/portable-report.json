@@ -1,0 +1,99 @@
+{
+  "scope": "offline-linux-source-verification",
+  "source_sha256": "96ed8ff45ca4c4af111db3226508e844a410e31165024757d6ee48aa5e7f6c9a",
+  "platform": "Linux-7.2.8-200.fc44.x86_64-x86_64-with-glibc2.43",
+  "machine": "x86_64",
+  "python": "3.14.4",
+  "stages": [
+    {
+      "name": "plan-integrity",
+      "command": [
+        "/usr/bin/python3",
+        "deploy/check_plan.py"
+      ],
+      "status": "passed",
+      "exit_code": 0,
+      "diagnostics": [],
+      "seconds": 0.21
+    },
+    {
+      "name": "python-unit",
+      "command": [
+        "/usr/bin/python3",
+        "deploy/verify/unittest_checks.py"
+      ],
+      "status": "passed",
+      "exit_code": 0,
+      "diagnostics": [],
+      "seconds": 143.39
+    },
+    {
+      "name": "bun-test",
+      "command": [
+        "bun",
+        "test"
+      ],
+      "status": "passed",
+      "exit_code": 0,
+      "diagnostics": [],
+      "seconds": 13.65
+    },
+    {
+      "name": "ui-typecheck",
+      "command": [
+        "bun",
+        "run",
+        "typecheck:ui"
+      ],
+      "status": "passed",
+      "exit_code": 0,
+      "diagnostics": [],
+      "seconds": 0.67
+    },
+    {
+      "name": "control-typecheck",
+      "command": [
+        "bun",
+        "run",
+        "typecheck:control"
+      ],
+      "status": "passed",
+      "exit_code": 0,
+      "diagnostics": [],
+      "seconds": 0.8
+    },
+    {
+      "name": "ui-build",
+      "command": [
+        "bun",
+        "run",
+        "build:ui"
+      ],
+      "status": "passed",
+      "exit_code": 0,
+      "diagnostics": [],
+      "seconds": 0.65
+    },
+    {
+      "name": "python-compile",
+      "command": [
+        "/usr/bin/python3",
+        "-m",
+        "compileall",
+        "-q",
+        "lab",
+        "deploy"
+      ],
+      "status": "passed",
+      "exit_code": 0,
+      "diagnostics": [],
+      "seconds": 0.16
+    }
+  ],
+  "passed": true,
+  "limitations": [
+    "No running Supabase services or Docker daemon are available.",
+    "Warning detection covers recognized UI/compiler formats; other tool logs require review.",
+    "This result does not certify deployment, recovery, HA, or release readiness."
+  ]
+}

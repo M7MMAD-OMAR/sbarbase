@@ -1,0 +1,34 @@
+bun test v1.3.14 (0d9b296a)
+
+tests/optional-mfa.test.ts:
+(pass) optional policy is durable, defaults required and only audited password sessions with no verified factors enter [16.71ms]
+(pass) native logout revokes password grants even if native Auth keeps accepting the old token [3.02ms]
+(pass) policy toggles invalidate all actor epochs, password grants and saved session access [2.62ms]
+(pass) password request notices a factor enrolled during its final native refresh [2.67ms]
+(pass) policy endpoint requires current installation owner and a fresh locally granted native factor [3.99ms]
+(pass) optional policy allows an MFA verified account to remove its last factor then requires a new password login [3.48ms]
+(pass) project creation queues production atomically and capacity refusal rolls back metadata and audit [6.83ms]
+(pass) password access never accepts stale aal2 or an unaudited session [2.15ms]
+
+tests/management-session.test.ts:
+(pass) the default is twelve hours when nothing is set [0.04ms]
+(pass) values inside the range are used exactly, including both ends [0.08ms]
+(pass) anything malformed or out of range falls back to the default [0.03ms]
+(pass) the environment variable is read on each call [0.03ms]
+(pass) a password older than the default cap is refused unless the cap was raised [0.88ms]
+(pass) a lowered cap shortens sessions and an invalid value never lengthens them [0.40ms]
+(pass) remembered optional password sessions obey the configured cap and durable revocation [1.73ms]
+
+tests/session-storage.test.ts:
+(pass) a session written to the backing store is read back and removed on sign out [0.18ms]
+(pass) a browser that refuses storage falls back to memory instead of breaking sign in [0.06ms]
+(pass) storage that starts working and then fails keeps the value written after the failure [0.04ms]
+(pass) a session that cannot be removed is blanked and never read back after sign out [0.04ms]
+(pass) a browser that refuses both removal and overwrite still reads the key as absent on this page [0.06ms]
+(pass) the console opens only for a session whose token passed MFA [0.13ms]
+(pass) the client persists its session and the console no longer keeps verification in memory [0.11ms]
+
+ 22 pass
+ 0 fail
+ 91 expect() calls
+Ran 22 tests across 3 files. [118.00ms]
