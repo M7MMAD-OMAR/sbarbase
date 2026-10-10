@@ -1,0 +1,109 @@
+{
+  "schema": 1,
+  "classification": "Verified isolated Source result",
+  "date": "2026-10-07",
+  "source_candidate": {
+    "frozen_files": 657,
+    "sha256": "b7618263576340f2b0b080b6d1a5276e1ebfbe372cca8373bcd907abe21b0b29",
+    "selected_files": 4,
+    "selected_sha256": "17c20c602e3d17e41a999c4d5bb6fcc0b9b06f230e5115da2f6429a630f93d26",
+    "applied_to_repository_runtime": false
+  },
+  "scope": "Actual pinned Node runs the invocation state module, the retained upstream invokeOrSend method and extracted preload boundaries with inert counters. No native broker, database, JWT signing, provider, service enrollment or queue issuer is exercised.",
+  "results": {
+    "helper_exit": 0,
+    "Node_exit": 0,
+    "cases": 20,
+    "passed": 20,
+    "failed": 0,
+    "skipped": 0,
+    "todo": 0,
+    "cancelled": 0,
+    "warnings": 0,
+    "case_ids": [
+      "state.clean_await_can_seal_once",
+      "state.nested_throw_poison_is_irreversible",
+      "state.actual_vendor_catch_cannot_send_after_nested_handler_failure",
+      "state.vendor_control_without_state_does_send_after_handler_failure",
+      "state.swallowed_nested_error_cannot_complete_outer",
+      "state.later_refresh_action_is_not_entered",
+      "state.signer_rejection_remains_ambiguous_when_caught",
+      "state.database_await_rejection_remains_ambiguous_when_caught",
+      "state.concurrent_failure_blocks_successful_pending_return",
+      "state.completion_with_unawaited_work_permanently_refuses",
+      "state.external_property_cannot_reset_private_poison",
+      "state.malformed_action_poisons_before_completion",
+      "state.sealed_outer_refuses_later_queued_action",
+      "state.final_refresh_failure_blocks_completion_signal",
+      "state.post_refresh_nested_callee_entry_refuses_concurrent_poison",
+      "state.post_refresh_database_entry_refuses_concurrent_poison",
+      "state.post_signing_check_signer_entry_refuses_concurrent_poison",
+      "state.post_signing_check_original_jwt_entry_refuses_concurrent_poison",
+      "state.caught_original_module_load_failure_permanently_poisons",
+      "state.original_module_load_after_poison_never_enters"
+    ],
+    "actual_loaded_source_modules": [
+      "lab/transfer-storage-invocation-state.cjs",
+      "tests/transfer-storage-invocation-state.test.cjs"
+    ],
+    "actual_source_file_pins": [
+      {
+        "bytes": 20934,
+        "mode": 420,
+        "path": "lab/transfer-storage-generation-preload.cjs",
+        "sha256": "a4c8788ce1e9cdc00fd2e14991881c3091742d555b367395b8f961cbddbbbdfd"
+      },
+      {
+        "bytes": 1243,
+        "mode": 420,
+        "path": "lab/transfer-storage-invocation-state.cjs",
+        "sha256": "e363973658108277a65866bfa52231bd7272cc424b69b46cd6fcbf468bccc8a9"
+      },
+      {
+        "bytes": 10272,
+        "mode": 420,
+        "path": "tests/fixtures/transfer-storage-original-event.ts",
+        "sha256": "f2927bc824be202f83eb88ef1aa934c63b0de6672e8e895360b4d4a0f56e90a9"
+      },
+      {
+        "bytes": 11107,
+        "mode": 420,
+        "path": "tests/transfer-storage-invocation-state.test.cjs",
+        "sha256": "603154d7de360121e894e3b1ea3f5348d9ff36c81b4ac4232aec1d29877317f1"
+      }
+    ],
+    "actual_VM_excerpt_hashes": 6,
+    "actual_VM_calls": 7,
+    "complete_EOF": true,
+    "nested_and_wrapper_reaped": true,
+    "owned_unit_absent": true,
+    "independent_full_cgroup_scan_directories": 223,
+    "double_capture_bytes": 23026
+  },
+  "provenance": {
+    "actual_report_sha256": "5013d5dc7e054fe90aae763402c21a4342673dd3202d7a631f3f557e65f2084e",
+    "Root_reconciliation_sha256": "c90c123107df464e2810fcdd330b4fbadb7b9bcaf0c20754e46f8a506a810b57",
+    "helper_manifest_sha256": "920650cf68d42da03efdd05cdc843c3a7f481bf593d45f740f58080dcb141811",
+    "independent_corrected_helper_review_sha256": "608dc1efa3b7a04d7846fd15be55b59ca984ecb8469b714a742ca69252ac47c9",
+    "Node_binary_sha256": "3517c2df0b2f8cd7f422b4b8450ef81c6889f08eb03e281d6de9079b15e6a327"
+  },
+  "retained_negative": {
+    "actual_report_sha256": "f27ec7ce2d9f3d04d7cb89d9256d6d19a93b0c7afbe175aaf1923f37aef8fdea",
+    "helper_exit": 1,
+    "Node_exit": 0,
+    "Node_passes": 20,
+    "cause": "The initial helper incorrectly matched the standard TAP summary todo 0 as a TODO directive. The corrected helper restricts directive detection to numbered test records.",
+    "original_failed_report_preserved": true
+  },
+  "remaining_requirements": [
+    "Authentic installed service authority and original owned broker lifecycle",
+    "Authentic issuer-to-queue provenance and real broker IPC",
+    "Catalog attachment, ordinary management effects and full post-effect census",
+    "Original capability105, Storage29, T1 through T11 and seven acceptance stages",
+    "Independent lost-source recovery, rendered browser and real providers",
+    "Pilot and seven-day operation"
+  ],
+  "native_accepted": false,
+  "production_accepted": false,
+  "full_goal_complete": false
+}

@@ -1,0 +1,113 @@
+{
+  "kind": "SCOPED_ACTUAL_STORAGE_PUBLICATION17_SOURCE_EVIDENCE",
+  "observed_at": "2026-10-07T11:35:46.545614+00:00",
+  "scope": "Temporary explicit-independent-ledger publication primitives only. Installed locator, owning authority and Native branches are unselected.",
+  "result": {
+    "passed": 17,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "expected_failures": 0,
+    "unexpected_successes": 0,
+    "Source_warnings": 0,
+    "actual_local_module_origins": 4,
+    "required_unconditional_module_origins": 2,
+    "exact_case_ids": [
+      "test_transfer_publication.TransferPublicationTests.test_current_private_publication_excludes_competing_transfer_writer",
+      "test_transfer_publication.TransferPublicationTests.test_exact_guard_refuses_ordinary_writer",
+      "test_transfer_publication.TransferPublicationTests.test_neighbor_writer_preserved_under_selected_guard",
+      "test_transfer_publication.TransferPublicationTests.test_unscoped_shared_publication_refuses_selected_guard",
+      "test_transfer_publication.TransferPublicationTests.test_exact_operation_and_epoch_enters_guard",
+      "test_transfer_publication.TransferPublicationTests.test_stale_epoch_and_crossed_operation_refuse",
+      "test_transfer_publication.TransferPublicationTests.test_guard_cannot_be_invented_by_worker",
+      "test_transfer_publication.TransferPublicationTests.test_abort_rolls_back_and_releases_the_actual_writer",
+      "test_transfer_publication.TransferPublicationTests.test_nested_exact_publication_reuses_writer",
+      "test_transfer_publication.TransferPublicationTests.test_nested_neighbor_substitution_refuses",
+      "test_transfer_publication.TransferPublicationTests.test_same_path_inode_replacement_refuses_before_commit",
+      "test_transfer_publication.TransferPublicationTests.test_nonprivate_catalog_refuses",
+      "test_transfer_publication.TransferPublicationTests.test_independent_writer_is_locked_on_the_same_actual_connection",
+      "test_transfer_publication.TransferPublicationTests.test_independent_and_catalog_publication_abort_together",
+      "test_transfer_publication.TransferPublicationTests.test_backup_local_authority_refuses_before_callback",
+      "test_transfer_publication.TransferPublicationTests.test_independent_inode_replacement_refuses_before_commit",
+      "test_transfer_publication.TransferPublicationTests.test_owned_fixture_connections_close_before_gc"
+    ],
+    "observed_pinned_module_origins": {
+      "test_transfer_publication": {
+        "path": "/source/lab/test_transfer_publication.py",
+        "sha256": "c8a0dc1b9cf3e3719c7a4e7bbdf93acc1aab7ba3045f9efc7dd38b98843e015e"
+      },
+      "transfer_native_inventory": {
+        "path": "/source/lab/transfer_native_inventory.py",
+        "sha256": "534cac8aff982fbb0e2a1e33e84ed0ebe0e3f4a624db8df5a227e4df09361a20"
+      },
+      "transfer_publication": {
+        "path": "/source/lab/transfer_publication.py",
+        "sha256": "f51cd008694f69b2268a6ddb1424a3958dc44a9d2ea692dc49c16b662d303994"
+      },
+      "transfer_storage_generation": {
+        "path": "/source/lab/transfer_storage_generation.py",
+        "sha256": "134c2dee6305e483d15401c0ea809828477e79ba4f6bf6609ba377555053574e"
+      }
+    }
+  },
+  "source": {
+    "identity": "eaa53899cacf27c939640e2dfee11aaf487464ebd7f5eac38d6f8c4a4735332d",
+    "files": 72,
+    "Python_modules": 72,
+    "SQL_TS_text_inputs": 0,
+    "Root_runtime_source_applied": false
+  },
+  "proof": {
+    "actual_report": {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261007/sb06-storage-publication17-execution-proposal-20261007/storage-publication17-actual.json",
+      "sha256": "2d453cccf25f1cf171c797ff12faa70cd5e7c5d4709a62b1a46527fffe46214c"
+    },
+    "Root_reconciliation": {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261007/sb06-storage-publication17-execution-proposal-20261007/root-evidence-reconciliation.json",
+      "sha256": "18a486429ab3801a8567571f5540e0e45279cefa82e9b7a009886cfbbfc861bc"
+    },
+    "critic_code_manifest_sha256": "9beb70a0b531d01c7f338332648b7b317e45fbbb772160d5791166e01303e408",
+    "critic_helper_manifest_sha256": "77db3c8398fdd7f1048b70350369ecda8ce519a67921744d488e1b12dbdf5ac2",
+    "critic_actual_metadata_manifest": {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261007/sb06-storage-publication17-actual-metadata-review-20261007/manifest.json",
+      "sha256": "27d8cb98a4c6a82e72dfbc8752e6721621ecaa168a8082233ac41c5647b6649a",
+      "verdict": "VERIFIED_ROOT_RECONCILED_PUBLICATION17_SOURCE_ONLY",
+      "all_three_artifacts_independently_verified": true
+    },
+    "Root_independent_ordered_raw17_and_pinned_actual4_origins": true,
+    "all102_artifacts_and37_original_diagnostics_unchanged": true,
+    "full_EOF_unit_and_nested_reaps_verified": true,
+    "independent_unit_absent": true,
+    "full_cgroup_scan": {
+      "directories_visited": 225,
+      "errors": [],
+      "matches": []
+    }
+  },
+  "accounting": {
+    "whole_seconds_charged_before_effects_no_refund": 15,
+    "Root_inclusive_complete_EOF_wall_clock_seconds": 0.619,
+    "precise_parent_monotonic_timer_recorded": false,
+    "timing_resolution_note": "Root parent wall clock includes the complete tool call through EOF. Any yielded handle would be continued within the same orchestration without restart. No precise monotonic timing is claimed; the full fifteen-second debit is retained.",
+    "outer_stdout_bytes": 9010,
+    "outer_stderr_bytes": 2817,
+    "manager_bytes": 546,
+    "summary_bytes": 199,
+    "nested_bytes_separately_charged": 5493,
+    "double_capture_bytes": 18065,
+    "original_role_cumulative_seconds": 140.15069524599443,
+    "original_role_cumulative_bytes": 420540,
+    "later_checks": 27,
+    "both_pending_null": true,
+    "budget_reset_or_borrowed": false
+  },
+  "remaining": {
+    "installed_locator_owning_authority_and_Native_branches_not_selected": true,
+    "v4_bootstrap_TS_guard_queue_F1_F2_and_Native_unproved": true,
+    "Root_runtime_integration_unproved": true,
+    "full105_contracts_Storage29_T1_T11_sevenstages_recovery_browser_providers_pilot_sevendays_unproved": true
+  },
+  "Native_accepted": false,
+  "production_accepted": false,
+  "full_goal_complete": false
+}

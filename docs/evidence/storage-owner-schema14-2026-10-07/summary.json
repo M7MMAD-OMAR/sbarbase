@@ -1,0 +1,85 @@
+{
+  "kind": "SCOPED_ACTUAL_STORAGE_OWNER_SCHEMA14_SOURCE_EVIDENCE",
+  "observed_at": "2026-10-07T10:57:52.990708+00:00",
+  "scope": "Fourteen exact disposable attached SQLite schema v3 primitive cases. This does not establish authentic owning installation, v4 bootstrap, enrolled services or Native acceptance.",
+  "result": {
+    "passed": 14,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "expected_failures": 0,
+    "unexpected_successes": 0,
+    "Source_warnings": 0,
+    "actual_local_module_origins": 7,
+    "exact_case_ids": [
+      "test_transfer_storage_schema_upgrade.StorageSchemaUpgradeSqlTests.test_internal_storage_schema_preserves_all_original_rows_and_enrolls_no_producer",
+      "test_transfer_storage_schema_upgrade.StorageSchemaUpgradeSqlTests.test_outer_abort_rolls_back_catalog_and_independent_schema_together",
+      "test_transfer_storage_schema_upgrade.StorageSchemaUpgradeSqlTests.test_lost_ack_retry_keeps_original_operator_timestamp_and_rows",
+      "test_transfer_storage_schema_upgrade.StorageSchemaUpgradeSqlTests.test_uninstalled_schema_observer_never_creates_or_adopts_tables",
+      "test_transfer_storage_schema_upgrade.StorageSchemaUpgradeSqlTests.test_catalog_identity_drift_refuses_without_schema_writes",
+      "test_transfer_storage_schema_upgrade.StorageSchemaUpgradeSqlTests.test_ledger_identity_drift_refuses_without_schema_writes",
+      "test_transfer_storage_schema_upgrade.StorageSchemaUpgradeSqlTests.test_held_transfer_refuses_before_any_approved_ddl",
+      "test_transfer_storage_schema_upgrade.StorageSchemaUpgradeSqlTests.test_partial_catalog_schema_is_not_startup_reenrollment",
+      "test_transfer_storage_schema_upgrade.StorageSchemaUpgradeSqlTests.test_partial_independent_schema_is_not_owner_adoption",
+      "test_transfer_storage_schema_upgrade.StorageSchemaUpgradeSqlTests.test_double_quoted_extra_producer_trigger_refuses_without_changes",
+      "test_transfer_storage_schema_upgrade.StorageSchemaUpgradeSqlTests.test_bracket_quoted_extra_lease_trigger_refuses_without_changes",
+      "test_transfer_storage_schema_upgrade.StorageSchemaUpgradeSqlTests.test_lowercase_extra_transition_trigger_refuses_without_changes",
+      "test_transfer_storage_schema_upgrade.StorageSchemaUpgradeSqlTests.test_committed_transition_is_immutable_and_cannot_be_removed",
+      "test_transfer_storage_schema_upgrade.StorageSchemaUpgradeSqlTests.test_definition_drift_refuses_before_retry_observation"
+    ]
+  },
+  "source": {
+    "identity": "bf026fa5eccb4d7202f1e949b69abf1975832d41454ac69cbff74d8910658e39",
+    "selected_files": 78,
+    "conservative_Python_modules": 73,
+    "SQL_TS_text_inputs": 5,
+    "Root_runtime_source_applied": false
+  },
+  "proof": {
+    "actual_report": {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261007/sb06-storage-schema14-execution-proposal-20261007/storage-schema14-actual.json",
+      "sha256": "42d2baca182424df747f2ebc178c05545ea1e795da508df721d0a616fdfee97b"
+    },
+    "Root_reconciliation": {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261007/sb06-storage-schema14-execution-proposal-20261007/root-evidence-reconciliation.json",
+      "sha256": "b4d5f0d93bf31bb79c519086b93d4539c1781efb418f253118760cbcc4fc4272"
+    },
+    "same_critic_code_manifest_sha256": "154351e3e7b7d535a89a334750dd4397abaf7c7e02f47bde4408de855b0f14e9",
+    "same_critic_helper_manifest_sha256": "dc710a6782ba386c2b357962c2dbda1c6a7b40a8d89f2a256108078c22dcac23",
+    "independent_raw_result_and_origin_verification": true,
+    "all109_packet_artifacts_and37_original_diagnostics_after_unchanged": true,
+    "full_controller_EOF_and_terminal_reaps_verified": true,
+    "independent_unit_absent": true,
+    "full_cgroup_scan": {
+      "directories_visited": 224,
+      "errors": [],
+      "matches": []
+    },
+    "same_critic_actual_metadata_review": {
+      "path": "/home/sbarah/.codex/sbarbase-integration/20261007/sb06-storage-schema14-actual-metadata-review-20261007/manifest.json",
+      "sha256": "1090ce7cdbde5da7691092861d0b00d2f59362e406c9ac02fdcd43e6c26991f9",
+      "verdict": "VERIFIED_ROOT_RECONCILED_SCHEMA14_SOURCE_ONLY",
+      "artifacts_independently_verified": 3
+    }
+  },
+  "accounting": {
+    "whole_seconds_charged_before_effects_no_refund": 15,
+    "double_capture_bytes": 20612,
+    "original_role_cumulative_seconds": 110.15069524599443,
+    "original_role_cumulative_bytes": 337489,
+    "later_checks": 25,
+    "both_pending_null": true,
+    "budget_reset_or_borrowed": false,
+    "precise_parent_monotonic_timer_recorded": false,
+    "complete_tool_timing_resolution_note": "exec_command wall is below the controller diagnostic. It is not used to reduce usage or represented as an exact parent monotonic full-EOF measurement. The displayed complete functions call and a conservative one-second upper value are retained; all are below the full fifteen-second debit."
+  },
+  "remaining": {
+    "Python57_and_publication17_not_run": true,
+    "v4_actual_bootstrap_and_Native_unproved": true,
+    "Root_runtime_integration_unproved": true,
+    "full105_contracts_Storage29_T1_T11_sevenstages_recovery_browser_providers_pilot_sevendays_unproved": true
+  },
+  "Native_accepted": false,
+  "production_accepted": false,
+  "full_goal_complete": false
+}
