@@ -735,7 +735,7 @@ def main():
         print('2. take the installation operation lock')
         print('3. create the private secret directory (0700)')
         print('4. pull each pinned image by its repository@digest reference when it is not local')
-        print('5. bun install when node_modules is absent')
+        print('5. bun install --frozen-lockfile (validate dependencies on every installation)')
         print('6. bun run build:ui')
         print('7. /usr/bin/python3 lab/installation_runtime.py up')
         print('8. /usr/bin/python3 lab/bootstrap.py --stdin  (from the private 0600 JSON file)')
