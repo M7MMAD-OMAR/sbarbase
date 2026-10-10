@@ -6,7 +6,7 @@ import {Brand} from './Brand';
 import {Attribution} from './Attribution';
 import {Login} from './Login';import {Projects} from './Projects';import {Environments} from './Environments';import {Connection} from './Connection';import {Activity} from './Activity';import {AcceptInvitation,JoinInvitation,inviteToken} from './Invite';
 import {MfaGate,MfaSettings} from './Mfa';
-import {sessionHasMfa} from './mfa-state';
+import {consoleAccess} from './mfa-state';
 import {notificationText} from './mail';
 import {Team} from './Team';
 import {ServerHealth} from './ServerHealth';
@@ -64,9 +64,7 @@ function Console({session}:{session:Session}){
  <main id="content"><JoinInvitation session={session} onJoined={()=>organizations.refresh()}/><ErrorMessage message={organizations.error}/>{organizations.error&&<Refresh onClick={organizations.refresh}/>}
  {view==='security'?<MfaSettings/>:view==='server'&&operator?<ServerHealth request={request}/>:view==='updates'&&operator?<Updates/>:organizations.loading?<Loading/>:!organization?<Empty>No organizations are assigned to your account. Contact your installation owner.</Empty>:view==='team'&&canAudit?<Team key={organization.id} organization={organization} request={request}/>:view==='settings'&&owner?<OrganizationSettings key={organization.id} organization={organization} request={request} onChanged={()=>{home();organizations.refresh();}}/>:view==='activity'&&canAudit?<Activity key={organization.id} organization={organization} request={request} self={session.user.id}/>:activeEnvironment?<>{operator&&<button type="button" onClick={()=>setSetupOpen(current=>!current)}>{setupOpen?'Back to connection':'Domain and email setup'}</button>}{setupOpen&&operator&&setupClient?<DeploymentSetup key={activeEnvironment.id} environmentName={activeEnvironment.name} client={setupClient}/>:<Connection key={activeEnvironment.id} environment={activeEnvironment} organization={organization} request={request} onBack={()=>setEnvironment(undefined)}/>}</>:activeProject?<Environments key={activeProject.id} project={activeProject} organization={organization} request={request} onBack={home} onSelect={setEnvironment}/>:<Projects key={organization.id} organization={organization} request={request} onSelect={next=>{setProject(next);setProjectOrganization(organization.id);setEnvironment(undefined);}}/>}</main></div></div></UpdatesProvider>;
 }
-export function App(){const [session,setSession]=useState<Session|null>(null),[signIn,setSignIn]=useState(false),[mfaVerified,setMfaVerified]=useState(false);useEffect(()=>{const {data}=auth.auth.onAuthStateChange((event,session)=>{
- setSession(session);if(!session||!sessionHasMfa(session.access_token)||event==='SIGNED_IN')setMfaVerified(false);
- if(event==='MFA_CHALLENGE_VERIFIED'&&session&&sessionHasMfa(session.access_token))setMfaVerified(true);
- });return()=>data.subscription.unsubscribe();},[]);
+export function App(){const [session,setSession]=useState<Session|null>(null),[signIn,setSignIn]=useState(false);useEffect(()=>{const {data}=auth.auth.onAuthStateChange((_event,next)=>setSession(next));
+ return()=>data.subscription.unsubscribe();},[]);
  const token=inviteToken();
- return session?mfaVerified?<Console session={session}/>:<MfaGate onVerified={()=>setMfaVerified(true)}/>:token&&!signIn?<AcceptInvitation token={token} onSignIn={()=>setSignIn(true)}/>:<Login/>;}
+ return session?consoleAccess(session)?<Console session={session}/>:<MfaGate onVerified={()=>void auth.auth.getSession().then(({data})=>setSession(data.session),()=>undefined)}/>:token&&!signIn?<AcceptInvitation token={token} onSignIn={()=>setSignIn(true)}/>:<Login/>;}
