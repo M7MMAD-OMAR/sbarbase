@@ -155,8 +155,8 @@ def preflight_parser():
         match = re.fullmatch(r'v(\d+)\.(\d+)\.(\d+)', version)
         if not match or (int(match[1]), int(match[2])) < (22, 6):
             raise Refused('Node.js 22.6 or newer is required for local Functions collection')
-        ready = subprocess.run([executable, '--experimental-strip-types',
-                                str(Path(__file__).with_name('functions-local-closure.ts')), '--preflight'],
+        ready = subprocess.run([executable,
+                                str(Path(__file__).with_name('functions-local-closure.mjs')), '--preflight'],
                                text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=3, check=True)
         if json.loads(ready.stdout).get('status') != 'parser-ready':
             raise Refused('Pinned Functions parser toolchain unavailable')
@@ -164,7 +164,7 @@ def preflight_parser():
         raise Refused('Node.js and pinned TypeScript parser toolchain unavailable') from None
 
 
-PARSER_COMMAND = ['node', '--experimental-strip-types', str(Path(__file__).with_name('functions-local-closure.ts'))]
+PARSER_COMMAND = ['node', str(Path(__file__).with_name('functions-local-closure.mjs'))]
 
 
 def parser(request, deadline):

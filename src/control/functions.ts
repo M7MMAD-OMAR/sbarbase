@@ -23,8 +23,8 @@ export const FUNCTION_NAME=/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 const SECRET_NAME=/^[A-Z_][A-Z0-9_]{0,127}$/;
 const FILE_PATH=/^[A-Za-z0-9_][A-Za-z0-9_.@+-]*(\/[A-Za-z0-9_][A-Za-z0-9_.@+-]*)*$/;
 const MAX_BODY=10*1024*1024,MAX_FILES=500,MAX_SECRETS=100,MAX_SECRET=65536;
-import {ENTRYPOINTS} from './function-contract';
-export {ENTRYPOINTS} from './function-contract';
+import {ENTRYPOINTS} from './function-contract.mjs';
+export {ENTRYPOINTS} from './function-contract.mjs';
 
 export type FunctionEntry={version:string;verify_jwt:boolean;updated_at:number;size:number};
 export type Manifest={functions:Record<string,FunctionEntry>};

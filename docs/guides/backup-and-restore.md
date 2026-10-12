@@ -259,9 +259,9 @@ Directory enumeration errors refuse collection; an unreadable private subtree
 can never be silently omitted. Directory identity/membership changes also refuse.
 
 
-Local collection requires Node.js 22.6 or newer, including its
-`--experimental-strip-types` support, and the pinned TypeScript 7.0.2 package
-installed from the project's frozen lockfile. The compiler API uses Node pipe
+Local collection requires Node.js 22.6 or newer and the pinned TypeScript 7.0.2
+package installed from the project's frozen lockfile. The helper uses standard
+JavaScript modules and does not require Node TypeScript stripping support. The compiler API uses Node pipe
 handles and cannot run under Bun. Node version and parser imports preflight
 before source material is read or a collection is staged. Missing or unsupported
 tools refuse explicitly. The parser subprocess and its compiler descendants
