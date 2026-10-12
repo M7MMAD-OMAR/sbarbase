@@ -136,7 +136,7 @@ export function managementAuth(catalog:Catalog,realm:ManagementRealm,
     if(!checked||checked.actor!==identity!.actor||checked.session!==identity!.session||checked.aal!=='aal2'||!checked.verifiedAt||
       !checked.factors.some(entry=>entry.id===factor![1]&&entry.status==='verified'&&entry.factor_type==='totp'))return unavailable();
     if(!catalog.grantManagementMfa(checked.actor,checked.session,factor![1]!,checked.verifiedAt,checked.passwordAt+managementSessionSeconds(),epoch,!identity!.factors.some(entry=>entry.status==='verified')))
-     return reply(409,{message:'Wait for a new authenticator code and verify again',code:'mfa_retry'});
+     return reply(409,{message:'Wait for a new authenticator code and verify again',code:'mfa_retry',error_code:'mfa_retry'});
    }
    if(response.ok&&route==='enroll'){
     const result=await response.clone().json() as {id?:string};

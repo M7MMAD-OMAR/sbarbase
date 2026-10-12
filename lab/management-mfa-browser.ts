@@ -1,4 +1,4 @@
-import {chromium} from './mfa-browser/node_modules/playwright/index.mjs';
+import {chromium} from './mfa-browser/node_modules/playwright/index.js';
 import {Catalog} from '../src/control/catalog';
 import {KeyStore} from '../src/control/keys';
 import {application} from '../src/control/application';

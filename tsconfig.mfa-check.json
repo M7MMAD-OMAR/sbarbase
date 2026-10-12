@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.control.json",
+  "include": [
+    "src/**/*.ts",
+    "tests/**/*.ts",
+    "lab/management-mfa-check.ts",
+    "lab/management-mfa-boundary.ts",
+    "lab/management-mfa-boundary.test.ts"
+  ]
+}

@@ -5,15 +5,19 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import secrets
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 import urllib.request
 import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'deploy/verify'))
+import fixture_subnet
 
 
 def run(argv, data=None, timeout=30):
@@ -39,11 +43,86 @@ def wait(check, seconds=30):
     raise RuntimeError('Disposable service did not become ready within deadline')
 
 
+def network_identity(record, name, owner, expected_id=None):
+    if (not isinstance(record, dict) or not isinstance(record.get('Id'), str)
+            or not re.fullmatch(r'[a-f0-9]{64}', record['Id'])
+            or (expected_id is not None and record['Id'] != expected_id)
+            or record.get('Name') != name or record.get('Driver') != 'bridge'
+            or record.get('Scope') != 'local' or record.get('Internal') is not True
+            or record.get('Labels', {}).get('io.sbarbase.owner') != owner
+            or record.get('Containers') != {}):
+        raise RuntimeError('Owned fixture network identity differs')
+    return record['Id']
+
+
+def create_network(name, owner, directory, created, state, report):
+    fixture = 'identity-' + name
+    directory.mkdir(parents=True, exist_ok=False)
+    receipt = fixture_subnet.observe(fixture, directory)
+    report['network_admission'] = receipt
+    if docker('network', 'ls', '--filter', 'name=^' + name + '$', '--format', '{{.ID}}'):
+        raise RuntimeError('Fixture network already exists')
+    receipt = fixture_subnet.admit_receipt(json.dumps(receipt), fixture)
+    # Retain cleanup intent before create, including a lost create response.
+    created.append(('network', name))
+    identity = docker('network', 'create', '--driver', 'bridge', '--internal', '--subnet', receipt['subnet'],
+                      '--label', 'io.sbarbase.owner=' + owner, name)
+    if not re.fullmatch(r'[a-f0-9]{64}\n', identity):
+        raise RuntimeError('Created fixture network ID differs')
+    state['id'] = identity.rstrip('\n')
+    records = json.loads(docker('network', 'inspect', state['id']))
+    (directory / 'network-inspect.json').write_text(json.dumps(records, indent=2) + '\n')
+    if not isinstance(records, list) or len(records) != 1:
+        raise RuntimeError('Fixture network inspection differs')
+    record = records[0]
+    network_identity(record, name, owner, state['id'])
+    ipam = record.get('IPAM', {})
+    configurations = ipam.get('Config')
+    if (ipam.get('Driver') != 'default' or not isinstance(configurations, list)
+            or len(configurations) != 1 or configurations[0].get('Subnet') != receipt['subnet']):
+        raise RuntimeError('Owned fixture network subnet differs')
+    report['network'] = record
+
+
+def cleanup_network(name, owner, state):
+    identity = state.get('id', name)
+    probe = subprocess.run(['docker', 'network', 'inspect', identity],
+                           capture_output=True, text=True, timeout=15)
+    if probe.returncode:
+        expected = 'Error response from daemon: network ' + identity + ' not found\n'
+        if probe.returncode == 1 and probe.stdout == '[]\n' and probe.stderr == expected:
+            return
+        raise RuntimeError('Fixture network cleanup inspection refused')
+    records = json.loads(probe.stdout)
+    if probe.stderr or not isinstance(records, list) or len(records) != 1:
+        raise RuntimeError('Fixture network cleanup inspection differs')
+    cid = network_identity(records[0], name, owner, state.get('id'))
+    docker('network', 'rm', cid)
+
+
+def browser_preflight(contract):
+    if contract != 'mfa':
+        return None
+    missing = []
+    for path, label in ((ROOT / 'lab/mfa-browser/node_modules/playwright/index.mjs', 'public Playwright package'),
+                        (ROOT / '.lab/ui/index.html', 'built UI index')):
+        if not path.is_file() or not os.access(path, os.R_OK):
+            missing.append(label)
+    browser = os.environ.get('CHROMIUM_BIN') or next(
+        (path for name in ('google-chrome', 'chromium', 'chromium-browser') if (path := shutil.which(name))), None)
+    if not browser or not Path(browser).is_file() or not os.access(browser, os.X_OK):
+        missing.append('executable Chromium')
+    if missing:
+        raise RuntimeError('MFA browser prerequisites missing: ' + ', '.join(missing))
+    return str(Path(browser).resolve())
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', required=True, type=Path)
     parser.add_argument('--contract', choices=['mfa', 'cli'], default='mfa')
     args = parser.parse_args()
+    browser = browser_preflight(args.contract)
     driver = ROOT / ('lab/management-cli-check.ts' if args.contract == 'cli' else 'lab/management-mfa-check.ts')
     owner = 'sb06-mfa-' + uuid.uuid4().hex[:12]
     db, auth, network = owner + '-db', owner + '-auth', owner + '-net'
@@ -53,6 +132,7 @@ def main():
         raise RuntimeError('Fixture requires at least 2 GiB free host memory')
     before = docker('ps', '-q').split()
     created = []
+    network_state = {}
     report = {'schema': 1, 'owner': owner, 'images': {}, 'limits': {}, 'checks': [], 'cleanup': False}
     try:
         for service in ('db', 'auth'):
@@ -60,8 +140,8 @@ def main():
             if image['Id'] != pins[service]['id'] or not set(image.get('RepoDigests', [])).intersection(pins[service]['digests']):
                 raise RuntimeError('Pinned public image identity unavailable')
             report['images'][service] = {'id': image['Id'], 'digests': pins[service]['digests']}
-        created.append(('network', network))
-        docker('network', 'create', '--internal', '--label', 'io.sbarbase.owner=' + owner, network)
+        create_network(network, owner, args.output.parent / (owner + '-network'),
+                       created, network_state, report)
         with tempfile.TemporaryDirectory(prefix=owner + '-') as directory:
             private = Path(directory)
             os.chmod(private, 0o700)
@@ -111,7 +191,8 @@ def main():
             os.chmod(credentials, 0o600)
             result = run(['systemd-run', '--user', '--quiet', '--wait', '--pipe',
                           '--unit=' + owner + '-driver', '-p', 'MemoryMax=256M', '-p', 'CPUQuota=25%',
-                          '-p', 'TasksMax=256', '-p', 'RuntimeMaxSec=100', '--working-directory=' + str(ROOT),
+                          '-p', 'TasksMax=256', '-p', 'RuntimeMaxSec=100',
+                          *(['--setenv=CHROMIUM_BIN=' + browser] if browser else []), '--working-directory=' + str(ROOT),
                           shutil.which('bun') or 'bun', str(driver), str(credentials)], timeout=110)
             observations = json.loads(result)
             report.update(observations)
@@ -130,6 +211,17 @@ def main():
         report.update({'total': len(report['checks']), 'failed': 1, 'skipped': 0, 'error': str(error)})
     finally:
         for kind, name in reversed(created):
+            if kind == 'network':
+                try:
+                    cleanup_network(name, owner, network_state)
+                except Exception as error:
+                    report.setdefault('cleanup_errors', []).append(str(error))
+                    report['checks'].append({'name': 'fixture network cleanup admitted', 'ok': False})
+                    report['total'] = len(report['checks'])
+                    report['failed'] = sum(not item['ok'] for item in report['checks'])
+                    report.setdefault('skipped', 0)
+                    report.setdefault('error', str(error))
+                continue
             probe = subprocess.run(['docker', kind, 'inspect', name], capture_output=True, text=True, timeout=15)
             if probe.returncode:
                 continue
@@ -141,7 +233,12 @@ def main():
         after = docker('ps', '-q').split()
         remaining_containers = docker('ps', '-a', '--filter', 'label=io.sbarbase.owner=' + owner, '--format', '{{.Names}}').split()
         remaining_networks = docker('network', 'ls', '--filter', 'label=io.sbarbase.owner=' + owner, '--format', '{{.Name}}').split()
-        report['cleanup'] = not remaining_containers and not remaining_networks
+        report['cleanup'] = not remaining_containers and not remaining_networks and not report.get('cleanup_errors')
+        if not report['cleanup'] and not report.get('cleanup_errors'):
+            report['checks'].append({'name': 'fixture resources absent after cleanup', 'ok': False})
+            report['total'] = len(report['checks'])
+            report['failed'] = sum(not item['ok'] for item in report['checks'])
+            report.setdefault('skipped', 0)
         report['unrelated_running_containers_preserved'] = set(before).issubset(set(after))
         report['running_container_inventory'] = {'before': before, 'after': after,
                                                 'missing': sorted(set(before) - set(after))}

@@ -5,11 +5,14 @@ import {KeyStore} from '../src/control/keys';
 import {application} from '../src/control/application';
 import {recoverManagementFactor} from './management-factor-recovery';
 import {browserCheck} from './management-mfa-browser';
+import {nativeVerificationBoundary} from './management-mfa-boundary';
+import {managementPasswordIdentity} from '../src/control/auth';
 
 const config=await Bun.file(process.argv[2]!).json();
 const root=new URL(config.endpoint);
 if(root.protocol!=='http:'||root.pathname!=='/'||root.username||root.password)throw new Error('Invalid disposable Auth endpoint');
 const checks:{name:string;ok:boolean}[]=[];
+let nativeBoundaryDiagnostics:{challengeStatus:number|null;verifyStatus:number|null;proxyStatus:number|null;proxyCode:string|null}|null=null;
 function check(name:string,ok:unknown){checks.push({name,ok:!!ok});if(!ok)throw new Error('Failed: '+name);}
 function jwt(secret:string,claims:object){const head=Buffer.from(JSON.stringify({alg:'HS256',typ:'JWT'})).toString('base64url');
  const body=Buffer.from(JSON.stringify({aud:'authenticated',exp:Math.floor(Date.now()/1000)+3600,...claims})).toString('base64url');
@@ -43,7 +46,7 @@ async function request(token:string,path='/management/v1/organizations',method='
 async function enroll(user:SupabaseClient,name:string){const result=await user.auth.mfa.enroll({factorType:'totp',friendlyName:name});
  check('native '+name+' enrollment returns original Auth factor and QR',!result.error&&!!result.data?.totp.qr_code&&!!result.data?.totp.secret);return result.data!;}
 async function verify(user:SupabaseClient,factor:string,secret:string){let result=await user.auth.mfa.challengeAndVerify({factorId:factor,code:authenticator(secret)});
- if(result.error?.status===409){check('revocation refuses same-second native MFA regrant',true);await Bun.sleep(1100);result=await user.auth.mfa.challengeAndVerify({factorId:factor,code:authenticator(secret)});}
+ if(result.error?.status===409){await Bun.sleep(1100);result=await user.auth.mfa.challengeAndVerify({factorId:factor,code:authenticator(secret)});}
  check('native factor challenge and code verification issues session',!result.error&&!!result.data?.access_token);return result.data!.access_token;}
 async function create(email:string,password:string){const result=await admin.auth.admin.createUser({email,password,email_confirm:true});check('private native identity provisioned',!result.error&&!!result.data.user);return result.data.user!;}
 async function login(user:SupabaseClient,email:string,password:string){const result=await user.auth.signInWithPassword({email,password});check('original password login succeeds',!result.error&&!!result.data.session);return result.data.session!.access_token;}
@@ -90,6 +93,43 @@ try{
  check('last verified factor removal is not required for adding a spare',(await operator.auth.mfa.listFactors()).data?.totp.length===2);
  const removal=await operator.auth.mfa.unenroll({factorId:first.id});check('native replacement factor removal succeeds',!removal.error);
  check('factor removal revokes every actor grant',(await request(secondToken)).status===403&&(await request(ownerToken)).status===403);
+ let heldNativeToken='',boundaryReached=false;
+ const beforeBoundaryEpoch=catalog.managementSecurity.epoch(owner.id);
+ const boundaryDiagnostics={challengeStatus:null as number|null,verifyStatus:null as number|null,proxyStatus:null as number|null,proxyCode:null as string|null};
+ nativeBoundaryDiagnostics=boundaryDiagnostics;
+ const boundaryEndpoint=new URL(`/factors/${spare.id}/verify`,root);
+ const observedNative=(async(input:Parameters<typeof fetch>[0],init?:Parameters<typeof fetch>[1])=>{
+  const response=await native(input,init);
+  if(init?.method==='POST'){
+   if(String(input)===boundaryEndpoint.href)boundaryDiagnostics.verifyStatus=response.status;
+   if(String(input)===new URL(`/factors/${spare.id}/challenge`,root).href)boundaryDiagnostics.challengeStatus=response.status;
+  }
+  return response;
+ }) as typeof fetch;
+ const boundaryTransport=nativeVerificationBoundary(observedNative,boundaryEndpoint,async(response)=>{
+  const result=await response.json() as {access_token?:string};
+  if(typeof result.access_token!=='string')throw new Error('Native boundary did not return a session');
+  heldNativeToken=result.access_token;
+  catalog.managementSecurity.revoke(owner.id);boundaryReached=true;
+ });
+ handler=application(catalog,keys,{auth:root.href,anonymousToken:anon,publishableKey:publicKey},()=>undefined,boundaryTransport);
+ let boundaryResult;
+ try{boundaryResult=await operator.auth.mfa.challengeAndVerify({factorId:spare.id,code:authenticator(spare.totp.secret)});}
+ finally{handler=application(catalog,keys,{auth:root.href,anonymousToken:anon,publishableKey:publicKey},()=>undefined,native);}
+ boundaryDiagnostics.proxyStatus=boundaryResult.error?.status??null;
+ boundaryDiagnostics.proxyCode=boundaryResult.error?.code??null;
+ const nativeIdentity=heldNativeToken?await managementPasswordIdentity('http://fixture.internal',anon,adminTransport)(new Request('http://fixture.internal',{headers:{authorization:'Bearer '+heldNativeToken}})):null;
+ const boundaryChecks=[
+  {name:'concurrent revocation follows successful original native verification',ok:boundaryReached&&boundaryDiagnostics.verifyStatus===200},
+  {name:'concurrent revocation returns proxy conflict',ok:boundaryResult.error?.status===409},
+  {name:'concurrent revocation returns MFA retry code',ok:boundaryResult.error?.code==='mfa_retry'},
+  {name:'concurrent revocation retains genuine native aal2 identity',ok:!!nativeIdentity&&nativeIdentity.actor===owner.id&&nativeIdentity.aal==='aal2'&&nativeIdentity.verifiedAt>0},
+  {name:'concurrent revocation advances durable actor epoch',ok:catalog.managementSecurity.epoch(owner.id)===beforeBoundaryEpoch+1},
+  {name:'concurrent revocation admits no durable management MFA grant',ok:!!nativeIdentity&&!catalog.managementSecurity.granted(owner.id,nativeIdentity.session,nativeIdentity.verifiedAt,[spare.id])},
+  {name:'concurrent revocation denies actual native session management access',ok:!!heldNativeToken&&(await request(heldNativeToken)).status===403},
+ ];
+ checks.push(...boundaryChecks);
+ if(boundaryChecks.some(entry=>!entry.ok))throw new Error('Failed: concurrent native verification revocation boundary');
  ownerToken=await verify(operator,spare.id,spare.totp.secret);
  const last=await operator.auth.mfa.unenroll({factorId:spare.id});check('last verified factor removal denied',!!last.error);
  check('denied last-factor removal preserves verified owner',(await request(ownerToken)).status===200);
@@ -158,4 +198,4 @@ try{
  check('native revoked owner session denied',(await request(ownerToken)).status===401);
 }catch(error){const message=error instanceof Error?error.message:'';checks.push({name:message.startsWith('Failed: ')||message.startsWith('Browser check failed at ')?message:'Native fixture operation failed',ok:false});}
 finally{catalog.close();keys.close();}
-process.stdout.write(JSON.stringify({total:checks.length,failed:checks.filter(check=>!check.ok).length,skipped:0,checks})+'\n');
+process.stdout.write(JSON.stringify({total:checks.length,failed:checks.filter(check=>!check.ok).length,skipped:0,checks,native_boundary_diagnostics:nativeBoundaryDiagnostics})+'\n');
