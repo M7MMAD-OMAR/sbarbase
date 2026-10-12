@@ -143,6 +143,56 @@ class CapabilityRegistryTests(unittest.TestCase):
             file.chmod(file.stat().st_mode ^ 0o100)
             self.assertNotEqual(baseline, verifier.source_identity(other))
 
+    def test_browser_installed_dependencies_do_not_change_public_identity(self):
+        browser = self.root / 'lab/mfa-browser'
+        browser.mkdir(exist_ok=True)
+        for name in ('package.json', 'package-lock.json'):
+            (browser / name).write_text('{}\n')
+        baseline = verifier.source_identity(self.root)
+        dependency = browser / 'node_modules/playwright'
+        dependency.mkdir(parents=True)
+        (dependency / 'cli.js').write_text('installed dependency\n')
+        binary = browser / 'node_modules/.bin'
+        binary.mkdir()
+        (binary / 'playwright').symlink_to('../playwright/cli.js')
+        self.assertEqual(baseline, verifier.source_identity(self.root))
+        (dependency / 'cli.js').write_text('changed installed dependency\n')
+        self.assertEqual(baseline, verifier.source_identity(self.root))
+        for name in ('package.json', 'package-lock.json'):
+            with self.subTest(name=name):
+                file = browser / name
+                file.write_text('{"changed":true}\n')
+                self.assertNotEqual(baseline, verifier.source_identity(self.root))
+                file.write_text('{}\n')
+
+    def test_browser_dependency_root_symlink_still_refuses(self):
+        browser = self.root / 'lab/mfa-browser'
+        browser.mkdir(exist_ok=True)
+        (browser / 'node_modules').symlink_to(self.root / 'src', target_is_directory=True)
+        with self.assertRaisesRegex(verifier.Refusal, 'source inventory contains symlink'):
+            verifier.source_identity(self.root)
+
+    def test_other_dependency_tree_symlink_still_refuses(self):
+        baseline = verifier.source_identity(self.root)
+        binary = self.root / 'lab/other/node_modules/.bin'
+        binary.mkdir(parents=True)
+        (binary / 'regular-tool').write_text('source remains inventoried\n')
+        self.assertNotEqual(baseline, verifier.source_identity(self.root))
+        (binary / 'tool').symlink_to(self.root / 'package.json')
+        with self.assertRaisesRegex(verifier.Refusal, 'source inventory contains symlink'):
+            verifier.source_identity(self.root)
+
+    def test_source_file_and_source_directory_symlinks_still_refuse(self):
+        file = self.root / 'src/linked-source.ts'
+        file.symlink_to(self.root / 'package.json')
+        with self.assertRaisesRegex(verifier.Refusal, 'source inventory contains symlink'):
+            verifier.source_identity(self.root)
+        file.unlink()
+        shutil.rmtree(self.root / 'ui')
+        (self.root / 'ui').symlink_to(self.root / 'src', target_is_directory=True)
+        with self.assertRaisesRegex(verifier.Refusal, 'ui: missing regular source directory'):
+            verifier.source_identity(self.root)
+
     def test_source_registry_and_test_inventory_changes_invalidate_proof(self):
         for target in ('deploy/verify/capability_registry.py', 'lab/test_capability_registry.py'):
             with self.subTest(target=target):

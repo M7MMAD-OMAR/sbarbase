@@ -137,7 +137,9 @@ Runs lab/backup.py list.`,
 
 Runs lab/backup.py restore after you confirm. Rows, users and files written after the backup
 are gone from that environment. The replaced state is kept aside until
-lab/backup.py discard-previous. Without a terminal, --yes is required.`,
+lab/backup.py discard-previous. This environment's Auth, REST and configured Realtime services
+pause. Shared Storage also pauses, so object access pauses for every environment until Storage
+restarts. Other environments' Auth and REST keep serving. Without a terminal, --yes is required.`,
  relink:`sbarbase relink <runtime> <backup>
 
 For a backup taken on another installation, placed here under .lab/backups/<runtime>/<backup>/
@@ -693,7 +695,9 @@ async function restore(deps:Deps,parsed:Parsed) {
   if(!deps.isTTY)throw new Refusal('Restore replaces data, so it needs confirmation: run it at a terminal or pass --yes');
   deps.err(`Restore ${reference} from backup ${name}.`);
   deps.err('Rows, users and files written to this environment after that backup will be gone.');
-  deps.err('Its Auth and REST pause during the restore; every other environment keeps serving.');
+  deps.err("This environment's Auth, REST and configured Realtime services pause during the restore.");
+  deps.err('Shared Storage also pauses, so object access pauses for every environment until Storage restarts.');
+  deps.err("Other environments' Auth and REST keep serving.");
   const answer=(await deps.prompt(`Type the backup time (${name}) to continue: `)).trim();
   if(answer!==name){deps.err('Not confirmed; nothing was changed.');return EXIT.refused;}
  }

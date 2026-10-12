@@ -176,8 +176,10 @@ def source_identity(root):
             for entry in directories + files:
                 if (Path(current) / entry).is_symlink():
                     raise Refusal('source inventory contains symlink')
+            # Check dependency root identity before excluding installed browser packages.
             directories[:] = [entry for entry in directories if entry != '__pycache__'
-                              and (Path(current) / entry).relative_to(root).as_posix() != PROOF_DIRECTORY]
+                              and (Path(current) / entry).relative_to(root).as_posix()
+                              not in (PROOF_DIRECTORY, 'lab/mfa-browser/node_modules')]
             for entry in files:
                 if not entry.endswith(('.pyc', '.pyo')):
                     names.add((Path(current) / entry).relative_to(root).as_posix())
