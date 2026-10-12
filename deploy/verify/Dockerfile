@@ -9,8 +9,9 @@ RUN dpkg-deb --extract /tmp/ca-certificates.deb /tmp/ca-bootstrap \
  && printf 'APT::Snapshot "20261002T000000Z";\nAcquire::https::CaInfo "/etc/ssl/certs/ca-certificates.crt";\n' > /etc/apt/apt.conf.d/50snapshot \
  && apt-get update -q -o APT::Update::Error-Mode=any \
  && DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends \
-      python3 python3-cryptography git openssh-client systemd procps \
+      python3 python3-cryptography nodejs git openssh-client systemd procps \
       ca-certificates util-linux tzdata \
+ && node -e 'const [major,minor]=process.versions.node.split(".").map(Number); if(major<22||(major===22&&minor<6))process.exit(1)' \
  && rm -rf /var/lib/apt/lists/* \
  && rm -rf /tmp/ca-certificates.deb /tmp/ca-bootstrap \
  && mkdir -p /usr/local/share/sbarbase-source-verification \

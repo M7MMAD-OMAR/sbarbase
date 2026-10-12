@@ -917,6 +917,11 @@ def main(argv=None):
     make.add_argument('--local-only', action='store_true', help='do not copy the new backups off the server')
     make.add_argument('--reason', choices=REASONS,
                       help='why the backup is taken: upgrade keeps the backups of the last upgrades out of pruning')
+    local = sub.add_parser('collect-installation', help='collect private local material; not a complete backup or restore package')
+    local.add_argument('--output', required=True)
+    portable = sub.add_parser('create-installation', help='complete installation packaging, refuses absent native suppliers')
+    portable.add_argument('--output', required=True)
+    portable.add_argument('--key-file', required=True)
     listing = sub.add_parser('list')
     listing.add_argument('environment', nargs='?')
     back = sub.add_parser('restore')
@@ -944,6 +949,17 @@ def main(argv=None):
     key.add_argument('path')
     args = parser.parse_args(argv)
     try:
+        if args.command in ('collect-installation', 'create-installation'):
+            import installation_recovery
+            try:
+                result = (installation_recovery.collect(ROOT, args.output) if args.command == 'collect-installation'
+                          else installation_recovery.capture(ROOT, args.output, args.key_file))
+            except installation_recovery.Refused as error:
+                raise BackupError(str(error)) from None
+            except Exception:
+                raise BackupError('Local collection or complete packaging refused; no recovery admission was issued') from None
+            print(json.dumps(result, sort_keys=True))
+            return 0
         if args.command == 'restore-status':
             pending = restore_status()
             for item in pending:

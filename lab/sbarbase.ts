@@ -63,6 +63,10 @@ Commands
   environments [--json]               every environment with its id, runtime id and state
   backup now [<environment>] [--keep N]
                                       back up one environment, or every one (lab/backup.py create)
+  backup collect-installation --output PRIVATE_DIRECTORY
+                                      collect private local material, incomplete and unencrypted
+  backup installation --output PRIVATE_FILE --key-file PRIVATE_KEY
+                                      complete packaging refuses until genuine native suppliers exist
   backups list [<environment>]        complete backups (lab/backup.py list)
   restore <environment> <backup> [--yes]
                                       replace one environment with a backup of itself (lab/backup.py restore)
@@ -120,7 +124,12 @@ provisioning state. Read only, without signing in.`,
 
 Runs lab/backup.py create for one environment, or for every environment when none is named.
 --keep defaults to SBARBASE_BACKUP_KEEP, read from this shell or from the installed unit, so a
-manual backup prunes like the daily one. When neither sets it, lab/backup.py keeps 7.`,
+manual backup prunes like the daily one. When neither sets it, lab/backup.py keeps 7.
+
+backup collect-installation --output ABSOLUTE_PRIVATE_DIRECTORY collects local Catalog, keys,
+configuration and Functions. It is private plaintext, incomplete and not admitted for restore.
+backup installation --output ABSOLUTE_PRIVATE_FILE --key-file ABSOLUTE_PRIVATE_KEY requires
+genuine native suppliers before complete packaging; it currently refuses.`,
  backups:`sbarbase backups list [<environment>]
 
 Runs lab/backup.py list.`,
@@ -176,14 +185,14 @@ and database are shared by every environment. --lines defaults to 100.`,
 };
 
 type Parsed={command:string;args:string[];flags:Record<string,string|boolean>};
-const VALUE_FLAGS=new Set(['--email','--operator-file','--keep','--to','--revoke','--lines','--release','--allow-class']);
+const VALUE_FLAGS=new Set(['--email','--operator-file','--keep','--to','--revoke','--lines','--release','--allow-class','--output','--key-file']);
 const BOOLEAN_FLAGS=new Set(['--json','--yes','--password-stdin','--follow','--help','--check']);
 /** Given more than once, these keep every value (joined with commas) instead of the last one:
  * a release that needs a rebuild and also migrates needs both classes allowed. */
 const REPEATABLE=new Set(['--allow-class']);
 const ALIASES:Record<string,string>={'-h':'--help','-y':'--yes','-f':'--follow','-n':'--lines'};
 const ALLOWED:Record<string,string[]>={
- status:['--json'],environments:['--json'],backup:['--keep'],backups:[],restore:['--yes'],
+ status:['--json'],environments:['--json'],backup:['--keep','--output','--key-file'],backups:[],restore:['--yes'],
  relink:['--email','--operator-file','--password-stdin'],
  'add-environment':['--email','--operator-file','--password-stdin'],
  'rotate-key':['--email','--operator-file','--password-stdin','--revoke'],
@@ -649,6 +658,18 @@ async function dailyKeep(deps:Deps):Promise<string|undefined> {
 }
 
 async function backup(deps:Deps,parsed:Parsed) {
+ if(['collect-installation','installation'].includes(parsed.args[0]??'')) {
+  arity(parsed,1,1);
+  const output=parsed.flags['--output'],key=parsed.flags['--key-file'];
+  if(typeof output!=='string'||!output.startsWith('/')||parsed.flags['--keep'])throw new Usage('An absolute --output is required; --keep applies to backup now');
+  if(parsed.args[0]==='collect-installation') {
+   if(key)throw new Usage('--key-file applies to complete installation packaging');
+   return deps.run([PYTHON,'lab/backup.py','collect-installation','--output',output]);
+  }
+  if(typeof key!=='string'||!key.startsWith('/'))throw new Usage('Complete installation packaging requires an absolute --key-file');
+  return deps.run([PYTHON,'lab/backup.py','create-installation','--output',output,'--key-file',key]);
+ }
+ if(parsed.flags['--output']||parsed.flags['--key-file'])throw new Usage('--output and --key-file apply to installation collection or packaging');
  if(parsed.args[0]!=='now')throw new Usage('Use: sbarbase backup now [<environment>]');
  arity(parsed,1,2);
  const target=parsed.args[1]===undefined||parsed.args[1]==='all'?'all':backupTarget(deps,parsed.args[1]);

@@ -214,3 +214,62 @@ A failed restore leaves its descriptor behind, and a plain rerun refuses. Do not
 - Once a restored target has accepted writes, going back to the old source is unsafe without reconciliation.
 
 The full record, with check counts, is [independent restore](../engineering/INDEPENDENT-RESTORE.md).
+
+
+## Private local installation collection
+
+`sbarbase backup collect-installation --output /absolute/private/directory`
+collects the original complete Catalog and managed key store, every file in
+`.secrets/upstream`, top-level JSON state/configuration, retained Functions code
+including version directories and shared imports, and present image lock files.
+The destination must be absent, outside the installation, and under an owned
+private directory. Files are mode 0600 and directories are private. Keep this
+plaintext collection private. It includes secrets and is unencrypted.
+
+The command reports `local-collection-only`, `complete: false`,
+`encrypted: false`, and `restore_admitted: false`. Its `collection.json` records
+material digests privately and identifies the missing native suppliers. This
+collection cannot be used as a complete backup, a fresh-host restore package,
+or a recovery receipt for deletion. It does not invalidate preserved execution
+leases, MFA grants or credentials, and does not activate any restored store.
+
+Individual Catalog and KeyStore read transactions retain consistent original
+SQLite snapshots. Changed configuration/file identity or tree membership refuses
+publication. This does not establish a transaction across those stores or
+quiescence of native database and object writers.
+
+`sbarbase backup installation --output /absolute/private/file --key-file
+/absolute/private/key` is reserved for complete authenticated packaging. It
+currently refuses because genuine native feature inventory, Storage signing
+material provenance, source host/resource admission, and native database/object
+suppliers are not connected. Complete distinct-host recovery with source state
+inaccessible remains required. Existing `backup now`, offsite copies and
+environment restore retain their current scope.
+
+
+The collector uses the original supported Functions entrypoint set: `index.ts`,
+`index.js`, `index.tsx`, `index.jsx` and `index.mjs`. The pinned TypeScript
+compiler parses captured modules to check static local imports and re-exports,
+including shared imports, against the exact deployed version tree. Missing local
+modules and unsupported dynamic module expressions refuse local collection.
+Remote npm, jsr, HTTPS and Node module references are recorded privately as
+unverified external dependencies. Deno execution, arbitrary runtime code loading
+and external module availability require the later native recovery checks.
+Directory enumeration errors refuse collection; an unreadable private subtree
+can never be silently omitted. Directory identity/membership changes also refuse.
+
+
+Local collection requires Node.js 22.6 or newer, including its
+`--experimental-strip-types` support, and the pinned TypeScript 7.0.2 package
+installed from the project's frozen lockfile. The compiler API uses Node pipe
+handles and cannot run under Bun. Node version and parser imports preflight
+before source material is read or a collection is staged. Missing or unsupported
+tools refuse explicitly. The parser subprocess and its compiler descendants
+have a finite shared deadline and are cleaned up together on failure.
+
+
+The supported control-plane container installs Node from the same immutable
+Ubuntu package snapshot as Python and verifies the minimum version during its
+build. The source CI jobs declare Node 22.23.2 explicitly. These runtime changes
+require their actual container/CI checks before production activation; the local
+source suite does not establish that a rebuilt container was deployed.
