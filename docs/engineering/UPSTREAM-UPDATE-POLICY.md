@@ -74,16 +74,42 @@ Every future change still needs its own dated release review and affected gates.
     --tag public.ecr.aws/supabase/postgrest:v14.16 --digest sha256:<64 hex> --note "why"
 ```
 
+A flat lock (distro, Storage, Realtime, Functions) pins one component at its top
+level and takes no `--component`:
+
+```
+/usr/bin/python3 lab/pin_update.py stage --file lab/realtime-image.lock.json \
+    --tag public.ecr.aws/supabase/realtime:v2.143.4 --digest sha256:<64 hex> --note "why"
+```
+
 `stage` writes the dated review entry first, records the previous digest as the
-rollback pin, changes exactly one component and refuses a floating tag, an
-unknown component, an unchanged digest or a second entry for the same version.
-Completing the entry and passing the adoption gate are still the operator's job.
+rollback pin, changes exactly one component and rewrites the lock's repository
+digest proof so the runtime admits the new pin. It refuses a floating tag, a
+different repository, an unknown component, an invalid current pin, an unchanged
+digest or a second entry for the same version, and it removes its new entry if
+the lock cannot be written. `verify` holds every pin to the same proof the
+runtime uses. Completing the entry and passing the adoption gate are still the
+operator's job.
+
+## Tracking
+
+`/usr/bin/python3 lab/upstream_watch.py` reports, for every pin, the newest
+stable release in its line and overall, the version the official self-hosting
+compose file pins, digest drift under the pinned tag, and whether a review entry
+exists. It reads registries anonymously and changes nothing. Exit 0 means
+current or reviewed; 3 means drift that needs action, either a release without
+a review entry or a digest that moved under a pinned tag, which only restaging
+clears; 2 means a lookup failed. `.github/workflows/upstream-watch.yml` runs it
+weekly once the workflow is pushed; the cadence and the order of adoptions are
+in the
+[upstream currency plan](plans/2026-10-14-upstream-currency.md).
 
 ## Where the log goes
 
-`docs/upstream/YYYY-MM-DD-<component>-<version>.md` with the four sections from
-rule 2. Link the entry from this file's log index below.
+`docs/upstream/YYYY-MM-DD-<label>-<image>-<version>.md`, the name `stage` writes and
+`lab/upstream_watch.py` counts, with the four sections from rule 2. Link the entry from this file's log index below.
 
 ## Log index
 
+- 2026-10-14: [Supabase Select 2026 and current drift](../upstream/2026-10-14-select-2026-landscape.md), a landscape review; no pin changed.
 - 2026-09-20: policy created; no upstream release reviewed yet.

@@ -1,0 +1,44 @@
+name: Upstream watch
+# Weekly read-only drift report for every pinned upstream component
+# (lab/upstream_watch.py). It pulls nothing and changes nothing. A red run means
+# drift that needs action, a release without a dated review under docs/upstream/
+# or a moved digest (exit 3), or a registry lookup that failed and should be
+# repeated (exit 2). Adoption stays manual, one component at a time, under
+# docs/engineering/UPSTREAM-UPDATE-POLICY.md.
+on:
+  schedule:
+    - cron: '17 5 * * 1'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: upstream-watch
+  cancel-in-progress: false
+jobs:
+  watch:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Drift report
+        run: |
+          set +e
+          /usr/bin/python3 lab/upstream_watch.py --json-out upstream-watch.json > upstream-watch.txt
+          code=$?
+          set -e
+          {
+            echo '## Upstream drift'
+            echo
+            echo '```'
+            cat upstream-watch.txt
+            echo '```'
+            echo
+            echo "exit $code: 0 current or reviewed, 3 drift that needs action (a release without a review entry, or a moved digest), 2 lookup failed"
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit $code
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        if: always()
+        with:
+          name: upstream-watch
+          path: upstream-watch.json
+          retention-days: 90
