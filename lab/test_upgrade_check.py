@@ -96,6 +96,38 @@ class CandidateTests(unittest.TestCase):
         meta = json.loads((ROOT / 'lab' / 'studio-image.lock.json').read_text())['meta']
         self.assertEqual(json.loads((self.base / 'lab' / 'images.lock.json').read_text())['rest'], meta)
 
+    def test_a_candidate_equal_to_the_pin_is_refused_and_an_earlier_one_says_so(self):
+        """After A1 adopts the candidate's release, a check still pointing at it would test no move at
+        all; with no newer release left, an earlier one is a test-only candidate named as such."""
+        pinned = {'tag': 'public.ecr.aws/supabase/postgrest:v14.15', 'id': 'sha256:' + '1' * 64}
+        newer = {'tag': 'public.ecr.aws/supabase/postgrest:v14.18', 'id': 'sha256:' + '2' * 64}
+        self.assertEqual(check.candidate_move(pinned, newer), 'v14.15 to v14.18')
+        self.assertEqual(check.candidate_move(newer, pinned), 'v14.18 to v14.15 (test-only, an earlier release)')
+        self.assertEqual(check.candidate_move(dict(pinned, tag='public.ecr.aws/supabase/postgrest:v14.9'),
+                                              dict(newer, tag='public.ecr.aws/supabase/postgrest:v14.10')), 'v14.9 to v14.10')
+        for variant in ('v14.18-rc.1', '17.11.0.004-orioledb', 'latest'):
+            with self.subTest(variant=variant), self.assertRaisesRegex(SystemExit, 'not a plain release'):
+                check.candidate_move(pinned, dict(newer, tag='public.ecr.aws/supabase/postgrest:' + variant))
+        for same in (dict(newer, tag=pinned['tag']), dict(newer, id=pinned['id'])):
+            with self.assertRaisesRegex(SystemExit, 'is the pinned release'):
+                check.candidate_move(pinned, same)
+        lock = json.loads((self.base / 'lab' / 'images.lock.json').read_text())
+        lock['rest'] = check.NEWER_REST
+        (self.base / 'lab' / 'images.lock.json').write_text(json.dumps(lock))
+        with self.assertRaisesRegex(SystemExit, 'is the pinned release'):
+            check.newer_rest(self.base)
+        self.assertEqual(json.loads((self.base / 'lab' / 'images.lock.json').read_text()), lock)
+
+    def test_the_evidence_names_each_candidates_move_as_recorded(self):
+        recorded = check.moves()
+        rest = json.loads((ROOT / 'lab' / 'images.lock.json').read_text())['rest']['tag'].rsplit(':', 1)[1]
+        self.assertTrue(recorded['rest'].startswith(f"PostgREST {rest} to {check.NEWER_REST['tag'].rsplit(':', 1)[1]}"))
+        text = check.described(check.DESCRIPTIONS['upgraded'], recorded)
+        self.assertIn(recorded['rest'], text)
+        self.assertIn(recorded['auth'], check.described(check.CHANNEL_DESCRIPTIONS['channel-attended'], recorded))
+        self.assertIn('move not recorded', check.described(check.DESCRIPTIONS['upgraded'], None))
+        self.assertEqual(check.version_key('x:v14.15'), check.version_key('x:v14.15.0'))
+
     def test_a_moved_anchor_stops_the_build_of_a_candidate(self):
         (self.base / 'src' / 'http' / 'health.ts').write_text('export {}\n')
         with self.assertRaises(SystemExit):
@@ -174,6 +206,29 @@ class InstallationTests(unittest.TestCase):
         self.assertEqual(self.changed(names['good'], names['migrates']), ['lab/upstream-server.ts', 'src/control/catalog.ts'])
         self.assertEqual(self.changed(names['good'], names['unhealthy']), ['src/http/health.ts'])
         self.assertEqual(check.schema_at(names['migrates']), check.schema_at(names['good']) + 1)
+
+    def test_the_moves_are_recorded_from_the_base_and_hold_after_the_checkout_moves(self):
+        names = self.candidates()
+        run_git(self.root, 'checkout', '-q', '--detach', names['good'])
+        check.RECORD.parent.mkdir(parents=True, exist_ok=True)
+        with patch.object(check, 'observe', return_value={}), contextlib.redirect_stdout(io.StringIO()):
+            check.before([f'{name}={names[name]}' for name in ('base', 'good', 'bad')])
+        recorded = check.load()['moves']
+        self.assertEqual(recorded, check.moves(commit=names['base']))
+        # From the moved checkout the REST pin is the candidate itself, which the base never was.
+        with self.assertRaisesRegex(SystemExit, 'is the pinned release'):
+            check.rest_move()
+        self.assertIn(recorded['rest'], check.described(check.DESCRIPTIONS['upgraded'], recorded))
+
+    def test_a_candidate_equal_to_the_running_pin_refuses_before_anything_is_committed(self):
+        head = run_git(self.root, 'rev-parse', 'HEAD')
+        signers = (self.root / 'deploy' / 'release-signers').read_text()
+        auth = json.loads((self.root / 'lab' / 'images.lock.json').read_text())['auth']
+        with patch.object(check, 'NEWER_AUTH', auth), self.assertRaisesRegex(SystemExit, 'is the pinned release'):
+            self.candidates()
+        self.assertEqual(run_git(self.root, 'rev-parse', 'HEAD'), head)
+        self.assertEqual(run_git(self.root, 'status', '--porcelain'), '')
+        self.assertEqual((self.root / 'deploy' / 'release-signers').read_text(), signers)
 
     def unsigned(self, names):
         run_git(self.root, 'checkout', '-q', '--detach', names['good'])

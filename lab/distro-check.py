@@ -5,9 +5,10 @@ import json
 import secrets
 import time
 from pathlib import Path
+import image_identity
 import run as lab
 
-TAG = 'public.ecr.aws/supabase/postgres:17.6.1.166'
+LOCK = 'lab/distro-image.lock.json'
 LABEL = 'io.sbarbase.owner=postgres-distribution-probe'
 checks = []
 
@@ -18,13 +19,21 @@ def check(name, passed):
         raise RuntimeError(name)
 
 
+def pinned_image():
+    """(pin, daemon image record) of the image lab/distro-image.lock.json pins. The lock is read and
+    never written: the probe follows the pin, so a staged distribution update is probed as staged."""
+    pin = json.loads((lab.ROOT/LOCK).read_text())
+    reference = image_identity.reference(pin)
+    info = image_identity.record(lab.docker('image', 'inspect', reference).stdout)
+    image_identity.resolved_id(reference, info)
+    return pin, info
+
+
 def main():
     available = int(next(x.split()[1] for x in Path('/proc/meminfo').read_text().splitlines() if x.startswith('MemAvailable:')))
     if available < 6 * 1024 * 1024:
         raise RuntimeError('Insufficient memory headroom for distribution probe')
-    info = json.loads(lab.docker('image', 'inspect', TAG).stdout)[0]
-    pin = {'tag': TAG, 'id': info['Id'], 'digests': info.get('RepoDigests', [])}
-    (lab.ROOT/'lab/distro-image.lock.json').write_text(json.dumps(pin, indent=2))
+    pin, info = pinned_image()
     name = 'sbarbase-distro-' + secrets.token_hex(6)
     env_path = lab.PRIVATE/'distro-probe.env'
     password = secrets.token_hex(32)

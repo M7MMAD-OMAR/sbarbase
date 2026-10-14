@@ -91,6 +91,8 @@ class Checkout(unittest.TestCase):
                      patch.object(upgrade, 'install_dependencies')]:
             item.start()
             self.addCleanup(item.stop)
+        # What an upgrade prints for the operator; kept out of the unittest summary.
+        self.enterContext(contextlib.redirect_stdout(io.StringIO()))
 
     def head(self):
         return self.repo.git('rev-parse', 'HEAD')
@@ -312,6 +314,33 @@ class UpgradeTests(Checkout):
         self.assertIsNone(upgrade.rollback_refusal(automatic=True))
         self.repo.git('checkout', '--', '.')
         self.assertIsNone(upgrade.rollback_refusal())
+
+    def test_a_rollback_never_crosses_a_postgresql_image_change(self):
+        """A generation change after a confirmed upgrade moves the database to another image and the
+        checkout to a version pinning it, without a new upgrade record. The older record's way back
+        would pin the previous image beside a database on the new one."""
+        upgrade.start(self.second)
+        upgrade.after_start(True)
+        self.repo.git('checkout', '-q', '--detach', self.second)
+        self.repo.locks['distro-image.lock.json'] = pin('postgres:17.11', '9')
+        generation = self.repo.commit('generation change')
+        for automatic in (False, True):
+            refusal = upgrade.rollback_refusal(automatic=automatic)
+            self.assertIn('cannot cross a PostgreSQL image change', refusal)
+            self.assertIn('postgres:17.11 -> postgres:17.6', refusal)
+            self.assertTrue(refusal.endswith('Nothing was changed'))
+        with self.assertRaisesRegex(upgrade.UpgradeError, 'cannot cross a PostgreSQL image change'):
+            upgrade.rollback()
+        self.assertEqual((upgrade.load_state()['phase'], self.head()), ('confirmed', generation))
+        # Back on a version with the same image, the same record rolls back as before.
+        self.repo.git('checkout', '-q', '--detach', self.second)
+        self.assertIsNone(upgrade.rollback_refusal())
+
+    def test_a_previous_version_whose_lock_cannot_be_read_refuses_before_comparing_images(self):
+        upgrade.start(self.second)
+        upgrade.after_start(True)
+        upgrade.save_state({**upgrade.load_state(), 'from': 'f' * 40})
+        self.assertIn('cannot be read from this checkout', upgrade.rollback_refusal(automatic=True))
 
     def test_only_a_start_that_moved_the_checkout_marks_its_backup_run(self):
         marked = []

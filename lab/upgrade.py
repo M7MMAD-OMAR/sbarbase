@@ -674,6 +674,20 @@ def rollback_refusal(state=None, automatic=False):
             shown = ', '.join(changed[:3]) + (f' and {len(changed) - 3} more' if len(changed) > 3 else '')
             return (f'The checkout has local changes to tracked files ({shown}), which a rollback would move aside. '
                     'Commit or discard them on the server first. Nothing was changed')
+    # The way back moves the checkout to `from`, whose distribution lock must name the image the
+    # database runs now. A later generation change (lab/migrate-generation.py) moves the database to
+    # another image without a new upgrade record, so an older record's way back would pin the old
+    # image beside a database on the new one, and the runtime refuses to start on that mismatch.
+    try:
+        if release_channel.lock_at(state['from'], release_channel.DATABASE_LOCK) is None:
+            raise ValueError('no distribution lock at that version')
+        crossed = release_channel.database_changes(list(release_channel.pin_diffs(git('rev-parse', 'HEAD'), state['from'])))
+    except (UpgradeError, release_channel.ReleaseError, OSError, ValueError, KeyError, TypeError):
+        return (f'Version {str(state.get("from"))[:12]} cannot be read from this checkout, so whether it pins the '
+                'PostgreSQL image the database runs now is unknown. Nothing was changed')
+    if crossed:
+        return (f'Version {state["from"][:12]} pins a different PostgreSQL image than the database runs now ({crossed[0]}). '
+                'A rollback cannot cross a PostgreSQL image change; that is a generation change. Nothing was changed')
     if state['phase'] == 'confirmed':
         # After confirmation the fix is forward only: later writes stay, so every store must be
         # one the previous version can still open. Unknown support refuses; it never allows.

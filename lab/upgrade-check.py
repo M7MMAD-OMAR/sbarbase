@@ -19,7 +19,7 @@ Usage:
 
 `candidates` lists a throwaway release signing key in deploy/release-signers, commits the tree
 as it is (`base`), then makes versions on top of it and prints them as shell assignments:
-  good       PostgREST moves to a newer upstream release
+  good       PostgREST moves to another upstream release (see NEWER_REST)
   bad        (on good) the PostgREST pin names an image that never answers on PostgREST's port
   migrates   (on good) the control catalog schema goes up one step with an added empty table,
              and the console process stops right after opening, so the catalog was migrated
@@ -80,7 +80,8 @@ NAMES = ('base', 'good', 'bad', 'migrates', 'unhealthy')
 # Catalog rows no restart, upgrade or way back may change.
 STABLE = ('organizations', 'projects', 'environments', 'memberships', 'installation_bootstrap')
 HELD = 'confirming an upgrade'
-# The next PostgREST release after the pinned v14.15, by its index digest.
+# A PostgREST release other than the pinned one, by its index digest: the next release when one
+# exists, else an earlier one used as a test-only candidate (candidate_move names the direction).
 NEWER_REST = {'tag': 'public.ecr.aws/supabase/postgrest:v14.16',
               'id': 'sha256:bea1c76a856fa39d1e542d25911cf95d02fe2bf971992d033044ff209f1504b8',
               'digests': ['public.ecr.aws/supabase/postgrest@sha256:bea1c76a856fa39d1e542d25911cf95d02fe2bf971992d033044ff209f1504b8']}
@@ -95,8 +96,8 @@ STOP_AFTER_MIGRATING = (
 HEALTH_ANCHOR = "return Response.json({status:'ok',held:held()},{headers});"
 NEVER_HEALTHY = "return Response.json({status:'upgrade check: never healthy',held:held()},{status:503,headers});"
 DESCRIPTIONS = {
-    'upgraded': 'An upgrade to a version with a newer PostgREST (v14.15 to v14.16) through lab/upgrade.py and a restart.',
-    'operator-rollback': 'A manual rollback by the operator after that upgrade was confirmed.',
+    'upgraded': 'A move to a version with another PostgREST ({rest}) through lab/upgrade.py and a restart.',
+    'operator-rollback': 'A manual rollback by the operator after that move was confirmed.',
     'rolled-back': 'An upgrade to a version whose PostgREST never answers, which the supervisor moved back by itself.',
     'migration-rolled-back': 'An upgrade to a version that migrates the control catalog and then stops, which the supervisor '
                              'moved back by itself, restoring the catalog snapshot.',
@@ -123,7 +124,61 @@ def replace_once(path, old, new):
     path.write_text(text.replace(old, new))
 
 
+def version_key(tag):
+    """Numeric order of a tag's version, v-prefix aside; trailing zero segments do not count, so
+    v14.15 and v14.15.0 are the same release."""
+    parts = [int(part) for part in re.findall(r'\d+', tag.rsplit(':', 1)[1])]
+    while parts and parts[-1] == 0:
+        parts.pop()
+    return tuple(parts)
+
+
+def candidate_move(pinned, candidate):
+    """How a candidate pin moves from the pinned one, as the evidence names it: `v14.15 to v14.16`,
+    or with `(test-only, an earlier release)` when no newer release exists. A candidate equal to the
+    pin would test nothing and is refused."""
+    for pin in (pinned, candidate):
+        # A release candidate or a variant (v14.18-rc.1, 17.11.0.004-orioledb) has no order against
+        # plain releases; only a plain release may be a candidate or the pin it moves from.
+        if not re.fullmatch(r'v?\d+(?:\.\d+)+', pin['tag'].rsplit(':', 1)[1]):
+            raise SystemExit(f"upgrade check: {pin['tag']} is not a plain release; name one in lab/upgrade-check.py")
+    if candidate['id'] == pinned['id'] or version_key(candidate['tag']) == version_key(pinned['tag']):
+        raise SystemExit(f"upgrade check: the candidate {candidate['tag']} is the pinned release; "
+                         'name another release in lab/upgrade-check.py')
+    move = f"{pinned['tag'].rsplit(':', 1)[1]} to {candidate['tag'].rsplit(':', 1)[1]}"
+    return move if version_key(candidate['tag']) > version_key(pinned['tag']) else move + ' (test-only, an earlier release)'
+
+
+def pinned(component, root=None, commit=None):
+    """A pin of lab/images.lock.json in a checkout, or at a commit of this checkout."""
+    text = git('show', f'{commit}:lab/images.lock.json') if commit else ((root or ROOT) / 'lab' / 'images.lock.json').read_text()
+    return json.loads(text)[component]
+
+
+def rest_move(root=None, commit=None):
+    return 'PostgREST ' + candidate_move(pinned('rest', root, commit), NEWER_REST)
+
+
+def auth_move(root=None, commit=None):
+    return 'GoTrue ' + candidate_move(pinned('auth', root, commit), NEWER_AUTH)
+
+
+def moves(root=None, commit=None):
+    """Both candidates' moves from the version running now; refuses before anything is changed
+    when either candidate is that version's own pin."""
+    return {'rest': rest_move(root, commit), 'auth': auth_move(root, commit)}
+
+
+def described(text, recorded):
+    """A stage description with the candidates' moves as `before` recorded them from the base
+    version: evidence is written after the checkout moved, so the pins there are no base."""
+    for key in ('rest', 'auth'):
+        text = text.replace('{' + key + '}', (recorded or {}).get(key) or 'move not recorded')
+    return text
+
+
 def newer_rest(root=None):
+    rest_move(root)
     set_rest(root or ROOT, NEWER_REST)
 
 
@@ -188,13 +243,14 @@ def list_signer():
 
 
 def candidates():
+    moves()  # a candidate equal to the running pin refuses here, before anything is committed
     git('config', 'user.email', 'ci@example.com')
     git('config', 'user.name', 'ci')
     list_signer()
     git('add', '-A')
     git('commit', '-q', '--allow-empty', '-m', 'Upgrade check: the version running now')
     base = git('rev-parse', 'HEAD')
-    good = derive(base, 'Upgrade check: PostgREST v14.16', newer_rest)
+    good = derive(base, f'Upgrade check: {rest_move()}', newer_rest)
     bad = derive(good, 'Upgrade check: a PostgREST pin that never answers', never_answers)
     migrates = derive(good, 'Upgrade check: a catalog migration, then a console that stops', migrate_then_stop)
     unhealthy = derive(good, 'Upgrade check: a console whose health check never passes', never_healthy)
@@ -329,7 +385,7 @@ def commits(pairs):
 def before(pairs):
     names = commits(pairs)
     MIGRATED.unlink(missing_ok=True)
-    RECORD.write_text(json.dumps({'commits': names, 'observed': observe()}))
+    RECORD.write_text(json.dumps({'commits': names, 'moves': moves(commit=names['base']), 'observed': observe()}))
     print('recorded the installation before the upgrade')
     return 0
 
@@ -566,15 +622,16 @@ def unsigned():
 # supervisor under systemd, and followed from outside the service.
 
 MANAGEMENT_KEY = 'sb_publishable_sbarbase_local_management'
-# GoTrue's next release after the pinned v2.196.0, by its index digest: the attended release.
+# A GoTrue release other than the pinned one, by its index digest: the attended release (see
+# NEWER_REST for when it is an earlier one).
 NEWER_AUTH = {'tag': 'public.ecr.aws/supabase/gotrue:v2.197.0',
               'id': 'sha256:1736a63078f5922b198c4cbe50f80ab9a2d3b54fe8b7b6cfb2e9dc5dbbc12c6b',
               'digests': ['public.ecr.aws/supabase/gotrue@sha256:1736a63078f5922b198c4cbe50f80ab9a2d3b54fe8b7b6cfb2e9dc5dbbc12c6b']}
 # The releases, in the order they are published, each on top of the one before:
-#   good       v0.9.1  the `good` candidate (a newer PostgREST), installed from the console
+#   good       v0.9.1  the `good` candidate (another PostgREST), installed from the console
 #   broken     v0.9.2  the `bad` candidate (a PostgREST that never answers), moved back by itself
 #   automatic  v0.9.3  good's tree again, installed by automatic mode inside its window
-#   attended   v0.9.4  a newer GoTrue (Auth), installed once the operator confirms its warning
+#   attended   v0.9.4  another GoTrue (Auth), installed once the operator confirms its warning
 RELEASES = {'good': 'v0.9.1', 'broken': 'v0.9.2', 'automatic': 'v0.9.3', 'attended': 'v0.9.4'}
 CHANNEL_STAGES = {'good': 'channel-applied', 'broken': 'channel-rolled-back', 'automatic': 'channel-automatic',
                   'attended': 'channel-attended'}
@@ -775,6 +832,7 @@ def release_parts(name, commits, releases, source):
         return tree(releases['good']['commit']), releases['broken']['commit'], None
     parent = releases['automatic']['commit']
     lock = json.loads(git('show', f'{parent}:lab/images.lock.json', cwd=source))
+    candidate_move(lock['auth'], NEWER_AUTH)
     lock['auth'] = NEWER_AUTH
     return tree(parent), parent, {'lab/images.lock.json': json.dumps(lock, indent=2) + '\n'}
 
@@ -956,7 +1014,7 @@ def event_checks(check, name, version, trigger, kind):
 def pin_checks(check, name, now):
     values = now['environments'].values()
     if name == 'attended':
-        check('every Auth container and the management Auth run the newer GoTrue',
+        check('every Auth container and the management Auth run the GoTrue the attended release pins',
               bool(now['environments']) and all(item.get('auth_on_pin') for item in values) and now.get('management_auth_on_pin'),
               now.get('auth_tag'))
     else:
@@ -1071,7 +1129,7 @@ def channel_journal(name, path):
 CHANNEL_DESCRIPTIONS = {
     'channel-base': 'The installation moved with `upgrade.py start --to` onto a base commit that lists a throwaway release '
                     'key beside the maintainer key, and a systemd drop-in pointed the service at a local release source.',
-    'channel-applied': f"{RELEASES['good']} (PostgREST v14.15 to v14.16), checked for and installed from the console as the "
+    'channel-applied': f"{RELEASES['good']} ({{rest}}), checked for and installed from the console as the "
                        'operator: the drain, exit 42, the restart by systemd, the start guard, the gated start with '
                        'application traffic answered 503 until the confirmation.',
     'channel-rolled-back': f"{RELEASES['broken']}, whose PostgREST never answers, installed from the console the same way: "
@@ -1080,7 +1138,7 @@ CHANNEL_DESCRIPTIONS = {
     'channel-automatic': 'Automatic updates turned on with a window around the server time: the release that moved back was '
                          f"not tried again, and {RELEASES['automatic']}, published afterwards, installed itself after "
                          '"check now" and was confirmed with trigger automatic.',
-    'channel-attended': f"{RELEASES['attended']} (Auth, GoTrue v2.196.0 to v2.197.0): automatic mode left it alone, the "
+    'channel-attended': f"{RELEASES['attended']} (Auth, {{auth}}): automatic mode left it alone, the "
                         'console refused it without the acknowledgement and installed it with it, and the operator signed '
                         'in again afterwards.',
 }
@@ -1105,7 +1163,7 @@ def evidence(path, required):
             'scope': 'One installation with its environments in the local rehearsal VM under systemd, not a real server. '
                      'Releases came from a local bare repository named by SBARBASE_RELEASE_SOURCE, signed with a throwaway '
                      'key listed for the rehearsal, not from the canonical repository or with the maintainer key. '
-                     + ' '.join(CHANNEL_DESCRIPTIONS[stage] for stage in stages) + data
+                     + ' '.join(described(CHANNEL_DESCRIPTIONS[stage], record.get('moves')) for stage in stages) + data
                      + ''.join(f' Skipped, {stage}: {reason}' for stage, reason in skipped.items())
                      + (f" Not run: {', '.join(missing)}." if missing else ''),
             'skipped': skipped, 'releases': (record.get('channel') or {}).get('releases', {}),
@@ -1113,7 +1171,7 @@ def evidence(path, required):
     else:
         document = {'check': 'upgrade',
                     'scope': 'One installation with its environments on a clean machine, not a real server. '
-                             + ' '.join(DESCRIPTIONS.get(stage, stage) for stage in stages) + data}
+                             + ' '.join(described(DESCRIPTIONS.get(stage, stage), record.get('moves')) for stage in stages) + data}
     Path(path).write_text(json.dumps({
         'check': document.pop('check'), 'recorded': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()), 'passed': passed,
         'count': len(rows), 'stages': stages, 'missing': missing, 'scope': document.pop('scope'), **document,

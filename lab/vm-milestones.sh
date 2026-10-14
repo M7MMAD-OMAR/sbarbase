@@ -183,7 +183,7 @@ upgrade)
   # file would make the next `upgrade.py start` refuse.
   rehearse_upgrade() {
     as_service "/usr/bin/python3 lab/upgrade-check.py before base=$base good=$good bad=$bad" || return 1
-    step "upgrade to a newer PostgREST"
+    step "upgrade to another PostgREST"
     as_service "/usr/bin/python3 lab/upgrade.py start --to $good" || return 1
     guest 'sudo systemctl restart sbarbase'
     phase confirmed || { printf 'FAIL: the upgrade was not confirmed\n' >&2; return 1; }
