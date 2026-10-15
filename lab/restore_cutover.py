@@ -127,14 +127,14 @@ def archive_sql(api, admitted, archive, database, stage):
 
 def restore(api, scope, name, now):
     api.no_pending_completion()
-    database = api.STORAGE_DATABASE if scope == api.STORAGE else scope
+    database = api.scope_database(scope)
     archive = api.BACKUPS / scope / name
-    manifest = api.verify_storage(archive) if scope == api.STORAGE else api.verify(scope, archive)
+    manifest = api.verify_scope(scope, archive)
     if scope == api.STORAGE:
         missing = [item for item in api.environments() if item not in manifest['tenants']]
         if missing:
             raise api.BackupError('Shared metadata archive omits published environments: ' + ', '.join(missing))
-    elif scope not in api.published():
+    elif scope not in api.DATABASE_SCOPES and scope not in api.published():
         raise api.BackupError('Only a published environment can be restored')
     admitted = api.preflight()
     storage_cid = storage(api)
@@ -148,11 +148,11 @@ def restore(api, scope, name, now):
         raise api.BackupError('Restore target is already fenced')
     if api.sql("SELECT count(*) FROM pg_database WHERE datname IN ('" + stage + "','" + previous + "');") != '0':
         raise api.BackupError('Restore stage or predecessor already exists')
-    if scope != api.STORAGE:
+    if scope not in api.DATABASE_SCOPES:
         restore_files.admit_tar(archive / 'objects.tar', scope)
     record = {'restored_at': stamp, 'backup': name, 'previous_database': previous, 'counts': manifest['counts']}
     files = None
-    if scope != api.STORAGE:
+    if scope not in api.DATABASE_SCOPES:
         aside = '.pre-restore-' + scope + '-' + stamp
         record['previous_files'] = aside
         files = {'aside': aside, 'stage': '.stage-restore-' + scope + '-' + stamp,
@@ -161,7 +161,7 @@ def restore(api, scope, name, now):
                'container_id': admitted['db'], 'storage_cid': storage_cid, 'database': database,
                'original_oid': original_oid, 'stage': stage, 'stage_oid': None, 'previous': previous,
                'archive': {'manifest': api.digest(archive / 'manifest.json'), 'database': api.digest(archive / 'database.dump'),
-                           'objects': None if scope == api.STORAGE else api.digest(archive / 'objects.tar')},
+                           'objects': None if scope in api.DATABASE_SCOPES else api.digest(archive / 'objects.tar')},
                'files': files, 'record': record}
     with archive_sql(api, admitted, archive, database, stage) as (plan, replay):
         if plan.roles:
@@ -199,8 +199,7 @@ def restore(api, scope, name, now):
                 held.execute('SET max_parallel_workers_per_gather=0; SET max_parallel_maintenance_workers=0;')
                 held.replay(replay)
                 held.execute('\n'.join(plan.metadata))
-                actual = api.parse_storage_counts(held.execute(api.STORAGE_COUNTS)) if scope == api.STORAGE else api.parse_counts(held.execute(api.COUNTS))
-                expected = {'tenants': manifest['counts']['tenants'], 'ids': manifest['tenants']} if scope == api.STORAGE else manifest['counts']
+                actual, expected = api.restore_counts(scope, held.execute), api.expected_counts(scope, manifest)
                 if actual != expected or held.execute('SELECT pg_backend_pid();') != pid:
                     raise api.BackupError('Retained restore validation differs from archive')
             require_database(api, stage, stage_oid)
@@ -209,8 +208,8 @@ def restore(api, scope, name, now):
             phase(api, journal, 'stop-intent')
             api.run(['docker', 'stop', storage_cid])
             storage(api, storage_cid, stopped=True)
-            if scope != api.STORAGE:
-                api.run(['docker', 'stop', *api.service_names(scope)])
+            if api.scope_services(scope):
+                api.run(['docker', 'stop', *api.scope_services(scope)])
             phase(api, journal, 'writers-stopped')
             phase(api, journal, 'old-fence-intent')
             require_database(api, database, original_oid)
@@ -273,11 +272,11 @@ def recover(api, scope, name, stamp):
     if (journal['backup'], journal['stamp']) != (name, stamp):
         raise api.BackupError('Restore recovery identity differs')
     archive = api.BACKUPS / scope / name
-    manifest = api.verify_storage(archive) if scope == api.STORAGE else api.verify(scope, archive)
+    manifest = api.verify_scope(scope, archive)
     admitted = api.preflight()
     if admitted['db'] != journal['container_id'] or journal['archive'] != {
         'manifest': api.digest(archive / 'manifest.json'), 'database': api.digest(archive / 'database.dump'),
-        'objects': None if scope == api.STORAGE else api.digest(archive / 'objects.tar')} \
+        'objects': None if scope in api.DATABASE_SCOPES else api.digest(archive / 'objects.tar')} \
             or journal['record']['counts'] != manifest['counts']:
         raise api.BackupError('Restore recovery archive or container identity differs')
     storage(api, journal['storage_cid'])
@@ -292,9 +291,7 @@ def recover(api, scope, name, stamp):
             api.sql('ALTER DATABASE ' + journal['database'] + ' ALLOW_CONNECTIONS true;')
         phase(api, journal, 'original-opened')
         api.wait_storage(api.start_storage())
-        if scope != api.STORAGE:
-            api.start_services(scope)
-            api.wait_healthy(scope)
+        api.start_scope(scope)
         phase(api, journal, 'rolled-back')
         return {'status': 'rolled-back', 'backup': name}
     if action == 'preserve-restored-writes' or journal['phase'] == 'open-intent' \
@@ -312,8 +309,8 @@ def recover(api, scope, name, stamp):
     operation.admit_workers(workers, image=api.image_pin('distro-image.lock.json')['id'] if 'native' in workers else None, database=journal['database'])
     api.run(['docker', 'stop', journal['storage_cid']])
     storage(api, journal['storage_cid'], stopped=True)
-    if scope != api.STORAGE:
-        api.run(['docker', 'stop', *api.service_names(scope)])
+    if api.scope_services(scope):
+        api.run(['docker', 'stop', *api.scope_services(scope)])
     if inventory(api, journal) != state:
         raise api.BackupError('Restore recovery identities changed after writer stop')
     # Freeze both admitted OIDs once more before verifying immutable file trees.
@@ -360,8 +357,6 @@ def recover(api, scope, name, stamp):
     api.sql('ALTER DATABASE ' + journal['database'] + ' ALLOW_CONNECTIONS true;')
     phase(api, journal, 'original-opened')
     api.wait_storage(api.start_storage())
-    if scope != api.STORAGE:
-        api.start_services(scope)
-        api.wait_healthy(scope)
+    api.start_scope(scope)
     phase(api, journal, 'rolled-back')
     return {'status': 'rolled-back', 'backup': name}

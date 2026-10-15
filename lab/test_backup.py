@@ -512,7 +512,10 @@ class StorageMetadataTests(Fixture):
             if len(seen) == 2:
                 raise backup.BackupError('dump failed')
             return self.storage(now.strftime('%Y%m%dT%H%M%SZ')), {'database': {'bytes': 1}, 'counts': {'tenants': 1}}
+        def create_management(keep, now, reason, protected):
+            return self.storage(now.strftime('%Y%m%dT%H%M%SZ')), {'database': {'bytes': 1}, 'counts': {'auth.users': 1}}
         with patch.object(backup, 'create', create), patch.object(backup, 'create_storage', create_storage), \
+                patch.object(backup, 'create_management', create_management), \
                 patch.object(backup_offsite, 'write_installation'), patch.object(offsite, 'load_config', return_value=None), \
                 patch('sys.stderr'), patch('builtins.print'):
             self.assertEqual(backup.main(['create', 'all', '--reason', 'upgrade', '--local-only']), 0)
@@ -539,6 +542,345 @@ class StorageMetadataTests(Fixture):
         with patch.object(backup, 'sql', sql), contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(backup.main(['discard-previous', 'storage']), 0)
         self.assertEqual(dropped[-1], 'DROP DATABASE storage_metadata_pre_20260901t030000z WITH (FORCE);')
+
+
+class ManagementDatabaseTests(Fixture):
+    """The management realm's Auth database is backed up with every run and restored through the
+    same fenced cutover, so an Auth release that migrates the operator accounts has a way back."""
+
+    def management(self, stamp, counts=None, reason=None):
+        path = backup.private_dir(self.backups / backup.MANAGEMENT / stamp)
+        (path / 'database.dump').write_bytes(b'management-' + stamp.encode())
+        manifest = {'version': 1, 'kind': 'management', 'created_at': stamp,
+                    'database': {'file': 'database.dump', 'name': 'management',
+                                 'bytes': (path / 'database.dump').stat().st_size,
+                                 'sha256': backup.digest(path / 'database.dump')},
+                    'counts': counts or {'auth.users': 2, 'auth.identities': 2}}
+        if reason:
+            manifest['reason'] = reason
+        (path / 'manifest.json').write_text(json.dumps(manifest))
+        return path
+
+    def test_the_dump_is_taken_inside_the_snapshot_its_counts_came_from(self):
+        import datetime
+        import io
+        sessions, written, dumped = [], [], []
+
+        class Session:
+            def __init__(self, argv, **kwargs):
+                sessions.append(list(argv))
+                self.stdin = io.StringIO()
+                self.stdin.close = lambda: written.append(self.stdin.getvalue())
+                self.stdout = io.StringIO('00000003-0000002B-1\n3|4\n')
+                self.done = False
+
+            def poll(self):
+                return 0 if self.done else None
+
+            def wait(self, timeout=None):
+                self.done = True
+                return 0
+
+        auth = {'tag': 'public.ecr.aws/supabase/gotrue:v2.196.0', 'id': 'sha256:' + '3' * 64}
+        with patch.object(backup.subprocess, 'Popen', Session), patch.object(backup, 'run', lambda argv, **kw: dumped.append(list(argv))), \
+                patch.object(backup, 'image_pin', return_value=auth):
+            now = datetime.datetime(2026, 9, 25, 3, tzinfo=datetime.UTC)
+            with patch.object(backup, 'ROOT', self.state):
+                (self.state / 'lab').mkdir()
+                (self.state / 'lab' / 'distro-image.lock.json').write_text(json.dumps({'id': 'sha256:' + '1' * 64}))
+                with patch.object(backup, 'prune', wraps=backup.prune) as pruned:
+                    path, manifest = backup.create_management(now=now, reason='upgrade')
+                # Every run applies retention to the management backups too.
+                pruned.assert_called_once_with(backup.MANAGEMENT, backup.DEFAULT_KEEP, None)
+                with self.assertRaisesRegex(backup.BackupError, 'already exists'):
+                    backup.create_management(now=now)
+        self.assertEqual(path, self.backups / 'management' / '20260925T030000Z')
+        self.assertEqual(sessions[0][-1], 'management')
+        self.assertIn('FROM auth.users', written[0])
+        self.assertTrue(written[0].rstrip().endswith('COMMIT;'))
+        self.assertEqual(dumped[0][-2:], ['-d', 'management'])
+        self.assertIn('--snapshot=00000003-0000002B-1', dumped[0])
+        self.assertEqual(manifest['counts'], {'auth.users': 3, 'auth.identities': 4})
+        self.assertEqual(manifest['images']['auth'], auth['id'])
+        self.assertEqual(backup.verify_management(path)['kind'], 'management')
+        self.assertEqual(backup.upgrade_runs(), {'20260925T030000Z'})
+
+    def test_a_changed_an_incomplete_or_a_misplaced_backup_is_refused(self):
+        path = self.management('20260901T030000Z')
+        self.assertEqual(backup.verify_scope(backup.MANAGEMENT, path)['counts']['auth.users'], 2)
+        (path / 'database.dump').write_bytes(b'tampered')
+        with self.assertRaisesRegex(backup.BackupError, 'digest'):
+            backup.verify_management(path)
+        with self.assertRaisesRegex(backup.BackupError, 'incomplete'):
+            backup.verify_management(backup.private_dir(self.backups / 'management' / '20260902T030000Z'))
+        with self.assertRaisesRegex(backup.BackupError, 'Not a management'):
+            backup.verify_management(self.complete('20260903T030000Z'))
+        # A Storage metadata backup placed in the management folder is not taken for one.
+        misplaced = backup.private_dir(self.backups / 'management' / '20260904T030000Z')
+        storage = StorageMetadataTests.storage(self, '20260904T030000Z')
+        for name in ('database.dump', 'manifest.json'):
+            (misplaced / name).write_bytes((storage / name).read_bytes())
+        with self.assertRaisesRegex(backup.BackupError, 'another format'):
+            backup.verify_management(misplaced)
+
+    def test_a_successful_restore_stops_the_management_auth_and_keeps_the_previous_database(self):
+        from test_restore_cutover import NativeModel
+        path = self.management('20260901T030000Z')
+        with NativeModel(self, scope=backup.MANAGEMENT) as model:
+            record = model.restore()
+            self.assertEqual(model.dbs['management']['oid'], '20000')
+            self.assertEqual(model.dbs[record['previous_database']], {'oid': '100', 'allow_connections': False})
+            self.assertEqual(record['previous_database'], 'management_pre_' + record['restored_at'])
+            self.assertNotIn('previous_files', record)
+            stop = next(event for event in model.events if event[0] == 'stop')
+            self.assertEqual(stop[1], 'stop-intent')
+            self.assertTrue(model.running and model.management_running)
+            # The management Auth itself stops, beside Storage, and no environment's services do.
+            self.assertEqual(model.stopped, [model.cid, backup.MANAGEMENT_CONTAINER])
+            # The database-level settings of the dump follow the stage onto the restored database.
+            held = '\n'.join(model.metadata)
+            self.assertIn('GRANT CONNECT ON DATABASE', held)
+            self.assertIn('ALTER ROLE management_auth IN DATABASE', held)
+            self.assertIn('CONNECTION LIMIT = 5', held)
+            names = [event[0] for event in model.events]
+            # The restore waits for the management Auth it started, at the address it published.
+            self.assertEqual(names[names.index('start-management') + 1], 'wait-management')
+            self.assertEqual(model.waited, ['http://10.0.0.8:9999'])
+            self.assertFalse(any(event[0] in ('drop', 'files', 'start-services') for event in model.events))
+            self.assertTrue(any(item.name.startswith('restore-') for item in path.iterdir()))
+            self.assertEqual(model.journal()['phase'], 'completed')
+            self.assertEqual(backup.restore_status(), [])
+            names = [event[0] for event in model.events]
+            self.assertLess(names.index('stop'), names.index('rename'), 'the writers stop before any rename')
+
+    def test_recovery_after_a_rename_stops_the_management_auth_before_renaming_back(self):
+        from test_restore_cutover import NativeModel
+        self.management('20260901T030000Z')
+        with NativeModel(self, scope=backup.MANAGEMENT, fail='rename') as model:
+            with self.assertRaisesRegex(backup.BackupError, 'recover-restore management'):
+                model.restore()
+            model.fail, model.management_running, model.stopped, seen = None, True, [], len(model.events)
+            self.assertEqual(model.recover()['status'], 'rolled-back')
+            names = [event[0] for event in model.events[seen:]]
+            self.assertIn(backup.MANAGEMENT_CONTAINER, model.stopped)
+            self.assertLess(names.index('stop'), names.index('rename'))
+            self.assertEqual(model.dbs['management']['oid'], '100')
+
+    def test_operator_counts_that_differ_from_the_backup_refuse_before_cutover(self):
+        from test_restore_cutover import NativeModel
+        self.management('20260901T030000Z')
+        with NativeModel(self, scope=backup.MANAGEMENT, actual='1|1') as model:
+            with self.assertRaisesRegex(backup.BackupError, 'recover-restore management'):
+                model.restore()
+            self.assertFalse(any(event[0] in ('rename', 'stop') for event in model.events))
+            self.assertEqual(backup.restore_status()[0]['scope'], 'management')
+            self.assertEqual(model.recover()['status'], 'rolled-back')
+            self.assertEqual(model.dbs, {'management': {'oid': '100', 'allow_connections': True}})
+            # Recovery stops the management Auth before touching the databases, and starts it again.
+            self.assertIn(backup.MANAGEMENT_CONTAINER, model.stopped)
+            self.assertTrue(model.management_running)
+            self.assertFalse(backup.completion_path(backup.MANAGEMENT).exists())
+
+    def test_a_management_auth_that_does_not_come_back_leaves_readiness_to_complete_restore(self):
+        from test_restore_cutover import NativeModel
+        self.management('20260901T030000Z')
+        with NativeModel(self, scope=backup.MANAGEMENT, fail='start-management') as model:
+            with self.assertRaisesRegex(backup.BackupError, 'complete-restore management 20260901T030000Z'):
+                model.restore()
+            stamp = model.journal()['stamp']
+            self.assertEqual(backup.restore_status()[0]['scope'], 'management')
+            # Data is restored and kept; readiness alone is retried, with nothing replayed.
+            record = backup.complete_restore(backup.MANAGEMENT, '20260901T030000Z', stamp)
+            self.assertEqual(record['previous_database'], 'management_pre_' + stamp)
+            self.assertTrue(model.management_running)
+            self.assertEqual(backup.restore_status(), [])
+
+    def test_a_management_auth_that_never_answers_leaves_the_restore_incomplete(self):
+        from test_restore_cutover import NativeModel
+        self.management('20260901T030000Z')
+        with NativeModel(self, scope=backup.MANAGEMENT, fail='wait-management') as model:
+            with self.assertRaisesRegex(backup.BackupError, 'complete-restore management 20260901T030000Z'):
+                model.restore()
+            self.assertNotEqual(model.journal()['phase'], 'completed')
+            # complete-restore waits again before it records completion.
+            backup.complete_restore(backup.MANAGEMENT, '20260901T030000Z', model.journal()['stamp'])
+            self.assertEqual(model.waited, ['http://10.0.0.8:9999'] * 2)
+            self.assertEqual(backup.restore_status(), [])
+
+    def test_a_new_management_auth_address_is_announced_until_sbarbase_restarts(self):
+        import io
+        import os
+        server, marker = self.state / 'server.json', self.state / backup.MANAGEMENT_RESTART
+        server.write_text('{}')
+        os.utime(server, (200, 200))
+        self.assertIsNone(backup.address_notice())
+        # A restore moved the address while that console ran; every later command says so.
+        backup.mark_management_moved()
+        os.utime(marker, (300, 300))
+        self.assertIn('restart Sbarbase', backup.address_notice())
+        # A console that started at about the same moment may have read the old address.
+        os.utime(server, (305, 305))
+        self.assertIn('restart Sbarbase', backup.address_notice())
+        os.utime(server, (200, 200))
+        restored = {'previous_database': 'management_pre_x'}
+        for argv, target in ((['restore-management', '20260901T030000Z'], 'restore_management'),
+                             (['complete-restore', 'management', '20260901T030000Z', '20261003t060000z'], 'complete_restore'),
+                             (['recover-restore', 'management', '20260901T030000Z', '20261003t060000z'], 'recover_restore')):
+            with self.subTest(command=argv[0]), patch.object(backup, target, return_value=restored), \
+                    contextlib.redirect_stdout(io.StringIO()) as out:
+                self.assertEqual(backup.main(argv), 0)
+                self.assertIn('restart Sbarbase', out.getvalue())
+        with patch.object(backup, 'restore_status', return_value=[]), contextlib.redirect_stdout(io.StringIO()) as out:
+            backup.main(['restore-status'])
+        self.assertIn('restart Sbarbase', out.getvalue())
+        self.assertTrue(marker.exists(), 'status only reads')
+        # Sbarbase restarted clearly after the move: that console read the new address.
+        os.utime(server, (400, 400))
+        self.assertIsNone(backup.address_notice())
+        # No console running: the next one reads the new address.
+        server.unlink()
+        self.assertIsNone(backup.address_notice())
+
+    def test_the_marker_is_written_before_the_new_address_so_an_interruption_keeps_the_notice(self):
+        import durable_runtime
+        (self.state / 'management.json').write_text(json.dumps({'auth': 'http://10.0.0.2:9999'}))
+        order = []
+        item = {'NetworkSettings': {'Networks': {durable_runtime.NETWORK: {'IPAddress': '10.0.0.8'}}}}
+
+        def published(path, value):
+            order.append('address')
+            raise OSError('killed before the address was published')
+        with patch.object(backup, 'run', lambda argv, **kw: None), patch.object(durable_runtime, 'inspect', return_value=item), \
+                patch.object(durable_runtime, 'atomic', published), \
+                patch.object(backup, 'mark_management_moved', side_effect=lambda: order.append('marker')):
+            with self.assertRaises(OSError):
+                backup.start_management()
+        self.assertEqual(order, ['marker', 'address'])
+
+    def test_restore_management_fetches_an_offsite_set_that_is_not_here(self):
+        import io
+        import backup_offsite
+        fetched = []
+        with patch.object(backup_offsite, 'fetch', side_effect=fetched.append), \
+                patch.object(backup, 'restore_management', return_value={'previous_database': 'management_pre_x'}), \
+                contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(backup.main(['restore-management', '20260901T030000Z', '--offsite']), 0)
+            self.management('20260902T030000Z')
+            self.assertEqual(backup.main(['restore-management', '20260902T030000Z', '--offsite']), 0)
+        self.assertEqual(fetched, ['20260901T030000Z'])
+
+    def test_a_manifest_with_other_or_negative_counts_is_another_format(self):
+        for counts in ({'auth.users': 2}, {'auth.users': 2, 'auth.identities': 2, 'tenants': 1},
+                       {'auth.users': -1, 'auth.identities': 0}, {'auth.users': '2', 'auth.identities': 2}):
+            path = self.management('20260905T030000Z', counts=counts)
+            with self.subTest(counts=counts), self.assertRaisesRegex(backup.BackupError, 'another format'):
+                backup.verify_management(path)
+
+    def test_every_full_run_backs_it_up_and_a_failure_fails_the_run(self):
+        import backup_offsite
+        import offsite
+        seen = []
+
+        def create(e, keep, now, reason, protected):
+            return self.complete(now.strftime('%Y%m%dT%H%M%SZ')), {'database': {'bytes': 1}, 'objects': {'files': 0},
+                                                                   'counts': {'auth.users': 1}}
+
+        def create_storage(keep, now, reason, protected):
+            return StorageMetadataTests.storage(self, now.strftime('%Y%m%dT%H%M%SZ')), {'database': {'bytes': 1}, 'counts': {'tenants': 1}}
+
+        def create_management(keep, now, reason, protected):
+            seen.append(reason)
+            if len(seen) == 2:
+                raise backup.BackupError('dump failed')
+            return self.management(now.strftime('%Y%m%dT%H%M%SZ')), {'database': {'bytes': 1}, 'counts': {'auth.users': 2}}
+        with patch.object(backup, 'create', create), patch.object(backup, 'create_storage', create_storage), \
+                patch.object(backup, 'create_management', create_management), \
+                patch.object(backup_offsite, 'write_installation'), patch.object(offsite, 'load_config', return_value=None), \
+                patch('sys.stderr'), patch('builtins.print'):
+            self.assertEqual(backup.main(['create', 'all', '--reason', 'upgrade', '--local-only']), 0)
+            self.assertEqual(backup.main(['create', 'all', '--local-only']), 1)
+            self.assertEqual(backup.main(['create', E, '--local-only']), 0)
+        self.assertEqual(seen, ['upgrade', None])
+
+    def test_pruning_keeps_upgrade_backups_and_the_one_a_restore_completed_from(self):
+        stamps = ['20260901T030000Z', '20260902T030000Z', '20260903T030000Z', '20260904T030000Z']
+        for stamp in stamps:
+            self.management(stamp)
+        backup.completion_path(backup.MANAGEMENT).parent.mkdir()
+        backup.completion_path(backup.MANAGEMENT).write_text(json.dumps({'status': 'completed', 'scope': backup.MANAGEMENT, 'backup': stamps[1]}))
+        with patch.object(backup, 'no_pending_completion', lambda: None):
+            doomed = backup.prune(backup.MANAGEMENT, 1, {stamps[0]})
+        self.assertEqual([path.name for path in doomed], [stamps[2]])
+        self.assertEqual(sorted(path.name for path in (self.backups / backup.MANAGEMENT).iterdir()),
+                         [stamps[0], stamps[1], stamps[3]])
+
+    def test_listing_and_discarding_what_a_restore_set_aside(self):
+        import io
+        self.management('20260901T030000Z', reason='upgrade')
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(backup.main(['list']), 0)
+        self.assertIn('management  20260901T030000Z', out.getvalue())
+        self.assertIn('operators 2', out.getvalue())
+        dropped = []
+
+        def sql(query, database='postgres'):
+            dropped.append(query)
+            return 'management_pre_20260901t030000z\n' if query.startswith('SELECT') else ''
+        with patch.object(backup, 'sql', sql), contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(backup.main(['discard-previous', 'management']), 0)
+        self.assertEqual(dropped[-1], 'DROP DATABASE management_pre_20260901t030000z WITH (FORCE);')
+
+    def test_the_management_auth_is_published_again_after_its_restart(self):
+        import durable_runtime
+        (self.state / 'management.json').write_text(json.dumps({'auth': 'http://10.0.0.2:9999'}))
+        started = []
+        item = {'NetworkSettings': {'Networks': {durable_runtime.NETWORK: {'IPAddress': '10.0.0.8'}}}}
+        with patch.object(backup, 'run', lambda argv, **kw: started.append(argv)), \
+                patch.object(durable_runtime, 'inspect', return_value=item), \
+                patch.object(durable_runtime, 'atomic', lambda path, value: path.write_text(json.dumps(value))):
+            self.assertEqual(backup.start_management(), 'http://10.0.0.8:9999')
+        self.assertEqual(started, [['docker', 'start', backup.MANAGEMENT_CONTAINER]])
+        self.assertEqual(json.loads((self.state / 'management.json').read_text()), {'auth': 'http://10.0.0.8:9999'})
+        self.assertTrue((self.state / backup.MANAGEMENT_RESTART).exists(), 'a moved address is recorded for the notice')
+        # Back on the same address, the file is left alone, so no restart is announced.
+        written = []
+        with patch.object(backup, 'run', lambda argv, **kw: None), patch.object(durable_runtime, 'inspect', return_value=item), \
+                patch.object(durable_runtime, 'atomic', lambda path, value: written.append(value)):
+            backup.start_management()
+        self.assertEqual(written, [])
+
+    def test_the_health_wait_returns_only_when_the_management_auth_answers(self):
+        import urllib.request
+        answers = [OSError('refused'), type('Response', (), {'status': 503, '__enter__': lambda self: self,
+                                                             '__exit__': lambda self, *a: None})(),
+                   type('Response', (), {'status': 200, '__enter__': lambda self: self,
+                                         '__exit__': lambda self, *a: None})()]
+        asked = []
+
+        def urlopen(url, timeout):
+            asked.append(url)
+            answer = answers.pop(0)
+            if isinstance(answer, Exception):
+                raise answer
+            return answer
+        with patch.object(urllib.request, 'urlopen', urlopen), patch.object(backup.time, 'sleep'):
+            self.assertTrue(backup.wait_management('http://10.0.0.8:9999'))
+        self.assertEqual(asked, ['http://10.0.0.8:9999/health'] * 3)
+        with patch.object(urllib.request, 'urlopen', side_effect=OSError('refused')), \
+                patch.object(backup.time, 'sleep'), patch.object(backup.time, 'time', side_effect=[0, 1, 2, 999]):
+            with self.assertRaisesRegex(backup.BackupError, 'did not come back'):
+                backup.wait_management('http://10.0.0.8:9999', timeout=10)
+
+    def test_both_operator_counts_are_checked(self):
+        self.assertEqual(backup.parse_management_counts('2|3'), {'auth.users': 2, 'auth.identities': 3})
+        self.assertEqual(backup.restore_counts(backup.MANAGEMENT, lambda query: '2|3' if 'auth.identities' in query else 'x'),
+                         {'auth.users': 2, 'auth.identities': 3})
+        from test_restore_cutover import NativeModel
+        self.management('20260901T030000Z')
+        with NativeModel(self, scope=backup.MANAGEMENT, actual='2|1') as model:
+            with self.assertRaisesRegex(backup.BackupError, 'recover-restore management'):
+                model.restore()
+            self.assertFalse(any(event[0] == 'rename' for event in model.events))
 
 
 if __name__ == '__main__':

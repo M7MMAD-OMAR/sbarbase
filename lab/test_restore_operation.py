@@ -5,15 +5,15 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from restore_operation import OperationError, admit_workers, publish, read_journal, recovery_database_action, validate
+from restore_operation import DATABASES, OperationError, admit_workers, publish, read_journal, recovery_database_action, validate
 
 
 def journal(scope='e_' + 'a' * 24):
     stamp = '20261003t100000z'
-    db = 'storage_metadata' if scope == 'storage' else scope
+    db = DATABASES.get(scope, scope)
     record = {'restored_at': stamp, 'backup': '20261003T090000Z', 'previous_database': db + '_pre_' + stamp, 'counts': {}}
     files = None
-    if scope != 'storage':
+    if scope not in DATABASES:
         aside = '.pre-restore-' + scope + '-' + stamp
         files = {'aside': aside, 'stage': '.stage-restore-' + scope + '-' + stamp, 'original': None, 'restored': None}
         record['previous_files'] = aside
@@ -21,7 +21,7 @@ def journal(scope='e_' + 'a' * 24):
             'stamp': stamp, 'container_id': 'b' * 64, 'database': db, 'original_oid': '12345',
             'storage_cid': 'f' * 64,
             'stage': db + '_stage_' + stamp, 'stage_oid': None, 'previous': db + '_pre_' + stamp,
-            'archive': {'manifest': 'c' * 64, 'database': 'd' * 64, 'objects': None if scope == 'storage' else 'e' * 64},
+            'archive': {'manifest': 'c' * 64, 'database': 'd' * 64, 'objects': None if scope in DATABASES else 'e' * 64},
             'files': files, 'record': record}
 
 
@@ -33,7 +33,7 @@ def workers(**updates):
 
 class RestoreOperationIdentityTests(unittest.TestCase):
     def test_initial_and_each_cutover_phase_admit_exact_identity(self):
-        for scope in ('storage', 'e_' + 'a' * 24):
+        for scope in ('storage', 'management', 'e_' + 'a' * 24):
             value = journal(scope)
             self.assertIs(validate(value), value)
             value['stage_oid'] = '23456'
@@ -61,6 +61,24 @@ class RestoreOperationIdentityTests(unittest.TestCase):
                 value = journal()
                 value['archive'][key] = 'bad'
                 validate(value)
+
+    def test_a_shared_database_scope_names_its_own_database_and_never_files(self):
+        value = journal('management')
+        self.assertEqual((value['database'], value['stage'][:17]), ('management', 'management_stage_'))
+        validate(value)
+        for key, item in (('database', 'storage_metadata'), ('files', journal()['files'])):
+            altered = copy.deepcopy(value)
+            altered[key] = item
+            with self.subTest(key=key), self.assertRaises(OperationError):
+                validate(altered)
+        altered = copy.deepcopy(value)
+        altered['archive']['objects'] = 'e' * 64
+        with self.assertRaises(OperationError):
+            validate(altered)
+        altered = copy.deepcopy(value)
+        altered['scope'] = 'managements'
+        with self.assertRaises(OperationError):
+            validate(altered)
 
     def test_exact_file_and_success_record_identity(self):
         value = journal()
@@ -176,7 +194,9 @@ class RestoreWorkerAdmissionTests(unittest.TestCase):
         image = 'sha256:b3bfedb107413abb3b8cb0d0874b0414a1dceb3d55bc0c778de6ad22d1f7dc86'
         target = 'e_' + 'a' * 24
         self.assertTrue(admit_workers(native, image=image, database=target))
-        self.assertTrue(admit_workers(native, image=image, database='storage_metadata'))
+        # Every database a restore scope replaces is admitted on the pinned image, the management one too.
+        for database in ('storage_metadata', 'management'):
+            self.assertTrue(admit_workers(native, image=image, database=database))
         for key, value in (('image', None), ('image', 'sha256:' + 'f' * 64), ('database', 'postgres')):
             args = {'image': image, 'database': target, key: value}
             with self.subTest(key=key, value=value), self.assertRaises(OperationError):

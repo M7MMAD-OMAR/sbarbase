@@ -4,10 +4,11 @@
     backup.py list [<environment>]
     backup.py restore <environment> <backup> [--offsite]
     backup.py restore-storage <backup> [--offsite]
+    backup.py restore-management <backup> [--offsite]
     backup.py restore-status
-    backup.py recover-restore <environment|storage> <backup> <restore-stamp>
-    backup.py complete-restore <environment|storage> <backup> <restore-stamp>
-    backup.py discard-previous <environment|storage>
+    backup.py recover-restore <environment|storage|management> <backup> <restore-stamp>
+    backup.py complete-restore <environment|storage|management> <backup> <restore-stamp>
+    backup.py discard-previous <environment|storage|management>
     backup.py offsite-list
     backup.py offsite-fetch <backup>
     backup.py offsite-key <path>
@@ -31,7 +32,11 @@ retry. Use ``complete-restore`` for a printed readiness failure, without replayi
 ``create all`` gives every backup of the run one time, backs up Storage's shared metadata
 database (``storage_metadata``: every environment's Storage registration, its signing keys and
 the migration state Storage records per tenant) to ``.lab/backups/storage/<UTC time>/``, and
-writes the installation manifest (``.lab/backups/installation/<UTC time>/``). Storage migrates
+backs up the management realm's Auth database (``management``: the operator accounts, their
+factors and sessions) to ``.lab/backups/management/<UTC time>/``, and writes the installation
+manifest (``.lab/backups/installation/<UTC time>/``). ``restore-management`` stops the
+management Auth and the shared Storage process for the length of the restore and checks the
+operator account counts against the backup. Storage migrates
 that database when a new image starts, so an upgrade that changes the Storage pin is undone
 completely only with ``restore-storage`` from the same run as the environments' restores.
 ``restore-storage`` stops the shared Storage process for the length of the restore (every
@@ -82,6 +87,13 @@ STORAGE = 'storage'
 STORAGE_DATABASE = 'storage_metadata'
 STORAGE_CONTAINER = PREFIX + '-storage'
 STORAGE_PORT = 5000
+# The management realm's Auth database (lab/durable_runtime.py management()), backed up once per run
+# under its own folder, and the one Auth process that holds it open.
+MANAGEMENT = 'management'
+MANAGEMENT_DATABASE = 'management'
+MANAGEMENT_CONTAINER = PREFIX + '-management-auth'
+# Scopes that back up and restore one shared database and no object files.
+DATABASE_SCOPES = {STORAGE: STORAGE_DATABASE, MANAGEMENT: MANAGEMENT_DATABASE}
 RUNTIME = re.compile(r'e_[a-f0-9]{24}')
 UUID = re.compile(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}')
 STAMP = re.compile(r'\d{8}T\d{6}Z')
@@ -116,13 +128,15 @@ def sql(query, database='postgres'):
     return result.stdout.strip()
 
 
-def image_pin(filename):
-    """Read a strict logical pin without consulting the daemon or changing state."""
+def image_pin(filename, key=None):
+    """Read a strict logical pin without consulting the daemon or changing state; ``key`` names
+    one pin of a keyed lock."""
     try:
         pin = json.loads((ROOT / 'lab' / filename).read_text())
+        pin = pin[key] if key is not None else pin
         image_identity.reference(pin)
         return pin
-    except (OSError, ValueError, TypeError) as error:
+    except (OSError, ValueError, TypeError, KeyError) as error:
         raise BackupError('Invalid backup image lock: ' + filename) from error
 
 
@@ -255,6 +269,35 @@ def parse_storage_counts(out):
 
 def storage_counts():
     return parse_storage_counts(sql(STORAGE_COUNTS, STORAGE_DATABASE))
+
+
+# Operator accounts a restore must bring back exactly; never a credential column.
+MANAGEMENT_COUNTS = "SELECT (SELECT count(*) FROM auth.users), (SELECT count(*) FROM auth.identities);"
+
+
+def parse_management_counts(out):
+    users, identities = (int(value) for value in out.split('|'))
+    return {'auth.users': users, 'auth.identities': identities}
+
+
+def scope_database(scope):
+    """The database a backup scope names: an environment's own, or a shared one."""
+    return DATABASE_SCOPES.get(scope, scope)
+
+
+def restore_counts(scope, execute):
+    """The counts a restore checks, read through `execute` (one SQL statement, one result line)."""
+    if scope == STORAGE:
+        return parse_storage_counts(execute(STORAGE_COUNTS))
+    if scope == MANAGEMENT:
+        return parse_management_counts(execute(MANAGEMENT_COUNTS))
+    return parse_counts(execute(COUNTS))
+
+
+def expected_counts(scope, manifest):
+    if scope == STORAGE:
+        return {'tenants': manifest['counts']['tenants'], 'ids': manifest['tenants']}
+    return manifest['counts']
 
 
 @contextlib.contextmanager
@@ -407,6 +450,39 @@ def create_storage(keep=DEFAULT_KEEP, now=None, reason=None, protected=None):
     return target, manifest
 
 
+def create_management(keep=DEFAULT_KEEP, now=None, reason=None, protected=None):
+    """Back up the management database the way ``storage_metadata`` is backed up: pg_dump in custom
+    format inside one snapshot while the management Auth keeps serving, and the manifest last. The
+    manifest records operator account counts from that snapshot, which a restore checks."""
+    no_pending_completion()
+    if reason is not None and reason not in REASONS:
+        raise BackupError('Unknown backup reason')
+    admitted = preflight()
+    stamp = (now or datetime.datetime.now(datetime.UTC)).strftime('%Y%m%dT%H%M%SZ')
+    target = private_dir(BACKUPS / MANAGEMENT) / stamp
+    if target.exists():
+        raise BackupError('A management database backup with this time already exists')
+    private_dir(target)
+    fd = os.open(target / 'database.dump', os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, 'wb') as handle, \
+            snapshot(MANAGEMENT_DATABASE, MANAGEMENT_COUNTS, parse_management_counts) as (exported, before):
+        run(['docker', 'exec', admitted['db'], 'pg_dump', '-U', 'supabase_admin', '-Fc', f'--snapshot={exported}',
+             '-d', MANAGEMENT_DATABASE], stdout=handle, text=False)
+    manifest = {
+        'version': 1, 'kind': MANAGEMENT_DATABASE, 'created_at': stamp,
+        'database': {'file': 'database.dump', 'name': MANAGEMENT_DATABASE,
+                     'bytes': (target / 'database.dump').stat().st_size, 'sha256': digest(target / 'database.dump')},
+        'counts': before,
+        'images': {'db': json.loads((ROOT / 'lab' / 'distro-image.lock.json').read_text())['id'],
+                   'auth': image_pin('images.lock.json', 'auth')['id']},
+    }
+    if reason is not None:
+        manifest['reason'] = reason
+    write_private(target / 'manifest.json', json.dumps(manifest, indent=2) + '\n')
+    prune(MANAGEMENT, keep, protected)
+    return target, manifest
+
+
 def complete_backups(e):
     """Complete backups of one environment, oldest first."""
     folder = BACKUPS / e
@@ -500,7 +576,7 @@ def prune(e, keep, protected=None):
         raise BackupError('Keep at least one backup')
     complete = complete_backups(e)
     protected = upgrade_runs() if protected is None else protected
-    completion = completion_path(e) if e == STORAGE or RUNTIME.fullmatch(e) else None
+    completion = completion_path(e) if e in DATABASE_SCOPES or RUNTIME.fullmatch(e) else None
     completed_backup = json.loads(completion.read_text())['backup'] if completion and completion.exists() else None
     doomed = [path for path in complete if path.name not in protected and path.name != completed_backup][:-keep]
     newest = complete[-1].name if complete else ''
@@ -539,6 +615,37 @@ def verify(e, path, *, staged_stamp=None):
     return manifest
 
 
+def verify_management(path):
+    """The manifest of a complete management database backup whose dump matches its digest."""
+    if not STAMP.fullmatch(path.name) or path.parent != BACKUPS / MANAGEMENT:
+        raise BackupError('Not a management database backup')
+    manifest_path = path / 'manifest.json'
+    if not manifest_path.is_file():
+        raise BackupError('Backup is incomplete')
+    manifest = json.loads(manifest_path.read_text())
+    item = manifest.get('database') if isinstance(manifest, dict) else None
+    counts = manifest.get('counts') if isinstance(manifest, dict) else None
+    if not isinstance(item, dict) or manifest.get('version') != 1 or manifest.get('kind') != MANAGEMENT_DATABASE \
+            or not isinstance(counts, dict) or set(counts) != {'auth.users', 'auth.identities'} \
+            or not all(type(value) is int and value >= 0 for value in counts.values()):
+        raise BackupError('Backup belongs to another format')
+    file = path / 'database.dump'
+    if item.get('file') != 'database.dump' or not file.is_file():
+        raise BackupError('Backup database file is missing')
+    if file.stat().st_size != item.get('bytes') or digest(file) != item.get('sha256'):
+        raise BackupError('Backup database file does not match its digest')
+    return manifest
+
+
+def verify_scope(scope, path):
+    """The verified manifest of one backup of an environment or a shared database scope."""
+    if scope == STORAGE:
+        return verify_storage(path)
+    if scope == MANAGEMENT:
+        return verify_management(path)
+    return verify(scope, path)
+
+
 def verify_storage(path):
     """The manifest of a complete Storage metadata backup whose dump matches its digest."""
     if not STAMP.fullmatch(path.name) or path.parent != BACKUPS / STORAGE:
@@ -571,6 +678,87 @@ def wait_healthy(e, timeout=180):
         except Exception:
             time.sleep(2)
     raise BackupError('Auth did not come back after the restore')
+
+
+def scope_services(scope):
+    """The service containers a restore of this scope stops besides Storage, which every restore
+    stops: an environment's own services, the management Auth, or none for Storage itself."""
+    if scope == STORAGE:
+        return []
+    if scope == MANAGEMENT:
+        return [MANAGEMENT_CONTAINER]
+    return service_names(scope)
+
+
+def start_scope(scope):
+    """Start what a restore of this scope stopped besides Storage, and wait until it answers."""
+    if scope == MANAGEMENT:
+        wait_management(start_management())
+    elif scope != STORAGE:
+        start_services(scope)
+        wait_healthy(scope)
+
+
+def start_management():
+    """Start the management Auth again and publish its address, which a restart may change."""
+    run(['docker', 'start', MANAGEMENT_CONTAINER])
+    import durable_runtime
+    item = durable_runtime.inspect('container', MANAGEMENT_CONTAINER)
+    address = item['NetworkSettings']['Networks'][durable_runtime.NETWORK]['IPAddress'] if item else ''
+    if not address:
+        raise BackupError('Management Auth has no address after the restore')
+    endpoint = f'http://{address}:9999'
+    path = STATE / 'management.json'
+    current = json.loads(path.read_text()) if path.exists() else {}
+    # Rewritten only when the address moved, so only a move is announced (address_notice).
+    if current.get('auth') != endpoint:
+        # The marker first: an interruption between the two still leaves the notice standing.
+        mark_management_moved()
+        durable_runtime.atomic(path, {**current, 'auth': endpoint})
+    return endpoint
+
+
+RESTART = 'sudo systemctl restart sbarbase (or: docker compose restart, or stop and start lab/dev.py)'
+
+
+MANAGEMENT_RESTART = 'management-restart.json'
+# A console that writes server.json this long after the marker started after the address moved.
+RESTART_MARGIN = 10
+
+
+def mark_management_moved():
+    """Recorded, atomically and before the new address is published, when a restore starts the
+    management Auth on a new address: the console reads the address once, when it starts."""
+    atomic_private(STATE / MANAGEMENT_RESTART, {'moved_at': time.time()})
+
+
+def address_notice():
+    """What the operator must do while the console may hold an old management Auth address. Read
+    only, from the files: the notice stands while a console runs that wrote server.json (at its
+    start) before, or less than RESTART_MARGIN after, the move. A console that started clearly later
+    read the new address, and with none running the next one will."""
+    try:
+        moved = (STATE / MANAGEMENT_RESTART).stat().st_mtime
+        started = (STATE / 'server.json').stat().st_mtime
+    except OSError:
+        return None
+    if started > moved + RESTART_MARGIN:
+        return None
+    return ('The management Auth runs on a new address, and the console reads it only when it starts: '
+            'restart Sbarbase so operators can sign in again: ' + RESTART)
+
+
+def wait_management(endpoint, timeout=180):
+    import urllib.request
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            with urllib.request.urlopen(endpoint + '/health', timeout=5) as response:
+                if response.status == 200:
+                    return True
+        except Exception:
+            time.sleep(2)
+    raise BackupError('Management Auth did not come back after the restore')
 
 
 def service_names(e):
@@ -626,7 +814,7 @@ def atomic_private(path, value):
 
 
 def completion_path(scope):
-    if not isinstance(scope, str) or (scope != STORAGE and not RUNTIME.fullmatch(scope)):
+    if not isinstance(scope, str) or (scope not in DATABASE_SCOPES and not RUNTIME.fullmatch(scope)):
         raise BackupError('Invalid restore completion scope')
     return STATE / 'restore-completions' / (scope + '.json')
 
@@ -670,14 +858,14 @@ def database_oid(database):
 
 
 def checkpoint_restore(scope, name, stamp, admitted, record, storage_cid=None):
-    database = STORAGE_DATABASE if scope == STORAGE else scope
+    database = scope_database(scope)
     path = BACKUPS / scope / name
     checkpoint = {'version': 1, 'status': 'readiness-pending', 'scope': scope,
                   'backup': name, 'stamp': stamp, 'database': database,
                   'container_id': admitted['db'], 'database_oid': database_oid(database),
                   'manifest_sha256': digest(path / 'manifest.json'),
                   'database_sha256': digest(path / 'database.dump'),
-                  'objects_sha256': None if scope == STORAGE else digest(path / 'objects.tar'),
+                  'objects_sha256': None if scope in DATABASE_SCOPES else digest(path / 'objects.tar'),
                   'record': record}
     if storage_cid is not None:
         checkpoint['version'] = 2
@@ -702,7 +890,7 @@ def load_completion(scope, name, stamp):
                 'database_oid', 'manifest_sha256', 'database_sha256', 'objects_sha256', 'record'}
     if isinstance(checkpoint, dict) and checkpoint.get('version') == 2:
         required.add('storage_container_id')
-    database = STORAGE_DATABASE if scope == STORAGE else scope
+    database = scope_database(scope)
     if not isinstance(checkpoint, dict) or set(checkpoint) != required or type(checkpoint['version']) is not int or checkpoint['version'] not in (1, 2) \
             or checkpoint['status'] not in ('readiness-pending', 'completed') \
             or (checkpoint['scope'], checkpoint['backup'], checkpoint['stamp'], checkpoint['database']) != (scope, name, stamp, database):
@@ -714,15 +902,15 @@ def load_completion(scope, name, stamp):
             or not re.fullmatch(r'[a-f0-9]{64}', checkpoint['storage_container_id'])):
         raise BackupError('Restore completion Storage identity is malformed')
     archive = BACKUPS / scope / name
-    manifest = verify_storage(archive) if scope == STORAGE else verify(scope, archive)
+    manifest = verify_scope(scope, archive)
     record = checkpoint['record']
     expected = {'restored_at': stamp, 'backup': name, 'previous_database': database + '_pre_' + stamp,
                 'counts': manifest['counts']}
-    if scope != STORAGE:
+    if scope not in DATABASE_SCOPES:
         expected['previous_files'] = '.pre-restore-' + scope + '-' + stamp
     if record != expected or checkpoint['manifest_sha256'] != digest(archive / 'manifest.json') \
             or checkpoint['database_sha256'] != digest(archive / 'database.dump') \
-            or checkpoint['objects_sha256'] != (None if scope == STORAGE else digest(archive / 'objects.tar')):
+            or checkpoint['objects_sha256'] != (None if scope in DATABASE_SCOPES else digest(archive / 'objects.tar')):
         raise BackupError('Restore completion archive identity differs')
     return checkpoint, archive, record
 
@@ -742,7 +930,7 @@ def complete_restore(scope, name, stamp):
     admitted = preflight()
     if admitted['db'] != checkpoint['container_id'] or database_oid(checkpoint['database']) != checkpoint['database_oid']:
         raise BackupError('Restore completion database identity changed')
-    if scope != STORAGE and scope not in published():
+    if scope not in DATABASE_SCOPES and scope not in published():
         raise BackupError('Restore completion environment is no longer published')
     if checkpoint['status'] == 'completed':
         verify_completion_success(archive, stamp, record)
@@ -757,13 +945,9 @@ def complete_restore(scope, name, stamp):
             raise BackupError('Restore cutover requires guarded recover-restore before readiness')
         restore_cutover.storage(sys.modules[__name__], checkpoint['storage_container_id'])
     try:
-        if scope == STORAGE:
+        if scope == STORAGE or checkpoint['version'] == 2:
             wait_storage(start_storage())
-        else:
-            if checkpoint['version'] == 2:
-                wait_storage(start_storage())
-            start_services(scope)
-            wait_healthy(scope)
+        start_scope(scope)
         atomic_private(archive / ('restore-' + stamp + '.json'), record)
         checkpoint['status'] = 'completed'
         atomic_private(completion_path(scope), checkpoint)
@@ -806,14 +990,15 @@ def wait_storage(address, timeout=180):
     raise BackupError('Storage did not come back after the restore')
 
 
-def discard_previous_storage():
-    """Drop the Storage metadata databases that restores set aside."""
+def discard_previous_storage(scope=STORAGE):
+    """Drop the shared databases (Storage metadata, or the management database) that restores set aside."""
     no_pending_completion()
     preflight()
+    database = DATABASE_SCOPES[scope]
     names = [line for line in sql(f"SELECT datname FROM pg_database WHERE datname LIKE "
-                                  f"'{STORAGE_DATABASE}\\_pre\\_%' ESCAPE '\\';").splitlines() if line]
+                                  f"'{database}\\_pre\\_%' ESCAPE '\\';").splitlines() if line]
     for name in names:
-        if not re.fullmatch(STORAGE_DATABASE + r'_pre_\d{8}t\d{6}z', name):
+        if not re.fullmatch(database + r'_pre_\d{8}t\d{6}z', name):
             raise BackupError('Unexpected database name')
         sql(f'DROP DATABASE {name} WITH (FORCE);')
     return names
@@ -835,6 +1020,11 @@ def restore(e, name, now=None):
 def restore_storage(name, now=None):
     import restore_cutover
     return restore_cutover.restore(sys.modules[__name__], STORAGE, name, now or datetime.datetime.now(datetime.UTC))
+
+
+def restore_management(name, now=None):
+    import restore_cutover
+    return restore_cutover.restore(sys.modules[__name__], MANAGEMENT, name, now or datetime.datetime.now(datetime.UTC))
 
 
 def recover_restore(scope, name, stamp):
@@ -931,6 +1121,9 @@ def main(argv=None):
     shared = sub.add_parser('restore-storage', help="replace Storage's shared metadata database with a backup of it")
     shared.add_argument('backup')
     shared.add_argument('--offsite', action='store_true', help='fetch the backup from the off-host target first')
+    realm = sub.add_parser('restore-management', help="replace the management realm's Auth database with a backup of it")
+    realm.add_argument('backup')
+    realm.add_argument('--offsite', action='store_true', help='fetch the backup from the off-host target first')
     completion = sub.add_parser('complete-restore', help='retry restore readiness without replacing data')
     completion.add_argument('environment')
     completion.add_argument('backup')
@@ -966,6 +1159,8 @@ def main(argv=None):
                 print(item['scope'] + ' ' + item['phase'] + ': ' + item['command'])
             if not pending:
                 print('No pending restore operation')
+            if notice := address_notice():
+                print(notice)
             return 0
         if args.command in ('offsite-list', 'offsite-key'):
             import backup_offsite
@@ -989,8 +1184,13 @@ def main(argv=None):
                     print(f"{STORAGE_DATABASE}  {path.name}  database {manifest['database']['bytes']} B  "
                           f"tenants {manifest['counts']['tenants']}"
                           + ('  before an upgrade' if manifest.get('reason') == 'upgrade' else ''))
+                for path in complete_backups(MANAGEMENT):
+                    manifest = json.loads((path / 'manifest.json').read_text())
+                    print(f"{MANAGEMENT_DATABASE}  {path.name}  database {manifest['database']['bytes']} B  "
+                          f"operators {manifest['counts']['auth.users']}"
+                          + ('  before an upgrade' if manifest.get('reason') == 'upgrade' else ''))
             return 0
-        if args.command in ('create', 'restore', 'restore-storage', 'discard-previous'):
+        if args.command in ('create', 'restore', 'restore-storage', 'restore-management', 'discard-previous'):
             preflight()
         private_dir(BACKUPS)
         with (STATE / 'backup.lock').open('a') as lock:
@@ -1027,6 +1227,15 @@ def main(argv=None):
                     except BackupError as error:
                         failed += 1
                         print(f'backup {STORAGE_DATABASE} failed: {error}', file=sys.stderr)
+                    # The management realm's Auth, in the same run: an upgrade that migrates Auth
+                    # migrates the operator accounts too, and this is their way back.
+                    try:
+                        path, manifest = create_management(args.keep, now=now, reason=args.reason, protected=protected)
+                        print(f"backup {MANAGEMENT_DATABASE} {path.name}: database {manifest['database']['bytes']} B, "
+                              f"{manifest['counts']['auth.users']} operator account(s)")
+                    except BackupError as error:
+                        failed += 1
+                        print(f'backup {MANAGEMENT_DATABASE} failed: {error}', file=sys.stderr)
                     offsite = None
                     try:
                         import backup_offsite as offsite
@@ -1056,14 +1265,18 @@ def main(argv=None):
                 print(f"fetched {args.backup}: {', '.join(placed) or 'nothing new, every backup is already here'}")
                 return 0
             if args.command == 'complete-restore':
-                scope = STORAGE if args.environment == STORAGE else resolve(args.environment)
+                scope = args.environment if args.environment in DATABASE_SCOPES else resolve(args.environment)
                 complete_restore(scope, args.backup, args.stamp)
                 print(f'restore readiness completed for {scope}; current data was preserved')
+                if notice := address_notice():
+                    print(notice)
                 return 0
             if args.command == 'recover-restore':
-                scope = STORAGE if args.environment == STORAGE else resolve(args.environment)
+                scope = args.environment if args.environment in DATABASE_SCOPES else resolve(args.environment)
                 result = recover_restore(scope, args.backup, args.stamp)
                 print('restore recovery completed for ' + scope + ': ' + result.get('status', 'restored'))
+                if notice := address_notice():
+                    print(notice)
                 return 0
             if args.command == 'restore':
                 e = resolve(args.environment)
@@ -1082,9 +1295,19 @@ def main(argv=None):
                 print(f"restored {STORAGE_DATABASE} from {args.backup}; the previous database is kept as "
                       f"{record['previous_database']} until: backup.py discard-previous {STORAGE}")
                 return 0
-            if args.environment == STORAGE:
-                names = discard_previous_storage()
-                print(f'discarded {len(names)} previous {STORAGE_DATABASE} database(s)')
+            if args.command == 'restore-management':
+                if args.offsite and not (BACKUPS / MANAGEMENT / args.backup).exists():
+                    import backup_offsite
+                    backup_offsite.fetch(args.backup)
+                record = restore_management(args.backup)
+                print(f"restored {MANAGEMENT_DATABASE} from {args.backup}; the previous database is kept as "
+                      f"{record['previous_database']} until: backup.py discard-previous {MANAGEMENT}")
+                if notice := address_notice():
+                    print(notice)
+                return 0
+            if args.environment in DATABASE_SCOPES:
+                names = discard_previous_storage(args.environment)
+                print(f'discarded {len(names)} previous {DATABASE_SCOPES[args.environment]} database(s)')
                 return 0
             e = resolve(args.environment)
             names = discard_previous(e)

@@ -24,7 +24,9 @@ REQUIRED = {'version', 'phase', 'scope', 'backup', 'stamp', 'container_id', 'dat
             'original_oid', 'stage', 'stage_oid', 'previous', 'archive', 'files', 'record', 'storage_cid'}
 HASH = re.compile(r'[a-f0-9]{64}')
 OID = re.compile(r'[1-9][0-9]*')
-SCOPE = re.compile(r'(?:e_[a-f0-9]{24}|storage)')
+SCOPE = re.compile(r'(?:e_[a-f0-9]{24}|storage|management)')
+# Scopes that restore one shared database and no object files, and the database each one names.
+DATABASES = {'storage': 'storage_metadata', 'management': 'management'}
 STAMP = re.compile(r'[0-9]{8}t[0-9]{6}z')
 
 
@@ -38,7 +40,7 @@ def validate(value):
             or not STAMP.fullmatch(stamp) or not isinstance(value['backup'], str) \
             or not re.fullmatch(r'[0-9]{8}T[0-9]{6}Z', value['backup']):
         raise OperationError('Restore operation identity is malformed')
-    database = 'storage_metadata' if scope == 'storage' else scope
+    database = DATABASES.get(scope, scope)
     if value['database'] != database or value['stage'] != database + '_stage_' + stamp \
             or value['previous'] != database + '_pre_' + stamp \
             or not isinstance(value['container_id'], str) or not HASH.fullmatch(value['container_id']) \
@@ -51,13 +53,13 @@ def validate(value):
     archive = value['archive']
     if not isinstance(archive, dict) or set(archive) != {'manifest', 'database', 'objects'} \
             or not all(isinstance(archive[key], str) and HASH.fullmatch(archive[key]) for key in ('manifest', 'database')) \
-            or (scope == 'storage' and archive['objects'] is not None) \
-            or (scope != 'storage' and (not isinstance(archive['objects'], str) or not HASH.fullmatch(archive['objects']))):
+            or (scope in DATABASES and archive['objects'] is not None) \
+            or (scope not in DATABASES and (not isinstance(archive['objects'], str) or not HASH.fullmatch(archive['objects']))):
         raise OperationError('Restore operation archive identity is malformed')
     files = value['files']
-    if scope == 'storage':
+    if scope in DATABASES:
         if files is not None:
-            raise OperationError('Shared metadata restore may not replace object files')
+            raise OperationError('A shared database restore may not replace object files')
     elif not isinstance(files, dict) or set(files) != {'aside', 'stage', 'original', 'restored'} \
             or files['aside'] != '.pre-restore-' + scope + '-' + stamp \
             or files['stage'] != '.stage-restore-' + scope + '-' + stamp:
@@ -79,12 +81,12 @@ def validate(value):
     # The expected record's count value is validated by the admitted archive,
     # not invented from this mutable journal.
     expected_keys = {'restored_at', 'backup', 'previous_database', 'counts'}
-    if scope != 'storage':
+    if scope not in DATABASES:
         expected_keys.add('previous_files')
     if not isinstance(record, dict) or set(record) != expected_keys \
             or record['restored_at'] != stamp or record['backup'] != value['backup'] \
             or record['previous_database'] != value['previous'] or not isinstance(record['counts'], dict) \
-            or (scope != 'storage' and record['previous_files'] != files['aside']):
+            or (scope not in DATABASES and record['previous_files'] != files['aside']):
         raise OperationError('Restore operation completion record is malformed')
     if PHASES.index(value['phase']) >= PHASES.index('stage-created') and value['phase'] not in ('rollback-intent', 'rollback-open-intent', 'original-opened', 'rolled-back') \
             and value['stage_oid'] is None:
@@ -245,7 +247,7 @@ def admit_native_defaults(value, image, database, preloads):
     # Preflight binds the running DB to the distributed image before this call.
     # Client-mode cron and pg_net remain attached to postgres, never the replaced
     # environment or Storage database. Their libraries connect with flags zero.
-    if value['version'] != 170006 or image != NATIVE_IMAGE or not isinstance(database, str) or not re.fullmatch(r'(e_[a-f0-9]{24}|storage_metadata)', database) \
+    if value['version'] != 170006 or image != NATIVE_IMAGE or not isinstance(database, str) or not (re.fullmatch(r'e_[a-f0-9]{24}', database) or database in DATABASES.values()) \
             or set(preloads) != NATIVE_PRELOADS or len(preloads) != len(NATIVE_PRELOADS) \
             or value['session'].strip() != 'supautils' or value['local'].strip():
         raise OperationError('Unclassified privileged PostgreSQL preload refuses restore')

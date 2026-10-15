@@ -74,7 +74,9 @@ class CompletionTests(Fixture):
         for function, args in [(backup.restore, (E, NAME)), (backup.restore_storage, (NAME,)),
                                (backup.discard_previous, (E,)), (backup.discard_previous_storage, ()),
                                (backup.prune, (E, 1)), (backup.prune, ('installation', 1)),
-                               (backup.create, (E,)), (backup.create_storage, ())]:
+                               (backup.create, (E,)), (backup.create_storage, ()),
+                               (backup.create_management, ()), (backup.restore_management, (NAME,)),
+                               (backup.discard_previous_storage, (backup.MANAGEMENT,))]:
             with self.subTest(function=function.__name__), patch.object(backup, 'run') as run:
                 with self.assertRaisesRegex(backup.BackupError, 'pending'):
                     function(*args)

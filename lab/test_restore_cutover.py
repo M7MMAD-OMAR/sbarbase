@@ -28,16 +28,19 @@ class NativeModel:
     """
     def __init__(self, fixture, scope=E, fail=None, actual=None):
         self.fixture, self.scope, self.fail = fixture, scope, fail
-        self.database = backup.STORAGE_DATABASE if scope == backup.STORAGE else scope
+        self.database = backup.scope_database(scope)
+        self.management_running = True
+        self.stopped, self.metadata = [], []
         self.dbs = {self.database: {'oid': '100', 'allow_connections': True}}
         self.running = True
         self.cid = 'd' * 64
         self.events = []
+        self.waited = []
         self.actual = actual
         self.prepared_count = '0'
         self.backends = '0'
         self.pid = '900'
-        self.roles = ['supabase_admin']
+        self.roles = ['management_auth', 'supabase_admin'] if scope == backup.MANAGEMENT else ['supabase_admin']
         self.archived_search_path = None
         self.database_settings = {'search_path': 'live_changed_schema'}
         self.retained_search_path = 'public'
@@ -79,6 +82,12 @@ class NativeModel:
             database = self.database
             sql = ('CREATE DATABASE ' + database + " WITH TEMPLATE = template0 ENCODING = 'UTF8' LOCALE_PROVIDER = libc LOCALE = 'C';\n"
                    + 'ALTER DATABASE ' + database + ' OWNER TO supabase_admin;\n'
+                   # What a management dump carries at database level (lab/durable_runtime.py management()).
+                   + ('' if database != backup.MANAGEMENT_DATABASE else
+                      'ALTER DATABASE management CONNECTION LIMIT = 5;\n'
+                      'ALTER ROLE management_auth IN DATABASE management SET search_path TO auth;\n'
+                      'REVOKE ALL ON DATABASE management FROM PUBLIC;\n'
+                      'GRANT CONNECT ON DATABASE management TO management_auth;\n')
                    + ('' if self.archived_search_path is None else 'ALTER DATABASE ' + database
                       + " SET search_path TO '" + self.archived_search_path + "';\n")
                    + '\\connect ' + database + "\nSELECT pg_catalog.set_config('search_path', '', false);\nCREATE TABLE payload(id integer);\n")
@@ -86,6 +95,9 @@ class NativeModel:
             return SimpleNamespace(stderr='')
         if argv[:2] == ['docker', 'stop']:
             self.event('stop')
+            self.stopped += argv[2:]
+            if backup.MANAGEMENT_CONTAINER in argv:
+                self.management_running = False
             if self.cid in argv:
                 self.running = False
                 if self.fail == 'storage-cid':
@@ -193,8 +205,12 @@ class NativeModel:
                     return model.actual or '1|1|1|1'
                 if query == backup.STORAGE_COUNTS:
                     return model.actual or '1|' + E
+                if query == backup.MANAGEMENT_COUNTS:
+                    return model.actual or '2|2'
                 if query == 'SELECT pg_backend_pid();':
                     return model.pid
+                if query.lstrip().startswith('ALTER DATABASE '):
+                    model.metadata.append(query)
                 if query.startswith('SET max_parallel_workers_per_gather=0;') or query.lstrip().startswith('ALTER DATABASE '):
                     assert chr(92) + 'n' not in query, 'metadata must use SQL newlines, never a psql backslash command'
                     setting = re.search(r"SET search_path TO '([^']*)'", query)
@@ -219,11 +235,27 @@ class NativeModel:
         self.running = True
         return '10.0.0.9'
 
+    def start_management(self):
+        self.event('start-management')
+        if self.fail == 'start-management':
+            self.fail = None
+            raise backup.BackupError('injected')
+        self.management_running = True
+        return 'http://10.0.0.8:9999'
+
+    def wait_management(self, endpoint, *args):
+        self.event('wait-management')
+        self.waited.append(endpoint)
+        if self.fail == 'wait-management':
+            self.fail = None
+            raise backup.BackupError('injected')
+
     def __enter__(self):
         patches = {'run': self.run, 'sql': self.sql, 'helper': self.helper,
                    'resolve_storage_image': lambda: ('qualified-pin', 'sha256:' + 'f' * 64),
                    'start_storage': self.start_storage, 'wait_storage': lambda *a: None,
-                   'start_services': lambda *a: self.event('start-services'), 'wait_healthy': lambda *a: None}
+                   'start_services': lambda *a: self.event('start-services'), 'wait_healthy': lambda *a: self.event('wait-healthy'),
+                   'start_management': self.start_management, 'wait_management': self.wait_management}
         for name, value in patches.items():
             self.stack.enter_context(patch.object(backup, name, value))
         self.stack.enter_context(patch.object(restore_cutover, 'HeldSession', self.session))
@@ -334,8 +366,11 @@ class CutoverTests(Fixture):
             self.assertEqual(model.journal()['phase'], 'files-replace-intent')
             self.assertEqual(model.dbs[E]['oid'], '20000')
             self.assertFalse(model.running)
-            model.fail = None
+            model.fail, seen = None, len(model.events)
             self.assertEqual(model.recover()['status'], 'rolled-back')
+            # The original reopens with its services started and answering again.
+            names = [event[0] for event in model.events[seen:]]
+            self.assertLess(names.index('start-services'), names.index('wait-healthy'))
             self.assertEqual(model.dbs, {E: {'oid': '100', 'allow_connections': True}})
             self.assertEqual(model.trees[E], model.identity('1'))
             self.assertFalse(backup.completion_path(E).exists())
@@ -537,6 +572,9 @@ class CutoverTests(Fixture):
             model.recover()
             self.assertEqual(model.trees[E], model.identity('9'))
             self.assertFalse(any(event[0] in ('fence', 'rename', 'files', 'drop', 'open') for event in model.events[before:]))
+            # The reopened original gets its services back and waits until they answer.
+            names = [event[0] for event in model.events[before:]]
+            self.assertLess(names.index('start-services'), names.index('wait-healthy'))
 
     def test_status_dangling_state_and_completion_symlinks_refuse_without_effects(self):
         backup.STATE.chmod(0o700)

@@ -64,7 +64,7 @@ MAGIC = b'SBBKUP1\n'
 NONCE = 12
 TAG = 16
 SUFFIX = '.sbb'
-MEMBER = re.compile(r'(e_[a-f0-9]{24}|installation|storage)/(\d{8}T\d{6}Z)(?:/([a-z]+\.[a-z]+))?')
+MEMBER = re.compile(r'(e_[a-f0-9]{24}|installation|storage|management)/(\d{8}T\d{6}Z)(?:/([a-z]+\.[a-z]+))?')
 EMPTY_SHA256 = hashlib.sha256(b'').hexdigest()
 
 
@@ -377,6 +377,9 @@ def pack(stamp, runtimes, key, handle):
     # A run taken before Storage metadata was backed up has no such folder.
     if (backup.BACKUPS / backup.STORAGE / stamp / 'manifest.json').is_file():
         folders.append((backup.STORAGE, STORAGE_FILES))
+    # Nor one taken before the management database was backed up.
+    if (backup.BACKUPS / backup.MANAGEMENT / stamp / 'manifest.json').is_file():
+        folders.append((backup.MANAGEMENT, STORAGE_FILES))
     if (backup.BACKUPS / INSTALLATION / stamp / 'manifest.json').is_file():
         folders.append((INSTALLATION, INSTALLATION_FILES))
     with tarfile.open(fileobj=writer, mode='w|', format=tarfile.PAX_FORMAT) as archive:
@@ -399,7 +402,8 @@ def unpack(path, key, stamp, staging):
             match = MEMBER.fullmatch(member.name)
             allowed = match and match[2] == stamp and (
                 member.isdir() if match[3] is None else member.isfile() and match[3] in (
-                    {INSTALLATION: INSTALLATION_FILES, backup.STORAGE: STORAGE_FILES}.get(match[1], ENVIRONMENT_FILES)))
+                    {INSTALLATION: INSTALLATION_FILES, backup.STORAGE: STORAGE_FILES,
+                     backup.MANAGEMENT: STORAGE_FILES}.get(match[1], ENVIRONMENT_FILES)))
             if not allowed:
                 raise BackupError('Off-host set holds an unexpected entry')
             archive.extract(member, staging, filter='data')
@@ -613,8 +617,8 @@ def fetch(stamp):
             try:
                 if folder.name == INSTALLATION:
                     verify_installation(target)
-                elif folder.name == backup.STORAGE:
-                    backup.verify_storage(target)
+                elif folder.name in backup.DATABASE_SCOPES:
+                    backup.verify_scope(folder.name, target)
                 else:
                     backup.verify(folder.name, target)
             except Exception:

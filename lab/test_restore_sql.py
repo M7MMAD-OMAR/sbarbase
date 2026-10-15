@@ -49,6 +49,20 @@ GRANT CONNECT ON DATABASE {SOURCE} TO "project_owner" WITH GRANT OPTION;
         self.assertNotIn('CONNECTION LIMIT = -1', ''.join(result.metadata))
         self.assertNotIn('WITH GRANT OPTION', body)
 
+    def test_the_management_database_settings_follow_its_stage(self):
+        stage = 'management_stage_20261003t100000z'
+        script = dump(extra='''ALTER DATABASE management CONNECTION LIMIT = 5;
+ALTER ROLE management_auth IN DATABASE management SET search_path TO auth;
+REVOKE ALL ON DATABASE management FROM PUBLIC;
+GRANT CONNECT ON DATABASE management TO management_auth;
+''').replace(SOURCE, 'management')
+        result = plan_archive(io.StringIO(script), io.StringIO(), 'management', stage)
+        self.assertTrue(result.explicit_acl)
+        self.assertTrue(all('"' + stage + '"' in item for item in result.metadata))
+        self.assertTrue(any('management_auth' in item and 'search_path' in item for item in result.metadata))
+        with self.assertRaises(PlanError):
+            plan_archive(io.StringIO(script.replace('management', 'managementx')), io.StringIO(), 'managementx', stage)
+
     def test_icu_and_collation_version_retained(self):
         create = f"CREATE DATABASE {SOURCE} WITH TEMPLATE = template0 ENCODING = 'UTF8' LOCALE_PROVIDER = icu ICU_LOCALE = 'und' ICU_RULES = '&A < B' COLLATION_VERSION = '153.80';\n"
         result, _ = plan(dump(create=create))

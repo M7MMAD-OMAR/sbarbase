@@ -351,7 +351,7 @@ def validate_metadata(statement, offset):
 
 def plan_archive(source, body, original, stage):
     """Write replay SQL and return independently replayable archive DB metadata."""
-    if not re.fullmatch(r'(?:e_[a-f0-9]{24}|storage_metadata)', original) \
+    if not re.fullmatch(r'(?:e_[a-f0-9]{24}|storage_metadata|management)', original) \
             or not re.fullmatch(r'[a-z][a-z0-9_]{0,62}', stage) or stage == original:
         raise PlanError('Unsupported staged database identity')
     reader = Reader(source)

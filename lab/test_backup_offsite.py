@@ -104,6 +104,8 @@ def tree(path):
 
 class Fixture(unittest.TestCase):
     def setUp(self):
+        # What a run prints for the operator; kept out of the unittest summary.
+        self.enterContext(contextlib.redirect_stdout(io.StringIO()))
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         self.root = Path(directory.name)
@@ -146,10 +148,22 @@ class Fixture(unittest.TestCase):
         (path / 'manifest.json').write_text(json.dumps(manifest))
         return path
 
+    def management(self, stamp):
+        path = backup.private_dir(self.backups / 'management' / stamp)
+        (path / 'database.dump').write_bytes(b'management dump ' + stamp.encode())
+        manifest = {'version': 1, 'kind': 'management', 'created_at': stamp,
+                    'database': {'file': 'database.dump', 'name': 'management',
+                                 'bytes': (path / 'database.dump').stat().st_size,
+                                 'sha256': backup.digest(path / 'database.dump')},
+                    'counts': {'auth.users': 1, 'auth.identities': 1}}
+        (path / 'manifest.json').write_text(json.dumps(manifest))
+        return path
+
     def run_set(self, stamp):
         for e in (E1, E2):
             self.complete(e, stamp)
         self.storage(stamp)
+        self.management(stamp)
         offsite.write_installation(stamp, [E1, E2], environ={})
 
     def encrypted(self, stamp, name=None):
@@ -263,6 +277,24 @@ class EncryptionTests(Fixture):
             offsite.unpack(path, self.key, self.STAMP, staging)
         self.assertFalse((self.root / 'escaped').exists())
 
+    def test_a_management_folder_holds_only_its_dump_and_manifest(self):
+        path = self.root / 'extra.sbb'
+        with path.open('wb') as handle:
+            writer = offsite.Encrypting(handle, self.key, self.STAMP)
+            with tarfile.open(fileobj=writer, mode='w|') as archive:
+                # Only the entry that names a file environments may hold, nothing refused before it.
+                info = tarfile.TarInfo(f'management/{self.STAMP}')
+                info.type = tarfile.DIRTYPE
+                archive.addfile(info)
+                info = tarfile.TarInfo(f'management/{self.STAMP}/objects.tar')
+                info.size = 3
+                archive.addfile(info, io.BytesIO(b'tar'))
+            writer.finish()
+        staging = self.root / 'staging'
+        staging.mkdir()
+        with self.assertRaisesRegex(backup.BackupError, 'unexpected entry'):
+            offsite.unpack(path, self.key, self.STAMP, staging)
+
     def test_the_key_file_must_be_private_valid_and_is_never_overwritten(self):
         os.chmod(self.key_file, 0o644)
         with self.assertRaisesRegex(backup.BackupError, 'not private'):
@@ -307,15 +339,30 @@ class TargetTests(Fixture):
         shutil.rmtree(self.backups / E1 / stamp)
         shutil.rmtree(self.backups / 'installation' / stamp)
         shutil.rmtree(self.backups / 'storage' / stamp)
+        shutil.rmtree(self.backups / 'management' / stamp)
         (self.backups / E2 / stamp / 'marker').write_text('local')
-        # Storage's shared metadata travels in the run's set and comes back verified.
-        self.assertEqual(offsite.fetch(stamp), [E1, 'installation', 'storage'])
+        # Storage's shared metadata and the management database travel in the run's set and come back verified.
+        self.assertEqual(offsite.fetch(stamp), [E1, 'installation', 'management', 'storage'])
         self.assertEqual(backup.verify_storage(self.backups / 'storage' / stamp)['tenants'], [E1, E2])
+        self.assertEqual(backup.verify_management(self.backups / 'management' / stamp)['counts']['auth.users'], 1)
         self.assertEqual(backup.verify(E1, self.backups / E1 / stamp)['runtime'], E1)
         restored = tree(self.backups)
         self.assertEqual(restored.pop(f'{E2}/{stamp}/marker'), b'local')
         self.assertEqual(restored, expected)
         self.assertEqual(offsite.fetch(stamp), [])
+
+    def test_a_fetched_management_backup_that_fails_verification_is_not_kept(self):
+        self.serve()
+        stamp = '20260924T030000Z'
+        self.run_set(stamp)
+        manifest = self.backups / 'management' / stamp / 'manifest.json'
+        value = json.loads(manifest.read_text())
+        manifest.write_text(json.dumps({**value, 'counts': {'auth.users': -1, 'auth.identities': 1}}))
+        self.assertTrue(offsite.after_run(stamp, [E1, E2], 7))
+        shutil.rmtree(self.backups / 'management' / stamp)
+        with self.assertRaises(backup.BackupError):
+            offsite.fetch(stamp)
+        self.assertFalse((self.backups / 'management' / stamp).exists())
 
     def test_a_failed_upload_leaves_local_backups_untouched_prunes_nothing_and_notifies(self):
         catalog = self.root / 'control.sqlite'
@@ -351,15 +398,19 @@ class TargetTests(Fixture):
             path = self.storage(now.strftime('%Y%m%dT%H%M%SZ'))
             return path, json.loads((path / 'manifest.json').read_text())
 
+        def create_management(keep, now=None, reason=None, protected=None):
+            path = self.management(now.strftime('%Y%m%dT%H%M%SZ'))
+            return path, json.loads((path / 'manifest.json').read_text())
+
         with patch.object(backup, 'create', create), patch.object(backup, 'create_storage', create_storage), \
-                patch.object(backup, 'preflight'), \
+                patch.object(backup, 'create_management', create_management), patch.object(backup, 'preflight'), \
                 patch.object(notification_producers, 'emit') as emit, \
                 contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()) as error:
             # Local backups are fine; 3 tells the supervisor the failed copy was already reported.
             self.assertEqual(backup.main(['create', 'all']), backup.OFFSITE_FAILED)
         self.assertIn('off-host copy', error.getvalue())
         self.assertEqual(emit.call_args.args[0], 'backup.failed')
-        stamps = {path.name for e in (E1, E2, 'storage', 'installation') for path in (self.backups / e).iterdir()}
+        stamps = {path.name for e in (E1, E2, 'storage', 'management', 'installation') for path in (self.backups / e).iterdir()}
         self.assertEqual(len(stamps), 1)
         self.assertTrue((self.backups / 'installation' / stamps.pop() / 'manifest.json').is_file())
 

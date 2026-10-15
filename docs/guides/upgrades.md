@@ -94,11 +94,12 @@ The class is computed from the difference between the commit you run and the rel
 
 Auth, Storage and Realtime each run their own schema migrations in every environment database when they start, and the previous image may not run on the migrated schema. The way back restores the control state only, not environment databases. So if such an update returns to the previous version, **environment data may need restoring from the backups taken before the upgrade**. Storage also migrates its shared `storage_metadata` database, which holds every environment's Storage settings; the backup before the upgrade holds it too, beside the environments. That is why this class installs only after an explicit acknowledgement, and never automatically.
 
-To undo such an update completely after the way back, restore the run taken before it, with Sbarbase running on the previous version. `python3 lab/backup.py list` marks that run "before an upgrade". Restore each environment first, then `storage_metadata`, whose restore restarts Storage last so it starts on registrations that match the restored environments:
+To undo such an update completely after the way back, restore the run taken before it, with Sbarbase running on the previous version. `python3 lab/backup.py list` marks that run "before an upgrade". Restore each environment first, then `storage_metadata`, whose restore restarts Storage last so it starts on registrations that match the restored environments. After an Auth update, restore the management database of the same run too: the management realm runs the same Auth image, which migrated the operator accounts:
 
 ```
 python3 lab/backup.py restore <environment> <backup>     # once per environment
 python3 lab/backup.py restore-storage <backup>           # Storage pauses for every environment meanwhile
+python3 lab/backup.py restore-management <backup>        # after an Auth update; operators sign in again afterwards
 ```
 
 ### Releases that need a rebuild
