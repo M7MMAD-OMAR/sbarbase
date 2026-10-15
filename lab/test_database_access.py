@@ -76,6 +76,26 @@ class DatabaseAccessTests(unittest.TestCase):
             self.runtime.database_turn(E, on=True)
         self.assertNotIn('database', self.endpoints()[E])
 
+    def test_resume_turns_it_on_with_a_password_reset_during_the_pause_and_never_waits_on_its_own_lock(self):
+        import fcntl
+        import write_pause
+        state = self.root / 'state'
+        write_pause.write_record(write_pause.record_path(E, state),
+                                 {'version': 1, 'runtime': E, 'phase': 'resuming', 'paused_at': 900.0})
+        # Turning access on from the console is refused while the pause is recorded.
+        with self.assertRaisesRegex(RuntimeError, 'paused for writes'):
+            self.runtime.database_turn(E, on=True)
+        self.assertNotIn('database', self.endpoints()[E])
+        # The owner reset the password meanwhile; resume, holding the pause lock, applies it.
+        (self.root / 'private' / 'database' / f'{E}.json').write_text(json.dumps({'password': 'r' * 32}))
+        with (state / 'write-pause.lock').open('a') as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            self.runtime.developer_on(E)
+        text = '\n'.join(query for _, query in self.statements)
+        self.assertIn("PASSWORD '" + 'r' * 32 + "'", text)
+        self.assertNotIn(f"PASSWORD '{PASSWORD}'", text)
+        self.assertEqual(self.endpoints()[E]['database'], {'user': f'{E}_developer', 'database': E})
+
     def test_a_full_cluster_refuses_with_the_capacity_error(self):
         def sql(query, database='postgres', check=True):
             if 'pg_hba_file_rules' in query:

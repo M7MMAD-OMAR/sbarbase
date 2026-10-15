@@ -1,5 +1,5 @@
 import {test,expect} from 'bun:test';
-import {realtimeUpgrade,isRealtimeSocket} from '../src/gateway/realtime';
+import {realtimeUpgrade,isRealtimeSocket,catalogRealtimeRoute} from '../src/gateway/realtime';
 import {createGateway,type EnvironmentRoute} from '../src/gateway/handler';
 import {serveLocal} from '../src/http/local-server';
 import {Catalog} from '../src/control/catalog';
@@ -114,4 +114,23 @@ test('owners and admins turn Realtime on and off; one change at a time',async()=
   expect(((await on.json()) as {data:{state:string;desired:string}}).data).toMatchObject({state:'pending',desired:'on'});
   expect((await call('alice','PUT',{enabled:false})).status).toBe(409);
  } finally {catalog.close();}
+});
+
+test('a new socket to an environment whose routing is paused gets 503, read from the catalog each time',()=>{
+ const state={ready:true,maintenance:true};
+ const catalog={runtimeReady:(runtime:string)=>runtime===E&&state.ready,
+  runtimeRouting:()=>({revision:5,maintenance:state.maintenance,placement:null})};
+ const decide=realtimeUpgrade({route:catalogRealtimeRoute(catalog,runtime=>runtime===E?route:undefined),
+  verifyKey:(runtime,key)=>runtime===E&&key==='sb_publishable_ok'});
+ const socket=`/${E}/realtime/v1/websocket?apikey=sb_publishable_ok&vsn=1.0.0`;
+ expect(decide(socket,headers())).toMatchObject({ok:false,status:503,message:'Environment temporarily paused'});
+ state.maintenance=false;
+ expect(decide(socket,headers()).ok).toBe(true);
+ state.ready=false;
+ expect(decide(socket,headers())).toMatchObject({ok:false,status:404});
+});
+
+test('the running console routes Realtime sockets through the catalog route',async()=>{
+ const source=await Bun.file(new URL('../lab/upstream-app.ts',import.meta.url)).text();
+ expect(source).toContain('route:catalogRealtimeRoute(catalog,resolve)');
 });

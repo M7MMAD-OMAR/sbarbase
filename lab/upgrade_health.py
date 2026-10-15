@@ -3,10 +3,11 @@
 A pending upgrade or rollback is confirmed only when, within DEADLINE seconds of the console
 process starting, one round of probes all answer 200: the console's own /health (which reads
 the control catalog and the key store), the management Auth realm, each environment's Auth,
-REST and Storage directly, and each environment's REST and Auth once more through the gateway,
-the way an application reaches them (routing, key resolution, the proxy). The gateway holds
-application traffic until confirmation; only these requests pass it, carrying the per-start
-token lab/upgrade.py writes (src/gateway/hold-bypass.ts).
+REST and Storage directly (an environment paused for writes too), and each served
+environment's REST and Auth once more through the gateway, the way an application reaches them
+(routing, key resolution, the proxy). The gateway holds application traffic until confirmation;
+only these requests pass it, carrying the per-start token lab/upgrade.py writes
+(src/gateway/hold-bypass.ts).
 """
 import concurrent.futures
 import contextlib
@@ -58,6 +59,14 @@ def routed(state):
             "AND runtime NOT IN (SELECT runtime FROM runtime_routing WHERE maintenance=1 OR placement IS NOT NULL)")}
 
 
+def write_paused(state):
+    """Runtimes an operator paused for writes (lab/write_pause.py): the gateway answers 503 for
+    them, but their own services keep running and must still pass, or a release that broke them
+    would be confirmed behind the pause."""
+    folder = state / 'write-pauses'
+    return {path.stem for path in folder.glob('e_*.json')} if folder.is_dir() else set()
+
+
 def probe_token(path=None):
     try:
         return (path or PROBE_TOKEN).read_text().strip()
@@ -65,7 +74,7 @@ def probe_token(path=None):
         raise ValueError('the confirmation probe token is missing') from None
 
 
-def probes(state, server_pid, secrets, serving=None, token=None):
+def probes(state, server_pid, secrets, serving=None, token=None, paused=None):
     """(name, url, headers) of every probe, or raises ValueError naming what is missing."""
     server = read(state / 'server.json')
     if not isinstance(server, dict) or not isinstance(server.get('url'), str):
@@ -79,8 +88,9 @@ def probes(state, server_pid, secrets, serving=None, token=None):
     if isinstance(management, dict) and management.get('auth'):
         found.append(('management auth', management['auth'] + '/health', None))
     serving = routed(state) if serving is None else serving
+    paused = write_paused(state) if paused is None else paused
     for e, item in sorted((read(state / 'endpoints.json') or {}).items()):
-        if e not in serving:
+        if e not in serving and e not in paused:
             continue
         found.append((f'{e} auth', item['auth'] + '/health', None))
         found.append((f'{e} rest', item['rest'] + '/', None))
@@ -91,6 +101,8 @@ def probes(state, server_pid, secrets, serving=None, token=None):
             found.append((f'{e} storage', storage['url'] + '/bucket',
                           {'authorization': 'Bearer ' + runtime.token(jwt, 'service_role'),
                            'x-forwarded-host': storage['tenantHost']}))
+        if e not in serving:
+            continue  # paused for writes: the gateway refuses it on purpose until the operator resumes
         # The same environment as an application reaches it, through the gateway and its key
         # resolution, past the hold (src/gateway/hold-bypass.ts). REST and Auth only: the token
         # never goes to a route that hands the caller's headers to user code.
@@ -105,14 +117,14 @@ def private_values():
     return json.loads((runtime.PRIVATE / 'runtime.json').read_text())
 
 
-def check(state, server_pid, secrets=None, get=fetch, serving=None, token=None):
+def check(state, server_pid, secrets=None, get=fetch, serving=None, token=None, paused=None):
     """(healthy, detail) for one round of probes. Never raises; detail never holds a secret.
 
     The probes of a round run at once (at most WORKERS together), so a round with many
     environments takes about as long as its slowest probe, not the sum of them; the detail
     names the first failure in probe order, as a round one after the other would."""
     try:
-        rows = probes(state, server_pid, secrets if secrets is not None else private_values(), serving, token)
+        rows = probes(state, server_pid, secrets if secrets is not None else private_values(), serving, token, paused)
     except ValueError as error:
         return False, f'health probes unavailable: {error}'
     except (OSError, KeyError, TypeError, AttributeError, sqlite3.Error) as error:

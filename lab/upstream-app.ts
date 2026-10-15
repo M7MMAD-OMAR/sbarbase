@@ -13,9 +13,8 @@ import {application} from '../src/control/application';
 import {readJsonCached} from '../src/http/cached-json';
 import {DirectDatabase} from '../src/http/database-proxy';
 import {studioKey,studioProxy,studioUpstream} from '../src/control/studio';
-import {realtimeUpgrade} from '../src/gateway/realtime';
+import {catalogRealtimeRoute,realtimeUpgrade} from '../src/gateway/realtime';
 import {RequestLog} from '../src/gateway/observe';
-import {routeWithPlacement} from '../src/gateway/managed';
 import type {EnvironmentRoute} from '../src/gateway/handler';
 
 export const managementPublishableKey='sb_publishable_sbarbase_local_management';
@@ -90,11 +89,7 @@ export function openUpstreamApplication() {
   anonymousToken:internalToken(secrets.management.jwt,'anon')},resolve,fetch,studioSessionKey,requests,undefined,
    invitationAccounts(management.auth,internalToken(secrets.management.jwt,'service_role')),database);
  const socket=realtimeUpgrade({
-  route:runtime=>{
-   if(!catalog.runtimeReady(runtime))return undefined;
-   const routing=catalog.runtimeRouting(runtime);
-   return routing.maintenance?'maintenance':routeWithPlacement(resolve(runtime),routing);
-  },
+  route:catalogRealtimeRoute(catalog,resolve),
   verifyKey:(runtime,key)=>keys.resolve(runtime,key)==='publishable'});
  // Socket openings count in the environment's logs too: 101 when one reaches Realtime.
  const realtime:typeof socket=(path,headers)=>{

@@ -6,6 +6,7 @@ import image_identity
 from guarded_sql_executor import GuardedSQL
 import argparse
 import base64
+import contextlib
 import fcntl
 import sys
 import hashlib
@@ -637,7 +638,7 @@ class Runtime:
             # schema migrations again only when its pinned image changed.
             endpoints['realtime'] = self.realtime_start(e, migrate=rotating or previous.get('migrated') != self.pins['realtime']['id'])
         if all_endpoints.get(e, {}).get('functions') and not creating:
-            endpoints['functions'] = self.functions_start(e)
+            endpoints['functions'] = self.functions_back(e, all_endpoints[e]['functions'])
         # Direct database access is the developer login's own state, not a service to restart.
         if all_endpoints.get(e, {}).get('database') and not creating:
             endpoints['database'] = all_endpoints[e]['database']
@@ -648,6 +649,13 @@ class Runtime:
             self.sql('UPDATE auth.refresh_tokens SET revoked = true WHERE NOT revoked; DELETE FROM auth.sessions;', e)
             v.pop('jwt_rotating', None)
             atomic(self.path, self.values)
+
+    def functions_back(self, e, entry):
+        """Edge Functions come back with the environment's other services, on a start or a signing key
+        rotation, except while a write pause holds it: they stay stopped, and keep their entry, until
+        write_pause.py resume starts them again."""
+        import write_pause
+        return entry if write_pause.is_paused(e) else self.functions_start(e)
 
     def rotate_signing(self, e):
         """Give one environment a new JWT signing secret. Every token signed with the old one stops
@@ -921,37 +929,54 @@ ALTER DEFAULT PRIVILEGES FOR ROLE {role} IN SCHEMA public GRANT EXECUTE ON FUNCT
         if source_fence.is_fenced(self.sql, e):
             raise RuntimeError('Environment database is fenced; explicit reconciliation required')
         role = f'{e}_developer'
+        # Turning the login on holds the write pause lock until it is on: a pause taken meanwhile waits
+        # for it, then closes the login again (lab/write_pause.py).
+        guard = contextlib.ExitStack()
         if on:
-            if self.sql(f"SELECT count(*) FROM pg_hba_file_rules WHERE '{role}' = ANY(user_name) AND error IS NULL;").stdout.strip() != '1':
-                raise RuntimeError('Database access rule not published; restart Sbarbase once')
+            import write_pause
             try:
-                password = json.loads((PRIVATE/'database'/f'{e}.json').read_text())['password']
-            except (OSError, ValueError, KeyError):
-                raise RuntimeError('No developer password was saved') from None
-            if not isinstance(password, str) or not re.fullmatch(r'[A-Za-z0-9_-]{24,128}', password):
-                raise RuntimeError('The saved developer password is not valid')
-            if not direct_on(e):
-                available, promised = (int(value) for value in self.sql(
-                    "SELECT current_setting('max_connections')::int - current_setting('superuser_reserved_connections')::int "
-                    "- current_setting('reserved_connections')::int, coalesce(sum(greatest(datconnlimit, 0)), 0) "
-                    "FROM pg_database WHERE datallowconn AND datname <> 'template1';").stdout.strip().split('|'))
-                if promised + connection_budget.DIRECT_CONNECTIONS > available:
-                    raise AdmissionLimitError('Connection headroom unavailable')
-            self.sql(self.developer_sql(e, password))
-            self.sql(self.developer_grants_sql(e), e)
-            self.sql(f'ALTER DATABASE {e} CONNECTION LIMIT {current_database_limit(e, direct=True)};')
-            # A new password closes the sessions that signed in with the old one.
-            self.sql(f"SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE usename = '{role}' AND backend_start < now() - interval '1 second';")
-        else:
-            self.sql(f"DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{role}') THEN "
-                     f"ALTER ROLE {role} NOLOGIN; END IF; END $$; "
-                     f"SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE usename = '{role}';")
-            self.sql(f'ALTER DATABASE {e} CONNECTION LIMIT {current_database_limit(e, direct=False)};')
+                guard.enter_context(write_pause.unpaused(e, 'turn database access on'))
+            except write_pause.PauseError as error:
+                raise RuntimeError(str(error)) from None
+        with guard:
+            if on:
+                self.developer_on(e)
+            else:
+                self.sql(f"DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{role}') THEN "
+                         f"ALTER ROLE {role} NOLOGIN; END IF; END $$; "
+                         f"SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE usename = '{role}';")
+                self.sql(f'ALTER DATABASE {e} CONNECTION LIMIT {current_database_limit(e, direct=False)};')
+                endpoints = published_endpoints()
+                endpoints[e].pop('database', None)
+                atomic(STATE/'endpoints.json', endpoints)
+
+    def developer_on(self, e):
+        """The developer login on, with the password the console saved last, its grants, the database
+        connection limit and the sessions of an older password closed, then published. The caller
+        holds the write pause guard (database_turn), or is write_pause.py resume itself."""
+        role = f'{e}_developer'
+        if self.sql(f"SELECT count(*) FROM pg_hba_file_rules WHERE '{role}' = ANY(user_name) AND error IS NULL;").stdout.strip() != '1':
+            raise RuntimeError('Database access rule not published; restart Sbarbase once')
+        try:
+            password = json.loads((PRIVATE/'database'/f'{e}.json').read_text())['password']
+        except (OSError, ValueError, KeyError):
+            raise RuntimeError('No developer password was saved') from None
+        if not isinstance(password, str) or not re.fullmatch(r'[A-Za-z0-9_-]{24,128}', password):
+            raise RuntimeError('The saved developer password is not valid')
+        if not direct_on(e):
+            available, promised = (int(value) for value in self.sql(
+                "SELECT current_setting('max_connections')::int - current_setting('superuser_reserved_connections')::int "
+                "- current_setting('reserved_connections')::int, coalesce(sum(greatest(datconnlimit, 0)), 0) "
+                "FROM pg_database WHERE datallowconn AND datname <> 'template1';").stdout.strip().split('|'))
+            if promised + connection_budget.DIRECT_CONNECTIONS > available:
+                raise AdmissionLimitError('Connection headroom unavailable')
+        self.sql(self.developer_sql(e, password))
+        self.sql(self.developer_grants_sql(e), e)
+        self.sql(f'ALTER DATABASE {e} CONNECTION LIMIT {current_database_limit(e, direct=True)};')
+        # A new password closes the sessions that signed in with the old one.
+        self.sql(f"SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE usename = '{role}' AND backend_start < now() - interval '1 second';")
         endpoints = published_endpoints()
-        if on:
-            endpoints[e]['database'] = {'user': role, 'database': e}
-        else:
-            endpoints[e].pop('database', None)
+        endpoints[e]['database'] = {'user': role, 'database': e}
         atomic(STATE/'endpoints.json', endpoints)
 
     def functions_configuration(self, e, v):
@@ -1007,6 +1032,17 @@ ALTER DEFAULT PRIVILEGES FOR ROLE {role} IN SCHEMA public GRANT EXECUTE ON FUNCT
         if e not in endpoints or e not in self.values['environments']:
             raise RuntimeError('Edge Functions need a published environment')
         name = PREFIX+'-'+e+'-functions'
+        guard = contextlib.ExitStack()
+        if on:
+            import write_pause
+            try:
+                guard.enter_context(write_pause.unpaused(e, 'turn Edge Functions on'))
+            except write_pause.PauseError as error:
+                raise RuntimeError(str(error)) from None
+        with guard:
+            self.functions_switch(e, on, name)
+
+    def functions_switch(self, e, on, name):
         if on:
             if not functions_on(e):
                 placement, cpus = restart_placement(len(self.values['environments']), realtime_count(), functions_count() + 1)

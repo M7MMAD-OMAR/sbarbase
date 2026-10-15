@@ -40,6 +40,7 @@ import image_identity
 import resource_policy
 import run as lab
 import source_fence
+import write_pause
 
 PREFIX = runtime.PREFIX
 STATE_FILE = runtime.STATE / 'studio.json'
@@ -252,6 +253,11 @@ def up(e):
     if source_fence.is_fenced(lambda query: lab.docker('exec', '-i', runtime.DB, 'psql', '-X', '-qAt', '-U', 'supabase_admin',
                                                         '-d', 'postgres', data=query), e):
         raise StudioError('The environment database is fenced')
+    try:
+        if write_pause.is_paused(e):
+            raise StudioError(f'{e} is paused for writes; open Studio after: write_pause.py resume {e}')
+    except write_pause.PauseError as error:
+        raise StudioError(str(error)) from None
     require_rule(e)
     image = ensure_images()
     headroom(resource_policy.memory_mib(resource_policy.TIERS['operator.studio'].memory)
@@ -264,46 +270,52 @@ def up(e):
     studio, meta = names(e)
     remove(studio)
     remove(meta)
-    open_connections(e)
-    runtime_sql(role_sql(e, password), e)
+    # Held from the moment the Studio login opens until Studio serves: a write pause taken meanwhile
+    # waits, then stops this Studio and closes the login (lab/write_pause.py).
     try:
-        meta_address = launch(meta, 'operator.meta', {
-            'PG_META_PORT': '8080', 'PG_META_DB_HOST': runtime.DB, 'PG_META_DB_PORT': '5432', 'PG_META_DB_NAME': e,
-            'PG_META_DB_USER': f'{e}_studio', 'PG_META_DB_PASSWORD': password, 'PG_META_DB_SSL_MODE': 'disable',
-            'CRYPTO_KEY': crypto}, image['meta'])
-        organization, environment = display_names(e)
-        studio_address = launch(studio, 'operator.studio', {
-            'HOSTNAME': '0.0.0.0', 'STUDIO_PG_META_URL': f'http://{meta_address}:8080',
-            'POSTGRES_HOST': runtime.DB, 'POSTGRES_PORT': '5432', 'POSTGRES_DB': e, 'POSTGRES_PASSWORD': password,
-            'POSTGRES_USER_READ_WRITE': f'{e}_studio', 'POSTGRES_USER_READ_ONLY': f'{e}_studio',
-            'PG_META_CRYPTO_KEY': crypto, 'PGRST_DB_SCHEMAS': 'public', 'PGRST_DB_EXTRA_SEARCH_PATH': 'public',
-            'DEFAULT_ORGANIZATION_NAME': organization, 'DEFAULT_PROJECT_NAME': environment,
-            'SUPABASE_URL': f'http://{network_gateway()}:{UPSTREAM_PORT}/{e}',
-            'SUPABASE_PUBLIC_URL': 'http://localhost', 'SUPABASE_ANON_KEY': anon, 'SUPABASE_SERVICE_KEY': service,
-            'AUTH_JWT_SECRET': values['jwt'], 'ENABLED_FEATURES_LOGS_ALL': 'false', 'NEXT_TELEMETRY_DISABLED': '1'},
-            image['studio'])
-        wait_ready(f'http://{meta_address}:8080/', any_answer=True, what='postgres-meta')
-        wait_ready(f'http://{studio_address}:3000/api/platform/profile')
-    except BaseException:
-        remove(studio)
-        remove(meta)
-        close_login(e)
-        raise
-    state = load_state()
-    state['upstream'] = {'host': network_gateway(), 'port': UPSTREAM_PORT}
-    state['sessions'][e] = {'url': f'http://{studio_address}:3000',
-                            'started_at': datetime.datetime.now(datetime.UTC).isoformat(timespec='seconds')}
-    save_state(state)
-    # The console opens Studio's internal route to Auth and Storage when it sees the state
-    # above, within a couple of seconds. Studio counts as running only once that route
-    # answers, so its first user or bucket page never meets a closed port.
-    try:
-        wait_ready(f"http://{state['upstream']['host']}:{UPSTREAM_PORT}/", timeout=30, any_answer=True,
-                   what='The Studio route to Auth and Storage')
-    except StudioError:
-        down(e)
-        raise
-    return state['sessions'][e]
+        with write_pause.unpaused(e, 'open Studio'):
+            open_connections(e)
+            runtime_sql(role_sql(e, password), e)
+            try:
+                meta_address = launch(meta, 'operator.meta', {
+                    'PG_META_PORT': '8080', 'PG_META_DB_HOST': runtime.DB, 'PG_META_DB_PORT': '5432', 'PG_META_DB_NAME': e,
+                    'PG_META_DB_USER': f'{e}_studio', 'PG_META_DB_PASSWORD': password, 'PG_META_DB_SSL_MODE': 'disable',
+                    'CRYPTO_KEY': crypto}, image['meta'])
+                organization, environment = display_names(e)
+                studio_address = launch(studio, 'operator.studio', {
+                    'HOSTNAME': '0.0.0.0', 'STUDIO_PG_META_URL': f'http://{meta_address}:8080',
+                    'POSTGRES_HOST': runtime.DB, 'POSTGRES_PORT': '5432', 'POSTGRES_DB': e, 'POSTGRES_PASSWORD': password,
+                    'POSTGRES_USER_READ_WRITE': f'{e}_studio', 'POSTGRES_USER_READ_ONLY': f'{e}_studio',
+                    'PG_META_CRYPTO_KEY': crypto, 'PGRST_DB_SCHEMAS': 'public', 'PGRST_DB_EXTRA_SEARCH_PATH': 'public',
+                    'DEFAULT_ORGANIZATION_NAME': organization, 'DEFAULT_PROJECT_NAME': environment,
+                    'SUPABASE_URL': f'http://{network_gateway()}:{UPSTREAM_PORT}/{e}',
+                    'SUPABASE_PUBLIC_URL': 'http://localhost', 'SUPABASE_ANON_KEY': anon, 'SUPABASE_SERVICE_KEY': service,
+                    'AUTH_JWT_SECRET': values['jwt'], 'ENABLED_FEATURES_LOGS_ALL': 'false', 'NEXT_TELEMETRY_DISABLED': '1'},
+                    image['studio'])
+                wait_ready(f'http://{meta_address}:8080/', any_answer=True, what='postgres-meta')
+                wait_ready(f'http://{studio_address}:3000/api/platform/profile')
+            except BaseException:
+                remove(studio)
+                remove(meta)
+                close_login(e)
+                raise
+            state = load_state()
+            state['upstream'] = {'host': network_gateway(), 'port': UPSTREAM_PORT}
+            state['sessions'][e] = {'url': f'http://{studio_address}:3000',
+                                    'started_at': datetime.datetime.now(datetime.UTC).isoformat(timespec='seconds')}
+            save_state(state)
+            # The console opens Studio's internal route to Auth and Storage when it sees the state
+            # above, within a couple of seconds. Studio counts as running only once that route
+            # answers, so its first user or bucket page never meets a closed port.
+            try:
+                wait_ready(f"http://{state['upstream']['host']}:{UPSTREAM_PORT}/", timeout=30, any_answer=True,
+                           what='The Studio route to Auth and Storage')
+            except StudioError:
+                down(e)
+                raise
+            return state['sessions'][e]
+    except write_pause.PauseError as error:
+        raise StudioError(str(error)) from None
 
 
 def down(e):

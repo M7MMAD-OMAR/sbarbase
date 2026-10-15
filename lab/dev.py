@@ -613,9 +613,14 @@ class Supervisor:
                  'signing': 'signing_keys'}[service]
         try:
             with closing(sqlite3.connect(f'file:{path}?mode=ro', uri=True, timeout=2)) as database, database:
-                return [row[0] for row in database.execute(f"SELECT runtime FROM {table} WHERE state='pending' ORDER BY updated_at")]
+                rows = database.execute(f"SELECT runtime, desired FROM {table} WHERE state='pending' ORDER BY updated_at").fetchall()
         except sqlite3.Error:
             return []
+        # A write pause refuses turning database access or Edge Functions on: such a request (a password
+        # reset included) stays pending until write_pause.py resume, without holding up the others.
+        paused = STATE/'write-pauses'
+        return [runtime for runtime, desired in rows
+                if not (service in ('database', 'functions') and desired == 'on' and (paused/f'{runtime}.json').exists())]
 
     def schedule_toggles(self):
         """Turn an environment's Realtime, Edge Functions or database access on or off (lab/realtime.py), one at a time for each."""

@@ -39,6 +39,7 @@ Read these to understand the design. Each page has the same shape: what it is, w
 - [Sign-in settings](guides/sign-in.md): site URL, redirect addresses and OAuth providers (Google, GitHub, Apple and others) per environment.
 - [Supabase Studio](guides/studio.md): open the original Studio for one environment, behind the console login.
 - [Backup and restore](guides/backup-and-restore.md): the current operator workflow, including scheduled backups and bounded offsite recovery.
+- [Pausing writes](guides/write-pause.md): stopping application writes to one environment before work whose way back restores a backup.
 - [Upgrades](guides/upgrades.md): updates from the console, opt-in automatic updates and the command line, with an automatic way back.
 - [The sbarbase command](guides/cli.md): status, backups, restore, environments, keys, upgrade, Studio and logs from one command.
 

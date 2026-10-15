@@ -1,4 +1,6 @@
 import type {EnvironmentRoute} from './handler';
+import {routeWithPlacement} from './managed';
+import type {RuntimeRouting} from '../control/placement';
 
 /** A browser's Realtime socket: `/<runtime>/realtime/v1/websocket?apikey=<publishable key>&vsn=…`.
  * The listener asks this before it connects anything: the key must be a live publishable key
@@ -16,6 +18,17 @@ const FORWARDED=new Set(['upgrade','connection','sec-websocket-key','sec-websock
 
 export function isRealtimeSocket(path:string):boolean {
  return PATH.test(new URL(path,'http://local').pathname);
+}
+
+/** The route a new socket gets from the catalog, read on every socket: none until the environment
+ * is ready, and 'maintenance' while its routing is paused, by a move or a write pause. */
+export function catalogRealtimeRoute(catalog:{runtimeReady(runtime:string):boolean;runtimeRouting(runtime:string):RuntimeRouting},
+ resolve:(runtime:string)=>EnvironmentRoute|undefined) {
+ return (runtime:string):EnvironmentRoute|undefined|'maintenance'=>{
+  if(!catalog.runtimeReady(runtime))return undefined;
+  const routing=catalog.runtimeRouting(runtime);
+  return routing.maintenance?'maintenance':routeWithPlacement(resolve(runtime),routing);
+ };
 }
 
 export function realtimeUpgrade(options:{
