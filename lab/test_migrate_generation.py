@@ -21,6 +21,9 @@ BASE=['--volume','sbarbase-durable-pgdata','--network','sbarbase-durable-net','-
       '--retired','stopped','--assert-retired-will-not-return']
 
 
+UPGRADE_STATE=command.UPGRADE_STATE
+
+
 class RefuseRetained(unittest.TestCase):
     def test_the_retained_placement_is_refused_by_default(self):
         with self.assertRaisesRegex(RuntimeError,'deliberate operator run'):
@@ -71,6 +74,11 @@ class Main(unittest.TestCase):
                 return intent,execute,error
 
     def setUp(self):
+        upgrades=tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree,upgrades,True)
+        self.upgrade=Path(upgrades)/'state.json'
+        patcher=patch.object(command,'UPGRADE_STATE',self.upgrade)
+        patcher.start();self.addCleanup(patcher.stop)
         with tempfile.NamedTemporaryFile('w',suffix='.conf',delete=False) as handle:
             self.inventory=handle.name
             self.addCleanup(Path(self.inventory).unlink)
@@ -100,6 +108,35 @@ class Main(unittest.TestCase):
         _,execute,error=self.run_main([*BASE,'--reconcile','--attended-retained','--confirm-retained','sbarbase-durable-db'])
         self.assertIsNone(error)
         execute.assert_called_once()
+
+    def test_an_unconfirmed_upgrade_or_rollback_refuses_before_the_intent(self):
+        for phase in ('applied','rolling_back'):
+            self.upgrade.write_text('{"phase": "%s"}'%phase)
+            intent,execute,error=self.run_main(BASE,target=DISPOSABLE)
+            self.assertRegex(str(error),'not confirmed yet',phase)
+            intent.assert_not_called();execute.assert_not_called()
+        for text in ('{"phase": ',"[]"):
+            self.upgrade.write_text(text)
+            intent,_,error=self.run_main(BASE,target=DISPOSABLE)
+            self.assertRegex(str(error),'review it',text)
+            intent.assert_not_called()
+
+    def test_a_settled_upgrade_record_lets_the_migration_run(self):
+        for phase in ('confirmed','rolled_back','failed'):
+            self.upgrade.write_text('{"phase": "%s"}'%phase)
+            intent,execute,error=self.run_main(BASE,target=DISPOSABLE)
+            self.assertIsNone(error,phase)
+            intent.assert_called_once();execute.assert_called_once()
+
+    def test_finishing_an_interrupted_migration_is_not_held_back(self):
+        self.upgrade.write_text('{"phase": "applied"}')
+        _,execute,error=self.run_main([*BASE,'--reconcile'],target=DISPOSABLE)
+        self.assertIsNone(error)
+        execute.assert_called_once()
+
+    def test_the_record_path_is_the_one_the_upgrade_command_writes(self):
+        import upgrade
+        self.assertEqual(UPGRADE_STATE,upgrade.STATE_FILE)
 
     def test_a_disposable_fixture_runs_without_the_override(self):
         intent,execute,error=self.run_main(BASE,target=DISPOSABLE)

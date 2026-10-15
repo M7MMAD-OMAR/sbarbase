@@ -19,6 +19,9 @@ retained installation's recreation is a deliberate operator run with its own
 evidence, not something this command performs while the runtime is supervising
 the installation.
 
+A new migration also refuses while an upgrade or rollback is not confirmed yet
+(no_pending_upgrade); finishing an interrupted one with --reconcile does not.
+
 Read docs/engineering/CONTAINER-GENERATION-MIGRATION.md before running it. An interrupted run
 leaves a private migration record in place; startup refuses until either this
 command finishes the migration or an operator settles the HBA journal it names.
@@ -31,9 +34,12 @@ import hba_authority
 import hba_migration
 import hba_target
 import run as lab
+import upgrade_guard
 
 REFUSED_OWNERS=('durable-upstream','recovery-target')
 REFUSED_PREFIXES=('sbarbase-durable','sbarbase-restore')
+# The upgrade record lab/upgrade.py keeps (its STATE_FILE).
+UPGRADE_STATE=lab.STATE/'upgrades'/'state.json'
 DB_COMMAND=('postgres','-c','config_file=/etc/postgresql/postgresql.conf','-c','log_statement=none')
 
 
@@ -51,6 +57,24 @@ def refuse_retained(name,owner,*,attended=False,confirmed=None):
             raise RuntimeError('Retained placement migration is a deliberate operator run; this command refuses it')
         if confirmed!=name:
             raise RuntimeError('The confirmed name does not match the pinned retained container')
+    return True
+
+
+def no_pending_upgrade(path=None):
+    """An upgrade or rollback that is not confirmed yet can move the installation back on its own,
+    and that way back describes the database as it was: a new generation under it is refused."""
+    path=UPGRADE_STATE if path is None else path
+    try:
+        record=json.loads(Path(path).read_text())
+    except FileNotFoundError:
+        return True
+    except (OSError,ValueError):
+        raise RuntimeError('The upgrade record cannot be read; review it before a generation migration') from None
+    if not isinstance(record,dict):
+        raise RuntimeError('The upgrade record is malformed; review it before a generation migration')
+    if record.get('phase') in upgrade_guard.PENDING:
+        raise RuntimeError('An upgrade or rollback is not confirmed yet; restart Sbarbase so it confirms, '
+                           'or roll it back, before a generation migration')
     return True
 
 
@@ -114,6 +138,7 @@ def main():
     pin=hba_migration.pinned(state)
     old=hba_target.Target(**pin['target'])
     refuse_retained(old.name,old.owner,attended=options.attended,confirmed=options.confirmed)
+    no_pending_upgrade()
     if options.assertion and options.retired!='stopped':
         raise RuntimeError('The retirement assertion applies to a stopped container only')
     if options.retired=='stopped' and not options.assertion:

@@ -132,6 +132,12 @@ record) already names; either flag alone, or any other name, refuses before the
 intent is written. `lab/test_migrate_generation.py` covers the refusal, the
 override, a mismatched or partial override and the same gate on `--reconcile`.
 
+A new migration also refuses while the upgrade record (`.lab/upgrades/state.json`)
+says an upgrade or rollback is not confirmed yet: until then `lab/upgrade.py` may move
+the installation back on its own, and its way back describes the database as it was.
+An unreadable record refuses too. `--reconcile` still finishes an interrupted
+migration, since leaving it half done is worse.
+
 The owner authorized the run, and it was made once on `sbarbase-durable-db`
 (owner `durable-upstream`, volume `sbarbase-durable-pgdata`, network
 `sbarbase-durable-net`, tier `system.db`, inventory from the runtime's own
