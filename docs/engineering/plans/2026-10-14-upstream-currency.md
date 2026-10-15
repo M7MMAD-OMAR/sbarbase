@@ -153,3 +153,19 @@ The owner's projects on Supabase Cloud, which are not listed here, gain nothing 
 ## 10. Acceptance and limits
 
 A step is accepted only with its review entry complete, the baseline comparison clean, live checks passed on the named host and an independent review without must-fix findings. A passed lab run says nothing about a real server or a provider not tested. The pin table in the policy is updated in the same change as each adoption.
+
+## 11. Progress
+
+Updated with each step. Code accepted here has unit tests and an independent review; nothing below has run on the lab host or a real server yet, so no step is accepted under section 10.
+
+| Item | State | Commit | What is still open |
+|---|---|---|---|
+| P1, rollback across a database image | code reviewed | `fadc66f` | `lab/upgrade.py rollback` refuses to cross a PostgreSQL image change |
+| P1, update check and distribution probe | code reviewed | `fadc66f` | the channel check names its direction; `lab/distro-check.py` reads the lock and never writes it |
+| P1, migration during an unconfirmed upgrade | code reviewed | `5044dd7` | `lab/migrate-generation.py` refuses while an upgrade or rollback is unconfirmed |
+| P1, image change and the attended flow | not started | | the replacement image from the target lock, and one flow there and back |
+| P2, management database backup | code reviewed | `b6f5f6a` | the live restore drill |
+| P5, write pause | code reviewed | `cc6f888` | the live check that both write paths are refused |
+| P3, P4, A1 to A8, B1, features | not started | | |
+
+The live drills wait for host memory: the rehearsal VM needs about 9 GiB free.
