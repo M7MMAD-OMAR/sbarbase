@@ -87,8 +87,8 @@ class Source:
         host = self.environment['PGHOST']
         local = host in ('127.0.0.1', 'localhost', '::1')
         network = 'host' if local else runtime.EGRESS
-        if not local and not runtime.inspect('network', runtime.EGRESS):
-            lab.docker('network', 'create', '--label', 'io.sbarbase.owner=' + runtime.OWNER, runtime.EGRESS)
+        if not local:
+            runtime.ensure_egress()
         created = lab.docker('run', '-d', '--rm', '--pull=never', '--name', TOOL, '--network', network,
                              '--memory', SOURCE_TOOL_MEMORY, '--memory-swap', SOURCE_TOOL_MEMORY,
                              '--cpus', SOURCE_TOOL_CPUS, '--pids-limit', SOURCE_TOOL_PIDS,

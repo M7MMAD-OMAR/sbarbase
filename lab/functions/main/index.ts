@@ -5,8 +5,8 @@
 // variables and secrets, as Supabase does.
 //
 // `/_sb/<auth|rest|storage>/v1/...` is the address functions reach the environment's own
-// API at (SUPABASE_URL). It forwards to that environment's services on the internal
-// network; they check every token themselves. The gateway never sends a name that starts
+// API at (SUPABASE_URL). It forwards to that environment's services on its own network,
+// the only internal one this container joins; they check every token themselves. The gateway never sends a name that starts
 // with an underscore, so this route is not reachable from outside.
 
 const FUNCTIONS = Deno.env.get('SB_FUNCTIONS_DIR') ?? '/home/deno/functions';

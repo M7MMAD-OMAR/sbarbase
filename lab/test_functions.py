@@ -1,4 +1,4 @@
-"""Edge Functions per environment: the container, its mounts and network, the keys it gets, and the apply."""
+"""Edge Functions per environment: the container, its mounts and networks, the keys it gets, and the apply."""
 import json
 import sqlite3
 import tempfile
@@ -57,6 +57,101 @@ class FunctionsRuntimeTests(unittest.TestCase):
         self.assertEqual(launch.call_args.kwargs['tier'], 'production.functions')
         self.assertIn(('network', 'connect', durable_runtime.EGRESS, name), self.docker)
         self.assertEqual(json.loads((self.root / 'private' / 'functions' / E / 'secrets.json').read_text()), {})
+
+    def test_functions_join_only_their_own_environment_network_and_an_outbound_network_without_container_traffic(self):
+        network = f'sbarbase-durable-{E}-fn'
+        with patch.object(self.runtime, 'launch') as launch, patch.object(self.runtime, 'endpoint', return_value='http://10.0.0.9:9000') as endpoint, \
+             patch.object(durable_runtime, 'http', return_value=(404, b'{}')):
+            self.runtime.functions_start(E)
+        self.assertEqual(launch.call_args.kwargs['network'], network)
+        self.assertNotEqual(launch.call_args.kwargs['network'], durable_runtime.NETWORK)
+        self.assertEqual(endpoint.call_args[0][2], network)
+        create = next(args for args in self.docker if args[:3] == ('network', 'create', '--internal'))
+        self.assertEqual(create[-1], network)
+        self.assertIn('io.sbarbase.functions=' + E, create)
+        connected = {args[3] for args in self.docker if args[:3] == ('network', 'connect', network)}
+        self.assertEqual(connected, {f'sbarbase-durable-{E}-auth', f'sbarbase-durable-{E}-rest', 'sbarbase-durable-storage'})
+        self.assertFalse(any(OTHER in ' '.join(args) for args in self.docker))
+        outbound = next(args for args in self.docker if args[:2] == ('network', 'create') and args[-1] == durable_runtime.EGRESS)
+        self.assertIn('com.docker.network.bridge.enable_icc=false', outbound)
+        self.assertNotIn('--internal', outbound)
+
+    def test_an_outbound_network_that_lets_containers_reach_each_other_is_refused(self):
+        shared = {'Name': durable_runtime.EGRESS, 'Options': {}, 'Internal': False, 'Labels': {'io.sbarbase.owner': durable_runtime.OWNER}}
+        with patch.object(durable_runtime, 'inspect', side_effect=lambda kind, name: shared if name == durable_runtime.EGRESS else None):
+            with self.assertRaises(RuntimeError):
+                durable_runtime.ensure_egress()
+
+    def test_the_earlier_shared_outbound_network_is_removed_only_once_no_container_names_it(self):
+        isolated = {'Options': {durable_runtime.NO_ICC: 'false'}, 'Internal': False}
+        found = lambda kind, name: isolated if name == durable_runtime.EGRESS else {'Name': name}
+        for listed, removed in (('abc\n', False), ('', True)):
+            self.docker.clear()
+            def docker(*args, **kw):
+                self.docker.append(args)
+                return SimpleNamespace(stdout=listed if args[0] == 'ps' else '', returncode=0)
+            with patch.object(durable_runtime, 'inspect', side_effect=found), patch.object(durable_runtime.lab, 'docker', side_effect=docker):
+                durable_runtime.ensure_egress()
+            self.assertEqual(('network', 'rm', durable_runtime.LEGACY_EGRESS) in self.docker, removed)
+
+    def test_the_old_functions_container_is_removed_before_the_earlier_outbound_network_is_judged(self):
+        name = f'sbarbase-durable-{E}-functions'
+        isolated = {'Options': {durable_runtime.NO_ICC: 'false'}, 'Internal': False}
+        old = {'Id': 'old', 'Name': name}
+        def found(kind, item):
+            if item == name:
+                return old if not any(args[:2] == ('rm', '-f') for args in self.docker) else None
+            return {durable_runtime.EGRESS: isolated, durable_runtime.LEGACY_EGRESS: {'Name': item}}.get(item)
+        def docker(*args, **kw):
+            self.docker.append(args)
+            named = args[0] == 'ps' and not any(call[:2] == ('rm', '-f') for call in self.docker)
+            return SimpleNamespace(stdout='old\n' if named else '', returncode=0)
+        with patch.object(durable_runtime, 'inspect', side_effect=found), patch.object(durable_runtime.lab, 'docker', side_effect=docker), \
+             patch.object(self.runtime, 'launch'), patch.object(self.runtime, 'endpoint', return_value='http://10.0.0.9:9000'), \
+             patch.object(durable_runtime, 'http', return_value=(404, b'{}')):
+            self.runtime.functions_start(E)
+        self.assertLess(self.docker.index(('rm', '-f', name)), self.docker.index(('network', 'rm', durable_runtime.LEGACY_EGRESS)))
+
+    def test_auth_and_rest_join_their_own_environment_network_and_storage_joins_every_one(self):
+        networks = {f'sbarbase-durable-{E}-fn'}
+        found = lambda kind, name: {'Name': name} if name in networks else None
+        listing = f'sbarbase-durable-{E}-fn\nsbarbase-durable-{OTHER}-fn\nsomething-else\n'
+        with patch.object(durable_runtime, 'inspect', side_effect=found), \
+             patch.object(durable_runtime.lab, 'docker', return_value=SimpleNamespace(stdout=listing, returncode=0)):
+            self.assertEqual(durable_runtime.functions_links(f'sbarbase-durable-{E}-auth', 'auth'), [f'sbarbase-durable-{E}-fn'])
+            self.assertEqual(durable_runtime.functions_links(f'sbarbase-durable-{E}-rest', 'rest'), [f'sbarbase-durable-{E}-fn'])
+            self.assertEqual(durable_runtime.functions_links(f'sbarbase-durable-{OTHER}-auth', 'auth'), [])
+            self.assertEqual(durable_runtime.functions_links(f'sbarbase-durable-{E}-realtime', 'realtime'), [])
+            self.assertEqual(durable_runtime.functions_links('sbarbase-durable-management-auth', 'auth'), [])
+            self.assertEqual(durable_runtime.functions_links('sbarbase-durable-storage', 'storage'),
+                             [f'sbarbase-durable-{E}-fn', f'sbarbase-durable-{OTHER}-fn'])
+
+    def test_a_recreated_auth_rejoins_its_environment_network(self):
+        digest = 'sha256:' + 'a' * 64
+        reference = 'docker.io/supabase/gotrue@' + digest
+        self.runtime.pins['auth'] = {'id': digest, 'tag': 'supabase/gotrue:v2', 'digests': [reference]}
+        name, network = f'sbarbase-durable-{E}-auth', f'sbarbase-durable-{E}-fn'
+        def docker(*args, **kwargs):
+            self.docker.append(args)
+            return SimpleNamespace(returncode=0, stderr='', stdout=json.dumps([{'Id': 'sha256:' + 'b' * 64, 'RepoDigests': [reference]}])
+                                   if args[:2] == ('image', 'inspect') else '')
+        found = lambda kind, item: {'Name': item} if item == network else None
+        with patch.object(durable_runtime.resource_policy, 'container_flags', return_value={'memory': None, 'cpus': None, 'label': 'production', 'pids': 256, 'shares': 512, 'weight': 400}), \
+             patch.object(durable_runtime.resource_policy, 'io_flags', return_value=[]), patch.object(durable_runtime, 'inspect', side_effect=found), \
+             patch.object(durable_runtime.lab, 'secure_file'), patch.object(durable_runtime.lab, 'docker', docker):
+            self.runtime.launch(name, 'auth', {}, '256m', .25, tier='production')
+        run = next(args for args in self.docker if args and args[0] == 'run')
+        self.assertEqual(run[run.index('--network') + 1], durable_runtime.NETWORK)
+        self.assertIn(('network', 'connect', network, name), self.docker)
+
+    def test_turning_functions_off_takes_every_member_off_the_environment_network_before_removing_it(self):
+        network = f'sbarbase-durable-{E}-fn'
+        item = {'Name': network, 'Containers': {'x': {'Name': f'sbarbase-durable-{E}-rest'}}}
+        with patch.object(durable_runtime, 'inspect', side_effect=lambda kind, name: item if name == network else None):
+            self.runtime.functions_network_remove(E)
+        disconnected = [args[4] for args in self.docker if args[:2] == ('network', 'disconnect')]
+        self.assertEqual(set(disconnected), {f'sbarbase-durable-{E}-auth', f'sbarbase-durable-{E}-rest', 'sbarbase-durable-storage'})
+        self.assertEqual(self.docker[-1], ('network', 'rm', network))
 
     def test_a_runtime_that_never_answers_fails_the_start(self):
         with patch.object(self.runtime, 'launch'), patch.object(self.runtime, 'endpoint', return_value='http://10.0.0.9:9000'), \
