@@ -194,13 +194,25 @@ EGRESS = PREFIX + '-outbound'
 LEGACY_EGRESS = PREFIX + '-egress'
 NO_ICC = 'com.docker.network.bridge.enable_icc'
 FUNCTIONS_NETWORK = re.compile(re.escape(PREFIX) + r'-(e_[a-f0-9]{24})-fn')
+# The loopback API listens on each environment network's gateway address at this port and
+# forwards to the shared Storage with that environment's tenant set (src/control/functions-storage.ts).
+FUNCTIONS_STORAGE_PORT = int(os.environ.get('SBARBASE_FUNCTIONS_STORAGE_PORT', '25433'))
 
 
 def functions_network(e):
-    """The environment's own internal network: its Functions, its Auth and REST, and the shared
-    Storage. Functions join no other internal network, so no other environment's service has an
-    address they can reach."""
+    """The environment's own internal network: its Functions, its Auth and REST. Functions join no
+    other internal network, so no other environment's service has an address they can reach."""
     return f'{PREFIX}-{e}-fn'
+
+
+def functions_address(network):
+    """The environment network's IPv4 gateway, the host's own address on it, and its subnet."""
+    item = inspect('network', network) or {}
+    for entry in (item.get('IPAM') or {}).get('Config') or []:
+        subnet, gateway = entry.get('Subnet') or '', entry.get('Gateway') or ''
+        if subnet and ':' not in subnet and gateway:
+            return gateway, subnet
+    raise RuntimeError('Environment network has no IPv4 gateway')
 
 
 def published_endpoints():
@@ -310,10 +322,8 @@ def ensure_egress():
 
 def functions_links(name, component):
     """The environment networks a service joins besides the runtime network: an environment's Auth
-    and REST join their own environment's when it exists, and the shared Storage joins every one."""
-    if component == 'storage':
-        listing = lab.docker('network', 'ls', '--filter', 'label=io.sbarbase.functions', '--format', '{{.Name}}').stdout.split()
-        return sorted(network for network in listing if FUNCTIONS_NETWORK.fullmatch(network))
+    and REST join their own environment's when it exists. The shared Storage joins none; Functions
+    reach it through the host listener, which sets the tenant itself."""
     match = re.fullmatch(re.escape(PREFIX) + r'-(e_[a-f0-9]{24})-(auth|rest)', name)
     if match and component == match.group(2) and inspect('network', functions_network(match.group(1))):
         return [functions_network(match.group(1))]
@@ -1006,16 +1016,17 @@ ALTER DEFAULT PRIVILEGES FOR ROLE {role} IN SCHEMA public GRANT EXECUTE ON FUNCT
             endpoints[e].pop('database', None)
         atomic(STATE/'endpoints.json', endpoints)
 
-    def functions_configuration(self, e, v):
+    def functions_configuration(self, e, v, gateway):
         """The main service's settings: where the code and secrets are, the keys functions get, and
-        the addresses of this environment's own services on the internal network."""
+        the addresses of this environment's own services. Auth and REST are on the environment
+        network; Storage is the host listener at its gateway, which pins this environment's tenant."""
         ten_years = 10 * 365 * 24 * 3600
         return {'SB_FUNCTIONS_DIR': '/home/deno/functions', 'SB_SECRETS_FILE': '/run/sbarbase/secrets.json',
                 'SB_SELF_URL': f'http://{PREFIX}-{e}-functions:{FUNCTIONS_PORT}', 'SB_JWT_SECRET': v['jwt'],
                 'SUPABASE_ANON_KEY': service_token(v['jwt'], {'role': 'anon', 'iss': 'sbarbase'}, ten_years),
                 'SUPABASE_SERVICE_ROLE_KEY': service_token(v['jwt'], {'role': 'service_role', 'iss': 'sbarbase'}, ten_years),
                 'SB_AUTH_URL': f'http://{PREFIX}-{e}-auth:9999', 'SB_REST_URL': f'http://{PREFIX}-{e}-rest:3000',
-                'SB_STORAGE_URL': f'http://{PREFIX}-storage:5000', 'SB_STORAGE_HOST': f'{e}.storage.internal'}
+                'SB_STORAGE_URL': f'http://{gateway}:{FUNCTIONS_STORAGE_PORT}'}
 
     def functions_start(self, e):
         """Run the environment's Edge Functions: a fresh container of the pinned edge-runtime, with
@@ -1041,9 +1052,14 @@ ALTER DEFAULT PRIVILEGES FOR ROLE {role} IN SCHEMA public GRANT EXECUTE ON FUNCT
             raise RuntimeError('Environment network mismatch; explicit reconciliation required')
         for service in ('auth', 'rest'):
             join(PREFIX+'-'+e+'-'+service, [network])
-        join(PREFIX+'-storage', [network])
+        # Storage takes its tenant from a header the caller sets, so it is never on an environment
+        # network: an earlier version attached it to every one, and this takes it off again.
+        storage = inspect('container', PREFIX+'-storage')
+        if storage and network in storage['NetworkSettings']['Networks']:
+            lab.docker('network', 'disconnect', '--force', network, PREFIX+'-storage')
+        gateway, subnet = functions_address(network)
         ensure_egress()
-        self.launch(name, 'functions', self.functions_configuration(e, v), '384m', .5, tier='production.functions',
+        self.launch(name, 'functions', self.functions_configuration(e, v, gateway), '384m', .5, tier='production.functions',
                     binds=[(lab.ROOT/'lab'/'functions'/'main', '/home/deno/main'), (code, '/home/deno/functions'), (private, '/run/sbarbase')],
                     command=('start', '--main-service', '/home/deno/main', '-p', str(FUNCTIONS_PORT)), network=network)
         lab.docker('network', 'connect', EGRESS, name)
@@ -1058,7 +1074,10 @@ ALTER DEFAULT PRIVILEGES FOR ROLE {role} IN SCHEMA public GRANT EXECUTE ON FUNCT
             time.sleep(.5)
         else:
             raise RuntimeError('Edge Functions did not start')
-        return {'url': base, 'image': self.pins['functions']['id']}
+        # The loopback API serves Storage at the gateway only to sources inside this subnet: Linux
+        # accepts a packet for any host address on any interface, so the address alone is not enough.
+        return {'url': base, 'image': self.pins['functions']['id'],
+                'storage': {'host': gateway, 'port': FUNCTIONS_STORAGE_PORT, 'subnet': subnet}}
 
     def functions_turn(self, e, on):
         """Turn one environment's Edge Functions on or off: an operator action from the console."""
@@ -1090,7 +1109,8 @@ ALTER DEFAULT PRIVILEGES FOR ROLE {role} IN SCHEMA public GRANT EXECUTE ON FUNCT
         atomic(STATE/'endpoints.json', endpoints)
 
     def functions_network_remove(self, e):
-        """Take the environment's Auth, REST and Storage off its Functions network, then remove it."""
+        """Take the environment's Auth and REST (and Storage, attached by an earlier version) off its
+        Functions network, then remove it."""
         network = functions_network(e)
         item = inspect('network', network)
         if not item:

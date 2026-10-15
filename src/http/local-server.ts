@@ -34,12 +34,18 @@ export function consolePort(value:string|undefined):number {
  * With `upgrade`, WebSocket upgrades it accepts are piped straight to their upstream: Bun's
  * node:http does not deliver bytes written to an upgraded socket, so a small TCP front reads
  * each connection's first request head and hands every other connection, byte for byte, to
- * the HTTP server on a private loopback port. */
+ * the HTTP server on a private loopback port. With `admit`, a connection whose source address it
+ * refuses is closed before anything is read; it needs a listener without `upgrade`, whose
+ * inner server would see only the front's loopback address. */
 export async function serveLocal(fetch:(request:Request)=>Response|Promise<Response>,port=0,
- options:{host?:string;hostnames?:(name:string)=>boolean;upgrade?:Upgrade;isUpgrade?:(path:string)=>boolean}={}) {
+ options:{host?:string;hostnames?:(name:string)=>boolean;upgrade?:Upgrade;isUpgrade?:(path:string)=>boolean;
+  admit?:(source:string)=>boolean;requestTimeout?:number}={}) {
  const bind=options.host??'127.0.0.1';
+ if(options.admit&&options.upgrade)throw new Error('A source check needs a listener without upgrades');
  const sockets=new Set<Socket>();
  const server=createServer(async(incoming,outgoing)=>{
+  // Checked again per request, in case a runtime delivers a request on a refused connection.
+  if(options.admit&&!options.admit(incoming.socket?.remoteAddress??'')){incoming.socket?.destroy();return;}
   const abort=new AbortController();
   const disconnect=()=>{if(!outgoing.writableEnded)abort.abort();};
   incoming.once('aborted',disconnect);outgoing.once('close',disconnect);
@@ -118,9 +124,12 @@ export async function serveLocal(fetch:(request:Request)=>Response|Promise<Respo
    // Keep close observation until the final bytes are handed off or disconnected.
   }
  });
- server.on('connection',socket=>{sockets.add(socket);socket.once('close',()=>sockets.delete(socket));});
+ server.on('connection',socket=>{
+  if(options.admit&&!options.admit(socket.remoteAddress??'')){socket.destroy();return;}
+  sockets.add(socket);socket.once('close',()=>sockets.delete(socket));
+ });
  server.maxConnections=256;server.maxHeadersCount=100;
- server.headersTimeout=10_000;server.requestTimeout=30_000;server.keepAliveTimeout=5_000;
+ server.headersTimeout=10_000;server.requestTimeout=options.requestTimeout??30_000;server.keepAliveTimeout=5_000;
  await new Promise<void>((resolve,reject)=>{server.once('error',reject);
   // Behind a front, the HTTP server itself listens on a private loopback port.
   server.listen(options.upgrade?0:port,options.upgrade?'127.0.0.1':bind,()=>{server.off('error',reject);resolve();});});

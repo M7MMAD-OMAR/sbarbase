@@ -5,9 +5,12 @@
 // variables and secrets, as Supabase does.
 //
 // `/_sb/<auth|rest|storage>/v1/...` is the address functions reach the environment's own
-// API at (SUPABASE_URL). It forwards to that environment's services on its own network,
-// the only internal one this container joins; they check every token themselves. The gateway never sends a name that starts
-// with an underscore, so this route is not reachable from outside.
+// API at (SUPABASE_URL). Auth and REST are that environment's services on its own network,
+// the only internal one this container joins. Storage is shared and takes its tenant from a
+// header, which code in this container could set to anything, so it is reached through the
+// host listener at the network's gateway, which sets the tenant itself. The services check
+// every token themselves. The gateway never sends a name that starts with an underscore, so
+// this route is not reachable from outside.
 
 const FUNCTIONS = Deno.env.get('SB_FUNCTIONS_DIR') ?? '/home/deno/functions';
 const SECRETS = Deno.env.get('SB_SECRETS_FILE') ?? '/run/sbarbase/secrets.json';
@@ -18,7 +21,6 @@ const UPSTREAMS: Record<string, string | undefined> = {
   rest: Deno.env.get('SB_REST_URL'),
   storage: Deno.env.get('SB_STORAGE_URL'),
 };
-const STORAGE_HOST = Deno.env.get('SB_STORAGE_HOST') ?? '';
 const NAME = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 const HOP = new Set(['host', 'connection', 'keep-alive', 'transfer-encoding', 'te', 'trailer', 'upgrade', 'content-length',
   'x-forwarded-host', 'x-forwarded-for', 'x-forwarded-proto']);
@@ -62,7 +64,6 @@ async function proxy(request: Request, url: URL): Promise<Response> {
   target.search = url.search;
   const headers = new Headers();
   for (const [name, value] of request.headers) if (!HOP.has(name.toLowerCase())) headers.set(name, value);
-  if (match[1] === 'storage') headers.set('x-forwarded-host', STORAGE_HOST);
   return await fetch(target, { method: request.method, headers, body: request.body, redirect: 'manual' });
 }
 
