@@ -52,7 +52,7 @@ floating tag or an unpinned component.
 | Auth | `lab/images.lock.json` | public.ecr.aws/supabase/gotrue:v2.197.0 | 1736a63078f5 | staged 2026-10-16 (A4), live gate pending | GoTrue, environments and the management realm |
 | REST | `lab/images.lock.json` | public.ecr.aws/supabase/postgrest:v14.18 | c7cd7e265a85 | staged 2026-10-16 (A1), live gate pending | PostgREST; v16 deferred |
 | Storage | `lab/storage-image.lock.json` | public.ecr.aws/supabase/storage-api:v1.83.3 | 2cea04f1ec8f | staged 2026-10-16 (A5), live gate pending | tenant-aware; one-way, the way back is a restore |
-| Studio | `lab/studio-image.lock.json` | public.ecr.aws/supabase/studio:2026.09.07-sha-7996410 | 94a2a9d2906e | current distributed lock | per environment, on demand |
+| Studio | `lab/studio-image.lock.json` | public.ecr.aws/supabase/studio:2026.10.12-sha-3699278 | 948770ec467f | staged 2026-10-16 (A6), live gate pending | per environment, on demand |
 | postgres-meta | `lab/studio-image.lock.json` | public.ecr.aws/supabase/postgres-meta:v0.99.0 | 9a079ac1c94d | current distributed lock | scoped Studio database access |
 | Realtime | `lab/realtime-image.lock.json` | public.ecr.aws/supabase/realtime:v2.144.0 | d97bf891884e | staged 2026-10-16 (A3), live gate pending | optional per environment |
 | Edge Functions | `lab/functions-image.lock.json` | public.ecr.aws/supabase/edge-runtime:v1.77.4 | ad45164b7548 | staged 2026-10-16 (A2), live gate pending | optional per environment |

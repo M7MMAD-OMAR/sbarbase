@@ -1,9 +1,9 @@
 {
   "studio": {
-    "tag": "public.ecr.aws/supabase/studio:2026.09.07-sha-7996410",
-    "id": "sha256:94a2a9d2906e8b4109e55159a62e241c3044709a492913ea8edd34b14973d288",
+    "tag": "public.ecr.aws/supabase/studio:2026.10.12-sha-3699278",
+    "id": "sha256:948770ec467f00e6ae34c35018ef7cb23d7b30eb806b42c2cc0d7bcfdcf8a7a8",
     "digests": [
-      "public.ecr.aws/supabase/studio@sha256:94a2a9d2906e8b4109e55159a62e241c3044709a492913ea8edd34b14973d288"
+      "public.ecr.aws/supabase/studio@sha256:948770ec467f00e6ae34c35018ef7cb23d7b30eb806b42c2cc0d7bcfdcf8a7a8"
     ]
   },
   "meta": {
