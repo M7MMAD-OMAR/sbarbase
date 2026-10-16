@@ -72,7 +72,7 @@ Five tooling prerequisites gate the riskier steps, because the plan's own rollba
   `lab/upgrade.py rollback`, and the console's roll back action, check only the upgrade phase, local changes and the catalog and key store schema, not the database image. After a generation change, a stale upgrade record could move the checkout back to a version locked to the other image while the database runs the new one. P1 is accepted only when rollback refuses to cross a database image change, or when P1 writes its own upgrade state so that rollback targets the right version.
 
   Every Sbarbase version released after A7 carries the new distro lock, so an installation still on 17.6.1.166 can take it only through this flow. That is why A7 runs last, after A8, which is independent of it. P1 blocks A7.
-- **P2, a backup of the management database.** `lab/backup.py` covers environment databases and `storage_metadata`, not the `management` database that holds the management realm's Auth. P2 adds its backup and restore, with a restore drill. P2 blocks A4 and A7.
+- **P2, a backup of the management database.** `lab/backup.py` covers environment databases and `storage_metadata`, not the `management` database that holds the management realm's Auth. P2 adds its backup and restore, with a restore drill. P2 blocks A4 and A7. (Code reviewed in `b6f5f6a`; see section 11.)
 - **P3, restore into a fresh cluster on a chosen image.** `lab/backup.py` restores into the running cluster, so after A7 it would restore onto 17.11, and its per-database dumps carry no cluster roles. The fixture prototype pair `lab/recovery-export.py` and `lab/recovery-restore-db.py` (see [INDEPENDENT-RESTORE](../INDEPENDENT-RESTORE.md)) already captures one environment into an encrypted export with its scoped roles and restores it into a fresh pinned cluster. P3 turns the pair into a supported export and restore of the whole installation (every environment, the management database and `storage_metadata`, with cluster roles and scoped logins) onto the 17.6.1.166 image, rehearsed in the VM. P3 blocks A7.
 - **P4, a Storage way back when the previous image cannot start.** The [upgrades guide](../../guides/upgrades.md) records that if the previous Storage image cannot start on a migrated `storage_metadata`, the previous version does not start (`rollback_failed`), and the `storage_metadata` restore is unit tested only. A5 crosses v1.80.0, so this case is likely. P4 adds a supported restore of `storage_metadata` and the environment databases with the database running and Storage stopped, proven by a live drill that migrates forward, fails back and restores. P4 blocks A5.
 - **P5, a supported write pause.** The rollbacks above restore backups and so discard writes made after them, which is safe only while application writes are paused. No supported pause exists today: the upgrade hold releases application traffic as soon as health checks confirm the upgrade, before the baseline post-checks, and the internal routing maintenance flag set through `lab/routing-operator.ts` is undocumented and affects only gateway traffic, while `src/http/database-proxy.ts` keeps accepting writes on the direct database port. P5 adds one documented operator pause that stops writes through the gateway and the direct database port for chosen environments, holds until the operator releases it after the post-checks, and is proven by a live check that writes on both paths are refused while it holds. P5 blocks A3, A4, A5 and A7.
@@ -163,9 +163,17 @@ Updated with each step. Code accepted here has unit tests and an independent rev
 | P1, rollback across a database image | code reviewed | `fadc66f` | `lab/upgrade.py rollback` refuses to cross a PostgreSQL image change |
 | P1, update check and distribution probe | code reviewed | `fadc66f` | the channel check names its direction; `lab/distro-check.py` reads the lock and never writes it |
 | P1, migration during an unconfirmed upgrade | code reviewed | `5044dd7` | `lab/migrate-generation.py` refuses while an upgrade or rollback is unconfirmed |
-| P1, image change and the attended flow | not started | | the replacement image from the target lock, and one flow there and back |
+| P1, image change and the attended flow | in review | | the replacement image from the target lock, and `lab/upgrade.py database` there and back |
 | P2, management database backup | code reviewed | `b6f5f6a` | the live restore drill |
+| P4, database alone for a restore | code reviewed | `2a7e914` | the live drill: migrate Storage forward, fail back, restore |
 | P5, write pause | code reviewed | `cc6f888` | the live check that both write paths are refused |
-| P3, P4, A1 to A8, B1, features | not started | | |
+| A1, PostgREST v14.18 (v16 deferred) | staged | `c299a01` | the live gate |
+| A2, Edge Runtime v1.77.4 | staged | `5498a61` | the live gate |
+| A3, Realtime v2.144.0 | staged | `a229d3f` | the live gate |
+| A4, Auth v2.197.0 | staged | `1edeb56` | the live gate; its way back restores the management database too |
+| A5, Storage v1.83.3 | staged | `87e6fcf` | the live gate; one-way, the way back is the P4 restore |
+| P3, A6 to A8, B1, features | not started | | P3 is split into four reviewed parts (image choice, export, restore into a fresh cluster, taking it into use); A7 waits for P3 and its VM rehearsal |
+
+Staged means pinned with its review entry and the full unit suites passing; no A step has passed its live gate. When releases are cut, each A step needs a release of its own whose `minimum_from` is the release just before it, so that one upgrade never crosses two upstream components: the P4 procedure and the per-step way back rely on that.
 
 The live drills wait for host memory: the rehearsal VM needs about 9 GiB free.
