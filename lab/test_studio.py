@@ -66,7 +66,7 @@ class LifecycleTests(unittest.TestCase):
                    patch.object(studio, 'open_connections'), patch.object(studio, 'network_gateway', return_value='172.18.0.1'),
                    patch.object(studio, 'runtime_sql', side_effect=lambda query, database='postgres': self.statements.append(query) or ''),
                    patch.object(studio, 'remove', side_effect=self.removed.append),
-                   patch.object(studio, 'open_network', return_value='10.0.0.2'),
+                   patch.object(studio, 'open_network', return_value='10.0.0.2'), patch.object(studio, 'unexposed'),
                    patch.object(studio, 'remove_network', side_effect=lambda e: self.removed.append(studio.session_network(e))),
                    patch.object(studio, 'isolated'), patch.object(studio, 'meta_ready')]
         for item in patches:
@@ -202,6 +202,53 @@ class NetworkTests(unittest.TestCase):
         extra = {'NetworkSettings': {'Networks': {**good['NetworkSettings']['Networks'], 'bridge': {'IPAddress': '172.17.0.2'}}}}
         with self.assertRaises(studio.StudioError):
             studio.isolated(extra, E, '172.30.5.2')
+
+    def test_isolated_returns_the_shared_address(self):
+        net = studio.session_network(E)
+        item = {'NetworkSettings': {'Networks': {net: {'IPAddress': '172.30.5.2'}, studio.runtime.NETWORK: {'IPAddress': '172.16.1.9'}}}}
+        self.assertEqual(studio.isolated(item, E, '172.30.5.2'), '172.16.1.9')
+
+    def test_a_studio_answering_on_the_shared_network_is_refused(self):
+        class Open:
+            def __enter__(self): return self
+            def __exit__(self, *exc): return False
+        with patch.object(studio.socket, 'create_connection', side_effect=[ConnectionRefusedError(), Open()]):
+            with self.assertRaisesRegex(studio.StudioError, 'port 8080'):
+                studio.unexposed('172.16.1.9')
+        with patch.object(studio.socket, 'create_connection', side_effect=[ConnectionRefusedError(), TimeoutError()]):
+            studio.unexposed('172.16.1.9')
+
+    def test_an_exposed_studio_is_stopped_before_it_is_recorded(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'endpoints.json').write_text(json.dumps({E: {}}))
+            (root / 'private').mkdir()
+            (root / 'private' / 'runtime.json').write_text(json.dumps({'environments': {E: {'jwt': 'j' * 64}}}))
+            removed = []
+            with patch.object(studio, 'STATE_FILE', root / 'studio.json'), patch.object(studio.runtime, 'STATE', root), \
+                 patch.object(studio.runtime, 'PRIVATE', root / 'private'), \
+                 patch.object(studio.source_fence, 'is_fenced', return_value=False), patch.object(studio, 'require_rule'), \
+                 patch.object(studio, 'ensure_images', return_value={'meta': 'm', 'studio': 's'}), patch.object(studio, 'headroom'), \
+                 patch.object(studio, 'open_connections'), patch.object(studio, 'network_gateway', return_value='172.18.0.1'), \
+                 patch.object(studio, 'runtime_sql', return_value=''), patch.object(studio, 'remove', side_effect=removed.append), \
+                 patch.object(studio, 'remove_network', side_effect=lambda e: removed.append('net')), \
+                 patch.object(studio, 'open_network', return_value='10.0.0.2'), patch.object(studio, 'launch', return_value={}), \
+                 patch.object(studio, 'isolated', return_value='172.16.1.9'), patch.object(studio, 'meta_ready'), \
+                 patch.object(studio, 'wait_ready'), \
+                 patch.object(studio, 'unexposed', side_effect=studio.StudioError('Studio answers on the shared runtime network')):
+                with self.assertRaisesRegex(studio.StudioError, 'shared runtime network'):
+                    studio.up(E)
+            self.assertEqual(removed[-1], 'net')
+            self.assertFalse((root / 'studio.json').exists())
+
+    def test_a_subnet_taken_in_between_is_tried_again(self):
+        with patch.object(studio, 'open_network', side_effect=[RuntimeError('Docker operation network failed'), '10.0.0.2']), \
+             patch.object(studio.time, 'sleep'):
+            self.assertEqual(studio.open_network_retrying(E), '10.0.0.2')
+        with patch.object(studio, 'open_network', side_effect=RuntimeError('Docker operation network failed')), \
+             patch.object(studio.time, 'sleep'):
+            with self.assertRaises(RuntimeError):
+                studio.open_network_retrying(E)
 
     def test_reset_finds_a_session_left_only_as_its_network(self):
         listings = {'ps': '', 'network': f'{studio.session_network(E)}\n{studio.runtime.NETWORK}\n'}

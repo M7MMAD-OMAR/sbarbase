@@ -35,6 +35,7 @@ import json
 import os
 import re
 import secrets
+import socket
 import sqlite3
 from contextlib import closing
 import sys
@@ -225,6 +226,17 @@ def open_network(e):
     return address
 
 
+def open_network_retrying(e, attempts=3):
+    """open_network, again when another session took the subnet in between."""
+    for attempt in range(attempts):
+        try:
+            return open_network(e)
+        except RuntimeError:
+            if attempt == attempts - 1:
+                raise
+            time.sleep(1)
+
+
 def launch(name, tier, env, image, network, address=None, attach=()):
     """Create and start one container. ``network`` is the network it joins first, or
     ``container:<name>`` to share another container's namespace; ``attach`` lists the networks
@@ -258,11 +270,27 @@ def launch(name, tier, env, image, network, address=None, attach=()):
 
 
 def isolated(item, e, address):
-    """Studio joined exactly its session network, at ``address``, and the runtime network."""
+    """Studio joined exactly its session network, at ``address``, and the runtime network.
+    Returns its address on the runtime network."""
     networks = item.get('NetworkSettings', {}).get('Networks') or {}
     if set(networks) != {session_network(e), runtime.NETWORK} \
-            or networks[session_network(e)].get('IPAddress') != address:
+            or networks[session_network(e)].get('IPAddress') != address \
+            or not networks[runtime.NETWORK].get('IPAddress'):
         raise StudioError('Studio is not confined to its own network')
+    return networks[runtime.NETWORK]['IPAddress']
+
+
+def unexposed(shared):
+    """Nothing answers on Studio's runtime network address, on Studio's port or meta's. The
+    confinement rests on how the pinned images read HOSTNAME and PG_META_HOST; an image update
+    that changed either would show here, and the session is refused instead of opened."""
+    for port in (3000, 8080):
+        try:
+            with socket.create_connection((shared, port), timeout=2):
+                pass
+        except OSError:
+            continue
+        raise StudioError(f'Studio answers on the shared runtime network (port {port}); it was stopped')
 
 
 def meta_ready(meta, timeout=120):
@@ -339,7 +367,7 @@ def up(e):
             open_connections(e)
             runtime_sql(role_sql(e, password), e)
             try:
-                address = open_network(e)
+                address = open_network_retrying(e)
                 organization, environment = display_names(e)
                 item = launch(studio, 'operator.studio', {
                     'HOSTNAME': address, 'STUDIO_PG_META_URL': 'http://127.0.0.1:8080',
@@ -351,7 +379,7 @@ def up(e):
                     'SUPABASE_PUBLIC_URL': 'http://localhost', 'SUPABASE_ANON_KEY': anon, 'SUPABASE_SERVICE_KEY': service,
                     'AUTH_JWT_SECRET': values['jwt'], 'ENABLED_FEATURES_LOGS_ALL': 'false', 'NEXT_TELEMETRY_DISABLED': '1'},
                     image['studio'], session_network(e), address=address, attach=(runtime.NETWORK,))
-                isolated(item, e, address)
+                shared = isolated(item, e, address)
                 launch(meta, 'operator.meta', {
                     'PG_META_HOST': '127.0.0.1', 'PG_META_PORT': '8080',
                     'PG_META_DB_HOST': runtime.DB, 'PG_META_DB_PORT': '5432', 'PG_META_DB_NAME': e,
@@ -359,6 +387,7 @@ def up(e):
                     'CRYPTO_KEY': crypto}, image['meta'], f'container:{studio}')
                 meta_ready(meta)
                 wait_ready(f'http://{address}:3000/api/platform/profile')
+                unexposed(shared)
             except BaseException:
                 remove(meta)
                 remove(studio)

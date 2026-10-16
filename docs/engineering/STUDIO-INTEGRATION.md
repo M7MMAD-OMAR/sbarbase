@@ -71,7 +71,12 @@ loopback. The host reaches Studio on its private address. The same probe after t
 by name and by shared-network address on both ports, and the private address unreachable from the
 shared network, while Studio's own SQL route still answered the host. A session's network is
 removed with its containers on stop, on a failed start, and by `studio.py reset`, which also finds
-a session left only as its network. Residual: a peer able to forge raw packets and route them to
+a session left only as its network. Because the confinement rests on how the pinned images read `HOSTNAME` and
+`PG_META_HOST`, `up()` checks it on every start: once Studio serves, the host connects to Studio's
+shared-network address on ports 3000 and 8080, and a connection on either stops the session before
+it is recorded. On the real server, a copy with `HOSTNAME` set back to `0.0.0.0` was refused this
+way and left no container or network behind. Two sessions starting together can both take the
+same free subnet; the loser's creation fails and is tried again, up to three times. Residual: a peer able to forge raw packets and route them to
 Studio's private address through its shared-network interface is not excluded by the network
 layout alone; tenant code (Edge Functions, SQL) has no raw socket access.
 
