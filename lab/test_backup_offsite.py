@@ -420,6 +420,11 @@ class TargetTests(Fixture):
     def test_the_manifest_records_the_cluster_inventory(self):
         path = offsite.write_installation('20260924T030000Z', [E1], environ={})
         self.assertEqual(json.loads((path / 'installation.json').read_text())['cluster'], self.cluster)
+        # An inventory the run took before its dumps is the one recorded; none is taken again.
+        given = {**self.cluster, 'image': 'sha256:' + '8' * 64}
+        self.cluster = None
+        path = offsite.write_installation('20260925T030000Z', [E1], environ={}, cluster=given)
+        self.assertEqual(json.loads((path / 'installation.json').read_text())['cluster'], given)
 
     def test_an_installation_manifest_taken_for_an_upgrade_is_marked_and_kept(self):
         marked = offsite.write_installation('20260901T030000Z', [E1], environ={}, reason='upgrade')

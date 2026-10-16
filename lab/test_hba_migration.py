@@ -827,23 +827,38 @@ class ResumeAfterRemovalTests(ImageChangeTests.__base__):
             self.execute()
         self.assertTrue(migration.present(self.state))
 
-    def test_a_kill_before_the_intent_is_renamed_in_starts_again(self):
+    def test_a_kill_before_the_intent_is_linked_in_starts_again(self):
+        for leftover in (False,True):
+            with self.subTest(leftover=leftover):
+                self.setUp();self.__dict__.pop('token',None);self.lifelike()
+                import shutil
+                shutil.rmtree(migration.record_directory(self.state))
+                real=migration.os.link
+                def killed(source,destination):
+                    if Path(destination).name==migration.hba_generation.MIGRATION_INTENT:
+                        if leftover:
+                            # A real kill leaves the temporary copy the finally clause would remove.
+                            (Path(destination).parent/'.intent.json.0.pending').write_text('{"record":')
+                        raise OSError('killed before the link')
+                    return real(source,destination)
+                with patch.object(migration.os,'link',killed), self.assertRaises(OSError):
+                    migration.publish_intent(self.state,target=TARGET,generation=self.generation,volume='fixture-pgdata',
+                                             inventory=authority.digest(DESIRED),retired_state='stopped-will-not-return',image=NEW_IMAGE)
+                self.assertTrue(migration.present(self.state))
+                self.assertFalse(migration.intent_path(self.state).exists(),'never a torn intent')
+                with self.assertRaisesRegex(RuntimeError,'Start the migration again'):
+                    self.execute()
+                self.assertFalse(migration.present(self.state))
+                self.assertEqual(self.docker.calls,[],'nothing had started')
+
+    def test_a_record_holding_anything_but_temporary_copies_is_kept(self):
         self.lifelike()
         import shutil
         shutil.rmtree(migration.record_directory(self.state))
-        real=migration.os.rename
-        def killed(source,destination):
-            if Path(source).name==migration.INTENT_PENDING:raise OSError('killed before the rename')
-            return real(source,destination)
-        with patch.object(migration.os,'rename',killed), self.assertRaises(OSError):
-            migration.publish_intent(self.state,target=TARGET,generation=self.generation,volume='fixture-pgdata',
-                                     inventory=authority.digest(DESIRED),retired_state='stopped-will-not-return',image=NEW_IMAGE)
+        migration.os.mkdir(migration.record_directory(self.state),0o700)
+        (migration.record_directory(self.state)/'intent.json').write_text('{"record":')
+        self.assertFalse(migration.discard_unpublished(self.state))
         self.assertTrue(migration.present(self.state))
-        self.assertEqual(list(migration.record_directory(self.state).iterdir()),[],'never a torn intent')
-        with self.assertRaisesRegex(RuntimeError,'Start the migration again'):
-            self.execute()
-        self.assertFalse(migration.present(self.state))
-        self.assertEqual(self.docker.calls,[],'nothing had started')
 
     def test_a_kill_before_a_record_is_linked_leaves_no_torn_file(self):
         self.lifelike()

@@ -29,6 +29,12 @@ class Fixture(unittest.TestCase):
             patcher = patch.object(backup, target, value)
             patcher.start()
             self.addCleanup(patcher.stop)
+        import cluster_inventory
+        self.cluster = {'version': 1, 'image': 'sha256:' + '9' * 64, 'roles': [], 'parameters': [], 'refusals': []}
+        self.order = []
+        taking = patch.object(cluster_inventory, 'take', lambda: self.order.append('inventory') or self.cluster)
+        taking.start()
+        self.addCleanup(taking.stop)
 
     def tearDown(self):
         self.directory.cleanup()
@@ -505,6 +511,7 @@ class StorageMetadataTests(Fixture):
         seen = []
 
         def create(e, keep, now, reason, protected):
+            self.order.append('dump')
             return self.complete(now.strftime('%Y%m%dT%H%M%SZ')), {'database': {'bytes': 1}, 'objects': {'files': 0},
                                                                    'counts': {'auth.users': 1}}
 
@@ -517,12 +524,17 @@ class StorageMetadataTests(Fixture):
             return self.storage(now.strftime('%Y%m%dT%H%M%SZ')), {'database': {'bytes': 1}, 'counts': {'auth.users': 1}}
         with patch.object(backup, 'create', create), patch.object(backup, 'create_storage', create_storage), \
                 patch.object(backup, 'create_management', create_management), \
-                patch.object(backup_offsite, 'write_installation'), patch.object(offsite, 'load_config', return_value=None), \
+                patch.object(backup_offsite, 'write_installation') as installation, patch.object(offsite, 'load_config', return_value=None), \
                 patch('sys.stderr'), patch('builtins.print'):
             self.assertEqual(backup.main(['create', 'all', '--reason', 'upgrade', '--local-only']), 0)
+            # The inventory is taken once, before any dump, and is the one the manifest records.
+            self.assertEqual(self.order[:2], ['inventory', 'dump'])
+            self.assertIs(installation.call_args.kwargs['cluster'], self.cluster)
             self.assertEqual(backup.main(['create', 'all', '--local-only']), 1)
             # One environment only: Storage's shared database belongs to the whole run.
+            self.order.clear()
             self.assertEqual(backup.main(['create', E, '--local-only']), 0)
+            self.assertNotIn('inventory', self.order)
         self.assertEqual(len(seen), 2)
         self.assertEqual(seen[0][2], 'upgrade')
         self.assertIsNone(seen[1][2])

@@ -183,9 +183,20 @@ def usable(record):
 
 def take():
     """The inventory of the running cluster, for the backup run's installation manifest."""
+    import subprocess
     import backup
     try:
-        _reference, image = backup.resolve_image(backup.image_pin('distro-image.lock.json'))
+        resolved = backup.resolve_image(backup.image_pin('distro-image.lock.json'))
     except Exception:  # noqa: BLE001: recorded as missing, never fatal to the run
-        image = None
-    return capture(backup.sql, image)
+        return capture(backup.sql, None)
+
+    def sql(query):
+        # Admitted once on the image just proved, then queried directly.
+        container = backup.admit_database(resolved=resolved)
+        result = subprocess.run(['docker', 'exec', '-i', container, 'psql', '-X', '-qAt', '-v', 'ON_ERROR_STOP=1',
+                                 '-U', 'supabase_admin', '-d', 'postgres'], input=query, capture_output=True,
+                                text=True, timeout=600)
+        if result.returncode:
+            raise backup.BackupError('database statement failed')
+        return result.stdout.strip()
+    return capture(sql, resolved[1])

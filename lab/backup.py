@@ -163,9 +163,10 @@ def resolve_storage_image():
     return resolve_image(image_pin('storage-image.lock.json'))
 
 
-def admit_database(pin=None):
-    """A DB exec is authorized by its exact native image and runtime owner."""
-    reference, native = resolve_image(pin if pin is not None else image_pin('distro-image.lock.json'))
+def admit_database(pin=None, resolved=None):
+    """A DB exec is authorized by its exact native image and runtime owner. ``resolved`` is the
+    (reference, native id) a caller already proved for the same lock."""
+    reference, native = resolved or resolve_image(pin if pin is not None else image_pin('distro-image.lock.json'))
     inspected = run(['docker', 'container', 'inspect', DB], check=False)
     if inspected.returncode or inspected.stderr.strip():
         raise BackupError('Database container inspection refused')
@@ -1291,6 +1292,13 @@ def main(argv=None):
                 stamp = now.strftime('%Y%m%dT%H%M%SZ')
                 # Read once for the run, which counts among the last upgrades when it is one.
                 protected = upgrade_runs(current=stamp if args.reason == 'upgrade' else None)
+                # The cluster's roles as the run starts, before any dump: an environment published
+                # during the run is in neither, one removed during it is in the inventory without a
+                # dump, which a rebuild refuses.
+                cluster = None
+                if every:
+                    import cluster_inventory
+                    cluster = cluster_inventory.take()
                 failed, created = 0, []
                 for e in targets:
                     try:
@@ -1324,7 +1332,8 @@ def main(argv=None):
                     offsite = None
                     try:
                         import backup_offsite as offsite
-                        offsite.write_installation(stamp, created, args.keep, reason=args.reason, protected=protected)
+                        offsite.write_installation(stamp, created, args.keep, reason=args.reason, protected=protected,
+                                                   cluster=cluster)
                         print(f'installation manifest {stamp} written')
                     except Exception as error:
                         failed += 1

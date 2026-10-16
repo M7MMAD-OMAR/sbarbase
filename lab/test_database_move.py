@@ -63,7 +63,7 @@ class Fixture(unittest.TestCase):
             patch.object(move.runtime, 'inspect', lambda kind, name: {'State': {'Running': self.database_running}}),
             patch.object(move.hba_migration, 'present', lambda state: self.migration_present),
             patch.object(move.hba_migration, 'pinned', lambda state: {'target': {'image': self.pinned_image}}),
-            patch.object(move, 'lock_image', lambda: self.lock_image),
+            patch.object(move, 'lock_image', self.count_lock_image),
             patch.object(move.backup, 'mark_moved', self.mark_moved),
             patch.object(move.hba_migration, 'discard_unpublished', self.discard),
             patch.object(move.database_volume, 'current', lambda state: self.volume),
@@ -76,6 +76,10 @@ class Fixture(unittest.TestCase):
         self.transient_calls.append(lock)
         self.move_asked = getattr(self, 'move_asked', []) + [move]
         return [item for item in getattr(self, 'transient_refused', []) if move or 'database move' not in item]
+
+    def count_lock_image(self):
+        self.lock_reads = getattr(self, 'lock_reads', 0) + 1
+        return self.lock_image
 
     def discard(self, state):
         # An empty record left before its intent: removed, and then there is no migration waiting.
@@ -426,7 +430,9 @@ class ContinueTests(Fixture):
 
     def test_the_checkout_moves_then_the_database_moves_onto_the_new_lock_image(self):
         self.prepared()
+        self.lock_reads = 0
         self.resume()
+        self.assertEqual(self.lock_reads, 1, 'the lock image is proved once per run')
         self.assertEqual(self.events[0], ('move', TARGET, None))
         command = self.events[1][1]
         self.assertEqual(command[:2], ['/usr/bin/python3', 'lab/migrate-generation.py'])

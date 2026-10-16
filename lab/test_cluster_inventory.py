@@ -164,6 +164,21 @@ class InventoryTests(unittest.TestCase):
                 record = inventory.from_rows(everything([row(f'{E}_auth', **changes)]), IMAGE)
                 self.assertTrue(any(reason in item for item in record['refusals']), record['refusals'])
 
+    def test_take_proves_the_image_once_and_admits_the_database_on_it(self):
+        import backup
+        resolutions, admitted = [], []
+
+        def resolve(pin):
+            resolutions.append(pin)
+            return ('ref', IMAGE)
+        with patch.object(backup, 'image_pin', return_value={}), patch.object(backup, 'resolve_image', resolve), \
+                patch.object(backup, 'admit_database', lambda pin=None, resolved=None: admitted.append(resolved) or 'c' * 64), \
+                patch('subprocess.run', return_value=type('R', (), {'returncode': 0, 'stdout': json.dumps(everything())})()):
+            record = inventory.take()
+        self.assertEqual((record['image'], record['refusals']), (IMAGE, []))
+        self.assertEqual(len(resolutions), 1)
+        self.assertEqual(admitted, [('ref', IMAGE)])
+
     def test_take_never_raises_whatever_the_resolution_or_the_query_throws(self):
         import subprocess
         import backup

@@ -71,8 +71,11 @@ def publish(state, volume):
     if not valid(volume):
         raise VolumeError('Not a database volume name')
     state = Path(state)
-    if current(state) == volume and (state / NAME).exists():
-        return volume
+    try:
+        if (state / NAME).exists() and current(state) == volume:
+            return volume
+    except VolumeError:
+        pass  # A damaged record is replaced whole below, never read as naming this volume.
     lab.atomic(state / NAME, {'version': 1, 'volume': volume})
     if current(state) != volume:
         raise VolumeError('The database volume record changed before use')

@@ -62,7 +62,6 @@ ARCHIVE='hba-migration-archive'
 EVIDENCE='evidence.json'
 COMPLETED='completed.json'
 REMOVING='hba-migration.removing'
-INTENT_PENDING='hba-migration-intent.pending'
 LIMIT=hba_journal.MAX_BYTES
 PGDATA='/var/lib/postgresql/data'
 HBA_PATH='/etc/postgresql/pg_hba.conf'
@@ -288,28 +287,16 @@ def publish_intent(state,*,target,generation,volume,inventory,retired_state,imag
     if new_volume is not None and new_volume!=volume:
         record={**record,'version':3,'new_volume':new_volume}
     record=validate(record)
-    # The intent is written whole beside the record first and renamed into it, so a kill leaves
-    # either no record, an empty record directory (removed by discard_unpublished) or the whole
-    # intent; never a torn one.
-    text=authority.encode(record)
-    if len(text.encode())>LIMIT:raise ValueError('HBA migration intent too large')
-    pending=state/INTENT_PENDING
-    descriptor=os.open(pending,os.O_WRONLY|os.O_CREAT|os.O_TRUNC|os.O_NOFOLLOW,0o600)
-    with os.fdopen(descriptor,'w',encoding='utf-8') as output:
-        output.write(text);output.flush();os.fsync(output.fileno())
     try:os.mkdir(record_directory(state),0o700)
     except FileExistsError:
-        pending.unlink()
         raise RuntimeError('A generation migration record already exists; reconcile it before another migration') from None
     metadata=record_directory(state).lstat()
     if not stat.S_ISDIR(metadata.st_mode) or stat.S_IMODE(metadata.st_mode)!=0o700 or metadata.st_uid!=os.getuid():
         raise ValueError('Generation migration record directory is not private')
     effect_receipt.sync_directory(state)
-    os.rename(pending,intent_path(state))
-    effect_receipt.sync_directory(record_directory(state))
-    effect_receipt.sync_directory(state)
-    if _decode_envelope(_read_private(intent_path(state),'HBA migration intent'),'HBA migration intent')!=record:
-        raise RuntimeError('HBA migration intent changed before use')
+    # Written whole and linked to its name, as every record here: a kill leaves the directory
+    # empty or holding only a temporary copy (removed by discard_unpublished), or the whole intent.
+    _publish_exclusive(intent_path(state),record,'HBA migration intent')
     return record
 
 
@@ -691,12 +678,15 @@ def _remove_record(state):
 
 
 def discard_unpublished(state):
-    """An empty record directory was never executed: the intent is renamed into it whole, and
-    execute reads the intent before any effect. Such a record (a kill between creating the
-    directory and renaming the intent in) is removed so the migration can start again. Anything
-    else, a torn intent included, is kept and refused."""
+    """A record directory without its intent was never executed: the intent is linked into it
+    whole, and execute reads the intent before any effect. Such a record (a kill between creating
+    the directory and linking the intent, which may leave the temporary copy) is removed so the
+    migration can start again. Anything else, a torn intent included, is kept and refused."""
     directory=record_directory(state)
-    if not present(state) or os.listdir(directory):return False
+    if not present(state):return False
+    entries=os.listdir(directory)
+    if any(not (name.startswith('.') and name.endswith('.pending')) for name in entries):return False
+    for name in entries:(directory/name).unlink()
     os.rmdir(directory)
     effect_receipt.sync_directory(Path(state))
     return True

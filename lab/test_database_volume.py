@@ -65,6 +65,13 @@ class VolumeRecordTests(unittest.TestCase):
         with self.assertRaises(volume.VolumeError):
             volume.current(self.state)
 
+    def test_a_damaged_record_is_replaced_whole_by_publish(self):
+        for value, mode in (('not json', 0o600), ({'version': 1, 'volume': NEW}, 0o644)):
+            with self.subTest(value=value, mode=oct(mode)):
+                self.write(value, mode)
+                self.assertEqual(volume.publish(self.state, NEW), NEW)
+                self.assertEqual(volume.current(self.state), NEW)
+
     def test_a_symlink_is_refused(self):
         target = self.state / 'elsewhere.json'
         target.write_text(json.dumps({'version': 1, 'volume': NEW}))

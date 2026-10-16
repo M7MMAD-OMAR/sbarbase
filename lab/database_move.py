@@ -216,10 +216,13 @@ def lock_image():
                         f'(docker pull {reference}), then continue the move') from None
 
 
-def already_moved():
+def already_moved(image=None):
     """True when the generation pin already names the lock's image: the change finished and only
-    the record was left, so it must not run a second time."""
-    return not hba_migration.present(runtime.STATE) and hba_migration.pinned(runtime.STATE)['target']['image'] == lock_image()
+    the record was left, so it must not run a second time. ``image`` is the lock image a caller
+    already proved."""
+    if hba_migration.present(runtime.STATE):
+        return False
+    return hba_migration.pinned(runtime.STATE)['target']['image'] == (image or lock_image())
 
 
 @contextlib.contextmanager
@@ -285,9 +288,10 @@ def resume(run=subprocess.run):
             save(record)
         # An empty record a kill left before its intent never started; it does not need --reconcile.
         hba_migration.discard_unpublished(runtime.STATE)
-        if not already_moved():
+        image = lock_image()  # once: the checkout is at the target from here on
+        if not already_moved(image):
             result = run(migration_command(hba_migration.present(runtime.STATE)), cwd=lab.ROOT)
-            if result.returncode or not already_moved():
+            if result.returncode or not already_moved(image):
                 raise MoveError('The database generation change did not finish; run the move again '
                                 '(it reconciles the interrupted change)')
         done = {**record, 'phase': 'completed', 'finished_at': upgrade.now()}
