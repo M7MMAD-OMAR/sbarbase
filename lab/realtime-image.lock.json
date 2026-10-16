@@ -1,7 +1,7 @@
 {
-  "tag": "public.ecr.aws/supabase/realtime:v2.138.1",
-  "id": "sha256:7a6d995635f747b566079e51b1a1388dded8b2d0dfef1eda5afe98f6c9e5567e",
+  "tag": "public.ecr.aws/supabase/realtime:v2.144.0",
+  "id": "sha256:d97bf891884ef035a5068f01e2ea1ce0e9649c21c19ab14a91d70fcfea3b03d4",
   "digests": [
-    "public.ecr.aws/supabase/realtime@sha256:7a6d995635f747b566079e51b1a1388dded8b2d0dfef1eda5afe98f6c9e5567e"
+    "public.ecr.aws/supabase/realtime@sha256:d97bf891884ef035a5068f01e2ea1ce0e9649c21c19ab14a91d70fcfea3b03d4"
   ]
 }

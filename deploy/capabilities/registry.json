@@ -26,7 +26,7 @@
     {
       "id": "realtime-images",
       "path": "lab/realtime-image.lock.json",
-      "sha256": "358d489115a2f8e3aa6195a1a4d50f8d93d902ef9373256675dd12bf851dd0ea"
+      "sha256": "99d5507a84ce702995a4d390b833bcd2f78c41c7eaa3441924dcc9f4118e8ef6"
     },
     {
       "id": "functions-images",
