@@ -192,6 +192,18 @@ class Main(unittest.TestCase):
         self.assertRegex(str(error),'no PostgreSQL data directory')
         intent.assert_not_called();execute.assert_not_called()
 
+    def test_the_retained_placement_refuses_a_volume_other_than_the_one_it_mounts(self):
+        attended=['--attended-retained','--confirm-retained','sbarbase-durable-db']
+        other=[*BASE[:BASE.index('--volume')],'--volume','sbarbase-durable-pgdata-0123456789ab',*BASE[BASE.index('--volume')+2:]]
+        intent,execute,error=self.run_main([*other,*attended])
+        self.assertRegex(str(error),'volume the installation mounts')
+        intent.assert_not_called();execute.assert_not_called()
+        intent,execute,error=self.run_main([*BASE,*attended])
+        self.assertIsNone(error)
+        # A disposable placement keeps its own volume.
+        intent,execute,error=self.run_main(other,target=DISPOSABLE)
+        self.assertIsNone(error)
+
     def test_the_record_path_is_the_one_the_upgrade_command_writes(self):
         import upgrade
         self.assertEqual(UPGRADE_STATE,upgrade.STATE_FILE)

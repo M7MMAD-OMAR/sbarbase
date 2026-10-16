@@ -2,7 +2,7 @@
 
 Usage:
   /usr/bin/python3 lab/migrate-generation.py --state .lab/upstream \
-      --volume sbarbase-durable-pgdata --network sbarbase-durable-net \
+      --volume <the volume lab/database_volume.py names> --network sbarbase-durable-net \
       --tier system.db --inventory-runtime .secrets/upstream/runtime.json \
       --retired stopped --assert-retired-will-not-return
 
@@ -188,6 +188,11 @@ def main():
         raise RuntimeError('The retirement assertion applies to a stopped container only')
     if options.retired=='stopped' and not options.assertion:
         raise RuntimeError('Stopping the retired container requires --assert-retired-will-not-return')
+    if (old.owner in REFUSED_OWNERS or old.name.startswith(REFUSED_PREFIXES)) \
+            and options.volume!=database_volume.current(state):
+        # The installation's database mounts the volume the record names; a migration told another
+        # one would stop at the retired volume check after its intent, leaving a record to settle.
+        raise RuntimeError('--volume must be the volume the installation mounts ('+database_volume.current(state)+')')
     if options.to_volume:
         # Before the intent: a volume that cannot take the database leaves no record to reconcile.
         if not database_volume.rebuilt(options.to_volume) or options.to_volume==options.volume:
