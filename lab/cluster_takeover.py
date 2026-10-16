@@ -5,7 +5,8 @@
 Design: docs/engineering/WHOLE-CLUSTER-RESTORE.md. lab/cluster_rebuild.py leaves a completed rebuild
 in .lab/upstream/cluster-rebuild.json: a volume ``sbarbase-durable-pgdata-<12 hex>`` owned by the
 runtime and the image it was built on. This command, with Sbarbase stopped (the upgrade,
-supervisor, worker and backup locks held), replaces the installation's database container onto that
+supervisor and backup locks held and the worker proven stopped; the migration takes the worker
+lock itself), replaces the installation's database container onto that
 volume and image through the generation migration (lab/migrate-generation.py), so the runtime
 mounts it from then on. The old volume is kept.
 
@@ -35,6 +36,7 @@ is recorded or waiting. A prepared move refuses: abandon it first. Every step ca
 Unit tested only; nothing of it has run against a real daemon.
 """
 import argparse
+import contextlib
 import json
 import subprocess
 import sys
@@ -173,9 +175,23 @@ def retire_move(move, record):
     database_move.STATE_FILE.unlink()
 
 
+@contextlib.contextmanager
+def held_locks():
+    """Sbarbase stopped for the whole takeover: the upgrade, supervisor and backup locks held, and the
+    provisioning worker proven stopped. The worker lock is not kept: the generation migration this
+    command runs takes it itself (hba_ownership), as the database move's does."""
+    with contextlib.ExitStack() as stack:
+        for path, refusal in ((upgrade.LOCK, 'Another upgrade, rollback or database move is running'),
+                              (upgrade.SUPERVISOR_LOCK, 'Sbarbase is running; stop it first'),
+                              (upgrade.BACKUP_LOCK, 'A backup or restore is running')):
+            stack.enter_context(upgrade.exclusive(path, refusal))
+        if upgrade.held(runtime.STATE / 'worker.lock'):
+            raise TakeoverError('The provisioning worker is running; stop Sbarbase first')
+        yield
+
+
 def takeover(run=subprocess.run):
-    with upgrade.exclusive(upgrade.LOCK, 'Another upgrade, rollback or database move is running'), \
-            cluster_rebuild.held_locks():
+    with held_locks():
         record = rebuilt()
         move = database_move.load()
         if move is not None and move['phase'] == 'prepared':
@@ -211,8 +227,7 @@ def release():
     """Unmark a move whose takeover cannot go on, so the move's own commands apply again: only while
     no migration onto a rebuilt volume or superseding one is recorded or waiting. The checkout stays
     where the takeover left it."""
-    with upgrade.exclusive(upgrade.LOCK, 'Another upgrade, rollback or database move is running'), \
-            cluster_rebuild.held_locks():
+    with held_locks():
         move = database_move.load()
         if move is None or not move.get('taken_over'):
             raise TakeoverError('No database move is marked as taken over')

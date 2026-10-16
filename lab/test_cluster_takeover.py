@@ -52,7 +52,6 @@ class TakeoverTests(unittest.TestCase):
                 self.locked.pop()
         patches = [
             patch.object(takeover.cluster_rebuild, 'RECORD', self.record_path),
-            patch.object(takeover.cluster_rebuild, 'held_locks', held),
             patch.object(takeover.upgrade, 'exclusive', held),
             patch.object(takeover.database_move, 'STATE_FILE', self.move_path),
             patch.object(takeover.database_move, 'lock_image', lambda: self.lock),
@@ -117,24 +116,23 @@ class TakeoverTests(unittest.TestCase):
         self.assertEqual(command[command.index('--volume') + 1], 'sbarbase-durable-pgdata')
         self.assertNotIn('--supersede-stuck', command)
 
-    def test_both_lock_sets_are_held_for_the_whole_takeover(self):
-        held = {'upgrade': 0, 'runtime': 0}
+    def test_the_takeover_s_locks_are_held_while_the_migration_runs(self):
+        held = []
 
-        def lock(name):
-            @contextlib.contextmanager
-            def holding(*args):
-                held[name] += 1
-                try:
-                    yield
-                finally:
-                    held[name] -= 1
-            return holding
+        @contextlib.contextmanager
+        def counting(path, refusal):
+            held.append(path)
+            try:
+                yield
+            finally:
+                held.remove(path)
         seen = []
-        with patch.object(takeover.upgrade, 'exclusive', lock('upgrade')), \
-                patch.object(takeover.cluster_rebuild, 'held_locks', lock('runtime')):
-            takeover.takeover(run=lambda command, cwd=None: seen.append(dict(held)) or self.fake_run(command))
-        self.assertEqual(seen, [{'upgrade': 1, 'runtime': 1}])
-        self.assertEqual(held, {'upgrade': 0, 'runtime': 0})
+        with patch.object(takeover.upgrade, 'exclusive', counting):
+            takeover.takeover(run=lambda command, cwd=None: seen.append(sorted(map(str, held))) or self.fake_run(command))
+        self.assertEqual(seen, [sorted(map(str, (takeover.upgrade.LOCK, takeover.upgrade.SUPERVISOR_LOCK,
+                                                 takeover.upgrade.BACKUP_LOCK)))])
+        self.assertEqual(held, [])
+
 
     def test_an_empty_record_a_kill_left_is_cleared_before_the_record_is_read(self):
         calls = []
@@ -485,6 +483,46 @@ class TakeoverTests(unittest.TestCase):
                 contextlib.redirect_stdout(output):
             self.assertEqual(takeover.main([]), 0)
         self.assertEqual(output.getvalue(), f'The database already runs on {VOLUME}; nothing was changed.\n')
+
+
+class LockTests(unittest.TestCase):
+    """The real locks: the migration the takeover runs takes the worker, operation and effect locks
+    itself (hba_ownership), so the takeover holds none of them, and refuses while the worker runs."""
+
+    def setUp(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.root = Path(directory.name)
+        for item in (patch.object(takeover.upgrade, 'LOCK', self.root / 'upgrade.lock'),
+                     patch.object(takeover.upgrade, 'SUPERVISOR_LOCK', self.root / 'supervisor.lock'),
+                     patch.object(takeover.upgrade, 'BACKUP_LOCK', self.root / 'backup.lock'),
+                     patch.object(takeover.runtime, 'STATE', self.root)):
+            item.start()
+            self.addCleanup(item.stop)
+
+    def test_a_child_process_takes_the_migration_s_locks_while_the_takeover_holds_its_own(self):
+        import subprocess
+        import sys
+        script = ('import fcntl, sys\n'
+                  'for name in sys.argv[1:]:\n'
+                  '    handle = open(name, "a")\n'
+                  '    fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)\n')
+        names = [str(self.root / name) for name in ('worker.lock', 'operation.lock', 'effect.lock')]
+        with takeover.held_locks():
+            result = subprocess.run([sys.executable, '-c', script, *names], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_a_running_worker_or_a_lock_held_elsewhere_refuses(self):
+        import fcntl
+        for name, reason in (('worker.lock', 'worker is running'), ('upgrade.lock', 'database move is running'),
+                             ('supervisor.lock', 'Sbarbase is running'), ('backup.lock', 'backup or restore')):
+            with self.subTest(name=name), (self.root / name).open('a') as other:
+                fcntl.flock(other, fcntl.LOCK_EX)
+                with self.assertRaisesRegex((takeover.TakeoverError, takeover.upgrade.UpgradeError), reason):
+                    with takeover.held_locks():
+                        pass
+        with takeover.held_locks():
+            pass
 
 
 if __name__ == '__main__':
