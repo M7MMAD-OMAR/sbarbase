@@ -214,6 +214,12 @@ class Main(unittest.TestCase):
         named={**RETAINED,'owner':'recovery-target'}
         intent,execute,error=self.run_main([*other,*attended],target=named)
         self.assertIsNone(error)
+        restore_owned={**restore,'owner':'durable-upstream'}
+        intent,execute,error=self.run_main([*own,'--attended-retained','--confirm-retained',restore['name']],target=restore_owned)
+        self.assertIsNone(error)
+        near={**RETAINED,'name':'sbarbase-durabledb'}
+        intent,execute,error=self.run_main([*other,'--attended-retained','--confirm-retained',near['name']],target=near)
+        self.assertIsNone(error)
 
     def test_the_record_path_is_the_one_the_upgrade_command_writes(self):
         import upgrade

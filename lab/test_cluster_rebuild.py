@@ -56,8 +56,19 @@ class RoleSqlTests(unittest.TestCase):
         self.assertIn(f'ALTER ROLE "{E}_auth" SET "search_path" TO auth;', text)
         # Grants come after every role exists, parameters last.
         first_grant = next(i for i, line in enumerate(statements) if line.startswith('GRANT "'))
-        self.assertTrue(all(not line.startswith(('GRANT', )) for line in statements[:first_grant]))
+        self.assertGreater(first_grant, max(i for i, line in enumerate(statements) if line.startswith(('DO ', 'ALTER ROLE'))))
+        self.assertTrue(all(line.startswith('GRANT') for line in statements[first_grant:]))
         self.assertTrue(statements[-1].startswith('GRANT SET ON PARAMETER'))
+
+    def test_each_grant_option_and_parameter_privilege_is_written_as_recorded(self):
+        record = recorded()
+        auth = next(item for item in record['roles'] if item['name'] == f'{E}_auth')
+        auth['member_of'] = [{'role': 'authenticator', 'inherit': False, 'set': False, 'admin': True}]
+        record['parameters'] = [*record['parameters'],
+                                {'parameter': 'work_mem', 'grantee': f'{E}_auth', 'privilege': 'ALTER SYSTEM'}]
+        text = '\n'.join(rebuild.role_sql(record, KNOWN)[0])
+        self.assertIn(f'GRANT "authenticator" TO "{E}_auth" WITH INHERIT FALSE, SET FALSE, ADMIN TRUE;', text)
+        self.assertIn(f'GRANT ALTER SYSTEM ON PARAMETER "work_mem" TO "{E}_auth";', text)
 
     def test_a_login_without_a_kept_password_is_closed_or_refused_by_kind(self):
         known = {key: value for key, value in KNOWN.items() if key != f'{E}_developer'}
@@ -328,6 +339,11 @@ class RebuildTests(unittest.TestCase):
                 patch.object(rebuild, 'rebuild', side_effect=rebuild.RebuildError('stopped')), \
                 contextlib.redirect_stderr(io.StringIO()):
             rebuild.main([STAMP])
+        error = io.StringIO()
+        with patch.object(rebuild.signal, 'signal'), patch.object(rebuild, 'rebuild', side_effect=KeyboardInterrupt), \
+                contextlib.redirect_stderr(error):
+            self.assertEqual(rebuild.main([STAMP]), 130)
+        self.assertEqual(error.getvalue(), f'failed: KeyboardInterrupt; see {rebuild.RECORD}\n')
         with self.assertRaises(SystemExit) as stopped:
             handlers[rebuild.signal.SIGTERM](rebuild.signal.SIGTERM, None)
         self.assertEqual(stopped.exception.code, 128 + rebuild.signal.SIGTERM)
@@ -360,6 +376,26 @@ class RebuildTests(unittest.TestCase):
         with self.assertRaisesRegex(rebuild.RebuildError, 'memory'):
             rebuild.rebuild(STAMP, token='0123456789ab')
         self.assertEqual(self.calls, [])
+
+    def test_the_locks_are_held_from_the_first_step_to_the_last_save(self):
+        held = []
+        seen = []
+
+        @contextlib.contextmanager
+        def locks():
+            held.append(True)
+            try:
+                yield
+            finally:
+                held.pop()
+        docker, save = self.docker, rebuild.save
+        with patch.object(rebuild, 'held_locks', locks), \
+                patch.object(rebuild, 'docker', lambda *args, **kwargs: seen.append(bool(held)) or docker(*args, **kwargs)), \
+                patch.object(rebuild, 'save', lambda record: seen.append(bool(held)) or save(record)):
+            rebuild.rebuild(STAMP, token='0123456789ab')
+        self.assertTrue(seen)
+        self.assertTrue(all(seen))
+        self.assertEqual(held, [])
 
     def test_the_runtime_must_be_stopped(self):
         refused = contextlib.ExitStack()
@@ -534,9 +570,13 @@ class PreconditionTests(unittest.TestCase):
             rebuild.chosen_image()
 
     def test_an_installation_manifest_that_does_not_verify_refuses(self):
-        with tempfile.TemporaryDirectory() as directory, patch.object(rebuild.backup, 'BACKUPS', Path(directory)), \
-                patch.object(rebuild.backup_offsite, 'verify_installation', side_effect=rebuild.backup.BackupError('digest')):
-            with self.assertRaisesRegex(rebuild.RebuildError, 'no verified installation manifest'):
+        with tempfile.TemporaryDirectory() as directory, patch.object(rebuild.backup, 'BACKUPS', Path(directory)):
+            # A readable, well formed manifest: only the failed verification refuses it.
+            installation = Path(directory) / rebuild.backup_offsite.INSTALLATION / STAMP
+            installation.mkdir(parents=True)
+            (installation / 'installation.json').write_text(json.dumps({'cluster': recorded(), 'environments': [E]}))
+            with patch.object(rebuild.backup_offsite, 'verify_installation', side_effect=rebuild.backup.BackupError('digest')), \
+                    self.assertRaisesRegex(rebuild.RebuildError, r'no verified installation manifest \(digest\)'):
                 rebuild.load_run(STAMP)
 
     def test_failures_of_a_statement_or_of_planning_are_detected(self):

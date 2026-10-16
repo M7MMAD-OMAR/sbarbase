@@ -386,6 +386,9 @@ def main(argv=None):
     except Exception as error:  # noqa: BLE001: no traceback with private detail; the record has the kind
         print(f'failed: {type(error).__name__}; see {RECORD}', file=sys.stderr)
         return 1
+    except KeyboardInterrupt:
+        print(f'failed: KeyboardInterrupt; see {RECORD}', file=sys.stderr)
+        return 130
     print(f"Rebuilt run {record['run']} onto {record['volume']}.")
     if record['closed_logins']:
         print('Created closed (turn them on again): ' + ', '.join(record['closed_logins']))
