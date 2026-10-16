@@ -50,7 +50,7 @@ floating tag or an unpinned component.
 | Distribution (`db` used by the installation) | `lab/distro-image.lock.json` | public.ecr.aws/supabase/postgres:17.6.1.166 | b3bfedb10741 | project start | probes use the same pin |
 | Stock PostgreSQL (`db` in the component profile) | `lab/images.lock.json` | postgres:17-alpine | 18cfe3ef5e68 | project start | used by component-profile fixtures |
 | Auth | `lab/images.lock.json` | public.ecr.aws/supabase/gotrue:v2.196.0 | c0c25187a6b8 | project start | GoTrue |
-| REST | `lab/images.lock.json` | public.ecr.aws/supabase/postgrest:v14.15 | 2f8e7b656f09 | project start | PostgREST |
+| REST | `lab/images.lock.json` | public.ecr.aws/supabase/postgrest:v14.18 | c7cd7e265a85 | staged 2026-10-16 (A1), live gate pending | PostgREST; v16 deferred |
 | Storage | `lab/storage-image.lock.json` | public.ecr.aws/supabase/storage-api:v1.73.1 | c24fb33cc2fa | project start | tenant-aware |
 | Studio | `lab/studio-image.lock.json` | public.ecr.aws/supabase/studio:2026.09.07-sha-7996410 | 94a2a9d2906e | current distributed lock | per environment, on demand |
 | postgres-meta | `lab/studio-image.lock.json` | public.ecr.aws/supabase/postgres-meta:v0.99.0 | 9a079ac1c94d | current distributed lock | scoped Studio database access |
