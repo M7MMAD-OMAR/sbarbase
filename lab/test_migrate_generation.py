@@ -223,6 +223,19 @@ class Main(unittest.TestCase):
         self.assertEqual(probe.call_args.args[1:4],(volume,DISPOSABLE['owner'],lock))
         self.assertEqual(self.plan.call_args.args[2],lock)
 
+    def test_an_inherited_worker_lock_reaches_every_migration_path(self):
+        volume='sbarbase-durable-pgdata-0123456789ab'
+        superseding={'migration':'n','supersedes':'m','generation':PIN['generation']}
+        for arguments,kwargs in (([*BASE,'--worker-fd','7'],{}),([*BASE,'--reconcile','--worker-fd','7'],{'reconcile':True}),
+                                 ([*BASE,'--to-volume',volume,'--supersede-stuck','--worker-fd','7'],{})):
+            with self.subTest(arguments=arguments), patch.object(command.hba_migration,'require_cluster_volume'), \
+                    patch.object(command.hba_migration,'supersede',return_value=superseding):
+                intent,execute,error=self.run_main(arguments,target=DISPOSABLE,**kwargs)
+            self.assertIsNone(error)
+            self.assertEqual(execute.call_args.kwargs['worker_fd'],7)
+        intent,execute,error=self.run_main(BASE,target=DISPOSABLE)
+        self.assertIsNone(execute.call_args.kwargs['worker_fd'])
+
     def test_supersede_stuck_needs_a_rebuilt_volume_a_stopped_container_and_no_reconcile(self):
         volume='sbarbase-durable-pgdata-0123456789ab'
         for arguments,reason in (([*BASE,'--supersede-stuck'],'give --to-volume'),

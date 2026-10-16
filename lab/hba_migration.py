@@ -880,7 +880,7 @@ def finish(state):
     return True
 
 
-def execute(docker,state,*,replacement,desired):
+def execute(docker,state,*,replacement,desired,worker_fd=None):
     """Resume the migration record from its last durable checkpoint.
 
     Called for an interrupted migration. Every step is idempotent, no new
@@ -910,7 +910,8 @@ def execute(docker,state,*,replacement,desired):
     if authority.digest(desired)!=intent['inventory']:
         raise RuntimeError('Generation migration inventory changed since the intent')
     _bindings(state,intent)
-    with hba_startup.acquire(state,migration=True) as lease:
+    # worker_fd: the worker lock a caller already holds (lab/cluster_takeover.py), shared, not reopened.
+    with hba_startup.acquire(state,worker_fd=worker_fd,migration=True) as lease:
         if target_volume(intent)!=intent['volume'] and not done(state,'new-captured'):
             # Before the retired container is stopped or removed, and again on every rerun until
             # the replacement runs on it.

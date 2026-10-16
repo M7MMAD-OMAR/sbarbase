@@ -1444,6 +1444,21 @@ class SupersedeTests(ImageChangeTests.__base__):
                 self.assertFalse(list((self.state/migration.ARCHIVE).glob('*/'+migration.SUPERSEDED)))
                 self.assertTrue(migration.present(self.state))
 
+    def test_an_inherited_worker_lock_is_shared_with_the_migration_s_ownership(self):
+        self.stuck()
+        self.supersede()
+        seen=[]
+        real=hba_startup.acquire
+        with patch.object(migration.hba_startup,'acquire',lambda state,**kwargs:seen.append(kwargs) or real(state,**{**kwargs,'worker_fd':None})):
+            outcome={'version':1,'kind':'retired-applied-reload-acknowledged','journal':{'token':str(uuid.uuid4())},
+                     'application':'publication-witnessed','activation':'unknown'}
+            with patch('resource_policy.io_flags',return_value=[]), patch.object(hba_generation,'read_existing'), \
+                    patch('hba_authority.initialize'), patch('hba_runtime.SourceHBA') as writer, \
+                    patch('hba_migration.outcome_for',return_value=outcome):
+                writer.return_value.publish.return_value=outcome
+                migration.execute(self.docker,self.state,replacement=self.replacement(TARGET.image),desired=DESIRED,worker_fd=9)
+        self.assertEqual(seen,[{'worker_fd':9,'migration':True}])
+
     def test_a_version_4_intent_without_a_rebuilt_volume_is_malformed(self):
         self.stuck()
         intent=self.supersede()

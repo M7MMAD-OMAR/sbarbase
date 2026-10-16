@@ -93,7 +93,12 @@ class TakeoverTests(unittest.TestCase):
         self.moved.append((commit, intent, bool(self.locked)))
         self.lock = self.from_image
 
-    def fake_run(self, command, cwd=None):
+    def fake_run(self, command, cwd=None, pass_fds=None):
+        # The worker lock goes to the migration as an inherited descriptor, named last.
+        self.assertEqual(command[-2], '--worker-fd')
+        if pass_fds is not None:
+            self.assertEqual(pass_fds, (int(command[-1]),))
+        command = command[:-2]
         self.runs.append((command, bool(self.locked)))
         if self.finishes:
             self.intent = None
@@ -128,7 +133,7 @@ class TakeoverTests(unittest.TestCase):
                 held.remove(path)
         seen = []
         with patch.object(takeover.upgrade, 'exclusive', counting):
-            takeover.takeover(run=lambda command, cwd=None: seen.append(sorted(map(str, held))) or self.fake_run(command))
+            takeover.takeover(run=lambda command, cwd=None, pass_fds=(): seen.append(sorted(map(str, held))) or self.fake_run(command))
         self.assertEqual(seen, [sorted(map(str, (takeover.upgrade.LOCK, takeover.upgrade.SUPERVISOR_LOCK,
                                                  takeover.upgrade.BACKUP_LOCK)))])
         self.assertEqual(held, [])
@@ -177,7 +182,7 @@ class TakeoverTests(unittest.TestCase):
         self.assertTrue(self.move_path.exists())
 
     def test_a_migration_that_ends_on_another_image_is_not_reported_as_finished(self):
-        def other_image(command, cwd=None):
+        def other_image(command, cwd=None, pass_fds=()):
             self.volume = VOLUME
             return SimpleNamespace(returncode=0)
         self.write_move()
@@ -228,7 +233,7 @@ class TakeoverTests(unittest.TestCase):
         self.assertTrue(self.move_path.exists())
 
     def test_a_migration_that_leaves_the_runtime_on_the_old_volume_is_not_finished(self):
-        def old_volume(command, cwd=None):
+        def old_volume(command, cwd=None, pass_fds=()):
             self.intent = None
             self.pinned_image = IMAGE
             return SimpleNamespace(returncode=0)
@@ -273,12 +278,12 @@ class TakeoverTests(unittest.TestCase):
         with self.assertRaisesRegex(takeover.TakeoverError, 'did not finish'):
             self.take()
         self.finishes = True
-        failing = lambda command, cwd=None: self.fake_run(command) and SimpleNamespace(returncode=1)
+        failing = lambda command, cwd=None, pass_fds=(): self.fake_run(command) and SimpleNamespace(returncode=1)
         with self.assertRaisesRegex(takeover.TakeoverError, 'did not finish'):
             takeover.takeover(run=failing)
 
     def test_a_migration_that_leaves_its_record_refuses(self):
-        def leaves(command, cwd=None):
+        def leaves(command, cwd=None, pass_fds=()):
             self.volume = VOLUME
             self.pinned_image = IMAGE
             self.intent = STUCK
@@ -422,7 +427,12 @@ class TakeoverTests(unittest.TestCase):
                 with self.assertRaisesRegex(takeover.TakeoverError, 'finish the takeover'):
                     takeover.release()
                 self.assertIn('taken_over', json.loads(self.move_path.read_text()))
-        self.intent, self.pending = STUCK, None
+        self.intent, self.pending = None, None
+        self.volume = VOLUME  # the migration finished: only the takeover may end it now
+        with self.assertRaisesRegex(takeover.TakeoverError, 'already names the rebuilt volume'):
+            takeover.release()
+        self.volume = 'sbarbase-durable-pgdata'
+        self.intent = STUCK
         output = io.StringIO()
         with contextlib.redirect_stdout(output):
             self.assertEqual(takeover.main(['--release']), 0)
@@ -500,17 +510,24 @@ class LockTests(unittest.TestCase):
             item.start()
             self.addCleanup(item.stop)
 
-    def test_a_child_process_takes_the_migration_s_locks_while_the_takeover_holds_its_own(self):
+    def test_the_migration_shares_the_held_worker_lock_and_takes_its_other_locks(self):
         import subprocess
         import sys
-        script = ('import fcntl, sys\n'
-                  'for name in sys.argv[1:]:\n'
-                  '    handle = open(name, "a")\n'
-                  '    fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)\n')
-        names = [str(self.root / name) for name in ('worker.lock', 'operation.lock', 'effect.lock')]
-        with takeover.held_locks():
-            result = subprocess.run([sys.executable, '-c', script, *names], capture_output=True, text=True)
-        self.assertEqual(result.returncode, 0, result.stderr)
+        # The real ownership entry the generation migration uses (hba_migration.execute).
+        script = ('import sys\n'
+                  'sys.path.insert(0, sys.argv[1])\n'
+                  'import hba_startup\n'
+                  'with hba_startup.acquire(sys.argv[2], worker_fd=int(sys.argv[3]), migration=True):\n'
+                  '    pass\n')
+        lab = str(Path(takeover.__file__).parent)
+        (self.root / takeover.hba_migration.hba_generation.MIGRATION).mkdir(mode=0o700)  # the record it runs under
+        with takeover.held_locks() as worker:
+            shared = subprocess.run([sys.executable, '-c', script, lab, str(self.root), str(worker)],
+                                    pass_fds=(worker,), capture_output=True, text=True)
+            opened = subprocess.run([sys.executable, '-c', script.replace('worker_fd=int(sys.argv[3])', 'worker_fd=None'),
+                                     lab, str(self.root), '0'], capture_output=True, text=True)
+        self.assertEqual(shared.returncode, 0, shared.stderr)
+        self.assertNotEqual(opened.returncode, 0, 'a worker lock opened afresh is refused while the takeover holds it')
 
     def test_a_running_worker_or_a_lock_held_elsewhere_refuses(self):
         import fcntl

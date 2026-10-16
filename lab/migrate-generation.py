@@ -163,6 +163,8 @@ def main():
                         help="replace the database onto the image of this checkout's distribution lock")
     parser.add_argument('--to-volume',dest='to_volume',
                         help='replace the database onto this existing pgdata volume (a rebuilt cluster)')
+    parser.add_argument('--worker-fd',type=int,dest='worker_fd',
+                        help='an inherited descriptor holding the worker lock (lab/cluster_takeover.py), shared rather than reopened')
     parser.add_argument('--supersede-stuck',action='store_true',dest='supersede',
                         help='supersede a stuck migration whose replacement never became ready (needs --to-volume)')
     options=parser.parse_args()
@@ -185,7 +187,7 @@ def main():
         if options.to_volume:
             raise RuntimeError('--reconcile finishes onto the volume its intent recorded; drop --to-volume')
         replacement=plan_for(old,options,hba_migration.target_image(intent))
-        completed=hba_migration.execute(docker,state,replacement=replacement,desired=desired)
+        completed=hba_migration.execute(docker,state,replacement=replacement,desired=desired,worker_fd=options.worker_fd)
         print(json.dumps({'reconciled':True,'completed':completed,'migration':intent['migration'],
                           'retired_generation':intent['generation']}))
         return
@@ -214,7 +216,7 @@ def main():
         intent=hba_migration.supersede(docker,state,target=old,
                                        stuck_replacement=lambda stuck:plan_for(old,options,hba_migration.target_image(stuck)),
                                        inventory=hba_authority.digest(desired),image=image,new_volume=options.to_volume)
-        completed=hba_migration.execute(docker,state,replacement=plan_for(old,options,image),desired=desired)
+        completed=hba_migration.execute(docker,state,replacement=plan_for(old,options,image),desired=desired,worker_fd=options.worker_fd)
         print(json.dumps({'migrated':True,'completed':completed,'migration':intent['migration'],
                           'superseded':intent['supersedes'],'retired_generation':intent['generation']}))
         return
@@ -222,7 +224,7 @@ def main():
                                         inventory=hba_authority.digest(desired),
                                         retired_state='stopped-will-not-return' if options.retired=='stopped' else 'absent-verified',
                                         image=image,new_volume=options.to_volume)
-    completed=hba_migration.execute(docker,state,replacement=plan_for(old,options,image),desired=desired)
+    completed=hba_migration.execute(docker,state,replacement=plan_for(old,options,image),desired=desired,worker_fd=options.worker_fd)
     print(json.dumps({'migrated':True,'completed':completed,'migration':intent['migration'],
                       'retired_generation':intent['generation']}))
 
