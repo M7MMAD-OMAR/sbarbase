@@ -1,6 +1,6 @@
 # Whole-cluster restore onto a chosen image
 
-Design note for upstream currency P3 ([plan](plans/2026-10-14-upstream-currency.md), section 3). This note fixed the approach before the code; each part below is its own reviewed checkpoint. Parts 1 (`lab/database_volume.py`, `--to-volume`), 2 (`lab/cluster_inventory.py`), 3 (`lab/cluster_rebuild.py`) and 4 (`lab/cluster_takeover.py`) are built, unit tested only.
+Design note for upstream currency P3 ([plan](plans/2026-10-14-upstream-currency.md), section 3). This note fixed the approach before the code; each part below is its own reviewed checkpoint. Parts 1 (`lab/database_volume.py`, `--to-volume`), 2 (`lab/cluster_inventory.py`), 3 (`lab/cluster_rebuild.py`) and 4 (`lab/cluster_takeover.py`) are built, unit tested only. Part 4 went through seven review rounds; its last one left one open gap, listed under Limits.
 
 ## What it is for
 
@@ -31,4 +31,5 @@ Each is a checkpoint with unit tests and an independent review; none is accepted
 - Writes after the backup run are lost, which is why the A7 step and the move pause writes before the run (P5).
 - Object files are not part of it: neither A7 nor the move touches the objects volume.
 - Only the stuck state above is superseded. A move whose generation change keeps refusing while the old container still exists has no exit here yet.
+- If the replacement on the rebuilt volume never becomes ready either (the takeover's own migration stuck the same way), there is no exit yet: reruns keep failing, `--release` refuses, and a second rebuild refuses while that migration is recorded. Both volumes are kept, so nothing is lost, but getting out needs an attended step this code does not provide. Superseding a superseding migration is the planned fix.
 - Unit tested only until the rehearsal VM runs it; the host does not have the memory for it yet.

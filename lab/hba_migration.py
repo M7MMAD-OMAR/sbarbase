@@ -83,7 +83,7 @@ INTENT_SHAPES={(1,frozenset(INTENT_FIELDS)),(2,frozenset(INTENT_FIELDS_IMAGE)),
 SUPERSEDED='superseded.json'
 # Raised whenever supersede or the version 4 migration changes how it acts: a takeover moves the
 # checkout back only to a version with the same line, since the migration then runs from there.
-SUPERSEDE_PROTOCOL=1
+SUPERSEDE_PROTOCOL=2
 PROTOCOL_LINE='SUPERSEDE_PROTOCOL=%d'%SUPERSEDE_PROTOCOL
 RETIRED_STATES=('stopped-will-not-return','absent-verified')
 PLAN_FIELDS={'name','owner','image','tier','memory','cpus','network','env_file','command'}
@@ -773,6 +773,8 @@ def _require_stuck(docker,state,intent,target):
         raise RuntimeError('Only a migration stopped after archiving its retired container and before capturing '
                            'its replacement is superseded; reconcile this one')
     _bindings(state,intent)
+    if intent['retired_state']!='stopped-will-not-return':
+        raise RuntimeError('Only a migration whose retired container was stopped is superseded')
     pin=pinned(state)
     if pin['generation']!=intent['generation'] or pin['target']!=intent['old'] or asdict(target)!=intent['old']:
         raise RuntimeError('The generation pin no longer names the stuck migration\'s retired container')

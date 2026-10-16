@@ -1415,6 +1415,13 @@ class SupersedeTests(ImageChangeTests.__base__):
             with self.subTest(missing=missing), patch.object(migration,'done',lambda state,phase:phase!=missing and real(state,phase)):
                 self.assertRegex(migration.stuck_refusal(self.docker,self.state,intent) or '','Only a migration stopped')
 
+    def test_a_record_whose_retired_container_was_not_stopped_is_not_stuck(self):
+        self.stuck()
+        intent=migration.load(self.state)
+        with patch.object(migration,'_bindings'):
+            self.assertRegex(migration.stuck_refusal(self.docker,self.state,{**intent,'retired_state':'absent-verified'}) or '',
+                             'was stopped')
+
     def test_a_failed_listing_is_never_read_as_absence(self):
         self.stuck()
         original=self.docker.handle

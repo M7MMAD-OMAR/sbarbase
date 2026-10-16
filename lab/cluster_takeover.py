@@ -212,6 +212,11 @@ def takeover(run=subprocess.run):
             move = mark(move, run=record['run'], volume=record['volume'])
         if back:
             move = move_back(record, move)
+        elif upgrade.local_changes():
+            # As the move's own resume requires: the migration runs from this tree, and once the move
+            # is archived nothing else checks it.
+            raise TakeoverError('The checkout has local changes to tracked files (a checkout a kill interrupted?); '
+                                'restore it first')
         if command is not None and run(command + ['--worker-fd', str(worker)], cwd=lab.ROOT,
                                        pass_fds=(worker,)).returncode:
             raise TakeoverError('The generation migration did not finish; run this command again '

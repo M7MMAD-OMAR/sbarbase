@@ -36,7 +36,8 @@ class TakeoverTests(unittest.TestCase):
         self.moved = []
         self.finishes = True
         self.from_image = IMAGE
-        self.from_script = 'import os\nSUPERSEDE_PROTOCOL=1\n'
+        self.from_script = 'import os\nSUPERSEDE_PROTOCOL=2\n'
+        self.changes = []
         self.pinned_image = OTHER
         self.marked = []
         self.refusal = None
@@ -69,6 +70,7 @@ class TakeoverTests(unittest.TestCase):
             patch.object(takeover.hba_migration, 'pinned', lambda state: {'target': {'image': self.pinned_image, 'owner': 'durable-upstream'}}),
             patch.object(takeover.hba_migration, 'require_cluster_volume', self.prove),
             patch.object(takeover.backup, 'mark_moved', lambda stamp: self.marked.append(stamp)),
+            patch.object(takeover.upgrade, 'local_changes', lambda: list(self.changes)),
             patch.object(takeover.hba_migration, 'stuck_refusal', lambda docker, state, intent: self.refusal),
         ]
         for item in patches:
@@ -96,8 +98,7 @@ class TakeoverTests(unittest.TestCase):
     def fake_run(self, command, cwd=None, pass_fds=None):
         # The worker lock goes to the migration as an inherited descriptor, named last.
         self.assertEqual(command[-2], '--worker-fd')
-        if pass_fds is not None:
-            self.assertEqual(pass_fds, (int(command[-1]),))
+        self.assertEqual(pass_fds, (int(command[-1]),), 'the held worker lock is handed to the migration')
         command = command[:-2]
         self.runs.append((command, bool(self.locked)))
         if self.finishes:
@@ -133,7 +134,7 @@ class TakeoverTests(unittest.TestCase):
                 held.remove(path)
         seen = []
         with patch.object(takeover.upgrade, 'exclusive', counting):
-            takeover.takeover(run=lambda command, cwd=None, pass_fds=(): seen.append(sorted(map(str, held))) or self.fake_run(command))
+            takeover.takeover(run=lambda command, cwd=None, pass_fds=(): seen.append(sorted(map(str, held))) or self.fake_run(command, pass_fds=pass_fds))
         self.assertEqual(seen, [sorted(map(str, (takeover.upgrade.LOCK, takeover.upgrade.SUPERVISOR_LOCK,
                                                  takeover.upgrade.BACKUP_LOCK)))])
         self.assertEqual(held, [])
@@ -222,6 +223,14 @@ class TakeoverTests(unittest.TestCase):
         self.assertTrue(self.move_path.exists())
         self.assertFalse((self.root / ARCHIVED).exists())
 
+    def test_a_checkout_with_local_changes_refuses_before_the_migration(self):
+        self.write_move()
+        self.changes = ['lab/hba_migration.py']
+        with self.assertRaisesRegex(takeover.TakeoverError, 'local changes'):
+            self.take()
+        self.assertEqual(self.runs, [])
+        self.assertTrue(self.move_path.exists())
+
     def test_a_record_that_cannot_be_superseded_refuses_before_the_checkout_moves(self):
         self.write_move()
         self.lock = OTHER
@@ -278,7 +287,7 @@ class TakeoverTests(unittest.TestCase):
         with self.assertRaisesRegex(takeover.TakeoverError, 'did not finish'):
             self.take()
         self.finishes = True
-        failing = lambda command, cwd=None, pass_fds=(): self.fake_run(command) and SimpleNamespace(returncode=1)
+        failing = lambda command, cwd=None, pass_fds=(): self.fake_run(command, pass_fds=pass_fds) and SimpleNamespace(returncode=1)
         with self.assertRaisesRegex(takeover.TakeoverError, 'did not finish'):
             takeover.takeover(run=failing)
 
@@ -382,7 +391,7 @@ class TakeoverTests(unittest.TestCase):
         with self.assertRaisesRegex(takeover.TakeoverError, 'another image'):
             self.take()
         self.from_image = IMAGE
-        for source in ('parser.add_argument("--supersede-stuck")', '# SUPERSEDE_PROTOCOL=1', 'SUPERSEDE_PROTOCOL=2', None):
+        for source in ('parser.add_argument("--supersede-stuck")', '# SUPERSEDE_PROTOCOL=2', 'SUPERSEDE_PROTOCOL=1', None):
             with self.subTest(source=source):
                 self.from_script = source
                 with self.assertRaisesRegex(takeover.TakeoverError, 'supersede protocol'):
@@ -496,8 +505,9 @@ class TakeoverTests(unittest.TestCase):
 
 
 class LockTests(unittest.TestCase):
-    """The real locks: the migration the takeover runs takes the worker, operation and effect locks
-    itself (hba_ownership), so the takeover holds none of them, and refuses while the worker runs."""
+    """The real locks: the takeover holds the upgrade, supervisor, backup and worker locks, and the
+    migration it runs shares the worker lock (--worker-fd) and takes the operation and effect locks
+    itself (hba_startup.acquire); the takeover refuses while the worker runs."""
 
     def setUp(self):
         directory = tempfile.TemporaryDirectory()
