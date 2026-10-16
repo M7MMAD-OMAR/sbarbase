@@ -1,7 +1,7 @@
 {
-  "tag": "public.ecr.aws/supabase/storage-api:v1.73.1",
-  "id": "sha256:c24fb33cc2fa38d0f9582a30312907fc56da333fb9ba0646833186197e4982f3",
+  "tag": "public.ecr.aws/supabase/storage-api:v1.83.3",
+  "id": "sha256:2cea04f1ec8f174521f79382334ea3a97959b1a6770be30c6d6bc4a9e2779428",
   "digests": [
-    "public.ecr.aws/supabase/storage-api@sha256:c24fb33cc2fa38d0f9582a30312907fc56da333fb9ba0646833186197e4982f3"
+    "public.ecr.aws/supabase/storage-api@sha256:2cea04f1ec8f174521f79382334ea3a97959b1a6770be30c6d6bc4a9e2779428"
   ]
 }

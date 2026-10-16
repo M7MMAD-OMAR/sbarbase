@@ -21,7 +21,7 @@
     {
       "id": "storage-images",
       "path": "lab/storage-image.lock.json",
-      "sha256": "6913ec4af576eff98bcd2e84cf816ae082407479314ab299c49da16d2090321f"
+      "sha256": "cea47aa7f50415097b47ba135db61f9d42b83990377a663f28089d3473973cf9"
     },
     {
       "id": "realtime-images",
