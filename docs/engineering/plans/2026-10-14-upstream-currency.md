@@ -172,7 +172,11 @@ Updated with each step. Code accepted here has unit tests and an independent rev
 | A3, Realtime v2.144.0 | staged | `a229d3f` | the live gate |
 | A4, Auth v2.197.0 | staged | `1edeb56` | the live gate; its way back restores the management database too |
 | A5, Storage v1.83.3 | staged | `87e6fcf` | the live gate; one-way, the way back is the P4 restore |
-| P3, A6 to A8, B1, features | not started | | P3 is split into four reviewed parts (image choice, export, restore into a fresh cluster, taking it into use); A7 waits for P3 and its VM rehearsal |
+| A6, Studio 2026.10.12 | staged | `5566be2`, `48d4840` | the live gate, with F5: the Connections page shows and cancels only its own login's sessions |
+| A6, postgres-meta v0.100.0 | staged | `beb8b03`, `0b2c428` | the live gate; postgres-meta is reachable from the shared network while a session runs, a separate fix |
+| A8, postgres:17-alpine (17.11), 18 deferred | staged | `238a9c6` | the fixtures on the new pin |
+| P3, whole-cluster restore | designed | `e520c83` | four reviewed parts ([design](../WHOLE-CLUSTER-RESTORE.md)); the cluster inventory in each backup run is in progress |
+| A7, B1, features | not started | | A7 waits for P3 and its VM rehearsal |
 
 Staged means pinned with its review entry and the full unit suites passing; no A step has passed its live gate. When releases are cut, each A step needs a release of its own whose `minimum_from` is the release just before it, so that one upgrade never crosses two upstream components: the P4 procedure and the per-step way back rely on that.
 
