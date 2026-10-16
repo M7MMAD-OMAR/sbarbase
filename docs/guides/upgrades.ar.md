@@ -171,7 +171,7 @@ sudo systemctl restart sbarbase
 
 ## من سطر الأوامر
 
-مع Docker ضع `docker compose exec sbarbase` قبل كل أمر `python3`.
+مع Docker ضع `docker compose exec sbarbase` قبل كل أمر `python3`. ومع systemd شغّل كل أمر بحساب الخدمة وبقيم `HOME` و`PATH` نفسها التي في ملف الوحدة (`sudo -u sbarbase env HOME=/home/sbarbase PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/sbarbase/.bun/bin /usr/bin/python3 lab/upgrade.py ...`): فإن لم يجد bun في المسار، يتوقف `start` بعد النسخ الاحتياطي عند تثبيت اعتماديات الإصدار الجديد، وإعادة التشغيل عندها تثبّته على الإصدار السابق.
 
 | المهمة | الأمر | بالأمر `sbarbase` |
 |---|---|---|

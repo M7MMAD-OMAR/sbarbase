@@ -171,7 +171,7 @@ The check reads the canonical repository over HTTPS, not your `origin`. To read 
 
 ## From the command line
 
-With Docker, put `docker compose exec sbarbase` before each `python3` command.
+With Docker, put `docker compose exec sbarbase` before each `python3` command. With systemd, run each as the service account with the unit's `HOME` and `PATH` (`sudo -u sbarbase env HOME=/home/sbarbase PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/sbarbase/.bun/bin /usr/bin/python3 lab/upgrade.py ...`): without bun on the path, `start` stops after the backup when it installs the new version's dependencies, and a restart then settles it on the previous version.
 
 | Task | Command | With the `sbarbase` command |
 |---|---|---|
