@@ -191,7 +191,7 @@ class RestoreTests(unittest.TestCase):
         self.stages = []
 
     def restore(self, counts, roles=('supabase_admin', f'{E}_auth'), replay=0):
-        build = FakeBuild('sbarbase-rebuild-x')
+        build = self.build = FakeBuild('sbarbase-rebuild-x')
         build.psql = lambda database='postgres': ['psql', database]
         with patch.object(rebuild, 'planned', self.plan(roles)), \
                 patch.object(rebuild.subprocess, 'run', return_value=SimpleNamespace(returncode=replay)), \
@@ -214,6 +214,12 @@ class RestoreTests(unittest.TestCase):
             self.restore({'auth.users': 1}, roles=('supabase_admin', f'{E}_auth', f'{E}_rest'))
         with self.assertRaisesRegex(rebuild.RebuildError, 'did not replay'):
             self.restore({'auth.users': 1}, replay=3)
+        # None of them sent the rename.
+        for counts, roles, replay in (({'auth.users': 2}, None, 0), ({'auth.users': 1}, (f'{E}_rest',), 0),
+                                      ({'auth.users': 1}, None, 3)):
+            with self.subTest(counts=counts, roles=roles, replay=replay), self.assertRaises(rebuild.RebuildError):
+                self.restore(counts, roles=('supabase_admin', f'{E}_auth', *(roles or ())), replay=replay)
+            self.assertFalse([query for _, query in self.build.statements if 'RENAME' in query])
 
 
 class PlanningTests(unittest.TestCase):
@@ -315,6 +321,18 @@ class RebuildTests(unittest.TestCase):
         self.assertEqual(self.calls[-1], ('rm', '-f', 'sbarbase-rebuild-0123456789ab'))
         self.assertNotIn('volume', [call[0] for call in self.calls if call[:2] == ('volume', 'rm')])
         self.assertEqual(json.loads(rebuild.RECORD.read_text())['phase'], 'completed')
+
+    def test_the_attempt_is_recorded_before_anything_is_created(self):
+        seen = []
+        docker = self.docker
+
+        def recording(*args, **kwargs):
+            if args[:2] == ('volume', 'create'):
+                seen.append(json.loads(rebuild.RECORD.read_text()))
+            return docker(*args, **kwargs)
+        with patch.object(rebuild, 'docker', recording):
+            rebuild.rebuild(STAMP, token='0123456789ab')
+        self.assertEqual([(item['phase'], item['volume']) for item in seen], [('started', 'sbarbase-durable-pgdata-0123456789ab')])
 
     def test_a_failure_removes_the_build_container_keeps_the_volume_and_records_it(self):
         self.fail_at = 'stop'
@@ -557,6 +575,13 @@ class EndToEndTests(unittest.TestCase):
         self.assertNotIn('private', error.getvalue())
         self.assertEqual(json.loads(rebuild.RECORD.read_text())['failure'], 'KeyError')
 
+    def test_a_refusal_on_the_rebuilt_cluster_fails_even_when_the_roles_compare_equal(self):
+        taken = rebuild.cluster_inventory.from_rows
+        with patch.object(rebuild.cluster_inventory, 'from_rows',
+                          lambda rows, image: {**taken(rows, image), 'refusals': ["unexpected row {'name': 'other'}"]}), \
+                self.assertRaisesRegex(rebuild.RebuildError, 'does not hold the roles'):
+            rebuild.rebuild(STAMP, token='0123456789ab')
+
     def test_refusals_or_other_parameters_on_the_rebuilt_cluster_fail(self):
         self.after['parameters'] = []
         with self.assertRaisesRegex(rebuild.RebuildError, 'does not hold the roles'):
@@ -574,7 +599,9 @@ class PreconditionTests(unittest.TestCase):
                 patch.object(rebuild.backup, 'resolve_image', lambda pin: seen.append(pin) or ('ref', IMAGE)):
             self.assertEqual(rebuild.chosen_image(), ('ref', IMAGE))
             with patch.object(rebuild.upgrade, 'resolve', lambda ref: 'c' * 40), \
-                    patch.object(rebuild.release_channel, 'lock_at', lambda commit, name: {'id': 'old'} if commit == 'c' * 40 else None):
+                    patch.object(rebuild.release_channel, 'lock_at',
+                                 lambda commit, name: {'id': 'old'} if (commit, name) == ('c' * 40, rebuild.release_channel.DATABASE_LOCK)
+                                 else None):
                 rebuild.chosen_image('v1')
             self.assertEqual(seen, [{'id': 'current'}, {'id': 'old'}])
             with patch.object(rebuild.upgrade, 'resolve', lambda ref: 'c' * 40), \
