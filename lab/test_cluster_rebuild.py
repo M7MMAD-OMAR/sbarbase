@@ -95,13 +95,13 @@ class PasswordTests(unittest.TestCase):
             private = Path(directory)
             (private / 'runtime.json').write_text(json.dumps({
                 'admin': 'x', 'storage_control': 's', 'management': {'auth': 'm'},
-                'environments': {E: {'auth': 'a', 'rest': 'r', 'storage': 'st', 'jwt': 'j'}}}))
+                'environments': {E: {'auth': 'a', 'rest': 'r', 'storage': 'st', 'realtime': 'rt', 'jwt': 'j'}}}))
             (private / 'database').mkdir()
             (private / 'database' / f'{E}.json').write_text(json.dumps({'password': 'dev'}))
             with patch.object(rebuild.runtime, 'PRIVATE', private):
                 found = rebuild.passwords()
         self.assertEqual(found, {'storage_control': 's', 'management_auth': 'm', f'{E}_auth': 'a', f'{E}_rest': 'r',
-                                 f'{E}_storage': 'st', f'{E}_developer': 'dev'})
+                                 f'{E}_storage': 'st', f'{E}_realtime': 'rt', f'{E}_developer': 'dev'})
 
     def test_unreadable_values_refuse(self):
         with tempfile.TemporaryDirectory() as directory, patch.object(rebuild.runtime, 'PRIVATE', Path(directory)):
@@ -358,6 +358,191 @@ class LockTests(unittest.TestCase):
                                 pass
                 with rebuild.held_locks():
                     pass
+
+
+class EndToEndTests(unittest.TestCase):
+    """rebuild() through its real steps; only Docker, psql and pg_restore are doubles."""
+
+    def setUp(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.root = Path(directory.name)
+        self.docker_calls, self.psql = [], []
+        self.after = recorded()
+        self.counts = {}
+        archive = self.root / 'archive'
+        archive.mkdir()
+        (archive / 'database.dump').write_bytes(b'dump')
+        scopes = {'management': ('management', archive, {'counts': 'm'}), 'storage': ('storage_metadata', archive, {'counts': 's'}),
+                  E: (E, archive, {'counts': 'e'})}
+        patches = [
+            patch.object(rebuild, 'RECORD', self.root / 'cluster-rebuild.json'),
+            patch.object(rebuild, 'held_locks', lambda: contextlib.nullcontext()),
+            patch.object(rebuild, 'load_run', lambda stamp: (scopes, recorded())),
+            patch.object(rebuild, 'chosen_image', lambda commit=None: ('ref', IMAGE)),
+            patch.object(rebuild, 'passwords', lambda: dict(KNOWN)),
+            patch.object(rebuild, 'available_mib', lambda: 8000),
+            patch.object(rebuild, 'docker', self.docker),
+            patch.object(rebuild.subprocess, 'run', self.fake_run),
+            patch.object(rebuild.backup, 'run', self.plan_run),
+            patch.object(rebuild, 'plan_archive', self.plan_archive),
+            patch.object(rebuild.backup, 'restore_counts', self.restore_counts),
+            patch.object(rebuild.backup, 'expected_counts', lambda scope, manifest: manifest['counts']),
+            patch.object(rebuild.resource_policy, 'io_flags', return_value=[]),
+            patch.object(rebuild.time, 'sleep', lambda seconds: None),
+        ]
+        for item in patches:
+            item.start()
+            self.addCleanup(item.stop)
+
+    def docker(self, *args, data=None, check=True):
+        self.docker_calls.append(args)
+        return SimpleNamespace(returncode=1 if args[1] == 'inspect' else 0, stdout='', stderr='')
+
+    def fake_run(self, argv, input=None, stdin=None, capture_output=False, text=False, timeout=None):
+        database = argv[argv.index('-d') + 1]
+        query = input if input is not None else stdin.read().decode()
+        self.psql.append((argv, database, query))
+        if query == inventory.QUERY:
+            out = json.dumps({'roles': [{k: v for k, v in item.items() if k not in ('kind', 'environment')}
+                                        for item in self.after['roles']], 'parameters': self.after['parameters']})
+        elif 'to_regrole' in query:
+            out = 't'
+        elif 'json_agg(rolname' in query:
+            out = json.dumps(['supabase_admin'])
+        else:
+            out = ''
+        failing = getattr(self, 'psql_fails', 0) and 'to_regrole' not in query
+        return SimpleNamespace(returncode=1 if failing else 0, stdout=out, stderr='')
+
+    def plan_run(self, argv, *, stdin=None, stdout=None, check=True, text=True, timeout=3600):
+        stdout.write(b'-- planned')
+        return SimpleNamespace(returncode=0, stderr=b'')
+
+    def plan_archive(self, source, output, original, stage):
+        output.write('-- replay ' + stage + '\n')
+        return SimpleNamespace(create=f'CREATE DATABASE "{stage}";', metadata=(f'COMMENT ON DATABASE "{stage}" IS \'x\';',),
+                               roles=('supabase_admin',))
+
+    def restore_counts(self, scope, execute):
+        execute('SELECT counts;')
+        return {'management': 'm', 'storage': 's'}.get(scope, 'e')
+
+    def test_the_whole_rebuild_runs_its_steps_in_order_and_in_the_right_databases(self):
+        record = rebuild.rebuild(STAMP, token='0123456789ab')
+        self.assertEqual(record['phase'], 'completed')
+        run = next(call for call in self.docker_calls if call[0] == 'run')
+        self.assertEqual(run[run.index('--env-file') + 1], str(rebuild.runtime.PRIVATE / (rebuild.runtime.DB + '.env')))
+        argv = self.psql[0][0]
+        self.assertEqual(argv[argv.index('-U') + 1], 'supabase_admin')
+        self.assertIn('ON_ERROR_STOP=1', argv)
+        steps = [(database, query) for _, database, query in self.psql]
+        roles_at = next(i for i, (db, q) in enumerate(steps) if db == 'postgres' and 'CREATE ROLE' in q)
+        first_create = next(i for i, (db, q) in enumerate(steps) if q.startswith('CREATE DATABASE'))
+        self.assertLess(roles_at, first_create, 'the roles exist before any database is restored')
+        for database in ('management', 'storage_metadata', E):
+            stage = database + '_rebuild'
+            self.assertIn((stage, '-- replay ' + stage + '\n'), steps)
+            self.assertIn((stage, 'SELECT counts;'), steps)
+            self.assertIn((stage, f'COMMENT ON DATABASE "{stage}" IS \'x\';'), steps)
+            self.assertIn(('postgres', f'ALTER DATABASE "{stage}" RENAME TO "{database}";'), steps)
+        order = [q for db, q in steps if q.startswith('ALTER DATABASE')]
+        self.assertEqual(order, [f'ALTER DATABASE "{d}_rebuild" RENAME TO "{d}";' for d in ('management', 'storage_metadata', E)])
+        self.assertEqual(steps[-1], ('postgres', inventory.QUERY))
+        self.assertIn(('exec', 'sbarbase-rebuild-0123456789ab', 'pg_isready', '-h', '127.0.0.1'), self.docker_calls)
+
+    def test_a_failing_statement_fails_the_rebuild(self):
+        self.psql_fails = 1
+        with self.assertRaises(rebuild.RebuildError):
+            rebuild.rebuild(STAMP, token='0123456789ab')
+        self.assertEqual(json.loads(rebuild.RECORD.read_text())['phase'], 'failed')
+
+    def test_a_planning_error_is_recorded_with_its_sentence_and_refused_by_main(self):
+        with patch.object(rebuild, 'plan_archive', side_effect=rebuild.PlanError('Unsupported extension')):
+            with self.assertRaises(rebuild.PlanError):
+                rebuild.rebuild(STAMP, token='0123456789ab')
+            self.assertEqual(json.loads(rebuild.RECORD.read_text())['failure'], 'Unsupported extension')
+            with contextlib.redirect_stderr(io.StringIO()) as error:
+                self.assertEqual(rebuild.main([STAMP]), 1)
+            self.assertIn('refused: Unsupported extension', error.getvalue())
+        with patch.object(rebuild, 'plan_archive', side_effect=KeyError('private')), \
+                contextlib.redirect_stderr(io.StringIO()) as error:
+            self.assertEqual(rebuild.main([STAMP]), 1)
+        self.assertIn('failed: KeyError', error.getvalue())
+        self.assertNotIn('private', error.getvalue())
+        self.assertEqual(json.loads(rebuild.RECORD.read_text())['failure'], 'KeyError')
+
+    def test_refusals_or_other_parameters_on_the_rebuilt_cluster_fail(self):
+        self.after['parameters'] = []
+        with self.assertRaisesRegex(rebuild.RebuildError, 'does not hold the roles'):
+            rebuild.rebuild(STAMP, token='0123456789ab')
+        self.after = recorded()
+        next(item for item in self.after['roles'] if item['kind'] == 'auth')['rolsuper'] = True
+        with self.assertRaisesRegex(rebuild.RebuildError, 'does not hold the roles'):
+            rebuild.rebuild(STAMP, token='111111111111')
+
+
+class PreconditionTests(unittest.TestCase):
+    def test_the_image_is_the_current_lock_or_the_lock_of_a_version_proven_on_the_daemon(self):
+        seen = []
+        with patch.object(rebuild.backup, 'image_pin', return_value={'id': 'current'}), \
+                patch.object(rebuild.backup, 'resolve_image', lambda pin: seen.append(pin) or ('ref', IMAGE)):
+            self.assertEqual(rebuild.chosen_image(), ('ref', IMAGE))
+            with patch.object(rebuild.upgrade, 'resolve', lambda ref: 'c' * 40), \
+                    patch.object(rebuild.release_channel, 'lock_at', lambda commit, name: {'id': 'old'} if commit == 'c' * 40 else None):
+                rebuild.chosen_image('v1')
+            self.assertEqual(seen, [{'id': 'current'}, {'id': 'old'}])
+            with patch.object(rebuild.upgrade, 'resolve', lambda ref: 'c' * 40), \
+                    patch.object(rebuild.release_channel, 'lock_at', lambda commit, name: None), \
+                    self.assertRaisesRegex(rebuild.RebuildError, 'no PostgreSQL lock'):
+                rebuild.chosen_image('v0')
+        with patch.object(rebuild.backup, 'image_pin', return_value={}), \
+                patch.object(rebuild.backup, 'resolve_image', side_effect=rebuild.backup.BackupError('missing')), \
+                self.assertRaisesRegex(rebuild.RebuildError, 'pull it first'):
+            rebuild.chosen_image()
+
+    def test_an_installation_manifest_that_does_not_verify_refuses(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(rebuild.backup, 'BACKUPS', Path(directory)), \
+                patch.object(rebuild.backup_offsite, 'verify_installation', side_effect=rebuild.backup.BackupError('digest')):
+            with self.assertRaisesRegex(rebuild.RebuildError, 'no verified installation manifest'):
+                rebuild.load_run(STAMP)
+
+    def test_failures_of_a_statement_or_of_planning_are_detected(self):
+        build = rebuild.Build('x')
+        with patch.object(rebuild.subprocess, 'run', return_value=SimpleNamespace(returncode=3, stdout='', stderr='')):
+            with self.assertRaisesRegex(rebuild.RebuildError, 'statement failed'):
+                build.execute('SELECT 1;')
+        with tempfile.TemporaryDirectory() as directory:
+            archive = Path(directory)
+            (archive / 'database.dump').write_bytes(b'dump')
+            with patch.object(rebuild.backup, 'run', lambda argv, **kwargs: SimpleNamespace(returncode=1, stderr=b'')), \
+                    self.assertRaisesRegex(rebuild.RebuildError, 'could not be planned'):
+                with rebuild.planned(build, archive, E, E + '_rebuild'):
+                    pass
+
+    def test_only_the_logins_that_open_and_close_are_compared_without_login_state(self):
+        self.assertEqual(rebuild.TOGGLED, {'studio', 'developer', 'realtime'})
+
+    def test_a_studio_login_without_its_session_password_is_created_closed(self):
+        roles = recorded()
+        next(item for item in roles['roles'] if item['kind'] == 'studio')['rolcanlogin'] = True
+        statements, closed = rebuild.role_sql(roles, KNOWN)
+        self.assertEqual(closed, [f'{E}_studio'])
+        self.assertIn('NOLOGIN', next(line for line in statements if f'"{E}_studio" WITH' in line))
+
+    def test_an_existing_build_container_name_refuses(self):
+        calls = []
+        with tempfile.TemporaryDirectory() as directory, \
+                patch.object(rebuild, 'RECORD', Path(directory) / 'r.json'), \
+                patch.object(rebuild, 'held_locks', lambda: contextlib.nullcontext()), \
+                patch.object(rebuild, 'load_run', lambda stamp: ({}, recorded())), \
+                patch.object(rebuild, 'chosen_image', lambda commit=None: ('ref', IMAGE)), \
+                patch.object(rebuild, 'passwords', lambda: dict(KNOWN)), patch.object(rebuild, 'available_mib', lambda: 8000), \
+                patch.object(rebuild, 'docker', lambda *args, **kwargs: calls.append(args) or SimpleNamespace(
+                    returncode=0 if args[:3] == ('container', 'inspect', 'sbarbase-rebuild-0123456789ab') else 1)):
+            with self.assertRaisesRegex(rebuild.RebuildError, 'already exists'):
+                rebuild.rebuild(STAMP, token='0123456789ab')
+        self.assertTrue(all(call[1] == 'inspect' for call in calls))
 
 
 if __name__ == '__main__':

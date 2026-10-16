@@ -49,7 +49,7 @@ import release_channel
 import resource_policy
 import run as lab
 import upgrade
-from restore_sql import plan_archive
+from restore_sql import PlanError, plan_archive
 
 OWNER = 'durable-rebuild'
 RECORD = runtime.STATE / 'cluster-rebuild.json'
@@ -355,7 +355,8 @@ def rebuild(stamp, commit=None, token=None):
             docker('stop', container)
             record = {**record, 'phase': 'completed', 'finished_at': upgrade.now()}
         except Exception as error:
-            record = {**record, 'phase': 'failed', 'failure': str(error) if isinstance(error, RebuildError)
+            # Fixed sentences are recorded; anything else only by its kind, never its text.
+            record = {**record, 'phase': 'failed', 'failure': str(error) if isinstance(error, (RebuildError, PlanError))
                       else type(error).__name__, 'finished_at': upgrade.now()}
             raise
         finally:
@@ -372,8 +373,11 @@ def main(argv=None):
     args = parser.parse_args(argv)
     try:
         record = rebuild(args.run, args.commit)
-    except (RebuildError, backup.BackupError) as error:
+    except (RebuildError, backup.BackupError, PlanError) as error:
         print(f'refused: {error}', file=sys.stderr)
+        return 1
+    except Exception as error:  # noqa: BLE001: no traceback with private detail; the record has the kind
+        print(f'failed: {type(error).__name__}; see {RECORD}', file=sys.stderr)
         return 1
     print(f"Rebuilt run {record['run']} onto {record['volume']}.")
     if record['closed_logins']:
