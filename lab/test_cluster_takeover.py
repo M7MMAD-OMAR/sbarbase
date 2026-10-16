@@ -250,8 +250,17 @@ class TakeoverTests(unittest.TestCase):
 
     def test_a_cluster_already_in_use_runs_nothing(self):
         self.volume = VOLUME
+        self.pinned_image = IMAGE
         self.take()
         self.assertEqual(self.runs, [])
+
+    def test_a_cluster_on_the_rebuilt_volume_but_another_image_is_not_taken_as_done(self):
+        self.write_move()
+        self.volume = VOLUME
+        with self.assertRaisesRegex(takeover.TakeoverError, 'pin names another image'):
+            self.take()
+        self.assertEqual(self.runs, [])
+        self.assertTrue(self.move_path.exists())
 
     def test_a_migration_that_did_not_finish_refuses(self):
         self.finishes = False

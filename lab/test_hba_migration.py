@@ -1406,6 +1406,44 @@ class SupersedeTests(ImageChangeTests.__base__):
             self.supersede()
         self.assertTrue(migration.present(self.state))
 
+    def test_a_record_missing_either_retired_checkpoint_is_not_stuck(self):
+        self.stuck()
+        intent=migration.load(self.state)
+        self.assertIsNone(migration.stuck_refusal(self.docker,self.state,intent))
+        real=migration.done
+        for missing in ('old-captured','retired-archived'):
+            with self.subTest(missing=missing), patch.object(migration,'done',lambda state,phase:phase!=missing and real(state,phase)):
+                self.assertRegex(migration.stuck_refusal(self.docker,self.state,intent) or '','Only a migration stopped')
+
+    def test_a_failed_listing_is_never_read_as_absence(self):
+        self.stuck()
+        original=self.docker.handle
+        self.docker.handle=lambda args,data:self.docker.result(returncode=1) if args[0] in ('inspect','ps') else original(args,data)
+        with self.assertRaisesRegex(RuntimeError,'listing unavailable'):
+            migration._proven_absent(self.docker,TARGET.name)
+        self.docker.handle=lambda args,data:self.docker.result(returncode=1) if args[0]=='ps' else original(args,data)
+        with self.assertRaisesRegex(RuntimeError,'listing unavailable'):
+            migration._proven_absent(self.docker,'f'*64)
+
+    def test_a_torn_or_malformed_record_is_refused_before_anything(self):
+        for damage in ('torn','malformed'):
+            with self.subTest(damage=damage):
+                self.setUp()
+                self.stuck()
+                path=migration.intent_path(self.state)
+                intent=migration.load(self.state)
+                path.unlink()
+                if damage=='torn':
+                    path.write_text('{"version": 2, "migr')
+                    os.chmod(path,0o600)
+                else:
+                    migration._publish_exclusive(path,{**intent,'version':9},'HBA migration intent')
+                with self.assertRaises((RuntimeError,ValueError)):
+                    self.supersede()
+                self.assertEqual(self.docker.removed,[])
+                self.assertFalse(list((self.state/migration.ARCHIVE).glob('*/'+migration.SUPERSEDED)))
+                self.assertTrue(migration.present(self.state))
+
     def test_a_version_4_intent_without_a_rebuilt_volume_is_malformed(self):
         self.stuck()
         intent=self.supersede()

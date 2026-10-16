@@ -155,13 +155,17 @@ def takeover(run=subprocess.run):
             move = {**move, 'taken_over': {'run': record['run'], 'volume': record['volume']}}
             database_move.save(move)
         align_checkout(record, move)
-        if command is not None:
-            result = run(command, cwd=lab.ROOT)
-            if result.returncode or hba_migration.present(runtime.STATE) \
-                    or database_volume.current(runtime.STATE) != record['volume'] \
-                    or hba_migration.pinned(runtime.STATE)['target']['image'] != record['image']:
-                raise TakeoverError('The generation migration did not finish; run this command again '
-                                    '(it finishes the interrupted migration)')
+        if command is not None and run(command, cwd=lab.ROOT).returncode:
+            raise TakeoverError('The generation migration did not finish; run this command again '
+                                '(it finishes the interrupted migration)')
+        # Checked whether or not a migration ran: no record left, the rebuilt volume named, the pin
+        # on the rebuilt image.
+        if hba_migration.present(runtime.STATE) or database_volume.current(runtime.STATE) != record['volume'] \
+                or hba_migration.pinned(runtime.STATE)['target']['image'] != record['image']:
+            raise TakeoverError('The generation migration did not finish; run this command again '
+                                '(it finishes the interrupted migration)' if command is not None else
+                                'The runtime names the rebuilt volume but its database pin names another image; '
+                                'it needs review')
         if move is not None:
             retire_move(move, record)
         return record, move, command is not None
