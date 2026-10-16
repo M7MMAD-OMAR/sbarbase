@@ -308,21 +308,21 @@ def resume(run=subprocess.run):
 
 def taken_over(record=None):
     """True while a rebuilt cluster is being taken into use (lab/cluster_takeover.py): the move record
-    marked by the takeover before it acts, or a superseding migration recorded or waiting. The move
-    is then finished by the takeover, never resumed here. Nothing of it outlives the takeover: the
-    marked record is archived and the superseding migration finishes."""
+    marked by the takeover once it has proven it can act, or a migration onto a rebuilt volume, or a
+    superseding one, recorded or waiting. The move is then finished by the takeover, never resumed
+    here. A finished takeover leaves none of it (the marked record is archived, the migration
+    finishes), and lab/cluster_takeover.py --release unmarks a move whose takeover cannot go on. A
+    record that cannot be read counts as a takeover under way, never as none."""
     if record is not None and record.get('taken_over'):
         return True
-    if hba_migration.present(runtime.STATE):
-        try:
-            if 'supersedes' in hba_migration.load(runtime.STATE):
-                return True
-        except (OSError, RuntimeError, ValueError):
-            return False
     try:
+        if hba_migration.present(runtime.STATE):
+            intent = hba_migration.load(runtime.STATE)
+            if 'supersedes' in intent or database_volume.rebuilt(hba_migration.target_volume(intent)):
+                return True
         return hba_migration.pending_superseded(runtime.STATE) is not None
     except (OSError, ValueError, RuntimeError):
-        return False
+        return True
 
 
 TAKEN_OVER = ('The database move was superseded by a rebuilt cluster; finish with Sbarbase stopped: '

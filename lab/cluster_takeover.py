@@ -27,9 +27,11 @@ What runs depends on the migration record:
 
 Once the runtime names the rebuilt volume, a recorded database move that has begun is archived as
 superseded by the rebuild (database-move-<to>-<its start>-superseded.json, beside the moves that
-completed) and its record removed; its backups are kept from pruning first. Before anything moves,
-the move record is marked as taken over, so until it is archived a start and lab/upgrade.py
-database --continue point back here (lab/database_move.py taken_over). A prepared move refuses: abandon it first. Every step can be run again.
+completed) and its record removed; its backups are kept from pruning first. Once everything that can
+refuse is proven (the record, the way back, the rebuilt volume), the move record is marked as taken
+over, so until it is archived a start and lab/upgrade.py database --continue point back here
+(lab/database_move.py taken_over); --release unmarks it while no migration onto the rebuilt volume
+is recorded or waiting. A prepared move refuses: abandon it first. Every step can be run again.
 Unit tested only; nothing of it has run against a real daemon.
 """
 import argparse
@@ -77,8 +79,12 @@ def image_of(commit):
         return None
 
 
-def align_checkout(record, move):
-    """The checkout's lock names the rebuilt image, moving back to the move's from version if needed."""
+def needs_move_back(record, move):
+    """Whether the checkout must move back to the move's from version, proven before anything is
+    marked: that version's lock names the rebuilt image and its migration can finish this one. A
+    move back a kill interrupted is done again, since only its end shows in the lock file."""
+    if move is not None and (move.get('taken_over') or {}).get('checkout') == 'moving':
+        return True
     if database_move.lock_image() == record['image']:
         return False
     if move is None or image_of(move['from']) != record['image']:
@@ -89,13 +95,38 @@ def align_checkout(record, move):
     if '--supersede-stuck' not in (script or ''):
         raise TakeoverError(f"The version {move['from'][:12]} cannot take a rebuilt cluster into use (its "
                             'lab/migrate-generation.py has no --supersede-stuck); nothing was changed')
+    return True
+
+
+def mark(move, **changes):
+    """Record in the move how far the takeover went; a start and database --continue point here."""
+    move = {**move, 'taken_over': {**(move.get('taken_over') or {}), **changes}}
+    database_move.save(move)
+    return move
+
+
+def move_back(record, move):
+    """The guard's verified move back to the from version, recorded before and after, so a rerun
+    after a kill inside it moves back again and installs that version's dependencies."""
+    move = mark(move, checkout='moving')
     try:
         upgrade.move_back(move['from'], None, move)
     except upgrade.UpgradeError as error:
-        raise TakeoverError(f"The checkout could not be moved back to {move['from'][:12]} ({error})") from None
+        raise TakeoverError(f"The checkout could not be moved back to {move['from'][:12]} ({error}); run this "
+                            'command again') from None
     if database_move.lock_image() != record['image']:
         raise TakeoverError("The checkout's PostgreSQL lock still names another image")
-    return True
+    return mark(move, checkout='moved')
+
+
+def prove_volume(record):
+    """The rebuilt volume can take the database (owned by the runtime, holding a data directory of
+    the image's major version), proven before anything is marked; the migration proves it again."""
+    owner = hba_migration.pinned(runtime.STATE)['target']['owner']
+    try:
+        hba_migration.require_cluster_volume(lab.docker, record['volume'], owner, record['image'], runtime.STATE)
+    except RuntimeError as error:
+        raise TakeoverError(f"The rebuilt volume cannot take the database ({error}); nothing was changed") from None
 
 
 def migration_command(record):
@@ -148,13 +179,17 @@ def takeover(run=subprocess.run):
         move = database_move.load()
         if move is not None and move['phase'] == 'prepared':
             raise TakeoverError('A database move is prepared; abandon it first (lab/upgrade.py database --abandon)')
-        # The record is classified first, so a refusal leaves the checkout where it was.
+        # Everything that can refuse is proven before the move is marked: the record classified,
+        # the way back and the rebuilt volume. A refusal then leaves the move and the checkout as
+        # they were.
         command = migration_command(record)
+        back = needs_move_back(record, move)
+        if command is not None and database_volume.current(runtime.STATE) != record['volume']:
+            prove_volume(record)
         if move is not None and not move.get('taken_over'):
-            # From here a start and database --continue point back to this command.
-            move = {**move, 'taken_over': {'run': record['run'], 'volume': record['volume']}}
-            database_move.save(move)
-        align_checkout(record, move)
+            move = mark(move, run=record['run'], volume=record['volume'])
+        if back:
+            move = move_back(record, move)
         if command is not None and run(command, cwd=lab.ROOT).returncode:
             raise TakeoverError('The generation migration did not finish; run this command again '
                                 '(it finishes the interrupted migration)')
@@ -171,8 +206,39 @@ def takeover(run=subprocess.run):
         return record, move, command is not None
 
 
+def release():
+    """Unmark a move whose takeover cannot go on, so the move's own commands apply again: only while
+    no migration onto a rebuilt volume or superseding one is recorded or waiting. The checkout stays
+    where the takeover left it."""
+    with upgrade.exclusive(upgrade.LOCK, 'Another upgrade, rollback or database move is running'), \
+            cluster_rebuild.held_locks():
+        move = database_move.load()
+        if move is None or not move.get('taken_over'):
+            raise TakeoverError('No database move is marked as taken over')
+        state = runtime.STATE
+        hba_migration.discard_unpublished(state)
+        if hba_migration.pending_superseded(state) is not None or (
+                hba_migration.present(state) and database_volume.rebuilt(
+                    hba_migration.target_volume(hba_migration.load(state)))):
+            raise TakeoverError('A migration onto a rebuilt volume is recorded or waiting; finish the takeover')
+        database_move.save({key: value for key, value in move.items() if key != 'taken_over'})
+        return move
+
+
 def main(argv=None):
-    argparse.ArgumentParser(description='Take a rebuilt database cluster into use').parse_args(argv)
+    parser = argparse.ArgumentParser(description='Take a rebuilt database cluster into use')
+    parser.add_argument('--release', action='store_true',
+                        help='unmark a move whose takeover cannot go on, before any migration onto the rebuilt volume')
+    args = parser.parse_args(argv)
+    if args.release:
+        try:
+            move = release()
+        except (RuntimeError, ValueError, upgrade.UpgradeError) as error:
+            print(f'refused: {error}', file=sys.stderr)
+            return 1
+        print(f"The database move to {move['to'][:12]} is no longer marked as taken over; "
+              'lab/upgrade.py database applies to it again.')
+        return 0
     try:
         record, move, migrated = takeover()
     except (RuntimeError, ValueError, upgrade.UpgradeError) as error:

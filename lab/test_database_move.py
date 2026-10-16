@@ -647,10 +647,19 @@ class TakenOverTests(unittest.TestCase):
         self.assertTrue(move.taken_over({'phase': 'migrating', 'taken_over': {'volume': 'v'}}))
         self.intent = {'supersedes': 'm'}
         self.assertTrue(move.taken_over())
-        self.intent = {'migration': 'm'}
+        self.intent = {'migration': 'm', 'volume': 'sbarbase-durable-pgdata'}
         self.assertFalse(move.taken_over())
         self.intent, self.pending = None, {'superseded_by': 'n'}
         self.assertTrue(move.taken_over())
+
+    def test_a_migration_onto_a_rebuilt_volume_or_an_unreadable_record_counts_as_under_way(self):
+        self.intent = {'migration': 'm', 'volume': 'sbarbase-durable-pgdata', 'old': {}, 'new_volume': 'sbarbase-durable-pgdata-0123456789ab'}
+        self.assertTrue(move.taken_over())
+        with patch.object(move.hba_migration, 'load', side_effect=ValueError('torn')):
+            self.assertTrue(move.taken_over())
+        self.intent = None
+        with patch.object(move.hba_migration, 'pending_superseded', side_effect=RuntimeError('malformed')):
+            self.assertTrue(move.taken_over())
 
     def test_a_finished_takeover_does_not_hold_back_a_later_move(self):
         # The rebuild record stays completed and its volume is the runtime's for good.

@@ -40,6 +40,8 @@ class TakeoverTests(unittest.TestCase):
         self.pinned_image = OTHER
         self.marked = []
         self.refusal = None
+        self.proved = []
+        self.volume_refusal = None
 
         @contextlib.contextmanager
         def held(*args):
@@ -65,7 +67,8 @@ class TakeoverTests(unittest.TestCase):
             patch.object(takeover.upgrade, 'git', lambda *args, check=True: self.from_script if args[0] == 'show' else ''),
             patch.object(takeover.upgrade, 'move_back', self.move_back),
             patch.object(takeover.upgrade, 'now', lambda: '2026-10-16T12:00:00Z'),
-            patch.object(takeover.hba_migration, 'pinned', lambda state: {'target': {'image': self.pinned_image}}),
+            patch.object(takeover.hba_migration, 'pinned', lambda state: {'target': {'image': self.pinned_image, 'owner': 'durable-upstream'}}),
+            patch.object(takeover.hba_migration, 'require_cluster_volume', self.prove),
             patch.object(takeover.backup, 'mark_moved', lambda stamp: self.marked.append(stamp)),
             patch.object(takeover.hba_migration, 'stuck_refusal', lambda docker, state, intent: self.refusal),
         ]
@@ -81,6 +84,11 @@ class TakeoverTests(unittest.TestCase):
                      'started_at': '2026-10-16T01:00:00Z',
                      'images': {'from': '17.6', 'to': '17.11'}}
         self.move_path.write_text(json.dumps(self.move))
+
+    def prove(self, docker, volume, owner, image, state):
+        self.proved.append((volume, owner, image))
+        if self.volume_refusal:
+            raise RuntimeError(self.volume_refusal)
 
     def move_back(self, commit, intent, state):
         self.moved.append((commit, intent, bool(self.locked)))
@@ -350,9 +358,9 @@ class TakeoverTests(unittest.TestCase):
                           lambda commit, intent, state: seen.append(json.loads(self.move_path.read_text()).get('taken_over'))
                           or original(commit, intent, state)):
             self.take()
-        self.assertEqual(seen, [{'run': '20261016T030000Z', 'volume': VOLUME}])
+        self.assertEqual(seen, [{'run': '20261016T030000Z', 'volume': VOLUME, 'checkout': 'moving'}])
         archived = json.loads((self.root / ARCHIVED).read_text())
-        self.assertEqual(archived['taken_over'], {'run': '20261016T030000Z', 'volume': VOLUME})
+        self.assertEqual(archived['taken_over'], {'run': '20261016T030000Z', 'volume': VOLUME, 'checkout': 'moved'})
 
     def test_a_refused_record_leaves_the_move_unmarked(self):
         self.write_move()
@@ -376,6 +384,56 @@ class TakeoverTests(unittest.TestCase):
             self.take()
         self.assertEqual((self.moved, self.runs), ([], []))
         self.assertTrue(self.move_path.exists())
+        self.assertNotIn('taken_over', json.loads(self.move_path.read_text()), 'a refusal leaves the move unmarked')
+
+    def test_a_rebuilt_volume_that_cannot_take_the_database_refuses_before_anything(self):
+        self.write_move()
+        self.lock = OTHER
+        self.volume_refusal = 'holds no PostgreSQL data directory'
+        with self.assertRaisesRegex(takeover.TakeoverError, 'cannot take the database'):
+            self.take()
+        self.assertEqual(self.proved, [(VOLUME, 'durable-upstream', IMAGE)])
+        self.assertEqual((self.moved, self.runs), ([], []))
+        self.assertNotIn('taken_over', json.loads(self.move_path.read_text()))
+
+    def test_a_kill_inside_the_move_back_moves_back_again_on_the_rerun(self):
+        self.write_move()
+        self.lock = OTHER
+
+        def killed(commit, intent, state):
+            self.lock = IMAGE  # the lock file arrived, the dependencies did not
+            raise KeyboardInterrupt
+        with patch.object(takeover.upgrade, 'move_back', killed), self.assertRaises(KeyboardInterrupt):
+            self.take()
+        self.assertEqual(json.loads(self.move_path.read_text())['taken_over']['checkout'], 'moving')
+        self.take()
+        self.assertEqual([commit for commit, _, _ in self.moved], [FROM])
+        archived = json.loads((self.root / ARCHIVED).read_text())
+        self.assertEqual(archived['taken_over']['checkout'], 'moved')
+
+    def test_release_unmarks_a_move_whose_takeover_cannot_go_on(self):
+        self.write_move()
+        self.move['taken_over'] = {'run': 'r', 'volume': VOLUME, 'checkout': 'moved'}
+        self.move_path.write_text(json.dumps(self.move))
+        for intent, pending in (({'migration': 'm', 'volume': 'sbarbase-durable-pgdata', 'new_volume': VOLUME}, None),
+                                (None, {'superseded_by': 'n'})):
+            with self.subTest(intent=intent, pending=pending):
+                self.intent, self.pending = intent, pending
+                with self.assertRaisesRegex(takeover.TakeoverError, 'finish the takeover'):
+                    takeover.release()
+                self.assertIn('taken_over', json.loads(self.move_path.read_text()))
+        self.intent, self.pending = STUCK, None
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            self.assertEqual(takeover.main(['--release']), 0)
+        released = json.loads(self.move_path.read_text())
+        self.assertNotIn('taken_over', released)
+        self.assertEqual(released['phase'], 'migrating')
+        self.assertIn('no longer marked', output.getvalue())
+        error = io.StringIO()
+        with contextlib.redirect_stderr(error):
+            self.assertEqual(takeover.main(['--release']), 1)
+        self.assertIn('No database move is marked', error.getvalue())
 
     def test_a_version_whose_lock_cannot_be_proved_is_no_way_back(self):
         self.write_move()
