@@ -175,7 +175,7 @@ Updated with each step. Code accepted here has unit tests and an independent rev
 | A6, Studio 2026.10.12 | staged | `5566be2`, `48d4840` | the live gate, with F5: the Connections page shows and cancels only its own login's sessions |
 | A6, postgres-meta v0.100.0 | staged | `beb8b03`, `0b2c428` | the live gate; postgres-meta is reachable from the shared network while a session runs, a separate fix |
 | A8, postgres:17-alpine (17.11), 18 deferred | staged | `238a9c6` | the fixtures on the new pin |
-| P3, whole-cluster restore | parts 1 and 2 reviewed | `e520c83`, `dbcb82d`, `35625c5` | parts 3 (rebuild into a fresh cluster) and 4 (taking it into use) ([design](../WHOLE-CLUSTER-RESTORE.md)); the VM rehearsal |
+| P3, whole-cluster restore | parts 1, 2 and 3 reviewed | `e520c83`, `dbcb82d`, `35625c5`, `5322fb5` | part 4 (taking the rebuilt cluster into use, and the exit from a stuck move) ([design](../WHOLE-CLUSTER-RESTORE.md)); the VM rehearsal |
 | A7, B1, features | not started | | A7 waits for P3 and its VM rehearsal |
 
 Staged means pinned with its review entry and the full unit suites passing; no A step has passed its live gate. When releases are cut, each A step needs a release of its own whose `minimum_from` is the release just before it, so that one upgrade never crosses two upstream components: the P4 procedure and the per-step way back rely on that.
