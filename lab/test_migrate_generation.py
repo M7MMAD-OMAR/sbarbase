@@ -211,6 +211,18 @@ class Main(unittest.TestCase):
         # The replacement onto the rebuilt volume is planned on the image the migration was given.
         self.assertEqual(self.plan.call_args.args[2],None)
 
+    def test_supersede_stuck_with_the_lock_image_supersedes_onto_that_image(self):
+        volume='sbarbase-durable-pgdata-0123456789ab'
+        lock='sha256:'+'f'*64
+        with patch.object(command,'lock_image',return_value=lock), \
+                patch.object(command.hba_migration,'require_cluster_volume') as probe, \
+                patch.object(command.hba_migration,'supersede',return_value={'migration':'n','supersedes':'m','generation':PIN['generation']}) as supersede:
+            intent,execute,error=self.run_main([*BASE,'--image-from-lock','--to-volume',volume,'--supersede-stuck'],target=DISPOSABLE)
+        self.assertIsNone(error)
+        self.assertEqual(supersede.call_args.kwargs['image'],lock)
+        self.assertEqual(probe.call_args.args[1:4],(volume,DISPOSABLE['owner'],lock))
+        self.assertEqual(self.plan.call_args.args[2],lock)
+
     def test_supersede_stuck_needs_a_rebuilt_volume_a_stopped_container_and_no_reconcile(self):
         volume='sbarbase-durable-pgdata-0123456789ab'
         for arguments,reason in (([*BASE,'--supersede-stuck'],'give --to-volume'),

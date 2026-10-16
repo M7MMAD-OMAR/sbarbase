@@ -104,6 +104,39 @@ class TakeoverTests(unittest.TestCase):
         self.assertEqual(command[command.index('--volume') + 1], 'sbarbase-durable-pgdata')
         self.assertNotIn('--supersede-stuck', command)
 
+    def test_both_lock_sets_are_held_for_the_whole_takeover(self):
+        held = {'upgrade': 0, 'runtime': 0}
+
+        def lock(name):
+            @contextlib.contextmanager
+            def holding(*args):
+                held[name] += 1
+                try:
+                    yield
+                finally:
+                    held[name] -= 1
+            return holding
+        seen = []
+        with patch.object(takeover.upgrade, 'exclusive', lock('upgrade')), \
+                patch.object(takeover.cluster_rebuild, 'held_locks', lock('runtime')):
+            takeover.takeover(run=lambda command, cwd=None: seen.append(dict(held)) or self.fake_run(command))
+        self.assertEqual(seen, [{'upgrade': 1, 'runtime': 1}])
+        self.assertEqual(held, {'upgrade': 0, 'runtime': 0})
+
+    def test_an_empty_record_a_kill_left_is_cleared_before_the_record_is_read(self):
+        calls = []
+
+        def discard(state):
+            calls.append('discard')
+            self.intent = None  # the empty directory, gone
+            return True
+        self.intent = {'not': 'an intent'}
+        with patch.object(takeover.hba_migration, 'discard_unpublished', discard):
+            self.take()
+        self.assertEqual(calls, ['discard'])
+        self.assertNotIn('--supersede-stuck', self.runs[0][0])
+        self.assertNotIn('--reconcile', self.runs[0][0])
+
     def test_a_stuck_move_s_record_is_superseded(self):
         self.intent = STUCK
         self.take()

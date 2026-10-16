@@ -1344,6 +1344,15 @@ class SupersedeTests(ImageChangeTests.__base__):
         self.assertTrue(migration.present(self.state))
         self.assertFalse(migration.done(self.state,'old-captured'))
 
+    def test_checkpoints_of_another_intent_refuse_before_anything_is_written_or_removed(self):
+        self.stuck()
+        real=migration.read_checkpoint
+        with patch.object(migration,'read_checkpoint',lambda state,phase:{**real(state,phase),'intent':'0'*64}), \
+                self.assertRaisesRegex(RuntimeError,'another intent'):
+            self.supersede()
+        self.assertEqual(self.docker.removed,[])
+        self.assertFalse(list((self.state/migration.ARCHIVE).glob('*/'+migration.SUPERSEDED)))
+
     def test_a_migration_being_superseded_is_not_reconciled_on_its_own(self):
         self.stuck()
         original=self.docker.handle
