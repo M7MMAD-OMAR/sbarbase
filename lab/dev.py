@@ -933,7 +933,9 @@ def main():
             if stop_event.is_set():
                 return
             started = True
-            if run_stage(['/usr/bin/python3', 'lab/installation_runtime.py', 'up'], stop_event,
+            # 300 s: a start may restart the database once to raise its connection limit
+            # (durable_runtime.ensure_connection_capacity).
+            if run_stage(['/usr/bin/python3', 'lab/installation_runtime.py', 'up'], stop_event, timeout=300,
                          pass_fds=(worker_lock.fileno(),),env=dict(os.environ,SBARBASE_WORKER_FD=str(worker_lock.fileno()))):
                 raise RuntimeError('Runtime startup failed; the installation runtime reported its own reason above')
             # The runtime start stage returned success, so the installation runtime is

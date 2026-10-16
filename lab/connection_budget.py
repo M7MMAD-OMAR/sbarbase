@@ -12,8 +12,10 @@ DIRECT_CONNECTIONS = 10
 REALTIME_CONNECTIONS = 16
 # The cluster's max_connections, which the runtime raises at start (durable_runtime.py
 # ensure_connection_capacity): eight environments at their base limit (8 x 18), the shared logins
-# and the operations reserve take 166, which leaves 31 of the 197 usable for Studio, Realtime and
-# direct access, each admitted only while it fits. The image's default of 100 held four.
+# and the operations reserve take 166 of the 197 usable. Studio, Realtime and direct access are
+# admitted while they fit against the database limits alone, without the reserve, which leaves
+# them 41. The image's default of 100 held four. The database tier's process limit
+# (resource_policy.TIERS['system.db'].pids) must stay above this, one process per connection.
 MAX_CONNECTIONS = 200
 
 

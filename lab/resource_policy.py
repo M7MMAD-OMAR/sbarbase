@@ -55,7 +55,10 @@ Tier = namedtuple('Tier', 'label shares weight cpus memory pids')
 CLASSES = ('system', 'production', 'experimental', 'operator', 'maintenance')
 
 TIERS = {
-    'system.db': Tier('system', 2048, 800, 1, '1024m', 128),
+    # One process per connection: 320 holds connection_budget.MAX_CONNECTIONS (200), the
+    # background workers and parallel queries (max_worker_processes 8) and psql sessions. At 128 a
+    # drill of eight environments with 23 connections each failed to fork new connections.
+    'system.db': Tier('system', 2048, 800, 1, '1024m', 320),
     'system.storage': Tier('system', 2048, 800, .5, '512m', 128),
     'system.management-auth': Tier('system', 1024, 500, .25, '256m', 128),
     'production': Tier('production', 512, 400, .25, '256m', 128),

@@ -76,7 +76,7 @@ sudo deploy/server-acceptance.sh --rehearse --install-unit --first-project \
      --docker-host unix:///var/run/docker.sock --bootstrap-file /home/sbarbase/operator.json
 ```
 
-In order, it checks the prerequisites, builds the console, checks the TLS proxy, installs and starts the `sbarbase` systemd service, pulls the pinned images (about 2.4 GB, with progress), rehearses a start and a clean stop, starts the service again, then creates a project called "First project" with a `production` environment, issues a key, signs a user up with supabase-js through the gateway and revokes the key. It ends with `Server acceptance: PASSED`. Evidence lands in `docs/evidence/`. The first project is real: it uses one of the four environments an installation allows for now, and it leaves one test application user in that environment.
+In order, it checks the prerequisites, builds the console, checks the TLS proxy, installs and starts the `sbarbase` systemd service, pulls the pinned images (about 2.4 GB, with progress), rehearses a start and a clean stop, starts the service again, then creates a project called "First project" with a `production` environment, issues a key, signs a user up with supabase-js through the gateway and revokes the key. It ends with `Server acceptance: PASSED`. Evidence lands in `docs/evidence/`. The first project is real: it uses one of the eight environments an installation allows, and deleting it does not free that place yet, and it leaves one test application user in that environment.
 
 A failure names the step and leaves the service as it found it. Fix the cause and run the same command again.
 

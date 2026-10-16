@@ -12,7 +12,7 @@ import resource_policy as policy
 # docs/engineering/RESOURCE-POLICY.md section 3.1: (class label, shares, weight, cpus,
 # memory, pids), one tuple per row of the design's table.
 DESIGN_ROWS = {
-    'system.db': ('system', 2048, 800, 1, '1024m', 128),
+    'system.db': ('system', 2048, 800, 1, '1024m', 320),
     'system.storage': ('system', 2048, 800, .5, '512m', 128),
     'system.management-auth': ('system', 1024, 500, .25, '256m', 128),
     'production': ('production', 512, 400, .25, '256m', 128),

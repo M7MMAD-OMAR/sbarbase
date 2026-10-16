@@ -154,7 +154,7 @@ def run(repo,private,name,phase,command,check):
     host=replacement['HostConfig']
     check('the recreated container carries its resource tier',
           replacement['Config']['Labels'].get('io.sbarbase.tier')=='system' and host['Memory']==1024*1024*1024
-          and host['NanoCpus']==1000000000 and host['PidsLimit']==128 and host['CpuShares']==2048 and host['BlkioWeight']==800)
+          and host['NanoCpus']==1000000000 and host['PidsLimit']==320 and host['CpuShares']==2048 and host['BlkioWeight']==800)
     import resource_policy
     bounds=resource_policy.IO_LIMITS['system.db']
     rates=tuple((entry[0]['Rate'] if entry else None) for entry in

@@ -993,20 +993,38 @@ ALTER DEFAULT PRIVILEGES FOR ROLE {role} IN SCHEMA public GRANT EXECUTE ON FUNCT
         raise RuntimeError('Database readiness timed out')
 
     def ensure_connection_capacity(self):
-        """Raise the cluster's max_connections to connection_budget.MAX_CONNECTIONS when it is
-        lower: ALTER SYSTEM, which lives in the data directory, then one restart of the same
-        container. A rebuilt cluster starts at the image's 100 and is raised on its first start;
-        a way back to an older version keeps the higher value, which it does not mind. Nothing
-        here lowers the setting, and a value still low after the restart refuses the start."""
+        """Give the shared database room for connection_budget.MAX_CONNECTIONS.
+
+        First the container's process limit, one process per connection: a retained container
+        keeps the limit it was created with, so a lower one is raised in place (docker update, no
+        restart). Then max_connections: ALTER SYSTEM, which lives in the data directory, and one
+        restart of the same container. A rebuilt cluster starts at the image's 100 and is raised on
+        its first start. Nothing here lowers either value. When the raise fails but the current
+        value still holds this installation's environments, the start goes on with a warning;
+        otherwise it is refused.
+        A way back to an older version keeps both higher values, which it does not mind; an older
+        version whose own guard is lower than the environments now held refuses their jobs."""
+        pids = resource_policy.TIERS['system.db'].pids
+        item = inspect('container', DB)
+        if item and 0 < (item.get('HostConfig', {}).get('PidsLimit') or 0) < pids:
+            lab.docker('update', '--pids-limit', str(pids), DB)
+
         def current():
             result = self.sql("SELECT current_setting('max_connections');", check=False)
             value = result.stdout.strip()
             if result.returncode or not value.isdigit():
                 raise RuntimeError('Database connection limit unreadable')
             return int(value)
-        if current() >= connection_budget.MAX_CONNECTIONS:
+
+        def enough_for_now(value):
+            return connection_budget.fits(len(self.values['environments']), value, 3, 0)
+        value = current()
+        if value >= connection_budget.MAX_CONNECTIONS:
             return
         if self.sql(f'ALTER SYSTEM SET max_connections = {connection_budget.MAX_CONNECTIONS};', check=False).returncode:
+            if enough_for_now(value):
+                print('Database connection limit could not be raised; the current one still holds these environments', flush=True)
+                return
             raise RuntimeError('Database connection limit could not be raised')
         print(f'Raising the database connection limit to {connection_budget.MAX_CONNECTIONS}; the database restarts once', flush=True)
         lab.docker('restart', '-t', '60', DB)
