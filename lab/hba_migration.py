@@ -74,8 +74,13 @@ INTENT_FIELDS={'version','migration','generation','old','volume','inventory','re
 # published, so resuming never reads a lock that may have moved since.
 INTENT_FIELDS_IMAGE=INTENT_FIELDS|{'image'}
 # Version 3: onto another pgdata volume (a rebuilt cluster, P3), with or without another image.
+# Version 4: a version 3 change that supersedes a stuck migration (P3 part 4). Its retired
+# container is gone, so what it captured and archived comes from the superseded migration's archive.
 INTENT_SHAPES={(1,frozenset(INTENT_FIELDS)),(2,frozenset(INTENT_FIELDS_IMAGE)),
-              (3,frozenset(INTENT_FIELDS|{'new_volume'})),(3,frozenset(INTENT_FIELDS_IMAGE|{'new_volume'}))}
+              (3,frozenset(INTENT_FIELDS|{'new_volume'})),(3,frozenset(INTENT_FIELDS_IMAGE|{'new_volume'})),
+              (4,frozenset(INTENT_FIELDS|{'new_volume','supersedes'})),
+              (4,frozenset(INTENT_FIELDS_IMAGE|{'new_volume','supersedes'}))}
+SUPERSEDED='superseded.json'
 RETIRED_STATES=('stopped-will-not-return','absent-verified')
 PLAN_FIELDS={'name','owner','image','tier','memory','cpus','network','env_file','command'}
 
@@ -140,6 +145,10 @@ def validate(record):
     if 'new_volume' in record:
         if not database_volume.rebuilt(record['new_volume']) or record['new_volume']==record['volume']:
             raise ValueError('A migration intent records another pgdata volume only when it is a database volume that changes')
+    if 'supersedes' in record:
+        authority.exact(record['supersedes'],authority.UUID)
+        if record['supersedes']==record['migration'] or record['retired_state']!='stopped-will-not-return':
+            raise ValueError('A superseding intent names another migration whose retired container was stopped')
     return record
 
 
@@ -270,22 +279,28 @@ def load(state):
     return validate(_decode_envelope(_read_private(intent_path(state),'HBA migration intent'),'HBA migration intent'))
 
 
-def publish_intent(state,*,target,generation,volume,inventory,retired_state,image=None,new_volume=None):
+def publish_intent(state,*,target,generation,volume,inventory,retired_state,image=None,new_volume=None,
+                   migration=None,supersedes=None):
     """Publish the exclusive, fsynced migration intent; an existing record refuses. An image other
     than the retired one makes it a generation change onto that image (version 2); another pgdata
-    volume makes it a change onto that volume (version 3, with or without the image)."""
+    volume makes it a change onto that volume (version 3, with or without the image); naming the
+    stuck migration it supersedes makes it version 4, under the id that migration's archive gave."""
     state=Path(state)
     if retired_state not in RETIRED_STATES:
         raise ValueError('Migration retired state must be explicit')
     if retired_state=='absent-verified':
         raise RuntimeError('Absent retired container migration is unsupported without a verified archive; '
                            'preserve the generation pin and reconcile the retired state explicitly')
-    record={'version':1,'migration':str(uuid.uuid4()),'generation':generation,
+    record={'version':1,'migration':migration or str(uuid.uuid4()),'generation':generation,
             'old':asdict(target),'volume':volume,'inventory':inventory,'retired_state':retired_state}
     if image is not None and image!=target.image:
         record={**record,'version':2,'image':image}
     if new_volume is not None and new_volume!=volume:
         record={**record,'version':3,'new_volume':new_volume}
+    if supersedes is not None:
+        if record['version']!=3:
+            raise ValueError('A superseding migration moves onto a rebuilt volume')
+        record={**record,'version':4,'supersedes':supersedes}
     record=validate(record)
     try:os.mkdir(record_directory(state),0o700)
     except FileExistsError:
@@ -649,6 +664,7 @@ def archive_evidence(state,intent,captured,minted,new_target,outcome,comparison)
             'hba_operation':outcome['journal']['token'],'hba_application':outcome['application'],
             'hba_activation':outcome['activation'],'rules':comparison,
             'authority_observation':captured.get('authority')}
+    if 'supersedes' in intent:record={**record,'supersedes':intent['supersedes']}
     return _publish_once(archive_directory(state,intent['migration'])/EVIDENCE,record,'Generation migration evidence')
 
 
@@ -692,6 +708,124 @@ def discard_unpublished(state):
     return True
 
 
+def _read_superseded(path):
+    record=_decode_envelope(_read_private(path,'Superseded migration record'),'Superseded migration record')
+    if (not isinstance(record,dict) or record.get('version')!=1 or record.get('kind')!='superseded-migration'
+            or set(record)!=SUPERSEDED_FIELDS):
+        raise RuntimeError('The superseded migration record is malformed; preserve it for review')
+    intent=validate(record['intent'])
+    authority.exact(record['superseded_by'],authority.UUID)
+    if intent['migration']!=record['migration'] or record['superseded_by']==record['migration']:
+        raise RuntimeError('The superseded migration record is malformed; preserve it for review')
+    if not isinstance(record['checkpoints'],dict) or set(record['checkpoints'])!={'old-captured','retired-archived'}:
+        raise RuntimeError('The superseded migration record is malformed; preserve it for review')
+    for phase in ('old-captured','retired-archived'):
+        stored=validate_checkpoint(record['checkpoints'][phase])
+        if stored['phase']!=phase or stored['migration']!=intent['migration'] \
+                or stored['intent']!=authority.digest(authority.canonical(intent)):
+            raise RuntimeError('The superseded migration record does not hold its own checkpoints; preserve it for review')
+    return record
+
+
+SUPERSEDED_FIELDS={'version','kind','migration','superseded_by','intent','checkpoints','replacement','onto'}
+
+
+def superseded_by(state,intent):
+    """The archived record of the stuck migration a version 4 intent supersedes."""
+    path=Path(state)/ARCHIVE/intent['supersedes']/SUPERSEDED
+    if not hba_startup.present(path):
+        raise RuntimeError('The superseded migration archive is missing; preserve the migration record')
+    record=_read_superseded(path)
+    if record['superseded_by']!=intent['migration']:
+        raise RuntimeError('The superseded migration archive names another migration; preserve the migration record')
+    return record
+
+
+def pending_superseded(state):
+    """A stuck migration archived and removed whose superseding intent is not published yet (a run
+    stopped between the two), or None. More than one refuses."""
+    root=Path(state)/ARCHIVE
+    found=[]
+    for path in sorted(root.glob('*/'+SUPERSEDED)) if root.is_dir() else []:
+        record=_read_superseded(path)
+        if not hba_startup.present(root/record['superseded_by']/EVIDENCE):found.append(record)
+    if len(found)>1:
+        raise RuntimeError('More than one superseded migration waits; preserve the archive for review')
+    return found[0] if found else None
+
+
+def _require_stuck(docker,state,intent,target):
+    """The one state a migration is superseded from: the retired container captured, archived and
+    then removed, its replacement never captured, and the pin still naming the retired container."""
+    if not done(state,'old-captured') or not done(state,'retired-archived') \
+            or any(done(state,phase) for phase in PHASES[2:]):
+        raise RuntimeError('Only a migration stopped after archiving its retired container and before capturing '
+                           'its replacement is superseded; reconcile this one')
+    _bindings(state,intent)
+    pin=pinned(state)
+    if pin['generation']!=intent['generation'] or pin['target']!=intent['old'] or asdict(target)!=intent['old']:
+        raise RuntimeError('The generation pin no longer names the stuck migration\'s retired container')
+    if not retired_removed(docker,intent):
+        raise RuntimeError('The retired container still exists; reconcile the migration instead')
+
+
+def _remove_superseded_replacement(docker,intent,plan,identifier):
+    """Remove the stuck replacement named in the archive, proven again by its exact identity."""
+    if identifier is None:return
+    info=replacement_identity(docker,identifier,intent,plan)
+    if info is None:return
+    if docker('rm','-f',identifier,check=False).returncode or docker('inspect',identifier,check=False).returncode==0:
+        raise RuntimeError('The stuck replacement container could not be removed')
+
+
+def supersede(docker,state,*,target,stuck_replacement,inventory,image,new_volume):
+    """Supersede the stuck migration with a version 4 intent onto a rebuilt volume, and return it.
+
+    Every step can be repeated after a kill. The stuck intent and the checkpoints it reached are
+    first archived whole beside its retired generation, naming the migration that supersedes it
+    and what it moves onto; the replacement the archive names is then removed, after its
+    identity is proven again; the record is removed in one step; and the new intent is published
+    under the archived id. Nothing is deleted before it is archived."""
+    state=Path(state)
+    onto={'image':image,'new_volume':new_volume,'inventory':inventory}
+    if present(state):
+        intent=load(state)
+        if 'supersedes' in intent:
+            raise RuntimeError('A superseding migration is recorded; finish it with --reconcile')
+        path=archive_directory(state,intent['migration'])/SUPERSEDED
+        if hba_startup.present(path):
+            archived=_read_superseded(path)
+            if authority.canonical(archived['intent'])!=authority.canonical(intent):
+                raise RuntimeError('The superseded migration archive belongs to another intent; preserve both')
+        else:
+            _require_stuck(docker,state,intent,target)
+            plan=validate_replacement(intent,stuck_replacement(intent))
+            info=replacement_identity(docker,plan['name'],intent,plan)
+            archived=_publish_once(path,{'version':1,'kind':'superseded-migration','migration':intent['migration'],
+                                         'superseded_by':str(uuid.uuid4()),'intent':intent,
+                                         'checkpoints':{phase:read_checkpoint(state,phase)
+                                                        for phase in ('old-captured','retired-archived')},
+                                         'replacement':info['Id'] if info else None,'onto':onto},
+                                   'Superseded migration record')
+        if archived['onto']!=onto:
+            raise RuntimeError('The superseded migration was archived for another volume, image or inventory')
+        _remove_superseded_replacement(docker,intent,validate_replacement(intent,stuck_replacement(intent)),
+                                       archived['replacement'])
+        _remove_record(state)
+    else:
+        archived=pending_superseded(state)
+        if archived is None:
+            raise RuntimeError('No stuck generation migration record to supersede')
+        if archived['onto']!=onto:
+            raise RuntimeError('The superseded migration was archived for another volume, image or inventory')
+    stuck=archived['intent']
+    if asdict(target)!=stuck['old']:
+        raise RuntimeError('The superseded migration retired another container')
+    return publish_intent(state,target=target,generation=stuck['generation'],volume=stuck['volume'],
+                          inventory=inventory,retired_state=stuck['retired_state'],image=image,
+                          new_volume=new_volume,migration=archived['superseded_by'],supersedes=stuck['migration'])
+
+
 def finish(state):
     """The record is removed only after every other step is durable."""
     state=Path(state)
@@ -733,11 +867,15 @@ def execute(docker,state,*,replacement,desired):
             # Before the retired container is stopped or removed, and again on every rerun until
             # the replacement runs on it.
             require_cluster_volume(docker,target_volume(intent),intent['old']['owner'],target_image(intent),state)
+        superseded=superseded_by(state,intent) if 'supersedes' in intent else None
         if not done(state,'old-captured'):
-            checkpoint(state,'old-captured',_bind(intent,{'retired':capture_retired(docker,state,intent)}))
+            retired=superseded['checkpoints']['old-captured']['retired'] if superseded else capture_retired(docker,state,intent)
+            checkpoint(state,'old-captured',_bind(intent,{'retired':retired}))
         captured=read_checkpoint(state,'old-captured')['retired']
         if not done(state,'retired-archived'):
-            checkpoint(state,'retired-archived',_bind(intent,{'retired_generation':retired_archive(docker,state,intent)}))
+            archived=(superseded['checkpoints']['retired-archived']['retired_generation'] if superseded
+                      else retired_archive(docker,state,intent))
+            checkpoint(state,'retired-archived',_bind(intent,{'retired_generation':archived}))
         resumed=done(state,'new-captured')
         if not resumed:
             identifier,mounts=create_replacement(docker,state,intent,plan)

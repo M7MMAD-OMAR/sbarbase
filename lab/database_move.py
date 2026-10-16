@@ -33,10 +33,11 @@ backups (the management console is not checked: operator changes made between th
 not in the management backup); it also admits the target's images again. Once it has recorded the move as started there
 is no way back: --abandon refuses from then on. After
 that, a move that stays stuck (a generation change that keeps refusing, or a new image that never
-becomes ready once the old container is removed) has no exit here: a fresh cluster can be rebuilt
-from the move's backups (lab/cluster_rebuild.py, upstream currency P3), but taking it into use and
-retiring the stuck move's record (P3 part 4) is not built yet, so the move is rehearsed on a copy
-first.
+becomes ready once the old container is removed) has no exit here. For a new image that never
+becomes ready, the exit is upstream currency P3: a cluster rebuilt from the move's backups
+(lab/cluster_rebuild.py) and taken into use by lab/cluster_takeover.py, which supersedes the stuck
+change and archives this record; a change that keeps refusing while the old container still exists
+has none yet. Both are unit tested only, so the move is rehearsed on a copy first.
 
 The return to the previous image is the same flow towards that version. It is safe only when the
 newer image did not change extension versions or rewrite catalogs on the volume; otherwise the

@@ -23,9 +23,9 @@ lock of COMMIT, proven on this daemon and never pulled) in a build container on 
   6. the build container is stopped and removed (a removal that fails is recorded and reported);
      the volume stays.
 
-Nothing of the installation changes: Sbarbase must be stopped (the supervisor and worker locks
-are held throughout), and the rebuilt volume is taken into use only by a generation migration
-(``lab/migrate-generation.py --to-volume``, part 4). A rebuild that fails removes its build
+Nothing of the installation changes: Sbarbase must be stopped (the supervisor, worker and backup
+locks are held throughout), and the rebuilt volume is taken into use only by a generation migration
+(``lab/cluster_takeover.py``, part 4). A rebuild that fails removes its build
 container and keeps its volume, which nothing uses; it is reported, never removed here. The
 record of the last rebuild is ``.lab/upstream/cluster-rebuild.json``.
 """
@@ -399,7 +399,7 @@ def main(argv=None):
     print(f"Rebuilt run {record['run']} onto {record['volume']}.")
     if record['closed_logins']:
         print('Created closed (turn them on again): ' + ', '.join(record['closed_logins']))
-    print('Take it into use with: /usr/bin/python3 lab/migrate-generation.py ... --to-volume ' + record['volume'])
+    print('Take it into use with Sbarbase stopped: /usr/bin/python3 lab/cluster_takeover.py')
     return 0
 
 

@@ -1079,4 +1079,342 @@ class VolumeChangeTests(ImageChangeTests.__base__):
             self.execute()
 
 
+class ContainerDocker(LifelikeDocker):
+    """One container under the durable name, tracked by identity: run creates it with the image and
+    volume it was given, rm -f by id removes it, inspect by name or id finds only that one."""
+
+    IDENTIFIERS=('b'*64,'d'*64,'e'*64)
+
+    def __init__(self,*args,**kwargs):
+        super().__init__(*args,**kwargs)
+        self.container=None
+        self.made=0
+        self.removed=[]
+
+    def info(self):
+        item=self.container
+        return {**retired_info(volume=item['volume']),'Id':item['Id'],'Image':item['image'],
+                'State':{'Running':True},'Config':{'Labels':{'io.sbarbase.owner':item.get('owner',TARGET.owner),
+                                                            'io.sbarbase.tier':'system'}}}
+
+    def handle(self,args,data):
+        command=args[0]
+        if command=='run' and '--rm' not in args:
+            if self.retired is not None or self.container is not None:return self.result(returncode=125)
+            volume,image=args[args.index('-v')+1].split(':')[0],args[args.index('-v')+2]
+            self.container={'Id':self.IDENTIFIERS[self.made],'volume':volume,'image':image}
+            self.made+=1
+            self.new_identifier=self.container['Id']
+            return self.result(stdout=self.container['Id'])
+        if command=='rm':
+            if args[-1]==TARGET.container_id:
+                self.retired=None
+            elif self.container is not None and args[-1]==self.container['Id']:
+                self.removed.append(args[-1])
+                self.container=None
+            return self.result()
+        if command=='inspect' and args[1]!='--format' and args[1]!=TARGET.container_id:
+            if self.container is not None and args[1] in (self.container['Id'],TARGET.name):
+                return self.result(stdout=json.dumps([self.info()]))
+            if args[1]==TARGET.name and self.retired is not None:
+                return super().handle(args,data)
+            return self.result(returncode=1)
+        if command=='exec' and args[1] in self.IDENTIFIERS:
+            if self.container is None or self.container['Id']!=args[1]:return self.result(returncode=1)
+            return self.handle_exec(args)
+        return super().handle(args,data)
+
+
+class SupersedeTests(ImageChangeTests.__base__):
+    """P3 part 4: a move whose replacement never became ready, superseded onto a rebuilt volume."""
+
+    setUp=ImageChangeTests.setUp
+    replacement=ImageChangeTests.replacement
+    NEW_VOLUME='sbarbase-durable-pgdata-0123456789ab'
+
+    def execute(self,image):
+        outcome={'version':1,'kind':'retired-applied-reload-acknowledged','journal':{'token':self.__dict__.setdefault('token',str(uuid.uuid4()))},
+                 'application':'publication-witnessed','activation':'unknown'}
+        with patch('resource_policy.io_flags',return_value=['--device-read-bps','/dev/x:1mb']), \
+             patch.object(hba_generation,'read_existing'), patch('hba_authority.initialize'), \
+             patch('hba_runtime.SourceHBA') as writer, patch('hba_migration.outcome_for',return_value=outcome):
+            writer.return_value.publish.return_value=outcome
+            return migration.execute(self.docker,self.state,replacement=self.replacement(image),desired=DESIRED)
+
+    def stuck(self):
+        """The P1 move's change onto NEW_IMAGE: the retired container removed, the replacement created
+        on the old volume and never ready."""
+        self.docker=ContainerDocker(self.state,registry=self.registry,new_image=NEW_IMAGE)
+        self.docker.published=revision()+DESIRED
+        self.docker.volumes={'fixture-pgdata',self.NEW_VOLUME}
+        self.stuck_intent=migration.publish_intent(self.state,target=TARGET,generation=self.generation,volume='fixture-pgdata',
+                                                   inventory=authority.digest(DESIRED),retired_state='stopped-will-not-return',
+                                                   image=NEW_IMAGE)
+        with patch.object(migration,'wait_ready',side_effect=RuntimeError('readiness timed out')), \
+                self.assertRaisesRegex(RuntimeError,'readiness timed out'):
+            self.execute(NEW_IMAGE)
+        self.assertIsNone(self.docker.retired)
+        self.assertEqual(self.docker.container['volume'],'fixture-pgdata')
+
+    def supersede(self,image=TARGET.image,volume=None):
+        return migration.supersede(self.docker,self.state,target=TARGET,
+                                   stuck_replacement=lambda intent:self.replacement(migration.target_image(intent)),
+                                   inventory=authority.digest(DESIRED),image=image,new_volume=volume or self.NEW_VOLUME)
+
+    def superseded(self):
+        return migration._read_superseded(self.state/migration.ARCHIVE/self.stuck_intent['migration']/migration.SUPERSEDED)
+
+    def test_the_stuck_move_is_superseded_onto_the_rebuilt_volume_and_finishes(self):
+        self.stuck()
+        intent=self.supersede()
+        archived=self.superseded()
+        self.assertEqual((intent['version'],intent['supersedes'],intent['migration'],intent['new_volume']),
+                         (4,self.stuck_intent['migration'],archived['superseded_by'],self.NEW_VOLUME))
+        self.assertNotIn('image',intent,'the way back onto the retired image records no image')
+        self.assertEqual(archived['intent'],self.stuck_intent)
+        self.assertEqual(archived['replacement'],'b'*64)
+        self.assertEqual(self.docker.removed,['b'*64])
+        self.assertEqual(migration.retired_volumes(self.state),set(),'the superseded archive marks no volume')
+        self.execute(TARGET.image)
+        self.assertFalse(migration.present(self.state))
+        self.assertEqual(database_volume.current(self.state),self.NEW_VOLUME)
+        self.assertEqual(self.docker.container,{'Id':'d'*64,'volume':self.NEW_VOLUME,'image':TARGET.image})
+        pin=migration.pinned(self.state)
+        self.assertEqual((pin['target']['container_id'],pin['target']['image']),('d'*64,TARGET.image))
+        evidence=migration.read_evidence(self.state,intent['migration'])
+        self.assertEqual((evidence['supersedes'],evidence['retired_container'],evidence['target_volume']),
+                         (self.stuck_intent['migration'],TARGET.container_id,self.NEW_VOLUME))
+        self.assertEqual(migration.retired_volumes(self.state),{'fixture-pgdata'})
+        # The stuck migration's own archive stays: its retired generation and what superseded it.
+        stuck_archive=self.state/migration.ARCHIVE/self.stuck_intent['migration']
+        self.assertTrue((stuck_archive/'retired-generation.json').exists())
+        self.assertTrue((stuck_archive/migration.SUPERSEDED).exists())
+
+    def test_the_captured_and_archived_retired_state_come_from_the_superseded_archive(self):
+        self.stuck()
+        captured=migration.read_checkpoint(self.state,'old-captured')['retired']
+        archived=migration.read_checkpoint(self.state,'retired-archived')['retired_generation']
+        intent=self.supersede(image=NEW_IMAGE)
+        self.assertEqual(intent['image'],NEW_IMAGE)
+        with patch.object(migration,'capture_retired',side_effect=AssertionError('no container to capture')), \
+                patch.object(migration,'retired_archive',side_effect=AssertionError('no container to archive')), \
+                patch.object(migration,'publish_rules',side_effect=RuntimeError('stop here')), \
+                self.assertRaisesRegex(RuntimeError,'stop here'):
+            self.execute(NEW_IMAGE)
+        self.assertEqual(migration.read_checkpoint(self.state,'old-captured')['retired'],captured)
+        self.assertEqual(migration.read_checkpoint(self.state,'retired-archived')['retired_generation'],archived)
+        self.assertEqual(migration.read_checkpoint(self.state,'old-captured')['migration'],intent['migration'])
+        self.execute(NEW_IMAGE)
+        self.assertFalse(migration.present(self.state))
+
+    def test_every_interruption_reaches_the_same_intent(self):
+        for point in ('_remove_superseded_replacement','_remove_record','publish_intent'):
+            with self.subTest(point=point):
+                self.setUp()
+                self.stuck()
+                with patch.object(migration,point,side_effect=RuntimeError('killed')), \
+                        self.assertRaisesRegex(RuntimeError,'killed'):
+                    self.supersede()
+                self.assertTrue(self.superseded())
+                intent=self.supersede()
+                self.assertEqual(intent['migration'],self.superseded()['superseded_by'])
+                self.assertEqual(self.docker.removed,['b'*64])
+                self.execute(TARGET.image)
+                self.assertEqual(database_volume.current(self.state),self.NEW_VOLUME)
+
+    def test_a_rerun_for_another_volume_image_or_inventory_is_refused(self):
+        self.stuck()
+        with patch.object(migration,'_remove_record',side_effect=RuntimeError('killed')), self.assertRaises(RuntimeError):
+            self.supersede()
+        for kwargs in ({'image':NEW_IMAGE},{'volume':'sbarbase-durable-pgdata-ba9876543210'}):
+            with self.subTest(**kwargs), self.assertRaisesRegex(RuntimeError,'archived for another'):
+                self.supersede(**kwargs)
+        self.assertTrue(migration.present(self.state))
+        with patch.object(migration,'publish_intent',side_effect=RuntimeError('killed')), self.assertRaises(RuntimeError):
+            self.supersede()
+        with self.assertRaisesRegex(RuntimeError,'archived for another'):
+            self.supersede(image=NEW_IMAGE)
+
+    def test_only_the_stuck_state_is_superseded(self):
+        # The retired container still exists: the run stopped before it was removed.
+        self.docker=ContainerDocker(self.state,registry=self.registry,new_image=NEW_IMAGE)
+        self.docker.published=revision()+DESIRED
+        migration.publish_intent(self.state,target=TARGET,generation=self.generation,volume='fixture-pgdata',
+                                 inventory=authority.digest(DESIRED),retired_state='stopped-will-not-return',image=NEW_IMAGE)
+        with patch.object(migration,'create_replacement',side_effect=RuntimeError('stopped')), self.assertRaises(RuntimeError):
+            self.execute(NEW_IMAGE)
+        with self.assertRaisesRegex(RuntimeError,'still exists'):
+            self.supersede()
+        self.assertFalse(list((self.state/migration.ARCHIVE).glob('*/'+migration.SUPERSEDED)))
+        self.assertTrue(migration.present(self.state))
+
+    def test_a_migration_past_its_replacement_capture_is_not_superseded(self):
+        self.stuck()
+        with patch.object(migration,'publish_rules',side_effect=RuntimeError('stop here')), self.assertRaises(RuntimeError):
+            self.execute(NEW_IMAGE)
+        self.assertTrue(migration.done(self.state,'new-captured'))
+        with self.assertRaisesRegex(RuntimeError,'Only a migration stopped'):
+            self.supersede()
+        self.assertEqual(self.docker.removed,[])
+
+    def test_a_pin_that_no_longer_names_the_retired_container_refuses(self):
+        self.stuck()
+        pin=migration.pinned(self.state)
+        with patch.object(migration,'pinned',return_value={**pin,'generation':str(uuid.uuid4())}), \
+                self.assertRaisesRegex(RuntimeError,'no longer names'):
+            self.supersede()
+        moved={**pin,'target':{**pin['target'],'container_id':'f'*64}}
+        with patch.object(migration,'pinned',return_value=moved), self.assertRaisesRegex(RuntimeError,'no longer names'):
+            self.supersede()
+        other=hba_target.Target('f'*64,TARGET.name,TARGET.owner,TARGET.image)
+        with self.assertRaisesRegex(RuntimeError,'no longer names'):
+            migration.supersede(self.docker,self.state,target=other,stuck_replacement=lambda intent:self.replacement(NEW_IMAGE),
+                                inventory=authority.digest(DESIRED),image=TARGET.image,new_volume=self.NEW_VOLUME)
+        self.assertTrue(migration.present(self.state))
+        self.assertEqual(self.docker.removed,[])
+
+    def test_a_container_under_the_name_that_is_not_the_stuck_replacement_is_kept_and_refused(self):
+        for change in ({'volume':self.NEW_VOLUME},{'image':'sha256:'+'9'*64},{'owner':'foreign'}):
+            with self.subTest(change=change):
+                self.setUp()
+                self.stuck()
+                self.docker.container.update(change)
+                with self.assertRaisesRegex(RuntimeError,'differs|changed'):
+                    self.supersede()
+                self.assertEqual(self.docker.removed,[])
+                self.assertTrue(migration.present(self.state))
+                self.assertFalse(list((self.state/migration.ARCHIVE).glob('*/'+migration.SUPERSEDED)))
+
+    def test_a_rerun_proves_the_archived_replacement_again_before_removing_it(self):
+        self.stuck()
+        original=self.docker.handle
+        self.docker.handle=lambda args,data:self.docker.result(returncode=1) if args[0]=='rm' else original(args,data)
+        with self.assertRaisesRegex(RuntimeError,'could not be removed'):
+            self.supersede()
+        self.docker.handle=original
+        self.docker.container['volume']=self.NEW_VOLUME
+        with self.assertRaisesRegex(RuntimeError,'differs|changed'):
+            self.supersede()
+        self.assertEqual(self.docker.removed,[])
+        self.assertTrue(migration.present(self.state))
+
+    def test_a_removal_the_daemon_acknowledges_but_does_not_perform_refuses(self):
+        self.stuck()
+        original=self.docker.handle
+        self.docker.handle=lambda args,data:self.docker.result() if args[0]=='rm' else original(args,data)
+        with self.assertRaisesRegex(RuntimeError,'could not be removed'):
+            self.supersede()
+        self.assertTrue(migration.present(self.state))
+
+    def test_a_finished_superseding_migration_leaves_nothing_to_supersede(self):
+        self.stuck()
+        self.supersede()
+        self.execute(TARGET.image)
+        with self.assertRaisesRegex(RuntimeError,'No stuck'):
+            self.supersede()
+
+    def test_an_archive_that_names_another_superseding_migration_refuses_the_resume(self):
+        self.stuck()
+        intent=self.supersede()
+        archived=self.superseded()
+        with patch.object(migration,'_read_superseded',return_value={**archived,'superseded_by':str(uuid.uuid4())}), \
+                self.assertRaisesRegex(RuntimeError,'names another migration'):
+            self.execute(TARGET.image)
+        self.assertFalse(migration.done(self.state,'old-captured'))
+        self.assertEqual(intent['migration'],archived['superseded_by'])
+
+    def test_a_waiting_superseded_migration_is_published_only_for_its_own_retired_container(self):
+        self.stuck()
+        with patch.object(migration,'publish_intent',side_effect=RuntimeError('killed')), self.assertRaises(RuntimeError):
+            self.supersede()
+        self.assertFalse(migration.present(self.state))
+        other=hba_target.Target('f'*64,TARGET.name,TARGET.owner,TARGET.image)
+        with self.assertRaisesRegex(RuntimeError,'retired another container'):
+            migration.supersede(self.docker,self.state,target=other,stuck_replacement=lambda intent:self.replacement(NEW_IMAGE),
+                                inventory=authority.digest(DESIRED),image=TARGET.image,new_volume=self.NEW_VOLUME)
+        self.assertFalse(migration.present(self.state))
+
+    def test_a_missing_superseded_archive_refuses_the_resume_and_keeps_the_record(self):
+        self.stuck()
+        self.supersede()
+        path=self.state/migration.ARCHIVE/self.stuck_intent['migration']/migration.SUPERSEDED
+        path.rename(path.with_name('moved-aside.json'))
+        with self.assertRaisesRegex(RuntimeError,'archive is missing'):
+            self.execute(TARGET.image)
+        self.assertTrue(migration.present(self.state))
+        self.assertFalse(migration.done(self.state,'old-captured'))
+
+    def test_more_than_one_waiting_superseded_migration_refuses(self):
+        self.stuck()
+        with patch.object(migration,'publish_intent',side_effect=RuntimeError('killed')), self.assertRaises(RuntimeError):
+            self.supersede()
+        archived=self.superseded()
+        twin=self.state/migration.ARCHIVE/str(uuid.uuid4())
+        twin.mkdir(mode=0o700)
+        (twin/migration.SUPERSEDED).write_text('copy')
+        records={str(twin/migration.SUPERSEDED):{**archived,'superseded_by':str(uuid.uuid4())}}
+        with patch.object(migration,'_read_superseded',lambda path:records.get(str(path),archived)), \
+                self.assertRaisesRegex(RuntimeError,'More than one'):
+            self.supersede()
+        self.assertFalse(migration.present(self.state))
+
+    def test_an_archive_written_for_another_intent_is_refused(self):
+        self.stuck()
+        with patch.object(migration,'_remove_superseded_replacement',side_effect=RuntimeError('killed')), self.assertRaises(RuntimeError):
+            self.supersede()
+        archived=self.superseded()
+        with patch.object(migration,'_read_superseded',return_value={**archived,'intent':{**archived['intent'],'inventory':'0'*64}}), \
+                self.assertRaisesRegex(RuntimeError,'belongs to another intent'):
+            self.supersede()
+        self.assertTrue(migration.present(self.state))
+
+    def test_a_replacement_that_cannot_be_removed_keeps_the_record(self):
+        self.stuck()
+        original=self.docker.handle
+        self.docker.handle=lambda args,data:self.docker.result(returncode=1) if args[0]=='rm' else original(args,data)
+        with self.assertRaisesRegex(RuntimeError,'could not be removed'):
+            self.supersede()
+        self.assertTrue(migration.present(self.state))
+        self.docker.handle=original
+        self.supersede()
+        self.assertEqual(self.docker.removed,['b'*64])
+
+    def test_nothing_to_supersede_or_a_superseding_record_refuses(self):
+        self.docker=ContainerDocker(self.state,registry=self.registry)
+        with self.assertRaisesRegex(RuntimeError,'No stuck'):
+            self.supersede()
+        self.setUp()
+        self.stuck()
+        self.supersede()
+        with self.assertRaisesRegex(RuntimeError,'--reconcile'):
+            self.supersede()
+
+    def test_a_superseded_record_that_does_not_hold_its_own_checkpoints_is_refused(self):
+        self.stuck()
+        with patch.object(migration,'_remove_record',side_effect=RuntimeError('killed')), self.assertRaises(RuntimeError):
+            self.supersede()
+        path=self.state/migration.ARCHIVE/self.stuck_intent['migration']/migration.SUPERSEDED
+        record=self.superseded()
+        other={**record['checkpoints'],'old-captured':{**record['checkpoints']['old-captured'],'intent':'0'*64}}
+        for broken,reason in (({**record,'checkpoints':other},'does not hold its own checkpoints'),
+                              ({**record,'checkpoints':[]},'malformed'),({**record,'kind':'other'},'malformed'),
+                              ({**record,'superseded_by':record['migration']},'malformed'),
+                              ({**record,'extra':1},'malformed')):
+            with self.subTest(reason=reason), patch.object(migration,'_decode_envelope',return_value=broken), \
+                    self.assertRaisesRegex(RuntimeError,reason):
+                migration._read_superseded(path)
+
+    def test_a_superseding_intent_names_another_migration_and_a_rebuilt_volume(self):
+        self.stuck()
+        intent=self.supersede()
+        for broken in ({**intent,'supersedes':intent['migration']},{**intent,'supersedes':'x'},
+                       {**intent,'retired_state':'absent-verified'}):
+            with self.subTest(broken=broken), self.assertRaises(ValueError):
+                migration.validate(broken)
+        with self.assertRaisesRegex(ValueError,'rebuilt volume'):
+            migration.publish_intent(self.state,target=TARGET,generation=self.generation,volume='fixture-pgdata',
+                                     inventory=authority.digest(DESIRED),retired_state='stopped-will-not-return',
+                                     supersedes=str(uuid.uuid4()))
+
+
 if __name__=='__main__':unittest.main()

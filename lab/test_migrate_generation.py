@@ -192,6 +192,40 @@ class Main(unittest.TestCase):
         self.assertRegex(str(error),'no PostgreSQL data directory')
         intent.assert_not_called();execute.assert_not_called()
 
+    def test_supersede_stuck_supersedes_and_finishes_onto_the_rebuilt_volume(self):
+        volume='sbarbase-durable-pgdata-0123456789ab'
+        superseding={'migration':'n','supersedes':'m','generation':PIN['generation']}
+        with patch.object(command.hba_migration,'require_cluster_volume') as probe, \
+                patch.object(command.hba_migration,'supersede',return_value=superseding) as supersede:
+            intent,execute,error=self.run_main([*BASE,'--to-volume',volume,'--supersede-stuck'],target=DISPOSABLE)
+        self.assertIsNone(error)
+        intent.assert_not_called()
+        probe.assert_called_once()
+        kwargs=supersede.call_args.kwargs
+        self.assertEqual((kwargs['target'].container_id,kwargs['new_volume'],kwargs['image']),(DISPOSABLE['container_id'],volume,None))
+        self.assertEqual(kwargs['inventory'],command.hba_authority.digest(Path(self.inventory).read_text()))
+        with patch.object(command,'plan_for',lambda old,options,image=None:{'image':image}):
+            stuck_plan=kwargs['stuck_replacement']({'image':'sha256:'+'e'*64,'old':DISPOSABLE})
+        self.assertEqual(stuck_plan['image'],'sha256:'+'e'*64,'the stuck replacement is proven on the image its intent recorded')
+        execute.assert_called_once()
+        # The replacement onto the rebuilt volume is planned on the image the migration was given.
+        self.assertEqual(self.plan.call_args.args[2],None)
+
+    def test_supersede_stuck_needs_a_rebuilt_volume_a_stopped_container_and_no_reconcile(self):
+        volume='sbarbase-durable-pgdata-0123456789ab'
+        for arguments,reason in (([*BASE,'--supersede-stuck'],'give --to-volume'),
+                                 ([*BASE,'--reconcile','--to-volume',volume,'--supersede-stuck'],'without --reconcile')):
+            with self.subTest(reason=reason), patch.object(command.hba_migration,'supersede') as supersede:
+                intent,execute,error=self.run_main(arguments,target=DISPOSABLE)
+            self.assertRegex(str(error),reason)
+            supersede.assert_not_called();execute.assert_not_called()
+        absent=[*BASE[:BASE.index('--retired')],'--retired','absent','--to-volume',volume,'--supersede-stuck']
+        with patch.object(command.hba_migration,'require_cluster_volume'), \
+                patch.object(command.hba_migration,'supersede') as supersede:
+            intent,execute,error=self.run_main(absent,target=DISPOSABLE)
+        self.assertRegex(str(error),'stopped its retired container')
+        supersede.assert_not_called()
+
     def test_the_retained_placement_refuses_a_volume_other_than_the_one_it_mounts(self):
         attended=['--attended-retained','--confirm-retained','sbarbase-durable-db']
         other=[*BASE[:BASE.index('--volume')],'--volume','sbarbase-durable-pgdata-0123456789ab',*BASE[BASE.index('--volume')+2:]]

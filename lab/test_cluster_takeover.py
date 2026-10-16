@@ -1,0 +1,271 @@
+"""P3 part 4: a rebuilt cluster taken into use, through doubles only."""
+import contextlib
+import io
+import json
+import tempfile
+import unittest
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
+
+import cluster_takeover as takeover
+
+VOLUME = 'sbarbase-durable-pgdata-0123456789ab'
+IMAGE = 'sha256:' + '1' * 64
+OTHER = 'sha256:' + '2' * 64
+FROM, TO = 'a' * 40, 'b' * 40
+STUCK = {'migration': 'm-stuck', 'volume': 'sbarbase-durable-pgdata'}
+
+
+class TakeoverTests(unittest.TestCase):
+    def setUp(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.root = Path(directory.name)
+        self.record_path = self.root / 'cluster-rebuild.json'
+        self.move_path = self.root / 'database-move.json'
+        self.write_rebuild({'version': 1, 'run': '20261016T030000Z', 'image': IMAGE, 'volume': VOLUME,
+                            'phase': 'completed', 'container_removed': True})
+        self.lock = IMAGE
+        self.volume = 'sbarbase-durable-pgdata'
+        self.intent = None
+        self.pending = None
+        self.locked = []
+        self.runs = []
+        self.moved = []
+        self.finishes = True
+        self.from_image = IMAGE
+        self.from_script = 'parser.add_argument("--supersede-stuck")'
+
+        @contextlib.contextmanager
+        def held(*args):
+            self.locked.append(True)
+            try:
+                yield
+            finally:
+                self.locked.pop()
+        patches = [
+            patch.object(takeover.cluster_rebuild, 'RECORD', self.record_path),
+            patch.object(takeover.cluster_rebuild, 'held_locks', held),
+            patch.object(takeover.upgrade, 'exclusive', held),
+            patch.object(takeover.database_move, 'STATE_FILE', self.move_path),
+            patch.object(takeover.database_move, 'lock_image', lambda: self.lock),
+            patch.object(takeover.runtime, 'STATE', self.root),
+            patch.object(takeover.hba_migration, 'discard_unpublished', lambda state: False),
+            patch.object(takeover.hba_migration, 'present', lambda state: self.intent is not None),
+            patch.object(takeover.hba_migration, 'load', lambda state: self.intent),
+            patch.object(takeover.hba_migration, 'pending_superseded', lambda state: self.pending),
+            patch.object(takeover.database_volume, 'current', lambda state: self.volume),
+            patch.object(takeover.release_channel, 'lock_at', lambda commit, name: {'commit': commit, 'name': name}),
+            patch.object(takeover.backup, 'resolve_image', lambda pin: ('ref', self.from_image if pin['commit'] == FROM else OTHER)),
+            patch.object(takeover.upgrade, 'git', lambda *args, check=True: self.from_script if args[0] == 'show' else ''),
+            patch.object(takeover.upgrade, 'move_back', self.move_back),
+            patch.object(takeover.upgrade, 'now', lambda: '2026-10-16T12:00:00Z'),
+        ]
+        for item in patches:
+            item.start()
+            self.addCleanup(item.stop)
+
+    def write_rebuild(self, record):
+        self.record_path.write_text(json.dumps(record))
+
+    def write_move(self, phase='migrating'):
+        self.move = {'version': 1, 'phase': phase, 'from': FROM, 'to': TO, 'backup': '20261016T030000Z', 'marked': True,
+                     'images': {'from': '17.6', 'to': '17.11'}}
+        self.move_path.write_text(json.dumps(self.move))
+
+    def move_back(self, commit, intent, state):
+        self.moved.append((commit, intent, bool(self.locked)))
+        self.lock = self.from_image
+
+    def fake_run(self, command, cwd=None):
+        self.runs.append((command, bool(self.locked)))
+        if self.finishes:
+            self.intent = None
+            self.pending = None
+            self.volume = VOLUME
+        return SimpleNamespace(returncode=0)
+
+    def take(self):
+        return takeover.takeover(run=self.fake_run)
+
+    def test_without_a_record_the_migration_runs_onto_the_rebuilt_volume_and_image(self):
+        record, move = self.take()
+        self.assertEqual((record['volume'], move), (VOLUME, None))
+        command, locked = self.runs[0]
+        self.assertTrue(locked)
+        self.assertEqual(command[-3:], ['--image-from-lock', '--to-volume', VOLUME])
+        self.assertIn('lab/migrate-generation.py', command)
+        self.assertEqual(command[command.index('--volume') + 1], 'sbarbase-durable-pgdata')
+        self.assertNotIn('--supersede-stuck', command)
+
+    def test_a_stuck_move_s_record_is_superseded(self):
+        self.intent = STUCK
+        self.take()
+        self.assertEqual(self.runs[0][0][-4:], ['--image-from-lock', '--to-volume', VOLUME, '--supersede-stuck'])
+
+    def test_a_superseded_migration_waiting_for_its_intent_is_superseded_again(self):
+        self.pending = {'superseded_by': 'm-new'}
+        self.take()
+        self.assertEqual(self.runs[0][0][-1], '--supersede-stuck')
+
+    def test_an_interrupted_migration_onto_the_rebuilt_volume_is_finished(self):
+        for intent in ({'migration': 'm', 'volume': 'sbarbase-durable-pgdata', 'new_volume': VOLUME},
+                       {'migration': 'm', 'volume': 'sbarbase-durable-pgdata', 'new_volume': VOLUME, 'supersedes': 'm-stuck'}):
+            with self.subTest(intent=intent):
+                self.intent, self.volume, self.runs = intent, 'sbarbase-durable-pgdata', []
+                self.take()
+                self.assertEqual(self.runs[0][0][-1], '--reconcile')
+
+    def test_a_superseding_migration_onto_another_volume_refuses(self):
+        self.intent = {'migration': 'm', 'volume': 'sbarbase-durable-pgdata',
+                       'new_volume': 'sbarbase-durable-pgdata-ba9876543210', 'supersedes': 'm-stuck'}
+        with self.assertRaisesRegex(takeover.TakeoverError, 'needs review'):
+            self.take()
+        self.assertEqual(self.runs, [])
+
+    def test_a_cluster_already_in_use_runs_nothing(self):
+        self.volume = VOLUME
+        self.take()
+        self.assertEqual(self.runs, [])
+
+    def test_a_migration_that_did_not_finish_refuses(self):
+        self.finishes = False
+        with self.assertRaisesRegex(takeover.TakeoverError, 'did not finish'):
+            self.take()
+        self.finishes = True
+        failing = lambda command, cwd=None: self.fake_run(command) and SimpleNamespace(returncode=1)
+        with self.assertRaisesRegex(takeover.TakeoverError, 'did not finish'):
+            takeover.takeover(run=failing)
+
+    def test_a_migration_that_leaves_its_record_refuses(self):
+        def leaves(command, cwd=None):
+            self.volume = VOLUME
+            self.intent = STUCK
+            return SimpleNamespace(returncode=0)
+        with self.assertRaisesRegex(takeover.TakeoverError, 'did not finish'):
+            takeover.takeover(run=leaves)
+
+    def test_a_missing_unfinished_or_malformed_rebuild_refuses_before_anything(self):
+        self.record_path.unlink()
+        with self.assertRaisesRegex(takeover.TakeoverError, 'No cluster rebuild'):
+            self.take()
+        for record, reason in (({'phase': 'failed', 'volume': VOLUME, 'image': IMAGE}, 'did not complete'),
+                               ({'phase': 'completed', 'volume': 'sbarbase-durable-pgdata', 'image': IMAGE}, 'malformed'),
+                               ({'phase': 'completed', 'volume': VOLUME, 'image': 'latest'}, 'malformed'),
+                               ([], 'did not complete')):
+            with self.subTest(reason=reason):
+                self.write_rebuild(record)
+                with self.assertRaisesRegex(takeover.TakeoverError, reason):
+                    self.take()
+        self.record_path.write_text('{')
+        with self.assertRaisesRegex(takeover.TakeoverError, 'cannot be read'):
+            self.take()
+        self.assertEqual(self.runs, [])
+
+    def test_a_prepared_move_refuses(self):
+        self.write_move('prepared')
+        with self.assertRaisesRegex(takeover.TakeoverError, 'abandon it first'):
+            self.take()
+        self.assertEqual(self.runs, [])
+        self.assertTrue(self.move_path.exists())
+
+    def test_a_begun_move_is_archived_as_superseded_after_the_migration(self):
+        for phase in ('moving', 'migrating'):
+            with self.subTest(phase=phase):
+                self.volume, self.runs = 'sbarbase-durable-pgdata', []
+                self.write_move(phase)
+                self.intent = STUCK
+                self.take()
+                self.assertFalse(self.move_path.exists())
+                archived = json.loads((self.root / f'database-move-{TO[:12]}-superseded.json').read_text())
+                self.assertEqual(archived['phase'], 'superseded')
+                self.assertEqual(archived['superseded_by'], {'run': '20261016T030000Z', 'volume': VOLUME, 'image': IMAGE})
+                self.assertEqual((archived['backup'], archived['marked']), ('20261016T030000Z', True))
+
+    def test_the_move_record_stays_while_the_migration_has_not_finished(self):
+        self.write_move()
+        self.intent = STUCK
+        self.finishes = False
+        with self.assertRaises(takeover.TakeoverError):
+            self.take()
+        self.assertTrue(self.move_path.exists())
+
+    def test_a_run_stopped_before_the_move_was_archived_archives_it_on_the_rerun(self):
+        self.write_move()
+        with patch.object(takeover.lab, 'atomic', side_effect=OSError('killed')), self.assertRaises(OSError):
+            self.take()
+        self.assertTrue(self.move_path.exists())
+        self.take()
+        self.assertEqual(len(self.runs), 1, 'the migration is not run twice')
+        self.assertFalse(self.move_path.exists())
+
+    def test_the_checkout_moves_back_only_to_a_version_whose_lock_names_the_rebuilt_image(self):
+        self.write_move()
+        self.lock = OTHER
+        self.take()
+        self.assertEqual(self.moved, [(FROM, None, True)])
+        self.assertEqual(self.runs[0][0][-3:], ['--image-from-lock', '--to-volume', VOLUME])
+
+    def test_another_lock_without_a_way_back_refuses_before_anything(self):
+        self.lock = OTHER
+        with self.assertRaisesRegex(takeover.TakeoverError, 'another image'):
+            self.take()
+        self.write_move()
+        self.from_image = 'sha256:' + '3' * 64
+        with self.assertRaisesRegex(takeover.TakeoverError, 'another image'):
+            self.take()
+        self.from_image = IMAGE
+        self.from_script = 'no such option'
+        with self.assertRaisesRegex(takeover.TakeoverError, 'no --supersede-stuck'):
+            self.take()
+        self.assertEqual((self.moved, self.runs), ([], []))
+        self.assertTrue(self.move_path.exists())
+
+    def test_a_version_whose_lock_cannot_be_proved_is_no_way_back(self):
+        self.write_move()
+        self.lock = OTHER
+        with patch.object(takeover.backup, 'resolve_image', side_effect=takeover.backup.BackupError('missing')), \
+                self.assertRaisesRegex(takeover.TakeoverError, 'another image'):
+            self.take()
+        with patch.object(takeover.release_channel, 'lock_at', lambda commit, name: None), \
+                self.assertRaisesRegex(takeover.TakeoverError, 'another image'):
+            self.take()
+        self.assertEqual(self.moved, [])
+
+    def test_a_failed_move_back_or_a_lock_that_still_differs_refuses(self):
+        self.write_move()
+        self.lock = OTHER
+        with patch.object(takeover.upgrade, 'move_back', side_effect=takeover.upgrade.UpgradeError('local changes')), \
+                self.assertRaisesRegex(takeover.TakeoverError, 'could not be moved back'):
+            self.take()
+        with patch.object(takeover.upgrade, 'move_back', lambda commit, intent, state: None), \
+                self.assertRaisesRegex(takeover.TakeoverError, 'still names another image'):
+            self.take()
+        self.assertEqual(self.runs, [])
+
+    def test_the_lock_read_is_the_database_lock_at_the_from_version(self):
+        seen = []
+        self.write_move()
+        self.lock = OTHER
+        with patch.object(takeover.release_channel, 'lock_at', lambda commit, name: seen.append((commit, name)) or {'commit': commit}):
+            self.take()
+        self.assertEqual(seen, [(FROM, takeover.release_channel.DATABASE_LOCK)])
+
+    def test_main_reports_refusals_and_the_outcome(self):
+        error = io.StringIO()
+        with patch.object(takeover, 'takeover', side_effect=takeover.cluster_rebuild.RebuildError('Sbarbase is running; stop it first')), \
+                contextlib.redirect_stderr(error):
+            self.assertEqual(takeover.main([]), 1)
+        self.assertIn('refused: Sbarbase is running', error.getvalue())
+        output = io.StringIO()
+        with patch.object(takeover, 'takeover', lambda: ({'image': IMAGE, 'volume': VOLUME}, {'to': TO})), \
+                contextlib.redirect_stdout(output):
+            self.assertEqual(takeover.main([]), 0)
+        self.assertIn(VOLUME, output.getvalue())
+        self.assertIn('archived as superseded', output.getvalue())
+        self.assertIn('were not restored', output.getvalue())
+
+
+if __name__ == '__main__':
+    unittest.main()

@@ -38,6 +38,12 @@ its archive (after the rules are published and compared) lab/database_volume.py 
 the runtime mounts it from then on. The old volume is
 kept.
 
+--supersede-stuck, with --to-volume, is the exit from a stuck move (P3 part 4): a migration whose
+retired container was captured, archived and removed and whose replacement never became ready is
+archived whole as superseded (lab/hba_migration.py supersede), its replacement removed after its
+identity is proven, and a new migration onto the rebuilt volume finishes from that archive. Any
+other recorded migration refuses. lab/cluster_takeover.py runs it.
+
 Read docs/engineering/CONTAINER-GENERATION-MIGRATION.md before running it. An interrupted run
 leaves a private migration record in place; startup refuses until either this
 command finishes the migration or an operator settles the HBA journal it names.
@@ -157,7 +163,11 @@ def main():
                         help="replace the database onto the image of this checkout's distribution lock")
     parser.add_argument('--to-volume',dest='to_volume',
                         help='replace the database onto this existing pgdata volume (a rebuilt cluster)')
+    parser.add_argument('--supersede-stuck',action='store_true',dest='supersede',
+                        help='supersede a stuck migration whose replacement never became ready (needs --to-volume)')
     options=parser.parse_args()
+    if options.supersede and (options.reconcile or not options.to_volume):
+        raise RuntimeError('--supersede-stuck moves onto a rebuilt volume: give --to-volume, without --reconcile')
     state=Path(options.state)
     desired=desired_rules(options.inventory,options.inventory_runtime)
     # A record directory a kill left empty, before its intent, never started: it is removed here,
@@ -198,6 +208,16 @@ def main():
         if not database_volume.rebuilt(options.to_volume) or options.to_volume==options.volume:
             raise RuntimeError('--to-volume names a rebuilt database volume (sbarbase-durable-pgdata-<12 hex>) other than the current one')
         hba_migration.require_cluster_volume(docker,options.to_volume,old.owner,image or old.image,state)
+    if options.supersede:
+        if options.retired!='stopped':
+            raise RuntimeError('A superseded migration had stopped its retired container')
+        intent=hba_migration.supersede(docker,state,target=old,
+                                       stuck_replacement=lambda stuck:plan_for(old,options,hba_migration.target_image(stuck)),
+                                       inventory=hba_authority.digest(desired),image=image,new_volume=options.to_volume)
+        completed=hba_migration.execute(docker,state,replacement=plan_for(old,options,image),desired=desired)
+        print(json.dumps({'migrated':True,'completed':completed,'migration':intent['migration'],
+                          'superseded':intent['supersedes'],'retired_generation':intent['generation']}))
+        return
     intent=hba_migration.publish_intent(state,target=old,generation=pin['generation'],volume=options.volume,
                                         inventory=hba_authority.digest(desired),
                                         retired_state='stopped-will-not-return' if options.retired=='stopped' else 'absent-verified',
