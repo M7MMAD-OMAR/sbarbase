@@ -116,8 +116,11 @@ class Fixture(unittest.TestCase):
             E1: {'auth': 'http://10.0.0.2:9999', 'rest': 'http://10.0.0.3:3000',
                  'storage': {'url': 'http://10.0.0.4:5000', 'tenantHost': E1}, 'serviceConcurrency': {'rest': 4}},
             E2: {'auth': 'http://10.0.0.5:9999', 'rest': 'http://10.0.0.6:3000'}}))
+        import cluster_inventory
+        self.cluster = {'version': 1, 'image': 'sha256:' + '9' * 64, 'roles': [], 'refusals': []}
         for module, name, value in ((backup, 'BACKUPS', self.backups), (backup, 'STATE', self.state),
-                                    (offsite, 'SECRETS', self.secrets)):
+                                    (offsite, 'SECRETS', self.secrets),
+                                    (cluster_inventory, 'take', lambda: self.cluster)):
             patcher = patch.object(module, name, value)
             patcher.start()
             self.addCleanup(patcher.stop)
@@ -413,6 +416,10 @@ class TargetTests(Fixture):
         stamps = {path.name for e in (E1, E2, 'storage', 'management', 'installation') for path in (self.backups / e).iterdir()}
         self.assertEqual(len(stamps), 1)
         self.assertTrue((self.backups / 'installation' / stamps.pop() / 'manifest.json').is_file())
+
+    def test_the_manifest_records_the_cluster_inventory(self):
+        path = offsite.write_installation('20260924T030000Z', [E1], environ={})
+        self.assertEqual(json.loads((path / 'installation.json').read_text())['cluster'], self.cluster)
 
     def test_an_installation_manifest_taken_for_an_upgrade_is_marked_and_kept(self):
         marked = offsite.write_installation('20260901T030000Z', [E1], environ={}, reason='upgrade')

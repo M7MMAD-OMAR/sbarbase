@@ -140,7 +140,7 @@ def secret_names():
     return sorted(str(path.relative_to(SECRETS)) for path in SECRETS.rglob('*') if path.is_file())
 
 
-def installation_manifest(stamp, runtimes, environ=os.environ):
+def installation_manifest(stamp, runtimes, environ=os.environ, cluster=None):
     state = backup.STATE
     endpoints = backup.published()
     offsite = config_path()
@@ -162,6 +162,8 @@ def installation_manifest(stamp, runtimes, environ=os.environ):
         'notifications': notification_settings(state / 'notifications.json'),
         'offsite': offsite_settings,
         'secrets': {'directory': '.secrets', 'files': secret_names()},
+        # The database image and the managed roles, for a rebuild of the cluster (P3).
+        'cluster': cluster,
     }
 
 
@@ -174,7 +176,9 @@ def write_installation(stamp, runtimes, keep=backup.DEFAULT_KEEP, environ=os.env
     if target.exists():
         raise BackupError('An installation manifest with this time already exists')
     backup.private_dir(target)
-    body = json.dumps(installation_manifest(stamp, runtimes, environ), indent=2, sort_keys=True) + '\n'
+    import cluster_inventory
+    body = json.dumps(installation_manifest(stamp, runtimes, environ, cluster_inventory.take()),
+                      indent=2, sort_keys=True) + '\n'
     backup.write_private(target / 'installation.json', body)
     record = {'version': 1, 'kind': 'installation', 'created_at': stamp,
               'installation': {'file': 'installation.json', 'bytes': (target / 'installation.json').stat().st_size,
