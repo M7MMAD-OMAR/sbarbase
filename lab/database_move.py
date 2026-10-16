@@ -48,6 +48,7 @@ import subprocess
 import sys
 
 import backup
+import database_volume
 import durable_runtime as runtime
 import hba_migration
 import image_identity
@@ -183,7 +184,7 @@ def database_stopped():
 
 def migration_command(reconcile):
     command = ['/usr/bin/python3', 'lab/migrate-generation.py', '--state', str(runtime.STATE),
-               '--volume', runtime.PREFIX + '-pgdata', '--network', runtime.NETWORK, '--tier', 'system.db',
+               '--volume', database_volume.current(runtime.STATE), '--network', runtime.NETWORK, '--tier', 'system.db',
                '--inventory-runtime', str(runtime.PRIVATE / 'runtime.json'),
                '--retired', 'stopped', '--assert-retired-will-not-return',
                '--attended-retained', '--confirm-retained', runtime.DB]

@@ -19,7 +19,8 @@ Order of effects, as implemented here:
 3. the retired generation's record and its last observed HBA digest are archived
    before the pin is replaced;
 4. the retired container is removed and the replacement is created on the same
-   pgdata volume, carrying its resource tier and its per-device block IO limits;
+   pgdata volume (or, for a version 3 intent, on the rebuilt volume it names),
+   carrying its resource tier and its per-device block IO limits;
 5. the new generation is minted once, durably, then registered in the replacement,
    and the pin is replaced by an explicit archive-then-publish;
 6. the desired rules are published through the owned pipeline with parser and
@@ -44,6 +45,7 @@ import uuid
 from dataclasses import asdict
 from pathlib import Path
 import effect_receipt
+import database_volume
 import hba_apply
 import hba_authority as authority
 import hba_generation
@@ -72,6 +74,9 @@ INTENT_FIELDS={'version','migration','generation','old','volume','inventory','re
 # change onto the image of a newer distribution lock. The image is fixed when the intent is
 # published, so resuming never reads a lock that may have moved since.
 INTENT_FIELDS_IMAGE=INTENT_FIELDS|{'image'}
+# Version 3: onto another pgdata volume (a rebuilt cluster, P3), with or without another image.
+INTENT_SHAPES={(1,frozenset(INTENT_FIELDS)),(2,frozenset(INTENT_FIELDS_IMAGE)),
+              (3,frozenset(INTENT_FIELDS|{'new_volume'})),(3,frozenset(INTENT_FIELDS_IMAGE|{'new_volume'}))}
 RETIRED_STATES=('stopped-will-not-return','absent-verified')
 PLAN_FIELDS={'name','owner','image','tier','memory','cpus','network','env_file','command'}
 
@@ -116,7 +121,7 @@ def require_present(state):
 
 def validate(record):
     if not isinstance(record,dict) or type(record.get('version')) is not int \
-            or (record['version'],set(record)) not in ((1,INTENT_FIELDS),(2,INTENT_FIELDS_IMAGE)):
+            or (record['version'],frozenset(record)) not in INTENT_SHAPES:
         raise ValueError('Invalid HBA migration intent shape')
     for key in ('migration','generation'):authority.exact(record[key],authority.UUID)
     old=record['old']
@@ -129,11 +134,58 @@ def validate(record):
     authority.exact(record['inventory'],authority.HEX)
     if record['retired_state'] not in RETIRED_STATES:
         raise ValueError('Migration retired state must be explicit')
-    if record['version']==2:
+    if 'image' in record:
         hba_target.policy(old['name'],old['owner'],record['image'])
         if record['image']==old['image']:
             raise ValueError('A migration intent records an image only when it changes')
+    if 'new_volume' in record:
+        if not database_volume.rebuilt(record['new_volume']) or record['new_volume']==record['volume']:
+            raise ValueError('A migration intent records another pgdata volume only when it is a database volume that changes')
     return record
+
+
+def target_volume(intent):
+    """The pgdata volume the replacement mounts: the one the intent recorded, or the retired one."""
+    return intent.get('new_volume',intent['volume'])
+
+
+# A data directory of the major version the image's server runs (postgres -V: "postgres (PostgreSQL) 17.6").
+PROBE=('v=$(cat /data/PG_VERSION) && case "$v" in ""|*[!0-9]*) exit 1;; esac '
+       '&& postgres -V | grep -q " $v\\."')
+
+
+def retired_volumes(state):
+    """Volumes an earlier move left behind: kept, and outdated from the moment it finished."""
+    root=Path(state)/ARCHIVE
+    found=set()
+    for path in sorted(root.glob('*/'+EVIDENCE)) if root.is_dir() else []:
+        record=_decode_envelope(_read_private(path,'Generation migration evidence'),'Generation migration evidence')
+        if record.get('target_volume',record.get('volume'))!=record.get('volume'):found.add(record['volume'])
+    return found
+
+
+def require_cluster_volume(docker,volume,owner,image,state=None):
+    """A volume the database may move onto: it exists, the runtime owns it, and it holds a
+    PostgreSQL data directory (an empty one would start a new, empty cluster). Checked before the
+    intent is written and before the retired container is stopped, and again on each rerun until
+    the replacement runs on it: a read-only helper on the image the replacement will run, without
+    network."""
+    if state is not None and volume in retired_volumes(state):
+        raise RuntimeError('The new pgdata volume is one an earlier move left behind; it holds an outdated cluster')
+    inspected=docker('volume','inspect',volume,check=False)
+    if inspected.returncode:
+        raise RuntimeError('The new pgdata volume does not exist; it must already hold the rebuilt cluster')
+    try:labels=json.loads(inspected.stdout)[0].get('Labels') or {}
+    except (ValueError,IndexError,AttributeError,TypeError):raise RuntimeError('The new pgdata volume cannot be inspected')
+    if labels.get('io.sbarbase.owner')!=owner:
+        raise RuntimeError('The new pgdata volume is not owned by the runtime that would mount it')
+    probe=docker('run','--rm','--pull','never','--network','none','--memory','64m','--memory-swap','64m',
+                 '--cpus','0.25','--pids-limit','32','--entrypoint','sh','-v',volume+':/data:ro',image,
+                 '-c',PROBE,check=False)
+    if probe.returncode:
+        raise RuntimeError('The new pgdata volume holds no PostgreSQL data directory of the major version the image runs; '
+                           'it must already hold the rebuilt cluster')
+    return True
 
 
 def target_image(intent):
@@ -219,9 +271,10 @@ def load(state):
     return validate(_decode_envelope(_read_private(intent_path(state),'HBA migration intent'),'HBA migration intent'))
 
 
-def publish_intent(state,*,target,generation,volume,inventory,retired_state,image=None):
+def publish_intent(state,*,target,generation,volume,inventory,retired_state,image=None,new_volume=None):
     """Publish the exclusive, fsynced migration intent; an existing record refuses. An image other
-    than the retired one makes it a generation change onto that image (version 2)."""
+    than the retired one makes it a generation change onto that image (version 2); another pgdata
+    volume makes it a change onto that volume (version 3, with or without the image)."""
     state=Path(state)
     if retired_state not in RETIRED_STATES:
         raise ValueError('Migration retired state must be explicit')
@@ -232,6 +285,8 @@ def publish_intent(state,*,target,generation,volume,inventory,retired_state,imag
             'old':asdict(target),'volume':volume,'inventory':inventory,'retired_state':retired_state}
     if image is not None and image!=target.image:
         record={**record,'version':2,'image':image}
+    if new_volume is not None and new_volume!=volume:
+        record={**record,'version':3,'new_volume':new_volume}
     record=validate(record)
     # The intent is written whole beside the record first and renamed into it, so a kill leaves
     # either no record, an empty record directory (removed by discard_unpublished) or the whole
@@ -452,7 +507,7 @@ def replacement_identity(docker,identifier,intent,replacement):
             or labels.get('io.sbarbase.owner')!=replacement['owner']
             or labels.get('io.sbarbase.tier')!=replacement['flags']['label']):
         raise RuntimeError('Replacement container identity changed')
-    if _volume(hba_target.mounts(info))!=intent['volume']:
+    if _volume(hba_target.mounts(info))!=target_volume(intent):
         raise RuntimeError('Replacement pgdata volume differs from the recorded volume')
     return info
 
@@ -466,7 +521,8 @@ def ensure_running(docker,info):
 
 
 def create_replacement(docker,state,intent,replacement):
-    """Remove the retired container and create its replacement on the same volume.
+    """Remove the retired container and create its replacement on the target volume (the same
+    one, or for a version 3 intent the rebuilt one it names).
 
     A rerun after the removal (the run stopped before the new-captured checkpoint, for
     instance while waiting for readiness) adopts the replacement it had created instead of
@@ -483,6 +539,9 @@ def create_replacement(docker,state,intent,replacement):
             if info.get('State',{}).get('Running'):raise RuntimeError('Retired container restarted during migration')
             removed=docker('rm',intent['old']['container_id'],check=False)
             if removed.returncode:raise RuntimeError('Retired container could not be removed')
+    if target_volume(intent)!=intent['volume'] and docker('volume','inspect',target_volume(intent),check=False).returncode:
+        # docker run would create an empty volume, and PostgreSQL would initialize a new cluster on it.
+        raise RuntimeError('The new pgdata volume does not exist; it must already hold the rebuilt cluster')
     flags=replacement['flags']
     arguments=['run','-d','--name',replacement['name'],'--label','io.sbarbase.owner='+replacement['owner'],
                '--label','io.sbarbase.tier='+flags['label'],'--network',replacement['network'],
@@ -490,7 +549,7 @@ def create_replacement(docker,state,intent,replacement):
                '--pids-limit',str(flags['pids']),'--cpu-shares',str(flags['shares']),'--blkio-weight',str(flags['weight']),
                *resource_policy.io_flags(replacement['tier']),
                '--log-opt','max-size=5m','--log-opt','max-file=2','--env-file',replacement['env_file'],
-               '-v',intent['volume']+':'+PGDATA,replacement['image'],*replacement['command']]
+               '-v',target_volume(intent)+':'+PGDATA,replacement['image'],*replacement['command']]
     created=docker(*arguments,check=False)
     if created.returncode:raise RuntimeError('Generation migration replacement could not be created')
     identifier=created.stdout.strip()
@@ -501,7 +560,7 @@ def create_replacement(docker,state,intent,replacement):
             or info.get('Config',{}).get('Labels',{}).get('io.sbarbase.tier')!=flags['label']):
         raise RuntimeError('Replacement container identity changed')
     mounts=hba_target.mounts(info)
-    if _volume(mounts)!=intent['volume']:
+    if _volume(mounts)!=target_volume(intent):
         raise RuntimeError('Replacement pgdata volume differs from the recorded volume')
     return identifier,mounts
 
@@ -599,7 +658,7 @@ def archive_evidence(state,intent,captured,minted,new_target,outcome,comparison)
             'retired_state':intent['retired_state'],'volume':intent['volume'],
             'new_generation':minted['generation'],'new_container':minted['container_id'],
             'target':{'name':new_target.name,'owner':new_target.owner,'image':new_target.image},
-            'retired_image':intent['old']['image'],
+            'retired_image':intent['old']['image'],'target_volume':target_volume(intent),
             'hba_operation':outcome['journal']['token'],'hba_application':outcome['application'],
             'hba_activation':outcome['activation'],'rules':comparison,
             'authority_observation':captured.get('authority')}
@@ -680,6 +739,10 @@ def execute(docker,state,*,replacement,desired):
         raise RuntimeError('Generation migration inventory changed since the intent')
     _bindings(state,intent)
     with hba_startup.acquire(state,migration=True) as lease:
+        if target_volume(intent)!=intent['volume'] and not done(state,'new-captured'):
+            # Before the retired container is stopped or removed, and again on every rerun until
+            # the replacement runs on it.
+            require_cluster_volume(docker,target_volume(intent),intent['old']['owner'],target_image(intent),state)
         if not done(state,'old-captured'):
             checkpoint(state,'old-captured',_bind(intent,{'retired':capture_retired(docker,state,intent)}))
         captured=read_checkpoint(state,'old-captured')['retired']
@@ -719,6 +782,9 @@ def execute(docker,state,*,replacement,desired):
             if archived.get('rules',{}).get('inventory_matches_observed') is not True:
                 raise RuntimeError('Archived HBA migration did not verify the inventory; preserve the migration record')
         else:
+            if target_volume(intent)!=intent['volume']:
+                # The runtime mounts the new volume from now on; written before the record goes.
+                database_volume.publish(state,target_volume(intent))
             outcome=outcome_for(state,read_checkpoint(state,'rules-published')['token'])
             archive_evidence(state,intent,captured,minted,new_target,outcome,comparison)
             checkpoint(state,'archived',_bind(intent,{'container_id':minted['container_id'],

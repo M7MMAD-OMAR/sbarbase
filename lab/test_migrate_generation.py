@@ -154,6 +154,44 @@ class Main(unittest.TestCase):
         self.assertFalse(command.hba_migration.discard_unpublished(state))
         self.assertTrue(directory.exists())
 
+    def test_a_new_volume_goes_into_the_intent_and_reconcile_refuses_the_flag(self):
+        volume='sbarbase-durable-pgdata-0123456789ab'
+        with patch.object(command.hba_migration,'require_cluster_volume') as probe:
+            intent,execute,error=self.run_main([*BASE,'--to-volume',volume],target=DISPOSABLE)
+        self.assertIsNone(error)
+        self.assertEqual(intent.call_args.kwargs['new_volume'],volume)
+        self.assertEqual(probe.call_args.args[1:],(volume,DISPOSABLE['owner'],DISPOSABLE['image'],self.state))
+        intent,_,error=self.run_main(BASE,target=DISPOSABLE)
+        self.assertIsNone(intent.call_args.kwargs['new_volume'])
+        _,execute,error=self.run_main([*BASE,'--reconcile','--to-volume',volume],target=DISPOSABLE)
+        self.assertRegex(str(error),'drop --to-volume')
+        execute.assert_not_called()
+
+    def test_the_probe_runs_on_the_lock_image_when_both_flags_are_given(self):
+        image='sha256:'+'d'*64
+        with patch.object(command,'lock_image',return_value=image), \
+                patch.object(command.hba_migration,'require_cluster_volume') as probe:
+            intent,execute,error=self.run_main([*BASE,'--image-from-lock','--to-volume','sbarbase-durable-pgdata-0123456789ab'],
+                                               target=DISPOSABLE)
+        self.assertIsNone(error)
+        self.assertEqual(probe.call_args.args[3],image)
+        self.assertEqual((intent.call_args.kwargs['image'],intent.call_args.kwargs['new_volume']),
+                         (image,'sbarbase-durable-pgdata-0123456789ab'))
+
+    def test_a_volume_that_cannot_take_the_database_refuses_before_the_intent(self):
+        same=[*BASE[:BASE.index('--volume')],'--volume','sbarbase-durable-pgdata-0123456789ab',*BASE[BASE.index('--volume')+2:]]
+        intent,execute,error=self.run_main([*same,'--to-volume','sbarbase-durable-pgdata-0123456789ab'],target=DISPOSABLE)
+        self.assertRegex(str(error),'rebuilt database volume')
+        intent.assert_not_called();execute.assert_not_called()
+        for volume in ('sbarbase-durable-pgdata', 'elsewhere'):
+            intent,execute,error=self.run_main([*BASE,'--to-volume',volume],target=DISPOSABLE)
+            self.assertRegex(str(error),'rebuilt database volume')
+            intent.assert_not_called();execute.assert_not_called()
+        with patch.object(command.hba_migration,'require_cluster_volume',side_effect=RuntimeError('holds no PostgreSQL data directory')):
+            intent,execute,error=self.run_main([*BASE,'--to-volume','sbarbase-durable-pgdata-0123456789ab'],target=DISPOSABLE)
+        self.assertRegex(str(error),'no PostgreSQL data directory')
+        intent.assert_not_called();execute.assert_not_called()
+
     def test_the_record_path_is_the_one_the_upgrade_command_writes(self):
         import upgrade
         self.assertEqual(UPGRADE_STATE,upgrade.STATE_FILE)

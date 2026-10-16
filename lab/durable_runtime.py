@@ -1,5 +1,6 @@
 """Bounded, persistent upstream runtime. Experimental, local and unpublished."""
 import effect_receipt
+import database_volume
 import hba_runtime
 import hba_startup
 import image_identity
@@ -284,6 +285,11 @@ def upgrade_allows(component, image):
 atomic = lab.atomic
 
 
+def database_mounts():
+    """The database container's one persistent mount: the volume lab/database_volume.py names."""
+    return [(database_volume.current(STATE), '/var/lib/postgresql/data')]
+
+
 def inspect(kind, name):
     result = lab.docker(kind, 'inspect', name, check=False) if kind != 'container' else lab.docker('inspect', name, check=False)
     if result.returncode:
@@ -354,7 +360,7 @@ class Runtime:
         self.hba_writer = (hba_runtime.SourceHBA(lab.docker,STATE,DB,OWNER,database_image,startup=startup,operation_fd=operation_fd)
                            if startup is not None or operation_fd is not None else None)
         if startup is not None:
-            self.hba_writer.before_start(inspect('container',DB),inspect('volume',PREFIX+'-pgdata') is not None)
+            self.hba_writer.before_start(inspect('container',DB),inspect('volume',database_volume.current(STATE)) is not None)
         elif operation_fd is not None:
             self.hba_writer.worker_preflight(worker_runtime)
         self.path = PRIVATE/'runtime.json'
@@ -459,7 +465,7 @@ class Runtime:
         if not inspect('network', NETWORK):
             lab.docker('network', 'create', '--internal', '--label', 'io.sbarbase.owner='+OWNER, NETWORK)
         launched_cid,created=self.launch(DB, 'db', {'POSTGRES_PASSWORD': self.values['admin'], 'POSTGRES_HOST': '/var/run/postgresql', 'POSTGRES_DB': 'postgres'},
-                    '1024m', 1, [(PREFIX+'-pgdata', '/var/lib/postgresql/data')],
+                    '1024m', 1, database_mounts(),
                     ('postgres', '-c', 'config_file=/etc/postgresql/postgresql.conf', '-c', 'log_statement=none'), tier='system.db')
         for _ in range(120):
             result = self.sql("SELECT to_regrole('supabase_privileged_role') IS NOT NULL;", check=False)

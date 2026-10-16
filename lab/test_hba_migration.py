@@ -9,6 +9,7 @@ import unittest
 from unittest.mock import Mock
 from unittest.mock import patch
 import uuid
+import database_volume
 import hba_authority as authority
 import hba_generation
 import hba_journal
@@ -613,24 +614,34 @@ class LifelikeDocker(FakeDocker):
         self.run_fails=False
 
     def replacement_info(self):
-        return {**retired_info(),'Id':self.new_identifier,'Image':self.new_image,
+        return {**retired_info(volume=getattr(self,'replacement_volume','fixture-pgdata')),'Id':self.new_identifier,'Image':self.new_image,
                 'State':{'Running':self.replacement_running},
                 'Config':{'Labels':{'io.sbarbase.owner':TARGET.owner,'io.sbarbase.tier':'system'}}}
 
     def handle(self,args,data):
         command=args[0]
+        if command=='run' and '--rm' in args:
+            self.probes=getattr(self,'probes',[])+[args]
+            return self.result(returncode=0 if getattr(self,'holds_cluster',True) else 1)
         if command=='rm':
             self.retired=None
             return self.result()
         if command=='ps':
             return self.result(returncode=self.ps_returns)
         if command=='run':
+            # The replacement must be created on the volume the test expects, nothing else.
+            volume=args[args.index('-v')+1].split(':')[0]
+            if volume!=getattr(self,'replacement_volume','fixture-pgdata'):raise AssertionError('run on '+volume)
             if self.created or self.retired is not None or self.run_fails:return self.result(returncode=125)
             self.created=True
             return self.result(stdout=self.new_identifier)
         if command=='start':
             self.replacement_running=True
             return self.result()
+        if command=='volume' and args[1]=='inspect':
+            if args[2] not in getattr(self,'volumes',{'fixture-pgdata'}):return self.result(returncode=1)
+            owner=getattr(self,'volume_owner',TARGET.owner)
+            return self.result(stdout=json.dumps([{'Name':args[2],'Labels':{'io.sbarbase.owner':owner}}]))
         if command=='exec' and args[1]==self.new_identifier and not self.replacement_running:
             return self.result(returncode=1)
         if command=='inspect' and args[1] in (self.new_identifier,TARGET.name) and getattr(self,'gone',False):
@@ -871,6 +882,186 @@ class ResumeAfterRemovalTests(ImageChangeTests.__base__):
         self.assertEqual(len(self.runs()),2)  # the failed one, then the replacement
         self.assertTrue(self.docker.created)
         self.assertFalse(migration.present(self.state))
+
+
+class VolumeChangeTests(ImageChangeTests.__base__):
+    """P3 part 1: a generation change onto another, existing pgdata volume (a rebuilt cluster)."""
+
+    setUp=ImageChangeTests.setUp
+    replacement=ImageChangeTests.replacement
+    execute=ImageChangeTests.execute
+    runs=ImageChangeTests.runs
+    NEW_VOLUME='sbarbase-durable-pgdata-0123456789ab'
+
+    def lifelike(self,image=NEW_IMAGE,exists=True):
+        self.docker=LifelikeDocker(self.state,registry=self.registry,new_image=image)
+        self.docker.published=revision()+DESIRED
+        self.docker.replacement_volume=self.NEW_VOLUME
+        self.docker.volumes={'fixture-pgdata'}|({self.NEW_VOLUME} if exists else set())
+        return migration.publish_intent(self.state,target=TARGET,generation=self.generation,volume='fixture-pgdata',
+                                        inventory=authority.digest(DESIRED),retired_state='stopped-will-not-return',
+                                        image=image,new_volume=self.NEW_VOLUME)
+
+    def test_the_intent_records_another_volume_only_when_it_is_a_database_volume_that_changes(self):
+        record=self.lifelike()
+        self.assertEqual((record['version'],record['new_volume'],record['image']),(3,self.NEW_VOLUME,NEW_IMAGE))
+        self.assertEqual(migration.target_volume(record),self.NEW_VOLUME)
+        for volume in ('fixture-pgdata','other','sbarbase-durable-storage'):
+            with self.subTest(volume=volume), self.assertRaises(ValueError):
+                migration.validate({**record,'new_volume':volume})
+        same_image={key:value for key,value in record.items() if key!='image'}
+        self.assertEqual(migration.validate(same_image),same_image)
+        with self.assertRaises(ValueError):
+            migration.validate({**same_image,'version':2})
+
+    def test_the_replacement_runs_on_the_new_volume_and_the_runtime_is_pointed_at_it(self):
+        self.lifelike()
+        self.execute()
+        self.assertFalse(migration.present(self.state))
+        self.assertEqual(database_volume.current(self.state),self.NEW_VOLUME)
+        self.assertEqual(migration.pinned(self.state)['target']['image'],NEW_IMAGE)
+        archived=[path for path in (self.state/migration.ARCHIVE).iterdir()]
+        evidence=migration.read_evidence(self.state,archived[0].name)
+        self.assertEqual(evidence['target_volume'],self.NEW_VOLUME)
+        self.assertEqual(evidence['volume'],'fixture-pgdata')
+
+    def test_the_same_image_on_a_new_volume_works_too(self):
+        self.lifelike(image=TARGET.image)
+        self.execute(image=TARGET.image)
+        self.assertEqual(database_volume.current(self.state),self.NEW_VOLUME)
+
+    def untouched(self):
+        self.assertEqual([call for call in self.docker.calls if call[0] in ('stop','rm') or (call[0]=='run' and '--rm' not in call)],[])
+        self.assertIsNotNone(self.docker.retired,'the retired container is still there')
+        self.assertFalse(migration.done(self.state,'old-captured'))
+        self.assertEqual(database_volume.current(self.state),database_volume.DEFAULT)
+
+    def test_a_missing_empty_or_foreign_new_volume_refuses_before_the_retired_container_is_touched(self):
+        for setup,reason in ((lambda d:setattr(d,'volumes',{'fixture-pgdata'}),'does not exist'),
+                             (lambda d:setattr(d,'holds_cluster',False),'no PostgreSQL data directory'),
+                             (lambda d:setattr(d,'volume_owner','recovery-target'),'not owned by the runtime')):
+            with self.subTest(reason=reason):
+                self.setUp();self.__dict__.pop('token',None)
+                self.lifelike();setup(self.docker)
+                with self.assertRaisesRegex(RuntimeError,reason):
+                    self.execute()
+                self.untouched()
+                self.assertTrue(migration.present(self.state))
+
+    def test_the_probe_reads_the_volume_read_only_on_the_target_image_without_network(self):
+        self.lifelike()
+        self.execute()
+        probe=self.docker.probes[0]
+        self.assertIn(self.NEW_VOLUME+':/data:ro',probe)
+        self.assertIn(NEW_IMAGE,probe)
+        self.assertEqual(probe[probe.index('--network')+1],'none')
+        self.assertEqual(probe[probe.index('--pull')+1],'never')
+        self.assertEqual(probe[-1],migration.PROBE)
+
+    def test_the_probe_runs_again_on_a_rerun_until_the_replacement_runs_on_the_volume(self):
+        self.lifelike()
+        original=migration.checkpoint
+        def interrupted(state,name,payload):
+            if name=='retired-archived':raise RuntimeError('killed')
+            return original(state,name,payload)
+        with patch.object(migration,'checkpoint',interrupted), self.assertRaisesRegex(RuntimeError,'killed'):
+            self.execute()
+        self.assertTrue(migration.done(self.state,'old-captured'))
+        self.docker.holds_cluster=False
+        with self.assertRaisesRegex(RuntimeError,'no PostgreSQL data directory'):
+            self.execute()
+        self.assertIsNotNone(self.docker.retired,'still not removed')
+        self.docker.holds_cluster=True
+        self.execute()
+        probes=len(self.docker.probes)
+        self.assertGreaterEqual(probes,3)
+
+    def test_the_probe_compares_the_data_directory_s_major_version_with_the_image_s_server(self):
+        import os,subprocess,tempfile
+        with tempfile.TemporaryDirectory() as root:
+            root=Path(root);data=root/'data';data.mkdir();bin_=root/'bin';bin_.mkdir()
+            server=bin_/'postgres';server.write_text('#!/bin/sh\necho "postgres (PostgreSQL) 17.6"\n');server.chmod(0o755)
+            script=migration.PROBE.replace('/data',str(data))
+            def run():
+                return subprocess.run(['sh','-c',script],env={**os.environ,'PATH':str(bin_)+':/usr/bin:/bin'}).returncode
+            self.assertNotEqual(run(),0,'no PG_VERSION')
+            for content,expected in (('17\n',0),('17',0),('',1),('\n',1),('15\n',1),('1\n',1),('.*\n',1),('17.6\n',1),('1 7\n',1)):
+                with self.subTest(content=content):
+                    (data/'PG_VERSION').write_text(content)
+                    self.assertEqual(run()==0,expected==0)
+
+    def test_a_volume_gone_between_the_probe_and_the_creation_is_refused(self):
+        self.lifelike()
+        with patch.object(migration,'require_cluster_volume'):
+            self.docker.volumes={'fixture-pgdata'}
+            with self.assertRaisesRegex(RuntimeError,'does not exist'):
+                self.execute()
+        self.assertEqual([call for call in self.docker.calls if call[0]=='run' and '--rm' not in call],[])
+        self.assertTrue(migration.present(self.state))
+
+    def test_a_volume_an_earlier_move_left_behind_is_never_a_target(self):
+        self.lifelike()
+        self.execute()
+        self.assertEqual(migration.retired_volumes(self.state),{'fixture-pgdata'})
+        self.docker.volumes|={'sbarbase-durable-pgdata-ffffffffffff'}
+        with self.assertRaisesRegex(RuntimeError,'left behind'):
+            migration.require_cluster_volume(self.docker,'fixture-pgdata',TARGET.owner,NEW_IMAGE,self.state)
+        self.assertTrue(migration.require_cluster_volume(self.docker,'sbarbase-durable-pgdata-ffffffffffff',
+                                                         TARGET.owner,NEW_IMAGE,self.state))
+
+    def test_a_version_3_intent_checks_its_image_and_needs_its_volume(self):
+        record=self.lifelike()
+        for image in (TARGET.image,'postgres:17','sha256:short'):
+            with self.subTest(image=image), self.assertRaises(ValueError):
+                migration.validate({**record,'image':image})
+        without_volume={key:value for key,value in record.items() if key!='new_volume'}
+        with self.assertRaises(ValueError):
+            migration.validate(without_volume)
+        with self.assertRaises(ValueError):
+            migration.validate({key:value for key,value in without_volume.items() if key!='image'}|{'version':3})
+
+    def test_the_constant_is_never_a_target_volume(self):
+        record=self.lifelike()
+        with self.assertRaises(ValueError):
+            migration.validate({**record,'volume':'sbarbase-durable-pgdata-ffffffffffff','new_volume':'sbarbase-durable-pgdata'})
+
+    def test_the_new_volume_must_differ_from_the_retired_one(self):
+        record=self.lifelike()
+        with self.assertRaises(ValueError):
+            migration.validate({**record,'volume':self.NEW_VOLUME})
+
+    def test_a_replacement_created_on_another_volume_is_refused(self):
+        self.lifelike()
+        real=self.docker.replacement_info
+        self.docker.replacement_info=lambda:{**real(),'Mounts':retired_info(volume='fixture-pgdata')['Mounts']}
+        with self.assertRaisesRegex(RuntimeError,'volume differs'):
+            self.execute()
+        self.assertTrue(migration.present(self.state))
+
+    def test_a_kill_after_the_volume_is_named_and_before_the_archive_is_resumed(self):
+        self.lifelike()
+        with patch.object(migration,'archive_evidence',side_effect=RuntimeError('killed')):
+            with self.assertRaisesRegex(RuntimeError,'killed'):
+                self.execute()
+        self.assertEqual(database_volume.current(self.state),self.NEW_VOLUME)
+        self.execute()
+        self.assertFalse(migration.present(self.state))
+
+    def test_the_volume_is_not_named_until_the_change_reaches_its_archive(self):
+        self.lifelike()
+        with patch.object(migration,'publish_rules',side_effect=RuntimeError('stop here')):
+            with self.assertRaisesRegex(RuntimeError,'stop here'):
+                self.execute()
+        self.assertEqual(database_volume.current(self.state),database_volume.DEFAULT)
+
+    def test_an_adopted_replacement_must_be_on_the_new_volume(self):
+        self.lifelike()
+        with patch.object(migration,'wait_ready',side_effect=RuntimeError('readiness timed out')):
+            with self.assertRaises(RuntimeError):
+                self.execute()
+        self.docker.replacement_volume='fixture-pgdata'
+        with self.assertRaisesRegex(RuntimeError,'volume differs'):
+            self.execute()
 
 
 if __name__=='__main__':unittest.main()

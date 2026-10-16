@@ -29,6 +29,15 @@ daemon first and, when it differs from the pinned one, recorded in the migration
 --reconcile finishes onto that image even if
 the lock has changed since.
 
+--to-volume NAME replaces it onto another existing pgdata volume (a cluster rebuilt from a backup
+run, upstream currency P3, named sbarbase-durable-pgdata-<12 hex>), with or without
+--image-from-lock. Before the intent is written, and again before the retired container is
+touched, the volume must exist, be owned by the runtime and hold a PostgreSQL data directory of the
+major version the image runs (an empty one would start a new, empty cluster). The intent records it, and once the change reaches
+its archive (after the rules are published and compared) lab/database_volume.py names it, so
+the runtime mounts it from then on. The old volume is
+kept.
+
 Read docs/engineering/CONTAINER-GENERATION-MIGRATION.md before running it. An interrupted run
 leaves a private migration record in place; startup refuses until either this
 command finishes the migration or an operator settles the HBA journal it names.
@@ -38,6 +47,7 @@ import json
 import sys
 from pathlib import Path
 import hba_authority
+import database_volume
 import hba_migration
 import hba_target
 import image_identity
@@ -145,6 +155,8 @@ def main():
     parser.add_argument('--confirm-retained',dest='confirmed')
     parser.add_argument('--image-from-lock',action='store_true',dest='from_lock',
                         help="replace the database onto the image of this checkout's distribution lock")
+    parser.add_argument('--to-volume',dest='to_volume',
+                        help='replace the database onto this existing pgdata volume (a rebuilt cluster)')
     options=parser.parse_args()
     state=Path(options.state)
     desired=desired_rules(options.inventory,options.inventory_runtime)
@@ -160,6 +172,8 @@ def main():
         refuse_retained(old.name,old.owner,attended=options.attended,confirmed=options.confirmed)
         if options.from_lock:
             raise RuntimeError('--reconcile finishes onto the image its intent recorded; drop --image-from-lock')
+        if options.to_volume:
+            raise RuntimeError('--reconcile finishes onto the volume its intent recorded; drop --to-volume')
         replacement=plan_for(old,options,hba_migration.target_image(intent))
         completed=hba_migration.execute(docker,state,replacement=replacement,desired=desired)
         print(json.dumps({'reconciled':True,'completed':completed,'migration':intent['migration'],
@@ -174,10 +188,15 @@ def main():
         raise RuntimeError('The retirement assertion applies to a stopped container only')
     if options.retired=='stopped' and not options.assertion:
         raise RuntimeError('Stopping the retired container requires --assert-retired-will-not-return')
+    if options.to_volume:
+        # Before the intent: a volume that cannot take the database leaves no record to reconcile.
+        if not database_volume.rebuilt(options.to_volume) or options.to_volume==options.volume:
+            raise RuntimeError('--to-volume names a rebuilt database volume (sbarbase-durable-pgdata-<12 hex>) other than the current one')
+        hba_migration.require_cluster_volume(docker,options.to_volume,old.owner,image or old.image,state)
     intent=hba_migration.publish_intent(state,target=old,generation=pin['generation'],volume=options.volume,
                                         inventory=hba_authority.digest(desired),
                                         retired_state='stopped-will-not-return' if options.retired=='stopped' else 'absent-verified',
-                                        image=image)
+                                        image=image,new_volume=options.to_volume)
     completed=hba_migration.execute(docker,state,replacement=plan_for(old,options,image),desired=desired)
     print(json.dumps({'migrated':True,'completed':completed,'migration':intent['migration'],
                       'retired_generation':intent['generation']}))

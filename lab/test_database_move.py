@@ -40,6 +40,7 @@ class Fixture(unittest.TestCase):
         self.pulls = []
         self.mark_fails = False
         self.empty_record = False
+        self.volume = 'sbarbase-durable-pgdata'
         self.pinned_image = 'sha256:' + '1' * 64
         self.lock_image = 'sha256:' + '2' * 64
         self.target_script = 'parser.add_argument("--image-from-lock")'
@@ -65,6 +66,7 @@ class Fixture(unittest.TestCase):
             patch.object(move, 'lock_image', lambda: self.lock_image),
             patch.object(move.backup, 'mark_moved', self.mark_moved),
             patch.object(move.hba_migration, 'discard_unpublished', self.discard),
+            patch.object(move.database_volume, 'current', lambda state: self.volume),
         ]
         for item in patches:
             item.start()
@@ -219,11 +221,14 @@ class ContinueTests(Fixture):
         command = move.migration_command(False)
         self.assertEqual(command, [
             '/usr/bin/python3', 'lab/migrate-generation.py', '--state', str(move.runtime.STATE),
-            '--volume', move.runtime.PREFIX + '-pgdata', '--network', move.runtime.NETWORK, '--tier', 'system.db',
+            '--volume', self.volume, '--network', move.runtime.NETWORK, '--tier', 'system.db',
             '--inventory-runtime', str(move.runtime.PRIVATE / 'runtime.json'),
             '--retired', 'stopped', '--assert-retired-will-not-return',
             '--attended-retained', '--confirm-retained', move.runtime.DB, '--image-from-lock'])
         self.assertEqual(move.migration_command(True), command[:-1] + ['--reconcile'])
+        # After a rebuilt cluster was taken into use, the move runs on the volume the runtime mounts.
+        self.volume = 'sbarbase-durable-pgdata-0123456789ab'
+        self.assertEqual(move.migration_command(False)[move.migration_command(False).index('--volume') + 1], self.volume)
 
     def test_the_old_database_running_refuses_in_every_phase_before_the_change_begins(self):
         self.prepared()
