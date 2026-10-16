@@ -25,7 +25,7 @@ How many environments fit, by the same rules the preflight, the runtime and the 
 | 8 GB | about 5 by memory |
 | 16 GB | about 21 by memory |
 
-Every server is also held to at most four environments for now by a guard kept from the lab (below), so 3 or 4 cores with 8 GB is where that limit, not the hardware, becomes the ceiling. The `--first-project` step of the install creates one of those environments and a test application user; delete the test user from that environment if you keep it.
+Every installation is also held to at most eight environments (below), so 4 cores with 8 GB or more is where that limit, not the hardware, becomes the ceiling. On 4 cores, Realtime or Edge Functions on an environment take CPU room another environment would have used. The `--first-project` step of the install creates one of those environments and a test application user; delete the test user from that environment if you keep it.
 
 Why these numbers:
 
@@ -33,7 +33,7 @@ Why these numbers:
 - **CPU is counted as ceilings.** One core stays with the host and the containers' CPU ceilings may add up to twice the rest, because idle services use almost nothing and a busy one is slowed, not killed. Real contention is caught by the pressure gate.
 - **Python 3.12 is the floor.** Ubuntu 24.04 ships 3.12 and Debian 13 ships 3.13. The Python unit tests pass on both with their own `python3` and `python3-cryptography` packages, apart from checks that need a real host (a block device, systemd). These historical floor results do not establish a current full install on Ubuntu 24.04 or Debian 13. Current clean-host CI covers Ubuntu 26.04 with Python 3.14; its separate floor job passes 2102 tests on Python 3.12.
 
-The four-environment guard (for example two clients with production and staging each) does not come from the hardware. Lifting it waits for measurements on a real server; see the roadmap.
+The eight-environment guard comes from the shared database's connections: Sbarbase raises PostgreSQL's limit from 100 to 200 on its first start, which holds eight environments at their base limit with room left for Studio, Realtime and direct access. A drill of eight environment databases, every connection busy at once, peaked at 592 MiB of the database's 1 GiB ([evidence](../evidence/capacity-drill-2026-10-16.json)). That is a synthetic load on the database alone, not real traffic. Deleting an environment does not free its place yet, so do not create throwaway projects on a server you use.
 
 The preflight prints the exact figure for your server: `/usr/bin/python3 lab/install_server.py check`.
 

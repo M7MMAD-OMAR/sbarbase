@@ -71,8 +71,12 @@ def hba_content(environments):
 
 
 # The installation-wide environment guard. src/control/catalog.ts ENVIRONMENT_LIMIT mirrors it
-# so the API refuses before queueing; tests/hierarchy.test.ts checks the two agree.
-ENVIRONMENT_LIMIT = 4
+# so the API refuses before queueing; tests/hierarchy.test.ts checks the two agree. Eight since
+# 2026-10-16: the connection budget at MAX_CONNECTIONS holds eight, and a drill of eight
+# environment databases under full load on the 1 GiB, one CPU database tier peaked at 592 MiB
+# (docs/evidence/capacity-drill-2026-10-16.json). Memory, CPU and pressure admission still decide
+# whether a given server takes the next one.
+ENVIRONMENT_LIMIT = 8
 
 
 def available_memory_bytes():
@@ -467,13 +471,8 @@ class Runtime:
         launched_cid,created=self.launch(DB, 'db', {'POSTGRES_PASSWORD': self.values['admin'], 'POSTGRES_HOST': '/var/run/postgresql', 'POSTGRES_DB': 'postgres'},
                     '1024m', 1, database_mounts(),
                     ('postgres', '-c', 'config_file=/etc/postgresql/postgresql.conf', '-c', 'log_statement=none'), tier='system.db')
-        for _ in range(120):
-            result = self.sql("SELECT to_regrole('supabase_privileged_role') IS NOT NULL;", check=False)
-            if result.returncode == 0 and result.stdout.strip() == 't' and lab.docker('exec', DB, 'pg_isready', '-h', '127.0.0.1', check=False).returncode == 0:
-                break
-            time.sleep(.5)
-        else:
-            raise RuntimeError('Database readiness timed out')
+        self.wait_database()
+        self.ensure_connection_capacity()
         self.hba_writer.ready(launched_cid,created=created)
         # Where direct database access connects (src/http/database-proxy.ts); the address changes only with the container.
         atomic(STATE/'database.json', {'host': self.endpoint(DB, 5432).split('//')[1].split(':')[0], 'port': 5432})
@@ -556,7 +555,7 @@ class Runtime:
             raise RuntimeError('Start the upstream runtime first')
         new_environment = e not in self.values['environments']
         if new_environment or os.environ.get('SBARBASE_EFFECT_TOKEN'):
-            # With management Auth: at most four environments, 3840 MiB/3.75 CPUs.
+            # With management Auth: at most eight environments, 5888 MiB/5.75 CPUs before Realtime or Functions.
             if len(self.values['environments']) + int(new_environment) > ENVIRONMENT_LIMIT:
                 raise AdmissionLimitError('Local runtime admission limit reached')
             try:
@@ -984,6 +983,36 @@ ALTER DEFAULT PRIVILEGES FOR ROLE {role} IN SCHEMA public GRANT EXECUTE ON FUNCT
         endpoints = published_endpoints()
         endpoints[e]['database'] = {'user': role, 'database': e}
         atomic(STATE/'endpoints.json', endpoints)
+
+    def wait_database(self):
+        for _ in range(120):
+            result = self.sql("SELECT to_regrole('supabase_privileged_role') IS NOT NULL;", check=False)
+            if result.returncode == 0 and result.stdout.strip() == 't' and lab.docker('exec', DB, 'pg_isready', '-h', '127.0.0.1', check=False).returncode == 0:
+                return
+            time.sleep(.5)
+        raise RuntimeError('Database readiness timed out')
+
+    def ensure_connection_capacity(self):
+        """Raise the cluster's max_connections to connection_budget.MAX_CONNECTIONS when it is
+        lower: ALTER SYSTEM, which lives in the data directory, then one restart of the same
+        container. A rebuilt cluster starts at the image's 100 and is raised on its first start;
+        a way back to an older version keeps the higher value, which it does not mind. Nothing
+        here lowers the setting, and a value still low after the restart refuses the start."""
+        def current():
+            result = self.sql("SELECT current_setting('max_connections');", check=False)
+            value = result.stdout.strip()
+            if result.returncode or not value.isdigit():
+                raise RuntimeError('Database connection limit unreadable')
+            return int(value)
+        if current() >= connection_budget.MAX_CONNECTIONS:
+            return
+        if self.sql(f'ALTER SYSTEM SET max_connections = {connection_budget.MAX_CONNECTIONS};', check=False).returncode:
+            raise RuntimeError('Database connection limit could not be raised')
+        print(f'Raising the database connection limit to {connection_budget.MAX_CONNECTIONS}; the database restarts once', flush=True)
+        lab.docker('restart', '-t', '60', DB)
+        self.wait_database()
+        if current() < connection_budget.MAX_CONNECTIONS:
+            raise RuntimeError('Database connection limit did not take effect')
 
     def functions_configuration(self, e, v):
         """The main service's settings: where the code and secrets are, the keys functions get, and

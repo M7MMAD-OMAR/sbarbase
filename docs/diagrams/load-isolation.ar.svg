@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 520" width="900" height="520" role="img" aria-labelledby="loadisa-t loadisa-d" xml:lang="ar" direction="rtl">
   <title id="loadisa-t">البيئة المزدحمة تستعير المكان الفارغ، لا حصة جارتها</title>
-  <desc id="loadisa-d">تتلقى البيئة أ دفعة كبيرة من الطلبات، والبيئة ب حركتها عادية. في البوابة 32 مكانًا، ولكل بيئة 8 مضمونة. يمكن للبيئة المزدحمة أن تستعير الأماكن الفارغة حتى 24، ما دامت تبقى فارغة الحصة غير المستخدمة لكل بيئة نشطة في الدقيقة الأخيرة، و8 أماكن على الأقل. هنا تشغل أ أماكنها الثمانية واستعارت 14، وتستخدم ب مكانين، والثمانية الأخيرة محجوزة فارغة. طلب أ التالي يتلقى 429 ويعيد المحاولة بعد قليل، وطلب ب التالي يُقبل فورًا. وحين تحتاج ب مكانًا أكثر لا تستعير أ شيئًا جديدًا، وتعود أماكنها المستعارة كلما انتهى أحد طلباتها. بعد 15 دقيقة من هذا الرفض يصل المشغّل تنبيه واحد. خلف البوابة يعمل Auth وREST لكل بيئة في حاوياتهما بحدود للمعالج والذاكرة والقرص، ولكل قاعدة حدود اتصالاتها. المعالج والذاكرة والقرص داخل محرك PostgreSQL الواحد تبقى مشتركة، وهذه الحدود غير معايرة تحت حمل مستمر.</desc>
+  <desc id="loadisa-d">تتلقى البيئة أ دفعة كبيرة من الطلبات، والبيئة ب حركتها عادية. في البوابة 64 مكانًا، 8 لكل واحدة من البيئات الثماني التي يتسع لها التثبيت، ولكل بيئة 8 مضمونة. يمكن للبيئة المزدحمة أن تستعير الأماكن الفارغة حتى 24، ما دامت تبقى فارغة الحصة غير المستخدمة لكل بيئة نشطة في الدقيقة الأخيرة، و8 أماكن على الأقل. هنا تشغل أ أماكنها الثمانية واستعارت 16، فبلغت سقفها 24، وتستخدم ب مكانين، والباقي فارغ. طلب أ التالي يتلقى 429 ويعيد المحاولة بعد قليل، وطلب ب التالي يُقبل فورًا. وحين تحتاج ب مكانًا أكثر لا تستعير أ شيئًا جديدًا، وتعود أماكنها المستعارة كلما انتهى أحد طلباتها. بعد 15 دقيقة من هذا الرفض يصل المشغّل تنبيه واحد. خلف البوابة يعمل Auth وREST لكل بيئة في حاوياتهما بحدود للمعالج والذاكرة والقرص، ولكل قاعدة حدود اتصالاتها. المعالج والذاكرة والقرص داخل محرك PostgreSQL الواحد تبقى مشتركة، وهذه الحدود غير معايرة تحت حمل مستمر.</desc>
   <defs><marker id="loadisa-i" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#2A2632" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="loadisa-c" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#E06A4B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
   <rect x="0" y="0" width="900" height="520" fill="#F5EFE3"/>
   <g font-family="system-ui, sans-serif" fill="#2A2632" text-anchor="middle">
@@ -23,43 +23,75 @@
   <path d="M726 270 L688 270" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#loadisa-i)"/>
   <path d="M726 292 L688 292" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#loadisa-i)"/>
   <rect x="396" y="60" width="290" height="290" rx="8" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
-  <text x="541" y="84" font-size="13" font-weight="700">البوابة: 32 مكانًا</text>
-  <rect x="662" y="100" width="7" height="26" rx="1.5" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
-  <rect x="654" y="100" width="7" height="26" rx="1.5" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
-  <rect x="646" y="100" width="7" height="26" rx="1.5" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
-  <rect x="638" y="100" width="7" height="26" rx="1.5" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
-  <rect x="630" y="100" width="7" height="26" rx="1.5" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
-  <rect x="622" y="100" width="7" height="26" rx="1.5" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
-  <rect x="614" y="100" width="7" height="26" rx="1.5" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
-  <rect x="606" y="100" width="7" height="26" rx="1.5" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
-  <rect x="598" y="100" width="7" height="26" rx="1.5" fill="#FDEDE6" stroke="#E06A4B" stroke-width="1.2" stroke-dasharray="3 2"/>
-  <rect x="590" y="100" width="7" height="26" rx="1.5" fill="#FDEDE6" stroke="#E06A4B" stroke-width="1.2" stroke-dasharray="3 2"/>
-  <rect x="582" y="100" width="7" height="26" rx="1.5" fill="#FDEDE6" stroke="#E06A4B" stroke-width="1.2" stroke-dasharray="3 2"/>
-  <rect x="574" y="100" width="7" height="26" rx="1.5" fill="#FDEDE6" stroke="#E06A4B" stroke-width="1.2" stroke-dasharray="3 2"/>
-  <rect x="566" y="100" width="7" height="26" rx="1.5" fill="#FDEDE6" stroke="#E06A4B" stroke-width="1.2" stroke-dasharray="3 2"/>
-  <rect x="558" y="100" width="7" height="26" rx="1.5" fill="#FDEDE6" stroke="#E06A4B" stroke-width="1.2" stroke-dasharray="3 2"/>
-  <rect x="550" y="100" width="7" height="26" rx="1.5" fill="#FDEDE6" stroke="#E06A4B" stroke-width="1.2" stroke-dasharray="3 2"/>
-  <rect x="542" y="100" width="7" height="26" rx="1.5" fill="#FDEDE6" stroke="#E06A4B" stroke-width="1.2" stroke-dasharray="3 2"/>
-  <rect x="534" y="100" width="7" height="26" rx="1.5" fill="#FDEDE6" stroke="#E06A4B" stroke-width="1.2" stroke-dasharray="3 2"/>
-  <rect x="526" y="100" width="7" height="26" rx="1.5" fill="#FDEDE6" stroke="#E06A4B" stroke-width="1.2" stroke-dasharray="3 2"/>
-  <rect x="518" y="100" width="7" height="26" rx="1.5" fill="#FDEDE6" stroke="#E06A4B" stroke-width="1.2" stroke-dasharray="3 2"/>
-  <rect x="510" y="100" width="7" height="26" rx="1.5" fill="#FDEDE6" stroke="#E06A4B" stroke-width="1.2" stroke-dasharray="3 2"/>
-  <rect x="502" y="100" width="7" height="26" rx="1.5" fill="#FDEDE6" stroke="#E06A4B" stroke-width="1.2" stroke-dasharray="3 2"/>
-  <rect x="494" y="100" width="7" height="26" rx="1.5" fill="#FDEDE6" stroke="#E06A4B" stroke-width="1.2" stroke-dasharray="3 2"/>
-  <rect x="486" y="100" width="7" height="26" rx="1.5" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
-  <rect x="478" y="100" width="7" height="26" rx="1.5" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
-  <rect x="470" y="100" width="7" height="26" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
-  <rect x="462" y="100" width="7" height="26" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
-  <rect x="454" y="100" width="7" height="26" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
-  <rect x="446" y="100" width="7" height="26" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
-  <rect x="438" y="100" width="7" height="26" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
-  <rect x="430" y="100" width="7" height="26" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
-  <rect x="422" y="100" width="7" height="26" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
-  <rect x="414" y="100" width="7" height="26" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
-  <text x="669" y="144" font-size="12" fill="#A8412A" text-anchor="start">أ: حصتها 8، و14 مستعارة</text>
+  <text x="541" y="84" font-size="13" font-weight="700">البوابة: 64 مكانًا</text>
+  <rect x="662" y="96" width="7" height="14" rx="1.5" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <rect x="654" y="96" width="7" height="14" rx="1.5" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <rect x="646" y="96" width="7" height="14" rx="1.5" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <rect x="638" y="96" width="7" height="14" rx="1.5" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <rect x="630" y="96" width="7" height="14" rx="1.5" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <rect x="622" y="96" width="7" height="14" rx="1.5" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <rect x="614" y="96" width="7" height="14" rx="1.5" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <rect x="606" y="96" width="7" height="14" rx="1.5" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <rect x="598" y="96" width="7" height="14" rx="1.5" fill="#FDEDE6" stroke="#E06A4B" stroke-width="1.2" stroke-dasharray="3 2"/>
+  <rect x="590" y="96" width="7" height="14" rx="1.5" fill="#FDEDE6" stroke="#E06A4B" stroke-width="1.2" stroke-dasharray="3 2"/>
+  <rect x="582" y="96" width="7" height="14" rx="1.5" fill="#FDEDE6" stroke="#E06A4B" stroke-width="1.2" stroke-dasharray="3 2"/>
+  <rect x="574" y="96" width="7" height="14" rx="1.5" fill="#FDEDE6" stroke="#E06A4B" stroke-width="1.2" stroke-dasharray="3 2"/>
+  <rect x="566" y="96" width="7" height="14" rx="1.5" fill="#FDEDE6" stroke="#E06A4B" stroke-width="1.2" stroke-dasharray="3 2"/>
+  <rect x="558" y="96" width="7" height="14" rx="1.5" fill="#FDEDE6" stroke="#E06A4B" stroke-width="1.2" stroke-dasharray="3 2"/>
+  <rect x="550" y="96" width="7" height="14" rx="1.5" fill="#FDEDE6" stroke="#E06A4B" stroke-width="1.2" stroke-dasharray="3 2"/>
+  <rect x="542" y="96" width="7" height="14" rx="1.5" fill="#FDEDE6" stroke="#E06A4B" stroke-width="1.2" stroke-dasharray="3 2"/>
+  <rect x="534" y="96" width="7" height="14" rx="1.5" fill="#FDEDE6" stroke="#E06A4B" stroke-width="1.2" stroke-dasharray="3 2"/>
+  <rect x="526" y="96" width="7" height="14" rx="1.5" fill="#FDEDE6" stroke="#E06A4B" stroke-width="1.2" stroke-dasharray="3 2"/>
+  <rect x="518" y="96" width="7" height="14" rx="1.5" fill="#FDEDE6" stroke="#E06A4B" stroke-width="1.2" stroke-dasharray="3 2"/>
+  <rect x="510" y="96" width="7" height="14" rx="1.5" fill="#FDEDE6" stroke="#E06A4B" stroke-width="1.2" stroke-dasharray="3 2"/>
+  <rect x="502" y="96" width="7" height="14" rx="1.5" fill="#FDEDE6" stroke="#E06A4B" stroke-width="1.2" stroke-dasharray="3 2"/>
+  <rect x="494" y="96" width="7" height="14" rx="1.5" fill="#FDEDE6" stroke="#E06A4B" stroke-width="1.2" stroke-dasharray="3 2"/>
+  <rect x="486" y="96" width="7" height="14" rx="1.5" fill="#FDEDE6" stroke="#E06A4B" stroke-width="1.2" stroke-dasharray="3 2"/>
+  <rect x="478" y="96" width="7" height="14" rx="1.5" fill="#FDEDE6" stroke="#E06A4B" stroke-width="1.2" stroke-dasharray="3 2"/>
+  <rect x="470" y="96" width="7" height="14" rx="1.5" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <rect x="462" y="96" width="7" height="14" rx="1.5" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <rect x="454" y="96" width="7" height="14" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="446" y="96" width="7" height="14" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="438" y="96" width="7" height="14" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="430" y="96" width="7" height="14" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="422" y="96" width="7" height="14" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="414" y="96" width="7" height="14" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="662" y="113" width="7" height="14" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="654" y="113" width="7" height="14" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="646" y="113" width="7" height="14" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="638" y="113" width="7" height="14" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="630" y="113" width="7" height="14" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="622" y="113" width="7" height="14" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="614" y="113" width="7" height="14" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="606" y="113" width="7" height="14" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="598" y="113" width="7" height="14" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="590" y="113" width="7" height="14" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="582" y="113" width="7" height="14" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="574" y="113" width="7" height="14" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="566" y="113" width="7" height="14" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="558" y="113" width="7" height="14" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="550" y="113" width="7" height="14" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="542" y="113" width="7" height="14" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="534" y="113" width="7" height="14" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="526" y="113" width="7" height="14" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="518" y="113" width="7" height="14" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="510" y="113" width="7" height="14" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="502" y="113" width="7" height="14" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="494" y="113" width="7" height="14" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="486" y="113" width="7" height="14" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="478" y="113" width="7" height="14" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="470" y="113" width="7" height="14" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="462" y="113" width="7" height="14" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="454" y="113" width="7" height="14" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="446" y="113" width="7" height="14" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="438" y="113" width="7" height="14" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="430" y="113" width="7" height="14" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="422" y="113" width="7" height="14" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <rect x="414" y="113" width="7" height="14" rx="1.5" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="669" y="144" font-size="12" fill="#A8412A" text-anchor="start">أ: حصتها 8، و16 مستعارة</text>
   <text x="669" y="163" font-size="12" fill="#146B5C" text-anchor="start">ب: 2 مستخدمة، ضمن حصتها 8</text>
-  <text x="669" y="182" font-size="12" text-anchor="start">الثمانية الأخيرة: محجوزة لـ ب ولمن يستيقظ</text>
-  <text x="669" y="214" font-size="12" font-weight="700" fill="#A8412A" text-anchor="start">أ تطلب المزيد: 429، أعد المحاولة</text>
+  <text x="669" y="182" font-size="12" text-anchor="start">الباقي: فارغ لـ ب ولمن يستيقظ</text>
+  <text x="669" y="214" font-size="12" font-weight="700" fill="#A8412A" text-anchor="start">أ تطلب المزيد: 429 عند سقفها 24</text>
   <text x="669" y="236" font-size="12" font-weight="700" fill="#146B5C" text-anchor="start">ب تطلب: تُقبل فورًا</text>
   <text x="669" y="264" font-size="11.5" fill="#5B5465" text-anchor="start">أ لا تتجاوز 24. وحين تحتاج ب مكانًا</text>
   <text x="669" y="281" font-size="11.5" fill="#5B5465" text-anchor="start">لا تستعير أ جديدًا، وتعود أماكنها</text>

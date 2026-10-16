@@ -1,5 +1,5 @@
 import {Database} from 'bun:sqlite';
-import {GATEWAY} from '../gateway/shares';
+import {ENVIRONMENT_LIMIT,GATEWAY} from '../gateway/shares';
 import {validatePlacement,validatePlacementTransition,resolveRuntimePlacement,placementServices,type RuntimePlacement,type RuntimeRouting} from './placement';
 import {randomUUID,randomBytes,createHash} from 'node:crypto';
 import {chmodSync} from 'node:fs';
@@ -128,10 +128,8 @@ function credentialShape(value:string):boolean {
  * authentication, never request bodies or application JWTs. Not an HTTP API.
  * Placement and runtime credentials deliberately do not belong to ownership.
  */
-/** Environments one installation may hold. Mirrors ENVIRONMENT_LIMIT in lab/durable_runtime.py,
- * which stays the enforcing check; this one refuses before a job is queued, so the request
- * answers 409 instead of queueing work the worker must then refuse. */
-export const ENVIRONMENT_LIMIT=4;
+/** Environments one installation may hold: src/gateway/shares.ts, beside the gateway total it sizes. */
+export {ENVIRONMENT_LIMIT};
 
 /** Bumped with each step of Catalog.migrate(). */
 export const CATALOG_SCHEMA_VERSION=4;

@@ -7,7 +7,7 @@ import durable_runtime as runtime
 class AdmissionTests(unittest.TestCase):
     def setUp(self):
         self.runtime = runtime.Runtime.__new__(runtime.Runtime)
-        self.runtime.values = {'environments': {'e_'+f'{i:024x}': {} for i in range(4)}}
+        self.runtime.values = {'environments': {'e_'+f'{i:024x}': {} for i in range(runtime.ENVIRONMENT_LIMIT)}}
 
     def test_full_runtime_refuses_before_persistence_or_sql(self):
         with patch.object(runtime, 'inspect', return_value={'owned': True}), patch.object(runtime, 'atomic') as persist, patch.object(runtime.lab, 'provision_environment') as provision:
@@ -15,7 +15,7 @@ class AdmissionTests(unittest.TestCase):
                 self.runtime.provision('e_'+'f'*24)
             persist.assert_not_called()
             provision.assert_not_called()
-            self.assertEqual(len(self.runtime.values['environments']), 4)
+            self.assertEqual(len(self.runtime.values['environments']), runtime.ENVIRONMENT_LIMIT)
 
     def test_direct_reconciliation_requires_worker_receipt(self):
         with patch.object(runtime.source_fence,'is_fenced',return_value=False), patch.object(runtime, 'inspect', return_value={'owned': True}), patch.object(runtime, 'atomic') as persist, patch.object(runtime.lab, 'provision_environment', side_effect=RuntimeError('reached reconciliation')):

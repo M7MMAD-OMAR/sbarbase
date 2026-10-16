@@ -24,7 +24,7 @@ Each environment gets its own database, its own service logins and its own keys,
 
 *No data mixing: A's key, tokens and logins open only A's database.*
 
-![A burst on environment A fills its guaranteed 8 gateway slots and borrows idle ones, while the last 8 of 32 stay free, so environment B is still admitted at once and A's extra requests get 429; behind the gateway each environment has its own containers with CPU, memory and IO limits, and its own connection limits in the shared engine](../diagrams/load-isolation.svg)
+![A burst on environment A fills its guaranteed 8 gateway slots and borrows idle ones up to its ceiling of 24 of the gateway's 64, so environment B is still admitted at once and A's extra requests get 429; behind the gateway each environment has its own containers with CPU, memory and IO limits, and its own connection limits in the shared engine](../diagrams/load-isolation.svg)
 
 *A busy environment uses the idle server, but never the share its neighbours need. The limits are not calibrated under sustained load.*
 

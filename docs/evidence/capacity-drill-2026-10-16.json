@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "name": "capacity-drill",
+  "date": "2026-10-16",
+  "scope": "One container of the pinned database image (public.ecr.aws/supabase/postgres:17.6.1.166) on the workstation, with the database tier's limits where stated (1024 MiB memory and swap; CPUs as listed). N databases, each initialised with pgbench scale 5, then all loaded at once with pgbench's default read and write transaction for the stated seconds, each with the stated number of client connections (18 is an environment's base connection limit: Auth 6, REST 6, Storage 6). Peak memory is the highest docker stats sample, taken every two seconds. No Auth, REST, Storage, Realtime or gateway process ran; no logical decoding, no PostgREST schema cache, no application queries. It measures the shared database under connection load, not a whole installation and not real traffic.",
+  "script": "Kept in the session scratchpad, not in the repository: docker run with --memory and --cpus, CREATE DATABASE, pgbench -i -s 5, then pgbench -c CLIENTS -j 2 -T SECONDS -n per database in parallel.",
+  "runs": [
+    {"environments": 4, "max_connections": 100, "clients_per_environment": 18, "cpus": 2, "seconds": 60, "failed_runs": 0, "total_tps": 2488, "avg_latency_ms": 28.9, "peak_memory_mib": 353.1, "oom_killed": false},
+    {"environments": 8, "max_connections": 200, "clients_per_environment": 18, "cpus": 2, "seconds": 60, "failed_runs": 0, "total_tps": 2102, "avg_latency_ms": 68.5, "peak_memory_mib": 513.1, "oom_killed": false},
+    {"environments": 12, "max_connections": 260, "clients_per_environment": 18, "cpus": 2, "seconds": 60, "failed_runs": 0, "total_tps": 1979, "avg_latency_ms": 109.2, "peak_memory_mib": 674.6, "oom_killed": false},
+    {"environments": 10, "max_connections": 300, "clients_per_environment": 28, "cpus": 2, "seconds": 90, "failed_runs": 0, "total_tps": 2934, "avg_latency_ms": 107.7, "peak_memory_mib": 797, "oom_killed": false},
+    {"environments": 4, "max_connections": 100, "clients_per_environment": 18, "cpus": 1, "seconds": 60, "failed_runs": 0, "total_tps": 3657, "avg_latency_ms": 85.5, "peak_memory_mib": 343.4, "oom_killed": false},
+    {"environments": 8, "max_connections": 200, "clients_per_environment": 18, "cpus": 1, "seconds": 60, "failed_runs": 0, "total_tps": 2364, "avg_latency_ms": 99.5, "peak_memory_mib": 513, "oom_killed": false},
+    {"environments": 8, "max_connections": 200, "clients_per_environment": 23, "cpus": 1, "seconds": 60, "failed_runs": 0, "total_tps": 2201, "avg_latency_ms": 127.0, "peak_memory_mib": 591.8, "oom_killed": false}
+  ],
+  "alter_system": "In the same image, ALTER SYSTEM SET max_connections = 200 as supabase_admin, then docker restart of the same container: max_connections read 200, source configuration file /var/lib/postgresql/data/postgresql.auto.conf.",
+  "server_shape": "The real server has 4 cores and 16 GiB. Placement admits CPU ceilings up to twice the cores after one is kept for the host (6), and 1.75 CPUs for an empty installation plus 0.5 per environment: eight environments without Realtime or Edge Functions.",
+  "conclusion": "Eight environments at their base connection limit fit the 1 GiB, one CPU database tier with room to spare under this load; latency under every client running at once rose from about 86 ms (4) to about 100 ms (8). These are allocation limits checked by a synthetic drill, not measured capacity for real traffic."
+}

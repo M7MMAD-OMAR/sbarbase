@@ -230,15 +230,19 @@ test('retired gateway shares remain reserved through restoration',async()=>{
  const f=fixture();try{
   const neighbor=f.catalog.createEnvironment('alice',f.project,'neighbor'),job=f.catalog.claimProvision()!;
   f.catalog.finishProvision(neighbor,job.claim!,true);
+  const third=f.catalog.createEnvironment('alice',f.project,'third'),thirdJob=f.catalog.claimProvision()!;
+  f.catalog.finishProvision(third,thirdJob.claim!,true);
   f.catalog.setGatewayShare('alice',f.environment,24);
-  expect(f.catalog.gatewayShareState('alice',neighbor).allocated).toBe(32);
+  f.catalog.setGatewayShare('alice',third,24);
+  // 24 + 8 + 24 = 56 of 64: raising the neighbour to 24 would need 72.
+  expect(f.catalog.gatewayShareState('alice',neighbor).allocated).toBe(56);
   f.catalog.deleteEnvironment('alice',f.environment);
   expect(()=>f.catalog.setGatewayShare('alice',neighbor,24)).toThrow('Shares exceed gateway capacity');
   await runLifecycleOperation(f.catalog,adapter,f.catalog.lifecycle('alice',f.environment)!);
-  expect(f.catalog.gatewayShareState('alice',neighbor).allocated).toBe(32);
+  expect(f.catalog.gatewayShareState('alice',neighbor).allocated).toBe(56);
   f.catalog.restoreEnvironment('alice',f.environment,randomUUID());
   await runLifecycleOperation(f.catalog,adapter,f.catalog.lifecycle('alice',f.environment)!);
-  expect(f.catalog.gatewayShareState('alice',neighbor).allocated).toBe(32);
+  expect(f.catalog.gatewayShareState('alice',neighbor).allocated).toBe(56);
   expect(f.catalog.gatewayShareState('alice',f.environment).share).toBe(24);
  }finally{f.catalog.close();}
 });

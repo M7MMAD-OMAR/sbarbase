@@ -1,5 +1,7 @@
 # Local PostgreSQL connection budget
 
+Update 2026-10-16: the runtime raises the cluster's `max_connections` to 200 (`connection_budget.MAX_CONNECTIONS`) on start, with `ALTER SYSTEM` and one restart of the same container, before the HBA writer takes the database (`durable_runtime.py` `ensure_connection_capacity`). The environment guard is eight: 8 x 18 + 12 shared + 10 reserve = 166 of 197 usable, which leaves 31 for Studio, Realtime and direct access, each admitted only while it fits. A rebuilt cluster starts at the image's 100 and is raised on its first start; a way back keeps the higher value. Evidence: [capacity drill](../evidence/capacity-drill-2026-10-16.json).
+
 The durable runtime now enforces `CONNECTION LIMIT 6` on each environment's Auth, REST and Storage login, and `CONNECTION LIMIT 18` on its database. Management Auth and Storage control each have six-login and six-database limits. Original service pools remain configured at three; extra login slots accommodate listeners, initialization and short overlap. These local constants still need workload calibration.
 
 Before allocating a new environment, provisioning reads the running PostgreSQL `max_connections`, `superuser_reserved_connections` and `reserved_connections`. It requires:

@@ -29,13 +29,15 @@ test('a client reads its share but not the installation, and cannot change it',a
 });
 
 test('the operator sees the allocation, and a raise that would overcommit the gateway is refused',async()=>{
- const {catalog,ready,call}=clients(),[shop]=ready;                          // 4 x 8 = 32 already
- expect((await (await call(shop!.environment,'alice')).json()).data).toMatchObject({operator:true,total:32,allocated:32});
- const over=await call(shop!.environment,'alice','PUT',{share:9});
+ const {catalog,ready,call}=clients(),[shop]=ready;                          // 4 x 8 = 32 of 64
+ expect((await (await call(shop!.environment,'alice')).json()).data).toMatchObject({operator:true,total:GATEWAY.total,allocated:32});
+ expect(GATEWAY.total).toBe(64);
+ for(const environment of [ready[1]!,ready[2]!])expect((await call(environment.environment,'alice','PUT',{share:24})).status).toBe(200);
+ const over=await call(shop!.environment,'alice','PUT',{share:9});          // 64 + 1
  expect(over.status).toBe(409);expect((await over.json()).message).toBe('Shares exceed gateway capacity');
- expect((await call(ready[1]!.environment,'alice','PUT',{share:4})).status).toBe(200);
+ expect((await call(ready[1]!.environment,'alice','PUT',{share:20})).status).toBe(200);
  const raised=await call(shop!.environment,'alice','PUT',{share:12});
- expect(raised.status).toBe(200);expect((await raised.json()).data).toMatchObject({share:12,allocated:32});
+ expect(raised.status).toBe(200);expect((await raised.json()).data).toMatchObject({share:12,allocated:64});
  expect(catalog.gatewayShare(shop!.runtime)).toBe(12);
  for(const body of [{share:0},{share:25},{share:1.5},{share:'8'},{share:8,extra:1}])
   expect((await call(shop!.environment,'alice','PUT',body)).status).toBe(400);

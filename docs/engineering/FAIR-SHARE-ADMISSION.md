@@ -1,5 +1,7 @@
 # Fair share admission: a guaranteed share plus borrowed room
 
+Update 2026-10-16: the gateway total is the default share times the environment guard, 8 x 8 = 64 (`src/gateway/shares.ts`), so every environment's default share fits at once. The figures of 32 below describe the four-environment guard of the time.
+
 Status: design record, 2026-09-24. The gateway step, the saturation notice and the Telegram
 channel are implemented; memory, CPU and connection borrowing are the later steps listed at the
 end.

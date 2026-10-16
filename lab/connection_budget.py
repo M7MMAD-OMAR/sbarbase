@@ -1,4 +1,4 @@
-"""Conservative connection policy for the pinned four-environment local runtime."""
+"""Conservative connection policy for the shared database cluster."""
 SERVICE_LIMIT = 6
 ENVIRONMENT_LIMIT = 3*SERVICE_LIMIT
 SHARED_LIMIT = 2*SERVICE_LIMIT
@@ -10,6 +10,11 @@ DIRECT_CONNECTIONS = 10
 # The pinned Realtime opens up to ten tenant connections (its Database.tenant_pool_requirements),
 # two metadata connections and a probe, all as the environment's Realtime login.
 REALTIME_CONNECTIONS = 16
+# The cluster's max_connections, which the runtime raises at start (durable_runtime.py
+# ensure_connection_capacity): eight environments at their base limit (8 x 18), the shared logins
+# and the operations reserve take 166, which leaves 31 of the 197 usable for Studio, Realtime and
+# direct access, each admitted only while it fits. The image's default of 100 held four.
+MAX_CONNECTIONS = 200
 
 
 def database_limit(studio=False, realtime=False, direct=False):
