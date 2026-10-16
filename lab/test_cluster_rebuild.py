@@ -380,6 +380,15 @@ class RebuildTests(unittest.TestCase):
             handlers[rebuild.signal.SIGTERM](rebuild.signal.SIGTERM, None)
         self.assertEqual(stopped.exception.code, 128 + rebuild.signal.SIGTERM)
 
+    def test_the_version_given_to_image_at_reaches_the_image_choice(self):
+        asked = []
+        for argv, expected in (([STAMP, '--image-at', 'v1'], 'v1'), ([STAMP], None)):
+            with self.subTest(argv=argv), patch.object(rebuild.signal, 'signal'), \
+                    patch.object(rebuild, 'chosen_image', lambda commit=None: asked.append(commit) or ('ref', IMAGE)), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(rebuild.main(argv), 0)
+            self.assertEqual(asked[-1], expected)
+
     def test_the_logins_created_closed_are_recorded_and_reported(self):
         output = io.StringIO()
         without = {name: value for name, value in KNOWN.items() if name != f'{E}_developer'}
