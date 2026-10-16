@@ -311,7 +311,8 @@ def report(checks,title='Preflight'):
 
 def operation_lock():
     """One installation mutation at a time; a held lock is a clean refusal."""
-    STATE.mkdir(parents=True,exist_ok=True)
+    import run
+    run.private_dir(STATE)
     handle=(STATE/'operation.lock').open('a')
     try:fcntl.flock(handle,fcntl.LOCK_EX|fcntl.LOCK_NB)
     except BlockingIOError:

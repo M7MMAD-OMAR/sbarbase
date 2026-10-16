@@ -120,7 +120,7 @@ if __name__=='__main__':
     if args.command == 'up':
         docker_profile.require_or_exit()
     try:
-        runtime.STATE.mkdir(parents=True,exist_ok=True)
+        lab.private_dir(runtime.STATE)
         if args.command=='up':
             inherited=os.environ.get('SBARBASE_WORKER_FD')
             with hba_startup.acquire(runtime.STATE,worker_fd=int(inherited) if inherited else None) as startup:

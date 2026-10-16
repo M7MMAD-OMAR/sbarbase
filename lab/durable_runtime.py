@@ -346,7 +346,7 @@ def token(secret, role):
 class Runtime:
     def __init__(self,*,startup=None,operation_fd=None,worker_runtime=None):
         docker_profile.require_supported()
-        STATE.mkdir(parents=True, exist_ok=True)
+        lab.private_dir(STATE)
         private_directories.prepare(lab.ROOT)
         # Verify ignore rules before persisting generated credentials.
         import subprocess
@@ -1146,7 +1146,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     if args.command != 'stop':
         docker_profile.require_or_exit()
-    STATE.mkdir(parents=True, exist_ok=True)
+    lab.private_dir(STATE)
     try:
         if args.command=='up':
             inherited=os.environ.get('SBARBASE_WORKER_FD')

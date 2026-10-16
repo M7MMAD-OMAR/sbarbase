@@ -891,7 +891,8 @@ def main():
         raise SystemExit('Usage: /usr/bin/python3 lab/dev.py')
     docker_profile.require_supported()
     os.chdir(ROOT)
-    STATE.mkdir(parents=True, exist_ok=True)
+    import run
+    run.private_dir(STATE)
     stop_event = threading.Event()
     signal.signal(signal.SIGTERM, lambda *_: stop_event.set())
     signal.signal(signal.SIGINT, lambda *_: stop_event.set())

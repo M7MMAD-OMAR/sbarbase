@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import secrets
+import stat
 import subprocess
 import time
 import urllib.request
@@ -194,6 +195,26 @@ def launch_services(e, v, pins):
     launch(auth, pins['auth']['id'], auth_configuration(e, v, DB), '256m', .25, 9999)
     launch(rest, pins['rest']['id'], rest_configuration(e, v, DB), '256m', .25, 3000)
     return {'auth': port(auth,9999), 'rest': port(rest,3000)}
+
+
+
+def private_dir(path):
+    """Create ``path`` (and any missing parent) as a directory only this account can open, and
+    close one an earlier run left open to its group or others: a server installed under umask
+    002 had ``.lab/upstream`` at 775, and every restore refused its journal there. A link, another
+    kind of file or another owner is refused, never changed."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        path.mkdir(mode=0o700)
+    except FileExistsError:
+        pass
+    info = os.lstat(path)
+    if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid():
+        raise RuntimeError(f'{path} must be a directory of this account')
+    if stat.S_IMODE(info.st_mode) != 0o700:
+        os.chmod(path, 0o700, follow_symlinks=False)
+    return path
 
 
 def up():
