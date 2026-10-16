@@ -570,7 +570,7 @@ class EndToEndTests(unittest.TestCase):
 class PreconditionTests(unittest.TestCase):
     def test_the_image_is_the_current_lock_or_the_lock_of_a_version_proven_on_the_daemon(self):
         seen = []
-        with patch.object(rebuild.backup, 'image_pin', return_value={'id': 'current'}), \
+        with patch.object(rebuild.backup, 'image_pin', lambda name: {'id': 'current'} if name == 'distro-image.lock.json' else None), \
                 patch.object(rebuild.backup, 'resolve_image', lambda pin: seen.append(pin) or ('ref', IMAGE)):
             self.assertEqual(rebuild.chosen_image(), ('ref', IMAGE))
             with patch.object(rebuild.upgrade, 'resolve', lambda ref: 'c' * 40), \

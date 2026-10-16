@@ -2,8 +2,8 @@
 
 A backup run (lab/backup.py create all) dumps each database; roles live in the cluster, outside
 every dump. Rebuilding the cluster from a run (upstream currency P3,
-docs/engineering/WHOLE-CLUSTER-RESTORE.md) provisions the logins again with the runtime's own
-code, and this record is what the rebuilt cluster is checked against: which managed roles
+docs/engineering/WHOLE-CLUSTER-RESTORE.md) creates the logins again from this record, with the
+passwords the runtime keeps, and this record is what the rebuilt cluster is checked against: which managed roles
 existed, their attributes, login state, connection limit, role-wide settings and the roles they
 are granted with each grant's INHERIT, SET and ADMIN options, the parameter privileges granted to
 them (GRANT SET ON PARAMETER, which no dump carries), and the image the cluster ran. Passwords
