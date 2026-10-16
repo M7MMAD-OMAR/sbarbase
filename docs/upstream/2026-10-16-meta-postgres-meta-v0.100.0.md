@@ -11,7 +11,7 @@ One release, [v0.100.0](https://github.com/supabase/postgres-meta/releases/tag/v
 
 ## Affected surfaces
 
-postgres-meta only: one container per environment while a Studio session runs (`lab/studio.py`, tier `operator.meta`), reached only by that session's Studio on the internal network. It connects as the same `<e>_studio` login, so it can do no more than that login. No schema, HBA, Auth, REST or Storage change.
+postgres-meta only: one container per environment while a Studio session runs (`lab/studio.py`, tier `operator.meta`), started for that session's Studio. It connects as the same `<e>_studio` login, so it can do no more than that login. It sits on the shared internal runtime network and has no authentication of its own, so while a session runs any container on that network can reach it, other environments' Edge Functions included. That exposure predates this update, which does not change it, and is tracked as its own fix. No schema, HBA, Auth, REST or Storage change.
 
 ## Breaking changes and migrations
 
