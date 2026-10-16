@@ -622,11 +622,12 @@ def unsigned():
 # supervisor under systemd, and followed from outside the service.
 
 MANAGEMENT_KEY = 'sb_publishable_sbarbase_local_management'
-# A GoTrue release other than the pinned one, by its index digest: the attended release (see
-# NEWER_REST for when it is an earlier one).
-NEWER_AUTH = {'tag': 'public.ecr.aws/supabase/gotrue:v2.197.0',
-              'id': 'sha256:1736a63078f5922b198c4cbe50f80ab9a2d3b54fe8b7b6cfb2e9dc5dbbc12c6b',
-              'digests': ['public.ecr.aws/supabase/gotrue@sha256:1736a63078f5922b198c4cbe50f80ab9a2d3b54fe8b7b6cfb2e9dc5dbbc12c6b']}
+# A GoTrue release other than the pinned one, by its index digest: the attended release. Since
+# step A4 pinned v2.197.0, the newest release, it is the earlier v2.196.0, a test-only candidate
+# (candidate_move names the direction, as for NEWER_REST).
+NEWER_AUTH = {'tag': 'public.ecr.aws/supabase/gotrue:v2.196.0',
+              'id': 'sha256:c0c25187a6b835e65a6f6e6c6b39d090e832d40e6de5186f2c038e0411944232',
+              'digests': ['public.ecr.aws/supabase/gotrue@sha256:c0c25187a6b835e65a6f6e6c6b39d090e832d40e6de5186f2c038e0411944232']}
 # The releases, in the order they are published, each on top of the one before:
 #   good       v0.9.1  the `good` candidate (another PostgREST), installed from the console
 #   broken     v0.9.2  the `bad` candidate (a PostgREST that never answers), moved back by itself
