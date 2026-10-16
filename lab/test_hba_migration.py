@@ -1353,6 +1353,65 @@ class SupersedeTests(ImageChangeTests.__base__):
         self.assertEqual(self.docker.removed,[])
         self.assertFalse(list((self.state/migration.ARCHIVE).glob('*/'+migration.SUPERSEDED)))
 
+    def test_a_failed_inspection_is_never_read_as_no_replacement(self):
+        self.stuck()
+        original=self.docker.handle
+        listed=self.docker.result(stdout='b'*64+' '+TARGET.name+'\n')
+
+        def transient(args,data):
+            if args[0]=='inspect' and args[1]==TARGET.name:return self.docker.result(returncode=1)
+            if args[0]=='ps':return listed
+            return original(args,data)
+        self.docker.handle=transient
+        with self.assertRaisesRegex(RuntimeError,'absence is not proven'):
+            self.supersede()
+        self.assertFalse(list((self.state/migration.ARCHIVE).glob('*/'+migration.SUPERSEDED)))
+        self.assertTrue(migration.present(self.state))
+        self.docker.handle=original
+        self.supersede()
+        self.assertEqual(self.superseded()['replacement'],'b'*64)
+
+    def test_an_archived_replacement_whose_inspection_fails_is_not_read_as_removed(self):
+        self.stuck()
+        original=self.docker.handle
+        self.docker.handle=lambda args,data:self.docker.result(returncode=1) if args[0]=='rm' else original(args,data)
+        with self.assertRaises(RuntimeError):
+            self.supersede()
+        listed=self.docker.result(stdout='b'*64+' '+TARGET.name+'\n')
+
+        def transient(args,data):
+            if args[0]=='inspect' and args[1]=='b'*64:return self.docker.result(returncode=1)
+            if args[0]=='ps':return listed
+            return original(args,data)
+        self.docker.handle=transient
+        with self.assertRaisesRegex(RuntimeError,'absence is not proven'):
+            self.supersede()
+        self.assertTrue(migration.present(self.state))
+        self.assertEqual(self.docker.removed,[])
+
+    def test_a_removal_whose_container_is_still_listed_refuses(self):
+        self.stuck()
+        original=self.docker.handle
+        removed=[]
+
+        def lingering(args,data):
+            if args[0]=='rm' and args[-1]=='b'*64:
+                removed.append(True)
+                return self.docker.result()
+            if removed and args[0]=='inspect' and args[1]=='b'*64:return self.docker.result(returncode=1)
+            if removed and args[0]=='ps':return self.docker.result(stdout='b'*64+' '+TARGET.name+'\n')
+            return original(args,data)
+        self.docker.handle=lingering
+        with self.assertRaisesRegex(RuntimeError,'could not be removed|not proven'):
+            self.supersede()
+        self.assertTrue(migration.present(self.state))
+
+    def test_a_version_4_intent_without_a_rebuilt_volume_is_malformed(self):
+        self.stuck()
+        intent=self.supersede()
+        with self.assertRaises(ValueError):
+            migration.validate({key:value for key,value in intent.items() if key!='new_volume'})
+
     def test_a_migration_being_superseded_is_not_reconciled_on_its_own(self):
         self.stuck()
         original=self.docker.handle

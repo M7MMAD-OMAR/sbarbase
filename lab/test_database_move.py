@@ -67,6 +67,7 @@ class Fixture(unittest.TestCase):
             patch.object(move.backup, 'mark_moved', self.mark_moved),
             patch.object(move.hba_migration, 'discard_unpublished', self.discard),
             patch.object(move.database_volume, 'current', lambda state: self.volume),
+            patch.object(move, 'taken_over', lambda: getattr(self, 'taken', False)),
         ]
         for item in patches:
             item.start()
@@ -616,6 +617,56 @@ class CommandTests(unittest.TestCase):
                 contextlib.redirect_stderr(io.StringIO()) as error:
             self.assertEqual(upgrade.main(['database', '--continue']), 1)
         self.assertIn('Sbarbase is running', error.getvalue())
+
+
+
+class TakenOverTests(unittest.TestCase):
+    """A move superseded by a rebuilt cluster is finished by lab/cluster_takeover.py, never resumed."""
+
+    def setUp(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.root = Path(directory.name)
+        self.intent = None
+        self.pending = None
+        self.volume = 'sbarbase-durable-pgdata'
+        import cluster_rebuild
+        for item in (patch.object(move.runtime, 'STATE', self.root),
+                     patch.object(cluster_rebuild, 'RECORD', self.root / 'cluster-rebuild.json'),
+                     patch.object(move.hba_migration, 'present', lambda state: self.intent is not None),
+                     patch.object(move.hba_migration, 'load', lambda state: self.intent),
+                     patch.object(move.hba_migration, 'pending_superseded', lambda state: self.pending),
+                     patch.object(move.database_volume, 'current', lambda state: self.volume),
+                     patch.object(move, 'STATE_FILE', self.root / 'database-move.json')):
+            item.start()
+            self.addCleanup(item.stop)
+
+    def test_each_sign_of_a_takeover_is_seen(self):
+        self.assertFalse(move.taken_over())
+        self.intent = {'supersedes': 'm'}
+        self.assertTrue(move.taken_over())
+        self.intent = {'migration': 'm'}
+        self.assertFalse(move.taken_over())
+        self.intent, self.pending = None, {'superseded_by': 'n'}
+        self.assertTrue(move.taken_over())
+        self.pending = None
+        (self.root / 'cluster-rebuild.json').write_text(json.dumps({'phase': 'completed', 'volume': 'sbarbase-durable-pgdata-0123456789ab'}))
+        self.assertFalse(move.taken_over())
+        self.volume = 'sbarbase-durable-pgdata-0123456789ab'
+        self.assertTrue(move.taken_over())
+        (self.root / 'cluster-rebuild.json').write_text(json.dumps({'phase': 'failed', 'volume': self.volume}))
+        self.assertFalse(move.taken_over())
+
+    def test_a_taken_over_move_points_to_the_takeover_at_start_and_on_continue(self):
+        (self.root / 'database-move.json').write_text(json.dumps({'version': 1, 'phase': 'migrating', 'from': 'a' * 40,
+                                                                  'to': 'b' * 40}))
+        self.assertIn('database --continue', move.start_refusal())
+        self.intent = {'supersedes': 'm'}
+        self.assertIn('cluster_takeover.py', move.start_refusal())
+        with patch.object(move.upgrade, 'LOCK', self.root / 'upgrade.lock'), \
+                patch.object(move.upgrade, 'SUPERVISOR_LOCK', self.root / 'supervisor.lock'), \
+                self.assertRaisesRegex(move.MoveError, 'cluster_takeover.py'):
+            move.resume(run=lambda *args, **kwargs: self.fail('nothing runs'))
 
 
 if __name__ == '__main__':

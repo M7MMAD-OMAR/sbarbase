@@ -247,6 +247,8 @@ def resume(run=subprocess.run):
         record = load()
         if record is None:
             raise MoveError('No database move is recorded; start one with: lab/upgrade.py database --to REF')
+        if taken_over():
+            raise MoveError(TAKEN_OVER)
         # The old database must be down until the generation change begins; after that the
         # container that runs is the replacement it created (its record waits, or the pin already
         # names the lock image), and the rerun finishes it.
@@ -304,6 +306,31 @@ def resume(run=subprocess.run):
         print('Start Sbarbase, run the checks after the change, then resume writes: lab/write_pause.py resume <environment>')
 
 
+def taken_over():
+    """True while a rebuilt cluster is being taken into use (lab/cluster_takeover.py): a superseding
+    migration recorded or waiting, or the runtime already on the completed rebuild's volume. The move
+    is then finished by the takeover, never resumed here."""
+    import cluster_rebuild
+    if hba_migration.present(runtime.STATE):
+        try:
+            if 'supersedes' in hba_migration.load(runtime.STATE):
+                return True
+        except (OSError, RuntimeError, ValueError):
+            return False
+    try:
+        if hba_migration.pending_superseded(runtime.STATE) is not None:
+            return True
+        rebuild = json.loads(cluster_rebuild.RECORD.read_text())
+    except (OSError, ValueError, RuntimeError):
+        return False
+    return isinstance(rebuild, dict) and rebuild.get('phase') == 'completed' \
+        and rebuild.get('volume') == database_volume.current(runtime.STATE)
+
+
+TAKEN_OVER = ('The database move was superseded by a rebuilt cluster; finish with Sbarbase stopped: '
+              '/usr/bin/python3 lab/cluster_takeover.py')
+
+
 def start_refusal():
     """Why Sbarbase must not start now: a move that has begun is finished first, and a record that
     cannot be read is reviewed first."""
@@ -311,6 +338,8 @@ def start_refusal():
         record = load()
     except MoveError as error:
         return f'{error}; Sbarbase does not start until it is reviewed'
+    if record is not None and record['phase'] != 'prepared' and taken_over():
+        return TAKEN_OVER
     if record is not None and record['phase'] != 'prepared':
         return 'A database move is under way; finish it with: /usr/bin/python3 lab/upgrade.py database --continue'
     return None

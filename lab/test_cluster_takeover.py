@@ -14,6 +14,7 @@ VOLUME = 'sbarbase-durable-pgdata-0123456789ab'
 IMAGE = 'sha256:' + '1' * 64
 OTHER = 'sha256:' + '2' * 64
 FROM, TO = 'a' * 40, 'b' * 40
+ARCHIVED = 'database-move-' + 'b' * 12 + '-20261016T010000Z-superseded.json'
 STUCK = {'migration': 'm-stuck', 'volume': 'sbarbase-durable-pgdata', 'old': {'image': OTHER}, 'image': '3'}
 
 
@@ -38,6 +39,7 @@ class TakeoverTests(unittest.TestCase):
         self.from_script = 'parser.add_argument("--supersede-stuck")'
         self.pinned_image = OTHER
         self.marked = []
+        self.refusal = None
 
         @contextlib.contextmanager
         def held(*args):
@@ -65,6 +67,7 @@ class TakeoverTests(unittest.TestCase):
             patch.object(takeover.upgrade, 'now', lambda: '2026-10-16T12:00:00Z'),
             patch.object(takeover.hba_migration, 'pinned', lambda state: {'target': {'image': self.pinned_image}}),
             patch.object(takeover.backup, 'mark_moved', lambda stamp: self.marked.append(stamp)),
+            patch.object(takeover.hba_migration, 'stuck_refusal', lambda docker, state, intent: self.refusal),
         ]
         for item in patches:
             item.start()
@@ -75,6 +78,7 @@ class TakeoverTests(unittest.TestCase):
 
     def write_move(self, phase='migrating'):
         self.move = {'version': 1, 'phase': phase, 'from': FROM, 'to': TO, 'backup': '20261016T030000Z', 'marked': True,
+                     'started_at': '2026-10-16T01:00:00Z',
                      'images': {'from': '17.6', 'to': '17.11'}}
         self.move_path.write_text(json.dumps(self.move))
 
@@ -189,7 +193,7 @@ class TakeoverTests(unittest.TestCase):
         self.move_path.write_text(json.dumps(self.move))
         self.take()
         self.assertEqual(self.marked, ['20261016T030000Z'])
-        archived = json.loads((self.root / f'database-move-{TO[:12]}-superseded.json').read_text())
+        archived = json.loads((self.root / ARCHIVED).read_text())
         self.assertTrue(archived['marked'])
         self.marked.clear()
         self.write_move()
@@ -204,7 +208,37 @@ class TakeoverTests(unittest.TestCase):
                 self.assertRaisesRegex(takeover.TakeoverError, 'could not be kept from pruning'):
             self.take()
         self.assertTrue(self.move_path.exists())
-        self.assertFalse((self.root / f'database-move-{TO[:12]}-superseded.json').exists())
+        self.assertFalse((self.root / ARCHIVED).exists())
+
+    def test_a_record_that_cannot_be_superseded_refuses_before_the_checkout_moves(self):
+        self.write_move()
+        self.lock = OTHER
+        self.intent = STUCK
+        self.refusal = 'The retired container still exists; reconcile the migration instead'
+        with self.assertRaisesRegex(takeover.TakeoverError, 'still exists'):
+            self.take()
+        self.assertEqual((self.moved, self.runs), ([], []))
+        self.assertTrue(self.move_path.exists())
+
+    def test_a_migration_that_leaves_the_runtime_on_the_old_volume_is_not_finished(self):
+        def old_volume(command, cwd=None):
+            self.intent = None
+            self.pinned_image = IMAGE
+            return SimpleNamespace(returncode=0)
+        self.write_move()
+        with self.assertRaisesRegex(takeover.TakeoverError, 'did not finish'):
+            takeover.takeover(run=old_volume)
+        self.assertTrue(self.move_path.exists())
+
+    def test_two_superseded_moves_to_one_version_keep_their_own_archives(self):
+        for started in ('2026-10-16T01:00:00Z', '2026-10-17T01:00:00Z'):
+            self.write_move()
+            self.move['started_at'] = started
+            self.move_path.write_text(json.dumps(self.move))
+            self.volume = 'sbarbase-durable-pgdata'
+            self.take()
+        self.assertEqual(sorted(path.name for path in self.root.glob('database-move-*-superseded.json')),
+                         [ARCHIVED, ARCHIVED.replace('20261016', '20261017')])
 
     def test_a_superseding_migration_onto_another_volume_refuses(self):
         self.intent = {'migration': 'm', 'volume': 'sbarbase-durable-pgdata',
@@ -268,7 +302,7 @@ class TakeoverTests(unittest.TestCase):
                 self.intent = STUCK
                 self.take()
                 self.assertFalse(self.move_path.exists())
-                archived = json.loads((self.root / f'database-move-{TO[:12]}-superseded.json').read_text())
+                archived = json.loads((self.root / ARCHIVED).read_text())
                 self.assertEqual(archived['phase'], 'superseded')
                 self.assertEqual(archived['superseded_by'], {'run': '20261016T030000Z', 'volume': VOLUME, 'image': IMAGE})
                 self.assertEqual((archived['backup'], archived['marked']), ('20261016T030000Z', True))

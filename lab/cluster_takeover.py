@@ -23,11 +23,12 @@ What runs depends on the migration record:
   rebuilt volume finishes from its archive;
 - one already onto the rebuilt volume and image (an interrupted earlier run of this command): it is
   finished;
-- any other: refused, unchanged.
+- any other: refused before the checkout moves.
 
 Once the runtime names the rebuilt volume, a recorded database move that has begun is archived as
-superseded by the rebuild, beside the moves that completed, and its record removed; its backups
-are kept from pruning first. A prepared move refuses: abandon it first. Every step can be run again.
+superseded by the rebuild (database-move-<to>-<its start>-superseded.json, beside the moves that
+completed) and its record removed; its backups are kept from pruning first. Until then a start and
+lab/upgrade.py database --continue point back here (lab/database_move.py taken_over). A prepared move refuses: abandon it first. Every step can be run again.
 Unit tested only; nothing of it has run against a real daemon.
 """
 import argparse
@@ -108,6 +109,10 @@ def migration_command(record):
             return database_move.migration_command(True)
         if 'supersedes' in intent:
             raise TakeoverError('A superseding migration onto another volume is recorded; it needs review')
+        # Checked here too, so a record that cannot be superseded refuses before the checkout moves.
+        refusal = hba_migration.stuck_refusal(lab.docker, state, intent)
+        if refusal:
+            raise TakeoverError(refusal)
         return database_move.migration_command(False) + ['--to-volume', record['volume'], '--supersede-stuck']
     if hba_migration.pending_superseded(state) is not None:
         return database_move.migration_command(False) + ['--to-volume', record['volume'], '--supersede-stuck']
@@ -129,7 +134,9 @@ def retire_move(move, record):
     retired = {**move, 'phase': 'superseded', 'superseded_by': {'run': record['run'], 'volume': record['volume'],
                                                                 'image': record['image']},
                'finished_at': upgrade.now()}
-    lab.atomic(database_move.STATE_FILE.with_name(f"database-move-{move['to'][:12]}-superseded.json"), retired)
+    # Named by the move's own start, so another superseded move to the same version keeps its own.
+    started = ''.join(character for character in str(move.get('started_at', '')) if character.isalnum()) or 'unknown'
+    lab.atomic(database_move.STATE_FILE.with_name(f"database-move-{move['to'][:12]}-{started}-superseded.json"), retired)
     database_move.STATE_FILE.unlink()
 
 

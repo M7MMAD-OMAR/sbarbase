@@ -776,13 +776,46 @@ def _require_stuck(docker,state,intent,target):
         raise RuntimeError('The retired container still exists; reconcile the migration instead')
 
 
+def _proven_absent(docker,reference):
+    """True when nothing answers to ``reference`` (a container id or name): its inspection fails and
+    a listing that succeeded shows neither. A failed listing is fatal, never read as absence."""
+    if docker('inspect',reference,check=False).returncode==0:return False
+    listing=docker('ps','-a','--no-trunc','--format','{{.ID}} {{.Names}}',check=False)
+    if listing.returncode:raise RuntimeError('Container listing unavailable; absence is not proven')
+    for line in listing.stdout.splitlines():
+        fields=line.split()
+        if fields and (fields[0].startswith(reference) or reference in (fields[1].split(',') if len(fields)>1 else ())):
+            raise RuntimeError('Container inspection unavailable; absence is not proven')
+    return True
+
+
+def _stuck_replacement(docker,intent,plan):
+    """The id of the stuck replacement under the durable name, or None when nothing is there, proven."""
+    info=replacement_identity(docker,plan['name'],intent,plan)
+    if info is not None:return info['Id']
+    if not _proven_absent(docker,plan['name']):
+        raise RuntimeError('Replacement container inspection unavailable')
+    return None
+
+
 def _remove_superseded_replacement(docker,intent,plan,identifier):
     """Remove the stuck replacement named in the archive, proven again by its exact identity."""
     if identifier is None:return
     info=replacement_identity(docker,identifier,intent,plan)
-    if info is None:return
-    if docker('rm','-f',identifier,check=False).returncode or docker('inspect',identifier,check=False).returncode==0:
+    if info is None:
+        if _proven_absent(docker,identifier):return
+        raise RuntimeError('Replacement container inspection unavailable')
+    if docker('rm','-f',identifier,check=False).returncode or not _proven_absent(docker,identifier):
         raise RuntimeError('The stuck replacement container could not be removed')
+
+
+def stuck_refusal(docker,state,intent):
+    """Why the recorded migration cannot be superseded, or None; changes nothing."""
+    try:
+        _require_stuck(docker,state,intent,hba_target.Target(**intent['old']))
+    except (RuntimeError,ValueError) as error:
+        return str(error)
+    return None
 
 
 def supersede(docker,state,*,target,stuck_replacement,inventory,image,new_volume):
@@ -808,12 +841,12 @@ def supersede(docker,state,*,target,stuck_replacement,inventory,image,new_volume
                 raise RuntimeError('The superseded migration archive belongs to another intent; preserve both')
         else:
             plan=validate_replacement(intent,stuck_replacement(intent))
-            info=replacement_identity(docker,plan['name'],intent,plan)
+            identifier=_stuck_replacement(docker,intent,plan)
             archived=_publish_once(path,{'version':1,'kind':'superseded-migration','migration':intent['migration'],
                                          'superseded_by':str(uuid.uuid4()),'intent':intent,
                                          'checkpoints':{phase:read_checkpoint(state,phase)
                                                         for phase in ('old-captured','retired-archived')},
-                                         'replacement':info['Id'] if info else None,'onto':onto},
+                                         'replacement':identifier,'onto':onto},
                                    'Superseded migration record')
         if archived['onto']!=onto:
             raise RuntimeError('The superseded migration was archived for another volume, image or inventory')
