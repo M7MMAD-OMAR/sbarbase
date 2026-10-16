@@ -7,10 +7,10 @@
     ]
   },
   "meta": {
-    "tag": "public.ecr.aws/supabase/postgres-meta:v0.99.0",
-    "id": "sha256:9a079ac1c94d89629262822a4bd1902d5b1be4adb464e5a0a8fd078aaed72158",
+    "tag": "public.ecr.aws/supabase/postgres-meta:v0.100.0",
+    "id": "sha256:145325b7e39f8ef4931d6e8cfd3f6f4d655de09d72a2ccc96d9513542c2202bd",
     "digests": [
-      "public.ecr.aws/supabase/postgres-meta@sha256:9a079ac1c94d89629262822a4bd1902d5b1be4adb464e5a0a8fd078aaed72158"
+      "public.ecr.aws/supabase/postgres-meta@sha256:145325b7e39f8ef4931d6e8cfd3f6f4d655de09d72a2ccc96d9513542c2202bd"
     ]
   }
 }

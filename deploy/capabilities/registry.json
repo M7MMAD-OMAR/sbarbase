@@ -36,7 +36,7 @@
     {
       "id": "studio-images",
       "path": "lab/studio-image.lock.json",
-      "sha256": "75dbf038922eff6b53b1ff5813257cf55eca358b361fc068f3c8cb0c7a0c1ea2"
+      "sha256": "39ce29e02a71a49f07948f494f9dd895ea959256e8b9c7c43101be315fa9a234"
     },
     {
       "id": "host-images",
