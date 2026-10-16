@@ -55,7 +55,7 @@ floating tag or an unpinned component.
 | Studio | `lab/studio-image.lock.json` | public.ecr.aws/supabase/studio:2026.09.07-sha-7996410 | 94a2a9d2906e | current distributed lock | per environment, on demand |
 | postgres-meta | `lab/studio-image.lock.json` | public.ecr.aws/supabase/postgres-meta:v0.99.0 | 9a079ac1c94d | current distributed lock | scoped Studio database access |
 | Realtime | `lab/realtime-image.lock.json` | public.ecr.aws/supabase/realtime:v2.138.1 | 7a6d995635f7 | current distributed lock | optional per environment |
-| Edge Functions | `lab/functions-image.lock.json` | public.ecr.aws/supabase/edge-runtime:v1.77.0 | 5f555406dc07 | current distributed lock | optional per environment |
+| Edge Functions | `lab/functions-image.lock.json` | public.ecr.aws/supabase/edge-runtime:v1.77.4 | ad45164b7548 | staged 2026-10-16 (A2), live gate pending | optional per environment |
 
 Keep this table honest. An out-of-date pin table is treated as a bug.
 

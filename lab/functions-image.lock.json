@@ -1,7 +1,7 @@
 {
-  "tag": "public.ecr.aws/supabase/edge-runtime:v1.77.0",
-  "id": "sha256:5f555406dc0705d775323c58e27e856cca7b5b8d0ab726cc6a30b11fcfc7c6b3",
+  "tag": "public.ecr.aws/supabase/edge-runtime:v1.77.4",
+  "id": "sha256:ad45164b7548bf5820ed7be714789c17ac2865edce79a09cfb4c3756c3d365a8",
   "digests": [
-    "public.ecr.aws/supabase/edge-runtime@sha256:5f555406dc0705d775323c58e27e856cca7b5b8d0ab726cc6a30b11fcfc7c6b3"
+    "public.ecr.aws/supabase/edge-runtime@sha256:ad45164b7548bf5820ed7be714789c17ac2865edce79a09cfb4c3756c3d365a8"
   ]
 }
