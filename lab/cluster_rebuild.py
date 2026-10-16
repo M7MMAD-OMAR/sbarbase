@@ -156,8 +156,9 @@ def passwords():
 # ---------------------------------------------------------------- SQL
 
 # A list setting is stored as its SET text ("public, extensions"); quoting it whole would make
-# one name of it. Its elements are written back as they were stored, after this check.
-LIST_SETTINGS = {'search_path'}
+# one name of it. Its elements are written back as they were stored, after this check. These are
+# the settings PostgreSQL reads as lists of names that a role can carry.
+LIST_SETTINGS = {'search_path', 'temp_tablespaces', 'session_preload_libraries', 'local_preload_libraries'}
 LIST_VALUE = re.compile(r'(?:"[^"]*"|[A-Za-z_$][A-Za-z0-9_$]*)(?:, (?:"[^"]*"|[A-Za-z_$][A-Za-z0-9_$]*))*')
 
 

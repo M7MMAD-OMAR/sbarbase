@@ -83,6 +83,10 @@ class RoleSqlTests(unittest.TestCase):
         self.assertEqual(rebuild.setting_sql('search_path=public, extensions'), '"search_path" TO public, extensions')
         self.assertEqual(rebuild.setting_sql('search_path="$user", public'), '"search_path" TO "$user", public')
         self.assertEqual(rebuild.setting_sql('statement_timeout=8s'), '"statement_timeout" TO \'8s\'')
+        # Every list setting a role can carry is written back as its elements, not as one string.
+        for key in ('temp_tablespaces', 'session_preload_libraries', 'local_preload_libraries'):
+            self.assertEqual(rebuild.setting_sql(f'{key}=a, "b c"'), f'"{key}" TO a, "b c"')
+        self.assertEqual(rebuild.setting_sql('application_name=a, b'), '"application_name" TO \'a, b\'')
         for bad in ('noequals', 'Bad=1', 'search_path=public; DROP ROLE x'):
             with self.subTest(bad=bad), self.assertRaises(rebuild.RebuildError):
                 rebuild.setting_sql(bad)
@@ -143,6 +147,16 @@ class RunTests(unittest.TestCase):
         self.assertEqual(list(scopes), ['management', 'storage', E])
         self.assertEqual([value[0] for value in scopes.values()], ['management', 'storage_metadata', E])
         self.assertEqual(cluster, recorded())
+
+    def test_every_environment_the_run_lists_is_verified_and_restored_in_order(self):
+        other = 'e_' + 'b' * 24
+        self.manifest['environments'] = [other, E]
+        self.write()
+        verified = []
+        with patch.object(rebuild.backup, 'verify_scope', lambda scope, path: verified.append(scope) or {'counts': {}}):
+            scopes, _ = rebuild.load_run(STAMP)
+        self.assertEqual(list(scopes), ['management', 'storage', E, other])
+        self.assertEqual(verified, ['management', 'storage', E, other])
 
     def test_a_run_without_a_usable_inventory_or_backups_refuses(self):
         for change, reason in ((lambda m: m.pop('cluster'), 'cannot be rebuilt'),
