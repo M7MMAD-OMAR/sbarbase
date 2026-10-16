@@ -1344,6 +1344,49 @@ class SupersedeTests(ImageChangeTests.__base__):
         self.assertTrue(migration.present(self.state))
         self.assertFalse(migration.done(self.state,'old-captured'))
 
+    def test_a_migration_being_superseded_is_not_reconciled_on_its_own(self):
+        self.stuck()
+        original=self.docker.handle
+        self.docker.handle=lambda args,data:self.docker.result(returncode=1) if args[0]=='rm' else original(args,data)
+        with self.assertRaisesRegex(RuntimeError,'could not be removed'):
+            self.supersede()
+        self.docker.handle=original
+        with self.assertRaisesRegex(RuntimeError,'being superseded'):
+            self.execute(NEW_IMAGE)
+        self.assertFalse(migration.done(self.state,'new-captured'))
+        self.assertEqual(self.docker.removed,[])
+
+    def test_a_rerun_rechecks_the_stuck_state_before_removing_anything(self):
+        self.stuck()
+        with patch.object(migration,'_remove_superseded_replacement',side_effect=RuntimeError('killed')), self.assertRaises(RuntimeError):
+            self.supersede()
+        # The stuck migration moved on meanwhile (its replacement captured after all).
+        intent=migration.load(self.state)
+        migration.checkpoint(self.state,'new-captured',migration._bind(intent,{'container_id':'b'*64,'mounts':[]}))
+        with self.assertRaisesRegex(RuntimeError,'Only a migration stopped'):
+            self.supersede()
+        self.assertEqual(self.docker.removed,[])
+        self.assertTrue(migration.done(self.state,'new-captured'))
+
+    def test_no_other_migration_starts_while_a_superseded_one_waits(self):
+        self.stuck()
+        with patch.object(migration,'publish_intent',side_effect=RuntimeError('killed')), self.assertRaises(RuntimeError):
+            self.supersede()
+        with self.assertRaisesRegex(RuntimeError,'cluster_takeover'):
+            migration.publish_intent(self.state,target=TARGET,generation=self.generation,volume='fixture-pgdata',
+                                     inventory=authority.digest(DESIRED),retired_state='stopped-will-not-return',image=NEW_IMAGE)
+        self.assertFalse(migration.present(self.state))
+        self.assertEqual(self.supersede()['supersedes'],self.stuck_intent['migration'])
+
+    def test_a_stuck_migration_that_finished_after_all_is_not_waiting(self):
+        self.stuck()
+        with patch.object(migration,'publish_intent',side_effect=RuntimeError('killed')), self.assertRaises(RuntimeError):
+            self.supersede()
+        self.assertIsNotNone(migration.pending_superseded(self.state))
+        migration._publish_once(self.state/migration.ARCHIVE/self.stuck_intent['migration']/migration.EVIDENCE,
+                                {'version':1,'kind':'generation-migration'},'Generation migration evidence')
+        self.assertIsNone(migration.pending_superseded(self.state))
+
     def test_more_than_one_waiting_superseded_migration_refuses(self):
         self.stuck()
         with patch.object(migration,'publish_intent',side_effect=RuntimeError('killed')), self.assertRaises(RuntimeError):

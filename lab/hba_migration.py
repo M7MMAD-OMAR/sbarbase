@@ -291,6 +291,10 @@ def publish_intent(state,*,target,generation,volume,inventory,retired_state,imag
     if retired_state=='absent-verified':
         raise RuntimeError('Absent retired container migration is unsupported without a verified archive; '
                            'preserve the generation pin and reconcile the retired state explicitly')
+    if supersedes is None and pending_superseded(state) is not None:
+        # Its retired container is gone; only the superseding migration can start from its archive.
+        raise RuntimeError('A stuck migration was superseded and its replacement migration is not started yet; '
+                           'finish it with lab/cluster_takeover.py')
     record={'version':1,'migration':migration or str(uuid.uuid4()),'generation':generation,
             'old':asdict(target),'volume':volume,'inventory':inventory,'retired_state':retired_state}
     if image is not None and image!=target.image:
@@ -748,7 +752,10 @@ def pending_superseded(state):
     found=[]
     for path in sorted(root.glob('*/'+SUPERSEDED)) if root.is_dir() else []:
         record=_read_superseded(path)
-        if not hba_startup.present(root/record['superseded_by']/EVIDENCE):found.append(record)
+        # Waiting only while neither migration finished: a stuck one finished after all (its own
+        # evidence) was never superseded.
+        if not hba_startup.present(root/record['superseded_by']/EVIDENCE) and not hba_startup.present(path.parent/EVIDENCE):
+            found.append(record)
     if len(found)>1:
         raise RuntimeError('More than one superseded migration waits; preserve the archive for review')
     return found[0] if found else None
@@ -793,12 +800,13 @@ def supersede(docker,state,*,target,stuck_replacement,inventory,image,new_volume
         if 'supersedes' in intent:
             raise RuntimeError('A superseding migration is recorded; finish it with --reconcile')
         path=archive_directory(state,intent['migration'])/SUPERSEDED
+        # Again on every rerun until the record is gone: the state must still be the stuck one.
+        _require_stuck(docker,state,intent,target)
         if hba_startup.present(path):
             archived=_read_superseded(path)
             if authority.canonical(archived['intent'])!=authority.canonical(intent):
                 raise RuntimeError('The superseded migration archive belongs to another intent; preserve both')
         else:
-            _require_stuck(docker,state,intent,target)
             plan=validate_replacement(intent,stuck_replacement(intent))
             info=replacement_identity(docker,plan['name'],intent,plan)
             archived=_publish_once(path,{'version':1,'kind':'superseded-migration','migration':intent['migration'],
@@ -855,6 +863,9 @@ def execute(docker,state,*,replacement,desired):
         raise RuntimeError('The generation migration record was left before its intent was complete; nothing had '
                            'started, so it was removed. Start the migration again')
     intent=load(state)
+    if hba_startup.present(Path(state)/ARCHIVE/intent['migration']/SUPERSEDED):
+        raise RuntimeError('This migration is being superseded onto a rebuilt cluster; finish that with '
+                           'lab/cluster_takeover.py')
     if intent['retired_state']=='absent-verified':
         raise RuntimeError('Absent retired container migration is unsupported without a verified archive; '
                            'preserve the migration record and reconcile the retired state explicitly')

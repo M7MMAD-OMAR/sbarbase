@@ -14,7 +14,7 @@ VOLUME = 'sbarbase-durable-pgdata-0123456789ab'
 IMAGE = 'sha256:' + '1' * 64
 OTHER = 'sha256:' + '2' * 64
 FROM, TO = 'a' * 40, 'b' * 40
-STUCK = {'migration': 'm-stuck', 'volume': 'sbarbase-durable-pgdata'}
+STUCK = {'migration': 'm-stuck', 'volume': 'sbarbase-durable-pgdata', 'old': {'image': OTHER}, 'image': '3'}
 
 
 class TakeoverTests(unittest.TestCase):
@@ -36,6 +36,8 @@ class TakeoverTests(unittest.TestCase):
         self.finishes = True
         self.from_image = IMAGE
         self.from_script = 'parser.add_argument("--supersede-stuck")'
+        self.pinned_image = OTHER
+        self.marked = []
 
         @contextlib.contextmanager
         def held(*args):
@@ -61,6 +63,8 @@ class TakeoverTests(unittest.TestCase):
             patch.object(takeover.upgrade, 'git', lambda *args, check=True: self.from_script if args[0] == 'show' else ''),
             patch.object(takeover.upgrade, 'move_back', self.move_back),
             patch.object(takeover.upgrade, 'now', lambda: '2026-10-16T12:00:00Z'),
+            patch.object(takeover.hba_migration, 'pinned', lambda state: {'target': {'image': self.pinned_image}}),
+            patch.object(takeover.backup, 'mark_moved', lambda stamp: self.marked.append(stamp)),
         ]
         for item in patches:
             item.start()
@@ -84,6 +88,7 @@ class TakeoverTests(unittest.TestCase):
             self.intent = None
             self.pending = None
             self.volume = VOLUME
+            self.pinned_image = IMAGE
         return SimpleNamespace(returncode=0)
 
     def take(self):
@@ -110,12 +115,63 @@ class TakeoverTests(unittest.TestCase):
         self.assertEqual(self.runs[0][0][-1], '--supersede-stuck')
 
     def test_an_interrupted_migration_onto_the_rebuilt_volume_is_finished(self):
-        for intent in ({'migration': 'm', 'volume': 'sbarbase-durable-pgdata', 'new_volume': VOLUME},
-                       {'migration': 'm', 'volume': 'sbarbase-durable-pgdata', 'new_volume': VOLUME, 'supersedes': 'm-stuck'}):
+        for intent in ({'migration': 'm', 'volume': 'sbarbase-durable-pgdata', 'new_volume': VOLUME, 'old': {'image': IMAGE}},
+                       {'migration': 'm', 'volume': 'sbarbase-durable-pgdata', 'new_volume': VOLUME, 'supersedes': 'm-stuck',
+                        'old': {'image': OTHER}, 'image': IMAGE}):
             with self.subTest(intent=intent):
                 self.intent, self.volume, self.runs = intent, 'sbarbase-durable-pgdata', []
                 self.take()
                 self.assertEqual(self.runs[0][0][-1], '--reconcile')
+
+    def test_a_migration_onto_the_rebuilt_volume_but_another_image_refuses_unchanged(self):
+        self.write_move()
+        self.lock = OTHER
+        self.intent = {'migration': 'm', 'volume': 'sbarbase-durable-pgdata', 'new_volume': VOLUME, 'old': {'image': OTHER}}
+        with self.assertRaisesRegex(takeover.TakeoverError, 'another image'):
+            self.take()
+        self.assertEqual((self.runs, self.moved), ([], []), 'the checkout stays where it was')
+        self.assertTrue(self.move_path.exists())
+
+    def test_a_migration_that_ends_on_another_image_is_not_reported_as_finished(self):
+        def other_image(command, cwd=None):
+            self.volume = VOLUME
+            return SimpleNamespace(returncode=0)
+        self.write_move()
+        with self.assertRaisesRegex(takeover.TakeoverError, 'did not finish'):
+            takeover.takeover(run=other_image)
+        self.assertTrue(self.move_path.exists())
+
+    def test_a_refused_record_leaves_the_checkout_where_it_was(self):
+        self.write_move()
+        self.lock = OTHER
+        self.intent = {'migration': 'm', 'volume': 'sbarbase-durable-pgdata',
+                       'new_volume': 'sbarbase-durable-pgdata-ba9876543210', 'supersedes': 'm-stuck', 'old': {'image': OTHER}}
+        with self.assertRaises(takeover.TakeoverError):
+            self.take()
+        self.assertEqual(self.moved, [])
+
+    def test_an_unmarked_move_s_backups_are_kept_from_pruning_before_it_is_archived(self):
+        self.write_move()
+        self.move['marked'] = False
+        self.move_path.write_text(json.dumps(self.move))
+        self.take()
+        self.assertEqual(self.marked, ['20261016T030000Z'])
+        archived = json.loads((self.root / f'database-move-{TO[:12]}-superseded.json').read_text())
+        self.assertTrue(archived['marked'])
+        self.marked.clear()
+        self.write_move()
+        self.take()
+        self.assertEqual(self.marked, [], 'marked backups are not marked again')
+
+    def test_backups_that_cannot_be_kept_leave_the_move_recorded(self):
+        self.write_move()
+        self.move['marked'] = False
+        self.move_path.write_text(json.dumps(self.move))
+        with patch.object(takeover.backup, 'mark_moved', side_effect=takeover.backup.BackupError('no run')), \
+                self.assertRaisesRegex(takeover.TakeoverError, 'could not be kept from pruning'):
+            self.take()
+        self.assertTrue(self.move_path.exists())
+        self.assertFalse((self.root / f'database-move-{TO[:12]}-superseded.json').exists())
 
     def test_a_superseding_migration_onto_another_volume_refuses(self):
         self.intent = {'migration': 'm', 'volume': 'sbarbase-durable-pgdata',
@@ -141,6 +197,7 @@ class TakeoverTests(unittest.TestCase):
     def test_a_migration_that_leaves_its_record_refuses(self):
         def leaves(command, cwd=None):
             self.volume = VOLUME
+            self.pinned_image = IMAGE
             self.intent = STUCK
             return SimpleNamespace(returncode=0)
         with self.assertRaisesRegex(takeover.TakeoverError, 'did not finish'):

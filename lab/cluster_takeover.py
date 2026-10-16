@@ -21,12 +21,13 @@ What runs depends on the migration record:
 - a stuck move's (its retired container captured, archived and removed, its replacement never
   captured): that migration is superseded (lab/hba_migration.py supersede) and a new one onto the
   rebuilt volume finishes from its archive;
-- one already onto the rebuilt volume (an interrupted earlier run of this command): it is finished;
+- one already onto the rebuilt volume and image (an interrupted earlier run of this command): it is
+  finished;
 - any other: refused, unchanged.
 
 Once the runtime names the rebuilt volume, a recorded database move that has begun is archived as
 superseded by the rebuild, beside the moves that completed, and its record removed; its backups
-stay kept from pruning. A prepared move refuses: abandon it first. Every step can be run again.
+are kept from pruning first. A prepared move refuses: abandon it first. Every step can be run again.
 Unit tested only; nothing of it has run against a real daemon.
 """
 import argparse
@@ -102,6 +103,8 @@ def migration_command(record):
     if hba_migration.present(state):
         intent = hba_migration.load(state)
         if hba_migration.target_volume(intent) == record['volume']:
+            if hba_migration.target_image(intent) != record['image']:
+                raise TakeoverError('A migration onto the rebuilt volume but another image is recorded; it needs review')
             return database_move.migration_command(True)
         if 'supersedes' in intent:
             raise TakeoverError('A superseding migration onto another volume is recorded; it needs review')
@@ -114,7 +117,15 @@ def migration_command(record):
 
 
 def retire_move(move, record):
-    """Archive a begun move as superseded by the rebuild, then remove its record."""
+    """Archive a begun move as superseded by the rebuild, then remove its record. Its backups are
+    kept from pruning first, as the move itself would have kept them."""
+    if move.get('backup') and not move.get('marked'):
+        try:
+            backup.mark_moved(move['backup'])
+        except (OSError, backup.BackupError) as error:
+            raise TakeoverError(f"The move's backup run {move['backup']} could not be kept from pruning ({error}); "
+                                'run this command again') from None
+        move = {**move, 'marked': True}
     retired = {**move, 'phase': 'superseded', 'superseded_by': {'run': record['run'], 'volume': record['volume'],
                                                                 'image': record['image']},
                'finished_at': upgrade.now()}
@@ -129,12 +140,14 @@ def takeover(run=subprocess.run):
         move = database_move.load()
         if move is not None and move['phase'] == 'prepared':
             raise TakeoverError('A database move is prepared; abandon it first (lab/upgrade.py database --abandon)')
-        align_checkout(record, move)
+        # The record is classified first, so a refusal leaves the checkout where it was.
         command = migration_command(record)
+        align_checkout(record, move)
         if command is not None:
             result = run(command, cwd=lab.ROOT)
             if result.returncode or hba_migration.present(runtime.STATE) \
-                    or database_volume.current(runtime.STATE) != record['volume']:
+                    or database_volume.current(runtime.STATE) != record['volume'] \
+                    or hba_migration.pinned(runtime.STATE)['target']['image'] != record['image']:
                 raise TakeoverError('The generation migration did not finish; run this command again '
                                     '(it finishes the interrupted migration)')
         if move is not None:
