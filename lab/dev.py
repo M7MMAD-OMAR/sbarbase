@@ -4,6 +4,7 @@ import datetime
 import console_build_check
 import docker_profile
 import fcntl
+import host_watch
 import json
 import notification_producers
 import os
@@ -134,6 +135,7 @@ class Supervisor:
         # The control catalog the operator's installation drains. None selects the
         # default upstream path; a test passes a private temporary catalog.
         self.catalog = catalog
+        self.host_watch = host_watch.HostWatch(catalog=catalog)
         # While an upgrade waits for its health checks (lab/upgrade_health.Confirmation): polled
         # each turn, True once confirmed, RuntimeError past its deadline. Until then only the
         # console runs: no worker, backup, Studio, sign-in or toggle may leave an effect that
@@ -683,6 +685,9 @@ class Supervisor:
                 self.schedule_studios()
                 self.schedule_sign_in()
                 self.schedule_toggles()
+                if not self.paused():
+                    # Disk space and stopped service containers, once a minute (lab/host_watch.py).
+                    self.host_watch.step()
                 if time.monotonic() >= self.updates_after:
                     try:
                         self.schedule_updates()

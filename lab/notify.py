@@ -60,7 +60,8 @@ KINDS = frozenset((
     'fence.applied', 'fence.released',
     'backup.export_completed', 'backup.export_failed', 'backup.completed', 'backup.failed',
     'restore.verified', 'restore.failed', 'environment.saturated',
-    'update.available', 'update.applied', 'update.rolled_back', 'update.rollback_failed'))
+    'update.available', 'update.applied', 'update.rolled_back', 'update.rollback_failed',
+    'host.disk_low', 'runtime.container_stopped'))
 REASONS = frozenset((
     'runtime_failed', 'retry_limit', 'retry_requested', 'owner_changed', 'ownership_changed',
     'routing_paused', 'routing_resumed', 'installation_limit', 'memory_headroom',
@@ -71,7 +72,8 @@ REASONS = frozenset((
     'operator_request', 'installation_failed', 'worker_restart', 'worker_restart_limit',
     'export_completed', 'export_failed', 'restore_verified', 'restore_failed',
     'environment_saturated', 'telegram_unreachable', 'telegram_status',
-    'update_available', 'update_applied', 'update_rolled_back', 'update_rollback_failed'))
+    'update_available', 'update_applied', 'update_rolled_back', 'update_rollback_failed',
+    'disk_low', 'container_stopped'))
 CHANNELS = ('email', 'webhook', 'telegram')
 SEVERITIES = ('info', 'warning', 'critical')
 DETAIL_KEYS = {
@@ -105,6 +107,9 @@ DETAIL_KEYS = {
     'update.applied': ('version', 'trigger'),
     'update.rolled_back': ('version',),
     'update.rollback_failed': ('version',),
+    # The supervisor's host watch (lab/host_watch.py).
+    'host.disk_low': ('filesystem', 'available_mib', 'percent'),
+    'runtime.container_stopped': ('container', 'minutes'),
 }
 REASON_CLASS = {
     'runtime_failed': 'provisioning_outcome', 'retry_limit': 'provisioning_outcome',
@@ -128,6 +133,7 @@ REASON_CLASS = {
     'telegram_unreachable': 'channel_outcome', 'telegram_status': 'channel_outcome',
     'update_available': 'upgrade_outcome', 'update_applied': 'upgrade_outcome',
     'update_rolled_back': 'upgrade_outcome', 'update_rollback_failed': 'upgrade_outcome',
+    'disk_low': 'capacity_pressure', 'container_stopped': 'supervisor_lifecycle',
 }
 # Fixed renderer. summary and action are looked up here and interpolate only safe
 # identifiers, a closed reason name and a number. No caller supplies either string.
@@ -192,6 +198,10 @@ SUMMARY = {
                            'Run lab/upgrade.py status to see why; this version is not installed automatically again.'),
     'update.rollback_failed': ('An upgrade failed and the way back to the previous version failed too.',
                                'Run lab/upgrade.py status, then restore from the backups taken before the upgrade.'),
+    'host.disk_low': ('A filesystem Sbarbase writes to is running out of space; backups and databases stop when it is full.',
+                      'Free space or grow the disk; old backups are kept under .lab/backups.'),
+    'runtime.container_stopped': ('A Sbarbase service container has stayed stopped for several minutes.',
+                                  'Run docker ps -a and the service logs to see why, then restart Sbarbase.'),
 }
 # Allow-list. The rendered envelope contains exactly these keys, in these positions.
 ENVELOPE_FIELDS = ('schema', 'id', 'delivery', 'kind', 'severity', 'at', 'last_at', 'occurrences',
@@ -800,6 +810,16 @@ def worker_lock_held(state):
     return (held.st_dev, held.st_ino) == (expected.st_dev, expected.st_ino)
 
 
+def config_signature(path):
+    """What identifies one version of the configuration file: the console replaces it whole
+    (src/control/telegram-notifications.ts), so a new inode, time or size is a new version."""
+    try:
+        info = os.stat(path, follow_symlinks=False)
+    except FileNotFoundError:
+        return None
+    return info.st_ino, info.st_mtime_ns, info.st_size
+
+
 def follow_stop():
     stopping = []
     def stop(*_):
@@ -834,10 +854,16 @@ def main(argv=None):
         raise SystemExit('Notification drain requires the existing worker lock')
     if args.require_worker_lock and not worker_lock_held(args.state or (root / '.lab' / 'upstream')):
         raise SystemExit('Notification drain requires the existing worker lock')
-    try:
-        config, channels, secret = load_config(args.config)
-    except ConfigurationError as error:
-        raise SystemExit(str(error)) from None
+    loaded, signature = None, None
+    if args.once:
+        try:
+            loaded = load_config(args.config)
+        except ConfigurationError as error:
+            raise SystemExit(str(error)) from None
+    else:
+        # Following, the drain waits for a configuration and rereads it whenever the file is
+        # replaced: a channel connected or removed in the console applies without a restart.
+        signature = object()
     catalog = os.path.abspath(args.catalog)
     if not os.path.exists(catalog):
         raise SystemExit('Notification catalog is missing')
@@ -845,6 +871,23 @@ def main(argv=None):
     parent = os.getppid()
     steps = 0
     while not stopping:
+        if not args.once:
+            current = config_signature(args.config)
+            if current != signature:
+                signature = current
+                try:
+                    loaded = load_config(args.config) if current is not None else None
+                except (ConfigurationError, ValueError, OSError) as error:
+                    loaded = None
+                    # The messages are fixed sentences; none carries a credential or a path value.
+                    print(f'notification configuration not used: {error if isinstance(error, ConfigurationError) else type(error).__name__}',
+                          file=sys.stderr, flush=True)
+            if loaded is None:
+                if os.getppid() != parent:
+                    break
+                time.sleep(0.5)
+                continue
+        config, channels, secret = loaded
         try:
             with closing(connect(catalog)) as database:
                 result = drain(database, config, channels, secret, args.limit, args.lease_ms)

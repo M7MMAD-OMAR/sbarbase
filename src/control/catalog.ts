@@ -89,6 +89,9 @@ const NOTIFICATION_DETAIL_KEYS = {
   'update.applied':['version','trigger'],
   'update.rolled_back':['version'],
   'update.rollback_failed':['version'],
+  // Written by the supervisor's host watch: lab/host_watch.py.
+  'host.disk_low':['filesystem','available_mib','percent'],
+  'runtime.container_stopped':['container','minutes'],
 } satisfies Record<string,string[]>;
 const NOTIFICATION_REASONS = [
   'runtime_failed','retry_limit','retry_requested','owner_changed','ownership_changed',
@@ -99,7 +102,8 @@ const NOTIFICATION_REASONS = [
   'operator_request','installation_failed','worker_restart','worker_restart_limit',
   'export_completed','export_failed','restore_verified','restore_failed',
   'environment_saturated','telegram_unreachable','telegram_status',
-  'update_available','update_applied','update_rolled_back','update_rollback_failed'] as const;
+  'update_available','update_applied','update_rolled_back','update_rollback_failed',
+  'disk_low','container_stopped'] as const;
 const NOTIFICATION_MAX_ATTEMPTS = 8;
 const NOTIFICATION_WINDOW_SECONDS:Record<NotificationSeverity,number> = {info:3600,warning:1800,critical:300};
 const NOTIFICATION_BACKOFF_SECONDS = [15,60,300,1800,7200];
@@ -557,6 +561,14 @@ export class Catalog {
     this.db.transaction(()=>{
       this.managementSecurity.revoke(actor);
       this.record(actor,'management.mfa.logout_'+outcome,actor,{scope});
+    }).immediate();
+  }
+  /** An installation owner changed an operator notification channel. The record names the
+   * channel and what changed, never a token or a chat. */
+  recordNotificationChannel(actor:string,channel:'telegram',action:'connected'|'linked'|'tested'|'disconnected'):void {
+    this.db.transaction(()=>{
+      this.assertManagementRecoveryOwner(actor);
+      this.record(actor,`notifications.${channel}.${action}`,channel,{});
     }).immediate();
   }
   assertManagementRecoveryOwner(actor:string):void {

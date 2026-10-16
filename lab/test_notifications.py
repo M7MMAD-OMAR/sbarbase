@@ -532,6 +532,70 @@ class TelegramTests(NotificationCase):
         self.assertEqual(self.rows("SELECT state FROM notification_delivery WHERE channel='telegram'"),
                          [('delivered',)])
 
+    def test_a_chat_connected_in_the_console_receives_events(self):
+        """End to end against a loopback Bot API: the console's connect and link
+        (src/control/telegram-notifications.ts) write files this drain accepts and delivers to."""
+        self.capacityRefusal()
+        checkout = self.directory / 'checkout'
+        (checkout / '.secrets' / 'upstream').mkdir(parents=True, mode=0o700)
+        (checkout / '.lab' / 'upstream').mkdir(parents=True, mode=0o700)
+        token = '123456789:AAbbccddeeffgghhiijjkkllmmnnoopp_q'
+        seen = []
+
+        class Api(BaseHTTPRequestHandler):
+            def do_POST(self):
+                body = json.loads(self.rfile.read(int(self.headers.get('content-length', 0))) or b'{}')
+                method = self.path.rsplit('/', 1)[1]
+                seen.append((self.path, body))
+                results = {'getMe': {'id': 1, 'is_bot': True, 'username': 'sbar_alerts_bot'},
+                           'getUpdates': [] if body.get('offset') else [
+                               {'update_id': 1, 'message': {'text': '/start ' + code[0], 'chat': {'id': 4242}}}],
+                           'sendMessage': {'message_id': 1}}
+                payload = json.dumps({'ok': True, 'result': results[method]}).encode()
+                self.send_response(200)
+                self.send_header('content-type', 'application/json')
+                self.end_headers()
+                self.wfile.write(payload)
+
+            def log_message(self, *args):
+                pass
+        server = HTTPServer(('127.0.0.1', 0), Api)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        base = f'http://127.0.0.1:{server.server_address[1]}'
+        script = f"""
+import {{TelegramNotifications}} from '{ROOT}/src/control/telegram-notifications';
+const setup=new TelegramNotifications({{checkout:{json.dumps(str(checkout))},apiBase:{json.dumps(base)}}});
+const step=process.argv[2];
+console.log(JSON.stringify(step==='connect'?await setup.connect({json.dumps(token)}):await setup.complete()));
+"""
+        code = ['']
+        script_path = self.directory / 'connect.ts'
+        script_path.write_text(script)
+        run = lambda step: json.loads(subprocess.run(['bun', str(script_path), step], capture_output=True, text=True,
+                                                     cwd=ROOT, check=True).stdout)
+        code[0] = run('connect')['link'].split('start=')[1]
+        self.assertEqual(run('link')['state'], 'linked')
+        previous = os.getcwd()
+        os.chdir(checkout)
+        try:
+            config, channels, _ = notify.load_config(checkout / '.lab' / 'upstream' / 'notifications.json')
+        finally:
+            os.chdir(previous)
+        self.assertEqual(channels, ['telegram'])
+        seen.clear()
+        database = notify.connect(self.catalog)
+        try:
+            result = notify.drain(database, config, channels, None)
+        finally:
+            database.close()
+        self.assertEqual(result['delivered'], 1)
+        self.assertEqual([path for path, _ in seen], ['/bot' + token + '/sendMessage'])
+        self.assertEqual(seen[0][1]['chat_id'], '4242')
+        self.assertIn('provision.capacity_refused', seen[0][1]['text'])
+        self.assertNotIn(token.split(':')[1], seen[0][1]['text'])
+
     def test_a_non_private_or_malformed_token_is_refused(self):
         receiver = self.receiver()
         with self.assertRaises(notify.ConfigurationError):
@@ -663,3 +727,45 @@ class WorkerLockTests(NotificationCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+class FollowReloadTests(unittest.TestCase):
+    """A channel connected in the console applies to a running drain (src/control/telegram-notifications.ts)."""
+
+    def test_the_drain_waits_for_a_configuration_and_rereads_a_replaced_one(self):
+        import tempfile
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            catalog = root / 'control.sqlite'
+            sqlite3.connect(catalog).close()
+            token = root / 'telegram.json'
+            token.write_text(json.dumps({'schema': 1, 'botToken': '123456789:AAbbccddeeffgghhiijjkkllmmnnoopp_q'}))
+            token.chmod(0o600)
+            config = root / 'notifications.json'
+            self.assertIsNone(notify.config_signature(config))
+            seen, stop, steps = [], [], []
+
+            def write(chat):
+                temporary = root / 'next.json'
+                temporary.write_text(json.dumps({'schema': 1, 'telegram': {'enabled': True, 'chatId': chat, 'tokenFile': str(token)}}))
+                os.replace(temporary, config)
+
+            def sleep(_):
+                steps.append(1)
+                if len(steps) == 2:
+                    write('111')
+                elif len(steps) == 4:
+                    write('222')
+                elif len(steps) == 6:
+                    os.remove(config)
+                elif len(steps) == 8:
+                    stop.append(True)
+
+            def drain(database, loaded, channels, secret, limit, lease_ms):
+                seen.append(loaded['telegram']['chatId'])
+                return notify.empty_outcome()
+            with patch.object(notify, 'follow_stop', return_value=stop), patch.object(notify.time, 'sleep', side_effect=sleep), \
+                 patch.object(notify, 'drain', side_effect=drain):
+                self.assertEqual(notify.main(['--catalog', str(catalog), '--config', str(config), '--follow']), 0)
+            # Nothing ran before the file existed, each version was used as it came, none after removal.
+            self.assertEqual(seen, ['111', '111', '222', '222'])

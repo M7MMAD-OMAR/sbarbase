@@ -56,10 +56,12 @@ os.environ['SBARBASE_WORKER_WATCH'] = '1' if args.watch else '0'
 
 # Operator notifications. The drain is not a service and takes no lock: it is a child of this
 # process, it is handed the descriptor this worker already holds, and it stops when the worker
-# stops. It is skipped entirely when no channel is configured, and it never runs in
-# settle-only mode, which precedes runtime startup and must settle one receipt and exit.
+# stops. A watching worker always starts it, configured or not, because a channel connected
+# later in the console must apply without a restart; a single pass is skipped when no channel
+# is configured. It never runs in settle-only mode, which precedes runtime startup and must
+# settle one receipt and exit.
 def start_notifications():
-    if args.settle_only or not (state / 'notifications.json').is_file():
+    if args.settle_only or not (args.watch or (state / 'notifications.json').is_file()):
         return
     command = ['/usr/bin/python3', 'lab/notify.py',
                '--catalog', str(state / 'control.sqlite'),

@@ -8,7 +8,7 @@ const words:Record<string,string>={
  'provision.started':'Provisioning started','provision.succeeded':'Environment ready','provision.failed':'Provisioning failed',
  'provision.cancelled':'Provisioning cancelled','provision.retried':'Provisioning retried','studio.requested':'Studio started',
  'studio.stop_requested':'Studio stopped','sign_in.saved':'Sign-in settings saved','gateway.share_changed':'Gateway share changed',
- 'backup.completed':'Backup completed','backup.failed':'Backup failed'};
+ 'backup.completed':'Backup completed','backup.failed':'Backup failed','host.disk_low':'Disk space low','runtime.container_stopped':'Service stopped'};
 /** What happened in this organization, newest first. Owners and admins only; read only. */
 export function Activity({organization,request,self}:{organization:Organization;request:Api;self:string}){
  const events=useData<{data:Event[]}>(signal=>request(`/organizations/${organization.id}/audit`,'GET',undefined,signal),[organization.id,request]);

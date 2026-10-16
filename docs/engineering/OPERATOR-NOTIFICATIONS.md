@@ -601,6 +601,47 @@ The property that follows: `provision_jobs.state`, `provision_jobs.failure`, and
 The probe proves this by running the same provisioning path with the webhook pointed at a
 closed port and asserting the catalog row is unchanged.
 
+### 3.5 Connecting Telegram from the console (2026-10-16)
+
+`src/control/telegram-notifications.ts` and the console page `ui/Notifications.tsx`, routes
+`/management/v1/notifications/telegram` (GET, PUT `{token}`, DELETE) and `/link`, `/test` (POST).
+Installation operators read; only an owner of the bootstrap organization changes, and each change
+writes an `audit_events` row `notifications.telegram.<connected|linked|tested|disconnected>`
+with an empty detail.
+
+- The token must have the Bot API shape and pass `getMe` as a bot before it is written, whole and
+  0600, to `.secrets/upstream/telegram.json`, the file `load_config` already reads. No response
+  returns it; the status carries its last four characters.
+- The chat is bound by a one-time code: `connect` writes `.lab/upstream/telegram-link.json` with
+  16 random bytes and a 30 minute expiry, the console opens `t.me/<bot>?start=<code>`, and
+  `complete` takes only a message whose text is exactly `/start <code>` (or `/start@<bot> <code>`).
+  A stranger who writes to the bot is never linked. The updates read are acknowledged with the
+  next offset, and the code is removed once used.
+- `notifications.json` is rewritten whole (temporary file, fsync, rename, 0600) with the other
+  channels kept; with no channel left the file is removed. Replacing the token turns the old chat
+  off until the new one is linked; disconnecting removes the token file.
+- Where the token is sent is fixed (`https://api.telegram.org`); only the process environment
+  (`SBARBASE_TELEGRAM_API_BASE`, used by the tests' loopback Bot API) can change it, never a request.
+- The drain now follows the file: with `--follow` it waits for a configuration and reloads it when
+  its inode, time or size changes, and a watching worker always starts it. A configuration that
+  does not load is skipped with a fixed sentence on stderr, never a path value or a credential.
+- Verified by `tests/telegram-notifications.test.ts` and `lab/test_notifications.py`
+  (`test_a_chat_connected_in_the_console_receives_events`: connect and link through the module
+  against a loopback Bot API, then a queued event delivered by the drain to the linked chat). No
+  run against the real Telegram service is recorded.
+
+### 3.6 Disk space and stopped services (2026-10-16)
+
+`lab/host_watch.py`, called from the supervisor loop once a minute while no upgrade is prepared or
+running. `host.disk_low` (warning under 10 % or 5 GiB available, critical under 5 % or 2 GiB) for
+the checkout's filesystem and Docker's data root; `runtime.container_stopped` (critical) for the
+database, Storage, the management Auth and each environment's Auth, REST and Realtime container
+when it exists and has not been running for five minutes in a row. Edge Functions are left out
+because a write pause keeps them stopped by design. The detail names the service without the
+`sbarbase-durable-` prefix: the full name of the management Auth is 32 characters, which the
+credential scan reads as a key. The event windows keep one notice per condition from repeating
+every minute.
+
 ## 4. Deduplication and rate limiting
 
 The problem: a condition that repeats every minute must not become a thousand messages.

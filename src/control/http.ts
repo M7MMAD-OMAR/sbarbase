@@ -8,6 +8,7 @@ import {readJsonCached} from '../http/cached-json';
 import {join} from 'node:path';
 import {UPDATES_DIRECTORY,UpdateRefusal,requestUpdate,saveSettings,serverZone,updatesView,validateSettings,type UpdateRequestKind} from './updates';
 import {createServerHealthReader} from './server-health';
+import {TelegramNotifications,TelegramRefusal} from './telegram-notifications';
 
 /** Runtime state directory, the same tree the runtime writes the catalog in. */
 const MAIL_STATE_DIRECTORY='.lab/upstream';
@@ -118,8 +119,42 @@ function refusal(error:unknown):Response {
 export function managementHandler(catalog:Catalog,identify:ManagementIdentity,mailDirectory=MAIL_STATE_DIRECTORY,keys?:KeyStore,
   updatesDirectory=UPDATES_DIRECTORY,checkout='.') {
   const serverHealth=createServerHealthReader();
+  const telegramSetup=new TelegramNotifications({checkout});
   return async(request:Request):Promise<Response>=>{
     const path=new URL(request.url).pathname;
+    const telegram=path.match(/^\/management\/v1\/notifications\/telegram(\/link|\/test)?$/);
+    if(telegram) {
+      // Installation operators see the channel; only the installation's owners change it, and
+      // each change is in the audit log (src/control/telegram-notifications.ts).
+      const action=telegram[1]??'';
+      if(!(action===''?['GET','PUT','DELETE']:['POST']).includes(request.method))return reply(405,{message:'Method not allowed'});
+      const actor=await authenticate(identify,request);
+      if(actor instanceof Response)return actor;
+      const owner=()=>{try{catalog.assertManagementRecoveryOwner(actor);return true;}catch{return false;}};
+      try {
+        if(!catalog.installationOperator(actor))throw new Error('Forbidden');
+        if(request.method==='GET')
+          return managementPublication(catalog,()=>{requireOperatorPublication(catalog,actor);return reply(200,{data:telegramSetup.status(),owner:owner()});});
+        catalog.assertManagementRecoveryOwner(actor);
+        let data;
+        if(request.method==='PUT') {
+          const input=await body(request,['token']);
+          catalog.assertManagementRecoveryOwner(actor);
+          data=await telegramSetup.connect(input.token);
+          catalog.recordNotificationChannel(actor,'telegram','connected');
+        } else {
+          if(request.body)throw new InputError();
+          if(request.method==='DELETE') {data=telegramSetup.disconnect();catalog.recordNotificationChannel(actor,'telegram','disconnected');}
+          else if(action==='/link') {data=await telegramSetup.complete();catalog.recordNotificationChannel(actor,'telegram','linked');}
+          else {await telegramSetup.test();data=telegramSetup.status();catalog.recordNotificationChannel(actor,'telegram','tested');}
+        }
+        const response=reply(200,{data,owner:true});
+        return bindManagementPublication(response,catalog,()=>{catalog.assertManagementRecoveryOwner(actor);return response;});
+      } catch(error) {
+        if(error instanceof TelegramRefusal)return reply(error.status,{message:error.message});
+        return refusal(error);
+      }
+    }
     if(path==='/management/v1/server') {
       if(request.method!=='GET')return reply(405,{message:'Method not allowed'});
       const actor=await authenticate(identify,request);
