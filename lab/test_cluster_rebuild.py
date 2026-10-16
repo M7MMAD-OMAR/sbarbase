@@ -15,6 +15,7 @@ import cluster_rebuild as rebuild
 E = 'e_' + 'a' * 24
 IMAGE = 'sha256:' + '1' * 64
 STAMP = '20261016T030000Z'
+TAKEOVER_UNDER_WAY = rebuild.takeover_under_way  # the real one; the rebuild fixtures stand it in
 
 
 def role(name, **changes):
@@ -295,6 +296,7 @@ class RebuildTests(unittest.TestCase):
             patch.object(rebuild.Build, 'execute', lambda build, query, database='postgres': self.execute(build, query, database)),
             patch.object(rebuild.resource_policy, 'io_flags', return_value=[]),
             patch.object(rebuild, 'available_mib', lambda: self.memory),
+            patch.object(rebuild, 'takeover_under_way', lambda: False),
         ]
         self.memory = 8000
         for item in patches:
@@ -426,6 +428,24 @@ class RebuildTests(unittest.TestCase):
             rebuild.rebuild(STAMP, token='0123456789ab')
         self.assertEqual(json.loads(rebuild.RECORD.read_text())['phase'], 'failed')
 
+    def test_a_rebuild_refuses_while_an_earlier_one_is_taken_into_use(self):
+        with patch.object(rebuild, 'takeover_under_way', lambda: True), \
+                self.assertRaisesRegex(rebuild.RebuildError, 'being taken into use'):
+            rebuild.rebuild(STAMP, token='0123456789ab')
+        self.assertEqual(self.calls, [])
+        import database_move
+        for move, superseding, expected in ((None, False, False), ({'phase': 'migrating'}, False, False),
+                                            ({'phase': 'migrating', 'taken_over': {}}, False, False),
+                                            ({'phase': 'migrating', 'taken_over': {'volume': 'v'}}, False, True),
+                                            (None, True, True)):
+            with self.subTest(move=move, superseding=superseding), patch.object(database_move, 'load', lambda: move), \
+                    patch.object(database_move.hba_migration, 'present', lambda state: superseding), \
+                    patch.object(database_move.hba_migration, 'load', lambda state: {'supersedes': 'm'}), \
+                    patch.object(database_move.hba_migration, 'pending_superseded', lambda state: None):
+                self.assertEqual(TAKEOVER_UNDER_WAY(), expected)
+        with patch.object(database_move, 'load', side_effect=database_move.MoveError('unreadable')):
+            self.assertTrue(TAKEOVER_UNDER_WAY())
+
     def test_existing_names_refuse_before_anything_is_created(self):
         self.existing = {'sbarbase-durable-pgdata-0123456789ab'}
         with self.assertRaisesRegex(rebuild.RebuildError, 'already exists'):
@@ -508,6 +528,7 @@ class EndToEndTests(unittest.TestCase):
             patch.object(rebuild, 'chosen_image', lambda commit=None: ('ref', IMAGE)),
             patch.object(rebuild, 'passwords', lambda: dict(KNOWN)),
             patch.object(rebuild, 'available_mib', lambda: 8000),
+            patch.object(rebuild, 'takeover_under_way', lambda: False),
             patch.object(rebuild, 'docker', self.docker),
             patch.object(rebuild.subprocess, 'run', self.fake_run),
             patch.object(rebuild.backup, 'run', self.plan_run),

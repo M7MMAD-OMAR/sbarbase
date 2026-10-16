@@ -321,8 +321,21 @@ def held_locks():
     return stack
 
 
+def takeover_under_way():
+    """True while an earlier rebuild is being taken into use: its takeover reads this record."""
+    import database_move
+    try:
+        move = database_move.load()
+    except upgrade.UpgradeError:
+        return True
+    return database_move.taken_over(move)
+
+
 def rebuild(stamp, commit=None, token=None):
     with held_locks():
+        if takeover_under_way():
+            raise RebuildError('An earlier rebuild is being taken into use; finish it first: '
+                               '/usr/bin/python3 lab/cluster_takeover.py')
         scopes, inventory = load_run(stamp)
         reference, image = chosen_image(commit)
         known = passwords()

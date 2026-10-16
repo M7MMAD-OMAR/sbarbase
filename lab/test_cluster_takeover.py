@@ -99,7 +99,8 @@ class TakeoverTests(unittest.TestCase):
         return takeover.takeover(run=self.fake_run)
 
     def test_without_a_record_the_migration_runs_onto_the_rebuilt_volume_and_image(self):
-        record, move = self.take()
+        record, move, migrated = self.take()
+        self.assertTrue(migrated)
         self.assertEqual((record['volume'], move), (VOLUME, None))
         command, locked = self.runs[0]
         self.assertTrue(locked)
@@ -331,6 +332,27 @@ class TakeoverTests(unittest.TestCase):
         self.assertEqual(self.moved, [(FROM, None, True)])
         self.assertEqual(self.runs[0][0][-3:], ['--image-from-lock', '--to-volume', VOLUME])
 
+    def test_the_move_is_marked_as_taken_over_before_the_checkout_moves(self):
+        self.write_move()
+        self.lock = OTHER
+        seen = []
+        original = self.move_back
+        with patch.object(takeover.upgrade, 'move_back',
+                          lambda commit, intent, state: seen.append(json.loads(self.move_path.read_text()).get('taken_over'))
+                          or original(commit, intent, state)):
+            self.take()
+        self.assertEqual(seen, [{'run': '20261016T030000Z', 'volume': VOLUME}])
+        archived = json.loads((self.root / ARCHIVED).read_text())
+        self.assertEqual(archived['taken_over'], {'run': '20261016T030000Z', 'volume': VOLUME})
+
+    def test_a_refused_record_leaves_the_move_unmarked(self):
+        self.write_move()
+        self.intent = STUCK
+        self.refusal = 'The retired container still exists; reconcile the migration instead'
+        with self.assertRaises(takeover.TakeoverError):
+            self.take()
+        self.assertNotIn('taken_over', json.loads(self.move_path.read_text()))
+
     def test_another_lock_without_a_way_back_refuses_before_anything(self):
         self.lock = OTHER
         with self.assertRaisesRegex(takeover.TakeoverError, 'another image'):
@@ -383,12 +405,17 @@ class TakeoverTests(unittest.TestCase):
             self.assertEqual(takeover.main([]), 1)
         self.assertIn('refused: Sbarbase is running', error.getvalue())
         output = io.StringIO()
-        with patch.object(takeover, 'takeover', lambda: ({'image': IMAGE, 'volume': VOLUME}, {'to': TO})), \
+        with patch.object(takeover, 'takeover', lambda: ({'image': IMAGE, 'volume': VOLUME}, {'to': TO}, True)), \
                 contextlib.redirect_stdout(output):
             self.assertEqual(takeover.main([]), 0)
         self.assertIn(VOLUME, output.getvalue())
         self.assertIn('archived as superseded', output.getvalue())
         self.assertIn('were not restored', output.getvalue())
+        output = io.StringIO()
+        with patch.object(takeover, 'takeover', lambda: ({'image': IMAGE, 'volume': VOLUME}, None, False)), \
+                contextlib.redirect_stdout(output):
+            self.assertEqual(takeover.main([]), 0)
+        self.assertEqual(output.getvalue(), f'The database already runs on {VOLUME}; nothing was changed.\n')
 
 
 if __name__ == '__main__':

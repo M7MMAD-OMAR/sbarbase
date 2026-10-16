@@ -27,8 +27,9 @@ What runs depends on the migration record:
 
 Once the runtime names the rebuilt volume, a recorded database move that has begun is archived as
 superseded by the rebuild (database-move-<to>-<its start>-superseded.json, beside the moves that
-completed) and its record removed; its backups are kept from pruning first. Until then a start and
-lab/upgrade.py database --continue point back here (lab/database_move.py taken_over). A prepared move refuses: abandon it first. Every step can be run again.
+completed) and its record removed; its backups are kept from pruning first. Before anything moves,
+the move record is marked as taken over, so until it is archived a start and lab/upgrade.py
+database --continue point back here (lab/database_move.py taken_over). A prepared move refuses: abandon it first. Every step can be run again.
 Unit tested only; nothing of it has run against a real daemon.
 """
 import argparse
@@ -149,6 +150,10 @@ def takeover(run=subprocess.run):
             raise TakeoverError('A database move is prepared; abandon it first (lab/upgrade.py database --abandon)')
         # The record is classified first, so a refusal leaves the checkout where it was.
         command = migration_command(record)
+        if move is not None and not move.get('taken_over'):
+            # From here a start and database --continue point back to this command.
+            move = {**move, 'taken_over': {'run': record['run'], 'volume': record['volume']}}
+            database_move.save(move)
         align_checkout(record, move)
         if command is not None:
             result = run(command, cwd=lab.ROOT)
@@ -159,17 +164,20 @@ def takeover(run=subprocess.run):
                                     '(it finishes the interrupted migration)')
         if move is not None:
             retire_move(move, record)
-        return record, move
+        return record, move, command is not None
 
 
 def main(argv=None):
     argparse.ArgumentParser(description='Take a rebuilt database cluster into use').parse_args(argv)
     try:
-        record, move = takeover()
+        record, move, migrated = takeover()
     except (RuntimeError, ValueError, upgrade.UpgradeError) as error:
         # Fixed sentences: the takeover's own, the locks', the records' and the migration record's.
         print(f'refused: {error}', file=sys.stderr)
         return 1
+    if not migrated and move is None:
+        print(f"The database already runs on {record['volume']}; nothing was changed.")
+        return 0
     print(f"The database runs {record['image']} on {record['volume']}; the previous volume is kept.")
     if move is not None:
         print(f"The database move to {move['to'][:12]} was archived as superseded by the rebuild.")

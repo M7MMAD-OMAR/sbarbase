@@ -247,7 +247,7 @@ def resume(run=subprocess.run):
         record = load()
         if record is None:
             raise MoveError('No database move is recorded; start one with: lab/upgrade.py database --to REF')
-        if taken_over():
+        if taken_over(record):
             raise MoveError(TAKEN_OVER)
         # The old database must be down until the generation change begins; after that the
         # container that runs is the replacement it created (its record waits, or the pin already
@@ -306,11 +306,13 @@ def resume(run=subprocess.run):
         print('Start Sbarbase, run the checks after the change, then resume writes: lab/write_pause.py resume <environment>')
 
 
-def taken_over():
-    """True while a rebuilt cluster is being taken into use (lab/cluster_takeover.py): a superseding
-    migration recorded or waiting, or the runtime already on the completed rebuild's volume. The move
-    is then finished by the takeover, never resumed here."""
-    import cluster_rebuild
+def taken_over(record=None):
+    """True while a rebuilt cluster is being taken into use (lab/cluster_takeover.py): the move record
+    marked by the takeover before it acts, or a superseding migration recorded or waiting. The move
+    is then finished by the takeover, never resumed here. Nothing of it outlives the takeover: the
+    marked record is archived and the superseding migration finishes."""
+    if record is not None and record.get('taken_over'):
+        return True
     if hba_migration.present(runtime.STATE):
         try:
             if 'supersedes' in hba_migration.load(runtime.STATE):
@@ -318,13 +320,9 @@ def taken_over():
         except (OSError, RuntimeError, ValueError):
             return False
     try:
-        if hba_migration.pending_superseded(runtime.STATE) is not None:
-            return True
-        rebuild = json.loads(cluster_rebuild.RECORD.read_text())
+        return hba_migration.pending_superseded(runtime.STATE) is not None
     except (OSError, ValueError, RuntimeError):
         return False
-    return isinstance(rebuild, dict) and rebuild.get('phase') == 'completed' \
-        and rebuild.get('volume') == database_volume.current(runtime.STATE)
 
 
 TAKEN_OVER = ('The database move was superseded by a rebuilt cluster; finish with Sbarbase stopped: '
@@ -338,7 +336,7 @@ def start_refusal():
         record = load()
     except MoveError as error:
         return f'{error}; Sbarbase does not start until it is reviewed'
-    if record is not None and record['phase'] != 'prepared' and taken_over():
+    if record is not None and record['phase'] != 'prepared' and taken_over(record):
         return TAKEN_OVER
     if record is not None and record['phase'] != 'prepared':
         return 'A database move is under way; finish it with: /usr/bin/python3 lab/upgrade.py database --continue'

@@ -67,7 +67,7 @@ class Fixture(unittest.TestCase):
             patch.object(move.backup, 'mark_moved', self.mark_moved),
             patch.object(move.hba_migration, 'discard_unpublished', self.discard),
             patch.object(move.database_volume, 'current', lambda state: self.volume),
-            patch.object(move, 'taken_over', lambda: getattr(self, 'taken', False)),
+            patch.object(move, 'taken_over', lambda record=None: getattr(self, 'taken', False)),
         ]
         for item in patches:
             item.start()
@@ -643,25 +643,30 @@ class TakenOverTests(unittest.TestCase):
 
     def test_each_sign_of_a_takeover_is_seen(self):
         self.assertFalse(move.taken_over())
+        self.assertFalse(move.taken_over({'phase': 'migrating'}))
+        self.assertTrue(move.taken_over({'phase': 'migrating', 'taken_over': {'volume': 'v'}}))
         self.intent = {'supersedes': 'm'}
         self.assertTrue(move.taken_over())
         self.intent = {'migration': 'm'}
         self.assertFalse(move.taken_over())
         self.intent, self.pending = None, {'superseded_by': 'n'}
         self.assertTrue(move.taken_over())
-        self.pending = None
-        (self.root / 'cluster-rebuild.json').write_text(json.dumps({'phase': 'completed', 'volume': 'sbarbase-durable-pgdata-0123456789ab'}))
-        self.assertFalse(move.taken_over())
+
+    def test_a_finished_takeover_does_not_hold_back_a_later_move(self):
+        # The rebuild record stays completed and its volume is the runtime's for good.
         self.volume = 'sbarbase-durable-pgdata-0123456789ab'
-        self.assertTrue(move.taken_over())
-        (self.root / 'cluster-rebuild.json').write_text(json.dumps({'phase': 'failed', 'volume': self.volume}))
-        self.assertFalse(move.taken_over())
+        (self.root / 'cluster-rebuild.json').write_text(json.dumps({'phase': 'completed', 'volume': self.volume}))
+        self.assertFalse(move.taken_over({'phase': 'migrating', 'from': 'a' * 40, 'to': 'b' * 40}))
 
     def test_a_taken_over_move_points_to_the_takeover_at_start_and_on_continue(self):
         (self.root / 'database-move.json').write_text(json.dumps({'version': 1, 'phase': 'migrating', 'from': 'a' * 40,
                                                                   'to': 'b' * 40}))
         self.assertIn('database --continue', move.start_refusal())
         self.intent = {'supersedes': 'm'}
+        self.assertIn('cluster_takeover.py', move.start_refusal())
+        self.intent = None
+        (self.root / 'database-move.json').write_text(json.dumps({'version': 1, 'phase': 'migrating', 'from': 'a' * 40,
+                                                                  'to': 'b' * 40, 'taken_over': {'volume': 'v'}}))
         self.assertIn('cluster_takeover.py', move.start_refusal())
         with patch.object(move.upgrade, 'LOCK', self.root / 'upgrade.lock'), \
                 patch.object(move.upgrade, 'SUPERVISOR_LOCK', self.root / 'supervisor.lock'), \
