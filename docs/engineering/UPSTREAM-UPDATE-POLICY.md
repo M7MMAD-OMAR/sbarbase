@@ -48,7 +48,7 @@ floating tag or an unpinned component.
 | Component | Lock file | Pinned version | Digest (short) | Since | Notes |
 |---|---|---|---|---|---|
 | Distribution (`db` used by the installation) | `lab/distro-image.lock.json` | public.ecr.aws/supabase/postgres:17.6.1.166 | b3bfedb10741 | project start | probes use the same pin |
-| Stock PostgreSQL (`db` in the component profile) | `lab/images.lock.json` | postgres:17-alpine | 18cfe3ef5e68 | project start | used by component-profile fixtures |
+| Stock PostgreSQL (`db` in the component profile) | `lab/images.lock.json` | postgres:17-alpine (17.11) | b0f9560a2de0 | staged 2026-10-16 (A8), live gate pending | used by component-profile fixtures; 18 deferred |
 | Auth | `lab/images.lock.json` | public.ecr.aws/supabase/gotrue:v2.197.0 | 1736a63078f5 | staged 2026-10-16 (A4), live gate pending | GoTrue, environments and the management realm |
 | REST | `lab/images.lock.json` | public.ecr.aws/supabase/postgrest:v14.18 | c7cd7e265a85 | staged 2026-10-16 (A1), live gate pending | PostgREST; v16 deferred |
 | Storage | `lab/storage-image.lock.json` | public.ecr.aws/supabase/storage-api:v1.83.3 | 2cea04f1ec8f | staged 2026-10-16 (A5), live gate pending | tenant-aware; one-way, the way back is a restore |
