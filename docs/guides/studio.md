@@ -36,7 +36,8 @@ Studio's Logs, Realtime and Edge Functions pages expect Supabase's own platform 
 - Changing MFA policy or logging out revokes dashboard sessions through the actor epoch.
 - Losing the owner or admin role closes access on the next request.
 - Studio signs in to the database with its own login, which exists only while Studio runs and gets a new password on every start. It is not a superuser and owns nothing.
-- Stopping Studio, or restarting Sbarbase, closes that login and removes both containers.
+- Studio and its helper (postgres-meta) have no login of their own, so neither listens where other environments run. Each session gets a private network that only the server reaches; Edge Functions and databases of other environments cannot connect to it.
+- Stopping Studio, or restarting Sbarbase, closes that login and removes both containers and the session's network.
 
 ## Memory
 

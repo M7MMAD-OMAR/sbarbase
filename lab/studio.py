@@ -17,12 +17,20 @@ internal Studio route (``SUPABASE_URL``), which admits only this environment's s
 The browser reaches Studio through the console, on ``<id>.studio.localhost``, behind the
 management login (src/control/studio-proxy.ts).
 
+Neither Studio nor postgres-meta checks who calls it, so neither may listen where another
+environment's code runs: Edge Functions and the database itself (pg_net) sit on the shared
+runtime network. Each session gets a private network of its own (``<e>-studio-net``, internal,
+nothing else attached). Studio listens only on its address there, which the host reaches; its
+attachment to the runtime network carries only its own outbound calls, to the database and to
+the internal route. postgres-meta shares Studio's network namespace and listens on loopback.
+
 State for the loopback server is ``.lab/upstream/studio.json``; the request and outcome of
 each session live in the control catalog (``studio_sessions``).
 """
 import argparse
 import connection_budget
 import datetime
+import ipaddress
 import json
 import os
 import re
@@ -65,6 +73,10 @@ def pins():
 
 def names(e):
     return f'{PREFIX}-{e}-studio', f'{PREFIX}-{e}-meta'
+
+
+def session_network(e):
+    return f'{PREFIX}-{e}-studio-net'
 
 
 def load_state():
@@ -187,7 +199,36 @@ def remove(name):
         lab.docker('rm', '-f', name)
 
 
-def launch(name, tier, env, image):
+def remove_network(e):
+    if runtime.inspect('network', session_network(e)):
+        lab.docker('network', 'rm', session_network(e))
+
+
+def open_network(e):
+    """A fresh private network for this session, and the address Studio takes on it. Docker
+    picks a free subnet (one that clashes with no host route); the network is then made again
+    with that subnet named, because Docker assigns a chosen address only on such a network."""
+    name = session_network(e)
+    remove_network(e)
+    create = ('network', 'create', '--internal', '--label', 'io.sbarbase.owner=' + runtime.OWNER)
+    lab.docker(*create, name)
+    item = runtime.inspect('network', name)
+    config = ((item or {}).get('IPAM') or {}).get('Config') or [{}]
+    lab.docker('network', 'rm', name)
+    try:
+        subnet = ipaddress.ip_network(config[0].get('Subnet', ''))
+        gateway = ipaddress.ip_address(config[0].get('Gateway', ''))
+    except ValueError:
+        raise StudioError('The Studio network has no usable subnet') from None
+    address = next(str(host) for host in subnet.hosts() if host != gateway)
+    lab.docker(*create, '--subnet', str(subnet), '--gateway', str(gateway), name)
+    return address
+
+
+def launch(name, tier, env, image, network, address=None, attach=()):
+    """Create and start one container. ``network`` is the network it joins first, or
+    ``container:<name>`` to share another container's namespace; ``attach`` lists the networks
+    joined before it starts."""
     image = image_identity.immutable(image)
     result = lab.docker('image', 'inspect', image, check=False)
     if result.returncode:
@@ -197,8 +238,9 @@ def launch(name, tier, env, image):
     path = runtime.PRIVATE / (name + '.env')
     lab.secure_file(path, ''.join(f'{k}={v}\n' for k, v in env.items()))
     try:
-        lab.docker('run', '-d', '--pull=never', '--name', name, '--label', 'io.sbarbase.owner=' + runtime.OWNER,
-                   '--label', 'io.sbarbase.tier=' + flags['label'], '--network', runtime.NETWORK,
+        lab.docker('create', '--pull=never', '--name', name, '--label', 'io.sbarbase.owner=' + runtime.OWNER,
+                   '--label', 'io.sbarbase.tier=' + flags['label'], '--network', network,
+                   *(('--ip', address) if address else ()),
                    '--memory', flags['memory'], '--memory-swap', flags['memory'], '--cpus', str(flags['cpus']),
                    '--pids-limit', str(flags['pids']), '--cpu-shares', str(flags['shares']),
                    '--blkio-weight', str(flags['weight']), *resource_policy.io_flags(tier),
@@ -206,13 +248,33 @@ def launch(name, tier, env, image):
     finally:
         # The container holds its environment now; nothing keeps the session password on disk.
         path.unlink(missing_ok=True)
+    for extra in attach:
+        lab.docker('network', 'connect', extra, name)
+    lab.docker('start', name)
     item = runtime.inspect('container', name)
     if not item or item.get('Image') != expected or item.get('Config', {}).get('Labels', {}).get('io.sbarbase.owner') != runtime.OWNER:
         raise StudioError('Studio container identity or ownership does not match')
-    address = item['NetworkSettings']['Networks'][runtime.NETWORK]['IPAddress'] if item else ''
-    if not address:
-        raise StudioError('Studio container has no address')
-    return address
+    return item
+
+
+def isolated(item, e, address):
+    """Studio joined exactly its session network, at ``address``, and the runtime network."""
+    networks = item.get('NetworkSettings', {}).get('Networks') or {}
+    if set(networks) != {session_network(e), runtime.NETWORK} \
+            or networks[session_network(e)].get('IPAddress') != address:
+        raise StudioError('Studio is not confined to its own network')
+
+
+def meta_ready(meta, timeout=120):
+    """postgres-meta answers its root without a database connection, so any reply means it
+    listens. It listens on loopback inside Studio's namespace, so it is asked from there."""
+    probe = ("fetch('http://127.0.0.1:8080/').then(()=>process.exit(0),()=>process.exit(1))")
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if lab.docker('exec', meta, 'node', '-e', probe, check=False).returncode == 0:
+            return
+        time.sleep(2)
+    raise StudioError('postgres-meta did not become ready')
 
 
 def wait_ready(url, timeout=120, any_answer=False, what='Studio'):
@@ -268,8 +330,8 @@ def up(e):
     service = runtime.token(values['jwt'], 'service_role')
     anon = runtime.token(values['jwt'], 'anon')
     studio, meta = names(e)
-    remove(studio)
     remove(meta)
+    remove(studio)
     # Held from the moment the Studio login opens until Studio serves: a write pause taken meanwhile
     # waits, then stops this Studio and closes the login (lab/write_pause.py).
     try:
@@ -277,13 +339,10 @@ def up(e):
             open_connections(e)
             runtime_sql(role_sql(e, password), e)
             try:
-                meta_address = launch(meta, 'operator.meta', {
-                    'PG_META_PORT': '8080', 'PG_META_DB_HOST': runtime.DB, 'PG_META_DB_PORT': '5432', 'PG_META_DB_NAME': e,
-                    'PG_META_DB_USER': f'{e}_studio', 'PG_META_DB_PASSWORD': password, 'PG_META_DB_SSL_MODE': 'disable',
-                    'CRYPTO_KEY': crypto}, image['meta'])
+                address = open_network(e)
                 organization, environment = display_names(e)
-                studio_address = launch(studio, 'operator.studio', {
-                    'HOSTNAME': '0.0.0.0', 'STUDIO_PG_META_URL': f'http://{meta_address}:8080',
+                item = launch(studio, 'operator.studio', {
+                    'HOSTNAME': address, 'STUDIO_PG_META_URL': 'http://127.0.0.1:8080',
                     'POSTGRES_HOST': runtime.DB, 'POSTGRES_PORT': '5432', 'POSTGRES_DB': e, 'POSTGRES_PASSWORD': password,
                     'POSTGRES_USER_READ_WRITE': f'{e}_studio', 'POSTGRES_USER_READ_ONLY': f'{e}_studio',
                     'PG_META_CRYPTO_KEY': crypto, 'PGRST_DB_SCHEMAS': 'public', 'PGRST_DB_EXTRA_SEARCH_PATH': 'public',
@@ -291,17 +350,24 @@ def up(e):
                     'SUPABASE_URL': f'http://{network_gateway()}:{UPSTREAM_PORT}/{e}',
                     'SUPABASE_PUBLIC_URL': 'http://localhost', 'SUPABASE_ANON_KEY': anon, 'SUPABASE_SERVICE_KEY': service,
                     'AUTH_JWT_SECRET': values['jwt'], 'ENABLED_FEATURES_LOGS_ALL': 'false', 'NEXT_TELEMETRY_DISABLED': '1'},
-                    image['studio'])
-                wait_ready(f'http://{meta_address}:8080/', any_answer=True, what='postgres-meta')
-                wait_ready(f'http://{studio_address}:3000/api/platform/profile')
+                    image['studio'], session_network(e), address=address, attach=(runtime.NETWORK,))
+                isolated(item, e, address)
+                launch(meta, 'operator.meta', {
+                    'PG_META_HOST': '127.0.0.1', 'PG_META_PORT': '8080',
+                    'PG_META_DB_HOST': runtime.DB, 'PG_META_DB_PORT': '5432', 'PG_META_DB_NAME': e,
+                    'PG_META_DB_USER': f'{e}_studio', 'PG_META_DB_PASSWORD': password, 'PG_META_DB_SSL_MODE': 'disable',
+                    'CRYPTO_KEY': crypto}, image['meta'], f'container:{studio}')
+                meta_ready(meta)
+                wait_ready(f'http://{address}:3000/api/platform/profile')
             except BaseException:
-                remove(studio)
                 remove(meta)
+                remove(studio)
+                remove_network(e)
                 close_login(e)
                 raise
             state = load_state()
             state['upstream'] = {'host': network_gateway(), 'port': UPSTREAM_PORT}
-            state['sessions'][e] = {'url': f'http://{studio_address}:3000',
+            state['sessions'][e] = {'url': f'http://{address}:3000',
                                     'started_at': datetime.datetime.now(datetime.UTC).isoformat(timespec='seconds')}
             save_state(state)
             # The console opens Studio's internal route to Auth and Storage when it sees the state
@@ -324,8 +390,10 @@ def down(e):
     state = load_state()
     state['sessions'].pop(e, None)
     save_state(state)
-    for name in names(e):
-        remove(name)
+    studio, meta = names(e)
+    remove(meta)
+    remove(studio)
+    remove_network(e)
     close_login(e)
 
 
@@ -336,6 +404,9 @@ def reset():
                                                      '--format', '{{.Names}}').stdout.split('\n') if line]
     targets = set(state.get('sessions', {}))
     targets |= {name[len(PREFIX) + 1:-len('-studio')] for name in running if name.endswith('-studio')}
+    networks = lab.docker('network', 'ls', '--filter', 'label=io.sbarbase.owner=' + runtime.OWNER,
+                          '--format', '{{.Name}}').stdout.split()
+    targets |= {name[len(PREFIX) + 1:-len('-studio-net')] for name in networks if name.endswith('-studio-net')}
     for e in sorted(targets):
         if RUNTIME_ID.fullmatch(e):
             down(e)

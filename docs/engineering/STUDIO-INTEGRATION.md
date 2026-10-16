@@ -54,8 +54,26 @@ sbarbase-durable-<e>-meta      # postgres-meta v0.96.6 (or the chosen pin)
 sbarbase-durable-<e>-studio    # studio 2026.07.27-sha-cbb076d (or the chosen pin)
 ```
 
-with label `io.sbarbase.owner=durable-upstream` and membership of the existing internal network
-`sbarbase-durable-net`. No published ports, matching every other service in this runtime.
+with label `io.sbarbase.owner=durable-upstream` and no published ports, matching every other
+service in this runtime.
+
+As built (2026-10-16), neither container listens on the shared network `sbarbase-durable-net`.
+Neither Studio nor postgres-meta authenticates its callers, and that network carries code other
+environments control: their Edge Functions, and the database itself through `pg_net`. A live probe
+on the real server, from a throwaway container on that network, ran SQL as `<e>_studio` through
+both meta (`/query`) and Studio (`/api/platform/pg-meta/default/query`) while a session ran. Each
+session now gets its own internal network `sbarbase-durable-<e>-studio-net`, made with a named
+subnet so Studio can take a chosen address. Studio joins it first, at that address, and binds only
+there (`HOSTNAME`); it also joins the shared network, which carries only its outbound calls to the
+database and to the loopback server's internal route. postgres-meta runs in Studio's network
+namespace (`--network container:`) and binds `127.0.0.1` (`PG_META_HOST`); Studio reaches it on
+loopback. The host reaches Studio on its private address. The same probe after the change: refused
+by name and by shared-network address on both ports, and the private address unreachable from the
+shared network, while Studio's own SQL route still answered the host. A session's network is
+removed with its containers on stop, on a failed start, and by `studio.py reset`, which also finds
+a session left only as its network. Residual: a peer able to forge raw packets and route them to
+Studio's private address through its shared-network interface is not excluded by the network
+layout alone; tenant code (Edge Functions, SQL) has no raw socket access.
 
 Why per environment, on the evidence:
 

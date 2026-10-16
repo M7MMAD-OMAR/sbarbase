@@ -112,11 +112,13 @@ class LaunchTests(unittest.TestCase):
         return self.image if args[:2] == ('image', 'inspect') else result('created')
 
     def launch(self, image=REF):
-        return studio.launch('owned-studio', 'operator.meta', {'SESSION': 'temporary'}, image)
+        return studio.launch('owned-studio', 'operator.meta', {'SESSION': 'temporary'}, image, 'session-net',
+                             address='10.0.0.2', attach=('shared-net',))
 
     def test_exact_reference_resolves_config_id_and_forbids_implicit_pull(self):
-        self.assertEqual(self.launch(), '10.0.0.2')
+        self.assertEqual(self.launch(), self.actual)
         self.assertEqual(self.calls[0], ('image', 'inspect', REF))
+        self.assertEqual(self.calls[1][0], 'create')
         self.assertIn('--pull=never', self.calls[1])
         self.assertEqual(self.calls[1][-1], REF)
         self.assertEqual(list(self.directory.iterdir()), [])
@@ -145,6 +147,9 @@ class LaunchTests(unittest.TestCase):
         self.actual = None
         with self.assertRaisesRegex(studio.StudioError, 'identity or ownership'): self.launch()
 
-    def test_created_network_address_remains_required(self):
-        self.actual['NetworkSettings']['Networks'][studio.runtime.NETWORK]['IPAddress'] = ''
-        with self.assertRaisesRegex(studio.StudioError, 'no address'): self.launch()
+    def test_networks_are_joined_before_the_container_starts(self):
+        self.launch()
+        create = self.calls[1]
+        self.assertEqual(create[create.index('--network') + 1], 'session-net')
+        self.assertEqual(create[create.index('--ip') + 1], '10.0.0.2')
+        self.assertEqual(self.calls[2:4], [('network', 'connect', 'shared-net', 'owned-studio'), ('start', 'owned-studio')])
