@@ -99,7 +99,10 @@ def published():
 
 def unpaused_environments(published=None):
     """Published environments whose writes are not held by a write pause (lab/write_pause.py)."""
-    held = {item['runtime'] for item in write_pause.status() if item.get('phase') == 'held'}
+    try:
+        held = {item['runtime'] for item in write_pause.status() if item.get('phase') == 'held'}
+    except write_pause.PauseError as error:
+        raise MoveError(f'{error}; nothing was changed') from None
     published = globals()['published']() if published is None else published
     return sorted(e for e in published if e not in held)
 
@@ -107,7 +110,10 @@ def unpaused_environments(published=None):
 def held_pauses():
     """Each published environment and when its write pause took hold: the backups of --to are the
     way back only while this stays the same (no environment published since, no pause resumed)."""
-    held = {item['runtime']: item.get('held_at') for item in write_pause.status() if item.get('phase') == 'held'}
+    try:
+        held = {item['runtime']: item.get('held_at') for item in write_pause.status() if item.get('phase') == 'held'}
+    except write_pause.PauseError as error:
+        raise MoveError(f'{error}; nothing was changed') from None
     return {e: held.get(e) for e in sorted(published())}
 
 
@@ -139,9 +145,15 @@ def plan(target_ref):
         refusals.append(str(error))
     if unpaused:
         refusals.append('Pause writes first, every environment (lab/write_pause.py pause): ' + ', '.join(unpaused))
-    # The recorded move is named above; the others are an upgrade's own transient refusals.
-    refusals += [item for item in upgrade.transient_refusals(lock=False) if 'database move' not in item]
-    return {'current': current, 'target': target, 'diffs': diffs, 'refusals': refusals}
+    # The recorded move is named above; these are an upgrade's own transient refusals.
+    refusals += upgrade.transient_refusals(lock=False, move=False)
+    # The baseline the backups are checked against, taken before they start.
+    try:
+        pauses = held_pauses()
+    except MoveError as error:
+        pauses = None
+        refusals.append(str(error))
+    return {'current': current, 'target': target, 'diffs': diffs, 'refusals': refusals, 'pauses': pauses}
 
 
 def prepare(target_ref):
@@ -161,7 +173,7 @@ def prepare(target_ref):
         images = {side: (release_channel.lock_at(commit, release_channel.DATABASE_LOCK) or {}).get('tag')
                   for side, commit in (('from', current), ('to', target))}
         save({'version': 1, 'phase': 'prepared', 'from': current, 'to': target, 'started_at': upgrade.now(),
-              'images': images, 'snapshot': taken, 'pauses': held_pauses(), **({'backup': run} if run else {})})
+              'images': images, 'snapshot': taken, 'pauses': details['pauses'], **({'backup': run} if run else {})})
         print(f"Prepared: {images['from']} -> {images['to']}. Every environment was backed up first.")
         print('Stop Sbarbase now, then run: /usr/bin/python3 lab/upgrade.py database --continue')
 
@@ -239,7 +251,7 @@ def resume(run=subprocess.run):
             # Sbarbase ran between --to and the stop, so an operation record may have appeared
             # since: the generation change would refuse on it after the checkout moved, with no
             # way back. While the move is only prepared, Sbarbase can start and settle it.
-            unsettled = [item for item in upgrade.transient_refusals(lock=False) if 'database move' not in item]
+            unsettled = upgrade.transient_refusals(lock=False, move=False)
             if unsettled:
                 raise MoveError('Nothing was moved; settle these first (start Sbarbase so it settles them, then stop '
                                 'it and continue the move): ' + '; '.join(unsettled))

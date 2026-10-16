@@ -420,7 +420,7 @@ def plan(target_ref):
             'changes': release_channel.changes(current, target, diffs), 'refusals': refusals}
 
 
-def transient_refusals(lock=True, records=True, backup=True):
+def transient_refusals(lock=True, records=True, backup=True, move=True):
     """Why a start would refuse now for a reason that passes by itself: the last upgrade or
     rollback waits for its restart, an operation record is still to settle, a backup or restore
     runs, or another upgrade or rollback holds the upgrade lock. plan() refuses on these (without
@@ -437,7 +437,7 @@ def transient_refusals(lock=True, records=True, backup=True):
         refusals.append('A backup or restore is running; wait for it to finish')
     if lock and held(LOCK):
         refusals.append('Another upgrade or rollback is running')
-    if present(DATABASE_MOVE):
+    if move and present(DATABASE_MOVE):
         refusals.append('A database move is recorded; continue or abandon it first (lab/upgrade.py database)')
     return refusals
 

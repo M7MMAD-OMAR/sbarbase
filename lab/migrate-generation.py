@@ -188,7 +188,7 @@ def main():
         raise RuntimeError('The retirement assertion applies to a stopped container only')
     if options.retired=='stopped' and not options.assertion:
         raise RuntimeError('Stopping the retired container requires --assert-retired-will-not-return')
-    if (old.owner in REFUSED_OWNERS or old.name.startswith(REFUSED_PREFIXES)) \
+    if old.owner=='durable-upstream' and old.name.startswith('sbarbase-durable') \
             and options.volume!=database_volume.current(state):
         # The installation's database mounts the volume the record names; a migration told another
         # one would stop at the retired volume check after its intent, leaving a record to settle.

@@ -33,7 +33,7 @@ class VolumeRecordTests(unittest.TestCase):
         before = self.path.stat().st_mtime_ns
         volume.publish(self.state, NEW)
         self.assertEqual(self.path.stat().st_mtime_ns, before)
-        self.assertFalse((self.state / (volume.NAME + '.pending')).exists())
+        self.assertFalse((self.state / volume.NAME).with_suffix('.pending').exists())
 
     def test_only_database_volume_names_are_accepted(self):
         for name in ('postgres-data', 'sbarbase-durable-storage', 'sbarbase-restore-0123456789ab-pgdata', '', None,
@@ -74,7 +74,7 @@ class VolumeRecordTests(unittest.TestCase):
             volume.current(self.state)
 
     def test_a_left_pending_file_does_not_count(self):
-        (self.state / (volume.NAME + '.pending')).write_text('{"version": 1, "volume": "%s"}' % NEW)
+        (self.state / volume.NAME).with_suffix('.pending').write_text('{"version": 1, "volume": "%s"}' % NEW)
         self.assertEqual(volume.current(self.state), volume.DEFAULT)
         self.assertEqual(volume.publish(self.state, NEW), NEW)
 
@@ -168,3 +168,15 @@ class RuntimeWiringTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class SecureFileTests(unittest.TestCase):
+    def test_an_existing_file_is_made_private_when_rewritten(self):
+        import run as lab
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'left.pending'
+            path.write_text('old')
+            os.chmod(path, 0o644)
+            lab.secure_file(path, 'new')
+            self.assertEqual(oct(path.stat().st_mode & 0o777), oct(0o600))
+            self.assertEqual(path.read_text(), 'new')

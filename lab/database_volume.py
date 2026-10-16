@@ -16,6 +16,8 @@ import re
 import stat
 from pathlib import Path
 
+import run as lab
+
 NAME = 'database-volume.json'
 DEFAULT = 'sbarbase-durable-pgdata'
 # The constant, or a rebuilt cluster's volume: the runtime mounts only volumes it owns
@@ -71,20 +73,7 @@ def publish(state, volume):
     state = Path(state)
     if current(state) == volume and (state / NAME).exists():
         return volume
-    pending = state / (NAME + '.pending')
-    # A pending file a kill left keeps its own mode if reused; it is replaced, never rewritten.
-    pending.unlink(missing_ok=True)
-    descriptor = os.open(pending, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
-    with os.fdopen(descriptor, 'w', encoding='utf-8') as output:
-        output.write(json.dumps({'version': 1, 'volume': volume}) + '\n')
-        output.flush()
-        os.fsync(output.fileno())
-    os.replace(pending, state / NAME)
-    directory = os.open(state, os.O_RDONLY)
-    try:
-        os.fsync(directory)
-    finally:
-        os.close(directory)
+    lab.atomic(state / NAME, {'version': 1, 'volume': volume})
     if current(state) != volume:
         raise VolumeError('The database volume record changed before use')
     return volume

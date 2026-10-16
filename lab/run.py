@@ -40,6 +40,9 @@ def owned(name):
 
 def secure_file(path, content):
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    # O_CREAT's mode applies only to a new file: an existing one (a pending file a kill left, an
+    # env file written before) keeps its own, so it is made private here either way.
+    os.fchmod(fd, 0o600)
     with os.fdopen(fd, 'w') as f:
         f.write(content)
 

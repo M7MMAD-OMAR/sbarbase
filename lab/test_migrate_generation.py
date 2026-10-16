@@ -200,8 +200,12 @@ class Main(unittest.TestCase):
         intent.assert_not_called();execute.assert_not_called()
         intent,execute,error=self.run_main([*BASE,*attended])
         self.assertIsNone(error)
-        # A disposable placement keeps its own volume.
+        # A disposable placement, or a retained recovery target, keeps its own volume.
         intent,execute,error=self.run_main(other,target=DISPOSABLE)
+        self.assertIsNone(error)
+        restore={'container_id':'a'*64,'name':'sbarbase-restore-0123456789ab-db','owner':'recovery-target','image':'sha256:'+'c'*64}
+        own=[*BASE[:BASE.index('--volume')],'--volume','sbarbase-restore-0123456789ab-pgdata',*BASE[BASE.index('--volume')+2:]]
+        intent,execute,error=self.run_main([*own,'--attended-retained','--confirm-retained',restore['name']],target=restore)
         self.assertIsNone(error)
 
     def test_the_record_path_is_the_one_the_upgrade_command_writes(self):

@@ -72,9 +72,10 @@ class Fixture(unittest.TestCase):
             item.start()
             self.addCleanup(item.stop)
 
-    def transient(self, lock=True):
+    def transient(self, lock=True, move=True):
         self.transient_calls.append(lock)
-        return list(getattr(self, 'transient_refused', []))
+        self.move_asked = getattr(self, 'move_asked', []) + [move]
+        return [item for item in getattr(self, 'transient_refused', []) if move or 'database move' not in item]
 
     def discard(self, state):
         # An empty record left before its intent: removed, and then there is no migration waiting.
@@ -145,8 +146,10 @@ class PrepareTests(Fixture):
         with patch.object(upgrade, 'resolve', lambda ref: CURRENT), self.assertRaises(move.MoveError) as raised:
             self.quiet(move.prepare, 'v2')
         self.assertTrue(any('Already at this version' in item for item in raised.exception.refusals))
-        # prepare holds the upgrade lock itself, so the transient check must not ask for it.
+        # prepare holds the upgrade lock itself, so the transient check must not ask for it, and it
+        # names the recorded move itself.
         self.assertEqual(set(self.transient_calls), {False})
+        self.assertEqual(set(self.move_asked), {False})
         self.assertEqual(self.events, [])
 
     def test_an_upgrade_s_other_refusals_still_refuse_the_move(self):
@@ -320,6 +323,31 @@ class ContinueTests(Fixture):
         self.assertEqual(self.events, [])
         self.quiet(move.abandon)
         self.assertFalse(self.state_file.exists())
+
+    def test_the_pause_baseline_is_taken_before_the_backups(self):
+        self.paused = [{'runtime': E, 'phase': 'held', 'held_at': '2026-10-16T01:00:00Z'}]
+
+        def back_up():
+            # Resumed and paused again while the backup runs.
+            self.paused = [{'runtime': E, 'phase': 'held', 'held_at': '2026-10-16T01:05:00Z'}]
+            return '20261016T030000Z'
+        with patch.object(upgrade, 'back_up', back_up):
+            self.quiet(move.prepare, 'v2')
+        self.assertEqual(self.record()['pauses'], {E: '2026-10-16T01:00:00Z'})
+        self.events.clear()
+        with self.assertRaisesRegex(move.MoveError, 'since the backups were taken'):
+            self.resume()
+
+    def test_an_unreadable_pause_record_is_a_refusal_not_a_crash(self):
+        with patch.object(move.write_pause, 'status', side_effect=move.write_pause.PauseError('cannot be read')):
+            with self.assertRaises(move.MoveError) as raised:
+                self.quiet(move.prepare, 'v2')
+            self.assertTrue(any('cannot be read' in item for item in raised.exception.refusals))
+        self.prepared()
+        with patch.object(move.write_pause, 'status', side_effect=move.write_pause.PauseError('cannot be read')), \
+                self.assertRaisesRegex(move.MoveError, 'cannot be read'):
+            self.resume()
+        self.assertEqual(self.record()['phase'], 'prepared')
 
     def test_a_resumed_pause_or_a_new_environment_since_the_backups_refuses_before_anything_moves(self):
         self.paused = [{'runtime': E, 'phase': 'held', 'held_at': '2026-10-16T01:00:00Z'}]
@@ -504,6 +532,16 @@ class StartTests(Fixture):
             with patch.object(upgrade, 'DATABASE_MOVE', recorded), patch.object(upgrade, 'load_state', return_value=None), \
                     patch.object(upgrade, 'held', return_value=False), patch.object(upgrade, 'present', lambda path: path == recorded):
                 self.assertTrue(any('database move' in item for item in upgrade.transient_refusals()))
+
+    def test_the_move_can_ask_for_the_other_refusals_without_its_own(self):
+        patch.stopall()
+        with tempfile.TemporaryDirectory() as directory:
+            recorded = Path(directory) / 'database-move.json'
+            recorded.write_text('{}')
+            with patch.object(upgrade, 'DATABASE_MOVE', recorded), patch.object(upgrade, 'load_state', return_value=None), \
+                    patch.object(upgrade, 'held', return_value=False), patch.object(upgrade, 'present', lambda path: path == recorded):
+                self.assertTrue(any('database move' in item for item in upgrade.transient_refusals()))
+                self.assertEqual(upgrade.transient_refusals(move=False), [])
 
     def test_a_rollback_refuses_while_a_move_is_recorded(self):
         self.quiet(move.prepare, 'v2')
