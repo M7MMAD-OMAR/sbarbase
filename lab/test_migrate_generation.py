@@ -207,6 +207,13 @@ class Main(unittest.TestCase):
         own=[*BASE[:BASE.index('--volume')],'--volume','sbarbase-restore-0123456789ab-pgdata',*BASE[BASE.index('--volume')+2:]]
         intent,execute,error=self.run_main([*own,'--attended-retained','--confirm-retained',restore['name']],target=restore)
         self.assertIsNone(error)
+        # The guard needs both the runtime's owner and its durable name: either alone keeps its volume.
+        owned={**DISPOSABLE,'owner':'durable-upstream'}
+        intent,execute,error=self.run_main([*other,'--attended-retained','--confirm-retained','fixture-db'],target=owned)
+        self.assertIsNone(error)
+        named={**RETAINED,'owner':'recovery-target'}
+        intent,execute,error=self.run_main([*other,*attended],target=named)
+        self.assertIsNone(error)
 
     def test_the_record_path_is_the_one_the_upgrade_command_writes(self):
         import upgrade

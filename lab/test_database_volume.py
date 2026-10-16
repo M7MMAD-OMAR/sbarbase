@@ -35,6 +35,11 @@ class VolumeRecordTests(unittest.TestCase):
         self.assertEqual(self.path.stat().st_mtime_ns, before)
         self.assertFalse((self.state / volume.NAME).with_suffix('.pending').exists())
 
+    def test_publish_writes_through_the_atomic_helper(self):
+        with patch.object(volume.lab, 'atomic', wraps=volume.lab.atomic) as atomic:
+            volume.publish(self.state, NEW)
+        atomic.assert_called_once_with(self.path, {'version': 1, 'volume': NEW})
+
     def test_only_database_volume_names_are_accepted(self):
         for name in ('postgres-data', 'sbarbase-durable-storage', 'sbarbase-restore-0123456789ab-pgdata', '', None,
                      'sbarbase-durable-pgdata-0123456789ab2', 'sbarbase-durable-pgdata-XYZ'):

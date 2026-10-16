@@ -118,6 +118,14 @@ class IdentityTests(unittest.TestCase):
                 with self.assertRaises(backup.BackupError):
                     backup.admit_database()
 
+    def test_an_image_already_proved_is_used_without_a_second_inspection(self):
+        other = 'sha256:' + 'd' * 64
+        with patch.object(backup, 'run', side_effect=[self.container(other)]) as run:
+            self.assertEqual(backup.admit_database(resolved=(DBREF, other)), 'c' * 64)
+        self.assertEqual(run.call_count, 1)
+        with patch.object(backup, 'run', side_effect=[self.container(NATIVE)]), self.assertRaises(backup.BackupError):
+            backup.admit_database(resolved=(DBREF, other))
+
     def test_psql_uses_admitted_container_id_instead_of_mutable_name(self):
         with patch.object(backup, 'run', self.native):
             argv = backup.psql('postgres')

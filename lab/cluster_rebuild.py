@@ -34,6 +34,7 @@ import io
 import json
 import re
 import secrets
+import signal
 import subprocess
 import sys
 import tempfile
@@ -111,7 +112,10 @@ def chosen_image(commit=None):
     if commit is None:
         pin = backup.image_pin('distro-image.lock.json')
     else:
-        pin = release_channel.lock_at(upgrade.resolve(commit), release_channel.DATABASE_LOCK)
+        try:
+            pin = release_channel.lock_at(upgrade.resolve(commit), release_channel.DATABASE_LOCK)
+        except (upgrade.UpgradeError, release_channel.ReleaseError) as error:
+            raise RebuildError(f'That version cannot be read ({error})') from None
         if not pin:
             raise RebuildError('That version has no PostgreSQL lock')
     try:
@@ -354,8 +358,9 @@ def rebuild(stamp, commit=None, token=None):
                 raise RebuildError('The rebuilt cluster does not hold the roles the run recorded')
             docker('stop', container)
             record = {**record, 'phase': 'completed', 'finished_at': upgrade.now()}
-        except Exception as error:
-            # Fixed sentences are recorded; anything else only by its kind, never its text.
+        except BaseException as error:
+            # Fixed sentences are recorded; anything else (an interrupt or a stop included) only by
+            # its kind, never its text.
             record = {**record, 'phase': 'failed', 'failure': str(error) if isinstance(error, (RebuildError, PlanError))
                       else type(error).__name__, 'finished_at': upgrade.now()}
             raise
@@ -371,6 +376,8 @@ def main(argv=None):
     parser.add_argument('run', help='the backup run time, as lab/backup.py list prints it')
     parser.add_argument('--image-at', dest='commit', help='use the PostgreSQL lock of this version instead of the current one')
     args = parser.parse_args(argv)
+    # A stop request unwinds like an interrupt, so the failure is recorded and the container removed.
+    signal.signal(signal.SIGTERM, lambda number, frame: sys.exit(128 + number))
     try:
         record = rebuild(args.run, args.commit)
     except (RebuildError, backup.BackupError, PlanError) as error:

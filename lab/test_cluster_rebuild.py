@@ -248,6 +248,7 @@ class RebuildTests(unittest.TestCase):
         self.existing = set()
         self.inventory_after = recorded()
         self.fail_at = None
+        self.failure = rebuild.RebuildError
         self.restored = []
         patches = [
             patch.object(rebuild, 'RECORD', self.root / 'cluster-rebuild.json'),
@@ -274,7 +275,7 @@ class RebuildTests(unittest.TestCase):
         if args[1] == 'inspect':
             return SimpleNamespace(returncode=0 if args[2] in self.existing else 1, stdout='', stderr='')
         if self.fail_at and args[0] == self.fail_at:
-            raise rebuild.RebuildError('docker ' + args[0] + ' failed')
+            raise self.failure('docker ' + args[0] + ' failed')
         return SimpleNamespace(returncode=0, stdout='', stderr='')
 
     def execute(self, build, query, database='postgres'):
@@ -313,6 +314,33 @@ class RebuildTests(unittest.TestCase):
         self.assertEqual(saved['restored'], ['management', 'storage', E])
         self.assertEqual(self.calls[-1], ('rm', '-f', 'sbarbase-rebuild-0123456789ab'))
         self.assertFalse([call for call in self.calls if call[:2] == ('volume', 'rm')])
+
+    def test_an_interrupt_or_a_stop_request_is_recorded_as_a_failure_and_the_container_goes(self):
+        self.fail_at = 'stop'
+        self.failure = KeyboardInterrupt
+        with self.assertRaises(KeyboardInterrupt):
+            rebuild.rebuild(STAMP, token='0123456789ab')
+        saved = json.loads(rebuild.RECORD.read_text())
+        self.assertEqual((saved['phase'], saved['failure']), ('failed', 'KeyboardInterrupt'))
+        self.assertEqual(self.calls[-1], ('rm', '-f', 'sbarbase-rebuild-0123456789ab'))
+        handlers = {}
+        with patch.object(rebuild.signal, 'signal', lambda number, handler: handlers.update({number: handler})), \
+                patch.object(rebuild, 'rebuild', side_effect=rebuild.RebuildError('stopped')), \
+                contextlib.redirect_stderr(io.StringIO()):
+            rebuild.main([STAMP])
+        with self.assertRaises(SystemExit) as stopped:
+            handlers[rebuild.signal.SIGTERM](rebuild.signal.SIGTERM, None)
+        self.assertEqual(stopped.exception.code, 128 + rebuild.signal.SIGTERM)
+
+    def test_the_logins_created_closed_are_recorded_and_reported(self):
+        output = io.StringIO()
+        without = {name: value for name, value in KNOWN.items() if name != f'{E}_developer'}
+        with patch.object(rebuild.signal, 'signal'), patch.object(rebuild, 'passwords', lambda: without), \
+                contextlib.redirect_stdout(output):
+            self.assertEqual(rebuild.main([STAMP]), 0)
+        saved = json.loads(rebuild.RECORD.read_text())
+        self.assertEqual(saved['closed_logins'], [f'{E}_developer'])
+        self.assertIn(f'Created closed (turn them on again): {E}_developer', output.getvalue())
 
     def test_a_cluster_that_does_not_hold_the_recorded_roles_fails(self):
         next(item for item in self.inventory_after['roles'] if item['kind'] == 'rest')['rolbypassrls'] = True
@@ -496,6 +524,10 @@ class PreconditionTests(unittest.TestCase):
                     patch.object(rebuild.release_channel, 'lock_at', lambda commit, name: None), \
                     self.assertRaisesRegex(rebuild.RebuildError, 'no PostgreSQL lock'):
                 rebuild.chosen_image('v0')
+        for error in (rebuild.upgrade.UpgradeError('Unknown version v9'), rebuild.release_channel.ReleaseError('unreadable')):
+            with patch.object(rebuild.upgrade, 'resolve', side_effect=error), \
+                    self.assertRaisesRegex(rebuild.RebuildError, 'cannot be read'):
+                rebuild.chosen_image('v9')
         with patch.object(rebuild.backup, 'image_pin', return_value={}), \
                 patch.object(rebuild.backup, 'resolve_image', side_effect=rebuild.backup.BackupError('missing')), \
                 self.assertRaisesRegex(rebuild.RebuildError, 'pull it first'):
