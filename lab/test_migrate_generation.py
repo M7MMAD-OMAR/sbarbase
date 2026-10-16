@@ -6,6 +6,7 @@ import shutil
 from pathlib import Path
 import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -57,16 +58,19 @@ class RefuseRetained(unittest.TestCase):
 
 
 class Main(unittest.TestCase):
-    def run_main(self,arguments,*,target=RETAINED,reconcile=False):
+    def run_main(self,arguments,*,target=RETAINED,reconcile=False,empty_record=False):
         state=tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree,state,True)
+        self.state=Path(state)
+        if empty_record:
+            (self.state/command.hba_migration.hba_generation.MIGRATION).mkdir(mode=0o700)
         argv=['migrate-generation.py','--state',state,'--inventory',self.inventory,*arguments]
         with patch.object(sys,'argv',argv),\
              patch.object(command.hba_migration,'pinned',return_value={**PIN,'target':target}),\
              patch.object(command.hba_migration,'load',return_value={'old':target,'migration':'m','generation':PIN['generation']}),\
              patch.object(command.hba_migration,'publish_intent',return_value={'migration':'m','generation':PIN['generation']}) as intent,\
              patch.object(command.hba_migration,'execute',return_value=True) as execute,\
-             patch.object(command,'plan_for',return_value={}):
+             patch.object(command,'plan_for',return_value={}) as self.plan:
             try:
                 with contextlib.redirect_stdout(io.StringIO()):command.main()
                 return intent,execute,None
@@ -134,9 +138,79 @@ class Main(unittest.TestCase):
         self.assertIsNone(error)
         execute.assert_called_once()
 
+    def test_an_empty_record_left_before_its_intent_is_removed_where_every_run_comes_in(self):
+        _,execute,error=self.run_main([*BASE,'--reconcile'],target=DISPOSABLE,empty_record=True)
+        self.assertRegex(str(error),'without --reconcile')
+        execute.assert_not_called()
+        self.assertFalse(command.hba_migration.present(self.state))
+        intent,execute,error=self.run_main(BASE,target=DISPOSABLE,empty_record=True)
+        self.assertIsNone(error)
+        intent.assert_called_once();execute.assert_called_once()
+
+    def test_a_record_with_anything_in_it_is_kept(self):
+        state=tempfile.mkdtemp();self.addCleanup(shutil.rmtree,state,True)
+        directory=Path(state)/command.hba_migration.hba_generation.MIGRATION
+        directory.mkdir(mode=0o700);(directory/'intent.json').write_text('{"record":')
+        self.assertFalse(command.hba_migration.discard_unpublished(state))
+        self.assertTrue(directory.exists())
+
     def test_the_record_path_is_the_one_the_upgrade_command_writes(self):
         import upgrade
         self.assertEqual(UPGRADE_STATE,upgrade.STATE_FILE)
+
+    def test_the_image_from_the_lock_goes_into_the_intent_and_the_replacement(self):
+        image='sha256:'+'d'*64
+        with patch.object(command,'lock_image',return_value=image):
+            intent,execute,error=self.run_main([*BASE,'--image-from-lock'],target=DISPOSABLE)
+        self.assertIsNone(error)
+        self.assertEqual(intent.call_args.kwargs['image'],image)
+        self.assertEqual(self.plan.call_args.args[2],image)
+        # Without the flag the pinned image stays: no image is recorded.
+        intent,_,error=self.run_main(BASE,target=DISPOSABLE)
+        self.assertIsNone(intent.call_args.kwargs['image'])
+
+    def test_reconcile_finishes_onto_the_recorded_image_and_refuses_the_lock_flag(self):
+        image='sha256:'+'d'*64
+        _,execute,error=self.run_main([*BASE,'--reconcile','--image-from-lock'],target=DISPOSABLE)
+        self.assertRegex(str(error),'drop --image-from-lock')
+        execute.assert_not_called()
+        with patch.object(command.hba_migration,'target_image',return_value=image):
+            _,execute,error=self.run_main([*BASE,'--reconcile'],target=DISPOSABLE)
+        self.assertIsNone(error)
+        self.assertEqual(self.plan.call_args.args[2],image)
+
+    def test_the_lock_image_is_the_one_the_daemon_proves(self):
+        import json as _json
+        import subprocess
+        root=Path(tempfile.mkdtemp());self.addCleanup(shutil.rmtree,root,True)
+        (root/'lab').mkdir()
+        index='sha256:'+'a'*64
+        (root/'lab'/'distro-image.lock.json').write_text(_json.dumps(
+            {'tag':'public.ecr.aws/supabase/postgres:17.11.0.004','id':index,
+             'digests':['public.ecr.aws/supabase/postgres@'+index]}))
+        config='sha256:'+'b'*64
+        asked=[]
+
+        def daemon(*args,**kwargs):
+            asked.append(args)
+            return subprocess.CompletedProcess(args,0,_json.dumps([{'Id':config,'RepoDigests':['public.ecr.aws/supabase/postgres@'+index]}]),'')
+        with patch.object(command,'docker',daemon):
+            self.assertEqual(command.lock_image(root),config)
+        self.assertEqual(asked,[('image','inspect','public.ecr.aws/supabase/postgres@'+index)])
+
+        def other(*args,**kwargs):
+            return subprocess.CompletedProcess(args,0,_json.dumps([{'Id':config,'RepoDigests':['public.ecr.aws/supabase/postgres@sha256:'+'c'*64]}]),'')
+        with patch.object(command,'docker',other), self.assertRaises(command.image_identity.IdentityError):
+            command.lock_image(root)
+
+    def test_the_plan_carries_the_image_it_is_given_or_the_pinned_one(self):
+        old=command.hba_target.Target(**DISPOSABLE)
+        env=tempfile.NamedTemporaryFile(delete=False);env.close();self.addCleanup(Path(env.name).unlink)
+        options=SimpleNamespace(env_file=env.name,tier='system.db',memory='1024m',cpus='1',network='fixture-net')
+        self.assertEqual(command.plan_for(old,options)['image'],DISPOSABLE['image'])
+        self.assertEqual(command.plan_for(old,options,'sha256:'+'d'*64)['image'],'sha256:'+'d'*64)
+        self.assertEqual((command.plan_for(old,options)['name'],command.plan_for(old,options)['owner']),
+                         (DISPOSABLE['name'],DISPOSABLE['owner']))
 
     def test_a_disposable_fixture_runs_without_the_override(self):
         intent,execute,error=self.run_main(BASE,target=DISPOSABLE)

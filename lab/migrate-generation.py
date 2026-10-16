@@ -14,13 +14,20 @@ be pointed at a different database. The retired container is stopped by this
 operation only when --assert-retired-will-not-return is given, and it is removed
 by its exact captured id.
 
-This revision refuses the retained placement outright (see REFUSED_OWNERS). The
-retained installation's recreation is a deliberate operator run with its own
-evidence, not something this command performs while the runtime is supervising
-the installation.
+The retained placement (see REFUSED_OWNERS) is refused unless the run is attended:
+--attended-retained together with --confirm-retained naming the pinned container
+exactly. That is a deliberate operator run with the runtime stopped, as
+lab/upgrade.py database --continue performs it; nothing else recreates the
+retained installation's database while the runtime supervises it.
 
 A new migration also refuses while an upgrade or rollback is not confirmed yet
 (no_pending_upgrade); finishing an interrupted one with --reconcile does not.
+
+--image-from-lock replaces the database onto the image of this checkout's distribution lock
+instead of the pinned one: same name, owner and volume, a new image. The image is proven on this
+daemon first and, when it differs from the pinned one, recorded in the migration intent, so
+--reconcile finishes onto that image even if
+the lock has changed since.
 
 Read docs/engineering/CONTAINER-GENERATION-MIGRATION.md before running it. An interrupted run
 leaves a private migration record in place; startup refuses until either this
@@ -33,6 +40,7 @@ from pathlib import Path
 import hba_authority
 import hba_migration
 import hba_target
+import image_identity
 import run as lab
 import upgrade_guard
 
@@ -92,11 +100,22 @@ def desired_rules(path,runtime_path):
     return text
 
 
-def plan_for(old,options):
+def lock_image(root=None):
+    """The image of this checkout's distribution lock, as the daemon proves it: the identity a
+    running container reports, the same one the runtime checks at start. Never pulled here."""
+    pin=json.loads(((root or lab.ROOT)/'lab'/'distro-image.lock.json').read_text())
+    reference=image_identity.reference(pin)
+    result=docker('image','inspect',reference,check=False)
+    if result.returncode:
+        raise image_identity.inspection_failure(reference,result.stdout,result.stderr)
+    return image_identity.resolved_id(reference,image_identity.record(result.stdout))
+
+
+def plan_for(old,options,image=None):
     env_file=options.env_file or str(lab.PRIVATE/('upstream/'+old.name+'.env'))
     if not Path(env_file).is_file():
         raise RuntimeError('The retained environment file for this database is missing')
-    return {'name':old.name,'owner':old.owner,'image':old.image,'tier':options.tier,
+    return {'name':old.name,'owner':old.owner,'image':image or old.image,'tier':options.tier,
             'memory':options.memory or _tier_value(options.tier,'memory'),'cpus':options.cpus or _tier_value(options.tier,'cpus'),
             'network':options.network,'env_file':env_file,'command':DB_COMMAND}
 
@@ -124,14 +143,25 @@ def main():
     parser.add_argument('--reconcile',action='store_true')
     parser.add_argument('--attended-retained',action='store_true',dest='attended')
     parser.add_argument('--confirm-retained',dest='confirmed')
+    parser.add_argument('--image-from-lock',action='store_true',dest='from_lock',
+                        help="replace the database onto the image of this checkout's distribution lock")
     options=parser.parse_args()
     state=Path(options.state)
     desired=desired_rules(options.inventory,options.inventory_runtime)
+    # A record directory a kill left empty, before its intent, never started: it is removed here,
+    # where every run comes in, so neither a reconcile nor a new migration is stuck on it.
+    discarded=hba_migration.discard_unpublished(state)
     if options.reconcile:
+        if discarded:
+            raise RuntimeError('The migration record was left before its intent; nothing had started, so it was '
+                               'removed. Start the migration again without --reconcile')
         intent=hba_migration.load(state)
         old=hba_target.Target(**intent['old'])
         refuse_retained(old.name,old.owner,attended=options.attended,confirmed=options.confirmed)
-        completed=hba_migration.execute(docker,state,replacement=plan_for(old,options),desired=desired)
+        if options.from_lock:
+            raise RuntimeError('--reconcile finishes onto the image its intent recorded; drop --image-from-lock')
+        replacement=plan_for(old,options,hba_migration.target_image(intent))
+        completed=hba_migration.execute(docker,state,replacement=replacement,desired=desired)
         print(json.dumps({'reconciled':True,'completed':completed,'migration':intent['migration'],
                           'retired_generation':intent['generation']}))
         return
@@ -139,14 +169,16 @@ def main():
     old=hba_target.Target(**pin['target'])
     refuse_retained(old.name,old.owner,attended=options.attended,confirmed=options.confirmed)
     no_pending_upgrade()
+    image=lock_image() if options.from_lock else None
     if options.assertion and options.retired!='stopped':
         raise RuntimeError('The retirement assertion applies to a stopped container only')
     if options.retired=='stopped' and not options.assertion:
         raise RuntimeError('Stopping the retired container requires --assert-retired-will-not-return')
     intent=hba_migration.publish_intent(state,target=old,generation=pin['generation'],volume=options.volume,
                                         inventory=hba_authority.digest(desired),
-                                        retired_state='stopped-will-not-return' if options.retired=='stopped' else 'absent-verified')
-    completed=hba_migration.execute(docker,state,replacement=plan_for(old,options),desired=desired)
+                                        retired_state='stopped-will-not-return' if options.retired=='stopped' else 'absent-verified',
+                                        image=image)
+    completed=hba_migration.execute(docker,state,replacement=plan_for(old,options,image),desired=desired)
     print(json.dumps({'migrated':True,'completed':completed,'migration':intent['migration'],
                       'retired_generation':intent['generation']}))
 

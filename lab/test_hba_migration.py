@@ -41,7 +41,7 @@ class FakeDocker:
     """The narrow Docker surface the migration uses, with per test knobs."""
 
     def __init__(self,state,*,retired=None,registry=None,marker='yes',published=None,
-                 listing=None,cp_failure=(),stop_returns=0,rm_returns=0,role='t',new_identifier=NEW_CONTAINER):
+                 listing=None,cp_failure=(),stop_returns=0,rm_returns=0,role='t',new_identifier=NEW_CONTAINER,new_image=None):
         self.state=Path(state)
         self.retired=retired if retired is not None else retired_info()
         self.retired_rules=None
@@ -54,6 +54,7 @@ class FakeDocker:
         self.rm_returns=rm_returns
         self.role=role
         self.new_identifier=new_identifier
+        self.new_image=new_image or TARGET.image
         self.calls=[]
 
     def __call__(self,*args,data=None,check=True):
@@ -86,7 +87,7 @@ class FakeDocker:
             if args[1]=='--format':return self.result(stdout=self.new_identifier)
             identifier=args[1]
             if identifier==self.new_identifier:
-                return self.result(stdout=json.dumps([{**retired_info(),'Id':identifier,'State':{'Running':True},
+                return self.result(stdout=json.dumps([{**retired_info(),'Id':identifier,'Image':self.new_image,'State':{'Running':True},
                                                        'Config':{'Labels':{'io.sbarbase.owner':TARGET.owner,
                                                                            'io.sbarbase.tier':'system'}}}]))
             if identifier==TARGET.container_id or identifier==TARGET.name:
@@ -485,6 +486,391 @@ class EvidenceTests(Fixture,unittest.TestCase):
         self.assertTrue(hba_generation.load(self.state)['generation']!=self.generation)
         with self.assertRaisesRegex(RuntimeError,'No generation migration record'):
             migration.execute(self.docker,self.state,replacement=self.replacement(),desired=DESIRED)
+
+
+
+NEW_IMAGE='sha256:'+'d'*64
+
+
+class ImageChangeTests(unittest.TestCase):
+    """A generation change onto the image of a newer distribution lock: same name, owner and
+    volume, the image the intent recorded, through every interruption."""
+
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
+        self.state=Path(self.temp.name)
+        self.generation=str(uuid.uuid4())
+        hba_generation.publish(self.state,TARGET,self.generation)
+        self.registry=authority.encode({'version':1,'generation':self.generation,
+                                        'revision':str(uuid.uuid4()),'operations':{}})
+        self.docker=FakeDocker(self.state,registry=self.registry,new_image=NEW_IMAGE)
+        self.docker.published=revision()+DESIRED
+
+    def publish(self,image=NEW_IMAGE):
+        return migration.publish_intent(self.state,target=TARGET,generation=self.generation,volume='fixture-pgdata',
+                                        inventory=authority.digest(DESIRED),retired_state='stopped-will-not-return',
+                                        image=image)
+
+    def replacement(self,image=NEW_IMAGE):
+        return {'name':TARGET.name,'owner':TARGET.owner,'image':image,'tier':'system.db',
+                'memory':'1024m','cpus':'1','network':'fixture-net','env_file':'/dev/null','command':('postgres',)}
+
+    def execute(self,image=NEW_IMAGE):
+        # One publication per test, read back the same on every rerun, as hba_settlement does.
+        outcome={'version':1,'kind':'retired-applied-reload-acknowledged','journal':{'token':self.__dict__.setdefault('token',str(uuid.uuid4()))},
+                 'application':'publication-witnessed','activation':'unknown'}
+        with patch('resource_policy.io_flags',return_value=['--device-read-bps','/dev/x:1mb']), \
+             patch.object(hba_generation,'read_existing'), patch('hba_authority.initialize'), \
+             patch('hba_runtime.SourceHBA') as writer, patch('hba_migration.outcome_for',return_value=outcome):
+            writer.return_value.publish.return_value=outcome
+            return migration.execute(self.docker,self.state,replacement=self.replacement(image),desired=DESIRED)
+
+    def runs(self):
+        return [call for call in self.docker.calls if call[0]=='run']
+
+    def test_the_intent_records_a_changed_image_and_only_then(self):
+        record=self.publish()
+        self.assertEqual((record['version'],record['image']),(2,NEW_IMAGE))
+        self.assertEqual(migration.target_image(migration.load(self.state)),NEW_IMAGE)
+        import shutil
+        shutil.rmtree(migration.record_directory(self.state))
+        same=self.publish(image=TARGET.image)
+        self.assertEqual(same['version'],1)
+        self.assertNotIn('image',same)
+        self.assertEqual(migration.target_image(same),TARGET.image)
+
+    def test_an_intent_that_records_its_own_image_or_a_malformed_one_is_refused(self):
+        record=self.publish()
+        for image in (TARGET.image,'postgres:17','sha256:short'):
+            with self.subTest(image=image), self.assertRaises(ValueError):
+                migration.validate({**record,'image':image})
+        with self.assertRaises(ValueError):
+            migration.validate({**record,'version':1})
+        legacy={key:value for key,value in record.items() if key!='image'}
+        with self.assertRaises(ValueError):
+            migration.validate({**legacy,'version':2})
+
+    def test_the_replacement_must_run_exactly_the_recorded_image(self):
+        intent=self.publish()
+        for image in (TARGET.image,'sha256:'+'e'*64):
+            with self.subTest(image=image), self.assertRaisesRegex(RuntimeError,'image differs from the one its intent recorded'):
+                migration.validate_replacement(intent,self.replacement(image))
+        self.assertEqual(migration.validate_replacement(intent,self.replacement())['image'],NEW_IMAGE)
+        for key,value in (('name','other-db'),('owner','other')):
+            with self.subTest(key=key), self.assertRaisesRegex(RuntimeError,'changes the database identity'):
+                migration.validate_replacement(intent,{**self.replacement(),key:value})
+
+    def test_a_completed_change_pins_the_new_image_and_archives_the_old(self):
+        intent=self.publish()
+        self.assertTrue(self.execute())
+        run=self.runs()[0]
+        self.assertEqual(run[run.index('fixture-pgdata:'+PGDATA)+1],NEW_IMAGE)
+        pin=hba_generation.load(self.state)
+        self.assertEqual((pin['target']['image'],pin['target']['name'],pin['target']['owner']),(NEW_IMAGE,TARGET.name,TARGET.owner))
+        archive=migration.archive_directory(self.state,intent['migration'])
+        retired=json.loads((archive/hba_generation.NAME).read_text())['record']
+        self.assertEqual(retired['target']['image'],TARGET.image)
+        evidence=migration.read_evidence(self.state,intent['migration'])
+        self.assertEqual((evidence['target']['image'],evidence['retired_image']),(NEW_IMAGE,TARGET.image))
+
+    def test_every_interruption_resumes_onto_the_recorded_image(self):
+        phases=list(migration.PHASES)
+        for stop in phases:
+            with self.subTest(after=stop):
+                self.setUp()
+                self.publish()
+                original=migration.checkpoint
+
+                def interrupted(state,phase,payload,stop=stop):
+                    result=original(state,phase,payload)
+                    if phase==stop:
+                        raise RuntimeError('interrupted after '+phase)
+                    return result
+                with patch.object(migration,'checkpoint',interrupted), self.assertRaisesRegex(RuntimeError,'interrupted after'):
+                    self.execute()
+                self.assertTrue(migration.present(self.state))
+                # The resume reads the image from the intent; asking for another refuses before any effect.
+                calls=len(self.docker.calls)
+                with self.assertRaisesRegex(RuntimeError,'image differs'):
+                    self.execute(image=TARGET.image)
+                self.assertEqual(len(self.docker.calls),calls)
+                self.assertTrue(self.execute())
+                self.assertFalse(migration.present(self.state))
+                self.assertTrue(all(run[run.index('fixture-pgdata:'+PGDATA)+1]==NEW_IMAGE for run in self.runs()))
+                self.assertEqual(len(self.runs()),1,'the replacement is created once')
+                self.assertEqual(hba_generation.load(self.state)['target']['image'],NEW_IMAGE)
+
+
+class LifelikeDocker(FakeDocker):
+    """rm really removes the retired container, the replacement then answers to the shared name,
+    a second run on a taken name fails, and the replacement can be stopped (a host restart)."""
+
+    def __init__(self,*args,**kwargs):
+        super().__init__(*args,**kwargs)
+        self.created=False
+        self.replacement_running=True
+        self.ps_returns=0
+        self.run_fails=False
+
+    def replacement_info(self):
+        return {**retired_info(),'Id':self.new_identifier,'Image':self.new_image,
+                'State':{'Running':self.replacement_running},
+                'Config':{'Labels':{'io.sbarbase.owner':TARGET.owner,'io.sbarbase.tier':'system'}}}
+
+    def handle(self,args,data):
+        command=args[0]
+        if command=='rm':
+            self.retired=None
+            return self.result()
+        if command=='ps':
+            return self.result(returncode=self.ps_returns)
+        if command=='run':
+            if self.created or self.retired is not None or self.run_fails:return self.result(returncode=125)
+            self.created=True
+            return self.result(stdout=self.new_identifier)
+        if command=='start':
+            self.replacement_running=True
+            return self.result()
+        if command=='exec' and args[1]==self.new_identifier and not self.replacement_running:
+            return self.result(returncode=1)
+        if command=='inspect' and args[1] in (self.new_identifier,TARGET.name) and getattr(self,'gone',False):
+            return self.result(returncode=1)
+        if command=='inspect' and args[1] in (self.new_identifier,TARGET.name) and self.created:
+            return self.result(stdout=json.dumps([self.replacement_info()]))
+        return super().handle(args,data)
+
+
+class ResumeAfterRemovalTests(ImageChangeTests.__base__):
+    """An interruption after the retired container is removed but before the new-captured
+    checkpoint is written: the rerun adopts the replacement it created, never a second one."""
+
+    setUp=ImageChangeTests.setUp
+    publish=ImageChangeTests.publish
+    replacement=ImageChangeTests.replacement
+    execute=ImageChangeTests.execute
+    runs=ImageChangeTests.runs
+
+    def lifelike(self):
+        self.docker=LifelikeDocker(self.state,registry=self.registry,new_image=NEW_IMAGE)
+        self.docker.published=revision()+DESIRED
+        self.publish()
+
+    def interrupt_before_readiness(self):
+        with patch.object(migration,'wait_ready',side_effect=RuntimeError('Replacement database readiness timed out')):
+            with self.assertRaisesRegex(RuntimeError,'readiness timed out'):
+                self.execute()
+        self.assertTrue(migration.present(self.state))
+        self.assertIsNone(self.docker.retired)
+        self.assertFalse(migration.done(self.state,'new-captured'))
+
+    def test_a_rerun_adopts_the_replacement_and_finishes(self):
+        self.lifelike()
+        self.interrupt_before_readiness()
+        self.execute()
+        self.assertEqual(len(self.runs()),1)
+        self.assertFalse(migration.present(self.state))
+        self.assertEqual(migration.pinned(self.state)['target']['image'],NEW_IMAGE)
+
+    def test_a_stopped_replacement_is_started_again(self):
+        self.lifelike()
+        self.interrupt_before_readiness()
+        self.docker.replacement_running=False
+        self.execute()
+        self.assertIn(('start',NEW_CONTAINER),self.docker.calls)
+        self.assertEqual(len(self.runs()),1)
+        self.assertFalse(migration.present(self.state))
+
+    def test_a_replacement_stopped_after_its_checkpoint_is_started_before_later_steps(self):
+        self.lifelike()
+        with patch.object(migration,'initialize_generation',side_effect=RuntimeError('stop here')):
+            with self.assertRaisesRegex(RuntimeError,'stop here'):
+                self.execute()
+        self.assertTrue(migration.done(self.state,'new-captured'))
+        self.docker.replacement_running=False
+        awaited=[]
+        real=migration.wait_ready
+        with patch.object(migration,'wait_ready',lambda docker,identifier:awaited.append(identifier) or real(docker,identifier)):
+            self.execute()
+        self.assertIn(('start',NEW_CONTAINER),self.docker.calls)
+        self.assertEqual(awaited,[NEW_CONTAINER],'a restarted replacement is awaited before later steps')
+        self.assertFalse(migration.present(self.state))
+
+    def test_a_failed_listing_is_not_read_as_a_removed_container(self):
+        self.lifelike()
+        self.interrupt_before_readiness()
+        self.docker.ps_returns=1
+        with self.assertRaisesRegex(RuntimeError,'Retired container inspection unavailable'):
+            self.execute()
+        self.assertTrue(migration.present(self.state))
+
+    def test_a_container_under_the_name_with_another_image_or_owner_is_refused(self):
+        for change in ({'Image':'sha256:'+'e'*64},{'Config':{'Labels':{'io.sbarbase.owner':'someone','io.sbarbase.tier':'system'}}},
+                       {'Config':{'Labels':{'io.sbarbase.owner':TARGET.owner,'io.sbarbase.tier':'other'}}},
+                       {'Id':TARGET.container_id}):
+            with self.subTest(change=change):
+                self.setUp();self.lifelike();self.interrupt_before_readiness()
+                original=self.docker.replacement_info
+                self.docker.replacement_info=lambda original=original,change=change:{**original(),**change}
+                with self.assertRaisesRegex(RuntimeError,'Replacement container identity changed'):
+                    self.execute()
+                self.assertEqual(len(self.runs()),1)
+                self.assertTrue(migration.present(self.state))
+
+    def test_a_container_under_the_name_on_another_volume_is_refused(self):
+        self.lifelike();self.interrupt_before_readiness()
+        original=self.docker.replacement_info
+        self.docker.replacement_info=lambda:{**original(),'Mounts':retired_info(volume='other-pgdata')['Mounts']}
+        with self.assertRaisesRegex(RuntimeError,'volume differs'):
+            self.execute()
+        self.assertEqual(len(self.runs()),1)
+        self.assertTrue(migration.present(self.state))
+
+    def test_a_host_restart_after_the_archived_checkpoint_is_resumed(self):
+        self.lifelike()
+        with patch.object(migration,'finish',side_effect=RuntimeError('killed before finishing')):
+            with self.assertRaisesRegex(RuntimeError,'killed before finishing'):
+                self.execute()
+        self.assertTrue(migration.done(self.state,'archived'))
+        self.docker.replacement_running=False
+        self.execute()
+        self.assertIn(('start',NEW_CONTAINER),self.docker.calls)
+        self.assertFalse(migration.present(self.state))
+
+    def test_a_rerun_whose_recorded_replacement_is_gone_refuses_and_keeps_the_record(self):
+        self.lifelike()
+        with patch.object(migration,'initialize_generation',side_effect=RuntimeError('stop here')):
+            with self.assertRaisesRegex(RuntimeError,'stop here'):
+                self.execute()
+        self.docker.gone=True  # the replacement vanished after its checkpoint
+        with self.assertRaisesRegex(RuntimeError,'Replacement container inspection unavailable'):
+            self.execute()
+        self.assertTrue(migration.present(self.state))
+        self.assertFalse(migration.done(self.state,'generation-initialized'))
+
+    def test_a_kill_between_a_file_and_its_checkpoint_is_resumed(self):
+        for phase in ('retired-archived','archived'):
+            with self.subTest(phase=phase):
+                self.setUp();self.__dict__.pop('token',None);self.lifelike()
+                original=migration.checkpoint
+                def interrupted(state,name,payload,phase=phase):
+                    if name==phase:raise RuntimeError('killed after the file')
+                    return original(state,name,payload)
+                with patch.object(migration,'checkpoint',interrupted):
+                    with self.assertRaisesRegex(RuntimeError,'killed after the file'):
+                        self.execute()
+                self.execute()
+                self.assertFalse(migration.present(self.state))
+                self.assertEqual(migration.pinned(self.state)['target']['image'],NEW_IMAGE)
+
+    def test_a_file_that_differs_from_the_rerun_is_refused(self):
+        self.lifelike()
+        original=migration.checkpoint
+        def interrupted(state,name,payload):
+            if name=='retired-archived':raise RuntimeError('killed after the file')
+            return original(state,name,payload)
+        with patch.object(migration,'checkpoint',interrupted), self.assertRaises(RuntimeError):
+            self.execute()
+        path=migration._retired_directory(self.state,migration.load(self.state))/'retired-generation.json'
+        record=migration._decode_envelope(path.read_text(),'x')
+        path.unlink()
+        migration._publish_exclusive(path,{**record,'hba_digest':'0'*64},'x')
+        with self.assertRaisesRegex(RuntimeError,'differs from the one an earlier run wrote'):
+            self.execute()
+        self.assertTrue(migration.present(self.state))
+
+    def test_a_kill_while_the_finished_record_is_removed_leaves_no_record(self):
+        self.lifelike()
+        real=migration.shutil.rmtree
+        def torn(path,*args,**kwargs):
+            # Part of the renamed copy goes, then the kill.
+            (Path(path)/migration.CHECKPOINTS/'archived.json').unlink()
+            raise OSError('killed while removing')
+        with patch.object(migration.shutil,'rmtree',torn), self.assertRaisesRegex(OSError,'killed while removing'):
+            self.execute()
+        self.assertFalse(migration.present(self.state),'the record went in one rename')
+        self.assertEqual(migration.pinned(self.state)['target']['image'],NEW_IMAGE)
+        self.assertTrue((self.state/migration.REMOVING).exists())
+        # The next removal clears what was left.
+        migration.os.mkdir(migration.record_directory(self.state),0o700)
+        migration._remove_record(self.state)
+        self.assertFalse((self.state/migration.REMOVING).exists())
+        self.assertIs(migration.shutil.rmtree,real)
+
+    def test_a_kill_after_the_completion_marker_finishes_on_the_rerun(self):
+        self.lifelike()
+        with patch.object(migration,'_remove_record',side_effect=OSError('killed before the rename')), \
+                self.assertRaises(OSError):
+            self.execute()
+        self.assertTrue(migration.present(self.state))
+        self.assertTrue(self.execute())
+        self.assertFalse(migration.present(self.state))
+
+    def test_a_completion_marker_without_its_evidence_is_refused(self):
+        self.lifelike()
+        with patch.object(migration,'_remove_record',side_effect=OSError('killed before the rename')), \
+                self.assertRaises(OSError):
+            self.execute()
+        intent=migration.load(self.state)
+        (migration.archive_directory(self.state,intent['migration'])/migration.EVIDENCE).unlink()
+        with self.assertRaisesRegex(RuntimeError,'not backed by its evidence'):
+            self.execute()
+        self.assertTrue(migration.present(self.state))
+
+    def test_a_kill_before_the_intent_is_renamed_in_starts_again(self):
+        self.lifelike()
+        import shutil
+        shutil.rmtree(migration.record_directory(self.state))
+        real=migration.os.rename
+        def killed(source,destination):
+            if Path(source).name==migration.INTENT_PENDING:raise OSError('killed before the rename')
+            return real(source,destination)
+        with patch.object(migration.os,'rename',killed), self.assertRaises(OSError):
+            migration.publish_intent(self.state,target=TARGET,generation=self.generation,volume='fixture-pgdata',
+                                     inventory=authority.digest(DESIRED),retired_state='stopped-will-not-return',image=NEW_IMAGE)
+        self.assertTrue(migration.present(self.state))
+        self.assertEqual(list(migration.record_directory(self.state).iterdir()),[],'never a torn intent')
+        with self.assertRaisesRegex(RuntimeError,'Start the migration again'):
+            self.execute()
+        self.assertFalse(migration.present(self.state))
+        self.assertEqual(self.docker.calls,[],'nothing had started')
+
+    def test_a_kill_before_a_record_is_linked_leaves_no_torn_file(self):
+        self.lifelike()
+        real=migration.os.link
+        def killed(source,destination):
+            if Path(destination).name=='retired-archived.json':raise OSError('killed before the link')
+            return real(source,destination)
+        with patch.object(migration.os,'link',killed), self.assertRaisesRegex(OSError,'killed before the link'):
+            self.execute()
+        self.assertFalse(migration.done(self.state,'retired-archived'))
+        leftovers=[path.name for path in (migration.record_directory(self.state)/migration.CHECKPOINTS).iterdir()]
+        self.assertFalse([name for name in leftovers if name.endswith('.pending')],'the temporary copy is removed')
+        self.execute()
+        self.assertFalse(migration.present(self.state))
+
+    def test_the_new_pin_is_written_whole(self):
+        self.lifelike()
+        real=migration.os.link
+        def killed(source,destination):
+            if Path(destination).name==hba_generation.NAME:raise OSError('killed before the pin')
+            return real(source,destination)
+        with patch.object(migration.os,'link',killed), self.assertRaisesRegex(OSError,'killed before the pin'):
+            self.execute()
+        self.assertFalse((self.state/hba_generation.NAME).exists(),'no torn pin under its name')
+        self.execute()
+        self.assertEqual(migration.pinned(self.state)['target']['image'],NEW_IMAGE)
+
+    def test_nothing_under_the_name_creates_the_replacement(self):
+        self.lifelike()
+        self.docker.run_fails=True
+        with self.assertRaisesRegex(RuntimeError,'could not be created'):
+            self.execute()
+        self.assertIsNone(self.docker.retired)
+        self.docker.run_fails=False
+        self.execute()
+        self.assertEqual(len(self.runs()),2)  # the failed one, then the replacement
+        self.assertTrue(self.docker.created)
+        self.assertFalse(migration.present(self.state))
 
 
 if __name__=='__main__':unittest.main()

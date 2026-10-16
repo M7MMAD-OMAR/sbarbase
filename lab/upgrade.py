@@ -9,6 +9,8 @@ Usage (with Docker, put `docker compose exec sbarbase` before each command):
   /usr/bin/python3 lab/upgrade.py status              the last upgrade and its outcome
   /usr/bin/python3 lab/upgrade.py rollback [--check]  move back to the version before it (--check: only
                                                       say whether it would refuse, and why)
+  /usr/bin/python3 lab/upgrade.py database [--to REF | --continue | --abandon]
+                                                      the attended move to another PostgreSQL image
 
 REF defaults to origin/main, fetched first; it is an explicit operator choice, not the
 release channel (lab/release_channel.py), and it is neither signature checked nor classified. After `start` or `rollback`, restart Sbarbase
@@ -18,7 +20,9 @@ and nothing else. If that start fails, the supervisor moves the checkout back by
 and exits, and the restart policy starts the previous version again.
 
 A version that changes the PostgreSQL image is refused: replacing the database container
-is lab/migrate-generation.py's job, never an upgrade's. Every environment is backed up
+is lab/migrate-generation.py's job, never an upgrade's. `database --to REF`, then `database
+--continue` with Sbarbase stopped, is the attended flow that moves to such a version and
+replaces the database in one window (lab/database_move.py). Every environment is backed up
 before anything moves, and those backups stay after the upgrade.
 
 The control state (every SQLite store a release may migrate: the control catalog and the key
@@ -60,6 +64,8 @@ STATE_FILE = UPGRADES / 'state.json'
 # provisioning worker holds that one for its lifetime, and `start` runs while Sbarbase serves.
 LOCK = UPGRADES / 'upgrade.lock'
 SNAPSHOTS = UPGRADES / 'snapshots'
+# The attended move to a version with another PostgreSQL image (lab/database_move.py).
+DATABASE_MOVE = UPGRADES / 'database-move.json'
 KEEP_SNAPSHOTS = 3
 # Present while a new version waits for its health checks: the gateway holds application
 # traffic (src/gateway/hold.ts). It counts only while the state below says a start is pending.
@@ -431,6 +437,8 @@ def transient_refusals(lock=True, records=True, backup=True):
         refusals.append('A backup or restore is running; wait for it to finish')
     if lock and held(LOCK):
         refusals.append('Another upgrade or rollback is running')
+    if present(DATABASE_MOVE):
+        refusals.append('A database move is recorded; continue or abandon it first (lab/upgrade.py database)')
     return refusals
 
 
@@ -668,6 +676,9 @@ def rollback_refusal(state=None, automatic=False):
     state = load_state() if state is None else state
     if not state or state.get('phase') not in ('applied', 'confirmed'):
         return 'There is no upgrade to roll back'
+    if present(DATABASE_MOVE):
+        # The move owns the checkout and the database image until it completes or is dropped.
+        return 'A database move is recorded; continue or abandon it first (lab/upgrade.py database). Nothing was changed'
     if not automatic:
         changed = local_changes()
         if changed:
@@ -767,6 +778,10 @@ def before_start():
     already be migrated. A snapshot that fails raises UpgradeError, and the caller moves back
     before the new version touched anything.
     """
+    import database_move
+    refusal = database_move.start_refusal()
+    if refusal:
+        raise UpgradeError(refusal)
     state = load_state()
     if not state or state.get('phase') not in PENDING:
         # A marker without a pending start is stale (a crash, or an older release that never
@@ -976,6 +991,11 @@ def main(argv=None):
     listing.add_argument('--json', action='store_true')
     listing.add_argument('--preview', action='store_true', help='include pre-releases')
     sub.add_parser('status')
+    moving = sub.add_parser('database', help='the attended move to a version with another PostgreSQL image')
+    step = moving.add_mutually_exclusive_group()
+    step.add_argument('--to', help='prepare the move to this version (Sbarbase running, writes paused)')
+    step.add_argument('--continue', dest='resume', action='store_true', help='move, with Sbarbase stopped')
+    step.add_argument('--abandon', action='store_true', help='drop a prepared move')
     back = sub.add_parser('rollback')
     back.add_argument('--check', action='store_true', help='only say whether a rollback would refuse, and why')
     # The supervisor's run id: the command then records how it ended (record_outcome).
@@ -989,6 +1009,10 @@ def main(argv=None):
         if args.command == 'channel':
             channel(args.json, args.preview)
             record_outcome(request, kind)
+            return 0
+        if args.command == 'database':
+            import database_move
+            database_move.main(args)
             return 0
         if args.command == 'start' and args.release:
             start_release(args.release, args.allow_class, args.trigger, request)

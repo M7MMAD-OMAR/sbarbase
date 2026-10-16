@@ -59,6 +59,8 @@ CHECKPOINTS='checkpoints'
 ARCHIVE='hba-migration-archive'
 EVIDENCE='evidence.json'
 COMPLETED='completed.json'
+REMOVING='hba-migration.removing'
+INTENT_PENDING='hba-migration-intent.pending'
 LIMIT=hba_journal.MAX_BYTES
 PGDATA='/var/lib/postgresql/data'
 HBA_PATH='/etc/postgresql/pg_hba.conf'
@@ -66,6 +68,10 @@ REVISION=re.compile(r'# sbarbase-hba-revision: [a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a
 PHASES=('old-captured','retired-archived','new-captured','generation-minted',
         'generation-initialized','rules-published','archived')
 INTENT_FIELDS={'version','migration','generation','old','volume','inventory','retired_state'}
+# Version 2 records the replacement's image when it differs from the retired one: a generation
+# change onto the image of a newer distribution lock. The image is fixed when the intent is
+# published, so resuming never reads a lock that may have moved since.
+INTENT_FIELDS_IMAGE=INTENT_FIELDS|{'image'}
 RETIRED_STATES=('stopped-will-not-return','absent-verified')
 PLAN_FIELDS={'name','owner','image','tier','memory','cpus','network','env_file','command'}
 
@@ -109,7 +115,8 @@ def require_present(state):
 
 
 def validate(record):
-    if not isinstance(record,dict) or set(record)!=INTENT_FIELDS or type(record['version']) is not int or record['version']!=1:
+    if not isinstance(record,dict) or type(record.get('version')) is not int \
+            or (record['version'],set(record)) not in ((1,INTENT_FIELDS),(2,INTENT_FIELDS_IMAGE)):
         raise ValueError('Invalid HBA migration intent shape')
     for key in ('migration','generation'):authority.exact(record[key],authority.UUID)
     old=record['old']
@@ -122,7 +129,16 @@ def validate(record):
     authority.exact(record['inventory'],authority.HEX)
     if record['retired_state'] not in RETIRED_STATES:
         raise ValueError('Migration retired state must be explicit')
+    if record['version']==2:
+        hba_target.policy(old['name'],old['owner'],record['image'])
+        if record['image']==old['image']:
+            raise ValueError('A migration intent records an image only when it changes')
     return record
+
+
+def target_image(intent):
+    """The image the replacement runs: the one the intent recorded, or the retired one."""
+    return intent.get('image',intent['old']['image'])
 
 
 def validate_checkpoint(record):
@@ -158,12 +174,30 @@ def _decode_envelope(text,label):
     return envelope['record']
 
 
-def _publish_exclusive(path,record,label):
+def _publish_once(path,record,label):
+    """Publish a record a rerun derives again: an existing one is kept when it is the same (a kill
+    between this write and its checkpoint), and refused when it differs."""
+    if hba_startup.present(path):
+        if _decode_envelope(_read_private(path,label),label)!=record:
+            raise RuntimeError(label+' differs from the one an earlier run wrote; preserve the migration record')
+        return record
+    return _publish_exclusive(path,record,label)
+
+
+def _publish_exclusive(path,record,label,limit=LIMIT):
+    """Publish a record whole under a name that must not exist yet. It is written and synced
+    under a private temporary name first, then linked to its name (which refuses an existing
+    one), so a kill leaves either no record or the whole one, never a torn file."""
     text=authority.encode(record)
-    if len(text.encode())>LIMIT:raise ValueError(label+' too large')
-    descriptor=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
-    with os.fdopen(descriptor,'w',encoding='utf-8') as output:
-        output.write(text);output.flush();os.fsync(output.fileno())
+    if len(text.encode())>limit:raise ValueError(label+' too large')
+    pending=path.with_name('.'+path.name+'.'+uuid.uuid4().hex+'.pending')
+    descriptor=os.open(pending,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+    try:
+        with os.fdopen(descriptor,'w',encoding='utf-8') as output:
+            output.write(text);output.flush();os.fsync(output.fileno())
+        os.link(pending,path)
+    finally:
+        pending.unlink(missing_ok=True)
     effect_receipt.sync_directory(path.parent)
     if _decode_envelope(_read_private(path,label),label)!=record:
         raise RuntimeError(label+' changed before use')
@@ -185,24 +219,42 @@ def load(state):
     return validate(_decode_envelope(_read_private(intent_path(state),'HBA migration intent'),'HBA migration intent'))
 
 
-def publish_intent(state,*,target,generation,volume,inventory,retired_state):
-    """Publish the exclusive, fsynced migration intent; an existing record refuses."""
+def publish_intent(state,*,target,generation,volume,inventory,retired_state,image=None):
+    """Publish the exclusive, fsynced migration intent; an existing record refuses. An image other
+    than the retired one makes it a generation change onto that image (version 2)."""
     state=Path(state)
     if retired_state not in RETIRED_STATES:
         raise ValueError('Migration retired state must be explicit')
     if retired_state=='absent-verified':
         raise RuntimeError('Absent retired container migration is unsupported without a verified archive; '
                            'preserve the generation pin and reconcile the retired state explicitly')
-    record=validate({'version':1,'migration':str(uuid.uuid4()),'generation':generation,
-                     'old':asdict(target),'volume':volume,'inventory':inventory,'retired_state':retired_state})
+    record={'version':1,'migration':str(uuid.uuid4()),'generation':generation,
+            'old':asdict(target),'volume':volume,'inventory':inventory,'retired_state':retired_state}
+    if image is not None and image!=target.image:
+        record={**record,'version':2,'image':image}
+    record=validate(record)
+    # The intent is written whole beside the record first and renamed into it, so a kill leaves
+    # either no record, an empty record directory (removed by discard_unpublished) or the whole
+    # intent; never a torn one.
+    text=authority.encode(record)
+    if len(text.encode())>LIMIT:raise ValueError('HBA migration intent too large')
+    pending=state/INTENT_PENDING
+    descriptor=os.open(pending,os.O_WRONLY|os.O_CREAT|os.O_TRUNC|os.O_NOFOLLOW,0o600)
+    with os.fdopen(descriptor,'w',encoding='utf-8') as output:
+        output.write(text);output.flush();os.fsync(output.fileno())
     try:os.mkdir(record_directory(state),0o700)
     except FileExistsError:
+        pending.unlink()
         raise RuntimeError('A generation migration record already exists; reconcile it before another migration') from None
     metadata=record_directory(state).lstat()
     if not stat.S_ISDIR(metadata.st_mode) or stat.S_IMODE(metadata.st_mode)!=0o700 or metadata.st_uid!=os.getuid():
         raise ValueError('Generation migration record directory is not private')
     effect_receipt.sync_directory(state)
-    _publish_exclusive(intent_path(state),record,'HBA migration intent')
+    os.rename(pending,intent_path(state))
+    effect_receipt.sync_directory(record_directory(state))
+    effect_receipt.sync_directory(state)
+    if _decode_envelope(_read_private(intent_path(state),'HBA migration intent'),'HBA migration intent')!=record:
+        raise RuntimeError('HBA migration intent changed before use')
     return record
 
 
@@ -325,7 +377,7 @@ def retired_archive(docker,state,intent):
         raise RuntimeError('Retired generation pin changed before archiving')
     digest=retired_hba_digest(docker,state,intent)
     registry=retired_registry(docker,state,intent)
-    return _publish_exclusive(_retired_directory(state,intent)/'retired-generation.json',
+    return _publish_once(_retired_directory(state,intent)/'retired-generation.json',
                               {'version':1,'kind':'retired-generation','migration':intent['migration'],
                                'generation':intent['generation'],'target':intent['old'],'pin':pin,
                                'pin_digest':authority.digest(pin_bytes),'hba_digest':digest,'registry':registry},
@@ -358,9 +410,11 @@ def capture_retired(docker,state,intent):
 def validate_replacement(intent,replacement):
     if not isinstance(replacement,dict) or set(replacement)!=PLAN_FIELDS:
         raise ValueError('Invalid generation migration replacement')
-    for key in ('name','owner','image'):
+    for key in ('name','owner'):
         if replacement[key]!=intent['old'][key]:
             raise RuntimeError('Generation migration replacement changes the database identity')
+    if replacement['image']!=target_image(intent):
+        raise RuntimeError('Generation migration replacement image differs from the one its intent recorded')
     flags=resource_policy.container_flags(replacement['tier'])
     if (flags['memory'] is not None and flags['memory']!=replacement['memory']) or (flags['cpus'] is not None and float(flags['cpus'])!=float(replacement['cpus'])):
         raise RuntimeError('Generation migration tier disagrees with the requested limits')
@@ -373,14 +427,62 @@ def validate_replacement(intent,replacement):
     return {**replacement,'command':tuple(replacement['command']),'flags':flags}
 
 
+def retired_removed(docker,intent):
+    """True when the retired container is proven gone (a rerun after its removal), False when it
+    is still there; a failed inspection or listing is fatal rather than read as either."""
+    if docker('inspect',intent['old']['container_id'],check=False).returncode==0:return False
+    listing=docker('ps','-a','--no-trunc','--format','{{.ID}} {{.Names}}',check=False)
+    if listing.returncode:raise RuntimeError('Retired container inspection unavailable')
+    for line in listing.stdout.splitlines():
+        fields=line.split()
+        if fields and fields[0].startswith(intent['old']['container_id']):
+            raise RuntimeError('Retired container inspection unavailable')
+    return True
+
+
+def replacement_identity(docker,identifier,intent,replacement):
+    """The replacement container's inspection, refused unless it is exactly what was asked for."""
+    result=docker('inspect',identifier,check=False)
+    if result.returncode:return None
+    try:info=json.loads(result.stdout)[0]
+    except (ValueError,IndexError,KeyError,TypeError):raise RuntimeError('Replacement container inspection unavailable')
+    labels=info.get('Config',{}).get('Labels',{}) or {}
+    if (not isinstance(info.get('Id'),str) or info['Id']==intent['old']['container_id']
+            or info.get('Name')!='/'+replacement['name'] or info.get('Image')!=replacement['image']
+            or labels.get('io.sbarbase.owner')!=replacement['owner']
+            or labels.get('io.sbarbase.tier')!=replacement['flags']['label']):
+        raise RuntimeError('Replacement container identity changed')
+    if _volume(hba_target.mounts(info))!=intent['volume']:
+        raise RuntimeError('Replacement pgdata volume differs from the recorded volume')
+    return info
+
+
+def ensure_running(docker,info):
+    """Start a stopped replacement (a host restart, or a run killed before readiness)."""
+    if info.get('State',{}).get('Running'):return False
+    started=docker('start',info['Id'],check=False)
+    if started.returncode:raise RuntimeError('Replacement container could not be started')
+    return True
+
+
 def create_replacement(docker,state,intent,replacement):
-    """Remove the retired container and create its replacement on the same volume."""
+    """Remove the retired container and create its replacement on the same volume.
+
+    A rerun after the removal (the run stopped before the new-captured checkpoint, for
+    instance while waiting for readiness) adopts the replacement it had created instead of
+    creating a second one, starting it again when it is stopped."""
     captured=read_checkpoint(state,'old-captured')['retired']
     if captured['container_id'] is not None:
-        info=retired_identity(docker,intent)
-        if info.get('State',{}).get('Running'):raise RuntimeError('Retired container restarted during migration')
-        removed=docker('rm',intent['old']['container_id'],check=False)
-        if removed.returncode:raise RuntimeError('Retired container could not be removed')
+        if retired_removed(docker,intent):
+            info=replacement_identity(docker,replacement['name'],intent,replacement)
+            if info is not None:
+                ensure_running(docker,info)
+                return info['Id'],hba_target.mounts(info)
+        else:
+            info=retired_identity(docker,intent)
+            if info.get('State',{}).get('Running'):raise RuntimeError('Retired container restarted during migration')
+            removed=docker('rm',intent['old']['container_id'],check=False)
+            if removed.returncode:raise RuntimeError('Retired container could not be removed')
     flags=replacement['flags']
     arguments=['run','-d','--name',replacement['name'],'--label','io.sbarbase.owner='+replacement['owner'],
                '--label','io.sbarbase.tier='+flags['label'],'--network',replacement['network'],
@@ -444,7 +546,10 @@ def initialize_generation(docker,state,intent,minted,new_target):
         saved=hba_generation.validate(_decode_envelope(_read_private(archived,'Retired generation pin'),'Retired generation pin'))
         if saved['generation']!=intent['generation'] or saved['target']!=intent['old']:
             raise RuntimeError('Retired generation pin archive changed')
-        hba_generation.publish(state,new_target,generation)
+        # Written whole, as every record here: a kill never leaves a torn pin.
+        _publish_exclusive(pin,hba_generation.validate({'version':1,'generation':generation,'target':asdict(new_target)}),
+                           'HBA generation pin',hba_generation.LIMIT)
+        hba_generation.load(state)
     if docker('inspect','--format','{{.Id}}',new_target.container_id).stdout.strip()!=new_target.container_id:
         raise RuntimeError('Replacement container identity changed')
     if not marker_present(docker,new_target.container_id):
@@ -494,10 +599,11 @@ def archive_evidence(state,intent,captured,minted,new_target,outcome,comparison)
             'retired_state':intent['retired_state'],'volume':intent['volume'],
             'new_generation':minted['generation'],'new_container':minted['container_id'],
             'target':{'name':new_target.name,'owner':new_target.owner,'image':new_target.image},
+            'retired_image':intent['old']['image'],
             'hba_operation':outcome['journal']['token'],'hba_application':outcome['application'],
             'hba_activation':outcome['activation'],'rules':comparison,
             'authority_observation':captured.get('authority')}
-    return _publish_exclusive(archive_directory(state,intent['migration'])/EVIDENCE,record,'Generation migration evidence')
+    return _publish_once(archive_directory(state,intent['migration'])/EVIDENCE,record,'Generation migration evidence')
 
 
 def read_evidence(state,migration):
@@ -511,13 +617,38 @@ def outcome_for(state,token):
     return hba_settlement.read(state,token)
 
 
+
+
+def _remove_record(state):
+    """Remove the finished record in one step: it is renamed away first, so a kill can never leave
+    part of it behind under the record's name; the renamed copy is then deleted."""
+    state=Path(state)
+    removing=state/REMOVING
+    if hba_startup.present(removing):shutil.rmtree(removing)
+    os.rename(record_directory(state),removing)
+    effect_receipt.sync_directory(state)
+    shutil.rmtree(removing)
+    effect_receipt.sync_directory(state)
+
+
+def discard_unpublished(state):
+    """An empty record directory was never executed: the intent is renamed into it whole, and
+    execute reads the intent before any effect. Such a record (a kill between creating the
+    directory and renaming the intent in) is removed so the migration can start again. Anything
+    else, a torn intent included, is kept and refused."""
+    directory=record_directory(state)
+    if not present(state) or os.listdir(directory):return False
+    os.rmdir(directory)
+    effect_receipt.sync_directory(Path(state))
+    return True
+
+
 def finish(state):
     """The record is removed only after every other step is durable."""
     state=Path(state)
-    _publish_exclusive(record_directory(state)/COMPLETED,
-                       {'version':1,'migration':load(state)['migration']},'Generation migration completion')
-    shutil.rmtree(record_directory(state))
-    effect_receipt.sync_directory(state)
+    _publish_once(record_directory(state)/COMPLETED,
+                  {'version':1,'migration':load(state)['migration']},'Generation migration completion')
+    _remove_record(state)
     return True
 
 
@@ -529,6 +660,17 @@ def execute(docker,state,*,replacement,desired):
     startup keeps refusing.
     """
     state=Path(state)
+    completed=record_directory(state)/COMPLETED
+    if hba_startup.present(completed):
+        # Killed while the finished record was being removed: every step was durable before.
+        record=_decode_envelope(_read_private(completed,'Generation migration completion'),'Generation migration completion')
+        if not isinstance(record,dict) or record.get('version')!=1 or not hba_startup.present(archive_directory(state,record.get('migration',''))/EVIDENCE):
+            raise RuntimeError('Generation migration completion is not backed by its evidence; preserve the migration record')
+        _remove_record(state)
+        return True
+    if discard_unpublished(state):
+        raise RuntimeError('The generation migration record was left before its intent was complete; nothing had '
+                           'started, so it was removed. Start the migration again')
     intent=load(state)
     if intent['retired_state']=='absent-verified':
         raise RuntimeError('Absent retired container migration is unsupported without a verified archive; '
@@ -543,16 +685,23 @@ def execute(docker,state,*,replacement,desired):
         captured=read_checkpoint(state,'old-captured')['retired']
         if not done(state,'retired-archived'):
             checkpoint(state,'retired-archived',_bind(intent,{'retired_generation':retired_archive(docker,state,intent)}))
-        if not done(state,'new-captured'):
+        resumed=done(state,'new-captured')
+        if not resumed:
             identifier,mounts=create_replacement(docker,state,intent,plan)
             wait_ready(docker,identifier)
             checkpoint(state,'new-captured',_bind(intent,{'container_id':identifier,'mounts':mounts}))
         replacement_captured=read_checkpoint(state,'new-captured')
+        if resumed:
+            # A rerun: the replacement may have stopped since (a host restart); later steps, the
+            # rule comparison included, run in it.
+            info=replacement_identity(docker,replacement_captured['container_id'],intent,plan)
+            if info is None:raise RuntimeError('Replacement container inspection unavailable')
+            if ensure_running(docker,info):wait_ready(docker,info['Id'])
         if not done(state,'generation-minted'):
             checkpoint(state,'generation-minted',_bind(intent,{'container_id':replacement_captured['container_id'],
                                                               'generation':str(uuid.uuid4())}))
         minted=read_checkpoint(state,'generation-minted')
-        new_target=hba_target.Target(minted['container_id'],intent['old']['name'],intent['old']['owner'],intent['old']['image'])
+        new_target=hba_target.Target(minted['container_id'],intent['old']['name'],intent['old']['owner'],target_image(intent))
         if not done(state,'generation-initialized'):
             initialize_generation(docker,state,intent,minted,new_target)
             checkpoint(state,'generation-initialized',_bind(intent,{'container_id':minted['container_id'],
@@ -578,13 +727,13 @@ def execute(docker,state,*,replacement,desired):
         return finish(state)
 
 
-def migrate(docker,state,*,target,replacement,desired,volume,retired_state='stopped-will-not-return'):
+def migrate(docker,state,*,target,replacement,desired,volume,retired_state='stopped-will-not-return',image=None):
     """Start one migration. A record, torn or whole, refuses before any effect."""
     state=Path(state)
     require_absent(state)
     pinned=require_pin(state,target)
     intent=publish_intent(state,target=target,generation=pinned['generation'],volume=volume,
-                          inventory=authority.digest(desired),retired_state=retired_state)
+                          inventory=authority.digest(desired),retired_state=retired_state,image=image)
     return execute(docker,state,replacement=replacement,desired=desired),intent
 
 
