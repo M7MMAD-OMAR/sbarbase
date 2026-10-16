@@ -31,7 +31,7 @@ export function Notifications({client}:{client:TelegramClient}){
  },[]);
  useEffect(()=>{void run('load',()=>client('','GET'));},[client,run]);
  const status=view?.data,owner=view?.owner===true;
- async function connect(event:FormEvent){event.preventDefault();await run('connect',()=>client('','PUT',{token:token.trim()}));setToken('');}
+ async function connect(event:FormEvent){event.preventDefault();await run('connect',async()=>{const next=await client('','PUT',{token:token.trim()});setToken('');return next;});}
  return <><div className="page-heading"><div><h1>Notifications</h1><p className="muted">Where Sbarbase tells you about failed backups, updates and problems on this server.</p></div></div>
   <ErrorMessage message={error}/>{notice&&<p className="success" role="status">{notice}</p>}
   {!status?(busy==='load'?<Loading/>:null):<section className="details notification-channel">
@@ -45,11 +45,11 @@ export function Notifications({client}:{client:TelegramClient}){
    </>}
    {status.state==='pending'&&<>
     <p>Bot <strong>@{status.bot}</strong> is ready. Open it in Telegram and press <strong>Start</strong>, then come back here.</p>
-    <div className="actions">
+    {owner&&status.link?<div className="actions">
      <a className="button" href={status.link} target="_blank" rel="noopener noreferrer">Open @{status.bot} in Telegram <ExternalLink aria-hidden="true"/></a>
-     {owner&&<button type="button" className="primary" disabled={!!busy} onClick={()=>void run('link',()=>client('/link','POST'),'Telegram is connected. A confirmation was sent to the chat.')}>I pressed Start</button>}
+     {owner&&<button type="button" className="primary" disabled={!!busy} onClick={()=>void run('link',()=>client('/link','POST'),'Telegram is connected. Check the chat for a confirmation.')}>I pressed Start</button>}
      {owner&&<button type="button" className="secondary" disabled={!!busy} onClick={()=>void run('off',()=>client('','DELETE'))}>Cancel</button>}
-    </div>
+    </div>:<p className="muted">An owner of this installation is connecting this bot.</p>}
     <p className="muted small">The link works once and expires after 30 minutes. Only the chat that opens it is connected.</p>
    </>}
    {status.state==='off'&&(owner?<form onSubmit={connect}>

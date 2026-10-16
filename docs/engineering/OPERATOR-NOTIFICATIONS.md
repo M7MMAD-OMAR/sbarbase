@@ -620,6 +620,12 @@ with an empty detail.
 - `notifications.json` is rewritten whole (temporary file, fsync, rename, 0600) with the other
   channels kept; with no channel left the file is removed. Replacing the token turns the old chat
   off until the new one is linked; disconnecting removes the token file.
+- Only owners receive the one-time link; an admin reading the state sees that a bot is being
+  connected, never the code. A link that reached more than one chat links none and is spent.
+- Linking settles as failed (`channel_disabled`) every pending Telegram delivery of an event
+  recorded before it, so a new chat never receives the backlog of an installation that ran without
+  a channel.
+- A write that fails (a full disk) removes its temporary file, so no copy of the token is left.
 - Where the token is sent is fixed (`https://api.telegram.org`); only the process environment
   (`SBARBASE_TELEGRAM_API_BASE`, used by the tests' loopback Bot API) can change it, never a request.
 - The drain now follows the file: with `--follow` it waits for a configuration and reloads it when
@@ -639,8 +645,13 @@ database, Storage, the management Auth and each environment's Auth, REST and Rea
 when it exists and has not been running for five minutes in a row. Edge Functions are left out
 because a write pause keeps them stopped by design. The detail names the service without the
 `sbarbase-durable-` prefix: the full name of the management Auth is 32 characters, which the
-credential scan reads as a key. The event windows keep one notice per condition from repeating
-every minute.
+credential scan reads as a key. Each condition is reported at most once an hour while it lasts
+(the notifier's critical window alone would repeat it every five minutes). Only published
+environments are watched: a deleted one keeps its stopped Auth and REST containers for seven days
+(`lab/lifecycle_resources.py`). The checkout and Docker's data root on one filesystem are reported
+once; Docker calls time out after five seconds so a hung daemon cannot hold the supervisor's loop;
+and a step more than two and a half intervals after the previous one (an upgrade paused the watch)
+forgets the stops seen before.
 
 ## 4. Deduplication and rate limiting
 

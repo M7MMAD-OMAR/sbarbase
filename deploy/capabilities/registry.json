@@ -56,7 +56,7 @@
     {
       "id": "catalog-schema",
       "path": "src/control/catalog.ts",
-      "sha256": "ab9bd09003d7c055306c05f29cbb68386f46606ba8539509c0f1b2a7452cca2e"
+      "sha256": "4c15263a9a43f1a6d776a60604950904bf707b7978331eeca0ecfedd372db471"
     },
     {
       "id": "native-fixture",

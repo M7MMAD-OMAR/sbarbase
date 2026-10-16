@@ -817,6 +817,9 @@ def config_signature(path):
         info = os.stat(path, follow_symlinks=False)
     except FileNotFoundError:
         return None
+    except OSError:
+        # Unreadable is not absent; it is a version of its own that loads nothing.
+        return 'unreadable'
     return info.st_ino, info.st_mtime_ns, info.st_size
 
 
@@ -877,7 +880,7 @@ def main(argv=None):
                 signature = current
                 try:
                     loaded = load_config(args.config) if current is not None else None
-                except (ConfigurationError, ValueError, OSError) as error:
+                except Exception as error:  # noqa: BLE001: a hand-edited file of any shape must not end the drain
                     loaded = None
                     # The messages are fixed sentences; none carries a credential or a path value.
                     print(f'notification configuration not used: {error if isinstance(error, ConfigurationError) else type(error).__name__}',

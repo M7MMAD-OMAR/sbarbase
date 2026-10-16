@@ -571,6 +571,12 @@ export class Catalog {
       this.record(actor,`notifications.${channel}.${action}`,channel,{});
     }).immediate();
   }
+  /** Settle as failed (`channel_disabled`) every pending delivery on `channel` of an event
+   * recorded before `before`. Claimed rows are left to the drain that holds them. */
+  discardNotificationBacklog(channel:'telegram',before:number):number {
+    return this.db.query(`UPDATE notification_delivery SET state='failed',last_error='channel_disabled'
+      WHERE channel=? AND state='pending' AND event IN (SELECT id FROM notification_outbox WHERE at<?)`).run(channel,before).changes;
+  }
   assertManagementRecoveryOwner(actor:string):void {
     const bootstrap=this.db.query<{organization:string},[]>('SELECT organization FROM installation_bootstrap WHERE singleton=1').get();
     if(!bootstrap)throw new Error('Forbidden');

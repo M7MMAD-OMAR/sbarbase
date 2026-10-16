@@ -30,10 +30,15 @@ type Options={checkout?:string;apiBase?:string;fetch?:typeof fetch;now?:()=>numb
 function writePrivate(path:string,value:unknown) {
   const temporary=`${path}.${randomBytes(6).toString('hex')}.tmp`;
   const descriptor=openSync(temporary,constants.O_WRONLY|constants.O_CREAT|constants.O_EXCL|constants.O_NOFOLLOW,0o600);
-  try {writeSync(descriptor,JSON.stringify(value,null,1)+'\n');fsyncSync(descriptor);}
-  finally {closeSync(descriptor);}
-  try {renameSync(temporary,path);}
-  catch(error) {try{unlinkSync(temporary);}catch{}throw error;}
+  try {
+    try {writeSync(descriptor,JSON.stringify(value,null,1)+'\n');fsyncSync(descriptor);}
+    finally {closeSync(descriptor);}
+    renameSync(temporary,path);
+  } catch(error) {
+    // A full disk must not leave a copy of the token behind under the temporary name.
+    try{unlinkSync(temporary);}catch{}
+    throw error;
+  }
 }
 
 /** A regular file of this account and nothing else, parsed; absent is undefined. */
@@ -104,13 +109,16 @@ export class TelegramNotifications {
     return file.expiresAt>this.now()?{code:file.code,bot:file.bot,expiresAt:file.expiresAt}:undefined;
   }
 
-  status():TelegramStatus {
+  /** `owner` false leaves out the one-time link: whoever opens it chooses the chat, so only an
+   * owner, who may change the channel, ever sees it. */
+  status(owner=true):TelegramStatus {
     const token=this.token();
     if(!token)return {state:'off'};
     const tokenHint=token.slice(-4),section=this.telegramSection(),pending=this.link();
     if(section?.enabled===true&&typeof section.chatId==='string')
       return {state:'linked',bot:typeof section.bot==='string'?section.bot:undefined,tokenHint,chat:'…'+section.chatId.slice(-4)};
-    if(pending)return {state:'pending',bot:pending.bot,tokenHint,link:`https://t.me/${pending.bot}?start=${pending.code}`,expiresAt:pending.expiresAt};
+    if(pending)return owner?{state:'pending',bot:pending.bot,tokenHint,link:`https://t.me/${pending.bot}?start=${pending.code}`,expiresAt:pending.expiresAt}
+      :{state:'pending',bot:pending.bot,tokenHint};
     return {state:'off',tokenHint};
   }
 
@@ -123,8 +131,9 @@ export class TelegramNotifications {
     const me=await this.call(token as string,'getMe');
     if(!me||me.is_bot!==true||typeof me.username!=='string'||!/^[A-Za-z0-9_]{5,32}$/.test(me.username))
       throw new TelegramRefusal('Telegram did not confirm this token belongs to a bot.',400);
-    writePrivate(this.path(TOKEN_FILE),{schema:1,botToken:token});
+    // The old chat goes first, so a drain reading in between never pairs it with the new token.
     if(this.telegramSection())this.writeConfig(undefined);
+    writePrivate(this.path(TOKEN_FILE),{schema:1,botToken:token});
     writePrivate(this.path(LINK_FILE),{schema:1,code:randomBytes(16).toString('hex'),bot:me.username,expiresAt:this.now()+LINK_LIFETIME_MS});
     return this.status();
   }
@@ -136,14 +145,20 @@ export class TelegramNotifications {
     const updates=await this.call(token,'getUpdates',{timeout:0,allowed_updates:['message']});
     if(!Array.isArray(updates))throw new TelegramRefusal('Telegram did not accept the request. Try again.',502);
     const expected=new RegExp(`^/start(@${pending.bot})? ${pending.code}$`);
-    let chat:string|undefined,last:number|undefined;
+    const chats=new Set<string>();let last:number|undefined;
     for(const update of updates) {
       if(typeof update?.update_id==='number')last=Math.max(last??update.update_id,update.update_id);
       const message=update?.message;
-      if(typeof message?.text==='string'&&expected.test(message.text)&&CHAT.test(String(message.chat?.id)))chat=String(message.chat.id);
+      if(typeof message?.text==='string'&&expected.test(message.text)&&CHAT.test(String(message.chat?.id)))chats.add(String(message.chat.id));
     }
     // Updates read here are acknowledged, so the next attempt never reads them again.
     if(last!==undefined)await this.call(token,'getUpdates',{offset:last+1,timeout:0,allowed_updates:['message']}).catch(()=>undefined);
+    if(chats.size>1) {
+      // The link reached more than one chat; none is chosen, and the link is spent.
+      remove(this.path(LINK_FILE));
+      throw new TelegramRefusal('More than one chat pressed Start on this link. Paste the token again for a new link.',409);
+    }
+    const chat=[...chats][0];
     if(!chat)throw new TelegramRefusal('No Start from the link yet. Open the link, press Start in Telegram, then try again.',409);
     const telegram:Record<string,unknown>={enabled:true,chatId:chat,tokenFile:TOKEN_FILE,bot:pending.bot};
     if(this.apiBase!=='https://api.telegram.org')telegram.apiBase=this.apiBase;

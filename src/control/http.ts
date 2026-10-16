@@ -134,7 +134,7 @@ export function managementHandler(catalog:Catalog,identify:ManagementIdentity,ma
       try {
         if(!catalog.installationOperator(actor))throw new Error('Forbidden');
         if(request.method==='GET')
-          return managementPublication(catalog,()=>{requireOperatorPublication(catalog,actor);return reply(200,{data:telegramSetup.status(),owner:owner()});});
+          return managementPublication(catalog,()=>{requireOperatorPublication(catalog,actor);const isOwner=owner();return reply(200,{data:telegramSetup.status(isOwner),owner:isOwner});});
         catalog.assertManagementRecoveryOwner(actor);
         let data;
         if(request.method==='PUT') {
@@ -145,7 +145,14 @@ export function managementHandler(catalog:Catalog,identify:ManagementIdentity,ma
         } else {
           if(request.body)throw new InputError();
           if(request.method==='DELETE') {data=telegramSetup.disconnect();catalog.recordNotificationChannel(actor,'telegram','disconnected');}
-          else if(action==='/link') {data=await telegramSetup.complete();catalog.recordNotificationChannel(actor,'telegram','linked');}
+          else if(action==='/link') {
+            const linkedAt=Date.now();
+            data=await telegramSetup.complete();
+            catalog.recordNotificationChannel(actor,'telegram','linked');
+            // What was queued before the chat existed is not sent to it: a new chat would
+            // otherwise receive months of old events, stale critical ones looking current.
+            catalog.discardNotificationBacklog('telegram',linkedAt);
+          }
           else {await telegramSetup.test();data=telegramSetup.status();catalog.recordNotificationChannel(actor,'telegram','tested');}
         }
         const response=reply(200,{data,owner:true});

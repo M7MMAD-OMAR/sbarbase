@@ -44,6 +44,8 @@ class ContainerTests(unittest.TestCase):
             f'sbarbase-durable-{E}-studio\texited', 'sbarbase-durable-management-auth\tcreated'])
         self.assertEqual(host_watch.stopped(listing), sorted([
             'sbarbase-durable-storage', f'sbarbase-durable-{E}-auth', 'sbarbase-durable-management-auth']))
+        self.assertEqual(host_watch.stopped(listing, published=set()),
+                         ['sbarbase-durable-management-auth', 'sbarbase-durable-storage'])
 
 
 class WatchTests(unittest.TestCase):
@@ -58,7 +60,8 @@ class WatchTests(unittest.TestCase):
                 return '/var/lib/docker\n'
             return self.listing
         self.watch = host_watch.HostWatch(emit=lambda *args, **options: self.events.append(args), clock=self.clock,
-                                          usage=lambda path: Usage(200 * GIB, 0, self.free), run=run)
+                                          usage=lambda path: Usage(200 * GIB, 0, self.free), run=run,
+                                          published=lambda: {E}, device=lambda path: str(path))
 
     def test_a_container_stopped_for_five_minutes_is_reported_and_a_short_stop_is_not(self):
         self.watch.step()
@@ -91,6 +94,37 @@ class WatchTests(unittest.TestCase):
         self.assertEqual(sorted((event[0], event[1], event[6]['filesystem']) for event in self.events),
                          [('host.disk_low', 'critical', 'checkout'), ('host.disk_low', 'critical', 'docker')])
 
+    def minutes(self, count):
+        for _ in range(count):
+            self.clock.now += 60
+            self.watch.step()
+
+    def test_a_long_outage_is_reported_once_an_hour_and_a_deleted_environment_never(self):
+        other = 'e_' + 'b' * 24
+        self.listing = f'sbarbase-durable-{E}-rest\texited\nsbarbase-durable-{other}-auth\texited'
+        self.watch.step()
+        self.minutes(5)
+        self.assertEqual([event[6]['container'] for event in self.events], [f'{E}-rest'])
+        self.minutes(59)
+        self.assertEqual(len(self.events), 1)
+        self.minutes(1)
+        self.assertEqual(len(self.events), 2)
+
+    def test_a_pause_forgets_what_was_seen_before_it(self):
+        self.listing = 'sbarbase-durable-db\texited'
+        self.watch.step()
+        self.minutes(3)
+        self.clock.now += 600   # an upgrade held the watch
+        self.watch.step()
+        self.minutes(3)
+        self.assertEqual(self.events, [])
+
+    def test_one_filesystem_holding_both_is_reported_once(self):
+        self.free = 9 * GIB
+        self.watch.device = lambda path: 'same'
+        self.watch.step()
+        self.assertEqual([event[6]['filesystem'] for event in self.events], ['checkout'])
+
     def test_a_failing_daemon_never_stops_the_supervisor(self):
         def broken(*args):
             raise RuntimeError('docker failed')
@@ -111,10 +145,12 @@ class DeliveryTests(unittest.TestCase):
             clock = Clock()
             listing = {'value': f'sbarbase-durable-{E}-auth\texited\nsbarbase-durable-management-auth\texited'}
             watch = host_watch.HostWatch(catalog=catalog, clock=clock, usage=lambda path: Usage(200 * GIB, 0, GIB),
-                                         run=lambda *args: '/var/lib/docker' if args[0] == 'info' else listing['value'])
+                                         run=lambda *args: '/var/lib/docker' if args[0] == 'info' else listing['value'],
+                                         published=lambda: {E}, device=lambda path: str(path))
             watch.step()
-            clock.now += 301
-            watch.step()
+            for _ in range(5):
+                clock.now += 61
+                watch.step()
             with sqlite3.connect(catalog) as database:
                 rows = sorted(database.execute('SELECT kind, severity, detail FROM notification_outbox').fetchall())
             kinds = [(kind, severity) for kind, severity, _ in rows]

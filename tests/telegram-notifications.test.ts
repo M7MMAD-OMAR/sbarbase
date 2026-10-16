@@ -143,3 +143,38 @@ test('operators see the channel, only owners change it, and every change is audi
     if(previous===undefined)delete process.env.SBARBASE_TELEGRAM_API_BASE;else process.env.SBARBASE_TELEGRAM_API_BASE=previous;
   }
 });
+
+test('a link that reached two chats links neither, and only owners see the link',async()=>{
+  const root=checkout(),setup=new TelegramNotifications({checkout:root,apiBase});
+  const pending=await setup.connect(GOOD);
+  const code=pending.link!.split('start=')[1];
+  expect(setup.status(false)).toEqual({state:'pending',bot:'sbar_alerts_bot',tokenHint:GOOD.slice(-4)});
+  updates=[{update_id:10,message:{text:`/start ${code}`,chat:{id:1}}},{update_id:11,message:{text:`/start ${code}`,chat:{id:2}}}];
+  await expect(setup.complete()).rejects.toThrow('More than one chat');
+  expect(existsSync(join(root,'.lab/upstream/notifications.json'))).toBe(false);
+  expect(setup.status().state).toBe('off');
+});
+
+test('events queued before the chat was linked are not sent to it',async()=>{
+  const root=checkout();
+  const previous=process.env.SBARBASE_TELEGRAM_API_BASE;process.env.SBARBASE_TELEGRAM_API_BASE=apiBase;
+  const catalog=new Catalog(':memory:');
+  try {
+    catalog.initializeInstallation('telegram-backlog','owner','Installation');
+    const db=(catalog as any).db;
+    db.query(`INSERT INTO notification_outbox(id,at,last_at,window_until,occurrences,digest_sent,kind,severity,dedupe_key,actor,reason,detail,expires_at)
+      VALUES ('old',1,1,1,1,0,'backup.failed','critical','k','system:supervisor','export_failed','{"failed":1}',9999999999999)`).run();
+    for(const channel of ['email','telegram'])db.query("INSERT INTO notification_delivery(event,channel,state,attempts,next_attempt_at) VALUES ('old',?,'pending',0,1)").run(channel);
+    const handler=managementHandler(catalog,async request=>request.headers.get('authorization'),undefined,undefined,undefined,root);
+    const call=(method:string,suffix='',body?:unknown)=>handler(new Request(`http://local/management/v1/notifications/telegram${suffix}`,
+      {method,headers:{authorization:'owner',...(body?{'content-type':'application/json'}:{})},body:body?JSON.stringify(body):undefined}));
+    const code=(await (await call('PUT','',{token:GOOD})).json()).data.link.split('start=')[1];
+    updates=[{update_id:20,message:{text:`/start ${code}`,chat:{id:77}}}];
+    expect((await call('POST','/link')).status).toBe(200);
+    expect(db.query("SELECT channel,state,last_error FROM notification_delivery WHERE event='old' ORDER BY channel").all())
+      .toEqual([{channel:'email',state:'pending',last_error:null},{channel:'telegram',state:'failed',last_error:'channel_disabled'}]);
+  } finally {
+    catalog.close();
+    if(previous===undefined)delete process.env.SBARBASE_TELEGRAM_API_BASE;else process.env.SBARBASE_TELEGRAM_API_BASE=previous;
+  }
+});
