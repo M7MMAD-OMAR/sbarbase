@@ -6,6 +6,7 @@
     backup.py restore-storage <backup> [--offsite]
     backup.py restore-management <backup> [--offsite]
     backup.py restore-status
+    backup.py start-database
     backup.py recover-restore <environment|storage|management> <backup> <restore-stamp>
     backup.py complete-restore <environment|storage|management> <backup> <restore-stamp>
     backup.py discard-previous <environment|storage|management>
@@ -178,6 +179,62 @@ def admit_database(pin=None):
             raise BackupError('Database container is not running')
     except (image_identity.IdentityError, AttributeError, TypeError) as error:
         raise BackupError('Invalid database container inspection') from error
+    return item['Id']
+
+
+def supervisor_running(state=None):
+    """True while Sbarbase's supervisor holds its lock."""
+    path = (state or STATE) / 'supervisor.lock'
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open('a') as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return True
+        fcntl.flock(lock, fcntl.LOCK_UN)
+    return False
+
+
+def start_database(wait=120):
+    """Start only the database container, with Sbarbase stopped, so restores can run when the rest
+    cannot start: after a way back whose Storage image cannot start on a migrated storage_metadata,
+    the previous version fails to start (its service manager keeps retrying, so it must be stopped
+    first), and every restore needs the database running. Only the container
+    the HBA generation pin names, on the image this checkout's lock pins, is started; nothing else."""
+    import hba_generation
+    import hba_migration
+    try:
+        running = supervisor_running()
+    except OSError:
+        raise BackupError('The private state cannot be opened from this account; run it as the service account') from None
+    if running:
+        raise BackupError('Sbarbase is running; it starts the database itself')
+    if hba_migration.present(STATE):
+        raise BackupError('A database generation migration is waiting; reconcile it first (lab/migrate-generation.py --reconcile)')
+    _reference, native = resolve_image(image_pin('distro-image.lock.json'))
+    inspected = run(['docker', 'container', 'inspect', DB], check=False)
+    if inspected.returncode or inspected.stderr.strip():
+        raise BackupError('Database container inspection refused')
+    try:
+        item = image_identity.record(inspected.stdout)
+    except image_identity.IdentityError as error:
+        raise BackupError('Invalid database container inspection') from error
+    if not isinstance(item.get('Id'), str) or not re.fullmatch(r'[a-f0-9]{64}', item['Id']) or item.get('Name') != '/' + DB \
+            or item.get('Image') != native or item.get('Config', {}).get('Labels', {}).get('io.sbarbase.owner') != DATABASE_OWNER:
+        raise BackupError("The database container is not the one this version's lock and owner name")
+    try:
+        pinned = hba_generation.load(STATE)['target']
+    except (OSError, ValueError):
+        raise BackupError('The HBA generation pin cannot be read; it needs review') from None
+    if pinned != {'container_id': item['Id'], 'name': DB, 'owner': DATABASE_OWNER, 'image': native}:
+        raise BackupError('The database container is not the one the HBA generation pin names')
+    if item.get('State', {}).get('Running') is not True:
+        run(['docker', 'start', DB])
+    deadline = time.time() + wait
+    while run(['docker', 'exec', DB, 'pg_isready', '-h', '127.0.0.1'], check=False).returncode:
+        if time.time() > deadline:
+            raise BackupError('The database did not become ready')
+        time.sleep(1)
     return item['Id']
 
 
@@ -769,8 +826,31 @@ def service_names(e):
     return names
 
 
+SERVICE_PINS = {'auth': ('images.lock.json', 'auth'), 'rest': ('images.lock.json', 'rest'),
+                'realtime': ('realtime-image.lock.json', None)}
+
+
+def require_service_images(e):
+    """Each of the environment's services runs the image this version pins. A way back that stopped
+    before it replaced them can leave a newer release's Auth, which would migrate a restored schema
+    forward again, so a restore refuses before it changes anything, and never starts one."""
+    for name in service_names(e):
+        service = name.rsplit('-', 1)[1]
+        filename, key = SERVICE_PINS[service]
+        _reference, native = resolve_image(image_pin(filename, key))
+        inspected = run(['docker', 'container', 'inspect', name], check=False)
+        try:
+            item = image_identity.record(inspected.stdout) if not inspected.returncode else {}
+        except image_identity.IdentityError:
+            item = {}
+        if item.get('Image') != native or item.get('Config', {}).get('Labels', {}).get('io.sbarbase.owner') != DATABASE_OWNER:
+            raise BackupError(f'{name} does not run the {service} image this version pins; '
+                              'start Sbarbase so it replaces it, or restore with the version that runs it')
+
+
 def start_services(e):
     """Start Auth and REST again and publish their addresses, which a restart may change."""
+    require_service_images(e)
     run(['docker', 'start', *service_names(e)])
     import durable_runtime
     path = STATE / 'endpoints.json'
@@ -1133,6 +1213,7 @@ def main(argv=None):
     recovery.add_argument('backup')
     recovery.add_argument('stamp')
     sub.add_parser('restore-status', help='show exact pending recovery commands without changing state')
+    sub.add_parser('start-database', help='start only the database container, with Sbarbase stopped, for a restore')
     drop = sub.add_parser('discard-previous')
     drop.add_argument('environment')
     sub.add_parser('offsite-list')
@@ -1189,6 +1270,10 @@ def main(argv=None):
                     print(f"{MANAGEMENT_DATABASE}  {path.name}  database {manifest['database']['bytes']} B  "
                           f"operators {manifest['counts']['auth.users']}"
                           + ('  before an upgrade' if manifest.get('reason') == 'upgrade' else ''))
+            return 0
+        if args.command == 'start-database':
+            start_database()
+            print(f'{DB} runs; nothing else was started. Restore what you need, then start Sbarbase.')
             return 0
         if args.command in ('create', 'restore', 'restore-storage', 'restore-management', 'discard-previous'):
             preflight()

@@ -36,6 +36,7 @@ class NativeModel:
         self.cid = 'd' * 64
         self.events = []
         self.waited = []
+        self.service_checks = []
         self.actual = actual
         self.prepared_count = '0'
         self.backends = '0'
@@ -255,7 +256,8 @@ class NativeModel:
                    'resolve_storage_image': lambda: ('qualified-pin', 'sha256:' + 'f' * 64),
                    'start_storage': self.start_storage, 'wait_storage': lambda *a: None,
                    'start_services': lambda *a: self.event('start-services'), 'wait_healthy': lambda *a: self.event('wait-healthy'),
-                   'start_management': self.start_management, 'wait_management': self.wait_management}
+                   'start_management': self.start_management, 'wait_management': self.wait_management,
+                   'require_service_images': self.service_checks.append}
         for name, value in patches.items():
             self.stack.enter_context(patch.object(backup, name, value))
         self.stack.enter_context(patch.object(restore_cutover, 'HeldSession', self.session))
@@ -306,6 +308,23 @@ class CutoverTests(Fixture):
                 model.restore()
             self.assertEqual(model.events, [])
             self.assertIsNone(model.journal())
+
+    def test_services_on_another_image_refuse_an_environment_restore_before_anything_changes(self):
+        with NativeModel(self) as model:
+            with patch.object(backup, 'require_service_images', side_effect=backup.BackupError('auth image differs')):
+                with self.assertRaisesRegex(backup.BackupError, 'auth image differs'):
+                    model.restore()
+            self.assertEqual(model.events, [])
+            self.assertIsNone(model.journal())
+        with NativeModel(self) as model:
+            model.restore()
+            self.assertEqual(model.service_checks, [E])
+        # A storage restore involves no environment service.
+        from test_backup import StorageMetadataTests
+        StorageMetadataTests.storage(self, NAME)
+        with NativeModel(self, scope=backup.STORAGE) as model:
+            model.restore()
+            self.assertEqual(model.service_checks, [])
 
     def test_held_backend_drain_timeout_preserves_original_and_requires_recovery(self):
         with NativeModel(self) as model, patch.object(restore_cutover.time, 'monotonic', side_effect=[0, 31]):

@@ -1,5 +1,6 @@
 """Per-environment backup completeness, retention and explicit restore recovery."""
 import contextlib
+from types import SimpleNamespace
 import json
 import sqlite3
 import tempfile
@@ -628,6 +629,7 @@ class ManagementDatabaseTests(Fixture):
         path = self.management('20260901T030000Z')
         with NativeModel(self, scope=backup.MANAGEMENT) as model:
             record = model.restore()
+            self.assertEqual(model.service_checks, [], 'no environment service is involved')
             self.assertEqual(model.dbs['management']['oid'], '20000')
             self.assertEqual(model.dbs[record['previous_database']], {'oid': '100', 'allow_connections': False})
             self.assertEqual(record['previous_database'], 'management_pre_' + record['restored_at'])
@@ -885,6 +887,207 @@ class ManagementDatabaseTests(Fixture):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+SUPERVISOR = backup.supervisor_running
+
+
+class StartDatabaseTests(Fixture):
+    """P4: the database container alone, for a restore when the rest of Sbarbase cannot start."""
+
+    NATIVE = 'sha256:' + '9' * 64
+    CID = 'f' * 64
+
+    def setUp(self):
+        super().setUp()
+        import hba_generation
+        import hba_migration
+        self.running = False
+        self.calls = []
+        self.ready_after = 2
+        self.item = {'Id': self.CID, 'Name': '/' + backup.DB, 'Image': self.NATIVE,
+                     'Config': {'Labels': {'io.sbarbase.owner': backup.DATABASE_OWNER}}}
+        self.pin = {'container_id': self.CID, 'name': backup.DB, 'owner': backup.DATABASE_OWNER, 'image': self.NATIVE}
+        for target, name, value in ((backup, 'supervisor_running', lambda: False),
+                                    (backup, 'image_pin', lambda name: {}),
+                                    (backup, 'resolve_image', lambda pin: ('ref', self.NATIVE)),
+                                    (backup, 'run', self.docker), (backup.time, 'sleep', lambda _: None),
+                                    (hba_migration, 'present', lambda state: False),
+                                    (hba_generation, 'load', lambda state: {'target': self.pin})):
+            patcher = patch.object(target, name, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def docker(self, argv, check=True, **kwargs):
+        self.calls.append(argv[:3])
+        if argv[:3] == ['docker', 'container', 'inspect']:
+            return SimpleNamespace(returncode=0, stderr='', stdout=json.dumps([{**self.item, 'State': {'Running': self.running}}]))
+        if argv[:2] == ['docker', 'start']:
+            self.running = True
+            return SimpleNamespace(returncode=0, stderr='', stdout='')
+        if argv[:2] == ['docker', 'exec']:
+            # Readiness is the database accepting connections, nothing weaker.
+            if argv[2:] != [backup.DB, 'pg_isready', '-h', '127.0.0.1']:
+                raise AssertionError(argv)
+            self.ready_after -= 1
+            return SimpleNamespace(returncode=0 if self.ready_after <= 0 else 2, stderr='', stdout='')
+        raise AssertionError(argv)
+
+    def test_the_pinned_container_on_the_locked_image_is_started_and_awaited(self):
+        self.assertEqual(backup.start_database(), self.CID)
+        self.assertIn(['docker', 'start', backup.DB], self.calls)
+        # Nothing but the database is started.
+        self.assertEqual([call for call in self.calls if call[:2] == ['docker', 'start']], [['docker', 'start', backup.DB]])
+        self.assertEqual(sum(1 for call in self.calls if call[:2] == ['docker', 'exec']), 2)
+        # Already running: nothing is started again.
+        self.calls.clear()
+        self.ready_after = 0
+        backup.start_database()
+        self.assertNotIn(['docker', 'start', backup.DB], self.calls)
+
+    def test_anything_but_that_container_with_sbarbase_stopped_is_refused(self):
+        import hba_migration
+        cases = [
+            ('supervisor', 'Sbarbase is running'), ('migration', 'generation migration is waiting'),
+            ('image', "lock and owner name"), ('owner', "lock and owner name"), ('pin', 'generation pin names'),
+        ]
+        for case, reason in cases:
+            with self.subTest(case=case):
+                self.calls.clear()
+                patches = {'supervisor': patch.object(backup, 'supervisor_running', lambda: True),
+                           'migration': patch.object(hba_migration, 'present', lambda state: True),
+                           'image': patch.dict(self.item, {'Image': 'sha256:' + '8' * 64}),
+                           'owner': patch.dict(self.item, {'Config': {'Labels': {'io.sbarbase.owner': 'other'}}}),
+                           'pin': patch.dict(self.pin, {'container_id': 'e' * 64})}
+                with patches[case], self.assertRaisesRegex(backup.BackupError, reason):
+                    backup.start_database()
+                self.assertNotIn(['docker', 'start', backup.DB], self.calls)
+
+    def test_the_pin_must_match_in_every_field_and_be_readable(self):
+        import hba_generation
+        for field, value in (('image', 'sha256:' + '7' * 64), ('name', 'other-db'), ('owner', 'other')):
+            with self.subTest(field=field), patch.dict(self.pin, {field: value}), \
+                    self.assertRaisesRegex(backup.BackupError, 'generation pin names'):
+                backup.start_database()
+        for error in (ValueError('torn'), FileNotFoundError('gone'), PermissionError('not the owner')):
+            with self.subTest(error=error), patch.object(hba_generation, 'load', side_effect=error), \
+                    self.assertRaisesRegex(backup.BackupError, 'pin cannot be read'):
+                backup.start_database()
+        with patch.dict(self.item, {'Name': '/other'}), self.assertRaisesRegex(backup.BackupError, 'lock and owner name'):
+            backup.start_database()
+        self.assertNotIn(['docker', 'start', backup.DB], self.calls)
+
+    def test_another_account_is_refused_rather_than_failing(self):
+        with patch.object(backup, 'supervisor_running', side_effect=PermissionError('supervisor.lock')), \
+                self.assertRaisesRegex(backup.BackupError, 'run it as the service account'):
+            backup.start_database()
+        self.assertNotIn(['docker', 'start', backup.DB], self.calls)
+
+    def test_the_database_lock_is_the_one_read(self):
+        asked = []
+        with patch.object(backup, 'image_pin', lambda name: asked.append(name) or {}):
+            backup.start_database()
+        self.assertEqual(asked, ['distro-image.lock.json'])
+
+    def test_a_held_supervisor_lock_is_seen(self):
+        import fcntl
+        self.assertFalse(SUPERVISOR(self.state))
+        with (self.state / 'supervisor.lock').open('a') as held:
+            fcntl.flock(held, fcntl.LOCK_EX)
+            self.assertTrue(SUPERVISOR(self.state))
+        self.assertFalse(SUPERVISOR(self.state))
+
+    def test_a_database_that_never_becomes_ready_is_reported(self):
+        self.ready_after = 10 ** 6
+        with patch.object(backup.time, 'time', side_effect=[0, 0, 200]), self.assertRaisesRegex(backup.BackupError, 'did not become ready'):
+            backup.start_database(wait=120)
+
+    def test_the_command_starts_it_without_a_preflight(self):
+        import io
+        with patch.object(backup, 'start_database', return_value=self.CID) as started, \
+                patch.object(backup, 'preflight', side_effect=AssertionError('no preflight')), \
+                contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(backup.main(['start-database']), 0)
+        started.assert_called_once_with()
+        self.assertIn('nothing else was started', out.getvalue())
+
+
+class ServiceImageTests(Fixture):
+    """A restore never starts an environment service on another release's image."""
+
+    def setUp(self):
+        super().setUp()
+        self.images = {f'{backup.PREFIX}-{E}-auth': 'sha256:' + 'a' * 64, f'{backup.PREFIX}-{E}-rest': 'sha256:' + 'b' * 64,
+                       f'{backup.PREFIX}-{E}-realtime': 'sha256:' + 'c' * 64}
+        pinned = {('images.lock.json', 'auth'): 'sha256:' + 'a' * 64, ('images.lock.json', 'rest'): 'sha256:' + 'b' * 64,
+                  ('realtime-image.lock.json', None): 'sha256:' + 'c' * 64}
+        self.realtime = False
+        self.started = []
+        for name, value in (('image_pin', lambda filename, key=None: (filename, key)),
+                            ('resolve_image', lambda pin: ('ref', pinned[pin])),
+                            ('published', lambda: {E: {'realtime': {'url': 'x'}} if self.realtime else {}}),
+                            ('run', self.docker)):
+            patcher = patch.object(backup, name, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def docker(self, argv, check=True, **kwargs):
+        if argv[:3] == ['docker', 'container', 'inspect']:
+            image = self.images.get(argv[3])
+            if image is None:
+                return SimpleNamespace(returncode=1, stdout='', stderr='')
+            return SimpleNamespace(returncode=0, stderr='', stdout=json.dumps(
+                [{'Image': image, 'Config': {'Labels': {'io.sbarbase.owner': backup.DATABASE_OWNER}}}]))
+        if argv[:2] == ['docker', 'start']:
+            self.started.append(argv[2:])
+            raise RuntimeError('stop here')
+        raise AssertionError(argv)
+
+    def test_realtime_is_checked_only_when_the_environment_runs_it(self):
+        other = {f'{backup.PREFIX}-{E}-realtime': 'sha256:' + 'f' * 64}
+        with patch.dict(self.images, other):
+            backup.require_service_images(E)
+            self.realtime = True
+            with self.assertRaisesRegex(backup.BackupError, 'realtime image this version pins'):
+                backup.require_service_images(E)
+        self.assertEqual(backup.service_names(E)[-1], f'{backup.PREFIX}-{E}-realtime')
+        self.realtime = False
+        self.assertEqual(backup.service_names(E), [f'{backup.PREFIX}-{E}-auth', f'{backup.PREFIX}-{E}-rest'])
+
+    def test_services_on_the_pinned_images_pass_and_any_other_refuses(self):
+        backup.require_service_images(E)
+        for service in ('auth', 'rest'):
+            name = f'{backup.PREFIX}-{E}-{service}'
+            with self.subTest(service=service), patch.dict(self.images, {name: 'sha256:' + 'f' * 64}), \
+                    self.assertRaisesRegex(backup.BackupError, f'{service} image this version pins'):
+                backup.require_service_images(E)
+        with patch.dict(self.images, {f'{backup.PREFIX}-{E}-auth': None}), self.assertRaises(backup.BackupError):
+            backup.require_service_images(E)
+
+    def test_a_container_of_another_owner_is_refused(self):
+        original = self.docker
+
+        def foreign(argv, check=True, **kwargs):
+            result = original(argv, check, **kwargs)
+            if argv[:3] == ['docker', 'container', 'inspect'] and argv[3].endswith('-rest'):
+                item = json.loads(result.stdout)[0]
+                item['Config']['Labels']['io.sbarbase.owner'] = 'someone-else'
+                return SimpleNamespace(returncode=0, stderr='', stdout=json.dumps([item]))
+            return result
+        with patch.object(backup, 'run', foreign), self.assertRaisesRegex(backup.BackupError, 'rest image'):
+            backup.require_service_images(E)
+
+    def test_realtime_is_checked_when_the_environment_runs_it(self):
+        self.realtime = True
+        backup.require_service_images(E)
+        with patch.dict(self.images, {f'{backup.PREFIX}-{E}-realtime': 'sha256:' + 'f' * 64}), \
+                self.assertRaisesRegex(backup.BackupError, 'realtime image'):
+            backup.require_service_images(E)
+
+    def test_services_are_never_started_on_another_image(self):
+        with patch.dict(self.images, {f'{backup.PREFIX}-{E}-auth': 'sha256:' + 'f' * 64}), self.assertRaises(backup.BackupError):
+            backup.start_services(E)
+        self.assertEqual(self.started, [])
 
 
 class ScheduleTests(unittest.TestCase):

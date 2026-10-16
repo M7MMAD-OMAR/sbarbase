@@ -138,6 +138,9 @@ def restore(api, scope, name, now):
         raise api.BackupError('Only a published environment can be restored')
     admitted = api.preflight()
     storage_cid = storage(api)
+    if scope not in api.DATABASE_SCOPES:
+        # Before anything stops: services on another release's image are never started on restored data.
+        api.require_service_images(scope)
     workers = json.loads(api.sql(operation.WORKER_QUERY))
     operation.admit_workers(workers, image=api.image_pin('distro-image.lock.json')['id'] if 'native' in workers else None, database=database)
     prepared(api, database)
