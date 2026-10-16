@@ -92,6 +92,7 @@ Start with the [project goal](../../PROJECT_GOAL.md), [product and portability p
 - [RECOVERY-EXPORT](RECOVERY-EXPORT.md): the encrypted per-environment export.
 - [SOURCE-FENCING](SOURCE-FENCING.md): closing a source database and its service logins.
 - [INDEPENDENT-RESTORE](INDEPENDENT-RESTORE.md): restore to a separate engine, verification and cutover rehearsal.
+- [WHOLE-CLUSTER-RESTORE](WHOLE-CLUSTER-RESTORE.md): design for rebuilding the database cluster from a backup run onto a chosen image (upstream currency P3), not built yet.
 - [TARGET-LIFECYCLE](TARGET-LIFECYCLE.md): starting and stopping the retained moved target.
 
 ## Mail, notifications and operations
