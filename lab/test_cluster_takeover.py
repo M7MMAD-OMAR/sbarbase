@@ -36,7 +36,7 @@ class TakeoverTests(unittest.TestCase):
         self.moved = []
         self.finishes = True
         self.from_image = IMAGE
-        self.from_script = 'parser.add_argument("--supersede-stuck")'
+        self.from_script = 'import os\nSUPERSEDE_PROTOCOL=1\n'
         self.pinned_image = OTHER
         self.marked = []
         self.refusal = None
@@ -64,7 +64,7 @@ class TakeoverTests(unittest.TestCase):
             patch.object(takeover.database_volume, 'current', lambda state: self.volume),
             patch.object(takeover.release_channel, 'lock_at', lambda commit, name: {'commit': commit, 'name': name}),
             patch.object(takeover.backup, 'resolve_image', lambda pin: ('ref', self.from_image if pin['commit'] == FROM else OTHER)),
-            patch.object(takeover.upgrade, 'git', lambda *args, check=True: self.from_script if args[0] == 'show' else ''),
+            patch.object(takeover.upgrade, 'git', lambda *args, check=True: self.from_script if args[:1] == ('show',) and args[1] == FROM + ':lab/hba_migration.py' else ''),
             patch.object(takeover.upgrade, 'move_back', self.move_back),
             patch.object(takeover.upgrade, 'now', lambda: '2026-10-16T12:00:00Z'),
             patch.object(takeover.hba_migration, 'pinned', lambda state: {'target': {'image': self.pinned_image, 'owner': 'durable-upstream'}}),
@@ -379,9 +379,11 @@ class TakeoverTests(unittest.TestCase):
         with self.assertRaisesRegex(takeover.TakeoverError, 'another image'):
             self.take()
         self.from_image = IMAGE
-        self.from_script = 'no such option'
-        with self.assertRaisesRegex(takeover.TakeoverError, 'no --supersede-stuck'):
-            self.take()
+        for source in ('parser.add_argument("--supersede-stuck")', '# SUPERSEDE_PROTOCOL=1', 'SUPERSEDE_PROTOCOL=2', None):
+            with self.subTest(source=source):
+                self.from_script = source
+                with self.assertRaisesRegex(takeover.TakeoverError, 'supersede protocol'):
+                    self.take()
         self.assertEqual((self.moved, self.runs), ([], []))
         self.assertTrue(self.move_path.exists())
         self.assertNotIn('taken_over', json.loads(self.move_path.read_text()), 'a refusal leaves the move unmarked')

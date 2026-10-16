@@ -81,6 +81,10 @@ INTENT_SHAPES={(1,frozenset(INTENT_FIELDS)),(2,frozenset(INTENT_FIELDS_IMAGE)),
               (4,frozenset(INTENT_FIELDS|{'new_volume','supersedes'})),
               (4,frozenset(INTENT_FIELDS_IMAGE|{'new_volume','supersedes'}))}
 SUPERSEDED='superseded.json'
+# Raised whenever supersede or the version 4 migration changes how it acts: a takeover moves the
+# checkout back only to a version with the same line, since the migration then runs from there.
+SUPERSEDE_PROTOCOL=1
+PROTOCOL_LINE='SUPERSEDE_PROTOCOL=%d'%SUPERSEDE_PROTOCOL
 RETIRED_STATES=('stopped-will-not-return','absent-verified')
 PLAN_FIELDS={'name','owner','image','tier','memory','cpus','network','env_file','command'}
 

@@ -12,8 +12,8 @@ mounts it from then on. The old volume is kept.
 The checkout's PostgreSQL lock must name the rebuilt image, because the runtime checks the running
 database against it. When it names another one and a database move is recorded, the checkout is
 moved back to the move's from version (lab/upgrade.py move_back) only when that version's lock
-names the rebuilt image and its generation migration knows --supersede-stuck (the migration then
-runs from that checkout); anything else refuses.
+names the rebuilt image and its lab/hba_migration.py carries this supersede protocol
+(SUPERSEDE_PROTOCOL; the migration then runs from that checkout); anything else refuses.
 
 What runs depends on the migration record:
 
@@ -90,11 +90,12 @@ def needs_move_back(record, move):
     if move is None or image_of(move['from']) != record['image']:
         raise TakeoverError("This checkout's PostgreSQL lock names another image than the rebuilt cluster's, and no "
                             "recorded move leads back to a version whose lock names it; check out that version first")
-    # The migration then runs from that version's checkout, so it must know how to finish this one.
-    script = upgrade.git('show', f"{move['from']}:lab/migrate-generation.py", check=False)
-    if '--supersede-stuck' not in (script or ''):
+    # The migration then runs from that version's checkout, so it must finish this one exactly as
+    # this one would: its supersede protocol is this one's.
+    source = upgrade.git('show', f"{move['from']}:lab/hba_migration.py", check=False)
+    if hba_migration.PROTOCOL_LINE not in (source or '').splitlines():
         raise TakeoverError(f"The version {move['from'][:12]} cannot take a rebuilt cluster into use (its "
-                            'lab/migrate-generation.py has no --supersede-stuck); nothing was changed')
+                            'lab/hba_migration.py does not have this supersede protocol); nothing was changed')
     return True
 
 
@@ -218,8 +219,7 @@ def release():
         state = runtime.STATE
         hba_migration.discard_unpublished(state)
         if hba_migration.pending_superseded(state) is not None or (
-                hba_migration.present(state) and database_volume.rebuilt(
-                    hba_migration.target_volume(hba_migration.load(state)))):
+                hba_migration.present(state) and 'new_volume' in hba_migration.load(state)):
             raise TakeoverError('A migration onto a rebuilt volume is recorded or waiting; finish the takeover')
         database_move.save({key: value for key, value in move.items() if key != 'taken_over'})
         return move

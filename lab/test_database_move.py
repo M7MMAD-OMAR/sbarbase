@@ -666,6 +666,9 @@ class TakenOverTests(unittest.TestCase):
         self.volume = 'sbarbase-durable-pgdata-0123456789ab'
         (self.root / 'cluster-rebuild.json').write_text(json.dumps({'phase': 'completed', 'volume': self.volume}))
         self.assertFalse(move.taken_over({'phase': 'migrating', 'from': 'a' * 40, 'to': 'b' * 40}))
+        # A later move's own migration, published on the rebuilt volume the runtime now mounts.
+        self.intent = {'migration': 'm2', 'volume': self.volume, 'old': {}, 'image': 'sha256:' + '9' * 64}
+        self.assertFalse(move.taken_over({'phase': 'migrating', 'from': 'a' * 40, 'to': 'b' * 40}))
 
     def test_a_taken_over_move_points_to_the_takeover_at_start_and_on_continue(self):
         (self.root / 'database-move.json').write_text(json.dumps({'version': 1, 'phase': 'migrating', 'from': 'a' * 40,
