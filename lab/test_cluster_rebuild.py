@@ -358,6 +358,27 @@ class RebuildTests(unittest.TestCase):
         self.assertEqual(saved['closed_logins'], [f'{E}_developer'])
         self.assertIn(f'Created closed (turn them on again): {E}_developer', output.getvalue())
 
+    def test_a_build_container_that_cannot_be_removed_is_recorded_and_reported(self):
+        docker = self.docker
+
+        def refusing(*args, **kwargs):
+            result = docker(*args, **kwargs)
+            return SimpleNamespace(returncode=1, stdout='', stderr='') if args[0] == 'rm' else result
+        for failing in (False, True):
+            with self.subTest(failing=failing), patch.object(rebuild, 'docker', refusing), \
+                    contextlib.redirect_stderr(io.StringIO()) as error:
+                self.fail_at = 'stop' if failing else None
+                if failing:
+                    with self.assertRaises(rebuild.RebuildError):
+                        rebuild.rebuild(STAMP, token='0123456789ab')
+                else:
+                    self.assertFalse(rebuild.rebuild(STAMP, token='0123456789ab')['container_removed'])
+                saved = json.loads(rebuild.RECORD.read_text())
+                self.assertEqual((saved['phase'], saved['container_removed']), ('failed' if failing else 'completed', False))
+                self.assertIn('docker rm -f sbarbase-rebuild-0123456789ab', error.getvalue())
+        self.fail_at = None
+        self.assertTrue(rebuild.rebuild(STAMP, token='0123456789ab')['container_removed'])
+
     def test_a_cluster_that_does_not_hold_the_recorded_roles_fails(self):
         next(item for item in self.inventory_after['roles'] if item['kind'] == 'rest')['rolbypassrls'] = True
         with self.assertRaisesRegex(rebuild.RebuildError, 'does not hold the roles'):

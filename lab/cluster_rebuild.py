@@ -20,7 +20,8 @@ lock of COMMIT, proven on this daemon and never pulled) in a build container on 
      its backup recorded, then renamed to its own name;
   5. the inventory taken again on the rebuilt cluster, which must match the recorded one (login
      state aside for the logins that open and close);
-  6. the build container is stopped and removed; the volume stays.
+  6. the build container is stopped and removed (a removal that fails is recorded and reported);
+     the volume stays.
 
 Nothing of the installation changes: Sbarbase must be stopped (the supervisor and worker locks
 are held throughout), and the rebuilt volume is taken into use only by a generation migration
@@ -366,8 +367,13 @@ def rebuild(stamp, commit=None, token=None):
             raise
         finally:
             # The build container is ours and holds nothing the volume does not; the volume stays.
-            docker('rm', '-f', container, check=False)
+            removed = docker('rm', '-f', container, check=False).returncode == 0
+            record = {**record, 'container_removed': removed}
             save(record)
+            if not removed:
+                # Reported whatever the outcome: the volume is complete, only the name is held.
+                print(f'The build container {container} could not be removed; remove it with: docker rm -f {container}',
+                      file=sys.stderr)
     return record
 
 

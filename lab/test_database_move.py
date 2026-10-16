@@ -320,9 +320,12 @@ class ContinueTests(Fixture):
         self.prepared()
         self.transient_refused = ['A pending operation record (worker-effect.json) must be settled or reconciled first',
                                   'A database move is recorded; continue or abandon it first (lab/upgrade.py database)']
+        self.move_asked = []
         with self.assertRaisesRegex(move.MoveError, 'worker-effect.json') as raised:
             self.resume()
         self.assertNotIn('database move is recorded', str(raised.exception))
+        # The move's own record is left out by asking for it, not by filtering the text.
+        self.assertEqual(self.move_asked, [False])
         self.assertEqual(self.record()['phase'], 'prepared', 'still abandonable')
         self.assertEqual(self.events, [])
         self.quiet(move.abandon)
