@@ -6,9 +6,15 @@ All notable changes to sbarbase. The format follows Keep a Changelog and the
 project uses Semantic Versioning, which for a 0.x version means the interface may
 still change between releases.
 
-The declared package version is 0.3.2. Historical 0.1.0 and 0.2.0 entries retain their original scope. Later Docker and VM rehearsals are dated in [status](docs/reference/status.md); no independent public-server or production release acceptance is established.
+The declared package version is 0.4.0. Historical 0.1.0 and 0.2.0 entries retain their original scope. Later Docker and VM rehearsals are dated in [status](docs/reference/status.md); no independent public-server or production release acceptance is established.
 
 ## [Unreleased]
+
+## [0.4.0] - 2026-10-17
+
+### Added
+
+- **Secret API keys**, as on Supabase. On an environment's **API keys** page, or `POST /management/v1/environments/{id}/keys` with `{"type":"secret","name":"backend"}`, create a named `sb_secret_` key. Behind the gateway it acts as `service_role` for REST, Auth admin, Storage, Realtime and Edge Functions; a signed-in user's token still wins. A request that looks like a browser's is refused with it. Like publishable keys, it is kept only as a hash and shown once; creating and revoking keys is audited ([API keys](docs/guides/api-keys.md)).
 
 ## [0.3.2] - 2026-10-17
 

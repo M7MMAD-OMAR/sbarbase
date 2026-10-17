@@ -1,9 +1,9 @@
 {
-  "version": "0.3.2",
-  "minimum_from": "0.2.0",
+  "version": "0.4.0",
+  "minimum_from": "0.3.1",
   "notes": {
-    "en": "Adds sbarbase reset-password, to set a new console password from the server's shell, and fixes the capability registry version. Includes everything in 0.3.1: up to eight environments, Telegram from the console, disk and stopped-service alerts, Studio confined to its own network, encrypted off-site backups. Moving from 0.2.0 changes Auth and Storage, which migrate schemas and need your confirmation; the first start restarts the database once. Not production ready.",
-    "ar": "يضيف الأمر sbarbase reset-password لوضع كلمة مرور جديدة للوحة من سطر أوامر الخادم، ويصلح رقم النسخة في سجل القدرات. ويتضمن كل ما في 0.3.1: حتى ثماني بيئات، وتيليجرام من لوحة الإدارة، وتنبيهات القرص وتوقف الخدمات، وحصر Studio في شبكته، ونسخًا احتياطية مشفّرة خارج الخادم. الانتقال من 0.2.0 يغيّر Auth وStorage ويحتاج تأكيدك، ويعيد أول تشغيل تشغيل قاعدة البيانات مرة. ليس جاهزًا للإنتاج."
+    "en": "Secret API keys, as on Supabase: create a named sb_secret_ key on an environment's API keys page; behind the gateway it acts as service_role for REST, Auth admin, Storage, Realtime and Edge Functions, for servers, scripts and agents. Refused from browsers; stored as a hash and shown once. Not production ready.",
+    "ar": "مفاتيح API السرية، كما في Supabase: أنشئ مفتاح sb_secret_ باسم من صفحة مفاتيح API للبيئة، فيعمل خلف البوابة بصفة service_role في REST وإدارة مستخدمي Auth وStorage وRealtime وEdge Functions، للخوادم والسكربتات والوكلاء. يُرفض من المتصفحات، ويُحفظ ببصمته ويظهر مرة واحدة. ليس جاهزًا للإنتاج."
   },
   "migrations": []
 }
