@@ -269,7 +269,8 @@ deploy(root+'/.lab/upstream/functions',runtime,'entry-'+suffix,input);
                 try:
                     state=Path('/proc') / str(pid) / 'stat'
                     if not state.exists() or state.read_text().split()[2]=='Z': break
-                except FileNotFoundError: break
+                # A process that exits while /proc is read answers ESRCH: it is gone, as wanted.
+                except (FileNotFoundError, ProcessLookupError): break
                 time.sleep(0.01)
             else: self.fail('Owned parser descendant was left running')
         finally:
