@@ -1,6 +1,6 @@
 # Container install first, and the docs on the website
 
-Date: 2026-10-17. Status: proposal; nothing here is implemented or accepted yet.
+Date: 2026-10-17. Status: A1 to A3 done on 2026-10-17 (local VM rehearsal, guide and website source; the site is not deployed yet); the rest is a proposal.
 
 The owner asked for two things on 2026-10-17: installing Sbarbase must be easy, preferably with Docker or Podman, and the documentation must live on the website, not only on GitHub. This plan says what already exists, what is missing, and the order to close the gap.
 
@@ -16,9 +16,13 @@ The owner asked for two things on 2026-10-17: installing Sbarbase must be easy, 
 
 A1. **Rehearse the Docker route from a bare Ubuntu 26.04 machine, package install included.** On a disposable VM: install Docker and the Compose plugin from the distribution (expected `docker.io` and `docker-compose-v2`; the rehearsal confirms the names and that Compose reports 2.20 or newer), enable the service, clone to `/opt/sbarbase`, then `check`, `up`, `bootstrap`, a reboot, and a supabase-js call against a first environment. `lab/vm-rehearsal.sh` takes a Fedora image today; it needs an Ubuntu image and a Docker route, or a sibling script. Write the result to `docs/evidence/` with its own scope.
 
+Done: `lab/vm-docker-rehearsal.sh` passed 14 checks ([vm-docker-install-checks.json](../../evidence/vm-docker-install-checks.json)). The packages are `docker.io`, `docker-compose-v2` and `docker-buildx` (the image needs BuildKit): Engine 29.1.3, Compose 2.40.3, Buildx 0.30.1. Nothing has to be exported; the defaults pass `check`. One environment needed a 6 GiB guest; 5.5 GiB refused it with `capacity_exceeded`. Its notes record the four passes it took on a slow link.
+
 A2. **Add the package step to the guide.** [Install with Docker](../../guides/docker.md) assumes Docker is already installed. Add the exact commands A1 ran, in English and Arabic in the same commit.
 
 A3. **Switch the website's install section to the Docker route.** Four or five commands, the server chips narrowed to what A1 proved (Ubuntu 26.04, x86-64, 4 cores, 8 GB), and one line under them: "Without Docker: the quickstart" for the systemd path. Update `site.test.ts` to pin the new commands against `docker.md` instead of `quickstart.md`. Keep the current wording: checked on a clean machine, not yet on a real server.
+
+Done in source; the live site changes at the next `bun run deploy`.
 
 A4. **Decide Fedora.** Either Fedora keeps the systemd route only, and the site says so, or SELinux gets its own evidence: bind mount labels for the checkout, socket access from the controller, and the Supabase containers under an enforcing policy. The second is real work and overlaps Podman (Part B).
 

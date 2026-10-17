@@ -228,7 +228,7 @@ ${heading('how',c.howLabel,c.howTitle)}
 ${heading('install',c.installLabel,c.installTitle)}
 <ul class="needs" aria-label="${esc(c.needsLabel)}">${c.needs.map(n=>`<li>${esc(n)}</li>`).join('')}</ul>
 <ol class="install">${commands.map((cmd,i)=>{const [title,note]=c.installSteps[i]!;return `<li><div class="step-head"><span class="num">${i+1}</span><h3>${esc(title)}</h3></div>${note?`<p class="note">${esc(note)}</p>`:''}<div class="cmd"><pre dir="ltr"><code>${esc(cmd)}</code></pre><button type="button" class="copy" data-copy="${esc(cmd)}" aria-label="${esc(`${c.copyLabel} ${i+1}`)}">${icon('copy')}<span>${c.copy}</span></button></div></li>`;}).join('')}</ol>
-<p class="links"><a class="button primary" href="${links.quickstart}" rel="noopener noreferrer">${c.installLinks.quickstart}${icon('arrow','flip')}</a><a class="button" href="${links.docs}" rel="noopener noreferrer">${icon('book')}${c.installLinks.docs}</a><a class="button" href="${links.server}" rel="noopener noreferrer">${c.installLinks.server}</a><a class="button" href="${links.repo}" rel="noopener noreferrer">${icon('github')}${c.installLinks.repo}</a></p>
+<p class="links"><a class="button primary" href="${links.docker}" rel="noopener noreferrer">${c.installLinks.docker}${icon('arrow','flip')}</a><a class="button" href="${links.quickstart}" rel="noopener noreferrer">${c.installLinks.quickstart}</a><a class="button" href="${links.docs}" rel="noopener noreferrer">${icon('book')}${c.installLinks.docs}</a><a class="button" href="${links.server}" rel="noopener noreferrer">${c.installLinks.server}</a><a class="button" href="${links.repo}" rel="noopener noreferrer">${icon('github')}${c.installLinks.repo}</a></p>
 </div></section>
 </main>
 

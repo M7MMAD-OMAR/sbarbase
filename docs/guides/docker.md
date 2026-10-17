@@ -10,28 +10,37 @@ The default Docker data root is `/var/lib/docker` and socket is `/var/run/docker
 
 `DOCKER_CONTEXT`, `DOCKER_TLS` and `DOCKER_TLS_VERIFY` are cleared inside the controller, and its CLI uses the mounted socket. The Compose invocation itself must target the intended local daemon. Remote daemons, Docker Desktop and rootless profiles have not passed the required tests and the explicit `local-v1` profile refuses them. A custom data root also requires a runtime declaring `local-v1` compatibility. Rollback to a runtime without that declaration stays stopped rather than silently using its historical default root.
 
-## 1. Get the code and start
+## 1. Install Docker
+
+On Ubuntu 26.04:
 
 ```bash
-git clone https://github.com/M7MMAD-OMAR/sbarbase /opt/sbarbase
-cd /opt/sbarbase
-deploy/compose.sh check
-deploy/compose.sh up
+sudo apt-get update && sudo apt-get install -y docker.io docker-compose-v2 docker-buildx git
+sudo systemctl enable --now docker
 ```
 
-Export deployment inputs explicitly before running the launcher. It pins this checkout, the local socket and the Compose project, passes only declared interpolation values, and ignores `.env`. `DOCKER_HOST` must agree with the declared socket; conflicting Docker context/TLS/API or Compose file/profile overrides are refused. `check` is read-only and never creates missing data paths, volumes, containers or packages. Raw `docker compose up` bypasses the host check and is outside this installation route.
+These are the distribution's own packages; `docker-buildx` is needed because the Sbarbase image is built with BuildKit. A rehearsal ran these exact commands on a bare Ubuntu 26.04 virtual machine ([vm-docker-install-checks.json](../evidence/vm-docker-install-checks.json)). Fedora's `moby-engine` normally runs with SELinux enabled, which the current profile refuses; on Fedora use the [quickstart](quickstart.md) instead.
 
-The first start pulls the pinned Supabase images (about 2.4 GB) and takes a few minutes. Inspect its recent output with `deploy/compose.sh logs`; it is ready when the log says `Local Sbarbase API: http://127.0.0.1:8790`.
-
-## 2. Create the first operator
+## 2. Get the code and start
 
 ```bash
-deploy/compose.sh bootstrap
+sudo git clone https://github.com/M7MMAD-OMAR/sbarbase /opt/sbarbase
+cd /opt/sbarbase && sudo deploy/compose.sh check && sudo deploy/compose.sh up
+```
+
+The defaults fit a stock Docker install, so nothing has to be exported. Set deployment inputs only when they differ, before running the launcher. It pins this checkout, the local socket and the Compose project, passes only declared interpolation values, and ignores `.env`. `DOCKER_HOST` must agree with the declared socket; conflicting Docker context/TLS/API or Compose file/profile overrides are refused. `check` is read-only and never creates missing data paths, volumes, containers or packages. Raw `docker compose up` bypasses the host check and is outside this installation route.
+
+The first start builds the Sbarbase image and pulls the pinned Supabase images (about 2.4 GB), which takes a few minutes on a fast link. Inspect its recent output with `sudo deploy/compose.sh logs`; it is ready when the log says `Local Sbarbase API: http://127.0.0.1:8790`.
+
+## 3. Create the first operator
+
+```bash
+cd /opt/sbarbase && sudo deploy/compose.sh bootstrap
 ```
 
 The fixed bootstrap command preserves the socket, checkout and project selected by the launcher. It asks for an email, a client (organization) name and a password, without echoing the password. Then open the console at `http://127.0.0.1:8790` on the server (for example through `ssh -L 8790:127.0.0.1:8790 your-server`), sign in, create a project and an environment, and copy its connection details and key.
 
-## 3. Put HTTPS in front
+## 4. Put HTTPS in front
 
 The console and the API listen on loopback only. Publish them through the TLS proxy described in [server deployment](server-deployment.md), or any reverse proxy you already run, pointed at `127.0.0.1:8790`.
 
