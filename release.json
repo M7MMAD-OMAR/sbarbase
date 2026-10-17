@@ -1,9 +1,9 @@
 {
-  "version": "0.5.0",
+  "version": "0.5.1",
   "minimum_from": "0.3.1",
   "notes": {
-    "en": "AI agents can deploy here: create an access token on the new Access tokens page and connect Claude Code, Cursor or Codex to /mcp, which runs Supabase's own MCP server. A Supabase-compatible /v1 API, publishable keys that can be copied again, and a Claude Code skill. Turn database access off and on once for an environment whose access was already on. Not production ready.",
-    "ar": "صار بإمكان وكلاء الذكاء الاصطناعي النشر هنا: أنشئ رمز وصول من صفحة Access tokens الجديدة واربط Claude Code أو Cursor أو Codex بـ /mcp، التي تشغّل خادم MCP الرسمي من Supabase. ومعه واجهة /v1 متوافقة مع Supabase، ومفاتيح عامة يمكن نسخها مرة أخرى، ومهارة لـ Claude Code. أوقف الوصول إلى قاعدة البيانات ثم شغّله مرة للبيئة التي كان مفعّلًا فيها. ليس جاهزًا للإنتاج."
+    "en": "Fixes Edge Function answers that clients could not read (a compressed-encoding header over an uncompressed body), lands Supabase CLI function deploys in the console's layout, and allows more characters in access token names. Includes everything in 0.5.0: AI agents can deploy here through an access token and the MCP endpoint. Not production ready.",
+    "ar": "يصلح ردود Edge Functions التي لم تستطع العملاء قراءتها (ترويسة ضغط فوق رد غير مضغوط)، وينشر دوال Supabase CLI بترتيب لوحة الإدارة، ويقبل أحرفًا أكثر في أسماء رموز الوصول. ويتضمن كل ما في 0.5.0: صار بإمكان وكلاء الذكاء الاصطناعي النشر هنا برمز وصول ونقطة MCP. ليس جاهزًا للإنتاج."
   },
   "migrations": []
 }
