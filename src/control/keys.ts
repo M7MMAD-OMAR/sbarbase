@@ -5,13 +5,17 @@ import {chmodSync} from 'node:fs';
 export type KeyKind = 'publishable' | 'secret';
 /** `environment` holds the opaque runtime id (`e_<24 hex>`), not the catalog's environment
  * UUID: the gateway resolves keys by runtime, and a project move keeps it. */
-export type KeyRecord = {id:string;environment:string;kind:KeyKind;name:string;created_at:number;revoked_at:number|null};
+export type KeyRecord = {id:string;environment:string;kind:KeyKind;name:string;created_at:number;revoked_at:number|null;
+  /** The publishable key itself, for one issued since 0.5.0; never for a secret key. */
+  token?:string|null};
 /** A key's name, as on Supabase: 4 to 64 characters, lowercase letters, digits and underscores. */
 export const KEY_NAME=/^[a-z_][a-z0-9_]{3,63}$/;
 const digest=(token:string)=>createHash('sha256').update(token).digest('hex');
 
-/** Local key metadata, never signing secrets or raw API keys: publishable and secret keys alike
- * are kept as SHA-256 digests and shown once, when issued. Parent must be private.
+/** Local key metadata and never a signing secret. A secret key is kept only as its SHA-256 digest
+ * and shown once, when issued. A publishable key is public by design (it ships in web pages and
+ * apps), so, as on Supabase, it is kept as well and can be shown again; its digest still decides
+ * every lookup. Parent must be private.
  * The management key handler enforces scope; direct callers must authorize first.
  */
 export class KeyStore {
@@ -36,6 +40,8 @@ export class KeyStore {
       this.db.exec('ALTER TABLE api_keys ADD COLUMN runtime_epoch INTEGER NOT NULL DEFAULT 0');
     if(!this.db.query<{name:string},[]>('PRAGMA table_info(api_keys)').all().some(column=>column.name==='name'))
       this.db.exec("ALTER TABLE api_keys ADD COLUMN name TEXT NOT NULL DEFAULT 'default'");
+    if(!this.db.query<{name:string},[]>('PRAGMA table_info(api_keys)').all().some(column=>column.name==='token'))
+      this.db.exec("ALTER TABLE api_keys ADD COLUMN token TEXT CHECK(token IS NULL OR kind='publishable')");
   }
   issue(environment:string,kind:KeyKind='publishable',name='default') {
     if(!/^[a-z][a-z0-9_]{1,30}$/.test(environment)) throw new Error('Invalid environment');
@@ -45,7 +51,7 @@ export class KeyStore {
     const id=randomUUID();
     const epoch=this.epoch(environment);
     if(!Number.isSafeInteger(epoch)||epoch<0)throw new Error('Invalid runtime epoch');
-    this.db.query('INSERT INTO api_keys(id,environment,kind,digest,created_at,revoked_at,runtime_epoch,name) VALUES (?,?,?,?,?,NULL,?,?)').run(id,environment,kind,digest(token),Date.now(),epoch,name);
+    this.db.query('INSERT INTO api_keys(id,environment,kind,digest,created_at,revoked_at,runtime_epoch,name,token) VALUES (?,?,?,?,?,NULL,?,?,?)').run(id,environment,kind,digest(token),Date.now(),epoch,name,kind==='publishable'?token:null);
     return {id,token};
   }
   resolve(environment:string,token:string):KeyKind|null {
@@ -61,22 +67,22 @@ export class KeyStore {
     this.db.query('SELECT count(*) AS n FROM api_keys').get();
   }
   revoke(environment:string,id:string):boolean {
-    return this.db.query('UPDATE api_keys SET revoked_at=? WHERE id=? AND environment=? AND revoked_at IS NULL')
+    return this.db.query('UPDATE api_keys SET revoked_at=?,token=NULL WHERE id=? AND environment=? AND revoked_at IS NULL')
       .run(Date.now(),id,environment).changes===1;
   }
   /** Every active key of one runtime, for a deleted or moved environment. Returns how many. */
   revokeAll(environment:string):number {
-    return this.db.query('UPDATE api_keys SET revoked_at=? WHERE environment=? AND revoked_at IS NULL')
+    return this.db.query('UPDATE api_keys SET revoked_at=?,token=NULL WHERE environment=? AND revoked_at IS NULL')
       .run(Date.now(),environment).changes;
   }
   /** Clean up only keys invalidated by an earlier runtime generation. */
   revokeBeforeEpoch(environment:string,epoch:number):number {
     if(!Number.isSafeInteger(epoch)||epoch<0)throw new Error('Invalid runtime epoch');
-    return this.db.query('UPDATE api_keys SET revoked_at=? WHERE environment=? AND runtime_epoch<? AND revoked_at IS NULL')
+    return this.db.query('UPDATE api_keys SET revoked_at=?,token=NULL WHERE environment=? AND runtime_epoch<? AND revoked_at IS NULL')
       .run(Date.now(),environment,epoch).changes;
   }
   list(environment:string):KeyRecord[] {
-    return this.db.query<KeyRecord,[string]>('SELECT id,environment,kind,name,created_at,revoked_at FROM api_keys WHERE environment=? ORDER BY created_at,id').all(environment);
+    return this.db.query<KeyRecord,[string]>("SELECT id,environment,kind,name,created_at,revoked_at,CASE WHEN kind='publishable' AND revoked_at IS NULL THEN token END AS token FROM api_keys WHERE environment=? ORDER BY created_at,id").all(environment);
   }
   close(){this.db.close();}
 }

@@ -37,6 +37,7 @@ Sbarbase puts many Supabase projects on one server. Sharing a server is only wor
 | Host operator | Trusted | Root or Docker on the host, the PostgreSQL administrator login, the private state directory, arbitrary SQL in any environment. Not defended against. |
 | Application visitor | Untrusted | Anonymous or signed-in requests to any environment through the gateway, with that environment's publishable key and their own token. |
 | Compromised environment service or leaked environment key | Untrusted | Holds one environment's service login password, publishable or secret key, or Auth token and tries to reach another environment or the platform. |
+| Leaked access token or misled agent | Untrusted | Holds a person's access token (`sbp_...`), or is an AI agent acting on untrusted content, and calls the MCP endpoint or the `/v1` API. It can do what that person can do within the token's scope and read-only flag, through the console's own routes; it cannot manage tokens, members, sign-in settings or the server. Revocation, expiry and a password reset on the server end it ([AI agents](../guides/agents.md)). |
 | Compromised dependency | Untrusted | A modified upstream image, package or CI action that runs with the privileges of the component that loads it. |
 | Network attacker | Untrusted | Observes or tampers with traffic between visitors or operators and the server, or sends crafted requests to whatever is exposed. |
 

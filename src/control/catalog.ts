@@ -10,6 +10,8 @@ import {type LifecycleAdmission,type LifecycleResource,type LifecycleOperation,t
 
 export type MembershipRole = 'owner' | 'admin' | 'viewer';
 type Project = {id:string;organization:string;name:string};
+export type AgentDirectoryEntry={organization:string;organization_name:string;role:MembershipRole;project:string;project_name:string;
+  environment:string;environment_name:string;runtime:string|null;state:string|null;created_at:number|null};
 type Environment = {id:string;project:string;name:string};
 /** One environment with its provisioning state, so a listing needs no per row request. */
 export type EnvironmentStatus = Environment&{state:string|null;attempt:number|null;failure:ProvisionFailure|null};
@@ -575,6 +577,19 @@ export class Catalog {
     return this.db.query(`UPDATE notification_delivery SET state='failed',last_error='channel_disabled'
       WHERE channel=? AND state='pending' AND event IN (SELECT id FROM notification_outbox WHERE at<?)`).run(channel,before).changes;
   }
+  /** An access token made or revoked (src/control/access-tokens.ts). The subject is the token's
+   * organization or project, so that organization's audit log shows it; a token for everything is
+   * recorded against its owner. The token itself is never in it. */
+  recordAccessToken(actor:string,action:'access_token.created'|'access_token.revoked',subject:string,detail:Record<string,string|boolean|number>):void {
+    this.actor(actor);
+    this.record(actor,action,subject,detail);
+  }
+  /** SQL that could change an environment, run by an agent through the Supabase-compatible API:
+   * the access token, and the migration name or a digest of the query, never the query itself. */
+  recordAgentSql(actor:string,environment:string,action:'database.agent_query'|'database.agent_migration',detail:Record<string,string>):void {
+    this.environmentProject(actor,environment,['owner','admin']);
+    this.record(actor,action,environment,detail);
+  }
   /** A management account's password was set from the server's shell (lab/operator-password.ts). */
   recordOperatorPasswordReset(target:string):void {
     this.record('system:host','management.password_reset',target,{});
@@ -657,7 +672,11 @@ export class Catalog {
       for(const [key,value] of Object.entries(raw)){
         if(row.action==='project.ownership_changed')continue;
         if(typeof value==='number'||typeof value==='boolean')detail[key]=value;
-        else if(typeof value==='string'&&(/^[a-z_]{1,40}$/.test(value)||(key==='target'&&value.length<=200)))detail[key]=value;
+        else if(typeof value==='string'&&(/^[a-z_]{1,40}$/.test(value)||(key==='target'&&value.length<=200)||
+          // An access token or API key by its id, a query by its digest, a migration by its version.
+          ((key==='token'||key==='key')&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(value))||
+          (key==='query'&&/^[0-9a-f]{16}$/.test(value))||(key==='version'&&/^[0-9]{14}$/.test(value))||
+          (row.action==='database.agent_migration'&&key==='name'&&/^[A-Za-z0-9_.-]{1,100}$/.test(value))))detail[key]=value;
       }
       const member=row.actor.startsWith('system')||!!this.db.query('SELECT 1 FROM memberships WHERE organization=? AND actor=?').get(organization,row.actor);
       out.push({at:row.at,actor:member?row.actor:'outside',action:row.action,kind:subject.kind,subject:subject.name,detail});
@@ -829,6 +848,19 @@ export class Catalog {
       return this.db.query<EnvironmentStatus,[string]>(`SELECT e.id,e.project,e.name,j.state,j.attempt,j.failure
         FROM environments e LEFT JOIN provision_jobs j ON j.environment=e.id WHERE e.project=? AND NOT EXISTS (SELECT 1 FROM environment_lifecycle l WHERE l.environment=e.id AND l.state!='active') ORDER BY e.id`).all(project);
     })();
+  }
+  /** Every live environment the actor can see, with its project, organization and the actor's
+   * role there, for the Supabase-compatible API (src/control/supabase-api.ts). `created_at` is
+   * when the audit log recorded the environment's creation. */
+  agentDirectory(actor:string):AgentDirectoryEntry[] {
+    this.actor(actor);
+    return this.db.query<AgentDirectoryEntry,[string]>(`SELECT o.id AS organization,o.name AS organization_name,m.role,
+      p.id AS project,p.name AS project_name,e.id AS environment,e.name AS environment_name,j.runtime,j.state,
+      (SELECT min(a.at) FROM audit_events a WHERE a.action='environment.created' AND a.subject=e.id) AS created_at
+      FROM memberships m JOIN organizations o ON o.id=m.organization JOIN projects p ON p.organization=o.id
+      JOIN environments e ON e.project=p.id LEFT JOIN provision_jobs j ON j.environment=e.id
+      WHERE m.actor=? AND NOT EXISTS (SELECT 1 FROM environment_lifecycle l WHERE l.environment=e.id AND l.state!='active')
+      ORDER BY o.id,p.id,e.id`).all(actor);
   }
   withReadyEnvironment<T>(actor:string,environment:string,write:boolean,operation:(job:ProvisionJob)=>T):T {
     return this.db.transaction(()=>{

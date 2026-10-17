@@ -22,7 +22,8 @@ test('only ready environments can issue keys; actor scope, one-time disclosure a
   expect((await request('viewer',e,'connection')).status).toBe(200);
   const issued=await request('alice',e,'keys','POST');expect(issued.status).toBe(201);
   const {id,token}=await issued.json();
-  expect(await (await request('alice')).text()).not.toContain(token);
+  // A publishable key can be shown again; listing it is the console's Copy button.
+  expect((await (await request('alice')).json()).data[0].token).toBe(token);
   expect((await request('bob',f,`keys/${id}`,'DELETE')).status).toBe(404);
   const gateway=managedGateway(catalog,keys,()=>({auth:'http://auth.invalid',rest:'http://rest.invalid',keys:[],anonymousToken:'internal',enabled:true}),
    Object.assign(async()=>Response.json({ok:true}), {preconnect:nativeFetch.preconnect}));

@@ -889,7 +889,11 @@ GRANT ALL ON ALL SEQUENCES IN SCHEMA _realtime TO {role};""", e)
         """The environment's developer login: what a project's own `postgres` user does on Supabase,
         within one database. It may create and change anything in `public`, and, as a member of
         the environment's Auth and Storage logins, add triggers on `auth.users` and policies on
-        `storage.objects`. It is not a superuser and cannot reach another environment's database."""
+        `storage.objects`. It cannot create schemas: a schema it made first, under a name the
+        platform later creates with IF NOT EXISTS (Realtime's, whose migration runs as superuser),
+        would run its code with those rights. So `supabase_migrations`, where the agents keep
+        migration history, is made for it in developer_grants_sql. It is not a superuser and cannot
+        reach another environment's database."""
         role = f'{e}_developer'
         members = ', '.join(f'{e}_{service}' for service in ('auth', 'storage')) + ', anon, authenticated, service_role'
         return f"""
@@ -902,6 +906,7 @@ ALTER ROLE {role} NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION INHERIT BYPA
   CONNECTION LIMIT {connection_budget.DIRECT_CONNECTIONS} PASSWORD {sql_literal(password)};
 ALTER ROLE {role} IN DATABASE {e} SET search_path TO public, extensions;
 GRANT CONNECT, TEMPORARY ON DATABASE {e} TO {role};
+REVOKE CREATE ON DATABASE {e} FROM {role};
 GRANT {members} TO {role};
 DO $$ BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{e}_studio') THEN
@@ -913,7 +918,10 @@ ALTER ROLE {role} LOGIN;
 
     def developer_grants_sql(self, e):
         role = f'{e}_developer'
-        return f"""GRANT USAGE, CREATE ON SCHEMA public, extensions TO {role};
+        return f"""CREATE SCHEMA IF NOT EXISTS supabase_migrations AUTHORIZATION {role};
+GRANT USAGE, CREATE ON SCHEMA supabase_migrations TO {role};
+GRANT ALL ON ALL TABLES IN SCHEMA supabase_migrations TO {role};
+GRANT USAGE, CREATE ON SCHEMA public, extensions TO {role};
 GRANT ALL ON ALL TABLES IN SCHEMA public TO {role};
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO {role};
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO {role};

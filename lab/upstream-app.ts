@@ -9,6 +9,7 @@ import {applicationConcurrency} from '../src/gateway/managed';
 import {createHmac} from 'node:crypto';
 import {Catalog} from '../src/control/catalog';
 import {KeyStore} from '../src/control/keys';
+import {AccessTokenStore} from '../src/control/access-tokens';
 import {application} from '../src/control/application';
 import {readJsonCached} from '../src/http/cached-json';
 import {DirectDatabase} from '../src/http/database-proxy';
@@ -88,6 +89,10 @@ export function openUpstreamApplication() {
  const catalog=new Catalog('.lab/upstream/control.sqlite',{lifecycleAdmission:receipt?installedLifecycleAdmission(process.cwd(),receipt):undefined});
  catalog.lifecycleAuthorizationStore=LifecycleAuthorizationStore.installed(process.cwd());
  const keys=new KeyStore('.secrets/upstream/managed-keys.sqlite');
+ const tokens=new AccessTokenStore('.secrets/upstream/access-tokens.sqlite');
+ // The server's own loopback address, set once it listens: the MCP endpoint reaches the
+ // Supabase-compatible API there (src/control/mcp.ts).
+ let loopback:string|undefined;
  const resolve=(runtime:string):EnvironmentRoute|undefined=>{
   // Refresh private configuration and endpoints after provisioning or restart: the cache
   // rereads either file as soon as it changes.
@@ -102,7 +107,7 @@ export function openUpstreamApplication() {
  const database=new DirectDatabase();
  const handler=application(catalog,keys,{auth:management.auth,publishableKey:managementPublishableKey,
   anonymousToken:internalToken(secrets.management.jwt,'anon')},resolve,fetch,studioSessionKey,requests,undefined,
-   invitationAccounts(management.auth,internalToken(secrets.management.jwt,'service_role')),database);
+   invitationAccounts(management.auth,internalToken(secrets.management.jwt,'service_role')),database,{tokens,loopback:()=>loopback});
  const socket=realtimeUpgrade({
   route:catalogRealtimeRoute(catalog,resolve),
   verifyKey:(runtime,key)=>keys.resolve(runtime,key)});
@@ -127,5 +132,6 @@ export function openUpstreamApplication() {
   // One monitor per process, over the one application gate: a busy environment's operator notice.
   const pressure=new PressureMonitor(applicationConcurrency,(runtime,saturation)=>catalog.environmentSaturated(runtime,saturation));
   pressure.start();
-  return {handler,studio,upstream,realtime,catalog,keys,database,close(){database.stop();pressure.stop();catalog.close();keys.close();}};
+  return {handler,studio,upstream,realtime,catalog,keys,tokens,database,listening(port:number){loopback=`http://127.0.0.1:${port}`;},
+   close(){database.stop();pressure.stop();catalog.close();keys.close();tokens.close();}};
 }

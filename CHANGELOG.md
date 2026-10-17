@@ -10,6 +10,23 @@ The declared package version is 0.4.0. Historical 0.1.0 and 0.2.0 entries retain
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-17
+
+### Added
+
+- **AI agents can deploy to Sbarbase.** A person creates a personal access token (`sbp_...`) on the console's new **Access tokens** page: scoped to everything they can reach, one organization or one project, read only or not, expiring within a year. With it, an agent such as Claude Code, Cursor or Codex connects to `https://<console>/mcp`, which runs Supabase's own MCP server (the official `@supabase/mcp-server-supabase`). It can create projects, run SQL and migrations, deploy Edge Functions, read keys, logs and security advisors ([AI agents](docs/guides/agents.md)).
+- **A Supabase-compatible management API** under `/v1`, for the same tokens: organizations, projects (each environment is a project, with a 20-letter ref), API keys, SQL, migration history, Edge Functions and their secrets, logs and advisors.
+- **A Claude Code skill** (`deploy/agent-skill/sbarbase/SKILL.md`) that teaches an agent what "deploy to Sbarbase" means.
+- **Publishable keys can be copied again** from the API keys page, as on Supabase, since they are public by design. This applies to keys created from this version; secret keys are still kept only as a hash and shown once.
+
+### Changed
+
+- The developer login now keeps migration history in a `supabase_migrations` schema made for it. It still cannot create schemas. Turn database access off and on once for an environment whose access was already on.
+
+### Fixed
+
+- The database access guide said `supabase db push --db-url` works with the developer login. It never did: the CLI's `CREATE SCHEMA IF NOT EXISTS` needs a right the login does not have, on purpose. The guide now says so and shows `psql` instead.
+
 ## [0.4.0] - 2026-10-17
 
 ### Added

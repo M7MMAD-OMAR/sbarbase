@@ -1,0 +1,105 @@
+{
+  "schema": 1,
+  "date": "2026-10-17",
+  "scope": "The agents' SQL runner (src/control/agent-sql.ts) against a disposable Supabase Postgres container on the workstation, connecting as an environment developer login created with the runtime's own SQL (lab/durable_runtime.py developer_sql and developer_grants_sql), directly rather than through the loopback listener. Produced by lab/agent-sql-check.ts. Not a server run and not a load test.",
+  "command": "bun lab/agent-sql-check.ts",
+  "image": "public.ecr.aws/supabase/postgres:17.11.0.003",
+  "checks": [
+    {
+      "check": "several statements run and the last one answers",
+      "result": "pass"
+    },
+    {
+      "check": "parameters are bound",
+      "result": "pass"
+    },
+    {
+      "check": "a read-only query reads",
+      "result": "pass"
+    },
+    {
+      "check": "read only refuses: delete from items",
+      "result": "pass"
+    },
+    {
+      "check": "read only refuses: commit; delete from items",
+      "result": "pass"
+    },
+    {
+      "check": "read only refuses: set transaction read write; delete from items",
+      "result": "pass"
+    },
+    {
+      "check": "read only refuses: select 1; delete from items",
+      "result": "pass"
+    },
+    {
+      "check": "read only refuses: begin; delete from items; commit",
+      "result": "pass"
+    },
+    {
+      "check": "nothing was deleted by the read-only attempts",
+      "result": "pass"
+    },
+    {
+      "check": "a migration runs and its history is kept in supabase_migrations",
+      "result": "pass"
+    },
+    {
+      "check": "a failing migration leaves nothing behind",
+      "result": "pass"
+    },
+    {
+      "check": "two migrations in the same second both keep their history",
+      "result": "pass"
+    },
+    {
+      "check": "the developer login cannot reach another database",
+      "result": "pass"
+    },
+    {
+      "check": "the developer login cannot create a schema (a platform schema made first would run its code)",
+      "result": "pass"
+    },
+    {
+      "check": "read-only SQL runs inside a read-only transaction",
+      "result": "pass"
+    },
+    {
+      "check": "read-only SQL refuses several statements in one text",
+      "result": "pass"
+    },
+    {
+      "check": "read-only SQL cannot set the role back",
+      "result": "pass"
+    },
+    {
+      "check": "the deadline cancels a query that lifted its own statement timeout",
+      "result": "pass"
+    },
+    {
+      "check": "CREATE SCHEMA IF NOT EXISTS is refused even for the existing supabase_migrations (PostgreSQL checks the right first), so supabase db push cannot run as this login",
+      "result": "pass"
+    },
+    {
+      "check": "the developer login can add tables to supabase_migrations",
+      "result": "pass"
+    },
+    {
+      "check": "int8 comes back as a number, as the Supabase MCP tools parse it",
+      "result": "pass"
+    },
+    {
+      "check": "read-only SQL with parameters, as list_tables sends it",
+      "result": "pass"
+    },
+    {
+      "check": "an oversized result is refused with a hint",
+      "result": "pass"
+    },
+    {
+      "check": "a syntax error comes back as PostgreSQL wrote it",
+      "result": "pass"
+    }
+  ]
+}

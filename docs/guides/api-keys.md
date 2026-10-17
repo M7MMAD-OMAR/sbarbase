@@ -13,7 +13,9 @@ Each environment has two kinds of API key, as on Supabase. Both go in the `apike
 
 1. Open the environment's page in the console and choose **API keys**.
 2. Press **Create key** for a publishable key, or **Create secret key** and give it a name, such as `backend` or `agent_claude`.
-3. Copy the key. It is shown only once: Sbarbase keeps only its SHA-256 hash, so nobody, the operator included, can show it again. If you lose it, create another and revoke the old one.
+3. Copy the key.
+   - **A secret key is shown only once.** Sbarbase keeps only its SHA-256 hash, so nobody, the operator included, can show it again. If you lose it, create another and revoke the old one.
+   - **A publishable key can be copied again later** from the same page, as on Supabase, because it is public by design. This applies to keys created since 0.5.0; an older key keeps only its hash.
 
 Only owners and admins of the organization can create, list and revoke keys. Every creation and revocation is in the organization's audit log, without the key.
 
@@ -59,7 +61,7 @@ A body is optional; with none, a publishable key named `default` is created, as 
 
 ## Differences from Supabase
 
-- A key is shown once. Supabase can reveal a secret key again later; Sbarbase cannot, because it keeps only the hash.
+- A secret key is shown once. Supabase can reveal it again later; Sbarbase cannot, because it keeps only the hash.
 - No legacy JWT keys (`anon` and `service_role` JWTs) are issued for applications.
 - Supabase's exact browser test is not published; Sbarbase's is described above.
 - An Edge Function called with a secret key receives the `service_role` token in `Authorization` and the raw key in `apikey`, as on Supabase. Keep functions you did not write away from secret keys.

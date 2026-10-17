@@ -33,6 +33,7 @@ Read these to understand the design. Each page has the same shape: what it is, w
 - [Realtime](guides/realtime.md): database changes, broadcast and presence per environment.
 - [Move from Supabase](guides/move-from-supabase.md): copy a Supabase project, users and files into a new environment with one command.
 - [Database access](guides/database-access.md): a PostgreSQL connection string per environment for migrations, psql and ORMs.
+- [AI agents and the API](guides/agents.md): access tokens, the MCP endpoint and the Supabase-compatible API, so Claude Code, Cursor or Codex can deploy here.
 - [API keys](guides/api-keys.md): publishable keys for apps, secret keys (`service_role`) for servers and agents.
 - [Signing key](guides/signing-keys.md): rotate an environment's JWT signing key when it may have leaked.
 - [Edge Functions](guides/edge-functions.md): deploy a Supabase functions folder to an environment and call it with supabase-js.

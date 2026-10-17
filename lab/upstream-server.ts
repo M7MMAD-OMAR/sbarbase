@@ -34,6 +34,7 @@ const server=await serveLocal(async request=>{
  isUpgrade:isRealtimeSocket,upgrade:(path,headers)=>studioRuntime((headers.get('host')??'').replace(/:\d+$/,''))
   ?{ok:false,status:404,message:'Unknown route'}
   :held()?{ok:false,status:503,message:'Sbarbase is confirming an upgrade; try again shortly'}:app.realtime(path,headers)});
+app.listening(server.port);
 // Studio's own server-side calls arrive on the runtime network's gateway address, which
 // exists once the runtime is up; the listener opens when the first Studio session records it.
 let internal:Awaited<ReturnType<typeof serveLocal>>|undefined,internalAt='';

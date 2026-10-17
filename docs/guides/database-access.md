@@ -2,7 +2,7 @@
 
 # Database access
 
-Each environment can give you a PostgreSQL connection string for migrations and tools: `psql`, `pg_dump`, `supabase db push --db-url`, Prisma, Drizzle and the like. It is off until an owner or admin turns it on.
+Each environment can give you a PostgreSQL connection string for migrations and tools: `psql`, `pg_dump`, Prisma, Drizzle and the like. It is off until an owner or admin turns it on.
 
 ## Turn it on
 
@@ -28,7 +28,7 @@ psql "postgresql://e_…_developer:<password>@127.0.0.1:6543/e_…?sslmode=disab
 Examples:
 
 ```bash
-supabase db push --db-url "postgresql://…@127.0.0.1:6543/e_…?sslmode=disable"   # run your Supabase migrations
+psql "postgresql://…@127.0.0.1:6543/e_…?sslmode=disable" -v ON_ERROR_STOP=1 -1 -f supabase/migrations/20261017000000_init.sql   # one migration file
 pg_dump "postgresql://…@127.0.0.1:6543/e_…?sslmode=disable" --schema=public > public.sql
 DATABASE_URL="postgresql://…@127.0.0.1:6543/e_…?sslmode=disable" npx prisma migrate deploy
 ```
@@ -40,6 +40,7 @@ It works like a Supabase project's `postgres` user, inside this environment's da
 - Create and change tables, views, functions and policies in `public`. New tables are granted to `anon`, `authenticated` and `service_role`, so the API can reach them, and row level security decides what each caller sees.
 - Add triggers on `auth.users` (for example, create a profile at sign-up) and policies on `storage.objects`.
 - Read and write every row; it bypasses row level security, as the `postgres` user does.
+- Keep migration history in `supabase_migrations`, a schema made for it, where [AI agents](agents.md) record what they applied. It cannot create other schemas: a schema it made first, under a name the platform creates later, would run its code with the platform's rights. This applies from 0.5.0 when access is turned on; turn it off and on once for an environment whose access was already on.
 
 It is not a superuser, cannot create roles or databases, and cannot reach another environment's database. It holds at most 10 connections.
 
@@ -55,3 +56,4 @@ CI turns access on for an environment on a clean machine with every change, runs
 
 - One login per environment, with up to 10 connections; there is no connection pooler yet.
 - The listener declines TLS; use `sslmode=disable` or `prefer` through the tunnel.
+- `supabase db push` does not work with this login: it sends `CREATE SCHEMA IF NOT EXISTS supabase_migrations`, and PostgreSQL refuses that without the right to create schemas, even when the schema exists ([evidence](../evidence/agent-sql-checks-2026-10-17.json)). Apply migration files with `psql` as above, or let an [agent](agents.md) apply them.

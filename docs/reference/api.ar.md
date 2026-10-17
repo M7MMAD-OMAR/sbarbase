@@ -54,8 +54,12 @@
 | GET | `/management/v1/environments/{id}/provision` | عضو | حالة التجهيز `state` ورقم المحاولة `attempt`، والسبب `failure` إن وُجد |
 | POST | `/management/v1/environments/{id}/retry` | مالك، مدير | بلا جسم. يعيد `202 {state: "queued"}` لبيئة فشلت أو أُلغيت، و`409` في غير ذلك أو عند بلوغ حد البيئات |
 | GET | `/management/v1/environments/{id}/connection` | عضو، حين تجهز البيئة | `{environment, apiPath: "/<runtime>", services}` |
-| GET | `/management/v1/environments/{id}/keys` | مالك، مدير | البيانات الوصفية للمفاتيح فقط، ولا يُعاد المفتاح نفسه أبدًا |
-| POST | `/management/v1/environments/{id}/keys` | مالك، مدير | جسم اختياري `{type: "publishable"\|"secret", name}`، وبدونه يُنشأ مفتاح عام اسمه `default`. يعيد `201 {id, token, type, name}` والمفتاح يظهر مرة واحدة ([مفاتيح API](../guides/api-keys.ar.md)) |
+| GET | `/management/v1/environments/{id}/keys` | مالك، مدير | البيانات الوصفية للمفاتيح، ومعها `token` للمفتاح العام الفعّال المنشأ منذ 0.5.0؛ ولا يُعاد المفتاح السري أبدًا |
+| POST | `/management/v1/environments/{id}/keys` | مالك، مدير | جسم اختياري `{type: "publishable"\|"secret", name}`، وبدونه يُنشأ مفتاح عام اسمه `default`. يعيد `201 {id, token, type, name}`، والمفتاح السري لا يظهر إلا هنا ([مفاتيح API](../guides/api-keys.ar.md)) |
+| GET | `/management/v1/access-tokens` | من سجّل دخوله | رموز الوصول الخاصة به، دون الرموز نفسها |
+| POST | `/management/v1/access-tokens` | من سجّل دخوله | `{name, scope?: {kind: "all"\|"organization"\|"project", id?}, read_only?, days?}` (من 1 إلى 365، و90 افتراضيًا). يعيد `201 {data, token}`، والرمز يظهر مرة واحدة ([وكلاء الذكاء الاصطناعي](../guides/agents.ar.md)) |
+| DELETE | `/management/v1/access-tokens/{id}` | من سجّل دخوله | يلغي رمزًا من رموزه |
+| POST | `/management/v1/access-tokens/revoke-all` | من سجّل دخوله | يلغي كل رموزه |
 | DELETE | `/management/v1/environments/{id}/keys/{keyId}` | مالك، مدير | يعيد `200 {revoked: true}`، أو `404` إذا لم يكن مفتاحًا فعّالًا لهذه البيئة |
 | GET | `/management/v1/environments/{id}/metrics` | عضو، عندما تكون جاهزة | آخر ساعة عند البوابة: `window` (`requests` و`clientErrors` و`serverErrors`، و`p50` و`p95` بالميلي ثانية، وعدد الطلبات لكل خدمة في `services`)، و`perMinute` (60 صفًا)، و`since`، و`services` (استهلاك الذاكرة والمعالج لـ Auth وREST وRealtime وEdge Functions). في الذاكرة، وتفرغ بعد إعادة التشغيل ([السجلات والمقاييس](../guides/logs-and-metrics.ar.md)) |
 | GET | `/management/v1/environments/{id}/logs?source=requests\|auth\|rest\|storage\|realtime\|functions&lines=1-1000&errors=1` | مالك، مدير، عندما تكون جاهزة | `requests`: آخر طلبات البوابة، الأحدث أولًا، بلا نصوص الاستعلام. المصادر الأخرى: `lines`، آخر أسطر الخدمة، الأقدم أولًا، مع استبدال المفاتيح والرموز وكلمات المرور بـ `[redacted]`؛ وأسطر Storage فقط إن ذكرت هذه البيئة. `503` إذا تعذّر الوصول إلى Docker |
@@ -76,6 +80,10 @@
 | PUT | `/management/v1/environments/{id}/share` | مشغّل التثبيت | الجسم `{"share": n}`، من 1 إلى 24. يُرجع `409` إذا تجاوزت حصص كل البيئات الجاهزة 32. يُطبَّق من الطلب التالي |
 
 أجسام الطلبات لا تقبل إلا الحقول المذكورة لكل مسار، بحجم أقصاه 4 KiB، وتُقرأ خلال خمس ثوانٍ. مسارات المفاتيح والاتصال وكل طلبات `DELETE` ترفض أي جسم. الردود غير قابلة للتخزين المؤقت. نقل المشروع يلغي مفاتيح API، لكنه لا يدوّر مفتاح توقيع JWT لبيئاته ولا كلمة مرور الوصول المباشر إلى قاعدة البيانات؛ دوّرهما ([مفتاح التوقيع](../guides/signing-keys.ar.md)) إذا كان على أشخاص العميل القديم أن يفقدوا كل وصول. وحذف البيئة لا يحرر مكانها في حد البيئات عند العامل، لأن طبقة تشغيلها تبقى.
+
+## الوكلاء: الواجهة المتوافقة مع Supabase وMCP
+
+برمز وصول في `Authorization: Bearer sbp_...`، تجيب `/v1/...` على الجزء الذي تستعمله الوكلاء والأدوات من واجهة الإدارة في Supabase، ويشغّل `POST /mcp` خادم MCP الرسمي من Supabase فوقها. المسارات وما يفعله كل منها هنا وحدوده في [وكلاء الذكاء الاصطناعي والواجهة البرمجية](../guides/agents.ar.md). ويُرفض رمز الوصول في كل مسارات `/management/`.
 
 ## التحديثات
 

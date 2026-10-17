@@ -76,8 +76,11 @@ Two languages with a clear split:
   - `src/control/catalog.ts`: `Catalog`, the SQLite (`bun:sqlite`) control
     catalog of organizations, projects, environments, memberships and
     provisioning jobs. The central hub; most handlers take it.
-  - `src/control/keys.ts`: `KeyStore`, hashed publishable and secret key metadata only (no
-    raw keys or signing secrets).
+  - `src/control/keys.ts`: `KeyStore`, API key metadata: secret keys as hashes only,
+    publishable keys also kept so the console can show them again; never signing secrets.
+  - `src/control/access-tokens.ts`, `supabase-api.ts`, `mcp.ts`, `agent-sql.ts`: personal
+    access tokens for agents, the Supabase-compatible `/v1` API and the hosted `/mcp` endpoint
+    (`docs/guides/agents.md`).
   - `src/control/auth.ts`: management identity via a dedicated management Auth
     realm, never an application environment's Auth.
   - `src/control/http.ts`, `key-http.ts`, `handler.ts`: management API

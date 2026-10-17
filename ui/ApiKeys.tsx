@@ -3,11 +3,12 @@ import {Copy,Plus,KeyRound,ShieldAlert} from 'lucide-react';
 import {useData,type Api} from './api';
 import {ErrorMessage,Loading,Empty} from './components';
 
-type Key={id:string;kind:'publishable'|'secret';name:string;created_at:number;revoked_at:number|null};
+type Key={id:string;kind:'publishable'|'secret';name:string;created_at:number;revoked_at:number|null;token?:string|null};
 const NAME=/^[a-z_][a-z0-9_]{3,63}$/;
 
-/** Publishable and secret API keys of one environment (docs/guides/api-keys.md). A key is shown
- * once, when it is created; the server keeps only its digest. */
+/** Publishable and secret API keys of one environment (docs/guides/api-keys.md). A secret key is
+ * shown once, when it is created; the server keeps only its digest. A publishable key can be
+ * copied again (one issued before 0.5.0 cannot: only its digest was kept). */
 export function ApiKeysSection({path,request,canWrite}:{path:string;request:Api;canWrite:boolean}){
  const keys=useData<{data:Key[]}|undefined>(signal=>canWrite?request(path+'/keys','GET',undefined,signal):Promise.resolve(undefined),[path,request,canWrite]);
  const [raw,setRaw]=useState<{token:string;kind:string}>(),[busy,setBusy]=useState(false),[error,setError]=useState(''),[confirm,setConfirm]=useState<string>(),[copied,setCopied]=useState('');
@@ -25,7 +26,7 @@ export function ApiKeysSection({path,request,canWrite}:{path:string;request:Api;
   if(!rows.length)return !keys.error&&<Empty>{kind==='secret'?'No secret keys yet.':'No publishable keys yet.'}</Empty>;
   return <div className="table-wrap"><table><thead><tr><th>Name</th><th>Key ID</th><th>Created</th><th>Status</th><th>Action</th></tr></thead><tbody>{rows.map(key=><tr key={key.id}>
    <td>{key.name}</td><td><code>{key.id.slice(0,8)}</code></td><td>{new Date(key.created_at).toLocaleDateString()}</td><td>{key.revoked_at?'Revoked':'Active'}</td>
-   <td>{!key.revoked_at&&(confirm===key.id?<div className="confirm"><span>Revoke this key? Anything using it stops working at once.</span><button className="danger" disabled={busy} onClick={()=>void revoke(key.id)}>Confirm revoke</button><button onClick={()=>setConfirm(undefined)}>Cancel</button></div>
+   <td>{!key.revoked_at&&key.token&&confirm!==key.id&&<button onClick={()=>void copy(key.token!)}><Copy aria-hidden="true"/>Copy</button>}{!key.revoked_at&&(confirm===key.id?<div className="confirm"><span>Revoke this key? Anything using it stops working at once.</span><button className="danger" disabled={busy} onClick={()=>void revoke(key.id)}>Confirm revoke</button><button onClick={()=>setConfirm(undefined)}>Cancel</button></div>
     :<button disabled={busy} onClick={()=>setConfirm(key.id)}>Revoke</button>)}</td></tr>)}</tbody></table></div>;
  }
  if(!canWrite)return <Empty>An organization owner or admin can manage keys.</Empty>;
@@ -34,7 +35,7 @@ export function ApiKeysSection({path,request,canWrite}:{path:string;request:Api;
   {raw&&<div className="new-key"><label htmlFor="new-key">Save this {raw.kind} key now. It is only shown once.</label><textarea id="new-key" readOnly value={raw.token}/>
    <div className="form-row"><button onClick={()=>void copy(raw.token)}><Copy aria-hidden="true"/>Copy key</button><button onClick={()=>{setRaw(undefined);setCopied('');}}>I have saved this key</button></div></div>}
   <p className="small muted" role="status">{copied}</p>
-  <section className="keys-section"><div className="page-heading"><div><h2>Publishable keys</h2><p className="muted small">Use these in your application, in the browser or a mobile app. Row level security still applies.</p></div>
+  <section className="keys-section"><div className="page-heading"><div><h2>Publishable keys</h2><p className="muted small">Use these in your application, in the browser or a mobile app. Row level security still applies. A publishable key is public by design, so it can be copied again here.</p></div>
    <button className="primary" onClick={()=>void issue('publishable')} disabled={busy||!!raw}><Plus aria-hidden="true"/>Create key</button></div>
    {keys.loading?<Loading/>:table('publishable')}</section>
   <section className="keys-section"><div className="page-heading"><div><h2>Secret keys</h2><p className="muted small">For your server, scripts, Edge Functions and AI agents. A secret key acts as <code>service_role</code>: it bypasses row level security and can manage users.</p></div>

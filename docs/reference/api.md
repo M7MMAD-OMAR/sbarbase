@@ -54,8 +54,12 @@ All routes need `Authorization: Bearer <management access token>`. The actor com
 | GET | `/management/v1/environments/{id}/provision` | member | Provisioning `state`, `attempt` and `failure` if any |
 | POST | `/management/v1/environments/{id}/retry` | owner, admin | No body. `202 {state: "queued"}` for a failed or cancelled environment; `409` otherwise or at the environment limit |
 | GET | `/management/v1/environments/{id}/connection` | member, when ready | `{environment, apiPath: "/<runtime>", services}` |
-| GET | `/management/v1/environments/{id}/keys` | owner, admin | Key metadata only, never key material |
-| POST | `/management/v1/environments/{id}/keys` | owner, admin | Optional `{type: "publishable"\|"secret", name}`; no body makes a publishable key named `default`. `201 {id, token, type, name}`, the key shown once ([API keys](../guides/api-keys.md)) |
+| GET | `/management/v1/environments/{id}/keys` | owner, admin | Key metadata, and `token` for an active publishable key created since 0.5.0; never a secret key |
+| POST | `/management/v1/environments/{id}/keys` | owner, admin | Optional `{type: "publishable"\|"secret", name}`; no body makes a publishable key named `default`. `201 {id, token, type, name}`; a secret key is shown only here ([API keys](../guides/api-keys.md)) |
+| GET | `/management/v1/access-tokens` | signed-in person | The caller's own access tokens, never the tokens themselves |
+| POST | `/management/v1/access-tokens` | signed-in person | `{name, scope?: {kind: "all"\|"organization"\|"project", id?}, read_only?, days?}` (1 to 365, 90 by default). `201 {data, token}`, the token shown once ([AI agents](../guides/agents.md)) |
+| DELETE | `/management/v1/access-tokens/{id}` | signed-in person | Revokes one of the caller's tokens |
+| POST | `/management/v1/access-tokens/revoke-all` | signed-in person | Revokes every token of the caller |
 | DELETE | `/management/v1/environments/{id}/keys/{keyId}` | owner, admin | `200 {revoked: true}`, or `404` if not an active key of this environment |
 | GET | `/management/v1/environments/{id}/metrics` | member, when ready | Last hour at the gateway: `window` (`requests`, `clientErrors`, `serverErrors`, `p50` and `p95` in ms, `services` counts), `perMinute` (60 rows), `since`, and `services` (memory and processor use of Auth, REST, Realtime and Edge Functions). In memory; empty after a restart ([logs and metrics](../guides/logs-and-metrics.md)) |
 | GET | `/management/v1/environments/{id}/logs?source=requests\|auth\|rest\|storage\|realtime\|functions&lines=1-1000&errors=1` | owner, admin, when ready | `requests`: the last gateway requests, newest first, without query strings. Other sources: `lines`, the service's last lines, oldest first, with keys, tokens and passwords replaced by `[redacted]`; Storage lines only when they name this environment. `503` when Docker cannot be reached |
@@ -76,6 +80,10 @@ All routes need `Authorization: Bearer <management access token>`. The actor com
 | PUT | `/management/v1/environments/{id}/share` | installation operator | Body `{"share": n}`, 1 to 24. `409` when the shares of all ready environments would exceed 32. Applies at the next request |
 
 Request bodies accept exactly the fields listed for the route, at most 4 KiB, read within five seconds. Key and connection routes and every `DELETE` refuse any body. Responses are not cacheable. A move revokes API keys but does not rotate the environments' JWT signing key or direct database password; rotate them ([signing key](../guides/signing-keys.md)) when people of the old client must lose every kind of access. Deleting an environment does not free its slot in the worker's environment limit, because its runtime is kept.
+
+## Agents: the Supabase-compatible API and MCP
+
+With an access token as `Authorization: Bearer sbp_...`: `/v1/...` answers the part of Supabase's Management API that agents and tools use, and `POST /mcp` runs Supabase's own MCP server against it. The routes, what each does here and its limits are in [AI agents and the API](../guides/agents.md). An access token is refused by every `/management/` route.
 
 ## Updates
 

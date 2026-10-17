@@ -33,6 +33,7 @@
 - [Realtime](guides/realtime.ar.md): تغييرات قاعدة البيانات والبث والحضور لكل بيئة.
 - [النقل من Supabase](guides/move-from-supabase.ar.md): انسخ مشروع Supabase ومستخدميه وملفاته إلى بيئة جديدة بأمر واحد.
 - [الوصول إلى قاعدة البيانات](guides/database-access.ar.md): سلسلة اتصال PostgreSQL لكل بيئة للترحيلات وpsql وأدوات ORM.
+- [وكلاء الذكاء الاصطناعي والواجهة البرمجية](guides/agents.ar.md): رموز الوصول ونقطة MCP والواجهة المتوافقة مع Supabase، ليستطيع Claude Code أو Cursor أو Codex النشر هنا.
 - [مفاتيح API](guides/api-keys.ar.md): مفاتيح عامة للتطبيقات، ومفاتيح سرية (`service_role`) للخوادم والوكلاء.
 - [مفتاح التوقيع](guides/signing-keys.ar.md): غيّر مفتاح توقيع JWT لبيئة متى احتمل أنه تسرّب.
 - [Edge Functions](guides/edge-functions.ar.md): انشر مجلد دوال Supabase إلى بيئة واستدعِه عبر supabase-js.

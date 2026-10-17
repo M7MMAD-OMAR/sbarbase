@@ -2,7 +2,7 @@
 
 # الوصول إلى قاعدة البيانات
 
-تستطيع كل بيئة أن تعطيك سلسلة اتصال PostgreSQL للترحيلات والأدوات: `psql` و`pg_dump` و`supabase db push --db-url` وPrisma وDrizzle وأمثالها. تكون مطفأة حتى يشغّلها مالك أو مدير.
+تستطيع كل بيئة أن تعطيك سلسلة اتصال PostgreSQL للترحيلات والأدوات: `psql` و`pg_dump` وPrisma وDrizzle وأمثالها. تكون مطفأة حتى يشغّلها مالك أو مدير.
 
 ## التشغيل
 
@@ -28,7 +28,7 @@ psql "postgresql://e_…_developer:<password>@127.0.0.1:6543/e_…?sslmode=disab
 أمثلة:
 
 ```bash
-supabase db push --db-url "postgresql://…@127.0.0.1:6543/e_…?sslmode=disable"   # run your Supabase migrations
+psql "postgresql://…@127.0.0.1:6543/e_…?sslmode=disable" -v ON_ERROR_STOP=1 -1 -f supabase/migrations/20261017000000_init.sql   # one migration file
 pg_dump "postgresql://…@127.0.0.1:6543/e_…?sslmode=disable" --schema=public > public.sql
 DATABASE_URL="postgresql://…@127.0.0.1:6543/e_…?sslmode=disable" npx prisma migrate deploy
 ```
@@ -40,6 +40,7 @@ DATABASE_URL="postgresql://…@127.0.0.1:6543/e_…?sslmode=disable" npx prisma 
 - إنشاء الجداول والعروض والدوال والسياسات في `public` وتعديلها. تُمنح الجداول الجديدة لـ `anon` و`authenticated` و`service_role`، فتصل إليها الواجهة، ويحدد أمان الصفوف ما يراه كل مستدعٍ.
 - إضافة مشغّلات (triggers) على `auth.users` (مثلًا لإنشاء ملف شخصي عند التسجيل) وسياسات على `storage.objects`.
 - قراءة كل الصفوف وكتابتها؛ فهو يتجاوز أمان الصفوف، كما يفعل المستخدم `postgres`.
+- حفظ سجل الترحيلات في `supabase_migrations`، وهو مخطط (schema) أُنشئ له، يسجّل فيه [وكلاء الذكاء الاصطناعي](agents.ar.md) ما طبّقوه. ولا يستطيع إنشاء مخططات أخرى: فالمخطط الذي يسبق إليه باسم تنشئه المنصة لاحقًا سيشغّل شيفرته بصلاحيات المنصة. ينطبق هذا منذ 0.5.0 عند تشغيل الوصول؛ وللبيئة التي كان الوصول فيها مفعّلًا من قبل، أوقفه ثم شغّله مرة واحدة.
 
 ليس مستخدمًا خارقًا، ولا يستطيع إنشاء أدوار أو قواعد بيانات، ولا الوصول إلى قاعدة بيانات بيئة أخرى. وحده الأقصى 10 اتصالات.
 
@@ -55,3 +56,4 @@ DATABASE_URL="postgresql://…@127.0.0.1:6543/e_…?sslmode=disable" npx prisma 
 
 - حساب واحد لكل بيئة، حتى 10 اتصالات؛ ولا يوجد مجمّع اتصالات بعد.
 - يرفض المنفذ TLS؛ استخدم `sslmode=disable` أو `prefer` عبر النفق.
+- لا يعمل `supabase db push` بهذا الحساب: فهو يرسل `CREATE SCHEMA IF NOT EXISTS supabase_migrations`، وPostgreSQL يرفض ذلك دون صلاحية إنشاء المخططات، حتى لو كان المخطط موجودًا ([الدليل](../evidence/agent-sql-checks-2026-10-17.json)). طبّق ملفات الترحيل بـ `psql` كما في المثال أعلاه، أو دع [وكيلًا](agents.ar.md) يطبّقها.
