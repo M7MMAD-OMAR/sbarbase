@@ -15,7 +15,7 @@ sudo apt-get update && sudo apt-get install -y docker.io docker-compose-v2 docke
 sudo systemctl enable --now docker
 ```
 
-هذه حزم التوزيعة نفسها، والحزمة `docker-buildx` مطلوبة لأن صورة صباربيز تُبنى عبر BuildKit. شُغّلت هذه الأوامر كما هي على آلة افتراضية فارغة بنظام Ubuntu 26.04 ([دليل التجربة](../evidence/vm-docker-install-checks.json)). أما `moby-engine` على Fedora فيعمل عادةً مع SELinux، وهذا ما يرفضه الملف الحالي، لذا استخدم على Fedora [البدء السريع](quickstart.ar.md).
+هذه حزم التوزيعة نفسها. تُبنى صورة صباربيز عبر BuildKit، وتوفّره الحزمة `docker-buildx`. ثُبّتت هذه الحزم على آلة افتراضية فارغة بنظام Ubuntu 26.04، ونُفّذت عليها بقية خطوات هذه الصفحة ([دليل التجربة](../evidence/vm-docker-install-checks.json)). يُتوقّع أن يعمل `moby-engine` على Fedora مع SELinux، وهذا ما يرفضه profile `local-v1` الحالي. لم يُتحقق من ذلك بعد، لذا فالمسار المجرَّب على Fedora هو [البدء السريع](quickstart.ar.md).
 
 ## 2. جلب الشيفرة والتشغيل
 
@@ -26,7 +26,7 @@ cd /opt/sbarbase && sudo deploy/compose.sh check && sudo deploy/compose.sh up
 
 القيم الافتراضية تناسب تثبيت Docker العادي، فلا حاجة إلى تصدير أي شيء. اضبط مدخلات النشر قبل launcher فقط إن كانت مختلفة عندك. يختار ملف Compose من هذا المستودع والمقبس المحلي واسم المشروع، ولا يقرأ `.env`. المدخلات الأساسية هي `SBARBASE_ROOT` و`SBARBASE_DOCKER_SOCKET` و`SBARBASE_DOCKER_DATA_ROOT` واسم مشروع Compose ومنافذ الواجهة وقاعدة البيانات وعنوان الربط و`SBARBASE_PUBLIC_URL`. يجب أن يطابق `DOCKER_HOST` المقبس المعلن، وترفض إعدادات context/TLS/API وملفات أو profiles بديلة. `check` للقراءة فقط ولا ينشئ مسارات أو volumes أو حاويات أو يثبت حزماً. الأمر المباشر `docker compose up` يتجاوز فحص المضيف.
 
-التشغيل الأول يبني صورة صباربيز ويسحب صور Supabase المثبّتة (نحو 2.4 GB)، ويستغرق بضع دقائق على اتصال سريع. تابعه بالأمر `sudo deploy/compose.sh logs`؛ يصبح جاهزًا عندما يظهر في السجل `Local Sbarbase API: http://127.0.0.1:8790`.
+التشغيل الأول يبني صورة صباربيز ويسحب صور Supabase المثبّتة (نحو 2.4 GB)، ويستغرق بضع دقائق على اتصال سريع. تابعه بالأمر `sudo deploy/compose.sh logs`؛ يصبح جاهزًا عندما يظهر في السجل `Local Sbarbase API: http://127.0.0.1:8790`. ينتهي الأمر `up` قبل ذلك، فانتظر ظهور هذا السطر قبل الخطوة التالية؛ وقد يستغرق أكثر من 20 دقيقة على اتصال بطيء.
 
 ## 3. إنشاء أول مشغّل
 

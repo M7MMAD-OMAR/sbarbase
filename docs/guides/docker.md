@@ -19,7 +19,7 @@ sudo apt-get update && sudo apt-get install -y docker.io docker-compose-v2 docke
 sudo systemctl enable --now docker
 ```
 
-These are the distribution's own packages; `docker-buildx` is needed because the Sbarbase image is built with BuildKit. A rehearsal ran these exact commands on a bare Ubuntu 26.04 virtual machine ([vm-docker-install-checks.json](../evidence/vm-docker-install-checks.json)). Fedora's `moby-engine` normally runs with SELinux enabled, which the current profile refuses; on Fedora use the [quickstart](quickstart.md) instead.
+These are the distribution's own packages; the Sbarbase image is built with BuildKit, which `docker-buildx` provides. A rehearsal installed these packages on a bare Ubuntu 26.04 virtual machine and ran the rest of this page there ([vm-docker-install-checks.json](../evidence/vm-docker-install-checks.json)). Fedora's `moby-engine` is expected to run with SELinux enabled, which the current profile refuses; that has not been checked yet, so on Fedora the [quickstart](quickstart.md) is the rehearsed route.
 
 ## 2. Get the code and start
 
@@ -30,7 +30,7 @@ cd /opt/sbarbase && sudo deploy/compose.sh check && sudo deploy/compose.sh up
 
 The defaults fit a stock Docker install, so nothing has to be exported. Set deployment inputs only when they differ, before running the launcher. It pins this checkout, the local socket and the Compose project, passes only declared interpolation values, and ignores `.env`. `DOCKER_HOST` must agree with the declared socket; conflicting Docker context/TLS/API or Compose file/profile overrides are refused. `check` is read-only and never creates missing data paths, volumes, containers or packages. Raw `docker compose up` bypasses the host check and is outside this installation route.
 
-The first start builds the Sbarbase image and pulls the pinned Supabase images (about 2.4 GB), which takes a few minutes on a fast link. Inspect its recent output with `sudo deploy/compose.sh logs`; it is ready when the log says `Local Sbarbase API: http://127.0.0.1:8790`.
+The first start builds the Sbarbase image and pulls the pinned Supabase images (about 2.4 GB), which takes a few minutes on a fast link. Inspect its recent output with `sudo deploy/compose.sh logs`; it is ready when the log says `Local Sbarbase API: http://127.0.0.1:8790`. `up` returns before that, so wait for this line before the next step; on a slow link it can take more than 20 minutes.
 
 ## 3. Create the first operator
 
