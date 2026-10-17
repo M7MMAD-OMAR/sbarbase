@@ -1,0 +1,17 @@
+# The external uptime check (worker.js). Deploy: bunx wrangler deploy -c deploy/uptime-worker/wrangler.toml
+# Give it the bot token once: bunx wrangler secret put TELEGRAM_TOKEN -c deploy/uptime-worker/wrangler.toml
+name = "sbarbase-uptime"
+main = "worker.js"
+compatibility_date = "2026-09-01"
+workers_dev = false
+
+[triggers]
+crons = ["*/5 * * * *"]
+
+[vars]
+HEALTH_URL = "https://sbarbase.sbarah.com/health"
+CHAT_ID = ""
+
+[[kv_namespaces]]
+binding = "STATE"
+id = "3031912cb0b04f4a81b151854208015f"
