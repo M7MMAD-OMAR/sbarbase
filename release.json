@@ -1,9 +1,9 @@
 {
-  "version": "0.5.1",
+  "version": "0.5.2",
   "minimum_from": "0.3.1",
   "notes": {
-    "en": "Fixes Edge Function answers that clients could not read (a compressed-encoding header over an uncompressed body), lands Supabase CLI function deploys in the console's layout, and allows more characters in access token names. Includes everything in 0.5.0: AI agents can deploy here through an access token and the MCP endpoint. Not production ready.",
-    "ar": "يصلح ردود Edge Functions التي لم تستطع العملاء قراءتها (ترويسة ضغط فوق رد غير مضغوط)، وينشر دوال Supabase CLI بترتيب لوحة الإدارة، ويقبل أحرفًا أكثر في أسماء رموز الوصول. ويتضمن كل ما في 0.5.0: صار بإمكان وكلاء الذكاء الاصطناعي النشر هنا برمز وصول ونقطة MCP. ليس جاهزًا للإنتاج."
+    "en": "Tables an agent creates are visible to the app at once: after a migration or a writing query the server tells PostgREST to reload its schema. Includes 0.5.0 and 0.5.1: AI agents can deploy here through an access token and the MCP endpoint. Not production ready.",
+    "ar": "الجداول التي ينشئها وكيل تظهر للتطبيق فورًا: بعد كل ترحيل أو استعلام كتابة يطلب الخادم من PostgREST إعادة قراءة المخطط. ويتضمن 0.5.0 و0.5.1: صار بإمكان وكلاء الذكاء الاصطناعي النشر هنا برمز وصول ونقطة MCP. ليس جاهزًا للإنتاج."
   },
   "migrations": []
 }
