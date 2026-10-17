@@ -12,6 +12,9 @@
 #   lab/vm-docker-rehearsal.sh --image /path/ubuntu-26.04-server-cloudimg-amd64.img
 #   lab/vm-docker-rehearsal.sh --image IMG --cpus 4 --memory 6144 --dir ~/.local/share/sbarbase-vm-docker
 #   lab/vm-docker-rehearsal.sh --dir DIR --stop          # power the VM off
+#   --preload-images copies every pinned service image and Dockerfile base the host
+#   already has into the guest by digest after the package install, so a slow link
+#   downloads only what the host lacks; the evidence records that it was used
 #
 # The image is not downloaded for you: fetch the Ubuntu 26.04 server cloud image
 # from cloud-images.ubuntu.com and verify it against SHA256SUMS first.
@@ -34,6 +37,7 @@ CPUS=4
 MEMORY=6144
 SSH_PORT=2223
 STOP=0
+PRELOAD=0
 fail() { printf 'FAIL: %s\n' "$1" >&2; record "$1" false; write_evidence false; exit 1; }
 step() { printf '\n== %s\n' "$1"; }
 wait_seconds() { /usr/bin/python3 -c "import time; time.sleep($1)"; }
@@ -46,7 +50,8 @@ while [ $# -gt 0 ]; do
     --memory) shift; MEMORY="${1:-}" ;;
     --ssh-port) shift; SSH_PORT="${1:-}" ;;
     --stop) STOP=1 ;;
-    -h|--help) sed -n '2,27p' "$0"; exit 0 ;;
+    --preload-images) PRELOAD=1 ;;
+    -h|--help) sed -n '2,30p' "$0"; exit 0 ;;
     *) printf 'unknown argument: %s\n' "$1" >&2; exit 2 ;;
   esac
   shift
@@ -72,7 +77,7 @@ json.dump({
   "run_at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
   "commit": sys.argv[1],
   "host": "local KVM guest from the stock Ubuntu 26.04 server cloud image, " + sys.argv[2] + " vCPU, " + sys.argv[3] + " MiB, nothing preinstalled",
-  "scope": "Install with Docker from a bare machine as docs/guides/docker.md gives it: distribution packages, clone (from a bundle of the commit), deploy/compose.sh check, up, bootstrap (lab/bootstrap.py on standard input instead of the interactive prompt), a first project through supabase-js, a reboot after which the console answers, and the smoke check. Not a real server: no public network, certificate or independent host.",
+  "scope": "Install with Docker from a bare machine as docs/guides/docker.md gives it: distribution packages, clone (from a bundle of the commit), deploy/compose.sh check, up, bootstrap (lab/bootstrap.py on standard input instead of the interactive prompt), a first project through supabase-js, a reboot after which the console answers, and the smoke check. Images the host already had may be copied in instead of downloaded (see the checks). Not a real server: no public network, certificate or independent host.",
   "checks": checks, "count": len(checks),
   "passed": sys.argv[4] == "true" and all(c["passed"] for c in checks),
 }, open(sys.argv[5], "w"), indent=1)
@@ -148,6 +153,22 @@ sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -q docker.io docker-compo
 sudo systemctl enable --now docker' | tail -3 || fail "the package install failed"
 versions=$(guest 'sudo docker version --format "{{.Server.Version}}"; sudo docker compose version --short; sudo docker buildx version | cut -d" " -f2')
 record "docker.io, docker-compose-v2 and docker-buildx install: Engine $(printf '%s' "$versions" | sed -n 1p), Compose $(printf '%s' "$versions" | sed -n 2p), Buildx $(printf '%s' "$versions" | sed -n 3p)" true
+
+if [ "$PRELOAD" = "1" ]; then
+  step "pinned images the host already has, copied into the guest"
+  # The installer's pins plus the Dockerfile's digest-pinned bases.
+  refs="$(cd "$REPO_ROOT" && /usr/bin/python3 -c 'import sys;sys.path.insert(0,"lab");import install_server as s;print(*sorted({r for *_,r in s.pinned_images()}))') $(grep -oE '^(FROM |COPY --from=)[^ ]+@sha256:[0-9a-f]+' "$REPO_ROOT/Dockerfile" | sed -E 's/^(FROM |COPY --from=)//')"
+  have=()
+  for ref in $refs; do
+    if docker image inspect "$ref" >/dev/null 2>&1; then have+=("$ref"); else printf 'not on the host, the guest pulls it: %s\n' "${ref%%@*}"; fi
+  done
+  if [ "${#have[@]}" -gt 0 ]; then
+    # A loaded image can arrive without its name; pulling its digest names it and downloads only the manifest.
+    docker save "${have[@]}" | guest 'sudo docker load -q' >/dev/null || fail "copying images into the guest failed"
+    guest "for ref in ${have[*]}; do sudo docker pull -q \$ref >/dev/null || exit 1; done" || fail "naming the copied images failed"
+  fi
+  record "preloaded ${#have[@]} pinned image(s) from the host instead of downloading them" true
+fi
 
 step "clone of $(git -C "$REPO_ROOT" rev-parse --short HEAD) to /opt/sbarbase"
 git -C "$REPO_ROOT" bundle create "$DIR/repo.bundle" HEAD >/dev/null 2>&1
