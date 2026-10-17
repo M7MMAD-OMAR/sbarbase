@@ -4,7 +4,7 @@
 
 Plan, 2026-10-14. The owner asked for a complete plan to bring every upstream component current, to support the useful capabilities announced at Supabase Select 2026, and to keep tracking upstream from now on, without any regression of the base. The research and the adopt or defer decisions are in the [Select 2026 review](../../upstream/2026-10-14-select-2026-landscape.md).
 
-Done locally with this plan, verified by unit tests and independent review: the adoption tool `lab/pin_update.py stage` now works for flat lock files and rewrites the lock's digest proof; `lab/upstream_watch.py` reports drift; `.github/workflows/upstream-watch.yml` runs it weekly once pushed. No image has been changed, and nothing here claims production readiness.
+Done locally with this plan, verified by unit tests and independent review: the adoption tool `lab/pin_update.py stage` now works for flat lock files and rewrites the lock's digest proof; `lab/upstream_watch.py` reports drift; `.github/workflows/upstream-watch.yml` runs it weekly once pushed. Since then the steps below changed the pins, and the new Auth, PostgREST and Storage images run on the real server; nothing here claims production readiness.
 
 ## 1. Goal and non-goals
 
@@ -126,7 +126,7 @@ A7 carries the security value, so the owner may move it earlier (section 9). Its
 | Item | Re-evaluate when | Why not now |
 |---|---|---|
 | OrioleDB | it leaves beta in `supabase/postgres`, and logical replication (Realtime) and our extension set are documented as working | beta, B-tree indexes only, chosen when a cluster is created, so a whole generation change |
-| Multigres | a beta with documented self-hosting exists, and our single-server soak is done | private alpha; three nodes per cluster, against the four-environment guard and unmeasured memory ceilings. Its built-in pooler is relevant to borrowable connections |
+| Multigres | a beta with documented self-hosting exists, and our single-server soak is done | private alpha; three nodes per cluster, against the eight-environment guard and unmeasured memory ceilings. Its built-in pooler is relevant to borrowable connections |
 | Turso and agent databases | Supabase ships a self-hostable product | no product; SQLite, not one of the original Supabase services |
 | Supabase Compute, Pipelines | a self-hostable release | hosted only |
 | PostgreSQL 18 (the stock fixture's `18-alpine` line, and a future distribution major) | the Supabase distribution ships a PostgreSQL 18 line and the official compose file pins it | the stock fixture follows the major line we run (17), so the fixture probes test the same major; a major upgrade is its own generation change and plan. A8 writes the deferral entry for `postgres:18-alpine` with this reason, so the tracker counts it as reviewed |
@@ -156,7 +156,7 @@ A step is accepted only with its review entry complete, the baseline comparison 
 
 ## 11. Progress
 
-Updated with each step. Code accepted here has unit tests and an independent review; nothing below has run on the lab host or a real server yet, so no step is accepted under section 10.
+Updated with each step. Code accepted here has unit tests and an independent review; since 2026-10-16 the real server runs the new Auth, PostgREST and Storage images (health checks only), and Realtime, Edge Runtime, Studio and postgres-meta are pulled there for their next start, so no step is accepted under section 10 yet.
 
 | Item | State | Commit | What is still open |
 |---|---|---|---|
@@ -173,7 +173,7 @@ Updated with each step. Code accepted here has unit tests and an independent rev
 | A4, Auth v2.197.0 | staged | `1edeb56` | the live gate; its way back restores the management database too |
 | A5, Storage v1.83.3 | staged | `87e6fcf` | the live gate; one-way, the way back is the P4 restore |
 | A6, Studio 2026.10.12 | staged | `5566be2`, `48d4840` | the live gate, with F5: the Connections page shows and cancels only its own login's sessions |
-| A6, postgres-meta v0.100.0 | staged | `beb8b03`, `0b2c428` | the live gate; postgres-meta is reachable from the shared network while a session runs, a separate fix |
+| A6, postgres-meta v0.100.0 | staged | `beb8b03`, `0b2c428` | the live gate; its exposure on the shared network was closed in `6e665e6` and `c984f81` |
 | A8, postgres:17-alpine (17.11), 18 deferred | staged | `238a9c6` | the fixtures on the new pin |
 | P3, whole-cluster restore | parts 1 to 3 reviewed; part 4 built, reviewed seven rounds, one gap open | `e520c83`, `dbcb82d`, `35625c5`, `5322fb5`, `46c0afe` | the exit when the takeover's own replacement never becomes ready ([design](../WHOLE-CLUSTER-RESTORE.md#limits)); the VM rehearsal |
 | A7, B1, features | not started | | A7 waits for P3 and its VM rehearsal |

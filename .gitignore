@@ -9,3 +9,6 @@ __pycache__/
 
 # graft's local graph cache: regenerable, not committed (run `graft build`).
 /graft/
+
+# The owner's own uptime Worker settings; deploy/uptime-worker/wrangler.example.toml is the template.
+deploy/uptime-worker/wrangler.toml

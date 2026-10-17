@@ -3,7 +3,7 @@
   "name": "capacity-drill",
   "date": "2026-10-16",
   "scope": "One container of the pinned database image (public.ecr.aws/supabase/postgres:17.6.1.166) on the workstation, with the database tier's limits where stated (1024 MiB memory and swap; CPUs and process limit as listed; runs without a process limit listed had Docker's default, no limit). N databases, each initialised with pgbench scale 5, then all loaded at once with pgbench's default read and write transaction for the stated seconds, each with the stated number of client connections (18 is an environment's base connection limit: Auth 6, REST 6, Storage 6). Peak memory is the highest docker stats sample, taken every two seconds. No Auth, REST, Storage, Realtime or gateway process ran; no logical decoding, no PostgREST schema cache, no application queries. It measures the shared database under connection load, not a whole installation and not real traffic.",
-  "script": "Kept in the session scratchpad, not in the repository: docker run with --memory, --cpus and, for the later runs, --pids-limit, CREATE DATABASE, pgbench -i -s 5, then pgbench -c CLIENTS -j 2 -T SECONDS -n per database in parallel.",
+  "script": "lab/capacity-drill.sh (committed after the runs, from the script that produced them): docker run with --memory, --cpus and --pids-limit, CREATE DATABASE, pgbench -i -s 5, then pgbench -c CLIENTS -j 2 -T SECONDS -n per database in parallel.",
   "runs": [
     {
       "environments": 4,

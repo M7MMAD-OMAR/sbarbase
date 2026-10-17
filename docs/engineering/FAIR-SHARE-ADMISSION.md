@@ -95,7 +95,7 @@ installation's allocation: an organization is a client, and room given to one cl
 taken from another (`GET`/`PUT /management/v1/environments/{id}/share`, `src/control/share.ts`). The gate asks the catalog on each request (`ConcurrencyGate.useShares`),
 so a change applies to the next request without a restart; a lookup that fails falls back to the
 default. A raised share is refused when the shares of all ready environments would exceed the
-gateway's 32, so every guarantee can hold at once. Creating an environment later is not blocked by
+gateway's total (64 since 2026-10-16, 32 before), so every guarantee can hold at once. Creating an environment later is not blocked by
 this; the page shows the allocation, and the operator lowers a share if it has run over. The
 ceiling stays 24, or the share itself when that is higher. Every change is an audit event.
 

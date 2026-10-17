@@ -6,9 +6,43 @@ All notable changes to sbarbase. The format follows Keep a Changelog and the
 project uses Semantic Versioning, which for a 0.x version means the interface may
 still change between releases.
 
-The declared package version is 0.2.0, a development snapshot. Historical 0.1.0 release entries retain their original scope. Later Docker and VM rehearsals are dated in [status](docs/reference/status.md); no independent public-server or production release acceptance is established.
+The declared package version is 0.3.0. Historical 0.1.0 and 0.2.0 entries retain their original scope. Later Docker and VM rehearsals are dated in [status](docs/reference/status.md); no independent public-server or production release acceptance is established.
 
 ## [Unreleased]
+
+## [0.3.0] - 2026-10-17
+
+Moving from 0.2.0 migrates the Auth and Storage schemas of every environment, so the way back is a restore of the backup the upgrade takes first. The first start raises the database's connection limit and restarts it once. Nothing here is claimed production ready.
+
+### Added
+
+- **Up to eight environments per installation** (four before). The runtime raises PostgreSQL's `max_connections` from 100 to 200 on start, the database container may run 320 processes, and the gateway admits 64 requests in flight (8 per environment). A synthetic drill of eight environment databases under full load on the 1 GiB, one CPU database tier peaked at 613 MiB ([evidence](docs/evidence/capacity-drill-2026-10-16.json), `lab/capacity-drill.sh`). On a 4 core server, eight fit only without Realtime or Edge Functions. Deleting an environment still does not free its place.
+- **Telegram notifications connected from the console.** An installation owner pastes the bot token on the new Notifications page; it is checked with Telegram, kept 0600 on the server and never shown again, and the chat is bound by a one-time `/start` link. Admins see the state, only owners change it, every change is audited, and a new chat does not receive the old backlog. The notification drain rereads its configuration, so a change applies without a restart.
+- **Alerts for low disk space and stopped services.** Under 10 % or 5 GiB free is a warning, under 5 % or 2 GiB critical; the database, Storage, the management sign-in or an environment's Auth, REST or Realtime container stopped for five minutes is critical. Each is reported at most once an hour.
+- **An outside uptime check** (`deploy/uptime-worker/`): a Cloudflare Worker that asks `/health` every five minutes and sends one Telegram message after two failures and one on recovery.
+- **The upstream currency work** ([plan](docs/engineering/plans/2026-10-14-upstream-currency.md)): upstream drift tracking; an attended move of the database onto another PostgreSQL image (`lab/upgrade.py database`); the database volume as state; rebuilding the whole cluster from one backup run (`lab/cluster_rebuild.py`) and taking it into use (`lab/cluster_takeover.py`); a per-environment write pause; backup and restore of the management database; starting the database alone for a restore after a failed Storage way back.
+- **Updated upstream services:** Auth v2.197.0, PostgREST v14.18, Storage v1.83.3, Realtime v2.144.0, Edge Runtime v1.77.4, Studio 2026.10.12 and postgres-meta v0.100.0. PostgreSQL stays 17.6; 17.11 waits for its rehearsal.
+
+### Fixed
+
+- **Studio and postgres-meta are no longer reachable from other environments.** Neither checks its callers, and both sat on the shared runtime network, where another environment's Edge Functions or the database's `pg_net` could run SQL as the Studio login while a session ran. Each session now has its own network, postgres-meta listens on loopback inside Studio's namespace, and every start checks that nothing answers on the shared network.
+- **Restore on a server installed under umask 002.** The runtime state directory was left 775 and every restore refused its journal; each creator of it now makes it 0700.
+
+### Verified on the real server
+
+- Upgrades from 0.2.0 through the update command with the new images, confirmed by the health checks.
+- A restore of an environment from its local backup, and a restore served only from the encrypted off-site copy in Cloudflare R2; the data came back exactly as backed up.
+- Studio confinement probed from a container on the shared network before and after the fix.
+
+### Still open
+
+- A cluster takeover whose own replacement never becomes ready has no exit (S4); its fourth part is not accepted.
+- A restore onto a new server from the off-site copy, an interrupted restore, and a whole installation under real traffic have not been exercised.
+- A way back to an older version refuses jobs once more than four environments exist.
+
+## [0.2.0] - 2026-09-26, and changes until 0.3.0
+
+These entries were listed as unreleased; they cover 0.2.0 and what was merged after its tag until 0.3.0.
 
 ### Added
 

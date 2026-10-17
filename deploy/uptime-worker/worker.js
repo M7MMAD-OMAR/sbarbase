@@ -3,8 +3,8 @@
 // The installation's own notifications cannot report that the whole server is down, so this
 // Worker asks the public health route from outside. Two failed checks in a row send one Telegram
 // message, and the first good check after that sends another; nothing repeats while the state
-// holds. The bot token is a Worker secret (wrangler secret put TELEGRAM_TOKEN), never in this
-// file. Without it, or without CHAT_ID, the Worker only records the state.
+// holds. The bot token and the chat id are Worker secrets (wrangler secret put TELEGRAM_TOKEN and
+// CHAT_ID), never in a file. Without it, or without CHAT_ID, the Worker only records the state.
 // docs/reference/configuration.md, "Checking from outside".
 
 const KEY = 'state';

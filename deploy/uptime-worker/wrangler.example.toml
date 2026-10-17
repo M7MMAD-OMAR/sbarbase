@@ -1,0 +1,19 @@
+# The external uptime check (worker.js). Copy this file to wrangler.toml (ignored by git), then:
+#   bunx wrangler kv namespace create sbarbase-uptime     # put the id it prints below
+#   bunx wrangler deploy -c deploy/uptime-worker/wrangler.toml
+#   bunx wrangler secret put TELEGRAM_TOKEN -c deploy/uptime-worker/wrangler.toml
+#   bunx wrangler secret put CHAT_ID -c deploy/uptime-worker/wrangler.toml
+name = "sbarbase-uptime"
+main = "worker.js"
+compatibility_date = "2026-09-01"
+workers_dev = false
+
+[triggers]
+crons = ["*/5 * * * *"]
+
+[vars]
+HEALTH_URL = "https://sbarbase.example.com/health"
+
+[[kv_namespaces]]
+binding = "STATE"
+id = "<the id printed by wrangler kv namespace create>"

@@ -2,7 +2,7 @@
 
 # Choosing a server
 
-No external server is needed for the current work: the selected server is an isolated Linux environment on the user's computer. Ubuntu 26.04 empty-host installation and the shipped system service passed [CI 37600158231](https://github.com/M7MMAD-OMAR/sbarbase/actions/runs/37600158231) at `e08ed3b`. The sizing and provider-price examples below retain their September 23 scope; current production, reboot and full recovery acceptance remain open. See [current status](../reference/status.md).
+A real server of the size this page calls 4 cores and 16 GB (Hostinger, Ubuntu 26.04) runs Sbarbase at sbarbase.sbarah.com. Ubuntu 26.04 empty-host installation and the shipped system service passed [CI 37600158231](https://github.com/M7MMAD-OMAR/sbarbase/actions/runs/37600158231) at `e08ed3b`. The sizing and provider-price examples below retain their September 23 scope; current production, reboot and full recovery acceptance remain open. See [current status](../reference/status.md).
 
 ## What the software asks for
 
@@ -33,7 +33,7 @@ Why these numbers:
 - **CPU is counted as ceilings.** One core stays with the host and the containers' CPU ceilings may add up to twice the rest, because idle services use almost nothing and a busy one is slowed, not killed. Real contention is caught by the pressure gate.
 - **Python 3.12 is the floor.** Ubuntu 24.04 ships 3.12 and Debian 13 ships 3.13. The Python unit tests pass on both with their own `python3` and `python3-cryptography` packages, apart from checks that need a real host (a block device, systemd). These historical floor results do not establish a current full install on Ubuntu 24.04 or Debian 13. Current clean-host CI covers Ubuntu 26.04 with Python 3.14; its separate floor job passes 2102 tests on Python 3.12.
 
-The eight-environment guard comes from the shared database's connections: Sbarbase raises PostgreSQL's limit from 100 to 200 on its first start, which holds eight environments at their base limit with room left for Studio, Realtime and direct access. A drill of eight environment databases, every connection busy at once, peaked at 592 MiB of the database's 1 GiB ([evidence](../evidence/capacity-drill-2026-10-16.json)). That is a synthetic load on the database alone, not real traffic. Deleting an environment does not free its place yet, so do not create throwaway projects on a server you use.
+The eight-environment guard comes from the shared database's connections: Sbarbase raises PostgreSQL's limit from 100 to 200 on its first start, which holds eight environments at their base limit with room left for Studio, Realtime and direct access. A drill of eight environment databases, every connection busy at once, peaked at 613 MiB with a process limit of 320 of the database's 1 GiB ([evidence](../evidence/capacity-drill-2026-10-16.json)). That is a synthetic load on the database alone, not real traffic. Deleting an environment does not free its place yet, so do not create throwaway projects on a server you use.
 
 The preflight prints the exact figure for your server: `/usr/bin/python3 lab/install_server.py check`.
 

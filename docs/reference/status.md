@@ -2,6 +2,16 @@
 
 # Status
 
+## The real server and 0.3.0, 2026-10-16 and 17
+
+- **Where it runs.** A real server (Hostinger, Ubuntu 26.04, 4 cores, 16 GiB) runs main at sbarbase.sbarah.com, with systemd and the TLS proxy behind Cloudflare. It was upgraded from 0.2.0 with `lab/upgrade.py start --to`, each step confirmed by the health checks; it holds one environment and no application data.
+- **Upstream images.** Auth v2.197.0, PostgREST v14.18 and Storage v1.83.3 run there; Realtime v2.144.0, Edge Runtime v1.77.4, Studio 2026.10.12 and postgres-meta v0.100.0 are pinned and pulled. Their live acceptance gate is pending ([plan](../engineering/plans/2026-10-14-upstream-currency.md)).
+- **Restores on the server.** A restore of the environment from its local backup and a restore served only from the encrypted run set in Cloudflare R2 brought sentinel rows back exactly; one environment, no users or files, no traffic, no interruption.
+- **Security.** Studio and postgres-meta are confined to a per-session network; a probe from the shared network ran SQL through them before the fix and was refused after it. `.lab/upstream` is kept 0700.
+- **Operations.** Telegram is connected from the console's Notifications page; low disk space and stopped service containers are reported; an outside uptime check runs as a Cloudflare Worker.
+- **Capacity.** Eight environments per installation, max_connections 200, database pids 320, gateway total 64; a synthetic drill of eight environment databases under full load on the 1 GiB, one CPU tier peaked at 613 MiB ([evidence](../evidence/capacity-drill-2026-10-16.json)). Not measured: a whole installation under real traffic.
+- **Open.** S4, P3 part 4 acceptance, A7, B1, F1 to F8; restore onto a new server from the off-site copy; an interrupted restore. Not production ready.
+
 ## Management and first-project update, 2026-10-10
 
 Current source adds an owner-controlled optional MFA policy, audited password session authority for unenrolled accounts, automatic production creation and a visible one-click Supabase dashboard entry. Required MFA remains the installation default. The [complete plan](../engineering/plans/2026-10-10-management-project-workflow.md) records source checks and limitations; this update does not establish a public deployment or new native service acceptance.
@@ -236,7 +246,7 @@ The `sbarbase` command reaches the channel too: `upgrade channel`, `upgrade star
 
 ## Resources
 
-A start needs its containers' memory limits plus a 2560 MiB reserve: 1792 MiB of limits on an empty server and 512 MiB more per environment, and CPU ceilings of at most twice the cores after one core is kept for the host. At most eight environments per installation are allowed (four until 2026-10-16); the management API refuses the ninth with 409 before queueing it, and the runtime guard still enforces it. The runtime raises PostgreSQL's `max_connections` from the image's 100 to 200 on its first start, which holds eight at their base connection limit; a synthetic drill of eight environment databases under full pgbench load on the 1 GiB, one CPU database tier peaked at 592 MiB ([capacity drill](../evidence/capacity-drill-2026-10-16.json)). On a 4 core server, CPU placement holds eight only without Realtime or Edge Functions. The configured ceilings for the workstation's retained combined placement are 5888 MiB of container memory and 5.75 CPUs, admitted under a 6 GiB and 6 CPU cap plus a 2560 MiB host reserve. These are allocation limits, not measured demand or a hardware recommendation. Sustained mixed load has not been measured, so there is no validated maximum of 10 or 100 environments, and daily visitor counts alone cannot size a server.
+A start needs its containers' memory limits plus a 2560 MiB reserve: 1792 MiB of limits on an empty server and 512 MiB more per environment, and CPU ceilings of at most twice the cores after one core is kept for the host. At most eight environments per installation are allowed (four until 2026-10-16); the management API refuses the ninth with 409 before queueing it, and the runtime guard still enforces it. The runtime raises PostgreSQL's `max_connections` from the image's 100 to 200 on its first start, which holds eight at their base connection limit; a synthetic drill of eight environment databases under full pgbench load on the 1 GiB, one CPU database tier peaked at 613 MiB with a process limit of 320 ([capacity drill](../evidence/capacity-drill-2026-10-16.json)). On a 4 core server, CPU placement holds eight only without Realtime or Edge Functions. The configured ceilings for the workstation's retained combined placement are 5888 MiB of container memory and 5.75 CPUs, admitted under a 6 GiB and 6 CPU cap plus a 2560 MiB host reserve. These are allocation limits, not measured demand or a hardware recommendation. Sustained mixed load has not been measured, so there is no validated maximum of 10 or 100 environments, and daily visitor counts alone cannot size a server.
 
 ## Historical legacy limitations, documentation checkpoint 2026-10-06
 
@@ -254,7 +264,7 @@ The integrated source now contains durable management grant and rate-limit primi
 
 ## Current priorities
 
-Follow the October product plan and execution method, with the ledger as the scoped evidence index. Continue the required service, recovery and security/profile contracts after the accepted bounded configured-effects fragment. The owner selected this computer as an isolated local server, with historical Fedora 44 x86_64 observations; the changed tree needs fresh host-bound verification, and buying an external server is not a prerequisite. Independent-host portability and physical HA require separate evidence. This page does not authorize infrastructure purchases or host changes.
+Follow the October product plan and execution method, with the ledger as the scoped evidence index. Continue the required service, recovery and security/profile contracts after the accepted bounded configured-effects fragment. The upstream currency plan ([plan](../engineering/plans/2026-10-14-upstream-currency.md)) is the active work; its open items are S4, P3 part 4 acceptance, A7 (PostgreSQL 17.11, waiting for its VM rehearsal), B1 and F1 to F8. A real server (Hostinger, Ubuntu 26.04, 4 cores, 16 GiB) runs main at sbarbase.sbarah.com; formal production acceptance is not established. Independent-host portability and physical HA require separate evidence. This page does not authorize infrastructure purchases or host changes.
 
 ## September next-step record
 

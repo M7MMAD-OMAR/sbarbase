@@ -4,7 +4,7 @@
 
 ## What it is
 
-The operator workflow provides daily environment backups, restore and optional encrypted S3-compatible offsite copy/fetch through [backup and restore](../guides/backup-and-restore.md). It is implemented in [lab/backup.py](../../lab/backup.py) and [lab/offsite.py](../../lab/offsite.py). Disposable local MinIO copy/fetch/restore evidence is recorded in [docker-offsite-checks.json](../evidence/docker-offsite-checks.json); this does not establish operation with a real external provider or complete lost-server recovery.
+The operator workflow provides daily environment backups, restore and optional encrypted S3-compatible offsite copy/fetch through [backup and restore](../guides/backup-and-restore.md). It is implemented in [lab/backup.py](../../lab/backup.py), [lab/backup_offsite.py](../../lab/backup_offsite.py) (encrypted run sets, the recommended off-site copy) and [lab/offsite.py](../../lab/offsite.py). Disposable local MinIO evidence is in [docker-offsite-checks.json](../evidence/docker-offsite-checks.json), and on 2026-10-17 a restore served only from a run set in Cloudflare R2 passed on the real server. Complete lost-server recovery from the off-site copy has not been exercised.
 
 A separate historical cutover experiment stops one environment's writes, exports it encrypted, restores into an independent engine, checks the copy and switches traffic. The sequence and limits below describe that experiment, not every operator backup. Experimental native-dedicated recovery has additional engine/application/maintenance identity requirements and remains unaccepted; see the [native placement contract](../engineering/plans/2026-10-03-native-placement-identity.md) and [ledger](../engineering/gauntlet-ledger.json).
 

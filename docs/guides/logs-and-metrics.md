@@ -43,4 +43,4 @@ See the [API reference](../reference/api.md) for the fields.
 
 - Request totals and the request log live in memory and start empty after a restart. For longer history, keep `docker logs` output with your own log collector.
 - The PostgreSQL log is not shown: the database server is shared by every environment.
-- There are no alerts on error rates yet. The notice for an environment that keeps hitting its request limit ([operator notifications](../reference/configuration.md#operator-notifications)) is the only alert.
+- There are no alerts on error rates yet. The [operator notifications](../reference/configuration.md#operator-notifications) cover an environment that keeps hitting its request limit, low disk space, a stopped service container, failed backups and updates; connect Telegram on the console's Notifications page.
