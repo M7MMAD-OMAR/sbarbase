@@ -1,9 +1,9 @@
 {
-  "version": "0.5.2",
+  "version": "0.5.3",
   "minimum_from": "0.3.1",
   "notes": {
-    "en": "Tables an agent creates are visible to the app at once: after a migration or a writing query the server tells PostgREST to reload its schema. Includes 0.5.0 and 0.5.1: AI agents can deploy here through an access token and the MCP endpoint. Not production ready.",
-    "ar": "الجداول التي ينشئها وكيل تظهر للتطبيق فورًا: بعد كل ترحيل أو استعلام كتابة يطلب الخادم من PostgREST إعادة قراءة المخطط. ويتضمن 0.5.0 و0.5.1: صار بإمكان وكلاء الذكاء الاصطناعي النشر هنا برمز وصول ونقطة MCP. ليس جاهزًا للإنتاج."
+    "en": "Studio can be opened from the public address: set SBARBASE_STUDIO_HOST and the proxy's --studio-host to a pattern such as studio-{id}.example.com, with a wildcard DNS record and a certificate that covers it. Until then the console explains the SSH tunnel instead of opening a tab that cannot load. Stricter Studio cookies, single-use tickets and same-origin writes; the proxy refuses unknown hosts. Not production ready.",
+    "ar": "يمكن فتح Studio من العنوان العام: اضبط SBARBASE_STUDIO_HOST وخيار الوكيل --studio-host على نمط مثل studio-{id}.example.com، مع سجل DNS شامل وشهادة تغطيه. وإلى ذلك الحين تشرح لوحة الإدارة طريقة نفق SSH بدل فتح تبويب لا يعمل. ملفات تعريف أشد لـ Studio، وتذاكر لمرة واحدة، وكتابة من الأصل نفسه فقط، ويرفض الوكيل المضيفات المجهولة. ليس جاهزًا للإنتاج."
   },
   "migrations": []
 }
