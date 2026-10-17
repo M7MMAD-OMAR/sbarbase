@@ -124,6 +124,26 @@ npx -y @supabase/mcp-server-supabase@latest --api-url https://console.example.co
 
 It works, with differences: its `get_project_url` names a `supabase` domain instead of this server, and it lists a ClickHouse log query tool and health advisors that this server does not answer. The hosted endpoint above gives the right address and only the tools that work, so prefer it.
 
+### The Supabase CLI
+
+The Supabase CLI talks to this server through a profile file:
+
+```yaml
+name: sbarbase
+api_url: https://console.example.com
+dashboard_url: https://console.example.com
+project_host: console.example.com
+```
+
+```bash
+export SUPABASE_ACCESS_TOKEN=sbp_...
+supabase --profile ./sbarbase-profile.yaml projects list
+supabase --profile ./sbarbase-profile.yaml functions deploy hello --project-ref <ref> --use-api
+supabase --profile ./sbarbase-profile.yaml secrets set STRIPE_KEY=... --project-ref <ref>
+```
+
+These three were run against a real server. `functions deploy` needs `--use-api`: without it the CLI bundles with Docker and uploads a format this server does not read. Commands that connect to the database by the project's host name, such as `db push --linked`, do not work; see [database access](database-access.md) for migrations.
+
 ## The Sbarbase skill for Claude Code
 
 The repository has a skill that tells Claude Code what "deploy to Sbarbase" means: the order of the steps, where to write the URL and key, and what to check afterwards. Copy it once:

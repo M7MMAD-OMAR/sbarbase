@@ -124,6 +124,26 @@ npx -y @supabase/mcp-server-supabase@latest --api-url https://console.example.co
 
 يعمل، مع فروق: أداته `get_project_url` تذكر نطاقًا من نطاقات `supabase` بدل هذا الخادم، ويعرض أداة لاستعلامات سجلات ClickHouse وتنبيهات صحة لا يجيب عنها هذا الخادم. أما النقطة المستضافة أعلاه فتعطي العنوان الصحيح والأدوات التي تعمل فقط، فهي الأفضل.
 
+### Supabase CLI
+
+يتصل Supabase CLI بهذا الخادم عبر ملف إعداد (profile):
+
+```yaml
+name: sbarbase
+api_url: https://console.example.com
+dashboard_url: https://console.example.com
+project_host: console.example.com
+```
+
+```bash
+export SUPABASE_ACCESS_TOKEN=sbp_...
+supabase --profile ./sbarbase-profile.yaml projects list
+supabase --profile ./sbarbase-profile.yaml functions deploy hello --project-ref <ref> --use-api
+supabase --profile ./sbarbase-profile.yaml secrets set STRIPE_KEY=... --project-ref <ref>
+```
+
+جُرّبت هذه الأوامر الثلاثة على خادم حقيقي. يحتاج `functions deploy` إلى `--use-api`، فبدونه يجمّع CLI الدالة بـ Docker ويرفعها بصيغة لا يقرؤها هذا الخادم. أما الأوامر التي تتصل بقاعدة البيانات عبر اسم مضيف المشروع، مثل `db push --linked`، فلا تعمل؛ وللترحيلات راجع [الوصول إلى قاعدة البيانات](database-access.ar.md).
+
 ## مهارة صباربيز لـ Claude Code
 
 في المستودع مهارة تشرح لـ Claude Code ما يعنيه "انشر على Sbarbase": ترتيب الخطوات، وأين يكتب العنوان والمفتاح، وما يتحقق منه بعد ذلك. انسخها مرة واحدة:

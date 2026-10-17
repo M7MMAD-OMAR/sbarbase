@@ -6,9 +6,17 @@ All notable changes to sbarbase. The format follows Keep a Changelog and the
 project uses Semantic Versioning, which for a 0.x version means the interface may
 still change between releases.
 
-The declared package version is 0.5.0. Historical 0.1.0 and 0.2.0 entries retain their original scope. Later Docker and VM rehearsals are dated in [status](docs/reference/status.md); no independent public-server or production release acceptance is established.
+The declared package version is 0.5.1. Historical 0.1.0 and 0.2.0 entries retain their original scope. Later Docker and VM rehearsals are dated in [status](docs/reference/status.md); no independent public-server or production release acceptance is established.
 
 ## [Unreleased]
+
+## [0.5.1] - 2026-10-17
+
+### Fixed
+
+- **An Edge Function's answer could not be read by most clients.** The gateway passed the caller's `Accept-Encoding` to the Edge runtime, which compressed its answer; the gateway's own fetch then unpacked it but kept the `content-encoding: gzip` header, so `fetch` and supabase-js failed on the body. Upstream services are now asked for uncompressed answers; the TLS proxy or CDN compresses for the client. Found by an agent's live deploy on the real server.
+- `supabase functions deploy --use-api` now lands the same layout as a console deploy: the CLI's `supabase/functions/<name>/...` and `supabase/functions/_shared/...` paths become the function's own files and its shared code.
+- An access token's name may now hold parentheses, apostrophes and `@ : / +`.
 
 ## [0.5.0] - 2026-10-17
 

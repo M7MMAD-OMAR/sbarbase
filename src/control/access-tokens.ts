@@ -20,7 +20,7 @@ import {chmodSync} from 'node:fs';
  * removed or lowered applies at the next call, because every call checks the current role. */
 
 export const ACCESS_TOKEN=/^sbp_[a-f0-9]{40}$/;
-export const TOKEN_NAME=/^[\p{L}\p{N} ._-]{1,64}$/u;
+export const TOKEN_NAME=/^[\p{L}\p{N} ._()'@:\/+-]{1,64}$/u;
 export const MAX_TOKEN_DAYS=365;
 const MAX_LIVE=50;
 export type TokenScope={kind:'all'}|{kind:'organization';id:string}|{kind:'project';id:string};
@@ -60,7 +60,7 @@ export class AccessTokenStore {
  /** A new token for `actor`, whose authority epoch is `epoch` now (tokenEpoch). The token is returned once. */
  issue(actor:string,epoch:string,input:{name:string;scope:TokenScope;read_only:boolean;days:number}):{token:string;data:AccessToken} {
   if(!actor||actor.length>200)throw new TokenRefusal('Invalid actor');
-  if(!TOKEN_NAME.test(input.name))throw new TokenRefusal('A token name has 1 to 64 letters, digits, spaces, dots, dashes or underscores');
+  if(!TOKEN_NAME.test(input.name))throw new TokenRefusal("A token name has 1 to 64 letters, digits, spaces and . _ ( ) ' @ : / + -");
   if(!Number.isInteger(input.days)||input.days<1||input.days>MAX_TOKEN_DAYS)throw new TokenRefusal(`A token lasts 1 to ${MAX_TOKEN_DAYS} days`);
   if(input.scope.kind!=='all'&&!UUID.test(input.scope.id))throw new TokenRefusal('Invalid scope');
   const now=this.now();

@@ -194,6 +194,11 @@ function gatewayHandler(registry:RouteRegistry, transport:typeof fetch, verifyKe
       const value = request.headers.get(name);
       if (value !== null) headers.set(name,value);
     }
+    // Upstreams answer uncompressed. A caller's Accept-Encoding passed on (Edge Functions see the
+    // caller's headers) let the runtime gzip its answer, which the gateway's fetch then unpacked
+    // while the content-encoding header stayed, and clients failed to read the body. The TLS
+    // proxy or CDN in front compresses for the client.
+    headers.set('accept-encoding','identity');
     if(service==='storage') {
       const host=route.storage?.tenantHost;
       if(!host||!/^[a-z0-9_][a-z0-9_.-]{0,252}$/.test(host)) return error(503,'Invalid storage tenant');

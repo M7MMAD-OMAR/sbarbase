@@ -224,6 +224,9 @@ test('Edge Functions deploy from the multipart form the Supabase MCP sends, and 
 });
 
 test('deploy file names are confined to the function and its shared folder',()=>{
+ // As the Supabase CLI sends them (functions deploy --use-api).
+ expect(splitDeployFiles([{name:'supabase/functions/hello/index.ts',content:'a'},{name:'supabase/functions/_shared/cors.ts',content:'b'},{name:'/home/me/app/supabase/functions/hello/lib/x.ts',content:'c'}],'supabase/functions/hello/index.ts','hello'))
+  .toEqual({files:{'index.ts':'a','lib/x.ts':'c'},shared:{'cors.ts':'b'}});
  expect(splitDeployFiles([{name:'./index.ts',content:'a'},{name:'_shared/x.ts',content:'b'},{name:'lib/y.ts',content:'c'}],'index.ts'))
   .toEqual({files:{'index.ts':'a','lib/y.ts':'c'},shared:{'x.ts':'b'}});
  expect(splitDeployFiles([{name:'main.ts',content:'a'}],'main.ts').files['index.ts']).toBe("import './main.ts';\n");

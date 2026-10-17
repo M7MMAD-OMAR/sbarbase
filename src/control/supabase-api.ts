@@ -98,19 +98,27 @@ function walk(root:string):string[] {
 
 /** Files of a Supabase deploy: names relative to the function folder; `../_shared/...` or
  * `_shared/...` are the shared code next to it, as in a Supabase project. */
-export function splitDeployFiles(files:{name:string;content:string}[],entrypoint:string|undefined) {
+export function splitDeployFiles(files:{name:string;content:string}[],entrypoint:string|undefined,slug?:string) {
  const own:Record<string,string>={},shared:Record<string,string>={};
  // A name read back from Supabase carries the runtime's own prefix, /tmp/user_fn_<id>/source/.
  const clean=(name:string)=>name.replace(/^file:\/\//,'').replace(/^\/tmp\/user_fn_[^/]+\/(source\/)?/,'').replace(/^(\.\/)+/,'');
+ // The Supabase CLI sends paths from the project, such as supabase/functions/<slug>/index.ts and
+ // supabase/functions/_shared/cors.ts; they become the function's own files and its shared code.
+ const project=(name:string)=>{
+  const shared=name.match(/^(?:.*\/)?functions\/_shared\/(.+)$/);
+  if(shared)return '_shared/'+shared[1];
+  const own=slug?name.match(new RegExp(`^(?:.*\\/)?functions\\/${slug.replace(/[-]/g,'\\-')}\\/(.+)$`)):null;
+  return own?own[1]!:name;
+ };
  for(const file of files){
-  let name=clean(file.name);
+  let name=project(clean(file.name));
   let target=own;
   if(name.startsWith('../_shared/'))name=name.slice('../'.length);
   if(name.startsWith('_shared/')){target=shared;name=name.slice('_shared/'.length);}
   if(!name||name.startsWith('/')||name.split('/').some(part=>part==='..'||part==='.'||part===''))refuse(400,`File name not allowed: ${file.name.slice(0,100)}`);
   target[name]=file.content;
  }
- const entry=entrypoint?clean(entrypoint):undefined;
+ const entry=entrypoint?project(clean(entrypoint.replace(/^file:\/\//,''))):undefined;
  if(!ENTRYPOINTS.some(name=>name in own)){
   if(!entry||!(entry in own))refuse(400,'Send the function\'s entry point file (index.ts)');
   // The runtime starts index.ts; an entry point named otherwise is imported from one.
@@ -214,7 +222,7 @@ export function supabaseApi(options:SupabaseApiOptions) {
    files.push({name:file.name,content:await file.text()});
   }
   if(!files.length)refuse(400,'Send at least one file');
-  const split=splitDeployFiles(files,metadata.entrypoint_path);
+  const split=splitDeployFiles(files,metadata.entrypoint_path,slug);
   const verify=typeof metadata.verify_jwt==='boolean'?metadata.verify_jwt:true;
   const deployed=(await call(token,'PUT',`/environments/${entry.environment}/functions/${slug}`,{files:split.files,shared:split.shared,verify_jwt:verify})).data.deployed;
   return functionView(entry,slug,{verify_jwt:deployed.verify_jwt,updated_at:deployed.updated_at});

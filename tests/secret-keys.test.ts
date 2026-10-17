@@ -151,3 +151,11 @@ test('an older key store gains names; its keys are named default and keep workin
   expect(()=>keys.issue('e_prod','secret','Bad Name')).toThrow();
  } finally {keys.close();require('node:fs').rmSync(directory,{recursive:true,force:true});}
 });
+
+test('upstreams are asked for uncompressed answers, whatever encoding the caller accepts',async()=>{
+ const {handler,calls}=gateway();
+ await handler(new Request('http://local/e_prod/functions/v1/hello',{headers:{...SERVER,apikey:'sb_publishable_p','accept-encoding':'gzip, br'}}));
+ expect(calls.at(-1)!.headers.get('accept-encoding')).toBe('identity');
+ await handler(new Request('http://local/e_prod/rest/v1/items',{headers:{apikey:'sb_publishable_p'}}));
+ expect(calls.at(-1)!.headers.get('accept-encoding')).toBe('identity');
+});
