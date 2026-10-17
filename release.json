@@ -1,13 +1,9 @@
 {
-  "version": "0.3.0",
+  "version": "0.3.1",
   "minimum_from": "0.2.0",
   "notes": {
-    "en": "Up to eight environments per installation, Telegram notifications connected from the console, alerts for low disk space and stopped services, Studio confined to its own network, and encrypted off-site backups whose restore was tried on a real server. Updated Auth, PostgREST, Storage, Realtime, Edge Runtime, Studio and postgres-meta. Not production ready.",
-    "ar": "حتى ثماني بيئات لكل تثبيت، وربط تنبيهات تيليجرام من لوحة الإدارة، وتنبيهات لامتلاء القرص وتوقف الخدمات، وحصر Studio في شبكته الخاصة، ونسخ احتياطية مشفّرة خارج الخادم جُرّبت الاستعادة منها على خادم حقيقي. وتحديث Auth وPostgREST وStorage وRealtime وEdge Runtime وStudio وpostgres-meta. ليس جاهزًا للإنتاج."
+    "en": "Same code as 0.3.0, which could not be installed through the channel. Up to eight environments, Telegram from the console, disk and stopped-service alerts, Studio confined to its own network, encrypted off-site backups. Moving from 0.2.0 changes Auth and Storage, which migrate schemas and need your confirmation; the way back is the backup taken first. The first start restarts the database once to raise its connection limit, and a way back to an older version refuses jobs above four environments. Not production ready.",
+    "ar": "الكود نفسه في 0.3.0 الذي لم يكن قابلًا للتثبيت عبر القناة. حتى ثماني بيئات، وتيليجرام من لوحة الإدارة، وتنبيهات القرص وتوقف الخدمات، وحصر Studio في شبكته، ونسخ احتياطية مشفّرة خارج الخادم. الانتقال من 0.2.0 يغيّر Auth وStorage، وهما يرحّلان المخطط ويحتاجان تأكيدك؛ والعودة تكون بالنسخة الاحتياطية المأخوذة أولًا. يعيد أول تشغيل تشغيل قاعدة البيانات مرة لرفع حد الاتصالات، والعودة إلى نسخة أقدم ترفض العمل فوق أربع بيئات. ليس جاهزًا للإنتاج."
   },
-  "migrations": [
-    "Auth v2.197.0 migrates the auth schema of every environment and the management realm; the way back is the backup taken before the upgrade.",
-    "Storage v1.83.3 migrates the shared storage metadata; the way back is the backup taken before the upgrade.",
-    "The first start raises the database connection limit to 200 and restarts the database once. A way back to an older version refuses jobs once more than four environments exist."
-  ]
+  "migrations": []
 }
