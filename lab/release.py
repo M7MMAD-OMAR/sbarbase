@@ -18,6 +18,8 @@ import release_channel as channel
 ROOT = channel.ROOT
 RELEASE = ROOT / channel.MANIFEST
 PACKAGE = ROOT / 'package.json'
+# The capability registry names the Sbarbase version too, and deploy/verify refuses a mismatch.
+REGISTRY = ROOT / 'deploy' / 'capabilities' / 'registry.json'
 
 
 class PrepareError(Exception):
@@ -53,8 +55,10 @@ def prepare(version, notes_en, notes_ar, minimum_from=None, migrations=()):
         raise PrepareError(str(error))
     write(RELEASE, manifest)
     write(PACKAGE, {**package, 'version': version})
+    if REGISTRY.exists():
+        write(REGISTRY, {**read(REGISTRY), 'version': version})
     tag = 'v' + version
-    return ['git add release.json package.json',
+    return ['git add release.json package.json deploy/capabilities/registry.json',
             f'git commit -m "chore(release): {tag}"',
             f'git -c gpg.format=ssh -c user.signingkey=<release signing key> tag -s {tag} -m "Sbarbase {tag}"',
             f'git -c gpg.format=ssh -c gpg.ssh.allowedSignersFile=deploy/release-signers verify-tag {tag}',

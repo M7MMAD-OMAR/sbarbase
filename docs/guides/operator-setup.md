@@ -93,6 +93,16 @@ remote backups and a complete distributable installer. Bootstrap identity lookup
 paginates the private Auth API and stops with an error after 10,000 users rather
 than silently assuming no match. Store the original password securely yourself.
 
+## A forgotten password
+
+The console has no "forgot password" link: the management sign-in sends no mail by itself. Whoever has a shell on the server sets a new one:
+
+```bash
+sudo -u sbarbase /opt/sbarbase/deploy/sbarbase reset-password you@example.com
+```
+
+It asks for the new password twice without echo (at least 12 characters), replaces it through the management sign-in service, and ends every console and Studio session the account had, so a session opened with the old password stops at once. An authenticator the account uses stays as it is. The change is in the audit log as `management.password_reset`. It reads the management realm's secret from `.secrets/upstream/runtime.json`, which is why it runs only on the server, as the service account.
+
 Sources: [Supabase admin createUser](https://supabase.com/docs/reference/javascript/auth-admin-createuser),
 [admin listUsers](https://supabase.com/docs/reference/javascript/auth-admin-listusers),
 and the original pinned Auth service exercised locally.

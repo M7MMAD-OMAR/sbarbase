@@ -575,6 +575,10 @@ export class Catalog {
     return this.db.query(`UPDATE notification_delivery SET state='failed',last_error='channel_disabled'
       WHERE channel=? AND state='pending' AND event IN (SELECT id FROM notification_outbox WHERE at<?)`).run(channel,before).changes;
   }
+  /** A management account's password was set from the server's shell (lab/operator-password.ts). */
+  recordOperatorPasswordReset(target:string):void {
+    this.record('system:host','management.password_reset',target,{});
+  }
   assertManagementRecoveryOwner(actor:string):void {
     const bootstrap=this.db.query<{organization:string},[]>('SELECT organization FROM installation_bootstrap WHERE singleton=1').get();
     if(!bootstrap)throw new Error('Forbidden');

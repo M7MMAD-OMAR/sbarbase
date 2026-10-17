@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "version": "0.2.0",
+  "version": "0.3.2",
   "source_algorithm": "sbarbase-public-source-v1",
   "reference": {
     "repository": "https://github.com/supabase/supabase",
@@ -56,7 +56,7 @@
     {
       "id": "catalog-schema",
       "path": "src/control/catalog.ts",
-      "sha256": "2c033940e127eba758cb4b9b3f928f9ce408078407ed162f3fd193c5c2378b84"
+      "sha256": "6a72a88b4c0647016be3455187796ffcea5600b5e41098631226785bc6e578c9"
     },
     {
       "id": "native-fixture",

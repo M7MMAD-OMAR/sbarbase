@@ -1,9 +1,9 @@
 {
-  "version": "0.3.1",
+  "version": "0.3.2",
   "minimum_from": "0.2.0",
   "notes": {
-    "en": "Same code as 0.3.0, which could not be installed through the channel. Up to eight environments, Telegram from the console, disk and stopped-service alerts, Studio confined to its own network, encrypted off-site backups. Moving from 0.2.0 changes Auth and Storage, which migrate schemas and need your confirmation; the way back is the backup taken first. The first start restarts the database once to raise its connection limit, and a way back to an older version refuses jobs above four environments. Not production ready.",
-    "ar": "الكود نفسه في 0.3.0 الذي لم يكن قابلًا للتثبيت عبر القناة. حتى ثماني بيئات، وتيليجرام من لوحة الإدارة، وتنبيهات القرص وتوقف الخدمات، وحصر Studio في شبكته، ونسخ احتياطية مشفّرة خارج الخادم. الانتقال من 0.2.0 يغيّر Auth وStorage، وهما يرحّلان المخطط ويحتاجان تأكيدك؛ والعودة تكون بالنسخة الاحتياطية المأخوذة أولًا. يعيد أول تشغيل تشغيل قاعدة البيانات مرة لرفع حد الاتصالات، والعودة إلى نسخة أقدم ترفض العمل فوق أربع بيئات. ليس جاهزًا للإنتاج."
+    "en": "Adds sbarbase reset-password, to set a new console password from the server's shell, and fixes the capability registry version. Includes everything in 0.3.1: up to eight environments, Telegram from the console, disk and stopped-service alerts, Studio confined to its own network, encrypted off-site backups. Moving from 0.2.0 changes Auth and Storage, which migrate schemas and need your confirmation; the first start restarts the database once. Not production ready.",
+    "ar": "يضيف الأمر sbarbase reset-password لوضع كلمة مرور جديدة للوحة من سطر أوامر الخادم، ويصلح رقم النسخة في سجل القدرات. ويتضمن كل ما في 0.3.1: حتى ثماني بيئات، وتيليجرام من لوحة الإدارة، وتنبيهات القرص وتوقف الخدمات، وحصر Studio في شبكته، ونسخًا احتياطية مشفّرة خارج الخادم. الانتقال من 0.2.0 يغيّر Auth وStorage ويحتاج تأكيدك، ويعيد أول تشغيل تشغيل قاعدة البيانات مرة. ليس جاهزًا للإنتاج."
   },
   "migrations": []
 }

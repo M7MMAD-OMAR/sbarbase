@@ -575,7 +575,9 @@ class PrepareTests(unittest.TestCase):
         (base / 'release.json').write_text(json.dumps(manifest('0.1.0'), indent=2) + '\n')
         package = re.sub(r'"version": "[^"]+"', '"version": "0.1.0"', (ROOT / 'package.json').read_text(), count=1)
         (base / 'package.json').write_text(package)
-        for item in (patch.object(release, 'RELEASE', base / 'release.json'), patch.object(release, 'PACKAGE', base / 'package.json')):
+        (base / 'registry.json').write_text((ROOT / 'deploy' / 'capabilities' / 'registry.json').read_text())
+        for item in (patch.object(release, 'RELEASE', base / 'release.json'), patch.object(release, 'PACKAGE', base / 'package.json'),
+                     patch.object(release, 'REGISTRY', base / 'registry.json')):
             item.start()
             self.addCleanup(item.stop)
 
@@ -590,6 +592,9 @@ class PrepareTests(unittest.TestCase):
         self.assertIn('فحوص أسرع.', release.RELEASE.read_text())
         self.assertTrue(any('tag -s v0.2.0' in line and 'gpg.format=ssh' in line for line in commands))
         self.assertTrue(any(line.startswith('git push ' + channel.CANONICAL) for line in commands))
+        # The capability registry names the same version, or deploy/verify refuses it.
+        self.assertEqual(json.loads(release.REGISTRY.read_text())['version'], '0.2.0')
+        self.assertTrue(any('deploy/capabilities/registry.json' in line for line in commands))
 
     def test_prepare_refuses_a_bad_or_older_version_and_bad_notes(self):
         for version in ('0.2', 'v0.2.0', '0.1.0', '0.0.9'):

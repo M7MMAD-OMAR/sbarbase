@@ -83,6 +83,7 @@ Commands
   upgrade rollback --check            only say whether a rollback would refuse, and why
   studio start|stop <environment>     ask for Studio through the management API; the supervisor runs it
   share <environment> [<n>]           show an environment's gateway share, or set it (operators only)
+  reset-password <email>              on the server, set a new password for a management account
   logs [supervisor|auth|rest|storage|database] [<environment>] [--lines N] [--follow]
                                       journalctl for the supervisor, docker logs for a service
   help [<command>]                    this text
@@ -110,6 +111,12 @@ Run it from the installation directory as the service account, for example:
 With Docker: docker compose exec sbarbase deploy/sbarbase status`;
 
 const COMMAND_HELP:Record<string,string>={
+ 'reset-password':`sbarbase reset-password <email>
+
+On the server, as the service account: set a new password for a management account whose
+password was lost. The new password is asked twice without echo, at least 12 characters.
+Every console and Studio session of that account ends; its authenticator, if any, stays.
+It reads the management realm's secret from .secrets, so only someone with this shell can.`,
  status:`sbarbase status [--json]
 
 Reads the state the runtime already writes, without signing in: the supervisor service, the
@@ -198,6 +205,7 @@ const ALLOWED:Record<string,string[]>={
  relink:['--email','--operator-file','--password-stdin'],
  'add-environment':['--email','--operator-file','--password-stdin'],
  'rotate-key':['--email','--operator-file','--password-stdin','--revoke'],
+ 'reset-password':[],
  upgrade:['--to','--release','--allow-class','--json','--check'],studio:['--email','--operator-file','--password-stdin'],share:['--email','--operator-file','--password-stdin'],logs:['--lines','--follow'],help:[],
 };
 
@@ -810,6 +818,7 @@ export async function main(argv:string[],deps:Deps):Promise<number> {
    case 'upgrade':return await upgrade(deps,parsed);
    case 'studio':return await studio(deps,parsed);
    case 'share':return await share(deps,parsed);
+   case 'reset-password':return await resetPassword(deps,parsed);
    case 'logs':return await logs(deps,parsed);
   }
   return EXIT.usage;
@@ -819,6 +828,25 @@ export async function main(argv:string[],deps:Deps):Promise<number> {
   deps.err('sbarbase: the operation failed unexpectedly');
   return EXIT.failed;
  }
+}
+
+async function resetPassword(deps:Deps,parsed:Parsed):Promise<number> {
+ arity(parsed,1,1);
+ const email=parsed.args[0]!;
+ if(!deps.isTTY)throw new Refusal('reset-password asks for the new password at a private terminal; run it in one.');
+ const {resetOperatorPassword,realm,ResetRefusal}=await import('./operator-password');
+ const {Catalog}=await import('../src/control/catalog');
+ const first=await deps.prompt('New password (hidden): ',true);
+ const second=await deps.prompt('The same password again: ',true);
+ if(first!==second)throw new Refusal('The two passwords differ; nothing was changed.');
+ let target;
+ try {target=realm(deps.root);} catch(error) {throw new Refusal((error as Error).message);}
+ const catalog=new Catalog(join(deps.root,'.lab/upstream/control.sqlite'));
+ try {await resetOperatorPassword(target,email,first,catalog,deps.fetch);}
+ catch(error) {if(error instanceof ResetRefusal)throw new Refusal(error.message);throw error;}
+ finally {catalog.close();}
+ deps.out(`The password of ${email} was replaced and its open sessions were ended. Sign in with the new one.`);
+ return EXIT.ok;
 }
 
 // ---- The real process ----------------------------------------------------------------
