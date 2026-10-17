@@ -1,9 +1,9 @@
 {
-  "version": "0.4.0",
+  "version": "0.5.0",
   "minimum_from": "0.3.1",
   "notes": {
-    "en": "Secret API keys, as on Supabase: create a named sb_secret_ key on an environment's API keys page; behind the gateway it acts as service_role for REST, Auth admin, Storage, Realtime and Edge Functions, for servers, scripts and agents. Refused from browsers; stored as a hash and shown once. Not production ready.",
-    "ar": "مفاتيح API السرية، كما في Supabase: أنشئ مفتاح sb_secret_ باسم من صفحة مفاتيح API للبيئة، فيعمل خلف البوابة بصفة service_role في REST وإدارة مستخدمي Auth وStorage وRealtime وEdge Functions، للخوادم والسكربتات والوكلاء. يُرفض من المتصفحات، ويُحفظ ببصمته ويظهر مرة واحدة. ليس جاهزًا للإنتاج."
+    "en": "AI agents can deploy here: create an access token on the new Access tokens page and connect Claude Code, Cursor or Codex to /mcp, which runs Supabase's own MCP server. A Supabase-compatible /v1 API, publishable keys that can be copied again, and a Claude Code skill. Turn database access off and on once for an environment whose access was already on. Not production ready.",
+    "ar": "صار بإمكان وكلاء الذكاء الاصطناعي النشر هنا: أنشئ رمز وصول من صفحة Access tokens الجديدة واربط Claude Code أو Cursor أو Codex بـ /mcp، التي تشغّل خادم MCP الرسمي من Supabase. ومعه واجهة /v1 متوافقة مع Supabase، ومفاتيح عامة يمكن نسخها مرة أخرى، ومهارة لـ Claude Code. أوقف الوصول إلى قاعدة البيانات ثم شغّله مرة للبيئة التي كان مفعّلًا فيها. ليس جاهزًا للإنتاج."
   },
   "migrations": []
 }
