@@ -6,11 +6,11 @@ import {content} from '../src/content';
 // The install commands, written out here on purpose rather than imported, so a
 // change to the page has to be a deliberate change to this list too.
 const INSTALL=[
- 'sudo dnf install -y moby-engine git python3-cryptography && sudo systemctl enable --now docker',
- 'sudo useradd -m sbarbase && sudo usermod -aG docker sbarbase && sudo install -d -o sbarbase -g sbarbase /opt/sbarbase && sudo -u sbarbase git clone https://github.com/M7MMAD-OMAR/sbarbase /opt/sbarbase',
- "sudo -u sbarbase -H bash -c 'curl -fsSL https://bun.sh/install | bash -s bun-v1.3.14'",
- 'cd /opt/sbarbase && sudo -u sbarbase /usr/bin/python3 lab/operator_file.py /home/sbarbase/operator.json',
- 'sudo deploy/server-acceptance.sh --rehearse --install-unit --first-project --service-user sbarbase --home /home/sbarbase --bun-dir /home/sbarbase/.bun/bin --bootstrap-file /home/sbarbase/operator.json',
+ 'sudo apt-get update && sudo apt-get install -y docker.io docker-compose-v2 docker-buildx git && sudo systemctl enable --now docker',
+ 'sudo git clone https://github.com/M7MMAD-OMAR/sbarbase /opt/sbarbase',
+ 'cd /opt/sbarbase && sudo deploy/compose.sh check',
+ 'cd /opt/sbarbase && sudo deploy/compose.sh up',
+ 'cd /opt/sbarbase && sudo deploy/compose.sh bootstrap',
 ];
 const unescape=(s:string)=>s.replaceAll('&quot;','"').replaceAll('&lt;','<').replaceAll('&gt;','>').replaceAll('&amp;','&');
 const LONG_DASH=/[\u2013\u2014]/;

@@ -6,28 +6,37 @@
 
 اختر حجم الخادم أولًا من [اختيار خادم](choosing-a-server.ar.md).
 
-## 1. جلب الشيفرة والتشغيل
+## 1. تثبيت Docker
+
+على Ubuntu 26.04:
 
 ```bash
-git clone https://github.com/M7MMAD-OMAR/sbarbase /opt/sbarbase
-cd /opt/sbarbase
-deploy/compose.sh check
-deploy/compose.sh up
+sudo apt-get update && sudo apt-get install -y docker.io docker-compose-v2 docker-buildx git
+sudo systemctl enable --now docker
 ```
 
-صدّر مدخلات النشر صراحةً قبل launcher. يختار ملف Compose من هذا المستودع والمقبس المحلي واسم المشروع، ولا يقرأ `.env`. المدخلات الأساسية هي `SBARBASE_ROOT` و`SBARBASE_DOCKER_SOCKET` و`SBARBASE_DOCKER_DATA_ROOT` واسم مشروع Compose ومنافذ الواجهة وقاعدة البيانات وعنوان الربط و`SBARBASE_PUBLIC_URL`. القيم الافتراضية العامة موثقة في العقد؛ لا يعتمد المسار على مجلد مستخدم أو إعداد جهاز بعينه. يجب أن يطابق `DOCKER_HOST` المقبس المعلن، وترفض إعدادات context/TLS/API وملفات أو profiles بديلة. `check` للقراءة فقط ولا ينشئ مسارات أو volumes أو حاويات أو يثبت حزماً. الأمر المباشر `docker compose up` يتجاوز فحص المضيف.
+هذه حزم التوزيعة نفسها. تُبنى صورة صباربيز عبر BuildKit، وتوفّره الحزمة `docker-buildx`. ثُبّتت هذه الحزم على آلة افتراضية فارغة بنظام Ubuntu 26.04، ونُفّذت عليها بقية خطوات هذه الصفحة ([دليل التجربة](../evidence/vm-docker-install-checks.json)). يُتوقّع أن يعمل `moby-engine` على Fedora مع SELinux، وهذا ما يرفضه profile `local-v1` الحالي. لم يُتحقق من ذلك بعد، لذا فالمسار المجرَّب على Fedora هو [البدء السريع](quickstart.ar.md).
 
-التشغيل الأول يسحب صور Supabase المثبّتة (نحو 2.4 GB) ويستغرق بضع دقائق. تابعه بالأمر `deploy/compose.sh logs`؛ يصبح جاهزًا عندما يظهر في السجل `Local Sbarbase API: http://127.0.0.1:8790`.
-
-## 2. إنشاء أول مشغّل
+## 2. جلب الشيفرة والتشغيل
 
 ```bash
-deploy/compose.sh bootstrap
+sudo git clone https://github.com/M7MMAD-OMAR/sbarbase /opt/sbarbase
+cd /opt/sbarbase && sudo deploy/compose.sh check && sudo deploy/compose.sh up
+```
+
+القيم الافتراضية تناسب تثبيت Docker العادي، فلا حاجة إلى تصدير أي شيء. اضبط مدخلات النشر قبل launcher فقط إن كانت مختلفة عندك. يختار ملف Compose من هذا المستودع والمقبس المحلي واسم المشروع، ولا يقرأ `.env`. المدخلات الأساسية هي `SBARBASE_ROOT` و`SBARBASE_DOCKER_SOCKET` و`SBARBASE_DOCKER_DATA_ROOT` واسم مشروع Compose ومنافذ الواجهة وقاعدة البيانات وعنوان الربط و`SBARBASE_PUBLIC_URL`. يجب أن يطابق `DOCKER_HOST` المقبس المعلن، وترفض إعدادات context/TLS/API وملفات أو profiles بديلة. `check` للقراءة فقط ولا ينشئ مسارات أو volumes أو حاويات أو يثبت حزماً. الأمر المباشر `docker compose up` يتجاوز فحص المضيف.
+
+التشغيل الأول يبني صورة صباربيز ويسحب صور Supabase المثبّتة (نحو 2.4 GB)، ويستغرق بضع دقائق على اتصال سريع. تابعه بالأمر `sudo deploy/compose.sh logs`؛ يصبح جاهزًا عندما يظهر في السجل `Local Sbarbase API: http://127.0.0.1:8790`. ينتهي الأمر `up` قبل ذلك، فانتظر ظهور هذا السطر قبل الخطوة التالية؛ وقد يستغرق أكثر من 20 دقيقة على اتصال بطيء.
+
+## 3. إنشاء أول مشغّل
+
+```bash
+cd /opt/sbarbase && sudo deploy/compose.sh bootstrap
 ```
 
 يحافظ أمر bootstrap المحدد على المقبس ومسار المستودع واسم المشروع اللذين اختارهما launcher. يسأل عن بريد إلكتروني واسم عميل (مؤسسة) وكلمة مرور لا تظهر أثناء كتابتها. بعدها افتح الواجهة على `http://127.0.0.1:8790` على الخادم (مثلًا عبر `ssh -L 8790:127.0.0.1:8790 your-server`)، وسجّل الدخول، وأنشئ مشروعًا وبيئة، وانسخ بيانات الاتصال والمفتاح.
 
-## 3. وضع HTTPS أمامه
+## 4. وضع HTTPS أمامه
 
 الواجهة والـ API تستمعان على loopback فقط. انشرهما عبر وكيل TLS الموصوف في [نشر الخادم](server-deployment.ar.md)، أو أي reverse proxy تستخدمه أصلًا، موجّهًا إلى `127.0.0.1:8790`.
 

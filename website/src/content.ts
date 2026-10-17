@@ -10,20 +10,22 @@ export type Lang='ar'|'en';
 export const links={
  repo,
  docs:doc('docs/README.md'),
+ docker:doc('docs/guides/docker.md'),
  quickstart:doc('docs/guides/quickstart.md'),
  server:doc('docs/guides/choosing-a-server.md'),
  security:doc('SECURITY.md'),
  license:doc('LICENSE'),
 };
 
-// The install, exactly as docs/guides/quickstart.md and lab/vm-rehearsal.sh run
-// it. Identical in both languages; the copy buttons copy these strings verbatim.
+// The install, exactly as docs/guides/docker.md gives it and lab/vm-docker-rehearsal.sh
+// ran it on a bare Ubuntu 26.04 machine. Identical in both languages; the copy
+// buttons copy these strings verbatim. Each one works pasted into a fresh shell.
 export const commands=[
- 'sudo dnf install -y moby-engine git python3-cryptography && sudo systemctl enable --now docker',
- 'sudo useradd -m sbarbase && sudo usermod -aG docker sbarbase && sudo install -d -o sbarbase -g sbarbase /opt/sbarbase && sudo -u sbarbase git clone https://github.com/M7MMAD-OMAR/sbarbase /opt/sbarbase',
- "sudo -u sbarbase -H bash -c 'curl -fsSL https://bun.sh/install | bash -s bun-v1.3.14'",
- 'cd /opt/sbarbase && sudo -u sbarbase /usr/bin/python3 lab/operator_file.py /home/sbarbase/operator.json',
- 'sudo deploy/server-acceptance.sh --rehearse --install-unit --first-project --service-user sbarbase --home /home/sbarbase --bun-dir /home/sbarbase/.bun/bin --bootstrap-file /home/sbarbase/operator.json',
+ 'sudo apt-get update && sudo apt-get install -y docker.io docker-compose-v2 docker-buildx git && sudo systemctl enable --now docker',
+ 'sudo git clone https://github.com/M7MMAD-OMAR/sbarbase /opt/sbarbase',
+ 'cd /opt/sbarbase && sudo deploy/compose.sh check',
+ 'cd /opt/sbarbase && sudo deploy/compose.sh up',
+ 'cd /opt/sbarbase && sudo deploy/compose.sh bootstrap',
 ] as const;
 
 export const content={
@@ -66,16 +68,16 @@ export const content={
   installLabel:'Install',
   installTitle:'From an empty server.',
   installSteps:[
-   ['Prepare the server','Fedora 44. On Ubuntu 26.04, use docker.io.'],
-   ['Create the user and clone',''],
-   ['Install Bun',''],
-   ['Write the operator file','Asks for email, organization and password.'],
-   ['Install and create a project',''],
+   ['Install Docker','Ubuntu 26.04 packages. Nothing else on the host.'],
+   ['Get the code',''],
+   ['Check the server','Changes nothing. Says what to fix.'],
+   ['Start','Pulls about 2.4 GB. Wait until sudo deploy/compose.sh logs shows Local Sbarbase API.'],
+   ['Create the first operator','Asks for email, organization and password.'],
   ] as [string,string][],
-  needs:['4 cores','8 GB','x86-64','Fedora 44 or Ubuntu 26.04'],
+  needs:['4 cores','8 GB','x86-64','Ubuntu 26.04'],
   needsLabel:'Server',
   copy:'Copy',copied:'Copied',copyLabel:'Copy step',
-  installLinks:{quickstart:'Quickstart',docs:'Docs',server:'Choosing a server',repo:'GitHub'},
+  installLinks:{docker:'Docker guide',quickstart:'Without Docker',docs:'Docs',server:'Choosing a server',repo:'GitHub'},
 
   docs:'Docs',security:'Security',license:'License',home:'sbarah.com',
   trademark:'Supabase is a trademark of Supabase, Inc. Sbarbase is not affiliated.',
@@ -119,16 +121,16 @@ export const content={
   installLabel:'التثبيت',
   installTitle:'من خادم فارغ.',
   installSteps:[
-   ['جهّز الخادم','على Fedora 44. أما على Ubuntu 26.04 فاستخدم docker.io'],
-   ['أنشئ المستخدم وانسخ المستودع',''],
-   ['ثبّت Bun',''],
-   ['اكتب ملف المشغّل','يسأل عن البريد والمؤسسة وكلمة المرور.'],
-   ['ثبّت وأنشئ مشروعا',''],
+   ['ثبّت Docker','حزم Ubuntu 26.04، ولا شيء غيرها على الخادم.'],
+   ['انسخ المستودع',''],
+   ['افحص الخادم','لا يغيّر شيئا، ويخبرك بما يلزم إصلاحه.'],
+   ['شغّل','يسحب نحو 2.4 GB. انتظر حتى يظهر Local Sbarbase API في ناتج sudo deploy/compose.sh logs'],
+   ['أنشئ أول مشغّل','يسأل عن البريد والمؤسسة وكلمة المرور.'],
   ] as [string,string][],
-  needs:['4 أنوية','8 GB','x86-64','Fedora 44 أو Ubuntu 26.04'],
+  needs:['4 أنوية','8 GB','x86-64','Ubuntu 26.04'],
   needsLabel:'الخادم',
   copy:'نسخ',copied:'نُسخ',copyLabel:'نسخ الخطوة',
-  installLinks:{quickstart:'البدء السريع',docs:'التوثيق',server:'اختيار الخادم',repo:'GitHub'},
+  installLinks:{docker:'دليل Docker',quickstart:'من دون Docker',docs:'التوثيق',server:'اختيار الخادم',repo:'GitHub'},
 
   docs:'التوثيق',security:'الأمان',license:'الرخصة',home:'sbarah.com',
   trademark:'Supabase علامة تجارية لشركة \u2066Supabase, Inc.\u2069، وصباربيز غير تابع لها.',

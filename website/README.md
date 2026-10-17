@@ -25,7 +25,7 @@ The `sbarbase-site` Worker serves only `dist/`. Its custom domain is declared in
 
 A clean technical page in four parts: a hero (headline, one sentence, a single "open source, in development" badge, Install and Docs buttons, and the explainer video), the hierarchy, how a request travels, and the install steps. Off-white by day and deep slate by night, with coral as the one accent. Only the two diagrams keep the hand-drawn wobble and the palette from `docs/diagrams/` (coral for shared parts, teal for per environment parts, mustard for databases), on a light paper card in both themes.
 
-- `src/content.ts`: the short Arabic and English copy, the links, and the five install commands exactly as `docs/guides/quickstart.md` runs them.
+- `src/content.ts`: the short Arabic and English copy, the links, and the five install commands exactly as `docs/guides/docker.md` gives them and `lab/vm-docker-rehearsal.sh` ran them.
 - `src/render.ts`: the prerendered pages and both diagrams as inline SVG. The hierarchy figure and the request figure are written left to right and mirrored for Arabic, so they read in the reader's direction.
 - `src/app.js`: day and night toggle (remembered per reader), the 12 second request walkthrough (play, pause, seek, five steps), and a copy button per install step.
 - `src/style.css`: tokens for both themes, the diagram ink and card colours, and all motion behind `prefers-reduced-motion: no-preference`.
