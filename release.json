@@ -1,9 +1,13 @@
 {
-  "version": "0.2.0",
-  "minimum_from": "0.1.0",
+  "version": "0.3.0",
+  "minimum_from": "0.2.0",
   "notes": {
-    "en": "Updates from the console. Sbarbase checks for signed releases, shows what a release changes, installs a safe one with one click or inside a maintenance window you choose, and moves back by itself if the new version does not pass its health checks. A backup and a snapshot of the control state are taken first.",
-    "ar": "التحديث من لوحة التحكم. يتحقق Sbarbase من الإصدارات الموقّعة، ويعرض ما يغيّره كل إصدار، ويثبّت الإصدار الآمن بنقرة واحدة أو ضمن نافذة صيانة تختارها، ويرجع وحده إلى النسخة السابقة إذا لم تنجح فحوص الصحة. قبل أي تحديث تُؤخذ نسخة احتياطية ولقطة من حالة التحكم."
+    "en": "Up to eight environments per installation, Telegram notifications connected from the console, alerts for low disk space and stopped services, Studio confined to its own network, and encrypted off-site backups whose restore was tried on a real server. Updated Auth, PostgREST, Storage, Realtime, Edge Runtime, Studio and postgres-meta. Not production ready.",
+    "ar": "حتى ثماني بيئات لكل تثبيت، وربط تنبيهات تيليجرام من لوحة الإدارة، وتنبيهات لامتلاء القرص وتوقف الخدمات، وحصر Studio في شبكته الخاصة، ونسخ احتياطية مشفّرة خارج الخادم جُرّبت الاستعادة منها على خادم حقيقي. وتحديث Auth وPostgREST وStorage وRealtime وEdge Runtime وStudio وpostgres-meta. ليس جاهزًا للإنتاج."
   },
-  "migrations": []
+  "migrations": [
+    "Auth v2.197.0 migrates the auth schema of every environment and the management realm; the way back is the backup taken before the upgrade.",
+    "Storage v1.83.3 migrates the shared storage metadata; the way back is the backup taken before the upgrade.",
+    "The first start raises the database connection limit to 200 and restarts the database once. A way back to an older version refuses jobs once more than four environments exist."
+  ]
 }
