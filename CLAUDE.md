@@ -76,7 +76,7 @@ Two languages with a clear split:
   - `src/control/catalog.ts`: `Catalog`, the SQLite (`bun:sqlite`) control
     catalog of organizations, projects, environments, memberships and
     provisioning jobs. The central hub; most handlers take it.
-  - `src/control/keys.ts`: `KeyStore`, hashed publishable-key metadata only (no
+  - `src/control/keys.ts`: `KeyStore`, hashed publishable and secret key metadata only (no
     raw keys or signing secrets).
   - `src/control/auth.ts`: management identity via a dedicated management Auth
     realm, never an application environment's Auth.

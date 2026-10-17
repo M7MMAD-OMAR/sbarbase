@@ -1,11 +1,12 @@
-import type {EnvironmentRoute} from './handler';
+import {looksLikeBrowser,SECRET_IN_BROWSER,type EnvironmentRoute,type KeyVerdict} from './handler';
 import {routeWithPlacement} from './managed';
 import type {RuntimeRouting} from '../control/placement';
 
-/** A browser's Realtime socket: `/<runtime>/realtime/v1/websocket?apikey=<publishable key>&vsn=…`.
- * The listener asks this before it connects anything: the key must be a live publishable key
- * of that environment, the environment must run Realtime, and the socket then reaches only that
- * environment's own Realtime, with the key swapped for the signed anon token Realtime expects
+/** A Realtime socket: `/<runtime>/realtime/v1/websocket?apikey=<API key>&vsn=…`. The listener asks
+ * this before it connects anything: the key must be a live API key of that environment (a secret
+ * key only from a server, never a browser), the environment must run Realtime, and the socket then reaches only that
+ * environment's own Realtime, with the key swapped for the signed token Realtime expects (anon, or service_role for a secret
+ * key; an open socket keeps it until it closes, even when the key is revoked)
  * and the Host header naming the tenant, as upstream's gateway does. */
 export type RealtimeDecision =
  {ok:true;host:string;port:number;head:string}|
@@ -33,7 +34,7 @@ export function catalogRealtimeRoute(catalog:{runtimeReady(runtime:string):boole
 
 export function realtimeUpgrade(options:{
  route:(runtime:string)=>EnvironmentRoute|undefined|'maintenance';
- verifyKey:(runtime:string,key:string)=>boolean;
+ verifyKey:(runtime:string,key:string)=>KeyVerdict;
 }) {
  return (path:string,headers:Headers):RealtimeDecision=>{
   const url=new URL(path,'http://local');
@@ -45,14 +46,17 @@ export function realtimeUpgrade(options:{
   if(!route||!route.enabled)return {ok:false,status:404,message:'Unknown environment'};
   if(!route.realtime||!route.realtimeToken)return {ok:false,status:404,message:'Realtime is off for this environment'};
   const key=url.searchParams.get('apikey')??headers.get('apikey');
-  let accepted=false;
-  try{accepted=!!key&&key.length<=8192&&options.verifyKey(runtime,key);}catch{return {ok:false,status:503,message:'Key verification unavailable'};}
-  if(!accepted)return {ok:false,status:401,message:'Invalid API key'};
+  let verdict:KeyVerdict=null;
+  try{verdict=!!key&&key.length<=8192?options.verifyKey(runtime,key):null;}catch{return {ok:false,status:503,message:'Key verification unavailable'};}
+  if(verdict!==true&&verdict!=='publishable'&&verdict!=='secret')return {ok:false,status:401,message:'Invalid API key'};
+  if(verdict==='secret'&&looksLikeBrowser(headers))return {ok:false,status:401,message:SECRET_IN_BROWSER};
+  const token=verdict==='secret'?route.realtimeServiceToken:route.realtimeToken;
+  if(!token)return {ok:false,status:503,message:'Secret keys are unavailable for this environment'};
   let upstream:URL;
   try{upstream=new URL(route.realtime.url);}catch{return {ok:false,status:503,message:'Invalid upstream'};}
   if(upstream.protocol!=='http:'||!/^[a-f0-9]{24}\.realtime$/.test(route.realtime.tenantHost))return {ok:false,status:503,message:'Invalid upstream'};
   const query=new URLSearchParams(url.search);
-  query.set('apikey',route.realtimeToken);
+  query.set('apikey',token);
   const lines=[`GET /socket/websocket?${query} HTTP/1.1`,`Host: ${route.realtime.tenantHost}`];
   for(const [name,value] of headers)if(FORWARDED.has(name)&&!/[\r\n]/.test(value))lines.push(`${name}: ${value}`);
   return {ok:true,host:upstream.hostname,port:Number(upstream.port||80),head:lines.join('\r\n')+'\r\n\r\n'};

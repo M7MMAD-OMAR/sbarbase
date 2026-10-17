@@ -55,7 +55,7 @@
 | POST | `/management/v1/environments/{id}/retry` | مالك، مدير | بلا جسم. يعيد `202 {state: "queued"}` لبيئة فشلت أو أُلغيت، و`409` في غير ذلك أو عند بلوغ حد البيئات |
 | GET | `/management/v1/environments/{id}/connection` | عضو، حين تجهز البيئة | `{environment, apiPath: "/<runtime>", services}` |
 | GET | `/management/v1/environments/{id}/keys` | مالك، مدير | البيانات الوصفية للمفاتيح فقط، ولا يُعاد المفتاح نفسه أبدًا |
-| POST | `/management/v1/environments/{id}/keys` | مالك، مدير | بلا جسم. يعيد `201` مع مفتاح عام جديد يظهر مرة واحدة |
+| POST | `/management/v1/environments/{id}/keys` | مالك، مدير | جسم اختياري `{type: "publishable"\|"secret", name}`، وبدونه يُنشأ مفتاح عام اسمه `default`. يعيد `201 {id, token, type, name}` والمفتاح يظهر مرة واحدة ([مفاتيح API](../guides/api-keys.ar.md)) |
 | DELETE | `/management/v1/environments/{id}/keys/{keyId}` | مالك، مدير | يعيد `200 {revoked: true}`، أو `404` إذا لم يكن مفتاحًا فعّالًا لهذه البيئة |
 | GET | `/management/v1/environments/{id}/metrics` | عضو، عندما تكون جاهزة | آخر ساعة عند البوابة: `window` (`requests` و`clientErrors` و`serverErrors`، و`p50` و`p95` بالميلي ثانية، وعدد الطلبات لكل خدمة في `services`)، و`perMinute` (60 صفًا)، و`since`، و`services` (استهلاك الذاكرة والمعالج لـ Auth وREST وRealtime وEdge Functions). في الذاكرة، وتفرغ بعد إعادة التشغيل ([السجلات والمقاييس](../guides/logs-and-metrics.ar.md)) |
 | GET | `/management/v1/environments/{id}/logs?source=requests\|auth\|rest\|storage\|realtime\|functions&lines=1-1000&errors=1` | مالك، مدير، عندما تكون جاهزة | `requests`: آخر طلبات البوابة، الأحدث أولًا، بلا نصوص الاستعلام. المصادر الأخرى: `lines`، آخر أسطر الخدمة، الأقدم أولًا، مع استبدال المفاتيح والرموز وكلمات المرور بـ `[redacted]`؛ وأسطر Storage فقط إن ذكرت هذه البيئة. `503` إذا تعذّر الوصول إلى Docker |
@@ -107,8 +107,8 @@
 
 - **الطرق:** GET وHEAD وPOST وPUT وPATCH وDELETE، وOPTIONS لطلب التحقق المسبق الذي يرسله المتصفح.
 - **المتصفحات:** كما في Supabase، تستطيع صفحة على أي نطاق استدعاء الـ API. كل رد، ومنه الرفض، يحمل `Access-Control-Allow-Origin: *` ويكشف `Content-Range`، ويأخذ طلب التحقق المسبق الرد `204` دون مفتاح. لا تُستخدم ملفات تعريف الارتباط ولا بيانات اعتماد، فيبقى مفتاح API ورمز المستخدم وحدهما ما يحدد ما يستطيع الطلب فعله.
-- **مفتاح API:** يجب أن تحمل ترويسة `apikey` مفتاحًا عامًا فعّالًا لتلك البيئة. الطلبات الوحيدة المقبولة بلا مفتاح هي GET أو HEAD على `object/public/...` في Storage، وعلى `object/sign/...` مع معامل استعلام `token` واحد بالضبط. تتحقق Storage نفسها من كون الـbucket عامًا أو خاصًا، ومن صحة التوقيع. وتُقبل بلا مفتاح أيضًا خطوات Auth التي يصل إليها المتصفح عبر رابط أو إعادة توجيه: GET على `verify`، وGET على `authorize`، وGET أو POST على `callback`، ويتحقق Auth من كل منها بنفسه.
-- **التفويض:** يُمرَّر رمز المستخدم `Bearer` كما هو. إذا غاب (أو ساوى مفتاح API) يُستخدم الرمز المجهول (anonymous) الخاص بالبيئة.
+- **مفتاح API:** يجب أن تحمل ترويسة `apikey` مفتاحًا عامًا أو سريًا فعّالًا لتلك البيئة. ويُرفض المفتاح السري بـ `401` إن بدا الطلب آتيًا من متصفح (معرّف متصفح يبدأ بـ `Mozilla/`، أو ترويسة `Origin` أو `Sec-Fetch-`). الطلبات الوحيدة المقبولة بلا مفتاح هي GET أو HEAD على `object/public/...` في Storage، وعلى `object/sign/...` مع معامل استعلام `token` واحد بالضبط. تتحقق Storage نفسها من كون الـbucket عامًا أو خاصًا، ومن صحة التوقيع. وتُقبل بلا مفتاح أيضًا خطوات Auth التي يصل إليها المتصفح عبر رابط أو إعادة توجيه: GET على `verify`، وGET على `authorize`، وGET أو POST على `callback`، ويتحقق Auth من كل منها بنفسه.
+- **التفويض:** يُمرَّر رمز المستخدم `Bearer` كما هو. إذا غاب (أو ساوى مفتاح API) يُستخدم الرمز المجهول (anonymous) الخاص بالبيئة، أو رمز `service_role` قصير العمر للمفتاح السري.
 - **مستأجر Storage:** تختاره البوابة من سجل التوجيه وترسله في ترويسة موثوقة، ولا يستطيع العميل اختياره.
 - **الجسم:** حده الأقصى 1 MiB، ويُقرأ خلال عشر ثوانٍ. أما رفع ملف إلى Storage (POST أو PUT) فيُمرَّر كما يصل، حتى حد الرفع (`SBARBASE_UPLOAD_LIMIT_MB`، و50 MiB افتراضيًا)، ويفشل إذا توقف ثلاثين ثانية.
 
@@ -130,7 +130,7 @@
 
 | المسار | المعنى |
 |---|---|
-| `GET /{runtime}/realtime/v1/websocket?apikey=<publishable key>&vsn=1.0.0` مع `Upgrade: websocket` | اتصال Realtime الذي يفتحه supabase-js. يُفحص المفتاح أولًا، ثم يستلم Realtime الرمز المجهول الخاص بالبيئة بدلًا منه |
+| `GET /{runtime}/realtime/v1/websocket?apikey=<publishable key>&vsn=1.0.0` مع `Upgrade: websocket` | اتصال Realtime الذي يفتحه supabase-js. يُفحص المفتاح أولًا، ثم يستلم Realtime الرمز المجهول الخاص بالبيئة بدلًا منه، أو رمز `service_role` لمفتاح سري أُرسل من خادم |
 | `POST /{runtime}/realtime/v1/api/broadcast` | البث من خادم، مع الترويسة `apikey` |
 
 إذا كان Realtime مطفأً يأخذ الاتصال الرد `404`. المفتاح الخاطئ أو الملغى يأخذ `401`. وكل مسار آخر في Realtime يأخذ `404`.

@@ -42,7 +42,7 @@ Add your own under **Secrets** (for example `STRIPE_SECRET_KEY`) and read them w
 
 ## Who may call a function
 
-- By default a function needs a valid JWT: the publishable key (supabase-js sends it) or a signed-in user's token. A wrong key is refused before the function runs.
+- By default a function needs a valid JWT: the publishable key (supabase-js sends it), a [secret key](api-keys.md) from a server, which the function receives as a `service_role` token, or a signed-in user's token. A wrong key is refused before the function runs.
 - A function deployed with **Require a valid JWT** off (`verify_jwt = false`) also accepts calls with no key at all, for a payment provider's or another service's webhook. It then checks the call itself, for example with the provider's signature header, which reaches it unchanged.
 
 ## How it runs

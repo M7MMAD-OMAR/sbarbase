@@ -412,7 +412,7 @@ class RecoveryTests(PauseFixture):
         handler = (root / 'src/gateway/handler.ts').read_text()
         managed = (root / 'src/gateway/managed.ts').read_text()
         default = int(re.search(r'bodyReadTimeoutMs=([\d_]+)', handler)[1].replace('_', ''))
-        used = int(re.search(r"=='publishable',([\d_]+),concurrency", managed)[1].replace('_', ''))
+        used = int(re.search(r"keys.resolve\(environment,key\):null,([\d_]+),concurrency", managed)[1].replace('_', ''))
         # A margin past the deadline, for the hop from the gateway to the service.
         self.assertGreaterEqual(write_pause.GATEWAY_WINDOW * 1000, max(default, used) + 3000)
 

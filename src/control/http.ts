@@ -459,3 +459,5 @@ export function managementHandler(catalog:Catalog,identify:ManagementIdentity,ma
     }
   };
 }
+/** The bounded JSON reader above, for the other management routes: 4 KiB, 5 seconds, application/json. */
+export {body as boundedJsonBody,InputError};

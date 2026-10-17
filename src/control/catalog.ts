@@ -1059,6 +1059,11 @@ export class Catalog {
     this.environmentProject(actor,environment,['owner','admin']);
     this.record(actor,action,environment,detail);
   }
+  /** Records an API key issued or revoked in the audit log; the key itself is never in it. */
+  recordApiKey(actor:string,environment:string,action:'keys.created'|'keys.revoked',detail:Record<string,string>) {
+    this.environmentProject(actor,environment,['owner','admin']);
+    this.record(actor,action,environment,detail);
+  }
   runtimeReady(runtime:string):boolean {
     return !!this.db.query<{environment:string},[string]>(
       "SELECT environment FROM provision_jobs WHERE runtime=? AND state='succeeded' AND NOT EXISTS (SELECT 1 FROM environment_lifecycle l WHERE l.runtime=provision_jobs.runtime AND l.state!='active')").get(runtime);

@@ -5,10 +5,13 @@ import {chmodSync} from 'node:fs';
 export type KeyKind = 'publishable' | 'secret';
 /** `environment` holds the opaque runtime id (`e_<24 hex>`), not the catalog's environment
  * UUID: the gateway resolves keys by runtime, and a project move keeps it. */
-export type KeyRecord = {id:string;environment:string;kind:KeyKind;created_at:number;revoked_at:number|null};
+export type KeyRecord = {id:string;environment:string;kind:KeyKind;name:string;created_at:number;revoked_at:number|null};
+/** A key's name, as on Supabase: 4 to 64 characters, lowercase letters, digits and underscores. */
+export const KEY_NAME=/^[a-z_][a-z0-9_]{3,63}$/;
 const digest=(token:string)=>createHash('sha256').update(token).digest('hex');
 
-/** Local key metadata, never signing secrets or raw API keys. Parent must be private.
+/** Local key metadata, never signing secrets or raw API keys: publishable and secret keys alike
+ * are kept as SHA-256 digests and shown once, when issued. Parent must be private.
  * The management key handler enforces scope; direct callers must authorize first.
  */
 export class KeyStore {
@@ -31,15 +34,18 @@ export class KeyStore {
       CREATE INDEX IF NOT EXISTS api_keys_environment ON api_keys(environment);`);
     if(!this.db.query<{name:string},[]>('PRAGMA table_info(api_keys)').all().some(column=>column.name==='runtime_epoch'))
       this.db.exec('ALTER TABLE api_keys ADD COLUMN runtime_epoch INTEGER NOT NULL DEFAULT 0');
+    if(!this.db.query<{name:string},[]>('PRAGMA table_info(api_keys)').all().some(column=>column.name==='name'))
+      this.db.exec("ALTER TABLE api_keys ADD COLUMN name TEXT NOT NULL DEFAULT 'default'");
   }
-  issue(environment:string,kind:KeyKind='publishable') {
+  issue(environment:string,kind:KeyKind='publishable',name='default') {
     if(!/^[a-z][a-z0-9_]{1,30}$/.test(environment)) throw new Error('Invalid environment');
     if(kind!=='publishable' && kind!=='secret') throw new Error('Invalid key kind');
+    if(!KEY_NAME.test(name)) throw new Error('Invalid key name');
     const token=`sb_${kind}_${randomBytes(32).toString('base64url')}`;
     const id=randomUUID();
     const epoch=this.epoch(environment);
     if(!Number.isSafeInteger(epoch)||epoch<0)throw new Error('Invalid runtime epoch');
-    this.db.query('INSERT INTO api_keys(id,environment,kind,digest,created_at,revoked_at,runtime_epoch) VALUES (?,?,?,?,?,NULL,?)').run(id,environment,kind,digest(token),Date.now(),epoch);
+    this.db.query('INSERT INTO api_keys(id,environment,kind,digest,created_at,revoked_at,runtime_epoch,name) VALUES (?,?,?,?,?,NULL,?,?)').run(id,environment,kind,digest(token),Date.now(),epoch,name);
     return {id,token};
   }
   resolve(environment:string,token:string):KeyKind|null {
@@ -70,7 +76,7 @@ export class KeyStore {
       .run(Date.now(),environment,epoch).changes;
   }
   list(environment:string):KeyRecord[] {
-    return this.db.query<KeyRecord,[string]>('SELECT id,environment,kind,created_at,revoked_at FROM api_keys WHERE environment=? ORDER BY created_at,id').all(environment);
+    return this.db.query<KeyRecord,[string]>('SELECT id,environment,kind,name,created_at,revoked_at FROM api_keys WHERE environment=? ORDER BY created_at,id').all(environment);
   }
   close(){this.db.close();}
 }

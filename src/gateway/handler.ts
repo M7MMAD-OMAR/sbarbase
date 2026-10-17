@@ -13,6 +13,12 @@ export type EnvironmentRoute = {
   realtimeToken?: string;
   keys: readonly string[];
   anonymousToken: string;
+  /** What a secret API key becomes, as on Supabase: a short-lived service_role JWT signed with the
+   * environment's current secret, minted by the installer for each request (lab/upstream-app.ts).
+   * Without it, secret keys are refused. `realtimeServiceToken` is the same role with the longer
+   * expiry a Realtime socket needs; HTTP calls, Realtime broadcast included, get the short one. */
+  serviceToken?: string;
+  realtimeServiceToken?: string;
   enabled: boolean;
   serviceConcurrency?:Partial<Record<'auth'|'rest'|'storage',number>>;
 };
@@ -26,6 +32,19 @@ function matches(a: string, b: string): boolean {
   const left = Buffer.from(a), right = Buffer.from(b);
   return left.length === right.length && timingSafeEqual(left,right);
 }
+/** A key check's answer: the kind of key, or null. `true` is the older answer for a publishable key. */
+export type KeyVerdict='publishable'|'secret'|boolean|null;
+const kindOf=(verdict:KeyVerdict):'publishable'|'secret'|null=>verdict===true?'publishable':verdict==='publishable'||verdict==='secret'?verdict:null;
+
+/** Supabase refuses a secret key sent by a browser, so a key pasted into a web page fails at once
+ * instead of leaking. A browser always sends a `Mozilla/` user agent, and an `Origin` or a
+ * `Sec-Fetch-*` header on the requests a page makes; servers, scripts and Edge Functions send none
+ * of these. */
+export function looksLikeBrowser(headers:Headers):boolean {
+  return /Mozilla\//.test(headers.get('user-agent')??'')||headers.has('origin')||headers.has('sec-fetch-mode')||headers.has('sec-fetch-site');
+}
+export const SECRET_IN_BROWSER='Secret API keys cannot be used in a browser. Use a publishable key there, and keep the secret key on your server.';
+
 function error(status:number, message:string) {
   return Response.json({message},{status,headers:{'cache-control':'no-store'}});
 }
@@ -96,16 +115,16 @@ export function withCors(response:Response, request:Request):Response {
  * This boundary binds an API key to an enabled environment before proxying.
  * Storage uses a trusted tenant header; Realtime and OAuth remain pending.
  */
-export function createGateway(registry:RouteRegistry, transport:typeof fetch = fetch, verifyKey?:(environment:string,key:string)=>boolean, bodyReadTimeoutMs=10_000, concurrency=new ConcurrencyGate(), uploadBytes=UPLOAD_LIMIT) {
+export function createGateway(registry:RouteRegistry, transport:typeof fetch = fetch, verifyKey?:(environment:string,key:string)=>KeyVerdict, bodyReadTimeoutMs=10_000, concurrency=new ConcurrencyGate(), uploadBytes=UPLOAD_LIMIT) {
   const handle=gatewayHandler(registry,transport,verifyKey,bodyReadTimeoutMs,concurrency,uploadBytes);
   return async (request:Request):Promise<Response> => withCors(await handle(request),request);
 }
 
 /** Shared gateway admission preserves public Auth, Storage and Function routes. */
-export function gatewayKeyAccess(request:Request,service:string,path:string,verifyKey:(key:string)=>boolean):Response|{apiKey:string|null;keylessFunction:boolean} {
+export function gatewayKeyAccess(request:Request,service:string,path:string,verifyKey:(key:string)=>KeyVerdict):Response|{apiKey:string|null;kind:'publishable'|'secret'|null;keylessFunction:boolean} {
   if(service==='functions'&&!FUNCTION_NAME.test(path.split('/')[1]??''))return error(404,'Function not found');
   if(service==='realtime'&&!(path==='/api/broadcast'&&request.method==='POST'))return error(404,'Unknown route');
-  if(request.method==='OPTIONS')return {apiKey:null,keylessFunction:false};
+  if(request.method==='OPTIONS')return {apiKey:null,kind:null,keylessFunction:false};
   const url=new URL(request.url);
   const apiKey = request.headers.get('apikey');
   const readMethod=request.method==='GET'||request.method==='HEAD';
@@ -124,17 +143,18 @@ export function gatewayKeyAccess(request:Request,service:string,path:string,veri
   const keylessFunction=service==='functions'&&apiKey===null;
   // Public object visibility and signed-token validity are enforced by Storage.
   // No exception exists for writes, listing, signing, or authenticated paths.
+  let kind:'publishable'|'secret'|null=null;
   if(apiKey!==null) {
     if(!apiKey||apiKey.length>8192) return error(401,'Invalid API key');
-    let keyAccepted=false;
-    try {keyAccepted=verifyKey(apiKey);}
+    try {kind=kindOf(verifyKey(apiKey));}
     catch {return error(503,'Key verification unavailable');}
-    if(!keyAccepted) return error(401,'Invalid API key');
+    if(!kind) return error(401,'Invalid API key');
+    if(kind==='secret'&&looksLikeBrowser(request.headers)) return error(401,SECRET_IN_BROWSER);
   } else if(!publicStorageRead&&!browserAuthStep&&!keylessFunction) return error(401,'Invalid API key');
-  return {apiKey,keylessFunction};
+  return {apiKey,kind,keylessFunction};
 }
 
-function gatewayHandler(registry:RouteRegistry, transport:typeof fetch, verifyKey:((environment:string,key:string)=>boolean)|undefined, bodyReadTimeoutMs:number, concurrency:ConcurrencyGate, uploadBytes:number) {
+function gatewayHandler(registry:RouteRegistry, transport:typeof fetch, verifyKey:((environment:string,key:string)=>KeyVerdict)|undefined, bodyReadTimeoutMs:number, concurrency:ConcurrencyGate, uploadBytes:number) {
   return async (request:Request):Promise<Response> => {
     const url = new URL(request.url);
     const match = url.pathname.match(/^\/([a-z][a-z0-9_]{1,30})\/(auth|rest|storage|realtime|functions)\/v1(\/.*)?$/);
@@ -152,7 +172,10 @@ function gatewayHandler(registry:RouteRegistry, transport:typeof fetch, verifyKe
     if (request.method === 'OPTIONS') return new Response(null,{status:204,headers:{'cache-control':'no-store'}});
     const access=gatewayKeyAccess(request,service,path,key=>verifyKey?verifyKey(environment,key):route.keys.some(candidate=>matches(candidate,key)));
     if(access instanceof Response)return access;
-    const {apiKey,keylessFunction}=access;
+    const {apiKey,kind,keylessFunction}=access;
+    // A secret key acts as the environment's service_role, which bypasses row level security.
+    const keyToken=kind==='secret'?route.serviceToken:service==='realtime'&&route.realtimeToken?route.realtimeToken:route.anonymousToken;
+    if(!keylessFunction&&!keyToken) return error(503,'Secret keys are unavailable for this environment');
     // Never let a forwarded path or absolute URL choose the upstream host.
     if (path.includes('\\') || /%2f|%5c|%00/i.test(path)) return error(400,'Invalid path');
     if (!['GET','HEAD','POST','PUT','PATCH','DELETE'].includes(request.method)) return error(405,'Method not allowed');
@@ -182,10 +205,10 @@ function gatewayHandler(registry:RouteRegistry, transport:typeof fetch, verifyKe
     if (keylessFunction) {
       // No key, so no anonymous token either: only the caller's own token, if any, reaches the function.
       if (authorization) headers.set('authorization',authorization);
-    } else headers.set('authorization', authorization && !bearerIsApiKey ? authorization : `Bearer ${service==='realtime'&&route.realtimeToken?route.realtimeToken:route.anonymousToken}`);
+    } else headers.set('authorization', authorization && !bearerIsApiKey ? authorization : `Bearer ${keyToken}`);
     if(service==='realtime') {
      if(!route.realtime||!route.realtimeToken||!/^[a-f0-9]{24}\.realtime$/.test(route.realtime.tenantHost)) return error(503,'Realtime unavailable');
-     headers.set('host',route.realtime.tenantHost);headers.set('apikey',route.realtimeToken);
+     headers.set('host',route.realtime.tenantHost);headers.set('apikey',keyToken!);
     }
     const retainRest=service==='rest'&&route.serviceConcurrency?.rest!==undefined;
     // Upload cancellation still uses the real request below. Once dispatched,

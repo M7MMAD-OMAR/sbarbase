@@ -22,6 +22,7 @@ Terms used in the code, the engineering notes and the evidence files, in plain w
 ## Credentials and access
 
 - **Publishable key.** The API key an app sends in the `apikey` header. Only its hash is stored; the raw key is shown once.
+- **Secret key.** An API key that acts as `service_role`, for servers and agents only; refused from browsers. Stored and shown like a publishable key ([API keys](../guides/api-keys.md)).
 - **Scoped login.** A PostgreSQL login that belongs to one environment and one service (Auth, REST or Storage).
 - **Canonical roles.** The Supabase API roles `anon`, `authenticated` and `service_role`. They exist once per PostgreSQL engine and are shared by name.
 - **HBA.** PostgreSQL's host-based authentication file (`pg_hba.conf`): the rules that say which login may connect to which database from where. Sbarbase writes exact login and database pairs.

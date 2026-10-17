@@ -42,7 +42,7 @@ export function managedGateway(catalog:Catalog,keys:KeyStore,resolve:(runtime:st
    if(!match||!match[2])return Response.json({message:'Unknown route'},{status:404});
    const epoch=catalog.runtimeEpoch(runtime);
    const allowed=()=>catalog.runtimeReady(runtime)&&catalog.runtimeEpoch(runtime)===epoch;
-   const access=gatewayKeyAccess(request,match[2],match[3]||'/',key=>keys.resolve(runtime,key)==='publishable');
+   const access=gatewayKeyAccess(request,match[2],match[3]||'/',key=>keys.resolve(runtime,key));
    if(access instanceof Response)return access;
    const routing=catalog.runtimeRouting(runtime);
    const resolved=resolveRuntimePlacement(runtime,routing);
@@ -59,7 +59,7 @@ export function managedGateway(catalog:Catalog,keys:KeyStore,resolve:(runtime:st
     return new Response(response.body?epochBody(response.body,allowed):null,{status:response.status,headers:response.headers});
    }) as typeof fetch;
    return await createGateway(new Map([[runtime,route]]),guardedTransport,
-    (environment,key)=>allowed()&&keys.resolve(environment,key)==='publishable',10_000,concurrency)(request);
+    (environment,key)=>allowed()?keys.resolve(environment,key):null,10_000,concurrency)(request);
   } catch {
    return Response.json({message:'Environment routing unavailable'},{status:503});
   }

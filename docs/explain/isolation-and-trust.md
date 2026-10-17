@@ -33,7 +33,7 @@ What is separate per environment:
 
 - A database with `CONNECT` granted only to its own logins, and connection rules (the PostgreSQL host-based authentication file, HBA) naming exact login and database pairs.
 - Three scoped service logins for Auth, REST and Storage, with generated passwords.
-- Its own Auth signing secret, its own publishable keys (stored only as hashes), and its own Storage tenant and signing keys.
+- Its own Auth signing secret, its own publishable and secret keys (stored only as hashes), and its own Storage tenant and signing keys.
 - A routing record that can put the environment in maintenance without touching the others.
 
 What is shared, and therefore a shared failure boundary:

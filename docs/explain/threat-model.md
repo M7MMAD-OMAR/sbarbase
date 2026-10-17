@@ -26,7 +26,7 @@ Sbarbase puts many Supabase projects on one server. Sharing a server is only wor
 | --- | --- |
 | Application data per environment | One PostgreSQL database per environment on the shared engine; that environment's objects in the shared Storage process |
 | Service credentials | Three service logins per environment (Auth, REST, Storage) with passwords generated per environment (`secrets.token_hex(32)` in `Runtime.provision`, [lab/durable_runtime.py](../../lab/durable_runtime.py)), kept in the private state directory |
-| Signing keys | Each environment's Auth signing secret and Storage signing keys; publishable API keys, stored only as SHA-256 hashes ([src/control/keys.ts](../../src/control/keys.ts)) |
+| Signing keys | Each environment's Auth signing secret and Storage signing keys; publishable and secret API keys, stored only as SHA-256 hashes ([src/control/keys.ts](../../src/control/keys.ts)) |
 | Operator identity | Accounts in a dedicated management Auth realm, separate from every application Auth ([src/control/auth.ts](../../src/control/auth.ts)); memberships and roles in the control catalog |
 | Backups | Encrypted per-environment export bundles and their keys; any copies of the database volumes the operator makes |
 
@@ -36,7 +36,7 @@ Sbarbase puts many Supabase projects on one server. Sharing a server is only wor
 | --- | --- | --- |
 | Host operator | Trusted | Root or Docker on the host, the PostgreSQL administrator login, the private state directory, arbitrary SQL in any environment. Not defended against. |
 | Application visitor | Untrusted | Anonymous or signed-in requests to any environment through the gateway, with that environment's publishable key and their own token. |
-| Compromised environment service or leaked environment key | Untrusted | Holds one environment's service login password, publishable key or Auth token and tries to reach another environment or the platform. |
+| Compromised environment service or leaked environment key | Untrusted | Holds one environment's service login password, publishable or secret key, or Auth token and tries to reach another environment or the platform. |
 | Compromised dependency | Untrusted | A modified upstream image, package or CI action that runs with the privileges of the component that loads it. |
 | Network attacker | Untrusted | Observes or tampers with traffic between visitors or operators and the server, or sends crafted requests to whatever is exposed. |
 

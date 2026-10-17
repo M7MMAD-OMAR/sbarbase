@@ -55,7 +55,7 @@ All routes need `Authorization: Bearer <management access token>`. The actor com
 | POST | `/management/v1/environments/{id}/retry` | owner, admin | No body. `202 {state: "queued"}` for a failed or cancelled environment; `409` otherwise or at the environment limit |
 | GET | `/management/v1/environments/{id}/connection` | member, when ready | `{environment, apiPath: "/<runtime>", services}` |
 | GET | `/management/v1/environments/{id}/keys` | owner, admin | Key metadata only, never key material |
-| POST | `/management/v1/environments/{id}/keys` | owner, admin | No body. `201` with a new publishable key, shown once |
+| POST | `/management/v1/environments/{id}/keys` | owner, admin | Optional `{type: "publishable"\|"secret", name}`; no body makes a publishable key named `default`. `201 {id, token, type, name}`, the key shown once ([API keys](../guides/api-keys.md)) |
 | DELETE | `/management/v1/environments/{id}/keys/{keyId}` | owner, admin | `200 {revoked: true}`, or `404` if not an active key of this environment |
 | GET | `/management/v1/environments/{id}/metrics` | member, when ready | Last hour at the gateway: `window` (`requests`, `clientErrors`, `serverErrors`, `p50` and `p95` in ms, `services` counts), `perMinute` (60 rows), `since`, and `services` (memory and processor use of Auth, REST, Realtime and Edge Functions). In memory; empty after a restart ([logs and metrics](../guides/logs-and-metrics.md)) |
 | GET | `/management/v1/environments/{id}/logs?source=requests\|auth\|rest\|storage\|realtime\|functions&lines=1-1000&errors=1` | owner, admin, when ready | `requests`: the last gateway requests, newest first, without query strings. Other sources: `lines`, the service's last lines, oldest first, with keys, tokens and passwords replaced by `[redacted]`; Storage lines only when they name this environment. `503` when Docker cannot be reached |
@@ -107,8 +107,8 @@ Every request route answers `409` with "Another update request is still in progr
 
 - **Methods:** GET, HEAD, POST, PUT, PATCH, DELETE, and OPTIONS for a browser's preflight.
 - **Browsers:** as on Supabase, a page on any domain may call the API. Every answer, refusals included, carries `Access-Control-Allow-Origin: *` and exposes `Content-Range`; a preflight gets `204` without a key. No cookies or credentials are used, so the API key and the user token still decide everything a call may do.
-- **API key:** the `apikey` header must be an active publishable key of that environment. The only keyless requests are GET or HEAD on Storage `object/public/...` and on `object/sign/...` with exactly one `token` query parameter, where Storage itself enforces bucket visibility and signature validity; and the Auth steps a browser reaches by a link or a redirect: GET `verify`, GET `authorize`, and GET or POST `callback`, which Auth checks itself.
-- **Authorization:** a `Bearer` user token is forwarded; if absent (or equal to the API key) the environment's anonymous token is used.
+- **API key:** the `apikey` header must be an active publishable or secret key of that environment. A secret key is refused with `401` when the request looks like a browser's (a `Mozilla/` user agent, an `Origin` or a `Sec-Fetch-` header). The only keyless requests are GET or HEAD on Storage `object/public/...` and on `object/sign/...` with exactly one `token` query parameter, where Storage itself enforces bucket visibility and signature validity; and the Auth steps a browser reaches by a link or a redirect: GET `verify`, GET `authorize`, and GET or POST `callback`, which Auth checks itself.
+- **Authorization:** a `Bearer` user token is forwarded; if absent (or equal to the API key) the environment's anonymous token is used, or a short-lived `service_role` token for a secret key.
 - **Storage tenant:** chosen by the gateway from the routing record and sent as a trusted header; a client cannot choose it.
 - **Body:** at most 1 MiB, read within ten seconds. A file upload to Storage (POST or PUT) is passed on as it arrives, up to the upload limit (`SBARBASE_UPLOAD_LIMIT_MB`, 50 MiB by default), and fails if it stalls for thirty seconds.
 
@@ -130,7 +130,7 @@ When an environment has Realtime turned on ([Realtime](../guides/realtime.md)):
 
 | Route | Meaning |
 |---|---|
-| `GET /{runtime}/realtime/v1/websocket?apikey=<publishable key>&vsn=1.0.0` with `Upgrade: websocket` | The Realtime socket supabase-js opens. The key is checked first; Realtime receives the environment's anon token instead |
+| `GET /{runtime}/realtime/v1/websocket?apikey=<publishable key>&vsn=1.0.0` with `Upgrade: websocket` | The Realtime socket supabase-js opens. The key is checked first; Realtime receives the environment's anon token instead, or a `service_role` token for a secret key sent from a server |
 | `POST /{runtime}/realtime/v1/api/broadcast` | Broadcast from a server, with the `apikey` header |
 
 With Realtime off, the socket answers `404`. A wrong or revoked key answers `401`. Every other Realtime path answers `404`.

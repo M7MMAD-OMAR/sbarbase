@@ -31,6 +31,21 @@ export function realtimeToken(secret:string) {
  if(!token){const now=Math.floor(Date.now()/1000);token=internalToken(secret,'anon',{iat:now,exp:now+10*365*24*3600});realtimeTokens.set(secret,token);}
  return token;
 }
+/** What a secret API key becomes at the gateway (src/gateway/handler.ts): a service_role JWT with
+ * an expiry, as Supabase's gateway mints. It is made from the secret read for this request, so a
+ * signing key rotation changes it at once, and reused until a quarter of its life is left: an
+ * HTTP call gets at least 15 of its 60 minutes, a Realtime socket, which keeps its token for its
+ * whole life, at least 6 of its 24 hours. The tokens go only to the environment's own services;
+ * its Edge Functions see the token a caller's key was swapped for, as on Supabase. */
+const serviceTokens=new Map<string,{token:string;renew:number}>();
+export function serviceToken(secret:string,lifetime:number,now=Math.floor(Date.now()/1000)) {
+ const key=lifetime+':'+secret,cached=serviceTokens.get(key);
+ if(cached&&cached.renew>now)return cached.token;
+ if(serviceTokens.size>4096)serviceTokens.clear();
+ const token=internalToken(secret,'service_role',{iat:now,exp:now+lifetime});
+ serviceTokens.set(key,{token,renew:now+Math.floor(lifetime*3/4)});
+ return token;
+}
 /** Studio sessions the runtime recorded (lab/studio.py): addresses of running Studios, and
  * the network gateway address the internal Studio route listens on. */
 export function studioState():{upstream?:{host:string;port:number};sessions:Record<string,{url:string}>} {
@@ -80,8 +95,8 @@ export function openUpstreamApplication() {
   const current=readJsonCached('.secrets/upstream/runtime.json') as {environments:Record<string,any>};
   if(!endpoints[runtime]||!current.environments[runtime])return undefined;
   const secret=current.environments[runtime].jwt;
-  return {...endpoints[runtime],keys:[],anonymousToken:internalToken(secret,'anon'),enabled:true,
-   ...(endpoints[runtime].realtime?{realtimeToken:realtimeToken(secret)}:{})};
+  return {...endpoints[runtime],keys:[],anonymousToken:internalToken(secret,'anon'),serviceToken:serviceToken(secret,3600),enabled:true,
+   ...(endpoints[runtime].realtime?{realtimeToken:realtimeToken(secret),realtimeServiceToken:serviceToken(secret,24*3600)}:{})};
  };
  const requests=new RequestLog();
  const database=new DirectDatabase();
@@ -90,7 +105,7 @@ export function openUpstreamApplication() {
    invitationAccounts(management.auth,internalToken(secrets.management.jwt,'service_role')),database);
  const socket=realtimeUpgrade({
   route:catalogRealtimeRoute(catalog,resolve),
-  verifyKey:(runtime,key)=>keys.resolve(runtime,key)==='publishable'});
+  verifyKey:(runtime,key)=>keys.resolve(runtime,key)});
  // Socket openings count in the environment's logs too: 101 when one reaches Realtime.
  const realtime:typeof socket=(path,headers)=>{
   const started=performance.now(),decision=socket(path,headers);
