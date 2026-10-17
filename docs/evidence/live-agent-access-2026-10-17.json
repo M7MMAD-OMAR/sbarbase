@@ -1,0 +1,141 @@
+{
+  "schema": 1,
+  "date": "2026-10-17",
+  "release": "v0.5.2",
+  "scope": "Agent access on the real server (Hostinger, Ubuntu 26.04) after the signed v0.5.2 was installed through the release channel, from a workstation through the public address behind Cloudflare, against the one existing environment (no application data). A one-day access token for the installation owner was minted in the server's token store by a one-off script (the owner's console password is lost), used, then revoked. Covers the hosted MCP endpoint, the official Supabase MCP server over stdio pointed at /v1, the Supabase CLI through a profile, and Claude Code as a real client. Not a load test. Earlier runs on 0.5.0 and 0.5.1 found two faults, fixed in 0.5.1 and 0.5.2: an Edge Function answer marked gzip over an uncompressed body, and a new table invisible to REST until PostgREST reloaded.",
+  "hosted_mcp_session": [
+    {
+      "step": "initialize",
+      "result": "pass"
+    },
+    {
+      "step": "list_projects",
+      "result": "pass"
+    },
+    {
+      "step": "get_project_url",
+      "result": "pass"
+    },
+    {
+      "step": "get_publishable_keys",
+      "result": "pass"
+    },
+    {
+      "step": "execute_sql",
+      "result": "pass"
+    },
+    {
+      "step": "apply_migration",
+      "result": "pass"
+    },
+    {
+      "step": "list_tables",
+      "result": "pass"
+    },
+    {
+      "step": "list_migrations",
+      "result": "pass"
+    },
+    {
+      "step": "get_advisors",
+      "result": "pass"
+    },
+    {
+      "step": "deploy_edge_function",
+      "result": "pass"
+    },
+    {
+      "step": "list_edge_functions",
+      "result": "pass"
+    },
+    {
+      "step": "get_edge_function",
+      "result": "pass"
+    },
+    {
+      "step": "the app reads the table with the publishable key",
+      "result": "pass"
+    },
+    {
+      "step": "the deployed function answers",
+      "result": "pass"
+    },
+    {
+      "step": "get_logs",
+      "result": "pass"
+    },
+    {
+      "step": "cleanup: table and its history row",
+      "result": "pass"
+    },
+    {
+      "step": "cleanup: function",
+      "result": "pass"
+    }
+  ],
+  "official_stdio_mcp": {
+    "package": "@supabase/mcp-server-supabase 0.14.0",
+    "flags": "--api-url https://sbarbase.sbarah.com",
+    "checks": [
+      {
+        "tool": "list_projects",
+        "result": "pass"
+      },
+      {
+        "tool": "get_project",
+        "result": "pass"
+      },
+      {
+        "tool": "list_tables",
+        "result": "pass"
+      },
+      {
+        "tool": "list_migrations",
+        "result": "pass"
+      },
+      {
+        "tool": "get_publishable_keys",
+        "result": "pass"
+      },
+      {
+        "tool": "list_edge_functions",
+        "result": "pass"
+      },
+      {
+        "tool": "get_project_url",
+        "result": "answers https://<ref>.supabase.red, as documented; the hosted endpoint answers this server's address"
+      }
+    ]
+  },
+  "supabase_cli": {
+    "version": "2.111.0",
+    "profile": "api_url and project_host set to the server",
+    "checks": [
+      {
+        "command": "projects list",
+        "result": "pass"
+      },
+      {
+        "command": "functions deploy cli-probe --use-api --no-verify-jwt (with a _shared import)",
+        "result": "pass; the function answered 200 with its shared module's text"
+      },
+      {
+        "command": "secrets set CLI_PROBE=... and secrets list",
+        "result": "pass; listed by name only"
+      }
+    ]
+  },
+  "claude_code": {
+    "transport": "http with Authorization header (--mcp-config)",
+    "prompt": "list projects, then the first project's URL",
+    "result": "pass; answered the project name and https://sbarbase.sbarah.com/e_..."
+  },
+  "token_revoked": {
+    "v1": 401,
+    "mcp": 401
+  },
+  "left_on_server": [
+    "a publishable key named default, made by get_publishable_keys",
+    "database access turned on by the first SQL call"
+  ]
+}
