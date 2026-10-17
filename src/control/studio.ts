@@ -4,19 +4,29 @@ import {chmodSync,existsSync,readFileSync,writeFileSync} from 'node:fs';
 import {Catalog,type StudioNavigation,type StudioSession} from './catalog';
 import {authenticate,reply,type ManagementIdentity} from './auth';
 import {studioWorkspaceAsset} from './studio-workspace';
+import {studioHosts,type StudioHosts} from './studio-host';
+import {publicUrl} from './sign-in';
 
-/** Studio for one environment, reached in the browser at `<24 hex>.studio.localhost` on the
- * console's own port. Every environment is its own origin, so a Studio session cookie for one
- * environment is never sent to another. The console hands out a one-minute ticket; entering
- * with it sets an HttpOnly cookie for that origin only. Every request re-checks that the
+/** Studio for one environment, reached in the browser on its own address
+ * (src/control/studio-host.ts): `<24 hex>.studio.localhost` on the console's own port through an
+ * SSH tunnel, or a public address such as `studio-<24 hex>.example.com` through the TLS proxy.
+ * Every environment is its own origin, so a Studio session cookie for one environment is never
+ * sent to another. The console hands out a one-minute ticket that works once; entering with it
+ * sets an HttpOnly cookie for that origin only (Secure and `__Host-` on a public address), and a
+ * request that changes something must come from that same origin. Every request re-checks that the
  * actor is still an owner or admin of the environment, so a removed member loses Studio at
  * once. Studio's own server-side calls to Auth, REST and Storage use the internal route
  * (`studioUpstream`), which admits only that environment's service key. */
 
 const TICKET_MS=60_000;
 const SESSION_MS=8*60*60_000;
+let hosts:StudioHosts=studioHosts();
+/** For tests and for a process that reads its configuration late. */
+export function useStudioHosts(next:StudioHosts){hosts=next;}
+/** The session cookie's name: with the `__Host-` prefix on a public address, so it is Secure,
+ * host-only and cannot be set by a sibling site on the same domain. */
+export const studioCookie=()=>hosts.public?'__Host-sbarbase_studio':'sbarbase_studio';
 export const STUDIO_COOKIE='sbarbase_studio';
-const HOST=/^([a-f0-9]{24})\.studio\.localhost$/;
 
 export function studioKey(path:string):Buffer {
  if(!existsSync(path)){writeFileSync(path,randomBytes(32).toString('hex'),{mode:0o600});chmodSync(path,0o600);}
@@ -25,23 +35,51 @@ export function studioKey(path:string):Buffer {
  return Buffer.from(value,'hex');
 }
 
-export function studioRuntime(hostname:string):string|null {
- const match=hostname.match(HOST);return match?'e_'+match[1]:null;
+export function studioRuntime(hostname:string):string|null {return hosts.runtime(hostname);}
+
+export function studioHost(runtime:string):string {return hosts.host(runtime);}
+
+/** The browser's origin for a Studio request. Behind the TLS proxy the request reaches the
+ * console as plain HTTP, but the browser is on HTTPS. */
+function selfOrigin(url:URL):string {return hosts.public?'https://'+url.host:url.origin;}
+
+/** Tickets already used, until they expire: a ticket works once, so a link copied out of the
+ * browser's history or a chat cannot open another session. */
+const spent=new Map<string,number>();
+function spend(claim:Claim):boolean {
+ // By the ticket's own random nonce, not its text: several spellings of one signature decode alike.
+ if(typeof claim.nonce!=='string'||!/^[A-Za-z0-9_-]{8,64}$/.test(claim.nonce))return false;
+ const now=Date.now();
+ for(const [key,until] of spent)if(until<=now)spent.delete(key);
+ if(spent.has(claim.nonce))return false;
+ // Bounded: past the cap the oldest entries go, which only lets an already used ticket that is
+ // about to expire through again; nobody is locked out.
+ while(spent.size>=10_000){const oldest=spent.keys().next().value;if(oldest===undefined)break;spent.delete(oldest);}
+ spent.set(claim.nonce,claim.expires);return true;
 }
 
-export function studioHost(runtime:string):string {
- if(!/^e_[a-f0-9]{24}$/.test(runtime))throw new Error('Invalid runtime');
- return runtime.slice(2)+'.studio.localhost';
-}
+type Claim={runtime:string;actor:string;expires:number;kind:'ticket'|'session';epoch:number;runtimeEpoch?:number;console?:string;nonce?:string};
 
-type Claim={runtime:string;actor:string;expires:number;kind:'ticket'|'session';epoch:number;runtimeEpoch?:number;console?:string};
-
+/** The console's address for Studio's way back: a loopback one, or the installation's public
+ * address (SBARBASE_PUBLIC_URL), never one a request named. */
 function consoleOrigin(value:string|undefined):string|undefined {
- try{const url=new URL(value??'');return ['http:','https:'].includes(url.protocol)&&['localhost','127.0.0.1','[::1]'].includes(url.hostname)&&!url.username&&!url.password&&!url.search&&!url.hash?url.origin:undefined;}catch{return;}
+ try{
+  const url=new URL(value??'');
+  if(!['http:','https:'].includes(url.protocol)||url.username||url.password||url.search||url.hash)return;
+  const configured=publicUrl();
+  if(configured!=='http://localhost'&&url.origin===new URL(configured).origin)return url.origin;
+  return ['localhost','127.0.0.1','[::1]'].includes(url.hostname)?url.origin:undefined;
+ }catch{return;}
+}
+/** Where the console is, as the browser sees it: the public address when one is set. */
+function consoleAddress(request:Request):string|undefined {
+ const configured=publicUrl();
+ return consoleOrigin(configured!=='http://localhost'?configured:new URL(request.url).origin);
 }
 
 export function signStudio(key:Buffer,claim:Claim):string {
- const body=Buffer.from(JSON.stringify(claim)).toString('base64url');
+ // Every ticket is distinct, even two made in the same millisecond, so working once is per ticket.
+ const body=Buffer.from(JSON.stringify(claim.kind==='ticket'&&!claim.nonce?{...claim,nonce:randomBytes(9).toString('base64url')}:claim)).toString('base64url');
  return body+'.'+createHmac('sha256',key).update(body).digest('base64url');
 }
 
@@ -51,6 +89,9 @@ export function verifyStudio(key:Buffer,token:string|null|undefined,runtime:stri
  if(!body||!signature||extra!==undefined)return null;
  const expected=createHmac('sha256',key).update(body).digest();
  const given=Buffer.from(signature,'base64url');
+ // Only the one canonical spelling: base64url decoding forgives padding, stray characters and
+ // unused low bits, which would make one ticket many.
+ if(given.toString('base64url')!==signature)return null;
  if(given.length!==expected.length||!timingSafeEqual(given,expected))return null;
  let claim:Claim;
  try{claim=JSON.parse(Buffer.from(body,'base64url').toString('utf8'));}catch{return null;}
@@ -76,8 +117,8 @@ export function studioHandler(catalog:Catalog,identify:ManagementIdentity,key:()
    if(session) {
     const current=catalog.studio(actor,environment!);
     if(current.state!=='running')return reply(409,{message:'Studio is not running'});
-    const ticket=signStudio(key(),{runtime:current.runtime,actor,expires:Date.now()+TICKET_MS,kind:'ticket',epoch:catalog.managementSecurity.epoch(actor),runtimeEpoch:catalog.runtimeEpoch(current.runtime),console:consoleOrigin(new URL(request.url).origin)});
-    return answer(reply(201,{host:studioHost(current.runtime),path:'/__sbarbase/enter?ticket='+encodeURIComponent(ticket)}),current.runtime);
+    const ticket=signStudio(key(),{runtime:current.runtime,actor,expires:Date.now()+TICKET_MS,kind:'ticket',epoch:catalog.managementSecurity.epoch(actor),runtimeEpoch:catalog.runtimeEpoch(current.runtime),console:consoleAddress(request)});
+    return answer(reply(201,{host:studioHost(current.runtime),public:hosts.public,path:'/__sbarbase/enter?ticket='+encodeURIComponent(ticket)}),current.runtime);
    }
    if(request.method==='GET'){const data=catalog.studio(actor,environment!);return answer(reply(200,{data}),data.runtime);}
    const next=catalog.requestStudio(actor,environment!,request.method==='POST'?'running':'stopped');
@@ -172,7 +213,7 @@ function studioResponseBody(body:ReadableStream<Uint8Array>,allowed:()=>boolean,
  },{highWaterMark:0});
 }
 
-/** The browser side: `<id>.studio.localhost` requests, gated by the session cookie. */
+/** The browser side: requests on an environment's Studio address, gated by the session cookie. */
 export function studioProxy(options:{key:()=>Buffer;allowed:(actor:string,runtime:string)=>boolean;epoch:(actor:string)=>number;
  runtimeEpoch?:(runtime:string)=>number;upstream:(runtime:string)=>string|undefined;transport?:typeof fetch;
  requestBodyLimit?:number;requestBodyTimeoutMs?:number;
@@ -190,13 +231,24 @@ export function studioProxy(options:{key:()=>Buffer;allowed:(actor:string,runtim
   const runtime=studioRuntime(url.hostname);
   if(!runtime)return page(404,'Unknown Studio address.');
   if(url.pathname==='/__sbarbase/enter') {
-   const claim=verifyStudio(options.key(),url.searchParams.get('ticket'),runtime,'ticket');
-   if(!claim||!current(claim,runtime))return page(401,'This Studio link has expired. Open Studio again from the Sbarbase console.');
+   const ticket=url.searchParams.get('ticket');
+   const claim=verifyStudio(options.key(),ticket,runtime,'ticket');
+   if(!claim||!current(claim,runtime)||!spend(claim))return page(401,'This Studio link has expired or was already used. Open Studio again from the Sbarbase console.');
    const session=signStudio(options.key(),{runtime,actor:claim.actor,expires:Date.now()+SESSION_MS,kind:'session',epoch:claim.epoch,runtimeEpoch:claim.runtimeEpoch??0,console:consoleOrigin(claim.console)});
-   return new Response(null,{status:302,headers:{location:'/project/default','cache-control':'no-store',
-    'set-cookie':`${STUDIO_COOKIE}=${session}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_MS/1000}`}});
+   return new Response(null,{status:302,headers:{location:'/project/default','cache-control':'no-store','referrer-policy':'no-referrer',
+    'set-cookie':`${studioCookie()}=${session}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_MS/1000}${hosts.public?'; Secure':''}`}});
   }
-  const claim=verifyStudio(options.key(),cookieValue(request.headers.get('cookie'),STUDIO_COOKIE),runtime,'session');
+  // Requests another site starts (Fetch Metadata): on a public address every *.domain site is
+  // same-site, so the cookie would ride along. Only a plain page navigation is let through, and
+  // it lands on the project home without its query, so a link cannot prefill the SQL editor.
+  const site=request.headers.get('sec-fetch-site');
+  if(hosts.public&&(site==='same-site'||site==='cross-site')){
+   const navigation=request.headers.get('sec-fetch-mode')==='navigate'&&['document',null].includes(request.headers.get('sec-fetch-dest'))&&['GET','HEAD'].includes(request.method);
+   if(!navigation)return page(403,'This request did not come from this Studio page.');
+   if(url.pathname!=='/project/default'||url.search)
+    return new Response(null,{status:303,headers:{location:'/project/default','cache-control':'no-store'}});
+  }
+  const claim=verifyStudio(options.key(),cookieValue(request.headers.get('cookie'),studioCookie()),runtime,'session');
   if(!claim||!current(claim,runtime))return ['/__sbarbase/navigation','/__sbarbase/switch'].includes(url.pathname)
    ?reply(401,{message:'Open Studio from the Sbarbase console to sign in.'}):page(401,'Open Studio from the Sbarbase console to sign in.');
   const allowed=()=>current(claim,runtime);
@@ -206,7 +258,7 @@ export function studioProxy(options:{key:()=>Buffer;allowed:(actor:string,runtim
    if(!options.navigation)return reply(404,{message:'Workspace navigation is unavailable'});
    if(url.pathname==='/__sbarbase/switch') {
     if(request.method!=='POST')return reply(405,{message:'Method not allowed'});
-    if(request.headers.get('origin')!==url.origin)return reply(403,{message:'Forbidden'});
+    if(request.headers.get('origin')!==selfOrigin(url))return reply(403,{message:'Forbidden'});
     if(request.headers.get('content-type')?.split(';')[0]?.trim()!=='application/json')return reply(415,{message:'JSON is required'});
     let bytes:Uint8Array<ArrayBuffer>|undefined;
     try{bytes=await studioBody(request,Math.min(bodyLimit,512),bodyTimeout);}
@@ -224,7 +276,7 @@ export function studioProxy(options:{key:()=>Buffer;allowed:(actor:string,runtim
      const selected=options.selection(claim.actor,environment);
      if(!allowed()||!current(claim,selected.runtime))return reply(403,{message:'Forbidden'});
      if(selected.desired!=='running'||selected.state!=='running'||!options.upstream(selected.runtime))return reply(409,{message:'Studio is not running here. Start it from the console, then Refresh.'});
-     const destination=new URL(url.origin);destination.hostname=studioHost(selected.runtime);destination.pathname='/__sbarbase/enter';
+     const destination=new URL(selfOrigin(url));destination.hostname=studioHost(selected.runtime);destination.pathname='/__sbarbase/enter';
      destination.searchParams.set('ticket',signStudio(options.key(),{runtime:selected.runtime,actor:claim.actor,expires:Date.now()+TICKET_MS,kind:'ticket',epoch:claim.epoch,runtimeEpoch:options.runtimeEpoch?.(selected.runtime)??0,console:consoleOrigin(claim.console)}));
      return guarded(reply(200,{href:destination.href}),()=>allowed()&&current(claim,selected.runtime));
     }catch(error){return reply(error instanceof Error&&error.message==='Forbidden'?403:409,{message:error instanceof Error&&error.message==='Forbidden'?'Forbidden':'Environment is unavailable'});}
@@ -233,7 +285,7 @@ export function studioProxy(options:{key:()=>Buffer;allowed:(actor:string,runtim
    if(url.pathname==='/__sbarbase/navigation') {
     try{const organization=url.searchParams.get('organization')??undefined,project=url.searchParams.get('project')??undefined;
      const data=options.navigation(claim.actor,runtime,organization,project),snapshot=JSON.stringify(data);
-     const consoleUrl=new URL(url.origin);consoleUrl.hostname='127.0.0.1';consoleUrl.pathname='/';
+     const consoleUrl=new URL(selfOrigin(url));consoleUrl.hostname='127.0.0.1';consoleUrl.pathname='/';
      return guarded(reply(200,{...data,consoleUrl:consoleOrigin(claim.console)??consoleUrl.href}),()=>{
       if(!allowed())return false;
       try{return JSON.stringify(options.navigation!(claim.actor,runtime,organization,project))===snapshot;}catch{return false;}
@@ -244,11 +296,17 @@ export function studioProxy(options:{key:()=>Buffer;allowed:(actor:string,runtim
    if(asset)return request.method==='HEAD'?new Response(null,{headers:asset.headers}):asset;
    return reply(404,{message:'Unknown workspace route'});
   }
+  // A change must come from this Studio's own pages. Every site on the same domain counts as
+  // same-site, so SameSite=Lax alone would let a sibling site post here with the cookie.
+  if(!['GET','HEAD','OPTIONS'].includes(request.method)){
+   const origin=request.headers.get('origin'),site=request.headers.get('sec-fetch-site');
+   if(origin?origin!==selfOrigin(url):site!=='same-origin')return page(403,'This request did not come from this Studio page.');
+  }
   const target=options.upstream(runtime);
   if(!target)return page(503,'Studio is not running for this environment. Start it from the Sbarbase console.');
   const headers=new Headers();
   for(const [name,value] of request.headers)if(!HOP.has(name))headers.set(name,value);
-  const cookies=withoutCookie(request.headers.get('cookie'),STUDIO_COOKIE);
+  const cookies=withoutCookie(request.headers.get('cookie'),studioCookie());
   if(cookies)headers.set('cookie',cookies);else headers.delete('cookie');
   const destination=new URL(target);
   destination.pathname=url.pathname;destination.search=url.search;

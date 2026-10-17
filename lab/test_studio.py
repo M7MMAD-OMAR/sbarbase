@@ -103,7 +103,7 @@ class LifecycleTests(unittest.TestCase):
         # Neither listens where another environment's code runs: Studio binds only its address on
         # the session network, and postgres-meta binds loopback inside Studio's namespace.
         self.assertEqual(ui_network, studio.session_network(E))
-        self.assertEqual(ui_options, {'address': '10.0.0.2', 'attach': (studio.runtime.NETWORK,)})
+        self.assertEqual(ui_options, {'address': '10.0.0.2', 'attach': (studio.runtime.NETWORK,), 'health': studio.STUDIO_HEALTH})
         self.assertEqual(ui['HOSTNAME'], '10.0.0.2')
         self.assertEqual(meta_network, f'container:{studio.names(E)[0]}')
         self.assertEqual(meta_options, {})

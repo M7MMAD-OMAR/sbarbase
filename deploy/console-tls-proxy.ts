@@ -3,7 +3,13 @@
 // Usage:
 //   bun deploy/console-tls-proxy.ts --cert PATH --key PATH \
 //       [--https-port 8443] [--http-port 8080] [--upstream http://127.0.0.1:PORT] \
-//       [--public-host console.example.com] [--max-body BYTES]
+//       [--public-host console.example.com] [--max-body BYTES] \
+//       [--studio-host studio-{id}.example.com]
+//
+// Only the public host, loopback names and, with --studio-host, an environment's Studio address
+// (src/control/studio-host.ts) are served; any other host is refused with 421, so a wildcard
+// DNS record pointing other names here never shows the console under them. A Studio address is
+// passed on with its own Host, which is how the console tells Studio requests apart.
 //
 // It terminates HTTPS in front of the loopback console, redirects plain HTTP to
 // HTTPS, and adds the transport security headers. It refuses to start unless the
@@ -15,6 +21,7 @@
 // deployment has one configuration that is exercised by the test suite.
 
 import {statSync} from 'node:fs';
+import {studioHosts, type StudioHosts} from '../src/control/studio-host';
 
 type Options = {
   cert: string;
@@ -24,6 +31,7 @@ type Options = {
   upstream: string;
   publicHost: string;
   maxBody: number;
+  studio?: StudioHosts;
 };
 
 // Bodies up to this size are read whole before they are forwarded.
@@ -43,6 +51,23 @@ function validatedHost(value: string | null): string | null {
   if (!value) return null;
   return VALID_HOST.test(value) ? value : null;
 }
+
+function publicStudio(template: string): StudioHosts {
+  const hosts = studioHosts(template);
+  if (!hosts.public) throw new Error('--studio-host must be a public pattern such as studio-{id}.example.com');
+  return hosts;
+}
+
+/** What a request's Host is: the console, an environment's Studio, or nothing to serve. */
+function classify(host: string | null, publicHost: string, studio?: StudioHosts): {kind: 'console'} | {kind: 'studio'; host: string} | null {
+  const value = validatedHost(host);
+  if (!value) return null;
+  const name = value.replace(/:\d+$/, '').toLowerCase();
+  if (name === publicHost.replace(/:\d+$/, '').toLowerCase() || ['127.0.0.1', 'localhost'].includes(name)) return {kind: 'console'};
+  if (studio?.runtime(name)) return {kind: 'studio', host: name};
+  return null;
+}
+const misdirected = () => new Response('This address is not served here.', {status: 421, headers: {'content-type': 'text/plain', 'cache-control': 'no-store'}});
 
 function parseArguments(argv: string[]): Options {
   const values: Record<string, string> = {};
@@ -68,6 +93,7 @@ function parseArguments(argv: string[]): Options {
     upstream: values.upstream ?? '',
     publicHost: values['public-host'],
     maxBody: Number(values['max-body'] ?? MAX_BODY_DEFAULT),
+    studio: values['studio-host'] ? publicStudio(values['studio-host']) : undefined,
   };
 }
 
@@ -220,7 +246,12 @@ const secure = Bun.serve<Bridge>({
   },
   async fetch(request, server) {
     const url = new URL(request.url);
-    if (request.headers.get('upgrade')?.toLowerCase() === 'websocket' && REALTIME_SOCKET.test(url.pathname)) {
+    const served = classify(request.headers.get('host'), options.publicHost, options.studio);
+    if (!served) {
+      console.log('MISDIRECTED ' + url.pathname);
+      return misdirected();
+    }
+    if (served.kind === 'console' && request.headers.get('upgrade')?.toLowerCase() === 'websocket' && REALTIME_SOCKET.test(url.pathname)) {
       const target = upstream.replace(/^http:/, 'ws:') + url.pathname + url.search;
       if (server.upgrade(request, {data: {target, queue: []}})) {
         console.log('WEBSOCKET ' + url.pathname);
@@ -251,6 +282,8 @@ const secure = Bun.serve<Bridge>({
         headers: {
           ...Object.fromEntries([...request.headers].filter(([name]) => !STRIP_HEADERS.has(name.toLowerCase()))),
           ...headers,
+          // A Studio address goes on as the Host the console routes by; checked above against the pattern.
+          ...(served.kind === 'studio' ? {host: served.host, 'x-forwarded-host': served.host} : {}),
         },
         body,
         redirect: 'manual',
@@ -275,10 +308,13 @@ const redirect = Bun.serve({
   hostname: '127.0.0.1',
   fetch(request) {
     const url = new URL(request.url);
-    // Only the configured public host is used: an attacker supplied Host header
-    // must never become the redirect target.
+    // Only the configured public host, or a Studio address that matches the pattern, is used: an
+    // attacker supplied Host header must never become the redirect target.
+    const served = classify(request.headers.get('host'), options.publicHost, options.studio);
+    if (!served) return misdirected();
     console.log('REDIRECT ' + url.pathname);
-    return new Response(null, {status: 308, headers: {location: 'https://' + options.publicHost + url.pathname + url.search}});
+    const host = served.kind === 'studio' ? served.host : options.publicHost;
+    return new Response(null, {status: 308, headers: {location: 'https://' + host + url.pathname + url.search}});
   },
 });
 

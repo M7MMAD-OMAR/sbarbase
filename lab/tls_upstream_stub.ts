@@ -22,6 +22,11 @@ const server = Bun.serve({
         headers: {'content-type': 'text/plain'},
       });
     }
+    if (url.pathname === '/echo-real-host') {
+      return new Response(request.headers.get('host') ?? 'none', {
+        headers: {'content-type': 'text/plain'},
+      });
+    }
     if (url.pathname === '/echo-host') {
       return new Response(request.headers.get('x-forwarded-host') ?? 'none', {
         headers: {'content-type': 'text/plain'},

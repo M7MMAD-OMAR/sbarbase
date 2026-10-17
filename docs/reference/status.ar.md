@@ -213,7 +213,7 @@
 | سكربت استلام الخادم من أوله إلى آخره، مع تثبيت الوحدة بصلاحيات root | [server-acceptance-latest.json](../evidence/server-acceptance-latest.json) | 13 |
 | تجربة النشر، دورة حياة المصدر والهدف | [deployment-rehearsal.json](../evidence/deployment-rehearsal.json) | 11 |
 | المسار الخاضع للإشراف تحت systemd | [supervised-run.json](../evidence/supervised-run.json) | 10 |
-| إنهاء TLS | [tls-termination.json](../evidence/tls-termination.json) | 23 |
+| إنهاء TLS | [tls-termination.json](../evidence/tls-termination.json) | 27 |
 | مكان تشغيل هدف الاستعادة | [target-placement-rehearsal.json](../evidence/target-placement-rehearsal.json) | 12 |
 | الصور مثبّتة الإصدار موجودة ومطابقة لبصماتها | [pinned-images.json](../evidence/pinned-images.json) | 5 تثبيتات |
 

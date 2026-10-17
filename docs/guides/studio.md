@@ -8,14 +8,33 @@ Each environment can open the original Supabase Studio: the table editor, the SQ
 
 1. Sign in and create a project. Sbarbase creates **production** and opens a waiting tab from your Create action.
 2. Production is provisioned, then Studio is started and opened automatically in that tab. The console stays open. **Stay in console**, or closing the waiting tab, cancels the automatic dashboard opening.
-3. An existing project shows **Open Supabase dashboard**. Press it once to start Studio when needed and enter its original full page on `<id>.studio.localhost`, using the console port and sign-in. No custom bar or iframe is added to native Studio.
+3. An existing project shows **Open Supabase dashboard**. Press it once to start Studio when needed and enter its original full page on the environment's own Studio address, using your console sign-in. No custom bar or iframe is added to native Studio.
 4. **Connection details** opens environment settings. **Database connection** includes **Stop dashboard** and direct database controls. **Sign-in settings** configures the self-hosted Auth service; native user management remains in Studio.
 
 If the browser blocks the waiting tab, the dashboard is prepared and the console offers the normal Open button. If startup fails, the temporary tab closes and a retryable error stays in the console. **Retry dashboard status** recovers a failed status request. If provisioning fails, use **Retry** in the environment row. These retries do not create another project. The default production name does not certify deployment readiness.
 
 Only owners and admins of the client can start, open or stop Studio. Viewers do not see it.
 
-On a server, reach the console through an SSH tunnel (`ssh -L 8790:127.0.0.1:8790 your-server`) as the [Docker guide](docker.md) shows. Browsers send every `*.localhost` name to your own machine, so the Studio tab goes through the same tunnel with no extra setup.
+## Open it from anywhere
+
+By default Studio's address is `<id>.studio.localhost`, which every browser sends to its own machine. So it works on your computer, or on a server through an SSH tunnel (`ssh -N -L 8790:127.0.0.1:8790 you@your-server`, then open `http://localhost:8790`), as the [Docker guide](docker.md) shows. From the console's public address, the console says this instead of opening a tab the browser cannot reach.
+
+To open Studio from the public address, give each environment a public Studio address:
+
+1. **DNS.** Add a wildcard record that points at the server, for example `*` as a proxied CNAME to the console's host in Cloudflare. Named records keep working; any other name reaches Sbarbase, which refuses it.
+2. **Certificate.** The certificate the TLS proxy serves must cover the Studio names too, for example a Cloudflare origin certificate for `console.example.com` and `*.example.com`.
+3. **Sbarbase.** Set `SBARBASE_STUDIO_HOST=studio-{id}.example.com` in the service ([configuration](../reference/configuration.md)), and give the TLS proxy the same pattern with `--studio-host studio-{id}.example.com` ([server deployment](server-deployment.md)). Restart both.
+
+Each environment then opens Studio on its own address, such as `studio-<24 hex>.example.com`. The proxy passes only names that match the pattern and refuses every other name with 421, so the wildcard never shows the console under another name. To undo it, remove the setting and the proxy flag, and delete the DNS record.
+
+Good to know:
+
+- The two patterns, `SBARBASE_STUDIO_HOST` and `--studio-host`, must be the same.
+- Studio is reached on port 443; a public address on another port is not supported.
+- With a proxying CDN such as Cloudflare in front, the CDN terminates TLS and sees Studio's traffic, as it sees the console's.
+- A request that another site starts is refused, except a plain page visit, which lands on the project home without its query, so a link cannot open the SQL editor with SQL already in it.
+
+On Supabase's cloud the dashboard is Studio itself, built for many projects. The Studio image a server runs serves one project at the root of its own address, which is why each environment has its own Studio address and opens in its own tab.
 
 ## What it can do
 
@@ -32,7 +51,8 @@ Studio's Logs, Realtime and Edge Functions pages expect Supabase's own platform 
 ## How it is kept safe
 
 - Every environment has its own Studio address, and a session for one never opens another.
-- The console gives a one-minute ticket; the ticket becomes an eight-hour session cookie for that address only. Without it, nothing reaches Studio.
+- The console gives a one-minute ticket that works once; it becomes an eight-hour session cookie for that address only, HttpOnly, and on a public address `Secure` with the `__Host-` prefix, so no sibling site can set or read it. Without it, nothing reaches Studio.
+- A request that changes something must come from that Studio's own page (its `Origin`); a page on another site of the same domain is refused.
 - Changing MFA policy or logging out revokes dashboard sessions through the actor epoch.
 - Losing the owner or admin role closes access on the next request.
 - Studio signs in to the database with its own login, which exists only while Studio runs and gets a new password on every start. It is not a superuser and owns nothing.

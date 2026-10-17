@@ -31,6 +31,8 @@ ROOT=Path(__file__).resolve().parent.parent
 EVIDENCE=ROOT/'docs'/'evidence'/'tls-termination.json'
 BUILD=ROOT/'.lab'/'ui'
 PUBLIC_HOST='console.example.com'
+STUDIO_PATTERN='studio-{id}.example.com'
+STUDIO_HOST='studio-'+'0123456789abcdef01234567'+'.example.com'
 CONTEXT=ssl._create_unverified_context()
 
 
@@ -187,7 +189,7 @@ def main():
         https_port,http_port=[str(port) for port in free_ports(2)]
         proxy,proxy_match,proxy_log=start(['bun','deploy/console-tls-proxy.ts','--cert',str(certificate),'--key',str(key),
                                            '--upstream','http://127.0.0.1:'+stub_port,
-                                           '--public-host',PUBLIC_HOST,
+                                           '--public-host',PUBLIC_HOST,'--studio-host',STUDIO_PATTERN,
                                            '--https-port',https_port,'--http-port',http_port],
                                           re.compile(r'https://127\.0\.0\.1:'+https_port))
         record('proxy announced its HTTPS port',proxy_match is not None,str(proxy_log[-1:]))
@@ -219,9 +221,14 @@ def main():
         status,_,body=fetch(base+'/echo-forwarded',CONTEXT)
         record('the proxy tells the upstream the original protocol was https',body.strip()==b'https',body[:40])
 
+        status,_,body=fetch(base+'/echo-host',CONTEXT,headers={'Host':PUBLIC_HOST})
+        record('the upstream is told the configured public host',body.strip()==PUBLIC_HOST.encode(),body[:60])
         status,_,body=fetch(base+'/echo-host',CONTEXT,headers={'Host':'evil.example.net'})
-        record('a client supplied Host header cannot override the configured public host',
-               body.strip()==PUBLIC_HOST.encode(),body[:60])
+        record('a client supplied Host header is refused, never served as the console',status==421,f'status {status}')
+        status,_,body=fetch(base+'/echo-real-host',CONTEXT,headers={'Host':STUDIO_HOST})
+        record('an environment Studio address is passed on with its own host',status==200 and body.strip()==STUDIO_HOST.encode(),body[:80])
+        status,_,body=fetch(base+'/echo-real-host',CONTEXT,headers={'Host':'studio-not-an-id.example.com'})
+        record('an address that only looks like a Studio address is refused',status==421,f'status {status}')
 
         if http_port:
             status,headers,_=fetch('http://127.0.0.1:'+http_port+'/some/path?x=1')
@@ -229,7 +236,10 @@ def main():
             record('plain HTTP is redirected to HTTPS',status==308 and location.startswith('https://'+PUBLIC_HOST),f'status {status} location {location}')
             status,headers,_=fetch('http://127.0.0.1:'+http_port+'/some/path',headers={'Host':'evil.example.net'})
             location=headers.get('Location','')
-            record('the redirect never points at a client supplied host',status==308 and location.startswith('https://'+PUBLIC_HOST),f'status {status} location {location}')
+            record('the redirect never points at a client supplied host',status==421 and not location,f'status {status} location {location}')
+            status,headers,_=fetch('http://127.0.0.1:'+http_port+'/project/default',headers={'Host':STUDIO_HOST})
+            location=headers.get('Location','')
+            record('plain HTTP to a Studio address is redirected to that address over HTTPS',status==308 and location=='https://'+STUDIO_HOST+'/project/default',f'status {status} location {location}')
 
         small_https,small_http=[str(port) for port in free_ports(2)]
         small,small_match,_=start(['bun','deploy/console-tls-proxy.ts','--cert',str(certificate),'--key',str(key),
