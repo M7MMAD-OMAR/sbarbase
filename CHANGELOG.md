@@ -6,9 +6,15 @@ All notable changes to sbarbase. The format follows Keep a Changelog and the
 project uses Semantic Versioning, which for a 0.x version means the interface may
 still change between releases.
 
-The declared package version is 0.5.1. Historical 0.1.0 and 0.2.0 entries retain their original scope. Later Docker and VM rehearsals are dated in [status](docs/reference/status.md); no independent public-server or production release acceptance is established.
+The declared package version is 0.5.2. Historical 0.1.0 and 0.2.0 entries retain their original scope. Later Docker and VM rehearsals are dated in [status](docs/reference/status.md); no independent public-server or production release acceptance is established.
 
 ## [Unreleased]
+
+## [0.5.2] - 2026-10-17
+
+### Fixed
+
+- A table an agent created through the MCP endpoint or `/v1` answered 404 to the app until PostgREST reloaded its schema some other way. After a migration or a query that may change data, the server now tells PostgREST to reload, as Supabase's database does. Found by an agent's live deploy on the real server.
 
 ## [0.5.1] - 2026-10-17
 

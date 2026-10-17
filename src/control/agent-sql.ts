@@ -29,6 +29,13 @@ export type SqlRunner={
 export const MAX_QUERY=1024*1024,MAX_RESULT=5*1024*1024;
 const STATEMENT_TIMEOUT='120s',DEADLINE_MS=130_000;
 
+/** PostgREST reads the schema once and keeps it; a table an agent just made would answer 404 to
+ * the app until something tells it to read again. Supabase's database does this with an event
+ * trigger; here the runner says so after anything that may have changed the schema. */
+async function reloadSchema(sql:SQL) {
+ try{await sql.unsafe("NOTIFY pgrst, 'reload schema'");}catch{}
+}
+
 function password(directory:string,runtime:string):string {
  if(!/^e_[a-f0-9]{24}$/.test(runtime))throw new SqlRefusal('Invalid environment');
  try {
@@ -164,10 +171,12 @@ export function developerSql(directory='.secrets/upstream/database',env:Record<s
     let rows:unknown[]|null=null;
     await sql.begin(async tx=>{rows=await cursor(tx,query,params);});
     if(rows)return rows;
-    if(params.length)return bounded(await sql.unsafe(query,params as any[]));
-    const results=await sql.unsafe(query).simple();
-    const last=Array.isArray(results)&&results.length&&Array.isArray(results[results.length-1])?results[results.length-1]:results;
-    return bounded(last);
+    try {
+     if(params.length)return bounded(await sql.unsafe(query,params as any[]));
+     const results=await sql.unsafe(query).simple();
+     const last=Array.isArray(results)&&results.length&&Array.isArray(results[results.length-1])?results[results.length-1]:results;
+     return bounded(last);
+    } finally {await reloadSchema(sql);}
    });
   },
   async migrations(target) {
@@ -199,6 +208,7 @@ export function developerSql(directory='.secrets/upstream/database',env:Record<s
      await tx.unsafe(query).simple();
      await tx`INSERT INTO supabase_migrations.schema_migrations(version, statements, name) VALUES (${version}, ARRAY[${query}::text], ${name})`;
     });
+    await reloadSchema(sql);
     return {version};
    });
   },
