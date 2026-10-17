@@ -6,9 +6,15 @@ All notable changes to sbarbase. The format follows Keep a Changelog and the
 project uses Semantic Versioning, which for a 0.x version means the interface may
 still change between releases.
 
-The declared package version is 0.3.0. Historical 0.1.0 and 0.2.0 entries retain their original scope. Later Docker and VM rehearsals are dated in [status](docs/reference/status.md); no independent public-server or production release acceptance is established.
+The declared package version is 0.3.1. Historical 0.1.0 and 0.2.0 entries retain their original scope. Later Docker and VM rehearsals are dated in [status](docs/reference/status.md); no independent public-server or production release acceptance is established.
 
 ## [Unreleased]
+
+## [0.3.1] - 2026-10-17
+
+### Fixed
+
+- **0.3.0 could not be installed through the update channel.** Its manifest declared the Auth and Storage schema migrations as data migrations, which puts a release outside the channel entirely. Those migrations are already detected from the pin changes and need the operator's confirmation (`attended`); 0.3.1 declares none and carries the same code as 0.3.0. The one-time database restart and the way back limit above four environments are in its notes.
 
 ## [0.3.0] - 2026-10-17
 

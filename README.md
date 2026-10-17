@@ -60,7 +60,7 @@ Reader guides and references are in English and Arabic. The dated engineering no
 
 ## Status
 
-The current version is 0.3.0 ([changelog](CHANGELOG.md)). It runs on a real server with up to eight environments, encrypted off-site backups whose restore was tried there, and notifications by Telegram. Docker install and VM rehearsals have scoped passing evidence. Production acceptance remains open. What works, with every number, is in [status](docs/reference/status.md).
+The current version is 0.3.1 ([changelog](CHANGELOG.md)). It runs on a real server with up to eight environments, encrypted off-site backups whose restore was tried there, and notifications by Telegram. Docker install and VM rehearsals have scoped passing evidence. Production acceptance remains open. What works, with every number, is in [status](docs/reference/status.md).
 
 Current work is the [upstream currency plan](docs/engineering/plans/2026-10-14-upstream-currency.md); longer-term priorities are in the [product and portability plan](docs/engineering/plans/2026-10-03-product-and-portability-plan.md), with the [execution contract](docs/engineering/plans/2026-10-03-gauntlet-execution-method.md) defining how each claim is verified.
 
