@@ -1,5 +1,5 @@
 /** How long a password sign-in may keep a management session alive. One value for every enforcement point. */
-export const DEFAULT_MANAGEMENT_SESSION_SECONDS=43200;
+export const DEFAULT_MANAGEMENT_SESSION_SECONDS=2592000;
 export const MIN_MANAGEMENT_SESSION_SECONDS=3600;
 export const MAX_MANAGEMENT_SESSION_SECONDS=2592000;
 

@@ -57,8 +57,9 @@ class OptionalMfaAuthority(unittest.TestCase):
             self.check(now=1200)
         self.value['identity']['expiresAt'] = 60000
         self.db.execute('UPDATE management_password_grant SET expires=60000')
-        with self.assertRaises(ValueError):
-            self.check(now=44100)
+        with patch.dict(os.environ, {'SBARBASE_MANAGEMENT_SESSION_SECONDS': '43200'}):
+            with self.assertRaises(ValueError):
+                self.check(now=44100)
 
     def test_configured_password_window_does_not_override_revocation(self):
         self.value['identity']['expiresAt'] = 100000
