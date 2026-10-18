@@ -529,6 +529,7 @@ class TelegramTests(NotificationCase):
         self.assertEqual(message['chat_id'], '-1001234567890')
         self.assertIn('not created', message['text'])
         self.assertNotIn('provision.capacity_refused', message['text'])
+        self.assertIn('Where: ', message['text'])
         self.assertNotIn(self.TOKEN.split(':')[1], message['text'])
         self.assertEqual(self.rows("SELECT state FROM notification_delivery WHERE channel='telegram'"),
                          [('delivered',)])
@@ -630,10 +631,11 @@ class TelegramPlainTextTests(unittest.TestCase):
         for kind in notify.KINDS:
             with self.subTest(kind=kind):
                 text = notify.telegram_text(self.envelope(kind))
-                self.assertIn(kind, notify.PLAIN_HEADLINE)
+                self.assertIn(kind, notify.PLAIN)
                 for technical in (kind, 'runtime_failed', 'provisioning_outcome', 'e-1', 'd-1', 'reason_class', 'occurrences:'):
                     self.assertNotIn(technical, text)
-                self.assertTrue('What to do:' in text or 'Nothing to do.' in text)
+                self.assertIn('What to do:', text)
+                self.assertNotIn('Nothing to do.', text)
 
     def test_names_cause_and_advice_are_given(self):
         text = notify.telegram_text(self.envelope('provision.capacity_refused', reason='memory_headroom'),
@@ -645,10 +647,27 @@ class TelegramPlainTextTests(unittest.TestCase):
         self.assertIn('2026-10-18 09:30 UTC', text)
 
     def test_repeats_are_said_in_words_and_unknown_kinds_fall_back(self):
-        self.assertIn('3 times', notify.telegram_text(self.envelope('worker.restart', occurrences=3)))
+        self.assertIn('3 times in a short while', notify.telegram_text(self.envelope('worker.restart', occurrences=3)))
         text = notify.telegram_text(self.envelope('k'))
         self.assertIn('fixed summary', text)
         self.assertIn('fixed action', text)
+
+    def test_every_kind_has_a_plain_row_and_no_row_is_stale(self):
+        self.assertEqual(set(notify.PLAIN), set(notify.KINDS))
+
+    def test_the_service_the_cause_and_the_disk_are_named(self):
+        text = notify.telegram_text(self.envelope('runtime.container_stopped'), {'container': 'rest', 'minutes': 7})
+        self.assertIn('called rest and has been down for about 7 minutes', text)
+        text = notify.telegram_text(self.envelope('notifier.channel_failed', reason='webhook_unreachable'),
+                                    {'channel': 'webhook', 'last_error': 'webhook_unreachable'})
+        self.assertIn('webhook channel failed: the address could not be reached', text)
+        self.assertIn('Docker keeps its data', notify.telegram_text(
+            self.envelope('host.disk_low'), {'filesystem': 'docker', 'available_mib': 1, 'percent': 3}))
+
+    def test_a_catalog_without_the_name_tables_yields_no_names(self):
+        database = notify.sqlite3.connect(':memory:')
+        self.assertEqual(notify.subject_names(database, {'organization': 'o'}), {})
+        self.assertEqual(notify.subject_names(database, {}), {})
 
     def test_a_name_shaped_like_a_credential_is_left_out(self):
         database = notify.sqlite3.connect(':memory:')

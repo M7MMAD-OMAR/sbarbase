@@ -10,6 +10,10 @@ The declared package version is 0.5.4. Historical 0.1.0 and 0.2.0 entries retain
 
 ## [Unreleased]
 
+### Changed
+
+- **Telegram notifications are in plain words.** A message says what happened, where (by name), the likely cause and what to do, without ids, field names or reason codes. Email, the webhook and the catalog keep the full record ([OPERATOR-NOTIFICATIONS](docs/engineering/OPERATOR-NOTIFICATIONS.md), section 3.6).
+
 ## [0.5.4] - 2026-10-18
 
 ### Changed
