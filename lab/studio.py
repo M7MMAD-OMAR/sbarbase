@@ -44,6 +44,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+import auth_settings
 import durable_runtime as runtime
 import image_identity
 import resource_policy
@@ -237,10 +238,17 @@ def open_network_retrying(e, attempts=3):
             time.sleep(1)
 
 
-def launch(name, tier, env, image, network, address=None, attach=()):
+# Studio listens only on its private address (HOSTNAME), so the image's own health check, which
+# asks 127.0.0.1:3000, always failed and showed the container as unhealthy while it served.
+STUDIO_HEALTH = ('--health-cmd', "node -e \"fetch('http://'+process.env.HOSTNAME+':3000/',{redirect:'manual'})"
+                 ".then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))\"",
+                 '--health-interval', '30s', '--health-timeout', '10s', '--health-retries', '3')
+
+
+def launch(name, tier, env, image, network, address=None, attach=(), health=()):
     """Create and start one container. ``network`` is the network it joins first, or
     ``container:<name>`` to share another container's namespace; ``attach`` lists the networks
-    joined before it starts."""
+    joined before it starts; ``health`` replaces the image's health check."""
     image = image_identity.immutable(image)
     result = lab.docker('image', 'inspect', image, check=False)
     if result.returncode:
@@ -256,7 +264,7 @@ def launch(name, tier, env, image, network, address=None, attach=()):
                    '--memory', flags['memory'], '--memory-swap', flags['memory'], '--cpus', str(flags['cpus']),
                    '--pids-limit', str(flags['pids']), '--cpu-shares', str(flags['shares']),
                    '--blkio-weight', str(flags['weight']), *resource_policy.io_flags(tier),
-                   '--log-opt', 'max-size=5m', '--log-opt', 'max-file=2', '--env-file', str(path), image)
+                   '--log-opt', 'max-size=5m', '--log-opt', 'max-file=2', *health, '--env-file', str(path), image)
     finally:
         # The container holds its environment now; nothing keeps the session password on disk.
         path.unlink(missing_ok=True)
@@ -376,9 +384,9 @@ def up(e):
                     'PG_META_CRYPTO_KEY': crypto, 'PGRST_DB_SCHEMAS': 'public', 'PGRST_DB_EXTRA_SEARCH_PATH': 'public',
                     'DEFAULT_ORGANIZATION_NAME': organization, 'DEFAULT_PROJECT_NAME': environment,
                     'SUPABASE_URL': f'http://{network_gateway()}:{UPSTREAM_PORT}/{e}',
-                    'SUPABASE_PUBLIC_URL': 'http://localhost', 'SUPABASE_ANON_KEY': anon, 'SUPABASE_SERVICE_KEY': service,
+                    'SUPABASE_PUBLIC_URL': auth_settings.public_url(), 'SUPABASE_ANON_KEY': anon, 'SUPABASE_SERVICE_KEY': service,
                     'AUTH_JWT_SECRET': values['jwt'], 'ENABLED_FEATURES_LOGS_ALL': 'false', 'NEXT_TELEMETRY_DISABLED': '1'},
-                    image['studio'], session_network(e), address=address, attach=(runtime.NETWORK,))
+                    image['studio'], session_network(e), address=address, attach=(runtime.NETWORK,), health=STUDIO_HEALTH)
                 shared = isolated(item, e, address)
                 launch(meta, 'operator.meta', {
                     'PG_META_HOST': '127.0.0.1', 'PG_META_PORT': '8080',

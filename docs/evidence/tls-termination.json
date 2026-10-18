@@ -1,16 +1,16 @@
 {
  "scope": "TLS termination check: a self-signed certificate, deploy/console-tls-proxy.ts terminating HTTPS in front of a stub upstream that serves the real built console page, HTTP to HTTPS redirection, the transport security headers, the proxy's handling of attacker supplied hosts and oversized bodies, and its own refusals. Not a public certificate, not a running installation, not the operator's chosen proxy (nginx, Caddy, the platform proxy).",
- "run_at": "2026-09-20T19:24:50+04:00",
+ "run_at": "2026-10-17T19:24:55+04:00",
  "checks": [
   {
    "check": "stub upstream serving the real built page",
    "ok": true,
-   "detail": "['{\"port\":45097}']"
+   "detail": "['{\"port\":40439}']"
   },
   {
    "check": "proxy announced its HTTPS port",
    "ok": true,
-   "detail": "['TLS termination: https://127.0.0.1:38635 -> http://127.0.0.1:45097']"
+   "detail": "['TLS termination: https://127.0.0.1:44461 -> http://127.0.0.1:40439']"
   },
   {
    "check": "proxy binds the HTTPS and the redirect port it was given",
@@ -20,7 +20,7 @@
   {
    "check": "the built page is served over HTTPS unchanged",
    "ok": true,
-   "detail": "status 200 bytes 516 vs 516"
+   "detail": "status 200 bytes 797 vs 797"
   },
   {
    "check": "HTTPS carries the transport security header",
@@ -48,9 +48,24 @@
    "detail": "b'https'"
   },
   {
-   "check": "a client supplied Host header cannot override the configured public host",
+   "check": "the upstream is told the configured public host",
    "ok": true,
    "detail": "b'console.example.com'"
+  },
+  {
+   "check": "a client supplied Host header is refused, never served as the console",
+   "ok": true,
+   "detail": "status 421"
+  },
+  {
+   "check": "an environment Studio address is passed on with its own host",
+   "ok": true,
+   "detail": "b'studio-0123456789abcdef01234567.example.com'"
+  },
+  {
+   "check": "an address that only looks like a Studio address is refused",
+   "ok": true,
+   "detail": "status 421"
   },
   {
    "check": "plain HTTP is redirected to HTTPS",
@@ -60,7 +75,12 @@
   {
    "check": "the redirect never points at a client supplied host",
    "ok": true,
-   "detail": "status 308 location https://console.example.com/some/path"
+   "detail": "status 421 location "
+  },
+  {
+   "check": "plain HTTP to a Studio address is redirected to that address over HTTPS",
+   "ok": true,
+   "detail": "status 308 location https://studio-0123456789abcdef01234567.example.com/project/default"
   },
   {
    "check": "a declared body over the limit is answered 413 without being read",
@@ -115,9 +135,9 @@
   {
    "check": "both ports are released after shutdown",
    "ok": true,
-   "detail": "https 38635 http 37059"
+   "detail": "https 44461 http 32897"
   }
  ],
- "count": 23,
+ "count": 27,
  "passed": true
 }

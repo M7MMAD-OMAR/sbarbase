@@ -38,7 +38,7 @@ export function AccessTokens({request,organizations}:{request:Api;organizations:
    <div className="form-row"><button onClick={()=>{setCreated(undefined);setCopied('');}}>I have saved the token</button></div></section>}
   <p className="small muted" role="status">{copied}</p>
   <section className="details"><h2>New token</h2>
-   <p className="small notice"><ShieldAlert aria-hidden="true"/> A token can do what you can do in its scope: create projects, read and change data, deploy code. Give each agent its own token, prefer one project and read only when that is enough, and revoke a token you no longer use.</p>
+   <p className="small callout"><ShieldAlert aria-hidden="true"/> A token can do what you can do in its scope: create projects, read and change data, deploy code. Give each agent its own token, prefer one project and read only when that is enough, and revoke a token you no longer use.</p>
    <form onSubmit={create}>
     <label htmlFor="token-name">Name</label><input id="token-name" value={name} maxLength={64} placeholder="Claude Code on my laptop" onChange={event=>setName(event.target.value)} required/>
     <label htmlFor="token-scope">Can reach</label>

@@ -306,16 +306,18 @@ in the proxy, not in the console build.
 Studio exists as an optional per-environment feature in the legacy shared-engine
 workflow, with separately scoped CI evidence. Its proxy and authentication
 requirements remain essential; native-dedicated Studio is not accepted by that
-legacy result. Each environment's Studio is a second upstream behind the same
-reverse proxy. The shipped proxy terminates exactly one upstream, so it needs a
-second upstream and a host allowlist, or the operator brings their own proxy or an
+legacy result. Each environment's Studio has its own address. The shipped proxy
+serves them with `--studio-host studio-{id}.example.com` (the same pattern as
+`SBARBASE_STUDIO_HOST`), passing only names that match it with their own host, after a
+wildcard DNS record and a certificate that covers it are in place
+([Studio](studio.md#open-it-from-anywhere)); without it, Studio is reached through an
 SSH tunnel. Studio has no login of its own and its pages carry a database connection
 string, so it must never be reachable unauthenticated, and it must not ride the data
 plane's route pattern. [Integration specification](../engineering/STUDIO-INTEGRATION.md), sections 4
 and 5, covers the gate and the routing options.
 
 A reference termination ships with the repository and is exercised by the check
-(`/usr/bin/python3 lab/tls_termination_check.py`, 23 checks,
+(`/usr/bin/python3 lab/tls_termination_check.py`, 27 checks,
 `docs/evidence/tls-termination.json`). It needs only Bun and a certificate:
 
 Pin the console's loopback port first, so the proxy's upstream survives restarts
@@ -354,7 +356,9 @@ with a 308 redirect to HTTPS, adds `Strict-Transport-Security`,
 `X-Forwarded-Host`, and logs only method, path and status: never bodies, query
 strings, cookies or credentials. The forwarding headers carry `--public-host`,
 never the client's own `X-Forwarded-*` or `Host` values, which are dropped
-before the request reaches the console.
+before the request reaches the console. It serves only `--public-host`, loopback
+names and Studio addresses that match `--studio-host`, and answers any other host
+with 421, so a wildcard DNS record never shows the console under another name.
 
 Its own hardening is part of the checks: the redirect and the forwarded host come
 from `--public-host`, never from the client's `Host` header (an attacker supplied

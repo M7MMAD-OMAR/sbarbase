@@ -221,7 +221,7 @@ These runs found five defects, all fixed with tests: the acceptance waited for t
 | Server acceptance script, end to end, unit installed as root | [server-acceptance-latest.json](../evidence/server-acceptance-latest.json) | 13 |
 | Deployment rehearsal, source and target lifecycle | [deployment-rehearsal.json](../evidence/deployment-rehearsal.json) | 11 |
 | Supervised path under systemd | [supervised-run.json](../evidence/supervised-run.json) | 10 |
-| TLS termination | [tls-termination.json](../evidence/tls-termination.json) | 23 |
+| TLS termination | [tls-termination.json](../evidence/tls-termination.json) | 27 |
 | Recovery target placement | [target-placement-rehearsal.json](../evidence/target-placement-rehearsal.json) | 12 |
 | Pinned images present and matching digests | [pinned-images.json](../evidence/pinned-images.json) | 5 pins |
 

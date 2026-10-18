@@ -29,7 +29,9 @@ class InterfaceTests(unittest.TestCase):
         from pathlib import Path
         proxy=(Path(__file__).resolve().parent.parent/'deploy'/'console-tls-proxy.ts').read_text()
         self.assertIn("for (const required of ['cert', 'key', 'public-host'])",proxy)
-        self.assertIn("location: 'https://' + options.publicHost",proxy)
+        self.assertIn("const host = served.kind === 'studio' ? served.host : options.publicHost;",proxy)
+        self.assertIn("location: 'https://' + host",proxy)
+        self.assertIn('if (!served) return misdirected();',proxy)
         self.assertNotIn("request.headers.get('host') ?? 'localhost'",proxy)
 
     def test_hop_by_hop_headers_are_never_forwarded(self):

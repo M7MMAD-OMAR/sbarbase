@@ -41,11 +41,13 @@ async function finish(){
 }
 
 /** A request to the console's listener with a chosen Host, as a browser on the server sends it. */
-function studio(host:string,path:string,options:{method?:string;cookie?:string;body?:unknown}={}):Promise<{status:number;headers:Record<string,string|string[]|undefined>;text:string}> {
+function studio(host:string,path:string,options:{method?:string;cookie?:string;body?:unknown;origin?:string|null}={}):Promise<{status:number;headers:Record<string,string|string[]|undefined>;text:string}> {
  return new Promise((resolve,reject)=>{
   const body=options.body===undefined?undefined:JSON.stringify(options.body);
   const request=httpRequest({host:'127.0.0.1',port:Number(port),path,method:options.method??'GET',
-   headers:{host:`${host}:${port}`,...(options.cookie?{cookie:options.cookie}:{}),...(body?{'content-type':'application/json','content-length':Buffer.byteLength(body)}:{})}},
+   // A browser sends its page's Origin with every write; Studio refuses a write from any other.
+   headers:{host:`${host}:${port}`,...(options.cookie?{cookie:options.cookie}:{}),...(body?{'content-type':'application/json','content-length':Buffer.byteLength(body)}:{}),
+    ...(options.origin===null?{}:options.method&&options.method!=='GET'?{origin:options.origin??`http://${host}:${port}`}:{})}},
    response=>{let text='';response.setEncoding('utf8');response.on('data',part=>text+=part);
     response.on('end',()=>resolve({status:response.statusCode??0,headers:response.headers,text}));});
   request.on('error',reject);request.setTimeout(60_000,()=>request.destroy(new Error('timeout')));
@@ -99,6 +101,10 @@ try {
  record('the project page loads',page.status===200&&page.text.includes('<'),`status ${page.status}`);
  const tables=await studio(host,'/api/platform/pg-meta/default/tables?included_schemas=public',{cookie});
  record('the table list reads the environment database',tables.status===200&&tables.text.startsWith('['),`status ${tables.status}${tables.status===200?'':' '+tables.text.slice(0,300)}`);
+ const foreign=await studio(host,'/api/platform/pg-meta/default/query',{method:'POST',cookie,origin:'http://localhost:'+port,body:{query:'select 1'}});
+ record('Studio refuses a write sent from another origin',foreign.status===403,`status ${foreign.status}`);
+ const replay=await studio(host,session.json.path);
+ record('the ticket works only once',replay.status===401,`status ${replay.status}`);
  const users=await studio(host,'/api/platform/pg-meta/default/query',{method:'POST',cookie,body:{query:'select count(*)::int as n from auth.users'}});
  const count=users.status===200?(JSON.parse(users.text)[0]?.n??-1):-1;
  record('the SQL editor sees the environment users despite row security',count>=1,`${count} user(s)${users.status===200?'':' '+users.text.slice(0,300)}`);

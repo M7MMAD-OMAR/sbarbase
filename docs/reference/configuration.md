@@ -146,6 +146,7 @@ Set these in `compose.yaml` (Docker) or as `Environment=` lines of the systemd s
 
 | Variable | Default | Meaning |
 |---|---|---|
+| `SBARBASE_STUDIO_HOST` | `{id}.studio.localhost` | Each environment's Studio address, with `{id}` for its 24 hex characters, such as `studio-{id}.example.com`. The default works through an SSH tunnel; a public pattern needs a wildcard DNS record, a certificate that covers it and the same pattern given to the TLS proxy as `--studio-host` ([Studio](../guides/studio.md#open-it-from-anywhere)). A change applies at the next start |
 | `SBARBASE_PUBLIC_URL` | `http://localhost` | The address people and OAuth providers reach this server at, such as `https://api.example.com`. Auth builds email links and OAuth callbacks from it. A change applies at the next start |
 | `SBARBASE_CONSOLE_PORT` | chosen at start | The loopback port of the console and API, for a TLS proxy |
 | `SBARBASE_BACKUP_HOUR` | `3` | Hour (UTC) of the daily backup; `off` stops it |

@@ -40,7 +40,7 @@ export function ApiKeysSection({path,request,canWrite}:{path:string;request:Api;
    {keys.loading?<Loading/>:table('publishable')}</section>
   <section className="keys-section"><div className="page-heading"><div><h2>Secret keys</h2><p className="muted small">For your server, scripts, Edge Functions and AI agents. A secret key acts as <code>service_role</code>: it bypasses row level security and can manage users.</p></div>
    {!naming&&<button onClick={()=>setNaming(true)} disabled={busy||!!raw}><KeyRound aria-hidden="true"/>Create secret key</button>}</div>
-   <p className="small notice"><ShieldAlert aria-hidden="true"/> Never put a secret key in a web page or a mobile app. Browsers are refused, and anyone holding the key can read and change all data. Give each server or agent its own key, so you can revoke one without the others.</p>
+   <p className="small callout"><ShieldAlert aria-hidden="true"/> Never put a secret key in a web page or a mobile app. Browsers are refused, and anyone holding the key can read and change all data. Give each server or agent its own key, so you can revoke one without the others.</p>
    {naming&&<form className="form-row" onSubmit={event=>{event.preventDefault();if(!nameError&&name)void issue('secret',name);}}>
     <label className="sr-only" htmlFor="secret-name">Key name</label>
     <input id="secret-name" value={name} autoComplete="off" spellCheck={false} placeholder="backend" aria-invalid={Boolean(nameError)} aria-describedby={nameError?'secret-name-error':undefined} onChange={event=>setName(event.target.value.trim())}/>

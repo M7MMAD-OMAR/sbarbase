@@ -6,9 +6,25 @@ All notable changes to sbarbase. The format follows Keep a Changelog and the
 project uses Semantic Versioning, which for a 0.x version means the interface may
 still change between releases.
 
-The declared package version is 0.5.2. Historical 0.1.0 and 0.2.0 entries retain their original scope. Later Docker and VM rehearsals are dated in [status](docs/reference/status.md); no independent public-server or production release acceptance is established.
+The declared package version is 0.5.3. Historical 0.1.0 and 0.2.0 entries retain their original scope. Later Docker and VM rehearsals are dated in [status](docs/reference/status.md); no independent public-server or production release acceptance is established.
 
 ## [Unreleased]
+
+## [0.5.3] - 2026-10-17
+
+### Added
+
+- **Studio from the public address.** `SBARBASE_STUDIO_HOST` sets each environment's Studio address as a pattern, such as `studio-{id}.example.com`, and the TLS proxy serves it with `--studio-host`. With a wildcard DNS record and a certificate that covers it, the console opens Studio on that address instead of `<id>.studio.localhost`, which only an SSH tunnel reaches ([Studio](docs/guides/studio.md#open-it-from-anywhere)). Until then, the console opened from its public address explains the tunnel instead of opening a tab the browser cannot reach.
+
+### Security
+
+- The TLS proxy serves only its public host, loopback names and matching Studio addresses, and answers any other host with 421, so a wildcard DNS record never shows the console under another name.
+- On a public address, Studio's session cookie is `__Host-` and `Secure`; a Studio entry ticket works once; a request that changes something must come from the Studio page itself; a request another site starts is refused, except a plain visit, which lands on the project home without its query.
+
+### Fixed
+
+- Studio containers no longer show as unhealthy while they serve: the image's own health check asked an address Studio does not listen on.
+- Notices on the Functions, Sign-in, Database, Environments and Updates pages kept their original look; a style added in 0.4.0 had changed it.
 
 ## [0.5.2] - 2026-10-17
 
