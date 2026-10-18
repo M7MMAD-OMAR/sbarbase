@@ -8,10 +8,10 @@ import {managementToken,sessionId,verifiedFactor} from './management-fixture';
 const original=process.env.SBARBASE_MANAGEMENT_SESSION_SECONDS;
 afterEach(()=>{if(original===undefined)delete process.env.SBARBASE_MANAGEMENT_SESSION_SECONDS;else process.env.SBARBASE_MANAGEMENT_SESSION_SECONDS=original;});
 
-test('the default is twelve hours when nothing is set',()=>{
+test('the default is thirty days when nothing is set',()=>{
  delete process.env.SBARBASE_MANAGEMENT_SESSION_SECONDS;
- expect(managementSessionSeconds()).toBe(43200);
- expect(DEFAULT_MANAGEMENT_SESSION_SECONDS).toBe(43200);
+ expect(managementSessionSeconds()).toBe(2592000);
+ expect(DEFAULT_MANAGEMENT_SESSION_SECONDS).toBe(2592000);
 });
 
 test('values inside the range are used exactly, including both ends',()=>{
@@ -21,12 +21,12 @@ test('values inside the range are used exactly, including both ends',()=>{
 
 test('anything malformed or out of range falls back to the default',()=>{
  for(const value of ['','  ','abc','1e5','-86400','3599','2592001','99999999','086400 ',' 86400','86400.5','0x10000','١٢٣٤٥٦٧'])
-  expect(managementSessionSeconds(value)).toBe(43200);
+  expect(managementSessionSeconds(value)).toBe(2592000);
 });
 
 test('the environment variable is read on each call',()=>{
  process.env.SBARBASE_MANAGEMENT_SESSION_SECONDS='7200';expect(managementSessionSeconds()).toBe(7200);
- process.env.SBARBASE_MANAGEMENT_SESSION_SECONDS='nonsense';expect(managementSessionSeconds()).toBe(43200);
+ process.env.SBARBASE_MANAGEMENT_SESSION_SECONDS='nonsense';expect(managementSessionSeconds()).toBe(2592000);
 });
 
 /** A signed-in password session whose password is `age` seconds old, with a token that is still unexpired. */
@@ -38,8 +38,11 @@ async function identityAged(age:number){
  return managementPasswordIdentity('http://realm.invalid','public',transport)(new Request('http://x/',{headers:{authorization:'Bearer '+token}}));
 }
 
-test('a password older than the default cap is refused unless the cap was raised',async()=>{
+test('the default keeps a sign-in for thirty days and a shorter cap ends it sooner',async()=>{
  delete process.env.SBARBASE_MANAGEMENT_SESSION_SECONDS;
+ expect((await identityAged(50000))?.actor).toBe('owner');
+ expect(await identityAged(2592000+60)).toBeNull();
+ process.env.SBARBASE_MANAGEMENT_SESSION_SECONDS='43200';
  expect(await identityAged(50000)).toBeNull();
  process.env.SBARBASE_MANAGEMENT_SESSION_SECONDS='2592000';
  expect((await identityAged(50000))?.actor).toBe('owner');
@@ -52,7 +55,7 @@ test('a lowered cap shortens sessions and an invalid value never lengthens them'
  expect(await identityAged(1000)).not.toBeNull();
  expect(await identityAged(4000)).toBeNull();
  process.env.SBARBASE_MANAGEMENT_SESSION_SECONDS='99999999999';
- expect(await identityAged(50000)).toBeNull();
+ expect(await identityAged(2592000+60)).toBeNull();
 });
 
 
@@ -64,7 +67,7 @@ test('remembered optional password sessions obey the configured cap and durable 
   const identity={actor:'owner',session:sessionId,aal:'aal1' as const,expiresAt:now+3600,passwordAt,verifiedAt:0,factors:[]};
   const security=catalog.managementSecurity;
   security.grantPassword('owner',sessionId,passwordAt,now+86400,security.epoch('owner'),security.policy().epoch);
-  delete process.env.SBARBASE_MANAGEMENT_SESSION_SECONDS;expect(hasManagementAccess(identity,security)).toBe(false);
+  process.env.SBARBASE_MANAGEMENT_SESSION_SECONDS='43200';expect(hasManagementAccess(identity,security)).toBe(false);
   process.env.SBARBASE_MANAGEMENT_SESSION_SECONDS='2592000';expect(hasManagementAccess(identity,security)).toBe(true);
   security.revoke('owner');expect(hasManagementAccess(identity,security)).toBe(false);
  }finally{catalog.close();}

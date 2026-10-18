@@ -1,4 +1,4 @@
-import {test,expect,spyOn} from 'bun:test';
+import {afterAll,beforeAll,test,expect,spyOn} from 'bun:test';
 import {databaseWorkflow,databaseTunnel,budgetStatus,connectionDiagnostic,type WorkflowEndpoint} from '../src/control/database-workflow';
 import {Catalog} from '../src/control/catalog';
 import {KeyStore} from '../src/control/keys';
@@ -10,6 +10,11 @@ import {mkdtempSync,rmSync,existsSync,readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {managementToken,sessionId,factorId,verifiedFactor} from './management-fixture';
+
+// These checks measure password age against a twelve hour cap, shorter than the thirty day default.
+const pinnedCap=process.env.SBARBASE_MANAGEMENT_SESSION_SECONDS;
+beforeAll(()=>{process.env.SBARBASE_MANAGEMENT_SESSION_SECONDS='43200';});
+afterAll(()=>{if(pinnedCap===undefined)delete process.env.SBARBASE_MANAGEMENT_SESSION_SECONDS;else process.env.SBARBASE_MANAGEMENT_SESSION_SECONDS=pinnedCap;});
 const runtime='e_'+'a'.repeat(24),other='e_'+'b'.repeat(24);
 const direct:WorkflowEndpoint={mode:'direct',host:'127.0.0.1',port:6543,user:runtime+'_developer',database:runtime,ready:true};
 const session:WorkflowEndpoint={...direct,mode:'session',port:5432,user:runtime+'_developer.'+runtime};

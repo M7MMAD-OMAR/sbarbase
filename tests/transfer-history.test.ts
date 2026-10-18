@@ -1,4 +1,4 @@
-import {afterEach,expect,spyOn,test} from 'bun:test';
+import {afterAll,afterEach,beforeAll,expect,spyOn,test} from 'bun:test';
 import type {Database} from 'bun:sqlite';
 import {createHash,randomUUID} from 'node:crypto';
 import {Catalog} from '../src/control/catalog';
@@ -6,6 +6,11 @@ import type {PasswordIdentity} from '../src/control/auth';
 import {TransferInventoryStore,type InventoryCandidate,type TransferInventoryPorts} from '../src/control/transfer-store';
 import {CurrentTransferHistoryQuery,type CurrentHistoryCapability,type CurrentHistoryProof,
  type TransferHistoryPorts,type TransferHistoryQuery} from '../src/control/transfer-history';
+
+// These checks measure password age against a twelve hour cap, shorter than the thirty day default.
+const pinnedCap=process.env.SBARBASE_MANAGEMENT_SESSION_SECONDS;
+beforeAll(()=>{process.env.SBARBASE_MANAGEMENT_SESSION_SECONDS='43200';});
+afterAll(()=>{if(pinnedCap===undefined)delete process.env.SBARBASE_MANAGEMENT_SESSION_SECONDS;else process.env.SBARBASE_MANAGEMENT_SESSION_SECONDS=pinnedCap;});
 
 // All identity and history authority callbacks below are fixture providers.
 // They prove source admission behavior only, never installed native retirement.
