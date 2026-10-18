@@ -1,4 +1,4 @@
-import {test,expect} from 'bun:test';
+import {afterAll,beforeAll,test,expect} from 'bun:test';
 import {mkdtempSync,rmSync,readFileSync,chmodSync,writeFileSync,readdirSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
@@ -9,6 +9,10 @@ import {runLifecycleOperation,type LifecycleAdapter} from '../src/control/lifecy
 import type {LifecycleResource} from '../src/control/lifecycle-contract';
 import {managementToken,factorId,otherFactorId,sessionId,verifiedFactor} from './management-fixture';
 
+// These checks measure password age against a twelve hour cap, shorter than the thirty day default.
+const pinnedCap=process.env.SBARBASE_MANAGEMENT_SESSION_SECONDS;
+beforeAll(()=>{process.env.SBARBASE_MANAGEMENT_SESSION_SECONDS='43200';});
+afterAll(()=>{if(pinnedCap===undefined)delete process.env.SBARBASE_MANAGEMENT_SESSION_SECONDS;else process.env.SBARBASE_MANAGEMENT_SESSION_SECONDS=pinnedCap;});
 const adapter:LifecycleAdapter=async input=>({outcome:input.action==='inspect'?'present':input.action==='quarantine'?'quarantined':
  ['restore','readiness'].includes(input.action)?'restored':'purged',reclaimedBytes:0,observedBytes:11});
 function fixture(){

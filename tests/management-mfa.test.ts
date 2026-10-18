@@ -1,4 +1,4 @@
-import {test,expect} from 'bun:test';
+import {afterAll,beforeAll,test,expect} from 'bun:test';
 import {mkdtempSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
@@ -7,6 +7,11 @@ import {KeyStore} from '../src/control/keys';
 import {application} from '../src/control/application';
 import {managementPasswordIdentity} from '../src/control/auth';
 import {managementToken,sessionId,factorId,otherFactorId,challengeId,verifiedFactor} from './management-fixture';
+
+// These checks measure password age against a twelve hour cap, shorter than the thirty day default.
+const pinnedCap=process.env.SBARBASE_MANAGEMENT_SESSION_SECONDS;
+beforeAll(()=>{process.env.SBARBASE_MANAGEMENT_SESSION_SECONDS='43200';});
+afterAll(()=>{if(pinnedCap===undefined)delete process.env.SBARBASE_MANAGEMENT_SESSION_SECONDS;else process.env.SBARBASE_MANAGEMENT_SESSION_SECONDS=pinnedCap;});
 
 const now=Math.floor(Date.now()/1000);
 const realm={auth:'http://realm.invalid',anonymousToken:'anon',publishableKey:'public'};

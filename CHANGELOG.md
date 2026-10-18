@@ -16,6 +16,7 @@ The declared package version is 0.5.4. Historical 0.1.0 and 0.2.0 entries retain
 
 ### Changed
 
+- **The console keeps you signed in for thirty days.** `SBARBASE_MANAGEMENT_SESSION_SECONDS` now defaults to 2592000 instead of 43200, so a sign-in no longer ends after twelve hours. Set a lower value to keep the old behaviour ([configuration](docs/reference/configuration.md)).
 - **Telegram notifications are in plain words.** A message says what happened, where (by name), the likely cause and what to do, without ids, field names or reason codes. Email, the webhook and the catalog keep the full record ([OPERATOR-NOTIFICATIONS](docs/engineering/OPERATOR-NOTIFICATIONS.md), section 3.6).
 
 ## [0.5.4] - 2026-10-18
