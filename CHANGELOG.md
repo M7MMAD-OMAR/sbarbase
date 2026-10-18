@@ -10,6 +10,10 @@ The declared package version is 0.5.4. Historical 0.1.0 and 0.2.0 entries retain
 
 ## [Unreleased]
 
+### Fixed
+
+- **No more Studio tab that never loads.** On a server whose Studio has no public address, opening the dashboard from the console's public address left a tab reading "Starting Supabase Studio" forever. The console now learns this from the Studio status before opening anything, shows the SSH tunnel steps and opens no tab; a tab already opened for a new project says what happened and closes ([Studio](docs/guides/studio.md)).
+
 ### Changed
 
 - **The console keeps you signed in for thirty days.** `SBARBASE_MANAGEMENT_SESSION_SECONDS` now defaults to 2592000 instead of 43200, so a sign-in no longer ends after twelve hours. Set a lower value to keep the old behaviour ([configuration](docs/reference/configuration.md)).
