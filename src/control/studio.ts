@@ -120,7 +120,7 @@ export function studioHandler(catalog:Catalog,identify:ManagementIdentity,key:()
     const ticket=signStudio(key(),{runtime:current.runtime,actor,expires:Date.now()+TICKET_MS,kind:'ticket',epoch:catalog.managementSecurity.epoch(actor),runtimeEpoch:catalog.runtimeEpoch(current.runtime),console:consoleAddress(request)});
     return answer(reply(201,{host:studioHost(current.runtime),public:hosts.public,path:'/__sbarbase/enter?ticket='+encodeURIComponent(ticket)}),current.runtime);
    }
-   if(request.method==='GET'){const data=catalog.studio(actor,environment!);return answer(reply(200,{data}),data.runtime);}
+   if(request.method==='GET'){const data=catalog.studio(actor,environment!);return answer(reply(200,{data,public:hosts.public}),data.runtime);}
    const next=catalog.requestStudio(actor,environment!,request.method==='POST'?'running':'stopped');
    return answer(reply(202,{data:next}),next.runtime);
   } catch(error) {

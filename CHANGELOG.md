@@ -10,6 +10,10 @@ The declared package version is 0.5.4. Historical 0.1.0 and 0.2.0 entries retain
 
 ## [Unreleased]
 
+### Fixed
+
+- **No more Studio tab that never loads.** On a server whose Studio has no public address, opening the dashboard from the console's public address left a tab reading "Starting Supabase Studio" forever. The console now learns this from the Studio status before opening anything, shows the SSH tunnel steps and opens no tab; a tab already opened for a new project says what happened and closes ([Studio](docs/guides/studio.md)).
+
 ### Changed
 
 - **Telegram notifications are in plain words.** A message says what happened, where (by name), the likely cause and what to do, without ids, field names or reason codes. Email, the webhook and the catalog keep the full record ([OPERATOR-NOTIFICATIONS](docs/engineering/OPERATOR-NOTIFICATIONS.md), section 3.6).

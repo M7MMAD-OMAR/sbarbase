@@ -44,6 +44,8 @@ test('the console starts, stops and opens Studio only for owners and admins of a
    {method,headers:{authorization:actor}}));
   expect((await call('alice')).status).toBe(409);
   const job=catalog.claimProvision()!;catalog.finishProvision(environment,job.claim!,true);
+  // The console learns before opening a tab whether Studio has a public address.
+  expect(((await (await call('alice')).json()) as {public:boolean}).public).toBe(false);
   expect((await call('carol')).status).toBe(403);
   expect((await call('bob','POST')).status).toBe(403);
   expect((await call('alice','PUT')).status).toBe(405);
