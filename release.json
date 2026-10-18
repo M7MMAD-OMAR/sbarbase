@@ -1,9 +1,9 @@
 {
-  "version": "0.5.3",
+  "version": "0.5.4",
   "minimum_from": "0.3.1",
   "notes": {
-    "en": "Studio can be opened from the public address: set SBARBASE_STUDIO_HOST and the proxy's --studio-host to a pattern such as studio-{id}.example.com, with a wildcard DNS record and a certificate that covers it. Until then the console explains the SSH tunnel instead of opening a tab that cannot load. Stricter Studio cookies, single-use tickets and same-origin writes; the proxy refuses unknown hosts. Not production ready.",
-    "ar": "يمكن فتح Studio من العنوان العام: اضبط SBARBASE_STUDIO_HOST وخيار الوكيل --studio-host على نمط مثل studio-{id}.example.com، مع سجل DNS شامل وشهادة تغطيه. وإلى ذلك الحين تشرح لوحة الإدارة طريقة نفق SSH بدل فتح تبويب لا يعمل. ملفات تعريف أشد لـ Studio، وتذاكر لمرة واحدة، وكتابة من الأصل نفسه فقط، ويرفض الوكيل المضيفات المجهولة. ليس جاهزًا للإنتاج."
+    "en": "Install with Docker starts from a bare Ubuntu 26.04 machine and is now the website's install; rehearsed in a local VM, 14 checks. Edge Functions leave the shared runtime network: each environment's functions reach only their own Auth, REST and Storage tenant. Not production ready.",
+    "ar": "يبدأ التثبيت عبر Docker من خادم Ubuntu 26.04 فارغ، وصار هو طريقة التثبيت في الموقع؛ جُرّب على آلة افتراضية محلية ونجحت 14 فحصًا. وخرجت Edge Functions من شبكة التشغيل المشتركة، فلا تصل دوال كل بيئة إلا إلى Auth وREST ومستأجر Storage الخاصين بها. ليس جاهزًا للإنتاج."
   },
   "migrations": []
 }

@@ -6,9 +6,19 @@ All notable changes to sbarbase. The format follows Keep a Changelog and the
 project uses Semantic Versioning, which for a 0.x version means the interface may
 still change between releases.
 
-The declared package version is 0.5.3. Historical 0.1.0 and 0.2.0 entries retain their original scope. Later Docker and VM rehearsals are dated in [status](docs/reference/status.md); no independent public-server or production release acceptance is established.
+The declared package version is 0.5.4. Historical 0.1.0 and 0.2.0 entries retain their original scope. Later Docker and VM rehearsals are dated in [status](docs/reference/status.md); no independent public-server or production release acceptance is established.
 
 ## [Unreleased]
+
+## [0.5.4] - 2026-10-18
+
+### Changed
+
+- **Install with Docker is the front door.** The Docker guide starts from a bare Ubuntu 26.04 machine: `docker.io`, `docker-compose-v2` and `docker-buildx` from the distribution, then clone, check, up and bootstrap, with a note to wait for the console before bootstrap ([Install with Docker](docs/guides/docker.md)). The website's install section shows these five commands; the systemd quickstart stays linked as "Without Docker". `lab/vm-docker-rehearsal.sh` ran it in a local virtual machine, 14 checks ([vm-docker-install-checks.json](docs/evidence/vm-docker-install-checks.json)); not yet on a real server.
+
+### Security
+
+- **Edge Functions leave the shared runtime network.** Each environment's Functions container reaches only its own Auth and REST on that environment's network, and Storage through a host listener that pins the environment's tenant, so one environment's functions cannot reach another's services ([FUNCTIONS-NETWORK-ISOLATION](docs/engineering/FUNCTIONS-NETWORK-ISOLATION.md)). The outbound network refuses traffic between its containers.
 
 ## [0.5.3] - 2026-10-17
 
