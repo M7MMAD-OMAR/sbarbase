@@ -31,7 +31,8 @@ class ManagementSessionSecondsTests(unittest.TestCase):
 
     def test_lifecycle_authority_has_no_private_copy_of_the_cap(self):
         source = (Path(__file__).parent / 'management_access.py').read_text()
-        self.assertNotIn('2592000', source)
+        for literal in ('43200', '2592000'):
+            self.assertNotIn(literal, source)
         self.assertEqual(source.count('management_session_seconds()'), 1)
 
     def test_control_plane_has_no_private_copy_of_the_cap(self):
@@ -39,7 +40,8 @@ class ManagementSessionSecondsTests(unittest.TestCase):
         for path in sorted(root.glob('*.ts')):
             if path.name != 'management-session.ts':
                 with self.subTest(path=path.name):
-                    self.assertNotIn('2592000', path.read_text())
+                    for literal in ('43200', '2592000'):
+                        self.assertNotIn(literal, path.read_text())
 
     def test_compose_passes_the_variable_to_the_container(self):
         compose = (Path(__file__).parent.parent / 'compose.yaml').read_text()
