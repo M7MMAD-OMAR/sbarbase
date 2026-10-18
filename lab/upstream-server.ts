@@ -9,6 +9,7 @@ import {readJsonCached} from '../src/http/cached-json';
 import {upgradeHold} from '../src/gateway/hold';
 import {confirmationProbe,holdExceptProbe} from '../src/gateway/hold-bypass';
 import {healthHandler} from '../src/http/health';
+import {functionsStorage,functionsStorageListeners,inSubnet} from '../src/control/functions-storage';
 
 // Local experimental API only. No remote bind or default production exposure.
 // A server puts the TLS proxy in front of this listener, and the proxy is started
@@ -46,6 +47,16 @@ const studioTimer=setInterval(async()=>{
  try{internal=await serveLocal(app.upstream,at.port,{host:at.host});internalAt=want;}
  catch(error){console.error('Studio internal route unavailable:',(error as Error).message);}
 },2000);
+// Edge Functions reach the shared Storage at their environment network's gateway address, with
+// the tenant set here and only sources inside that network admitted
+// (docs/engineering/FUNCTIONS-NETWORK-ISOLATION.md). Uploads get the functions' own 150 s limit.
+const endpointsNow=()=>readJsonCached('.lab/upstream/endpoints.json') as Record<string,any>;
+const functionsStorageAt=functionsStorageListeners({read:endpointsNow,log:line=>console.error(line),
+ open:(runtime,at)=>serveLocal(functionsStorage({runtime,storage:()=>endpointsNow()[runtime]?.storage,
+  active:()=>!held()&&app.catalog.runtimeReady(runtime)&&!!endpointsNow()[runtime]?.functions}),
+  at.port,{host:at.host,admit:source=>inSubnet(source,at.subnet),requestTimeout:150_000})});
+await functionsStorageAt.reconcile();
+const functionsTimer=setInterval(()=>void functionsStorageAt.reconcile(),2000);
 // Direct database access (migrations, psql, an ORM): developer logins only, to their own database.
 const databaseAt=databaseListen();
 if(databaseAt)await app.database.start({...databaseAt,log:line=>console.log(line),target:()=>{
@@ -56,7 +67,7 @@ if(databaseAt)await app.database.start({...databaseAt,log:line=>console.log(line
 await Bun.write('.lab/upstream/server.json',JSON.stringify({url:`http://127.0.0.1:${server.port}`,pid:process.pid}));
 console.log(`Local Sbarbase API: http://127.0.0.1:${server.port}`);
 function stop(){
- clearInterval(studioTimer);internal?.stop(true);server.stop(true);app.close();
+ clearInterval(studioTimer);internal?.stop(true);clearInterval(functionsTimer);functionsStorageAt.stop();server.stop(true);app.close();
  try {if(JSON.parse(readFileSync('.lab/upstream/server.json','utf8')).pid===process.pid)unlinkSync('.lab/upstream/server.json');}catch {}
  process.exit(0);
 }
