@@ -605,17 +605,190 @@ def deliver_webhook(config, envelope, secret, timeout=None):
         return 'transient', 'webhook_unreachable'
 
 
-def telegram_text(envelope):
-    return mail_subject(envelope) + '\n\n' + mail_body(envelope)
+# Telegram is read on a phone by someone who wants to know what happened and why, so its text
+# is plain sentences: no ids, field names, reason codes or counts of internals. The full
+# envelope still goes to email and the webhook, and every row stays in the catalog.
+PLAIN_HEADLINE = {
+    'provision.failed': 'An environment could not be created',
+    'provision.capacity_refused': 'An environment was not created because the server is too full',
+    'provision.retry_limit': 'Creating an environment was stopped after repeated failures',
+    'provision.retried': 'A failed environment was queued to try again',
+    'routing.paused': 'Traffic to an environment was paused',
+    'routing.resumed': 'Traffic to an environment was resumed',
+    'membership.owner_changed': 'The owner of an organization changed',
+    'project.ownership_changed': 'A project moved to another organization',
+    'notifier.channel_failed': 'Notifications are not reaching one of your channels',
+    'notifier.redaction_refused': 'A notification was held back because it looked like it held a secret',
+    'installation.started': 'Sbarbase started',
+    'installation.stopped': 'Sbarbase stopped',
+    'installation.start_failed': 'Sbarbase could not start',
+    'worker.restart': 'The background worker crashed and was restarted',
+    'worker.restart_limit': 'The background worker keeps crashing, so Sbarbase stopped itself',
+    'fence.applied': 'An environment database was locked against new connections',
+    'fence.released': 'An environment database was unlocked',
+    'backup.export_completed': 'An environment export finished',
+    'backup.export_failed': 'An environment export failed',
+    'backup.completed': 'The scheduled backup finished',
+    'backup.failed': 'The scheduled backup failed',
+    'restore.verified': 'A restore test passed',
+    'restore.failed': 'A restore test failed',
+    'environment.saturated': 'An environment needs more room than it gets',
+    'update.available': 'A new Sbarbase version is available',
+    'update.applied': 'Sbarbase was updated',
+    'update.rolled_back': 'An update failed and Sbarbase went back to the old version',
+    'update.rollback_failed': 'An update failed and going back failed too',
+    'host.disk_low': 'The server is running out of disk space',
+    'runtime.container_stopped': 'A Sbarbase service has stopped',
+}
+PLAIN_WHY = {
+    'provision.failed': 'Something went wrong while starting its services.',
+    'provision.capacity_refused': 'The server did not have enough free resources, and nothing was changed.',
+    'provision.retry_limit': 'It was tried several times and did not work, so it was left as it is for you to look at.',
+    'notifier.redaction_refused': 'Nothing was sent. The message was held back to protect you.',
+    'installation.start_failed': 'A part of it refused to start.',
+    'worker.restart': 'It came back by itself, but work was waiting meanwhile.',
+    'worker.restart_limit': 'It restarted too many times in a row.',
+    'backup.export_failed': 'The environment may still be locked against new connections.',
+    'backup.failed': 'At least one environment did not get backed up.',
+    'restore.failed': 'The backup could not be restored, so it may not be usable yet.',
+    'environment.saturated': 'For many minutes it was turned away at its limit or took room from its neighbours.',
+    'update.rolled_back': 'The new version did not pass its health checks. The settings were put back as they were before the update.',
+    'update.rollback_failed': 'The installation may be in a broken state.',
+    'host.disk_low': 'Backups and databases stop working when the disk is full.',
+    'runtime.container_stopped': 'It has stayed stopped for several minutes.',
+}
+# Said in place of "why" when the recorded reason says it better than the kind does.
+PLAIN_REASON = {
+    'installation_limit': 'This server is already running the most environments it is set up for.',
+    'memory_headroom': 'The server is low on memory.',
+    'disk_headroom': 'The server is low on disk space.',
+    'inode_headroom': 'The server has run out of room for new files.',
+    'measurement_unavailable': 'The server could not check how much room it has, so it played safe.',
+    'cpu_some10': 'The server is too busy right now.',
+    'io_full10': 'The server disk is too busy right now.',
+    'memory_full10': 'The server is short of memory right now.',
+    'connection_budget': 'There are too many database connections open.',
+}
+PLAIN_ACTION = {
+    'provision.failed': 'Open the environment in the console and press retry.',
+    'provision.capacity_refused': 'Free up space or memory, or move something off this server, then retry.',
+    'provision.retry_limit': 'Look at the environment in the console before trying again.',
+    'routing.paused': 'Resume it in the console when you are done.',
+    'membership.owner_changed': 'If you did not expect this, check the organization members.',
+    'project.ownership_changed': 'If you did not expect this, check the organization it went to.',
+    'notifier.channel_failed': 'Check that channel in the console.',
+    'notifier.redaction_refused': 'Look at the event in the server records.',
+    'installation.start_failed': 'Check the server logs, then start again.',
+    'worker.restart': 'If it keeps happening, check the server logs.',
+    'worker.restart_limit': 'Check the server logs before starting again.',
+    'fence.applied': 'Unlock it when you finish.',
+    'backup.export_failed': 'Check the server logs before trying again.',
+    'backup.completed': 'Copy the backups off the server.',
+    'backup.failed': 'Run the backup by hand to see which environment failed.',
+    'restore.failed': 'Check the server logs.',
+    'environment.saturated': 'Give it a bigger share in the console, move it to its own database, or add server capacity.',
+    'update.available': 'Read what changed on the Updates page, then install it.',
+    'update.rolled_back': 'Check the update status on the server. This version will not be tried again by itself.',
+    'update.rollback_failed': 'Restore from the backup taken before the update.',
+    'host.disk_low': 'Free space or add disk.',
+    'runtime.container_stopped': 'Check the server logs, then restart Sbarbase.',
+}
+PLAIN_CHANNEL = {'email': 'email', 'webhook': 'webhook', 'telegram': 'Telegram'}
+PLAIN_SEVERITY = {'info': 'ℹ️', 'warning': '⚠️', 'critical': '🚨'}
 
 
-def deliver_telegram(config, envelope, timeout=None):
+def subject_names(database, row):
+    """The names an operator gave the organization, project and environment of an event.
+    A name that has the shape of a credential is left out, like everything else the gate
+    scans; a missing row, an old catalog or a busy one simply yields no name."""
+    names = {}
+    queries = (('organization', 'SELECT name FROM organizations WHERE id=?'),
+               ('project', 'SELECT name FROM projects WHERE id=?'),
+               ('environment', 'SELECT name FROM environments WHERE id=?'))
+    for field, query in queries:
+        if not row.get(field):
+            continue
+        try:
+            found = database.execute(query, (row[field],)).fetchone()
+        except sqlite3.Error:
+            continue
+        if found and isinstance(found[0], str) and len(found[0]) <= 80 and not credential_shape(found[0]):
+            names[field] = found[0]
+    return names
+
+
+def plain_where(names):
+    parts = [names[field] for field in ('organization', 'project', 'environment') if field in names]
+    return ' / '.join(parts)
+
+
+def plain_when(envelope):
+    stamp = envelope.get('at')
+    return stamp[:16].replace('T', ' ') + ' UTC' if isinstance(stamp, str) and len(stamp) >= 16 else ''
+
+
+def plain_detail(kind, detail):
+    """One extra sentence from the recorded facts, in words."""
+    detail = detail or {}
+    if kind == 'provision.failed' and detail.get('failure') == 'capacity_exceeded':
+        return 'The server did not have enough room for it.'
+    if kind == 'backup.completed' and isinstance(detail.get('environments'), int):
+        count = detail['environments']
+        return '1 environment was backed up.' if count == 1 else '%d environments were backed up.' % count
+    if kind == 'environment.saturated' and isinstance(detail.get('minutes'), int):
+        return 'This has been going on for about %d minutes.' % detail['minutes']
+    if kind == 'host.disk_low' and isinstance(detail.get('percent'), int):
+        return 'About %d%% of the disk is still free.' % detail['percent']
+    if kind in ('update.available', 'update.applied', 'update.rolled_back', 'update.rollback_failed') \
+            and isinstance(detail.get('version'), str) and re.fullmatch(r'[0-9A-Za-z.+-]{1,24}', detail['version']):
+        return 'Version: ' + detail['version'] + '.'
+    if kind == 'notifier.channel_failed' and detail.get('channel') in PLAIN_CHANNEL:
+        return 'The ' + PLAIN_CHANNEL[detail['channel']] + ' channel is the one that failed. This message came by another channel.'
+    return ''
+
+
+def telegram_text(envelope, detail=None, names=None):
+    """What the operator reads in Telegram: what happened, the likely cause, what to do.
+    An event this renderer does not know falls back to the fixed summary and action."""
+    kind = envelope.get('kind')
+    headline = PLAIN_HEADLINE.get(kind)
+    lines = []
+    icon = PLAIN_SEVERITY.get(envelope.get('severity'), '')
+    if headline is None:
+        lines.append((icon + ' ' if icon else '') + str(envelope.get('summary', '')).strip())
+        if envelope.get('action'):
+            lines.append('What to do: ' + str(envelope['action']))
+        return '\n\n'.join(lines)
+    lines.append((icon + ' ' if icon else '') + headline)
+    where = plain_where(names or {})
+    if where:
+        lines.append('Where: ' + where)
+    reason = envelope.get('reason')
+    why = PLAIN_REASON.get(reason) if kind == 'provision.capacity_refused' else None
+    why = why or PLAIN_WHY.get(kind)
+    extra = plain_detail(kind, detail)
+    explanation = ' '.join(part for part in (why, extra) if part)
+    if explanation:
+        lines.append(explanation)
+    occurrences = envelope.get('occurrences')
+    if isinstance(occurrences, int) and occurrences > 1:
+        lines.append('This happened %d times in a row; this is one message for all of them.' % occurrences)
+    action = PLAIN_ACTION.get(kind)
+    lines.append('What to do: ' + action if action else 'Nothing to do.')
+    when = plain_when(envelope)
+    if when:
+        lines.append(when)
+    lines.append('The full record is in the server logs.')
+    return '\n\n'.join(lines)
+
+
+def deliver_telegram(config, envelope, timeout=None, detail=None, names=None):
     """One Bot API sendMessage. Returns (outcome, error token). Never raises past this point.
     The bot token comes from its private file through load_config and only ever appears in the
     request URL, never in the message."""
     budget = ATTEMPT_TIMEOUT_SECONDS if timeout is None else timeout
     telegram = config['telegram']
-    body = json.dumps({'chat_id': telegram['chatId'], 'text': telegram_text(envelope),
+    body = json.dumps({'chat_id': telegram['chatId'], 'text': telegram_text(envelope, detail, names),
                        'disable_web_page_preview': True}).encode('utf-8')
     base = telegram.get('apiBase', 'https://api.telegram.org')
     request = urllib.request.Request(base + '/bot' + telegram['token'] + '/sendMessage', data=body, method='POST')
@@ -731,7 +904,8 @@ def drain(database, config, channels, secret, limit=20, lease_ms=LEASE_MS, prune
             if channel == 'email':
                 result, error = deliver_email(config, envelope)
             elif channel == 'telegram':
-                result, error = deliver_telegram(config, envelope)
+                result, error = deliver_telegram(config, envelope, detail=detail,
+                                                 names=subject_names(database, item['row']))
             else:
                 result, error = deliver_webhook(config, envelope, secret)
             state = settle(database, item, result, error)

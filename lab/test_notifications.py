@@ -527,7 +527,8 @@ class TelegramTests(NotificationCase):
         self.assertEqual(receiver.paths, ['/bot' + self.TOKEN + '/sendMessage'])
         message = json.loads(receiver.requests[0][1])
         self.assertEqual(message['chat_id'], '-1001234567890')
-        self.assertIn('provision.capacity_refused', message['text'])
+        self.assertIn('not created', message['text'])
+        self.assertNotIn('provision.capacity_refused', message['text'])
         self.assertNotIn(self.TOKEN.split(':')[1], message['text'])
         self.assertEqual(self.rows("SELECT state FROM notification_delivery WHERE channel='telegram'"),
                          [('delivered',)])
@@ -593,7 +594,8 @@ console.log(JSON.stringify(step==='connect'?await setup.connect({json.dumps(toke
         self.assertEqual(result['delivered'], 1)
         self.assertEqual([path for path, _ in seen], ['/bot' + token + '/sendMessage'])
         self.assertEqual(seen[0][1]['chat_id'], '4242')
-        self.assertIn('provision.capacity_refused', seen[0][1]['text'])
+        self.assertIn('not created', seen[0][1]['text'])
+        self.assertNotIn('provision.capacity_refused', seen[0][1]['text'])
         self.assertNotIn(token.split(':')[1], seen[0][1]['text'])
 
     def test_a_non_private_or_malformed_token_is_refused(self):
@@ -616,6 +618,47 @@ console.log(JSON.stringify(step==='connect'?await setup.connect({json.dumps(toke
             self.assertTrue(error.closed)
         with patch.object(notify.urllib.request, 'urlopen', side_effect=notify.urllib.error.URLError('down')):
             self.assertEqual(notify.deliver_telegram(config, envelope), ('transient', 'telegram_unreachable'))
+
+
+class TelegramPlainTextTests(unittest.TestCase):
+    def envelope(self, kind, **extra):
+        return {'kind': kind, 'severity': 'critical', 'id': 'e-1', 'delivery': 'd-1', 'at': '2026-10-18T09:30:12.000Z',
+                'occurrences': 1, 'reason': 'runtime_failed', 'reason_class': 'provisioning_outcome',
+                'actor': 'system', 'summary': 'fixed summary', 'action': 'fixed action', 'subject': {}, **extra}
+
+    def test_every_kind_reads_as_plain_sentences(self):
+        for kind in notify.KINDS:
+            with self.subTest(kind=kind):
+                text = notify.telegram_text(self.envelope(kind))
+                self.assertIn(kind, notify.PLAIN_HEADLINE)
+                for technical in (kind, 'runtime_failed', 'provisioning_outcome', 'e-1', 'd-1', 'reason_class', 'occurrences:'):
+                    self.assertNotIn(technical, text)
+                self.assertTrue('What to do:' in text or 'Nothing to do.' in text)
+
+    def test_names_cause_and_advice_are_given(self):
+        text = notify.telegram_text(self.envelope('provision.capacity_refused', reason='memory_headroom'),
+                                    {'failure': 'capacity_exceeded', 'attempt': 1, 'reason_source': 'admission_gate'},
+                                    {'organization': 'Acme', 'project': 'Shop', 'environment': 'production'})
+        self.assertIn('Acme / Shop / production', text)
+        self.assertIn('The server is low on memory.', text)
+        self.assertIn('What to do:', text)
+        self.assertIn('2026-10-18 09:30 UTC', text)
+
+    def test_repeats_are_said_in_words_and_unknown_kinds_fall_back(self):
+        self.assertIn('3 times', notify.telegram_text(self.envelope('worker.restart', occurrences=3)))
+        text = notify.telegram_text(self.envelope('k'))
+        self.assertIn('fixed summary', text)
+        self.assertIn('fixed action', text)
+
+    def test_a_name_shaped_like_a_credential_is_left_out(self):
+        database = notify.sqlite3.connect(':memory:')
+        database.execute('CREATE TABLE organizations(id TEXT, name TEXT)')
+        database.execute('CREATE TABLE projects(id TEXT, name TEXT)')
+        database.execute('CREATE TABLE environments(id TEXT, name TEXT)')
+        database.execute("INSERT INTO organizations VALUES('o','Acme')")
+        database.execute("INSERT INTO projects VALUES('p',?)", ('A' * 40,))
+        names = notify.subject_names(database, {'organization': 'o', 'project': 'p', 'environment': 'missing'})
+        self.assertEqual(names, {'organization': 'Acme'})
 
 
 class HTTPErrorOwnershipTests(unittest.TestCase):

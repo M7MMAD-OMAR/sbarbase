@@ -653,6 +653,18 @@ once; Docker calls time out after five seconds so a hung daemon cannot hold the 
 and a step more than two and a half intervals after the previous one (an upgrade paused the watch)
 forgets the stops seen before.
 
+### 3.6 Telegram speaks plainly (2026-10-18)
+
+Telegram is read on a phone, by someone who wants to know what happened and why. Its text is
+therefore not the email body. `telegram_text` in `lab/notify.py` writes a headline, where it
+happened (the organization, project and environment names from the catalog, never their ids),
+the likely cause in a sentence, what to do, the time, and a pointer to the server logs. Ids,
+reason codes, field names and delivery numbers stay out. A repeat is said as "this happened 3
+times in a row". A name that has the shape of a credential is left out, the same gate as for
+everything else; a kind the renderer does not know falls back to the fixed summary and action.
+Email, the webhook and the catalog are unchanged and keep every field, so the complete record is
+on the server. The wording is English, like the rest of the fixed renderer.
+
 ## 4. Deduplication and rate limiting
 
 The problem: a condition that repeats every minute must not become a thousand messages.
