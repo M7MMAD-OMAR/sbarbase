@@ -192,9 +192,33 @@ REALTIME_PORT = 4000
 REALTIME_BOOT_SECONDS = 180
 FUNCTIONS_PORT = 9000
 FUNCTIONS_BOOT_SECONDS = 60
-# Edge Functions reach the internet (npm: and jsr: imports, other APIs) through their own network;
-# every other service stays on the internal one.
-EGRESS = PREFIX + '-egress'
+# Edge Functions reach the internet (npm: and jsr: imports, other APIs) through one outbound network
+# whose containers cannot reach each other; every other service stays on internal networks only
+# (docs/engineering/FUNCTIONS-NETWORK-ISOLATION.md).
+EGRESS = PREFIX + '-outbound'
+# The outbound network before it turned traffic between its containers off; removed once empty.
+LEGACY_EGRESS = PREFIX + '-egress'
+NO_ICC = 'com.docker.network.bridge.enable_icc'
+FUNCTIONS_NETWORK = re.compile(re.escape(PREFIX) + r'-(e_[a-f0-9]{24})-fn')
+# The loopback API listens on each environment network's gateway address at this port and
+# forwards to the shared Storage with that environment's tenant set (src/control/functions-storage.ts).
+FUNCTIONS_STORAGE_PORT = int(os.environ.get('SBARBASE_FUNCTIONS_STORAGE_PORT', '25433'))
+
+
+def functions_network(e):
+    """The environment's own internal network: its Functions, its Auth and REST. Functions join no
+    other internal network, so no other environment's service has an address they can reach."""
+    return f'{PREFIX}-{e}-fn'
+
+
+def functions_address(network):
+    """The environment network's IPv4 gateway, the host's own address on it, and its subnet."""
+    item = inspect('network', network) or {}
+    for entry in (item.get('IPAM') or {}).get('Config') or []:
+        subnet, gateway = entry.get('Subnet') or '', entry.get('Gateway') or ''
+        if subnet and ':' not in subnet and gateway:
+            return gateway, subnet
+    raise RuntimeError('Environment network has no IPv4 gateway')
 
 
 def published_endpoints():
@@ -294,6 +318,40 @@ def database_mounts():
     return [(database_volume.current(STATE), '/var/lib/postgresql/data')]
 
 
+def ensure_egress():
+    """The outbound network, created with traffic between its containers off. One that allows it
+    is refused, and the earlier shared network is removed once nothing uses it."""
+    item = inspect('network', EGRESS)
+    if not item:
+        lab.docker('network', 'create', '--opt', NO_ICC+'=false', '--label', 'io.sbarbase.owner='+OWNER, EGRESS)
+    elif (item.get('Options') or {}).get(NO_ICC) != 'false' or item.get('Internal'):
+        raise RuntimeError('Outbound network lets its containers reach each other; explicit reconciliation required')
+    # A stopped container still names its networks, and `network inspect` lists only running ones.
+    if inspect('network', LEGACY_EGRESS) and not lab.docker('ps', '-aq', '--filter', 'network='+LEGACY_EGRESS).stdout.strip():
+        lab.docker('network', 'rm', LEGACY_EGRESS, check=False)
+
+
+def functions_links(name, component):
+    """The environment networks a service joins besides the runtime network: an environment's Auth
+    and REST join their own environment's when it exists. The shared Storage joins none; Functions
+    reach it through the host listener, which sets the tenant itself."""
+    match = re.fullmatch(re.escape(PREFIX) + r'-(e_[a-f0-9]{24})-(auth|rest)', name)
+    if match and component == match.group(2) and inspect('network', functions_network(match.group(1))):
+        return [functions_network(match.group(1))]
+    return []
+
+
+def join(container, networks):
+    """Connect a container to each of these networks it is not on yet."""
+    if not networks:
+        return
+    item = inspect('container', container)
+    attached = item['NetworkSettings']['Networks'] if item else {}
+    for network in networks:
+        if network not in attached:
+            lab.docker('network', 'connect', network, container)
+
+
 def inspect(kind, name):
     result = lab.docker(kind, 'inspect', name, check=False) if kind != 'container' else lab.docker('inspect', name, check=False)
     if result.returncode:
@@ -386,7 +444,7 @@ class Runtime:
             raise image_identity.inspection_failure(reference, result.stdout, result.stderr)
         return reference, image_identity.resolved_id(reference, image_identity.record(result.stdout))
 
-    def launch(self, name, component, env, memory, cpus, volumes=(), command=(), existing_only=False, tier=None, binds=(), rotating=False):
+    def launch(self, name, component, env, memory, cpus, volumes=(), command=(), existing_only=False, tier=None, binds=(), rotating=False, network=NETWORK):
         reference, expected = self.image(component)
         image = self.pins[component]['id']
         actual = inspect('container', name)
@@ -414,16 +472,17 @@ class Runtime:
             mounts = {(m.get('Name'), m['Destination']) for m in actual['Mounts']}
             if any((name, destination) not in mounts for name, destination in volumes):
                 raise RuntimeError('Runtime persistent volume mismatch')
-            if NETWORK not in actual['NetworkSettings']['Networks']:
+            if network not in actual['NetworkSettings']['Networks']:
                 raise RuntimeError('Runtime network mismatch')
             lab.docker('start', actual['Id'])
+            join(name, functions_links(name, component))
             return actual['Id'],False
         flags = resource_policy.container_flags(tier)
         if (flags['memory'] is not None and flags['memory'] != memory) or (flags['cpus'] is not None and float(flags['cpus']) != float(cpus)):
             raise RuntimeError('Tier placement disagrees with the requested limits')
         path = PRIVATE/(name+'.env')
         lab.secure_file(path, ''.join(f'{k}={v}\n' for k, v in env.items()))
-        args = ['run', '-d', '--pull=never', '--name', name, '--label', 'io.sbarbase.owner='+OWNER, '--label', 'io.sbarbase.tier='+flags['label'], '--network', NETWORK,
+        args = ['run', '-d', '--pull=never', '--name', name, '--label', 'io.sbarbase.owner='+OWNER, '--label', 'io.sbarbase.tier='+flags['label'], '--network', network,
                 '--memory', memory, '--memory-swap', memory, '--cpus', str(cpus), '--pids-limit', str(flags['pids']),
                 '--cpu-shares', str(flags['shares']), '--blkio-weight', str(flags['weight']),
                 *resource_policy.io_flags(tier),
@@ -434,11 +493,14 @@ class Runtime:
             args += ['-v', volume+':'+destination]
         for source, destination in binds:
             args += ['-v', f'{source}:{destination}:ro']
-        return lab.docker(*args, reference, *command).stdout.strip(),True
+        created = lab.docker(*args, reference, *command).stdout.strip()
+        # A recreated Auth, REST or Storage would otherwise drop off the environment networks.
+        join(name, functions_links(name, component))
+        return created,True
 
-    def endpoint(self, name, port):
+    def endpoint(self, name, port, network=NETWORK):
         item = inspect('container', name)
-        address = item['NetworkSettings']['Networks'][NETWORK]['IPAddress']
+        address = item['NetworkSettings']['Networks'][network]['IPAddress']
         if not address:
             raise RuntimeError('Runtime endpoint unavailable')
         return f'http://{address}:{port}'
@@ -1040,16 +1102,17 @@ ALTER DEFAULT PRIVILEGES FOR ROLE {role} IN SCHEMA public GRANT EXECUTE ON FUNCT
         if current() < connection_budget.MAX_CONNECTIONS:
             raise RuntimeError('Database connection limit did not take effect')
 
-    def functions_configuration(self, e, v):
+    def functions_configuration(self, e, v, gateway):
         """The main service's settings: where the code and secrets are, the keys functions get, and
-        the addresses of this environment's own services on the internal network."""
+        the addresses of this environment's own services. Auth and REST are on the environment
+        network; Storage is the host listener at its gateway, which pins this environment's tenant."""
         ten_years = 10 * 365 * 24 * 3600
         return {'SB_FUNCTIONS_DIR': '/home/deno/functions', 'SB_SECRETS_FILE': '/run/sbarbase/secrets.json',
                 'SB_SELF_URL': f'http://{PREFIX}-{e}-functions:{FUNCTIONS_PORT}', 'SB_JWT_SECRET': v['jwt'],
                 'SUPABASE_ANON_KEY': service_token(v['jwt'], {'role': 'anon', 'iss': 'sbarbase'}, ten_years),
                 'SUPABASE_SERVICE_ROLE_KEY': service_token(v['jwt'], {'role': 'service_role', 'iss': 'sbarbase'}, ten_years),
                 'SB_AUTH_URL': f'http://{PREFIX}-{e}-auth:9999', 'SB_REST_URL': f'http://{PREFIX}-{e}-rest:3000',
-                'SB_STORAGE_URL': f'http://{PREFIX}-storage:5000', 'SB_STORAGE_HOST': f'{e}.storage.internal'}
+                'SB_STORAGE_URL': f'http://{gateway}:{FUNCTIONS_STORAGE_PORT}'}
 
     def functions_start(self, e):
         """Run the environment's Edge Functions: a fresh container of the pinned edge-runtime, with
@@ -1061,15 +1124,32 @@ ALTER DEFAULT PRIVILEGES FOR ROLE {role} IN SCHEMA public GRANT EXECUTE ON FUNCT
         private.mkdir(mode=0o700, parents=True, exist_ok=True)
         if not (private/'secrets.json').exists():
             lab.secure_file(private/'secrets.json', '{}')
-        if not inspect('network', EGRESS):
-            lab.docker('network', 'create', '--label', 'io.sbarbase.owner='+OWNER, EGRESS)
+        # Removed first, so a container from before the outbound network changed no longer names
+        # the earlier one when ensure_egress decides whether that one can go.
         if inspect('container', name):
             lab.docker('rm', '-f', name)
-        self.launch(name, 'functions', self.functions_configuration(e, v), '384m', .5, tier='production.functions',
+        # Functions run code that handles visitor input, so they sit on their environment's own
+        # network, never on the runtime network every environment's services share.
+        network = functions_network(e)
+        item = inspect('network', network)
+        if not item:
+            lab.docker('network', 'create', '--internal', '--label', 'io.sbarbase.owner='+OWNER, '--label', 'io.sbarbase.functions='+e, network)
+        elif not item.get('Internal') or (item.get('Labels') or {}).get('io.sbarbase.functions') != e:
+            raise RuntimeError('Environment network mismatch; explicit reconciliation required')
+        for service in ('auth', 'rest'):
+            join(PREFIX+'-'+e+'-'+service, [network])
+        # Storage takes its tenant from a header the caller sets, so it is never on an environment
+        # network: an earlier version attached it to every one, and this takes it off again.
+        storage = inspect('container', PREFIX+'-storage')
+        if storage and network in storage['NetworkSettings']['Networks']:
+            lab.docker('network', 'disconnect', '--force', network, PREFIX+'-storage')
+        gateway, subnet = functions_address(network)
+        ensure_egress()
+        self.launch(name, 'functions', self.functions_configuration(e, v, gateway), '384m', .5, tier='production.functions',
                     binds=[(lab.ROOT/'lab'/'functions'/'main', '/home/deno/main'), (code, '/home/deno/functions'), (private, '/run/sbarbase')],
-                    command=('start', '--main-service', '/home/deno/main', '-p', str(FUNCTIONS_PORT)))
+                    command=('start', '--main-service', '/home/deno/main', '-p', str(FUNCTIONS_PORT)), network=network)
         lab.docker('network', 'connect', EGRESS, name)
-        base = self.endpoint(name, FUNCTIONS_PORT)
+        base = self.endpoint(name, FUNCTIONS_PORT, network)
         # A name no function can have: the main service answers 404 once it serves.
         for _ in range(FUNCTIONS_BOOT_SECONDS * 2):
             try:
@@ -1080,7 +1160,10 @@ ALTER DEFAULT PRIVILEGES FOR ROLE {role} IN SCHEMA public GRANT EXECUTE ON FUNCT
             time.sleep(.5)
         else:
             raise RuntimeError('Edge Functions did not start')
-        return {'url': base, 'image': self.pins['functions']['id']}
+        # The loopback API serves Storage at the gateway only to sources inside this subnet: Linux
+        # accepts a packet for any host address on any interface, so the address alone is not enough.
+        return {'url': base, 'image': self.pins['functions']['id'],
+                'storage': {'host': gateway, 'port': FUNCTIONS_STORAGE_PORT, 'subnet': subnet}}
 
     def functions_turn(self, e, on):
         """Turn one environment's Edge Functions on or off: an operator action from the console."""
@@ -1114,12 +1197,28 @@ ALTER DEFAULT PRIVILEGES FOR ROLE {role} IN SCHEMA public GRANT EXECUTE ON FUNCT
             entry = None
             if inspect('container', name):
                 lab.docker('rm', '-f', name)
+            self.functions_network_remove(e)
         endpoints = published_endpoints()
         if entry:
             endpoints[e]['functions'] = entry
         else:
             endpoints[e].pop('functions', None)
         atomic(STATE/'endpoints.json', endpoints)
+
+    def functions_network_remove(self, e):
+        """Take the environment's Auth and REST (and Storage, attached by an earlier version) off its
+        Functions network, then remove it."""
+        network = functions_network(e)
+        item = inspect('network', network)
+        if not item:
+            return
+        # A stopped member is not listed by `network inspect`, yet would fail to start once its
+        # network is gone, so the environment's own services are named here as well.
+        members = {entry['Name'] for entry in (item.get('Containers') or {}).values()}
+        members |= {PREFIX+'-'+e+'-auth', PREFIX+'-'+e+'-rest', PREFIX+'-storage'}
+        for member in sorted(members):
+            lab.docker('network', 'disconnect', '--force', network, member, check=False)
+        lab.docker('network', 'rm', network)
 
     def realtime_turn(self, e, on):
         """Turn one environment's Realtime on or off: an operator action from the console."""

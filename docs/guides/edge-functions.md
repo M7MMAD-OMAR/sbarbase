@@ -48,7 +48,7 @@ Add your own under **Secrets** (for example `STRIPE_SECRET_KEY`) and read them w
 ## How it runs
 
 - One runtime per environment, holding at most 384 MiB and half a CPU; each function runs in its own worker of at most 150 MiB, stopped after 150 seconds.
-- A function sees only its own environment's code, secrets and services. The runtime reaches the environment's Auth, REST and Storage directly on the internal network.
+- A function sees only its own environment's code and secrets. The runtime has its own internal network that holds only this environment's Auth and REST; other environments' services are not on it. Files go through Sbarbase, which always asks the shared Storage for this environment's files, whatever the function's request says. This separation has not been checked on a running installation yet ([details](../engineering/FUNCTIONS-NETWORK-ISOLATION.md)).
 - Logs are under **Logs**, source **Edge Functions**, next to the other services.
 - **Turn off Edge Functions** stops the runtime and keeps the code; turning it on or deploying again starts it.
 

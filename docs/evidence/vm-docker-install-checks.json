@@ -1,0 +1,68 @@
+{
+ "probe": "lab/vm-docker-rehearsal.sh",
+ "run_at": "2026-10-17T23:11:33Z",
+ "commit": "ea0ed7fbc6b51a65d9556d2bc328012d55c7c419",
+ "host": "local KVM guest from the stock Ubuntu 26.04 server cloud image, 4 vCPU, 6144 MiB, nothing preinstalled",
+ "scope": "Install with Docker from a bare machine as docs/guides/docker.md gives it: distribution packages, clone (from a bundle of the commit), deploy/compose.sh check, up, bootstrap (lab/bootstrap.py on standard input instead of the interactive prompt), a first project through supabase-js, a reboot after which the console answers, and the smoke check. Images the host already had may be copied in instead of downloaded (see the checks). Not a real server: no public network, certificate or independent host.",
+ "checks": [
+  {
+   "passed": true,
+   "check": "the stock image boots without Docker: Ubuntu 26.04.1 LTS"
+  },
+  {
+   "passed": true,
+   "check": "docker.io, docker-compose-v2 and docker-buildx install: Engine 29.1.3, Compose 2.40.3+ds1-0ubuntu1, Buildx 0.30.1"
+  },
+  {
+   "passed": true,
+   "check": "preloaded 5 pinned image(s) from the host instead of downloading them"
+  },
+  {
+   "passed": true,
+   "check": "clone to /opt/sbarbase"
+  },
+  {
+   "passed": true,
+   "check": "deploy/compose.sh check admits the host"
+  },
+  {
+   "passed": true,
+   "check": "deploy/compose.sh up, console answers on 127.0.0.1:8790 after 290 s"
+  },
+  {
+   "passed": true,
+   "check": "bootstrap creates the first operator and client"
+  },
+  {
+   "passed": true,
+   "check": "deploy/compose.sh up, console answers on 127.0.0.1:8790 after 0 s"
+  },
+  {
+   "passed": true,
+   "check": "resumed on the same VM after the previous run's console wait ran out"
+  },
+  {
+   "passed": true,
+   "check": "clean shutdown and the same disk booted with 6144 MiB, because the previous size refused the first environment for capacity"
+  },
+  {
+   "passed": true,
+   "check": "deploy/compose.sh up, console answers on 127.0.0.1:8790 after 11 s"
+  },
+  {
+   "passed": true,
+   "check": "first project, environment, key and a supabase-js sign-up through the gateway"
+  },
+  {
+   "passed": true,
+   "check": "console answers again after a reboot"
+  },
+  {
+   "passed": true,
+   "check": "deploy/compose.sh smoke passes after the reboot"
+  }
+ ],
+ "count": 14,
+ "passed": true,
+ "notes": "Run in four passes on one VM disk on 2026-10-17, each later pass with --resume. Pass 1 (5632 MiB) installed the packages, cloned, passed check and ran up; its 20 minute console wait ran out while the controller was still pulling images over a link of about 350 KiB/s, so the 290 s console time counts from the first resume, not from up. Pass 2 bootstrapped; its first project check stopped because the probe sign-in descriptor the CI job creates was missing from the script. Pass 3 had the descriptor and the environment was refused with capacity_exceeded at 5632 MiB. Pass 4 shut the VM down cleanly, booted the same disk with 6144 MiB, passed the first project, the reboot and the smoke check. Five of the pinned images were copied from the host; the rest, and the Dockerfile packages, were downloaded. The console checks after 0 s and 11 s are the resumed passes."
+}

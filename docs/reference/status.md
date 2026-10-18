@@ -166,11 +166,12 @@ The full import (schema, users, rows, files, verification) is `lab/import_projec
 
 ### Install with Docker, daily backups, Studio and upgrades (CI, clean runner)
 
-On a clean GitHub runner with only Docker, CI runs the Docker install on every change ([install with Docker](../guides/docker.md)). Not a real server: no public network, certificate or host reboot.
+On a clean GitHub runner with only Docker, CI runs the Docker install on every change ([install with Docker](../guides/docker.md)). Not a real server: no public network, certificate or host reboot. The runner already has Docker, so the package step and a reboot were rehearsed separately in a local virtual machine, in the second row.
 
 | What | Evidence | Checks |
 |---|---|---|
 | Build and start, first operator, first project through supabase-js, container restart, clean stop | [docker-install-checks.json](../evidence/docker-install-checks.json) | 15 |
+| From a bare Ubuntu 26.04 VM (2026-10-17): distribution packages (`docker.io`, `docker-compose-v2`, `docker-buildx`), clone, check, up, bootstrap, first project through supabase-js, reboot, smoke; one environment needed the 6 GiB guest, 5.5 GiB refused it for capacity | [vm-docker-install-checks.json](../evidence/vm-docker-install-checks.json) | 14 |
 | Back up one environment while it serves, change rows, users and files, restore, compare with the backup, discard the set-aside state | [docker-backup-restore.json](../evidence/docker-backup-restore.json) | 15 |
 | Supabase Studio for one environment: started on demand, entered with the console ticket, table list, SQL, users and buckets through it, refused without the session or with another environment's session, stopped ([Studio guide](../guides/studio.md)) | [docker-studio-checks.json](../evidence/docker-studio-checks.json) | 22 |
 | Sign-in settings: site URL, redirects and a GitHub provider saved and applied by recreating Auth, a keyless OAuth start and email link, sign-up after the recreate, the provider removed ([sign-in](../guides/sign-in.md)) | [docker-sign-in-checks.json](../evidence/docker-sign-in-checks.json) | 15 |
