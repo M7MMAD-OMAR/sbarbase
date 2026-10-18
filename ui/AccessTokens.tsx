@@ -33,7 +33,7 @@ export function AccessTokens({request,organizations}:{request:Api;organizations:
    <label htmlFor="new-token">Token "{created.name}". Save it now: it is only shown once.</label><textarea id="new-token" readOnly value={created.token}/>
    <div className="form-row"><button onClick={()=>void copy(created.token)}><Copy aria-hidden="true"/>Copy token</button></div>
    <p className="small"><strong>Claude Code</strong>: run this once in a terminal.</p><textarea readOnly rows={3} value={claude}/>
-   <div className="form-row"><button onClick={()=>void copy(claude)}><Copy aria-hidden="true"/>Copy command</button></div>
+   <div className="form-row"><button className="primary" onClick={()=>void copy(claude)}><Copy aria-hidden="true"/>Copy command</button></div>
    <p className="small"><strong>Cursor, Codex and others</strong>: add an MCP server with the address <code>{origin}/mcp</code> and the header <code>Authorization: Bearer &lt;token&gt;</code>. Then tell the agent, for example: "Deploy this app to Sbarbase".</p>
    <div className="form-row"><button onClick={()=>{setCreated(undefined);setCopied('');}}>I have saved the token</button></div></section>}
   <p className="small muted" role="status">{copied}</p>

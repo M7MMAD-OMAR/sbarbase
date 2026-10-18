@@ -39,8 +39,8 @@ test('no rule outside the palette hardcodes a colour',()=>{
 
 test('the document declares both schemes and the theme is applied before first paint',()=>{
  expect(html).toContain('<meta name="color-scheme" content="light dark">');
- expect(html).toContain('name="theme-color" content="#fafafa" media="(prefers-color-scheme: light)"');
- expect(html).toContain('name="theme-color" content="#171717" media="(prefers-color-scheme: dark)"');
+ expect(html).toContain('name="theme-color" content="#fdfdfd" media="(prefers-color-scheme: light)"');
+ expect(html).toContain('name="theme-color" content="#131413" media="(prefers-color-scheme: dark)"');
  // No inline script: the content security policy allows same-origin scripts only.
  expect(html).not.toMatch(/<script(?![^>]*src=)[^>]*>/);
  expect(theme).toContain("export type ThemeMode='system'|'light'|'dark'");
