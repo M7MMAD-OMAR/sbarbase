@@ -4,8 +4,18 @@ Copyright 2026 Muhammad Omar and contributors.
 An independent project by Sbarah, built using original Supabase services.
 Not affiliated with or endorsed by Supabase.
 Supabase Studio and postgres-meta run as unmodified pinned upstream images
-(Apache-2.0, Supabase), started on demand per environment; no upstream source is copied
-into the sbarbase code. The platform console is sbarbase's own work and does not
-derive from Studio's.
+(Apache-2.0, Supabase), started on demand per environment; no Studio source is copied
+into the sbarbase code.
+
+The platform console's stylesheet (ui/style.css) ports design material from the
+Supabase UI package, supabase/supabase packages/ui and packages/config at commit
+7425d4930528931400fb3e656e860b1094cb224e: the semantic colour tokens of
+build/css/source/semantic.css and build/css/themes/light.css and dark.css, resolved to
+literal values, and the visual recipes of the Button, Input, Textarea, Card, Alert,
+Badge and Table components and the focus-ring utility, rewritten as plain CSS.
+Copyright Supabase, Inc. The supabase/supabase repository is licensed under the Apache
+License 2.0; the packages/ui package declares the MIT License. No Supabase React
+component or package is installed. The console's markup and behaviour are sbarbase's
+own work.
 Upstream components and dependencies retain their respective licenses.
 Website fonts: Manrope and Noto Sans Arabic, SIL Open Font License 1.1.
