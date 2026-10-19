@@ -15,7 +15,13 @@ function luminance(hex:string){
  const channel=(index:number)=>{const value=parseInt(hex.slice(index,index+2),16)/255;return value<=0.04045?value/12.92:((value+0.055)/1.055)**2.4;};
  return 0.2126*channel(1)+0.7152*channel(3)+0.0722*channel(5);
 }
-function ratio(a:string,b:string){const [x,y]=[luminance(a),luminance(b)].sort((p,q)=>q-p);return (x+0.05)/(y+0.05);}
+function ratio(a:string,b:string){const [x,y]=[luminance(a),luminance(b)];return (Math.max(x,y)+0.05)/(Math.min(x,y)+0.05);}
+/** A token's value; a missing token fails the test by name instead of reading as no colour. */
+function token(tokens:Record<string,string>,name:string):string{
+ const value=tokens[name];
+ if(value===undefined)throw new Error('Missing palette token --'+name);
+ return value;
+}
 
 const light=palette(':root{color-scheme:light;');
 const dark=palette(':root[data-theme=dark]{color-scheme:dark;');
@@ -34,17 +40,16 @@ const BOUNDARY:[string,string][]=[['control-border','field'],['control-border','
 for(const [name,tokens] of [['light',light],['dark',dark]] as const){
  test(`the ${name} palette keeps text at WCAG AA contrast`,()=>{
   for(const [ink,plate] of TEXT){
-   expect(tokens[ink],ink).toBeDefined();expect(tokens[plate],plate).toBeDefined();
-   expect({pair:`${ink} on ${plate}`,ok:ratio(tokens[ink],tokens[plate])>=4.5}).toEqual({pair:`${ink} on ${plate}`,ok:true});
+   expect({pair:`${ink} on ${plate}`,ok:ratio(token(tokens,ink),token(tokens,plate))>=4.5}).toEqual({pair:`${ink} on ${plate}`,ok:true});
   }
  });
  test(`the ${name} palette keeps fields, focus rings and the primary edge visible`,()=>{
   for(const [edge,plate] of BOUNDARY)
-   expect({pair:`${edge} against ${plate}`,ok:ratio(tokens[edge],tokens[plate])>=3}).toEqual({pair:`${edge} against ${plate}`,ok:true});
+   expect({pair:`${edge} against ${plate}`,ok:ratio(token(tokens,edge),token(tokens,plate))>=3}).toEqual({pair:`${edge} against ${plate}`,ok:true});
   // Cards must stand apart from the page they sit on.
-  expect(ratio(tokens['border-strong'],tokens.page)).toBeGreaterThanOrEqual(1.6);
+  expect(ratio(token(tokens,'border-strong'),token(tokens,'page'))).toBeGreaterThanOrEqual(1.6);
   // Read-only values are filled differently from editable fields.
-  expect(tokens['code-bg']).not.toBe(tokens.field);
+  expect(token(tokens,'code-bg')).not.toBe(token(tokens,'field'));
  });
 }
 
