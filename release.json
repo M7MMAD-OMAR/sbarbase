@@ -1,9 +1,9 @@
 {
-  "version": "0.5.5",
+  "version": "0.5.6",
   "minimum_from": "0.3.1",
   "notes": {
-    "en": "The console keeps you signed in for thirty days instead of twelve hours; sign in once more after installing this release. Opening Studio on a server with no public Studio address now explains the SSH tunnel instead of leaving a tab that never loads. Telegram notifications are in plain words. Not production ready.",
-    "ar": "تبقى مسجلًا في لوحة الإدارة ثلاثين يومًا بدل اثنتي عشرة ساعة؛ سجّل الدخول مرة أخرى بعد تثبيت هذا الإصدار. وعلى خادم لا عنوان عامًا لـ Studio فيه، صارت اللوحة تشرح نفق SSH بدل فتح تبويب لا يكتمل تحميله. وصارت إشعارات Telegram بكلمات واضحة. ليس جاهزًا للإنتاج."
+    "en": "Fixes the console signing you out after an hour away: an expired access token is now renewed and the request retried instead of ending the session. Not production ready.",
+    "ar": "إصلاح خروجك من لوحة الإدارة بعد غياب ساعة: يُجدَّد الآن رمز الوصول المنتهي ويُعاد الطلب بدل إنهاء الجلسة. ليس جاهزًا للإنتاج."
   },
   "migrations": []
 }
