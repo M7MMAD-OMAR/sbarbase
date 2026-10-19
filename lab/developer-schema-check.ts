@@ -59,8 +59,14 @@ try {
   superuser('postgres',`SELECT rolsuper OR rolcreaterole OR rolcreatedb FROM pg_roles WHERE rolname='${a}_developer'`)==='f'||'it can');
  check('it creates a schema of its own and works in it',()=>works('CREATE SCHEMA tdbr; CREATE TABLE tdbr.items(id int); INSERT INTO tdbr.items VALUES (1); CREATE TYPE tdbr.kind AS ENUM (\'a\');'));
  check('it renames its own schema to another name of its own',()=>works('CREATE SCHEMA scratch; ALTER SCHEMA scratch RENAME TO scratch_two; DROP SCHEMA scratch_two;'));
- check('it creates trusted extensions in its database',()=>works('CREATE EXTENSION IF NOT EXISTS pg_trgm; CREATE EXTENSION IF NOT EXISTS btree_gist;'));
- for(const schema of ['realtime','_realtime','cron','net','graphql','graphql_public','pgsodium','supabase_functions','supabase_anything','sbarbase_guard_two','pgbouncer','_analytics'])
+ check('it creates the extensions an application uses',()=>works('CREATE EXTENSION IF NOT EXISTS pg_trgm; CREATE EXTENSION IF NOT EXISTS btree_gist; CREATE EXTENSION IF NOT EXISTS vector; CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions; CREATE EXTENSION IF NOT EXISTS pg_graphql;'));
+ for(const extension of ['http','pg_net','dblink','postgres_fdw','wrappers','pg_cron','pg_tle','pgsodium','pg_stat_statements','pg_walinspect','pg_buffercache','pg_repack','pgaudit','file_fdw'])
+  check(`it cannot create the server-wide extension ${extension}`,()=>refused(`CREATE EXTENSION ${extension} CASCADE;`,/not available to an environment|can only create extension in database postgres|Must be superuser/));
+ check('it cannot reach a refused extension through CASCADE',()=>refused('CREATE EXTENSION IF NOT EXISTS pgsodium WITH SCHEMA extensions CASCADE; SELECT 1;',/not available to an environment/));
+ check('an extension the superuser installs keeps its own schema name',()=>superuser(a,"SELECT pg_get_userbyid(nspowner) FROM pg_namespace WHERE nspname = 'graphql'")==='supabase_admin'||'graphql schema owner differs');
+ check('it cannot take the Realtime publication name',()=>refused('CREATE PUBLICATION supabase_realtime FOR TABLE tdbr.items;',/reserved for the platform/));
+ check('it creates a publication of its own',()=>works('CREATE PUBLICATION mine FOR TABLE tdbr.items; DROP PUBLICATION mine;'));
+ for(const schema of ['realtime','_realtime','cron','net','graphql_public','pgsodium','supabase_functions','supabase_anything','sbarbase_guard_two','pgbouncer','_analytics'])
   check(`it cannot create the platform schema ${schema}`,()=>refused(`CREATE SCHEMA ${schema};`,reserved));
  check('supabase db push can send CREATE SCHEMA IF NOT EXISTS supabase_migrations',()=>works('CREATE SCHEMA IF NOT EXISTS supabase_migrations;'));
  check('it cannot create a platform schema with IF NOT EXISTS',()=>refused('CREATE SCHEMA IF NOT EXISTS realtime;',reserved));
@@ -82,6 +88,11 @@ try {
  check('it updates a Vault secret',()=>{
   const out=developer("SELECT vault.update_secret(id, 'new secret') FROM vault.secrets WHERE name = 'a_secret'; SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'a_secret';");
   return out.status===0&&out.stdout.trim().split('\n').pop()==='new secret'||out.stderr.slice(0,300);
+ });
+ check('it cannot pass Vault on to anon',()=>{
+  developer('GRANT USAGE ON SCHEMA vault TO anon; GRANT SELECT ON vault.decrypted_secrets TO anon; GRANT EXECUTE ON FUNCTION vault._crypto_aead_det_decrypt TO anon;');
+  const out=superuser(a,"SELECT has_schema_privilege('anon', 'vault', 'USAGE')::text || has_table_privilege('anon', 'vault.decrypted_secrets', 'SELECT')::text");
+  return out==='falsefalse'||out;
  });
  check('service_role reads Vault as on Supabase',()=>works("SET ROLE service_role; SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'a_secret';"));
  check('anon cannot read Vault',()=>refused("SET ROLE anon; SELECT * FROM vault.decrypted_secrets;",/permission denied/));

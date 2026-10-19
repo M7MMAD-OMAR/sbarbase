@@ -397,6 +397,13 @@ def wait_ready(url, headers=None, failure='Runtime readiness timed out', attempt
 RESERVED_SCHEMAS = ('auth', 'storage', 'extensions', 'realtime', '_realtime', 'vault', 'pgsodium',
                     'pgsodium_masks', 'cron', 'net', 'graphql', 'graphql_public', 'pgbouncer',
                     '_analytics', '_supavisor', 'information_schema', 'public')
+# Extensions an environment's own login may not create on a shared server: they reach the server's
+# network, see every environment's activity or data, load code, or hold the server's root key. The
+# image's supautils would otherwise create them as the superuser for any login.
+RESERVED_EXTENSIONS = ('dblink', 'postgres_fdw', 'http', 'pg_net', 'wrappers', 'pg_cron', 'pg_tle',
+                       'pgsodium', 'pg_stat_statements', 'pg_stat_monitor', 'pg_walinspect',
+                       'pg_buffercache', 'pg_prewarm', 'pg_repack', 'pgaudit', 'supautils', 'pljava',
+                       'plcoffee', 'plls', 'orioledb', 'file_fdw', 'pgroonga_database')
 
 
 def sql_literal(value):
@@ -887,6 +894,9 @@ GRANT SET ON PARAMETER log_min_messages TO {role}, supabase_realtime_admin;""")
   IF EXISTS (SELECT 1 FROM pg_namespace WHERE nspname IN ('realtime', '_realtime') AND nspowner <> '{role}'::regrole) THEN
     RAISE EXCEPTION 'A Realtime schema belongs to another login';
   END IF;
+  IF EXISTS (SELECT 1 FROM pg_publication p JOIN pg_roles r ON r.oid = p.pubowner WHERE p.pubname = 'supabase_realtime' AND NOT r.rolsuper) THEN
+    RAISE EXCEPTION 'The Realtime publication belongs to another login';
+  END IF;
 END $$;
 CREATE SCHEMA IF NOT EXISTS _realtime AUTHORIZATION {role};
 CREATE SCHEMA IF NOT EXISTS realtime AUTHORIZATION {role};
@@ -995,34 +1005,53 @@ ALTER ROLE {role} LOGIN;
         event trigger the superuser owns, so the login can neither drop nor disable it."""
         role = f'{e}_developer'
         reserved = ', '.join(sql_literal(name) for name in RESERVED_SCHEMAS)
+        extensions = ', '.join(sql_literal(name) for name in RESERVED_EXTENSIONS)
         return f"""CREATE SCHEMA IF NOT EXISTS sbarbase_guard;
 REVOKE ALL ON SCHEMA sbarbase_guard FROM PUBLIC;
 CREATE OR REPLACE FUNCTION sbarbase_guard.reserved_schemas() RETURNS event_trigger
   LANGUAGE plpgsql SET search_path = pg_catalog AS $guard$
 DECLARE item record;
 BEGIN
-  IF (SELECT rolsuper FROM pg_catalog.pg_roles WHERE rolname = current_user) THEN
+  -- The session's login, not the current role: supautils and SECURITY DEFINER code run as the superuser.
+  IF (SELECT rolsuper FROM pg_catalog.pg_roles WHERE rolname = session_user) THEN
     RETURN;
   END IF;
+  -- A reserved name is refused when the schema would belong to a login other than the superuser; an
+  -- extension the image creates as the superuser (pg_graphql's `graphql`) may still bring its own.
   FOR item IN SELECT n.nspname FROM pg_catalog.pg_event_trigger_ddl_commands() c
-      JOIN pg_catalog.pg_namespace n ON n.oid = c.objid WHERE c.object_type = 'schema' LOOP
+      JOIN pg_catalog.pg_namespace n ON n.oid = c.objid
+      JOIN pg_catalog.pg_roles r ON r.oid = n.nspowner WHERE c.object_type = 'schema' AND NOT r.rolsuper LOOP
     IF item.nspname IN ({reserved}) OR item.nspname LIKE 'sbarbase%' OR item.nspname LIKE 'supabase%' THEN
       RAISE EXCEPTION 'The schema name % is reserved for the platform', item.nspname USING ERRCODE = '42501';
+    END IF;
+  END LOOP;
+  FOR item IN SELECT e.extname FROM pg_catalog.pg_event_trigger_ddl_commands() c
+      JOIN pg_catalog.pg_extension e ON e.oid = c.objid WHERE c.object_type = 'extension' LOOP
+    IF item.extname IN ({extensions}) THEN
+      RAISE EXCEPTION 'The extension % is not available to an environment on a shared server', item.extname USING ERRCODE = '42501';
+    END IF;
+  END LOOP;
+  FOR item IN SELECT p.pubname FROM pg_catalog.pg_event_trigger_ddl_commands() c
+      JOIN pg_catalog.pg_publication p ON p.oid = c.objid WHERE c.object_type = 'publication' AND c.command_tag = 'CREATE PUBLICATION' LOOP
+    IF item.pubname = 'supabase_realtime' OR item.pubname LIKE 'sbarbase%' THEN
+      RAISE EXCEPTION 'The publication name % is reserved for the platform', item.pubname USING ERRCODE = '42501';
     END IF;
   END LOOP;
 END $guard$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_event_trigger WHERE evtname = 'sbarbase_reserved_schemas') THEN
     CREATE EVENT TRIGGER sbarbase_reserved_schemas ON ddl_command_end
-      WHEN TAG IN ('CREATE SCHEMA', 'ALTER SCHEMA') EXECUTE FUNCTION sbarbase_guard.reserved_schemas();
+      WHEN TAG IN ('CREATE SCHEMA', 'ALTER SCHEMA', 'CREATE EXTENSION', 'ALTER EXTENSION', 'CREATE PUBLICATION', 'ALTER PUBLICATION')
+      EXECUTE FUNCTION sbarbase_guard.reserved_schemas();
   END IF;
 END $$;
 ALTER EVENT TRIGGER sbarbase_reserved_schemas ENABLE ALWAYS;
--- Vault, with the grants the upstream image gives a project's `postgres` user and service_role.
+-- Vault, with the grants the upstream image gives a project's `postgres` user and service_role, without
+-- the right to pass them on: a grant to anon would let anyone read the secrets through the API.
 CREATE EXTENSION IF NOT EXISTS supabase_vault;
-GRANT USAGE ON SCHEMA vault TO {role} WITH GRANT OPTION;
-GRANT SELECT, DELETE, TRUNCATE, REFERENCES ON vault.secrets, vault.decrypted_secrets TO {role} WITH GRANT OPTION;
-GRANT EXECUTE ON FUNCTION vault.create_secret, vault.update_secret, vault._crypto_aead_det_decrypt TO {role} WITH GRANT OPTION;
+GRANT USAGE ON SCHEMA vault TO {role};
+GRANT SELECT, DELETE, TRUNCATE, REFERENCES ON vault.secrets, vault.decrypted_secrets TO {role};
+GRANT EXECUTE ON FUNCTION vault.create_secret, vault.update_secret, vault._crypto_aead_det_decrypt TO {role};
 GRANT USAGE ON SCHEMA vault TO service_role;
 GRANT SELECT, DELETE ON vault.secrets, vault.decrypted_secrets TO service_role;
 GRANT EXECUTE ON FUNCTION vault.create_secret, vault.update_secret, vault._crypto_aead_det_decrypt TO service_role;

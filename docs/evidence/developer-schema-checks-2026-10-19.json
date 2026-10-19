@@ -15,7 +15,79 @@
    "result": "pass"
   },
   {
-   "check": "it creates trusted extensions in its database",
+   "check": "it creates the extensions an application uses",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot create the server-wide extension http",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot create the server-wide extension pg_net",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot create the server-wide extension dblink",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot create the server-wide extension postgres_fdw",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot create the server-wide extension wrappers",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot create the server-wide extension pg_cron",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot create the server-wide extension pg_tle",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot create the server-wide extension pgsodium",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot create the server-wide extension pg_stat_statements",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot create the server-wide extension pg_walinspect",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot create the server-wide extension pg_buffercache",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot create the server-wide extension pg_repack",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot create the server-wide extension pgaudit",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot create the server-wide extension file_fdw",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot reach a refused extension through CASCADE",
+   "result": "pass"
+  },
+  {
+   "check": "an extension the superuser installs keeps its own schema name",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot take the Realtime publication name",
+   "result": "pass"
+  },
+  {
+   "check": "it creates a publication of its own",
    "result": "pass"
   },
   {
@@ -32,10 +104,6 @@
   },
   {
    "check": "it cannot create the platform schema net",
-   "result": "pass"
-  },
-  {
-   "check": "it cannot create the platform schema graphql",
    "result": "pass"
   },
   {
@@ -124,6 +192,10 @@
   },
   {
    "check": "it updates a Vault secret",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot pass Vault on to anon",
    "result": "pass"
   },
   {

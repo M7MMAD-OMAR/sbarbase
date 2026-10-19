@@ -64,7 +64,9 @@ class DatabaseAccessTests(unittest.TestCase):
         text = self.runtime.developer_grants_sql(E)
         guard = text.index('CREATE EVENT TRIGGER sbarbase_reserved_schemas ON ddl_command_end')
         self.assertLess(guard, text.index(f'GRANT CREATE ON DATABASE {E} TO {E}_developer'))
-        self.assertIn("WHEN TAG IN ('CREATE SCHEMA', 'ALTER SCHEMA')", text)
+        self.assertIn("WHEN TAG IN ('CREATE SCHEMA', 'ALTER SCHEMA', 'CREATE EXTENSION', 'ALTER EXTENSION', 'CREATE PUBLICATION', 'ALTER PUBLICATION')", text)
+        self.assertIn('rolname = session_user', text)
+        self.assertNotIn('rolname = current_user', text)
         self.assertIn('ALTER EVENT TRIGGER sbarbase_reserved_schemas ENABLE ALWAYS', text)
         self.assertIn('SET search_path = pg_catalog', text)
         for name in ('auth', 'storage', 'extensions', 'realtime', '_realtime', 'vault', 'cron', 'net', 'graphql'):
@@ -77,15 +79,26 @@ class DatabaseAccessTests(unittest.TestCase):
         text = self.runtime.developer_grants_sql(E)
         vault = text.index('CREATE EXTENSION IF NOT EXISTS supabase_vault')
         self.assertLess(vault, text.index(f'GRANT CREATE ON DATABASE {E}'))
-        self.assertIn(f'GRANT USAGE ON SCHEMA vault TO {E}_developer WITH GRANT OPTION', text)
+        self.assertIn(f'GRANT USAGE ON SCHEMA vault TO {E}_developer;', text)
+        self.assertNotIn('WITH GRANT OPTION', text)
         self.assertIn('vault.create_secret, vault.update_secret, vault._crypto_aead_det_decrypt TO service_role', text)
         self.assertNotIn('anon', text[vault:text.index('CREATE SCHEMA IF NOT EXISTS supabase_migrations')])
+
+    def test_extensions_that_reach_the_server_are_refused_and_the_realtime_publication_name_is_kept(self):
+        text = self.runtime.developer_grants_sql(E)
+        for name in ('dblink', 'postgres_fdw', 'http', 'pg_net', 'wrappers', 'pg_cron', 'pgsodium', 'pg_stat_statements', 'pg_walinspect'):
+            self.assertIn(name, durable_runtime.RESERVED_EXTENSIONS)
+            self.assertIn(f"'{name}'", text)
+        for name in ('pg_trgm', 'btree_gist', 'vector', 'pgtap', 'pg_graphql', 'supabase_vault'):
+            self.assertNotIn(name, durable_runtime.RESERVED_EXTENSIONS)
+        self.assertIn("item.pubname = 'supabase_realtime'", text)
 
     def test_realtime_refuses_schemas_another_login_made(self):
         self.runtime.realtime_database(E, {'realtime': 'r' * 64})
         text = '\n'.join(query for database, query in self.statements if database == E)
         refusal = text.index("nspname IN ('realtime', '_realtime') AND nspowner <> '" + E + "_realtime'::regrole")
         self.assertLess(refusal, text.index('CREATE SCHEMA IF NOT EXISTS _realtime'))
+        self.assertLess(text.index("p.pubname = 'supabase_realtime' AND NOT r.rolsuper"), text.index('CREATE SCHEMA IF NOT EXISTS _realtime'))
 
     def test_turning_it_on_applies_the_saved_password_room_and_grants_then_publishes(self):
         self.runtime.database_turn(E, on=True)
