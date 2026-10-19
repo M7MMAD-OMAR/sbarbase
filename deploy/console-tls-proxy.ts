@@ -287,6 +287,8 @@ const secure = Bun.serve<Bridge>({
         },
         body,
         redirect: 'manual',
+        // Keep the console's bytes and content-encoding together; see src/control/studio.ts.
+        decompress: false,
         ...(body instanceof ReadableStream ? {duplex: 'half'} : {}),
       } as RequestInit);
       const output = new Headers(forwarded.headers);
