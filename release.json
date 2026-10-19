@@ -1,9 +1,9 @@
 {
-  "version": "0.5.4",
+  "version": "0.5.5",
   "minimum_from": "0.3.1",
   "notes": {
-    "en": "Install with Docker starts from a bare Ubuntu 26.04 machine and is now the website's install; rehearsed in a local VM, 14 checks. Edge Functions leave the shared runtime network: each environment's functions reach only their own Auth, REST and Storage tenant. Not production ready.",
-    "ar": "يبدأ التثبيت عبر Docker من خادم Ubuntu 26.04 فارغ، وصار هو طريقة التثبيت في الموقع؛ جُرّب على آلة افتراضية محلية ونجحت 14 فحصًا. وخرجت Edge Functions من شبكة التشغيل المشتركة، فلا تصل دوال كل بيئة إلا إلى Auth وREST ومستأجر Storage الخاصين بها. ليس جاهزًا للإنتاج."
+    "en": "The console keeps you signed in for thirty days instead of twelve hours; sign in once more after installing this release. Opening Studio on a server with no public Studio address now explains the SSH tunnel instead of leaving a tab that never loads. Telegram notifications are in plain words. Not production ready.",
+    "ar": "تبقى مسجلًا في لوحة الإدارة ثلاثين يومًا بدل اثنتي عشرة ساعة؛ سجّل الدخول مرة أخرى بعد تثبيت هذا الإصدار. وعلى خادم لا عنوان عامًا لـ Studio فيه، صارت اللوحة تشرح نفق SSH بدل فتح تبويب لا يكتمل تحميله. وصارت إشعارات Telegram بكلمات واضحة. ليس جاهزًا للإنتاج."
   },
   "migrations": []
 }
