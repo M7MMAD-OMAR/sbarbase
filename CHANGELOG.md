@@ -6,9 +6,17 @@ All notable changes to sbarbase. The format follows Keep a Changelog and the
 project uses Semantic Versioning, which for a 0.x version means the interface may
 still change between releases.
 
-The declared package version is 0.5.10. Historical 0.1.0 and 0.2.0 entries retain their original scope. Later Docker and VM rehearsals are dated in [status](docs/reference/status.md); no independent public-server or production release acceptance is established.
+The declared package version is 0.5.11. Historical 0.1.0 and 0.2.0 entries retain their original scope. Later Docker and VM rehearsals are dated in [status](docs/reference/status.md); no independent public-server or production release acceptance is established.
 
 ## [Unreleased]
+
+## [0.5.11] - 2026-10-19
+
+### Fixed
+
+- **No sign-in flash.** With a stored sign-in, the console waits on a neutral screen while the Auth client checks it, instead of showing the sign-in page for a moment and then the console. With no stored sign-in, the sign-in page shows at once.
+- **Studio stays open while it is used.** The Studio session renews itself while its tab makes requests. It ends after eight hours without any request or seven days after it was opened from the console; signing out, a password change or losing the role still end it at once ([Studio](docs/guides/studio.md)).
+- **Studio comes back after a restart.** A restart or an upgrade brings back a Studio used in the last eight hours, after the upgrade is confirmed. An open tab shows "Studio is starting", reloads by itself and continues.
 
 ## [0.5.10] - 2026-10-19
 

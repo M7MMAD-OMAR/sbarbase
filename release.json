@@ -1,9 +1,9 @@
 {
-  "version": "0.5.10",
+  "version": "0.5.11",
   "minimum_from": "0.3.1",
   "notes": {
-    "en": "Docker installs can now set a public Studio address: the launcher and compose file forward SBARBASE_STUDIO_HOST to the console. Not production ready.",
-    "ar": "صار بإمكان تثبيت Docker ضبط عنوان Studio العام: يمرّر المشغّل وملف Compose القيمة SBARBASE_STUDIO_HOST إلى لوحة الإدارة. ليس جاهزًا للإنتاج."
+    "en": "The console no longer shows the sign-in page for a moment before opening. Supabase Studio stays signed in while its tab is in use (it ends after eight idle hours or seven days), and after a restart or an upgrade a recently used Studio starts again by itself, so an open tab continues. Not production ready.",
+    "ar": "لم تعد لوحة الإدارة تعرض صفحة الدخول لحظةً قبل أن تفتح. ويبقى Supabase Studio مفتوحًا ما دامت صفحته مستخدمة (وتنتهي الجلسة بعد ثماني ساعات دون استخدام أو بعد سبعة أيام)، وبعد إعادة التشغيل أو الترقية يعود Studio الذي استُخدم مؤخرًا للعمل وحده، فتكمل الصفحة المفتوحة. ليس جاهزًا للإنتاج."
   },
   "migrations": []
 }
