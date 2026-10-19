@@ -122,6 +122,7 @@ export function openUpstreamApplication() {
   const studio=studioProxy({key:studioSessionKey,allowed:(actor,runtime)=>catalog.studioAllowed(actor,runtime),epoch:actor=>catalog.managementSecurity.epoch(actor),runtimeEpoch:runtime=>catalog.runtimeEpoch(runtime),
    navigation:(actor,runtime,organization,project)=>catalog.studioNavigation(actor,runtime,organization,project),
    selection:(actor,environment)=>catalog.studio(actor,environment),
+   touch:runtime=>catalog.touchStudio(runtime),starting:runtime=>catalog.studioStarting(runtime),
    upstream:runtime=>studioState().sessions?.[runtime]?.url});
   const upstream=studioUpstream({
    endpoints:runtime=>(readJsonCached('.lab/upstream/endpoints.json') as Record<string,any>)[runtime],

@@ -57,13 +57,14 @@ Studio's Logs and Realtime pages expect Supabase's own platform services and sta
 ## How it is kept safe
 
 - Every environment has its own Studio address, and a session for one never opens another.
-- The console gives a one-minute ticket that works once; it becomes an eight-hour session cookie for that address only, HttpOnly, and on a public address `Secure` with the `__Host-` prefix, so no sibling site can set or read it. Without it, nothing reaches Studio.
+- The console gives a one-minute ticket that works once; it becomes a session cookie for that address only, HttpOnly, and on a public address `Secure` with the `__Host-` prefix, so no sibling site can set or read it. Without it, nothing reaches Studio.
+- While the Studio tab is in use, the session renews itself, so it does not close under you. It ends after eight hours without any request, or seven days after you opened it from the console, whichever comes first; then open Studio again from the console. Signing out of the console, a password change or losing the owner or admin role ends it at once.
 - A request that changes something must come from that Studio's own page (its `Origin`); a page on another site of the same domain is refused.
 - Changing MFA policy or logging out revokes dashboard sessions through the actor epoch.
 - Losing the owner or admin role closes access on the next request.
 - Studio signs in to the database with its own login, which exists only while Studio runs and gets a new password on every start. It is not a superuser and owns nothing.
 - Studio and its helper (postgres-meta) have no login of their own, so neither listens where other environments run. Each session gets a private network that only the server reaches; Edge Functions and databases of other environments cannot connect to it.
-- Stopping Studio, or restarting Sbarbase, closes that login and removes both containers and the session's network.
+- Stopping Studio, or restarting Sbarbase, closes that login and removes both containers and the session's network. After a restart or an upgrade, a Studio used in the last eight hours starts again by itself with a new login, and an open tab shows "Studio is starting" for a few seconds and then continues, without opening it again.
 
 ## Memory
 

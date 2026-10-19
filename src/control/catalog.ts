@@ -216,6 +216,11 @@ export class Catalog {
         desired TEXT NOT NULL CHECK(desired IN ('running','stopped')),
         state TEXT NOT NULL CHECK(state IN ('stopped','starting','running','failed')),
         failure TEXT, actor TEXT NOT NULL, updated_at INTEGER NOT NULL);
+      -- When each runtime's Studio was last in use, written by the Studio proxy at most every few
+      -- minutes. A restart brings back only recently used sessions (lab/dev.py reset_studios). A
+      -- table of its own, so an older release reading this catalog simply ignores it.
+      CREATE TABLE IF NOT EXISTS studio_activity(
+        runtime TEXT PRIMARY KEY, seen_at INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS invitations(
         id TEXT PRIMARY KEY, organization TEXT NOT NULL REFERENCES organizations(id),
         email TEXT NOT NULL, role TEXT NOT NULL CHECK(role IN ('owner','admin','viewer')),
@@ -880,6 +885,15 @@ export class Catalog {
       'SELECT desired,state,failure,updated_at FROM studio_sessions WHERE runtime=?').get(job.runtime);
     return {runtime:job.runtime,desired:(row?.desired??'stopped') as StudioSession['desired'],
       state:(row?.state??'stopped') as StudioSession['state'],failure:row?.failure??null,updatedAt:row?.updated_at??null};
+  }
+  /** The console asked for this runtime's Studio and it has not failed. */
+  studioStarting(runtime:string):boolean {
+    return !!this.db.query("SELECT 1 FROM studio_sessions WHERE runtime=? AND desired='running' AND state IN ('stopped','starting')").get(runtime);
+  }
+  /** Studio for this runtime is in use now. */
+  touchStudio(runtime:string,now=Date.now()):void {
+    this.db.query('INSERT INTO studio_activity(runtime,seen_at) VALUES (?,?) ON CONFLICT(runtime) DO UPDATE SET seen_at=excluded.seen_at')
+      .run(runtime,now);
   }
   /** Whether this actor may use Studio for this runtime right now: owner or admin of it. */
   studioAllowed(actor:string,runtime:string):boolean {

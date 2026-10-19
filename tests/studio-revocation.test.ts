@@ -118,7 +118,7 @@ test('Studio forwards the exact bounded body and preserves vendor headers',async
   const response=await f.proxy(f.request('POST','1234'));
   expect(response.status).toBe(200);expect(await response.text()).toBe('result');
   expect(await seen[0]!.text()).toBe('1234');expect(seen[0]!.headers.get('cookie')).toBeNull();
-  expect(response.headers.getSetCookie()).toEqual(['studio_theme=dark; Path=/']);
+  expect(response.headers.getSetCookie().filter(cookie=>!cookie.startsWith('sbarbase_studio='))).toEqual(['studio_theme=dark; Path=/']);
  }finally{f.catalog.close();}
 });
 

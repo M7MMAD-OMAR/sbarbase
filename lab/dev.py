@@ -35,6 +35,9 @@ UPGRADE_STATE = ROOT / '.lab/upgrades/state.json'
 # 'worker-drain' in STATE, read by lab/worker.ts), and nothing else new starts. When that
 # takes longer than this, the request fails and nothing moves.
 DRAIN_SECONDS = 600
+# A Studio session used within this window comes back after a restart; the same as the session's
+# idle limit in src/control/studio.ts (SESSION_MS), so a session whose cookie lapsed stays stopped.
+STUDIO_RESTORE_MS = 8 * 60 * 60 * 1000
 # The update scheduling looks past the request file (the verdict in current.json, whether a
 # check is due, the automatic decision) at most this often.
 UPDATES_EVERY = datetime.timedelta(seconds=15)
@@ -642,13 +645,25 @@ class Supervisor:
                 self.toggles[service] = self.spawn(['/usr/bin/python3', 'lab/realtime.py', 'apply', pending[0], '--service', service])
 
     def reset_studios(self):
-        """No Studio outlives a restart: browser sessions are gone and the login must close."""
+        """No Studio container outlives a restart, since its login must close. A session used in the
+        last eight hours comes back on its own: its browser cookie is still valid (the session key is
+        on disk), so an open tab keeps working once Studio serves again. schedule_studios starts it
+        only after an upgrade is confirmed, and a session nobody used recently stays stopped."""
         subprocess.run(['/usr/bin/python3', 'lab/studio.py', 'reset'], cwd=ROOT, timeout=300, check=False)
         path = STATE/'control.sqlite'
         if path.exists():
+            recent = int(time.time() * 1000) - STUDIO_RESTORE_MS
             try:
                 with closing(sqlite3.connect(path, timeout=5)) as database, database:
+                    try:
+                        keep = {row[0] for row in database.execute(
+                            "SELECT s.runtime FROM studio_sessions s LEFT JOIN studio_activity a ON a.runtime=s.runtime "
+                            "WHERE s.desired='running' AND max(s.updated_at, coalesce(a.seen_at, 0)) > ?", (recent,))}
+                    except sqlite3.OperationalError:
+                        keep = set()  # a catalog not yet opened by this release has no studio_activity
                     database.execute("UPDATE studio_sessions SET desired='stopped', state='stopped', failure=NULL")
+                    for runtime in sorted(keep):
+                        database.execute("UPDATE studio_sessions SET desired='running' WHERE runtime=?", (runtime,))
             except sqlite3.Error:
                 pass
 

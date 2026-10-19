@@ -19,7 +19,12 @@ import {publicUrl} from './sign-in';
  * (`studioUpstream`), which admits only that environment's service key. */
 
 const TICKET_MS=60_000;
-const SESSION_MS=8*60*60_000;
+/** A Studio session ends after eight hours without a request, or seven days after it was opened
+ * from the console, whichever comes first. While the tab is in use the cookie is renewed, at most
+ * once every five minutes, so an active Studio never signs the operator out. */
+export const SESSION_MS=8*60*60_000;
+export const SESSION_LIMIT_MS=7*24*60*60_000;
+const RENEW_AFTER_MS=5*60_000;
 let hosts:StudioHosts=studioHosts();
 /** For tests and for a process that reads its configuration late. */
 export function useStudioHosts(next:StudioHosts){hosts=next;}
@@ -58,7 +63,23 @@ function spend(claim:Claim):boolean {
  spent.set(claim.nonce,claim.expires);return true;
 }
 
-type Claim={runtime:string;actor:string;expires:number;kind:'ticket'|'session';epoch:number;runtimeEpoch?:number;console?:string;nonce?:string};
+type Claim={runtime:string;actor:string;expires:number;kind:'ticket'|'session';epoch:number;runtimeEpoch?:number;console?:string;nonce?:string;
+ /** When the session was opened from the console; a cookie made before this field reads as opened SESSION_MS before it expires. */
+ started?:number};
+
+/** The session cookie, built in one place so the opening and every renewal carry the same attributes. */
+function sessionCookie(value:string,expires:number,now=Date.now()):string {
+ return `${studioCookie()}=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${Math.max(0,Math.floor((expires-now)/1000))}${hosts.public?'; Secure':''}`;
+}
+
+/** The renewed session cookie for a request that passed every check, or undefined when it is not due:
+ * renewed only after five minutes, never past the seven day limit from when the session was opened. */
+export function renewedSession(key:Buffer,claim:Claim,now=Date.now()):string|undefined {
+ const started=Number.isSafeInteger(claim.started)?claim.started!:claim.expires-SESSION_MS;
+ const expires=Math.min(now+SESSION_MS,started+SESSION_LIMIT_MS);
+ if(expires-claim.expires<RENEW_AFTER_MS)return;
+ return sessionCookie(signStudio(key,{...claim,started,expires}),expires,now);
+}
 
 /** The console's address for Studio's way back: a loopback one, or the installation's public
  * address (SBARBASE_PUBLIC_URL), never one a request named. */
@@ -96,7 +117,8 @@ export function verifyStudio(key:Buffer,token:string|null|undefined,runtime:stri
  let claim:Claim;
  try{claim=JSON.parse(Buffer.from(body,'base64url').toString('utf8'));}catch{return null;}
  if(!claim||claim.kind!==kind||claim.runtime!==runtime||typeof claim.actor!=='string'||!(claim.expires>now)||
-  !Number.isSafeInteger(claim.epoch)||claim.epoch<0||claim.runtimeEpoch!==undefined&&(!Number.isSafeInteger(claim.runtimeEpoch)||claim.runtimeEpoch<0))return null;
+  !Number.isSafeInteger(claim.epoch)||claim.epoch<0||claim.runtimeEpoch!==undefined&&(!Number.isSafeInteger(claim.runtimeEpoch)||claim.runtimeEpoch<0)||
+  claim.started!==undefined&&(!Number.isSafeInteger(claim.started)||claim.started<0||claim.started>now))return null;
  return claim;
 }
 
@@ -146,6 +168,14 @@ function withoutCookie(header:string|null,name:string):string {
 function page(status:number,text:string) {
  return new Response(`<!doctype html><meta charset="utf-8"><title>Studio</title><p style="font-family:system-ui;margin:3rem">${text}</p>`,
   {status,headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'}});
+}
+
+/** While a session the console asked for is starting (after a restart, for instance): the page reloads by itself
+ * and Studio's own API calls are told when to try again. */
+function starting() {
+ return new Response('<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="5"><title>Studio</title>'+
+  '<p style="font-family:system-ui;margin:3rem">Studio is starting. This page reloads by itself.</p>',
+  {status:503,headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','retry-after':'5'}});
 }
 
 class StudioBodyError extends Error {
@@ -218,8 +248,17 @@ export function studioProxy(options:{key:()=>Buffer;allowed:(actor:string,runtim
  runtimeEpoch?:(runtime:string)=>number;upstream:(runtime:string)=>string|undefined;transport?:typeof fetch;
  requestBodyLimit?:number;requestBodyTimeoutMs?:number;
  navigation?:(actor:string,runtime:string,organization?:string,project?:string)=>StudioNavigation;
- selection?:(actor:string,environment:string)=>StudioSession}) {
+ selection?:(actor:string,environment:string)=>StudioSession;
+ /** Records that this runtime's Studio is in use, so a restart brings it back (lab/dev.py). */
+ touch?:(runtime:string)=>void;
+ /** Whether the console asked for this runtime's Studio and it is not serving yet. */
+ starting?:(runtime:string)=>boolean}) {
  const transport=options.transport??fetch;
+ const touched=new Map<string,number>();
+ const touchThrottled=(runtime:string)=>{
+  const now=Date.now();if((touched.get(runtime)??0)>now-RENEW_AFTER_MS)return;
+  touched.set(runtime,now);try{options.touch?.(runtime);}catch{}
+ };
  const bodyLimit=options.requestBodyLimit??16*1024*1024,bodyTimeout=options.requestBodyTimeoutMs??30_000;
  if(!Number.isSafeInteger(bodyLimit)||bodyLimit<1||bodyLimit>64*1024*1024||!Number.isSafeInteger(bodyTimeout)||bodyTimeout<1||bodyTimeout>120_000)
   throw new Error('Invalid Studio request body limits');
@@ -234,9 +273,11 @@ export function studioProxy(options:{key:()=>Buffer;allowed:(actor:string,runtim
    const ticket=url.searchParams.get('ticket');
    const claim=verifyStudio(options.key(),ticket,runtime,'ticket');
    if(!claim||!current(claim,runtime)||!spend(claim))return page(401,'This Studio link has expired or was already used. Open Studio again from the Sbarbase console.');
-   const session=signStudio(options.key(),{runtime,actor:claim.actor,expires:Date.now()+SESSION_MS,kind:'session',epoch:claim.epoch,runtimeEpoch:claim.runtimeEpoch??0,console:consoleOrigin(claim.console)});
+   const now=Date.now(),expires=now+SESSION_MS;
+   const session=signStudio(options.key(),{runtime,actor:claim.actor,expires,started:now,kind:'session',epoch:claim.epoch,runtimeEpoch:claim.runtimeEpoch??0,console:consoleOrigin(claim.console)});
+   try{options.touch?.(runtime);}catch{}
    return new Response(null,{status:302,headers:{location:'/project/default','cache-control':'no-store','referrer-policy':'no-referrer',
-    'set-cookie':`${studioCookie()}=${session}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_MS/1000}${hosts.public?'; Secure':''}`}});
+    'set-cookie':sessionCookie(session,expires,now)}});
   }
   // Requests another site starts (Fetch Metadata): on a public address every *.domain site is
   // same-site, so the cookie would ride along. Only a plain page navigation is let through, and
@@ -303,7 +344,10 @@ export function studioProxy(options:{key:()=>Buffer;allowed:(actor:string,runtim
    if(origin?origin!==selfOrigin(url):site!=='same-origin')return page(403,'This request did not come from this Studio page.');
   }
   const target=options.upstream(runtime);
-  if(!target)return page(503,'Studio is not running for this environment. Start it from the Sbarbase console.');
+  if(!target){
+   let pending=false;try{pending=!!options.starting?.(runtime);}catch{}
+   return pending?starting():page(503,'Studio is not running for this environment. Start it from the Sbarbase console.');
+  }
   const headers=new Headers();
   for(const [name,value] of request.headers)if(!HOP.has(name))headers.set(name,value);
   const cookies=withoutCookie(request.headers.get('cookie'),studioCookie());
@@ -328,6 +372,11 @@ export function studioProxy(options:{key:()=>Buffer;allowed:(actor:string,runtim
   const out=new Headers();
   for(const [name,value] of response.headers)if(!HOP.has(name)&&name!=='set-cookie')out.set(name,value);
   for(const cookie of response.headers.getSetCookie())out.append('set-cookie',cookie);
+  // Renewed only for this Studio page's own requests (or one typed into the address bar), after every check above.
+  if(['same-origin','none',null].includes(request.headers.get('sec-fetch-site'))){
+   const renewed=renewedSession(options.key(),claim);
+   if(renewed){out.append('set-cookie',renewed);touchThrottled(runtime);}
+  }
   if(!out.has('x-frame-options'))out.set('x-frame-options','SAMEORIGIN');
   if(request.method==='HEAD'){
    if(response.body)void response.body.cancel().catch(()=>{});

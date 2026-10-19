@@ -1,7 +1,7 @@
-import {test,expect} from 'bun:test';
+import {describe,test,expect} from 'bun:test';
 import {readFileSync} from 'node:fs';
 import {join} from 'node:path';
-import {createSessionStorage,SESSION_STORAGE_KEY} from '../ui/session-storage';
+import {createSessionStorage,SESSION_STORAGE_KEY,startingSession} from '../ui/session-storage';
 import {consoleAccess,sessionHasMfa} from '../ui/mfa-state';
 
 const ui=join(import.meta.dir,'..','ui');
@@ -82,4 +82,23 @@ test('the client persists its session and the console no longer keeps verificati
  expect(app).not.toContain("event==='SIGNED_IN'");
  expect(app).toContain('managementPolicy(undefined,signal)');
  expect(app).toContain('policy.data?.authorized');
+});
+
+describe('startingSession', () => {
+ const backing=(value:string|null)=>({getItem:()=>value});
+ test('nothing stored shows the sign-in page at once', () => {
+  expect(startingSession(backing(null))).toBe('signed-out');
+  expect(startingSession(createSessionStorage(fakeStorage()))).toBe('signed-out');
+ });
+ test('a stored sign-in is checked before anything shows', () => {
+  const storage=createSessionStorage(fakeStorage());
+  storage.setItem(SESSION_STORAGE_KEY,'{"access_token":"x"}');
+  expect(startingSession(storage)).toBe('checking');
+ });
+ test('a signed-out key or a storage that throws reads as signed out', () => {
+  const storage=createSessionStorage(fakeStorage());
+  storage.setItem(SESSION_STORAGE_KEY,'{}');storage.removeItem(SESSION_STORAGE_KEY);
+  expect(startingSession(storage)).toBe('signed-out');
+  expect(startingSession({getItem:()=>{throw new Error('blocked');}})).toBe('signed-out');
+ });
 });

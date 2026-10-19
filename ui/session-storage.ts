@@ -38,3 +38,13 @@ export function createSessionStorage(backing?:Backing):Backing {
   }
  };
 }
+
+/**
+ * What the console knows about the sign-in before the Auth client has read it. Nothing stored means signed out
+ * now, so the sign-in page shows at once. Something stored is checked (and refreshed if expired) by the Auth
+ * client first, so the console waits on a neutral screen instead of showing the sign-in page for a moment and
+ * then the console: a stored session that turns out to be invalid still ends on the sign-in page.
+ */
+export function startingSession(storage:Pick<Backing,'getItem'>):'checking'|'signed-out' {
+ try{return storage.getItem(SESSION_STORAGE_KEY)?'checking':'signed-out';}catch{return 'signed-out';}
+}

@@ -6,6 +6,7 @@ import {Brand} from './Brand';
 import {Attribution} from './Attribution';
 import {Login} from './Login';import {Projects} from './Projects';import {Environments} from './Environments';import {Connection} from './Connection';import {Activity} from './Activity';import {AcceptInvitation,JoinInvitation,inviteToken} from './Invite';
 import {MfaGate,MfaSettings} from './Mfa';
+import {createSessionStorage,startingSession} from './session-storage';
 import {notificationText} from './mail';
 import {Team} from './Team';
 import {ServerHealth} from './ServerHealth';
@@ -74,15 +75,23 @@ function ManagementGate({session}:{session:Session}){
  const policy=useData(signal=>managementPolicy(undefined,signal),[session.access_token]);
  const authorized=useRef(false);if(policy.data)authorized.current=policy.data.authorized;
  if(policy.loading&&authorized.current)return <Console session={session}/>;
- if(policy.loading)return <main className="auth-layout"><Loading/></main>;
+ if(policy.loading)return <Checking/>;
  if(policy.error)return <main className="auth-layout"><ErrorMessage message={policy.error}/><Refresh onClick={policy.refresh}/><button onClick={()=>void auth.auth.signOut({scope:'local'})}>Sign out</button></main>;
  if(policy.data?.authorized)return <Console session={session}/>;
  if(policy.data&&!policy.data.needs_mfa)return <main className="auth-layout"><p>Your management session ended. Sign in again to continue.</p><button onClick={()=>void auth.auth.signOut({scope:'local'})}>Back to sign in</button></main>;
  return <MfaGate onVerified={policy.refresh}/>;
 }
+/** While the stored sign-in is checked: an empty screen, and a loading line only if the check takes a moment. */
+function Checking(){
+ const [slow,setSlow]=useState(false);
+ useEffect(()=>{const timer=setTimeout(()=>setSlow(true),250);return()=>clearTimeout(timer);},[]);
+ return <main className="auth-layout" aria-busy="true">{slow&&<Loading/>}</main>;
+}
 export function App(){
- const [session,setSession]=useState<Session|null>(null),[signIn,setSignIn]=useState(false);
+ // undefined: a stored sign-in is still being checked, so neither the sign-in page nor the console shows yet.
+ const [session,setSession]=useState<Session|null|undefined>(()=>startingSession(createSessionStorage())==='checking'?undefined:null),[signIn,setSignIn]=useState(false);
  useEffect(()=>{const {data}=auth.auth.onAuthStateChange((_event,next)=>setSession(next));return()=>data.subscription.unsubscribe();},[]);
  const token=inviteToken();
+ if(session===undefined)return <Checking/>;
  return session?<ManagementGate session={session}/>:token&&!signIn?<AcceptInvitation token={token} onSignIn={()=>setSignIn(true)}/>:<Login/>;
 }

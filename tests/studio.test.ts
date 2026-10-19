@@ -1,7 +1,7 @@
 import {test,expect} from 'bun:test';
 import {createHmac} from 'node:crypto';
 import {Catalog} from '../src/control/catalog';
-import {studioHandler,studioProxy,studioUpstream,studioHost,studioRuntime,signStudio,verifyStudio,serviceKey,STUDIO_COOKIE} from '../src/control/studio';
+import {studioHandler,studioProxy,studioUpstream,studioHost,studioRuntime,signStudio,verifyStudio,serviceKey,STUDIO_COOKIE,renewedSession,SESSION_MS,SESSION_LIMIT_MS} from '../src/control/studio';
 
 const key=Buffer.alloc(32,7);
 const A='e_'+'a'.repeat(24),B='e_'+'b'.repeat(24);
@@ -125,4 +125,51 @@ test('Studio server-side calls reach only their own environment, with its own se
  expect(seen.length).toBe(3);
  expect(serviceKey(service,'secret-a')).toBe(true);
  expect(serviceKey(service,'secret-b')).toBe(false);
+});
+
+test('an active Studio session is renewed, never past its limit, and only for its own page',async()=>{
+ let epoch=0;const touched:string[]=[];
+ const proxy=studioProxy({key:()=>key,epoch:()=>epoch,allowed:()=>true,upstream:()=>'http://studio-a.internal:3000',touch:runtime=>touched.push(runtime),
+  transport:(async()=>new Response('ok')) as typeof fetch});
+ const now=Date.now();
+ // Opened two hours ago: due for renewal.
+ const old=signStudio(key,{runtime:A,actor:'alice',epoch:0,kind:'session',started:now-2*3600_000,expires:now-2*3600_000+SESSION_MS});
+ const cookieOf=(response:Response)=>response.headers.getSetCookie().find(item=>item.startsWith(STUDIO_COOKIE+'='));
+ const own=await proxy(new Request(`http://${studioHost(A)}/api/platform/profile`,{headers:{cookie:`${STUDIO_COOKIE}=${old}`,'sec-fetch-site':'same-origin'}}));
+ const renewed=cookieOf(own)!;
+ expect(renewed).toContain('HttpOnly');
+ const claim=verifyStudio(key,renewed.split(';')[0]!.slice(STUDIO_COOKIE.length+1),A,'session')!;
+ expect(claim.expires).toBeGreaterThan(now+SESSION_MS-60_000);
+ expect(claim.started).toBe(now-2*3600_000);
+ expect(touched).toEqual([A]);
+ // A fresh cookie is not re-sent on every request.
+ const fresh=signStudio(key,{runtime:A,actor:'alice',epoch:0,kind:'session',started:now,expires:now+SESSION_MS});
+ expect(cookieOf(await proxy(new Request(`http://${studioHost(A)}/x`,{headers:{cookie:`${STUDIO_COOKIE}=${fresh}`,'sec-fetch-site':'same-origin'}})))).toBeUndefined();
+ // A request another site started is never renewed.
+ expect(cookieOf(await proxy(new Request(`http://${studioHost(A)}/x`,{headers:{cookie:`${STUDIO_COOKIE}=${old}`,'sec-fetch-site':'cross-site'}})))).toBeUndefined();
+ // A revoked session is refused, not renewed.
+ epoch=1;
+ const revoked=await proxy(new Request(`http://${studioHost(A)}/x`,{headers:{cookie:`${STUDIO_COOKIE}=${old}`,'sec-fetch-site':'same-origin'}}));
+ expect(revoked.status).toBe(401);expect(cookieOf(revoked)).toBeUndefined();
+});
+
+test('renewal stops at seven days from opening, and a cookie from before the field still works',()=>{
+ const now=Date.now();
+ const nearLimit={runtime:A,actor:'alice',epoch:0,kind:'session' as const,started:now-SESSION_LIMIT_MS+60_000,expires:now+60_000};
+ expect(renewedSession(key,nearLimit,now)).toBeUndefined();
+ const legacy={runtime:A,actor:'alice',epoch:0,kind:'session' as const,expires:now+SESSION_MS-3600_000};
+ expect(verifyStudio(key,signStudio(key,legacy),A,'session')).not.toBeNull();
+ const cookie=renewedSession(key,legacy,now)!;
+ const claim=verifyStudio(key,cookie.split(';')[0]!.split('=')[1]!,A,'session')!;
+ expect(claim.started).toBe(legacy.expires-SESSION_MS);
+ // A start time in the future is refused.
+ expect(verifyStudio(key,signStudio(key,{...legacy,started:now+3600_000}),A,'session')).toBeNull();
+});
+
+test('while the console has asked for Studio and it is not serving yet, the page says it is starting',async()=>{
+ const proxy=studioProxy({key:()=>key,epoch:()=>0,allowed:()=>true,upstream:()=>undefined,starting:()=>true});
+ const session=signStudio(key,{runtime:A,actor:'alice',epoch:0,kind:'session',expires:Date.now()+SESSION_MS});
+ const response=await proxy(new Request(`http://${studioHost(A)}/project/default`,{headers:{cookie:`${STUDIO_COOKIE}=${session}`}}));
+ expect(response.status).toBe(503);expect(response.headers.get('retry-after')).toBe('5');
+ expect(await response.text()).toContain('reloads by itself');
 });

@@ -335,6 +335,48 @@ class ScheduleTests(unittest.TestCase):
             supervisor.schedule_studios()
         self.assertEqual(sorted(command[2:] for command in spawned), [['down', 'e_' + 'c' * 24], ['up', E]])
 
+    def test_a_restart_brings_back_only_recently_used_sessions(self):
+        import dev
+        import sqlite3
+        import time as clock
+        now = int(clock.time() * 1000)
+        recent, stale, stopped, new = ('e_' + c * 24 for c in 'abcd')
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'control.sqlite'
+            with sqlite3.connect(path) as database:
+                database.execute('CREATE TABLE studio_sessions(runtime TEXT PRIMARY KEY, desired TEXT, state TEXT, failure TEXT, actor TEXT, updated_at INTEGER)')
+                database.execute('CREATE TABLE studio_activity(runtime TEXT PRIMARY KEY, seen_at INTEGER)')
+                old = now - 3 * dev.STUDIO_RESTORE_MS
+                database.executemany('INSERT INTO studio_sessions VALUES (?,?,?,?,?,?)', [
+                    (recent, 'running', 'running', None, 'alice', old), (stale, 'running', 'running', None, 'alice', old),
+                    (stopped, 'stopped', 'stopped', None, 'alice', now), (new, 'running', 'starting', 'x', 'alice', now - 1000)])
+                database.executemany('INSERT INTO studio_activity VALUES (?,?)', [(recent, now - 60_000), (stopped, now)])
+            with patch.object(dev, 'STATE', Path(directory)), patch.object(dev.subprocess, 'run') as reset:
+                dev.Supervisor().reset_studios()
+            reset.assert_any_call(['/usr/bin/python3', 'lab/studio.py', 'reset'], cwd=dev.ROOT, timeout=300, check=False)
+            with sqlite3.connect(path) as database:
+                rows = dict((runtime, (desired, state, failure)) for runtime, desired, state, failure in
+                            database.execute('SELECT runtime, desired, state, failure FROM studio_sessions'))
+        # Used in the last eight hours (by the proxy, or opened from the console): asked for again, from stopped.
+        self.assertEqual(rows[recent], ('running', 'stopped', None))
+        self.assertEqual(rows[new], ('running', 'stopped', None))
+        # Idle for longer, or stopped by the operator: stays stopped.
+        self.assertEqual(rows[stale], ('stopped', 'stopped', None))
+        self.assertEqual(rows[stopped], ('stopped', 'stopped', None))
+
+    def test_a_catalog_without_the_activity_table_still_resets(self):
+        import dev
+        import sqlite3
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'control.sqlite'
+            with sqlite3.connect(path) as database:
+                database.execute('CREATE TABLE studio_sessions(runtime TEXT PRIMARY KEY, desired TEXT, state TEXT, failure TEXT, actor TEXT, updated_at INTEGER)')
+                database.execute("INSERT INTO studio_sessions VALUES (?, 'running', 'running', NULL, 'alice', 0)", (E,))
+            with patch.object(dev, 'STATE', Path(directory)), patch.object(dev.subprocess, 'run'):
+                dev.Supervisor().reset_studios()
+            with sqlite3.connect(path) as database:
+                self.assertEqual(database.execute('SELECT desired, state FROM studio_sessions').fetchone(), ('stopped', 'stopped'))
+
 
 if __name__ == '__main__':
     unittest.main()
