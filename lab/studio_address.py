@@ -70,6 +70,7 @@ def describe(domain):
         f"  2. Certificate covering: {', '.join(value['certificate'])}",
         '     (Cloudflare Origin CA: create one with those hostnames and install it on the TLS proxy.)',
         f"  3. Setting: {value['setting']}  (apply writes it for the console and the TLS proxy)",
+        '     With Docker, export the same SBARBASE_STUDIO_HOST before deploy/compose.sh up and give the TLS proxy the same value.',
         'The domain must hold no other site you care about: the wildcard answers every unnamed name under it.',
         'On Cloudflare Free the pattern must stay one level under the domain, which this one does.',
     ])

@@ -8,6 +8,10 @@
 
 ## [لم يُصدر بعد]
 
+### إصلاحات
+
+- **صار بإمكان تثبيت Docker ضبط عنوان Studio العام.** صارت `compose.yaml` و`deploy/compose.sh` وفحص المضيف تمرّر `SBARBASE_STUDIO_HOST`؛ وكانت حاوية لوحة الإدارة لا تستقبله أبدًا ([Studio](docs/guides/studio.ar.md)).
+
 ## الإصدار [0.5.8]، 2026-10-19
 
 ### أُضيف

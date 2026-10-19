@@ -10,6 +10,10 @@ The declared package version is 0.5.8. Historical 0.1.0 and 0.2.0 entries retain
 
 ## [Unreleased]
 
+### Fixed
+
+- **Docker installs can set a public Studio address.** `compose.yaml`, `deploy/compose.sh` and the host preflight now forward `SBARBASE_STUDIO_HOST`; before, the console container could never receive it ([Studio](docs/guides/studio.md)).
+
 ## [0.5.8] - 2026-10-19
 
 ### Added

@@ -32,6 +32,7 @@ Good to know:
 
 - If the wildcard would sit on a domain that serves other sites, do not use it. Name each environment's record yourself (one `studio-<24 hex>` record per environment) or use a domain of its own.
 - On Cloudflare Free the edge certificate covers one level under the domain, so keep the pattern `studio-{id}.example.com`, not `{id}.studio.example.com`.
+- With Docker, export `SBARBASE_STUDIO_HOST=studio-{id}.example.com` before `deploy/compose.sh up` (the launcher forwards it to the console), and run the TLS proxy with the same variable or flag. `apply` writes systemd drop-ins, so it is for the systemd install.
 - The console and the proxy read the same `SBARBASE_STUDIO_HOST`. The proxy's `--studio-host` flag still works and wins when both are set.
 - Studio is reached on port 443; a public address on another port is not supported.
 - With a proxying CDN such as Cloudflare in front, the CDN terminates TLS and sees Studio's traffic, as it sees the console's.
