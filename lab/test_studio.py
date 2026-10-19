@@ -26,6 +26,19 @@ class LoginTests(unittest.TestCase):
         # Opening the login is the last statement, after every grant has applied.
         self.assertTrue(sql.strip().endswith(f'ALTER ROLE {role} LOGIN;'))
 
+    def test_studio_works_as_the_developer_login_without_a_cycle(self):
+        sql = studio.role_sql(E, 'f' * 64)
+        studio_role, developer = f'{E}_studio', f'{E}_developer'
+        # The reverse grant goes before the new one, since PostgreSQL refuses a membership cycle.
+        self.assertLess(sql.index(f'REVOKE {studio_role} FROM {developer}'), sql.index(f'GRANT {developer} TO {studio_role}'))
+        self.assertIn(f'REASSIGN OWNED BY {studio_role} TO {developer}', sql)
+        self.assertIn(f'ALTER ROLE {studio_role} IN DATABASE {E} SET role = {developer}', sql)
+        # Only when both exist; the developer login's own setup no longer makes Studio its group.
+        self.assertIn(f"rolname = '{developer}'", sql)
+        grants = durable_runtime.Runtime.developer_grants_sql(None, E)
+        self.assertIn(f'GRANT {developer} TO {studio_role}', grants)
+        self.assertNotIn(f'GRANT {studio_role} TO {developer}', durable_runtime.Runtime.developer_sql(None, E, 'p' * 32))
+
     def test_the_access_rule_is_published_for_every_environment(self):
         text = durable_runtime.hba_content([E])
         lines = text.splitlines()

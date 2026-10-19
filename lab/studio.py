@@ -126,6 +126,7 @@ GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO {role};
 ALTER DEFAULT PRIVILEGES FOR ROLE {role} IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;
 ALTER DEFAULT PRIVILEGES FOR ROLE {role} IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
 ALTER DEFAULT PRIVILEGES FOR ROLE {role} IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO anon, authenticated, service_role;
+{runtime.studio_identity_sql(e)}
 ALTER ROLE {role} LOGIN;
 """
 

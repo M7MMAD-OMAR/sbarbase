@@ -355,6 +355,20 @@ option, at the cost of a fifth HBA rule and a fifth role per environment.
 
 ### 3.5 What must NOT be granted or set
 
+Revised 2026-10-19. This list was written before the developer login existed, and the code
+already set `BYPASSRLS` against its first item. Measured on the owner's server that day: every table
+in `public` and in the developer's own schema `tdbr` belonged to `<e>_developer`, so Studio could
+not alter a table, a policy or RLS, could not see `tdbr`, Vault or `supabase_migrations`. Studio now
+works as the developer login (`studio_identity_sql` in `lab/durable_runtime.py`): `<e>_studio` is a
+member of `<e>_developer` and takes it on connecting (`ALTER ROLE ... IN DATABASE ... SET role`),
+the way Supabase Studio works as a project's `postgres` user. The session user stays `<e>_studio`,
+so its connection limit and HBA rule still hold. The earlier reverse grant (developer a member of
+Studio) is revoked first, since PostgreSQL refuses a cycle, and what Studio owned goes to the
+developer. Checked on PostgreSQL 17 with the pinned postgres-meta: `current_user` is the developer
+through `/query`, and ALTER TABLE, ENABLE ROW LEVEL SECURITY and CREATE POLICY on developer tables
+succeed. The items below still hold for anything beyond what the developer login has.
+
+
 - Not `SUPERUSER`, not `CREATEDB`, not `CREATEROLE`, not `REPLICATION`, not `BYPASSRLS`. The export
   path already asserts exactly this shape for the existing logins (`lab/recovery-export.py:109`).
 - Not membership in `service_role`, `supabase_admin`, `authenticator` or any `pg_*` predefined role.
