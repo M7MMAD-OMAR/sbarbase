@@ -10,6 +10,14 @@ The declared package version is 0.5.7. Historical 0.1.0 and 0.2.0 entries retain
 
 ## [Unreleased]
 
+### Added
+
+- **An environment can create its own schemas and use Vault.** The developer login, used by direct database access and by agents, may now create and rename schemas of its own, so migrations that keep code outside `public` (for example `create schema app`) run as on Supabase, and so does `supabase db push`. Names the platform uses (`auth`, `storage`, `extensions`, `realtime`, `vault`, `cron`, `net`, `graphql`, and any starting with `supabase` or `sbarbase`) stay refused, by a guard the login can neither drop nor disable. Vault is installed in each environment with the grants Supabase gives `postgres` and `service_role`, without the right to pass them on; all environments of a server share its root key. The `supabase_realtime` publication now always exists and belongs to the login, so migrations can add tables to it as on Supabase. Extensions that reach the server's network or see every environment, such as `http`, `pg_net`, `dblink`, `postgres_fdw`, `pg_stat_statements` and `pgroonga` (which can write files anywhere on the server), are now refused for the environment's login; the image's supautils used to create them for it. Turn database access off and on once for an environment whose access is already on ([database access](docs/guides/database-access.md)).
+
+### Fixed
+
+- **Turning database access off and on keeps a migration's narrower default grants.** Each time access was turned on, the API's default grants to `anon`, `authenticated` and `service_role` were given again, undoing a migration that had revoked them, for example execute rights on new functions. They are now given once, the first time ([database access](docs/guides/database-access.md)).
+
 ### Changed
 
 - **The console has a new look.** Colours, spacing and components follow Supabase's design tokens, each environment screen has one primary action, and a contrast check guards the palette (pull request 18).

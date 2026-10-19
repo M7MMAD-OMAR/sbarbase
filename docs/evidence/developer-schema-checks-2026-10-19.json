@@ -1,0 +1,262 @@
+{
+ "image": "public.ecr.aws/supabase/postgres:17.6.1.166",
+ "date": "2026-10-19",
+ "checks": [
+  {
+   "check": "the developer login is not a superuser and cannot create roles or databases",
+   "result": "pass"
+  },
+  {
+   "check": "it creates a schema of its own and works in it",
+   "result": "pass"
+  },
+  {
+   "check": "it renames its own schema to another name of its own",
+   "result": "pass"
+  },
+  {
+   "check": "it creates the extensions an application uses",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot create the server-wide extension http",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot create the server-wide extension pg_net",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot create the server-wide extension dblink",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot create the server-wide extension postgres_fdw",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot create the server-wide extension wrappers",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot create the server-wide extension pg_cron",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot create the server-wide extension pg_tle",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot create the server-wide extension pgsodium",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot create the server-wide extension pg_stat_statements",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot create the server-wide extension pg_walinspect",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot create the server-wide extension pg_buffercache",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot create the server-wide extension pg_repack",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot create the server-wide extension pgaudit",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot create the server-wide extension file_fdw",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot create the server-wide extension pgroonga",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot create the server-wide extension pgroonga_database",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot reach a refused extension through CASCADE",
+   "result": "pass"
+  },
+  {
+   "check": "an extension the superuser installs keeps its own schema name",
+   "result": "pass"
+  },
+  {
+   "check": "it owns the Realtime publication and adds a table to it",
+   "result": "pass"
+  },
+  {
+   "check": "a dropped Realtime publication comes back with the grants",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot write server files through pgroonga",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot add another schema to the Realtime publication",
+   "result": "pass"
+  },
+  {
+   "check": "it creates a publication of its own",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot create the platform schema realtime",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot create the platform schema _realtime",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot create the platform schema cron",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot create the platform schema net",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot create the platform schema graphql_public",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot create the platform schema pgsodium",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot create the platform schema supabase_functions",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot create the platform schema supabase_anything",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot create the platform schema sbarbase_guard_two",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot create the platform schema pgbouncer",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot create the platform schema _analytics",
+   "result": "pass"
+  },
+  {
+   "check": "supabase db push can send CREATE SCHEMA IF NOT EXISTS supabase_migrations",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot create a platform schema with IF NOT EXISTS",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot create a platform schema under another owner it belongs to",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot rename its own schema into a platform name",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot rename its own schema into a supabase name",
+   "result": "pass"
+  },
+  {
+   "check": "its own schema survived the refused renames",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot create the existing Vault schema again",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot rename a platform schema",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot drop a platform schema",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot drop the guard",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot disable the guard",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot replace the guard function",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot create its own event trigger",
+   "result": "pass"
+  },
+  {
+   "check": "it stores and reads a Vault secret",
+   "result": "pass"
+  },
+  {
+   "check": "it updates a Vault secret",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot pass Vault on to anon",
+   "result": "pass"
+  },
+  {
+   "check": "service_role reads Vault as on Supabase",
+   "result": "pass"
+  },
+  {
+   "check": "anon cannot read Vault",
+   "result": "pass"
+  },
+  {
+   "check": "it sees only its own environment's secrets",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot connect to the other environment's database",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot create a schema in the other environment's database",
+   "result": "pass"
+  },
+  {
+   "check": "the superuser still creates platform schemas",
+   "result": "pass"
+  },
+  {
+   "check": "applying the grants again changes nothing and keeps one guard",
+   "result": "pass"
+  },
+  {
+   "check": "a narrowed default grant survives the grants being applied again",
+   "result": "pass"
+  },
+  {
+   "check": "a new table gets the API grants the first time",
+   "result": "pass"
+  },
+  {
+   "check": "the guard still refuses after the grants are applied again",
+   "result": "pass"
+  }
+ ]
+}
