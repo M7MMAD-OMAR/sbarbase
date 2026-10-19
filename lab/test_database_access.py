@@ -82,7 +82,7 @@ class DatabaseAccessTests(unittest.TestCase):
         self.assertIn(f'GRANT USAGE ON SCHEMA vault TO {E}_developer;', text)
         self.assertNotIn('WITH GRANT OPTION', text)
         self.assertIn('vault.create_secret, vault.update_secret, vault._crypto_aead_det_decrypt TO service_role', text)
-        self.assertNotIn('anon', text[vault:text.index('CREATE SCHEMA IF NOT EXISTS supabase_migrations')])
+        self.assertNotIn('anon', text[vault:text.index("-- The API's default grants")])
 
     def test_extensions_that_reach_the_server_are_refused_and_the_realtime_publication_name_is_kept(self):
         text = self.runtime.developer_grants_sql(E)
@@ -92,13 +92,24 @@ class DatabaseAccessTests(unittest.TestCase):
         for name in ('pg_trgm', 'btree_gist', 'vector', 'pgtap', 'pg_graphql', 'supabase_vault'):
             self.assertNotIn(name, durable_runtime.RESERVED_EXTENSIONS)
         self.assertIn("item.pubname = 'supabase_realtime'", text)
+        publication = text.index('CREATE PUBLICATION supabase_realtime FOR TABLES IN SCHEMA public')
+        self.assertLess(publication, text.index(f'ALTER PUBLICATION supabase_realtime OWNER TO {E}_developer'))
+
+    def test_the_api_default_grants_are_given_only_before_migration_history_exists(self):
+        text = self.runtime.developer_grants_sql(E)
+        condition = text.index("IF NOT EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = 'supabase_migrations') THEN")
+        defaults = text.index(f'ALTER DEFAULT PRIVILEGES FOR ROLE {E}_developer IN SCHEMA public GRANT ALL ON TABLES')
+        self.assertLess(condition, defaults)
+        self.assertLess(defaults, text.index('CREATE SCHEMA IF NOT EXISTS supabase_migrations'))
+        self.assertEqual(text.count('ALTER DEFAULT PRIVILEGES'), 3)
 
     def test_realtime_refuses_schemas_another_login_made(self):
         self.runtime.realtime_database(E, {'realtime': 'r' * 64})
         text = '\n'.join(query for database, query in self.statements if database == E)
         refusal = text.index("nspname IN ('realtime', '_realtime') AND nspowner <> '" + E + "_realtime'::regrole")
         self.assertLess(refusal, text.index('CREATE SCHEMA IF NOT EXISTS _realtime'))
-        self.assertLess(text.index("p.pubname = 'supabase_realtime' AND NOT r.rolsuper"), text.index('CREATE SCHEMA IF NOT EXISTS _realtime'))
+        self.assertLess(text.index("p.pubname = 'supabase_realtime'\n      AND NOT r.rolsuper AND r.rolname <> '" + E + "_developer'"), text.index('CREATE SCHEMA IF NOT EXISTS _realtime'))
+        self.assertIn(f'ALTER PUBLICATION supabase_realtime OWNER TO {E}_developer', text)
 
     def test_turning_it_on_applies_the_saved_password_room_and_grants_then_publishes(self):
         self.runtime.database_turn(E, on=True)

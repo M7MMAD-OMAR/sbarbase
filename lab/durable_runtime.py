@@ -894,7 +894,8 @@ GRANT SET ON PARAMETER log_min_messages TO {role}, supabase_realtime_admin;""")
   IF EXISTS (SELECT 1 FROM pg_namespace WHERE nspname IN ('realtime', '_realtime') AND nspowner <> '{role}'::regrole) THEN
     RAISE EXCEPTION 'A Realtime schema belongs to another login';
   END IF;
-  IF EXISTS (SELECT 1 FROM pg_publication p JOIN pg_roles r ON r.oid = p.pubowner WHERE p.pubname = 'supabase_realtime' AND NOT r.rolsuper) THEN
+  IF EXISTS (SELECT 1 FROM pg_publication p JOIN pg_roles r ON r.oid = p.pubowner WHERE p.pubname = 'supabase_realtime'
+      AND NOT r.rolsuper AND r.rolname <> '{e}_developer') THEN
     RAISE EXCEPTION 'The Realtime publication belongs to another login';
   END IF;
 END $$;
@@ -903,6 +904,9 @@ CREATE SCHEMA IF NOT EXISTS realtime AUTHORIZATION {role};
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
     CREATE PUBLICATION supabase_realtime FOR TABLES IN SCHEMA public;
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{e}_developer') THEN
+    ALTER PUBLICATION supabase_realtime OWNER TO {e}_developer;
   END IF;
 END $$;""", e)
         self.sql(f'ALTER DATABASE {e} CONNECTION LIMIT {current_database_limit(e, realtime=True)};')
@@ -1055,6 +1059,16 @@ GRANT EXECUTE ON FUNCTION vault.create_secret, vault.update_secret, vault._crypt
 GRANT USAGE ON SCHEMA vault TO service_role;
 GRANT SELECT, DELETE ON vault.secrets, vault.decrypted_secrets TO service_role;
 GRANT EXECUTE ON FUNCTION vault.create_secret, vault.update_secret, vault._crypto_aead_det_decrypt TO service_role;
+-- The API's default grants, given once, the first time (before supabase_migrations exists), as Supabase
+-- gives them once at project creation: a migration that later narrows them keeps its choice when
+-- access is turned off and on again.
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = 'supabase_migrations') THEN
+    ALTER DEFAULT PRIVILEGES FOR ROLE {role} IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;
+    ALTER DEFAULT PRIVILEGES FOR ROLE {role} IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
+    ALTER DEFAULT PRIVILEGES FOR ROLE {role} IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO anon, authenticated, service_role;
+  END IF;
+END $$;
 CREATE SCHEMA IF NOT EXISTS supabase_migrations AUTHORIZATION {role};
 GRANT USAGE, CREATE ON SCHEMA supabase_migrations TO {role};
 GRANT ALL ON ALL TABLES IN SCHEMA supabase_migrations TO {role};
@@ -1062,9 +1076,14 @@ GRANT USAGE, CREATE ON SCHEMA public, extensions TO {role};
 GRANT ALL ON ALL TABLES IN SCHEMA public TO {role};
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO {role};
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO {role};
-ALTER DEFAULT PRIVILEGES FOR ROLE {role} IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;
-ALTER DEFAULT PRIVILEGES FOR ROLE {role} IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
-ALTER DEFAULT PRIVILEGES FOR ROLE {role} IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO anon, authenticated, service_role;
+-- Realtime's publication always exists and belongs to the login, as it belongs to a project's
+-- `postgres` user on Supabase, so migrations may add tables to it. It publishes the `public` schema.
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
+    CREATE PUBLICATION supabase_realtime FOR TABLES IN SCHEMA public;
+  END IF;
+END $$;
+ALTER PUBLICATION supabase_realtime OWNER TO {role};
 GRANT CREATE ON DATABASE {e} TO {role};"""
 
     def database_turn(self, e, on):

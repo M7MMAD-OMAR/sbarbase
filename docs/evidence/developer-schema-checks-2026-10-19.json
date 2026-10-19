@@ -83,7 +83,15 @@
    "result": "pass"
   },
   {
-   "check": "it cannot take the Realtime publication name",
+   "check": "it owns the Realtime publication and adds a table to it",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot recreate the Realtime publication after dropping it",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot add another schema to the Realtime publication",
    "result": "pass"
   },
   {
@@ -224,6 +232,14 @@
   },
   {
    "check": "applying the grants again changes nothing and keeps one guard",
+   "result": "pass"
+  },
+  {
+   "check": "a narrowed default grant survives the grants being applied again",
+   "result": "pass"
+  },
+  {
+   "check": "a new table gets the API grants the first time",
    "result": "pass"
   },
   {

@@ -37,13 +37,15 @@ DATABASE_URL="postgresql://…@127.0.0.1:6543/e_…?sslmode=disable" npx prisma 
 
 It works like a Supabase project's `postgres` user, inside this environment's database only:
 
-- Create and change tables, views, functions and policies in `public`. New tables are granted to `anon`, `authenticated` and `service_role`, so the API can reach them, and row level security decides what each caller sees.
+- Create and change tables, views, functions and policies in `public`. New tables are granted to `anon`, `authenticated` and `service_role`, so the API can reach them, and row level security decides what each caller sees. These default grants are set once, when access is first turned on; a migration that narrows them keeps its choice.
 - Add triggers on `auth.users` (for example, create a profile at sign-up) and policies on `storage.objects`.
 - Read and write every row; it bypasses row level security, as the `postgres` user does.
 - Keep migration history in `supabase_migrations`, a schema made for it, where [AI agents](agents.md) record what they applied.
 - Create schemas of its own, such as `app` or `private`, and rename them. It cannot use a name the platform creates itself: `auth`, `storage`, `extensions`, `public`, `realtime`, `_realtime`, `vault`, `pgsodium`, `cron`, `net`, `graphql`, `graphql_public`, or any name starting with `supabase` or `sbarbase`. A schema it made first under such a name would run its code with the platform's rights, so PostgreSQL refuses the statement, and a rename into one of these names too.
 - Keep secrets in Vault (`vault.create_secret`, `vault.update_secret`, `vault.decrypted_secrets`), as on Supabase; `service_role` reads them too. The login cannot pass this access on to other roles, so a grant to `anon` cannot open the secrets to the API.
 - Create the extensions an application uses, such as `pg_trgm`, `btree_gist`, `vector`, `pgtap` and `pg_graphql`. Extensions that reach the server's network, see every environment's activity, load code or hold the server's key are refused on a shared server: `dblink`, `postgres_fdw`, `http`, `pg_net`, `wrappers`, `pg_cron`, `pg_tle`, `pgsodium`, `pg_stat_statements`, `pg_stat_monitor`, `pg_walinspect`, `pg_buffercache`, `pg_prewarm`, `pg_repack`, `pgaudit` and a few more (`RESERVED_EXTENSIONS` in `lab/durable_runtime.py`).
+
+- Add tables to the `supabase_realtime` publication, which always exists and belongs to it, as it belongs to a project's `postgres` user on Supabase. The publication includes the whole `public` schema, so tables there are published already; adding one is accepted and changes nothing. Tables of other schemas can be added one by one. If the login drops the publication, it cannot create it again under that name; the platform makes it again the next time access is turned on.
 
 These rights are given when access is turned on; for an environment whose access was already on, turn it off and on once.
 

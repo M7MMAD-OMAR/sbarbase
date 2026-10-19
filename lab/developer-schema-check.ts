@@ -64,7 +64,18 @@ try {
   check(`it cannot create the server-wide extension ${extension}`,()=>refused(`CREATE EXTENSION ${extension} CASCADE;`,/not available to an environment|can only create extension in database postgres|Must be superuser/));
  check('it cannot reach a refused extension through CASCADE',()=>refused('CREATE EXTENSION IF NOT EXISTS pgsodium WITH SCHEMA extensions CASCADE; SELECT 1;',/not available to an environment/));
  check('an extension the superuser installs keeps its own schema name',()=>superuser(a,"SELECT pg_get_userbyid(nspowner) FROM pg_namespace WHERE nspname = 'graphql'")==='supabase_admin'||'graphql schema owner differs');
- check('it cannot take the Realtime publication name',()=>refused('CREATE PUBLICATION supabase_realtime FOR TABLE tdbr.items;',/reserved for the platform/));
+ check('it owns the Realtime publication and adds a table to it',()=>{
+  const owner=superuser(a,"SELECT pg_get_userbyid(pubowner) FROM pg_publication WHERE pubname = 'supabase_realtime'");
+  if(owner!==`${a}_developer`)return owner;
+  return works('CREATE TABLE public.live(id int primary key); ALTER PUBLICATION supabase_realtime ADD TABLE public.live;');
+ });
+ check('it cannot recreate the Realtime publication after dropping it',()=>{
+  const out=developer('DROP PUBLICATION supabase_realtime; CREATE PUBLICATION supabase_realtime FOR TABLE public.live;');
+  const [roleSql,grantSql]=generate(a,passwords[0]!); superuser('postgres',roleSql); superuser(a,grantSql);
+  const owner=superuser(a,"SELECT pg_get_userbyid(pubowner) FROM pg_publication WHERE pubname = 'supabase_realtime'");
+  return out.status!==0&&reserved.test(out.stderr)&&owner===`${a}_developer`||`${out.stderr.slice(0,200)} owner ${owner}`;
+ });
+ check('it cannot add another schema to the Realtime publication',()=>refused('ALTER PUBLICATION supabase_realtime ADD TABLES IN SCHEMA tdbr;',/must be superuser/));
  check('it creates a publication of its own',()=>works('CREATE PUBLICATION mine FOR TABLE tdbr.items; DROP PUBLICATION mine;'));
  for(const schema of ['realtime','_realtime','cron','net','graphql_public','pgsodium','supabase_functions','supabase_anything','sbarbase_guard_two','pgbouncer','_analytics'])
   check(`it cannot create the platform schema ${schema}`,()=>refused(`CREATE SCHEMA ${schema};`,reserved));
@@ -111,6 +122,20 @@ try {
   superuser('postgres',roleSql); superuser(a,grantSql);
   const out=superuser(a,"SELECT count(*) || ',' || min(evtenabled) FROM pg_event_trigger WHERE evtname = 'sbarbase_reserved_schemas'");
   return out==='1,A'||out;
+ });
+ check('a narrowed default grant survives the grants being applied again',()=>{
+  const narrowed=developer('ALTER DEFAULT PRIVILEGES REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC; ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM anon;');
+  if(narrowed.status)return narrowed.stderr.slice(0,200);
+  const [roleSql,grantSql]=generate(a,passwords[0]!); superuser('postgres',roleSql); superuser(a,grantSql);
+  const made=developer('CREATE FUNCTION public.after_toggle() RETURNS int LANGUAGE sql AS $$ SELECT 1 $$;');
+  if(made.status)return made.stderr.slice(0,200);
+  const out=superuser(a,"SELECT has_function_privilege('anon', 'public.after_toggle()', 'EXECUTE')::text || has_function_privilege('authenticated', 'public.after_toggle()', 'EXECUTE')::text");
+  return out==='falsetrue'||out;
+ });
+ check('a new table gets the API grants the first time',()=>{
+  const made=developer('CREATE TABLE public.granted(id int);');
+  const out=superuser(a,"SELECT has_table_privilege('anon', 'public.granted', 'SELECT')::text");
+  return made.status===0&&out==='true'||out+made.stderr.slice(0,200);
  });
  check('the guard still refuses after the grants are applied again',()=>refused('CREATE SCHEMA net_two; ALTER SCHEMA net_two RENAME TO net;',reserved));
 } catch(error) {
