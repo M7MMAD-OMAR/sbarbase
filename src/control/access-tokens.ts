@@ -13,11 +13,12 @@ import {chmodSync} from 'node:fs';
  * - read only, or read and write;
  * - an expiry of at most a year.
  *
- * It stops working when it expires, when it is revoked, when that person's sessions are ended
- * (a password reset or a lost authenticator: the management actor epoch moves on), and when the
- * installation's sign-in policy changes (MFA required or not: the policy epoch moves on), so a
- * token made under a weaker policy does not outlive it. A membership
- * removed or lowered applies at the next call, because every call checks the current role. */
+ * It stops working when it expires, when it is revoked, when that person's password is reset or
+ * an authenticator is recovered (their token epoch moves on), and when the installation's sign-in
+ * policy changes (MFA required or not: the policy epoch moves on), so a token made under a weaker
+ * policy does not outlive it. Signing out of the console, by hand or because a session expired,
+ * ends sessions only and leaves tokens working. A membership removed or lowered applies at the
+ * next call, because every call checks the current role. */
 
 export const ACCESS_TOKEN=/^sbp_[a-f0-9]{40}$/;
 export const TOKEN_NAME=/^[\p{L}\p{N} ._()'@:\/+-]{1,64}$/u;
@@ -31,9 +32,9 @@ const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export class TokenRefusal extends Error {}
 
-/** What a token is bound to: its owner's management epoch and the sign-in policy's epoch. */
-export function tokenEpoch(security:{epoch(actor:string):number;policy():{epoch:number}}) {
- return (actor:string)=>`${security.epoch(actor)}.${security.policy().epoch}`;
+/** What a token is bound to: its owner's token epoch and the sign-in policy's epoch. */
+export function tokenEpoch(security:{tokenEpoch(actor:string):number;policy():{epoch:number}}) {
+ return (actor:string)=>`${security.tokenEpoch(actor)}.${security.policy().epoch}`;
 }
 
 function record(row:Row):AccessToken {

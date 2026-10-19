@@ -564,7 +564,7 @@ export class Catalog {
     this.actor(actor);
     if(!['requested','succeeded','failed'].includes(outcome)||!['global','local','others'].includes(scope))throw new Error('Invalid logout');
     this.db.transaction(()=>{
-      this.managementSecurity.revoke(actor);
+      this.managementSecurity.endSessions(actor);
       this.record(actor,'management.mfa.logout_'+outcome,actor,{scope});
     }).immediate();
   }

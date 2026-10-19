@@ -18,6 +18,14 @@ export class ManagementSecurity {
    state TEXT NOT NULL CHECK(state IN ('requested','completed','failed')),started INTEGER NOT NULL,finished INTEGER);`);
   if(!db.query<{name:string},[]>('PRAGMA table_info(management_mfa_epoch)').all().some(column=>column.name==='revoked'))
    db.exec('ALTER TABLE management_mfa_epoch ADD COLUMN revoked INTEGER NOT NULL DEFAULT 0');
+  // Access tokens follow their own epoch, so signing out ends sessions without ending tokens.
+  // It starts from the session epoch once, when the table is made: a token alive then stays
+  // alive, and one already ended stays ended. Seeding again later would end tokens at sign out.
+  db.transaction(()=>{
+   if(db.query('SELECT 1 FROM sqlite_master WHERE type=\'table\' AND name=\'management_token_epoch\'').get())return;
+   db.exec(`CREATE TABLE management_token_epoch(actor TEXT PRIMARY KEY,epoch INTEGER NOT NULL);
+    INSERT INTO management_token_epoch(actor,epoch) SELECT actor,epoch FROM management_mfa_epoch;`);
+  }).immediate();
  }
  policy():{mfa_required:boolean;epoch:number} {
   const row=this.db.query<{mfa_required:number;epoch:number},[]>('SELECT mfa_required,epoch FROM management_auth_policy WHERE singleton=1').get()!;
@@ -55,6 +63,10 @@ export class ManagementSecurity {
  }
  epoch(actor:string):number {
   return this.db.query<{epoch:number},[string]>('SELECT epoch FROM management_mfa_epoch WHERE actor=?').get(actor)?.epoch??0;
+ }
+ /** What an actor's access tokens are bound to: moved by a password reset or factor recovery, never by sign out. */
+ tokenEpoch(actor:string):number {
+  return this.db.query<{epoch:number},[string]>('SELECT epoch FROM management_token_epoch WHERE actor=?').get(actor)?.epoch??0;
  }
  /** Serialize native mutations so simultaneous removals cannot both remove the last factor. */
  lease(actor:string,now=Date.now()):string|null {
@@ -96,7 +108,16 @@ export class ManagementSecurity {
   this.db.query('DELETE FROM management_password_grant WHERE actor=?').run(actor);
   this.db.query('DELETE FROM management_mfa_grant WHERE actor=?').run(actor);
  }
+ /** Ends every session of the actor and every access token they made. */
  revoke(actor:string):void {
+  this.db.transaction(()=>{
+   this.endSessions(actor);
+   this.db.query(`INSERT INTO management_token_epoch(actor,epoch) VALUES (?,1)
+    ON CONFLICT(actor) DO UPDATE SET epoch=epoch+1`).run(actor);
+  }).immediate();
+ }
+ /** Ends every session of the actor and leaves their access tokens alone: a sign out. */
+ endSessions(actor:string):void {
   this.db.transaction(()=>{
    this.db.query(`INSERT INTO management_mfa_epoch(actor,epoch,revoked) VALUES (?,1,?)
     ON CONFLICT(actor) DO UPDATE SET epoch=epoch+1,revoked=MAX(revoked,excluded.revoked)`).run(actor,Math.floor(Date.now()/1000));

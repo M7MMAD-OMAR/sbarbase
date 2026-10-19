@@ -1,4 +1,5 @@
 import {test,expect,beforeAll,afterAll} from 'bun:test';
+import {Database} from 'bun:sqlite';
 import {mkdtempSync,rmSync,existsSync,readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
@@ -265,6 +266,36 @@ test('a token stops at revocation, at its expiry and when its owner\'s password 
   expect(store.resolve(issued.token,()=>'0.0')).toBeNull();
   store.close();
  } finally {s.close();}
+});
+
+test('signing out of the console, by hand or because a session expired, leaves tokens working',async()=>{
+ const s=setup();
+ try {
+  const token=await s.mint();
+  s.catalog.revokeManagementLogout('owner','requested','local');
+  s.catalog.revokeManagementLogout('owner','succeeded','global');
+  expect(s.catalog.managementSecurity.epoch('owner')).toBe(2);
+  expect((await s.api(token,'GET','/v1/projects')).status).toBe(200);
+  s.catalog.managementSecurity.revoke('owner');
+  expect((await s.api(token,'GET','/v1/projects')).status).toBe(401);
+ } finally {s.close();}
+});
+
+test('the token epoch starts from the session epoch once, so an upgrade neither ends live tokens nor revives ended ones',()=>{
+ const work=mkdtempSync(join(tmpdir(),'sbarbase-token-epoch-')),path=join(work,'control.sqlite');
+ try {
+  const before=new Catalog(path);
+  before.managementSecurity.endSessions('alice');before.managementSecurity.endSessions('alice');
+  before.close();
+  const raw=new Database(path);raw.exec('DROP TABLE management_token_epoch');raw.close();
+  const after=new Catalog(path);
+  expect(after.managementSecurity.tokenEpoch('alice')).toBe(2);
+  after.managementSecurity.endSessions('alice');after.close();
+  const again=new Catalog(path);
+  expect(again.managementSecurity.epoch('alice')).toBe(3);
+  expect(again.managementSecurity.tokenEpoch('alice')).toBe(2);
+  again.close();
+ } finally {rmSync(work,{recursive:true,force:true});}
 });
 
 test('a membership removed after the token was made applies at the next call',async()=>{
