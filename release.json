@@ -1,9 +1,9 @@
 {
-  "version": "0.5.8",
+  "version": "0.5.9",
   "minimum_from": "0.3.1",
   "notes": {
-    "en": "Studio's public address is now one setting for the whole installation: lab/studio_address.py plan, apply and verify set it up once for every project, and the TLS proxy reads the same SBARBASE_STUDIO_HOST as the console. Not production ready.",
-    "ar": "صار عنوان Studio العام إعدادًا واحدًا للتثبيت كله: الأوامر plan وapply وverify في lab/studio_address.py تجهّزه مرة واحدة لكل المشاريع، ويقرأ وكيل TLS قيمة SBARBASE_STUDIO_HOST نفسها التي تقرؤها لوحة الإدارة. ليس جاهزًا للإنتاج."
+    "en": "Supabase Studio's SQL editor saves snippets for the session, its Edge Functions page lists the deployed functions, and Studio works as the environment's developer login, so it can change the tables, policies and schemas that migrations made. Opening Studio now checks its route to Auth and Storage from inside Studio; the server guide lists the two firewall rules it needs. Not production ready.",
+    "ar": "صار محرر SQL في Supabase Studio يحفظ الاستعلامات طوال الجلسة، وتعرض صفحة Edge Functions الدوال المنشورة، ويعمل Studio بحساب المطوّر الخاص بالبيئة، فيستطيع تعديل الجداول والسياسات والمخططات التي أنشأتها ملفات الترحيل. ويُفحص الآن مسار Studio إلى Auth وStorage من داخل Studio عند فتحه، ويذكر دليل نشر الخادم قاعدتي الجدار الناري اللازمتين. ليس جاهزًا للإنتاج."
   },
   "migrations": []
 }

@@ -6,13 +6,21 @@ All notable changes to sbarbase. The format follows Keep a Changelog and the
 project uses Semantic Versioning, which for a 0.x version means the interface may
 still change between releases.
 
-The declared package version is 0.5.8. Historical 0.1.0 and 0.2.0 entries retain their original scope. Later Docker and VM rehearsals are dated in [status](docs/reference/status.md); no independent public-server or production release acceptance is established.
+The declared package version is 0.5.9. Historical 0.1.0 and 0.2.0 entries retain their original scope. Later Docker and VM rehearsals are dated in [status](docs/reference/status.md); no independent public-server or production release acceptance is established.
 
 ## [Unreleased]
 
 ### Fixed
 
 - **Docker installs can set a public Studio address.** `compose.yaml`, `deploy/compose.sh` and the host preflight now forward `SBARBASE_STUDIO_HOST`; before, the console container could never receive it ([Studio](docs/guides/studio.md)).
+
+## [0.5.9] - 2026-10-19
+
+### Fixed
+
+- **Studio's SQL editor and Edge Functions page.** Saved SQL snippets now live in a folder inside the Studio session instead of failing with "SNIPPETS_MANAGEMENT_FOLDER env var is not set", and the Edge Functions page lists each function's deployed code, copied when Studio opens.
+- **Studio can change what migrations made.** Studio works as the environment's developer login, as Supabase Studio works as a project's `postgres` user: it can alter tables, policies and row level security, and sees the developer's own schemas, Vault and migrations. What it creates belongs to the same owner ([Studio](docs/guides/studio.md)).
+- **A blocked Studio route is caught.** Opening Studio checks its route to Auth and Storage from inside Studio, not from the host, and names the firewall when it is blocked. The server guide lists the two narrow firewall rules it needs ([server deployment](docs/guides/server-deployment.md#firewall-two-routes-from-containers-to-the-host)).
 
 ## [0.5.8] - 2026-10-19
 

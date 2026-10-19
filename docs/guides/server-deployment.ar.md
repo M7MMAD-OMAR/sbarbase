@@ -348,6 +348,25 @@ bun deploy/console-tls-proxy.ts \
 بمجرد أن يعبر التدفق الحد، دون تخزينه كاملًا. قد يفضّل المشغّل nginx أو Caddy أو
 وكيل المنصة؛ والفحوص أعلاه تحدد السلوك الذي يجب أن يحافظ عليه أي بديل.
 
+### الجدار الناري: مساران من الحاويات إلى الخادم
+
+خدمتان داخل الحاويات تتصلان بالخادم عبر عناوين جسور Docker: يصل Studio إلى Auth وStorage
+عبر مساره على المنفذ 25432، وتصل Edge Functions إلى Storage على المنفذ 25433. الجدار الناري
+الذي يرفض الاتصالات الواردة افتراضيًا (وهذا افتراضي ufw) يرفض هذين المسارين أيضًا، فتفشل
+عندها صفحات Storage والمستخدمين والواجهة البرمجية في Studio. اسمح بهذين المسارين فقط، وتبقى
+SSH و80 و443 وحدها مفتوحة من الخارج:
+
+```
+SUBNET=$(docker network inspect sbarbase-durable-net --format '{{(index .IPAM.Config 0).Subnet}}')
+GATEWAY=$(docker network inspect sbarbase-durable-net --format '{{(index .IPAM.Config 0).Gateway}}')
+sudo ufw allow from "$SUBNET" to "$GATEWAY" port 25432 proto tcp comment 'sbarbase Studio route'
+sudo ufw allow in on br-+ to any port 25433 proto tcp comment 'sbarbase Functions to Storage'
+```
+
+القاعدة الأولى لا تقبل إلا شبكة التشغيل، فلا تصل حاوية من شبكة أخرى إلى مسار Studio. والثانية
+تقبل أي جسر Docker على هذا المنفذ وحده، ثم يرفض كل مستمع أي مصدر من خارج شبكة بيئته. عند فتح
+Studio يُفحص المسار الأول من داخل Studio نفسه، فإن كان محجوبًا توقف الفتح برسالة تذكر الجدار الناري.
+
 ## إذا انقطعت الاستعادة
 
 الاستعادة الفاشلة تترك `.lab/upstream/recovery-target.json`، وإعادة التشغيل

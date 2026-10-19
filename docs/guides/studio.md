@@ -44,13 +44,15 @@ On Supabase's cloud the dashboard is Studio itself, built for many projects. The
 
 | Page | Works on |
 |---|---|
-| Table editor and SQL editor | The environment's own database, as its own Studio login |
+| Table editor and SQL editor | The environment's own database, with the rights of its developer login |
 | Authentication users | The environment's own Auth |
 | Storage buckets and files | The environment's own files |
+| Saved SQL snippets | A folder inside this Studio session; they are gone when Studio closes, so keep lasting SQL in migrations |
+| Edge Functions list and code | A copy of each function's deployed code, taken when Studio opens; deploy from the console or the CLI |
 
-The SQL editor sees every row, including rows hidden by row security, like Studio on Supabase does. It cannot change the Auth or Storage schemas, create roles, or reach another environment's database.
+Studio works as the environment's developer login, as Studio on Supabase works as the project's `postgres` user: it sees every row, including rows hidden by row security, and it can change the tables, policies and schemas that migrations made. What it creates belongs to the same owner, so later migrations can change it. It cannot create roles, act as a superuser, or reach another environment's database.
 
-Studio's Logs, Realtime and Edge Functions pages expect Supabase's own platform services and stay empty or hidden. Use the console for those: [logs and metrics](logs-and-metrics.md), [Realtime](realtime.md) and [Edge Functions](edge-functions.md).
+Studio's Logs and Realtime pages expect Supabase's own platform services and stay empty or hidden. Use the console for those: [logs and metrics](logs-and-metrics.md) and [Realtime](realtime.md). On a server with a firewall, Studio's Storage and users pages need the route described in [server deployment](server-deployment.md#firewall-two-routes-from-containers-to-the-host).
 
 ## How it is kept safe
 

@@ -420,6 +420,30 @@ def token(secret, role):
     return message + '.' + signature
 
 
+def studio_identity_sql(e):
+    """Studio works as the environment's developer login, as Supabase Studio works as a project's
+    `postgres` user: the Studio login may SET ROLE to it and takes it on connecting, so Studio can
+    change the tables, policies and schemas that migrations made, and what Studio makes belongs to
+    the same owner. The session user stays `<e>_studio`, so its connection limit and access rule
+    still apply. The older reverse membership is removed first, since PostgreSQL refuses a cycle,
+    and what Studio made under it goes to the developer. Without a developer login nothing changes.
+    Run by the superuser; ownership moves only when run in the environment's own database."""
+    studio, developer = f'{e}_studio', f'{e}_developer'
+    return f"""DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{studio}')
+     AND EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{developer}') THEN
+    IF pg_has_role('{developer}', '{studio}', 'MEMBER') THEN
+      EXECUTE 'REVOKE {studio} FROM {developer}';
+    END IF;
+    IF current_database() = '{e}' THEN
+      EXECUTE 'REASSIGN OWNED BY {studio} TO {developer}';
+    END IF;
+    EXECUTE 'GRANT {developer} TO {studio}';
+    EXECUTE 'ALTER ROLE {studio} IN DATABASE {e} SET role = {developer}';
+  END IF;
+END $$;"""
+
+
 class Runtime:
     def __init__(self,*,startup=None,operation_fd=None,worker_runtime=None):
         docker_profile.require_supported()
@@ -998,11 +1022,6 @@ ALTER ROLE {role} NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION INHERIT BYPA
 ALTER ROLE {role} IN DATABASE {e} SET search_path TO public, extensions;
 GRANT CONNECT, TEMPORARY ON DATABASE {e} TO {role};
 GRANT {members} TO {role};
-DO $$ BEGIN
-  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{e}_studio') THEN
-    EXECUTE 'GRANT {e}_studio TO {role}';
-  END IF;
-END $$;
 ALTER ROLE {role} LOGIN;
 """
 
@@ -1081,7 +1100,8 @@ DO $$ BEGIN
   END IF;
 END $$;
 ALTER PUBLICATION supabase_realtime OWNER TO {role};
-GRANT CREATE ON DATABASE {e} TO {role};"""
+GRANT CREATE ON DATABASE {e} TO {role};
+{studio_identity_sql(e)}"""
 
     def database_turn(self, e, on):
         """Turn one environment's direct database access on (with the password the console saved) or off."""
