@@ -24,5 +24,8 @@
     "typecheck:ui": "tsc --project tsconfig.json",
     "typecheck:control": "tsc --project tsconfig.control.json",
     "test": "bun test"
+  },
+  "overrides": {
+    "source-map-js": "^1.2.2"
   }
 }
