@@ -15,10 +15,10 @@
 --notice-bg:#fff4d5;--notice-border:#f3ba63;--notice-icon:#dc7b18;--notice-fg:#ac5800;
 --ok-bg:#ecfaf4;--ok-border:#16b674;--ok-fg:#097c4f;--ok-icon:#097c4f;
 --dot-ok:#16b674;--dot-failed:#ab413e;--dot-pending:#dc7b18;
---shadow:#0000000d;--shadow-strong:#0000001f;--on-icon:#ffffff;
+--shadow:#0000000d;--shadow-strong:#0000001f;--on-icon:#ffffff;--qr-bg:#ffffff;
 --art-1:#e8f4ec;--art-2:#dcece2;--art-3:#cfe6d9;--art-border:#cfe0d4;--art-shadow:#0b241733;
---art-topline:#41604b;--art-edition:#55705f;--art-heading:#1d3a29;--art-body:#4c6b58;
---art-rule:#cfe0d4;--art-foot:#5d7d6a}
+--art-topline:#41604b;--art-edition:#4e6a59;--art-heading:#1d3a29;--art-body:#4b6a57;
+--art-rule:#cfe0d4;--art-foot:#4b6a57}
 :root[data-theme=dark]{color-scheme:dark;
 --page:#131413;--rail:#131413;--surface:#181a19;--surface-2:#1f2120;--hover:#232423;--selected:#2a2c2b;
 --field:#161716;--code-bg:#262827;--border:#363736;--border-strong:#4e4f4e;--control-border:#7a7b7a;--control-hover:#989a99;
@@ -29,10 +29,10 @@
 --notice-bg:#341c00;--notice-border:#693f05;--notice-icon:#db8e00;--notice-fg:#db8e00;
 --ok-bg:#1c2c25;--ok-border:#006239;--ok-fg:#85e0ba;--ok-icon:#3ecf8e;
 --dot-ok:#3ecf8e;--dot-failed:#f16a50;--dot-pending:#db8e00;
---shadow:#00000033;--shadow-strong:#00000066;--on-icon:#131413;
+--shadow:#00000033;--shadow-strong:#00000066;--on-icon:#131413;--qr-bg:#ffffff;
 --art-1:#344336;--art-2:#1e2e23;--art-3:#14231b;--art-border:#304336;--art-shadow:#040c0755;
---art-topline:#93ac9c;--art-edition:#708f7b;--art-heading:#e7f2e9;--art-body:#9bb3a3;
---art-rule:#37503d;--art-foot:#8ca896}
+--art-topline:#98b0a1;--art-edition:#98b0a1;--art-heading:#e7f2e9;--art-body:#9bb3a3;
+--art-rule:#37503d;--art-foot:#97b1a0}
 @media(prefers-color-scheme:dark){:root:not([data-theme=light]){color-scheme:dark;
 --page:#131413;--rail:#131413;--surface:#181a19;--surface-2:#1f2120;--hover:#232423;--selected:#2a2c2b;
 --field:#161716;--code-bg:#262827;--border:#363736;--border-strong:#4e4f4e;--control-border:#7a7b7a;--control-hover:#989a99;
@@ -43,10 +43,10 @@
 --notice-bg:#341c00;--notice-border:#693f05;--notice-icon:#db8e00;--notice-fg:#db8e00;
 --ok-bg:#1c2c25;--ok-border:#006239;--ok-fg:#85e0ba;--ok-icon:#3ecf8e;
 --dot-ok:#3ecf8e;--dot-failed:#f16a50;--dot-pending:#db8e00;
---shadow:#00000033;--shadow-strong:#00000066;--on-icon:#131413;
+--shadow:#00000033;--shadow-strong:#00000066;--on-icon:#131413;--qr-bg:#ffffff;
 --art-1:#344336;--art-2:#1e2e23;--art-3:#14231b;--art-border:#304336;--art-shadow:#040c0755;
---art-topline:#93ac9c;--art-edition:#708f7b;--art-heading:#e7f2e9;--art-body:#9bb3a3;
---art-rule:#37503d;--art-foot:#8ca896}}
+--art-topline:#98b0a1;--art-edition:#98b0a1;--art-heading:#e7f2e9;--art-body:#9bb3a3;
+--art-rule:#37503d;--art-foot:#97b1a0}}
 
 /* Scales from Supabase packages/ui: SIZE constants (tiny 26px, small 34px, medium 38px),
    rounded-md controls, rounded-lg cards and alerts, and the focus-ring utility
@@ -83,6 +83,8 @@ button.danger:disabled:hover{background:var(--danger);border-color:var(--danger)
 button.secondary{background:var(--surface);border-color:var(--border-strong)}
 a.button{display:inline-flex;align-items:center;gap:6px;min-height:var(--button);padding:5px 12px;border:1px solid var(--accent-edge);border-radius:var(--radius);font-size:13px;font-weight:500;line-height:18px;text-decoration:none;white-space:nowrap}
 a.button svg{width:16px;height:16px}
+a.button.secondary{background:var(--surface);border-color:var(--border-strong);color:var(--text);box-shadow:0 1px 2px var(--shadow)}
+a.button.secondary:hover{background:var(--hover);border-color:var(--control-border)}
 :focus-visible{outline:2px solid var(--ring);outline-offset:2px}
 input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid var(--ring);outline-offset:2px}
 
@@ -165,6 +167,7 @@ footer button:hover{background:var(--hover);border-color:transparent;color:var(-
 .details>.section-heading:first-child h2{margin:0}
 .section-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
 .details h3{font-size:14px;font-weight:500;margin:28px 0 12px;padding-top:20px;border-top:1px solid var(--border)}
+.details>h3:first-child,.details>.page-heading:first-child h2{margin-top:0;padding-top:0;border-top:0}
 .details>p:last-child,.details>div:last-child>p:last-child{margin-bottom:0}
 .details label{margin-top:18px}
 .details>label:first-child,.details form>label:first-child,.details>h2:first-child+label,.details>h2:first-child+p+label{margin-top:0}
@@ -215,7 +218,8 @@ label+.form-row,.form-row:first-child{margin-top:0}
 .success:before{content:"";position:absolute;inset:12px auto 12px 0;width:3px;border-radius:0 2px 2px 0;background:var(--ok-icon)}
 .callout{display:flex;gap:12px;align-items:flex-start;background:var(--notice-bg);border-color:var(--notice-border);line-height:1.55}
 .callout svg{width:24px;height:24px;padding:4px;border-radius:4px;background:var(--notice-icon);color:var(--on-icon);flex-shrink:0;stroke-width:2}
-.details .callout,.details .notice{margin:0 0 16px}
+.details .callout,.details .notice{margin:12px 0 16px}
+.details>h2:first-child+.callout,.details>h2:first-child+.notice,.details>.section-heading:first-child+.notice{margin-top:0}
 .status-bad{color:var(--danger-fg)}
 .status-warn{color:var(--notice-fg)}
 .empty{padding:40px 24px;border:1px dashed var(--border-strong);border-radius:var(--radius-lg);color:var(--muted);text-align:center;background:var(--surface)}
@@ -330,7 +334,7 @@ pre.commands{margin:12px 0 0}
 .confirm-panel .form-row{margin-top:16px}
 .confirm-panel h3:focus-visible,.update-progress h2:focus-visible{outline:2px solid var(--ring);outline-offset:3px}
 .update-progress .primary{margin-top:12px}
-.clock{border:0;padding:0;margin:0;min-width:0}
+.clock{border:0;padding:0;margin:0;min-width:0;background:none;box-shadow:none;border-radius:0}
 .clock legend{font-size:14px;color:var(--muted);margin-bottom:8px;padding:0}
 .clock .form-row{flex-wrap:nowrap;gap:6px;margin-top:0}
 .clock select{width:auto;min-width:68px}
@@ -354,7 +358,7 @@ aside .project-attribution{justify-content:flex-start;padding:0 4px;margin-botto
 /* Sign-in: split layout with the botanical panel. */
 .auth-layout{padding:0;max-width:none;min-height:100dvh;display:grid;grid-template-columns:1fr 1fr;background:var(--page)}
 .mfa-layout{grid-template-columns:1fr}
-.mfa-layout .login-panel img{display:block;margin:24px auto;background:white;border-radius:var(--radius-lg);padding:8px}
+.mfa-layout .login-panel img{display:block;margin:24px auto;background:var(--qr-bg);border-radius:var(--radius-lg);padding:8px}
 .mfa-layout details{margin-bottom:24px}
 .auth-main{padding:40px 48px 28px;display:flex;flex-direction:column;min-width:0;min-height:100dvh}
 .login-panel{width:100%;max-width:380px;margin:auto;padding:60px 0}

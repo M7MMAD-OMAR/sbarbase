@@ -10,7 +10,7 @@ const main=readFileSync(join(ui,'main.tsx'),'utf8');
 
 /** The palette blocks are the only place a literal colour may appear. */
 function splitPalette(source:string){
- const marker='--art-foot:#8ca896}}';
+ const marker='--art-foot:#97b1a0}}';
  const end=source.indexOf(marker);
  if(end<0)return undefined;
  return {palette:source.slice(0,end+marker.length),rules:source.slice(end+marker.length)};
@@ -34,6 +34,8 @@ test('no rule outside the palette hardcodes a colour',()=>{
  expect(parts).toBeDefined();
  const literals=parts!.rules.match(/#[0-9a-fA-F]{3,8}\b/g)??[];
  expect(literals).toEqual([]);
+ // Named colours and colour functions belong in the palette too.
+ expect(parts!.rules.match(/:\s*(?:white|black)\b|\b(?:rgba?|hsla?|oklch)\(/g)??[]).toEqual([]);
  expect(parts!.rules).toContain('var(--accent)');
 });
 

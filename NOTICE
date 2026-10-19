@@ -13,9 +13,30 @@ Supabase UI package, supabase/supabase packages/ui and packages/config at commit
 build/css/source/semantic.css and build/css/themes/light.css and dark.css, resolved to
 literal values, and the visual recipes of the Button, Input, Textarea, Card, Alert,
 Badge and Table components and the focus-ring utility, rewritten as plain CSS.
-Copyright Supabase, Inc. The supabase/supabase repository is licensed under the Apache
-License 2.0; the packages/ui package declares the MIT License. No Supabase React
+Copyright 2024 Supabase. The supabase/supabase repository is licensed under the Apache
+License 2.0; the packages/ui and packages/config packages declare the MIT License, whose
+terms follow. No Supabase React
 component or package is installed. The console's markup and behaviour are sbarbase's
 own work.
 Upstream components and dependencies retain their respective licenses.
 Website fonts: Manrope and Noto Sans Arabic, SIL Open Font License 1.1.
+
+MIT License (Supabase packages/ui and packages/config)
+
+Copyright 2024 Supabase
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this
+software and associated documentation files (the "Software"), to deal in the Software
+without restriction, including without limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons
+to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or
+substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
+FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.

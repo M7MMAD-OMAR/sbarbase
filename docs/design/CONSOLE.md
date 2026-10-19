@@ -8,24 +8,21 @@ Creating a project selects it immediately and queues its production environment 
 
 
 Reference: `console-concept.png`, generated with the built-in image tool on 2026-09-20.
-Scope: the platform-layer surface only. Design-system parity with Studio is withdrawn: each
-environment is administered by the original upstream Studio, which is not ours to specify
-([integration specification](../engineering/STUDIO-INTEGRATION.md)).
+Scope: the platform-layer surface only. Each environment is administered by the original
+upstream Studio, which is not ours to specify
+([integration specification](../engineering/STUDIO-INTEGRATION.md)). Since 2026-10-18 the
+console itself uses Supabase's design tokens and component recipes so it reads like Studio.
 
 Primary surface: sidebar, organization selector, project table and creation form.
 Required extensions in the same system: password login, empty/error/loading states,
 project environment list, provisioning status, connection details, key issuance
 and revocation. No invented metrics, resource forecasts or unavailable navigation.
 
-Tokens: these are the platform layer's own tokens, not Studio's. Each has a light and a dark
-value: light is the default, the dark set applies through the operating system or browser
-preference, and an explicit choice overrides both. Background #171717, sidebar #1c1c1c, surface #202020, border #303030,
-text #ededed, secondary #a0a0a0, accent #3ecf8e with dark text. Neutral flat fills;
-any generated raster lighting/grain is not a production asset. No raster UI assets.
-System sans typography, 14px controls/body, 34px heading, 12px metadata, monospace IDs.
-Sidebar 268px at desktop, content padding 40px, header 64px, controls 40px,
-rows 92px. Reference native dimensions: 1586 x 992. Use Lucide outline icons,
-18px, 1.75px strokes; no pictorial brand mark, text wordmark only.
+Tokens and sizes: Supabase's semantic colour tokens and component recipes, with a light and a
+dark value for each: light is the default, the dark set applies through the operating system or
+browser preference, and an explicit choice overrides both. The values, sources and checked
+contrast pairs are in [console design](../reference/console-design.md); `ui/style.css` is the
+source of truth. No raster UI assets. Use Lucide outline icons, 16px, 1.75px strokes.
 
 React component ownership: App session/layout, Login, Projects, Environments,
 Connection, reusable creation form/status/error. Vite builds assets, Bun serves

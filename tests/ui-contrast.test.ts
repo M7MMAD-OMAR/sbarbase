@@ -9,7 +9,7 @@ function palette(start:string):Record<string,string>{
  const from=css.indexOf(start);
  if(from<0)throw new Error('Missing palette block '+start);
  const body=css.slice(from+start.length,css.indexOf('}',from));
- return Object.fromEntries([...body.matchAll(/--([a-z0-9-]+):(#[0-9a-f]{6})\b/g)].map(match=>[match[1],match[2]]));
+ return Object.fromEntries([...body.matchAll(/--([a-z0-9-]+):(#[0-9a-f]{6})(?![0-9a-f])/g)].map(match=>[match[1],match[2]]));
 }
 function luminance(hex:string){
  const channel=(index:number)=>{const value=parseInt(hex.slice(index,index+2),16)/255;return value<=0.04045?value/12.92:((value+0.055)/1.055)**2.4;};
@@ -27,6 +27,8 @@ for(const ink of ['text','muted','subtle'])for(const plate of ['page','rail','su
 TEXT.push(['accent','surface'],['accent','page'],['accent-fg','accent-solid'],['accent-fg','accent-solid-hover'],['danger-on','danger'],['danger-on','danger-hover'],
  ['danger-fg','surface'],['danger-fg','error-bg'],['text','error-bg'],['muted','error-bg'],['text','notice-bg'],['muted','notice-bg'],['notice-fg','surface'],['notice-fg','notice-bg'],
  ['text','ok-bg'],['ok-fg','ok-bg'],['ok-fg','surface']);
+// The sign-in panel's small print sits on the art gradient.
+for(const ink of ['art-topline','art-edition','art-body','art-foot','art-heading'])for(const plate of ['art-1','art-2','art-3'])TEXT.push([ink,plate]);
 const BOUNDARY:[string,string][]=[['control-border','field'],['control-border','surface'],['ring','surface'],['ring','page'],['ring','field'],['accent-edge','surface']];
 
 for(const [name,tokens] of [['light',light],['dark',dark]] as const){
@@ -48,4 +50,7 @@ for(const [name,tokens] of [['light',light],['dark',dark]] as const){
 
 test('the system dark palette is the explicit dark palette',()=>{
  expect(system).toEqual(dark);
+ // Compare the raw blocks too, so tokens the hex parser skips (shadows with alpha) cannot drift.
+ const block=(start:string)=>{const from=css.indexOf(start)+start.length;return css.slice(from,css.indexOf('}',from));};
+ expect(block(':root:not([data-theme=light]){color-scheme:dark;')).toBe(block(':root[data-theme=dark]{color-scheme:dark;'));
 });

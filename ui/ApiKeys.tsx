@@ -36,7 +36,7 @@ export function ApiKeysSection({path,request,canWrite}:{path:string;request:Api;
    <div className="form-row"><button onClick={()=>void copy(raw.token)}><Copy aria-hidden="true"/>Copy key</button><button onClick={()=>{setRaw(undefined);setCopied('');}}>I have saved this key</button></div></div>}
   <p className="small muted" role="status">{copied}</p>
   <section className="keys-section"><div className="page-heading"><div><h2>Publishable keys</h2><p className="muted small">Use these in your application, in the browser or a mobile app. Row level security still applies. A publishable key is public by design, so it can be copied again here.</p></div>
-   <button className="primary" onClick={()=>void issue('publishable')} disabled={busy||!!raw}><Plus aria-hidden="true"/>Create key</button></div>
+   <button className={naming?undefined:'primary'} onClick={()=>void issue('publishable')} disabled={busy||!!raw}><Plus aria-hidden="true"/>Create key</button></div>
    {keys.loading?<Loading/>:table('publishable')}</section>
   <section className="keys-section"><div className="page-heading"><div><h2>Secret keys</h2><p className="muted small">For your server, scripts, Edge Functions and AI agents. A secret key acts as <code>service_role</code>: it bypasses row level security and can manage users.</p></div>
    {!naming&&<button onClick={()=>setNaming(true)} disabled={busy||!!raw}><KeyRound aria-hidden="true"/>Create secret key</button>}</div>
