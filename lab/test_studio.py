@@ -68,7 +68,8 @@ class LifecycleTests(unittest.TestCase):
                    patch.object(studio, 'remove', side_effect=self.removed.append),
                    patch.object(studio, 'open_network', return_value='10.0.0.2'), patch.object(studio, 'unexposed'),
                    patch.object(studio, 'remove_network', side_effect=lambda e: self.removed.append(studio.session_network(e))),
-                   patch.object(studio, 'isolated'), patch.object(studio, 'meta_ready')]
+                   patch.object(studio, 'isolated'), patch.object(studio, 'meta_ready'),
+                   patch.object(studio, 'copy_functions')]
         for item in patches:
             item.start()
             self.addCleanup(item.stop)
@@ -90,10 +91,12 @@ class LifecycleTests(unittest.TestCase):
         waited = []
         with patch.object(studio, 'launch', side_effect=lambda name, tier, env, image, network, **options:
                           launched.append((env, network, options)) or {}), \
-             patch.object(studio, 'wait_ready', side_effect=lambda url, **options: waited.append(url)):
+             patch.object(studio, 'wait_ready', side_effect=lambda url, **options: waited.append(url)), \
+             patch.object(studio, 'route_ready', side_effect=lambda name, url: waited.append((name, url))):
             session = studio.up(E)
-        # Studio, on its own address, then the console's route to Auth and Storage.
-        self.assertEqual(waited, ['http://10.0.0.2:3000/api/platform/profile', f'http://172.18.0.1:{studio.UPSTREAM_PORT}/'])
+        # Studio, on its own address, then the console's route to Auth and Storage, asked from Studio.
+        self.assertEqual(waited, ['http://10.0.0.2:3000/api/platform/profile',
+                                  (studio.names(E)[0], f'http://172.18.0.1:{studio.UPSTREAM_PORT}/')])
         self.assertEqual(session['url'], 'http://10.0.0.2:3000')
         (ui, ui_network, ui_options), (meta, meta_network, meta_options) = launched
         self.assertEqual(meta['PG_META_DB_USER'], f'{E}_studio')
@@ -109,6 +112,9 @@ class LifecycleTests(unittest.TestCase):
         self.assertEqual(meta_options, {})
         self.assertEqual(meta['PG_META_HOST'], '127.0.0.1')
         self.assertEqual(ui['STUDIO_PG_META_URL'], 'http://127.0.0.1:8080')
+        # Saved SQL and the Edge Functions page read folders inside the container, never a host mount.
+        self.assertEqual(ui['SNIPPETS_MANAGEMENT_FOLDER'], '/tmp/snippets')
+        self.assertEqual(ui['EDGE_FUNCTIONS_MANAGEMENT_FOLDER'], '/tmp/functions')
         for env, _, _ in launched:
             self.assertFalse(any(value in ('postgres', 'supabase_admin') for value in env.values()))
         state = json.loads(studio.STATE_FILE.read_text())
@@ -129,10 +135,8 @@ class LifecycleTests(unittest.TestCase):
         self.assertEqual(self.removed, self.cleanup())
 
     def test_a_route_that_never_opens_stops_studio_again(self):
-        def wait(url, **options):
-            if url.endswith(f':{studio.UPSTREAM_PORT}/'):
-                raise studio.StudioError('The Studio route to Auth and Storage did not become ready')
-        with patch.object(studio, 'launch', return_value={}), patch.object(studio, 'wait_ready', side_effect=wait):
+        with patch.object(studio, 'launch', return_value={}), patch.object(studio, 'wait_ready'), \
+             patch.object(studio, 'route_ready', side_effect=studio.StudioError('Studio cannot reach its route')):
             with self.assertRaisesRegex(studio.StudioError, 'route'):
                 studio.up(E)
         self.assertEqual(self.removed[-3:], self.cleanup())
@@ -158,7 +162,7 @@ class LifecycleTests(unittest.TestCase):
         images = []
         with patch.object(studio, 'pins', side_effect=AssertionError('lock must not be read twice')), \
              patch.object(studio, 'launch', side_effect=lambda name, tier, env, image, network, **options: images.append(image) or {}), \
-             patch.object(studio, 'wait_ready'):
+             patch.object(studio, 'wait_ready'), patch.object(studio, 'route_ready'):
             studio.up(E)
         self.assertEqual(images, ['studio-reference', 'meta-reference'])
 
@@ -178,6 +182,49 @@ class ReadinessTests(unittest.TestCase):
     def test_studio_is_recorded_running_only_after_postgres_meta_answers(self):
         source = Path(studio.__file__).read_text()
         self.assertLess(source.index('meta_ready(meta)'), source.index("/api/platform/profile')"))
+
+
+    def test_the_route_is_asked_from_inside_studio_and_a_blocked_one_names_the_firewall(self):
+        calls = []
+        ok = type('R', (), {'returncode': 0})()
+        with patch.object(studio.lab, 'docker', side_effect=lambda *args, **options: calls.append(args) or ok):
+            studio.route_ready('studio-container', 'http://172.18.0.1:25432/')
+        self.assertEqual(calls[0][:4], ('exec', 'studio-container', 'node', '-e'))
+        self.assertEqual(calls[0][-1], 'http://172.18.0.1:25432/')
+        failed = type('R', (), {'returncode': 1})()
+        with patch.object(studio.lab, 'docker', return_value=failed), patch.object(studio.time, 'sleep'), \
+             patch.object(studio.time, 'monotonic', side_effect=[0, 0, 1000]):
+            with self.assertRaisesRegex(studio.StudioError, 'firewall'):
+                studio.route_ready('studio-container', 'http://172.18.0.1:25432/')
+
+
+class FunctionsTests(unittest.TestCase):
+    def test_each_function_is_copied_from_its_current_version_only(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / 'functions' / E
+            for version, name in [('v1a-0000000a', 'hello'), ('v1b-0000000b', 'hello'), ('v1b-0000000b', 'mail'),
+                                  ('v1b-0000000b', '_shared')]:
+                (root / version / name).mkdir(parents=True)
+                (root / version / name / 'index.ts').write_text('export default 1')
+            (root / 'functions.json').write_text(json.dumps({'functions': {
+                'hello': {'version': 'v1b-0000000b'}, 'mail': {'version': 'v1b-0000000b'},
+                'gone': {'version': 'v1c-0000000c'}, '../up': {'version': 'v1b-0000000b'},
+                'odd': {'version': '../v1b-0000000b'}}}))
+            calls = []
+            with patch.object(studio.runtime, 'STATE', Path(directory)), \
+                 patch.object(studio.lab, 'docker', side_effect=lambda *args, **options: calls.append(args)):
+                studio.copy_functions('studio-container', E)
+        self.assertEqual(calls[0], ('exec', 'studio-container', 'mkdir', '-p', '/tmp/functions'))
+        self.assertEqual([call[2] for call in calls[1:]], ['studio-container:/tmp/functions/hello', 'studio-container:/tmp/functions/mail'])
+        self.assertTrue(calls[1][1].endswith(f'{E}/v1b-0000000b/hello/.'))
+
+    def test_no_deployed_functions_leaves_an_empty_folder(self):
+        with tempfile.TemporaryDirectory() as directory:
+            calls = []
+            with patch.object(studio.runtime, 'STATE', Path(directory)), \
+                 patch.object(studio.lab, 'docker', side_effect=lambda *args, **options: calls.append(args)):
+                studio.copy_functions('studio-container', E)
+        self.assertEqual(calls, [('exec', 'studio-container', 'mkdir', '-p', '/tmp/functions')])
 
 
 class NetworkTests(unittest.TestCase):
@@ -234,7 +281,7 @@ class NetworkTests(unittest.TestCase):
                  patch.object(studio, 'remove_network', side_effect=lambda e: removed.append('net')), \
                  patch.object(studio, 'open_network', return_value='10.0.0.2'), patch.object(studio, 'launch', return_value={}), \
                  patch.object(studio, 'isolated', return_value='172.16.1.9'), patch.object(studio, 'meta_ready'), \
-                 patch.object(studio, 'wait_ready'), \
+                 patch.object(studio, 'wait_ready'), patch.object(studio, 'copy_functions'), \
                  patch.object(studio, 'unexposed', side_effect=studio.StudioError('Studio answers on the shared runtime network')):
                 with self.assertRaisesRegex(studio.StudioError, 'shared runtime network'):
                     studio.up(E)

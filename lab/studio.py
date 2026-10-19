@@ -63,6 +63,12 @@ UPSTREAM_PORT = int(os.environ.get('SBARBASE_STUDIO_UPSTREAM_PORT', '25432'))
 # Studio itself allows longer statements than the data plane: an operator's SQL editor
 # query or a CSV import is not application traffic.
 STATEMENT_TIMEOUT = '60s'
+# Folders inside the Studio container, gone when the session stops. Saved SQL lives there for the
+# session; the Edge Functions page reads a copy of the code each function runs (copy_functions).
+SNIPPETS_FOLDER = '/tmp/snippets'
+FUNCTIONS_FOLDER = '/tmp/functions'
+FUNCTION_NAME = re.compile(r'[A-Za-z0-9][A-Za-z0-9_-]{0,63}')
+FUNCTION_VERSION = re.compile(r'v[0-9a-z]+-[0-9a-f]{8}')
 
 
 class StudioError(RuntimeError):
@@ -331,6 +337,42 @@ def wait_ready(url, timeout=120, any_answer=False, what='Studio'):
     raise StudioError(f'{what} did not become ready')
 
 
+def route_ready(studio, url, timeout=30):
+    """Studio reaches its route to Auth and Storage. Asked from inside Studio, since the host
+    always reaches its own bridge address while a host firewall may drop the same connection from
+    a container (docs/guides/server-deployment.md)."""
+    probe = ("fetch(process.argv[1],{signal:AbortSignal.timeout(5000)})"
+             ".then(()=>process.exit(0),()=>process.exit(1))")
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if lab.docker('exec', studio, 'node', '-e', probe, url, check=False).returncode == 0:
+            return
+        time.sleep(2)
+    raise StudioError(f'Studio cannot reach its route to Auth and Storage ({url}); '
+                      'the host firewall must accept TCP from Docker bridges to this port')
+
+
+def copy_functions(studio, e):
+    """Studio's Edge Functions page lists `<folder>/<name>/index.*`. Deployed code is kept as
+    `<version>/<name>/` under a manifest (src/control/functions.ts), so each function's current
+    version is copied in when the session opens; a later deploy shows on the next session."""
+    root = runtime.functions_code(e)
+    try:
+        manifest = json.loads((root / 'functions.json').read_text())['functions']
+    except (OSError, ValueError, KeyError, TypeError):
+        manifest = {}
+    lab.docker('exec', studio, 'mkdir', '-p', FUNCTIONS_FOLDER)
+    if not isinstance(manifest, dict):
+        return
+    for name, entry in sorted(manifest.items()):
+        version = entry.get('version') if isinstance(entry, dict) else None
+        if not (FUNCTION_NAME.fullmatch(name) and isinstance(version, str) and FUNCTION_VERSION.fullmatch(version)):
+            continue
+        source = root / version / name
+        if source.is_dir() and not source.is_symlink():
+            lab.docker('cp', f'{source}/.', f'{studio}:{FUNCTIONS_FOLDER}/{name}')
+
+
 def display_names(e):
     try:
         with closing(sqlite3.connect(f'file:{CATALOG}?mode=ro', uri=True)) as database, database:
@@ -385,9 +427,11 @@ def up(e):
                     'DEFAULT_ORGANIZATION_NAME': organization, 'DEFAULT_PROJECT_NAME': environment,
                     'SUPABASE_URL': f'http://{network_gateway()}:{UPSTREAM_PORT}/{e}',
                     'SUPABASE_PUBLIC_URL': auth_settings.public_url(), 'SUPABASE_ANON_KEY': anon, 'SUPABASE_SERVICE_KEY': service,
-                    'AUTH_JWT_SECRET': values['jwt'], 'ENABLED_FEATURES_LOGS_ALL': 'false', 'NEXT_TELEMETRY_DISABLED': '1'},
+                    'AUTH_JWT_SECRET': values['jwt'], 'ENABLED_FEATURES_LOGS_ALL': 'false', 'NEXT_TELEMETRY_DISABLED': '1',
+                    'SNIPPETS_MANAGEMENT_FOLDER': SNIPPETS_FOLDER, 'EDGE_FUNCTIONS_MANAGEMENT_FOLDER': FUNCTIONS_FOLDER},
                     image['studio'], session_network(e), address=address, attach=(runtime.NETWORK,), health=STUDIO_HEALTH)
                 shared = isolated(item, e, address)
+                copy_functions(studio, e)
                 launch(meta, 'operator.meta', {
                     'PG_META_HOST': '127.0.0.1', 'PG_META_PORT': '8080',
                     'PG_META_DB_HOST': runtime.DB, 'PG_META_DB_PORT': '5432', 'PG_META_DB_NAME': e,
@@ -409,10 +453,9 @@ def up(e):
             save_state(state)
             # The console opens Studio's internal route to Auth and Storage when it sees the state
             # above, within a couple of seconds. Studio counts as running only once that route
-            # answers, so its first user or bucket page never meets a closed port.
+            # answers Studio itself, so its first user or bucket page never meets a closed port.
             try:
-                wait_ready(f"http://{state['upstream']['host']}:{UPSTREAM_PORT}/", timeout=30, any_answer=True,
-                           what='The Studio route to Auth and Storage')
+                route_ready(studio, f"http://{state['upstream']['host']}:{UPSTREAM_PORT}/")
             except StudioError:
                 down(e)
                 raise

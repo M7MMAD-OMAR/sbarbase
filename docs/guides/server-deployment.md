@@ -369,6 +369,27 @@ buffering it in full. An operator may
 prefer nginx, Caddy or the platform proxy; the checks above state which behaviour
 any replacement must keep.
 
+### Firewall: two routes from containers to the host
+
+Two services in containers call the host on its Docker bridge addresses: Studio reaches
+Auth and Storage through its route on port 25432, and Edge Functions reach Storage on
+port 25433. A host firewall that drops incoming traffic by default (ufw's default) drops
+these too, and Studio's Storage, users and API pages then fail. Allow exactly these two,
+which keeps SSH, 80 and 443 the only ports open from outside:
+
+```
+SUBNET=$(docker network inspect sbarbase-durable-net --format '{{(index .IPAM.Config 0).Subnet}}')
+GATEWAY=$(docker network inspect sbarbase-durable-net --format '{{(index .IPAM.Config 0).Gateway}}')
+sudo ufw allow from "$SUBNET" to "$GATEWAY" port 25432 proto tcp comment 'sbarbase Studio route'
+sudo ufw allow in on br-+ to any port 25433 proto tcp comment 'sbarbase Functions to Storage'
+```
+
+The first rule admits only the runtime network, so a container on another network cannot
+reach the Studio route. The second admits any Docker bridge on that one port; each
+listener then refuses sources outside its own environment's network. Opening Studio
+checks the first route from inside Studio and stops with a message naming the firewall
+when it is blocked.
+
 ## If a restore is interrupted
 
 A failed restore leaves `.lab/upstream/recovery-target.json`, and a plain rerun
