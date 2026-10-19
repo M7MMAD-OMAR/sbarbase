@@ -5,6 +5,8 @@
 //       [--https-port 8443] [--http-port 8080] [--upstream http://127.0.0.1:PORT] \
 //       [--public-host console.example.com] [--max-body BYTES] \
 //       [--studio-host studio-{id}.example.com]
+// Without --studio-host the proxy reads SBARBASE_STUDIO_HOST, the setting the console reads, so one
+// systemd drop-in configures both (lab/studio_address.py writes it).
 //
 // Only the public host, loopback names and, with --studio-host, an environment's Studio address
 // (src/control/studio-host.ts) are served; any other host is refused with 421, so a wildcard
@@ -21,7 +23,7 @@
 // deployment has one configuration that is exercised by the test suite.
 
 import {statSync} from 'node:fs';
-import {studioHosts, type StudioHosts} from '../src/control/studio-host';
+import {proxyStudioHosts, type StudioHosts} from '../src/control/studio-host';
 
 type Options = {
   cert: string;
@@ -50,12 +52,6 @@ const VALID_HOST = /^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:\d{1,5})?$/;
 function validatedHost(value: string | null): string | null {
   if (!value) return null;
   return VALID_HOST.test(value) ? value : null;
-}
-
-function publicStudio(template: string): StudioHosts {
-  const hosts = studioHosts(template);
-  if (!hosts.public) throw new Error('--studio-host must be a public pattern such as studio-{id}.example.com');
-  return hosts;
 }
 
 /** What a request's Host is: the console, an environment's Studio, or nothing to serve. */
@@ -93,7 +89,7 @@ function parseArguments(argv: string[]): Options {
     upstream: values.upstream ?? '',
     publicHost: values['public-host'],
     maxBody: Number(values['max-body'] ?? MAX_BODY_DEFAULT),
-    studio: values['studio-host'] ? publicStudio(values['studio-host']) : undefined,
+    studio: proxyStudioHosts(values['studio-host']),
   };
 }
 

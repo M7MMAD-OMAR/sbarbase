@@ -6,9 +6,19 @@ All notable changes to sbarbase. The format follows Keep a Changelog and the
 project uses Semantic Versioning, which for a 0.x version means the interface may
 still change between releases.
 
-The declared package version is 0.5.7. Historical 0.1.0 and 0.2.0 entries retain their original scope. Later Docker and VM rehearsals are dated in [status](docs/reference/status.md); no independent public-server or production release acceptance is established.
+The declared package version is 0.5.8. Historical 0.1.0 and 0.2.0 entries retain their original scope. Later Docker and VM rehearsals are dated in [status](docs/reference/status.md); no independent public-server or production release acceptance is established.
 
 ## [Unreleased]
+
+## [0.5.8] - 2026-10-19
+
+### Added
+
+- **One setting for Studio's public address.** `lab/studio_address.py plan DOMAIN` lists what to provide once (a wildcard DNS record, a certificate that covers it and the setting); `apply DOMAIN` writes `SBARBASE_STUDIO_HOST` for the console and the TLS proxy and restarts them; `verify DOMAIN` says which step is missing. The TLS proxy now reads `SBARBASE_STUDIO_HOST` when it has no `--studio-host` flag, so one drop-in configures both. After that, every new project opens Studio with no DNS or certificate work ([Studio](docs/guides/studio.md)).
+
+### Changed
+
+- The console's notice for a server without a public Studio address now names this setup instead of only the variable.
 
 ### Added
 

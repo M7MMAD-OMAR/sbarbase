@@ -19,17 +19,20 @@ Only owners and admins of the client can start, open or stop Studio. Viewers do 
 
 By default Studio's address is `<id>.studio.localhost`, which every browser sends to its own machine. So it works on your computer, or on a server through an SSH tunnel (`ssh -N -L 8790:127.0.0.1:8790 you@your-server`, then open `http://localhost:8790`), as the [Docker guide](docker.md) shows. From the console's public address, the console says this instead of opening a tab the browser cannot reach.
 
-To open Studio from the public address, give each environment a public Studio address:
+To open Studio from the public address, set up one domain once. Every project and environment you create afterwards gets its own Studio address under it, with no DNS or certificate work per project.
 
-1. **DNS.** Add a wildcard record that points at the server, for example `*` as a proxied CNAME to the console's host in Cloudflare. Named records keep working; any other name reaches Sbarbase, which refuses it.
-2. **Certificate.** The certificate the TLS proxy serves must cover the Studio names too, for example a Cloudflare origin certificate for `console.example.com` and `*.example.com`.
-3. **Sbarbase.** Set `SBARBASE_STUDIO_HOST=studio-{id}.example.com` in the service ([configuration](../reference/configuration.md)), and give the TLS proxy the same pattern with `--studio-host studio-{id}.example.com` ([server deployment](server-deployment.md)). Restart both.
+1. **Pick a domain that holds no other site.** The wildcard record in the next step answers every name under the domain that has no record of its own, so use a domain meant for this, not one that already serves other sites. Named records you already have keep working either way; any other name reaches Sbarbase, which refuses it.
+2. **See what to provide.** On the server run `/usr/bin/python3 lab/studio_address.py plan example.com`. It prints the address pattern (`studio-{id}.example.com`) and the two things you provide: a wildcard DNS record (`*.example.com`, proxied if you use Cloudflare) and a certificate that covers `*.example.com`. With Cloudflare, create an Origin CA certificate for `*.example.com` and `example.com`, generate the key on the server and paste only the request into Cloudflare, then install it on the TLS proxy.
+3. **Apply it.** Run `sudo /usr/bin/python3 lab/studio_address.py apply example.com`. It writes `SBARBASE_STUDIO_HOST` as a systemd drop-in for the console and the TLS proxy, which both read it, and restarts them. It refuses when the proxy already passes a different `--studio-host`.
+4. **Check it.** Run `/usr/bin/python3 lab/studio_address.py verify example.com`. It says which step is missing: DNS that does not resolve, a certificate that does not cover the name, or a server that refuses the address.
 
-Each environment then opens Studio on its own address, such as `studio-<24 hex>.example.com`. The proxy passes only names that match the pattern and refuses every other name with 421, so the wildcard never shows the console under another name. To undo it, remove the setting and the proxy flag, and delete the DNS record.
+Each environment then opens Studio on its own address, such as `studio-<24 hex>.example.com`. The proxy passes only names that match the pattern and refuses every other name with 421, so the wildcard never shows the console under another name. To undo it, delete the two drop-ins named `studio-host.conf` (under `sbarbase.service.d` and `sbarbase-proxy.service.d`), restart both services and delete the DNS record.
 
 Good to know:
 
-- The two patterns, `SBARBASE_STUDIO_HOST` and `--studio-host`, must be the same.
+- If the wildcard would sit on a domain that serves other sites, do not use it. Name each environment's record yourself (one `studio-<24 hex>` record per environment) or use a domain of its own.
+- On Cloudflare Free the edge certificate covers one level under the domain, so keep the pattern `studio-{id}.example.com`, not `{id}.studio.example.com`.
+- The console and the proxy read the same `SBARBASE_STUDIO_HOST`. The proxy's `--studio-host` flag still works and wins when both are set.
 - Studio is reached on port 443; a public address on another port is not supported.
 - With a proxying CDN such as Cloudflare in front, the CDN terminates TLS and sees Studio's traffic, as it sees the console's.
 - A request that another site starts is refused, except a plain page visit, which lands on the project home without its query, so a link cannot open the SQL editor with SQL already in it.

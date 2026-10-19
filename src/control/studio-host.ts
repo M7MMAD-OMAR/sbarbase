@@ -44,3 +44,15 @@ export function studioHosts(value:string|undefined=process.env.SBARBASE_STUDIO_H
   },
  };
 }
+
+/** The TLS proxy's Studio pattern: its own `--studio-host` flag, else the same `SBARBASE_STUDIO_HOST` the console
+ * reads, so one setting configures both. The tunnel default is not a public pattern, so it means no Studio addresses. */
+export function proxyStudioHosts(flag:string|undefined,environment:string|undefined=process.env.SBARBASE_STUDIO_HOST):StudioHosts|undefined {
+ const given=(flag??'').trim();
+ const value=given||(environment??'').trim();
+ if(!value)return undefined;
+ const hosts=studioHosts(value);
+ if(hosts.public)return hosts;
+ if(given)throw new Error('--studio-host must be a public pattern such as studio-{id}.example.com');
+ return undefined;
+}

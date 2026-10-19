@@ -108,3 +108,14 @@ test('requests another site starts: only a plain navigation, landing on the proj
  expect((await get('/project/default',{'sec-fetch-site':'cross-site','sec-fetch-mode':'navigate','sec-fetch-dest':'document'})).status).toBe(200);
  expect((await get('/project/default/sql/new?content=x',{'sec-fetch-site':'same-origin','sec-fetch-mode':'navigate','sec-fetch-dest':'document'})).status).toBe(200);
 });
+
+test('the TLS proxy takes its Studio pattern from its flag, else from SBARBASE_STUDIO_HOST, and ignores the tunnel default',async()=>{
+ const {proxyStudioHosts}=await import('../src/control/studio-host');
+ expect(proxyStudioHosts(undefined,undefined)).toBeUndefined();
+ expect(proxyStudioHosts(undefined,'')).toBeUndefined();
+ expect(proxyStudioHosts(undefined,'{id}.studio.localhost')).toBeUndefined();
+ expect(proxyStudioHosts(undefined,'studio-{id}.example.com')?.template).toBe('studio-{id}.example.com');
+ expect(proxyStudioHosts('studio-{id}.flag.com','studio-{id}.example.com')?.template).toBe('studio-{id}.flag.com');
+ expect(()=>proxyStudioHosts('{id}.studio.localhost',undefined)).toThrow('public pattern');
+ expect(()=>proxyStudioHosts(undefined,'not a pattern')).toThrow();
+});
