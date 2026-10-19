@@ -82,7 +82,7 @@ function bounded(rows:unknown):unknown[] {
 }
 
 // The schema is made by the runtime with the developer login as its owner
-// (lab/durable_runtime.py developer_grants_sql); the login cannot create schemas itself.
+// (lab/durable_runtime.py developer_grants_sql), so the history exists before the first migration.
 const MIGRATIONS_TABLE=`CREATE TABLE IF NOT EXISTS supabase_migrations.schema_migrations(version text NOT NULL PRIMARY KEY, statements text[], name text);`;
 
 export function developerSql(directory='.secrets/upstream/database',env:Record<string,string|undefined>=process.env,deadlineMs=DEADLINE_MS):SqlRunner {

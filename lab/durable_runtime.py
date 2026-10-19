@@ -392,6 +392,21 @@ def wait_ready(url, headers=None, failure='Runtime readiness timed out', attempt
     raise RuntimeError(failure)
 
 
+# Schemas the platform creates in an environment's database, now or when a feature is turned on.
+# The developer login may create other schemas, never these, nor any starting with sbarbase or supabase.
+RESERVED_SCHEMAS = ('auth', 'storage', 'extensions', 'realtime', '_realtime', 'vault', 'pgsodium',
+                    'pgsodium_masks', 'cron', 'net', 'graphql', 'graphql_public', 'pgbouncer',
+                    '_analytics', '_supavisor', 'information_schema', 'public')
+# Extensions an environment's own login may not create on a shared server: they reach the server's
+# network, see every environment's activity or data, load code, write files on the server (pgroonga
+# creates its files at any path it is given), or hold the server's root key. The
+# image's supautils would otherwise create them as the superuser for any login.
+RESERVED_EXTENSIONS = ('dblink', 'postgres_fdw', 'http', 'pg_net', 'wrappers', 'pg_cron', 'pg_tle',
+                       'pgsodium', 'pg_stat_statements', 'pg_stat_monitor', 'pg_walinspect',
+                       'pg_buffercache', 'pg_prewarm', 'pg_repack', 'pgaudit', 'supautils', 'pljava',
+                       'plcoffee', 'plls', 'orioledb', 'file_fdw', 'pgroonga', 'pgroonga_database')
+
+
 def sql_literal(value):
     """A SQL string literal with every quote doubled."""
     return "'"+str(value).replace("'","''")+"'"
@@ -876,11 +891,23 @@ GRANT anon, authenticated, service_role TO {role} WITH INHERIT FALSE, SET TRUE;
 GRANT supabase_realtime_admin TO {role};
 -- Realtime quiets its change poller's own logging; only that one setting is granted.
 GRANT SET ON PARAMETER log_min_messages TO {role}, supabase_realtime_admin;""")
-        self.sql(f"""CREATE SCHEMA IF NOT EXISTS _realtime AUTHORIZATION {role};
+        self.sql(f"""DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_namespace WHERE nspname IN ('realtime', '_realtime') AND nspowner <> '{role}'::regrole) THEN
+    RAISE EXCEPTION 'A Realtime schema belongs to another login';
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_publication p JOIN pg_roles r ON r.oid = p.pubowner WHERE p.pubname = 'supabase_realtime'
+      AND NOT r.rolsuper AND r.rolname <> '{e}_developer') THEN
+    RAISE EXCEPTION 'The Realtime publication belongs to another login';
+  END IF;
+END $$;
+CREATE SCHEMA IF NOT EXISTS _realtime AUTHORIZATION {role};
 CREATE SCHEMA IF NOT EXISTS realtime AUTHORIZATION {role};
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
     CREATE PUBLICATION supabase_realtime FOR TABLES IN SCHEMA public;
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{e}_developer') THEN
+    ALTER PUBLICATION supabase_realtime OWNER TO {e}_developer;
   END IF;
 END $$;""", e)
         self.sql(f'ALTER DATABASE {e} CONNECTION LIMIT {current_database_limit(e, realtime=True)};')
@@ -951,11 +978,11 @@ GRANT ALL ON ALL SEQUENCES IN SCHEMA _realtime TO {role};""", e)
         """The environment's developer login: what a project's own `postgres` user does on Supabase,
         within one database. It may create and change anything in `public`, and, as a member of
         the environment's Auth and Storage logins, add triggers on `auth.users` and policies on
-        `storage.objects`. It cannot create schemas: a schema it made first, under a name the
-        platform later creates with IF NOT EXISTS (Realtime's, whose migration runs as superuser),
-        would run its code with those rights. So `supabase_migrations`, where the agents keep
-        migration history, is made for it in developer_grants_sql. It is not a superuser and cannot
-        reach another environment's database."""
+        `storage.objects`. It may create schemas of its own, never under a name the platform creates
+        itself (RESERVED_SCHEMAS): a schema it made first, under a name the platform later creates
+        with IF NOT EXISTS (Realtime's, whose migration runs as superuser), would run its code with
+        those rights. The right to create schemas comes last, in developer_grants_sql, after the guard.
+        It is not a superuser and cannot reach another environment's database."""
         role = f'{e}_developer'
         members = ', '.join(f'{e}_{service}' for service in ('auth', 'storage')) + ', anon, authenticated, service_role'
         return f"""
@@ -968,7 +995,6 @@ ALTER ROLE {role} NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION INHERIT BYPA
   CONNECTION LIMIT {connection_budget.DIRECT_CONNECTIONS} PASSWORD {sql_literal(password)};
 ALTER ROLE {role} IN DATABASE {e} SET search_path TO public, extensions;
 GRANT CONNECT, TEMPORARY ON DATABASE {e} TO {role};
-REVOKE CREATE ON DATABASE {e} FROM {role};
 GRANT {members} TO {role};
 DO $$ BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{e}_studio') THEN
@@ -979,17 +1005,81 @@ ALTER ROLE {role} LOGIN;
 """
 
     def developer_grants_sql(self, e):
+        """Run by the superuser in the environment's database. The reserved schema guard is in place
+        before the login may create schemas, and Vault before the login is given it. The guard is an
+        event trigger the superuser owns, so the login can neither drop nor disable it."""
         role = f'{e}_developer'
-        return f"""CREATE SCHEMA IF NOT EXISTS supabase_migrations AUTHORIZATION {role};
+        reserved = ', '.join(sql_literal(name) for name in RESERVED_SCHEMAS)
+        extensions = ', '.join(sql_literal(name) for name in RESERVED_EXTENSIONS)
+        return f"""CREATE SCHEMA IF NOT EXISTS sbarbase_guard;
+REVOKE ALL ON SCHEMA sbarbase_guard FROM PUBLIC;
+CREATE OR REPLACE FUNCTION sbarbase_guard.reserved_schemas() RETURNS event_trigger
+  LANGUAGE plpgsql SET search_path = pg_catalog AS $guard$
+DECLARE item record;
+BEGIN
+  -- The session's login, not the current role: supautils and SECURITY DEFINER code run as the superuser.
+  IF (SELECT rolsuper FROM pg_catalog.pg_roles WHERE rolname = session_user) THEN
+    RETURN;
+  END IF;
+  -- A reserved name is refused when the schema would belong to a login other than the superuser; an
+  -- extension the image creates as the superuser (pg_graphql's `graphql`) may still bring its own.
+  FOR item IN SELECT n.nspname FROM pg_catalog.pg_event_trigger_ddl_commands() c
+      JOIN pg_catalog.pg_namespace n ON n.oid = c.objid
+      JOIN pg_catalog.pg_roles r ON r.oid = n.nspowner WHERE c.object_type = 'schema' AND NOT r.rolsuper LOOP
+    IF item.nspname IN ({reserved}) OR item.nspname LIKE 'sbarbase%' OR item.nspname LIKE 'supabase%' THEN
+      RAISE EXCEPTION 'The schema name % is reserved for the platform', item.nspname USING ERRCODE = '42501';
+    END IF;
+  END LOOP;
+  FOR item IN SELECT e.extname FROM pg_catalog.pg_event_trigger_ddl_commands() c
+      JOIN pg_catalog.pg_extension e ON e.oid = c.objid WHERE c.object_type = 'extension' LOOP
+    IF item.extname IN ({extensions}) THEN
+      RAISE EXCEPTION 'The extension % is not available to an environment on a shared server', item.extname USING ERRCODE = '42501';
+    END IF;
+  END LOOP;
+END $guard$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_event_trigger WHERE evtname = 'sbarbase_reserved_schemas') THEN
+    CREATE EVENT TRIGGER sbarbase_reserved_schemas ON ddl_command_end
+      WHEN TAG IN ('CREATE SCHEMA', 'ALTER SCHEMA', 'CREATE EXTENSION', 'ALTER EXTENSION')
+      EXECUTE FUNCTION sbarbase_guard.reserved_schemas();
+  END IF;
+END $$;
+ALTER EVENT TRIGGER sbarbase_reserved_schemas ENABLE ALWAYS;
+-- Vault, with the grants the upstream image gives a project's `postgres` user and service_role, without
+-- the right to pass them on: a grant to anon would let anyone read the secrets through the API.
+CREATE EXTENSION IF NOT EXISTS supabase_vault;
+GRANT USAGE ON SCHEMA vault TO {role};
+GRANT SELECT, DELETE, TRUNCATE, REFERENCES ON vault.secrets, vault.decrypted_secrets TO {role};
+GRANT EXECUTE ON FUNCTION vault.create_secret, vault.update_secret, vault._crypto_aead_det_decrypt TO {role};
+GRANT USAGE ON SCHEMA vault TO service_role;
+GRANT SELECT, DELETE ON vault.secrets, vault.decrypted_secrets TO service_role;
+GRANT EXECUTE ON FUNCTION vault.create_secret, vault.update_secret, vault._crypto_aead_det_decrypt TO service_role;
+-- The API's default grants, given once, the first time (before supabase_migrations exists), as Supabase
+-- gives them once at project creation: a migration that later narrows them keeps its choice when
+-- access is turned off and on again.
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = 'supabase_migrations') THEN
+    ALTER DEFAULT PRIVILEGES FOR ROLE {role} IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;
+    ALTER DEFAULT PRIVILEGES FOR ROLE {role} IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
+    ALTER DEFAULT PRIVILEGES FOR ROLE {role} IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO anon, authenticated, service_role;
+  END IF;
+END $$;
+CREATE SCHEMA IF NOT EXISTS supabase_migrations AUTHORIZATION {role};
 GRANT USAGE, CREATE ON SCHEMA supabase_migrations TO {role};
 GRANT ALL ON ALL TABLES IN SCHEMA supabase_migrations TO {role};
 GRANT USAGE, CREATE ON SCHEMA public, extensions TO {role};
 GRANT ALL ON ALL TABLES IN SCHEMA public TO {role};
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO {role};
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO {role};
-ALTER DEFAULT PRIVILEGES FOR ROLE {role} IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;
-ALTER DEFAULT PRIVILEGES FOR ROLE {role} IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
-ALTER DEFAULT PRIVILEGES FOR ROLE {role} IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO anon, authenticated, service_role;"""
+-- Realtime's publication always exists and belongs to the login, as it belongs to a project's
+-- `postgres` user on Supabase, so migrations may add tables to it. It publishes the `public` schema.
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
+    CREATE PUBLICATION supabase_realtime FOR TABLES IN SCHEMA public;
+  END IF;
+END $$;
+ALTER PUBLICATION supabase_realtime OWNER TO {role};
+GRANT CREATE ON DATABASE {e} TO {role};"""
 
     def database_turn(self, e, on):
         """Turn one environment's direct database access on (with the password the console saved) or off."""
