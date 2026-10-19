@@ -37,6 +37,8 @@ jobs:
       - name: System Python dependencies
         run: sudo apt-get update -q && sudo apt-get install -y -q python3-cryptography
       - run: bun install --frozen-lockfile
+      # bun test also finds website/tests, whose docs build needs the website's own packages.
+      - run: bun install --cwd website --frozen-lockfile
       - run: bun test
       - run: bun run typecheck:ui
       - run: bun run typecheck:control

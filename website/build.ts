@@ -16,7 +16,7 @@ const pages=docs();
 for(const page of pages)await Bun.write(out(`${page.url.slice(1)}index.html`),page.html);
 for(const diagram of diagrams())await Bun.write(out(diagram),Bun.file(repoFile(diagram)));
 // Every page, in both languages, with its alternate.
-const entry=(path:string,alternates:[string,string])=>`<url><loc>${SITE}${path}</loc><xhtml:link rel="alternate" hreflang="ar" href="${SITE}${alternates[0]}"/><xhtml:link rel="alternate" hreflang="en" href="${SITE}${alternates[1]}"/></url>`;
-const urls=[entry('/',['/','/en/']),entry('/en/',['/','/en/']),...pages.map(p=>entry(p.url,p.source.lang==='ar'?[p.url,p.other]:[p.other,p.url]))];
+const entry=(path:string,alternates:[string,string],lastmod='')=>`<url><loc>${SITE}${path}</loc>${lastmod?`<lastmod>${lastmod}</lastmod>`:''}<xhtml:link rel="alternate" hreflang="ar" href="${SITE}${alternates[0]}"/><xhtml:link rel="alternate" hreflang="en" href="${SITE}${alternates[1]}"/></url>`;
+const urls=[entry('/',['/','/en/'],'2026-09-26'),entry('/en/',['/','/en/'],'2026-09-26'),...pages.map(p=>entry(p.url,p.source.lang==='ar'?[p.url,p.other]:[p.other,p.url]))];
 await Bun.write(out('sitemap.xml'),`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">${urls.join('')}</urlset>\n`);
 console.log(`Built Arabic and English pages and ${pages.length} docs pages.`);

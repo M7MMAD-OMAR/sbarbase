@@ -26,7 +26,8 @@ Package manager is bun (never npm/npx). Python is always `/usr/bin/python3`
 
 ```bash
 bun install --frozen-lockfile
-bun test                                   # all Bun tests in tests/
+bun install --cwd website --frozen-lockfile # bun test also runs website/tests
+bun test                                   # all Bun tests, website/tests included
 bun test tests/catalog.test.ts             # one file
 bun test tests/catalog.test.ts -t "name"   # one test by name
 bun run typecheck:ui                       # tsc over ui/ only
