@@ -2,11 +2,12 @@
 
 # واجهة API
 
-هذه المسارات يخدمها خادم الحلقة المحلية (`lab/upstream-server.ts`). كل مسار يبدأ بـ`/management/` ينتمي إلى واجهة الإدارة، وما عداه ينتمي إلى بوابة التطبيقات. قُرئت من الكود في 2026-09-23، والكود هو المرجع:
+هذه المسارات يخدمها خادم الحلقة المحلية (`lab/upstream-server.ts`). كل مسار يبدأ بـ`/management/` ينتمي إلى واجهة الإدارة، والمساران `/v1/` و`/mcp` للوكلاء، وما عدا ذلك ينتمي إلى بوابة التطبيقات. قُرئت من الكود في 2026-10-19، والكود هو المرجع:
 
 - التوجيه بين المجموعات الثلاث: [src/control/application.ts](../../src/control/application.ts)
 - بيانات الإدارة الوصفية: [src/control/http.ts](../../src/control/http.ts)
-- المفاتيح وتفاصيل الاتصال: [src/control/key-http.ts](../../src/control/key-http.ts)، ويوزّعها [src/control/handler.ts](../../src/control/handler.ts)
+- المفاتيح وتفاصيل الاتصال: [src/control/key-http.ts](../../src/control/key-http.ts)، ويوزّعها [src/control/handler.ts](../../src/control/handler.ts) مع مسارات Studio وRealtime وتسجيل الدخول وEdge Functions وقاعدة البيانات ومفتاح التوقيع والحصة والدعوات
+- رموز الوصول و`/v1` و`/mcp`: [src/control/access-token-http.ts](../../src/control/access-token-http.ts) و[src/control/supabase-api.ts](../../src/control/supabase-api.ts) و[src/control/mcp.ts](../../src/control/mcp.ts)
 - البوابة: [src/gateway/managed.ts](../../src/gateway/managed.ts) و[src/gateway/handler.ts](../../src/gateway/handler.ts) و[src/gateway/concurrency.ts](../../src/gateway/concurrency.ts)
 
 تُخدم لوحة الإدارة وملفاتها الثابتة إلى جانب هذه المسارات عبر `lab/ui-static.ts`. يرفض خادم الحلقة المحلية أي ترويسة `Host` غير `127.0.0.1` أو `localhost`، والوصول العام يمر عبر وكيل TLS (انظر [نشر الخادم](../guides/server-deployment.ar.md)).
@@ -21,8 +22,12 @@
 | GET | `/management/auth/v1/user` | المشغّل الحالي |
 | POST | `/management/auth/v1/logout` | تسجيل الخروج |
 | GET | `/management/auth/v1/settings` | إعدادات Auth |
+| GET, PATCH | `/management/auth/v1/policy` | هل يفرض التثبيت المصادقة الثنائية (MFA)، وهل ما زال المتصل يحتاج إلى رمز. لا يغيّرها إلا مالك للتثبيت تحقق من رمز تطبيق المصادقة في آخر خمس دقائق، بالجسم `{"mfa_required": bool}` |
+| POST | `/management/auth/v1/factors` | تسجيل تطبيق مصادقة (TOTP) للحساب الذي سجّل دخوله |
+| POST | `/management/auth/v1/factors/{id}/challenge`، `/management/auth/v1/factors/{id}/verify` | طلب رمز ثم التحقق منه |
+| DELETE | `/management/auth/v1/factors/{id}` | إزالة تطبيق مصادقة |
 
-أي مسار آخر تحت `/management/auth/...` يعيد `404`، والطريقة الخاطئة تعيد `405`.
+أي مسار آخر تحت `/management/auth/...` يعيد `404`، والطريقة الخاطئة تعيد `405`. لمحاولات الدخول حدّ، وما يتجاوزه يُرد بـ`429`.
 
 ## واجهة الإدارة
 
@@ -49,7 +54,12 @@
 | GET | `/management/v1/projects/{id}/environments` | عضو | بيئات ذلك المشروع |
 | POST | `/management/v1/projects/{id}/environments` | مالك، مدير | الجسم `{"name": "..."}`. يعيد `202` مع `{id, state: "queued"}`، ثم يجهّزها العامل |
 | PATCH | `/management/v1/environments/{id}` | مالك، مدير | الجسم `{"name": "..."}`. يُرجع `409` إن كان الاسم مستخدمًا في ذلك المشروع |
-| DELETE | `/management/v1/environments/{id}` | مالك | يخرج البيئة من الإدارة ويلغي مفاتيحها، ومن بعدها تجيب البوابة `401` لمعرّف تشغيلها. تبقى قاعدة بياناتها وحاوياتها وملفاتها على الخادم. يُرجع `409` ما دام التجهيز منتظرًا أو جاريًا، أو ما دام Studio أو Realtime أو Edge Functions أو الوصول المباشر إلى قاعدة البيانات أو تغيير في تسجيل الدخول أو تدوير لمفتاح التوقيع أو توجيه موقوف أو منقول، مشغّلًا أو قيد التنفيذ |
+| DELETE | `/management/v1/environments/{id}` | مالك | يخرج البيئة من الإدارة ويلغي مفاتيحها، ومن بعدها تجيب البوابة `401` لمعرّف تشغيلها. تبقى قاعدة بياناتها وحاوياتها وملفاتها على الخادم، محفوظة سبعة أيام. يُرجع `200 {deleted, revoked, retentionUntil}`. ويُرجع `409` ما دام التجهيز منتظرًا أو جاريًا، أو ما دام Studio أو Realtime أو Edge Functions أو الوصول المباشر إلى قاعدة البيانات أو تغيير في تسجيل الدخول أو تدوير لمفتاح التوقيع أو توجيه موقوف أو منقول، مشغّلًا أو قيد التنفيذ، وكذلك حين لم تُسجَّل قط القائمة الدقيقة لموارد البيئة |
+| GET | `/management/v1/environments/{id}/lifecycle` | مالك، مدير | سجل الحذف: `state` (`active` أو `deleting` أو `deleted` أو `restoring` أو `purging` أو `purged`)، و`retain_until`، والموارد وما جرى لكل منها |
+| POST | `/management/v1/environments/{id}/restore` | مالك | الجسم `{"operation": "<new uuid>"}`. يعيد بيئة محذوفة ما دامت محفوظة. يُرجع `202`، و`409` بعد انتهاء مدة الحفظ |
+| POST | `/management/v1/environments/{id}/purge` | مالك هو مشغّل للتثبيت | الجسم `{"operation": "<new uuid>"}`. يزيل موارد بيئة محذوفة نهائيًا، بعد انتهاء مدة الحفظ فقط ومع دليل استعادة كامل. يُرجع `202` |
+| POST | `/management/v1/environments/{id}/resume` | مالك | الجسم `{"operation": "<uuid>"}` لعملية الحذف أو الاستعادة أو الإزالة الجارية. يجدد تفويضها لتكمل |
+| GET | `/management/v1/projects/{id}/retained-environments` | مالك، مدير | بيئات المشروع المحذوفة أو التي في طريقها إلى الحذف |
 | POST | `/management/v1/relink` | مشغّل التثبيت | الجسم `{"runtime": "e_...", "ownership": {...}}`، والحقل `ownership` كما يسجله بيان النسخة الاحتياطية. يعيد إنشاء ذلك العميل والمشروع والبيئة هنا بالمعرّفات نفسها ومعرّف التشغيل نفسه، ويضع التجهيز في الانتظار؛ يستدعيه `sbarbase relink` ([النسخ الاحتياطي والاستعادة](../guides/backup-and-restore.ar.md)). يُرجع `409` لأي تعارض: عميل بهذا الاسم لكن بمعرّف آخر، أو معرّف يخص شيئًا آخر هنا، أو معرّف تشغيل مستعمل أو محذوف هنا |
 | GET | `/management/v1/environments/{id}/provision` | عضو | حالة التجهيز `state` ورقم المحاولة `attempt`، والسبب `failure` إن وُجد |
 | POST | `/management/v1/environments/{id}/retry` | مالك، مدير | بلا جسم. يعيد `202 {state: "queued"}` لبيئة فشلت أو أُلغيت، و`409` في غير ذلك أو عند بلوغ حد البيئات |
@@ -77,13 +87,45 @@
 | GET | `/management/v1/notifications` | مالك أو مدير أي عميل | عدد التنبيهات غير المسلّمة وأحدث أحداث المشغّل لعملاء المستدعي وحدهم. الأحداث التي لا تخص عميلًا (بدء التثبيت، إعادة تشغيل العامل) تذهب إلى مالكي ومديري العميل الذي أُنشئ عند الإعداد الأولي |
 | GET | `/management/v1/organizations/{id}/audit` | مالك، مدير | ما حدث في هذا العميل، الأحدث أولًا (حتى 100): الوقت، ومن فعله، والفعل، واسم ما جرى عليه، وتفصيل قصير. المشروع المنقول من عميل آخر لا يظهر منه إلا ما حدث بعد وصوله |
 | GET | `/management/v1/environments/{id}/share` | عضو | حصة البيئة المضمونة في البوابة، والقيمة الافتراضية، والسقف؛ ويحصل مشغّلو التثبيت أيضًا على `total` و`allocated` |
-| PUT | `/management/v1/environments/{id}/share` | مشغّل التثبيت | الجسم `{"share": n}`، من 1 إلى 24. يُرجع `409` إذا تجاوزت حصص كل البيئات الجاهزة 32. يُطبَّق من الطلب التالي |
+| PUT | `/management/v1/environments/{id}/share` | مشغّل التثبيت | الجسم `{"share": n}`، من 1 إلى 24. يُرجع `409` إذا تجاوزت حصص كل البيئات الجاهزة 64. يُطبَّق من الطلب التالي |
+| GET | `/management/v1/environments/{id}/realtime` | مالك، مدير، عندما تكون جاهزة | حالة Realtime في `state` و`desired` ([Realtime](../guides/realtime.ar.md)) |
+| PUT | `/management/v1/environments/{id}/realtime` | مالك، مدير، عندما تكون جاهزة | `{"enabled": true\|false}`. يُرجع `202`، ويشغّله المشرف أو يوقفه. و`409` ما دام تغيير سابق جاريًا |
+| GET | `/management/v1/environments/{id}/sign-in` | مالك، مدير، عندما تكون جاهزة | إعدادات تسجيل الدخول دون أسرار المزوّدين، وحالتها، و`callback_url` الذي يُعطى لمزوّدي OAuth ([تسجيل الدخول](../guides/sign-in.ar.md)) |
+| PUT | `/management/v1/environments/{id}/sign-in` | مالك، مدير، عندما تكون جاهزة | إعدادات جديدة. يُرجع `202`، ويعيد المشرف إنشاء Auth لهذه البيئة وحدها. و`400` يسمّي الإعداد الذي يجب التحقق منه |
+| GET | `/management/v1/environments/{id}/studio` | مالك، مدير، عندما تكون جاهزة | حالة Studio في `state`، وهل ضُبط عنوان عام لـStudio في `public` ([Studio](../guides/studio.ar.md)) |
+| POST, DELETE | `/management/v1/environments/{id}/studio` | مالك، مدير، عندما تكون جاهزة | دون جسم. يشغّل Studio أو يوقفه، ويُرجع `202` |
+| POST | `/management/v1/environments/{id}/studio/session` | مالك، مدير، عندما تكون جاهزة | دون جسم. يُرجع `201 {host, public, path}`: عنوان Studio وتذكرة دخول تصلح مرة واحدة. و`409` ما دام Studio لا يعمل |
+| GET, POST, PUT | `/management/v1/environments/{id}/deployment-setup` | مشغّل التثبيت، عندما تكون جاهزة | خطة نشر عام مُعدّة (العنوان، وسجلات DNS، وTLS، وعنوان الموقع، وعناوين إعادة التوجيه). `POST` يعرض معاينة، و`PUT` مع `If-Match: <revision>` يحفظ (`202`). هي إعداد فقط، ولا يُطبَّق منها شيء على طبقة التشغيل |
+| GET | `/management/v1/server` | مشغّل التثبيت | لقطة الخادم التي تعرضها لوحة الإدارة: أنوية المعالج، والحمل، ومدة التشغيل، والذاكرة، والتبديل (swap)، والقرص ([تصميم لوحة الإدارة](console-design.ar.md)). لا تُخزَّن مؤقتًا |
+| GET | `/management/v1/notifications/telegram` | مشغّل التثبيت | `state` (`off` أو `pending` أو `linked`)، وآخر أربعة أحرف من الرمز، و`owner`؛ ولا يرى رابط الربط المعلّق إلا المالك |
+| PUT | `/management/v1/notifications/telegram` | مالك التثبيت | الجسم `{"token": "..."}`. يتحقق من رمز البوت لدى Telegram ويحفظه ([الإعدادات](configuration.md#operator-notifications)) |
+| POST | `/management/v1/notifications/telegram/link`، `/management/v1/notifications/telegram/test` | مالك التثبيت | دون جسم. يربط المحادثة التي فتحت الرابط ذا الاستعمال الواحد، أو يرسل رسالة تجريبية |
+| DELETE | `/management/v1/notifications/telegram` | مالك التثبيت | يفصل Telegram وينسى الرمز |
 
-أجسام الطلبات لا تقبل إلا الحقول المذكورة لكل مسار، بحجم أقصاه 4 KiB، وتُقرأ خلال خمس ثوانٍ. مسارات المفاتيح والاتصال وكل طلبات `DELETE` ترفض أي جسم. الردود غير قابلة للتخزين المؤقت. نقل المشروع يلغي مفاتيح API، لكنه لا يدوّر مفتاح توقيع JWT لبيئاته ولا كلمة مرور الوصول المباشر إلى قاعدة البيانات؛ دوّرهما ([مفتاح التوقيع](../guides/signing-keys.ar.md)) إذا كان على أشخاص العميل القديم أن يفقدوا كل وصول. وحذف البيئة لا يحرر مكانها في حد البيئات عند العامل، لأن طبقة تشغيلها تبقى.
+أجسام الطلبات لا تقبل إلا الحقول المذكورة لكل مسار، بحجم أقصاه 4 KiB، وتُقرأ خلال خمس ثوانٍ. مسارات المفاتيح والاتصال وكل طلبات `DELETE` ترفض أي جسم. الردود غير قابلة للتخزين المؤقت. نقل المشروع يلغي مفاتيح API، لكنه لا يدوّر مفتاح توقيع JWT لبيئاته ولا كلمة مرور الوصول المباشر إلى قاعدة البيانات؛ دوّرهما ([مفتاح التوقيع](../guides/signing-keys.ar.md)) إذا كان على أشخاص العميل القديم أن يفقدوا كل وصول. وحذف البيئة لا يحرر مكانها في حد البيئات عند العامل، لأن طبقة تشغيلها تبقى. وفي هذا الإصدار لا تسجّل قائمةَ موارد البيئة إلا الفحوص الحية الخاصة بدورة حياتها، لذلك قد يُرد على حذف بيئة في تثبيت عادي بـ`409` ومعه "Exact ownership inventory unavailable".
 
 ## الوكلاء: الواجهة المتوافقة مع Supabase وMCP
 
-برمز وصول في `Authorization: Bearer sbp_...`، تجيب `/v1/...` على الجزء الذي تستعمله الوكلاء والأدوات من واجهة الإدارة في Supabase، ويشغّل `POST /mcp` خادم MCP الرسمي من Supabase فوقها. المسارات وما يفعله كل منها هنا وحدوده في [وكلاء الذكاء الاصطناعي والواجهة البرمجية](../guides/agents.ar.md). ويُرفض رمز الوصول في كل مسارات `/management/`.
+برمز وصول في `Authorization: Bearer sbp_...`، تجيب `/v1/...` على الجزء الذي تستعمله الوكلاء والأدوات من واجهة الإدارة في Supabase، ويشغّل `POST /mcp` خادم MCP الرسمي من Supabase فوقها. ما يفعله كل مسار هنا وحدوده في [وكلاء الذكاء الاصطناعي والواجهة البرمجية](../guides/agents.ar.md). ويُرفض رمز الوصول في كل مسارات `/management/`. المشروع ذو المعرّف `{ref}` بيئة واحدة، ومعرّفه 20 حرفًا لاتينيًا صغيرًا.
+
+| الطريقة | المسار |
+|---|---|
+| GET | `/v1/organizations`، `/v1/organizations/{id}` |
+| GET, POST | `/v1/projects` |
+| GET | `/v1/projects/{ref}`، `/v1/projects/{ref}/health`، `/v1/projects/{ref}/api-keys/legacy` |
+| GET, POST | `/v1/projects/{ref}/api-keys` |
+| DELETE | `/v1/projects/{ref}/api-keys/{id}` |
+| POST | `/v1/projects/{ref}/database/query` |
+| GET, POST | `/v1/projects/{ref}/database/migrations` |
+| GET | `/v1/projects/{ref}/advisors/security`، و`/v1/projects/{ref}/advisors/performance` (فارغ دائمًا)، و`/v1/projects/{ref}/analytics/endpoints/logs` |
+| GET, PUT, PATCH | `/v1/projects/{ref}/functions` |
+| POST | `/v1/projects/{ref}/functions/deploy` |
+| GET, DELETE | `/v1/projects/{ref}/functions/{name}`؛ وGET `/v1/projects/{ref}/functions/{name}/body` |
+| GET, POST, DELETE | `/v1/projects/{ref}/secrets` |
+| GET | `/v1/projects/{ref}/config/storage`؛ ويجيب `/v1/projects/{ref}/config/database/pooler` و`/v1/projects/{ref}/branches` بقائمة فارغة |
+| POST | `/mcp` |
+
+حذف مشروع أو إيقافه مؤقتًا أو استعادته وتوليد الأنواع تُرد كلها بـ`501` مع ما يُفعل بدلًا منها، وأي مسار آخر تحت `/v1` يُرد بـ`404`.
 
 ## التحديثات
 

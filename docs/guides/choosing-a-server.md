@@ -59,4 +59,4 @@ Choose a data centre near your applications' users, and confirm the provider off
 
 ## After you buy
 
-Follow [the quickstart](quickstart.md). Keep SSH and ports 80 and 443 open, nothing else; the console and the gateway listen on loopback only, behind the TLS proxy.
+Follow [the quickstart](quickstart.md). Keep SSH and ports 80 and 443 open, nothing else; the console and the gateway listen on loopback only, behind the TLS proxy. If the host firewall drops incoming traffic by default (ufw does), also allow the two narrow routes from containers to the host that Studio and Edge Functions use; they open no port to the outside ([server deployment](server-deployment.md#firewall-two-routes-from-containers-to-the-host)).

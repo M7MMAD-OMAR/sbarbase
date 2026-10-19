@@ -37,10 +37,12 @@ curl -H "Authorization: Bearer $TOKEN" "$CONSOLE/management/v1/environments/$ID/
 curl -H "Authorization: Bearer $TOKEN" "$CONSOLE/management/v1/environments/$ID/logs?source=auth&lines=100&errors=1"
 ```
 
-See the [API reference](../reference/api.md) for the fields.
+See the [API reference](../reference/api.md) for the fields. `lines` takes 1 to 1000, 200 when left out.
+
+With a personal access token, an AI agent reads the request, Auth, Storage, Realtime and Edge Functions logs through the MCP `get_logs` tool or `GET /v1/projects/{ref}/analytics/endpoints/logs` ([AI agents](agents.md)). On the server, `sbarbase logs` shows a service's own log, unfiltered ([the sbarbase command](cli.md#logs)).
 
 ## Limits
 
 - Request totals and the request log live in memory and start empty after a restart. For longer history, keep `docker logs` output with your own log collector.
-- The PostgreSQL log is not shown: the database server is shared by every environment.
+- The PostgreSQL log is not shown in the console: the database server is shared by every environment. On the server, `sbarbase logs database` shows it.
 - There are no alerts on error rates yet. The [operator notifications](../reference/configuration.md#operator-notifications) cover an environment that keeps hitting its request limit, low disk space, a stopped service container, failed backups and updates; connect Telegram on the console's Notifications page.

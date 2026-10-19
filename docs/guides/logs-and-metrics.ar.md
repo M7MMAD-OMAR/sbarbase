@@ -37,10 +37,12 @@ curl -H "Authorization: Bearer $TOKEN" "$CONSOLE/management/v1/environments/$ID/
 curl -H "Authorization: Bearer $TOKEN" "$CONSOLE/management/v1/environments/$ID/logs?source=auth&lines=100&errors=1"
 ```
 
-الحقول موصوفة في [مرجع الواجهة](../reference/api.ar.md).
+الحقول موصوفة في [مرجع الواجهة](../reference/api.ar.md). يأخذ `lines` قيمة من 1 إلى 1000، و200 إن لم تحدده.
+
+برمز وصول شخصي، يقرأ وكيل الذكاء الاصطناعي سجلات الطلبات وAuth وStorage وRealtime وEdge Functions عبر أداة MCP `get_logs` أو عبر `GET /v1/projects/{ref}/analytics/endpoints/logs` ([وكلاء الذكاء الاصطناعي](agents.ar.md)). وعلى الخادم يعرض `sbarbase logs` سجل الخدمة نفسها دون تصفية ([الأمر sbarbase](cli.md#logs)).
 
 ## الحدود
 
 - مجاميع الطلبات وسجلها في الذاكرة، ويبدآن فارغين بعد إعادة التشغيل. لتاريخ أطول، احفظ مخرجات `docker logs` بأداة جمع السجلات التي تستخدمها.
-- لا يظهر سجل PostgreSQL: خادم قاعدة البيانات مشترك بين كل البيئات.
-- لا توجد تنبيهات على نسب الأخطاء بعد. تغطي [تنبيهات المشغّل](../reference/configuration.ar.md#تنبيهات-المشغّل) البيئة التي تبلغ حد طلباتها مرارًا، وامتلاء القرص، وتوقف حاوية خدمة، وفشل النسخ الاحتياطي، والتحديثات؛ اربط تيليجرام من صفحة التنبيهات في لوحة الإدارة.
+- لا يظهر سجل PostgreSQL في لوحة الإدارة: خادم قاعدة البيانات مشترك بين كل البيئات. وعلى الخادم يعرضه `sbarbase logs database`.
+- لا توجد تنبيهات على نسب الأخطاء بعد. تغطي [تنبيهات المشغّل](../reference/configuration.md#operator-notifications) البيئة التي تبلغ حد طلباتها مرارًا، وامتلاء القرص، وتوقف حاوية خدمة، وفشل النسخ الاحتياطي، والتحديثات؛ اربط تيليجرام من صفحة التنبيهات في لوحة الإدارة.

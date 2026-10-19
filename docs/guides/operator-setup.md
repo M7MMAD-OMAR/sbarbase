@@ -4,9 +4,11 @@
 
 Create the first operator account and the first client (organization) on your
 server. Verified 2026-09-20 on the development workstation. This is local
-experimental onboarding. A server deployment
+experimental onboarding. On a server, follow the [quickstart](quickstart.md)
+or [Install with Docker](docker.md) (`deploy/compose.sh bootstrap`) instead; the
 runbook is in [SERVER-DEPLOYMENT](server-deployment.md). The installer is
-`lab/install_server.py` (`check`, `plan`, `install`, `smoke`).
+`lab/install_server.py` (`check`, `plan`, `install`, `images`, `smoke`,
+`supervise`, `wait-console`).
 
 ## Current compatibility gate
 
@@ -87,9 +89,14 @@ before authority, revoked ownership and membership-scoped discovery. Current sui
 totals are recorded in [status](../reference/status.md); they do not establish
 production readiness.
 
-Missing: supported repair/reset flows, invitations, guided first-run onboarding, MFA, login
-rate controls, HTTPS deployment, pagination for very large organization lists,
-remote backups and a complete distributable installer. Bootstrap identity lookup
+Since this page was first written, these have shipped: invitations,
+sign-in factors (MFA) and login rate limits for the console, HTTPS through the
+reference TLS proxy ([server deployment](server-deployment.md)), encrypted off-site
+backups ([backup and restore](backup-and-restore.md)) and a password reset from the
+server's shell (below). Still missing: a supported repair for the two refusals
+above (a missing journal, a vanished identity), guided first-run onboarding in the
+console, pagination for very large organization lists and a complete distributable
+installer. Bootstrap identity lookup
 paginates the private Auth API and stops with an error after 10,000 users rather
 than silently assuming no match. Store the original password securely yourself.
 

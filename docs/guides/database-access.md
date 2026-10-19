@@ -31,6 +31,8 @@ Examples:
 psql "postgresql://…@127.0.0.1:6543/e_…?sslmode=disable" -v ON_ERROR_STOP=1 -1 -f supabase/migrations/20261017000000_init.sql   # one migration file
 pg_dump "postgresql://…@127.0.0.1:6543/e_…?sslmode=disable" --schema=public > public.sql
 DATABASE_URL="postgresql://…@127.0.0.1:6543/e_…?sslmode=disable" npx prisma migrate deploy
+supabase db push --db-url "postgresql://…@127.0.0.1:6543/e_…?sslmode=disable"   # every file in supabase/migrations
+supabase gen types typescript --db-url "postgresql://…@127.0.0.1:6543/e_…?sslmode=disable" > database.types.ts
 ```
 
 ## What the developer login can do
@@ -41,7 +43,7 @@ It works like a Supabase project's `postgres` user, inside this environment's da
 - Add triggers on `auth.users` (for example, create a profile at sign-up) and policies on `storage.objects`.
 - Read and write every row; it bypasses row level security, as the `postgres` user does.
 - Keep migration history in `supabase_migrations`, a schema made for it, where [AI agents](agents.md) record what they applied.
-- Create schemas of its own, such as `app` or `private`, and rename them. It cannot use a name the platform creates itself: `auth`, `storage`, `extensions`, `public`, `realtime`, `_realtime`, `vault`, `pgsodium`, `cron`, `net`, `graphql`, `graphql_public`, or any name starting with `supabase` or `sbarbase`. A schema it made first under such a name would run its code with the platform's rights, so PostgreSQL refuses the statement, and a rename into one of these names too.
+- Create schemas of its own, such as `app` or `private`, and rename them. It cannot use a name the platform creates itself: `auth`, `storage`, `extensions`, `public`, `realtime`, `_realtime`, `vault`, `pgsodium`, `cron`, `net`, `graphql`, `graphql_public`, a few more (`RESERVED_SCHEMAS` in `lab/durable_runtime.py`), or any name starting with `supabase` or `sbarbase`. A schema it made first under such a name would run its code with the platform's rights, so PostgreSQL refuses the statement, and a rename into one of these names too.
 - Keep secrets in Vault (`vault.create_secret`, `vault.update_secret`, `vault.decrypted_secrets`), as on Supabase; `service_role` reads them too. The login cannot pass this access on to other roles, so a grant to `anon` cannot open the secrets to the API.
 - Create the extensions an application uses, such as `pg_trgm`, `btree_gist`, `vector`, `pgtap` and `pg_graphql`. Extensions that reach the server's network, see every environment's activity, load code, write files on the server or hold the server's key are refused on a shared server: `dblink`, `postgres_fdw`, `http`, `pg_net`, `wrappers`, `pg_cron`, `pg_tle`, `pgsodium`, `pg_stat_statements`, `pg_stat_monitor`, `pg_walinspect`, `pg_buffercache`, `pg_prewarm`, `pg_repack`, `pgaudit`, `pgroonga` and a few more (`RESERVED_EXTENSIONS` in `lab/durable_runtime.py`).
 

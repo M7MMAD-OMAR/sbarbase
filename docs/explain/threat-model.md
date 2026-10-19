@@ -26,7 +26,9 @@ Sbarbase puts many Supabase projects on one server. Sharing a server is only wor
 | --- | --- |
 | Application data per environment | One PostgreSQL database per environment on the shared engine; that environment's objects in the shared Storage process |
 | Service credentials | Three service logins per environment (Auth, REST, Storage) with passwords generated per environment (`secrets.token_hex(32)` in `Runtime.provision`, [lab/durable_runtime.py](../../lab/durable_runtime.py)), kept in the private state directory |
-| Signing keys | Each environment's Auth signing secret and Storage signing keys; publishable and secret API keys, stored only as SHA-256 hashes ([src/control/keys.ts](../../src/control/keys.ts)) |
+| Signing keys | Each environment's Auth signing secret and Storage signing keys; secret API keys, stored only as SHA-256 hashes, and publishable keys, public by design and kept so the console can show them again ([src/control/keys.ts](../../src/control/keys.ts)) |
+| Access tokens | Personal tokens (`sbp_...`) for agents and tools, stored only as SHA-256 digests with their scope and expiry ([src/control/access-tokens.ts](../../src/control/access-tokens.ts)) |
+| Vault secrets | Each environment's `vault.secrets`, encrypted with one root key that belongs to the server |
 | Operator identity | Accounts in a dedicated management Auth realm, separate from every application Auth ([src/control/auth.ts](../../src/control/auth.ts)); memberships and roles in the control catalog |
 | Backups | Encrypted per-environment export bundles and their keys; any copies of the database volumes the operator makes |
 
@@ -94,13 +96,14 @@ These are open. They are listed so an operator can decide whether Sbarbase fits,
 - **The shared PostgreSQL engine is a shared failure boundary.** A crash, full disk or long lock affects every environment on it, and the canonical API roles (`anon`, `authenticated`, `service_role`) exist once per engine.
 - **Signed URLs survive key revocation until they expire.** Revoking a publishable key stops keyed requests at once, but a Storage signed URL issued earlier still works until its expiry ([storage-url-checks.json](../evidence/storage-url-checks.json), "env_alpha signed URL remains independent of API-key revocation until expiry").
 - **No tamper-evident or off-host audit log.** The catalog records audit events locally (`audit_events` in [src/control/catalog.ts](../../src/control/catalog.ts)); anyone with host access can change them, and nothing ships them elsewhere.
-- **Per-environment Studio holds a database login while it runs.** It is served only behind a signed console session on its own address, and its login is not a superuser and closes when Studio stops ([Studio guide](../guides/studio.md)). An owner or admin with an open session can read every row of that environment, including rows hidden by row security.
+- **Per-environment Studio holds a database login while it runs.** It is served only behind a signed console session on its own address, and its login is not a superuser and closes when Studio stops ([Studio guide](../guides/studio.md)). It works with the developer login's rights, so an owner or admin with an open session can read every row of that environment, including rows hidden by row security, and change its tables and policies.
+- **Vault's root key is shared by the server.** Every environment's Vault secrets are encrypted with the same key, so a copy of one environment's `vault.secrets` can be read in any environment of that server. They stay apart only because each environment reaches its own database ([database access](../guides/database-access.md)).
 - **Off-host backups are opt-in.** Encrypted copies to S3-compatible storage run only once the operator configures a bucket and its key ([backup and restore](../guides/backup-and-restore.md)); until then every backup lives on the server it protects.
 - **Operators can run arbitrary SQL by design.** Isolation holds against application visitors and leaked environment credentials, not against a trusted SQL author.
 - **The service account is root equivalent.** [deploy/sbarbase.service](../../deploy/sbarbase.service) gives it the `docker` group so it can manage containers. This is a decision, not an oversight; the next section gives the options and why.
 - **HBA rules restrict login and database, not source address.** Rules use `0.0.0.0/0` and rely on the database sitting on an internal Docker network with no published port; the PostgreSQL administrator connects over the local socket with `trust`, which fits the trusted operator model.
 - **Reloading connection rules alone does not end sessions already open.** The fence paths terminate them explicitly ([lab/source_fence.py](../../lab/source_fence.py)); any other change that relies only on an HBA reload leaves existing connections in place until they close.
-- **Realtime, browser CORS and OAuth are not handled by the gateway yet**, and resource tiers are configured, not calibrated under sustained load.
+- **Resource tiers are configured, not calibrated under sustained load.**
 
 ### The docker group: a decision
 

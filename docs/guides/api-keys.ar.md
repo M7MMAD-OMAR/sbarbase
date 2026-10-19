@@ -52,7 +52,7 @@ const {data} = await admin.from('orders').select('*'); // every row, whatever th
 # a secret key named "backend"; the answer holds the key, once
 curl -X POST -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
   -d '{"type":"secret","name":"backend"}' https://console.example.com/management/v1/environments/$ENVIRONMENT/keys
-# list (names, kinds and dates, never the keys) and revoke
+# list (names, kinds and dates; a publishable key's value too, never a secret key's) and revoke
 curl -H "authorization: Bearer $TOKEN" https://console.example.com/management/v1/environments/$ENVIRONMENT/keys
 curl -X DELETE -H "authorization: Bearer $TOKEN" https://console.example.com/management/v1/environments/$ENVIRONMENT/keys/$KEY_ID
 ```

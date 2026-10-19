@@ -94,11 +94,11 @@ sudo systemctl daemon-reload && sudo systemctl restart sbarbase
 ssh -L 8787:127.0.0.1:8787 you@your-server
 ```
 
-Then open `http://localhost:8787` and log in with the operator email and password from step 4. You will see your client, "First project" and its `production` environment. Create another environment, open its connection details and issue a key: the key is shown once.
+Then open `http://localhost:8787` and log in with the operator email and password from step 4. You will see your client, "First project" and its `production` environment. Open the environment and, under **API keys**, create a publishable key. A publishable key can be copied again later; a secret key is shown only once.
 
 ## 8. Use it from your application
 
-The connection details give the environment's path, `/<runtime>`. Point supabase-js at your public address plus that path:
+The environment's **Project URL** ends with its path, `/<runtime>`. Over the SSH tunnel it starts with `http://localhost:8787`, so point supabase-js at your public address plus that path:
 
 ```js
 import {createClient} from '@supabase/supabase-js';
@@ -107,10 +107,11 @@ const supabase = createClient('https://console.example.com/<runtime>', '<publish
 
 Auth, REST and Storage work through that one address, from a server or from a browser page on any domain. Realtime is turned on per environment ([Realtime](realtime.md)) and OAuth providers are set per environment ([sign-in](sign-in.md)); Edge Functions deploy per environment from a Supabase functions folder ([Edge Functions](edge-functions.md)).
 
-For the public HTTPS address, put the reference TLS proxy (or nginx or Caddy) in front of `127.0.0.1:8787` with a real certificate, as the [server deployment runbook](server-deployment.md) describes. Open only SSH, 80 and 443 in the firewall.
+For the public HTTPS address, put the reference TLS proxy (or nginx or Caddy) in front of `127.0.0.1:8787` with a real certificate, as the [server deployment runbook](server-deployment.md) describes. Open only SSH, 80 and 443 in the firewall, and allow the [two routes from containers to the host](server-deployment.md#firewall-two-routes-from-containers-to-the-host) that Studio and Edge Functions need.
 
 ## What to do next
 
-- Back up: read [backup and restore](backup-and-restore.md) for what exists today, and its limits. Scheduled, off-host backups are the next milestone on the [roadmap](../engineering/plans/2026-09-23-roadmap.md).
+- Back up: every environment is backed up daily on the server, and encrypted copies can go to an S3-compatible bucket off the server. Read [backup and restore](backup-and-restore.md) for how, and its limits.
+- Open Studio for an environment: [Supabase Studio](studio.md).
 - Understand what is shared between your environments: [isolation and trust](../explain/isolation-and-trust.md).
 - Check what is proven and what is not: [status](../reference/status.md).

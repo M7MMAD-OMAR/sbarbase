@@ -4,7 +4,18 @@ The [2026-10-06 local repair review](review-2026-10-06.md) records defensive sou
 
 # Deployment readiness
 
-## Current checkpoint, 2026-10-09
+## Current checkpoint, 2026-10-19
+
+Production acceptance remains unproven. The declared version is 0.5.12, after releases 0.3.0 to 0.5.12 from 2026-10-17 to 2026-10-19 ([changelog](../../CHANGELOG.md)). What changed the readiness picture, each with its own scope:
+
+- **Install with Docker from a bare Ubuntu 26.04 machine:** 14 of 14 checks in a local KVM guest (4 vCPU, 6144 MiB) on 2026-10-17, including a reboot ([vm-docker-install-checks.json](../evidence/vm-docker-install-checks.json)). Not a real server.
+- **TLS proxy with Studio addresses:** 27 of 27 checks on 2026-10-17, self-signed certificate and stub upstream ([tls-termination.json](../evidence/tls-termination.json)).
+- **On the real server through Cloudflare, 2026-10-17:** secret keys ([live-secret-keys-2026-10-17.json](../evidence/live-secret-keys-2026-10-17.json)) and an agent's deploy through `/mcp` and `/v1` ([live-agent-access-2026-10-17.json](../evidence/live-agent-access-2026-10-17.json)), on one environment without application data.
+- **Developer login limits:** 64 of 64 checks on 2026-10-19 ([developer-schema-checks-2026-10-19.json](../evidence/developer-schema-checks-2026-10-19.json)).
+
+Still open: a public-server install with Docker, Studio on a real server's public address, restore onto a new server from the off-site copy, an interrupted restore, and a whole installation under real traffic. [Status](status.md) has the details.
+
+## Checkpoint, 2026-10-09
 
 Production acceptance remains unproven. The latest verified published checkpoint is `aad7b5403ad14140e9d9499668e863d7488ce15b`: [CI 37688338269](https://github.com/M7MMAD-OMAR/sbarbase/actions/runs/37688338269) completed all four jobs successfully, including Docker installation and empty-host acceptance. The [exact CI observation](../evidence/isolated-guest-preparation-2026-10-08/source7/ci-aad7b540.json) preserves the commit and job conclusions. This commit publishes the Source7 repair evidence. Its CI does not execute or accept the experimental guest installer or the full local VM recovery route.
 
@@ -52,7 +63,7 @@ Historical regression result: **1504 tests passed with zero failures, errors, wa
 
 The normal `legacy-shared` platform has historical Docker integration evidence for installation, the first project, Auth, REST, Storage, Studio, Realtime, Functions, backups and upgrades. Fresh CI and manually dispatched empty-host acceptance passed for code commit `066f5ec`. The user's computer is the selected isolated Linux Docker test server; CI provides an additional fresh-host route. Public DNS and a public TLS certificate are future operator configuration.
 
-The experimental `native-dedicated` path remains incomplete: the PostgreSQL 17.11 candidate has not received accepted startup, effective private-safe configuration, real private request operation, cold/warm Cron and Vault continuity, or physical recovery evidence. Retained isolated candidate volumes must not be adopted, read or deleted. Package 0.2.0 remains a development snapshot; production acceptance and a signed release are not established.
+The experimental `native-dedicated` path remains incomplete: the PostgreSQL 17.11 candidate has not received accepted startup, effective private-safe configuration, real private request operation, cold/warm Cron and Vault continuity, or physical recovery evidence. Retained isolated candidate volumes must not be adopted, read or deleted. At that checkpoint package 0.2.0 was a development snapshot, and neither production acceptance nor a signed release was established.
 
 [Status](status.md) contains the current evidence links and scope. The matrix below retains its original dates and limits; this edit does not rerun its checks.
 

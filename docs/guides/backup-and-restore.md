@@ -11,7 +11,7 @@ Sbarbase backs up every environment once a day, while it keeps serving, and keep
 | `SBARBASE_BACKUP_HOUR` | `3` | UTC hour of the daily run; `off` turns it off |
 | `SBARBASE_BACKUP_KEEP` | `7` | Backups kept per environment. Backups taken for an upgrade are not counted: those of the last 3 upgrades that moved the checkout are kept ([upgrades](upgrades.md)) |
 
-Set them in `compose.yaml` (Docker) or in the unit's environment (systemd).
+Set them in the unit's environment (systemd), or give them to `deploy/compose.sh` on every `up` (Docker, see [settings](docker.md#settings)).
 
 Commands (with Docker, prefix `docker compose exec sbarbase`):
 
@@ -154,11 +154,16 @@ sbarbase restore <runtime> <backup>
 What a backup does not carry, and what you do after the restore:
 
 - **Members.** Account ids belong to the old installation's sign-in, so nobody is added. Invite people again.
-- **API keys.** Issue new publishable keys and update your apps.
+- **API keys and access tokens.** Issue new publishable and secret keys and update your apps; agents need new `sbp_` access tokens.
+- **Vault secrets.** An environment backup is a database dump and its files; it does not include the server's Vault root key, so the secrets in it cannot be read on a new server ([database access](database-access.md)). Store them again there.
 - **The JWT signing key.** The new environment has its own. Users sign in again with their old passwords, which the backup keeps; existing sessions and signed Storage URLs stop working.
 - **Direct database access, Studio, Realtime and Edge Functions.** Turn them on again where you used them; database access gets a new password.
 
 This path is covered by unit tests of the catalog, the API and the command, and it was rehearsed end to end on 2026-09-25: two backups taken in one VM while both environments served traffic were restored onto a second, freshly installed VM with these three commands, and a user from each old environment signed in with their old password through a new key ([evidence](../evidence/vm-restore-drill.json)). Those environments had never used Studio, Realtime or direct database access. One risk stays untested: such an environment has logins for those features that its database grants access to, a new installation does not have them until the feature is turned on, and the restore may refuse. Turn the feature on for the new environment before you restore into it.
+
+## Other manual backups
+
+The copies below are older manual procedures that need supervision. For the design behind them, read [recovery](../explain/recovery.md).
 
 ## Whole-server cold backup
 

@@ -32,7 +32,7 @@ Sbarbase is a development project built on original Supabase services. The repos
 | `film/` | Explainer production sources |
 | `graft/` | Source context graph with file and symbol references |
 
-The root package declares version 0.2.0 as a development snapshot. [Changelog](../../CHANGELOG.md) preserves the historical 0.1.0 source release. [Status](status.md) is the current capability summary, while [deployment readiness](deployment-readiness.md) distinguishes rehearsed workflows from remaining gates.
+The root package declares version 0.5.12, still a development release that is not production ready. [Changelog](../../CHANGELOG.md) preserves the historical 0.1.0 source release. [Status](status.md) is the current capability summary, while [deployment readiness](deployment-readiness.md) distinguishes rehearsed workflows from remaining gates.
 
 ## Additional integration sources
 

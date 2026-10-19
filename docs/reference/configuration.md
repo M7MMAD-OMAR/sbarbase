@@ -14,7 +14,7 @@ What an operator can set, and where Sbarbase keeps its state. Paths are relative
 
 ## Pinned images
 
-`lab/distro-image.lock.json`, `lab/images.lock.json` and `lab/storage-image.lock.json` pin every upstream image by tag and digest. Change them only through `lab/pin_update.py`; see [upgrades](../guides/upgrades.md).
+`lab/distro-image.lock.json`, `lab/images.lock.json`, `lab/storage-image.lock.json`, `lab/realtime-image.lock.json`, `lab/functions-image.lock.json` and `lab/studio-image.lock.json` pin every upstream image by tag and digest. Change them only through `lab/pin_update.py`; see [upgrades](../guides/upgrades.md).
 
 ## Installer and service
 
@@ -25,11 +25,13 @@ What an operator can set, and where Sbarbase keeps its state. Paths are relative
 | `check` | Read-only preflight; non-zero exit on any blocker |
 | `plan` | Print the exact install steps |
 | `install --bootstrap-file PATH` | Install, using a 0600 operator file (below) |
+| `images` | Check the Docker profile, then pull and verify every pinned image |
 | `smoke` | Check the console and management endpoints answer |
-| `supervise` | Render the systemd unit for this checkout and verify it; `--apply` installs it (root only) |
+| `supervise` | Render the systemd unit for this checkout and verify it; `--apply` installs it (root only), `--defer-start` installs and enables it without starting it |
+| `wait-console` | Wait until the console answers; `--timeout` sets the seconds, also for `supervise --apply` |
 | `--service-user`, `--home`, `--bun-dir` | Account, home directory and Bun directory written into the unit. Default account `sbarbase` |
 
-`deploy/server-acceptance.sh` accepts `--rehearse`, `--skip-install`, `--install-unit`, `--bootstrap-file`, `--service-user`, `--home`, `--bun-dir`, `--docker-host` and `--python`. The shipped unit is `deploy/sbarbase.service`; do not hand-edit an installed copy, render it with `supervise`.
+`deploy/server-acceptance.sh` accepts `--rehearse`, `--skip-install`, `--install-unit`, `--first-project`, `--bootstrap-file`, `--service-user`, `--home`, `--bun-dir`, `--docker-host`, `--console-timeout` and `--python`. The shipped unit is `deploy/sbarbase.service`; do not hand-edit an installed copy, render it with `supervise`.
 
 ## TLS proxy
 
@@ -43,6 +45,9 @@ What an operator can set, and where Sbarbase keeps its state. Paths are relative
 | `--http-port` | `8080` | Plain HTTP listener that redirects with `308` |
 | `--upstream` | the running loopback server | Where to forward |
 | `--max-body` | the upload limit plus 1 MiB (51 MiB) | Larger bodies get `413`. Bodies up to 1 MiB are read whole; larger ones (file uploads) are passed on as they arrive |
+| `--studio-host` | `SBARBASE_STUDIO_HOST` | The Studio address pattern, such as `studio-{id}.example.com`, whose hosts the proxy also serves. Any host that is neither the public host, loopback nor a matching Studio address gets `421` |
+
+`/usr/bin/python3 lab/studio_address.py plan|apply|verify DOMAIN` sets up Studio's public address once: `plan` lists the wildcard DNS record, the certificate and the setting to provide, `apply` (as root) writes `SBARBASE_STUDIO_HOST` as a systemd drop-in for the console (`--service`, default `sbarbase`) and the proxy (`--proxy-service`, default `sbarbase-proxy`) and restarts both, and `verify` says which step is missing ([Studio](../guides/studio.md#open-it-from-anywhere)).
 
 ## Operator bootstrap file
 
@@ -135,7 +140,10 @@ Both are ignored by Git. Never print `.secrets/`, and never delete either to get
 | `.lab/backups/` | Daily backups per environment, and the installation manifest of each run under `installation/` |
 | `.lab/backups/upgrade-moved.json` | The backup runs of upgrades that moved the checkout. The last 3 of them are kept out of pruning; an upgrade try that stopped before the move keeps ordinary backups |
 | `.secrets/upstream/runtime.json` | Generated credentials of the owned runtime |
-| `.secrets/upstream/managed-keys.sqlite` | Hashed publishable key metadata |
+| `.secrets/upstream/managed-keys.sqlite` | API key metadata: secret keys as hashes only, publishable keys also kept so the console can show them again |
+| `.secrets/upstream/access-tokens.sqlite` | Access tokens (`sbp_...`) as SHA-256 digests, with their scope and expiry |
+| `.secrets/upstream/studio-session.key` | The key that signs Studio entry tickets and session cookies |
+| `.secrets/upstream/telegram.json` | The Telegram bot token, when connected from the console |
 | `.secrets/upstream/bootstrap.json` | Operator setup journal (no password) |
 | `.secrets/offsite.json` | Off-site copy settings, the storage key and the passphrase ([backup and restore](../guides/backup-and-restore.md#copies-off-the-server)) |
 | `.secrets/upstream/<runtime>-auth.json` | An environment's sign-in settings, including provider secrets, written by the console ([sign-in](../guides/sign-in.md)) |
@@ -148,7 +156,7 @@ Set these in `compose.yaml` (Docker) or as `Environment=` lines of the systemd s
 |---|---|---|
 | `SBARBASE_STUDIO_HOST` | `{id}.studio.localhost` | Each environment's Studio address, with `{id}` for its 24 hex characters, such as `studio-{id}.example.com`. The default works through an SSH tunnel; a public pattern needs a wildcard DNS record and a certificate that covers it, and the TLS proxy reads the same variable (`lab/studio_address.py` writes it for both; [Studio](../guides/studio.md#open-it-from-anywhere)). A change applies at the next start |
 | `SBARBASE_PUBLIC_URL` | `http://localhost` | The address people and OAuth providers reach this server at, such as `https://api.example.com`. Auth builds email links and OAuth callbacks from it. A change applies at the next start |
-| `SBARBASE_CONSOLE_PORT` | chosen at start | The loopback port of the console and API, for a TLS proxy |
+| `SBARBASE_CONSOLE_PORT` | chosen at start; `8790` with Docker | The loopback port of the console and API, for a TLS proxy |
 | `SBARBASE_BACKUP_HOUR` | `3` | Hour (UTC) of the daily backup; `off` stops it |
 | `SBARBASE_MANAGEMENT_SESSION_SECONDS` | `2592000` | Seconds one password sign-in may keep a management session alive, 3600 to 2592000 (thirty days). Empty, invalid or out of range means the default, not the nearest limit. A change needs a service restart: lowering then cuts existing sessions at their next request, raising applies to grants issued afterwards. The console keeps the session in the browser, readable by scripts on its own origin, until sign out ([details and where to set it](../engineering/MANAGEMENT-MFA.md)) |
 | `SBARBASE_BACKUP_KEEP` | `7` | Backups kept per environment. Backups taken for an upgrade are not counted: those of the last 3 upgrades that moved the checkout are always kept |
@@ -158,9 +166,18 @@ Set these in `compose.yaml` (Docker) or as `Environment=` lines of the systemd s
 | `SBARBASE_DATABASE_BIND` | `127.0.0.1` | Address that listener binds. Keep loopback and use an SSH tunnel; another address sends database traffic unencrypted |
 | `SBARBASE_UPLOAD_LIMIT_MB` | `50` | The largest file an application may upload to Storage, in MiB (1 to 5120), as Supabase's global file size limit. Larger uploads get `413`. A change applies at the next start, which recreates the shared Storage container; a bucket's own limit can be lower ([evidence](../evidence/docker-upload-checks.json)) |
 
+With Docker, `deploy/compose.sh` also reads these. It refuses when the socket or Docker's data directory is missing, or when `SBARBASE_ROOT` is not this checkout:
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `SBARBASE_ROOT` | the checkout | The checkout, mounted at the same path inside the container; it must be the checkout `deploy/compose.sh` runs from |
+| `SBARBASE_DOCKER_SOCKET` | `/var/run/docker.sock` | The local Docker socket the container controls |
+| `SBARBASE_DOCKER_DATA_ROOT` | `/var/lib/docker` | Docker's data directory, mounted read only so block IO limits find its disk |
+| `SBARBASE_COMPOSE_PROJECT` | `COMPOSE_PROJECT_NAME`, else `sbarbase` | The Compose project name |
+
 ## Internal environment variables
 
-Other variables named `SBARBASE_*` (for example `SBARBASE_WORKER_FD`, `SBARBASE_EFFECT_TOKEN`) pass lock descriptors and tokens between Sbarbase's own processes. They are not operator settings; do not set them by hand.
+Other variables named `SBARBASE_*` (for example `SBARBASE_WORKER_FD`, `SBARBASE_EFFECT_TOKEN`, and `SBARBASE_DOCKER_PROFILE` and `SBARBASE_CONTAINER`, which `compose.yaml` sets) pass lock descriptors and tokens between Sbarbase's own processes. They are not operator settings; do not set them by hand.
 
 ## Not configurable yet
 

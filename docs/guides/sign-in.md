@@ -2,7 +2,7 @@
 
 # Sign-in settings and OAuth providers
 
-Each environment has its own sign-in settings: where Auth sends people after they sign in or open an email link, who may sign up, and which providers (Google, GitHub, Apple and others) they can sign in with. Set them in the console, on the environment's page, under **Sign-in**. Only owners and admins of the client see this section.
+Each environment has its own sign-in settings: where Auth sends people after they sign in or open an email link, who may sign up, and which providers (Google, GitHub, Apple and others) they can sign in with. Set them in the console: open the environment, then **Sign-in settings**, section **Sign-in**. Only owners and admins of the client see this section.
 
 ## 1. Give the server its public address
 
@@ -10,8 +10,8 @@ Auth builds email links and OAuth callback addresses from the address people rea
 
 | Install | Where |
 |---|---|
-| Docker | `SBARBASE_PUBLIC_URL=https://api.example.com` in a `.env` file next to `compose.yaml`, then `docker compose up -d` |
-| systemd | `Environment=SBARBASE_PUBLIC_URL=https://api.example.com` in the service, then `sudo systemctl restart sbarbase` |
+| Docker | `sudo SBARBASE_PUBLIC_URL=https://api.example.com deploy/compose.sh up`. The launcher reads no `.env` file, so give the same value on every later `up` |
+| systemd | `Environment=SBARBASE_PUBLIC_URL=https://api.example.com` under `[Service]` in a drop-in such as `/etc/systemd/system/sbarbase.service.d/public-url.conf`, then `sudo systemctl daemon-reload && sudo systemctl restart sbarbase` |
 
 Put HTTPS in front first ([server deployment](server-deployment.md)). Until this is set, links point at `http://localhost`, which only works on the server itself.
 
@@ -23,7 +23,7 @@ Put HTTPS in front first ([server deployment](server-deployment.md)). Until this
 
 ## 3. Add a provider
 
-1. Under **Sign-in providers**, copy the **callback address**. It looks like `https://api.example.com/<environment>/auth/v1/callback`.
+1. Under **Sign-in providers**, copy the **callback address to give each provider**. It looks like `https://api.example.com/<environment>/auth/v1/callback`.
 2. In the provider's developer settings (for example GitHub → Settings → Developer settings → OAuth Apps), create an application and paste that callback address.
 3. Back in the console, choose the provider, then paste its **client ID** and **client secret**. Keycloak also needs its server address; Azure, GitLab and WorkOS take one when you run your own.
 4. Press **Save and apply**.

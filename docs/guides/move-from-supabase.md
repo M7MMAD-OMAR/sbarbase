@@ -14,7 +14,7 @@ python3 lab/import_project.py <environment> --dry-run <<'JSON'
 JSON
 ```
 
-It reads the project without changing anything and lists what cannot move (for example Vault secrets, or an extension this server does not have), what behaves differently, and what you will set again by hand.
+It reads the project without changing anything and lists what stops the import (for example Vault secrets, or an extension this server does not have), what behaves differently, and what you will set again by hand.
 
 ## 2. Import
 
@@ -52,5 +52,6 @@ CI runs an import on a clean machine with every change, from another environment
 
 - The target must be a new, empty environment. A failed import leaves it to be deleted and created again; it is never half-repaired.
 - Only the `public` schema is copied among your own schemas; other schemas are listed in the check.
-- Vault secrets, cron jobs and the project's JWT secret do not move; the check says when that matters.
+- A project that holds Vault secrets is refused, because their root key is not in a dump. Empty the source's vault first, then add the secrets again in the new environment, which has its own Vault.
+- Cron jobs and the project's JWT secret do not move; the check says when that matters.
 - Files larger than the upload limit (`SBARBASE_UPLOAD_LIMIT_MB`) are reported and not copied.

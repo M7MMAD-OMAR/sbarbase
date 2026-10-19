@@ -14,7 +14,7 @@
 
 ## الصور المثبّتة الإصدار
 
-الملفات `lab/distro-image.lock.json` و`lab/images.lock.json` و`lab/storage-image.lock.json` تثبّت كل صورة من الأصل بوسمها وبصمتها. لا تغيّرها إلا عبر `lab/pin_update.py`، وانظر [الترقيات](../guides/upgrades.ar.md).
+الملفات `lab/distro-image.lock.json` و`lab/images.lock.json` و`lab/storage-image.lock.json` و`lab/realtime-image.lock.json` و`lab/functions-image.lock.json` و`lab/studio-image.lock.json` تثبّت كل صورة من الأصل بوسمها وبصمتها. لا تغيّرها إلا عبر `lab/pin_update.py`، وانظر [الترقيات](../guides/upgrades.ar.md).
 
 ## المثبّت والخدمة
 
@@ -25,11 +25,13 @@
 | `check` | فحص مسبق للقراءة فقط، وينتهي برمز غير الصفر عند أي عائق |
 | `plan` | يطبع خطوات التثبيت بدقة |
 | `install --bootstrap-file PATH` | يثبّت مستخدمًا ملف المشغّل ذا الصلاحية 0600 (أدناه) |
+| `images` | يفحص إعدادات Docker، ثم يسحب كل صورة مثبّتة الإصدار ويتحقق منها |
 | `smoke` | يتحقق من أن لوحة الإدارة ونقاط الإدارة تجيب |
-| `supervise` | يولّد وحدة systemd لنسخة المستودع هذه ويتحقق منها، والخيار `--apply` يثبّتها (للجذر فقط) |
+| `supervise` | يولّد وحدة systemd لنسخة المستودع هذه ويتحقق منها، والخيار `--apply` يثبّتها (للجذر فقط)، و`--defer-start` يثبّتها ويفعّلها دون أن يشغّلها |
+| `wait-console` | ينتظر حتى تجيب لوحة الإدارة؛ و`--timeout` يحدد الثواني، وكذلك مع `supervise --apply` |
 | `--service-user`، `--home`، `--bun-dir` | الحساب ومجلد المنزل ومجلد Bun التي تُكتب في الوحدة. الحساب الافتراضي `sbarbase` |
 
-يقبل `deploy/server-acceptance.sh` الخيارات `--rehearse` و`--skip-install` و`--install-unit` و`--bootstrap-file` و`--service-user` و`--home` و`--bun-dir` و`--docker-host` و`--python`. الوحدة المرفقة هي `deploy/sbarbase.service`. لا تعدّل نسخة مثبّتة منها يدويًا، بل ولّدها بالأمر `supervise`.
+يقبل `deploy/server-acceptance.sh` الخيارات `--rehearse` و`--skip-install` و`--install-unit` و`--first-project` و`--bootstrap-file` و`--service-user` و`--home` و`--bun-dir` و`--docker-host` و`--console-timeout` و`--python`. الوحدة المرفقة هي `deploy/sbarbase.service`. لا تعدّل نسخة مثبّتة منها يدويًا، بل ولّدها بالأمر `supervise`.
 
 ## وكيل TLS
 
@@ -43,6 +45,9 @@
 | `--http-port` | `8080` | منفذ HTTP عادي يعيد التوجيه بالرمز `308` |
 | `--upstream` | خادم الحلقة المحلية العامل | الوجهة التي تُمرَّر إليها الطلبات |
 | `--max-body` | حد الرفع مع 1 MiB إضافي (51 MiB) | الأجسام الأكبر تأخذ `413`. الأجسام حتى 1 MiB تُقرأ كاملة، والأكبر منها (رفع الملفات) تُمرَّر كما تصل |
+| `--studio-host` | `SBARBASE_STUDIO_HOST` | نمط عنوان Studio، مثل `studio-{id}.example.com`، ويخدم الوكيل عناوينه أيضًا. أي اسم خادم ليس الاسم العام ولا loopback ولا عنوان Studio مطابقًا يأخذ `421` |
+
+يضبط الأمر `/usr/bin/python3 lab/studio_address.py plan|apply|verify DOMAIN` العنوان العام لـStudio مرة واحدة: `plan` يعدّد سجل DNS الشامل والشهادة والإعداد المطلوب توفيرها، و`apply` (بصلاحية الجذر) يكتب `SBARBASE_STUDIO_HOST` في ملف systemd إضافي (drop-in) للوحة الإدارة (`--service`، وافتراضيه `sbarbase`) وللوكيل (`--proxy-service`، وافتراضيه `sbarbase-proxy`) ثم يعيد تشغيلهما، و`verify` يخبرك بالخطوة الناقصة ([Studio](../guides/studio.md#open-it-from-anywhere)).
 
 ## ملف الإعداد الأولي للمشغّل
 
@@ -135,7 +140,10 @@
 | `.lab/backups/` | النسخ اليومية لكل بيئة، وبيان التثبيت لكل تشغيل تحت `installation/` |
 | `.lab/backups/upgrade-moved.json` | تشغيلات النسخ الاحتياطي الخاصة بترقيات نقلت نسخة المستودع. تُحمى آخر 3 منها من الحذف الدوري؛ أما محاولة الترقية التي توقفت قبل الانتقال فنسخها عادية |
 | `.secrets/upstream/runtime.json` | بيانات الاعتماد المولّدة للخدمات التي يملكها صباربيز |
-| `.secrets/upstream/managed-keys.sqlite` | بصمات المفاتيح العامة وبياناتها الوصفية |
+| `.secrets/upstream/managed-keys.sqlite` | البيانات الوصفية لمفاتيح API: المفاتيح السرية ببصماتها فقط، والمفاتيح العامة محفوظة أيضًا لتعرضها اللوحة مرة أخرى |
+| `.secrets/upstream/access-tokens.sqlite` | رموز الوصول (`sbp_...`) ببصمات SHA-256، مع نطاقها وتاريخ انتهائها |
+| `.secrets/upstream/studio-session.key` | المفتاح الذي يوقّع تذاكر دخول Studio وملفات تعريف جلسته |
+| `.secrets/upstream/telegram.json` | رمز بوت Telegram، عند ربطه من لوحة الإدارة |
 | `.secrets/upstream/bootstrap.json` | سجل عملية إعداد المشغّل (بلا كلمة مرور) |
 | `.secrets/offsite.json` | إعدادات النسخ خارج الخادم، ومفتاح التخزين وعبارة المرور ([النسخ الاحتياطي والاستعادة](../guides/backup-and-restore.ar.md#نسخ-خارج-الخادم)) |
 | `.secrets/upstream/<runtime>-auth.json` | إعدادات تسجيل الدخول لبيئة، ومنها أسرار المزوّدين، تكتبها اللوحة ([تسجيل الدخول](../guides/sign-in.ar.md)) |
@@ -148,7 +156,7 @@
 |---|---|---|
 | `SBARBASE_STUDIO_HOST` | `{id}.studio.localhost` | عنوان Studio لكل بيئة، و`{id}` مكان أحرفها الست عشرية الأربعة والعشرين، مثل `studio-{id}.example.com`. القيمة الافتراضية تعمل عبر نفق SSH، أما النمط العام فيحتاج سجل DNS شاملًا وشهادة تغطيه، ويقرأ وكيل TLS المتغير نفسه (يكتبه `lab/studio_address.py` للاثنين؛ [Studio](../guides/studio.ar.md#فتحه-من-أي-مكان)). يُطبَّق أي تغيير عند التشغيل التالي |
 | `SBARBASE_PUBLIC_URL` | `http://localhost` | العنوان الذي يصل منه الناس ومزوّدو OAuth إلى هذا الخادم، مثل `https://api.example.com`. يبني Auth منه روابط البريد وعناوين العودة من OAuth. يُطبَّق أي تغيير عند التشغيل التالي |
-| `SBARBASE_CONSOLE_PORT` | يُختار عند التشغيل | منفذ اللوحة والـ API على الحلقة المحلية، لوكيل TLS |
+| `SBARBASE_CONSOLE_PORT` | يُختار عند التشغيل، و`8790` مع Docker | منفذ اللوحة والـ API على الحلقة المحلية، لوكيل TLS |
 | `SBARBASE_BACKUP_HOUR` | `3` | ساعة النسخ الاحتياطي اليومي بتوقيت UTC؛ القيمة `off` توقفه |
 | `SBARBASE_MANAGEMENT_SESSION_SECONDS` | `2592000` | عدد الثواني التي يجوز فيها لتسجيل دخول واحد بكلمة المرور إبقاء جلسة الإدارة صالحة، من 3600 إلى 2592000 (ثلاثون يومًا). القيمة الفارغة أو غير الصالحة أو الخارجة عن النطاق تعني الافتراضي، لا أقرب حد. يلزم بعد التغيير إعادة تشغيل الخدمة: يقطع الخفض الجلسات القائمة عند طلبها التالي، ويسري الرفع على الإثباتات التي تصدر بعد ذلك. تحفظ لوحة الإدارة الجلسة في المتصفح حتى تسجيل الخروج، ويقرؤها أي برنامج نصي يعمل على نطاقها ([التفاصيل وطريقة الضبط، في المصادقة متعددة العوامل لحسابات الإدارة](../engineering/MANAGEMENT-MFA.ar.md)) |
 | `SBARBASE_BACKUP_KEEP` | `7` | عدد النسخ المحفوظة لكل بيئة. لا تُحسب النسخ المأخوذة لترقية: تُحفظ نسخ آخر 3 ترقيات نقلت نسخة المستودع دائمًا |
@@ -158,9 +166,18 @@
 | `SBARBASE_DATABASE_BIND` | `127.0.0.1` | العنوان الذي يستمع عليه ذلك المنفذ. أبقِه على loopback واستخدم نفق SSH؛ فأي عنوان آخر يرسل بيانات قاعدة البيانات دون تشفير |
 | `SBARBASE_UPLOAD_LIMIT_MB` | `50` | أكبر ملف يستطيع التطبيق رفعه إلى Storage، بالميبيبايت (من 1 إلى 5120)، مثل حد حجم الملفات العام في Supabase. الرفع الأكبر يأخذ `413`. يُطبَّق أي تغيير عند التشغيل التالي، الذي يعيد إنشاء حاوية Storage المشتركة؛ ويمكن أن يكون حد الـbucket نفسه أصغر ([الدليل](../evidence/docker-upload-checks.json)) |
 
+ومع Docker يقرأ `deploy/compose.sh` هذه أيضًا. ويرفض إن غاب المقبس أو مجلد بيانات Docker، أو إن لم يكن `SBARBASE_ROOT` هو نسخة المستودع هذه:
+
+| المتغير | الافتراضي | المعنى |
+|---|---|---|
+| `SBARBASE_ROOT` | نسخة المستودع | نسخة المستودع، مركّبة في المسار نفسه داخل الحاوية، ويجب أن تكون النسخة التي يعمل منها `deploy/compose.sh` |
+| `SBARBASE_DOCKER_SOCKET` | `/var/run/docker.sock` | مقبس Docker المحلي الذي تتحكم به الحاوية |
+| `SBARBASE_DOCKER_DATA_ROOT` | `/var/lib/docker` | مجلد بيانات Docker، مركّبًا للقراءة فقط لتجد حدود الإدخال والإخراج قرصه |
+| `SBARBASE_COMPOSE_PROJECT` | `COMPOSE_PROJECT_NAME`، وإلا `sbarbase` | اسم مشروع Compose |
+
 ## متغيرات البيئة الداخلية
 
-باقي المتغيرات التي تبدأ بـ`SBARBASE_*` (مثل `SBARBASE_WORKER_FD` و`SBARBASE_EFFECT_TOKEN`) تنقل واصفات الأقفال والرموز بين عمليات صباربيز نفسها. ليست إعدادات للمشغّل، فلا تضبطها يدويًا.
+باقي المتغيرات التي تبدأ بـ`SBARBASE_*` (مثل `SBARBASE_WORKER_FD` و`SBARBASE_EFFECT_TOKEN`، و`SBARBASE_DOCKER_PROFILE` و`SBARBASE_CONTAINER` اللذين يضبطهما `compose.yaml`) تنقل واصفات الأقفال والرموز بين عمليات صباربيز نفسها. ليست إعدادات للمشغّل، فلا تضبطها يدويًا.
 
 ## ما لا يمكن ضبطه بعد
 

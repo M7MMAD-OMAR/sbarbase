@@ -26,7 +26,7 @@ None of these was installed or benchmarked; the review read their documentation,
 
 **What Sbarbase does differently.**
 
-1. **Original services only.** Auth, PostgREST and Storage are the upstream images, pinned by digest. Nothing rewrites Auth or switches databases at request time, so existing SDKs and SQL keep working.
+1. **Original services only.** Auth, PostgREST, Storage, Realtime, the Edge Functions runtime, Studio and postgres-meta are the upstream images, pinned by digest. Nothing rewrites Auth or switches databases at request time, so existing SDKs, SQL, the Supabase CLI and Supabase's own MCP server keep working.
 2. **Credentials per environment, not per server.** Each environment gets its own database and its own scoped service logins, with connection rules that name exactly which login may reach which database. A leaked service credential from one environment should not open another.
 3. **Recovery designed in.** One environment can be fenced, exported encrypted and restored into a separate engine, then verified before traffic is switched.
 4. **Crash-oriented operations.** Provisioning and migrations write durable records before acting and refuse to guess after a crash.

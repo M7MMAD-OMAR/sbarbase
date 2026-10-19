@@ -6,7 +6,7 @@ Each environment has its own JWT signing key. Its Auth signs every session with 
 
 ## Rotate it
 
-1. Open the environment's page in the console.
+1. Open the environment in the console, then **Sign-in settings**.
 2. Under **Signing key**, press **Rotate signing key**, then confirm.
 3. Wait until it shows **Rotated**. It takes about a minute; longer when Realtime is on.
 
@@ -18,7 +18,7 @@ What changes:
 
 What does not change:
 
-- Publishable keys. They are not JWTs, so your application keeps its key and needs no new build.
+- Publishable and secret API keys. They are not JWTs, so your application keeps its key and needs no new build.
 - Users, rows, files, policies and passwords.
 
 For a few seconds while Auth and REST restart, some requests to this environment may be refused. Other environments are not touched.

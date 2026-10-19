@@ -6,7 +6,7 @@ Realtime lets clients listen to database changes, and send broadcast and presenc
 
 ## Turn it on
 
-1. Open the environment's page in the console.
+1. Open the environment in the console, then **Services**.
 2. Under **Realtime**, press **Turn on Realtime**. It shows **Applying…**, then **On**, usually within a minute.
 
 Only owners and admins of the client see this section. If the server does not have the memory or the database connections for another Realtime, the section says so and nothing changes; see [choosing a server](choosing-a-server.md).
@@ -23,7 +23,7 @@ const channel = supabase.channel('room-one')
   .subscribe()
 ```
 
-- **Database changes:** every table in the `public` schema is published, including tables you create later. Row level security decides who receives a change: a client gets a row only if it could read it with a `select`.
+- **Database changes:** every table in the `public` schema is published, including tables you create later. The `supabase_realtime` publication belongs to the environment's developer login, as it belongs to `postgres` on Supabase, so a migration run through [direct database access](database-access.md) can add tables of its own schemas one by one (`alter publication supabase_realtime add table app.items`). Row level security decides who receives a change: a client gets a row only if it could read it with a `select`.
 - **Broadcast and presence:** between clients on the same channel, and from a server through `POST <address>/realtime/v1/api/broadcast`.
 - **Private channels:** policies on `realtime.messages` work as on Supabase.
 
@@ -40,5 +40,5 @@ CI turns Realtime on for an environment on a clean machine with every change, ha
 ## Limits
 
 - Realtime works through a TLS proxy only if the proxy passes WebSocket connections. The reference proxy (`deploy/console-tls-proxy.ts`) does.
-- Changes are published for the `public` schema only.
+- Changes are published for the `public` schema, and for tables of other schemas only once a migration adds them to the publication.
 - Turning Realtime off drops open connections; clients reconnect once it is on again.

@@ -44,6 +44,22 @@ The fixed bootstrap command preserves the socket, checkout and project selected 
 
 The console and the API listen on loopback only. Publish them through the TLS proxy described in [server deployment](server-deployment.md), or any reverse proxy you already run, pointed at `127.0.0.1:8790`.
 
+If the host firewall drops incoming traffic by default (ufw does), allow the two routes from containers to the host that Studio and Edge Functions need ([server deployment](server-deployment.md#firewall-two-routes-from-containers-to-the-host)).
+
+## Settings
+
+`deploy/compose.sh` forwards a fixed list of settings to the container and ignores `.env`. Give them on the same command as the launcher, because `sudo` drops exported variables:
+
+```bash
+cd /opt/sbarbase && sudo SBARBASE_PUBLIC_URL=https://api.example.com SBARBASE_STUDIO_HOST='studio-{id}.example.com' deploy/compose.sh up
+```
+
+- `SBARBASE_PUBLIC_URL`: the address people and OAuth providers reach this server at; Auth builds email links and callbacks from it.
+- `SBARBASE_STUDIO_HOST`: each environment's public Studio address, with `{id}` for its 24 hex characters. Give the TLS proxy the same value. `lab/studio_address.py apply` writes systemd drop-ins, so it is for the systemd install; `plan` and `verify` work here too ([Studio](studio.md)).
+- `SBARBASE_UPLOAD_LIMIT_MB` (50), `SBARBASE_MANAGEMENT_SESSION_SECONDS` (thirty days), `SBARBASE_DATABASE_PORT` (6543) and `SBARBASE_DATABASE_BIND` (`127.0.0.1`), `SBARBASE_BACKUP_HOUR` and `SBARBASE_BACKUP_KEEP`, and the two update settings below.
+
+Each is described in [configuration](../reference/configuration.md). Nothing saves them: give the same values on every `deploy/compose.sh up`, including the one after `upgrade`, or the recreated container starts with the defaults. A restart by the console or by `restart: unless-stopped` keeps them.
+
 ## Everyday commands
 
 | Task | Command |

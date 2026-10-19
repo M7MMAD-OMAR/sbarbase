@@ -63,6 +63,8 @@ It exits 0 when the console runs and every published environment answers, and 1 
 
 These run `lab/backup.py`, described in [backup and restore](backup-and-restore.md). Without an environment, `backup now` backs up every environment. A manual backup keeps as many backups as the daily one: it reads `SBARBASE_BACKUP_KEEP` from your shell or, on a systemd install, from the unit, and `--keep N` overrides it. When neither sets it, `lab/backup.py` keeps 7.
 
+`backup collect-installation --output <directory>` gathers this installation's private local files into a new private directory, unencrypted and incomplete; `backup installation --output <file> --key-file <key>` is reserved for a complete package and refuses for now. Both are described under [private local installation collection](backup-and-restore.md#private-local-installation-collection).
+
 `restore` asks you to type the backup time before it replaces anything, and says what is lost. At no terminal, as in a script, it refuses unless you pass `--yes`. What the restore sets aside is removed with `lab/backup.py discard-previous`.
 
 ### relink
@@ -110,4 +112,4 @@ A release must be a plain `vX.Y.Z` tag and `--allow-class` names `rebuild` or `a
 - The command covers the common tasks only. Recovery export, moving an environment, adopting retained containers and the other runbook steps stay with their own tools, described in [server deployment](server-deployment.md).
 - `status` and `environments` read the control catalog directly and read only. The management API has no route for routing records, so this is how the command shows them.
 - Rotating a key is two API calls, not one: between them both keys are active for a moment.
-- This is in development and not production ready. The command was tested with unit tests that stub every tool and the API; it has not yet been run on the rehearsal VM.
+- This is in development and not production ready. Unit tests stub every tool and the API. `relink` and `restore` ran for real in the 2026-09-25 VM restore drill ([evidence](../evidence/vm-restore-drill.json)); the other subcommands have no recorded run on the rehearsal VM.

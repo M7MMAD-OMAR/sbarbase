@@ -33,11 +33,11 @@ The full routing, including the management path and the provisioning worker:
 
 *One proxy, one loopback server, three paths.*
 
-**Request path.** An app calls `/<environment>/rest/v1/...` with its publishable key. The gateway reads the environment's routing record (is it in maintenance? where does it live?), verifies the key against stored hashes, admits the request if the environment has fewer than its concurrent limit in flight, caps the body at 1 MiB (a Storage file upload streams through up to the upload limit, 50 MiB by default) and forwards it to that environment's own PostgREST. Storage requests go to the one shared Storage process with a trusted tenant header naming the environment. Public and signed Storage downloads are the only requests allowed without an API key.
+**Request path.** An app calls `/<environment>/rest/v1/...` with its publishable key; a server may send a secret key instead. The gateway reads the environment's routing record (is it in maintenance? where does it live?), verifies the key against stored hashes, admits the request if the environment has fewer than its concurrent limit in flight, caps the body at 1 MiB (a Storage file upload streams through up to the upload limit, 50 MiB by default) and forwards it to that environment's own PostgREST. Storage requests go to the one shared Storage process with a trusted tenant header naming the environment. Realtime sockets and Edge Functions calls take the same path to that environment's own containers. Without an API key the gateway passes only public and signed Storage downloads, the Auth steps a browser reaches by a link (verify, authorize, callback) and Edge Functions deployed with `verify_jwt` off.
 
-**Management path.** Operators log in against a dedicated management Auth realm that is never an application environment's Auth. The control API derives the actor from that login, never from the request body, and applies owner, admin and viewer roles.
+**Management path.** Operators log in against a dedicated management Auth realm that is never an application environment's Auth. The control API derives the actor from that login, never from the request body, and applies owner, admin and viewer roles. Agents reach the same control API through `/v1` and `/mcp` with a personal access token, acting as the person who made it ([AI agents](../guides/agents.md)).
 
-**Trust boundary.** Only the TLS proxy faces the network; the loopback server and every container behind it listen on loopback or internal Docker networks, with no published ports. App traffic enters only through the gateway and needs a publishable key; operator traffic goes only through the separate management realm and the control API. The server's operators are trusted, the visitors of the apps are not. What that means for shared components is in [isolation and trust](isolation-and-trust.md).
+**Trust boundary.** Only the TLS proxy faces the network; the loopback server and every container behind it listen on loopback or internal Docker networks, with no published ports. App traffic enters only through the gateway and needs an API key of that environment; operator traffic goes only through the separate management realm and the control API. The server's operators are trusted, the visitors of the apps are not. What that means for shared components is in [isolation and trust](isolation-and-trust.md).
 
 **Background work.** Creating an environment queues a job. A single provisioning worker, holding an exclusive lock, creates the database and scoped logins, writes the connection rules and starts the services. See [provisioning](provisioning.md).
 
@@ -45,7 +45,8 @@ The full routing, including the management path and the provisioning worker:
 |---|---|
 | PostgreSQL engine (one cluster) | Database, three scoped service logins, connection rules |
 | Storage process | Storage tenant, its signing keys and metadata |
-| Gateway and control API | Auth, PostgREST, publishable keys, routing record |
+| Gateway and control API | Auth, PostgREST, publishable and secret keys, routing record |
+| Vault's root key | Realtime, Edge Functions and Studio containers, when turned on |
 | Host CPU, memory, disk | Resource tier limits per container |
 
 Code: [src/control/application.ts](../../src/control/application.ts) (routing between the three paths), [src/gateway/handler.ts](../../src/gateway/handler.ts) and [src/gateway/managed.ts](../../src/gateway/managed.ts) (gateway), [src/gateway/concurrency.ts](../../src/gateway/concurrency.ts) (admission), [src/control/http.ts](../../src/control/http.ts) and [src/control/key-http.ts](../../src/control/key-http.ts) (management API), [src/control/catalog.ts](../../src/control/catalog.ts) (catalog), [lab/worker.py](../../lab/worker.py) and [lab/durable_runtime.py](../../lab/durable_runtime.py) (runtime). Routes are listed in the [API reference](../reference/api.md).

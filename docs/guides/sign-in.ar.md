@@ -2,7 +2,7 @@
 
 # إعدادات تسجيل الدخول ومزوّدو OAuth
 
-لكل بيئة إعدادات تسجيل دخول خاصة بها: إلى أين يرسل Auth الناس بعد تسجيل الدخول أو فتح رابط في البريد، ومن يستطيع إنشاء حساب، وبأي مزوّدين يستطيعون الدخول (Google وGitHub وApple وغيرها). اضبطها من اللوحة، في صفحة البيئة، تحت **Sign-in**. هذا القسم لا يظهر إلا لمالكي العميل ومديريه.
+لكل بيئة إعدادات تسجيل دخول خاصة بها: إلى أين يرسل Auth الناس بعد تسجيل الدخول أو فتح رابط في البريد، ومن يستطيع إنشاء حساب، وبأي مزوّدين يستطيعون الدخول (Google وGitHub وApple وغيرها). اضبطها من اللوحة: افتح البيئة، ثم **Sign-in settings**، في قسم **Sign-in**. هذا القسم لا يظهر إلا لمالكي العميل ومديريه.
 
 ## 1. أعطِ الخادم عنوانه العام
 
@@ -10,8 +10,8 @@
 
 | التثبيت | المكان |
 |---|---|
-| Docker | `SBARBASE_PUBLIC_URL=https://api.example.com` في ملف `.env` بجانب `compose.yaml`، ثم `docker compose up -d` |
-| systemd | `Environment=SBARBASE_PUBLIC_URL=https://api.example.com` في الخدمة، ثم `sudo systemctl restart sbarbase` |
+| Docker | `sudo SBARBASE_PUBLIC_URL=https://api.example.com deploy/compose.sh up`. لا يقرأ المشغّل أي ملف `.env`، فأعطه القيمة نفسها مع كل `up` لاحق |
+| systemd | `Environment=SBARBASE_PUBLIC_URL=https://api.example.com` تحت `[Service]` في ملف إضافي مثل `/etc/systemd/system/sbarbase.service.d/public-url.conf`، ثم `sudo systemctl daemon-reload && sudo systemctl restart sbarbase` |
 
 ضع HTTPS في الواجهة أولًا ([النشر على خادم](server-deployment.ar.md)). إلى أن تضبطه، تشير الروابط إلى `http://localhost`، وهذا لا يعمل إلا على الخادم نفسه.
 

@@ -4,7 +4,7 @@
 
 Sbarbase tells you in the console when a newer signed release exists. A safe release installs with one click, and a release that changes environment databases installs after you confirm a warning. An update from the console, or an automatic one, first lets running work finish; every upgrade backs up your environments. Application traffic waits until the new version passes its health checks, and Sbarbase returns to the previous version by itself if it does not. You can also let safe releases install themselves inside a maintenance window. That is off by default.
 
-Nothing here is production ready. The update channel (the release check, the console page, one-click install, automatic updates, the start guard and the drain) was built on 2026-09-25 and is covered by unit tests and by three CI cases, which passed on 2026-09-25 on a clean CI machine, not a real server ([evidence](../evidence/docker-upgrade-checks.json), 45 of 45 checks): a version that migrates the control catalog and then stops, one whose PostgREST never answers and one that never passes its health checks each moved back by themselves, with the catalog snapshot restored and application traffic held with 503 while the health checks waited, and an unsigned tag and a tag signed by an unlisted key were refused with nothing moved. Those runs moved the checkout with `lab/upgrade.py` from the command line. On 2026-09-26 the local rehearsal VM, under systemd, ran the command line cycle and then the channel as an operator uses it: signed releases found and installed through the management API the console uses (the Updates page itself was not driven) and by automatic mode, a broken one moved back by itself, and a release that changes Auth installed after its warning was confirmed. **Nothing about the channel has run on a real server yet**; see [what has been run](#what-has-been-run).
+Nothing here is production ready. The update channel (the release check, the console page, one-click install, automatic updates, the start guard and the drain) was built on 2026-09-25 and is covered by unit tests and by three CI cases, which passed on 2026-09-25 on a clean CI machine, not a real server ([evidence](../evidence/docker-upgrade-checks.json), 45 of 45 checks): a version that migrates the control catalog and then stops, one whose PostgREST never answers and one that never passes its health checks each moved back by themselves, with the catalog snapshot restored and application traffic held with 503 while the health checks waited, and an unsigned tag and a tag signed by an unlisted key were refused with nothing moved. Those runs moved the checkout with `lab/upgrade.py` from the command line. On 2026-09-26 the local rehearsal VM, under systemd, ran the command line cycle and then the channel as an operator uses it: signed releases found and installed through the management API the console uses (the Updates page itself was not driven) and by automatic mode, a broken one moved back by itself, and a release that changes Auth installed after its warning was confirmed. On the real server, 0.3.1 was the first signed release installed from the command line with `lab/upgrade.py start --release`; **the console's install button, automatic updates and Roll back have not run on a real server yet**; see [what has been run](#what-has-been-run).
 
 ## Where you see an update
 
@@ -44,7 +44,7 @@ If the new version does not become healthy, the page says so and Sbarbase is bac
     - management changes in the console get `409` with a sentence saying changes are paused, because the way back would drop them;
     - the console still answers reads, sign-in and sign-out, **Roll back**, **Check now** and the update settings;
     - the provisioning worker, the daily backup, Studio starts and the other background changes wait.
-11. **Health checks.** Once the console process runs, one round of checks must all answer within 120 seconds: the console's own `/health` (which reads the control catalog and the key store), the management Auth, for every environment in service its Auth, REST and Storage directly, and then its REST and Auth once more through the gateway, the way an application reaches them, with a token valid for this start only. When a round passes, the update is confirmed: traffic flows, the worker starts, and `update.applied` is sent.
+11. **Health checks.** Once the console process runs, one round of checks must all answer within 120 seconds: the console's own `/health` (which reads the control catalog and the key store), the management Auth, for every environment in service its Auth, REST and Storage directly, and then its REST and Auth once more through the gateway, the way an application reaches them, with a token valid for this start only. When a round passes, the update is confirmed: traffic flows, the worker starts, and `update.applied` is sent. A Studio used in the last eight hours then starts again by itself, and an open Studio tab reloads and continues ([Studio](studio.md)).
 12. **The way back.** If a start stage fails, or no round passes within 120 seconds, the supervisor moves the checkout back and restores the snapshot from step 10, then exits with an error. The restart policy starts the previous version with its previous images. It goes through the same hold and health checks before it is recorded as `rolled_back`, and `update.rolled_back` is sent. If the previous version does not start either, the state is `rollback_failed`, `update.rollback_failed` is sent, and the way forward is to restore the backups from step 5.
 
 On the restart only the Auth, REST, Storage, Realtime and Edge Functions containers whose pinned image changed are replaced, and the way back puts the previous images back. The database container is never replaced by an upgrade.
@@ -104,11 +104,11 @@ python3 lab/backup.py restore-management <backup>        # after an Auth update;
 
 ### Releases that need a rebuild
 
-With Docker:
+With Docker, the launcher runs `start --release` with `--allow-class rebuild`, then rebuilds:
 
 ```
-docker compose exec sbarbase python3 lab/upgrade.py start --release vX.Y.Z --allow-class rebuild
-docker compose up -d --build
+sudo deploy/compose.sh upgrade vX.Y.Z
+sudo deploy/compose.sh up
 ```
 
 With the systemd service, give `supervise --apply` the same options the service was installed with, so it installs the new unit, then restart:
@@ -119,7 +119,7 @@ sudo /usr/bin/python3 lab/install_server.py supervise --apply
 sudo systemctl restart sbarbase
 ```
 
-A release that needs a rebuild and also changes the Auth, Storage or Realtime pin needs both options: `--allow-class rebuild --allow-class attended`. When the TLS proxy changes, restart its own unit after the update as well. The restart then goes through the same guard, snapshot, hold, health checks and way back as any upgrade.
+A release that needs a rebuild and also changes the Auth, Storage or Realtime pin needs both options: `--allow-class rebuild --allow-class attended`. The Docker launcher passes only the first, so under Docker run that one as `docker compose exec sbarbase python3 lab/upgrade.py start --release vX.Y.Z --allow-class rebuild --allow-class attended`, then `sudo deploy/compose.sh up`. When the TLS proxy changes, restart its own unit after the update as well. The restart then goes through the same guard, snapshot, hold, health checks and way back as any upgrade.
 
 ### Releases that need a migration
 
@@ -127,7 +127,7 @@ A PostgreSQL image change replaces the database container, which is `lab/migrate
 
 ## Automatic updates
 
-Off by default. Turn them on in the settings at the bottom of the Updates page: tick **Install safe updates automatically**, choose the maintenance window, and save. The window is in the server's local time, shown in 12-hour form with the zone the server uses, and defaults to 3:00 AM to 5:00 AM. A window whose end is earlier than its start crosses midnight. Under Docker the server's local time is the container's: UTC unless you set `TZ` (for example `TZ=Asia/Dubai`), which `compose.yaml` passes in; the image carries the time zone database.
+Off by default. Turn them on in the settings at the bottom of the Updates page: tick **Install safe updates automatically**, choose the maintenance window, and save. The window is in the server's local time, shown in 12-hour form with the zone the server uses, and defaults to 3:00 AM to 5:00 AM. A window whose end is earlier than its start crosses midnight. Under Docker the server's local time is the container's: UTC unless you set `TZ` (for example `sudo TZ=Asia/Dubai deploy/compose.sh up`), which the launcher passes in; it reads no `.env` file, so give it on every later `up`; the image carries the time zone database.
 
 An update installs by itself only when all of these hold:
 
@@ -145,7 +145,7 @@ The daily backup hour (`SBARBASE_BACKUP_HOUR`) is in UTC, while the window is in
 
 For an offline or private host, untick **Check for new releases** and save. Sbarbase then never contacts the release source by itself, and automatic updates are off with it. **Check now** still runs one check when you press it.
 
-The check reads the canonical repository over HTTPS, not your `origin`. To read another copy (a mirror your host can reach), set `SBARBASE_RELEASE_SOURCE` to its Git URL or path in the service environment; `compose.yaml` passes it into the container. Signatures are still checked against the keys your checkout lists.
+The check reads the canonical repository over HTTPS, not your `origin`. To read another copy (a mirror your host can reach), set `SBARBASE_RELEASE_SOURCE` to its Git URL or path in the service environment; under Docker give it to the launcher on every `up` (`sudo SBARBASE_RELEASE_SOURCE=... deploy/compose.sh up`), which passes it into the container. Signatures are still checked against the keys your checkout lists.
 
 ## Roll back
 
@@ -181,7 +181,7 @@ With Docker, put `docker compose exec sbarbase` before each `python3` command. W
 | Install one that needs a rebuild | add `--allow-class rebuild`, then rebuild as above | the same |
 | Move to any commit or tag, without signature check or class | `python3 lab/upgrade.py start --to <tag or commit>` (default `origin/main`) | `sbarbase upgrade start --to <tag or commit>` |
 | See what `--to` would change, without changing anything | `python3 lab/upgrade.py check --to <tag or commit>` | `sbarbase upgrade check --to <tag or commit>` |
-| Restart onto it | `docker compose up -d --build` (or `sudo systemctl restart sbarbase`) | |
+| Restart onto it | `sudo deploy/compose.sh up` (or `sudo systemctl restart sbarbase`) | |
 | See the outcome | `python3 lab/upgrade.py status` | `sbarbase upgrade status` |
 | Would a rollback go ahead? | `python3 lab/upgrade.py rollback --check` | `sbarbase upgrade rollback --check` |
 | Go back to the version before | `python3 lab/upgrade.py rollback`, then restart the same way | `sbarbase upgrade rollback` |
@@ -212,7 +212,7 @@ The new version's first start takes the control snapshot, holds traffic and runs
 - The rehearsal VM ran the command line cycle again on 2026-09-26, on the update channel code, under systemd with the start guard first: an upgrade to a newer PostgREST with `start --to`, the operator's rollback while it was confirmed, and a broken version that moved back by itself with the control snapshot restored, with data unchanged at each step (26 of 26 checks, [evidence](../evidence/vm-upgrade-checks.json); the first run of 2026-09-25 ended with a [return](../evidence/vm-upgrade-return.json) to the installed pins). CI records the same `start --to` cycle on a clean machine, with users, files and buckets compared before and after ([evidence](../evidence/docker-upgrade-checks.json)).
 - The three CI cases for the channel passed on 2026-09-25 (CI run 36195831433, 45 of 45 checks, [evidence](../evidence/docker-upgrade-checks.json)), on a clean CI machine with test data: a confirmed upgrade; a version that migrates the control catalog and then stops, moved back with the catalog schema back from 4 to 3; one whose PostgREST never answers; one that never passes its health checks, with application traffic answered 503 during the window; and tags that are unsigned or signed by an unlisted key, refused with nothing moved.
 - The rehearsal VM ran the channel itself on 2026-09-26 (`lab/vm-milestones.sh channel`, 114 of 114 checks, [evidence](../evidence/vm-channel-checks.json)). Releases came from a local repository in the VM, signed with a throwaway key listed for the rehearsal, and were asked for as the operator through the management API: a newer PostgREST installed and confirmed; a release whose PostgREST never answers, which moved back by itself with the control snapshot restored; automatic updates turned on, which left the release that had moved back alone and installed the next safe release by themselves inside the window; and a release that changes Auth, refused without the confirmed warning and installed with it. Each time the supervisor drained, exited with 42, systemd started it again and the start guard ran first; for the three releases that started, application traffic got 503 until the health checks passed (the broken one never served: its runtime did not start); and users, files and the control catalog stayed as they were. The `update.available`, `update.applied` and `update.rolled_back` events were recorded.
-- Run on the real server: the command-line move (`start --to`) with its backup, snapshot and health checks. Not run yet: the console channel there with the canonical repository and the maintainer's key; the console's **Roll back**; a way back from a release that changes Auth, Storage or Realtime; and a release that needs a rebuild. Until a real server has run them, automatic updates are not described as ready.
+- Run on the real server: the command-line move (`start --to`) with its backup, snapshot and health checks, and a signed release from the canonical repository with the maintainer's key through `start --release`, first 0.3.1. Not run yet: the console's **Install update** there; automatic updates; the console's **Roll back**; a way back from a release that changes Auth, Storage or Realtime; and a release that needs a rebuild. Until a real server has run them, automatic updates are not described as ready.
 
 ## For maintainers: cutting a signed release
 
@@ -235,7 +235,7 @@ Sbarbase runs pinned upstream Supabase images. Changing one pin is deliberate, w
 
 ### What is pinned
 
-Every upstream image is pinned by tag and digest in four lock files: `lab/distro-image.lock.json` (the Supabase PostgreSQL image), `lab/images.lock.json` (Auth, PostgREST and the stock PostgreSQL used by fixtures), `lab/storage-image.lock.json` (Storage) and `lab/studio-image.lock.json` (Studio and postgres-meta). Print the whole set and check that nothing floats:
+Every upstream image is pinned by tag and digest in six lock files: `lab/distro-image.lock.json` (the Supabase PostgreSQL image), `lab/images.lock.json` (Auth, PostgREST and the stock PostgreSQL used by fixtures), `lab/storage-image.lock.json` (Storage), `lab/realtime-image.lock.json` (Realtime), `lab/functions-image.lock.json` (Edge Runtime) and `lab/studio-image.lock.json` (Studio and postgres-meta). Print the whole set and check that nothing floats:
 
 ```
 /usr/bin/python3 lab/pin_update.py show
@@ -277,7 +277,7 @@ The way back to the previous image is the same move towards the previous version
 
 ## Limits
 
-- Beyond unit tests, the update channel has run in its CI cases on a clean CI machine ([evidence](../evidence/docker-upgrade-checks.json)) and in the local rehearsal VM ([evidence](../evidence/vm-channel-checks.json)), with releases from a local repository signed with a throwaway key. On the real server, upgrades from 0.2.0 onwards ran from the command line (`lab/upgrade.py start --to`) and were confirmed by the health checks; none has run with real client data, and the rehearsal VM held test users only.
+- Beyond unit tests, the update channel has run in its CI cases on a clean CI machine ([evidence](../evidence/docker-upgrade-checks.json)) and in the local rehearsal VM ([evidence](../evidence/vm-channel-checks.json)), with releases from a local repository signed with a throwaway key. On the real server, upgrades from 0.2.0 onwards ran from the command line (`lab/upgrade.py start --to`, and 0.3.1 with `start --release`) and were confirmed by the health checks; none has run with real client data, and the rehearsal VM held test users only.
 - A supervisor killed while a new version waits for its health checks (or at any other time) leaves the owned containers running. The next start stops them before the preflight, as described [above](#the-start-guard), unless a live supervisor or worker holds its lock or a receipt or journal waits for reconciliation: then it refuses with that reason, and `journalctl -u sbarbase` shows it. This is unit tested only; no kill has been rehearsed. A unit installed before that step existed still refuses at the preflight: reinstall it with `supervise --apply`, or run `/usr/bin/python3 lab/leftover_runtime.py` once as the service account.
 - When Sbarbase stops after an update moved the checkout, the final stop of the owned runtime runs the stop script of the moved checkout, not the one of the version that started it.
 - The health checks cover the console, the management Auth, each environment's Auth, REST and Storage, and REST and Auth through the gateway. Realtime, Edge Functions and Studio are not checked. A version that passes the checks and then misbehaves is not moved back by itself: use **Roll back** or `rollback`.

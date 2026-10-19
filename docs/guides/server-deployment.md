@@ -301,7 +301,9 @@ The console and the gateway bind loopback and are reachable only through the
 host. Terminate TLS in a reverse proxy and keep the Docker networks internal: the
 installer creates no published ports. Do not expose the management Auth endpoint
 or the provisioning API directly. Set the public URL the console should advertise
-in the proxy, not in the console build.
+in the proxy, not in the console build. Auth's email links and OAuth callbacks take
+the public address from `SBARBASE_PUBLIC_URL` in a drop-in of the service
+([sign-in settings](sign-in.md)).
 
 Studio exists as an optional per-environment feature in the legacy shared-engine
 workflow, with separately scoped CI evidence. Its proxy and authentication
@@ -311,7 +313,9 @@ serves them with `--studio-host studio-{id}.example.com` (the same pattern as
 `SBARBASE_STUDIO_HOST`), passing only names that match it with their own host, after a
 wildcard DNS record and a certificate that covers it are in place
 ([Studio](studio.md#open-it-from-anywhere)); without it, Studio is reached through an
-SSH tunnel. Studio has no login of its own and its pages carry a database connection
+SSH tunnel. The proxy also reads `SBARBASE_STUDIO_HOST` when it has no
+`--studio-host` flag, and `lab/studio_address.py apply DOMAIN` writes that setting
+for the console and the proxy unit in one step. Studio has no login of its own and its pages carry a database connection
 string, so it must never be reachable unauthenticated, and it must not ride the data
 plane's route pattern. [Integration specification](../engineering/STUDIO-INTEGRATION.md), sections 4
 and 5, covers the gate and the routing options.
@@ -339,7 +343,8 @@ bun deploy/console-tls-proxy.ts \
 ```
 
 To keep it running across reboots, give it its own systemd unit that runs as the service
-account. On Fedora, SELinux refuses a unit that executes Bun under `/home` directly
+account. Name it `sbarbase-proxy.service`: `lab/studio_address.py apply` writes its
+drop-in there unless `--proxy-service` names another unit. On Fedora, SELinux refuses a unit that executes Bun under `/home` directly
 (status `203/EXEC`, permission denied), so start it through a shell:
 `ExecStart=/bin/sh -c 'exec /home/sbarbase/.bun/bin/bun deploy/console-tls-proxy.ts ...'`.
 The rehearsal VM ran it this way, with a local CA, across a reboot
@@ -413,8 +418,10 @@ already holds a usable database can instead be adopted in place with
 
 The step by step versions are [backup and restore](backup-and-restore.md) and [upgrades](upgrades.md).
 
-- Backup: stop the supervisor, then back up the `pgdata` volumes plus the
-  private state directory. The encrypted export and independent-restore path is
+- Backup: every environment, Storage's shared metadata and the management
+  database are backed up daily while Sbarbase runs (`lab/backup.py`,
+  `SBARBASE_BACKUP_HOUR`), and `lab/offsite.py` sends encrypted copies to an
+  S3-compatible bucket. The encrypted export and independent-restore path is
   documented in [INDEPENDENT-RESTORE](../engineering/INDEPENDENT-RESTORE.md), a
   historical independent-restore fixture. Separate legacy Docker and local-VM
   backup/restore observations are recorded in [status](../reference/status.md);
@@ -459,8 +466,11 @@ The step by step versions are [backup and restore](backup-and-restore.md) and [u
 - Updates from the console and opt-in automatic updates exist, with a health-gated
   way back and a start guard ([upgrades](upgrades.md)). They are covered by unit
   tests plus historical clean-runner CI and local-VM observations summarized in
-  [status](../reference/status.md#update-channel-2026-09-25). No real-server,
-  canonical-repository or maintainer-key update-channel acceptance is established.
+  [status](../reference/status.md#update-channel-2026-09-25). On the real server,
+  signed releases from the canonical repository with the maintainer's key were
+  installed from the command line (`lab/upgrade.py start --release`, first 0.3.1);
+  the console's install button, automatic updates and **Roll back** have not run
+  there.
 - After an unclean supervisor stop, `lab/leftover_runtime.py` provides a
   lock- and receipt-gated stop of owned containers before preflight, retaining
   volumes. This correction has source regression evidence only; no live kill
@@ -468,8 +478,9 @@ The step by step versions are [backup and restore](backup-and-restore.md) and [u
   refuses reconciliation. Reinstall the unit to gain its documented preflight
   cleanup step; this does not establish arbitrary crash recovery.
 - Bootstrap creates the first operator; invitations are a separate legacy
-  feature with scoped local-VM evidence. Management MFA and login rate limiting
-  remain absent. See [status](../reference/status.md) for the historical scope.
+  feature with scoped local-VM evidence. The console has sign-in factors (MFA)
+  and rate limits on its sign-in, which answer `429` when exceeded. See
+  [status](../reference/status.md) for the historical scope.
 
 ## Private directory permissions
 

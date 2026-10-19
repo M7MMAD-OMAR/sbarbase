@@ -23,7 +23,7 @@ To open Studio from the public address, set up one domain once. Every project an
 
 1. **Pick a domain that holds no other site.** The wildcard record in the next step answers every name under the domain that has no record of its own, so use a domain meant for this, not one that already serves other sites. Named records you already have keep working either way; any other name reaches Sbarbase, which refuses it.
 2. **See what to provide.** On the server run `/usr/bin/python3 lab/studio_address.py plan example.com`. It prints the address pattern (`studio-{id}.example.com`) and the two things you provide: a wildcard DNS record (`*.example.com`, proxied if you use Cloudflare) and a certificate that covers `*.example.com`. With Cloudflare, create an Origin CA certificate for `*.example.com` and `example.com`, generate the key on the server and paste only the request into Cloudflare, then install it on the TLS proxy.
-3. **Apply it.** Run `sudo /usr/bin/python3 lab/studio_address.py apply example.com`. It writes `SBARBASE_STUDIO_HOST` as a systemd drop-in for the console and the TLS proxy, which both read it, and restarts them. It refuses when the proxy already passes a different `--studio-host`.
+3. **Apply it.** Run `sudo /usr/bin/python3 lab/studio_address.py apply example.com`. It writes `SBARBASE_STUDIO_HOST` as a systemd drop-in for the console (`sbarbase`) and the TLS proxy (`sbarbase-proxy`, or the unit `--proxy-service` names), which both read it, and restarts them. It refuses when the proxy already passes a different `--studio-host`.
 4. **Check it.** Run `/usr/bin/python3 lab/studio_address.py verify example.com`. It says which step is missing: DNS that does not resolve, a certificate that does not cover the name, or a server that refuses the address.
 
 Each environment then opens Studio on its own address, such as `studio-<24 hex>.example.com`. The proxy passes only names that match the pattern and refuses every other name with 421, so the wildcard never shows the console under another name. To undo it, delete the two drop-ins named `studio-host.conf` (under `sbarbase.service.d` and `sbarbase-proxy.service.d`), restart both services and delete the DNS record.
@@ -32,7 +32,7 @@ Good to know:
 
 - If the wildcard would sit on a domain that serves other sites, do not use it. Name each environment's record yourself (one `studio-<24 hex>` record per environment) or use a domain of its own.
 - On Cloudflare Free the edge certificate covers one level under the domain, so keep the pattern `studio-{id}.example.com`, not `{id}.studio.example.com`.
-- With Docker, export `SBARBASE_STUDIO_HOST=studio-{id}.example.com` before `deploy/compose.sh up` (the launcher forwards it to the console), and run the TLS proxy with the same variable or flag. `apply` writes systemd drop-ins, so it is for the systemd install.
+- With Docker, start with `sudo SBARBASE_STUDIO_HOST=studio-{id}.example.com deploy/compose.sh up` (the launcher forwards it to the console and reads no `.env` file, so give it on every later `up` too), and run the TLS proxy with the same variable or flag. `apply` writes systemd drop-ins, so it is for the systemd install.
 - The console and the proxy read the same `SBARBASE_STUDIO_HOST`. The proxy's `--studio-host` flag still works and wins when both are set.
 - Studio is reached on port 443; a public address on another port is not supported.
 - With a proxying CDN such as Cloudflare in front, the CDN terminates TLS and sees Studio's traffic, as it sees the console's.
@@ -62,9 +62,9 @@ Studio's Logs and Realtime pages expect Supabase's own platform services and sta
 - A request that changes something must come from that Studio's own page (its `Origin`); a page on another site of the same domain is refused.
 - Changing MFA policy or logging out revokes dashboard sessions through the actor epoch.
 - Losing the owner or admin role closes access on the next request.
-- Studio signs in to the database with its own login, which exists only while Studio runs and gets a new password on every start. It is not a superuser and owns nothing.
+- Studio signs in to the database with its own login, which exists only while Studio runs and gets a new password on every start. On connecting it acts as the environment's developer login, as described above; the Studio login itself is not a superuser and owns nothing.
 - Studio and its helper (postgres-meta) have no login of their own, so neither listens where other environments run. Each session gets a private network that only the server reaches; Edge Functions and databases of other environments cannot connect to it.
-- Stopping Studio, or restarting Sbarbase, closes that login and removes both containers and the session's network. After a restart or an upgrade, a Studio used in the last eight hours starts again by itself with a new login, and an open tab shows "Studio is starting" for a few seconds and then continues, without opening it again.
+- Stopping Studio, or restarting Sbarbase, closes that login and removes both containers and the session's network. After a restart, or once an upgrade is confirmed, a Studio used in the last eight hours starts again by itself with a new login, and an open tab shows "Studio is starting" for a few seconds and then continues, without opening it again.
 
 ## Memory
 

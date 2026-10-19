@@ -20,6 +20,10 @@ SBARBASE_EMAIL=you@example.com bun lab/functions-deploy.ts https://console.examp
 
 معرّف البيئة موجود في صفحتها في لوحة الإدارة. إعادة النشر تُطبَّق فورًا دون إعادة تشغيل، والطلب الجاري ينتهي على الإصدار الذي بدأ به.
 
+## النشر عبر Supabase CLI أو وكيل
+
+برمز وصول شخصي (`sbp_...`) ينشر Supabase CLI إلى هذا الخادم عبر ملف تعريف (profile)، بالأمر `supabase --profile ./sbarbase-profile.yaml functions deploy <name> --project-ref <ref> --use-api`، ويضبط الأسرار بالأمر `secrets set`. ووكيل الذكاء الاصطناعي المتصل بنقطة `/mcp` على الخادم ينشر بأداته `deploy_edge_function`. تجد ملف التعريف والرمز والخطوات في [وكلاء الذكاء الاصطناعي](agents.ar.md).
+
 ## كتابة دالة في اللوحة
 
 في صفحة البيئة، تحت **Edge Functions**، يأخذ زر **Write a function** اسمًا وملف `index.ts` وينشرهما. يناسب الدوال الصغيرة، ويناسب مجلدُ المشروع ما عداها.
@@ -50,6 +54,8 @@ const { data, error } = await supabase.functions.invoke('hello-world', { body: {
 - بيئة تشغيل واحدة لكل بيئة، حدها 384 MiB ونصف معالج؛ وتعمل كل دالة في عامل خاص بها حده 150 MiB، ويتوقف بعد 150 ثانية.
 - لا ترى الدالة إلا كود بيئتها وأسرارها. ولبيئة التشغيل شبكة داخلية خاصة بها، لا تضم إلا Auth وREST الخاصتين بهذه البيئة؛ وخدمات البيئات الأخرى ليست عليها. أما الملفات فتمر عبر Sbarbase، وهو يطلب من Storage المشترك ملفات هذه البيئة دائمًا، مهما كان ما تطلبه الدالة. ولم يُتحقق من هذا الفصل على تثبيت يعمل بعد ([التفاصيل](../engineering/FUNCTIONS-NETWORK-ISOLATION.md)).
 - السجلات تحت **Logs**، المصدر **Edge Functions**، بجانب الخدمات الأخرى.
+- تصل الدوال إلى Storage عبر المنفذ 25433 على الخادم. وإذا كان جدار الحماية يُسقط الاتصالات الواردة افتراضيًا (كما يفعل ufw)، فأضف القاعدة الموصوفة في [النشر على خادم](server-deployment.md#firewall-two-routes-from-containers-to-the-host).
+- تعرض صفحة Edge Functions في Studio الكود المنشور لكل دالة ([Studio](studio.ar.md)).
 - زر **Turn off Edge Functions** يوقف بيئة التشغيل ويُبقي الكود؛ والتشغيل أو النشر من جديد يعيدها.
 
 ينشر CI مجلد دوال بالأمر أعلاه على جهاز نظيف مع كل تغيير، ويستدعي الدوال عبر البوابة باستخدام supabase-js، ومنها دالة تستخدم supabase-js من npm بصلاحية الخدمة ([الدليل](../evidence/docker-functions-checks.json)).
@@ -58,5 +64,5 @@ const { data, error } = await supabase.functions.invoke('hello-world', { body: {
 
 - الكود ملفات نصية، حتى 500 ملف و10 MiB في كل نشر. يُحفظ الكود المنشور في `.lab/upstream/functions/` وليس في النسخ الاحتياطية للبيئة بعد: احتفظ بمجلد مشروعك.
 - لا يُعطى `SUPABASE_DB_URL`؛ صِل إلى قاعدة البيانات عبر `SUPABASE_URL`.
-- الأمر `supabase functions deploy` في Supabase CLI يخاطب واجهة منصة Supabase ولا يعمل هنا؛ استخدم الأمر أعلاه.
+- لا يعمل الأمر `supabase functions deploy` إلا مع `--use-api` وملف تعريف صباربيز ([وكلاء الذكاء الاصطناعي](agents.md#the-supabase-cli))؛ فبدون `--use-api` يحزم CLI الدوال عبر Docker ويرفع صيغة لا يقرؤها هذا الخادم.
 - جسم الطلب أو الرد يمر عبر البوابة حتى حد الرفع (`SBARBASE_UPLOAD_LIMIT_MB`).

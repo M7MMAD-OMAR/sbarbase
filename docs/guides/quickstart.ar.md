@@ -94,11 +94,11 @@ sudo systemctl daemon-reload && sudo systemctl restart sbarbase
 ssh -L 8787:127.0.0.1:8787 you@your-server
 ```
 
-افتح بعدها `http://localhost:8787` وادخل بالبريد وكلمة المرور من الخطوة 4. سترى عميلك و"First project" وبيئته `production`. أنشئ بيئة أخرى، وافتح تفاصيل الاتصال بها، وأصدر مفتاحًا: يظهر المفتاح مرة واحدة فقط.
+افتح بعدها `http://localhost:8787` وادخل بالبريد وكلمة المرور من الخطوة 4. سترى عميلك و"First project" وبيئته `production`. افتح البيئة، وأنشئ مفتاحًا عامًا من **API keys**. تستطيع نسخ المفتاح العام مرة أخرى لاحقًا، أما المفتاح السري فلا يظهر إلا مرة واحدة.
 
 ## 8. استخدمه من تطبيقك
 
-تعطيك تفاصيل الاتصال مسار البيئة، `/<runtime>`. وجّه supabase-js إلى عنوانك العام مضافًا إليه ذلك المسار:
+ينتهي **Project URL** الخاص بالبيئة بمسارها، `/<runtime>`. وعبر نفق SSH يبدأ بـ `http://localhost:8787`، فوجّه supabase-js إلى عنوانك العام مضافًا إليه ذلك المسار:
 
 ```js
 import {createClient} from '@supabase/supabase-js';
@@ -107,10 +107,11 @@ const supabase = createClient('https://console.example.com/<runtime>', '<publish
 
 يعمل Auth وREST وStorage عبر هذا العنوان الواحد، من خادم أو من صفحة في المتصفح على أي نطاق. ويُشغَّل Realtime لكل بيئة ([Realtime](realtime.ar.md))، ويُضبط مزوّدو OAuth لكل بيئة ([تسجيل الدخول](sign-in.ar.md))، وتُنشر Edge Functions لكل بيئة من مجلد دوال Supabase ([Edge Functions](edge-functions.ar.md)).
 
-للعنوان العام عبر HTTPS، ضع وكيل TLS المرجعي (أو nginx أو Caddy) أمام `127.0.0.1:8787` بشهادة حقيقية، كما يصف [دليل النشر على خادم](server-deployment.ar.md). لا تفتح في الجدار الناري إلا SSH و80 و443.
+للعنوان العام عبر HTTPS، ضع وكيل TLS المرجعي (أو nginx أو Caddy) أمام `127.0.0.1:8787` بشهادة حقيقية، كما يصف [دليل النشر على خادم](server-deployment.ar.md). لا تفتح في الجدار الناري إلا SSH و80 و443، واسمح [بالمسارين من الحاويات إلى الخادم](server-deployment.md#firewall-two-routes-from-containers-to-the-host) اللذين يحتاجهما Studio وEdge Functions.
 
 ## ماذا بعد
 
-- انسخ احتياطيًا: اقرأ [النسخ الاحتياطي والاستعادة](backup-and-restore.ar.md) لتعرف ما هو متاح اليوم وحدوده. النسخ الاحتياطية المجدولة خارج الخادم هي المرحلة التالية في [خارطة الطريق](../engineering/plans/2026-09-23-roadmap.md).
+- انسخ احتياطيًا: تُنسخ كل بيئة احتياطيًا كل يوم على الخادم، ويمكن إرسال نسخ مشفّرة إلى حاوية تخزين متوافقة مع S3 خارجه. اقرأ [النسخ الاحتياطي والاستعادة](backup-and-restore.ar.md) لتعرف الطريقة وحدودها.
+- افتح Studio لبيئة: [Supabase Studio](studio.ar.md).
 - افهم ما تتشاركه بيئاتك: [العزل والثقة](../explain/isolation-and-trust.ar.md).
 - تحقق مما ثبت وما لم يثبت: [الحالة](../reference/status.ar.md).

@@ -24,8 +24,8 @@ Read these to understand the design. Each page has the same shape: what it is, w
 
 ## Guides: how to do something
 
-- [Install with Docker](guides/docker.md): the container installation path for a compatible Linux Docker Engine and Compose host.
-- [Quickstart](guides/quickstart.md): from an empty server to a supabase-js call, as rehearsed in a local VM.
+- [Install with Docker](guides/docker.md): the main install, from a bare Ubuntu 26.04 machine to a running console, as rehearsed in a local VM.
+- [Quickstart](guides/quickstart.md): the install without Docker, from an empty server to a supabase-js call, as rehearsed in a local VM.
 - [Choosing a server](guides/choosing-a-server.md): what to buy, and what the free options really give you.
 - [Local lab](guides/local-lab.md): run the stack on your own machine for evaluation.
 - [Operator setup](guides/operator-setup.md): create the first operator and client.
@@ -39,7 +39,7 @@ Read these to understand the design. Each page has the same shape: what it is, w
 - [Edge Functions](guides/edge-functions.md): deploy a Supabase functions folder to an environment and call it with supabase-js.
 - [Logs and metrics](guides/logs-and-metrics.md): requests, errors, response times and service logs per environment.
 - [Sign-in settings](guides/sign-in.md): site URL, redirect addresses and OAuth providers (Google, GitHub, Apple and others) per environment.
-- [Supabase Studio](guides/studio.md): open the original Studio for one environment, behind the console login.
+- [Supabase Studio](guides/studio.md): open the original Studio for one environment, behind the console login, through an SSH tunnel or on its own public address.
 - [Backup and restore](guides/backup-and-restore.md): the current operator workflow, including scheduled backups and bounded offsite recovery.
 - [Pausing writes](guides/write-pause.md): stopping application writes to one environment before work whose way back restores a backup.
 - [Upgrades](guides/upgrades.md): updates from the console, opt-in automatic updates and the command line, with an automatic way back.
@@ -53,6 +53,7 @@ Read these to understand the design. Each page has the same shape: what it is, w
 - [Configuration](reference/configuration.md): files, flags and environment variables an operator touches.
 - [API](reference/api.md): management and gateway routes.
 - [Deployment readiness](reference/deployment-readiness.md): the itemised server readiness matrix.
+- [Console design](reference/console-design.md): the console's Supabase design tokens, navigation and server snapshot.
 
 ## Decisions
 

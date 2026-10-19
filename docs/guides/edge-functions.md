@@ -20,6 +20,10 @@ SBARBASE_EMAIL=you@example.com bun lab/functions-deploy.ts https://console.examp
 
 The environment id is on the environment's page in the console. A redeploy takes effect at once, with no restart; a request already running finishes on the version it started with.
 
+## Deploy with the Supabase CLI or an agent
+
+With a personal access token (`sbp_...`), the Supabase CLI deploys to this server through a profile file, `supabase --profile ./sbarbase-profile.yaml functions deploy <name> --project-ref <ref> --use-api`, and sets secrets with `secrets set`. An AI agent connected to the server's `/mcp` endpoint deploys with its `deploy_edge_function` tool. [AI agents](agents.md) has the profile, the token and the steps.
+
 ## Write one in the console
 
 On the environment's page, under **Edge Functions**, **Write a function** takes a name and an `index.ts` and deploys it. It suits small functions; a project folder suits the rest.
@@ -50,6 +54,8 @@ Add your own under **Secrets** (for example `STRIPE_SECRET_KEY`) and read them w
 - One runtime per environment, holding at most 384 MiB and half a CPU; each function runs in its own worker of at most 150 MiB, stopped after 150 seconds.
 - A function sees only its own environment's code and secrets. The runtime has its own internal network that holds only this environment's Auth and REST; other environments' services are not on it. Files go through Sbarbase, which always asks the shared Storage for this environment's files, whatever the function's request says. This separation has not been checked on a running installation yet ([details](../engineering/FUNCTIONS-NETWORK-ISOLATION.md)).
 - Logs are under **Logs**, source **Edge Functions**, next to the other services.
+- Functions reach Storage on the host's port 25433. A host firewall that drops incoming traffic by default (ufw does) needs the rule in [server deployment](server-deployment.md#firewall-two-routes-from-containers-to-the-host).
+- Studio's Edge Functions page lists each function's deployed code ([Studio](studio.md)).
 - **Turn off Edge Functions** stops the runtime and keeps the code; turning it on or deploying again starts it.
 
 CI deploys a functions folder with the command above on a clean machine with every change, and calls the functions through the gateway with supabase-js, including one that uses supabase-js from npm with the service role ([evidence](../evidence/docker-functions-checks.json)).
@@ -58,5 +64,5 @@ CI deploys a functions folder with the command above on a clean machine with eve
 
 - Code is text files, up to 500 files and 10 MiB per deploy. Deployed code lives in `.lab/upstream/functions/` and is not in the environment backups yet: keep your project folder.
 - `SUPABASE_DB_URL` is not given; reach the database through `SUPABASE_URL`.
-- The Supabase CLI's own `supabase functions deploy` talks to Supabase's platform API and does not work here; use the command above.
+- `supabase functions deploy` works only with `--use-api` and a Sbarbase profile ([AI agents](agents.md#the-supabase-cli)); without `--use-api` the CLI bundles with Docker and uploads a format this server does not read.
 - A request or response body goes through the gateway up to the upload limit (`SBARBASE_UPLOAD_LIMIT_MB`).

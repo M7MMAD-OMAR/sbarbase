@@ -26,7 +26,7 @@ Operators are members of a client with one of three roles:
 | Role | Read projects | Create projects and environments | Manage keys | Manage members |
 |---|---|---|---|---|
 | Owner | yes | yes | yes | yes, keeping at least one owner |
-| Admin | yes | yes | yes | no |
+| Admin | yes | yes | yes | invite, but not as owner |
 | Viewer | yes | no | no | no |
 
 Every mutation checks authority and writes the change in one database transaction, with an audit row. Placement changes use a revision number, so a stale caller cannot overwrite a newer decision.
@@ -35,8 +35,8 @@ Code: [src/control/catalog.ts](../../src/control/catalog.ts) (clients, projects,
 
 ## Limits
 
-- Transferring a project between clients changes metadata only. It does not revoke issued keys, end sessions or rotate database credentials, and it is not exposed as a finished feature.
-- There are no invitations yet; the first owner is created by a local setup command.
+- Moving a project to another client (an owner of both, from the console or the [API](../reference/api.md)) revokes every API key of its environments and cancels its queued provisioning. It does not rotate an environment's JWT signing key or its direct database password, so tokens its Auth already issued keep working; rotate them when people of the old client must lose every kind of access ([signing key](../guides/signing-keys.md)).
+- The first owner is created by a local setup command; everyone else joins by an invitation link that lasts 7 days.
 - Placement is on one server. A second server is future work, and there is no multi-server coordination.
 - Audit rows are local records, not a tamper-proof log.
 

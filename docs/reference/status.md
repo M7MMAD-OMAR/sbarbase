@@ -2,6 +2,17 @@
 
 # Status
 
+## Releases 0.5.3 to 0.5.12, 2026-10-17 to 19
+
+The declared version is 0.5.12. What these releases added and what was checked; the [changelog](../../CHANGELOG.md) has every change. Not production ready.
+
+- **Install with Docker from a bare machine.** `lab/vm-docker-rehearsal.sh` ran the [Docker guide](../guides/docker.md) in a local KVM guest from the stock Ubuntu 26.04 cloud image (4 vCPU, 6144 MiB, nothing preinstalled): packages, clone, `deploy/compose.sh check`, `up`, bootstrap, a first project through supabase-js, a reboot and the smoke check, 14 of 14 checks on 2026-10-17, in four passes on one disk ([evidence](../evidence/vm-docker-install-checks.json)). Not a real server: no public network or certificate.
+- **Studio from a public address.** `SBARBASE_STUDIO_HOST` and `lab/studio_address.py` give every environment's Studio its own address; the TLS proxy serves only its public host, loopback names and matching Studio addresses and answers any other host with 421. The proxy check passed 27 of 27 on 2026-10-17 with a self-signed certificate and a stub upstream ([evidence](../evidence/tls-termination.json)). No evidence file records Studio on a public address of a real server. Since 0.5.11 a Studio session renews itself while used and comes back after a restart ([Studio](../guides/studio.md)).
+- **Edge Functions off the shared network (0.5.4).** Each environment's Functions container reaches only its own Auth and REST, and Storage through a listener that pins its tenant ([design](../engineering/FUNCTIONS-NETWORK-ISOLATION.md)). Unit tested; no live probe evidence file.
+- **Developer schemas, Vault and refused extensions (0.5.8).** The developer login creates and renames schemas of its own, uses Vault, owns the `supabase_realtime` publication, and cannot use platform schema names or create extensions such as `http`, `pg_net`, `dblink` or `pgroonga`. 64 of 64 checks passed on 2026-10-19 against `public.ecr.aws/supabase/postgres:17.6.1.166`, including that one environment cannot reach the other's database or Vault secrets ([evidence](../evidence/developer-schema-checks-2026-10-19.json), [database access](../guides/database-access.md)). All environments of a server share Vault's root key.
+- **Console.** Supabase's design tokens and component look, with a contrast check in `tests/ui-contrast.test.ts` ([console design](console-design.md)); sign-ins last thirty days by default (`SBARBASE_MANAGEMENT_SESSION_SECONDS`); an expired access token is renewed instead of signing out; no sign-in flash.
+- **Not established by these releases:** which of them the real server runs, a public-server install with Docker, many agents at once, and a whole installation under real traffic.
+
 ## The real server and 0.3.0, 2026-10-16 and 17
 
 - **Where it runs.** A real server (Hostinger, Ubuntu 26.04, 4 cores, 16 GiB) runs main at sbarbase.sbarah.com, with systemd and the TLS proxy behind Cloudflare. It was upgraded from 0.2.0 with `lab/upgrade.py start --to`, each step confirmed by the health checks; it holds one environment and no application data.

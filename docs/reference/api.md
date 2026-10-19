@@ -2,11 +2,12 @@
 
 # API
 
-Routes served by the loopback server (`lab/upstream-server.ts`). Paths starting with `/management/` are the management API; everything else is the application gateway. Read from the code on 2026-09-23; the code is authoritative:
+Routes served by the loopback server (`lab/upstream-server.ts`). Paths starting with `/management/` are the management API, `/v1/` and `/mcp` are for agents, and everything else is the application gateway. Read from the code on 2026-10-19; the code is authoritative:
 
 - Routing between the three groups: [src/control/application.ts](../../src/control/application.ts)
 - Management metadata: [src/control/http.ts](../../src/control/http.ts)
-- Keys and connection details: [src/control/key-http.ts](../../src/control/key-http.ts), dispatched by [src/control/handler.ts](../../src/control/handler.ts)
+- Keys and connection details: [src/control/key-http.ts](../../src/control/key-http.ts), dispatched by [src/control/handler.ts](../../src/control/handler.ts) with the Studio, Realtime, sign-in, Edge Functions, database, signing key, share and invitation routes beside them
+- Access tokens, `/v1` and `/mcp`: [src/control/access-token-http.ts](../../src/control/access-token-http.ts), [src/control/supabase-api.ts](../../src/control/supabase-api.ts), [src/control/mcp.ts](../../src/control/mcp.ts)
 - Gateway: [src/gateway/managed.ts](../../src/gateway/managed.ts), [src/gateway/handler.ts](../../src/gateway/handler.ts), [src/gateway/concurrency.ts](../../src/gateway/concurrency.ts)
 
 The console and its static assets are served beside these routes by `lab/ui-static.ts`. The loopback server refuses any `Host` other than `127.0.0.1` or `localhost`; public exposure goes through a TLS proxy (see [server deployment](../guides/server-deployment.md)).
@@ -21,8 +22,12 @@ Proxied to the dedicated management Auth realm, with the publishable routing key
 | GET | `/management/auth/v1/user` | Current operator |
 | POST | `/management/auth/v1/logout` | Log out |
 | GET | `/management/auth/v1/settings` | Auth settings |
+| GET, PATCH | `/management/auth/v1/policy` | Whether the installation requires MFA, and whether the caller still needs a code. Only an installation owner who verified an authenticator code in the last five minutes may change it, with `{"mfa_required": bool}` |
+| POST | `/management/auth/v1/factors` | Enroll an authenticator (TOTP) for the signed-in account |
+| POST | `/management/auth/v1/factors/{id}/challenge`, `/management/auth/v1/factors/{id}/verify` | Ask for and check a code |
+| DELETE | `/management/auth/v1/factors/{id}` | Remove an authenticator |
 
-Any other `/management/auth/...` path is `404`; a wrong method is `405`.
+Any other `/management/auth/...` path is `404`; a wrong method is `405`. Sign-in attempts are rate limited and answer `429` past the limit.
 
 ## Management API
 
@@ -49,7 +54,12 @@ All routes need `Authorization: Bearer <management access token>`. The actor com
 | GET | `/management/v1/projects/{id}/environments` | member | Environments of that project |
 | POST | `/management/v1/projects/{id}/environments` | owner, admin | Body `{"name": "..."}`. `202` with `{id, state: "queued"}`; the worker provisions it |
 | PATCH | `/management/v1/environments/{id}` | owner, admin | Body `{"name": "..."}`. `409` when the name is used in that project |
-| DELETE | `/management/v1/environments/{id}` | owner | Removes the environment from management and revokes its keys; from then on the gateway answers `401` for its runtime. Its database, containers and files stay on the server. `409` while provisioning is queued or running, or while Studio, Realtime, Edge Functions, database access, a sign-in change, a signing key rotation, or a paused or moved routing is on or in progress |
+| DELETE | `/management/v1/environments/{id}` | owner | Removes the environment from management and revokes its keys; from then on the gateway answers `401` for its runtime. Its database, containers and files stay on the server, retained for seven days. `200 {deleted, revoked, retentionUntil}`. `409` while provisioning is queued or running, while Studio, Realtime, Edge Functions, database access, a sign-in change, a signing key rotation, or a paused or moved routing is on or in progress, and when the exact list of the environment's resources was never recorded |
+| GET | `/management/v1/environments/{id}/lifecycle` | owner, admin | The deletion record: `state` (`active`, `deleting`, `deleted`, `restoring`, `purging`, `purged`), `retain_until`, the resources and what was done to each |
+| POST | `/management/v1/environments/{id}/restore` | owner | Body `{"operation": "<new uuid>"}`. Brings a deleted environment back while it is retained. `202`; `409` once retention has expired |
+| POST | `/management/v1/environments/{id}/purge` | owner who is an installation operator | Body `{"operation": "<new uuid>"}`. Removes a deleted environment's resources for good, only after retention and only with a complete recovery proof. `202` |
+| POST | `/management/v1/environments/{id}/resume` | owner | Body `{"operation": "<uuid>"}` of the deletion, restore or purge under way. Renews its authorization so it can continue |
+| GET | `/management/v1/projects/{id}/retained-environments` | owner, admin | The project's environments that are deleted or on their way |
 | POST | `/management/v1/relink` | installation operator | Body `{"runtime": "e_...", "ownership": {...}}`, the `ownership` a backup's manifest records. Recreates that client, project and environment here with the same ids and runtime, and queues provisioning; `sbarbase relink` calls it ([backup and restore](../guides/backup-and-restore.md)). `409` for any conflict: a client with that name but another id, an id that belongs to something else here, a runtime in use or deleted here |
 | GET | `/management/v1/environments/{id}/provision` | member | Provisioning `state`, `attempt` and `failure` if any |
 | POST | `/management/v1/environments/{id}/retry` | owner, admin | No body. `202 {state: "queued"}` for a failed or cancelled environment; `409` otherwise or at the environment limit |
@@ -77,13 +87,45 @@ All routes need `Authorization: Bearer <management access token>`. The actor com
 | GET | `/management/v1/notifications` | owner or admin of any client | Undelivered count and recent operator events of the caller's own clients only. Events that belong to no client (installation start, worker restarts) go to owners and admins of the client created at bootstrap |
 | GET | `/management/v1/organizations/{id}/audit` | owner, admin | What happened in that client, newest first (up to 100): time, actor, action, subject name and a short detail. A project moved in from another client shows only what happened since it arrived |
 | GET | `/management/v1/environments/{id}/share` | member | The environment's guaranteed gateway share, the default and the ceiling; installation operators also get `total` and `allocated` |
-| PUT | `/management/v1/environments/{id}/share` | installation operator | Body `{"share": n}`, 1 to 24. `409` when the shares of all ready environments would exceed 32. Applies at the next request |
+| PUT | `/management/v1/environments/{id}/share` | installation operator | Body `{"share": n}`, 1 to 24. `409` when the shares of all ready environments would exceed 64. Applies at the next request |
+| GET | `/management/v1/environments/{id}/realtime` | owner, admin, when ready | Realtime `state` and `desired` ([Realtime](../guides/realtime.md)) |
+| PUT | `/management/v1/environments/{id}/realtime` | owner, admin, when ready | `{"enabled": true\|false}`. `202`; the supervisor starts or stops it. `409` while a change is in progress |
+| GET | `/management/v1/environments/{id}/sign-in` | owner, admin, when ready | Sign-in settings without provider secrets, their state and the `callback_url` to give OAuth providers ([sign-in](../guides/sign-in.md)) |
+| PUT | `/management/v1/environments/{id}/sign-in` | owner, admin, when ready | New settings. `202`; the supervisor recreates only that environment's Auth. `400` names the setting to check |
+| GET | `/management/v1/environments/{id}/studio` | owner, admin, when ready | Studio `state` and whether a `public` Studio address is set ([Studio](../guides/studio.md)) |
+| POST, DELETE | `/management/v1/environments/{id}/studio` | owner, admin, when ready | No body. Start or stop Studio; `202` |
+| POST | `/management/v1/environments/{id}/studio/session` | owner, admin, when ready | No body. `201 {host, public, path}`: the Studio address and a one-time entry ticket. `409` while Studio is not running |
+| GET, POST, PUT | `/management/v1/environments/{id}/deployment-setup` | installation operator, when ready | A prepared public deployment plan (address, DNS records, TLS, site URL, redirects). `POST` previews, `PUT` with `If-Match: <revision>` saves (`202`). It is preparation only: nothing is applied to the runtime |
+| GET | `/management/v1/server` | installation operator | The server snapshot the console shows: CPU cores, load, uptime, memory, swap and disk ([console design](console-design.md)). Not cached |
+| GET | `/management/v1/notifications/telegram` | installation operator | `state` (`off`, `pending` or `linked`), the token's last four characters and `owner`; only an owner sees the pending link |
+| PUT | `/management/v1/notifications/telegram` | installation owner | Body `{"token": "..."}`. Checks the bot token with Telegram and keeps it ([configuration](configuration.md#operator-notifications)) |
+| POST | `/management/v1/notifications/telegram/link`, `/management/v1/notifications/telegram/test` | installation owner | No body. Bind the chat that opened the one-time link, or send a test message |
+| DELETE | `/management/v1/notifications/telegram` | installation owner | Disconnects and forgets the token |
 
-Request bodies accept exactly the fields listed for the route, at most 4 KiB, read within five seconds. Key and connection routes and every `DELETE` refuse any body. Responses are not cacheable. A move revokes API keys but does not rotate the environments' JWT signing key or direct database password; rotate them ([signing key](../guides/signing-keys.md)) when people of the old client must lose every kind of access. Deleting an environment does not free its slot in the worker's environment limit, because its runtime is kept.
+Request bodies accept exactly the fields listed for the route, at most 4 KiB, read within five seconds. Key and connection routes and every `DELETE` refuse any body. Responses are not cacheable. A move revokes API keys but does not rotate the environments' JWT signing key or direct database password; rotate them ([signing key](../guides/signing-keys.md)) when people of the old client must lose every kind of access. Deleting an environment does not free its slot in the worker's environment limit, because its runtime is kept. In this release only the lifecycle probes record an environment's resource list, so on an ordinary installation deleting an environment can answer `409` with "Exact ownership inventory unavailable".
 
 ## Agents: the Supabase-compatible API and MCP
 
-With an access token as `Authorization: Bearer sbp_...`: `/v1/...` answers the part of Supabase's Management API that agents and tools use, and `POST /mcp` runs Supabase's own MCP server against it. The routes, what each does here and its limits are in [AI agents and the API](../guides/agents.md). An access token is refused by every `/management/` route.
+With an access token as `Authorization: Bearer sbp_...`: `/v1/...` answers the part of Supabase's Management API that agents and tools use, and `POST /mcp` runs Supabase's own MCP server against it. What each does here and its limits are in [AI agents and the API](../guides/agents.md). An access token is refused by every `/management/` route. A project `{ref}` is one environment, 20 lowercase letters.
+
+| Method | Path |
+|---|---|
+| GET | `/v1/organizations`, `/v1/organizations/{id}` |
+| GET, POST | `/v1/projects` |
+| GET | `/v1/projects/{ref}`, `/v1/projects/{ref}/health`, `/v1/projects/{ref}/api-keys/legacy` |
+| GET, POST | `/v1/projects/{ref}/api-keys` |
+| DELETE | `/v1/projects/{ref}/api-keys/{id}` |
+| POST | `/v1/projects/{ref}/database/query` |
+| GET, POST | `/v1/projects/{ref}/database/migrations` |
+| GET | `/v1/projects/{ref}/advisors/security`, `/v1/projects/{ref}/advisors/performance` (always empty), `/v1/projects/{ref}/analytics/endpoints/logs` |
+| GET, PUT, PATCH | `/v1/projects/{ref}/functions` |
+| POST | `/v1/projects/{ref}/functions/deploy` |
+| GET, DELETE | `/v1/projects/{ref}/functions/{name}`; GET `/v1/projects/{ref}/functions/{name}/body` |
+| GET, POST, DELETE | `/v1/projects/{ref}/secrets` |
+| GET | `/v1/projects/{ref}/config/storage`; `/v1/projects/{ref}/config/database/pooler` and `/v1/projects/{ref}/branches` answer an empty list |
+| POST | `/mcp` |
+
+Deleting, pausing or restoring a project and generating types answer `501` with what to do instead; any other `/v1` path answers `404`.
 
 ## Updates
 

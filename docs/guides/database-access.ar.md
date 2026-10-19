@@ -31,6 +31,8 @@ psql "postgresql://e_…_developer:<password>@127.0.0.1:6543/e_…?sslmode=disab
 psql "postgresql://…@127.0.0.1:6543/e_…?sslmode=disable" -v ON_ERROR_STOP=1 -1 -f supabase/migrations/20261017000000_init.sql   # one migration file
 pg_dump "postgresql://…@127.0.0.1:6543/e_…?sslmode=disable" --schema=public > public.sql
 DATABASE_URL="postgresql://…@127.0.0.1:6543/e_…?sslmode=disable" npx prisma migrate deploy
+supabase db push --db-url "postgresql://…@127.0.0.1:6543/e_…?sslmode=disable"   # every file in supabase/migrations
+supabase gen types typescript --db-url "postgresql://…@127.0.0.1:6543/e_…?sslmode=disable" > database.types.ts
 ```
 
 ## ما يستطيعه حساب المطوّر
@@ -41,7 +43,7 @@ DATABASE_URL="postgresql://…@127.0.0.1:6543/e_…?sslmode=disable" npx prisma 
 - إضافة مشغّلات (triggers) على `auth.users` (مثلًا لإنشاء ملف شخصي عند التسجيل) وسياسات على `storage.objects`.
 - قراءة كل الصفوف وكتابتها؛ فهو يتجاوز أمان الصفوف، كما يفعل المستخدم `postgres`.
 - حفظ سجل الترحيلات في `supabase_migrations`، وهو مخطط (schema) أُنشئ له، يسجّل فيه [وكلاء الذكاء الاصطناعي](agents.ar.md) ما طبّقوه.
-- إنشاء مخططات خاصة به، مثل `app` أو `private`، وتغيير أسمائها. لكنه لا يستطيع استخدام اسم تنشئه المنصة نفسها: `auth` و`storage` و`extensions` و`public` و`realtime` و`_realtime` و`vault` و`pgsodium` و`cron` و`net` و`graphql` و`graphql_public`، وأي اسم يبدأ بـ `supabase` أو `sbarbase`. فالمخطط الذي يسبق إليه بأحد هذه الأسماء سيشغّل شيفرته بصلاحيات المنصة، لذلك يرفض PostgreSQL الأمر، ويرفض كذلك تغيير اسم مخطط إلى أحدها.
+- إنشاء مخططات خاصة به، مثل `app` أو `private`، وتغيير أسمائها. لكنه لا يستطيع استخدام اسم تنشئه المنصة نفسها: `auth` و`storage` و`extensions` و`public` و`realtime` و`_realtime` و`vault` و`pgsodium` و`cron` و`net` و`graphql` و`graphql_public` وأسماء أخرى قليلة (`RESERVED_SCHEMAS` في `lab/durable_runtime.py`)، وأي اسم يبدأ بـ `supabase` أو `sbarbase`. فالمخطط الذي يسبق إليه بأحد هذه الأسماء سيشغّل شيفرته بصلاحيات المنصة، لذلك يرفض PostgreSQL الأمر، ويرفض كذلك تغيير اسم مخطط إلى أحدها.
 - حفظ الأسرار في Vault (`vault.create_secret` و`vault.update_secret` و`vault.decrypted_secrets`) كما في Supabase، ويقرؤها `service_role` أيضًا. ولا يستطيع الحساب أن يعطي هذا الوصول لأدوار أخرى، فلا يفتح منحُه لـ `anon` الأسرارَ للواجهة.
 - إنشاء الإضافات (extensions) التي يستخدمها التطبيق، مثل `pg_trgm` و`btree_gist` و`vector` و`pgtap` و`pg_graphql`. أما الإضافات التي تصل إلى شبكة الخادم، أو ترى نشاط كل البيئات، أو تحمّل شيفرة، أو تكتب ملفات على الخادم، أو تمسك مفتاح الخادم، فمرفوضة على الخادم المشترك: `dblink` و`postgres_fdw` و`http` و`pg_net` و`wrappers` و`pg_cron` و`pg_tle` و`pgsodium` و`pg_stat_statements` و`pg_stat_monitor` و`pg_walinspect` و`pg_buffercache` و`pg_prewarm` و`pg_repack` و`pgaudit` و`pgroonga` وغيرها قليل (`RESERVED_EXTENSIONS` في `lab/durable_runtime.py`).
 

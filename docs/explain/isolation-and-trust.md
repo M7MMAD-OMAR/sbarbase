@@ -33,7 +33,9 @@ What is separate per environment:
 
 - A database with `CONNECT` granted only to its own logins, and connection rules (the PostgreSQL host-based authentication file, HBA) naming exact login and database pairs.
 - Three scoped service logins for Auth, REST and Storage, with generated passwords.
-- Its own Auth signing secret, its own publishable and secret keys (stored only as hashes), and its own Storage tenant and signing keys.
+- A developer login for migrations, agents and Studio. It is not a superuser, cannot use the platform's schema names, and cannot create extensions that reach the server's network or see every environment, such as `http`, `pg_net` or `dblink` ([database access](../guides/database-access.md)).
+- Its own Auth signing secret, its own publishable and secret keys (secret keys stored only as hashes), and its own Storage tenant and signing keys.
+- Its own Realtime, Edge Functions and Studio containers when they are on. The Functions container reaches only its own Auth, REST and Storage tenant, and each Studio session has a private network.
 - A routing record that can put the environment in maintenance without touching the others.
 
 What is shared, and therefore a shared failure boundary:
@@ -41,6 +43,7 @@ What is shared, and therefore a shared failure boundary:
 - **The PostgreSQL engine.** A crash, a full disk or a long lock affects every environment on it. The canonical API roles (`anon`, `authenticated`, `service_role`) exist once per engine, because PostgreSQL roles are cluster-wide.
 - **The Storage process.** It holds every tenant's configuration; a compromise of that process is a compromise of all tenants' files.
 - **The gateway and control catalog.** If they stop, every environment stops answering.
+- **Vault's root key.** Every environment's Vault secrets are encrypted with one key that belongs to the server. They stay apart because each environment reaches only its own database.
 - **The host.** CPU, memory, disk and IO are shared. Each container runs under a resource tier with CPU weight and per-device IO limits, and new environments are refused when memory, disk, cgroup pressure or connection budgets are short.
 
 Code: [lab/resource_policy.py](../../lab/resource_policy.py) (tiers), [lab/resource_admission.py](../../lab/resource_admission.py), [lab/pressure_admission.py](../../lab/pressure_admission.py) and [lab/connection_budget.py](../../lab/connection_budget.py) (admission), [lab/hba_authority.py](../../lab/hba_authority.py) (connection rules), [src/gateway/handler.ts](../../src/gateway/handler.ts) (key checks).
