@@ -75,6 +75,14 @@
    "result": "pass"
   },
   {
+   "check": "it cannot create the server-wide extension pgroonga",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot create the server-wide extension pgroonga_database",
+   "result": "pass"
+  },
+  {
    "check": "it cannot reach a refused extension through CASCADE",
    "result": "pass"
   },
@@ -87,7 +95,11 @@
    "result": "pass"
   },
   {
-   "check": "it cannot recreate the Realtime publication after dropping it",
+   "check": "a dropped Realtime publication comes back with the grants",
+   "result": "pass"
+  },
+  {
+   "check": "it cannot write server files through pgroonga",
    "result": "pass"
   },
   {

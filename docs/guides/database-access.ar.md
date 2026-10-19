@@ -43,9 +43,9 @@ DATABASE_URL="postgresql://…@127.0.0.1:6543/e_…?sslmode=disable" npx prisma 
 - حفظ سجل الترحيلات في `supabase_migrations`، وهو مخطط (schema) أُنشئ له، يسجّل فيه [وكلاء الذكاء الاصطناعي](agents.ar.md) ما طبّقوه.
 - إنشاء مخططات خاصة به، مثل `app` أو `private`، وتغيير أسمائها. لكنه لا يستطيع استخدام اسم تنشئه المنصة نفسها: `auth` و`storage` و`extensions` و`public` و`realtime` و`_realtime` و`vault` و`pgsodium` و`cron` و`net` و`graphql` و`graphql_public`، وأي اسم يبدأ بـ `supabase` أو `sbarbase`. فالمخطط الذي يسبق إليه بأحد هذه الأسماء سيشغّل شيفرته بصلاحيات المنصة، لذلك يرفض PostgreSQL الأمر، ويرفض كذلك تغيير اسم مخطط إلى أحدها.
 - حفظ الأسرار في Vault (`vault.create_secret` و`vault.update_secret` و`vault.decrypted_secrets`) كما في Supabase، ويقرؤها `service_role` أيضًا. ولا يستطيع الحساب أن يعطي هذا الوصول لأدوار أخرى، فلا يفتح منحُه لـ `anon` الأسرارَ للواجهة.
-- إنشاء الإضافات (extensions) التي يستخدمها التطبيق، مثل `pg_trgm` و`btree_gist` و`vector` و`pgtap` و`pg_graphql`. أما الإضافات التي تصل إلى شبكة الخادم، أو ترى نشاط كل البيئات، أو تحمّل شيفرة، أو تمسك مفتاح الخادم، فمرفوضة على الخادم المشترك: `dblink` و`postgres_fdw` و`http` و`pg_net` و`wrappers` و`pg_cron` و`pg_tle` و`pgsodium` و`pg_stat_statements` و`pg_stat_monitor` و`pg_walinspect` و`pg_buffercache` و`pg_prewarm` و`pg_repack` و`pgaudit` وغيرها قليل (`RESERVED_EXTENSIONS` في `lab/durable_runtime.py`).
+- إنشاء الإضافات (extensions) التي يستخدمها التطبيق، مثل `pg_trgm` و`btree_gist` و`vector` و`pgtap` و`pg_graphql`. أما الإضافات التي تصل إلى شبكة الخادم، أو ترى نشاط كل البيئات، أو تحمّل شيفرة، أو تكتب ملفات على الخادم، أو تمسك مفتاح الخادم، فمرفوضة على الخادم المشترك: `dblink` و`postgres_fdw` و`http` و`pg_net` و`wrappers` و`pg_cron` و`pg_tle` و`pgsodium` و`pg_stat_statements` و`pg_stat_monitor` و`pg_walinspect` و`pg_buffercache` و`pg_prewarm` و`pg_repack` و`pgaudit` و`pgroonga` وغيرها قليل (`RESERVED_EXTENSIONS` في `lab/durable_runtime.py`).
 
-- إضافة جداول إلى منشور `supabase_realtime`، وهو موجود دائمًا ويملكه الحساب، كما يملكه المستخدم `postgres` في مشروع Supabase. يشمل المنشور مخطط `public` كله، فجداوله منشورة أصلًا، وإضافة أحدها مقبولة ولا تغيّر شيئًا. ويمكن إضافة جداول المخططات الأخرى واحدًا واحدًا. وإن حذف الحساب المنشور فلا يستطيع إنشاءه من جديد بالاسم نفسه، وتعيد المنصة إنشاءه في المرة التالية التي يُشغَّل فيها الوصول.
+- إضافة جداول إلى منشور `supabase_realtime`، وهو موجود دائمًا ويملكه الحساب، كما يملكه المستخدم `postgres` في مشروع Supabase. يشمل المنشور مخطط `public` كله، فجداوله منشورة أصلًا، وإضافة أحدها مقبولة ولا تغيّر شيئًا. ويمكن إضافة جداول المخططات الأخرى واحدًا واحدًا. وإن حذفه الحساب، تعيد المنصة إنشاءه في المرة التالية التي يُشغَّل فيها الوصول.
 
 تُمنح هذه الصلاحيات عند تشغيل الوصول؛ وللبيئة التي كان الوصول فيها مفعّلًا من قبل، أوقفه ثم شغّله مرة واحدة.
 
@@ -59,7 +59,7 @@ DATABASE_URL="postgresql://…@127.0.0.1:6543/e_…?sslmode=disable" npx prisma 
 - ثم يتحقق PostgreSQL من كلمة المرور (SCRAM). وإطفاء الوصول يغلق الحساب وكل الجلسات المفتوحة به.
 - لا يشفّر المنفذ الاتصال؛ نفق SSH هو الذي يشفّره. يمكن لـ `SBARBASE_DATABASE_BIND` أن يعرض المنفذ على عنوان آخر، لكن افعل ذلك على شبكة تثق بها فقط ([الإعدادات](../reference/configuration.ar.md)).
 
-يشغّل CI الوصول لبيئة على جهاز نظيف مع كل تغيير، وينفّذ ترحيلًا بأسلوب Supabase عبر المنفذ، ويتحقق من حالات الرفض وتجديد كلمة المرور والإطفاء ([الدليل](../evidence/docker-database-checks.json)). وفحص آخر يدخل بحساب بيئة واحدة ويجرّب كل اسم مخطط محجوز، وتغيير الأسماء، والإضافات المرفوضة، واسم منشور Realtime، والحماية نفسها، وVault، وقاعدة بيانات البيئة الأخرى ([الدليل](../evidence/developer-schema-checks-2026-10-19.json)).
+يشغّل CI الوصول لبيئة على جهاز نظيف مع كل تغيير، وينفّذ ترحيلًا بأسلوب Supabase عبر المنفذ، ويتحقق من حالات الرفض وتجديد كلمة المرور والإطفاء ([الدليل](../evidence/docker-database-checks.json)). وفحص آخر يدخل بحساب بيئة واحدة ويجرّب كل اسم مخطط محجوز، وتغيير الأسماء، والإضافات المرفوضة، ومنشور Realtime، والحماية نفسها، وVault، وقاعدة بيانات البيئة الأخرى ([الدليل](../evidence/developer-schema-checks-2026-10-19.json)).
 
 ## الحدود
 

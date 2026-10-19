@@ -64,7 +64,7 @@ class DatabaseAccessTests(unittest.TestCase):
         text = self.runtime.developer_grants_sql(E)
         guard = text.index('CREATE EVENT TRIGGER sbarbase_reserved_schemas ON ddl_command_end')
         self.assertLess(guard, text.index(f'GRANT CREATE ON DATABASE {E} TO {E}_developer'))
-        self.assertIn("WHEN TAG IN ('CREATE SCHEMA', 'ALTER SCHEMA', 'CREATE EXTENSION', 'ALTER EXTENSION', 'CREATE PUBLICATION', 'ALTER PUBLICATION')", text)
+        self.assertIn("WHEN TAG IN ('CREATE SCHEMA', 'ALTER SCHEMA', 'CREATE EXTENSION', 'ALTER EXTENSION')", text)
         self.assertIn('rolname = session_user', text)
         self.assertNotIn('rolname = current_user', text)
         self.assertIn('ALTER EVENT TRIGGER sbarbase_reserved_schemas ENABLE ALWAYS', text)
@@ -86,12 +86,11 @@ class DatabaseAccessTests(unittest.TestCase):
 
     def test_extensions_that_reach_the_server_are_refused_and_the_realtime_publication_name_is_kept(self):
         text = self.runtime.developer_grants_sql(E)
-        for name in ('dblink', 'postgres_fdw', 'http', 'pg_net', 'wrappers', 'pg_cron', 'pgsodium', 'pg_stat_statements', 'pg_walinspect'):
+        for name in ('dblink', 'postgres_fdw', 'http', 'pg_net', 'wrappers', 'pg_cron', 'pgsodium', 'pg_stat_statements', 'pg_walinspect', 'pgroonga'):
             self.assertIn(name, durable_runtime.RESERVED_EXTENSIONS)
             self.assertIn(f"'{name}'", text)
         for name in ('pg_trgm', 'btree_gist', 'vector', 'pgtap', 'pg_graphql', 'supabase_vault'):
             self.assertNotIn(name, durable_runtime.RESERVED_EXTENSIONS)
-        self.assertIn("item.pubname = 'supabase_realtime'", text)
         publication = text.index('CREATE PUBLICATION supabase_realtime FOR TABLES IN SCHEMA public')
         self.assertLess(publication, text.index(f'ALTER PUBLICATION supabase_realtime OWNER TO {E}_developer'))
 

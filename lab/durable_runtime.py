@@ -398,12 +398,13 @@ RESERVED_SCHEMAS = ('auth', 'storage', 'extensions', 'realtime', '_realtime', 'v
                     'pgsodium_masks', 'cron', 'net', 'graphql', 'graphql_public', 'pgbouncer',
                     '_analytics', '_supavisor', 'information_schema', 'public')
 # Extensions an environment's own login may not create on a shared server: they reach the server's
-# network, see every environment's activity or data, load code, or hold the server's root key. The
+# network, see every environment's activity or data, load code, write files on the server (pgroonga
+# creates its files at any path it is given), or hold the server's root key. The
 # image's supautils would otherwise create them as the superuser for any login.
 RESERVED_EXTENSIONS = ('dblink', 'postgres_fdw', 'http', 'pg_net', 'wrappers', 'pg_cron', 'pg_tle',
                        'pgsodium', 'pg_stat_statements', 'pg_stat_monitor', 'pg_walinspect',
                        'pg_buffercache', 'pg_prewarm', 'pg_repack', 'pgaudit', 'supautils', 'pljava',
-                       'plcoffee', 'plls', 'orioledb', 'file_fdw', 'pgroonga_database')
+                       'plcoffee', 'plls', 'orioledb', 'file_fdw', 'pgroonga', 'pgroonga_database')
 
 
 def sql_literal(value):
@@ -1035,17 +1036,11 @@ BEGIN
       RAISE EXCEPTION 'The extension % is not available to an environment on a shared server', item.extname USING ERRCODE = '42501';
     END IF;
   END LOOP;
-  FOR item IN SELECT p.pubname FROM pg_catalog.pg_event_trigger_ddl_commands() c
-      JOIN pg_catalog.pg_publication p ON p.oid = c.objid WHERE c.object_type = 'publication' AND c.command_tag = 'CREATE PUBLICATION' LOOP
-    IF item.pubname = 'supabase_realtime' OR item.pubname LIKE 'sbarbase%' THEN
-      RAISE EXCEPTION 'The publication name % is reserved for the platform', item.pubname USING ERRCODE = '42501';
-    END IF;
-  END LOOP;
 END $guard$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_event_trigger WHERE evtname = 'sbarbase_reserved_schemas') THEN
     CREATE EVENT TRIGGER sbarbase_reserved_schemas ON ddl_command_end
-      WHEN TAG IN ('CREATE SCHEMA', 'ALTER SCHEMA', 'CREATE EXTENSION', 'ALTER EXTENSION', 'CREATE PUBLICATION', 'ALTER PUBLICATION')
+      WHEN TAG IN ('CREATE SCHEMA', 'ALTER SCHEMA', 'CREATE EXTENSION', 'ALTER EXTENSION')
       EXECUTE FUNCTION sbarbase_guard.reserved_schemas();
   END IF;
 END $$;

@@ -60,7 +60,7 @@ try {
  check('it creates a schema of its own and works in it',()=>works('CREATE SCHEMA tdbr; CREATE TABLE tdbr.items(id int); INSERT INTO tdbr.items VALUES (1); CREATE TYPE tdbr.kind AS ENUM (\'a\');'));
  check('it renames its own schema to another name of its own',()=>works('CREATE SCHEMA scratch; ALTER SCHEMA scratch RENAME TO scratch_two; DROP SCHEMA scratch_two;'));
  check('it creates the extensions an application uses',()=>works('CREATE EXTENSION IF NOT EXISTS pg_trgm; CREATE EXTENSION IF NOT EXISTS btree_gist; CREATE EXTENSION IF NOT EXISTS vector; CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions; CREATE EXTENSION IF NOT EXISTS pg_graphql;'));
- for(const extension of ['http','pg_net','dblink','postgres_fdw','wrappers','pg_cron','pg_tle','pgsodium','pg_stat_statements','pg_walinspect','pg_buffercache','pg_repack','pgaudit','file_fdw'])
+ for(const extension of ['http','pg_net','dblink','postgres_fdw','wrappers','pg_cron','pg_tle','pgsodium','pg_stat_statements','pg_walinspect','pg_buffercache','pg_repack','pgaudit','file_fdw','pgroonga','pgroonga_database'])
   check(`it cannot create the server-wide extension ${extension}`,()=>refused(`CREATE EXTENSION ${extension} CASCADE;`,/not available to an environment|can only create extension in database postgres|Must be superuser/));
  check('it cannot reach a refused extension through CASCADE',()=>refused('CREATE EXTENSION IF NOT EXISTS pgsodium WITH SCHEMA extensions CASCADE; SELECT 1;',/not available to an environment/));
  check('an extension the superuser installs keeps its own schema name',()=>superuser(a,"SELECT pg_get_userbyid(nspowner) FROM pg_namespace WHERE nspname = 'graphql'")==='supabase_admin'||'graphql schema owner differs');
@@ -69,12 +69,13 @@ try {
   if(owner!==`${a}_developer`)return owner;
   return works('CREATE TABLE public.live(id int primary key); ALTER PUBLICATION supabase_realtime ADD TABLE public.live;');
  });
- check('it cannot recreate the Realtime publication after dropping it',()=>{
-  const out=developer('DROP PUBLICATION supabase_realtime; CREATE PUBLICATION supabase_realtime FOR TABLE public.live;');
+ check('a dropped Realtime publication comes back with the grants',()=>{
+  const out=developer('DROP PUBLICATION supabase_realtime;');
   const [roleSql,grantSql]=generate(a,passwords[0]!); superuser('postgres',roleSql); superuser(a,grantSql);
   const owner=superuser(a,"SELECT pg_get_userbyid(pubowner) FROM pg_publication WHERE pubname = 'supabase_realtime'");
-  return out.status!==0&&reserved.test(out.stderr)&&owner===`${a}_developer`||`${out.stderr.slice(0,200)} owner ${owner}`;
+  return out.status===0&&owner===`${a}_developer`||`${out.stderr.slice(0,200)} owner ${owner}`;
  });
+ check('it cannot write server files through pgroonga',()=>refused("CREATE EXTENSION pgroonga; SELECT pgroonga_command('status');",/not available to an environment/));
  check('it cannot add another schema to the Realtime publication',()=>refused('ALTER PUBLICATION supabase_realtime ADD TABLES IN SCHEMA tdbr;',/must be superuser/));
  check('it creates a publication of its own',()=>works('CREATE PUBLICATION mine FOR TABLE tdbr.items; DROP PUBLICATION mine;'));
  for(const schema of ['realtime','_realtime','cron','net','graphql_public','pgsodium','supabase_functions','supabase_anything','sbarbase_guard_two','pgbouncer','_analytics'])
