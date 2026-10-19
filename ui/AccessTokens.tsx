@@ -33,7 +33,7 @@ export function AccessTokens({request,organizations}:{request:Api;organizations:
    <label htmlFor="new-token">Token "{created.name}". Save it now: it is only shown once.</label><textarea id="new-token" readOnly value={created.token}/>
    <div className="form-row"><button onClick={()=>void copy(created.token)}><Copy aria-hidden="true"/>Copy token</button></div>
    <p className="small"><strong>Claude Code</strong>: run this once in a terminal.</p><textarea readOnly rows={3} value={claude}/>
-   <div className="form-row"><button onClick={()=>void copy(claude)}><Copy aria-hidden="true"/>Copy command</button></div>
+   <div className="form-row"><button className="primary" onClick={()=>void copy(claude)}><Copy aria-hidden="true"/>Copy command</button></div>
    <p className="small"><strong>Cursor, Codex and others</strong>: add an MCP server with the address <code>{origin}/mcp</code> and the header <code>Authorization: Bearer &lt;token&gt;</code>. Then tell the agent, for example: "Deploy this app to Sbarbase".</p>
    <div className="form-row"><button onClick={()=>{setCreated(undefined);setCopied('');}}>I have saved the token</button></div></section>}
   <p className="small muted" role="status">{copied}</p>
@@ -51,7 +51,7 @@ export function AccessTokens({request,organizations}:{request:Api;organizations:
     <label htmlFor="token-days">Expires after</label><select id="token-days" value={days} onChange={event=>setDays(event.target.value)}>
      {['7','30','90','180','365'].map(value=><option key={value} value={value}>{value} days</option>)}</select>
     <label className="check"><input type="checkbox" checked={readOnly} onChange={event=>setReadOnly(event.target.checked)}/> Read only (SQL runs read only; nothing can be changed)</label>
-    <div className="form-row"><button type="submit" className="primary" disabled={busy||!name.trim()||(scopeKind!=='all'&&!organization)||(scopeKind==='project'&&!project)}><Plus aria-hidden="true"/>Create token</button></div>
+    <div className="form-row"><button type="submit" className={created?undefined:'primary'} disabled={busy||!name.trim()||(scopeKind!=='all'&&!organization)||(scopeKind==='project'&&!project)}><Plus aria-hidden="true"/>Create token</button></div>
    </form></section>
   <section className="details"><h2>Your tokens</h2>{tokens.loading?<Loading/>:live.length?<div className="table-wrap"><table><thead><tr><th>Name</th><th>Can reach</th><th>Access</th><th>Expires</th><th>Last used</th><th>Action</th></tr></thead><tbody>
    {live.map(token=><tr key={token.id}><td>{token.name}</td><td>{scopeLabel(token.scope)}</td><td>{token.read_only?'Read only':'Read and write'}</td><td>{new Date(token.expires_at).toLocaleDateString()}</td>
