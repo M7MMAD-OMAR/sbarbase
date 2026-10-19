@@ -102,6 +102,8 @@ input[type=checkbox],input[type=radio]{width:16px;height:16px;min-height:0;paddi
 input[aria-invalid="true"],textarea[aria-invalid="true"]{border-color:var(--danger-fg)}
 label{display:block;font-size:14px;font-weight:400;color:var(--muted);margin-bottom:8px}
 .field-error{color:var(--danger-fg);font-size:13px;margin:6px 0 14px;overflow-wrap:anywhere}
+fieldset{border:1px solid var(--border-strong);border-radius:var(--radius-lg);padding:4px 20px 20px;margin:0 0 20px;background:var(--surface);min-width:0;box-shadow:0 1px 2px var(--shadow)}
+legend{font-size:15px;font-weight:500;color:var(--text);padding:0 6px;margin-left:-6px}
 
 /* Shell: Supabase Studio's sidebar, top bar and page scaffold. */
 .app-shell{display:flex;min-height:100dvh}
@@ -148,7 +150,9 @@ footer button:hover{background:var(--hover);border-color:transparent;color:var(-
 .page-heading>button,.page-heading>div+button{flex-shrink:0;margin-top:4px}
 .back{min-height:28px;padding:2px 8px 2px 4px;margin:0 0 16px -4px;border:0;background:transparent;box-shadow:none;color:var(--muted);font-weight:400}
 .back:hover{background:var(--hover);color:var(--text)}
+.setup-toggle{float:right;margin:0 0 12px 12px}
 .toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:0 0 16px}
+.toolbar>span:first-child{font-size:15px;font-weight:500;color:var(--text)}
 .search{position:relative;margin:0 0 20px;max-width:360px}
 .search svg{position:absolute;top:9px;left:10px;color:var(--subtle);pointer-events:none}
 .search input{padding-left:34px}
@@ -197,6 +201,7 @@ label+.form-row,.form-row:first-child{margin-top:0}
 .details.new-key>h2:first-child{background:var(--ok-bg);border-bottom-color:var(--ok-border);color:var(--text)}
 .details.new-key>h2:first-child svg{color:var(--ok-icon)}
 .new-key textarea{margin-bottom:0}
+.new-key textarea#new-token{min-height:0}
 .new-key label{color:var(--text);font-weight:500}
 .new-key>p.small{margin-top:20px}
 
