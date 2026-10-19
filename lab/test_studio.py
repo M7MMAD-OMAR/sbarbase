@@ -364,18 +364,23 @@ class ScheduleTests(unittest.TestCase):
         self.assertEqual(rows[stale], ('stopped', 'stopped', None))
         self.assertEqual(rows[stopped], ('stopped', 'stopped', None))
 
-    def test_a_catalog_without_the_activity_table_still_resets(self):
+    def test_a_catalog_without_the_activity_table_uses_the_console_request_time(self):
+        # The first restart into this release runs before the server creates studio_activity.
         import dev
         import sqlite3
+        import time as clock
+        recent, old = E, 'e_' + 'f' * 24
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'control.sqlite'
             with sqlite3.connect(path) as database:
                 database.execute('CREATE TABLE studio_sessions(runtime TEXT PRIMARY KEY, desired TEXT, state TEXT, failure TEXT, actor TEXT, updated_at INTEGER)')
-                database.execute("INSERT INTO studio_sessions VALUES (?, 'running', 'running', NULL, 'alice', 0)", (E,))
+                database.execute("INSERT INTO studio_sessions VALUES (?, 'running', 'running', NULL, 'alice', ?)", (recent, int(clock.time() * 1000) - 60_000))
+                database.execute("INSERT INTO studio_sessions VALUES (?, 'running', 'running', NULL, 'alice', 0)", (old,))
             with patch.object(dev, 'STATE', Path(directory)), patch.object(dev.subprocess, 'run'):
                 dev.Supervisor().reset_studios()
             with sqlite3.connect(path) as database:
-                self.assertEqual(database.execute('SELECT desired, state FROM studio_sessions').fetchone(), ('stopped', 'stopped'))
+                rows = dict((runtime, (desired, state)) for runtime, desired, state in database.execute('SELECT runtime, desired, state FROM studio_sessions'))
+        self.assertEqual(rows, {recent: ('running', 'stopped'), old: ('stopped', 'stopped')})
 
 
 if __name__ == '__main__':

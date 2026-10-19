@@ -660,7 +660,10 @@ class Supervisor:
                             "SELECT s.runtime FROM studio_sessions s LEFT JOIN studio_activity a ON a.runtime=s.runtime "
                             "WHERE s.desired='running' AND max(s.updated_at, coalesce(a.seen_at, 0)) > ?", (recent,))}
                     except sqlite3.OperationalError:
-                        keep = set()  # a catalog not yet opened by this release has no studio_activity
+                        # A catalog this release has not opened yet has no studio_activity: the time
+                        # the console last asked for the session is the use it knows of.
+                        keep = {row[0] for row in database.execute(
+                            "SELECT runtime FROM studio_sessions WHERE desired='running' AND updated_at > ?", (recent,))}
                     database.execute("UPDATE studio_sessions SET desired='stopped', state='stopped', failure=NULL")
                     for runtime in sorted(keep):
                         database.execute("UPDATE studio_sessions SET desired='running' WHERE runtime=?", (runtime,))
