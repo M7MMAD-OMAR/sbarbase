@@ -1,9 +1,9 @@
 {
-  "version": "0.5.9",
+  "version": "0.5.10",
   "minimum_from": "0.3.1",
   "notes": {
-    "en": "Supabase Studio's SQL editor saves snippets for the session, its Edge Functions page lists the deployed functions, and Studio works as the environment's developer login, so it can change the tables, policies and schemas that migrations made. Opening Studio now checks its route to Auth and Storage from inside Studio; the server guide lists the two firewall rules it needs. Not production ready.",
-    "ar": "صار محرر SQL في Supabase Studio يحفظ الاستعلامات طوال الجلسة، وتعرض صفحة Edge Functions الدوال المنشورة، ويعمل Studio بحساب المطوّر الخاص بالبيئة، فيستطيع تعديل الجداول والسياسات والمخططات التي أنشأتها ملفات الترحيل. ويُفحص الآن مسار Studio إلى Auth وStorage من داخل Studio عند فتحه، ويذكر دليل نشر الخادم قاعدتي الجدار الناري اللازمتين. ليس جاهزًا للإنتاج."
+    "en": "Docker installs can now set a public Studio address: the launcher and compose file forward SBARBASE_STUDIO_HOST to the console. Not production ready.",
+    "ar": "صار بإمكان تثبيت Docker ضبط عنوان Studio العام: يمرّر المشغّل وملف Compose القيمة SBARBASE_STUDIO_HOST إلى لوحة الإدارة. ليس جاهزًا للإنتاج."
   },
   "migrations": []
 }
