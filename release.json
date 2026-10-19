@@ -1,9 +1,9 @@
 {
-  "version": "0.5.7",
+  "version": "0.5.8",
   "minimum_from": "0.3.1",
   "notes": {
-    "en": "Fixes Studio failing behind the public TLS proxy: its compressed pages are now passed through intact instead of failing with a decompression error. Not production ready.",
-    "ar": "إصلاح عطل Studio خلف وكيل TLS العام: صارت صفحاته المضغوطة تمر كاملة بدل أن تفشل بخطأ فك الضغط. ليس جاهزًا للإنتاج."
+    "en": "Studio's public address is now one setting for the whole installation: lab/studio_address.py plan, apply and verify set it up once for every project, and the TLS proxy reads the same SBARBASE_STUDIO_HOST as the console. Not production ready.",
+    "ar": "صار عنوان Studio العام إعدادًا واحدًا للتثبيت كله: الأوامر plan وapply وverify في lab/studio_address.py تجهّزه مرة واحدة لكل المشاريع، ويقرأ وكيل TLS قيمة SBARBASE_STUDIO_HOST نفسها التي تقرؤها لوحة الإدارة. ليس جاهزًا للإنتاج."
   },
   "migrations": []
 }
