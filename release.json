@@ -1,9 +1,9 @@
 {
-  "version": "0.5.11",
+  "version": "0.5.12",
   "minimum_from": "0.3.1",
   "notes": {
-    "en": "The console no longer shows the sign-in page for a moment before opening. Supabase Studio stays signed in while its tab is in use (it ends after eight idle hours or seven days), and after a restart or an upgrade a recently used Studio starts again by itself, so an open tab continues. Not production ready.",
-    "ar": "لم تعد لوحة الإدارة تعرض صفحة الدخول لحظةً قبل أن تفتح. ويبقى Supabase Studio مفتوحًا ما دامت صفحته مستخدمة (وتنتهي الجلسة بعد ثماني ساعات دون استخدام أو بعد سبعة أيام)، وبعد إعادة التشغيل أو الترقية يعود Studio الذي استُخدم مؤخرًا للعمل وحده، فتكمل الصفحة المفتوحة. ليس جاهزًا للإنتاج."
+    "en": "A Studio opened before the upgrade to 0.5.11 also starts again by itself after it. Not production ready.",
+    "ar": "صار Studio الذي فُتح قبل الترقية إلى 0.5.11 يعود للعمل وحده بعدها أيضًا. ليس جاهزًا للإنتاج."
   },
   "migrations": []
 }

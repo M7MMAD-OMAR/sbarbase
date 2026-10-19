@@ -6,9 +6,15 @@ All notable changes to sbarbase. The format follows Keep a Changelog and the
 project uses Semantic Versioning, which for a 0.x version means the interface may
 still change between releases.
 
-The declared package version is 0.5.11. Historical 0.1.0 and 0.2.0 entries retain their original scope. Later Docker and VM rehearsals are dated in [status](docs/reference/status.md); no independent public-server or production release acceptance is established.
+The declared package version is 0.5.12. Historical 0.1.0 and 0.2.0 entries retain their original scope. Later Docker and VM rehearsals are dated in [status](docs/reference/status.md); no independent public-server or production release acceptance is established.
 
 ## [Unreleased]
+
+## [0.5.12] - 2026-10-19
+
+### Fixed
+
+- A Studio opened before the upgrade to 0.5.11 also starts again by itself after it: on that first restart the activity record does not exist yet, so the time the console last asked for the session is used.
 
 ## [0.5.11] - 2026-10-19
 
