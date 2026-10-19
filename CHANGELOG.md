@@ -12,6 +12,10 @@ The declared package version is 0.5.7. Historical 0.1.0 and 0.2.0 entries retain
 
 ## [0.5.7] - 2026-10-19
 
+### Changed
+
+- **The console has a new look.** Colours, spacing and components follow Supabase's design tokens, each environment screen has one primary action, and a contrast check guards the palette (pull request 18).
+
 ### Fixed
 
 - **Studio opens behind the TLS proxy.** Studio compresses its pages. The console's Studio proxy and the TLS proxy both let Bun's `fetch` decode the body while keeping the `content-encoding` header, so the next hop received plain bytes labelled gzip and failed with a decompression error (Cloudflare showed 520). Both now pass Studio's bytes and header through together.
