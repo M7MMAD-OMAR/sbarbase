@@ -130,7 +130,7 @@ test('Studio server-side calls reach only their own environment, with its own se
 test('an active Studio session is renewed, never past its limit, and only for its own page',async()=>{
  let epoch=0;const touched:string[]=[];
  const proxy=studioProxy({key:()=>key,epoch:()=>epoch,allowed:()=>true,upstream:()=>'http://studio-a.internal:3000',touch:runtime=>touched.push(runtime),
-  transport:(async()=>new Response('ok')) as typeof fetch});
+  transport:(async()=>new Response('ok')) as unknown as typeof fetch});
  const now=Date.now();
  // Opened two hours ago: due for renewal.
  const old=signStudio(key,{runtime:A,actor:'alice',epoch:0,kind:'session',started:now-2*3600_000,expires:now-2*3600_000+SESSION_MS});

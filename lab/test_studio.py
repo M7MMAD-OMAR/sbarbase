@@ -3,6 +3,7 @@ import json
 import re
 import tempfile
 import unittest
+from contextlib import ExitStack
 from pathlib import Path
 from unittest.mock import patch
 import studio
@@ -285,17 +286,23 @@ class NetworkTests(unittest.TestCase):
             (root / 'private').mkdir()
             (root / 'private' / 'runtime.json').write_text(json.dumps({'environments': {E: {'jwt': 'j' * 64}}}))
             removed = []
-            with patch.object(studio, 'STATE_FILE', root / 'studio.json'), patch.object(studio.runtime, 'STATE', root), \
-                 patch.object(studio.runtime, 'PRIVATE', root / 'private'), \
-                 patch.object(studio.source_fence, 'is_fenced', return_value=False), patch.object(studio, 'require_rule'), \
-                 patch.object(studio, 'ensure_images', return_value={'meta': 'm', 'studio': 's'}), patch.object(studio, 'headroom'), \
-                 patch.object(studio, 'open_connections'), patch.object(studio, 'network_gateway', return_value='172.18.0.1'), \
-                 patch.object(studio, 'runtime_sql', return_value=''), patch.object(studio, 'remove', side_effect=removed.append), \
-                 patch.object(studio, 'remove_network', side_effect=lambda e: removed.append('net')), \
-                 patch.object(studio, 'open_network', return_value='10.0.0.2'), patch.object(studio, 'launch', return_value={}), \
-                 patch.object(studio, 'isolated', return_value='172.16.1.9'), patch.object(studio, 'meta_ready'), \
-                 patch.object(studio, 'wait_ready'), patch.object(studio, 'copy_functions'), \
-                 patch.object(studio, 'unexposed', side_effect=studio.StudioError('Studio answers on the shared runtime network')):
+            patches = [
+                patch.object(studio, 'STATE_FILE', root / 'studio.json'), patch.object(studio.runtime, 'STATE', root),
+                patch.object(studio.runtime, 'PRIVATE', root / 'private'),
+                patch.object(studio.source_fence, 'is_fenced', return_value=False), patch.object(studio, 'require_rule'),
+                patch.object(studio, 'ensure_images', return_value={'meta': 'm', 'studio': 's'}), patch.object(studio, 'headroom'),
+                patch.object(studio, 'open_connections'), patch.object(studio, 'network_gateway', return_value='172.18.0.1'),
+                patch.object(studio, 'runtime_sql', return_value=''), patch.object(studio, 'remove', side_effect=removed.append),
+                patch.object(studio, 'remove_network', side_effect=lambda e: removed.append('net')),
+                patch.object(studio, 'open_network', return_value='10.0.0.2'), patch.object(studio, 'launch', return_value={}),
+                patch.object(studio, 'isolated', return_value='172.16.1.9'), patch.object(studio, 'meta_ready'),
+                patch.object(studio, 'wait_ready'), patch.object(studio, 'copy_functions'),
+                patch.object(studio, 'unexposed', side_effect=studio.StudioError('Studio answers on the shared runtime network')),
+            ]
+            # One ExitStack, not one with-statement: Python 3.12 refuses more than 20 nested blocks.
+            with ExitStack() as stack:
+                for item in patches:
+                    stack.enter_context(item)
                 with self.assertRaisesRegex(studio.StudioError, 'shared runtime network'):
                     studio.up(E)
             self.assertEqual(removed[-1], 'net')
