@@ -24,6 +24,7 @@ The declared package version is 0.5.6. Historical 0.1.0 and 0.2.0 entries retain
 
 ### Changed
 
+- **The console looks and reads like Supabase.** Every page now uses Supabase's own colour tokens and the look of its buttons, fields, cards, alerts, badges and tables, with stronger edges so sections, fields and buttons no longer blend into one grey. The main action on a screen is the one solid green button, read-only values such as tokens and commands look different from fields you type into, a new key or token appears in a green-edged panel, and focus rings are visible in both themes. Text and control edges meet WCAG AA in light and dark, checked by `tests/ui-contrast.test.ts`. Routes, labels and behaviour are unchanged ([console design](docs/reference/console-design.md)).
 - **The console keeps you signed in for thirty days.** `SBARBASE_MANAGEMENT_SESSION_SECONDS` now defaults to 2592000 instead of 43200, so a sign-in no longer ends after twelve hours. Set a lower value to keep the old behaviour ([configuration](docs/reference/configuration.md)).
 - **Telegram notifications are in plain words.** A message says what happened, where (by name), the likely cause and what to do, without ids, field names or reason codes. Email, the webhook and the catalog keep the full record ([OPERATOR-NOTIFICATIONS](docs/engineering/OPERATOR-NOTIFICATIONS.md), section 3.6).
 
