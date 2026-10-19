@@ -7,8 +7,8 @@ RUN dpkg-deb --extract /tmp/ca-certificates.deb /tmp/ca-bootstrap \
  && mkdir -p /etc/ssl/certs \
  && cat /tmp/ca-bootstrap/usr/share/ca-certificates/mozilla/*.crt > /etc/ssl/certs/ca-certificates.crt \
  && printf 'APT::Snapshot "20261002T000000Z";\nAcquire::https::CaInfo "/etc/ssl/certs/ca-certificates.crt";\n' > /etc/apt/apt.conf.d/50snapshot \
- && apt-get update -q -o APT::Update::Error-Mode=any \
- && DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends \
+ && apt-get update -q -o Acquire::Retries=5 -o APT::Update::Error-Mode=any \
+ && DEBIAN_FRONTEND=noninteractive apt-get install -y -q -o Acquire::Retries=5 --no-install-recommends \
       python3 python3-cryptography nodejs git openssh-client systemd procps \
       ca-certificates util-linux tzdata \
  && node -e 'const [major,minor]=process.versions.node.split(".").map(Number); if(major<22||(major===22&&minor<6))process.exit(1)' \

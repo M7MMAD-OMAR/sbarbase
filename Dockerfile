@@ -8,13 +8,14 @@ FROM ubuntu:26.04@sha256:3595d7fc4286a33fad0fd853a4063e654287a9c3787437d7937c94c
 COPY --from=oven/bun:1.3.14@sha256:e10577f0db68676a7024391c6e5cb4b879ebd17188ab750cf10024a6d700e5c4 /usr/local/bin/bun /usr/local/bin/bun
 COPY --from=docker:29-cli@sha256:b1805116a6a86cc591b5d5f60a910a0715cdcc9d18d866ad68b1457ead25c35c /usr/local/bin/docker /usr/local/bin/docker
 # Freeze package indexes and bootstrap HTTPS trust from that public snapshot.
+# The snapshot service answers 503 at times; apt retries each fetch with a growing delay.
 ADD --checksum=sha256:f7025ab9b24cd73215510931037b02d6960d89584d0d00afba81851abdbe6ef1 https://snapshot.ubuntu.com/ubuntu/20261002T000000Z/pool/main/c/ca-certificates/ca-certificates_20260223_all.deb /tmp/ca-certificates.deb
 RUN dpkg-deb --extract /tmp/ca-certificates.deb /tmp/ca-bootstrap \
  && mkdir -p /etc/ssl/certs \
  && cat /tmp/ca-bootstrap/usr/share/ca-certificates/mozilla/*.crt > /etc/ssl/certs/ca-certificates.crt \
  && printf 'APT::Snapshot "20261002T000000Z";\nAcquire::https::CaInfo "/etc/ssl/certs/ca-certificates.crt";\n' > /etc/apt/apt.conf.d/50snapshot \
- && apt-get update -q -o APT::Update::Error-Mode=any \
- && DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends \
+ && apt-get update -q -o Acquire::Retries=5 -o APT::Update::Error-Mode=any \
+ && DEBIAN_FRONTEND=noninteractive apt-get install -y -q -o Acquire::Retries=5 --no-install-recommends \
       python3 python3-cryptography nodejs git openssh-client tzdata procps ca-certificates util-linux coreutils sed mawk \
  && node -e 'const [major,minor]=process.versions.node.split(".").map(Number); if(major<22||(major===22&&minor<6))process.exit(1)' \
  && rm -rf /var/lib/apt/lists/* \
