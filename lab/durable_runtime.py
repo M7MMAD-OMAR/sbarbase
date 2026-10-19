@@ -892,7 +892,9 @@ GRANT supabase_realtime_admin TO {role};
 -- Realtime quiets its change poller's own logging; only that one setting is granted.
 GRANT SET ON PARAMETER log_min_messages TO {role}, supabase_realtime_admin;""")
         self.sql(f"""DO $$ BEGIN
-  IF EXISTS (SELECT 1 FROM pg_namespace WHERE nspname IN ('realtime', '_realtime') AND nspowner <> '{role}'::regrole) THEN
+  -- Realtime's own migration hands `realtime` to the superuser, so a later start finds it that way.
+  IF EXISTS (SELECT 1 FROM pg_namespace n JOIN pg_roles r ON r.oid = n.nspowner WHERE n.nspname IN ('realtime', '_realtime')
+      AND r.rolname <> '{role}' AND NOT r.rolsuper) THEN
     RAISE EXCEPTION 'A Realtime schema belongs to another login';
   END IF;
   IF EXISTS (SELECT 1 FROM pg_publication p JOIN pg_roles r ON r.oid = p.pubowner WHERE p.pubname = 'supabase_realtime'
