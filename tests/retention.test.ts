@@ -185,6 +185,30 @@ test('unenrolled deletion refuses before revoking readiness or runtime epoch',()
  }finally{catalog.close();}
 });
 
+// Characterizes the current gap, not the intended contract: ordinary provisioning never enrolls
+// an ownership inventory, and its legacy-shared placement could not enroll one honestly.
+test('deleting an ordinarily provisioned environment answers 409 and changes nothing',async()=>{
+ const {KeyStore}=await import('../src/control/keys');
+ const {managementHandler}=await import('../src/control/http');
+ const {resolveRuntimePlacement}=await import('../src/control/placement');
+ const catalog=new Catalog(':memory:'),keys=new KeyStore(':memory:');keys.useRuntimeEpoch(runtime=>catalog.runtimeEpoch(runtime));
+ try{
+  catalog.initializeInstallation('bootstrap','alice','Installation');
+  const organization=catalog.createOrganization('alice','Customer'),project=catalog.createProject('alice',organization,'Project');
+  const environment=catalog.createEnvironment('alice',project,'production'),job=catalog.claimProvision()!;
+  catalog.applyProvisionReceipt(environment,job.runtime,job.claim!,job.attempt,0);
+  expect(resolveRuntimePlacement(job.runtime,catalog.runtimeRouting(job.runtime)).profile).toBe('legacy-shared');
+  const key=keys.issue(job.runtime);
+  const handler=managementHandler(catalog,async request=>request.headers.get('authorization'),'.',keys);
+  const response=await handler(new Request(`http://local/management/v1/environments/${environment}`,{method:'DELETE',headers:{authorization:'alice'}}));
+  expect(response.status).toBe(409);
+  expect((await response.json()).message).toBe('Exact ownership inventory unavailable');
+  expect(catalog.runtimeReady(job.runtime)).toBe(true);expect(catalog.runtimeEpoch(job.runtime)).toBe(0);
+  expect(catalog.lifecycle('alice',environment)).toBeNull();
+  expect(keys.list(job.runtime).find(record=>record.id===key.id)?.revoked_at).toBeNull();
+ }finally{keys.close();catalog.close();}
+});
+
 test('an unauthorized admin restore cannot mutate key revocation metadata',async()=>{
  const {KeyStore}=await import('../src/control/keys');
  const {managementHandler}=await import('../src/control/http');

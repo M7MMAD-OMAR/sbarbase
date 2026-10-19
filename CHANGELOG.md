@@ -10,6 +10,10 @@ The declared package version is 0.5.12. Historical 0.1.0 and 0.2.0 entries retai
 
 ## [Unreleased]
 
+### Still open
+
+- **Deleting an environment does not work on an ordinary installation.** It always answers `409` with "Exact ownership inventory unavailable" and changes nothing, so restore and purge cannot be reached either. Provisioning never records the exact list of an environment's resources, and the shared PostgreSQL cluster and Storage process have no check yet that would make such a list honest. The [API reference](docs/reference/api.md) said delete "can answer" `409`; it now says it always does, and a test pins the current behaviour.
+
 ## [0.5.12] - 2026-10-19
 
 ### Fixed
