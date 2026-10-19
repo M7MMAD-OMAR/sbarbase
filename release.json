@@ -2,8 +2,8 @@
   "version": "0.5.7",
   "minimum_from": "0.3.1",
   "notes": {
-    "en": "The console has a new look. Fixes Studio failing behind the public TLS proxy: its compressed pages are now passed through intact instead of failing with a decompression error. Not production ready.",
-    "ar": "مظهر جديد للوحة الإدارة. وإصلاح عطل Studio خلف وكيل TLS العام: صارت صفحاته المضغوطة تمر كاملة بدل أن تفشل بخطأ فك الضغط. ليس جاهزًا للإنتاج."
+    "en": "Fixes Studio failing behind the public TLS proxy: its compressed pages are now passed through intact instead of failing with a decompression error. Not production ready.",
+    "ar": "إصلاح عطل Studio خلف وكيل TLS العام: صارت صفحاته المضغوطة تمر كاملة بدل أن تفشل بخطأ فك الضغط. ليس جاهزًا للإنتاج."
   },
   "migrations": []
 }
