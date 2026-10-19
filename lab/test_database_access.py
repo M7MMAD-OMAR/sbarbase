@@ -58,6 +58,35 @@ class DatabaseAccessTests(unittest.TestCase):
         self.assertIn(f"PASSWORD '{PASSWORD}'", text)
         self.assertNotIn('supabase_admin', text)
 
+    def test_the_login_may_create_schemas_only_after_the_reserved_schema_guard_is_in_place(self):
+        role_text = self.runtime.developer_sql(E, PASSWORD)
+        self.assertNotIn('CREATE ON DATABASE', role_text)
+        text = self.runtime.developer_grants_sql(E)
+        guard = text.index('CREATE EVENT TRIGGER sbarbase_reserved_schemas ON ddl_command_end')
+        self.assertLess(guard, text.index(f'GRANT CREATE ON DATABASE {E} TO {E}_developer'))
+        self.assertIn("WHEN TAG IN ('CREATE SCHEMA', 'ALTER SCHEMA')", text)
+        self.assertIn('ALTER EVENT TRIGGER sbarbase_reserved_schemas ENABLE ALWAYS', text)
+        self.assertIn('SET search_path = pg_catalog', text)
+        for name in ('auth', 'storage', 'extensions', 'realtime', '_realtime', 'vault', 'cron', 'net', 'graphql'):
+            self.assertIn(name, durable_runtime.RESERVED_SCHEMAS)
+            self.assertIn(f"'{name}'", text[:guard])
+        self.assertIn("LIKE 'sbarbase%'", text)
+        self.assertIn("LIKE 'supabase%'", text)
+
+    def test_vault_is_installed_and_granted_before_the_login_may_create_schemas(self):
+        text = self.runtime.developer_grants_sql(E)
+        vault = text.index('CREATE EXTENSION IF NOT EXISTS supabase_vault')
+        self.assertLess(vault, text.index(f'GRANT CREATE ON DATABASE {E}'))
+        self.assertIn(f'GRANT USAGE ON SCHEMA vault TO {E}_developer WITH GRANT OPTION', text)
+        self.assertIn('vault.create_secret, vault.update_secret, vault._crypto_aead_det_decrypt TO service_role', text)
+        self.assertNotIn('anon', text[vault:text.index('CREATE SCHEMA IF NOT EXISTS supabase_migrations')])
+
+    def test_realtime_refuses_schemas_another_login_made(self):
+        self.runtime.realtime_database(E, {'realtime': 'r' * 64})
+        text = '\n'.join(query for database, query in self.statements if database == E)
+        refusal = text.index("nspname IN ('realtime', '_realtime') AND nspowner <> '" + E + "_realtime'::regrole")
+        self.assertLess(refusal, text.index('CREATE SCHEMA IF NOT EXISTS _realtime'))
+
     def test_turning_it_on_applies_the_saved_password_room_and_grants_then_publishes(self):
         self.runtime.database_turn(E, on=True)
         text = '\n'.join(query for _, query in self.statements)

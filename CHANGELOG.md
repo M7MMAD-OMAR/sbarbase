@@ -10,6 +10,10 @@ The declared package version is 0.5.4. Historical 0.1.0 and 0.2.0 entries retain
 
 ## [Unreleased]
 
+### Added
+
+- **An environment can create its own schemas and use Vault.** The developer login, used by direct database access and by agents, may now create and rename schemas of its own, so migrations that keep code outside `public` (for example `create schema app`) run as on Supabase, and so does `supabase db push`. Names the platform uses (`auth`, `storage`, `extensions`, `realtime`, `vault`, `cron`, `net`, `graphql`, and any starting with `supabase` or `sbarbase`) stay refused, by a guard the login can neither drop nor disable. Vault is installed in each environment with the grants Supabase gives `postgres` and `service_role`. Turn database access off and on once for an environment whose access is already on ([database access](docs/guides/database-access.md)).
+
 ### Fixed
 
 - **No more Studio tab that never loads.** On a server whose Studio has no public address, opening the dashboard from the console's public address left a tab reading "Starting Supabase Studio" forever. The console now learns this from the Studio status before opening anything, shows the SSH tunnel steps and opens no tab; a tab already opened for a new project says what happened and closes ([Studio](docs/guides/studio.md)).
