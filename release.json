@@ -1,9 +1,9 @@
 {
-  "version": "0.5.12",
+  "version": "0.5.13",
   "minimum_from": "0.3.1",
   "notes": {
-    "en": "A Studio opened before the upgrade to 0.5.11 also starts again by itself after it. Not production ready.",
-    "ar": "صار Studio الذي فُتح قبل الترقية إلى 0.5.11 يعود للعمل وحده بعدها أيضًا. ليس جاهزًا للإنتاج."
+    "en": "Signing out of the console, by hand or when a session expires, no longer ends access tokens. A token already stopped this way needs replacing.",
+    "ar": "لم يعد تسجيل الخروج من لوحة التحكم، يدويًا أو عند انتهاء الجلسة، يُنهي رموز الوصول. والرمز الذي توقف بهذه الطريقة من قبل يحتاج إلى رمز جديد مكانه."
   },
   "migrations": []
 }

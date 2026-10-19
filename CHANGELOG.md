@@ -6,13 +6,19 @@ All notable changes to sbarbase. The format follows Keep a Changelog and the
 project uses Semantic Versioning, which for a 0.x version means the interface may
 still change between releases.
 
-The declared package version is 0.5.12. Historical 0.1.0 and 0.2.0 entries retain their original scope. Later Docker and VM rehearsals are dated in [status](docs/reference/status.md); no independent public-server or production release acceptance is established.
+The declared package version is 0.5.13. Historical 0.1.0 and 0.2.0 entries retain their original scope. Later Docker and VM rehearsals are dated in [status](docs/reference/status.md); no independent public-server or production release acceptance is established.
 
 ## [Unreleased]
 
 ### Still open
 
 - **Deleting an environment does not work on an ordinary installation.** It always answers `409` with "Exact ownership inventory unavailable" and changes nothing, so restore and purge cannot be reached either. Provisioning never records the exact list of an environment's resources, and the shared PostgreSQL cluster and Storage process have no check yet that would make such a list honest. The [API reference](docs/reference/api.md) said delete "can answer" `409`; it now says it always does, and a test pins the current behaviour.
+
+## [0.5.13] - 2026-10-19
+
+### Fixed
+
+- Signing out of the console no longer ends your access tokens. The console also signs out on its own when a session expires, so an agent's MCP or `/v1` access could stop with `401` while nobody did anything. Tokens now end only as the agents guide says: when revoked or expired, at a password reset or factor recovery, or when the MFA policy changes. A token already stopped this way stays stopped: create a new one.
 
 ## [0.5.12] - 2026-10-19
 
