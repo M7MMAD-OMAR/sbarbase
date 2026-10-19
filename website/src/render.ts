@@ -142,7 +142,7 @@ export function render(lang:Lang){
  const data={steps:c.steps,play:c.play,pause:c.pause,copy:c.copy,copied:c.copied};
  const heading=(id:string,label:string,title:string,text='')=>`<p class="eyebrow">${esc(label)}</p><h2 id="${id}-title">${esc(title)}</h2>${text?`<p class="lede">${esc(text)}</p>`:''}`;
 
- const ld=`<script type="application/ld+json">${JSON.stringify({'@context':'https://schema.org','@type':'SoftwareSourceCode',name:'Sbarbase',alternateName:['sbarbase','صباربيز'],description:c.description,url,codeRepository:'https://github.com/M7MMAD-OMAR/sbarbase',sameAs:['https://github.com/M7MMAD-OMAR/sbarbase'],programmingLanguage:['TypeScript','Python'],license:'https://www.apache.org/licenses/LICENSE-2.0',inLanguage:c.lang}).replaceAll('<','\\u003c')}</script>\n`;
+ const ld=`<script type="application/ld+json">${JSON.stringify({'@context':'https://schema.org','@graph':[{'@type':'WebSite',name:'Sbarbase',alternateName:['sbarbase','صباربيز'],url:'https://base.sbarah.com/',inLanguage:['ar','en']},{'@type':'SoftwareSourceCode',name:'Sbarbase',alternateName:['sbarbase','صباربيز'],description:c.description,url,codeRepository:'https://github.com/M7MMAD-OMAR/sbarbase',sameAs:['https://github.com/M7MMAD-OMAR/sbarbase'],programmingLanguage:['TypeScript','Python'],license:'https://www.apache.org/licenses/LICENSE-2.0',inLanguage:c.lang}]}).replaceAll('<','\\u003c')}</script>\n`;
 
  return `${head(lang,{title:c.title,description:c.description,path:home,alternates:{ar:'/',en:'/en/'},extra:ld})}
 <body>

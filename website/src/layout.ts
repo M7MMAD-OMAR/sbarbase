@@ -44,7 +44,7 @@ export function head(lang:Lang,o:{title:string,description:string,path:string,al
 <link rel="alternate" hreflang="ar" href="${SITE}${o.alternates.ar}">
 <link rel="alternate" hreflang="en" href="${SITE}${o.alternates.en}">
 <link rel="alternate" hreflang="x-default" href="${SITE}${o.alternates.ar}">
-<meta property="og:type" content="${o.type??'website'}"><meta property="og:title" content="${esc(o.title)}"><meta property="og:description" content="${esc(o.description)}"><meta property="og:image" content="${SITE}/assets/social.jpg"><meta property="og:url" content="${url}"><meta property="og:locale" content="${lang==='ar'?'ar':'en_US'}"><meta name="twitter:card" content="summary_large_image">
+<meta property="og:type" content="${o.type??'website'}"><meta property="og:site_name" content="Sbarbase"><meta property="og:title" content="${esc(o.title)}"><meta property="og:description" content="${esc(o.description)}"><meta property="og:image" content="${SITE}/assets/social.jpg"><meta property="og:url" content="${url}"><meta property="og:locale" content="${lang==='ar'?'ar':'en_US'}"><meta name="twitter:card" content="summary_large_image">
 ${o.extra??''}<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
 <link rel="preload" href="/assets/${lang==='ar'?'arabic':'latin'}.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/style.css">
@@ -72,7 +72,7 @@ export function footer(lang:Lang){
  const c=content[lang],l=links(lang),home=homeOf(lang);
  return `<footer class="footer"><div class="wrap">
 <a class="brand" href="${home}">${brandMark}<span>sbarbase</span></a>
-<p class="footer-links"><a href="${l.docs}">${c.docs}</a><a href="${l.security}">${c.security}</a><a href="${l.license}">${c.license}</a><a href="https://sbarah.com">${c.home}</a></p>
+<p class="footer-links"><a href="${l.docs}">${c.docs}</a><a href="${l.changelog}">${c.changelog}</a><a href="${l.security}">${c.security}</a><a href="${l.license}">${c.license}</a><a href="https://sbarah.com">${c.home}</a></p>
 <p class="fine">${esc(c.trademark)}</p>
 </div></footer>`;
 }

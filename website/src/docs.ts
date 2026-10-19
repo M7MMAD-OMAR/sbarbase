@@ -3,12 +3,12 @@ import GithubSlugger from 'github-slugger';
 import {readFileSync,readdirSync,statSync} from 'node:fs';
 import {posix} from 'node:path';
 import {content,docPage,repo,type Lang} from './content';
-import {esc,icon,head,topbar,footer,pageData,homeOf} from './layout';
+import {esc,icon,head,topbar,footer,pageData,homeOf,SITE} from './layout';
 
 // The docs on the site, rendered at build time from ../docs with one pinned
 // renderer; nothing is copied into website/. The rendered set is the docs map and
 // docs/guides, docs/explain and docs/reference: the pages lab/test_docs_bilingual.py
-// keeps in both languages. X.md is the English page, X.ar.md the Arabic one. Links
+// keeps in both languages, plus the changelog. X.md is the English page, X.ar.md the Arabic one. Links
 // into the set stay on the site, diagrams are served next to the pages, and every
 // other link (engineering notes, evidence, source) goes to its GitHub page.
 
@@ -17,16 +17,17 @@ const read=(path:string)=>readFileSync(new URL(path,ROOT),'utf8');
 export const DIRECTORIES=['docs/guides','docs/explain','docs/reference'] as const;
 
 export type Source={path:string,lang:Lang,slug:string};
-export type Page={source:Source,url:string,other:string,title:string,html:string,ids:string[]};
+export type Page={source:Source,url:string,other:string,title:string,description:string,html:string,ids:string[],markdown:string};
 
 const sourceOf=(path:string):Source=>{
  const lang:Lang=path.endsWith('.ar.md')?'ar':'en';
+ if(path.startsWith('CHANGELOG'))return {path,lang,slug:'changelog'};
  const base=path.slice('docs/'.length).replace(/(\.ar)?\.md$/,'');
  return {path,lang,slug:base==='README'?'':base};
 };
 
 export function sources():Source[]{
- const paths=['docs/README.md','docs/README.ar.md'];
+ const paths=['docs/README.md','docs/README.ar.md','CHANGELOG.md','CHANGELOG.ar.md'];
  for(const dir of DIRECTORIES)
   paths.push(...readdirSync(new URL(dir,ROOT)).filter(f=>f.endsWith('.md')).sort().map(f=>`${dir}/${f}`));
  return paths.map(sourceOf);
@@ -98,6 +99,13 @@ function markdown(source:Source,text:string,set:Map<string,Source>){
  return {html,title,description,ids};
 }
 
+// The page as Markdown for search tools and AI agents: the source without its language
+// switch line, every relative link made absolute. Code blocks are left as they are.
+function agentMarkdown(source:Source,text:string,set:Map<string,Source>){
+ const absolute=(href:string)=>{const r=rewrite(source.path,href,set);return r.startsWith('/')?`${SITE}${r}`:r;};
+ return text.replace(SWITCH,'').split(/(^```[\s\S]*?^```$)/m).map((part,i)=>i%2?part:part.replace(/\]\(([^)\s]+)((?:\s+"[^"]*")?)\)/g,(_m,href,title)=>`](${absolute(href)}${title})`)).join('');
+}
+
 // The side list, read from the docs map of that language: one group per section
 // that holds a list, each entry its first link. Entries outside the set point at GitHub.
 type Group={title:string,items:{label:string,href:string}[]};
@@ -129,10 +137,11 @@ function sideList(lang:Lang,groups:Group[],url:string){
   const external=/^https?:/.test(href);
   return `<li><a href="${esc(href)}"${href===url?' aria-current="page"':''}${external?' rel="noopener noreferrer"':''}>${esc(label)}${external?`${icon('external','ext')}<span class="sr-only"> ${esc(c.onGithub)}</span>`:''}</a></li>`;
  };
- return `<ul>${item(c.overview,docPage(lang,''))}</ul>${groups.map(g=>`<p class="nav-head">${esc(g.title)}</p><ul>${g.items.map(i=>item(i.label,i.href)).join('')}</ul>`).join('')}`;
+ return `<ul>${item(c.overview,docPage(lang,''))}${item(c.changelog,docPage(lang,'changelog'))}</ul>${groups.map(g=>`<p class="nav-head">${esc(g.title)}</p><ul>${g.items.map(i=>item(i.label,i.href)).join('')}</ul>`).join('')}`;
 }
 
-export function docs():Page[]{
+// modified maps a source path to the date of its last commit, when the build knows it.
+export function docs(modified:Record<string,string>={}):Page[]{
  const all=sources();
  const set=new Map(all.map(s=>[s.path,s]));
  const nav={ar:navigation('ar',set),en:navigation('en',set)};
@@ -143,7 +152,19 @@ export function docs():Page[]{
   const other=docPage(otherLang,source.slug);
   const {html,title,description,ids}=markdown(source,read(source.path),set);
   const list=sideList(lang,nav[lang],url);
-  const page=`${head(lang,{title:`${title} | ${c.docsTitle}`,description:description||c.description,path:url,alternates:lang==='ar'?{ar:url,en:other}:{ar:other,en:url},type:'article'})}
+  const crumbs=[{name:'Sbarbase',url:homeOf(lang)},{name:c.docsNav,url:docPage(lang,'')},...(source.slug?[{name:title,url}]:[])];
+  const ld={'@context':'https://schema.org','@graph':[
+   {'@type':'TechArticle',headline:title,description:description||c.description,inLanguage:c.lang,url:`${SITE}${url}`,
+    ...(modified[source.path]?{dateModified:modified[source.path]}:{}),
+    isPartOf:{'@type':'WebSite',name:'Sbarbase',url:`${SITE}/`},
+    about:{'@type':'SoftwareApplication',name:'Sbarbase',applicationCategory:'DeveloperApplication',operatingSystem:'Linux',codeRepository:repo}},
+   {'@type':'BreadcrumbList',itemListElement:crumbs.map((b,i)=>({'@type':'ListItem',position:i+1,name:b.name,item:`${SITE}${b.url}`}))},
+  ]};
+  const extra=`<script type="application/ld+json">${JSON.stringify(ld).replaceAll('<','\\u003c')}</script>
+<link rel="alternate" type="text/markdown" href="${url}index.md">
+<link rel="alternate" type="application/atom+xml" title="${esc(c.changelog)}" href="${docPage(lang,'changelog')}feed.xml">
+`;
+  const page=`${head(lang,{title:`${title} | ${c.docsTitle}`,description:description||c.description,path:url,alternates:lang==='ar'?{ar:url,en:other}:{ar:other,en:url},type:'article',extra})}
 <body class="docs">
 ${topbar(lang,{sectionBase:homeOf(lang),other,current:'docs'})}
 <div class="wrap docs-layout">
@@ -158,7 +179,7 @@ ${footer(lang)}
 ${pageData({copy:c.copy,copied:c.copied})}
 </body>
 </html>`;
-  return {source,url,other,title,html:page,ids};
+  return {source,url,other,title,description:description||c.description,html:page,ids,markdown:agentMarkdown(source,read(source.path),set)};
  });
 }
 

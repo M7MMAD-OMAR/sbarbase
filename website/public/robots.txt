@@ -1,3 +1,5 @@
+# Every page is open to search engines and AI crawlers. The docs are also offered
+# as Markdown: https://base.sbarah.com/llms.txt lists them.
 User-agent: *
 Allow: /
 Sitemap: https://base.sbarah.com/sitemap.xml

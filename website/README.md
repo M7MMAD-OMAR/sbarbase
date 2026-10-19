@@ -37,6 +37,12 @@ A clean technical page in four parts: a hero (headline, one sentence, a single "
 
 `src/docs.ts` renders the docs at build time from `../docs` with one pinned renderer (`marked`, headings slugged with `github-slugger` so GitHub anchors keep working); no copy of the docs lives in `website/`. The rendered set is `docs/README.md` and every page in `docs/guides`, `docs/explain` and `docs/reference`, the pages `lab/test_docs_bilingual.py` keeps in both languages: `X.ar.md` at `/docs/...`, `X.md` at `/en/docs/...`, one folder per page. Links into the set stay on the site, the diagrams in `docs/diagrams/` are copied to `/docs/diagrams/`, and every other link (engineering notes, evidence, decisions, source) opens its GitHub page. The side list is read from the docs map of each language. Each page has the site's header and themes, a switch to the same page in the other language, an Edit on GitHub link and a copy button on code blocks. The site does not draw Mermaid, so the docs use the SVG diagrams from `docs/diagrams/build.py` and a test refuses a Mermaid block. The build also writes `sitemap.xml` with every page and its alternate.
 
+The changelog (`CHANGELOG.md`, `CHANGELOG.ar.md`) is a docs page too, at `/docs/changelog/` and `/en/docs/changelog/`, with an Atom feed next to it (`feed.xml`) that has one entry per release.
+
+## Search engines and AI agents
+
+Every page has a description, a canonical URL, `hreflang` alternates, Open Graph tags and JSON-LD (`WebSite` and `SoftwareSourceCode` on the home page, `TechArticle` and `BreadcrumbList` on docs pages). The sitemap lists every page with its alternate and the date of its source's last commit; a shallow checkout gives no dates, so deploy from a full clone. Each docs page is also served as Markdown at `index.md` next to its HTML, `/llms.txt` lists them ([llmstxt.org](https://llmstxt.org)) and `/llms-full.txt` holds the English docs in one file. `robots.txt` lets every crawler in. Registering the site with Google Search Console or Bing Webmaster Tools needs the owner's account and is not done from here.
+
 `tests/docs.test.ts` fails when a page of the bilingual set does not render in both languages, when a rendered internal link or its anchor has no target, or when a page carries a long dash or an external resource. The Website workflow runs on `docs/**` too. A docs change reaches the live site only after `bun run deploy`.
 
 Everything is readable without JavaScript. The walkthrough is an illustration, not live traffic; it pauses offscreen and in hidden tabs.

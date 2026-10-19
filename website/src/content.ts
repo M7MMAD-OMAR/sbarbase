@@ -18,6 +18,7 @@ export const links=(lang:Lang)=>({
  docker:docPage(lang,'guides/docker'),
  quickstart:docPage(lang,'guides/quickstart'),
  server:docPage(lang,'guides/choosing-a-server'),
+ changelog:docPage(lang,'changelog'),
  security:github('SECURITY.md'),
  license:github('LICENSE'),
 });
@@ -36,7 +37,7 @@ export const commands=[
 export const content={
  en:{
   dir:'ltr',lang:'en',
-  title:'Sbarbase | Many Supabase projects on one server',
+  title:'Sbarbase | Self-hosted Supabase for many projects on one server',
   description:'Run the original Supabase services for many projects on one server. Every environment gets its own database, logins, Auth, REST and keys.',
   skip:'Skip to content',menu:'Main menu',
   nav:[['Hierarchy','hierarchy'],['How it works','how'],['Install','install']] as [string,string][],
@@ -86,12 +87,12 @@ export const content={
 
   docs:'Docs',security:'Security',license:'License',home:'sbarah.com',
   trademark:'Supabase is a trademark of Supabase, Inc. Sbarbase is not affiliated.',
-  docsTitle:'Sbarbase docs',docsNav:'Documentation',contents:'Contents',overview:'Overview',
+  docsTitle:'Sbarbase docs',docsNav:'Documentation',contents:'Contents',overview:'Overview',changelog:'Changelog',
   edit:'Edit on GitHub',onGithub:'on GitHub',
  },
  ar:{
   dir:'rtl',lang:'ar',
-  title:'Sbarbase صباربيز | مشاريع Supabase كثيرة على خادم واحد',
+  title:'Sbarbase صباربيز | استضافة Supabase ذاتيًا لمشاريع كثيرة على خادم واحد',
   description:'شغّل خدمات Supabase الأصلية لمشاريع كثيرة على خادم واحد. لكل بيئة قاعدتها وحساباتها وAuth وREST ومفاتيحها.',
   skip:'انتقل إلى المحتوى',menu:'القائمة الرئيسية',
   nav:[['الهرمية','hierarchy'],['كيف يعمل','how'],['التثبيت','install']] as [string,string][],
@@ -141,7 +142,7 @@ export const content={
 
   docs:'التوثيق',security:'الأمان',license:'الرخصة',home:'sbarah.com',
   trademark:'Supabase علامة تجارية لشركة \u2066Supabase, Inc.\u2069، وصباربيز غير تابع لها.',
-  docsTitle:'توثيق صباربيز',docsNav:'التوثيق',contents:'المحتويات',overview:'نظرة عامة',
+  docsTitle:'توثيق صباربيز',docsNav:'التوثيق',contents:'المحتويات',overview:'نظرة عامة',changelog:'سجل التغييرات',
   edit:'عدّل على GitHub',onGithub:'على GitHub',
  },
 };

@@ -3,6 +3,7 @@ import {readdirSync,readFileSync,existsSync} from 'node:fs';
 import {docs,sources,diagrams,rewrite,DIRECTORIES,type Source} from '../src/docs';
 import {render} from '../src/render';
 import {links} from '../src/content';
+import {llms,llmsFull,changelogFeed} from '../src/agents';
 
 // The docs as the site serves them. Built in memory, so this runs without a prior build.
 const pages=docs();
@@ -11,9 +12,10 @@ const home={'/':render('ar'),'/en/':render('en')};
 const ids=(html:string)=>[...html.matchAll(/\bid="([^"]+)"/g)].map(m=>m[1]!);
 const LONG_DASH=/[\u2013\u2014]/;
 const repoRoot=new URL('../../',import.meta.url);
+const SWITCH_LINE=/^\[(English|العربية)\]\(/;
 
 test('every page of the bilingual set renders in both languages',()=>{
- const expected:string[]=['docs/README.md','docs/README.ar.md'];
+ const expected:string[]=['docs/README.md','docs/README.ar.md','CHANGELOG.md','CHANGELOG.ar.md'];
  for(const dir of DIRECTORIES)for(const f of readdirSync(new URL(dir,repoRoot)))if(f.endsWith('.md'))expected.push(`${dir}/${f}`);
  expect(pages.map(p=>p.source.path).sort()).toEqual(expected.sort());
  for(const page of pages){
@@ -33,6 +35,9 @@ test('every internal link lands on a page and an id that exists',()=>{
    const value=m[2]!.replaceAll('&amp;','&');
    if(/^https?:|^mailto:/.test(value))continue;
    const [path,fragment]=value.split('#') as [string,string|undefined];
+   // the generated Markdown copy of a page, and the changelog feed
+   if(path.endsWith('index.md')&&byUrl.has(path.slice(0,-'index.md'.length)))continue;
+   if(path.endsWith('changelog/feed.xml')&&byUrl.has(path.slice(0,-'feed.xml'.length)))continue;
    if(m[1]==='src'||/\.(svg|css|js|woff2|jpg|webp)$/.test(path)){
     if(!diagramFiles.has(path)&&!existsSync(new URL(`../public${path}`,import.meta.url))&&!['/style.css','/app.js'].includes(path))broken.push(`${page.url}: ${value}`);
     continue;
@@ -104,6 +109,39 @@ test('the home page buttons open the docs on this site',()=>{
 });
 
 test('docs sources carry no long dashes',()=>{
- for(const file of ['../src/docs.ts','../src/layout.ts','../tests/docs.test.ts'])
+ for(const file of ['../src/docs.ts','../src/layout.ts','../src/agents.ts','../tests/docs.test.ts','../public/robots.txt','../public/_headers'])
   expect(readFileSync(new URL(file,import.meta.url),'utf8')).not.toMatch(LONG_DASH);
+});
+
+test('the changelog is a page in both languages, with a feed whose entries land',()=>{
+ const feeds={ar:changelogFeed('ar','2026-10-19'),en:changelogFeed('en','2026-10-19')};
+ for(const lang of ['ar','en'] as const){
+  const page=byUrl.get(lang==='ar'?'/docs/changelog/':'/en/docs/changelog/')!;
+  expect(page.html).toContain(lang==='ar'?'سجل التغييرات':'Changelog');
+  const entries=[...feeds[lang].matchAll(/<link rel="alternate" type="text\/html" href="https:\/\/base\.sbarah\.com\/(?:en\/)?docs\/changelog\/#([^"]+)"\/>/g)].map(m=>decodeURIComponent(m[1]!));
+  expect(entries.length).toBeGreaterThan(10);
+  for(const id of entries)expect(ids(page.html)).toContain(id);
+  expect(feeds[lang]).not.toMatch(/href=&quot;\//);
+ }
+});
+
+test('llms.txt lists every English page as Markdown, and every page has one',()=>{
+ const text=llms(pages);
+ const listed=[...text.matchAll(/\]\(https:\/\/base\.sbarah\.com(\/en\/docs\/[^)]*)index\.md\)/g)].map(m=>m[1]);
+ expect(new Set(listed)).toEqual(new Set(pages.filter(p=>p.source.lang==='en').map(p=>p.url)));
+ for(const page of pages){
+  expect(page.markdown).not.toMatch(SWITCH_LINE);
+  expect(page.markdown).not.toMatch(/\]\((?!https?:|#|mailto:)/);
+  expect(page.markdown).not.toMatch(LONG_DASH);
+  expect(page.html).toContain(`<link rel="alternate" type="text/markdown" href="${page.url}index.md">`);
+ }
+ expect(llmsFull(pages)).toContain('# Install with Docker');
+});
+
+test('every page carries structured data that parses',()=>{
+ for(const page of [...pages.map(p=>p.html),home['/'],home['/en/']]){
+  const blocks=[...page.matchAll(/<script type="application\/ld\+json">(.*?)<\/script>/gs)];
+  expect(blocks).toHaveLength(1);
+  expect(()=>JSON.parse(blocks[0]![1]!)).not.toThrow();
+ }
 });
