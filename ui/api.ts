@@ -33,11 +33,22 @@ const conflicts:Record<string,string>={
  'Environment services are still on':'Turn off Studio, Realtime, Edge Functions and database access for this environment first, and wait for changes in progress to finish.'};
 export function api(token:string):Api {
  return async(path,method='GET',body,signal)=>{
+  const send=(bearer:string)=>fetch('/management/v1'+path,{method,signal,headers:{authorization:'Bearer '+bearer,...(body===undefined?{}:{'content-type':'application/json'})},
+   ...(body===undefined?{}:{body:JSON.stringify(body)})});
   let response:Response;
-  try{response=await fetch('/management/v1'+path,{method,signal,headers:{authorization:'Bearer '+token,...(body===undefined?{}:{'content-type':'application/json'})},
-   ...(body===undefined?{}:{body:JSON.stringify(body)})});}
+  try{response=await send(token);}
   catch(error){if(signal?.aborted)throw error;throw new Error('Unable to reach the server. Check your connection and try again.');}
-  if(response.status===401){void auth.auth.signOut({scope:'local'});throw new Error('Your session expired. Sign in again.');}
+  if(response.status===401){
+   // The access token lasts an hour and a sleeping or background tab can miss its refresh, so a 401 usually means
+   // "expired", not "signed out". Signing out here would delete the still valid session on the server.
+   // Refresh once, retry, and sign out only when the refresh itself is refused.
+   const {data}=await auth.auth.refreshSession().catch(()=>({data:{session:null}}));
+   if(data.session?.access_token&&data.session.access_token!==token){
+    try{response=await send(data.session.access_token);}
+    catch(error){if(signal?.aborted)throw error;throw new Error('Unable to reach the server. Check your connection and try again.');}
+   }
+   if(response.status===401){void auth.auth.signOut({scope:'local'});throw new Error('Your session expired. Sign in again.');}
+  }
   if(response.status===403){
    const denied=await response.clone().json().catch(()=>null) as {code?:string}|null;
    if(denied?.code==='mfa_required'){void auth.auth.signOut({scope:'local'});throw new Error('Verify your authenticator again. Sign in to continue.');}

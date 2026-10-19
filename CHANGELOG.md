@@ -6,9 +6,15 @@ All notable changes to sbarbase. The format follows Keep a Changelog and the
 project uses Semantic Versioning, which for a 0.x version means the interface may
 still change between releases.
 
-The declared package version is 0.5.5. Historical 0.1.0 and 0.2.0 entries retain their original scope. Later Docker and VM rehearsals are dated in [status](docs/reference/status.md); no independent public-server or production release acceptance is established.
+The declared package version is 0.5.6. Historical 0.1.0 and 0.2.0 entries retain their original scope. Later Docker and VM rehearsals are dated in [status](docs/reference/status.md); no independent public-server or production release acceptance is established.
 
 ## [Unreleased]
+
+## [0.5.6] - 2026-10-19
+
+### Fixed
+
+- **No more sign-outs after an hour away.** The console's access token lasts an hour. A request made with an expired one signed you out and deleted the session on the server, although the session could have been renewed. The console now renews the token and retries once, and signs out only if the renewal is refused.
 
 ## [0.5.5] - 2026-10-19
 
