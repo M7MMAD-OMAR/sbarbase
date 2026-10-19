@@ -111,5 +111,6 @@ in the
 
 ## Log index
 
+- 2026-10-19: four releases reviewed and deferred while A3, A5 and A6 wait for their live gates and A7 for P1 and P3: [Storage v1.84.1](../upstream/2026-10-19-storage-storage-api-v1.84.1.md), [Realtime v2.145.3](../upstream/2026-10-19-realtime-realtime-v2.145.3.md), [Studio 2026.10.19-sha-b375769](../upstream/2026-10-19-studio-studio-2026.10.19-sha-b375769.md) and [the distribution 17.11.0.005](../upstream/2026-10-19-distro-postgres-17.11.0.005.md); no pin changed.
 - 2026-10-14: [Supabase Select 2026 and current drift](../upstream/2026-10-14-select-2026-landscape.md), a landscape review; no pin changed.
 - 2026-09-20: policy created; no upstream release reviewed yet.
