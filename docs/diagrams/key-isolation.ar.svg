@@ -19,7 +19,7 @@
   <text x="876" y="300" font-size="12" font-weight="700" fill="#A8412A" text-anchor="start">مرفوض في PostgreSQL</text>
   <rect x="726" y="80" width="150" height="60" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
   <text x="801" y="104" font-size="12.5" font-weight="600">تطبيق بمفتاح أ</text>
-  <text x="801" y="124" font-size="11.5" font-family="ui-monospace, Menlo, Consolas, monospace" direction="ltr">/envA/rest/v1</text>
+  <text x="801" y="124" font-size="11.5" font-family="ui-monospace, Menlo, Consolas, monospace" direction="ltr">‎/envA/rest/v1‎</text>
   <rect x="500" y="80" width="190" height="60" rx="8" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
   <text x="595" y="104" font-size="13" font-weight="700">البوابة</text>
   <text x="595" y="124" font-size="12">المفتاح من بصمات أ</text>
@@ -31,7 +31,7 @@
   <path d="M304 110 C250 110 240 151 186 151" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#keyisoa-i)"/>
   <rect x="726" y="206" width="150" height="60" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
   <text x="801" y="230" font-size="12.5" font-weight="600">تطبيق بمفتاح أ</text>
-  <text x="801" y="250" font-size="11.5" font-family="ui-monospace, Menlo, Consolas, monospace" direction="ltr">/envB/rest/v1</text>
+  <text x="801" y="250" font-size="11.5" font-family="ui-monospace, Menlo, Consolas, monospace" direction="ltr">‎/envB/rest/v1‎</text>
   <rect x="500" y="206" width="190" height="60" rx="8" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
   <text x="595" y="230" font-size="13" font-weight="700">البوابة</text>
   <text x="595" y="250" font-size="12">ليس من مفاتيح ب</text>

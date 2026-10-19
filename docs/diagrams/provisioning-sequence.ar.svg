@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 632" width="900" height="632" role="img" aria-labelledby="provisa-t provisa-d" xml:lang="ar" direction="rtl">
+  <title id="provisa-t">التجهيز، رسالة بعد رسالة</title>
+  <desc id="provisa-d">خمسة أطراف: واجهة الإدارة، والفهرس، والعامل الذي يملك قفلًا حصريًا، وملف الإيصال، وDocker مع SQL. تضع واجهة الإدارة مهمة مع بيئتها ومحاولتها. يستلمها العامل، ويكتب إيصالًا يسمّي المطالبة والمحاولة والرمز ويثبّته على القرص، ثم ينفّذ SQL المسيّج وقواعد الاتصال والخدمات. يعيد Docker وSQL نتيجة معروفة، فيسجّلها العامل مع إتمام المهمة ويستهلك الإيصال. بعد الانهيار يُغلق الإيصال المكتمل، ويمنع الإيصال المجهول البدء والإعادة.</desc>
+  <defs><marker id="provisa-i" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#2A2632" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="provisa-c" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#E06A4B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+  <rect x="0" y="0" width="900" height="632" fill="#F5EFE3"/>
+  <g font-family="system-ui, sans-serif" fill="#2A2632" text-anchor="middle">
+  <text x="876" y="34" font-size="16" font-weight="700" text-anchor="start">التجهيز، رسالة بعد رسالة</text>
+  <rect x="718" y="58" width="152" height="54" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="794" y="90" font-size="13" font-weight="700">واجهة الإدارة</text>
+  <path d="M794 112 L794 508" fill="none" stroke="#5B5465" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="3 5"/>
+  <rect x="546" y="58" width="152" height="54" rx="8" fill="#FBE7A8" stroke="#2A2632" stroke-width="1.3"/>
+  <text x="622" y="82" font-size="13" font-weight="700">الفهرس</text>
+  <text x="622" y="100" font-size="11.5" fill="#5B5465" direction="ltr">SQLite</text>
+  <path d="M622 112 L622 508" fill="none" stroke="#5B5465" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="3 5"/>
+  <rect x="374" y="58" width="152" height="54" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="450" y="82" font-size="13" font-weight="700">العامل</text>
+  <text x="450" y="100" font-size="11.5" fill="#5B5465">قفل حصري</text>
+  <path d="M450 112 L450 508" fill="none" stroke="#5B5465" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="3 5"/>
+  <rect x="202" y="58" width="152" height="54" rx="8" fill="#FBE7A8" stroke="#2A2632" stroke-width="1.3"/>
+  <text x="278" y="82" font-size="13" font-weight="700">ملف الإيصال</text>
+  <text x="278" y="100" font-size="11.5" fill="#5B5465">على القرص</text>
+  <path d="M278 112 L278 508" fill="none" stroke="#5B5465" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="3 5"/>
+  <rect x="30" y="58" width="152" height="54" rx="8" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
+  <text x="106" y="82" font-size="13" font-weight="700" direction="ltr">Docker, SQL</text>
+  <text x="106" y="100" font-size="11.5" fill="#5B5465">المحرك المشترك</text>
+  <path d="M106 112 L106 508" fill="none" stroke="#5B5465" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="3 5"/>
+  <circle cx="770.8" cy="136" r="11" fill="#2A2632"/>
+  <text x="770.8" y="140.5" font-size="12.5" font-weight="700" fill="#FFFBF1">1</text>
+  <text x="708.0" y="140" font-size="12">مهمة جديدة</text>
+  <text x="708.0" y="155" font-size="12">البيئة والمحاولة</text>
+  <path d="M790 167 L626 167" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#provisa-i)"/>
+  <circle cx="590.4" cy="197" r="11" fill="#2A2632"/>
+  <text x="590.4" y="201.5" font-size="12.5" font-weight="700" fill="#FFFBF1">2</text>
+  <text x="536.0" y="201" font-size="12">استلام المهمة</text>
+  <path d="M454 213 L618 213" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#provisa-i)"/>
+  <circle cx="480.0" cy="243" r="11" fill="#2A2632"/>
+  <text x="480.0" y="247.5" font-size="12.5" font-weight="700" fill="#FFFBF1">3</text>
+  <text x="364.0" y="247" font-size="12">كتابة الإيصال</text>
+  <text x="364.0" y="262" font-size="12">المطالبة والمحاولة والرمز، ثم fsync</text>
+  <path d="M446 274 L282 274" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#provisa-i)"/>
+  <circle cx="371.6" cy="304" r="11" fill="#2A2632"/>
+  <text x="371.6" y="308.5" font-size="12.5" font-weight="700" fill="#FFFBF1">4</text>
+  <text x="278.0" y="308" font-size="12">الأثر المسيّج</text>
+  <text x="278.0" y="323" font-size="12">SQL وقواعد الاتصال والخدمات</text>
+  <path d="M446 335 L110 335" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#provisa-i)"/>
+  <circle cx="329.6" cy="365" r="11" fill="#2A2632"/>
+  <text x="329.6" y="369.5" font-size="12.5" font-weight="700" fill="#FFFBF1">5</text>
+  <text x="278.0" y="369" font-size="12">نتيجة معروفة</text>
+  <path d="M110 381 L446 381" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="5 4" marker-end="url(#provisa-i)"/>
+  <circle cx="596.0" cy="411" r="11" fill="#2A2632"/>
+  <text x="596.0" y="415.5" font-size="12.5" font-weight="700" fill="#FFFBF1">6</text>
+  <text x="536.0" y="415" font-size="12">تسجيل النتيجة</text>
+  <text x="536.0" y="430" font-size="12">مع إتمام المهمة</text>
+  <path d="M454 442 L618 442" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#provisa-i)"/>
+  <circle cx="424.0" cy="472" r="11" fill="#2A2632"/>
+  <text x="424.0" y="476.5" font-size="12.5" font-weight="700" fill="#FFFBF1">7</text>
+  <text x="364.0" y="476" font-size="12">استهلاك الإيصال</text>
+  <path d="M446 488 L282 488" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#provisa-i)"/>
+  <rect x="200" y="524" width="328" height="58" rx="8" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <text x="364" y="547" font-size="12.5" font-weight="700" fill="#A8412A">بعد انهيار، عند إعادة التشغيل</text>
+  <text x="364" y="568" font-size="12">إيصال مكتمل: يُغلق. إيصال مجهول: يتوقف.</text>
+  <text x="876" y="552" font-size="12.5" font-weight="700" text-anchor="start">النتائج المجهولة</text>
+  <text x="876" y="570" font-size="12.5" fill="#5B5465" text-anchor="start">لا تُنفَّذ مرتين</text>
+  <rect x="854" y="605" width="22" height="14" rx="3" fill="#FBE7A8" stroke="#2A2632" stroke-width="1.3"/>
+  <text x="846" y="616" font-size="12" fill="#5B5465" text-anchor="start">سجل دائم</text>
+  <rect x="744.8" y="605" width="22" height="14" rx="3" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
+  <text x="736.8" y="616" font-size="12" fill="#5B5465" text-anchor="start">يمس المحرك المشترك</text>
+  <rect x="571.6" y="605" width="22" height="14" rx="3" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <text x="563.6" y="616" font-size="12" fill="#5B5465" text-anchor="start">يتوقف للمشغّل</text>
+  </g>
+</svg>

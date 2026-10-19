@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 632" width="900" height="632" role="img" aria-labelledby="provise-t provise-d" xml:lang="en">
+  <title id="provise-t">Provisioning, message by message</title>
+  <desc id="provise-d">Five participants: the control API, the catalog, the worker holding an exclusive lock, the receipt file and Docker with SQL. The control API queues a job with its environment and attempt. The worker claims it, writes a receipt naming the claim, attempt and token and flushes it to disk, then runs the fenced SQL, connection rules and services. Docker and SQL return a known outcome; the worker records it with the job completion and consumes the receipt. After a crash a completed receipt is settled, and an unknown receipt blocks startup and replay.</desc>
+  <defs><marker id="provise-i" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#2A2632" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="provise-c" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#E06A4B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+  <rect x="0" y="0" width="900" height="632" fill="#F5EFE3"/>
+  <g font-family="system-ui, sans-serif" fill="#2A2632" text-anchor="middle">
+  <text x="24" y="34" font-size="16" font-weight="700" text-anchor="start">Provisioning, message by message</text>
+  <rect x="30" y="58" width="152" height="54" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="106" y="90" font-size="13" font-weight="700">control API</text>
+  <path d="M106 112 L106 508" fill="none" stroke="#5B5465" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="3 5"/>
+  <rect x="202" y="58" width="152" height="54" rx="8" fill="#FBE7A8" stroke="#2A2632" stroke-width="1.3"/>
+  <text x="278" y="82" font-size="13" font-weight="700">catalog</text>
+  <text x="278" y="100" font-size="11.5" fill="#5B5465">SQLite</text>
+  <path d="M278 112 L278 508" fill="none" stroke="#5B5465" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="3 5"/>
+  <rect x="374" y="58" width="152" height="54" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="450" y="82" font-size="13" font-weight="700">worker</text>
+  <text x="450" y="100" font-size="11.5" fill="#5B5465">exclusive lock</text>
+  <path d="M450 112 L450 508" fill="none" stroke="#5B5465" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="3 5"/>
+  <rect x="546" y="58" width="152" height="54" rx="8" fill="#FBE7A8" stroke="#2A2632" stroke-width="1.3"/>
+  <text x="622" y="82" font-size="13" font-weight="700">receipt file</text>
+  <text x="622" y="100" font-size="11.5" fill="#5B5465">on disk</text>
+  <path d="M622 112 L622 508" fill="none" stroke="#5B5465" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="3 5"/>
+  <rect x="718" y="58" width="152" height="54" rx="8" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
+  <text x="794" y="82" font-size="13" font-weight="700">Docker, SQL</text>
+  <text x="794" y="100" font-size="11.5" fill="#5B5465">shared engine</text>
+  <path d="M794 112 L794 508" fill="none" stroke="#5B5465" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="3 5"/>
+  <circle cx="111.0" cy="136" r="11" fill="#2A2632"/>
+  <text x="111.0" y="140.5" font-size="12.5" font-weight="700" fill="#FFFBF1">1</text>
+  <text x="192.0" y="140" font-size="12">queue a job</text>
+  <text x="192.0" y="155" font-size="12">environment, attempt</text>
+  <path d="M110 167 L274 167" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#provise-i)"/>
+  <circle cx="305.05" cy="197" r="11" fill="#2A2632"/>
+  <text x="305.05" y="201.5" font-size="12.5" font-weight="700" fill="#FFFBF1">2</text>
+  <text x="364.0" y="201" font-size="12">claim the job</text>
+  <path d="M446 213 L282 213" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#provise-i)"/>
+  <circle cx="429.8" cy="243" r="11" fill="#2A2632"/>
+  <text x="429.8" y="247.5" font-size="12.5" font-weight="700" fill="#FFFBF1">3</text>
+  <text x="536.0" y="247" font-size="12">write the receipt</text>
+  <text x="536.0" y="262" font-size="12">claim, attempt, token; fsync</text>
+  <path d="M454 274 L618 274" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#provise-i)"/>
+  <circle cx="506.35" cy="304" r="11" fill="#2A2632"/>
+  <text x="506.35" y="308.5" font-size="12.5" font-weight="700" fill="#FFFBF1">4</text>
+  <text x="622.0" y="308" font-size="12">fenced effect</text>
+  <text x="622.0" y="323" font-size="12">SQL, connection rules, services</text>
+  <path d="M454 335 L790 335" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#provise-i)"/>
+  <circle cx="563.05" cy="365" r="11" fill="#2A2632"/>
+  <text x="563.05" y="369.5" font-size="12.5" font-weight="700" fill="#FFFBF1">5</text>
+  <text x="622.0" y="369" font-size="12">known outcome</text>
+  <path d="M790 381 L454 381" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="5 4" marker-end="url(#provise-i)"/>
+  <circle cx="273.55" cy="411" r="11" fill="#2A2632"/>
+  <text x="273.55" y="415.5" font-size="12.5" font-weight="700" fill="#FFFBF1">6</text>
+  <text x="364.0" y="415" font-size="12">record the outcome</text>
+  <text x="364.0" y="430" font-size="12">with the job completion</text>
+  <path d="M446 442 L282 442" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#provise-i)"/>
+  <circle cx="458.15" cy="472" r="11" fill="#2A2632"/>
+  <text x="458.15" y="476.5" font-size="12.5" font-weight="700" fill="#FFFBF1">7</text>
+  <text x="536.0" y="476" font-size="12">consume the receipt</text>
+  <path d="M454 488 L618 488" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#provise-i)"/>
+  <rect x="372" y="524" width="328" height="58" rx="8" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <text x="536" y="547" font-size="12.5" font-weight="700" fill="#A8412A">after a crash, on restart</text>
+  <text x="536" y="568" font-size="12">completed receipt: settled. unknown receipt: stops.</text>
+  <text x="24" y="552" font-size="12.5" font-weight="700" text-anchor="start">Unknown outcomes</text>
+  <text x="24" y="570" font-size="12.5" fill="#5B5465" text-anchor="start">never run twice</text>
+  <rect x="24" y="605" width="22" height="14" rx="3" fill="#FBE7A8" stroke="#2A2632" stroke-width="1.3"/>
+  <text x="54" y="616" font-size="12" fill="#5B5465" text-anchor="start">durable record</text>
+  <rect x="171.60000000000002" y="605" width="22" height="14" rx="3" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
+  <text x="201.60000000000002" y="616" font-size="12" fill="#5B5465" text-anchor="start">touches the shared engine</text>
+  <rect x="389.6" y="605" width="22" height="14" rx="3" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <text x="419.6" y="616" font-size="12" fill="#5B5465" text-anchor="start">stops for an operator</text>
+  </g>
+</svg>

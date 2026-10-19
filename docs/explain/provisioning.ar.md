@@ -20,22 +20,9 @@
 
 التبادل نفسه في مخطط تسلسلي:
 
-```mermaid
-sequenceDiagram
-  participant API as Control API
-  participant Cat as Catalog
-  participant W as Worker (exclusive lock)
-  participant FS as Receipt file
-  participant Eff as Docker and SQL
-  API->>Cat: queue job (environment, attempt)
-  W->>Cat: claim job
-  W->>FS: write receipt (claim, attempt, token), fsync
-  W->>Eff: fenced SQL, connection rules, services
-  Eff-->>W: known outcome
-  W->>Cat: record outcome with job completion
-  W->>FS: consume receipt
-  Note over W,FS: After a crash: completed receipt is settled.<br/>Unknown receipt blocks startup and replay.
-```
+![تسلسل بين واجهة الإدارة والفهرس والعامل بقفله الحصري وملف الإيصال وDocker مع SQL: مهمة جديدة، ثم استلامها، ثم كتابة الإيصال وتثبيته، ثم الأثر المسيّج، ثم نتيجة معروفة تُسجَّل مع إتمام المهمة، ثم استهلاك الإيصال؛ وبعد الانهيار يُغلق الإيصال المكتمل ويتوقف المجهول](../diagrams/provisioning-sequence.ar.svg)
+
+*يُكتب الإيصال على القرص قبل تنفيذ الأثر، ولا يُستهلك إلا بعد أن تدخل النتيجة الفهرس.*
 
 الأجزاء بكلمات بسيطة (وكل مصطلح منها في [المسرد](../reference/glossary.ar.md) أيضًا):
 

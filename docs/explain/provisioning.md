@@ -20,22 +20,9 @@ Provisioning is the background work that turns "create environment" into a runni
 
 The same exchange as a sequence:
 
-```mermaid
-sequenceDiagram
-  participant API as Control API
-  participant Cat as Catalog
-  participant W as Worker (exclusive lock)
-  participant FS as Receipt file
-  participant Eff as Docker and SQL
-  API->>Cat: queue job (environment, attempt)
-  W->>Cat: claim job
-  W->>FS: write receipt (claim, attempt, token), fsync
-  W->>Eff: fenced SQL, connection rules, services
-  Eff-->>W: known outcome
-  W->>Cat: record outcome with job completion
-  W->>FS: consume receipt
-  Note over W,FS: After a crash: completed receipt is settled.<br/>Unknown receipt blocks startup and replay.
-```
+![A sequence between the control API, the catalog, the worker with its exclusive lock, the receipt file and Docker with SQL: queue a job, claim it, write the receipt and flush it, run the fenced effect, get a known outcome, record it with the job completion, consume the receipt; after a crash a completed receipt is settled and an unknown one stops](../diagrams/provisioning-sequence.svg)
+
+*The receipt is on disk before the effect runs, and consumed only after the outcome is in the catalog.*
 
 The pieces, in plain words (each term is also in the [glossary](../reference/glossary.md)):
 

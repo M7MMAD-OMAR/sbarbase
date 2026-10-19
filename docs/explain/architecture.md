@@ -27,27 +27,11 @@ Rejected alternatives:
 
 *The gateway checks every request against the environment named in its path, and refuses rather than queues.*
 
-The full routing, including the management path and the provisioning worker, as text:
+The full routing, including the management path and the provisioning worker:
 
-```mermaid
-flowchart TB
-  C["App using supabase-js"] -->|"HTTPS"| P["TLS proxy (operator's, or deploy/console-tls-proxy.ts)"]
-  O["Operator browser"] --> P
-  P --> L["Loopback server"]
-  L --> APP{"Path?"}
-  APP -->|"/management/auth/v1/*"| MA["Management Auth realm (own database)"]
-  APP -->|"/management/*"| CP["Control API: catalog, keys, provisioning status"]
-  APP -->|"/ENV/auth, rest or storage/v1/*"| GW["Gateway: key check, maintenance, admission, body cap"]
-  GW --> AU["Auth for this environment"]
-  GW --> RE["PostgREST for this environment"]
-  GW -->|"tenant header"| ST["Shared Storage"]
-  AU --> DB[("Environment database on shared PostgreSQL")]
-  RE --> DB
-  ST --> DB
-  CP --> CAT[("Control catalog, SQLite")]
-  W["Provisioning worker"] --> CAT
-  W -->|"pinned containers"| DB
-```
+![The app and the operator browser reach the TLS proxy, then the loopback server, which routes by path: /management/auth/v1/* to the management Auth realm, /management/* to the control API and its SQLite catalog, and an environment's auth, rest or storage path to the gateway; the gateway forwards to that environment's Auth or PostgREST or to shared Storage, all on the environment database in the shared PostgreSQL engine; the provisioning worker reads the catalog and runs the pinned containers](../diagrams/routing.svg)
+
+*One proxy, one loopback server, three paths.*
 
 **Request path.** An app calls `/<environment>/rest/v1/...` with its publishable key. The gateway reads the environment's routing record (is it in maintenance? where does it live?), verifies the key against stored hashes, admits the request if the environment has fewer than its concurrent limit in flight, caps the body at 1 MiB (a Storage file upload streams through up to the upload limit, 50 MiB by default) and forwards it to that environment's own PostgREST. Storage requests go to the one shared Storage process with a trusted tenant header naming the environment. Public and signed Storage downloads are the only requests allowed without an API key.
 

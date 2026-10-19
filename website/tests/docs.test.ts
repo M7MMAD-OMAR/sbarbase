@@ -45,6 +45,11 @@ test('every internal link lands on a page and an id that exists',()=>{
  expect(broken).toEqual([]);
 });
 
+test('diagrams are drawn, not left as Mermaid source',()=>{
+ // The site does not draw Mermaid; a diagram belongs in docs/diagrams/build.py, in both languages.
+ for(const page of pages)expect(page.html).not.toContain('language-mermaid');
+});
+
 test('ids are unique on every page',()=>{
  for(const page of pages){const list=ids(page.html);expect(new Set(list).size).toBe(list.length);}
 });

@@ -43,42 +43,9 @@ Sbarbase puts many Supabase projects on one server. Sharing a server is only wor
 
 ### Trust boundaries
 
-```mermaid
-flowchart TB
-  subgraph internet["Untrusted: internet"]
-    V["App visitor"]
-    N["Network attacker"]
-  end
-  subgraph host["Your server"]
-    TLS["TLS proxy (public port)"]
-    subgraph loop["Loopback only"]
-      GW["Gateway: key check, route, limits"]
-      MG["Management API and console"]
-      MA["Management Auth realm"]
-    end
-    subgraph envs["Internal Docker network"]
-      A["Environment A: Auth, REST, database, 3 logins"]
-      B["Environment B: Auth, REST, database, 3 logins"]
-      ST["Shared Storage process"]
-      PG[("Shared PostgreSQL engine")]
-    end
-    SEC["Private state: .secrets and .lab"]
-  end
-  OP["Operator (trusted)"]
-  V -->|"B1: publishable key + token"| TLS
-  N -.-> TLS
-  TLS --> GW
-  TLS -->|"B3: operator token"| MG
-  MG --> MA
-  GW --> A
-  GW --> B
-  GW --> ST
-  A -->|"B2: exact HBA pair"| PG
-  B -->|"B2: exact HBA pair"| PG
-  ST --> PG
-  OP -->|"B5: shell, Docker, SQL"| SEC
-  OP --> PG
-```
+![Visitors and network attackers on the untrusted internet reach only the TLS proxy on the public port. B1 at the gateway, which needs a publishable key and a token; B3 at the management API and console, which need an operator token; B4 at the proxy, the only part facing the network; B2 between each environment and the shared PostgreSQL engine, through its exact connection rule pair; B5 around the operator's shell, Docker and SQL access and the private state; B6 for the pinned images](../diagrams/threat-boundaries.svg)
+
+*Six boundaries, each named in the list below and in the table after it.*
 
 - **B1, internet to gateway.** Everything a visitor sends is untrusted until the gateway has bound a key to one enabled environment.
 - **B2, environment to environment.** Each environment's tokens and service logins must be useless in any other environment.

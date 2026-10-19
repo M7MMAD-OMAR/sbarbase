@@ -62,8 +62,12 @@ class Diagram:
         if mono:
             attrs.append(f'font-family="{MONO}"')
         if self.rtl and not ARABIC.search(s):
-            # A Latin-only label keeps left-to-right order; its anchor flips instead.
+            # A Latin-only label keeps left-to-right order; its anchor flips instead. A label that
+            # starts or ends with punctuation (/management/*, .secrets) is also wrapped in
+            # left-to-right marks, because the rtl root would otherwise move that punctuation.
             attrs.append('direction="ltr"')
+            if not (s[0].isalnum() and s[-1].isalnum()):
+                s = f'\u200e{s}\u200e'
             anchor = {'start': 'end', 'end': 'start'}.get(anchor, anchor)
         if anchor != 'middle':
             attrs.append(f'text-anchor="{anchor}"')
@@ -85,6 +89,12 @@ class Diagram:
     def badge(self, x, y, n):
         self.parts.append(f'<circle cx="{self.x(x)}" cy="{y}" r="11" fill="{INK}"/>')
         self.parts.append(f'<text x="{self.x(x)}" y="{y + 4.5}" font-size="12.5" font-weight="700" fill="#FFFBF1">{n}</text>')
+
+    def tag(self, x, y, label):
+        """A boundary name such as B1: a small coral pill centred on (x, y)."""
+        self.parts.append(f'<rect x="{self.x(x - 15, 30)}" y="{y - 9}" width="30" height="18" rx="9" fill="{CORAL}"/>')
+        self.parts.append(f'<text x="{self.x(x)}" y="{y + 4}" font-size="11.5" font-weight="700" fill="#FFFBF1" '
+                          f'direction="ltr">{label}</text>')
 
     def legend(self, y, items):
         x = 24
@@ -762,8 +772,245 @@ def docs_map(lang):
     return d
 
 
+def provisioning_sequence(lang):
+    t = lambda en, ar: pick(lang, en, ar)
+    d = Diagram('provisioning-sequence', 900, 632, lang,
+                t('Provisioning, message by message', 'التجهيز، رسالة بعد رسالة'),
+                t('Five participants: the control API, the catalog, the worker holding an exclusive lock, the receipt '
+                  'file and Docker with SQL. The control API queues a job with its environment and attempt. The worker '
+                  'claims it, writes a receipt naming the claim, attempt and token and flushes it to disk, then runs the '
+                  'fenced SQL, connection rules and services. Docker and SQL return a known outcome; the worker records it '
+                  'with the job completion and consumes the receipt. After a crash a completed receipt is settled, and an '
+                  'unknown receipt blocks startup and replay.',
+                  'خمسة أطراف: واجهة الإدارة، والفهرس، والعامل الذي يملك قفلًا حصريًا، وملف الإيصال، وDocker مع SQL. تضع '
+                  'واجهة الإدارة مهمة مع بيئتها ومحاولتها. يستلمها العامل، ويكتب إيصالًا يسمّي المطالبة والمحاولة والرمز '
+                  'ويثبّته على القرص، ثم ينفّذ SQL المسيّج وقواعد الاتصال والخدمات. يعيد Docker وSQL نتيجة معروفة، فيسجّلها '
+                  'العامل مع إتمام المهمة ويستهلك الإيصال. بعد الانهيار يُغلق الإيصال المكتمل، ويمنع الإيصال المجهول البدء '
+                  'والإعادة.'))
+    d.text(24, 34, d.title, size=16, weight=700, anchor='start')
+    cols = ((106, 'card', t('control API', 'واجهة الإدارة'), ''),
+            (278, 'record', t('catalog', 'الفهرس'), 'SQLite'),
+            (450, 'card', t('worker', 'العامل'), t('exclusive lock', 'قفل حصري')),
+            (622, 'record', t('receipt file', 'ملف الإيصال'), t('on disk', 'على القرص')),
+            (794, 'shared', 'Docker, SQL', t('shared engine', 'المحرك المشترك')))
+    x = {name: cx for name, cx in zip(('api', 'cat', 'w', 'fs', 'eff'), (c[0] for c in cols))}
+    for cx, kind, head, sub in cols:
+        d.box(cx - 76, 58, 152, 54, kind)
+        d.text(cx, 82 if sub else 90, head, weight=700)
+        if sub:
+            d.text(cx, 100, sub, size=11.5, fill=MUTED)
+        d.arrow(f'M{cx} 112 L{cx} 508', color=MUTED, dash='3 5', head=False, width=1.2)
+    messages = (
+        ('api', 'cat', [t('queue a job', 'مهمة جديدة'), t('environment, attempt', 'البيئة والمحاولة')], None),
+        ('w', 'cat', [t('claim the job', 'استلام المهمة')], None),
+        ('w', 'fs', [t('write the receipt', 'كتابة الإيصال'), t('claim, attempt, token; fsync', 'المطالبة والمحاولة والرمز، ثم fsync')], None),
+        ('w', 'eff', [t('fenced effect', 'الأثر المسيّج'), t('SQL, connection rules, services', 'SQL وقواعد الاتصال والخدمات')], None),
+        ('eff', 'w', [t('known outcome', 'نتيجة معروفة')], '5 4'),
+        ('w', 'cat', [t('record the outcome', 'تسجيل النتيجة'), t('with the job completion', 'مع إتمام المهمة')], None),
+        ('w', 'fs', [t('consume the receipt', 'استهلاك الإيصال')], None),
+    )
+    y = 140
+    for i, (a, b, label, dash) in enumerate(messages):
+        x1, x2 = x[a], x[b]
+        mid = (x1 + x2) / 2
+        width = max(len(line) for line in label) * (5.6 if lang == 'ar' else 6.3)
+        d.badge(mid - width / 2 - 18, y - 4, i + 1)
+        d.lines(mid, y, label, size=12, gap=15, weight=None)
+        ay = y + 15 * (len(label) - 1) + 12
+        step = 4 if x2 > x1 else -4
+        d.arrow(f'M{x1 + step} {ay} L{x2 - step} {ay}', dash=dash)
+        y = ay + 34
+    d.box(372, 524, 328, 58, 'warn')
+    d.text(536, 547, t('after a crash, on restart', 'بعد انهيار، عند إعادة التشغيل'), weight=700, size=12.5, fill=CORAL_INK)
+    d.text(536, 568, t('completed receipt: settled. unknown receipt: stops.', 'إيصال مكتمل: يُغلق. إيصال مجهول: يتوقف.'), size=12)
+    d.text(24, 552, t('Unknown outcomes', 'النتائج المجهولة'), size=12.5, weight=700, anchor='start')
+    d.text(24, 570, t('never run twice', 'لا تُنفَّذ مرتين'), size=12.5, anchor='start', fill=MUTED)
+    d.legend(616, [('record', t('durable record', 'سجل دائم')), ('shared', t('touches the shared engine', 'يمس المحرك المشترك')),
+                   ('warn', t('stops for an operator', 'يتوقف للمشغّل'))])
+    return d
+
+
+def threat_boundaries(lang):
+    t = lambda en, ar: pick(lang, en, ar)
+    d = Diagram('threat-boundaries', 900, 640, lang,
+                t('Trust boundaries B1 to B6', 'حدود الثقة من B1 إلى B6'),
+                t('App visitors and network attackers are on the untrusted internet and reach only the TLS proxy on the '
+                  'public port. B1: a visitor needs a publishable key and a token to pass the gateway. B3: the management '
+                  'API and console take an operator token, checked by the separate management Auth realm. B4: only the '
+                  'proxy faces the network; the gateway and management sit on loopback. Environments A and B, each with '
+                  'its own Auth, REST, database and three logins, and the shared Storage process run on an internal '
+                  'Docker network. B2: each environment reaches the shared PostgreSQL engine only through its exact '
+                  'connection rule pair. B5: the trusted operator uses the shell, Docker and SQL and holds the private '
+                  'state in .secrets and .lab. B6: only pinned upstream images run.',
+                  'زوار التطبيقات والمهاجمون على الشبكة في الإنترنت غير الموثوق، ولا يصلون إلا إلى وكيل TLS على المنفذ '
+                  'العام. B1: يحتاج الزائر مفتاحًا عامًا ورمزًا ليعبر البوابة. B3: تقبل واجهة الإدارة ولوحتها رمز مشغّل '
+                  'يتحقق منه نطاق Auth الإدارة المنفصل. B4: الوكيل وحده يواجه الشبكة، والبوابة والإدارة على العنوان المحلي. '
+                  'البيئتان أ وب، لكل منهما Auth وREST وقاعدة وثلاثة حسابات دخول، وعملية Storage المشتركة على شبكة Docker '
+                  'داخلية. B2: لا تصل كل بيئة إلى محرك PostgreSQL المشترك إلا عبر زوج قواعد الاتصال الخاص بها. B5: '
+                  'المشغّل الموثوق يستخدم سطر الأوامر وDocker وSQL، ويحفظ الحالة الخاصة في ‎.secrets و‎.lab. B6: لا تعمل إلا '
+                  'صور المصدر المثبّتة.'))
+    d.text(24, 34, d.title, size=16, weight=700, anchor='start')
+    # untrusted internet
+    d.box(24, 60, 186, 200, 'borrowed')
+    d.text(117, 84, t('untrusted: internet', 'غير موثوق: الإنترنت'), weight=700, size=12.5, fill=CORAL_INK)
+    d.box(40, 102, 154, 56, 'card')
+    d.text(117, 125, t('app visitor', 'زائر التطبيق'), weight=700, size=12.5)
+    d.text(117, 145, t('browser or mobile app', 'متصفح أو تطبيق جوال'), size=11.5)
+    d.box(40, 180, 154, 56, 'warn')
+    d.text(117, 203, t('network attacker', 'مهاجم على الشبكة'), weight=700, size=12.5)
+    d.text(117, 223, t('watches, crafts requests', 'يراقب ويصنع طلبات'), size=11.5)
+    # operator
+    d.box(24, 446, 186, 62, 'env')
+    d.text(117, 472, t('operator', 'المشغّل'), weight=700, fill=TEAL_INK)
+    d.text(117, 492, t('trusted', 'موثوق'), size=12)
+    # the server
+    d.box(232, 50, 652, 504, 'zone')
+    d.text(248, 72, t('your server', 'خادمك'), weight=700, anchor='start')
+    d.box(250, 128, 124, 82, 'card')
+    d.text(312, 160, t('TLS proxy', 'وكيل TLS'), weight=700)
+    d.text(312, 182, t('public port', 'المنفذ العام'), size=12)
+    d.box(396, 86, 194, 262, 'zone')
+    d.text(493, 106, t('loopback only', 'العنوان المحلي فقط'), size=12, weight=600, fill=MUTED)
+    d.box(410, 120, 166, 58, 'shared')
+    d.text(493, 144, t('gateway', 'البوابة'), weight=700)
+    d.text(493, 164, t('key, route, limits', 'المفتاح والمسار والحدود'), size=11.5)
+    d.box(410, 196, 166, 58, 'card')
+    d.text(493, 220, t('management API', 'واجهة الإدارة'), weight=700, size=12.5)
+    d.text(493, 240, t('and console', 'ولوحتها'), size=11.5)
+    d.box(410, 274, 166, 58, 'card')
+    d.text(493, 298, t('management Auth', 'Auth الإدارة'), weight=700, size=12.5)
+    d.text(493, 318, t('separate realm', 'نطاق منفصل'), size=11.5)
+    d.box(608, 86, 262, 336, 'zone')
+    d.text(626, 106, t('internal Docker network', 'شبكة Docker داخلية'), size=12, weight=600, fill=MUTED, anchor='start')
+    d.box(622, 120, 208, 52, 'env')
+    d.text(726, 142, t('environment A', 'البيئة أ'), weight=700, size=12.5)
+    d.text(726, 160, t('Auth, REST, database, 3 logins', 'Auth وREST وقاعدة و3 حسابات'), size=11)
+    d.box(622, 182, 208, 52, 'env')
+    d.text(726, 204, t('environment B', 'البيئة ب'), weight=700, size=12.5)
+    d.text(726, 222, t('Auth, REST, database, 3 logins', 'Auth وREST وقاعدة و3 حسابات'), size=11)
+    d.box(622, 252, 208, 48, 'shared')
+    d.text(726, 272, t('Storage', 'Storage'), weight=700, size=12.5)
+    d.text(726, 290, t('one shared process', 'عملية مشتركة واحدة'), size=11.5)
+    d.box(622, 350, 208, 56, 'shared')
+    d.text(726, 374, 'PostgreSQL', weight=700, size=12.5)
+    d.text(726, 394, t('one shared engine', 'محرك مشترك واحد'), size=11.5)
+    d.box(410, 446, 166, 62, 'record')
+    d.text(493, 472, t('private state', 'الحالة الخاصة'), weight=700, size=12.5)
+    d.text(493, 492, '.secrets, .lab', size=12, mono=True)
+    # arrows
+    d.arrow('M194 130 C222 130 222 152 248 152')
+    d.arrow('M194 208 C222 208 222 188 248 188', color=CORAL, dash='4 4')
+    d.arrow('M374 150 L408 150')
+    d.arrow('M374 188 C390 188 392 225 408 225')
+    d.arrow('M493 254 L493 272')
+    d.arrow('M576 140 L620 146')
+    d.arrow('M576 152 C598 152 600 208 620 208')
+    d.arrow('M576 164 C594 164 596 276 620 276')
+    d.arrow('M830 146 L854 146 L854 372 L832 372')
+    d.arrow('M830 208 L854 208', head=False)
+    d.arrow('M726 300 L726 348')
+    d.arrow('M210 477 L408 477')
+    d.arrow('M117 508 L117 530 L726 530 L726 408')
+    d.text(310, 470, t('shell, Docker, SQL', 'سطر الأوامر وDocker وSQL'), size=11.5, fill=MUTED)
+    # boundary tags
+    d.tag(221, 116, 'B1')
+    d.tag(312, 118, 'B4')
+    d.tag(388, 248, 'B3')
+    d.tag(866, 292, 'B2')
+    d.tag(310, 494, 'B5')
+    d.tag(842, 106, 'B6')
+    rows = (
+        ('B1', t('internet to gateway: a publishable key and a token', 'من الإنترنت إلى البوابة: مفتاح عام ورمز')),
+        ('B2', t('environment to environment: its own connection rule pair', 'بين البيئات: زوج قواعد الاتصال الخاص بكل بيئة')),
+        ('B3', t('app identity to management: an operator token', 'من هوية التطبيق إلى الإدارة: رمز مشغّل')),
+        ('B4', t('network to console: only the proxy faces it', 'من الشبكة إلى اللوحة: الوكيل وحده يواجهها')),
+        ('B5', t('host and secrets: private files, the operator inside', 'الخادم والأسرار: ملفات خاصة، والمشغّل في الداخل')),
+        ('B6', t('supply chain: only pinned images run', 'سلسلة التوريد: لا تعمل إلا الصور المثبّتة')),
+    )
+    for i, (name, text) in enumerate(rows):
+        cx = 24 + (i % 2) * 438
+        cy = 584 + (i // 2) * 22
+        d.tag(cx + 15, cy - 4, name)
+        d.text(cx + 38, cy, text, size=12, anchor='start')
+    d.h = 652
+    return d
+
+
+def routing(lang):
+    t = lambda en, ar: pick(lang, en, ar)
+    d = Diagram('routing', 900, 640, lang,
+                t('The full routing, by path', 'التوجيه الكامل، بحسب المسار'),
+                t('An app using supabase-js and an operator browser both reach the TLS proxy, the operator\'s own or '
+                  'deploy/console-tls-proxy.ts, which forwards to the loopback server. It routes by path: '
+                  '/management/auth/v1/* to the management Auth realm with its own database, /management/* to the '
+                  'control API with the catalog, keys and provisioning status, and an environment\'s auth, rest or '
+                  'storage path to the gateway, which checks the key, maintenance, admission and body cap. The gateway '
+                  'forwards to that environment\'s Auth or PostgREST, or to the shared Storage with a tenant header; all '
+                  'three reach the environment database on the shared PostgreSQL engine. The control API keeps the '
+                  'SQLite control catalog, and the provisioning worker reads it and runs the pinned database containers.',
+                  'يصل تطبيق يستخدم supabase-js ومتصفح المشغّل كلاهما إلى وكيل TLS، وكيل المشغّل نفسه أو '
+                  'deploy/console-tls-proxy.ts، فيمرر الطلب إلى الخادم المحلي. يوجّه الخادم بحسب المسار: '
+                  '/management/auth/v1/* إلى نطاق Auth الإدارة بقاعدته الخاصة، و/management/* إلى واجهة الإدارة '
+                  'بالفهرس والمفاتيح وحالة التجهيز، ومسار auth أو rest أو storage لبيئة ما إلى البوابة، فتفحص المفتاح '
+                  'والصيانة والقبول وحد حجم الطلب. ثم تمرره البوابة إلى Auth أو PostgREST الخاصين بتلك البيئة، أو إلى '
+                  'Storage المشترك بترويسة المستأجر، وتصل الثلاثة إلى قاعدة البيئة على محرك PostgreSQL المشترك. تحفظ '
+                  'واجهة الإدارة فهرس التحكم في SQLite، ويقرؤه عامل التجهيز ويشغّل حاويات القواعد المثبّتة.'))
+    d.text(24, 34, d.title, size=16, weight=700, anchor='start')
+    d.box(150, 62, 190, 52, 'card')
+    d.text(245, 85, t('your app', 'تطبيقك'), weight=700)
+    d.text(245, 103, 'supabase-js', size=11.5, mono=True)
+    d.box(560, 62, 190, 52, 'card')
+    d.text(655, 85, t('operator browser', 'متصفح المشغّل'), weight=700)
+    d.text(655, 103, t('the console', 'لوحة الإدارة'), size=11.5)
+    d.box(290, 146, 320, 56, 'card')
+    d.text(450, 168, t('TLS proxy', 'وكيل TLS'), weight=700)
+    d.text(450, 188, t("the operator's own, or deploy/console-tls-proxy.ts", 'وكيل المشغّل، أو deploy/console-tls-proxy.ts'), size=11.5)
+    d.box(350, 230, 200, 52, 'card')
+    d.text(450, 252, t('loopback server', 'الخادم المحلي'), weight=700)
+    d.text(450, 270, t('routes by path', 'يوجّه بحسب المسار'), size=11.5)
+    targets = ((24, 'card', t('management Auth', 'Auth الإدارة'), '/management/auth/v1/*', t('own database', 'بقاعدته الخاصة')),
+               (310, 'card', t('control API', 'واجهة الإدارة'), '/management/*', t('catalog, keys, provisioning', 'الفهرس والمفاتيح والتجهيز')),
+               (596, 'shared', t('gateway', 'البوابة'), '/ENV/{auth,rest,storage}/v1/*', t('key, maintenance, admission, body cap', 'المفتاح والصيانة والقبول وحد الحجم')))
+    for x, kind, head, path, sub in targets:
+        d.box(x, 318, 280, 76, kind)
+        d.text(x + 140, 340, head, weight=700)
+        d.text(x + 140, 360, path, size=11.5, mono=True)
+        d.text(x + 140, 380, sub, size=11.5)
+    d.arrow('M245 114 C245 132 360 130 360 144')
+    d.arrow('M655 114 C655 132 540 130 540 144')
+    d.arrow('M450 202 L450 228')
+    d.arrow('M410 282 C410 300 164 296 164 316')
+    d.arrow('M450 282 L450 316')
+    d.arrow('M490 282 C490 300 736 296 736 316')
+    services = ((596, 'env', 'Auth', t('its own', 'الخاص بها')),
+                (692, 'env', 'PostgREST', t('its own', 'الخاص بها')),
+                (788, 'shared', 'Storage', t('tenant header', 'بترويسة المستأجر')))
+    for x, kind, head, sub in services:
+        d.box(x, 428, 88, 54, kind)
+        d.text(x + 44, 450, head, weight=700, size=12.5)
+        d.text(x + 44, 469, sub, size=11)
+        d.arrow(f'M{x + 44} 394 L{x + 44} 426' if x != 692 else 'M736 394 L736 426')
+        d.arrow(f'M{x + 44} 482 L{x + 44} 518')
+    d.box(596, 520, 280, 56, 'db')
+    d.text(736, 544, t('environment database', 'قاعدة البيئة'), weight=700)
+    d.text(736, 563, t('on the shared PostgreSQL engine', 'على محرك PostgreSQL المشترك'), size=11.5)
+    d.box(310, 428, 240, 54, 'record')
+    d.text(430, 450, t('control catalog', 'فهرس التحكم'), weight=700)
+    d.text(430, 469, 'SQLite', size=11.5)
+    d.arrow('M450 394 L450 426')
+    d.box(24, 428, 240, 54, 'card')
+    d.text(144, 450, t('provisioning worker', 'عامل التجهيز'), weight=700)
+    d.text(144, 469, t('one, with an exclusive lock', 'واحد، بقفل حصري'), size=11.5)
+    d.arrow('M264 455 L308 455')
+    d.arrow('M144 482 L144 548 L594 548')
+    d.text(370, 540, t('pinned containers', 'حاويات مثبّتة'), size=11.5, fill=MUTED)
+    d.legend(620, [('shared', t('shared', 'مشترك')), ('env', t('one per environment', 'لكل بيئة')),
+                   ('db', t('database', 'قاعدة بيانات')), ('record', t('durable record', 'سجل دائم'))])
+    return d
+
+
 DIAGRAMS = (hierarchy, request_path, full_stack, key_isolation, load_isolation, trust, provisioning, restore,
-            install, docs_map)
+            install, docs_map, provisioning_sequence, threat_boundaries, routing)
 
 
 def main():

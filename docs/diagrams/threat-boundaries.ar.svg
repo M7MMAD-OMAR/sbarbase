@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 652" width="900" height="652" role="img" aria-labelledby="threata-t threata-d" xml:lang="ar" direction="rtl">
+  <title id="threata-t">حدود الثقة من B1 إلى B6</title>
+  <desc id="threata-d">زوار التطبيقات والمهاجمون على الشبكة في الإنترنت غير الموثوق، ولا يصلون إلا إلى وكيل TLS على المنفذ العام. B1: يحتاج الزائر مفتاحًا عامًا ورمزًا ليعبر البوابة. B3: تقبل واجهة الإدارة ولوحتها رمز مشغّل يتحقق منه نطاق Auth الإدارة المنفصل. B4: الوكيل وحده يواجه الشبكة، والبوابة والإدارة على العنوان المحلي. البيئتان أ وب، لكل منهما Auth وREST وقاعدة وثلاثة حسابات دخول، وعملية Storage المشتركة على شبكة Docker داخلية. B2: لا تصل كل بيئة إلى محرك PostgreSQL المشترك إلا عبر زوج قواعد الاتصال الخاص بها. B5: المشغّل الموثوق يستخدم سطر الأوامر وDocker وSQL، ويحفظ الحالة الخاصة في ‎.secrets و‎.lab. B6: لا تعمل إلا صور المصدر المثبّتة.</desc>
+  <defs><marker id="threata-i" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#2A2632" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="threata-c" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#E06A4B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+  <rect x="0" y="0" width="900" height="652" fill="#F5EFE3"/>
+  <g font-family="system-ui, sans-serif" fill="#2A2632" text-anchor="middle">
+  <text x="876" y="34" font-size="16" font-weight="700" text-anchor="start">حدود الثقة من B1 إلى B6</text>
+  <rect x="690" y="60" width="186" height="200" rx="8" fill="#FDEDE6" stroke="#E06A4B" stroke-width="1.2" stroke-dasharray="3 2"/>
+  <text x="783" y="84" font-size="12.5" font-weight="700" fill="#A8412A">غير موثوق: الإنترنت</text>
+  <rect x="706" y="102" width="154" height="56" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="783" y="125" font-size="12.5" font-weight="700">زائر التطبيق</text>
+  <text x="783" y="145" font-size="11.5">متصفح أو تطبيق جوال</text>
+  <rect x="706" y="180" width="154" height="56" rx="8" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <text x="783" y="203" font-size="12.5" font-weight="700">مهاجم على الشبكة</text>
+  <text x="783" y="223" font-size="11.5">يراقب ويصنع طلبات</text>
+  <rect x="690" y="446" width="186" height="62" rx="8" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <text x="783" y="472" font-size="13" font-weight="700" fill="#146B5C">المشغّل</text>
+  <text x="783" y="492" font-size="12">موثوق</text>
+  <rect x="16" y="50" width="652" height="504" rx="8" fill="none" stroke="#2A2632" stroke-width="1.3" stroke-dasharray="7 5"/>
+  <text x="652" y="72" font-size="13" font-weight="700" text-anchor="start">خادمك</text>
+  <rect x="526" y="128" width="124" height="82" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="588" y="160" font-size="13" font-weight="700">وكيل TLS</text>
+  <text x="588" y="182" font-size="12">المنفذ العام</text>
+  <rect x="310" y="86" width="194" height="262" rx="8" fill="none" stroke="#2A2632" stroke-width="1.3" stroke-dasharray="7 5"/>
+  <text x="407" y="106" font-size="12" font-weight="600" fill="#5B5465">العنوان المحلي فقط</text>
+  <rect x="324" y="120" width="166" height="58" rx="8" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
+  <text x="407" y="144" font-size="13" font-weight="700">البوابة</text>
+  <text x="407" y="164" font-size="11.5">المفتاح والمسار والحدود</text>
+  <rect x="324" y="196" width="166" height="58" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="407" y="220" font-size="12.5" font-weight="700">واجهة الإدارة</text>
+  <text x="407" y="240" font-size="11.5">ولوحتها</text>
+  <rect x="324" y="274" width="166" height="58" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="407" y="298" font-size="12.5" font-weight="700">Auth الإدارة</text>
+  <text x="407" y="318" font-size="11.5">نطاق منفصل</text>
+  <rect x="30" y="86" width="262" height="336" rx="8" fill="none" stroke="#2A2632" stroke-width="1.3" stroke-dasharray="7 5"/>
+  <text x="274" y="106" font-size="12" font-weight="600" fill="#5B5465" text-anchor="start">شبكة Docker داخلية</text>
+  <rect x="70" y="120" width="208" height="52" rx="8" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <text x="174" y="142" font-size="12.5" font-weight="700">البيئة أ</text>
+  <text x="174" y="160" font-size="11">Auth وREST وقاعدة و3 حسابات</text>
+  <rect x="70" y="182" width="208" height="52" rx="8" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <text x="174" y="204" font-size="12.5" font-weight="700">البيئة ب</text>
+  <text x="174" y="222" font-size="11">Auth وREST وقاعدة و3 حسابات</text>
+  <rect x="70" y="252" width="208" height="48" rx="8" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
+  <text x="174" y="272" font-size="12.5" font-weight="700" direction="ltr">Storage</text>
+  <text x="174" y="290" font-size="11.5">عملية مشتركة واحدة</text>
+  <rect x="70" y="350" width="208" height="56" rx="8" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
+  <text x="174" y="374" font-size="12.5" font-weight="700" direction="ltr">PostgreSQL</text>
+  <text x="174" y="394" font-size="11.5">محرك مشترك واحد</text>
+  <rect x="324" y="446" width="166" height="62" rx="8" fill="#FBE7A8" stroke="#2A2632" stroke-width="1.3"/>
+  <text x="407" y="472" font-size="12.5" font-weight="700">الحالة الخاصة</text>
+  <text x="407" y="492" font-size="12" font-family="ui-monospace, Menlo, Consolas, monospace" direction="ltr">‎.secrets, .lab‎</text>
+  <path d="M706 130 C678 130 678 152 652 152" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#threata-i)"/>
+  <path d="M706 208 C678 208 678 188 652 188" fill="none" stroke="#E06A4B" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 4" marker-end="url(#threata-c)"/>
+  <path d="M526 150 L492 150" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#threata-i)"/>
+  <path d="M526 188 C510 188 508 225 492 225" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#threata-i)"/>
+  <path d="M407 254 L407 272" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#threata-i)"/>
+  <path d="M324 140 L280 146" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#threata-i)"/>
+  <path d="M324 152 C302 152 300 208 280 208" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#threata-i)"/>
+  <path d="M324 164 C306 164 304 276 280 276" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#threata-i)"/>
+  <path d="M70 146 L46 146 L46 372 L68 372" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#threata-i)"/>
+  <path d="M70 208 L46 208" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M174 300 L174 348" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#threata-i)"/>
+  <path d="M690 477 L492 477" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#threata-i)"/>
+  <path d="M783 508 L783 530 L174 530 L174 408" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#threata-i)"/>
+  <text x="590" y="470" font-size="11.5" fill="#5B5465">سطر الأوامر وDocker وSQL</text>
+  <rect x="664" y="107" width="30" height="18" rx="9" fill="#E06A4B"/>
+  <text x="679" y="120" font-size="11.5" font-weight="700" fill="#FFFBF1" direction="ltr">B1</text>
+  <rect x="573" y="109" width="30" height="18" rx="9" fill="#E06A4B"/>
+  <text x="588" y="122" font-size="11.5" font-weight="700" fill="#FFFBF1" direction="ltr">B4</text>
+  <rect x="497" y="239" width="30" height="18" rx="9" fill="#E06A4B"/>
+  <text x="512" y="252" font-size="11.5" font-weight="700" fill="#FFFBF1" direction="ltr">B3</text>
+  <rect x="19" y="283" width="30" height="18" rx="9" fill="#E06A4B"/>
+  <text x="34" y="296" font-size="11.5" font-weight="700" fill="#FFFBF1" direction="ltr">B2</text>
+  <rect x="575" y="485" width="30" height="18" rx="9" fill="#E06A4B"/>
+  <text x="590" y="498" font-size="11.5" font-weight="700" fill="#FFFBF1" direction="ltr">B5</text>
+  <rect x="43" y="97" width="30" height="18" rx="9" fill="#E06A4B"/>
+  <text x="58" y="110" font-size="11.5" font-weight="700" fill="#FFFBF1" direction="ltr">B6</text>
+  <rect x="846" y="571" width="30" height="18" rx="9" fill="#E06A4B"/>
+  <text x="861" y="584" font-size="11.5" font-weight="700" fill="#FFFBF1" direction="ltr">B1</text>
+  <text x="838" y="584" font-size="12" text-anchor="start">من الإنترنت إلى البوابة: مفتاح عام ورمز</text>
+  <rect x="408" y="571" width="30" height="18" rx="9" fill="#E06A4B"/>
+  <text x="423" y="584" font-size="11.5" font-weight="700" fill="#FFFBF1" direction="ltr">B2</text>
+  <text x="400" y="584" font-size="12" text-anchor="start">بين البيئات: زوج قواعد الاتصال الخاص بكل بيئة</text>
+  <rect x="846" y="593" width="30" height="18" rx="9" fill="#E06A4B"/>
+  <text x="861" y="606" font-size="11.5" font-weight="700" fill="#FFFBF1" direction="ltr">B3</text>
+  <text x="838" y="606" font-size="12" text-anchor="start">من هوية التطبيق إلى الإدارة: رمز مشغّل</text>
+  <rect x="408" y="593" width="30" height="18" rx="9" fill="#E06A4B"/>
+  <text x="423" y="606" font-size="11.5" font-weight="700" fill="#FFFBF1" direction="ltr">B4</text>
+  <text x="400" y="606" font-size="12" text-anchor="start">من الشبكة إلى اللوحة: الوكيل وحده يواجهها</text>
+  <rect x="846" y="615" width="30" height="18" rx="9" fill="#E06A4B"/>
+  <text x="861" y="628" font-size="11.5" font-weight="700" fill="#FFFBF1" direction="ltr">B5</text>
+  <text x="838" y="628" font-size="12" text-anchor="start">الخادم والأسرار: ملفات خاصة، والمشغّل في الداخل</text>
+  <rect x="408" y="615" width="30" height="18" rx="9" fill="#E06A4B"/>
+  <text x="423" y="628" font-size="11.5" font-weight="700" fill="#FFFBF1" direction="ltr">B6</text>
+  <text x="400" y="628" font-size="12" text-anchor="start">سلسلة التوريد: لا تعمل إلا الصور المثبّتة</text>
+  </g>
+</svg>

@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 652" width="900" height="652" role="img" aria-labelledby="threate-t threate-d" xml:lang="en">
+  <title id="threate-t">Trust boundaries B1 to B6</title>
+  <desc id="threate-d">App visitors and network attackers are on the untrusted internet and reach only the TLS proxy on the public port. B1: a visitor needs a publishable key and a token to pass the gateway. B3: the management API and console take an operator token, checked by the separate management Auth realm. B4: only the proxy faces the network; the gateway and management sit on loopback. Environments A and B, each with its own Auth, REST, database and three logins, and the shared Storage process run on an internal Docker network. B2: each environment reaches the shared PostgreSQL engine only through its exact connection rule pair. B5: the trusted operator uses the shell, Docker and SQL and holds the private state in .secrets and .lab. B6: only pinned upstream images run.</desc>
+  <defs><marker id="threate-i" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#2A2632" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="threate-c" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#E06A4B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+  <rect x="0" y="0" width="900" height="652" fill="#F5EFE3"/>
+  <g font-family="system-ui, sans-serif" fill="#2A2632" text-anchor="middle">
+  <text x="24" y="34" font-size="16" font-weight="700" text-anchor="start">Trust boundaries B1 to B6</text>
+  <rect x="24" y="60" width="186" height="200" rx="8" fill="#FDEDE6" stroke="#E06A4B" stroke-width="1.2" stroke-dasharray="3 2"/>
+  <text x="117" y="84" font-size="12.5" font-weight="700" fill="#A8412A">untrusted: internet</text>
+  <rect x="40" y="102" width="154" height="56" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="117" y="125" font-size="12.5" font-weight="700">app visitor</text>
+  <text x="117" y="145" font-size="11.5">browser or mobile app</text>
+  <rect x="40" y="180" width="154" height="56" rx="8" fill="#F9D9CF" stroke="#E06A4B" stroke-width="1.8"/>
+  <text x="117" y="203" font-size="12.5" font-weight="700">network attacker</text>
+  <text x="117" y="223" font-size="11.5">watches, crafts requests</text>
+  <rect x="24" y="446" width="186" height="62" rx="8" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <text x="117" y="472" font-size="13" font-weight="700" fill="#146B5C">operator</text>
+  <text x="117" y="492" font-size="12">trusted</text>
+  <rect x="232" y="50" width="652" height="504" rx="8" fill="none" stroke="#2A2632" stroke-width="1.3" stroke-dasharray="7 5"/>
+  <text x="248" y="72" font-size="13" font-weight="700" text-anchor="start">your server</text>
+  <rect x="250" y="128" width="124" height="82" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="312" y="160" font-size="13" font-weight="700">TLS proxy</text>
+  <text x="312" y="182" font-size="12">public port</text>
+  <rect x="396" y="86" width="194" height="262" rx="8" fill="none" stroke="#2A2632" stroke-width="1.3" stroke-dasharray="7 5"/>
+  <text x="493" y="106" font-size="12" font-weight="600" fill="#5B5465">loopback only</text>
+  <rect x="410" y="120" width="166" height="58" rx="8" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
+  <text x="493" y="144" font-size="13" font-weight="700">gateway</text>
+  <text x="493" y="164" font-size="11.5">key, route, limits</text>
+  <rect x="410" y="196" width="166" height="58" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="493" y="220" font-size="12.5" font-weight="700">management API</text>
+  <text x="493" y="240" font-size="11.5">and console</text>
+  <rect x="410" y="274" width="166" height="58" rx="8" fill="#FFFBF1" stroke="#2A2632" stroke-width="1.4"/>
+  <text x="493" y="298" font-size="12.5" font-weight="700">management Auth</text>
+  <text x="493" y="318" font-size="11.5">separate realm</text>
+  <rect x="608" y="86" width="262" height="336" rx="8" fill="none" stroke="#2A2632" stroke-width="1.3" stroke-dasharray="7 5"/>
+  <text x="626" y="106" font-size="12" font-weight="600" fill="#5B5465" text-anchor="start">internal Docker network</text>
+  <rect x="622" y="120" width="208" height="52" rx="8" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <text x="726" y="142" font-size="12.5" font-weight="700">environment A</text>
+  <text x="726" y="160" font-size="11">Auth, REST, database, 3 logins</text>
+  <rect x="622" y="182" width="208" height="52" rx="8" fill="#BFE3D8" stroke="#1F8A78" stroke-width="1.8"/>
+  <text x="726" y="204" font-size="12.5" font-weight="700">environment B</text>
+  <text x="726" y="222" font-size="11">Auth, REST, database, 3 logins</text>
+  <rect x="622" y="252" width="208" height="48" rx="8" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
+  <text x="726" y="272" font-size="12.5" font-weight="700">Storage</text>
+  <text x="726" y="290" font-size="11.5">one shared process</text>
+  <rect x="622" y="350" width="208" height="56" rx="8" fill="#F6C7B6" stroke="#E06A4B" stroke-width="2"/>
+  <text x="726" y="374" font-size="12.5" font-weight="700">PostgreSQL</text>
+  <text x="726" y="394" font-size="11.5">one shared engine</text>
+  <rect x="410" y="446" width="166" height="62" rx="8" fill="#FBE7A8" stroke="#2A2632" stroke-width="1.3"/>
+  <text x="493" y="472" font-size="12.5" font-weight="700">private state</text>
+  <text x="493" y="492" font-size="12" font-family="ui-monospace, Menlo, Consolas, monospace">.secrets, .lab</text>
+  <path d="M194 130 C222 130 222 152 248 152" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#threate-i)"/>
+  <path d="M194 208 C222 208 222 188 248 188" fill="none" stroke="#E06A4B" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 4" marker-end="url(#threate-c)"/>
+  <path d="M374 150 L408 150" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#threate-i)"/>
+  <path d="M374 188 C390 188 392 225 408 225" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#threate-i)"/>
+  <path d="M493 254 L493 272" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#threate-i)"/>
+  <path d="M576 140 L620 146" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#threate-i)"/>
+  <path d="M576 152 C598 152 600 208 620 208" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#threate-i)"/>
+  <path d="M576 164 C594 164 596 276 620 276" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#threate-i)"/>
+  <path d="M830 146 L854 146 L854 372 L832 372" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#threate-i)"/>
+  <path d="M830 208 L854 208" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M726 300 L726 348" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#threate-i)"/>
+  <path d="M210 477 L408 477" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#threate-i)"/>
+  <path d="M117 508 L117 530 L726 530 L726 408" fill="none" stroke="#2A2632" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#threate-i)"/>
+  <text x="310" y="470" font-size="11.5" fill="#5B5465">shell, Docker, SQL</text>
+  <rect x="206" y="107" width="30" height="18" rx="9" fill="#E06A4B"/>
+  <text x="221" y="120" font-size="11.5" font-weight="700" fill="#FFFBF1" direction="ltr">B1</text>
+  <rect x="297" y="109" width="30" height="18" rx="9" fill="#E06A4B"/>
+  <text x="312" y="122" font-size="11.5" font-weight="700" fill="#FFFBF1" direction="ltr">B4</text>
+  <rect x="373" y="239" width="30" height="18" rx="9" fill="#E06A4B"/>
+  <text x="388" y="252" font-size="11.5" font-weight="700" fill="#FFFBF1" direction="ltr">B3</text>
+  <rect x="851" y="283" width="30" height="18" rx="9" fill="#E06A4B"/>
+  <text x="866" y="296" font-size="11.5" font-weight="700" fill="#FFFBF1" direction="ltr">B2</text>
+  <rect x="295" y="485" width="30" height="18" rx="9" fill="#E06A4B"/>
+  <text x="310" y="498" font-size="11.5" font-weight="700" fill="#FFFBF1" direction="ltr">B5</text>
+  <rect x="827" y="97" width="30" height="18" rx="9" fill="#E06A4B"/>
+  <text x="842" y="110" font-size="11.5" font-weight="700" fill="#FFFBF1" direction="ltr">B6</text>
+  <rect x="24" y="571" width="30" height="18" rx="9" fill="#E06A4B"/>
+  <text x="39" y="584" font-size="11.5" font-weight="700" fill="#FFFBF1" direction="ltr">B1</text>
+  <text x="62" y="584" font-size="12" text-anchor="start">internet to gateway: a publishable key and a token</text>
+  <rect x="462" y="571" width="30" height="18" rx="9" fill="#E06A4B"/>
+  <text x="477" y="584" font-size="11.5" font-weight="700" fill="#FFFBF1" direction="ltr">B2</text>
+  <text x="500" y="584" font-size="12" text-anchor="start">environment to environment: its own connection rule pair</text>
+  <rect x="24" y="593" width="30" height="18" rx="9" fill="#E06A4B"/>
+  <text x="39" y="606" font-size="11.5" font-weight="700" fill="#FFFBF1" direction="ltr">B3</text>
+  <text x="62" y="606" font-size="12" text-anchor="start">app identity to management: an operator token</text>
+  <rect x="462" y="593" width="30" height="18" rx="9" fill="#E06A4B"/>
+  <text x="477" y="606" font-size="11.5" font-weight="700" fill="#FFFBF1" direction="ltr">B4</text>
+  <text x="500" y="606" font-size="12" text-anchor="start">network to console: only the proxy faces it</text>
+  <rect x="24" y="615" width="30" height="18" rx="9" fill="#E06A4B"/>
+  <text x="39" y="628" font-size="11.5" font-weight="700" fill="#FFFBF1" direction="ltr">B5</text>
+  <text x="62" y="628" font-size="12" text-anchor="start">host and secrets: private files, the operator inside</text>
+  <rect x="462" y="615" width="30" height="18" rx="9" fill="#E06A4B"/>
+  <text x="477" y="628" font-size="11.5" font-weight="700" fill="#FFFBF1" direction="ltr">B6</text>
+  <text x="500" y="628" font-size="12" text-anchor="start">supply chain: only pinned images run</text>
+  </g>
+</svg>

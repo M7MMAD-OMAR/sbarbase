@@ -27,27 +27,11 @@
 
 *تفحص البوابة كل طلب مقابل البيئة المذكورة في مساره، وترفض بدل أن تضعه في طابور.*
 
-هذا التوجيه الكامل نصًا، بما فيه مسار الإدارة وعامل التجهيز:
+وهذا التوجيه الكامل، بما فيه مسار الإدارة وعامل التجهيز:
 
-```mermaid
-flowchart TB
-  C["App using supabase-js"] -->|"HTTPS"| P["TLS proxy (operator's, or deploy/console-tls-proxy.ts)"]
-  O["Operator browser"] --> P
-  P --> L["Loopback server"]
-  L --> APP{"Path?"}
-  APP -->|"/management/auth/v1/*"| MA["Management Auth realm (own database)"]
-  APP -->|"/management/*"| CP["Control API: catalog, keys, provisioning status"]
-  APP -->|"/ENV/auth, rest or storage/v1/*"| GW["Gateway: key check, maintenance, admission, body cap"]
-  GW --> AU["Auth for this environment"]
-  GW --> RE["PostgREST for this environment"]
-  GW -->|"tenant header"| ST["Shared Storage"]
-  AU --> DB[("Environment database on shared PostgreSQL")]
-  RE --> DB
-  ST --> DB
-  CP --> CAT[("Control catalog, SQLite")]
-  W["Provisioning worker"] --> CAT
-  W -->|"pinned containers"| DB
-```
+![يصل التطبيق ومتصفح المشغّل إلى وكيل TLS ثم الخادم المحلي، فيوجّه بحسب المسار: /management/auth/v1/* إلى نطاق Auth الإدارة، و/management/* إلى واجهة الإدارة وفهرسها في SQLite، ومسار auth أو rest أو storage لبيئة ما إلى البوابة؛ وتمرر البوابة الطلب إلى Auth أو PostgREST الخاصين بالبيئة أو إلى Storage المشترك، وكلها على قاعدة البيئة في محرك PostgreSQL المشترك؛ ويقرأ عامل التجهيز الفهرس ويشغّل الحاويات المثبّتة](../diagrams/routing.ar.svg)
+
+*وكيل واحد، وخادم محلي واحد، وثلاثة مسارات.*
 
 **مسار الطلب.** يستدعي التطبيق `/<environment>/rest/v1/...` بمفتاحه العام. تقرأ البوابة سجل توجيه البيئة (هل هي في الصيانة؟ وأين تعمل؟)، وتطابق المفتاح مع البصمات المحفوظة، وتقبل الطلب إن كان عدد الطلبات الجارية للبيئة دون حدها المتزامن، وتحدّ الجسم بـ1 MiB (أما رفع ملف إلى Storage فيمر كما يصل حتى حد الرفع، 50 MiB افتراضيًا)، ثم تمرّره إلى PostgREST الخاص بتلك البيئة. طلبات Storage تذهب إلى عملية Storage المشتركة الوحيدة، مع ترويسة مستأجر موثوقة تسمّي البيئة. تنزيلات Storage العامة والموقّعة هي وحدها الطلبات المسموحة بلا مفتاح API.
 

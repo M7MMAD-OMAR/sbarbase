@@ -178,12 +178,9 @@ p{margin:0}
 .prose th{background:var(--surface);font-weight:650}
 .prose tr:last-child td{border-bottom:0}
 .code{display:flex;align-items:flex-start;gap:8px;background:var(--code-bg);color:var(--code-ink);border-radius:var(--radius);min-width:0;padding-inline-end:8px}
-.code pre,.diagram-source pre{flex:1;min-width:0;margin:0;padding:14px 16px;overflow-x:auto;font-family:var(--mono);font-size:13.5px;line-height:1.6;text-align:left;direction:ltr}
+.code pre{flex:1;min-width:0;margin:0;padding:14px 16px;overflow-x:auto;font-family:var(--mono);font-size:13.5px;line-height:1.6;text-align:left;direction:ltr}
 .prose pre code{font-family:inherit;font-size:inherit}
 .code .copy{margin-top:8px}
-.diagram-source{border:1px solid var(--line);border-radius:var(--radius);background:var(--surface)}
-.diagram-source summary{cursor:pointer;padding:10px 14px;font-size:14px;color:var(--ink-soft)}
-.diagram-source pre{border-top:1px solid var(--line)}
 .edit{margin-top:40px !important;padding-top:16px;border-top:1px solid var(--line);font-size:14px}
 .edit a{display:inline-flex;align-items:center;gap:6px;color:var(--ink-soft)}
 @media (max-width:900px){

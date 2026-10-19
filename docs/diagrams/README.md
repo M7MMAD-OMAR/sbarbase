@@ -20,5 +20,8 @@ Each file is self-contained: a solid paper background so it reads on a dark page
 | [restore-flow.svg](restore-flow.svg) | Stop writes, encrypted export, restore into an independent engine, verify, then switch; a failed verification leaves the source fenced; exporting stops shared Storage. | [recovery](../explain/recovery.md) |
 | [install-flow.svg](install-flow.svg) | The quickstart path from an empty server to a supabase-js call, as rehearsed in a local virtual machine. | [quickstart](../guides/quickstart.md) |
 | [docs-map.svg](docs-map.svg) | The four doc sections and the engineering notebook, one purpose each. | [docs README](../README.md) |
+| [provisioning-sequence.svg](provisioning-sequence.svg) | Message by message: the receipt is on disk before the effect runs and consumed only after the outcome is in the catalog. | [provisioning](../explain/provisioning.md) |
+| [threat-boundaries.svg](threat-boundaries.svg) | The six trust boundaries B1 to B6 on the request and operator paths. | [threat model](../explain/threat-model.md) |
+| [routing.svg](routing.svg) | The loopback server routes by path to the management Auth realm, the control API or the gateway; the worker runs the pinned containers. | [architecture](../explain/architecture.md) |
 
 To check a diagram after editing, render both variants with a headless browser (for example `chromium --headless --screenshot --window-size=<viewBox width>,<height> file://...svg`) and look at the result: no label may leave its box, and the Arabic variant must read right to left. Keep font sizes between 11 and 16 and leave slack in every box, because viewers whose system font is wider than yours will see wider text.

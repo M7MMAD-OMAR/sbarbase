@@ -88,7 +88,6 @@ export const content={
   trademark:'Supabase is a trademark of Supabase, Inc. Sbarbase is not affiliated.',
   docsTitle:'Sbarbase docs',docsNav:'Documentation',contents:'Contents',overview:'Overview',
   edit:'Edit on GitHub',onGithub:'on GitHub',
-  diagramSource:'Diagram source (GitHub draws it)',
  },
  ar:{
   dir:'rtl',lang:'ar',
@@ -144,6 +143,5 @@ export const content={
   trademark:'Supabase علامة تجارية لشركة \u2066Supabase, Inc.\u2069، وصباربيز غير تابع لها.',
   docsTitle:'توثيق صباربيز',docsNav:'التوثيق',contents:'المحتويات',overview:'نظرة عامة',
   edit:'عدّل على GitHub',onGithub:'على GitHub',
-  diagramSource:'مصدر المخطط (يرسمه GitHub)',
  },
 };

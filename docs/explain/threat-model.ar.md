@@ -43,42 +43,9 @@
 
 ### حدود الثقة
 
-```mermaid
-flowchart TB
-  subgraph internet["Untrusted: internet"]
-    V["App visitor"]
-    N["Network attacker"]
-  end
-  subgraph host["Your server"]
-    TLS["TLS proxy (public port)"]
-    subgraph loop["Loopback only"]
-      GW["Gateway: key check, route, limits"]
-      MG["Management API and console"]
-      MA["Management Auth realm"]
-    end
-    subgraph envs["Internal Docker network"]
-      A["Environment A: Auth, REST, database, 3 logins"]
-      B["Environment B: Auth, REST, database, 3 logins"]
-      ST["Shared Storage process"]
-      PG[("Shared PostgreSQL engine")]
-    end
-    SEC["Private state: .secrets and .lab"]
-  end
-  OP["Operator (trusted)"]
-  V -->|"B1: publishable key + token"| TLS
-  N -.-> TLS
-  TLS --> GW
-  TLS -->|"B3: operator token"| MG
-  MG --> MA
-  GW --> A
-  GW --> B
-  GW --> ST
-  A -->|"B2: exact HBA pair"| PG
-  B -->|"B2: exact HBA pair"| PG
-  ST --> PG
-  OP -->|"B5: shell, Docker, SQL"| SEC
-  OP --> PG
-```
+![الزوار والمهاجمون على الشبكة في الإنترنت غير الموثوق لا يصلون إلا إلى وكيل TLS على المنفذ العام. B1 عند البوابة التي تطلب مفتاحًا عامًا ورمزًا؛ وB3 عند واجهة الإدارة ولوحتها التي تطلب رمز مشغّل؛ وB4 عند الوكيل، الجزء الوحيد المواجه للشبكة؛ وB2 بين كل بيئة ومحرك PostgreSQL المشترك عبر زوج قواعد الاتصال الخاص بها؛ وB5 حول وصول المشغّل إلى سطر الأوامر وDocker وSQL والحالة الخاصة؛ وB6 للصور المثبّتة](../diagrams/threat-boundaries.ar.svg)
+
+*ستة حدود، لكل منها اسم في القائمة أدناه وفي الجدول بعدها.*
 
 - **B1، من الإنترنت إلى البوابة.** كل ما يرسله الزائر غير موثوق إلى أن تربط البوابة مفتاحًا ببيئة واحدة مفعّلة.
 - **B2، من بيئة إلى بيئة.** يجب ألا تنفع رموز أي بيئة ولا حسابات دخول خدماتها في أي بيئة أخرى.

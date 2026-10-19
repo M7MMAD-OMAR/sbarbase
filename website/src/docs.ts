@@ -87,7 +87,6 @@ function markdown(source:Source,text:string,set:Map<string,Source>){
    },
    code({text,lang}){
     const body=`<pre dir="ltr"><code${lang?` class="language-${esc(lang)}"`:''}>${esc(text)}</code></pre>`;
-    if(lang==='mermaid')return `<details class="diagram-source"><summary>${esc(c.diagramSource)}</summary>${body}</details>\n`;
     return `<div class="code">${body}<button type="button" class="copy" data-copy="${esc(text)}" aria-label="${esc(c.copy)}">${icon('copy')}<span>${c.copy}</span></button></div>\n`;
    },
   },

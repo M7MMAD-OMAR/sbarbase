@@ -50,7 +50,7 @@ C2. **One source, built in.** `website/build.ts` reads `../docs` at build time a
 
 C3. **Page shape.** The site's header and themes, a side list built from the docs map, a switch to the sibling language, an "Edit on GitHub" link, right to left for Arabic, and a copy button on code blocks (reuse `website/src/app.js`). Readable without JavaScript, like the rest of the site.
 
-Done for C1 to C3 on 2026-10-19: `website/src/docs.ts` renders the set with `marked` 17.0.6 and `github-slugger` 2.0.0, both pinned exactly, into `/docs/...` and `/en/docs/...`, one folder per page (72 pages). The language switch line at the top of each source becomes the page's own switch. Mermaid blocks are shown as their source in a collapsed box, because the site does not draw them; each of the three sits next to an SVG diagram or says it is the text form. The build writes `sitemap.xml` with every page and its alternate, replacing the static one.
+Done for C1 to C3 on 2026-10-19: `website/src/docs.ts` renders the set with `marked` 17.0.6 and `github-slugger` 2.0.0, both pinned exactly, into `/docs/...` and `/en/docs/...`, one folder per page (72 pages). The language switch line at the top of each source becomes the page's own switch. The three Mermaid blocks were redrawn on 2026-10-19 as SVG diagrams in `docs/diagrams/build.py` (`provisioning-sequence`, `threat-boundaries`, `routing`, each in both languages), because the site does not draw Mermaid; a website test refuses a new one. The build writes `sitemap.xml` with every page and its alternate, replacing the static one.
 
 C4. **Search, later.** A static index built with the pages, only after C1 to C3 work.
 
