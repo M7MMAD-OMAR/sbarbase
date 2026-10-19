@@ -1,6 +1,6 @@
 # Container install first, and the docs on the website
 
-Date: 2026-10-17. Status: A1 to A3 done on 2026-10-17 (local VM rehearsal, guide and website source; the site is not deployed yet); the rest is a proposal.
+Date: 2026-10-17. Status: A1 to A3 done on 2026-10-17 (local VM rehearsal, guide and website source). C1 to C3, C5 and C6 done in source on 2026-10-19. Neither is deployed yet: the live site changes at the next `bun run deploy`. The rest is a proposal.
 
 The owner asked for two things on 2026-10-17: installing Sbarbase must be easy, preferably with Docker or Podman, and the documentation must live on the website, not only on GitHub. This plan says what already exists, what is missing, and the order to close the gap.
 
@@ -50,11 +50,17 @@ C2. **One source, built in.** `website/build.ts` reads `../docs` at build time a
 
 C3. **Page shape.** The site's header and themes, a side list built from the docs map, a switch to the sibling language, an "Edit on GitHub" link, right to left for Arabic, and a copy button on code blocks (reuse `website/src/app.js`). Readable without JavaScript, like the rest of the site.
 
+Done for C1 to C3 on 2026-10-19: `website/src/docs.ts` renders the set with `marked` 17.0.6 and `github-slugger` 2.0.0, both pinned exactly, into `/docs/...` and `/en/docs/...`, one folder per page (72 pages). The language switch line at the top of each source becomes the page's own switch. Mermaid blocks are shown as their source in a collapsed box, because the site does not draw them; each of the three sits next to an SVG diagram or says it is the text form. The build writes `sitemap.xml` with every page and its alternate, replacing the static one.
+
 C4. **Search, later.** A static index built with the pages, only after C1 to C3 work.
 
 C5. **Links.** The site's Docs, Quickstart and Choosing a server buttons point at the on-site pages instead of GitHub.
 
+Done for C5 on 2026-10-19: `links(lang)` in `website/src/content.ts` points the Docs, Docker guide, Without Docker and Choosing a server buttons, and the footer's Docs link, at the on-site pages; Security and License stay on GitHub.
+
 C6. **Checks.** `website.yml` also runs on `docs/**`. The website tests fail when a page in the bilingual set does not render in both languages or when a rendered internal link has no target. The existing no long dash rule already covers the source.
+
+Done for C6 on 2026-10-19: `website.yml` runs on `docs/**`, and `website/tests/docs.test.ts` checks that every page of the set renders in both languages, that every rendered internal link and anchor has a target (about 6,000 links, 247 with anchors, at this checkpoint), that GitHub anchors such as `server-deployment.md#private-directory-permissions` still land, and that no page carries a long dash or an external resource.
 
 C7. **Deployment stays manual for now.** A docs change reaches the site only after `bun run deploy` with the owner's Wrangler login. Connecting Workers Builds needs a permission the current login does not grant; do not describe the docs as updating on push until that is verified.
 
