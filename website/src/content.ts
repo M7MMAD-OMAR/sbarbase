@@ -2,20 +2,25 @@
 // page shows the idea, the hierarchy, one request and the install; the docs carry
 // the detail. No long dashes anywhere; the test refuses them.
 
-const repo='https://github.com/M7MMAD-OMAR/sbarbase';
-const doc=(path:string)=>`${repo}/blob/main/${path}`;
+export const repo='https://github.com/M7MMAD-OMAR/sbarbase';
+const github=(path:string)=>`${repo}/blob/main/${path}`;
 
 export type Lang='ar'|'en';
 
-export const links={
+// A page of the rendered docs: Arabic under /docs/, English under /en/docs/. slug is
+// the path under docs/ without the extension, and '' for the docs map.
+export const docPage=(lang:Lang,slug:string)=>`${lang==='ar'?'':'/en'}/docs/${slug?`${slug}/`:''}`;
+
+// The docs live on this site; security policy and licence stay on GitHub.
+export const links=(lang:Lang)=>({
  repo,
- docs:doc('docs/README.md'),
- docker:doc('docs/guides/docker.md'),
- quickstart:doc('docs/guides/quickstart.md'),
- server:doc('docs/guides/choosing-a-server.md'),
- security:doc('SECURITY.md'),
- license:doc('LICENSE'),
-};
+ docs:docPage(lang,''),
+ docker:docPage(lang,'guides/docker'),
+ quickstart:docPage(lang,'guides/quickstart'),
+ server:docPage(lang,'guides/choosing-a-server'),
+ security:github('SECURITY.md'),
+ license:github('LICENSE'),
+});
 
 // The install, exactly as docs/guides/docker.md gives it and lab/vm-docker-rehearsal.sh
 // ran it on a bare Ubuntu 26.04 machine. Identical in both languages; the copy
@@ -81,6 +86,9 @@ export const content={
 
   docs:'Docs',security:'Security',license:'License',home:'sbarah.com',
   trademark:'Supabase is a trademark of Supabase, Inc. Sbarbase is not affiliated.',
+  docsTitle:'Sbarbase docs',docsNav:'Documentation',contents:'Contents',overview:'Overview',
+  edit:'Edit on GitHub',onGithub:'on GitHub',
+  diagramSource:'Diagram source (GitHub draws it)',
  },
  ar:{
   dir:'rtl',lang:'ar',
@@ -134,5 +142,8 @@ export const content={
 
   docs:'التوثيق',security:'الأمان',license:'الرخصة',home:'sbarah.com',
   trademark:'Supabase علامة تجارية لشركة \u2066Supabase, Inc.\u2069، وصباربيز غير تابع لها.',
+  docsTitle:'توثيق صباربيز',docsNav:'التوثيق',contents:'المحتويات',overview:'نظرة عامة',
+  edit:'عدّل على GitHub',onGithub:'على GitHub',
+  diagramSource:'مصدر المخطط (يرسمه GitHub)',
  },
 };

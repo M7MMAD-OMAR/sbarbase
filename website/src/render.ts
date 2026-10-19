@@ -1,25 +1,10 @@
-import {content,links,commands,type Lang} from './content';
+import {content,links as linksFor,commands,type Lang} from './content';
+import {esc,icon,head,topbar,footer,pageData,homeOf} from './layout';
 
 // Prerendered pages. The UI is plain and technical; only the two diagrams keep the
 // hand-drawn wobble. Both diagrams are inline SVG written left to right and
 // mirrored for Arabic, so they read in the reader's direction. No external assets
 // beyond the self-hosted fonts; the CSP allows nothing else.
-
-const esc=(s:string)=>s.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
-
-const icons:Record<string,string>={
- arrow:'M5 12h14m-6-6 6 6-6 6',
- down:'M12 5v14m-6-6 6 6 6-6',
- github:'M9 19c-5 1-5-2-7-2m14 5v-4c0-1 0-2-1-3 4 0 7-2 7-6 0-2-1-3-2-4 0-1 0-2-1-3-2 0-3 1-4 1-2-1-5-1-7 0-1 0-2-1-4-1-1 1-1 2-1 3-1 1-2 2-2 4 0 4 3 6 7 6-1 1-1 2-1 3v4',
- play:'m8 5 11 7-11 7Z',
- pause:'M8 5v14M16 5v14',
- replay:'M4 12a8 8 0 1 0 3-6.2M4 4v4h4',
- copy:'M9 9h11v11H9zM5 15H4V4h11v1',
- sun:'M12 4V2m0 20v-2m8-8h2M2 12h2m13.7-5.7 1.4-1.4M4.9 19.1l1.4-1.4m0-11.4L4.9 4.9m14.2 14.2-1.4-1.4M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8',
- moon:'M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5',
- book:'M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zM4 21V5',
-};
-const icon=(name:string,cls='')=>`<svg class="icon ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${icons[name]}"/></svg>`;
 
 // Shared SVG definitions: the hand wobble for the diagrams, and arrowheads.
 const defs=`<svg class="defs" width="0" height="0" aria-hidden="true" focusable="false"><defs>
@@ -27,8 +12,6 @@ const defs=`<svg class="defs" width="0" height="0" aria-hidden="true" focusable=
 <marker id="ah" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M1 1 9 5 1 9" fill="none" stroke="#2A2632" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker>
 <marker id="ahc" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M1 1 9 5 1 9" fill="none" stroke="#E06A4B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></marker>
 </defs></svg>`;
-
-const brandMark=`<svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><rect x="1" y="1" width="30" height="30" rx="8" fill="#E06A4B"/><path d="M14 27c-1-8-1-15 2-17 3 2 3 9 2 17zM14 20c-3 0-4-2-4-5 0-1 2-1 2 0 0 2 1 3 2 3zM18 17c2 0 3-1 3-4 0-1 2-1 2 0 0 4-2 6-5 6z" fill="#FFFBF1"/></svg>`;
 
 // Mirroring helpers shared by both diagrams: X() flips a box or point for Arabic,
 // p() flips every "x y" pair in a path.
@@ -154,43 +137,17 @@ ${envs.map(([proj,e],i)=>text(230,dbY[i]!+27,`${t.db} · ${proj} · ${e}`,'small
 
 export function render(lang:Lang){
  const c=content[lang];
- const home=lang==='ar'?'/':'/en/';
+ const home=homeOf(lang),links=linksFor(lang);
  const url=`https://base.sbarah.com${home}`;
  const data={steps:c.steps,play:c.play,pause:c.pause,copy:c.copy,copied:c.copied};
  const heading=(id:string,label:string,title:string,text='')=>`<p class="eyebrow">${esc(label)}</p><h2 id="${id}-title">${esc(title)}</h2>${text?`<p class="lede">${esc(text)}</p>`:''}`;
 
- return `<!doctype html>
-<html lang="${c.lang}" dir="${c.dir}">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="light dark">
-<meta name="theme-color" content="#F7F5F0" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#131A2A" media="(prefers-color-scheme: dark)">
-<title>${esc(c.title)}</title>
-<meta name="description" content="${esc(c.description)}">
-<link rel="canonical" href="${url}">
-<link rel="alternate" hreflang="ar" href="https://base.sbarah.com/">
-<link rel="alternate" hreflang="en" href="https://base.sbarah.com/en/">
-<link rel="alternate" hreflang="x-default" href="https://base.sbarah.com/">
-<meta property="og:type" content="website"><meta property="og:title" content="${esc(c.title)}"><meta property="og:description" content="${esc(c.description)}"><meta property="og:image" content="https://base.sbarah.com/assets/social.jpg"><meta property="og:url" content="${url}"><meta property="og:locale" content="${lang==='ar'?'ar':'en_US'}"><meta name="twitter:card" content="summary_large_image">
-<script type="application/ld+json">${JSON.stringify({'@context':'https://schema.org','@type':'SoftwareSourceCode',name:'Sbarbase',alternateName:['sbarbase','صباربيز'],description:c.description,url,codeRepository:'https://github.com/M7MMAD-OMAR/sbarbase',sameAs:['https://github.com/M7MMAD-OMAR/sbarbase'],programmingLanguage:['TypeScript','Python'],license:'https://www.apache.org/licenses/LICENSE-2.0',inLanguage:c.lang}).replaceAll('<','\\u003c')}</script>
-<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
-<link rel="preload" href="/assets/${lang==='ar'?'arabic':'latin'}.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="/style.css">
-<script src="/app.js" type="module"></script>
-</head>
+ const ld=`<script type="application/ld+json">${JSON.stringify({'@context':'https://schema.org','@type':'SoftwareSourceCode',name:'Sbarbase',alternateName:['sbarbase','صباربيز'],description:c.description,url,codeRepository:'https://github.com/M7MMAD-OMAR/sbarbase',sameAs:['https://github.com/M7MMAD-OMAR/sbarbase'],programmingLanguage:['TypeScript','Python'],license:'https://www.apache.org/licenses/LICENSE-2.0',inLanguage:c.lang}).replaceAll('<','\\u003c')}</script>\n`;
+
+ return `${head(lang,{title:c.title,description:c.description,path:home,alternates:{ar:'/',en:'/en/'},extra:ld})}
 <body>
 ${defs}
-<a class="skip" href="#main">${c.skip}</a>
-<header class="topbar"><div class="wrap topbar-row">
-<a class="brand" href="${home}">${brandMark}<span>sbarbase</span></a>
-<nav aria-label="${c.menu}">${c.nav.map(([label,id])=>`<a href="#${id}">${esc(label)}</a>`).join('')}</nav>
-<div class="top-actions">
-<button type="button" class="round" id="theme" aria-label="${esc(c.themeLabel)}" aria-pressed="false">${icon('sun','sun')}${icon('moon','moon')}</button>
-<a class="lang" href="${c.languageUrl}" lang="${lang==='ar'?'en':'ar'}" hreflang="${lang==='ar'?'en':'ar'}">${c.language}</a>
-<a class="round" href="${links.repo}" aria-label="${esc(c.source)}" rel="noopener noreferrer">${icon('github')}</a>
-</div></div></header>
+${topbar(lang,{sectionBase:'',other:c.languageUrl})}
 
 <main id="main">
 
@@ -199,7 +156,7 @@ ${defs}
 <p class="badge"><span class="dot" aria-hidden="true"></span>${esc(c.badge)}</p>
 <h1>${esc(c.headline)}</h1>
 <p class="lede">${esc(c.intro)}</p>
-<div class="actions"><a class="button primary" href="#install">${icon('down')}${c.ctaInstall}</a><a class="button" href="${links.docs}" rel="noopener noreferrer">${icon('book')}${c.ctaDocs}</a></div>
+<div class="actions"><a class="button primary" href="#install">${icon('down')}${c.ctaInstall}</a><a class="button" href="${links.docs}">${icon('book')}${c.ctaDocs}</a></div>
 </div>
 <figure class="video">
 <div class="video-frame"><video id="explainer" src="/media/explainer.${lang}.mp4" poster="/media/explainer-poster.webp" playsinline controls preload="metadata" aria-label="${esc(c.videoLabel)}"><track kind="captions" src="/media/explainer.${lang}.vtt" srclang="${lang}" label="${lang==='ar'?'العربية':'English'}"></video></div>
@@ -228,16 +185,12 @@ ${heading('how',c.howLabel,c.howTitle)}
 ${heading('install',c.installLabel,c.installTitle)}
 <ul class="needs" aria-label="${esc(c.needsLabel)}">${c.needs.map(n=>`<li>${esc(n)}</li>`).join('')}</ul>
 <ol class="install">${commands.map((cmd,i)=>{const [title,note]=c.installSteps[i]!;return `<li><div class="step-head"><span class="num">${i+1}</span><h3>${esc(title)}</h3></div>${note?`<p class="note">${esc(note)}</p>`:''}<div class="cmd"><pre dir="ltr"><code>${esc(cmd)}</code></pre><button type="button" class="copy" data-copy="${esc(cmd)}" aria-label="${esc(`${c.copyLabel} ${i+1}`)}">${icon('copy')}<span>${c.copy}</span></button></div></li>`;}).join('')}</ol>
-<p class="links"><a class="button primary" href="${links.docker}" rel="noopener noreferrer">${c.installLinks.docker}${icon('arrow','flip')}</a><a class="button" href="${links.quickstart}" rel="noopener noreferrer">${c.installLinks.quickstart}</a><a class="button" href="${links.docs}" rel="noopener noreferrer">${icon('book')}${c.installLinks.docs}</a><a class="button" href="${links.server}" rel="noopener noreferrer">${c.installLinks.server}</a><a class="button" href="${links.repo}" rel="noopener noreferrer">${icon('github')}${c.installLinks.repo}</a></p>
+<p class="links"><a class="button primary" href="${links.docker}">${c.installLinks.docker}${icon('arrow','flip')}</a><a class="button" href="${links.quickstart}">${c.installLinks.quickstart}</a><a class="button" href="${links.docs}">${icon('book')}${c.installLinks.docs}</a><a class="button" href="${links.server}">${c.installLinks.server}</a><a class="button" href="${links.repo}" rel="noopener noreferrer">${icon('github')}${c.installLinks.repo}</a></p>
 </div></section>
 </main>
 
-<footer class="footer"><div class="wrap">
-<a class="brand" href="${home}">${brandMark}<span>sbarbase</span></a>
-<p class="footer-links"><a href="${links.docs}">${c.docs}</a><a href="${links.security}">${c.security}</a><a href="${links.license}">${c.license}</a><a href="https://sbarah.com">${c.home}</a></p>
-<p class="fine">${esc(c.trademark)}</p>
-</div></footer>
-<script id="page-data" type="application/json">${JSON.stringify(data).replaceAll('<','\\u003c')}</script>
+${footer(lang)}
+${pageData(data)}
 </body>
 </html>`;
 }

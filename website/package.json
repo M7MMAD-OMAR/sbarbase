@@ -10,5 +10,9 @@
  },
  "devDependencies": {
   "wrangler": "4.135.0"
+ },
+ "dependencies": {
+  "github-slugger": "2.0.0",
+  "marked": "17.0.6"
  }
 }

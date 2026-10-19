@@ -143,6 +143,55 @@ p{margin:0}
 .footer-links a:hover{color:var(--ink)}
 .fine{font-size:13px}
 
+/* docs pages: a side list, the page, and code that can be copied */
+.topbar nav a[aria-current="page"]{color:var(--ink);background:color-mix(in srgb,var(--ink) 6%,transparent)}
+.docs-layout{display:grid;grid-template-columns:240px minmax(0,1fr);gap:48px;align-items:start;padding-block:32px 56px}
+.docs-nav{position:sticky;top:76px;max-height:calc(100vh - 96px);overflow-y:auto;scrollbar-width:thin;font-size:14.5px;padding-inline-end:8px}
+.docs-nav ul,.docs-nav-compact ul{list-style:none;margin:0 0 14px;padding:0}
+.docs-nav a,.docs-nav-compact a{display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:8px;color:var(--ink-soft);text-decoration:none;line-height:1.4}
+.docs-nav a:hover,.docs-nav-compact a:hover{color:var(--ink);background:color-mix(in srgb,var(--ink) 5%,transparent)}
+.docs-nav a[aria-current="page"],.docs-nav-compact a[aria-current="page"]{color:var(--ink);font-weight:650;background:color-mix(in srgb,var(--coral) 14%,transparent)}
+.nav-head{font-size:12.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink);padding:6px 10px 4px}
+:root[lang="ar"] .nav-head{letter-spacing:0;font-size:13.5px}
+.ext{width:.9em;height:.9em;opacity:.7}
+.docs-nav-compact{display:none;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);padding:4px 8px}
+.docs-nav-compact summary{cursor:pointer;font-weight:650;padding:8px 6px}
+.prose{min-width:0;max-width:78ch}
+.prose h1{font-size:clamp(28px,3.6vw,40px);margin-bottom:18px}
+.prose h2{font-size:24px;margin:40px 0 12px;padding-top:4px}
+.prose h3{font-size:19px;margin:28px 0 10px}
+.prose h4{font-size:16.5px;margin:22px 0 8px}
+.prose :is(h1,h2,h3,h4){scroll-margin-top:76px}
+.prose p,.prose ul,.prose ol,.prose blockquote,.prose details,.prose .table-wrap,.prose .code{margin:0 0 16px}
+.prose ul,.prose ol{padding-inline-start:24px}
+.prose li{margin-block:4px}
+.prose li>ul,.prose li>ol{margin-bottom:0}
+.prose blockquote{border-inline-start:3px solid var(--coral);padding:4px 16px;color:var(--ink-soft);background:var(--surface);border-radius:0 8px 8px 0}
+:root[dir="rtl"] .prose blockquote{border-radius:8px 0 0 8px}
+.prose hr{border:0;border-top:1px solid var(--line);margin:32px 0}
+.prose :not(pre)>code{font-family:var(--mono);font-size:.88em;background:color-mix(in srgb,var(--ink) 7%,transparent);padding:.1em .35em;border-radius:5px;overflow-wrap:anywhere;unicode-bidi:isolate}
+.prose img{display:block;max-width:100%;height:auto;margin-inline:auto;background:var(--paper);border:1px solid #2a26321f;border-radius:14px;padding:10px}
+.prose p:has(>img)+p>em:only-child{display:block;text-align:center;font-size:14px;color:var(--ink-soft);margin-top:-6px}
+.table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius)}
+.prose table{border-collapse:collapse;width:100%;font-size:14.5px}
+.prose th,.prose td{padding:8px 12px;border-bottom:1px solid var(--line);text-align:start;vertical-align:top}
+.prose th{background:var(--surface);font-weight:650}
+.prose tr:last-child td{border-bottom:0}
+.code{display:flex;align-items:flex-start;gap:8px;background:var(--code-bg);color:var(--code-ink);border-radius:var(--radius);min-width:0;padding-inline-end:8px}
+.code pre,.diagram-source pre{flex:1;min-width:0;margin:0;padding:14px 16px;overflow-x:auto;font-family:var(--mono);font-size:13.5px;line-height:1.6;text-align:left;direction:ltr}
+.prose pre code{font-family:inherit;font-size:inherit}
+.code .copy{margin-top:8px}
+.diagram-source{border:1px solid var(--line);border-radius:var(--radius);background:var(--surface)}
+.diagram-source summary{cursor:pointer;padding:10px 14px;font-size:14px;color:var(--ink-soft)}
+.diagram-source pre{border-top:1px solid var(--line)}
+.edit{margin-top:40px !important;padding-top:16px;border-top:1px solid var(--line);font-size:14px}
+.edit a{display:inline-flex;align-items:center;gap:6px;color:var(--ink-soft)}
+@media (max-width:900px){
+ .docs-layout{grid-template-columns:minmax(0,1fr);gap:20px;padding-block:20px 44px}
+ .docs-nav{display:none}
+ .docs-nav-compact{display:block}
+}
+
 @media (prefers-reduced-motion:no-preference){
  html{scroll-behavior:smooth}
  .tick{transition:stroke-dashoffset .35s}
