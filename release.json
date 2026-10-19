@@ -1,9 +1,9 @@
 {
-  "version": "0.5.4",
+  "version": "0.5.7",
   "minimum_from": "0.3.1",
   "notes": {
-    "en": "Install with Docker starts from a bare Ubuntu 26.04 machine and is now the website's install; rehearsed in a local VM, 14 checks. Edge Functions leave the shared runtime network: each environment's functions reach only their own Auth, REST and Storage tenant. Not production ready.",
-    "ar": "يبدأ التثبيت عبر Docker من خادم Ubuntu 26.04 فارغ، وصار هو طريقة التثبيت في الموقع؛ جُرّب على آلة افتراضية محلية ونجحت 14 فحصًا. وخرجت Edge Functions من شبكة التشغيل المشتركة، فلا تصل دوال كل بيئة إلا إلى Auth وREST ومستأجر Storage الخاصين بها. ليس جاهزًا للإنتاج."
+    "en": "Fixes Studio failing behind the public TLS proxy: its compressed pages are now passed through intact instead of failing with a decompression error. Not production ready.",
+    "ar": "إصلاح عطل Studio خلف وكيل TLS العام: صارت صفحاته المضغوطة تمر كاملة بدل أن تفشل بخطأ فك الضغط. ليس جاهزًا للإنتاج."
   },
   "migrations": []
 }

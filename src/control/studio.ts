@@ -316,7 +316,9 @@ export function studioProxy(options:{key:()=>Buffer;allowed:(actor:string,runtim
    return page(status,status===413?'Studio request is too large.':status===408?'Studio request body timed out.':'Invalid Studio request body.');}
   if(!allowed())return page(403,'Studio access has been revoked. Open Studio again from the Sbarbase console.');
   let response:Response;
-  try{response=await transport(destination,{method:request.method,headers,redirect:'manual',signal:request.signal,
+  // decompress:false keeps Studio's bytes and its content-encoding header together. Bun's fetch otherwise decodes the
+  // body but keeps the header, so the next hop or the browser fails to decode a body that is no longer compressed.
+  try{response=await transport(destination,{method:request.method,headers,redirect:'manual',signal:request.signal,decompress:false,
    ...(['GET','HEAD'].includes(request.method)?{}:{body})} as RequestInit);}
   catch{return page(request.signal.aborted?400:502,'Unable to reach Studio.');}
   if(!allowed()||request.signal.aborted){

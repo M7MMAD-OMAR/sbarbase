@@ -46,7 +46,7 @@ export function Notifications({client}:{client:TelegramClient}){
    {status.state==='pending'&&<>
     <p>Bot <strong>@{status.bot}</strong> is ready. Open it in Telegram and press <strong>Start</strong>, then come back here.</p>
     {owner&&status.link?<div className="actions">
-     <a className="button" href={status.link} target="_blank" rel="noopener noreferrer">Open @{status.bot} in Telegram <ExternalLink aria-hidden="true"/></a>
+     <a className="button secondary" href={status.link} target="_blank" rel="noopener noreferrer">Open @{status.bot} in Telegram <ExternalLink aria-hidden="true"/></a>
      {owner&&<button type="button" className="primary" disabled={!!busy} onClick={()=>void run('link',()=>client('/link','POST'),'Telegram is connected. Check the chat for a confirmation.')}>I pressed Start</button>}
      {owner&&<button type="button" className="secondary" disabled={!!busy} onClick={()=>void run('off',()=>client('','DELETE'))}>Cancel</button>}
     </div>:<p className="muted">An owner of this installation is connecting this bot.</p>}

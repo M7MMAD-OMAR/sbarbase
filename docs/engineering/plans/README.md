@@ -4,6 +4,7 @@ Working plans, design drafts and their reviews. Implementation and acceptance ar
 
 | Date | File | Topic | Status |
 |---|---|---|---|
+| 2026-10-19 | [studio-without-setup](2026-10-19-studio-without-setup.md) | Studio opens from the public console without hand setup: guided domain check in the console, one server command, optional automatic certificate | proposal, nothing built |
 | 2026-10-17 | [container-install-and-site-docs](2026-10-17-container-install-and-site-docs.md) | Docker route as the website's install, Ubuntu 26.04 rehearsal from bare packages, Fedora and SELinux decision, Podman as a gated profile, docs rendered on the website in both languages | A1 to A3 done (bare Ubuntu 26.04 VM rehearsal, guide, website source; not deployed); Fedora, Podman, installer, image and docs on the site open |
 | 2026-10-14 | [upstream-currency](2026-10-14-upstream-currency.md) | Bring every pinned component current one at a time, Select 2026 capabilities (asymmetric keys, per-environment OAuth server, app MCP servers, Connections viewer), weekly drift tracking, watch list for OrioleDB and Multigres | in progress; seven images staged, Auth, PostgREST and Storage running on the real server; open: S4, P3 part 4 acceptance, A7, B1, F1 to F8 |
 | 2026-10-10 | [management-project-workflow](2026-10-10-management-project-workflow.md) | Optional MFA policy and session authority, automatic production creation, visible Supabase dashboard and bilingual docs | source implementation with local verification; deployment acceptance separate |

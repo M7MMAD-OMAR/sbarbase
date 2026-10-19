@@ -2,13 +2,23 @@
 
 # Console design and local Studio preview
 
-Updated 2026-10-06. This record covers console navigation, compact controls and the disposable local Studio preview. It does not approve production deployment. See [deployment readiness](deployment-readiness.md).
+Updated 2026-10-18. This record covers the console's design system, navigation and the disposable local Studio preview. It does not approve production deployment. See [deployment readiness](deployment-readiness.md).
 
-## Compact Supabase patterns
+## Supabase design tokens and components
 
-The console adapts the upstream [Supabase UI size constants](https://github.com/supabase/supabase/blob/master/packages/ui/src/lib/constants.ts), [Button](https://github.com/supabase/supabase/blob/master/packages/ui/src/components/Button/Button.tsx) and [Badge](https://github.com/supabase/supabase/blob/master/packages/ui/src/components/shadcn/ui/badge.tsx) patterns. The upstream [UI package](https://github.com/supabase/supabase/blob/master/packages/ui/package.json) declares MIT licensing. Numeric scales and visual patterns are expressed in the existing local CSS; the complete upstream UI package is not installed or vendored.
+The console uses Supabase's own design language. Its colours are the semantic tokens of the [Supabase UI package](https://github.com/supabase/supabase/tree/master/packages/ui) (`build/css/source/semantic.css` with `themes/light.css` and `themes/dark.css`, commit `7425d493`), resolved to literal values in `ui/style.css`. Buttons, inputs, text areas, cards, alerts, badges, tables and the focus ring follow the recipes of the upstream [Button](https://github.com/supabase/supabase/blob/master/packages/ui/src/components/Button/Button.tsx), [Input](https://github.com/supabase/supabase/blob/master/packages/ui/src/components/shadcn/ui/input.tsx), [Card](https://github.com/supabase/supabase/blob/master/packages/ui/src/components/shadcn/ui/card.tsx), [Alert](https://github.com/supabase/supabase/blob/master/packages/ui/src/components/shadcn/ui/alert.tsx), [Badge](https://github.com/supabase/supabase/blob/master/packages/ui/src/components/shadcn/ui/badge.tsx) and [Table](https://github.com/supabase/supabase/blob/master/packages/ui/src/components/shadcn/ui/table.tsx) components and the focus-ring and control-shadow utilities of `packages/config/css/utilities.css`, rewritten as plain CSS on the console's existing class names. No Supabase React component, Tailwind or Radix package is installed. The repository is Apache 2.0 and the `packages/ui` and `packages/config` packages declare MIT; the attribution and the MIT terms are in `NOTICE`.
 
-Desktop controls use the upstream 26px tiny button and 34px small input scales, 14px button icons, 6px corners and subdued borders. Status pills use compact uppercase text, a border and semantic colors. Mobile controls remain at least 34px tall. Existing focus indicators, field errors, native select behavior and light/dark theme choices remain available.
+Text and surfaces keep Supabase's default contrast setting (0.5). Strokes use Supabase's own contrast setting raised to 0.75, and editable fields take the upstream hover stroke at rest, because at the default setting cards, fields and buttons blend into one grey. Some values differ from upstream for WCAG AA: the light theme's lightest text step is slightly darker, and the dark theme's destructive hover darkens instead of lightening so white text keeps 4.5:1. The small print on the sign-in art panel was also adjusted to 4.5:1.
+
+What each element means:
+
+- **Primary action**: the solid green button, one at a time for the task in front of you. Other buttons use the raised default surface; destructive confirmations are solid red.
+- **Editable fields** are sunk, with a stroke of at least 3:1 against the card. **Read-only values** (tokens, keys, URLs, commands) are filled, monospace and have a quiet stroke, so they read as something to copy.
+- **Cards** have a header strip; the first heading of a section becomes it. A one-time secret panel has a green edge and header.
+- **Alerts** are warning (amber), destructive (red) and success (green), each with a coloured edge. Status badges use the same three colours.
+- **Focus** is a 2px ring with a 2px offset in the brand green, at least 3:1 against every surface.
+
+`tests/ui-contrast.test.ts` checks every text and boundary pair above in both themes. Desktop controls are 32px buttons and 34px fields; on phones, buttons stay at least 36px tall. Existing focus order, field errors, native select behaviour and the light, dark and system theme choice are unchanged.
 
 Projects are cards. Team and organization settings have separate sidebar entries. Environment pages separate Overview, Database connection, Sign-in settings, Services, Usage and API keys. Inactive environment sections unmount to stop their reads and polling. Switching sections discards unsaved drafts in those child forms; network retries within the same section preserve values. If permissions remove the active section, navigation falls back to Overview.
 

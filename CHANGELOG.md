@@ -6,7 +6,7 @@ All notable changes to sbarbase. The format follows Keep a Changelog and the
 project uses Semantic Versioning, which for a 0.x version means the interface may
 still change between releases.
 
-The declared package version is 0.5.4. Historical 0.1.0 and 0.2.0 entries retain their original scope. Later Docker and VM rehearsals are dated in [status](docs/reference/status.md); no independent public-server or production release acceptance is established.
+The declared package version is 0.5.7. Historical 0.1.0 and 0.2.0 entries retain their original scope. Later Docker and VM rehearsals are dated in [status](docs/reference/status.md); no independent public-server or production release acceptance is established.
 
 ## [Unreleased]
 
@@ -17,10 +17,32 @@ The declared package version is 0.5.4. Historical 0.1.0 and 0.2.0 entries retain
 ### Fixed
 
 - **Turning database access off and on keeps a migration's narrower default grants.** Each time access was turned on, the API's default grants to `anon`, `authenticated` and `service_role` were given again, undoing a migration that had revoked them, for example execute rights on new functions. They are now given once, the first time ([database access](docs/guides/database-access.md)).
+
+### Changed
+
+- **The console has a new look.** Colours, spacing and components follow Supabase's design tokens, each environment screen has one primary action, and a contrast check guards the palette (pull request 18).
+
+## [0.5.7] - 2026-10-19
+
+### Fixed
+
+- **Studio opens behind the TLS proxy.** Studio compresses its pages. The console's Studio proxy and the TLS proxy both let Bun's `fetch` decode the body while keeping the `content-encoding` header, so the next hop received plain bytes labelled gzip and failed with a decompression error (Cloudflare showed 520). Both now pass Studio's bytes and header through together.
+
+## [0.5.6] - 2026-10-19
+
+### Fixed
+
+- **No more sign-outs after an hour away.** The console's access token lasts an hour. A request made with an expired one signed you out and deleted the session on the server, although the session could have been renewed. The console now renews the token and retries once, and signs out only if the renewal is refused.
+
+## [0.5.5] - 2026-10-19
+
+### Fixed
+
 - **No more Studio tab that never loads.** On a server whose Studio has no public address, opening the dashboard from the console's public address left a tab reading "Starting Supabase Studio" forever. The console now learns this from the Studio status before opening anything, shows the SSH tunnel steps and opens no tab; a tab already opened for a new project says what happened and closes ([Studio](docs/guides/studio.md)).
 
 ### Changed
 
+- **The console looks and reads like Supabase.** Every page now uses Supabase's own colour tokens and the look of its buttons, fields, cards, alerts, badges and tables, with stronger edges so sections, fields and buttons no longer blend into one grey. The main action on a screen is the one solid green button, read-only values such as tokens and commands look different from fields you type into, a new key or token appears in a green-edged panel, and focus rings are visible in both themes. Text and control edges meet WCAG AA in light and dark, checked by `tests/ui-contrast.test.ts`. Routes, labels and behaviour are unchanged ([console design](docs/reference/console-design.md)).
 - **The console keeps you signed in for thirty days.** `SBARBASE_MANAGEMENT_SESSION_SECONDS` now defaults to 2592000 instead of 43200, so a sign-in no longer ends after twelve hours. Set a lower value to keep the old behaviour ([configuration](docs/reference/configuration.md)).
 - **Telegram notifications are in plain words.** A message says what happened, where (by name), the likely cause and what to do, without ids, field names or reason codes. Email, the webhook and the catalog keep the full record ([OPERATOR-NOTIFICATIONS](docs/engineering/OPERATOR-NOTIFICATIONS.md), section 3.6).
 
