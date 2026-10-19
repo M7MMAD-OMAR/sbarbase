@@ -1,9 +1,9 @@
 {
-  "version": "0.5.6",
+  "version": "0.5.7",
   "minimum_from": "0.3.1",
   "notes": {
-    "en": "Fixes the console signing you out after an hour away: an expired access token is now renewed and the request retried instead of ending the session. Not production ready.",
-    "ar": "إصلاح خروجك من لوحة الإدارة بعد غياب ساعة: يُجدَّد الآن رمز الوصول المنتهي ويُعاد الطلب بدل إنهاء الجلسة. ليس جاهزًا للإنتاج."
+    "en": "Fixes Studio failing behind the public TLS proxy: its compressed pages are now passed through intact instead of failing with a decompression error. Not production ready.",
+    "ar": "إصلاح عطل Studio خلف وكيل TLS العام: صارت صفحاته المضغوطة تمر كاملة بدل أن تفشل بخطأ فك الضغط. ليس جاهزًا للإنتاج."
   },
   "migrations": []
 }
