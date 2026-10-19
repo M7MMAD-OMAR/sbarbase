@@ -105,7 +105,7 @@ class DatabaseAccessTests(unittest.TestCase):
     def test_realtime_refuses_schemas_another_login_made(self):
         self.runtime.realtime_database(E, {'realtime': 'r' * 64})
         text = '\n'.join(query for database, query in self.statements if database == E)
-        refusal = text.index("nspname IN ('realtime', '_realtime') AND nspowner <> '" + E + "_realtime'::regrole")
+        refusal = text.index("n.nspname IN ('realtime', '_realtime')\n      AND r.rolname <> '" + E + "_realtime' AND NOT r.rolsuper")
         self.assertLess(refusal, text.index('CREATE SCHEMA IF NOT EXISTS _realtime'))
         self.assertLess(text.index("p.pubname = 'supabase_realtime'\n      AND NOT r.rolsuper AND r.rolname <> '" + E + "_developer'"), text.index('CREATE SCHEMA IF NOT EXISTS _realtime'))
         self.assertIn(f'ALTER PUBLICATION supabase_realtime OWNER TO {E}_developer', text)
