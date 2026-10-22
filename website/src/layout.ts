@@ -72,7 +72,7 @@ export function footer(lang:Lang){
  const c=content[lang],l=links(lang),home=homeOf(lang);
  return `<footer class="footer"><div class="wrap">
 <a class="brand" href="${home}">${brandMark}<span>sbarbase</span></a>
-<p class="footer-links"><a href="${l.docs}">${c.docs}</a><a href="${l.changelog}">${c.changelog}</a><a href="${l.security}">${c.security}</a><a href="${l.license}">${c.license}</a><a href="https://sbarah.com">${c.home}</a></p>
+<p class="footer-links"><a href="${l.docs}">${c.docs}</a><a href="${l.changelog}">${c.changelog}</a><a href="${l.security}">${c.security}</a><a href="${l.license}">${c.license}</a><a href="https://sbarah.com">${c.home}</a><a href="https://sbarah.com/support">${c.support}</a></p>
 <p class="fine">${esc(c.trademark)}</p>
 </div></footer>`;
 }

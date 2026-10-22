@@ -85,7 +85,7 @@ export const content={
   copy:'Copy',copied:'Copied',copyLabel:'Copy step',
   installLinks:{docker:'Docker guide',quickstart:'Without Docker',docs:'Docs',server:'Choosing a server',repo:'GitHub'},
 
-  docs:'Docs',security:'Security',license:'License',home:'sbarah.com',
+  docs:'Docs',security:'Security',license:'License',home:'sbarah.com',support:'Support Sbarah',
   trademark:'Supabase is a trademark of Supabase, Inc. Sbarbase is not affiliated.',
   docsTitle:'Sbarbase docs',docsNav:'Documentation',contents:'Contents',overview:'Overview',changelog:'Changelog',
   edit:'Edit on GitHub',onGithub:'on GitHub',
@@ -140,7 +140,7 @@ export const content={
   copy:'نسخ',copied:'نُسخ',copyLabel:'نسخ الخطوة',
   installLinks:{docker:'دليل Docker',quickstart:'من دون Docker',docs:'التوثيق',server:'اختيار الخادم',repo:'GitHub'},
 
-  docs:'التوثيق',security:'الأمان',license:'الرخصة',home:'sbarah.com',
+  docs:'التوثيق',security:'الأمان',license:'الرخصة',home:'sbarah.com',support:'ادعم صبارة',
   trademark:'Supabase علامة تجارية لشركة \u2066Supabase, Inc.\u2069، وصباربيز غير تابع لها.',
   docsTitle:'توثيق صباربيز',docsNav:'التوثيق',contents:'المحتويات',overview:'نظرة عامة',changelog:'سجل التغييرات',
   edit:'عدّل على GitHub',onGithub:'على GitHub',
