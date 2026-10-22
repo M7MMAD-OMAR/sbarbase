@@ -68,7 +68,9 @@ Current work is the [upstream currency plan](docs/engineering/plans/2026-10-14-u
 
 Sbarbase is free and built in the open. If it is useful to you, you can support its development:
 
-<a href="https://www.buymeacoffee.com/m7mmadomar"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy me a coffee" width="217" height="60"></a>
+<a href="https://sbarah.com/support"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/support-sbarah-dark.svg"><img src="docs/assets/support-sbarah-light.svg" alt="Support Sbarah" width="380"></picture></a>
+
+Or [buy a coffee](https://www.buymeacoffee.com/m7mmadomar).
 
 A report of something that does not work is worth as much; see [Contributing](CONTRIBUTING.md).
 

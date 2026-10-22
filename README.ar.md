@@ -78,7 +78,9 @@ sudo deploy/server-acceptance.sh --rehearse --install-unit --first-project --ser
 
 صباربيز مجاني ويُبنى بشكل مفتوح. إن كان مفيدًا لك، يمكنك دعم تطويره:
 
-<a href="https://www.buymeacoffee.com/m7mmadomar"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="ادعمني بفنجان قهوة" width="217" height="60"></a>
+<a href="https://sbarah.com/support"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/support-sbarah-dark.svg"><img src="docs/assets/support-sbarah-light.svg" alt="ادعم صبارة" width="380"></picture></a>
+
+أو [اشترِ لنا قهوة](https://www.buymeacoffee.com/m7mmadomar).
 
 والإبلاغ عن شيء لا يعمل لا يقل قيمة عن ذلك؛ التفاصيل في [المساهمة](CONTRIBUTING.ar.md).
 

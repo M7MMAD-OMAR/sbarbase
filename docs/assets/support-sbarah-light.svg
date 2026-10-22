@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="140" viewBox="0 0 520 140" role="img" aria-label="Support Sbarah | ادعم صبارة">
+  <title>Support Sbarah | ادعم صبارة</title>
+  <rect x="9" y="9" width="500" height="120" rx="14" fill="#37461F"/>
+  <rect x="4" y="4" width="500" height="120" rx="14" fill="#F5F0E8" stroke="#37461F" stroke-width="3"/>
+  <circle cx="68" cy="64" r="34" fill="#B2675E" stroke="#37461F" stroke-width="3"/>
+  <g transform="translate(48 44) scale(1.67)"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="#FDFBF7"/></g>
+  <g font-family="'Segoe UI', 'Helvetica Neue', Arial, 'Noto Sans Arabic', sans-serif">
+    <text x="124" y="54" font-size="28" font-weight="800" fill="#37461F">Support Sbarah</text>
+    <text x="124" y="84" font-size="22" font-weight="700" fill="#61753D">ادعم صبارة</text>
+    <text x="124" y="108" font-size="14" font-weight="600" fill="#37461F" opacity="0.7">sbarah.com/support</text>
+  </g>
+  <rect x="418" y="44" width="68" height="40" rx="10" fill="#B8C878" stroke="#37461F" stroke-width="3"/>
+  <path d="M438 64h28m-9-9l9 9-9 9" fill="none" stroke="#37461F" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

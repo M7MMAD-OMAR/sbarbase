@@ -1,2 +1,7 @@
 # Puts a Sponsor button at the top of the repository page.
+#
+# `github:` is deliberately absent: GitHub Sponsors has to be enrolled in from
+# the account's own settings, and a name listed here before that is done
+# renders a button leading nowhere.
 buy_me_a_coffee: m7mmadomar
+custom: ["https://sbarah.com/support", "https://buymeacoffee.com/m7mmadomar"]
