@@ -37,6 +37,7 @@ curl -X POST -H "authorization: Bearer $TOKEN" https://your-console/management/v
 
 - One key at a time: the old key stops being accepted immediately, with no overlap period in which both work.
 - Only owners and admins of the organization can rotate it.
+- Code in the environment's own database that keeps its sign-in sessions locked, for example a transaction left open through direct database access, makes the rotation stop after a few seconds and show **Not finished**. Until it finishes, refresh tokens from before still work. End that transaction and rotate again.
 - Daily backups hold no key, so restoring one keeps the current key. A recovery export does hold one: an export made before a rotation restores with the old key, so rotate again after such a restore if the old key leaked.
 
 CI rotates the key of an environment on a clean machine with every change and checks the old session, refresh token and `service_role` token are refused while a new sign-in works everywhere ([evidence](../evidence/docker-signing-checks.json)).

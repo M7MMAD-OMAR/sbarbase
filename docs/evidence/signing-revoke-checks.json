@@ -1,0 +1,72 @@
+{
+  "check": "signing-revoke",
+  "recorded": "2026-10-22T14:11:29+00:00",
+  "passed": true,
+  "count": 13,
+  "seconds": 63,
+  "images": {
+    "db": "sha256:b3bfedb107413abb3b8cb0d0874b0414a1dceb3d55bc0c778de6ad22d1f7dc86",
+    "auth": "sha256:1736a63078f5922b198c4cbe50f80ab9a2d3b54fe8b7b6cfb2e9dc5dbbc12c6b"
+  },
+  "scope": "The session revocation of a signing rotation, on a disposable pinned database with the pinned Auth's own schema: tenant triggers on the Auth tables ran as the superuser before and escalated; as the Auth login they are refused, held rows and lifted bounds make it give up, and nothing waits unbounded. Not a full rotation and not a running installation.",
+  "checks": [
+    {
+      "check": "host headroom before the disposable database",
+      "ok": true
+    },
+    {
+      "check": "the pinned Auth migrated the environment as its own login",
+      "ok": true
+    },
+    {
+      "check": "the developer login added triggers to auth.sessions and auth.refresh_tokens",
+      "ok": true
+    },
+    {
+      "check": "as the superuser, the previous statement let the trigger make the developer login a superuser",
+      "ok": true,
+      "detail": "rolled back"
+    },
+    {
+      "check": "as the Auth login, revoke_auth_sessions committed",
+      "ok": true
+    },
+    {
+      "check": "every session ended and every refresh token revoked",
+      "ok": true,
+      "detail": "0|0"
+    },
+    {
+      "check": "the trigger ran as the Auth login and was refused",
+      "ok": true
+    },
+    {
+      "check": "rows the tenant holds make it give up within the lock bound",
+      "ok": true,
+      "detail": "5.1 s"
+    },
+    {
+      "check": "the developer login replaced the trigger with one that lifts the bounds and sleeps at commit",
+      "ok": true
+    },
+    {
+      "check": "a trigger that lifts the bounds makes the client give up",
+      "ok": true,
+      "detail": "45.1 s"
+    },
+    {
+      "check": "and the Auth login's server session is ended",
+      "ok": true,
+      "detail": "0"
+    },
+    {
+      "check": "and nothing was committed",
+      "ok": true,
+      "detail": "1"
+    },
+    {
+      "check": "the developer login is still not a superuser",
+      "ok": true
+    }
+  ]
+}

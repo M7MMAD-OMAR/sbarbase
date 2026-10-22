@@ -16,6 +16,7 @@ import json
 import os
 import re
 import secrets
+import subprocess
 import time
 import urllib.error
 import urllib.request
@@ -221,6 +222,41 @@ def rest_password_sql(e, password, end_sessions=False):
              f"WHERE a.usename = '{e}_rest' AND a.pid <> pg_catalog.pg_backend_pid(); ") if end_sessions else ''
     return (data_api.SAFE + REST_PIN_BOUNDS + 'BEGIN; ' + ended +
             f"ALTER ROLE {e}_rest PASSWORD '{password}'; COMMIT;")
+
+
+# A signing rotation ends every Auth session of the environment: a refresh token would otherwise give a
+# leaked session a new token signed with the new key. Tenant code can add triggers and rules to these
+# tables (the developer login is a member of the Auth login), and they run as whoever runs the statement:
+# as the superuser, a trigger on auth.sessions made the developer login a superuser (lab/signing-revoke-check.py).
+# So the statement runs as the Auth login itself, the role tenant code already has. Tenant code can also hold
+# these rows, so it is bounded as REST_PIN_BOUNDS is, under the operation lock.
+SESSIONS_REVOKE = (data_api.SAFE + REST_PIN_BOUNDS +
+                   'BEGIN; UPDATE auth.refresh_tokens SET revoked = true WHERE NOT revoked; DELETE FROM auth.sessions; COMMIT;')
+# A trigger can lift the bounds above for the statements after its own (SET statement_timeout = 0), so the
+# client gives up too, and then ends the Auth login's sessions as the superuser, which runs no tenant code.
+SESSIONS_REVOKE_SECONDS = 45
+
+
+def revoke_auth_sessions(e, password, container=None):
+    """End every Auth session of one environment, connected as its Auth login with the generated password
+    (read from stdin, never in an argument). True when the revocation committed; False when it failed or
+    ran out of time, and the rotation is then unfinished."""
+    if not re.fullmatch(r'e_[a-f0-9]{24}', e) or not re.fullmatch(r'[a-f0-9]{64}', password or ''):
+        raise RuntimeError('Invalid Auth login password')
+    container = container or DB
+    command = docker_profile.docker_command(
+        'exec', '-i', container, 'sh', '-c',
+        'read -r PGPASSWORD; export PGPASSWORD; exec psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U "$1" -d "$2" -qAt',
+        'sbarbase-revoke', f'{e}_auth', e)
+    try:
+        return subprocess.run(command, input=password + '\n' + SESSIONS_REVOKE, text=True, capture_output=True,
+                              timeout=SESSIONS_REVOKE_SECONDS).returncode == 0
+    except subprocess.TimeoutExpired:
+        # A killed client does not end its server session; the superuser does, and runs no tenant code doing it.
+        lab.docker('exec', '-i', container, 'psql', '-X', '-v', 'ON_ERROR_STOP=1', '-U', 'supabase_admin', '-d', 'postgres', '-qAt',
+                   data=f"SELECT pg_catalog.count(pg_catalog.pg_terminate_backend(pid)) FROM pg_catalog.pg_stat_activity "
+                        f"WHERE usename = '{e}_auth';", check=False)
+        return False
 
 
 # A retained REST container without the Data API's db-pre-config function (lab/data_api.py) is
@@ -1098,10 +1134,14 @@ class Runtime:
         all_endpoints[e] = endpoints
         atomic(path, all_endpoints)
         if rotating:
-            # A refresh token would otherwise give a leaked session a new token signed with the new key.
-            self.sql('UPDATE auth.refresh_tokens SET revoked = true WHERE NOT revoked; DELETE FROM auth.sessions;', e)
-            v.pop('jwt_rotating', None)
-            atomic(self.path, self.values)
+            # Not as the superuser, and bounded (SESSIONS_REVOKE). Sessions one environment's tenant code holds
+            # never stop a start: the mark stays, the rotation is reported unfinished, and the next start or
+            # rotation ends them. `rotate_signing` itself fails then.
+            if revoke_auth_sessions(e, v['auth']):
+                v.pop('jwt_rotating', None)
+                atomic(self.path, self.values)
+            else:
+                print(f'Environment {e}: the signing rotation is unfinished, its Auth sessions could not be ended; rotate again.', file=sys.stderr)
 
     def functions_back(self, e, entry):
         """Edge Functions come back with the environment's other services, on a start or a signing key
@@ -1137,6 +1177,8 @@ class Runtime:
         # rotation (REST is recreated right after).
         self.rest_deadlines(e, rewrite=True, end_sessions=True)
         self.activate_services(e, v, creating=False)
+        if v.get('jwt_rotating'):
+            raise RuntimeError('Auth sessions could not be ended; the rotation is unfinished')
 
     def reconcile_mail(self, e, off=False):
         """Apply one environment's mail configuration, or remove it with `off`.
