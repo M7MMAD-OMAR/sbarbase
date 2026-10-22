@@ -40,6 +40,7 @@ def grant(role, inherit=True, set_=True, admin=False):
 # lab/studio.py), not derived from inventory.RULES: (inherit, replication, bypassrls).
 EXPECTED = {'auth': (False, False, False), 'rest': (False, False, False), 'storage': (False, False, False),
             'studio': (False, False, True), 'developer': (True, False, True), 'realtime': (True, True, False),
+            'cron': (False, False, False),
             'storage_control': (False, False, False), 'management_auth': (False, False, False),
             'supabase_realtime_admin': (False, False, False)}
 
@@ -55,7 +56,7 @@ class InventoryTests(unittest.TestCase):
 
     def test_a_role_with_its_kind_s_attributes_written_out_by_hand_passes_and_any_flip_is_refused(self):
         for kind, (inherit, replication, bypass) in EXPECTED.items():
-            name = f'{E}_{kind}' if kind in ('auth', 'rest', 'storage', 'studio', 'developer', 'realtime') else kind
+            name = f'{E}_{kind}' if kind in ('auth', 'rest', 'storage', 'studio', 'developer', 'realtime', 'cron') else kind
             values = {'name': name, 'rolsuper': False, 'rolinherit': inherit, 'rolcreaterole': False, 'rolcreatedb': False,
                       'rolreplication': replication, 'rolbypassrls': bypass,
                       'rolcanlogin': kind != 'supabase_realtime_admin', 'rolconnlimit': 4, 'member_of': [], 'settings': []}
@@ -192,7 +193,7 @@ class InventoryTests(unittest.TestCase):
 
     def test_suffixed_names_are_not_managed_in_the_code_or_the_query(self):
         self.assertIsNone(inventory.classify(f'{E}_authx'))
-        self.assertIn("(auth|rest|storage|studio|realtime|developer)$'", inventory.QUERY)
+        self.assertIn("(auth|rest|storage|studio|realtime|developer|cron)$'", inventory.QUERY)
 
     def test_usable_checks_every_role_s_shape_and_rule_again(self):
         good = inventory.from_rows(everything(), IMAGE)
@@ -215,7 +216,7 @@ class InventoryTests(unittest.TestCase):
     def test_the_query_reads_the_recorded_fields_and_only_role_wide_settings(self):
         for fragment in ("'rolconnlimit'", "'rolcanlogin'", 'pg_auth_members', 's.setrole = r.oid AND s.setdatabase = 0',
                          "'storage_control', 'management_auth', 'supabase_realtime_admin'",
-                         '(auth|rest|storage|studio|realtime|developer)'):
+                         '(auth|rest|storage|studio|realtime|developer|cron)'):
             self.assertIn(fragment, inventory.QUERY)
         for key in inventory.ATTRIBUTES:
             self.assertIn(f"'{key}', r.{key}", inventory.QUERY)

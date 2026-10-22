@@ -129,6 +129,10 @@ def main(cutover=False):
         check('selected database has no enabled subscriptions',not rows(f"SELECT 1 FROM pg_subscription WHERE subdbid=(SELECT oid FROM pg_database WHERE datname='{e}') AND subenabled LIMIT 1"))
         cron_exists=target.sql("SELECT to_regclass('cron.job') IS NOT NULL;").stdout.strip()=='t'
         check('selected database has no active cron jobs',not cron_exists or not rows(f"SELECT 1 FROM cron.job WHERE database='{e}' AND active LIMIT 1"))
+        # Scheduled jobs (docs/engineering/SCHEDULED-JOBS.md): while on, the dump grants to the scheduler login, which
+        # the export does not carry, so the restore would refuse it. Turned off, nothing in the database names it.
+        check('Scheduled jobs are off for the selected environment',not rows(f"SELECT 1 FROM pg_roles WHERE rolname='{e}_cron' AND rolcanlogin LIMIT 1")
+              and not rows(f"SELECT 1 FROM pg_roles r WHERE r.rolname='{e}_cron' AND to_regnamespace('cron') IS NOT NULL AND has_schema_privilege(r.oid,'cron','USAGE') LIMIT 1",e))
         for table in ('tenants_s3_credentials','iceberg_catalogs','iceberg_namespaces','iceberg_tables','shard_reservation','shard_slots'):
             check('quiesced '+table+' state absent',not rows(f"SELECT 1 FROM {table} WHERE tenant_id='{e}' LIMIT 1",'storage_metadata'))
         after_keys=rows(f"SELECT id,tenant_id,kind,content,active,created_at FROM tenants_jwks WHERE tenant_id='{e}' ORDER BY id",'storage_metadata')

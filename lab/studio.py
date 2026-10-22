@@ -29,6 +29,7 @@ each session live in the control catalog (``studio_sessions``).
 """
 import argparse
 import connection_budget
+import scheduled_jobs
 import datetime
 import ipaddress
 import json
@@ -147,7 +148,8 @@ def open_connections(e):
     available, promised = int(limits[0]), int(limits[1])
     if promised + STUDIO_CONNECTIONS > available:
         raise StudioError('The database has no connections to spare for Studio')
-    runtime_sql(f'ALTER DATABASE {e} CONNECTION LIMIT {runtime.current_database_limit(e, studio=True)};')
+    # Bounded (scheduled_jobs.limit_sql): a tenant session can hold the database's catalog row.
+    runtime_sql(scheduled_jobs.limit_sql(e, runtime.current_database_limit(e, studio=True)))
 
 
 def close_login(e):
@@ -155,8 +157,9 @@ def close_login(e):
     runtime_sql(f"DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{role}') THEN "
                 f"ALTER ROLE {role} NOLOGIN; END IF; END $$; "
                 f"SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE usename = '{role}';")
-    runtime_sql(f"DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_database WHERE datname = '{e}') THEN "
-                f"EXECUTE 'ALTER DATABASE {e} CONNECTION LIMIT {runtime.current_database_limit(e, studio=False)}'; END IF; END $$;")
+    runtime_sql(f"BEGIN; SET LOCAL lock_timeout = '5s'; SET LOCAL statement_timeout = '15s'; "
+                f"DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_database WHERE datname = '{e}') THEN "
+                f"EXECUTE 'ALTER DATABASE {e} CONNECTION LIMIT {runtime.current_database_limit(e, studio=False)}'; END IF; END $$; COMMIT;")
 
 
 def runtime_sql(query, database='postgres'):

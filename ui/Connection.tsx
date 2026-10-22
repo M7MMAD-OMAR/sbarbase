@@ -6,6 +6,7 @@ import {mailDetails,mailState,type MailEntry} from './mail';
 import {ErrorMessage,Loading,Refresh} from './components';
 import {SignInSection} from './SignIn';
 import {RealtimeSection} from './Realtime';
+import {ScheduledJobsSection} from './ScheduledJobs';
 import {MetricsSection,LogsSection} from './Observe';
 import {FunctionsSection} from './Functions';
 import {DatabaseSection} from './Database';
@@ -51,6 +52,7 @@ export function Connection({environment,organization,request,onBack}:{environmen
  </div>}{activeSection==='services'&&<div>
  {canWrite&&<RealtimeSection path={path} request={request}/>}
   {canWrite&&<FunctionsSection path={path} request={request} environmentId={environment.id}/>}
+  {canWrite&&<ScheduledJobsSection path={path} request={request}/>}
  </div>}{activeSection==='database'&&<div>
  {canWrite&&<DatabaseSection path={path} request={request}/>}
  {canWrite&&<DataApiSection path={path} request={request}/>}

@@ -13,7 +13,8 @@ In this order, after the record is written:
    and every new Realtime socket, so it answers 503;
 2. the direct database port and Studio close: Studio is stopped, and the environment's developer
    and Studio logins are turned off with their sessions ended (src/http/database-proxy.ts admits
-   only the developer login);
+   only the developer login), and so is the scheduler's login, so no scheduled job or outgoing
+   request runs (docs/engineering/SCHEDULED-JOBS.md);
 3. whatever was already in flight is cut off: once the gateway's body read window has passed, so
    every request admitted before the pause has reached a service, the environment's Auth, REST,
    Realtime and Functions containers and the shared Storage process are stopped, every session
@@ -46,6 +47,7 @@ import sys
 import time
 
 import durable_runtime as runtime
+import scheduled_jobs
 import run as lab
 
 RUNTIME = re.compile(r'e_[a-f0-9]{24}')
@@ -166,11 +168,15 @@ def sql(query):
 
 
 def close_logins(e, query=sql, sleep=time.sleep, clock=time.monotonic, drain=30):
-    """Turn the developer and Studio logins off, end their sessions and wait until none is left."""
-    names = [f'{e}_developer', f'{e}_studio']
+    """Turn the developer, Studio and scheduler logins off, end their sessions and wait until none is left."""
+    names = [f'{e}_developer', f'{e}_studio', f'{e}_cron']
     quoted = ','.join(f"'{name}'" for name in names)
+    # The scheduler login first, its sessions ended in the same bounded transaction: a job acting as the
+    # developer could otherwise hold the developer's role row (its own password changed in a transaction it
+    # keeps open) for the length of its run, against the unbounded statement below.
+    query(scheduled_jobs.close_sql(e))
     query(f'DO $$ BEGIN ' + ''.join(f"IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{name}') THEN "
-                                    f"ALTER ROLE {name} NOLOGIN; END IF; " for name in names) + 'END $$;')
+                                    f"ALTER ROLE {name} NOLOGIN; END IF; " for name in names[:2]) + 'END $$;')
     deadline = clock() + drain
     while True:
         query(f'SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE usename IN ({quoted});')
@@ -447,6 +453,9 @@ def resume(e, *, state=None, query=sql, route=operator, direct=None, endpoints=N
                 # The runtime's own step, the one turning access on uses: the password the console
                 # saved last (a reset made during the pause included), grants and connection limit.
                 (access or developer_on)(e)
+            # Scheduled jobs run again when they are on (lab/scheduler.ts skips a paused environment until then).
+            if published.get(e, {}).get('cron'):
+                query(scheduled_jobs.open_sql(e))
         except Exception as error:
             raise PauseError(f'Resume stopped before it finished ({error.__class__.__name__}: {own_words(error)}); '
                              f'the pause is still recorded as resuming, run resume again') from None

@@ -90,6 +90,8 @@
 | PUT | `/management/v1/environments/{id}/share` | مشغّل التثبيت | الجسم `{"share": n}`، من 1 إلى 24. يُرجع `409` إذا تجاوزت حصص كل البيئات الجاهزة 64. يُطبَّق من الطلب التالي |
 | GET | `/management/v1/environments/{id}/realtime` | مالك، مدير، عندما تكون جاهزة | حالة Realtime في `state` و`desired` ([Realtime](../guides/realtime.ar.md)) |
 | PUT | `/management/v1/environments/{id}/realtime` | مالك، مدير، عندما تكون جاهزة | `{"enabled": true\|false}`. يُرجع `202`، ويشغّله المشرف أو يوقفه. و`409` ما دام تغيير سابق جاريًا |
+| GET | `/management/v1/environments/{id}/scheduled-jobs` | مالك، مدير، عندما تكون جاهزة | حالة المهام المجدولة في `state` و`desired` ([المهام المجدولة](../guides/scheduled-jobs.ar.md)) |
+| PUT | `/management/v1/environments/{id}/scheduled-jobs` | مالك، مدير، عندما تكون جاهزة | `{"enabled": true\|false}`. يُرجع `202`، ويشغّلها المشرف أو يطفئها. و`409` ما دام تغيير سابق جاريًا |
 | GET | `/management/v1/environments/{id}/data-api` | مالك، مدير، مشاهد، عندما تكون جاهزة | إعدادات واجهة البيانات المحفوظة مع `state` و`failure`، وما يُخدم فعلًا في `served`، وتقرير آخر تشغيل في `report` ([واجهة البيانات](../guides/data-api.ar.md)) |
 | PUT | `/management/v1/environments/{id}/data-api` | مالك، مدير، عندما تكون جاهزة | `{"schemas": [...], "extraSearchPath": [...], "maxRows": n\|null}`. يُرجع `202`، ويطبّقها المشرف. و`400` مع السبب إن رُفض اسم، و`409` ما دام تغيير سابق جاريًا |
 | GET | `/management/v1/environments/{id}/sign-in` | مالك، مدير، عندما تكون جاهزة | إعدادات تسجيل الدخول دون أسرار المزوّدين، وحالتها، و`callback_url` الذي يُعطى لمزوّدي OAuth ([تسجيل الدخول](../guides/sign-in.ar.md)) |

@@ -1,0 +1,167 @@
+{
+ "scope": "One disposable Supabase Postgres container from the pinned image, two environment databases, the scheduler runner and process on this host; not a running installation.",
+ "image": "public.ecr.aws/supabase/postgres@sha256:b3bfedb107413abb3b8cb0d0874b0414a1dceb3d55bc0c778de6ad22d1f7dc86",
+ "at": "2026-10-22T18:24:39.622Z",
+ "seconds": 140,
+ "total": 39,
+ "failed": 0,
+ "skipped": 0,
+ "checks": [
+  {
+   "check": "the plpgsql schedule check and the TypeScript parser agree on every schedule in the corpus",
+   "result": "pass"
+  },
+  {
+   "check": "cron.schedule by name inserts once, replaces by name, and records the developer as user",
+   "result": "pass"
+  },
+  {
+   "check": "an invalid schedule is refused with pg_cron's message, at the function and at the table",
+   "result": "pass"
+  },
+  {
+   "check": "scheduling into another database or as another user is refused",
+   "result": "pass"
+  },
+  {
+   "check": "alter_job and unschedule work on the caller's own jobs and say so for others",
+   "result": "pass"
+  },
+  {
+   "check": "the 101st job is refused",
+   "result": "pass"
+  },
+  {
+   "check": "anon, authenticated and service_role reach net.http_* but no role reaches cron without the grant",
+   "result": "pass"
+  },
+  {
+   "check": "net.http_post keeps pg_net's Content-Type rule and encodes params as curl does",
+   "result": "pass"
+  },
+  {
+   "check": "history older than 7 days and responses older than 6 hours are pruned, and newer ones kept",
+   "result": "pass"
+  },
+  {
+   "check": "a run lost by an earlier scheduler is marked failed with \"server restarted\"",
+   "result": "pass"
+  },
+  {
+   "check": "a job runs as the developer, with its search path, and records succeeded with the command tag and its backend",
+   "result": "pass"
+  },
+  {
+   "check": "a job that runs RESET ROLE falls back to the scheduler login and gains nothing",
+   "result": "pass"
+  },
+  {
+   "check": "a command runs as one simple query, several statements together, and records the last tag",
+   "result": "pass"
+  },
+  {
+   "check": "VACUUM alone works, as with pg_cron",
+   "result": "pass"
+  },
+  {
+   "check": "a run that ignores its own timeout is ended at the deadline by the scheduler and its backend is gone",
+   "result": "pass"
+  },
+  {
+   "check": "a job is never run twice at once",
+   "result": "pass"
+  },
+  {
+   "check": "a job whose schedule changes while it runs keeps running on the new schedule",
+   "result": "pass"
+  },
+  {
+   "check": "a run is ended at its deadline even while it keeps the bookkeeping session failing",
+   "result": "pass"
+  },
+  {
+   "check": "a job streaming hundreds of millions of small rows is ended at its deadline and never holds up the process's event loop",
+   "result": "pass"
+  },
+  {
+   "check": "a job streaming COPY TO STDOUT is refused with \"COPY not supported\", as pg_cron records it, and its backend ends",
+   "result": "pass"
+  },
+  {
+   "check": "a job returning 1 GB of rows never holds it: the process peaks below the result's size and is back within 128 MiB once collected, and \"50 rows\" is recorded",
+   "result": "pass"
+  },
+  {
+   "check": "requests to loopback, metadata, private, the database's own address and other schemes are refused, and a public one is answered",
+   "result": "pass"
+  },
+  {
+   "check": "a scheduler login password rewritten with 20 million SCRAM iterations does not stall the scheduler process",
+   "result": "pass"
+  },
+  {
+   "check": "a queued POST reaches the server with its body, headers and parameters, and the answer is recorded by request id",
+   "result": "pass"
+  },
+  {
+   "check": "a job holding the scheduler login's role row does not hold up turning off, turning on or a start",
+   "result": "pass"
+  },
+  {
+   "check": "a job that locks the scheduler login out of new sign-ins is still ended at its deadline",
+   "result": "pass"
+  },
+  {
+   "check": "a job that locks the scheduler login out and ends its other sessions is still ended at its deadline, as the superuser",
+   "result": "pass"
+  },
+  {
+   "check": "without a developer role every run says so and nothing else happens",
+   "result": "pass"
+  },
+  {
+   "check": "the scheduler process runs the jobs of an environment endpoints.json lists",
+   "result": "pass"
+  },
+  {
+   "check": "a write pause recorded for the environment stops its runs",
+   "result": "pass"
+  },
+  {
+   "check": "on SIGTERM the scheduler ends the run in flight and records it",
+   "result": "pass"
+  },
+  {
+   "check": "turning off closes the login, takes back its grants and keeps the jobs; a dump then names no such role",
+   "result": "pass"
+  },
+  {
+   "check": "turning on again resets the role settings a job wrote for the login and opens it",
+   "result": "pass"
+  },
+  {
+   "check": "an archive of the environment, planned as an in-place restore plans it, restores into a stage database of another name with its jobs",
+   "result": "pass"
+  },
+  {
+   "check": "a developer session holding the database row (a no-op GRANT left open) does not hold up the connection limit a turn writes beyond its bound",
+   "result": "pass"
+  },
+  {
+   "check": "a job holding the developer role row does not hold up a write pause, which ends the scheduler login first",
+   "result": "pass"
+  },
+  {
+   "check": "a job holding the database row or the realtime schema row does not hold up turning Realtime on beyond its bound",
+   "result": "pass"
+  },
+  {
+   "check": "a second run of the schema SQL changes nothing and keeps the jobs",
+   "result": "pass"
+  },
+  {
+   "check": "a developer transaction holding every lock on the schemas' tables does not hold up the schema SQL and grants run again",
+   "result": "pass"
+  }
+ ]
+}

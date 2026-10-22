@@ -56,7 +56,7 @@ from restore_sql import PlanError, plan_archive
 OWNER = 'durable-rebuild'
 RECORD = runtime.STATE / 'cluster-rebuild.json'
 # The logins whose login state opens and closes; the rebuilt cluster may differ there.
-TOGGLED = {'studio', 'developer', 'realtime'}
+TOGGLED = {'studio', 'developer', 'realtime', 'cron'}
 DATA = '/var/lib/postgresql/data'
 COMMAND = ('postgres', '-c', 'config_file=/etc/postgresql/postgresql.conf', '-c', 'log_statement=none')
 
@@ -140,7 +140,7 @@ def passwords():
     for e, item in (values.get('environments') or {}).items():
         if not isinstance(item, dict):
             continue
-        for kind in ('auth', 'rest', 'storage', 'realtime'):
+        for kind in ('auth', 'rest', 'storage', 'realtime', 'cron'):
             if isinstance(item.get(kind), str):
                 found[f'{e}_{kind}'] = item[kind]
         developer = runtime.PRIVATE / 'database' / f'{e}.json'
@@ -189,7 +189,7 @@ def role_sql(inventory, known):
         login = role['rolcanlogin']
         password = known.get(name)
         if login and password is None:
-            if role['kind'] not in ('studio', 'developer'):
+            if role['kind'] not in ('studio', 'developer', 'cron'):
                 raise RebuildError(f'No password is kept for {name}; it cannot be rebuilt')
             closed.append(name)
             login = False

@@ -29,6 +29,7 @@ import pressure_admission
 import source_fence
 import mail_config
 import auth_settings
+import scheduled_jobs
 import data_api
 import mail_state
 import private_directories
@@ -67,7 +68,9 @@ def hba_content(environments):
         # (lab/studio.py); outside that it is NOLOGIN, so the rule admits nobody.
         # Realtime's login exists once the environment turns Realtime on (docs/engineering/REALTIME.md).
         # The developer login exists once an owner turns direct database access on, and is NOLOGIN while it is off.
-        lines += [f'host {e} {e}_{role} 0.0.0.0/0 scram-sha-256' for role in ('auth', 'rest', 'storage', 'studio', 'realtime', 'developer')]
+        # The scheduler's login exists once Scheduled jobs were turned on, NOLOGIN while they are off
+        # (docs/engineering/SCHEDULED-JOBS.md).
+        lines += [f'host {e} {e}_{role} 0.0.0.0/0 scram-sha-256' for role in ('auth', 'rest', 'storage', 'studio', 'realtime', 'developer', 'cron')]
     lines += ['host all all 0.0.0.0/0 reject', 'host all all ::/0 reject']
     return '\n'.join(lines)+'\n'
 
@@ -144,7 +147,7 @@ class OperationBusy(RuntimeError):
 # lab/auth_settings.py leave its row pending and the supervisor asks again. 75 stays the admission
 # limit, which those commands report as a refusal.
 BUSY = 76
-CONSOLE_CHANGES = ('realtime', 'functions', 'database', 'signing', 'auth')
+CONSOLE_CHANGES = ('realtime', 'functions', 'database', 'signing', 'auth', 'cron')
 
 
 OWNER = 'durable-upstream'
@@ -174,6 +177,9 @@ REST_PIN_BOUNDS = "SET lock_timeout = '5s'; SET statement_timeout = '30s'; "
 # (a role setting the login writes for itself, a no-op GRANT on a table in `public`), so both are
 # bounded and run under the environment's database access lock alone (database_command).
 DEVELOPER_BOUNDS = "SET lock_timeout = '10s'; SET statement_timeout = '60s'; "
+# For a script under the operation lock that waits for rows a session of the environment can hold, inside its own
+# BEGIN ... COMMIT (realtime_database; scheduled_jobs.limit_sql is the same bound for the connection limit).
+ROW_BOUNDS = "SET LOCAL lock_timeout = '5s'; SET LOCAL statement_timeout = '15s';"
 
 
 def rest_pin_sql(e, end_sessions=False, password=None):
@@ -368,6 +374,11 @@ def direct_on(e):
     return bool(published_endpoints().get(e, {}).get('database'))
 
 
+def cron_on(e):
+    """Whether this environment's Scheduled jobs are on (lab/scheduler.ts runs them)."""
+    return bool(published_endpoints().get(e, {}).get('cron'))
+
+
 def studio_running(e):
     path = STATE/'studio.json'
     try:
@@ -376,12 +387,13 @@ def studio_running(e):
         return False
 
 
-def current_database_limit(e, *, studio=None, realtime=None, direct=None):
+def current_database_limit(e, *, studio=None, realtime=None, direct=None, cron=None):
     """The environment database's connection limit for the logins it runs now; a caller that is
     changing one of them names its new value and the others are read from the published state."""
     return connection_budget.database_limit(studio=studio_running(e) if studio is None else studio,
                                             realtime=realtime_on(e) if realtime is None else realtime,
-                                            direct=direct_on(e) if direct is None else direct)
+                                            direct=direct_on(e) if direct is None else direct,
+                                            cron=cron_on(e) if cron is None else cron)
 
 
 def functions_on(e):
@@ -758,6 +770,7 @@ class Runtime:
         # The catalog says what the Data API serves; a restored or rebuilt database gets it again here.
         self.data_api(e,refuse_missing=False)
         self.activate_services(e,self.values['environments'][e],creating=False)
+        self.scheduled_jobs_back(e)
 
     def rest_deadlines(self, e, executor=None, validate_only=False, rewrite=False, end_sessions=False):
         execute = executor or self.sql
@@ -1131,6 +1144,9 @@ class Runtime:
         # Direct database access is the developer login's own state, not a service to restart.
         if all_endpoints.get(e, {}).get('database') and not creating:
             endpoints['database'] = all_endpoints[e]['database']
+        # Scheduled jobs are the scheduler login's state; the scheduler process runs them.
+        if all_endpoints.get(e, {}).get('cron') and not creating:
+            endpoints['cron'] = all_endpoints[e]['cron']
         all_endpoints[e] = endpoints
         atomic(path, all_endpoints)
         if rotating:
@@ -1291,9 +1307,13 @@ class Runtime:
                 'SLOT_NAME_SUFFIX': realtime_slot_suffix(e)}
 
     def realtime_database(self, e, v):
-        """The environment's Realtime login and schemas. The login reaches only this database (HBA)."""
+        """The environment's Realtime login and schemas. The login reaches only this database (HBA). Both scripts
+        run under the operation lock and wait for rows a session of the environment can hold (the database's,
+        with a no-op GRANT left open; a scheduled job can do so too), so each is one bounded transaction
+        (ROW_BOUNDS) that fails after its bound instead (docs/engineering/SCHEDULED-JOBS.md)."""
         role = f'{e}_realtime'
-        self.sql(f"""DO $$ BEGIN
+        self.sql(f"""BEGIN; {ROW_BOUNDS}
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'supabase_realtime_admin') THEN
     CREATE ROLE supabase_realtime_admin NOINHERIT NOLOGIN NOREPLICATION;
   END IF;
@@ -1307,8 +1327,10 @@ GRANT CONNECT, CREATE, TEMPORARY ON DATABASE {e} TO {role};
 GRANT anon, authenticated, service_role TO {role} WITH INHERIT FALSE, SET TRUE;
 GRANT supabase_realtime_admin TO {role};
 -- Realtime quiets its change poller's own logging; only that one setting is granted.
-GRANT SET ON PARAMETER log_min_messages TO {role}, supabase_realtime_admin;""")
-        self.sql(f"""DO $$ BEGIN
+GRANT SET ON PARAMETER log_min_messages TO {role}, supabase_realtime_admin;
+COMMIT;""")
+        self.sql(f"""BEGIN; {ROW_BOUNDS}
+DO $$ BEGIN
   -- Realtime's own migration hands `realtime` to the superuser, so a later start finds it that way.
   IF EXISTS (SELECT 1 FROM pg_namespace n JOIN pg_roles r ON r.oid = n.nspowner WHERE n.nspname IN ('realtime', '_realtime')
       AND r.rolname <> '{role}' AND NOT r.rolsuper) THEN
@@ -1328,8 +1350,9 @@ DO $$ BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{e}_developer') THEN
     ALTER PUBLICATION supabase_realtime OWNER TO {e}_developer;
   END IF;
-END $$;""", e)
-        self.sql(f'ALTER DATABASE {e} CONNECTION LIMIT {current_database_limit(e, realtime=True)};')
+END $$;
+COMMIT;""", e)
+        self.sql(scheduled_jobs.limit_sql(e, current_database_limit(e, realtime=True)))
 
     def realtime_start(self, e, migrate):
         """Run the environment's Realtime. With `migrate`, its login is a superuser only while Realtime
@@ -1364,14 +1387,18 @@ END $$;""", e)
         return {'url': base, 'tenantHost': realtime_tenant(e)+'.realtime', 'migrated': self.pins['realtime']['id']}
 
     def realtime_grants(self, e):
+        """Under the operation lock, and a session acting as `authenticated` (a scheduled job, as the developer)
+        can hold the realtime schema's or its tables' rows with a no-op GRANT: one bounded transaction."""
         role = f'{e}_realtime'
-        self.sql(f"""GRANT USAGE, CREATE ON SCHEMA realtime TO {role};
+        self.sql(f"""BEGIN; {ROW_BOUNDS}
+GRANT USAGE, CREATE ON SCHEMA realtime TO {role};
 GRANT ALL ON ALL TABLES IN SCHEMA realtime TO {role};
 GRANT ALL ON ALL SEQUENCES IN SCHEMA realtime TO {role};
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA realtime TO {role};
 GRANT USAGE, CREATE ON SCHEMA _realtime TO {role};
 GRANT ALL ON ALL TABLES IN SCHEMA _realtime TO {role};
-GRANT ALL ON ALL SEQUENCES IN SCHEMA _realtime TO {role};""", e)
+GRANT ALL ON ALL SEQUENCES IN SCHEMA _realtime TO {role};
+COMMIT;""", e)
 
     def realtime_register(self, e, v, base):
         """Create the environment's tenant; Realtime runs its tenant migrations as it does so."""
@@ -1528,7 +1555,7 @@ GRANT CREATE ON DATABASE {e} TO {role};
         with database_lock(e):
             self.sql(developer_login_sql(e, False) +
                      f"SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE usename = '{role}';")
-            self.sql(f'ALTER DATABASE {e} CONNECTION LIMIT {current_database_limit(e, direct=False)};')
+            self.sql(scheduled_jobs.limit_sql(e, current_database_limit(e, direct=False)))
             endpoints = published_endpoints()
             endpoints[e].pop('database', None)
             atomic(STATE/'endpoints.json', endpoints)
@@ -1569,6 +1596,8 @@ GRANT CREATE ON DATABASE {e} TO {role};
         written: a session that signed in before it may have used the old one."""
         self.sql(self.developer_sql(e, password))
         self.sql(self.developer_grants_sql(e), e)
+        # Scheduled jobs run as the developer: its grants on cron and net, and the scheduler login's membership.
+        self.sql(scheduled_jobs.grants_sql(e), e)
         return self.sql('SELECT pg_catalog.clock_timestamp();').stdout.strip()
 
     def developer_open(self, e, written):
@@ -1578,7 +1607,7 @@ GRANT CREATE ON DATABASE {e} TO {role};
         role = f'{e}_developer'
         self.developer_admission(e)
         self.sql(developer_login_sql(e, True))
-        self.sql(f'ALTER DATABASE {e} CONNECTION LIMIT {current_database_limit(e, direct=True)};')
+        self.sql(scheduled_jobs.limit_sql(e, current_database_limit(e, direct=True)))
         if not re.fullmatch(r'[0-9 :.+-]{19,40}', written or ''):
             raise RuntimeError('The time the password was written is not known')
         self.sql(f"SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE usename = '{role}' "
@@ -1800,13 +1829,99 @@ GRANT CREATE ON DATABASE {e} TO {role};
                      f"ALTER ROLE {e}_realtime NOLOGIN; END IF; END $$; "
                      f"SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE usename = '{e}_realtime';")
             self.sql(f"SELECT count(pg_drop_replication_slot(slot_name)) FROM pg_replication_slots WHERE database = '{e}' AND NOT active;")
-            self.sql(f'ALTER DATABASE {e} CONNECTION LIMIT {current_database_limit(e, realtime=False)};')
+            self.sql(scheduled_jobs.limit_sql(e, current_database_limit(e, realtime=False)))
         endpoints = published_endpoints()
         if entry:
             endpoints[e]['realtime'] = entry
         else:
             endpoints[e].pop('realtime', None)
         atomic(STATE/'endpoints.json', endpoints)
+
+    def scheduler_password(self, e):
+        """The scheduler login's password, generated once and kept with the environment's other credentials,
+        so a cluster rebuild can recreate the login (lab/cluster_rebuild.py)."""
+        v = self.values['environments'][e]
+        if not scheduled_jobs.password_ok(v.get('cron')):
+            v['cron'] = secrets.token_hex(32)
+            atomic(self.path, self.values)
+        return v['cron']
+
+    def scheduled_jobs_turn(self, e, on):
+        """Turn one environment's Scheduled jobs on or off: an operator action from the console, under the
+        operation lock (docs/engineering/SCHEDULED-JOBS.md). What a tenant session can make wait (the schemas
+        and grants in its database) runs in bounded transactions after the login's own sessions ended, so the
+        lock is held for at most their bounds. Off closes the login, takes back what was granted to it and
+        keeps the schemas and the jobs; on again picks them up."""
+        effect_receipt.require_settled(STATE)
+        if not re.fullmatch(r'e_[a-f0-9]{24}', e):
+            raise RuntimeError('Invalid environment runtime identifier')
+        if not inspect('container', DB):
+            raise RuntimeError('Start the upstream runtime first')
+        if e not in published_endpoints() or e not in self.values['environments']:
+            raise RuntimeError('Scheduled jobs need a published environment')
+        if source_fence.is_fenced(self.sql, e):
+            raise RuntimeError('Environment database is fenced; explicit reconciliation required')
+        import write_pause
+        login = f'{e}_cron'
+        if not on:
+            self.sql(scheduled_jobs.close_sql(e))
+            self.sql(scheduled_jobs.revoke_sql(e), e)
+            self.sql(scheduled_jobs.limit_sql(e, current_database_limit(e, cron=False)))
+            endpoints = published_endpoints()
+            endpoints[e].pop('cron', None)
+            atomic(STATE/'endpoints.json', endpoints)
+            return
+        if write_pause.is_paused(e):
+            raise OperationBusy('A write pause holds the environment')
+        if self.sql(f"SELECT count(*) FROM pg_hba_file_rules WHERE '{login}' = ANY(user_name) AND error IS NULL;").stdout.strip() != '1':
+            raise RuntimeError('Scheduled jobs access rule not published; restart Sbarbase once')
+        if not cron_on(e):
+            available, promised = (int(value) for value in self.sql(
+                "SELECT current_setting('max_connections')::int - current_setting('superuser_reserved_connections')::int "
+                "- current_setting('reserved_connections')::int, coalesce(sum(greatest(datconnlimit, 0)), 0) "
+                "FROM pg_database WHERE datallowconn AND datname <> 'template1';").stdout.strip().split('|'))
+            if promised + connection_budget.SCHEDULER_CONNECTIONS > available:
+                raise AdmissionLimitError('Connection headroom unavailable')
+        # Closed while its grants are written, so no session of an older turn holds what they need.
+        self.sql(scheduled_jobs.close_sql(e))
+        self.sql(scheduled_jobs.login_sql(e, self.scheduler_password(e)))
+        self.sql(scheduled_jobs.shim_sql(e, login=True), e)
+        self.sql(scheduled_jobs.limit_sql(e, current_database_limit(e, cron=True)))
+        self.sql(scheduled_jobs.open_sql(e))
+        endpoints = published_endpoints()
+        endpoints[e]['cron'] = {'user': login}
+        atomic(STATE/'endpoints.json', endpoints)
+
+    def scheduled_jobs_back(self, e):
+        """At a start, the scheduler login as Scheduled jobs say: its password, limit and role settings
+        written again (a job acting as it may have changed its own settings), the schemas and grants
+        brought up to date (scheduled_jobs_repair), and the login opened unless a write pause holds the
+        environment. Each statement is bounded and none waits for a tenant (SCHEDULED-JOBS.md)."""
+        if not cron_on(e):
+            return
+        import write_pause
+        try:
+            self.sql(scheduled_jobs.close_sql(e))
+            self.sql(scheduled_jobs.login_sql(e, self.scheduler_password(e)))
+            self.scheduled_jobs_repair(e)
+            if not write_pause.is_paused(e):
+                self.sql(scheduled_jobs.open_sql(e))
+        except Exception as error:
+            # Never stops the start of this or any other environment: the login stays as it is (closed, if the
+            # close ran), runs wait, and the next start or turn on tries again.
+            print(f'Scheduled jobs of {e} could not be resumed ({type(error).__name__}); the next start tries again.', file=sys.stderr)
+
+    def scheduled_jobs_repair(self, e):
+        """The schemas and grants written again where Scheduled jobs are on: a restored database may be an
+        archive taken while they were off (no grants to the login) or before they were first turned on (no
+        schemas). Bounded; a failure is reported and never stops a start or a restore, and the next start
+        tries again (the runner meanwhile retries and logs why it cannot read its tables)."""
+        if not cron_on(e):
+            return
+        try:
+            self.sql(scheduled_jobs.shim_sql(e, login=True), e)
+        except Exception as error:
+            print(f'Scheduled jobs of {e} could not be set up again ({type(error).__name__}); the next start tries again.', file=sys.stderr)
 
     def management(self):
         """Dedicated identity realm; it has no application REST or Storage route."""
@@ -1977,7 +2092,7 @@ def stop():
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('command', choices=['up', 'stop', 'provision', 'mail', 'auth', 'realtime', 'functions', 'database', 'signing', 'data-api'])
+    parser.add_argument('command', choices=['up', 'stop', 'provision', 'mail', 'auth', 'realtime', 'functions', 'database', 'signing', 'data-api', 'cron'])
     parser.add_argument('environment', nargs='?')
     parser.add_argument('--off', action='store_true')
     args = parser.parse_args()
@@ -2009,6 +2124,9 @@ if __name__ == '__main__':
                     # through the supervisor and after this lock is released, since its grants can wait for a tenant.
                     if not restart_studio(args.environment) and studio_running(args.environment):
                         print('Studio could not start again; open it once more to use the new keys.', file=sys.stderr)
+                elif args.command=='cron':
+                    if not args.environment:raise SystemExit('The cron command needs an environment')
+                    Runtime().scheduled_jobs_turn(args.environment, on=not args.off)
                 elif args.command=='functions':
                     if not args.environment:raise SystemExit('The functions command needs an environment')
                     Runtime().functions_turn(args.environment, on=not args.off)

@@ -685,7 +685,7 @@ class PreconditionTests(unittest.TestCase):
                     pass
 
     def test_only_the_logins_that_open_and_close_are_compared_without_login_state(self):
-        self.assertEqual(rebuild.TOGGLED, {'studio', 'developer', 'realtime'})
+        self.assertEqual(rebuild.TOGGLED, {'studio', 'developer', 'realtime', 'cron'})
 
     def test_a_studio_login_without_its_session_password_is_created_closed(self):
         roles = recorded()

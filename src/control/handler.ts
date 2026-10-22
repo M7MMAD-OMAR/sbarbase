@@ -9,6 +9,7 @@ import {deploymentSetupHandler} from './deployment-setup';
 import {shareHandler} from './share';
 import {invitationHandler,type InvitationAccounts} from './invitations';
 import {realtimeHandler} from './realtime';
+import {scheduledJobsHandler} from './scheduled-jobs';
 import {dataApiHandler} from './data-api';
 import {observeHandler,type ContainerReader} from './observe';
 import {functionsHandler} from './functions';
@@ -22,7 +23,7 @@ export function controlHandler(catalog:Catalog,keys:KeyStore,identity:Management
  keys.useRuntimeEpoch(runtime=>catalog.runtimeEpoch(runtime));
  const metadata=managementHandler(catalog,identity,undefined,keys),credentials=keyHandler(catalog,keys,identity,services);
  const studio=studioKey?studioHandler(catalog,identity,studioKey):undefined,signIn=signInHandler(catalog,identity),
-  realtime=realtimeHandler(catalog,identity),observe=observeHandler(catalog,identity,requests,containers),
+  realtime=realtimeHandler(catalog,identity),scheduledJobs=scheduledJobsHandler(catalog,identity),observe=observeHandler(catalog,identity,requests,containers),
   functions=functionsHandler(catalog,identity),database=databaseHandler(catalog,identity,undefined,direct),
   signing=signingHandler(catalog,identity),dataApi=dataApiHandler(catalog,identity);
  const share=shareHandler(catalog,identity),deploymentSetup=deploymentSetupHandler(catalog,identity);
@@ -35,6 +36,7 @@ export function controlHandler(catalog:Catalog,keys:KeyStore,identity:Management
   if(/\/environments\/[^/]+\/share$/.test(path))return share(request);
   if(path==='/management/invitations/redeem'||/\/organizations\/[^/]+\/invitations(\/|$)/.test(path))return invitations(request);
   if(/\/environments\/[^/]+\/realtime$/.test(path))return realtime(request);
+  if(/\/environments\/[^/]+\/scheduled-jobs$/.test(path))return scheduledJobs(request);
   if(/\/environments\/[^/]+\/data-api$/.test(path))return dataApi(request);
   if(/\/environments\/[^/]+\/(metrics|logs)$/.test(path))return observe(request);
   if(/\/environments\/[^/]+\/(functions|function-secrets)(\/|$)/.test(path))return functions(request);

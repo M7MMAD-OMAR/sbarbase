@@ -42,7 +42,7 @@ STUDIO_RESTORE_MS = 8 * 60 * 60 * 1000
 # check is due, the automatic decision) at most this often.
 UPDATES_EVERY = datetime.timedelta(seconds=15)
 # The console changes lab/realtime.py applies, each with its own catalog table (toggle_requests).
-TOGGLES = ('realtime', 'functions', 'database', 'signing')
+TOGGLES = ('realtime', 'functions', 'database', 'signing', 'cron')
 
 
 def notify_installation(kind, catalog=None):
@@ -138,6 +138,10 @@ class Supervisor:
         # grants a tenant holds up, within their bound) keep every other environment's change waiting.
         self.toggles = {}
         self.toggles_after = {}
+        # The scheduler (lab/scheduler.ts): every environment's scheduled jobs and outgoing requests, while no
+        # update drains the supervisor, and when it may start again after it exited.
+        self.scheduler = None
+        self.scheduler_after = 0.0
         self.backup_hour = backup_hour()
         self.backup_keep = backup_keep()
         self.restarts = collections.deque()
@@ -425,7 +429,7 @@ class Supervisor:
         receipt, an HBA journal or migration) waits to be settled."""
         if self.worker is not None or self.backup is not None or self.sign_in or self.studios:
             return False
-        if self.data_api or self.toggles:
+        if self.data_api or self.toggles or self.scheduler is not None:
             return False
         import upgrade
         return not any(upgrade.present(upgrade.UPSTREAM / name) for name in upgrade.UNSETTLED)
@@ -659,17 +663,17 @@ class Supervisor:
         if not path.exists():
             return []
         table = {'realtime': 'realtime_settings', 'functions': 'functions_settings', 'database': 'database_access',
-                 'signing': 'signing_keys'}[service]
+                 'signing': 'signing_keys', 'cron': 'scheduled_jobs'}[service]
         try:
             with closing(sqlite3.connect(f'file:{path}?mode=ro', uri=True, timeout=2)) as database, database:
                 rows = database.execute(f"SELECT runtime, desired FROM {table} WHERE state='pending' ORDER BY updated_at").fetchall()
         except sqlite3.Error:
             return []
-        # A write pause refuses turning database access or Edge Functions on: such a request (a password
-        # reset included) stays pending until write_pause.py resume, without holding up the others.
+        # A write pause refuses turning database access, Edge Functions or Scheduled jobs on: such a request
+        # (a password reset included) stays pending until write_pause.py resume, without holding up the others.
         paused = STATE/'write-pauses'
         return [runtime for runtime, desired in rows
-                if not (service in ('database', 'functions') and desired == 'on' and (paused/f'{runtime}.json').exists())]
+                if not (service in ('database', 'functions', 'cron') and desired == 'on' and (paused/f'{runtime}.json').exists())]
 
     def schedule_toggles(self):
         """Turn an environment's Realtime, Edge Functions or database access on or off, or rotate its signing key
@@ -693,6 +697,25 @@ class Supervisor:
                     continue
                 self.toggles_after.pop(key, None)
                 self.toggles[key] = self.spawn(['/usr/bin/python3', 'lab/realtime.py', 'apply', runtime, '--service', service])
+
+    def schedule_scheduler(self):
+        """Keep the scheduler running, except while an update drains the supervisor: it is stopped then (it
+        records the runs it ends), so idle() can say yes, and started again once the drain is over. One that
+        exits on its own is started again after five seconds."""
+        if self.scheduler is not None:
+            status = child_status(self.scheduler)
+            if status is None:
+                if self.paused():
+                    terminate_group(self.scheduler, grace=20)
+                    self.scheduler = None
+                return
+            terminate_group(self.scheduler, grace=0)
+            self.scheduler = None
+            print('Scheduler exited; starting it again shortly.', flush=True)
+            self.scheduler_after = time.monotonic() + 5
+        if self.paused() or time.monotonic() < self.scheduler_after:
+            return
+        self.scheduler = self.spawn(['bun', 'lab/scheduler.ts'])
 
     def reset_studios(self):
         """No Studio container outlives a restart, since its login must close. A session used in the
@@ -754,6 +777,7 @@ class Supervisor:
                 self.schedule_sign_in()
                 self.schedule_data_api()
                 self.schedule_toggles()
+                self.schedule_scheduler()
                 if not self.paused():
                     # Disk space and stopped service containers, once a minute (lab/host_watch.py).
                     self.host_watch.step()
@@ -765,6 +789,8 @@ class Supervisor:
                         print(f'Update scheduling failed: {error}', file=sys.stderr, flush=True)
                         self.updates_after = time.monotonic() + 60
         finally:
+            if self.scheduler:
+                terminate_group(self.scheduler)
             if self.update:
                 terminate_group(self.update['process'])
             if self.backup:

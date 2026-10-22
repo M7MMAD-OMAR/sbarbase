@@ -257,6 +257,11 @@ export class Catalog {
         desired TEXT NOT NULL CHECK(desired IN ('on','off')),
         state TEXT NOT NULL CHECK(state IN ('off','pending','on','failed')),
         failure TEXT, actor TEXT NOT NULL, updated_at INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS scheduled_jobs(
+        runtime TEXT PRIMARY KEY REFERENCES provision_jobs(runtime),
+        desired TEXT NOT NULL CHECK(desired IN ('on','off')),
+        state TEXT NOT NULL CHECK(state IN ('off','pending','on','failed')),
+        failure TEXT, actor TEXT NOT NULL, updated_at INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS functions_settings(
         runtime TEXT PRIMARY KEY REFERENCES provision_jobs(runtime),
         desired TEXT NOT NULL CHECK(desired IN ('on','off')),
@@ -1079,6 +1084,28 @@ export class Catalog {
       return this.realtime(actor,environment);
     }).immediate();
   }
+  /** Scheduled jobs (`cron.schedule`, `net.http_*`) for one environment, kept like Realtime: owners and
+   * admins turn them on or off, and the supervisor applies it (lab/realtime.py, docs/guides/scheduled-jobs.md). */
+  scheduledJobs(actor:string,environment:string):RealtimeState {
+    this.environmentProject(actor,environment,['owner','admin']);
+    const job=this.job(environment);
+    if(!job||job.state!=='succeeded'||this.runtimeDeleted(job.runtime))throw new Error('Environment is not ready');
+    const row=this.db.query<{desired:string;state:string;failure:string|null;updated_at:number},[string]>(
+      'SELECT desired,state,failure,updated_at FROM scheduled_jobs WHERE runtime=?').get(job.runtime);
+    return {runtime:job.runtime,desired:(row?.desired??'off') as RealtimeState['desired'],state:(row?.state??'off') as RealtimeState['state'],
+      failure:row?.failure??null,updatedAt:row?.updated_at??null};
+  }
+  requestScheduledJobs(actor:string,environment:string,on:boolean):RealtimeState {
+    return this.db.transaction(()=>{
+      const current=this.scheduledJobs(actor,environment);
+      if(current.state==='pending')throw new Error('Scheduled jobs change in progress');
+      this.db.query(`INSERT INTO scheduled_jobs(runtime,desired,state,failure,actor,updated_at) VALUES (?,?,'pending',NULL,?,?)
+        ON CONFLICT(runtime) DO UPDATE SET desired=excluded.desired,state='pending',failure=NULL,actor=excluded.actor,
+        updated_at=excluded.updated_at`).run(current.runtime,on?'on':'off',actor,Date.now());
+      this.record(actor,on?'scheduled_jobs.requested':'scheduled_jobs.stop_requested',environment,{});
+      return this.scheduledJobs(actor,environment);
+    }).immediate();
+  }
   /** Edge Functions for one environment, kept like Realtime: owners and admins turn the runtime
    * on or off, deploying a function turns it on, and the supervisor applies it (lab/realtime.py). */
   functions(actor:string,environment:string):RealtimeState {
@@ -1598,7 +1625,7 @@ export class Catalog {
   }
   private runtimeServicesActive(runtime:string):boolean {
     const on=(table:string)=>!!this.db.query(`SELECT 1 FROM ${table} WHERE runtime=? AND (desired='on' OR state IN ('pending','on'))`).get(runtime);
-    return on('realtime_settings')||on('functions_settings')||on('database_access')||
+    return on('realtime_settings')||on('functions_settings')||on('database_access')||on('scheduled_jobs')||
       !!this.db.query("SELECT 1 FROM studio_sessions WHERE runtime=? AND (desired='running' OR state IN ('starting','running'))").get(runtime)||
       !!this.db.query("SELECT 1 FROM auth_settings WHERE runtime=? AND state='pending'").get(runtime)||
       !!this.db.query("SELECT 1 FROM data_api_settings WHERE runtime=? AND state='pending'").get(runtime)||

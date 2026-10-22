@@ -10,7 +10,7 @@ them (GRANT SET ON PARAMETER, which no dump carries), and the image the cluster 
 are never read or recorded.
 
 Only the roles the runtime manages are listed: the per-environment logins
-(``<e>_auth``, ``_rest``, ``_storage``, ``_studio``, ``_realtime``, ``_developer``) and the
+(``<e>_auth``, ``_rest``, ``_storage``, ``_studio``, ``_realtime``, ``_developer``, ``_cron``) and the
 cluster roles ``storage_control``, ``management_auth`` and ``supabase_realtime_admin``. Roles
 the image creates come back with the image; a role created by hand is not recorded.
 
@@ -23,7 +23,7 @@ itself still completes, and the rebuild refuses such a record.
 import json
 import re
 
-ENVIRONMENT_ROLE = re.compile(r'(e_[a-f0-9]{24})_(auth|rest|storage|studio|realtime|developer)')
+ENVIRONMENT_ROLE = re.compile(r'(e_[a-f0-9]{24})_(auth|rest|storage|studio|realtime|developer|cron)')
 CLUSTER_ROLES = ('storage_control', 'management_auth', 'supabase_realtime_admin')
 ATTRIBUTES = ('rolsuper', 'rolinherit', 'rolcreaterole', 'rolcreatedb', 'rolreplication', 'rolbypassrls')
 _BASE = dict.fromkeys(ATTRIBUTES, False)
@@ -33,6 +33,8 @@ RULES = {
     'studio': {**_BASE, 'rolbypassrls': True},
     'developer': {**_BASE, 'rolinherit': True, 'rolbypassrls': True},
     'realtime': {**_BASE, 'rolinherit': True, 'rolreplication': True},
+    # The scheduler's login (docs/engineering/SCHEDULED-JOBS.md): acts as the developer only by SET ROLE.
+    'cron': _BASE,
     'storage_control': _BASE, 'management_auth': _BASE,
     'supabase_realtime_admin': _BASE,
 }
@@ -41,7 +43,7 @@ ROLE_FIELDS = {'name', 'kind', 'environment', *ATTRIBUTES, 'rolcanlogin', 'rolco
 GRANT_FIELDS = {'role', 'inherit', 'set', 'admin'}
 RECORD_FIELDS = {'version', 'image', 'roles', 'parameters', 'refusals'}
 
-ROLE_NAMES = r"""(r.rolname ~ '^e_[a-f0-9]{24}_(auth|rest|storage|studio|realtime|developer)$'
+ROLE_NAMES = r"""(r.rolname ~ '^e_[a-f0-9]{24}_(auth|rest|storage|studio|realtime|developer|cron)$'
    OR r.rolname IN ('storage_control', 'management_auth', 'supabase_realtime_admin'))"""
 QUERY = r"""
 SELECT json_build_object(

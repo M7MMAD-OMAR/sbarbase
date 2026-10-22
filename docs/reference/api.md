@@ -90,6 +90,8 @@ All routes need `Authorization: Bearer <management access token>`. The actor com
 | PUT | `/management/v1/environments/{id}/share` | installation operator | Body `{"share": n}`, 1 to 24. `409` when the shares of all ready environments would exceed 64. Applies at the next request |
 | GET | `/management/v1/environments/{id}/realtime` | owner, admin, when ready | Realtime `state` and `desired` ([Realtime](../guides/realtime.md)) |
 | PUT | `/management/v1/environments/{id}/realtime` | owner, admin, when ready | `{"enabled": true\|false}`. `202`; the supervisor starts or stops it. `409` while a change is in progress |
+| GET | `/management/v1/environments/{id}/scheduled-jobs` | owner, admin, when ready | Scheduled jobs `state` and `desired` ([Scheduled jobs](../guides/scheduled-jobs.md)) |
+| PUT | `/management/v1/environments/{id}/scheduled-jobs` | owner, admin, when ready | `{"enabled": true\|false}`. `202`; the supervisor turns them on or off. `409` while a change is in progress |
 | GET | `/management/v1/environments/{id}/data-api` | owner, admin, viewer, when ready | The saved Data API settings, their `state` and `failure`, what is `served`, and the last start's `report` ([Data API](../guides/data-api.md)) |
 | PUT | `/management/v1/environments/{id}/data-api` | owner, admin, when ready | `{"schemas": [...], "extraSearchPath": [...], "maxRows": n\|null}`. `202`; the supervisor applies it. `400` with the reason for a refused name, `409` while a change is in progress |
 | GET | `/management/v1/environments/{id}/sign-in` | owner, admin, when ready | Sign-in settings without provider secrets, their state and the `callback_url` to give OAuth providers ([sign-in](../guides/sign-in.md)) |

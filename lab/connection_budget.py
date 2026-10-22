@@ -10,6 +10,10 @@ DIRECT_CONNECTIONS = 10
 # The pinned Realtime opens up to ten tenant connections (its Database.tenant_pool_requirements),
 # two metadata connections and a probe, all as the environment's Realtime login.
 REALTIME_CONNECTIONS = 16
+# The scheduler's login while Scheduled jobs are on: its bookkeeping session, two runs at once and the one
+# that ends a run at its deadline
+# (lab/scheduled_jobs.py CONNECTIONS, docs/engineering/SCHEDULED-JOBS.md).
+SCHEDULER_CONNECTIONS = 4
 # The cluster's max_connections, which the runtime raises at start (durable_runtime.py
 # ensure_connection_capacity): eight environments at their base limit (8 x 18), the shared logins
 # and the operations reserve take 166 of the 197 usable. Studio, Realtime and direct access are
@@ -19,10 +23,10 @@ REALTIME_CONNECTIONS = 16
 MAX_CONNECTIONS = 200
 
 
-def database_limit(studio=False, realtime=False, direct=False):
+def database_limit(studio=False, realtime=False, direct=False, cron=False):
     """The connection limit of one environment database, with the extra logins it runs now."""
     return (ENVIRONMENT_LIMIT + (STUDIO_CONNECTIONS if studio else 0) + (REALTIME_CONNECTIONS if realtime else 0)
-            + (DIRECT_CONNECTIONS if direct else 0))
+            + (DIRECT_CONNECTIONS if direct else 0) + (SCHEDULER_CONNECTIONS if cron else 0))
 
 
 def fits(environments, maximum, superuser_reserved, reserved):

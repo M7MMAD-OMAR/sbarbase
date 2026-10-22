@@ -317,7 +317,7 @@ class SupervisorTests(unittest.TestCase):
         with self.scheduled('schedule_toggles', ('toggle_requests', lambda other: lambda service: [E]),
                            lambda command: (command[-1], command[3])) as (_, schedule, spawned, _, _):
             schedule()
-            self.assertEqual(spawned, [(service, E) for service in ('realtime', 'functions', 'database', 'signing')])
+            self.assertEqual(spawned, [(service, E) for service in ('realtime', 'functions', 'database', 'signing', 'cron')])
 
     def test_sign_in_changes_of_two_environments_run_side_by_side(self):
         with self.scheduled('schedule_sign_in', ('sign_in_requests', lambda other: lambda: [E, other]), lambda command: command[-1]) as (supervisor, schedule, spawned, statuses, other):

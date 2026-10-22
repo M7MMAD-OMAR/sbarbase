@@ -166,8 +166,8 @@ class PauseTests(PauseFixture):
     def test_closing_the_logins_ends_exactly_their_sessions(self):
         database = Database({E + '_developer': True, E + '_studio': True})
         write_pause.close_logins(E, database, sleep=lambda _: None)
-        logins = f"'{E}_developer','{E}_studio'"
-        self.assertEqual(database.queries[1:3], [
+        logins = f"'{E}_developer','{E}_studio','{E}_cron'"
+        self.assertEqual(database.queries[2:4], [
             f'SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE usename IN ({logins});',
             f'SELECT count(*) FROM pg_stat_activity WHERE usename IN ({logins});'])
 

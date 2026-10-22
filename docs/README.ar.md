@@ -32,6 +32,7 @@
 - [النشر على خادم](guides/server-deployment.ar.md): دليل تشغيل الخادم وثغراته المعروفة.
 - [Realtime](guides/realtime.ar.md): تغييرات قاعدة البيانات والبث والحضور لكل بيئة.
 - [واجهة البيانات](guides/data-api.ar.md): اكشف مخططاتك الخاصة عبر PostgREST، مع الصلاحيات التي تحتاجها.
+- [المهام المجدولة](guides/scheduled-jobs.ar.md): الدالتان `cron.schedule` و`net.http_*` لكل بيئة، والقاعدة التي تتبعها الطلبات الصادرة.
 - [النقل من Supabase](guides/move-from-supabase.ar.md): انسخ مشروع Supabase ومستخدميه وملفاته إلى بيئة جديدة بأمر واحد.
 - [الوصول إلى قاعدة البيانات](guides/database-access.ar.md): سلسلة اتصال PostgreSQL لكل بيئة للترحيلات وpsql وأدوات ORM.
 - [وكلاء الذكاء الاصطناعي والواجهة البرمجية](guides/agents.ar.md): رموز الوصول ونقطة MCP والواجهة المتوافقة مع Supabase، ليستطيع Claude Code أو Cursor أو Codex النشر هنا.

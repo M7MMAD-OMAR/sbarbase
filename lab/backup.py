@@ -73,6 +73,7 @@ from pathlib import Path
 import data_api
 import image_identity
 import backup_consistency
+import scheduled_jobs
 
 ROOT = Path(__file__).resolve().parent.parent
 STATE = ROOT / '.lab' / 'upstream'
@@ -893,6 +894,17 @@ def start_services(e):
             durable_runtime.Runtime().data_api_observe(e)
         except Exception:
             pass
+    # Scheduled jobs: the restored database may be an archive taken while they were off, or before they were
+    # first turned on, so their schemas and the scheduler login's grants are written again; or one taken while
+    # they were on, restored while they are off, whose grants to the login are taken back so a later dump names
+    # no such role. Bounded, reported, never stopping the restore.
+    try:
+        if durable_runtime.cron_on(e):
+            durable_runtime.Runtime().scheduled_jobs_repair(e)
+        else:
+            durable_runtime.Runtime().sql(scheduled_jobs.revoke_sql(e), e)
+    except Exception as error:
+        print(f'Scheduled jobs of {e} could not be set up again after the restore ({type(error).__name__}).', file=sys.stderr)
     run(['docker', 'start', *service_names(e)])
     path = STATE / 'endpoints.json'
     endpoints = json.loads(path.read_text())

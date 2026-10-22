@@ -1,7 +1,7 @@
 """Turn one environment's Realtime, Edge Functions or direct database access on or off, or rotate its
 JWT signing secret, as the console asked, and record the outcome.
 
-Usage: /usr/bin/python3 lab/realtime.py apply <environment runtime id> [--service realtime|functions|database|signing]
+Usage: /usr/bin/python3 lab/realtime.py apply <environment runtime id> [--service realtime|functions|database|signing|cron]
 
 The console records the request in the catalog; the supervisor runs this for each pending
 row, one child per environment and service (lab/dev.py schedule_toggles). It calls `durable_runtime.py <service> <runtime> [--off]`, which starts or
@@ -29,13 +29,16 @@ CAPACITY = 75
 BUSY = 76
 # Each service: its catalog table and the name people see.
 SERVICES = {'realtime': ('realtime_settings', 'Realtime'), 'functions': ('functions_settings', 'Edge Functions'),
-            'database': ('database_access', 'Direct database access'), 'signing': ('signing_keys', 'The signing key')}
+            'database': ('database_access', 'Direct database access'), 'signing': ('signing_keys', 'The signing key'),
+            'cron': ('scheduled_jobs', 'Scheduled jobs')}
 
 
 def failure_text(service, code, want):
     label = SERVICES[service][1]
     if code == CAPACITY and service == 'database':
         return 'This server has no database connections to spare for direct access to another environment.'
+    if code == CAPACITY and service == 'cron':
+        return 'This server has no database connections to spare for scheduled jobs in another environment.'
     if service == 'signing':
         return ('The new signing key is not in use everywhere yet. Rotate again to finish, or Sbarbase finishes '
                 'it the next time it starts; until then some requests to this environment may be refused.')
