@@ -134,6 +134,18 @@ class AdmissionLimitError(RuntimeError):
     pass
 
 
+class OperationBusy(RuntimeError):
+    """A lock this change needs is held, or a write pause holds the environment: nothing was opened; ask again."""
+
+
+# The exit status of a console change (realtime, functions, database, signing, auth) that found a lock
+# held or the environment paused and changed nothing the next try would not redo: lab/realtime.py and
+# lab/auth_settings.py leave its row pending and the supervisor asks again. 75 stays the admission
+# limit, which those commands report as a refusal.
+BUSY = 76
+CONSOLE_CHANGES = ('realtime', 'functions', 'database', 'signing', 'auth')
+
+
 OWNER = 'durable-upstream'
 PREFIX = 'sbarbase-durable'
 DB = PREFIX + '-db'
@@ -157,6 +169,10 @@ REST_PINS = ("ALTER ROLE {e}_rest IN DATABASE {e} SET search_path = pg_catalog; 
 # a transaction it leaves open), so every platform statement that writes them is bounded: it
 # gives up with an error instead of waiting, and the start stops or the change is refused.
 REST_PIN_BOUNDS = "SET lock_timeout = '5s'; SET statement_timeout = '30s'; "
+# The developer login's setup and grants wait for transactions the environment's logins leave open
+# (a role setting the login writes for itself, a no-op GRANT on a table in `public`), so both are
+# bounded and run under the environment's database access lock alone (database_command).
+DEVELOPER_BOUNDS = "SET lock_timeout = '10s'; SET statement_timeout = '60s'; "
 
 
 def rest_pin_sql(e, end_sessions=False, password=None):
@@ -1343,10 +1359,14 @@ GRANT ALL ON ALL SEQUENCES IN SCHEMA _realtime TO {role};""", e)
         itself (RESERVED_SCHEMAS): a schema it made first, under a name the platform later creates
         with IF NOT EXISTS (Realtime's, whose migration runs as superuser), would run its code with
         those rights. The right to create schemas comes last, in developer_grants_sql, after the guard.
-        It is not a superuser and cannot reach another environment's database."""
+        It is not a superuser and cannot reach another environment's database.
+
+        The login itself is not opened here: developer_login_sql does that, under the operation lock and
+        the write pause guard. Bounded, since a session acting as the login can hold its role rows (a
+        password or role setting it changes for itself in a transaction it leaves open)."""
         role = f'{e}_developer'
         members = ', '.join(f'{e}_{service}' for service in ('auth', 'storage')) + ', anon, authenticated, service_role'
-        return f"""
+        return data_api.SAFE + DEVELOPER_BOUNDS + f"""
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{role}') THEN
     CREATE ROLE {role} NOLOGIN;
@@ -1357,7 +1377,6 @@ ALTER ROLE {role} NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION INHERIT BYPA
 ALTER ROLE {role} IN DATABASE {e} SET search_path TO public, extensions;
 GRANT CONNECT, TEMPORARY ON DATABASE {e} TO {role};
 GRANT {members} TO {role};
-ALTER ROLE {role} LOGIN;
 """
 
     def developer_grants_sql(self, e):
@@ -1373,8 +1392,8 @@ ALTER ROLE {role} LOGIN;
         # for transactions the environment's logins leave open. The exposed schema guard itself is
         # not part of it (found in review: installed every time, a REST login session holding the platform's
         # catalog rows held up this script under the operation lock, and every other environment's database
-        # toggle behind it); developer_on refuses when it is missing, and the import installs it first.
-        return data_api.SAFE + "SET lock_timeout = '10s'; SET statement_timeout = '60s'; " + f"""CREATE SCHEMA IF NOT EXISTS sbarbase_guard;
+        # toggle behind it); developer_ready refuses when it is missing, and the import installs it first.
+        return data_api.SAFE + DEVELOPER_BOUNDS + f"""CREATE SCHEMA IF NOT EXISTS sbarbase_guard;
 REVOKE ALL ON SCHEMA sbarbase_guard FROM PUBLIC;
 CREATE OR REPLACE FUNCTION sbarbase_guard.reserved_schemas() RETURNS event_trigger
   LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $guard$
@@ -1445,44 +1464,35 @@ ALTER PUBLICATION supabase_realtime OWNER TO {role};
 GRANT CREATE ON DATABASE {e} TO {role};
 {studio_identity_sql(e)}"""
 
-    def database_turn(self, e, on):
-        """Turn one environment's direct database access on (with the password the console saved) or off."""
+    def database_preconditions(self, e):
+        """What a console change of direct database access checks first, each time it takes the operation lock."""
         effect_receipt.require_settled(STATE)
         if not re.fullmatch(r'e_[a-f0-9]{24}', e):
             raise RuntimeError('Invalid environment runtime identifier')
         if not inspect('container', DB):
             raise RuntimeError('Start the upstream runtime first')
-        endpoints = published_endpoints()
-        if e not in endpoints or e not in self.values['environments']:
+        if e not in published_endpoints() or e not in self.values['environments']:
             raise RuntimeError('Database access needs a published environment')
         if source_fence.is_fenced(self.sql, e):
             raise RuntimeError('Environment database is fenced; explicit reconciliation required')
-        role = f'{e}_developer'
-        # Turning the login on holds the write pause lock until it is on: a pause taken meanwhile waits
-        # for it, then closes the login again (lab/write_pause.py).
-        guard = contextlib.ExitStack()
-        if on:
-            import write_pause
-            try:
-                guard.enter_context(write_pause.unpaused(e, 'turn database access on'))
-            except write_pause.PauseError as error:
-                raise RuntimeError(str(error)) from None
-        with guard:
-            if on:
-                self.developer_on(e)
-            else:
-                self.sql(f"DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{role}') THEN "
-                         f"ALTER ROLE {role} NOLOGIN; END IF; END $$; "
-                         f"SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE usename = '{role}';")
-                self.sql(f'ALTER DATABASE {e} CONNECTION LIMIT {current_database_limit(e, direct=False)};')
-                endpoints = published_endpoints()
-                endpoints[e].pop('database', None)
-                atomic(STATE/'endpoints.json', endpoints)
 
-    def developer_on(self, e):
-        """The developer login on, with the password the console saved last, its grants, the database
-        connection limit and the sessions of an older password closed, then published. The caller
-        holds the write pause guard (database_turn), or is write_pause.py resume itself."""
+    def database_turn(self, e, on):
+        """Turn one environment's direct database access off, the caller holding the operation lock. Turning
+        it on is database_command: its grants can wait for a tenant, so they run outside that lock."""
+        if on:
+            raise RuntimeError('Turning database access on is database_command')
+        self.database_preconditions(e)
+        role = f'{e}_developer'
+        with database_lock(e):
+            self.sql(developer_login_sql(e, False) +
+                     f"SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE usename = '{role}';")
+            self.sql(f'ALTER DATABASE {e} CONNECTION LIMIT {current_database_limit(e, direct=False)};')
+            endpoints = published_endpoints()
+            endpoints[e].pop('database', None)
+            atomic(STATE/'endpoints.json', endpoints)
+
+    def developer_ready(self, e):
+        """The saved password, once the login's access rule and the exposed schema guard are in place."""
         role = f'{e}_developer'
         if self.sql(f"SELECT count(*) FROM pg_hba_file_rules WHERE '{role}' = ANY(user_name) AND error IS NULL;").stdout.strip() != '1':
             raise RuntimeError('Database access rule not published; restart Sbarbase once')
@@ -1492,6 +1502,16 @@ GRANT CREATE ON DATABASE {e} TO {role};
             raise RuntimeError('No developer password was saved') from None
         if not isinstance(password, str) or not re.fullmatch(r'[A-Za-z0-9_-]{24,128}', password):
             raise RuntimeError('The saved developer password is not valid')
+        # The exposed schema guard is installed when the environment is provisioned and repaired by a start or
+        # restore. Missing here, it is not installed with REST serving, where a REST login session could hold
+        # it up (found in review): the turn is refused, as for the rule above.
+        if self.sql(data_api.guard_present_sql(e), e).stdout.strip() != 't':
+            raise RuntimeError('Data API guard missing; restart Sbarbase once')
+        return password
+
+    def developer_admission(self, e):
+        """Room in the cluster for the login's connections, unless it already has them. Under the operation
+        lock: other environments' changes read and promise the same headroom."""
         if not direct_on(e):
             available, promised = (int(value) for value in self.sql(
                 "SELECT current_setting('max_connections')::int - current_setting('superuser_reserved_connections')::int "
@@ -1499,19 +1519,42 @@ GRANT CREATE ON DATABASE {e} TO {role};
                 "FROM pg_database WHERE datallowconn AND datname <> 'template1';").stdout.strip().split('|'))
             if promised + connection_budget.DIRECT_CONNECTIONS > available:
                 raise AdmissionLimitError('Connection headroom unavailable')
-        # The exposed schema guard is installed when the environment is provisioned and repaired by a start or
-        # restore. Missing here, it is not installed under the operation lock with REST serving, where a REST
-        # login session could hold it up (found in review): the turn is refused, as for the rule above.
-        if self.sql(data_api.guard_present_sql(e), e).stdout.strip() != 't':
-            raise RuntimeError('Data API guard missing; restart Sbarbase once')
+
+    def developer_prepare(self, e, password):
+        """The login's role, its password and its grants, with the login itself left as it is. This is what a
+        tenant can make wait, each statement within DEVELOPER_BOUNDS, so a console change runs it under the
+        environment's database access lock alone. Returns the database's clock after the password was
+        written: a session that signed in before it may have used the old one."""
         self.sql(self.developer_sql(e, password))
         self.sql(self.developer_grants_sql(e), e)
+        return self.sql('SELECT pg_catalog.clock_timestamp();').stdout.strip()
+
+    def developer_open(self, e, written):
+        """Open the login, set the connection limit, close the sessions of an older password and publish.
+        Run under the operation lock and the write pause guard; the one statement a tenant could make wait,
+        opening the login, ends the sessions that hold role rows first (developer_login_sql)."""
+        role = f'{e}_developer'
+        self.developer_admission(e)
+        self.sql(developer_login_sql(e, True))
         self.sql(f'ALTER DATABASE {e} CONNECTION LIMIT {current_database_limit(e, direct=True)};')
-        # A new password closes the sessions that signed in with the old one.
-        self.sql(f"SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE usename = '{role}' AND backend_start < now() - interval '1 second';")
+        if not re.fullmatch(r'[0-9 :.+-]{19,40}', written or ''):
+            raise RuntimeError('The time the password was written is not known')
+        self.sql(f"SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE usename = '{role}' "
+                 f"AND backend_start < '{written}'::timestamptz;")
         endpoints = published_endpoints()
         endpoints[e]['database'] = {'user': role, 'database': e}
         atomic(STATE/'endpoints.json', endpoints)
+
+    def developer_on(self, e):
+        """The developer login on, with the password the console saved last, in one go. Only for
+        write_pause.py resume, which holds the operation lock and the pause lock for its whole length, as a
+        start does: its grants are bounded, and it does not wait for the environment's database access
+        lock, which a console change holds while its own grants run (resume then stops and is run again).
+        The console's change is database_command."""
+        with database_lock(e):
+            password = self.developer_ready(e)
+            self.developer_admission(e)
+            self.developer_open(e, self.developer_prepare(e, password))
 
     def wait_database(self):
         for _ in range(120):
@@ -1745,6 +1788,42 @@ GRANT CREATE ON DATABASE {e} TO {role};
         atomic(STATE/'management.json', {'auth': endpoint})
 
 
+def developer_login_sql(e, on):
+    """Open or close the developer login. A session acting as that login (its own, Studio's, or a request
+    running a function the login owns) can change the login's password or settings in a transaction it
+    leaves open, and the role row would then hold this statement. It runs under the operation lock, so
+    the environment's sessions holding role rows in an open transaction are ended first, in the same
+    transaction, and the statement is bounded for the one that could start in between."""
+    if not re.fullmatch(r'e_[a-f0-9]{24}', e):
+        raise RuntimeError('Invalid environment runtime identifier')
+    role = f'{e}_developer'
+    ended = ("SELECT pg_catalog.count(pg_catalog.pg_terminate_backend(l.pid)) FROM pg_catalog.pg_locks l "
+             "JOIN pg_catalog.pg_stat_activity a ON a.pid = l.pid JOIN pg_catalog.pg_roles r ON r.rolname = a.usename "
+             "WHERE l.locktype = 'relation' AND l.relation = 'pg_catalog.pg_authid'::pg_catalog.regclass "
+             f"AND l.granted AND l.mode <> 'AccessShareLock' AND a.datname = '{e}' AND NOT r.rolsuper "
+             "AND l.pid <> pg_catalog.pg_backend_pid(); ")
+    change = (f'ALTER ROLE {role} LOGIN; ' if on else
+              f"DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = '{role}') THEN "
+              f"ALTER ROLE {role} NOLOGIN; END IF; END $$; ")
+    return data_api.SAFE + REST_PIN_BOUNDS + 'BEGIN; ' + ended + change + 'COMMIT; '
+
+
+def database_lock(e):
+    """This environment's database access lock, taken without waiting (BlockingIOError when it is held). A
+    console change holds it while it writes the developer login's grants, outside the operation lock, and
+    again with the operation lock to open the login; write_pause.py resume and turning access off try it.
+    Nothing waits for it while holding the operation lock."""
+    if not re.fullmatch(r'e_[a-f0-9]{24}', e):
+        raise RuntimeError('Invalid environment runtime identifier')
+    handle = (STATE/f'database-{e}.lock').open('a')
+    try:
+        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BaseException:
+        handle.close()
+        raise
+    return handle
+
+
 def operation_lock(block=False):
     """The installation operation lock: tried once (BlockingIOError when it is held), or waited for."""
     handle = (STATE/'operation.lock').open('a')
@@ -1765,6 +1844,42 @@ def restart_studio(e, catalog=None):
         changed = database.execute("UPDATE studio_sessions SET state='failed', failure=NULL, updated_at=? "
                                    "WHERE runtime=? AND state='running'", (int(time.time()*1000), e)).rowcount
     return bool(changed)
+
+
+def database_command(e, on, runtime=None):
+    """The console's change of direct database access. Turning it on writes grants on `public`, which a
+    session acting through the API can make wait (a no-op GRANT left open), each within its bound: under
+    the installation's operation lock that wait would hold every other environment's changes and starts
+    too, and under the write pause lock every Studio start. So the checks run under the operation lock,
+    the role, password and grants under this environment's database access lock alone, and the login is
+    opened and published under the operation lock again, waited for, and the pause guard, tried. A pause
+    taken in between, or either lock found held, is OperationBusy: nothing was opened, and the next try
+    redoes the grants, which change nothing the second time."""
+    import write_pause
+    runtime = runtime or Runtime()
+    if not on:
+        with operation_lock():
+            runtime.database_turn(e, on=False)
+        return
+    with database_lock(e):
+        with operation_lock():
+            runtime.database_preconditions(e)
+            if write_pause.is_paused(e):
+                raise OperationBusy('A write pause holds the environment')
+            password = runtime.developer_ready(e)
+            runtime.developer_admission(e)
+        written = runtime.developer_prepare(e, password)
+    # The environment's lock is let go while the operation lock is waited for and tried again inside, as
+    # data_api_command does: write_pause.py resume holds the operation lock and tries it.
+    with operation_lock(block=True), database_lock(e), contextlib.ExitStack() as guard:
+        try:
+            # Tried: a Studio start holds the pause lock while its own grants wait for a tenant. Held until the
+            # login is open, so a pause starting meanwhile waits and then closes it.
+            guard.enter_context(write_pause.unpaused(e, 'turn database access on', wait=0))
+        except write_pause.PauseError:
+            raise OperationBusy('A write pause or a Studio start holds the pause lock') from None
+        runtime.database_preconditions(e)
+        runtime.developer_open(e, written)
 
 
 def data_api_command(e, runtime=None):
@@ -1835,6 +1950,9 @@ if __name__ == '__main__':
         elif args.command=='data-api':
             if not args.environment:raise SystemExit('The data-api command needs an environment')
             data_api_command(args.environment)
+        elif args.command=='database':
+            if not args.environment:raise SystemExit('The database command needs an environment')
+            database_command(args.environment, on=not args.off)
         else:
             with (STATE/'operation.lock').open('a') as lock:
                 fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -1842,9 +1960,6 @@ if __name__ == '__main__':
                 elif args.command=='realtime':
                     if not args.environment:raise SystemExit('The realtime command needs an environment')
                     Runtime().realtime_turn(args.environment, on=not args.off)
-                elif args.command=='database':
-                    if not args.environment:raise SystemExit('The database command needs an environment')
-                    Runtime().database_turn(args.environment, on=not args.off)
                 elif args.command=='signing':
                     if not args.environment:raise SystemExit('The signing command needs an environment')
                     Runtime().rotate_signing(args.environment)
@@ -1886,11 +2001,12 @@ if __name__ == '__main__':
         # Stable local worker protocol. Never classify failures from raw stderr.
         print('Local runtime admission limit reached.')
         raise SystemExit(75)
-    except BlockingIOError:
+    except (BlockingIOError, OperationBusy):
         # Another runtime operation, or another change of this environment, took a lock between the
-        # supervisor's check and this command. For the Data API that is "busy, ask again" (lab/data_api.py
-        # apply), never a failed change.
+        # supervisor's check and this command. For a console change that is "busy, ask again"
+        # (lab/data_api.py, lab/realtime.py, lab/auth_settings.py apply), never a failed change.
         if args.command=='data-api':raise SystemExit(75)
+        if args.command in CONSOLE_CHANGES:raise SystemExit(BUSY)
         raise SystemExit('Durable runtime operation failed; retained state is available for reconciliation.')
     except Exception:
         # Secrets, SQL and HTTP response bodies must never reach console output.

@@ -117,10 +117,11 @@ def pause_lock(state=None, wait=LOCK_WAIT, sleep=time.sleep, clock=time.monotoni
 
 
 @contextlib.contextmanager
-def unpaused(e, action, state=None):
+def unpaused(e, action, state=None, wait=LOCK_WAIT):
     """For code that turns one of the environment's logins on: refuses while a pause holds, and holds
-    the pause lock until the login is on, so a pause starting meanwhile waits and then closes it."""
-    with pause_lock(state):
+    the pause lock until the login is on, so a pause starting meanwhile waits and then closes it. A
+    caller holding the operation lock passes wait=0 and asks again later (durable_runtime.database_command)."""
+    with pause_lock(state, wait):
         if is_paused(e, state):
             raise PauseError(f'{e} is paused for writes; {action} after: write_pause.py resume {e}')
         yield

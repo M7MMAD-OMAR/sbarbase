@@ -4,7 +4,7 @@ JWT signing secret, as the console asked, and record the outcome.
 Usage: /usr/bin/python3 lab/realtime.py apply <environment runtime id> [--service realtime|functions|database|signing]
 
 The console records the request in the catalog; the supervisor runs this for each pending
-row, one at a time. It calls `durable_runtime.py <service> <runtime> [--off]`, which starts or
+row, one child per environment and service (lab/dev.py schedule_toggles). It calls `durable_runtime.py <service> <runtime> [--off]`, which starts or
 removes that environment's own container (docs/engineering/REALTIME.md,
 docs/engineering/EDGE-FUNCTIONS.md), and writes the result back to the same row for the
 console to show.
@@ -24,6 +24,9 @@ CATALOG = ROOT / '.lab' / 'upstream' / 'control.sqlite'
 OPERATION_LOCK = ROOT / '.lab' / 'upstream' / 'operation.lock'
 RUNTIME = re.compile(r'e_[a-f0-9]{24}')
 CAPACITY = 75
+# durable_runtime.BUSY: a lock was taken after busy() looked, or a write pause holds the environment, and
+# nothing was opened. The row stays pending and the supervisor asks again, as for busy() itself.
+BUSY = 76
 # Each service: its catalog table and the name people see.
 SERVICES = {'realtime': ('realtime_settings', 'Realtime'), 'functions': ('functions_settings', 'Edge Functions'),
             'database': ('database_access', 'Direct database access'), 'signing': ('signing_keys', 'The signing key')}
@@ -77,6 +80,8 @@ def apply(e, service='realtime'):
         return 75
     command = ['/usr/bin/python3', 'lab/durable_runtime.py', service, e] + (['--off'] if want == 'off' else [])
     result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
+    if result.returncode == BUSY:
+        return 75
     if result.returncode:
         record(e, 'failed', failure_text(service, result.returncode, want), service)
         return 1

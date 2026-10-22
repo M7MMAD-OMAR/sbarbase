@@ -169,6 +169,10 @@ def record(e, state, failure=None, revision=None):
         pass
 
 
+# durable_runtime.BUSY, the exit status of a console change that found a lock held.
+BUSY = 76
+
+
 def busy():
     """True while another runtime operation (a provisioning, a mail change) holds the lock."""
     try:
@@ -190,6 +194,9 @@ def apply(e):
         # Another operation is running; the supervisor asks again shortly.
         return 75
     result = subprocess.run(['/usr/bin/python3', 'lab/durable_runtime.py', 'auth', e], cwd=ROOT, capture_output=True, text=True)
+    if result.returncode == BUSY:
+        # The operation lock was taken after busy() looked: nothing changed, ask again.
+        return 75
     if result.returncode:
         record(e, 'failed', 'Auth did not start with these settings, so the previous settings stay in use.')
         return 1

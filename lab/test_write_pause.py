@@ -314,8 +314,8 @@ class PauseTests(PauseFixture):
             with patch.object(durable_runtime, 'inspect', return_value={'Id': 'x'}), \
                     patch.object(durable_runtime.effect_receipt, 'require_settled'), \
                     patch.object(durable_runtime.source_fence, 'is_fenced', return_value=False), \
-                    self.assertRaisesRegex(RuntimeError, 'paused for writes'):
-                Runtime().database_turn(E, True)
+                    self.assertRaises(durable_runtime.OperationBusy):
+                durable_runtime.database_command(E, True, runtime=Runtime())
             with patch.object(durable_runtime, 'inspect', return_value={'Id': 'x'}), \
                     patch.object(durable_runtime.effect_receipt, 'require_settled'), \
                     patch.object(Runtime, 'functions_switch', side_effect=AssertionError('must not start')), \

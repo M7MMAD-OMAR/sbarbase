@@ -67,4 +67,5 @@ CI turns access on for an environment on a clean machine with every change, runs
 
 - One login per environment, with up to 10 connections; there is no connection pooler yet.
 - The listener declines TLS; use `sslmode=disable` or `prefer` through the tunnel.
+- Turning access on, and **New password**, give the login its rights on your tables again. A transaction your own application leaves open on one of them (a request still running, a session idle in a transaction) makes this wait up to 10 seconds per step; after that it fails and says so, and you try again. Other environments on the server do not wait for it ([design](../engineering/DATABASE-ACCESS.md)).
 - A migration that names the `postgres` role, for example `alter default privileges for role postgres`, is refused: each environment's developer login plays that part, and `postgres` itself is shared by the whole server. Write it without `for role postgres`, so it applies to the login running it.

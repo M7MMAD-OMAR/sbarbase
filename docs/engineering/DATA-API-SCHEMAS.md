@@ -317,7 +317,9 @@ failure branch against them:
 
 - **Nothing a tenant can make wait holds what other environments wait for.** No statement a
   tenant session can hold up runs under the installation's operation lock on a console change, and
-  each environment's change runs in its own supervisor child (`lab/dev.py schedule_data_api`).
+  each environment's change runs in its own supervisor child (`lab/dev.py schedule_data_api`). The
+  other console changes keep this too: direct database access, sign-in settings, Realtime, Edge
+  Functions and signing ([database access](DATABASE-ACCESS.md)).
   Where a start or restore runs such a statement under the operation lock, it is bounded and the
   REST login's sessions are ended first.
 - **No file lock is waited for while the other is held.** The environment's Data API lock is only
@@ -486,11 +488,6 @@ failure branch against them:
   start, a rotation fails and is asked for again, and a console change is recorded as failed and
   can be saved again. One environment, started by an operator or an owner, never by tenant code
   alone.
-- Not part of the Data API, and older than it: turning database access on runs the developer
-  grants on `public` under the operation lock, in the supervisor's one database toggle queue,
-  with REST serving. A session acting through the API (a no-op `GRANT` left open) can make them
-  wait. This change bounds that wait at 10 s, where it had none; removing it from under the
-  operation lock is follow-up work.
 - A plain in-place restore (`lab/backup.py`, which holds only the backup lock) can meet a console
   change that is recording its outcome: the change reads the settings back from the database the
   restore then replaces, the restore finds the environment's lock held and skips its write, and the

@@ -41,6 +41,8 @@ STUDIO_RESTORE_MS = 8 * 60 * 60 * 1000
 # The update scheduling looks past the request file (the verdict in current.json, whether a
 # check is due, the automatic decision) at most this often.
 UPDATES_EVERY = datetime.timedelta(seconds=15)
+# The console changes lab/realtime.py applies, each with its own catalog table (toggle_requests).
+TOGGLES = ('realtime', 'functions', 'database', 'signing')
 
 
 def notify_installation(kind, catalog=None):
@@ -124,17 +126,18 @@ class Supervisor:
         self.worker = None
         self.backup = None
         self.studios = {}
-        # One sign-in apply at a time, and a pause after one that found the runtime busy.
-        self.sign_in = None
-        self.sign_in_after = 0.0
+        # One sign-in child per environment, and when each may be asked again after it found the runtime busy.
+        self.sign_in = {}
+        self.sign_in_after = {}
         # One Data API child per environment, and when each may be asked again: a change a tenant holds up
         # within its bounds must not keep another environment's change waiting behind it (found in review).
         self.data_api = {}
         self.data_api_after = {}
-        # Realtime and Edge Functions: one change at a time for each, and a pause after one that
-        # found the runtime busy.
-        self.toggles = {'realtime': None, 'functions': None, 'database': None, 'signing': None}
-        self.toggles_after = {'realtime': 0.0, 'functions': 0.0, 'database': 0.0, 'signing': 0.0}
+        # Realtime, Edge Functions, database access and signing: one child per (service, environment), and
+        # when each may be asked again. One queue per service let a change that waited (database access
+        # grants a tenant holds up, within their bound) keep every other environment's change waiting.
+        self.toggles = {}
+        self.toggles_after = {}
         self.backup_hour = backup_hour()
         self.backup_keep = backup_keep()
         self.restarts = collections.deque()
@@ -420,11 +423,9 @@ class Supervisor:
         """Nothing is in flight that moving the checkout could interrupt: the worker stopped, no
         Studio, sign-in, Data API, toggle or backup child runs, and no operation record (a provisioning
         receipt, an HBA journal or migration) waits to be settled."""
-        if self.worker is not None or self.backup is not None or self.sign_in is not None or self.studios:
+        if self.worker is not None or self.backup is not None or self.sign_in or self.studios:
             return False
-        if self.data_api:
-            return False
-        if any(process is not None for process in self.toggles.values()):
+        if self.data_api or self.toggles:
             return False
         import upgrade
         return not any(upgrade.present(upgrade.UPSTREAM / name) for name in upgrade.UNSETTLED)
@@ -599,21 +600,25 @@ class Supervisor:
             return []
 
     def schedule_sign_in(self):
-        """Apply saved sign-in settings (lab/auth_settings.py), one environment at a time."""
-        if self.sign_in is not None:
-            status = child_status(self.sign_in)
+        """Apply saved sign-in settings (lab/auth_settings.py), one child per environment like the Data API.
+        Each takes the operation lock without waiting, so they still run one at a time; one that finds it
+        held exits 75 and that environment alone is asked again shortly."""
+        for runtime, process in list(self.sign_in.items()):
+            status = child_status(process)
             if status is None:
-                return
-            terminate_group(self.sign_in, grace=0)
-            self.sign_in = None
+                continue
+            terminate_group(process, grace=0)
+            del self.sign_in[runtime]
             if status == 75:
-                # Another runtime operation held the lock; ask again shortly.
-                self.sign_in_after = time.monotonic() + 5
-        if time.monotonic() < self.sign_in_after or self.paused():
+                self.sign_in_after[runtime] = time.monotonic() + 5
+        if self.paused():
             return
-        pending = self.sign_in_requests()
-        if pending:
-            self.sign_in = self.spawn(['/usr/bin/python3', 'lab/auth_settings.py', 'apply', pending[0]])
+        now = time.monotonic()
+        for runtime in self.sign_in_requests():
+            if runtime in self.sign_in or now < self.sign_in_after.get(runtime, 0.0):
+                continue
+            self.sign_in_after.pop(runtime, None)
+            self.sign_in[runtime] = self.spawn(['/usr/bin/python3', 'lab/auth_settings.py', 'apply', runtime])
 
     def data_api_requests(self):
         """Runtimes whose saved Data API settings wait to be applied, oldest first."""
@@ -667,21 +672,27 @@ class Supervisor:
                 if not (service in ('database', 'functions') and desired == 'on' and (paused/f'{runtime}.json').exists())]
 
     def schedule_toggles(self):
-        """Turn an environment's Realtime, Edge Functions or database access on or off (lab/realtime.py), one at a time for each."""
-        for service, process in self.toggles.items():
-            if process is not None:
-                status = child_status(process)
-                if status is None:
-                    continue
-                terminate_group(process, grace=0)
-                self.toggles[service] = None
-                if status == 75:
-                    self.toggles_after[service] = time.monotonic() + 5
-            if time.monotonic() < self.toggles_after[service] or self.paused():
+        """Turn an environment's Realtime, Edge Functions or database access on or off, or rotate its signing key
+        (lab/realtime.py): one child per service and environment. The operation lock still runs the changes
+        one at a time; what waits outside it (database access grants) delays only its own environment."""
+        for key, process in list(self.toggles.items()):
+            status = child_status(process)
+            if status is None:
                 continue
-            pending = self.toggle_requests(service)
-            if pending:
-                self.toggles[service] = self.spawn(['/usr/bin/python3', 'lab/realtime.py', 'apply', pending[0], '--service', service])
+            terminate_group(process, grace=0)
+            del self.toggles[key]
+            if status == 75:
+                self.toggles_after[key] = time.monotonic() + 5
+        if self.paused():
+            return
+        now = time.monotonic()
+        for service in TOGGLES:
+            for runtime in self.toggle_requests(service):
+                key = (service, runtime)
+                if key in self.toggles or now < self.toggles_after.get(key, 0.0):
+                    continue
+                self.toggles_after.pop(key, None)
+                self.toggles[key] = self.spawn(['/usr/bin/python3', 'lab/realtime.py', 'apply', runtime, '--service', service])
 
     def reset_studios(self):
         """No Studio container outlives a restart, since its login must close. A session used in the
@@ -760,13 +771,12 @@ class Supervisor:
                 terminate_group(self.backup)
             for process in self.studios.values():
                 terminate_group(process)
-            if self.sign_in:
-                terminate_group(self.sign_in)
+            for process in self.sign_in.values():
+                terminate_group(process)
             for process in self.data_api.values():
                 terminate_group(process)
             for process in self.toggles.values():
-                if process:
-                    terminate_group(process)
+                terminate_group(process)
             # Stop new HTTP mutations first, then drain the active worker effect.
             if self.server:
                 terminate_group(self.server)

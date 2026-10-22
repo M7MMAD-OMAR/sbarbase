@@ -15,7 +15,7 @@ import type {WorkflowEndpoint} from './database-workflow';
  * POST /environments/{id}/database/password  a new password, answered once; the old one stops working
  *
  * The password is written to a private file the supervisor reads when it applies the change
- * (lab/durable_runtime.py `database_turn`); the console never stores or shows it again. */
+ * (lab/durable_runtime.py `database_command`); the console never stores or shows it again. */
 
 export type DatabaseConnection={host:string;port:number;user:string;database:string};
 

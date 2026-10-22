@@ -133,6 +133,22 @@ class ApplyTests(unittest.TestCase):
         self.assertEqual(state, 'failed')
         self.assertIn('room', failure)
 
+    def test_a_lock_taken_after_the_check_leaves_the_request_pending(self):
+        # With one child per environment, two can pass busy() together; the one that then finds the
+        # operation lock held is asked again rather than reported as failed.
+        with patch.object(realtime.subprocess, 'run', return_value=SimpleNamespace(returncode=realtime.BUSY)):
+            self.assertEqual(realtime.apply(E), 75)
+        self.assertEqual(self.row(), ('pending', None))
+
+    def test_the_busy_status_is_the_runtime_one_and_not_the_capacity_one(self):
+        import auth_settings
+        import durable_runtime
+        self.assertEqual((realtime.BUSY, auth_settings.BUSY), (durable_runtime.BUSY, durable_runtime.BUSY))
+        self.assertNotEqual(durable_runtime.BUSY, realtime.CAPACITY)
+        self.assertEqual(set(durable_runtime.CONSOLE_CHANGES), set(realtime.SERVICES) | {'auth'})
+        source = Path(durable_runtime.__file__).read_text()
+        self.assertIn('        if args.command in CONSOLE_CHANGES:raise SystemExit(BUSY)\n', source)
+
     def test_turning_off_passes_off(self):
         with closing(sqlite3.connect(self.catalog)) as database, database:
             database.execute("UPDATE realtime_settings SET desired='off'")

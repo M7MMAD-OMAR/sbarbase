@@ -567,10 +567,10 @@ class SupervisorTests(SupervisorFixture):
         self.put('available.json', document())
         self.put('check.json', {'attempted_at': updates.stamp(at(0)), 'error': None, 'failures': 0})
         self.turn(at(0, 0))
-        self.supervisor.sign_in = Stand(None)
+        self.supervisor.sign_in = {'e_1': Stand(None)}
         with patch.object(dev, 'DRAIN_SECONDS', 0), patch.object(self.supervisor, 'resume_work'):
             self.turn(at(0, 0))
-        self.supervisor.sign_in = None
+        self.supervisor.sign_in = {}
         self.assertEqual((self.spawned, self.get('last-request.json')['state']), ([], 'failed'))
         self.assertEqual((self.entry('0.2.0')['tries'], self.entry('0.2.0')['spent']), (1, False))
         self.turn(at(0, 10))

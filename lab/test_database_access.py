@@ -1,4 +1,6 @@
 """Direct database access: the developer login's rights, the saved password, the connection budget and turning it off."""
+import contextlib
+import fcntl
 import json
 import tempfile
 import unittest
@@ -11,6 +13,7 @@ import durable_runtime
 
 E = 'e_' + 'a' * 24
 PASSWORD = 'p' * 32
+WRITTEN = '2026-10-22 18:00:00.123456+00'
 
 
 class DatabaseAccessTests(unittest.TestCase):
@@ -25,10 +28,23 @@ class DatabaseAccessTests(unittest.TestCase):
         self.runtime = object.__new__(durable_runtime.Runtime)
         self.runtime.values = {'environments': {E: {'jwt': 'j' * 64}}}
         self.statements = []
+        self.locks = []
         self.hba = '1'
+
+        def held(name):
+            with (self.root / 'state' / name).open('a') as lock:
+                try:
+                    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    return True
+                fcntl.flock(lock, fcntl.LOCK_UN)
+                return False
 
         def sql(query, database='postgres', check=True):
             self.statements.append((database, query))
+            self.locks.append((query, held('operation.lock'), held('write-pause.lock')))
+            if 'clock_timestamp()' in query:
+                return SimpleNamespace(stdout=WRITTEN, returncode=0)
             if 'pg_hba_file_rules' in query:
                 return SimpleNamespace(stdout=self.hba, returncode=0)
             if "current_setting('max_connections')" in query:
@@ -44,6 +60,9 @@ class DatabaseAccessTests(unittest.TestCase):
                      patch.object(durable_runtime.source_fence, 'is_fenced', return_value=False)]:
             item.start()
             self.addCleanup(item.stop)
+
+    def turn_on(self):
+        durable_runtime.database_command(E, True, runtime=self.runtime)
 
     def endpoints(self):
         return json.loads((self.root / 'state' / 'endpoints.json').read_text())
@@ -114,7 +133,7 @@ class DatabaseAccessTests(unittest.TestCase):
         self.assertIn(f'ALTER PUBLICATION supabase_realtime OWNER TO {E}_developer', text)
 
     def test_turning_it_on_applies_the_saved_password_room_and_grants_then_publishes(self):
-        self.runtime.database_turn(E, on=True)
+        self.turn_on()
         text = '\n'.join(query for _, query in self.statements)
         self.assertIn(f"PASSWORD '{PASSWORD}'", text)
         self.assertIn(f'ALTER DATABASE {E} CONNECTION LIMIT {connection_budget.database_limit(direct=True)}', text)
@@ -126,18 +145,18 @@ class DatabaseAccessTests(unittest.TestCase):
         # lock and the shared toggle queue wait (found in review); a start or restore repairs it.
         self.guarded = 'f'
         with self.assertRaisesRegex(RuntimeError, 'guard missing'):
-            self.runtime.database_turn(E, on=True)
+            self.turn_on()
         self.assertFalse(any('GRANT USAGE, CREATE ON SCHEMA public' in query for _, query in self.statements))
         self.assertFalse(any(query == durable_runtime.data_api.guard_sql(E) for _, query in self.statements))
 
     def test_it_refuses_without_the_access_rule_or_a_valid_saved_password(self):
         self.hba = '0'
         with self.assertRaises(RuntimeError):
-            self.runtime.database_turn(E, on=True)
+            self.turn_on()
         self.hba = '1'
         (self.root / 'private' / 'database' / f'{E}.json').write_text(json.dumps({'password': "x'; drop"}))
         with self.assertRaises(RuntimeError):
-            self.runtime.database_turn(E, on=True)
+            self.turn_on()
         self.assertNotIn('database', self.endpoints()[E])
 
     def test_resume_turns_it_on_with_a_password_reset_during_the_pause_and_never_waits_on_its_own_lock(self):
@@ -146,9 +165,10 @@ class DatabaseAccessTests(unittest.TestCase):
         state = self.root / 'state'
         write_pause.write_record(write_pause.record_path(E, state),
                                  {'version': 1, 'runtime': E, 'phase': 'resuming', 'paused_at': 900.0})
-        # Turning access on from the console is refused while the pause is recorded.
-        with self.assertRaisesRegex(RuntimeError, 'paused for writes'):
-            self.runtime.database_turn(E, on=True)
+        # Turning access on from the console is asked again while the pause is recorded, with nothing written.
+        with self.assertRaises(durable_runtime.OperationBusy):
+            self.turn_on()
+        self.assertFalse(any('PASSWORD' in query for _, query in self.statements))
         self.assertNotIn('database', self.endpoints()[E])
         # The owner reset the password meanwhile; resume, holding the pause lock, applies it.
         (self.root / 'private' / 'database' / f'{E}.json').write_text(json.dumps({'password': 'r' * 32}))
@@ -164,25 +184,150 @@ class DatabaseAccessTests(unittest.TestCase):
         def sql(query, database='postgres', check=True):
             if 'pg_hba_file_rules' in query:
                 return SimpleNamespace(stdout='1', returncode=0)
+            if query == durable_runtime.data_api.guard_present_sql(E):
+                return SimpleNamespace(stdout='t', returncode=0)
             return SimpleNamespace(stdout='100|95', returncode=0)
         self.runtime.sql = sql
         with self.assertRaises(durable_runtime.AdmissionLimitError):
-            self.runtime.database_turn(E, on=True)
+            self.turn_on()
 
     def test_turning_it_off_closes_the_login_and_gives_the_room_back(self):
-        self.runtime.database_turn(E, on=True)
+        self.turn_on()
         self.statements.clear()
-        self.runtime.database_turn(E, on=False)
+        durable_runtime.database_command(E, False, runtime=self.runtime)
         text = '\n'.join(query for _, query in self.statements)
         self.assertIn(f'ALTER ROLE {E}_developer NOLOGIN', text)
         self.assertIn('pg_terminate_backend', text)
         self.assertIn(f'ALTER DATABASE {E} CONNECTION LIMIT {connection_budget.database_limit()}', text)
         self.assertNotIn('database', self.endpoints()[E])
 
+    def test_the_grants_a_tenant_can_hold_up_run_under_neither_installation_lock(self):
+        # A no-op GRANT left open by a session acting through the API held them under the operation lock,
+        # with every other environment's change and start, and under the pause lock every Studio start.
+        self.turn_on()
+        grants = [locks for query, *locks in self.locks if 'GRANT USAGE, CREATE ON SCHEMA public' in query]
+        role = [locks for query, *locks in self.locks if f"PASSWORD '{PASSWORD}'" in query]
+        self.assertEqual((grants, role), ([[False, False]], [[False, False]]))
+        # Opening the login and publishing it hold both: a pause waits for it and then closes the login.
+        opened = [locks for query, *locks in self.locks if f'ALTER ROLE {E}_developer LOGIN' in query]
+        self.assertEqual(opened, [[True, True]])
+        self.assertFalse(any(f'{E}_developer LOGIN' in query for query, *_ in self.locks if 'PASSWORD' in query))
+
+    def test_opening_the_login_ends_the_sessions_holding_role_rows_first_and_is_bounded(self):
+        text = durable_runtime.developer_login_sql(E, True)
+        self.assertTrue(text.startswith(durable_runtime.data_api.SAFE + durable_runtime.REST_PIN_BOUNDS + 'BEGIN; '))
+        ended = text.index('pg_terminate_backend(l.pid)')
+        self.assertLess(ended, text.index(f'ALTER ROLE {E}_developer LOGIN'))
+        self.assertIn("'pg_catalog.pg_authid'::pg_catalog.regclass", text)
+        self.assertIn(f"a.datname = '{E}' AND NOT r.rolsuper", text)
+        self.assertTrue(text.rstrip().endswith('COMMIT;'))
+        closed = durable_runtime.developer_login_sql(E, False)
+        self.assertLess(closed.index('pg_terminate_backend(l.pid)'), closed.index(f'ALTER ROLE {E}_developer NOLOGIN'))
+
+    def test_the_role_setup_is_bounded_and_does_not_open_the_login(self):
+        text = self.runtime.developer_sql(E, PASSWORD)
+        self.assertTrue(text.startswith(durable_runtime.data_api.SAFE + durable_runtime.DEVELOPER_BOUNDS))
+        self.assertNotIn('LOGIN;', text.replace('NOLOGIN;', ''))
+        self.assertTrue(self.runtime.developer_grants_sql(E).startswith(durable_runtime.data_api.SAFE + durable_runtime.DEVELOPER_BOUNDS))
+
+    def test_only_sessions_older_than_the_new_password_are_closed(self):
+        self.turn_on()
+        text = '\n'.join(query for _, query in self.statements)
+        self.assertIn(f"usename = '{E}_developer' AND backend_start < '{WRITTEN}'::timestamptz", text)
+
+    def test_a_pause_taken_while_the_grants_ran_is_asked_again_without_opening_the_login(self):
+        import write_pause
+        prepare = self.runtime.developer_prepare
+
+        def paused_meanwhile(e, password):
+            written = prepare(e, password)
+            write_pause.write_record(write_pause.record_path(E, self.root / 'state'),
+                                     {'version': 1, 'runtime': E, 'phase': 'held', 'paused_at': 900.0})
+            return written
+        self.runtime.developer_prepare = paused_meanwhile
+        with self.assertRaises(durable_runtime.OperationBusy):
+            self.turn_on()
+        self.assertFalse(any('LOGIN' in query for _, query in self.statements if 'NOLOGIN' not in query and 'PASSWORD' not in query))
+        self.assertNotIn('database', self.endpoints()[E])
+
+    def test_a_held_pause_lock_is_not_waited_for_under_the_operation_lock(self):
+        # A Studio start holds it while its own grants wait for a tenant.
+        with (self.root / 'state' / 'write-pause.lock').open('a') as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            with patch('time.sleep', side_effect=AssertionError('waited')), self.assertRaises(durable_runtime.OperationBusy):
+                self.turn_on()
+        self.assertNotIn('database', self.endpoints()[E])
+
+    def test_a_change_of_the_same_environment_in_progress_makes_the_others_ask_again(self):
+        with durable_runtime.database_lock(E):
+            for turn in (self.turn_on, lambda: durable_runtime.database_command(E, False, runtime=self.runtime),
+                         lambda: self.runtime.developer_on(E)):
+                with self.assertRaises(BlockingIOError):
+                    turn()
+        self.assertEqual(self.statements, [])
+        # Another environment's change does not wait for it.
+        other = 'e_' + 'b' * 24
+        with durable_runtime.database_lock(other):
+            self.turn_on()
+        self.assertEqual(self.endpoints()[E]['database'], {'user': f'{E}_developer', 'database': E})
+
     def test_the_database_limit_counts_every_extra_login(self):
         self.assertEqual(connection_budget.database_limit(studio=True, realtime=True, direct=True),
                          connection_budget.ENVIRONMENT_LIMIT + connection_budget.STUDIO_CONNECTIONS
                          + connection_budget.REALTIME_CONNECTIONS + connection_budget.DIRECT_CONNECTIONS)
+
+
+class SupervisorTests(unittest.TestCase):
+    """One child per environment: a change a tenant holds up within its bounds delays only its own environment."""
+
+    @contextlib.contextmanager
+    def scheduled(self, method, requests, spawned_key):
+        import dev
+        supervisor = dev.Supervisor()
+        other = 'e_' + 'b' * 24
+        spawned, statuses = [], {}
+
+        def spawn(command):
+            spawned.append(spawned_key(command))
+            return spawned_key(command)
+        with patch.object(supervisor, requests[0], side_effect=requests[1](other)), \
+                patch.object(supervisor, 'paused', return_value=False), \
+                patch.object(supervisor, 'spawn', side_effect=spawn), \
+                patch.object(dev, 'child_status', side_effect=lambda process: statuses.get(process)), \
+                patch.object(dev, 'terminate_group'):
+            yield supervisor, getattr(supervisor, method), spawned, statuses, other
+
+    def test_database_access_changes_of_two_environments_run_side_by_side(self):
+        with self.scheduled('schedule_toggles', ('toggle_requests', lambda other: lambda service: [E, other] if service == 'database' else []),
+                           lambda command: (command[-1], command[3])) as (supervisor, schedule, spawned, statuses, other):
+            schedule()
+            self.assertEqual(spawned, [('database', E), ('database', other)])
+            # E's grants are still held up; the other finishes busy, is asked again shortly, and E is not spawned twice.
+            statuses[('database', other)] = 75
+            schedule()
+            self.assertEqual(len(spawned), 2)
+            self.assertIn(('database', other), supervisor.toggles_after)
+            self.assertFalse(supervisor.idle())
+            supervisor.toggles_after[('database', other)] = 0.0
+            statuses.pop(('database', other))
+            schedule()
+            self.assertEqual(spawned[2:], [('database', other)])
+
+    def test_each_service_of_one_environment_has_its_own_child(self):
+        with self.scheduled('schedule_toggles', ('toggle_requests', lambda other: lambda service: [E]),
+                           lambda command: (command[-1], command[3])) as (_, schedule, spawned, _, _):
+            schedule()
+            self.assertEqual(spawned, [(service, E) for service in ('realtime', 'functions', 'database', 'signing')])
+
+    def test_sign_in_changes_of_two_environments_run_side_by_side(self):
+        with self.scheduled('schedule_sign_in', ('sign_in_requests', lambda other: lambda: [E, other]), lambda command: command[-1]) as (supervisor, schedule, spawned, statuses, other):
+            schedule()
+            self.assertEqual(spawned, [E, other])
+            statuses[other] = 75
+            schedule()
+            self.assertEqual(spawned, [E, other])
+            self.assertIn(other, supervisor.sign_in_after)
+            self.assertNotIn(E, supervisor.sign_in_after)
 
 
 if __name__ == '__main__':

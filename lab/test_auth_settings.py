@@ -130,6 +130,11 @@ class ApplyTests(unittest.TestCase):
         run.assert_not_called()
         self.assertEqual(self.row()[0], 'pending')
 
+    def test_a_lock_taken_after_the_check_leaves_the_request_pending(self):
+        with patch.object(auth_settings.subprocess, 'run', return_value=type('R', (), {'returncode': auth_settings.BUSY})()):
+            self.assertEqual(auth_settings.apply(E), 75)
+        self.assertEqual(self.row()[0], 'pending')
+
     def test_an_invalid_file_is_reported_without_touching_auth(self):
         (auth_settings.DIRECTORY / f'{E}-auth.json').write_text(json.dumps({**VALID, 'site_url': 'nope'}))
         with patch.object(auth_settings.subprocess, 'run') as run:

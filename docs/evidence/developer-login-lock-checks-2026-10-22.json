@@ -1,0 +1,55 @@
+{
+ "image": "public.ecr.aws/supabase/postgres:17.6.1.166",
+ "date": "2026-10-22",
+ "script": "lab/developer-login-lock-check.py",
+ "checks": [
+  {
+   "check": "the login can write a function that changes its own password",
+   "result": "pass"
+  },
+  {
+   "check": "own session: a bounded ALTER ROLE without ending sessions waits and fails",
+   "result": "pass"
+  },
+  {
+   "check": "own session: developer_login_sql succeeds within a second",
+   "result": "pass"
+  },
+  {
+   "check": "own session: the holding session was ended",
+   "result": "pass"
+  },
+  {
+   "check": "request through a function the login owns: a bounded ALTER ROLE without ending sessions waits and fails",
+   "result": "pass"
+  },
+  {
+   "check": "request through a function the login owns: developer_login_sql succeeds within a second",
+   "result": "pass"
+  },
+  {
+   "check": "request through a function the login owns: the holding session was ended",
+   "result": "pass"
+  },
+  {
+   "check": "the login is open",
+   "result": "pass"
+  },
+  {
+   "check": "closing, own session: a bounded ALTER ROLE without ending sessions waits and fails",
+   "result": "pass"
+  },
+  {
+   "check": "closing, own session: developer_login_sql succeeds within a second",
+   "result": "pass"
+  },
+  {
+   "check": "closing, own session: the holding session was ended",
+   "result": "pass"
+  },
+  {
+   "check": "the login is closed",
+   "result": "pass"
+  }
+ ]
+}
