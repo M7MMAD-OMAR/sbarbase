@@ -111,6 +111,7 @@ curl -H "Authorization: Bearer $SBARBASE_ACCESS_TOKEN" https://console.example.c
 | `GET /v1/projects/{ref}/functions`, `.../functions/{slug}`, `.../functions/{slug}/body`, `POST .../functions/deploy?slug=`, `DELETE .../functions/{slug}` | [Edge Functions](edge-functions.md) |
 | `GET`, `POST`, `DELETE /v1/projects/{ref}/secrets` | Function secrets, listed by name only |
 | `GET /v1/projects/{ref}/analytics/endpoints/logs`, `/advisors/security`, `/advisors/performance` | Logs and advisors |
+| `GET`, `PATCH /v1/projects/{ref}/postgrest` | The exposed schemas, extra search path and row limit ([Data API](data-api.md)) |
 
 Anything else answers `404` or `501` with a message.
 

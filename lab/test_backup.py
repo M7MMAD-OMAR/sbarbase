@@ -1034,6 +1034,7 @@ class ServiceImageTests(Fixture):
         pinned = {('images.lock.json', 'auth'): 'sha256:' + 'a' * 64, ('images.lock.json', 'rest'): 'sha256:' + 'b' * 64,
                   ('realtime-image.lock.json', None): 'sha256:' + 'c' * 64}
         self.realtime = False
+        self.old_rest = set()
         self.started = []
         for name, value in (('image_pin', lambda filename, key=None: (filename, key)),
                             ('resolve_image', lambda pin: ('ref', pinned[pin])),
@@ -1048,8 +1049,9 @@ class ServiceImageTests(Fixture):
             image = self.images.get(argv[3])
             if image is None:
                 return SimpleNamespace(returncode=1, stdout='', stderr='')
+            env = [] if argv[3] in self.old_rest else [f'{k}={v}' for k, v in backup.data_api.CONTAINER_ENV.items()]
             return SimpleNamespace(returncode=0, stderr='', stdout=json.dumps(
-                [{'Image': image, 'Config': {'Labels': {'io.sbarbase.owner': backup.DATABASE_OWNER}}}]))
+                [{'Image': image, 'Config': {'Labels': {'io.sbarbase.owner': backup.DATABASE_OWNER}, 'Env': env}}]))
         if argv[:2] == ['docker', 'start']:
             self.started.append(argv[2:])
             raise RuntimeError('stop here')
@@ -1065,6 +1067,11 @@ class ServiceImageTests(Fixture):
         self.assertEqual(backup.service_names(E)[-1], f'{backup.PREFIX}-{E}-realtime')
         self.realtime = False
         self.assertEqual(backup.service_names(E), [f'{backup.PREFIX}-{E}-auth', f'{backup.PREFIX}-{E}-rest'])
+
+    def test_a_rest_container_from_before_the_data_api_settings_is_refused_before_anything_changes(self):
+        self.old_rest.add(f'{backup.PREFIX}-{E}-rest')
+        with self.assertRaisesRegex(backup.BackupError, 'ignore them'):
+            backup.require_service_images(E)
 
     def test_services_on_the_pinned_images_pass_and_any_other_refuses(self):
         backup.require_service_images(E)

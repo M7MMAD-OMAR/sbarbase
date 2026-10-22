@@ -2,6 +2,10 @@
 
 # Status
 
+## Not yet released, 2026-10-21
+
+- **Exposed schemas for the Data API.** Each environment chooses the schemas its PostgREST serves, its extra search path and row limit, in the console or through `GET`/`PATCH /v1/projects/{ref}/postgrest`, without a restart ([Data API](../guides/data-api.md), [design](../engineering/DATA-API-SCHEMAS.md)). 60 of 60 live checks passed on 2026-10-22 against the pinned images in disposable containers, including both orders of a tenant racing the platform ([evidence](../evidence/data-api-checks-2026-10-21.json)). Reviewed by independent reviewers on specification and security over several rounds. Not run on a real server; Supabase Cron and `net.http_*` are not available yet.
+
 ## Releases 0.5.3 to 0.5.12, 2026-10-17 to 19
 
 The declared version is 0.5.12. What these releases added and what was checked; the [changelog](../../CHANGELOG.md) has every change. Not production ready.

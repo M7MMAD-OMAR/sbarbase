@@ -32,6 +32,7 @@ Start with the [project goal](../../PROJECT_GOAL.md), [product and portability p
 - [EDGE-FUNCTIONS](EDGE-FUNCTIONS.md): one edge-runtime per environment, its mounts and networks, deploy versions and the gateway path.
 - [FUNCTIONS-NETWORK-ISOLATION](FUNCTIONS-NETWORK-ISOLATION.md): why Functions left the shared runtime network, the environment and outbound networks, how Functions reach the shared Storage through a host listener that sets the tenant, and the planned live check.
 - [REALTIME](REALTIME.md): one Realtime per environment, its login and its superuser window, and the socket path through the gateway.
+- [DATA-API-SCHEMAS](DATA-API-SCHEMAS.md): exposed schemas per environment, kept in the environment's own database and applied by a PostgREST pre-config function, the guard against a missing schema taking the API down, and what was measured.
 - [STUDIO-INTEGRATION](STUDIO-INTEGRATION.md): specification for one upstream Studio per environment (on-demand path implemented; see the update at its top).
 - [DESIGN-REFERENCE-SUPABASE](DESIGN-REFERENCE-SUPABASE.md): Supabase dashboard screenshots used as a visual reference.
 

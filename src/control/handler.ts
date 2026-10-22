@@ -9,6 +9,7 @@ import {deploymentSetupHandler} from './deployment-setup';
 import {shareHandler} from './share';
 import {invitationHandler,type InvitationAccounts} from './invitations';
 import {realtimeHandler} from './realtime';
+import {dataApiHandler} from './data-api';
 import {observeHandler,type ContainerReader} from './observe';
 import {functionsHandler} from './functions';
 import {databaseHandler} from './database';
@@ -23,7 +24,7 @@ export function controlHandler(catalog:Catalog,keys:KeyStore,identity:Management
  const studio=studioKey?studioHandler(catalog,identity,studioKey):undefined,signIn=signInHandler(catalog,identity),
   realtime=realtimeHandler(catalog,identity),observe=observeHandler(catalog,identity,requests,containers),
   functions=functionsHandler(catalog,identity),database=databaseHandler(catalog,identity,undefined,direct),
-  signing=signingHandler(catalog,identity);
+  signing=signingHandler(catalog,identity),dataApi=dataApiHandler(catalog,identity);
  const share=shareHandler(catalog,identity),deploymentSetup=deploymentSetupHandler(catalog,identity);
  const invitations=invitationHandler(catalog,identity,accounts);
  return (request:Request)=>{
@@ -34,6 +35,7 @@ export function controlHandler(catalog:Catalog,keys:KeyStore,identity:Management
   if(/\/environments\/[^/]+\/share$/.test(path))return share(request);
   if(path==='/management/invitations/redeem'||/\/organizations\/[^/]+\/invitations(\/|$)/.test(path))return invitations(request);
   if(/\/environments\/[^/]+\/realtime$/.test(path))return realtime(request);
+  if(/\/environments\/[^/]+\/data-api$/.test(path))return dataApi(request);
   if(/\/environments\/[^/]+\/(metrics|logs)$/.test(path))return observe(request);
   if(/\/environments\/[^/]+\/(functions|function-secrets)(\/|$)/.test(path))return functions(request);
   if(/\/environments\/[^/]+\/database(\/password)?$/.test(path))return database(request);

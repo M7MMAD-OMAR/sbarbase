@@ -111,6 +111,7 @@ curl -H "Authorization: Bearer $SBARBASE_ACCESS_TOKEN" https://console.example.c
 | `GET /v1/projects/{ref}/functions`، `.../functions/{slug}`، `.../functions/{slug}/body`، `POST .../functions/deploy?slug=`، `DELETE .../functions/{slug}` | [Edge Functions](edge-functions.ar.md) |
 | `GET` و`POST` و`DELETE /v1/projects/{ref}/secrets` | أسرار الدوال، تُعرض بأسمائها فقط |
 | `GET /v1/projects/{ref}/analytics/endpoints/logs`، `/advisors/security`، `/advisors/performance` | السجلات والتنبيهات |
+| `GET`، `PATCH /v1/projects/{ref}/postgrest` | المخططات المكشوفة ومسار البحث الإضافي وحد الصفوف ([واجهة البيانات](data-api.ar.md)) |
 
 وأي طلب آخر يُجاب بـ `404` أو `501` مع رسالة توضّح السبب.
 

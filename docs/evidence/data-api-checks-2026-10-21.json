@@ -1,0 +1,251 @@
+{
+ "scope": "Disposable local containers: one Supabase Postgres and one PostgREST, two environment databases; not a running installation.",
+ "image": "public.ecr.aws/supabase/postgres@sha256:b3bfedb107413abb3b8cb0d0874b0414a1dceb3d55bc0c778de6ad22d1f7dc86",
+ "rest": "public.ecr.aws/supabase/postgrest@sha256:c7cd7e265a85b05248abf53f4473fcec7e327c282d0bd0cf60f1551996d09fcf",
+ "at": "2026-10-22T13:34:36.188Z",
+ "total": 60,
+ "failed": 0,
+ "skipped": 0,
+ "checks": [
+  {
+   "check": "with no settings PostgREST serves public only",
+   "result": "pass"
+  },
+  {
+   "check": "the settings in the environment database expose i2s without a restart",
+   "result": "pass"
+  },
+  {
+   "check": "public is still the default schema",
+   "result": "pass"
+  },
+  {
+   "check": "a schema that is not listed stays refused",
+   "result": "pass"
+  },
+  {
+   "check": "the first schema listed is the default",
+   "result": "pass"
+  },
+  {
+   "check": "the row limit applies",
+   "result": "pass"
+  },
+  {
+   "check": "Studio reads the same values PostgREST serves",
+   "result": "pass"
+  },
+  {
+   "check": "schema names holding a space or a newline do not make other names look present",
+   "result": "pass"
+  },
+  {
+   "check": "the developer login cannot put an extension into the empty platform schema",
+   "result": "pass"
+  },
+  {
+   "check": "a platform write naming a schema that is gone writes nothing",
+   "result": "pass"
+  },
+  {
+   "check": "a drop that holds the lock first makes the platform write see the schema gone",
+   "result": "pass"
+  },
+  {
+   "check": "a platform write that holds the lock first makes a concurrent drop wait and be refused",
+   "result": "pass"
+  },
+  {
+   "check": "a schema named in the extra search path cannot be dropped either",
+   "result": "pass"
+  },
+  {
+   "check": "a tenant session holding the lock makes the platform refuse at once, not wait",
+   "result": "pass"
+  },
+  {
+   "check": "a start ends the tenant session that holds the lock, then writes",
+   "result": "pass"
+  },
+  {
+   "check": "a start claims the lock past a holder and the sessions queued behind it",
+   "result": "pass"
+  },
+  {
+   "check": "the guard refuses a schema drop at repeatable read",
+   "result": "pass"
+  },
+  {
+   "check": "the developer login cannot change the REST login settings",
+   "result": "pass"
+  },
+  {
+   "check": "the developer login cannot rename an exposed schema",
+   "result": "pass"
+  },
+  {
+   "check": "the developer login cannot drop an exposed schema",
+   "result": "pass"
+  },
+  {
+   "check": "the developer login cannot drop public while it is exposed",
+   "result": "pass"
+  },
+  {
+   "check": "the API still serves after the refused changes",
+   "result": "pass"
+  },
+  {
+   "check": "the developer login still renames and drops schemas that are not exposed",
+   "result": "pass"
+  },
+  {
+   "check": "with no settings public is protected in another environment",
+   "result": "pass"
+  },
+  {
+   "check": "the developer login cannot replace or disable the guard",
+   "result": "pass"
+  },
+  {
+   "check": "a missing exposed schema makes PostgREST answer 503 to every request (why the guard exists)",
+   "result": "pass"
+  },
+  {
+   "check": "at start a missing schema is left out and the rest is served",
+   "result": "pass"
+  },
+  {
+   "check": "with every exposed schema gone the empty schema is served, not public",
+   "result": "pass"
+  },
+  {
+   "check": "a reset returns to the container defaults",
+   "result": "pass"
+  },
+  {
+   "check": "turned off, the API serves no table and public is not published",
+   "result": "pass"
+  },
+  {
+   "check": "functions the tenant plants in public never run as the superuser",
+   "result": "pass"
+  },
+  {
+   "check": "every guard searches the temporary schema last, and the presence check sees it",
+   "result": "pass"
+  },
+  {
+   "check": "dropping an extension the tenant owns cannot take an exposed schema with it",
+   "result": "pass"
+  },
+  {
+   "check": "a cascade through an extension the tenant owns cannot take an exposed schema with it",
+   "result": "pass"
+  },
+  {
+   "check": "turning database access on again cannot run a function the tenant planted as the superuser",
+   "result": "pass"
+  },
+  {
+   "check": "a start repairs a reserved-schema guard from before, which searched the temporary schema first",
+   "result": "pass"
+  },
+  {
+   "check": "no environment keeps its settings in the catalog the cluster shares",
+   "result": "pass"
+  },
+  {
+   "check": "tenant code that becomes the REST login reads nothing of another environment",
+   "result": "pass"
+  },
+  {
+   "check": "tenant code that becomes the REST login cannot change what PostgREST serves",
+   "result": "pass"
+  },
+  {
+   "check": "PostgREST applies its settings at a restart, not only after a reload",
+   "result": "pass"
+  },
+  {
+   "check": "a platform backup restores the settings; a tenant dump of every schema still works",
+   "result": "pass"
+  },
+  {
+   "check": "the presence check notices the REST login losing the pre-config function, and the guard gives it back",
+   "result": "pass"
+  },
+  {
+   "check": "role settings tenant code gives the REST login elsewhere never reach another environment's export, and a start clears them",
+   "result": "pass"
+  },
+  {
+   "check": "a connection that carries a PostgREST setting stops the configuration load; a clean one and a platform key do not",
+   "result": "pass"
+  },
+  {
+   "check": "a settings save does not interrupt the API: no refused or missing table while PostgREST reloads",
+   "result": "pass"
+  },
+  {
+   "check": "a database whose platform schema belongs to a non-superuser is refused by the guard",
+   "result": "pass"
+  },
+  {
+   "check": "a database restored from before the pin is pinned again before REST starts, so PostgREST does not fall back to public",
+   "result": "pass"
+  },
+  {
+   "check": "a tenant holding the REST login's role setting rows open delays the pin by seconds at most, and a start that ends the sessions gets through",
+   "result": "pass"
+  },
+  {
+   "check": "PostgREST applies a settings write when its container is sent SIGUSR1, with no NOTIFY involved",
+   "result": "pass"
+  },
+  {
+   "check": "a temporary table named record in the REST session cannot make pre_config set a platform key",
+   "result": "pass"
+  },
+  {
+   "check": "a load that pre_config cannot make serves nothing, not public: the container falls back to the empty schema",
+   "result": "pass"
+  },
+  {
+   "check": "a database from before the settings function (no sbarbase_rest, no empty schema) is made ready by the guard and then serves",
+   "result": "pass"
+  },
+  {
+   "check": "a session search_path in a pooled REST connection, with unnest planted in public, cannot make PostgREST serve auth",
+   "result": "pass"
+  },
+  {
+   "check": "a settings() that an archive brought, answering more than the three managed keys, applies only those",
+   "result": "pass"
+  },
+  {
+   "check": "the developer login cannot put an extension into the schemas that hold the platform's functions",
+   "result": "pass"
+  },
+  {
+   "check": "the Studio login's grants give up after the lock bound when a tenant transaction holds the tables, instead of holding the operation lock",
+   "result": "pass"
+  },
+  {
+   "check": "a REST login whose password tenant code changed gets the platform's password back from the start's pin",
+   "result": "pass"
+  },
+  {
+   "check": "a REST login session holding its own password row does not hold up the platform's password write",
+   "result": "pass"
+  },
+  {
+   "check": "a function planted in public does not change what PostgREST loads, and without the REST search path pin the load is refused",
+   "result": "pass"
+  },
+  {
+   "check": "applying the guard again keeps one enabled trigger",
+   "result": "pass"
+  }
+ ]
+}

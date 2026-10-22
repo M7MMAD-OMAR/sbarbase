@@ -90,6 +90,8 @@
 | PUT | `/management/v1/environments/{id}/share` | مشغّل التثبيت | الجسم `{"share": n}`، من 1 إلى 24. يُرجع `409` إذا تجاوزت حصص كل البيئات الجاهزة 64. يُطبَّق من الطلب التالي |
 | GET | `/management/v1/environments/{id}/realtime` | مالك، مدير، عندما تكون جاهزة | حالة Realtime في `state` و`desired` ([Realtime](../guides/realtime.ar.md)) |
 | PUT | `/management/v1/environments/{id}/realtime` | مالك، مدير، عندما تكون جاهزة | `{"enabled": true\|false}`. يُرجع `202`، ويشغّله المشرف أو يوقفه. و`409` ما دام تغيير سابق جاريًا |
+| GET | `/management/v1/environments/{id}/data-api` | مالك، مدير، مشاهد، عندما تكون جاهزة | إعدادات واجهة البيانات المحفوظة مع `state` و`failure`، وما يُخدم فعلًا في `served`، وتقرير آخر تشغيل في `report` ([واجهة البيانات](../guides/data-api.ar.md)) |
+| PUT | `/management/v1/environments/{id}/data-api` | مالك، مدير، عندما تكون جاهزة | `{"schemas": [...], "extraSearchPath": [...], "maxRows": n\|null}`. يُرجع `202`، ويطبّقها المشرف. و`400` مع السبب إن رُفض اسم، و`409` ما دام تغيير سابق جاريًا |
 | GET | `/management/v1/environments/{id}/sign-in` | مالك، مدير، عندما تكون جاهزة | إعدادات تسجيل الدخول دون أسرار المزوّدين، وحالتها، و`callback_url` الذي يُعطى لمزوّدي OAuth ([تسجيل الدخول](../guides/sign-in.ar.md)) |
 | PUT | `/management/v1/environments/{id}/sign-in` | مالك، مدير، عندما تكون جاهزة | إعدادات جديدة. يُرجع `202`، ويعيد المشرف إنشاء Auth لهذه البيئة وحدها. و`400` يسمّي الإعداد الذي يجب التحقق منه |
 | GET | `/management/v1/environments/{id}/studio` | مالك، مدير، عندما تكون جاهزة | حالة Studio في `state`، وهل ضُبط عنوان عام لـStudio في `public` ([Studio](../guides/studio.ar.md)) |
@@ -122,6 +124,7 @@
 | POST | `/v1/projects/{ref}/functions/deploy` |
 | GET, DELETE | `/v1/projects/{ref}/functions/{name}`؛ وGET `/v1/projects/{ref}/functions/{name}/body` |
 | GET, POST, DELETE | `/v1/projects/{ref}/secrets` |
+| GET، PATCH | `/v1/projects/{ref}/postgrest`: المخططات المكشوفة ومسار البحث الإضافي وحد الصفوف ([واجهة البيانات](../guides/data-api.ar.md)) |
 | GET | `/v1/projects/{ref}/config/storage`؛ ويجيب `/v1/projects/{ref}/config/database/pooler` و`/v1/projects/{ref}/branches` بقائمة فارغة |
 | POST | `/mcp` |
 

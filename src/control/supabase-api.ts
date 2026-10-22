@@ -1,12 +1,13 @@
 import {createHash} from 'node:crypto';
 import {existsSync,readdirSync,readFileSync,statSync} from 'node:fs';
 import {join,relative} from 'node:path';
-import type {AgentDirectoryEntry,Catalog} from './catalog';
+import {DATA_API_EMPTY,type AgentDirectoryEntry,type Catalog} from './catalog';
 import {reply} from './auth';
 import {tokenEpoch,type AccessToken,type AccessTokenStore} from './access-tokens';
 import {SqlRefusal,type SqlRunner,type SqlTarget} from './agent-sql';
 import {ENTRYPOINTS,FUNCTION_NAME,readManifest} from './functions';
 import {uploadLimit} from '../gateway/handler';
+import {mergeDataApi} from './data-api';
 
 /** The part of Supabase's Management API (`https://api.supabase.com/v1/...`) that agents and tools
  * use, answered for this installation (docs/guides/agents.md). The official Supabase MCP server,
@@ -34,6 +35,8 @@ export type SupabaseApiOptions={
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const REF=/^[a-p]{20}$/;
 const MAX_DEPLOY=10*1024*1024;
+/** Each environment's PostgREST pool, PGRST_DB_POOL in lab/run.py rest_configuration. */
+const REST_POOL=3;
 
 const MAX_JSON=2*1024*1024,BODY_SECONDS=30;
 
@@ -410,6 +413,28 @@ export function supabaseApi(options:SupabaseApiOptions) {
   if(rest==='/config/storage'&&method==='GET'){
    let limit=50*1024*1024;try{limit=uploadLimit();}catch{}
    return reply(200,{fileSizeLimit:limit,features:{imageTransformation:{enabled:false},s3Protocol:{enabled:false}}});
+  }
+  // The Data API settings, as `supabase config push` and the dashboard's API settings read and
+  // change them. The signing secret is never part of the answer.
+  if(rest==='/postgrest'&&(method==='GET'||method==='PATCH')){
+   ready(entry);
+   // The platform's empty schema, served when none of the exposed ones exists, is nothing the owner chose,
+   // in either list.
+   const view=(data:{schemas:string[];extraSearchPath:string[];maxRows:number|null})=>({db_schema:data.schemas.filter(name=>name!==DATA_API_EMPTY).join(','),
+    db_extra_search_path:data.extraSearchPath.filter(name=>name!==DATA_API_EMPTY).join(','),max_rows:data.maxRows,db_pool:REST_POOL,db_anon_role:'anon',role_claim_key:'.role'});
+   const current=(await call(token,'GET',`/environments/${entry.environment}/data-api`)).data;
+   // What PostgREST serves now; a saved change appears once it is applied.
+   if(method==='GET')return reply(200,view(current.served));
+   writer(entry);
+   const input=await json() as Record<string,unknown>;
+   if(!input||typeof input!=='object'||Array.isArray(input))refuse(400,'Send a JSON object');
+   if(input.db_pool!==undefined&&input.db_pool!==null&&input.db_pool!==REST_POOL)refuse(400,`The connection pool is fixed at ${REST_POOL} on Sbarbase`);
+   let settings;
+   // A partial change starts from the settings last accepted, not from what a start had to leave out.
+   try{settings=mergeDataApi(current.applied,input,{schemas:'db_schema',extraSearchPath:'db_extra_search_path',maxRows:'max_rows'},true);}
+   catch(error){return refuse(400,error instanceof Error?error.message:'Invalid settings');}
+   const saved=(await call(token,'PUT',`/environments/${entry.environment}/data-api`,settings)).data;
+   return reply(200,view(saved));
   }
   if(rest==='/config/database/pooler'&&method==='GET')return reply(200,[]);
   if(rest==='/branches'&&method==='GET')return reply(200,[]);

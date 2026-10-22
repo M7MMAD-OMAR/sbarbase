@@ -92,7 +92,8 @@ class DeveloperTests(unittest.TestCase):
             work.return_value.developer_grants_sql.return_value = 'GRANT USAGE;'
             import_project.ensure_developer(E)
         work.return_value.developer_sql.assert_not_called()
-        self.assertEqual(statements, ['GRANT USAGE;'])
+        # The exposed schema guard, then the grants (they no longer carry it).
+        self.assertEqual(statements, [import_project.runtime.data_api.guard_sql(E), 'GRANT USAGE;'])
 
     def test_a_closed_developer_login_is_made_but_cannot_sign_in(self):
         statements = []

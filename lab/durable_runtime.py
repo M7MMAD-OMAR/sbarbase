@@ -28,6 +28,7 @@ import pressure_admission
 import source_fence
 import mail_config
 import auth_settings
+import data_api
 import mail_state
 import private_directories
 
@@ -117,6 +118,18 @@ def owned_usage_bytes():
     return total
 
 
+class DataApiRefusal(RuntimeError):
+    """Data API settings the database cannot serve; the message names only schema names."""
+
+
+class DataApiBusy(RuntimeError):
+    """Another runtime operation changed the environment's settings while a console change wrote them; ask again."""
+
+
+class DataApiUnrecorded(RuntimeError):
+    """A console change wrote the settings and told PostgREST, then could not record the outcome."""
+
+
 class AdmissionLimitError(RuntimeError):
     pass
 
@@ -136,7 +149,67 @@ REPLACEABLE = ('auth', 'rest', 'storage', 'realtime', 'functions')
 
 
 # Operator settings of a stateless service that a restart may apply by recreating it.
-TUNABLE = {'storage': frozenset({'FILE_SIZE_LIMIT'})}
+# The role settings the platform leaves on each environment's REST login, in its own database.
+REST_PINS = ("ALTER ROLE {e}_rest IN DATABASE {e} SET search_path = pg_catalog; "
+             "ALTER ROLE {e}_rest IN DATABASE {e} SET statement_timeout = '8s'; "
+             "ALTER ROLE {e}_rest IN DATABASE {e} SET transaction_timeout = '12s';")
+# The REST login's role settings are rows tenant code can lock (it can run `ALTER ROLE` on itself in
+# a transaction it leaves open), so every platform statement that writes them is bounded: it
+# gives up with an error instead of waiting, and the start stops or the change is refused.
+REST_PIN_BOUNDS = "SET lock_timeout = '5s'; SET statement_timeout = '30s'; "
+
+
+def rest_pin_sql(e, end_sessions=False, password=None):
+    """Leave the REST login exactly REST_PINS in its own database and no other role setting, in any
+    database or globally (tenant code acting as that login can set its own, and a global or foreign
+    one makes a restore refuse). With `end_sessions`, for a path that starts REST, the login's
+    backends are ended first so that none holds the rows open; the REST container is not serving
+    then. Run by Runtime.rest_deadlines, backup.start_services and the independent restore target.
+
+    One transaction, with the generated `password` too when given: ended as separate statements, a
+    session PostgREST opens again in between (a signing rotation's old REST still serves) could hold the
+    rows the next statement writes (found in review)."""
+    if not re.fullmatch(r'e_[a-f0-9]{24}', e):
+        raise RuntimeError('Invalid environment runtime identifier')
+    if password is not None and not re.fullmatch(r'[a-f0-9]{64}', password):
+        raise RuntimeError('Invalid REST login password')
+    ended = (f"SELECT pg_catalog.count(pg_catalog.pg_terminate_backend(a.pid)) FROM pg_catalog.pg_stat_activity a "
+             f"WHERE a.usename = '{e}_rest' AND a.pid <> pg_catalog.pg_backend_pid(); ") if end_sessions else ''
+    # The password right after the sessions are ended, the row a reconnected session could take first.
+    word = f"ALTER ROLE {e}_rest PASSWORD '{password}'; " if password is not None else ''
+    return (data_api.SAFE + REST_PIN_BOUNDS + 'BEGIN; ' + ended + word + f"""DO $$ DECLARE item record; BEGIN
+  FOR item IN SELECT d.datname FROM pg_catalog.pg_db_role_setting s LEFT JOIN pg_catalog.pg_database d ON d.oid = s.setdatabase
+              WHERE s.setrole = '{e}_rest'::pg_catalog.regrole LOOP
+    IF item.datname IS NULL THEN
+      ALTER ROLE {e}_rest RESET ALL;
+    ELSE
+      EXECUTE pg_catalog.format('ALTER ROLE {e}_rest IN DATABASE %I RESET ALL', item.datname);
+    END IF;
+  END LOOP;
+END $$;
+{REST_PINS.format(e=e)} COMMIT;""")
+
+
+def rest_password_sql(e, password, end_sessions=False):
+    """Give the REST login back the password the platform generated for it (kept in the runtime file).
+    Tenant code acting as that login can change its own password, and PostgREST then cannot connect:
+    its readiness wait fails and, since a resume does not isolate environments, so does the whole start.
+    The value is a generated hex token and is checked before it is put into the statement.
+
+    A request whose function changes that password and then runs until its deadline holds the login's
+    row, and the write would wait for it (found in review: it stopped a signing rotation, whose old REST
+    still serves). With `end_sessions` the login's backends are ended first, in the same transaction."""
+    if not re.fullmatch(r'e_[a-f0-9]{24}', e) or not re.fullmatch(r'[a-f0-9]{64}', password or ''):
+        raise RuntimeError('Invalid REST login password')
+    ended = (f"SELECT pg_catalog.count(pg_catalog.pg_terminate_backend(a.pid)) FROM pg_catalog.pg_stat_activity a "
+             f"WHERE a.usename = '{e}_rest' AND a.pid <> pg_catalog.pg_backend_pid(); ") if end_sessions else ''
+    return (data_api.SAFE + REST_PIN_BOUNDS + 'BEGIN; ' + ended +
+            f"ALTER ROLE {e}_rest PASSWORD '{password}'; COMMIT;")
+
+
+# A retained REST container without the Data API's db-pre-config function (lab/data_api.py) is
+# recreated with it once: it is stateless, and the function exists before it starts.
+TUNABLE = {'storage': frozenset({'FILE_SIZE_LIMIT'}), 'rest': frozenset(data_api.CONTAINER_ENV)}
 
 
 def upload_limit():
@@ -427,15 +500,18 @@ def studio_identity_sql(e):
     the same owner. The session user stays `<e>_studio`, so its connection limit and access rule
     still apply. The older reverse membership is removed first, since PostgreSQL refuses a cycle,
     and what Studio made under it goes to the developer. Without a developer login nothing changes.
-    Run by the superuser; ownership moves only when run in the environment's own database."""
+    Run by the superuser; ownership moves only when run in the environment's own database, where the
+    developer login may create functions in `public`: the search path is pinned to pg_catalog and
+    the calls name it, so none of them can run as the superuser."""
     studio, developer = f'{e}_studio', f'{e}_developer'
-    return f"""DO $$ BEGIN
+    return f"""SET search_path TO pg_catalog, pg_temp;
+DO $$ BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{studio}')
      AND EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{developer}') THEN
-    IF pg_has_role('{developer}', '{studio}', 'MEMBER') THEN
+    IF pg_catalog.pg_has_role('{developer}'::pg_catalog.name, '{studio}'::pg_catalog.name, 'MEMBER'::pg_catalog.text) THEN
       EXECUTE 'REVOKE {studio} FROM {developer}';
     END IF;
-    IF current_database() = '{e}' THEN
+    IF pg_catalog.current_database() = '{e}'::pg_catalog.name THEN
       EXECUTE 'REASSIGN OWNED BY {studio} TO {developer}';
     END IF;
     EXECUTE 'GRANT {developer} TO {studio}';
@@ -618,13 +694,44 @@ class Runtime:
         for service in ('auth','rest'):
             if not inspect('container',PREFIX+'-'+e+'-'+service):
                 raise RuntimeError('Resume requires retained service containers')
-        self.rest_deadlines(e,validate_only=True)
+        # Tenant code can act as the REST login (RESET ROLE in a function PostgREST runs) and change
+        # its own role settings, so the platform's deadlines are written again rather than refused.
+        # A REST container that is still running (the runner died without its stop stage) would reconnect
+        # at once and could take the rows again before the pin, so it is stopped first; `launch` starts it.
+        rest=PREFIX+'-'+e+'-rest'
+        item=inspect('container',rest)
+        if item and item.get('State',{}).get('Running'):
+            lab.docker('stop',rest)
+        self.rest_deadlines(e,rewrite=True,end_sessions=True)
+        # The catalog says what the Data API serves; a restored or rebuilt database gets it again here.
+        self.data_api(e,refuse_missing=False)
         self.activate_services(e,self.values['environments'][e],creating=False)
 
-    def rest_deadlines(self, e, executor=None, validate_only=False):
+    def rest_deadlines(self, e, executor=None, validate_only=False, rewrite=False, end_sessions=False):
         execute = executor or self.sql
         if not re.fullmatch(r'e_[a-f0-9]{24}', e):
             raise RuntimeError('Invalid environment runtime identifier')
+        if rewrite:
+            # Tenant code acting as the REST login can set any of its own role settings, in any
+            # database and globally. A start leaves it exactly the platform's three in its own database
+            # (REST_PINS): anything else changes how its sessions run, and a global one makes a restore
+            # refuse. The search path keeps a function planted in `public` from taking the place of a
+            # built-in in the query PostgREST loads its configuration with.
+            exact = execute(data_api.SAFE + f"SELECT coalesce(pg_catalog.string_agg(coalesce(d.datname, '*') || ':' || setting, ',' "
+                            f"ORDER BY coalesce(d.datname, '*'), setting), '') FROM pg_catalog.pg_db_role_setting s LEFT JOIN pg_catalog.pg_database d "
+                            f"ON d.oid = s.setdatabase, pg_catalog.unnest(s.setconfig) setting WHERE s.setrole = '{e}_rest'::pg_catalog.regrole;").stdout.strip()
+            # The password too, whenever the runtime file holds it: a settings save (end_sessions False)
+            # leaves it alone, since REST is serving, and every path that starts REST writes it again.
+            password = (((getattr(self, 'values', None) or {}).get('environments') or {}).get(e) or {}).get('rest') if end_sessions else None
+            # Generated passwords are 64 hex characters (secrets.token_hex(32)); anything else is not ours to write.
+            if not (password and re.fullmatch(r'[a-f0-9]{64}', password)):
+                password = None
+            if exact != f'{e}:search_path=pg_catalog,{e}:statement_timeout=8s,{e}:transaction_timeout=12s':
+                # In one transaction with the password, after ending the sessions (rest_pin_sql).
+                execute(rest_pin_sql(e, end_sessions, password))
+            elif password:
+                execute(rest_password_sql(e, password, end_sessions=True))
+            return
         # Role defaults affect new logins. Refuse silent changes under a warm pool.
         deadline_current = execute(f"SELECT EXISTS(SELECT 1 FROM pg_db_role_setting s JOIN pg_roles r ON r.oid=s.setrole JOIN pg_database d ON d.oid=s.setdatabase WHERE r.rolname='{e}_rest' AND d.datname='{e}' AND s.setconfig @> ARRAY['statement_timeout=8s','transaction_timeout=12s']);").stdout.strip() == 't'
         if validate_only:
@@ -633,7 +740,225 @@ class Runtime:
         rest_container = inspect('container', PREFIX+'-'+e+'-rest')
         if not deadline_current and rest_container and rest_container.get('State', {}).get('Running'):
             raise RuntimeError('REST deadline changes require stopping the owned runtime first')
-        execute(f"ALTER ROLE {e}_rest IN DATABASE {e} SET statement_timeout = '8s'; ALTER ROLE {e}_rest IN DATABASE {e} SET transaction_timeout = '12s';")
+        # Bounded like every other statement that writes these rows (REST_PIN_BOUNDS).
+        execute(data_api.SAFE + REST_PIN_BOUNDS + REST_PINS.format(e=e))
+
+    def data_api(self, e, executor=None, refuse_missing=True):
+        """Write the environment's Data API settings in its own database, as sbarbase_rest.settings(),
+        and tell PostgREST to read them (lab/data_api.py). Returns the schemas left out.
+
+        Asked for by the console (refuse_missing), the saved settings are written, and a schema the
+        database does not have refuses the whole change: PostgREST keeps what it serves, and
+        lab/data_api.py records the new settings as applied only on success. At a start, resume or
+        in-place restore, the settings last applied are written again; a schema missing by then is
+        left out, since PostgREST would otherwise answer every request with 503.
+
+        Either way this writes only the served settings and its own report to the catalog row, never
+        the saved settings or their state: those belong to the console and lab/data_api.py, so a
+        change saved meanwhile is neither lost nor marked applied by a start. The one other write is
+        a new row for an environment that has none (a moved database's settings, or the defaults when
+        `public` is gone), which `INSERT OR IGNORE` never lets replace a row the console wrote."""
+        outcome = self.data_api_write(e, executor, refuse_missing)
+        return [] if outcome is None else self.data_api_finish(e, outcome, executor, refuse_missing)
+
+    def ensure_guard(self, e, executor=None):
+        """Install the Data API's guards and settings functions when the presence check finds anything
+        missing. Installing takes locks a session of the environment's REST login can hold (an open GRANT
+        on the platform's schema), so a path that does not end those sessions first installs only then."""
+        execute = executor or self.sql
+        if execute(data_api.guard_present_sql(e), e).stdout.strip() != 't':
+            execute(data_api.guard_sql(e), e)
+
+    def data_api_write(self, e, executor=None, refuse_missing=True):
+        """The part of data_api() a tenant session can make wait: the guard, the pin and the write. A
+        console change runs it under its environment's lock alone (data_api_command). None when there
+        was nothing left to do."""
+        execute = executor or self.sql
+        if not re.fullmatch(r'e_[a-f0-9]{24}', e):
+            raise RuntimeError('Invalid environment runtime identifier')
+        catalog = STATE/'control.sqlite'
+        desired, applied, _state, _failure = data_api.row(e, catalog)
+        settings = desired if refuse_missing else applied
+        if refuse_missing and settings is None:
+            raise DataApiRefusal('There are no saved Data API settings to apply.')
+        # Installed only when anything is missing (a restore, a rebuilt cluster): a console change does
+        # not take locks a tenant session can hold when there is nothing to install (found in review).
+        self.ensure_guard(e, execute)
+        # Every path that starts REST writes the settings first, and pre_config refuses a session whose
+        # search path is not pg_catalog: a restored archive from before the pin would otherwise make
+        # PostgREST fall back to its container's empty schema at startup, serving nothing. So the pin comes first.
+        self.rest_deadlines(e, executor=execute, rewrite=True, end_sessions=not refuse_missing)
+        current = execute(data_api.serving_sql(e), e).stdout
+        if settings is None and desired is None:
+            # No row: a database moved here from another installation keeps the settings it
+            # brings, as far as they are valid and its schemas exist; anything else is reset.
+            settings = data_api.adoptable(current)
+            if settings is not None:
+                # Adopted even when a schema it names is missing: the write below leaves that one out
+                # and reports it, where a reset would publish `public`.
+                if not data_api.adopt(e, settings, catalog):
+                    # The console saved settings meanwhile; they are applied by the supervisor, and
+                    # until then the database keeps what it brought.
+                    data_api.record_served(e, data_api.serving(current), catalog)
+                    return None
+        if settings is None and data_api.existing(execute(data_api.present_sql(data_api.DEFAULT), e).stdout) != {'public'}:
+            # The defaults name `public`, and it is gone: PostgREST would answer 503 to everything. The
+            # defaults are recorded as this environment's settings and go through the write below like
+            # any others, which serves the empty schema, retries and claims the lock, and says why. With
+            # the row, the next start serves `public` again once it exists, instead of taking the empty
+            # schema for settings a moved database brought.
+            settings = dict(data_api.DEFAULT)
+            data_api.adopt(e, settings, catalog, actor='system:start')
+        # Back to the defaults, which name `public`, through the same write as any other settings: checked
+        # again under the lock, retried and claimed, and on failure reported rather than raised into the
+        # start (found in review: a separate reset left `public` served while gone, then stopped every start).
+        reset = settings is None and any(line.startswith('pgrst.') for line in current.splitlines())
+        if reset:
+            settings = dict(data_api.DEFAULT)
+        if settings is None:
+            data_api.record_served(e, None, catalog)
+            data_api.record_report(e, None, catalog)
+            return None
+        # The write checks existence again under the guard's lock (data_api.write_sql). A schema the
+        # tenant drops in between makes it roll back, and the settings are worked out again.
+        written, missing, wrote = False, [], False
+        for attempt in range(3):
+            existing = data_api.existing(execute(data_api.present_sql(settings), e).stdout)
+            served, missing = data_api.effective(settings, existing)
+            if reset and missing:
+                # `public` went after the check above: the defaults are recorded as this environment's
+                # settings and written like any others, which serves the empty schema and says why.
+                data_api.adopt(e, settings, catalog, actor='system:start')
+                reset = False
+            if missing and refuse_missing:
+                raise DataApiRefusal(data_api.missing_text(missing))
+            if not refuse_missing and data_api.serving(current) == served:
+                written = True
+                break
+            # After a first busy try, a start or restore does not leave what is served to a tenant
+            # session: the write ends the sessions holding or waiting for the lock and queues for it
+            # itself, so a session that asks for it later waits behind the platform.
+            claim = not refuse_missing and attempt > 0
+            result = execute(data_api.write_sql(e, served, claim=claim, reset=reset), e, check=False)
+            if not result.returncode:
+                written = wrote = True
+                break
+            error = getattr(result, 'stderr', '') or ''
+            if data_api.RACE in error:
+                continue
+            if data_api.BUSY in error or 'lock timeout' in error:
+                # A schema change in this environment holds the lock; it ends with its transaction.
+                time.sleep(1)
+                continue
+            if refuse_missing:
+                raise RuntimeError('The Data API settings could not be written')
+            break
+        return served, missing, written, wrote, settings
+
+    def data_api_finish(self, e, outcome, executor=None, refuse_missing=True, verify=False, told=None):
+        """Tell PostgREST and record the outcome of data_api_write; `told` when the caller signalled it
+        already. With `verify`, for a console change that wrote without the installation's lock, a start
+        or restore that wrote other settings meanwhile makes it ask again (DataApiBusy) instead of
+        recording settings the database no longer holds."""
+        execute = executor or self.sql
+        catalog = STATE/'control.sqlite'
+        served, missing, written, wrote, settings = outcome
+        if verify and wrote:
+            read = execute(data_api.serving_sql(e), e, check=False)
+            # A read-back that fails proves nothing either way: asked again, never taken as a match (found in review).
+            if read.returncode or data_api.serving(read.stdout) != served:
+                raise DataApiBusy('The Data API settings changed meanwhile, or could not be read back')
+        not_told = False
+        if wrote:
+            # After the commit, and through the environment's own REST container, never the cluster's
+            # shared notification queue (data_api.RELOAD_SQL says why). If it cannot be signalled the
+            # settings stay written and are recorded as applied, with a report: they are what the
+            # database, the guard and Studio hold, and PostgREST takes them at its next reload or start.
+            not_told = not (self.tell_rest(e) if told is None else told)
+            if not_told:
+                print(f'PostgREST of {e} could not be told to reload its Data API settings.', file=sys.stderr)
+        if refuse_missing and not written:
+            raise DataApiRefusal('A schema change in this environment kept the settings from being applied, or a schema '
+                                 'was dropped meanwhile. Save them again; a session that holds its lock blocks this until it ends.')
+        # What PostgREST serves, read back from the database rather than assumed, and this run's
+        # own report, replaced every time so an earlier one never lingers.
+        read = execute(data_api.serving_sql(e), e, check=False)
+        if read.returncode:
+            if not wrote:
+                raise RuntimeError('The Data API settings could not be read back')
+            # The write is committed and PostgREST was told: a read-back that fails now must not turn a
+            # change that took effect into a failed one. What was written is what the database holds.
+            held = served
+        else:
+            held = data_api.serving(read.stdout)
+        if not written:
+            print(f'Data API settings for {e} were not written at start.', file=sys.stderr)
+            report = data_api.unwritten_text(held)
+        elif missing:
+            report = data_api.left_out_text(missing, served['schemas'] == [data_api.EMPTY])
+        else:
+            report = None
+        if not_told:
+            report = (report + ' ' if report else '') + data_api.not_told_text()
+        if verify:
+            # A console change is recorded as applied here, under the operation lock: recorded after the
+            # command ends, a start in between could write the earlier settings back first. In one
+            # transaction, and an error is raised, not passed over: the command then exits 4 rather than
+            # leaving the row pending, or applied beside a stale served list (both found in review).
+            # A catalog busy with another writer is usually free again within seconds, so it is tried again.
+            for attempt in range(3):
+                try:
+                    data_api.record_applied(e, held, report, settings, catalog)
+                    break
+                except data_api.sqlite3.Error:
+                    if attempt == 2:
+                        raise
+                    time.sleep(1)
+            return missing
+        data_api.record_served(e, held, catalog)
+        data_api.record_report(e, report, catalog)
+        return missing
+
+    def tell_rest(self, e):
+        """Make the environment's PostgREST read its settings and schema cache again. SIGUSR1 reloads the
+        schema cache and, on the pinned PostgREST, the configuration with it (measured; SIGUSR2 alone
+        reloads only the configuration and so does not load a newly exposed schema). True when it is not
+        running (it reads the settings when it starts) or the signal was sent. It goes to this
+        environment's own container: unlike NOTIFY it uses nothing the cluster shares."""
+        name = PREFIX+'-'+e+'-rest'
+        try:
+            item = inspect('container', name)
+            if not (item and item.get('State', {}).get('Running')):
+                return True
+            lab.docker('kill', '-s', 'SIGUSR1', name)
+        except Exception:
+            # The write has been committed: an inspection or signal that fails is "not told", never a failed change.
+            return False
+        return True
+
+    def data_api_observe(self, e):
+        """After a restore whose Data API step failed: record what the database serves now and say so."""
+        catalog = STATE/'control.sqlite'
+        held = data_api.serving(self.sql(data_api.serving_sql(e), e).stdout)
+        data_api.record_served(e, held, catalog)
+        data_api.record_report(e, data_api.unwritten_text(held), catalog)
+
+    def data_api_change(self, e):
+        """The console's change, with the checks every per-environment command makes first."""
+        self.data_api_checks(e)
+        return self.data_api(e)
+
+    def data_api_checks(self, e):
+        """The checks every per-environment command makes first."""
+        effect_receipt.require_settled(STATE)
+        if not re.fullmatch(r'e_[a-f0-9]{24}', e):
+            raise RuntimeError('Invalid environment runtime identifier')
+        if not inspect('container', DB):
+            raise RuntimeError('Start the upstream runtime first')
+        if e not in published_endpoints() or e not in self.values['environments']:
+            raise RuntimeError('Data API settings need a published environment')
+        if source_fence.is_fenced(self.sql, e):
+            raise RuntimeError('Environment database is fenced; explicit reconciliation required')
 
     def provision_database(self, e, v, executor=None):
         """All native per-environment SQL, excluding shared HBA and services."""
@@ -645,6 +970,8 @@ class Runtime:
         execute('; '.join(f'ALTER ROLE {e}_{role} CONNECTION LIMIT {connection_budget.SERVICE_LIMIT}' for role in ('auth', 'rest', 'storage'))+';')
         execute(f'ALTER DATABASE {e} CONNECTION LIMIT {connection_budget.ENVIRONMENT_LIMIT};')
         self.rest_deadlines(e, executor=execute)
+        # The Data API's guards and settings functions, before REST first starts (lab/data_api.py).
+        execute(data_api.guard_sql(e), e)
         execute(f'GRANT anon,authenticated,service_role TO {e}_storage; GRANT CONNECT ON DATABASE {e} TO {e}_storage;')
         execute(f'CREATE SCHEMA IF NOT EXISTS storage AUTHORIZATION {e}_storage; GRANT USAGE ON SCHEMA storage TO anon,authenticated,service_role; ALTER DEFAULT PRIVILEGES FOR ROLE {e}_storage IN SCHEMA storage GRANT ALL ON TABLES TO anon,authenticated,service_role; ALTER DEFAULT PRIVILEGES FOR ROLE {e}_storage IN SCHEMA storage GRANT ALL ON SEQUENCES TO anon,authenticated,service_role;', e)
 
@@ -707,6 +1034,10 @@ class Runtime:
             # No per-environment class field exists yet, so both environment
             # services launch under the production row (docs/engineering/RESOURCE-POLICY.md 3.2).
             config = builder(e, v, DB, mail, load_settings(e)) if service == 'auth' else builder(e, v, DB)
+            if service == 'rest':
+                # The function that applies the Data API settings, and the empty schema as the container's
+                # own: a load that function refuses falls back to these, never to `public`.
+                config = {**config, **data_api.CONTAINER_ENV}
             self.launch(name, service, config, '256m', .25, existing_only=not creating, tier='production', rotating=rotating)
             endpoints[service] = self.endpoint(name, port)
             self.wait(endpoints[service]+suffix)
@@ -785,6 +1116,10 @@ class Runtime:
             v['jwt'] = secrets.token_hex(32)
             v['jwt_rotating'] = True
             atomic(self.path, self.values)
+        # The recreated REST container reads its settings at startup, so the login is pinned first, and
+        # its sessions are ended so that tenant code holding the role-setting rows open cannot stop a
+        # rotation (REST is recreated right after).
+        self.rest_deadlines(e, rewrite=True, end_sessions=True)
         self.activate_services(e, v, creating=False)
 
     def reconcile_mail(self, e, off=False):
@@ -1032,10 +1367,17 @@ ALTER ROLE {role} LOGIN;
         role = f'{e}_developer'
         reserved = ', '.join(sql_literal(name) for name in RESERVED_SCHEMAS)
         extensions = ', '.join(sql_literal(name) for name in RESERVED_EXTENSIONS)
-        return f"""CREATE SCHEMA IF NOT EXISTS sbarbase_guard;
+        # The search path is pinned to pg_catalog for the whole script: the developer login may create
+        # functions in `public`, and one that matches a call below better than pg_catalog's (pg_has_role
+        # in studio_identity_sql) would run as the superuser. Bounded like guard_sql, since its grants wait
+        # for transactions the environment's logins leave open. The exposed schema guard itself is
+        # not part of it (found in review: installed every time, a REST login session holding the platform's
+        # catalog rows held up this script under the operation lock, and every other environment's database
+        # toggle behind it); developer_on refuses when it is missing, and the import installs it first.
+        return data_api.SAFE + "SET lock_timeout = '10s'; SET statement_timeout = '60s'; " + f"""CREATE SCHEMA IF NOT EXISTS sbarbase_guard;
 REVOKE ALL ON SCHEMA sbarbase_guard FROM PUBLIC;
 CREATE OR REPLACE FUNCTION sbarbase_guard.reserved_schemas() RETURNS event_trigger
-  LANGUAGE plpgsql SET search_path = pg_catalog AS $guard$
+  LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $guard$
 DECLARE item record;
 BEGIN
   -- The session's login, not the current role: supautils and SECURITY DEFINER code run as the superuser.
@@ -1157,6 +1499,11 @@ GRANT CREATE ON DATABASE {e} TO {role};
                 "FROM pg_database WHERE datallowconn AND datname <> 'template1';").stdout.strip().split('|'))
             if promised + connection_budget.DIRECT_CONNECTIONS > available:
                 raise AdmissionLimitError('Connection headroom unavailable')
+        # The exposed schema guard is installed when the environment is provisioned and repaired by a start or
+        # restore. Missing here, it is not installed under the operation lock with REST serving, where a REST
+        # login session could hold it up (found in review): the turn is refused, as for the rule above.
+        if self.sql(data_api.guard_present_sql(e), e).stdout.strip() != 't':
+            raise RuntimeError('Data API guard missing; restart Sbarbase once')
         self.sql(self.developer_sql(e, password))
         self.sql(self.developer_grants_sql(e), e)
         self.sql(f'ALTER DATABASE {e} CONNECTION LIMIT {current_database_limit(e, direct=True)};')
@@ -1398,6 +1745,73 @@ GRANT CREATE ON DATABASE {e} TO {role};
         atomic(STATE/'management.json', {'auth': endpoint})
 
 
+def operation_lock(block=False):
+    """The installation operation lock: tried once (BlockingIOError when it is held), or waited for."""
+    handle = (STATE/'operation.lock').open('a')
+    try:
+        fcntl.flock(handle, fcntl.LOCK_EX if block else fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BaseException:
+        handle.close()
+        raise
+    return handle
+
+
+def restart_studio(e, catalog=None):
+    """Have the supervisor start the environment's running Studio again (lab/dev.py schedule_studios):
+    `failed` with no reason is the state it starts again when Studio is wanted and stops when it is
+    not, so a restart goes through its own recorded child, one per environment, like a Stop does."""
+    import sqlite3
+    with contextlib.closing(sqlite3.connect(catalog or STATE/'control.sqlite', timeout=5)) as database, database:
+        changed = database.execute("UPDATE studio_sessions SET state='failed', failure=NULL, updated_at=? "
+                                   "WHERE runtime=? AND state='running'", (int(time.time()*1000), e)).rowcount
+    return bool(changed)
+
+
+def data_api_command(e, runtime=None):
+    """The console's Data API change. A tenant session can make its SQL wait (a transaction left open on
+    the REST login's role settings or on the platform's schema, or the schema lock held), each within its
+    bound; under the installation's operation lock that wait would hold every other environment's
+    changes and starts too. So the guard, the pin and the write run under this environment's own lock,
+    held throughout, and PostgREST is told right after the commit, by signalling its own container.
+    The operation lock is held for the checks and then for recording the outcome, which reads the
+    settings back and waits for nothing a tenant holds. A start that wrote other settings in between
+    makes it ask again (DataApiBusy); either lock held at the start is exit 75."""
+    with data_api.environment_lock(e):
+        runtime = runtime or Runtime()
+        with operation_lock():
+            runtime.data_api_checks(e)
+        outcome = runtime.data_api_write(e)
+        # The guard and Studio read the new settings from now on, so PostgREST is told at once rather
+        # than after waiting for the operation lock: until then it would serve a schema the guard no
+        # longer protects. A start or rotation running meanwhile starts REST itself, which reads them.
+        told = runtime.tell_rest(e) if outcome[3] else None
+    # Recorded under the operation lock, waited for: another operation (a provisioning, a start) holds it
+    # only for as long as it runs. The environment's lock is let go meanwhile and tried again inside,
+    # without waiting: held across the wait, a write pause's restore, which holds the operation lock when
+    # it reaches backup.start_services, would wait for it (found in review). Nothing waits for an
+    # environment's lock while holding the operation lock. A restore that wrote in between is what the
+    # read-back in data_api_finish sees, and the change is asked again.
+    try:
+        with operation_lock(block=True), data_api.environment_lock(e):
+            runtime.data_api_finish(e, outcome, verify=True, told=told)
+    except (DataApiBusy, DataApiRefusal):
+        # Asked again, or refused with its reason: nothing this change wrote is left unrecorded.
+        raise
+    except BlockingIOError:
+        # A restore of this environment kept its lock: what it wrote is what the next try reads back.
+        raise DataApiBusy('An in-place restore holds the Data API settings') from None
+    except Exception:
+        # Written and told: "keeps serving its previous settings" would be false now.
+        raise DataApiUnrecorded('The Data API settings were written but not recorded') from None
+    # Studio reads the exposed schemas once, when it starts. The settings are served already, so a
+    # Studio that fails to start again does not undo them; the supervisor records how it went.
+    try:
+        if not restart_studio(e) and studio_running(e):
+            print('Studio could not start again; open it once more to see the new schemas.', file=sys.stderr)
+    except Exception:
+        print('Studio could not start again; open it once more to see the new schemas.', file=sys.stderr)
+
+
 def stop():
     names = lab.docker('ps', '-q', '--filter', 'label=io.sbarbase.owner='+OWNER).stdout.split()
     if names:
@@ -1406,7 +1820,7 @@ def stop():
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('command', choices=['up', 'stop', 'provision', 'mail', 'auth', 'realtime', 'functions', 'database', 'signing'])
+    parser.add_argument('command', choices=['up', 'stop', 'provision', 'mail', 'auth', 'realtime', 'functions', 'database', 'signing', 'data-api'])
     parser.add_argument('environment', nargs='?')
     parser.add_argument('--off', action='store_true')
     args = parser.parse_args()
@@ -1418,6 +1832,9 @@ if __name__ == '__main__':
             inherited=os.environ.get('SBARBASE_WORKER_FD')
             with hba_startup.acquire(STATE,worker_fd=int(inherited) if inherited else None) as startup:
                 Runtime(startup=startup).start()
+        elif args.command=='data-api':
+            if not args.environment:raise SystemExit('The data-api command needs an environment')
+            data_api_command(args.environment)
         else:
             with (STATE/'operation.lock').open('a') as lock:
                 fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -1431,10 +1848,10 @@ if __name__ == '__main__':
                 elif args.command=='signing':
                     if not args.environment:raise SystemExit('The signing command needs an environment')
                     Runtime().rotate_signing(args.environment)
-                    if studio_running(args.environment):
-                        # A running Studio holds keys signed with the old secret; it starts again with new ones.
-                        import studio
-                        studio.up(args.environment)
+                    # A running Studio holds keys signed with the old secret; it starts again with new ones,
+                    # through the supervisor and after this lock is released, since its grants can wait for a tenant.
+                    if not restart_studio(args.environment) and studio_running(args.environment):
+                        print('Studio could not start again; open it once more to use the new keys.', file=sys.stderr)
                 elif args.command=='functions':
                     if not args.environment:raise SystemExit('The functions command needs an environment')
                     Runtime().functions_turn(args.environment, on=not args.off)
@@ -1456,10 +1873,25 @@ if __name__ == '__main__':
                         raise
                     effect_receipt.native_outcome(STATE,args.environment or '',0,'durable-provision-v1')
         print('Durable upstream runtime operation completed.')
+    except DataApiRefusal as refusal:
+        # Only schema names the operator chose; lab/data_api.py shows this line in the console.
+        print(str(refusal), file=sys.stderr)
+        raise SystemExit(data_api.REFUSED)
+    except DataApiBusy:
+        # Written, but a start or restore wrote other settings before this change could record it: ask again.
+        raise SystemExit(75)
+    except DataApiUnrecorded:
+        raise SystemExit(data_api.UNRECORDED)
     except AdmissionLimitError:
         # Stable local worker protocol. Never classify failures from raw stderr.
         print('Local runtime admission limit reached.')
         raise SystemExit(75)
+    except BlockingIOError:
+        # Another runtime operation, or another change of this environment, took a lock between the
+        # supervisor's check and this command. For the Data API that is "busy, ask again" (lab/data_api.py
+        # apply), never a failed change.
+        if args.command=='data-api':raise SystemExit(75)
+        raise SystemExit('Durable runtime operation failed; retained state is available for reconciliation.')
     except Exception:
         # Secrets, SQL and HTTP response bodies must never reach console output.
         raise SystemExit('Durable runtime operation failed; retained state is available for reconciliation.')

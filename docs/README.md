@@ -31,6 +31,7 @@ Read these to understand the design. Each page has the same shape: what it is, w
 - [Operator setup](guides/operator-setup.md): create the first operator and client.
 - [Server deployment](guides/server-deployment.md): the server runbook and its known gaps.
 - [Realtime](guides/realtime.md): database changes, broadcast and presence per environment.
+- [Data API](guides/data-api.md): expose schemas of your own through PostgREST, with the grants they need.
 - [Move from Supabase](guides/move-from-supabase.md): copy a Supabase project, users and files into a new environment with one command.
 - [Database access](guides/database-access.md): a PostgreSQL connection string per environment for migrations, psql and ORMs.
 - [AI agents and the API](guides/agents.md): access tokens, the MCP endpoint and the Supabase-compatible API, so Claude Code, Cursor or Codex can deploy here.

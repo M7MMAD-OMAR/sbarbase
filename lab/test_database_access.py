@@ -33,7 +33,10 @@ class DatabaseAccessTests(unittest.TestCase):
                 return SimpleNamespace(stdout=self.hba, returncode=0)
             if "current_setting('max_connections')" in query:
                 return SimpleNamespace(stdout='100|40', returncode=0)
+            if query == durable_runtime.data_api.guard_present_sql(E):
+                return SimpleNamespace(stdout=self.guarded, returncode=0)
             return SimpleNamespace(stdout='', returncode=0)
+        self.guarded = 't'
         self.runtime.sql = sql
         for item in [patch.object(durable_runtime, 'STATE', self.root / 'state'), patch.object(durable_runtime, 'PRIVATE', self.root / 'private'),
                      patch.object(durable_runtime, 'inspect', return_value={'Id': 'db'}),
@@ -117,6 +120,15 @@ class DatabaseAccessTests(unittest.TestCase):
         self.assertIn(f'ALTER DATABASE {E} CONNECTION LIMIT {connection_budget.database_limit(direct=True)}', text)
         self.assertTrue(any(database == E and 'GRANT USAGE, CREATE ON SCHEMA public' in query for database, query in self.statements))
         self.assertEqual(self.endpoints()[E]['database'], {'user': f'{E}_developer', 'database': E})
+
+    def test_it_refuses_rather_than_installing_a_missing_guard_under_the_operation_lock(self):
+        # Installed here with REST serving, a REST login session could hold it up while the operation
+        # lock and the shared toggle queue wait (found in review); a start or restore repairs it.
+        self.guarded = 'f'
+        with self.assertRaisesRegex(RuntimeError, 'guard missing'):
+            self.runtime.database_turn(E, on=True)
+        self.assertFalse(any('GRANT USAGE, CREATE ON SCHEMA public' in query for _, query in self.statements))
+        self.assertFalse(any(query == durable_runtime.data_api.guard_sql(E) for _, query in self.statements))
 
     def test_it_refuses_without_the_access_rule_or_a_valid_saved_password(self):
         self.hba = '0'

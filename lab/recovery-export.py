@@ -15,6 +15,7 @@ import durable_runtime as runtime
 import notification_producers
 import run as lab
 import source_fence
+from recovery_boundaries import settings_query
 from recovery_bundle import seal, open_bundle, MAX_PAYLOAD, catalog_ownership
 
 # The catalog the operator's own installation drains. None means the default upstream
@@ -133,6 +134,9 @@ def main(cutover=False):
         after_keys=rows(f"SELECT id,tenant_id,kind,content,active,created_at FROM tenants_jwks WHERE tenant_id='{e}' ORDER BY id",'storage_metadata')
         check('signing state unchanged through quiescence',after_keys==raw_keys)
         check('tenant configuration unchanged through quiescence',rows(f"SELECT * FROM tenants WHERE id='{e}'",'storage_metadata')==raw_tenant)
+        # Tenant code acting as the REST login can give it role settings the restore refuses (lab/data_api.py,
+        # finding 3), so the login is pinned again, as every start does, before its settings are read.
+        target.sql(runtime.rest_pin_sql(e),'postgres')
         role_names=[e+'_'+kind for kind in ('auth','rest','storage')]
         selected=','.join("'"+name+"'" for name in role_names)
         roles=rows(f"SELECT rolname,rolsuper,rolinherit,rolcreaterole,rolcreatedb,rolcanlogin,rolreplication,rolbypassrls,rolconnlimit,rolvaliduntil,rolconfig FROM pg_roles WHERE rolname IN ({selected}) ORDER BY rolname")
@@ -146,7 +150,7 @@ def main(cutover=False):
         check('memberships stay inside canonical API roles',all(m['parent'] in ('anon','authenticated','service_role') and not m['admin_option'] for m in memberships))
         database=rows(f"SELECT datname,pg_get_userbyid(datdba) AS owner,pg_encoding_to_char(encoding) AS encoding,datcollate,datctype,datlocprovider,datlocale,daticurules,datcollversion,datconnlimit FROM pg_database WHERE datname='{e}'")
         acl=rows(f"SELECT coalesce(grantee.rolname,'PUBLIC') AS grantee,grantor.rolname AS grantor,a.privilege_type,a.is_grantable FROM pg_database d CROSS JOIN LATERAL aclexplode(coalesce(d.datacl,acldefault('d',d.datdba))) a LEFT JOIN pg_roles grantee ON grantee.oid=a.grantee JOIN pg_roles grantor ON grantor.oid=a.grantor WHERE d.datname='{e}' ORDER BY 1,3")
-        settings=rows(f"SELECT coalesce(r.rolname,'ALL') AS role,coalesce(d.datname,'ALL') AS database,s.setconfig FROM pg_db_role_setting s LEFT JOIN pg_roles r ON r.oid=s.setrole LEFT JOIN pg_database d ON d.oid=s.setdatabase WHERE d.datname='{e}' OR (s.setdatabase=0 AND r.rolname IN ({selected})) ORDER BY 1,2")
+        settings=rows(settings_query(e,selected))
         defaults=rows("SELECT rolname,rolconfig FROM pg_roles WHERE rolname IN ('anon','authenticated','service_role') ORDER BY rolname")
         tables=rows("SELECT n.nspname AS schema,c.relname AS name FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname IN ('auth','storage','public') AND c.relkind='r' ORDER BY 1,2",e)
         snapshots=[]

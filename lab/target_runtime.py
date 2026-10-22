@@ -7,6 +7,7 @@ import re
 import subprocess
 import time
 from pathlib import Path
+import data_api
 import durable_runtime as runtime
 import run as lab
 from recovery_bundle import open_bundle
@@ -79,6 +80,23 @@ class TargetRuntime:
                 if lab.docker('exec',self.identities['db'],'pg_isready',check=False).returncode==0:ready=True;break
                 time.sleep(.5)
             if not ready:raise RuntimeError('Target database not ready')
+            # The restored REST login keeps whatever role settings the archive carried (restore checks their
+            # names only), and pre_config refuses a session search path other than pg_catalog: PostgREST would
+            # serve nothing (the container names the empty schema). So the login is pinned first, with its sessions ended.
+            # An archive exported before the Data API settings has no sbarbase_rest, pre_config or empty schema,
+            # which the REST container now names: they are installed first (guard_sql keeps any it brought).
+            guard=lab.docker('exec','-i',self.identities['db'],'psql','-X','-v','ON_ERROR_STOP=1','-U','supabase_admin','-d',self.environment,'-qAt',
+                             data=data_api.guard_sql(self.environment),check=False)
+            if guard.returncode:raise RuntimeError('Target Data API settings could not be installed')
+            pin=lab.docker('exec','-i',self.identities['db'],'psql','-X','-v','ON_ERROR_STOP=1','-U','supabase_admin','-d','postgres','-qAt',
+                           data=runtime.rest_pin_sql(self.environment,end_sessions=True),check=False)
+            if pin.returncode:raise RuntimeError('Target REST login could not be pinned')
+            word=lab.docker('exec','-i',self.identities['db'],'psql','-X','-v','ON_ERROR_STOP=1','-U','supabase_admin','-d','postgres','-qAt',
+                            data=runtime.rest_password_sql(self.environment,self.payload['credentials']['rest']),check=False)
+            if word.returncode:raise RuntimeError('Target REST login password could not be restored')
+            # A retained target REST container made before the Data API settings would ignore them and serve `public`.
+            rest=json.loads(lab.docker('inspect',self.identities['rest']).stdout)[0]
+            if not data_api.carries_container_env(rest.get('Config',{}).get('Env')):raise RuntimeError('Target REST container predates the Data API settings; prepare the target again')
             for kind in ('auth','rest','storage'):lab.docker('start',self.identities[kind])
             def endpoint(kind,port):
                 value=json.loads(lab.docker('inspect',self.identities[kind]).stdout)[0]

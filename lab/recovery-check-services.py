@@ -5,6 +5,7 @@ import re
 import secrets
 import time
 from pathlib import Path
+import data_api
 import durable_runtime as runtime
 import resource_policy
 import run as lab
@@ -52,10 +53,20 @@ def main():
             time.sleep(.5)
         users=json.loads(query("SELECT coalesce(jsonb_agg(jsonb_build_object('id',id,'email',email)),'[]') FROM auth.users WHERE email LIKE 'durable-%@example.com';"))
         check('restored fixture identity exists',bool(users))
+        # The REST container names the Data API settings function and the empty schema, which an archive from
+        # before them does not hold, and the restored REST login keeps whatever role settings it carried.
+        query(data_api.guard_sql(e))
+        query(runtime.rest_pin_sql(e,end_sessions=True))
+        query(runtime.rest_password_sql(e,payload['credentials']['rest']))
+        check('restored database has the Data API settings function and a pinned REST login',query("SELECT to_regprocedure('sbarbase_rest.pre_config()') IS NOT NULL;")=='t')
         for kind,builder,port,suffix in [('auth',lab.auth_configuration,9999,'/health'),('rest',lab.rest_configuration,3000,'/')]:
             check(kind+' pinned image matches export',pins[kind]['id']==payload['images'][kind]['id'])
             name=d['prefix']+'-'+kind;env=runtime.PRIVATE/(name+'.env')
-            lab.secure_file(env,''.join(k+'='+v+'\n' for k,v in builder(e,payload['credentials'],db).items()))
+            config=builder(e,payload['credentials'],db)
+            # The restored REST applies the environment's Data API settings, which travel in its database
+            # (lab/data_api.py): it is started with the function that reads them and the empty schema as its fallback.
+            if kind=='rest':config={**config,**data_api.CONTAINER_ENV}
+            lab.secure_file(env,''.join(k+'='+v+'\n' for k,v in config.items()))
             lab.docker('run','-d','--pull','never','--name',name,'--label','io.sbarbase.owner='+OWNER,*resource_policy.labels('maintenance'),'--network',d['network'],'--memory','256m','--memory-swap','256m','--cpus','0.25','--pids-limit','128','--log-opt','max-size=5m','--log-opt','max-file=2','--env-file',str(env),pins[kind]['id'])
             address=inspect(name)['NetworkSettings']['Networks'][d['network']]['IPAddress'];url=f'http://{address}:{port}'
             ready=False

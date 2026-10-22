@@ -45,6 +45,7 @@ import urllib.request
 from pathlib import Path
 
 import auth_settings
+import data_api
 import durable_runtime as runtime
 import image_identity
 import resource_policy
@@ -106,7 +107,11 @@ def network_gateway():
 def role_sql(e, password):
     """Create or reopen the environment's Studio login with a fresh password and its grants."""
     role = f'{e}_studio'
-    return f"""
+    # Run as the superuser in the environment's database: pg_catalog first, as in lab/data_api.py. The
+    # grants below wait for any transaction the environment's own logins left open on those tables, so
+    # the wait is bounded: Studio then reports that it could not start. A Data API change restarts Studio
+    # after it has released the installation's operation lock (durable_runtime.data_api_command).
+    return f"""{data_api.SAFE}SET lock_timeout = '10s';
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{role}') THEN
     CREATE ROLE {role} NOLOGIN NOINHERIT BYPASSRLS;
@@ -160,6 +165,14 @@ def runtime_sql(query, database='postgres'):
     if result.returncode:
         raise StudioError('Database statement failed')
     return result.stdout.strip()
+
+
+def rest_settings(e):
+    """Studio's view of the Data API: the schemas PostgREST serves now, read where PostgREST reads
+    them (lab/data_api.py), the platform's empty fallback schema included, so Studio never shows
+    a schema as exposed that PostgREST does not serve."""
+    served = data_api.serving(runtime_sql(data_api.serving_sql(e), e))
+    return {'PGRST_DB_SCHEMAS': ','.join(served['schemas']), 'PGRST_DB_EXTRA_SEARCH_PATH': ','.join(served['extra_search_path'])}
 
 
 def require_rule(e):
@@ -420,11 +433,12 @@ def up(e):
             try:
                 address = open_network_retrying(e)
                 organization, environment = display_names(e)
+                served = rest_settings(e)
                 item = launch(studio, 'operator.studio', {
                     'HOSTNAME': address, 'STUDIO_PG_META_URL': 'http://127.0.0.1:8080',
                     'POSTGRES_HOST': runtime.DB, 'POSTGRES_PORT': '5432', 'POSTGRES_DB': e, 'POSTGRES_PASSWORD': password,
                     'POSTGRES_USER_READ_WRITE': f'{e}_studio', 'POSTGRES_USER_READ_ONLY': f'{e}_studio',
-                    'PG_META_CRYPTO_KEY': crypto, 'PGRST_DB_SCHEMAS': 'public', 'PGRST_DB_EXTRA_SEARCH_PATH': 'public',
+                    'PG_META_CRYPTO_KEY': crypto, **served,
                     'DEFAULT_ORGANIZATION_NAME': organization, 'DEFAULT_PROJECT_NAME': environment,
                     'SUPABASE_URL': f'http://{network_gateway()}:{UPSTREAM_PORT}/{e}',
                     'SUPABASE_PUBLIC_URL': auth_settings.public_url(), 'SUPABASE_ANON_KEY': anon, 'SUPABASE_SERVICE_KEY': service,

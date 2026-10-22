@@ -10,6 +10,14 @@ The declared package version is 0.5.13. Historical 0.1.0 and 0.2.0 entries retai
 
 ## [Unreleased]
 
+### Added
+
+- **Exposed schemas for the Data API.** Each environment chooses which schemas its PostgREST serves, in order, with its extra search path and row limit: in the console (Database connection, Data API) or through `GET` and `PATCH /v1/projects/{ref}/postgrest`. They are kept in the environment's own database, never in the catalog the cluster shares, applied by a PostgREST pre-config function and served after a reload, and written again at every start. The first start after upgrading recreates each REST container once to name that function. A schema that does not exist is refused, and a refused change is never served, not even after a restart. While a schema is exposed, the database refuses to rename or drop it, because PostgREST answers every request with 503 once one exposed schema is gone; a schema missing at start is left out and reported. Platform schemas (`auth`, `storage`, `vault` and the rest) are never exposed. Studio gets the same schemas. 60 of 60 live checks passed on 2026-10-22 against the pinned images ([evidence](docs/evidence/data-api-checks-2026-10-21.json), [guide](docs/guides/data-api.md), [design](docs/engineering/DATA-API-SCHEMAS.md)). Not yet run on a real server.
+
+### Security
+
+- **A tenant could become a superuser of the shared cluster.** When direct database access was turned on, and whenever Studio started, the platform ran a superuser script in the environment's database that called `pg_has_role(...)` without naming its schema. The environment's developer login can create functions in `public`, and a `public.pg_has_role(text, text, text)` matched that call better than PostgreSQL's own, so it ran as the superuser. Those scripts now run with `search_path` set to `pg_catalog` and name it on their calls; a live check plants such a function and runs the old script as a control ([design](docs/engineering/DATA-API-SCHEMAS.md)). Present since 0.5.8. The event trigger guards also search the session's temporary schema last.
+
 ### Still open
 
 - **Deleting an environment does not work on an ordinary installation.** It always answers `409` with "Exact ownership inventory unavailable" and changes nothing, so restore and purge cannot be reached either. Provisioning never records the exact list of an environment's resources, and the shared PostgreSQL cluster and Storage process have no check yet that would make such a list honest. The [API reference](docs/reference/api.md) said delete "can answer" `409`; it now says it always does, and a test pins the current behaviour.

@@ -1,3 +1,4 @@
+import {DataApiSection} from './DataApi';
 import {useEffect,useState} from 'react';
 import {ArrowLeft,Copy,ExternalLink,Play,Square,Database,Shield,Layers,Activity,KeyRound,LayoutGrid} from 'lucide-react';
 import {useData,type Api,type Organization,type Environment} from './api';
@@ -52,6 +53,7 @@ export function Connection({environment,organization,request,onBack}:{environmen
   {canWrite&&<FunctionsSection path={path} request={request} environmentId={environment.id}/>}
  </div>}{activeSection==='database'&&<div>
  {canWrite&&<DatabaseSection path={path} request={request}/>}
+ {canWrite&&<DataApiSection path={path} request={request}/>}
  </div>}{activeSection==='usage'&&<div>
  <ShareSection path={path} request={request}/>
  <MetricsSection path={path} request={request}/>

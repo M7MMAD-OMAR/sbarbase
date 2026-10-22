@@ -327,6 +327,7 @@ def ensure_developer(e):
     if not runtime.direct_on(e):
         # A throwaway password on a login that cannot sign in; turning access on sets a real one.
         target_sql(e, work.developer_sql(e, secrets.token_urlsafe(24)) + f'ALTER ROLE {e}_developer NOLOGIN;\n', database='postgres')
+    target_sql(e, runtime.data_api.guard_sql(e))
     target_sql(e, work.developer_grants_sql(e))
 
 

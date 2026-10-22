@@ -135,9 +135,20 @@ export {ENVIRONMENT_LIMIT};
 
 /** Bumped with each step of Catalog.migrate(). */
 export const CATALOG_SCHEMA_VERSION=4;
+/** What PostgREST serves for an environment with no saved Data API settings (lab/data_api.py). */
+export const DATA_API_DEFAULT={schemas:['public'],extraSearchPath:['public'],maxRows:null as number|null};
 
 export type StudioSession={runtime:string;desired:'running'|'stopped';state:'stopped'|'starting'|'running'|'failed';
   failure:string|null;updatedAt:number|null};
+export type DataApiSettings={schemas:string[];extraSearchPath:string[];maxRows:number|null};
+/** `served` is what PostgREST serves now, as the runtime last wrote it: the settings applied, less
+ * any schema a start found missing, or the defaults. A saved change that was refused stays in the
+ * other fields and is never served, not even after a restart. */
+/** `report` is the last start's own account (a schema left out, settings not written), or null. */
+export type DataApiState=DataApiSettings&{runtime:string;state:'default'|'pending'|'applied'|'failed';failure:string|null;updatedAt:number|null;
+ served:DataApiSettings;applied:DataApiSettings;report:string|null};
+/** What lab/data_api.py serves when none of the exposed schemas exists: an empty platform schema. */
+export const DATA_API_EMPTY='sbarbase_empty';
 export type RealtimeState={runtime:string;desired:'on'|'off';state:'off'|'pending'|'on'|'failed';failure:string|null;updatedAt:number|null};
 /** The environment's JWT signing secret: never rotated, a rotation waiting or failed, or the last one done. */
 export type SigningState={runtime:string;state:'never'|'pending'|'done'|'failed';failure:string|null;rotatedAt:number|null;updatedAt:number|null};
@@ -232,6 +243,13 @@ export class Catalog {
       CREATE TABLE IF NOT EXISTS auth_settings(
         runtime TEXT PRIMARY KEY REFERENCES provision_jobs(runtime),
         revision INTEGER NOT NULL CHECK(revision>0), applied INTEGER,
+        state TEXT NOT NULL CHECK(state IN ('pending','applied','failed')),
+        failure TEXT, actor TEXT NOT NULL, updated_at INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS data_api_settings(
+        runtime TEXT PRIMARY KEY REFERENCES provision_jobs(runtime),
+        schemas TEXT NOT NULL, extra_search_path TEXT NOT NULL, max_rows INTEGER,
+        applied_schemas TEXT, applied_extra_search_path TEXT, applied_max_rows INTEGER,
+        served_schemas TEXT, served_extra_search_path TEXT, served_max_rows INTEGER, start_report TEXT,
         state TEXT NOT NULL CHECK(state IN ('pending','applied','failed')),
         failure TEXT, actor TEXT NOT NULL, updated_at INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS realtime_settings(
@@ -1003,6 +1021,42 @@ export class Catalog {
       return this.signIn(actor,environment);
     }).immediate();
   }
+  /** Data API settings for one environment: the schemas PostgREST exposes, its extra search path
+   * and row limit. Owners and admins save them; the supervisor applies them (lab/data_api.py) and
+   * records the outcome in the same row. Without a row, PostgREST serves its defaults. */
+  dataApi(actor:string,environment:string,roles:MembershipRole[]=['owner','admin']):DataApiState {
+    this.environmentProject(actor,environment,roles);
+    const job=this.job(environment);
+    if(!job||job.state!=='succeeded'||this.runtimeDeleted(job.runtime))throw new Error('Environment is not ready');
+    const row=this.db.query<{schemas:string;extra_search_path:string;max_rows:number|null;served_schemas:string|null;
+      served_extra_search_path:string|null;served_max_rows:number|null;applied_schemas:string|null;applied_extra_search_path:string|null;
+      applied_max_rows:number|null;start_report:string|null;state:string;failure:string|null;updated_at:number},[string]>(
+      `SELECT schemas,extra_search_path,max_rows,served_schemas,served_extra_search_path,served_max_rows,applied_schemas,
+       applied_extra_search_path,applied_max_rows,start_report,state,failure,updated_at FROM data_api_settings WHERE runtime=?`).get(job.runtime);
+    const defaults={...DATA_API_DEFAULT,schemas:[...DATA_API_DEFAULT.schemas],extraSearchPath:[...DATA_API_DEFAULT.extraSearchPath]};
+    if(!row)return {runtime:job.runtime,...defaults,state:'default',failure:null,updatedAt:null,served:defaults,applied:defaults,report:null};
+    const served=row.served_schemas===null?defaults:{schemas:row.served_schemas.split(','),
+      extraSearchPath:(row.served_extra_search_path??'public').split(','),maxRows:row.served_max_rows};
+    const applied=row.applied_schemas===null?defaults:{schemas:row.applied_schemas.split(','),
+      extraSearchPath:(row.applied_extra_search_path??'public').split(','),maxRows:row.applied_max_rows};
+    // The empty platform schema alone means the Data API is off: no schema to show.
+    const own=(list:string)=>list.split(',').filter(name=>name!==DATA_API_EMPTY);
+    if(applied.schemas.join()===DATA_API_EMPTY)applied.schemas=[];
+    return {runtime:job.runtime,schemas:own(row.schemas),extraSearchPath:row.extra_search_path.split(','),maxRows:row.max_rows,
+      state:row.state as DataApiState['state'],failure:row.failure,updatedAt:row.updated_at,served,applied,report:row.start_report};
+  }
+  requestDataApi(actor:string,environment:string,settings:DataApiSettings):DataApiState {
+    return this.db.transaction(()=>{
+      const current=this.dataApi(actor,environment);
+      if(current.state==='pending')throw new Error('Data API change in progress');
+      this.db.query(`INSERT INTO data_api_settings(runtime,schemas,extra_search_path,max_rows,state,failure,actor,updated_at) VALUES (?,?,?,?,'pending',NULL,?,?)
+        ON CONFLICT(runtime) DO UPDATE SET schemas=excluded.schemas,extra_search_path=excluded.extra_search_path,max_rows=excluded.max_rows,
+        state='pending',failure=NULL,actor=excluded.actor,updated_at=excluded.updated_at`)
+        .run(current.runtime,settings.schemas.join(','),settings.extraSearchPath.join(','),settings.maxRows,actor,Date.now());
+      this.record(actor,'data_api.saved',environment,{schemas:settings.schemas,extraSearchPath:settings.extraSearchPath,maxRows:settings.maxRows});
+      return this.dataApi(actor,environment);
+    }).immediate();
+  }
   /** Realtime for one environment. Owners and admins turn it on or off; the supervisor applies
    * it (lab/realtime.py) and records the outcome in the same row. */
   realtime(actor:string,environment:string):RealtimeState {
@@ -1547,6 +1601,7 @@ export class Catalog {
     return on('realtime_settings')||on('functions_settings')||on('database_access')||
       !!this.db.query("SELECT 1 FROM studio_sessions WHERE runtime=? AND (desired='running' OR state IN ('starting','running'))").get(runtime)||
       !!this.db.query("SELECT 1 FROM auth_settings WHERE runtime=? AND state='pending'").get(runtime)||
+      !!this.db.query("SELECT 1 FROM data_api_settings WHERE runtime=? AND state='pending'").get(runtime)||
       !!this.db.query("SELECT 1 FROM signing_keys WHERE runtime=? AND state='pending'").get(runtime)||
       !!this.db.query('SELECT 1 FROM runtime_routing WHERE runtime=? AND maintenance=1').get(runtime);
   }

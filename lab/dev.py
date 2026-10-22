@@ -127,6 +127,10 @@ class Supervisor:
         # One sign-in apply at a time, and a pause after one that found the runtime busy.
         self.sign_in = None
         self.sign_in_after = 0.0
+        # One Data API child per environment, and when each may be asked again: a change a tenant holds up
+        # within its bounds must not keep another environment's change waiting behind it (found in review).
+        self.data_api = {}
+        self.data_api_after = {}
         # Realtime and Edge Functions: one change at a time for each, and a pause after one that
         # found the runtime busy.
         self.toggles = {'realtime': None, 'functions': None, 'database': None, 'signing': None}
@@ -414,9 +418,11 @@ class Supervisor:
 
     def idle(self):
         """Nothing is in flight that moving the checkout could interrupt: the worker stopped, no
-        Studio, sign-in, toggle or backup child runs, and no operation record (a provisioning
+        Studio, sign-in, Data API, toggle or backup child runs, and no operation record (a provisioning
         receipt, an HBA journal or migration) waits to be settled."""
         if self.worker is not None or self.backup is not None or self.sign_in is not None or self.studios:
+            return False
+        if self.data_api:
             return False
         if any(process is not None for process in self.toggles.values()):
             return False
@@ -609,6 +615,39 @@ class Supervisor:
         if pending:
             self.sign_in = self.spawn(['/usr/bin/python3', 'lab/auth_settings.py', 'apply', pending[0]])
 
+    def data_api_requests(self):
+        """Runtimes whose saved Data API settings wait to be applied, oldest first."""
+        path = STATE/'control.sqlite'
+        if not path.exists():
+            return []
+        try:
+            with closing(sqlite3.connect(f'file:{path}?mode=ro', uri=True, timeout=2)) as database, database:
+                return [row[0] for row in database.execute("SELECT runtime FROM data_api_settings WHERE state='pending' ORDER BY updated_at")]
+        except sqlite3.Error:
+            return []
+
+    def schedule_data_api(self):
+        """Apply saved Data API settings (lab/data_api.py): one child per environment, like Studio, so an
+        environment whose own sessions hold its change up delays only that change. A child that finds the
+        installation's operation lock held before it writes exits 75 and is asked again; after its write it
+        waits for that lock to record the outcome, and its row stays pending meanwhile."""
+        for runtime, process in list(self.data_api.items()):
+            status = child_status(process)
+            if status is None:
+                continue
+            terminate_group(process, grace=0)
+            del self.data_api[runtime]
+            if status == 75:
+                self.data_api_after[runtime] = time.monotonic() + 5
+        if self.paused():
+            return
+        now = time.monotonic()
+        for runtime in self.data_api_requests():
+            if runtime in self.data_api or now < self.data_api_after.get(runtime, 0.0):
+                continue
+            self.data_api_after.pop(runtime, None)
+            self.data_api[runtime] = self.spawn(['/usr/bin/python3', 'lab/data_api.py', 'apply', runtime])
+
     def toggle_requests(self, service):
         """Runtimes whose Realtime, Edge Functions or database access should be turned on or off, oldest first."""
         path = STATE/'control.sqlite'
@@ -702,6 +741,7 @@ class Supervisor:
                 self.schedule_backup()
                 self.schedule_studios()
                 self.schedule_sign_in()
+                self.schedule_data_api()
                 self.schedule_toggles()
                 if not self.paused():
                     # Disk space and stopped service containers, once a minute (lab/host_watch.py).
@@ -722,6 +762,8 @@ class Supervisor:
                 terminate_group(process)
             if self.sign_in:
                 terminate_group(self.sign_in)
+            for process in self.data_api.values():
+                terminate_group(process)
             for process in self.toggles.values():
                 if process:
                     terminate_group(process)

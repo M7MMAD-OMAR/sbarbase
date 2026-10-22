@@ -90,6 +90,8 @@ All routes need `Authorization: Bearer <management access token>`. The actor com
 | PUT | `/management/v1/environments/{id}/share` | installation operator | Body `{"share": n}`, 1 to 24. `409` when the shares of all ready environments would exceed 64. Applies at the next request |
 | GET | `/management/v1/environments/{id}/realtime` | owner, admin, when ready | Realtime `state` and `desired` ([Realtime](../guides/realtime.md)) |
 | PUT | `/management/v1/environments/{id}/realtime` | owner, admin, when ready | `{"enabled": true\|false}`. `202`; the supervisor starts or stops it. `409` while a change is in progress |
+| GET | `/management/v1/environments/{id}/data-api` | owner, admin, viewer, when ready | The saved Data API settings, their `state` and `failure`, what is `served`, and the last start's `report` ([Data API](../guides/data-api.md)) |
+| PUT | `/management/v1/environments/{id}/data-api` | owner, admin, when ready | `{"schemas": [...], "extraSearchPath": [...], "maxRows": n\|null}`. `202`; the supervisor applies it. `400` with the reason for a refused name, `409` while a change is in progress |
 | GET | `/management/v1/environments/{id}/sign-in` | owner, admin, when ready | Sign-in settings without provider secrets, their state and the `callback_url` to give OAuth providers ([sign-in](../guides/sign-in.md)) |
 | PUT | `/management/v1/environments/{id}/sign-in` | owner, admin, when ready | New settings. `202`; the supervisor recreates only that environment's Auth. `400` names the setting to check |
 | GET | `/management/v1/environments/{id}/studio` | owner, admin, when ready | Studio `state` and whether a `public` Studio address is set ([Studio](../guides/studio.md)) |
@@ -122,6 +124,7 @@ With an access token as `Authorization: Bearer sbp_...`: `/v1/...` answers the p
 | POST | `/v1/projects/{ref}/functions/deploy` |
 | GET, DELETE | `/v1/projects/{ref}/functions/{name}`; GET `/v1/projects/{ref}/functions/{name}/body` |
 | GET, POST, DELETE | `/v1/projects/{ref}/secrets` |
+| GET, PATCH | `/v1/projects/{ref}/postgrest`: the exposed schemas, extra search path and row limit ([Data API](../guides/data-api.md)) |
 | GET | `/v1/projects/{ref}/config/storage`; `/v1/projects/{ref}/config/database/pooler` and `/v1/projects/{ref}/branches` answer an empty list |
 | POST | `/mcp` |
 

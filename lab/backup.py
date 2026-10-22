@@ -70,6 +70,7 @@ import tempfile
 import time
 from pathlib import Path
 
+import data_api
 import image_identity
 import backup_consistency
 
@@ -847,13 +848,52 @@ def require_service_images(e):
         if item.get('Image') != native or item.get('Config', {}).get('Labels', {}).get('io.sbarbase.owner') != DATABASE_OWNER:
             raise BackupError(f'{name} does not run the {service} image this version pins; '
                               'start Sbarbase so it replaces it, or restore with the version that runs it')
+        # A REST container from an earlier release names neither the Data API settings function nor the
+        # empty schema: it would ignore the environment's settings and serve `public`.
+        if service == 'rest' and not data_api.carries_container_env(item.get('Config', {}).get('Env')):
+            raise BackupError(f'{name} was created before the Data API settings and would ignore them; '
+                              'start Sbarbase so it replaces the container')
 
 
 def start_services(e):
     """Start Auth and REST again and publish their addresses, which a restart may change."""
     require_service_images(e)
-    run(['docker', 'start', *service_names(e)])
     import durable_runtime
+    # The restored database may bring a REST login without the pin (an archive from before it), and
+    # pre_config refuses a session whose search path is not pg_catalog: PostgREST would then start on
+    # its container's empty schema, serving nothing. So the pin is its own step, and REST is not started without it.
+    # The same goes for the settings function, pre_config and the empty schema the REST container names,
+    # which an archive exported before them does not hold: without them every request would answer 503.
+    # REST is stopped first and its login's sessions ended with the pin, before the guard: a write pause
+    # resumed after it stopped halfway can find REST serving, and a REST login session can hold the
+    # catalog rows the guard writes, under the operation lock the pause holds (found in review).
+    try:
+        run(['docker', 'stop', f'{PREFIX}-{e}-rest'], check=False)
+        runtime = durable_runtime.Runtime()
+        runtime.rest_deadlines(e, rewrite=True, end_sessions=True)
+        runtime.sql(data_api.guard_sql(e), e)
+    except Exception as error:
+        raise BackupError(f'The Data API setup of {e} could not be completed after the restore ({type(error).__name__}); '
+                          'Auth and REST stay stopped, and the next start of Sbarbase starts them') from None
+    # The restored database brings the archive's Data API settings with it; the catalog decides
+    # what is served (lab/data_api.py), so they are written again before REST starts.
+    # Under the environment's Data API lock, so a console change never interleaves with this write and
+    # records settings the restore replaced. Tried, not waited for: this can run under the installation's
+    # operation lock (a write pause), and a console change holds it while a tenant can make its SQL wait.
+    # When it is held the write is skipped: the change records what the database then serves, or is
+    # asked again, and the next start writes the settings.
+    try:
+        with data_api.environment_lock(e):
+            durable_runtime.Runtime().data_api(e, refuse_missing=False)
+    except Exception as error:
+        # Auth and REST start in any case; the next start writes the settings again. Meanwhile the
+        # console shows what the restored database serves, as far as it can be read.
+        print(f'The Data API settings of {e} could not be written after the restore ({type(error).__name__}).', file=sys.stderr)
+        try:
+            durable_runtime.Runtime().data_api_observe(e)
+        except Exception:
+            pass
+    run(['docker', 'start', *service_names(e)])
     path = STATE / 'endpoints.json'
     endpoints = json.loads(path.read_text())
     for service, port in (('auth', 9999), ('rest', 3000), ('realtime', durable_runtime.REALTIME_PORT)):

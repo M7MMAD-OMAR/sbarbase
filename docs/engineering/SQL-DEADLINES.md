@@ -6,6 +6,7 @@ The durable runtime now configures each environment's REST login, scoped to its 
 |---|---:|---|
 | statement_timeout | 8 seconds | Baseline for roles such as service_role without a shorter role setting |
 | transaction_timeout | 12 seconds | End an overlong API transaction before the gateway's 15-second upstream fetch deadline |
+| search_path | `pg_catalog` | Added with the Data API settings: the query PostgREST loads its configuration with resolves its names through it, so a function planted in `public` cannot take the place of a built-in ([Data API schemas](DATA-API-SCHEMAS.md)) |
 
 Existing Supabase anon (3 seconds) and authenticated (8 seconds) statement settings remain unchanged. Auth, Storage, management logins and cluster-wide defaults are not modified. These are experimental REST defaults, not a production performance commitment.
 
@@ -19,11 +20,11 @@ Command: `bun lab/gateway-overload-check.ts --sql-deadline`, after starting the 
 - No matching target SQL remained active after transaction expiry. The neighbor returned its distinct correct result, and the target reconnected and served a subsequent request.
 - Temporary functions were removed, keys revoked and owned runtime stopped.
 
-Thirty Python tests pass, including new warm-pool reconciliation checks. This probe observes sleep RPCs, not every CPU, lock, I/O or transaction rollback scenario.
+Thirty Python tests passed at the time, including warm-pool reconciliation checks. This probe observes sleep RPCs, not every CPU, lock, I/O or transaction rollback scenario.
 
 ## Reconciliation and compatibility
 
-Role defaults apply to new logins. If configured defaults need changing while the environment's REST container is running, reconciliation now refuses before writing them. Stop the owned runtime and start it again to apply and establish fresh connections. Unchanged running configurations remain reconcilable. This does not audit manual out-of-band changes to already-open sessions.
+Role defaults apply to new logins. Provisioning writes them, and while the environment's REST container runs, `Runtime.rest_deadlines` without `rewrite` still refuses to change them. A start used to refuse the same way when they differed; it no longer does. Every start, and every Data API settings write, runs `rest_deadlines` with `rewrite`: it leaves the REST login exactly the three settings above in its own database, removes every other role setting of that login, in any database or globally, and writes no role setting when they already match (a start still writes the login's generated password back). Tenant code can act as the REST login and change its own defaults ([Data API schemas](DATA-API-SCHEMAS.md), finding 3), so a refusal let one environment stop the start of every other. New connections then take the settings; connections already open keep what they had. This does not audit manual out-of-band changes to already-open sessions.
 
 Transaction expiry terminates the backend session and the client sees an upstream error. Do not automatically replay writes after arbitrary network errors; application idempotency remains necessary. Calls legitimately requiring more than these defaults need an explicit future operator policy; no UI for deadline overrides exists yet.
 
