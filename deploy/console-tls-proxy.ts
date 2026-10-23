@@ -4,7 +4,7 @@
 //   bun deploy/console-tls-proxy.ts --cert PATH --key PATH \
 //       [--https-port 8443] [--http-port 8080] [--upstream http://127.0.0.1:PORT] \
 //       [--public-host console.example.com] [--max-body BYTES] \
-//       [--studio-host studio-{id}.example.com]
+//       [--studio-host studio-{id}.example.com] [--retry-window MS]
 // Without --studio-host the proxy reads SBARBASE_STUDIO_HOST, the setting the console reads, so one
 // systemd drop-in configures both (lab/studio_address.py writes it).
 //
@@ -18,6 +18,12 @@
 // certificate and key are usable private files and the upstream is loopback.
 // Request bodies, query strings, cookies and authorization headers are never
 // logged: a line carries method, path, status and nothing else.
+//
+// While the console restarts (an upgrade), a request whose connection is refused never reached
+// it, so it is sent again with backoff for up to --retry-window ms (SBARBASE_PROXY_RETRY_MS,
+// 15000 by default, 0 turns it off); a Realtime socket's upstream connect likewise. Any other
+// failure may have reached the console and is answered 502 as before, and a body larger than
+// the buffered MiB is streamed, so it is never sent twice.
 //
 // An operator may use nginx, Caddy or the platform proxy instead; this exists so a
 // deployment has one configuration that is exercised by the test suite.
@@ -33,6 +39,8 @@ type Options = {
   upstream: string;
   publicHost: string;
   maxBody: number;
+  retryWindow: number;
+  retrySource: string;
   studio?: StudioHosts;
 };
 
@@ -41,6 +49,16 @@ const BUFFERED = 1024 * 1024;
 // The largest upload Sbarbase accepts (SBARBASE_UPLOAD_LIMIT_MB, 50 by default), plus a MiB for
 // the multipart framing around the file.
 const MAX_BODY_DEFAULT = (Number(process.env.SBARBASE_UPLOAD_LIMIT_MB || 50) + 1) * 1024 * 1024;
+// How long a refused upstream connection is retried, and the bound an operator may set.
+const RETRY_WINDOW_DEFAULT = 15_000;
+const RETRY_WINDOW_MAX = 60_000;
+// At most this many requests and Realtime sockets wait for the upstream at once; more get 502 or
+// 1011 at once, as before. A waiting request holds at most its buffered MiB.
+const WAITING_REQUESTS_MAX = 256;
+const WAITING_SOCKETS_MAX = 64;
+// A Realtime message, and what a socket may queue while its upstream connects.
+const SOCKET_MESSAGE_MAX = 4 * 1024 * 1024;
+const SOCKET_QUEUE_BYTES = 1024 * 1024;
 // Hop-by-hop headers, plus the framing headers a re-framed body must not carry,
 // plus the client-supplied forwarding headers the proxy itself sets.
 const STRIP_HEADERS = new Set(['host', 'connection', 'upgrade', 'keep-alive', 'te', 'trailer', 'transfer-encoding', 'content-length',
@@ -65,6 +83,8 @@ function classify(host: string | null, publicHost: string, studio?: StudioHosts)
 }
 const misdirected = () => new Response('This address is not served here.', {status: 421, headers: {'content-type': 'text/plain', 'cache-control': 'no-store'}});
 
+const wholeNumber = (value: string) => (/^\d+$/.test(value) ? Number(value) : NaN);
+
 function parseArguments(argv: string[]): Options {
   const values: Record<string, string> = {};
   for (let index = 0; index < argv.length; index += 1) {
@@ -78,6 +98,7 @@ function parseArguments(argv: string[]): Options {
   for (const required of ['cert', 'key', 'public-host']) {
     if (!values[required]) throw new Error('--' + required + ' is required');
   }
+  if (values['retry-window'] === '') throw new Error('--retry-window is empty; give a number of ms or leave the flag out');
   if (!VALID_HOST.test(values['public-host'])) {
     throw new Error('--public-host must be a bare host name with an optional port: ' + values['public-host']);
   }
@@ -89,6 +110,9 @@ function parseArguments(argv: string[]): Options {
     upstream: values.upstream ?? '',
     publicHost: values['public-host'],
     maxBody: Number(values['max-body'] ?? MAX_BODY_DEFAULT),
+    // An empty flag is refused below; an empty environment variable means unset.
+    retryWindow: wholeNumber(values['retry-window'] ?? (process.env.SBARBASE_PROXY_RETRY_MS || String(RETRY_WINDOW_DEFAULT))),
+    retrySource: values['retry-window'] !== undefined ? '--retry-window' : 'SBARBASE_PROXY_RETRY_MS',
     studio: proxyStudioHosts(values['studio-host']),
   };
 }
@@ -183,6 +207,56 @@ function securityHeaders(request: Request, publicHost: string): Record<string, s
   return headers;
 }
 
+/** The next wait before a retry: 100 ms doubling to 1 s, or null once the window would pass. */
+function nextDelay(attempt: number, deadline: number): number | null {
+  const delay = Math.min(100 * 2 ** attempt, 1000);
+  return Date.now() + delay < deadline ? delay : null;
+}
+
+/** Wait, waking early when the client goes away; true when it did. */
+function pause(ms: number, signal: AbortSignal): Promise<boolean> {
+  if (signal.aborted) return Promise.resolve(true);
+  return new Promise(resolve => {
+    const done = () => { clearTimeout(timer); resolve(true); };
+    const timer = setTimeout(() => { signal.removeEventListener('abort', done); resolve(false); }, ms);
+    signal.addEventListener('abort', done, {once: true});
+  });
+}
+
+// Bun's fetch reports a refused connect with this code (1.3.14, measured); nothing was sent then.
+// A reset, even one before any response, may follow a delivered request and is never retried.
+const refused = (error: unknown) => (error as {code?: string} | null)?.code === 'ConnectionRefused';
+
+let waitingRequests = 0;
+let waitingSockets = 0;
+
+/** Fetch, sending again only while the connection is refused, the body is buffered, the client is
+ * there, the window lasts and fewer than WAITING_REQUESTS_MAX already wait. `wait` runs once, when
+ * the request starts waiting. */
+async function forwardWithRetry(target: URL, init: RequestInit, signal: AbortSignal, wait: () => void): Promise<{response: Response; retries: number}> {
+  const deadline = Date.now() + options.retryWindow;
+  let waiting = false;
+  try {
+    for (let retries = 0; ; retries += 1) {
+      try {
+        return {response: await fetch(target, init), retries};
+      } catch (error) {
+        const delay = nextDelay(retries, deadline);
+        if (!refused(error) || init.body instanceof ReadableStream || delay === null
+            || (!waiting && waitingRequests >= WAITING_REQUESTS_MAX)) throw Object.assign(new Error('upstream'), {cause: error, retries});
+        if (!waiting) {
+          waiting = true;
+          waitingRequests += 1;
+          wait();
+        }
+        if (await pause(delay, signal)) throw Object.assign(new Error('client gone'), {cause: error, retries, aborted: true});
+      }
+    }
+  } finally {
+    if (waiting) waitingRequests -= 1;
+  }
+}
+
 async function resolveUpstream(declared: string): Promise<string> {
   if (declared) return declared.replace(/\/$/, '');
   const state = Bun.file('.lab/upstream/server.json');
@@ -201,6 +275,9 @@ for (const [label, value] of [['--https-port', options.httpsPort], ['--http-port
 if (!Number.isInteger(options.maxBody) || options.maxBody <= 0) {
   throw new Error('--max-body must be a positive number of bytes, not ' + String(options.maxBody));
 }
+if (!Number.isInteger(options.retryWindow) || options.retryWindow < 0 || options.retryWindow > RETRY_WINDOW_MAX) {
+  throw new Error(options.retrySource + ' must be a whole number of ms between 0 and ' + RETRY_WINDOW_MAX + ', not ' + String(options.retryWindow));
+}
 assertRegular(options.cert, 'certificate');
 assertPrivate(options.key, 'key');
 const upstream = await resolveUpstream(options.upstream);
@@ -210,7 +287,7 @@ assertLoopbackUpstream(upstream);
 // An environment's Realtime socket. The console listener checks the key and the environment;
 // this proxy only carries the socket across TLS.
 const REALTIME_SOCKET = /^\/[a-z][a-z0-9_]{1,30}\/realtime\/v1\/websocket$/;
-type Bridge = {target: string; upstream?: WebSocket; queue: (string | Uint8Array<ArrayBuffer>)[]};
+type Bridge = {target: string; path: string; upstream?: WebSocket; queue: (string | Uint8Array<ArrayBuffer>)[]; queued: number; closed?: boolean};
 const closeCode = (code: number) => (code === 1000 || (code >= 3000 && code <= 4999) ? code : 1011);
 
 const secure = Bun.serve<Bridge>({
@@ -218,25 +295,61 @@ const secure = Bun.serve<Bridge>({
   hostname: '127.0.0.1',
   tls: {cert: Bun.file(options.cert), key: Bun.file(options.key)},
   websocket: {
+    // Bun's own default is 16 MiB; past this Bun drops the connection (the client sees 1006).
+    maxPayloadLength: SOCKET_MESSAGE_MAX,
     open(socket) {
-      const upstreamSocket = new WebSocket(socket.data.target);
-      upstreamSocket.binaryType = 'arraybuffer';
-      socket.data.upstream = upstreamSocket;
-      upstreamSocket.onopen = () => {
-        for (const message of socket.data.queue) upstreamSocket.send(message);
-        socket.data.queue = [];
+      const deadline = Date.now() + options.retryWindow;
+      let waiting = false;
+      // One line per socket, written once the upstream connect is settled.
+      const settle = (outcome: string, retries: number) => {
+        if (waiting) waitingSockets -= 1;
+        waiting = false;
+        console.log('WEBSOCKET ' + socket.data.path + ' ' + outcome + (retries ? ' after ' + retries + ' retries' : ''));
       };
-      upstreamSocket.onmessage = event => socket.send(typeof event.data === 'string' ? event.data : new Uint8Array(event.data));
-      upstreamSocket.onclose = event => socket.close(closeCode(event.code), event.reason);
-      upstreamSocket.onerror = () => socket.close(1011, 'Upstream unavailable');
+      const connect = (retries: number) => {
+        const upstreamSocket = new WebSocket(socket.data.target);
+        upstreamSocket.binaryType = 'arraybuffer';
+        socket.data.upstream = upstreamSocket;
+        let opened = false;
+        upstreamSocket.onopen = () => {
+          opened = true;
+          settle('open', retries);
+          for (const message of socket.data.queue) upstreamSocket.send(message);
+          socket.data.queue = [];
+          socket.data.queued = 0;
+        };
+        upstreamSocket.onmessage = event => socket.send(typeof event.data === 'string' ? event.data : new Uint8Array(event.data));
+        upstreamSocket.onclose = event => {
+          if (opened) return socket.close(closeCode(event.code), event.reason);
+          if (socket.data.closed) return settle('client gone', retries);
+          // Refused before the handshake (Bun reports 1006 'Failed to connect'): nothing reached the console.
+          const delay = event.code === 1006 && event.reason === 'Failed to connect' ? nextDelay(retries, deadline) : null;
+          if (delay === null || (!waiting && waitingSockets >= WAITING_SOCKETS_MAX)) {
+            settle('1011', retries);
+            return socket.close(1011, 'Upstream unavailable');
+          }
+          if (!waiting) {
+            waiting = true;
+            waitingSockets += 1;
+          }
+          setTimeout(() => (socket.data.closed ? settle('client gone', retries) : connect(retries + 1)), delay);
+        };
+      };
+      connect(0);
     },
     message(socket, message) {
       const upstreamSocket = socket.data.upstream;
-      if (upstreamSocket?.readyState === WebSocket.OPEN) upstreamSocket.send(message);
-      else if (socket.data.queue.length < 64) socket.data.queue.push(typeof message === 'string' ? message : new Uint8Array(message));
-      else socket.close(1013, 'Upstream not ready');
+      if (upstreamSocket?.readyState === WebSocket.OPEN) {
+        upstreamSocket.send(message);
+        return;
+      }
+      const size = typeof message === 'string' ? Buffer.byteLength(message) : message.byteLength;
+      if (socket.data.queue.length >= 64 || socket.data.queued + size > SOCKET_QUEUE_BYTES) return socket.close(1013, 'Upstream not ready');
+      socket.data.queued += size;
+      socket.data.queue.push(typeof message === 'string' ? message : new Uint8Array(message));
     },
     close(socket) {
+      socket.data.closed = true;
       socket.data.upstream?.close();
     },
   },
@@ -249,10 +362,7 @@ const secure = Bun.serve<Bridge>({
     }
     if (served.kind === 'console' && request.headers.get('upgrade')?.toLowerCase() === 'websocket' && REALTIME_SOCKET.test(url.pathname)) {
       const target = upstream.replace(/^http:/, 'ws:') + url.pathname + url.search;
-      if (server.upgrade(request, {data: {target, queue: []}})) {
-        console.log('WEBSOCKET ' + url.pathname);
-        return undefined;
-      }
+      if (server.upgrade(request, {data: {target, path: url.pathname, queue: [], queued: 0}})) return undefined;
       return new Response('WebSocket upgrade failed', {status: 400});
     }
     const headers = securityHeaders(request, options.publicHost);
@@ -264,13 +374,15 @@ const secure = Bun.serve<Bridge>({
     if (!['GET', 'HEAD'].includes(request.method) && declared > options.maxBody) return tooLarge();
     let response: Response;
     let exceeded: (() => boolean) | undefined;
+    let retries = 0;
+    let outcome = '';
     try {
       const read = await readBoundedBody(request, options.maxBody);
       exceeded = read.exceeded;
       if (read.tooLarge) return tooLarge();
       const body = read.body;
       const target = new URL(upstream + url.pathname + url.search);
-      const forwarded = await fetch(target, {
+      const sent = await forwardWithRetry(target, {
         method: request.method,
         // Hop by hop and framing headers are never forwarded, and the client's own
         // forwarding headers are replaced by ours: a spoofed Host or X-Forwarded-*
@@ -286,7 +398,11 @@ const secure = Bun.serve<Bridge>({
         // Keep the console's bytes and content-encoding together; see src/control/studio.ts.
         decompress: false,
         ...(body instanceof ReadableStream ? {duplex: 'half'} : {}),
-      } as RequestInit);
+      } as RequestInit, request.signal,
+      // Bun ends a request idle for 10 s; only one waiting for the upstream gets the window and a margin.
+      () => server.timeout(request, Math.ceil(options.retryWindow / 1000) + 15));
+      const forwarded = sent.response;
+      retries = sent.retries;
       const output = new Headers(forwarded.headers);
       // The body is re-framed, so the upstream's framing headers go too.
       for (const name of ['content-length', 'transfer-encoding']) output.delete(name);
@@ -294,9 +410,11 @@ const secure = Bun.serve<Bridge>({
       response = new Response(forwarded.body, {status: forwarded.status, headers: output});
     } catch (error) {
       if (exceeded?.()) return tooLarge();
+      retries = (error as {retries?: number}).retries ?? 0;
+      if ((error as {aborted?: boolean}).aborted) outcome = ' client gone';
       response = new Response('Upstream unavailable', {status: 502, headers});
     }
-    console.log(request.method + ' ' + url.pathname + ' ' + String(response.status));
+    console.log(request.method + ' ' + url.pathname + ' ' + String(response.status) + outcome + (retries ? ' after ' + retries + ' retries' : ''));
     return response;
   },
 });
@@ -316,7 +434,7 @@ const redirect = Bun.serve({
   },
 });
 
-console.log('TLS termination: https://127.0.0.1:' + secure.port + ' -> ' + upstream);
+console.log('TLS termination: https://127.0.0.1:' + secure.port + ' -> ' + upstream + ', refused connects retried for ' + options.retryWindow + ' ms');
 console.log('Plain HTTP on 127.0.0.1:' + redirect.port + ' redirects to HTTPS');
 
 const stop = () => {
