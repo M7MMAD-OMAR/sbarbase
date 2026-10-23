@@ -1177,9 +1177,11 @@ class InPlaceRestoreTests(unittest.TestCase):
         import backup
         order = []
 
+        import scheduled_jobs
+
         class Fake:
             def sql(self, query, database='postgres', check=True):
-                order.append(('guard', database))
+                order.append(('revoke' if query == scheduled_jobs.revoke_sql(E) else 'guard', database))
 
             def rest_deadlines(self, e, rewrite=False, end_sessions=False):
                 order.append(('pin', e, rewrite, end_sessions))
@@ -1195,10 +1197,13 @@ class InPlaceRestoreTests(unittest.TestCase):
             if command[1] == 'start':
                 raise RuntimeError('stop here')
         with patch.object(backup, 'require_service_images'), patch.object(backup, 'run', run), \
-                patch.object(durable_runtime, 'Runtime', Fake), self.assertRaisesRegex(RuntimeError, 'stop here'):
+                patch.object(durable_runtime, 'Runtime', Fake), patch.object(durable_runtime, 'cron_on', return_value=False), \
+                self.assertRaisesRegex(RuntimeError, 'stop here'):
             backup.start_services(E)
-        # REST stopped and its sessions ended with the pin before the guard, which they could hold up (found in review).
-        self.assertEqual(order, [('docker', 'stop'), ('pin', E, True, True), ('guard', E), ('data_api', E, False), ('docker', 'start')])
+        # REST stopped and its sessions ended with the pin before the guard, which they could hold up (found in
+        # review); Scheduled jobs, off here, have the scheduler's rights taken back before the services start.
+        self.assertEqual(order, [('docker', 'stop'), ('pin', E, True, True), ('guard', E), ('data_api', E, False),
+                                 ('revoke', E), ('docker', 'start')])
 
     def test_restore_does_not_start_rest_when_the_login_cannot_be_pinned(self):
         import backup
