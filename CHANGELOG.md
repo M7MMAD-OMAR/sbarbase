@@ -6,9 +6,15 @@ All notable changes to sbarbase. The format follows Keep a Changelog and the
 project uses Semantic Versioning, which for a 0.x version means the interface may
 still change between releases.
 
-The declared package version is 0.5.13. Historical 0.1.0 and 0.2.0 entries retain their original scope. Later Docker and VM rehearsals are dated in [status](docs/reference/status.md); no independent public-server or production release acceptance is established.
+The declared package version is 0.6.0. Historical 0.1.0 and 0.2.0 entries retain their original scope. Later Docker and VM rehearsals are dated in [status](docs/reference/status.md); no independent public-server or production release acceptance is established.
 
 ## [Unreleased]
+
+### Still open
+
+- **Deleting an environment does not work on an ordinary installation.** It always answers `409` with "Exact ownership inventory unavailable" and changes nothing, so restore and purge cannot be reached either. Provisioning never records the exact list of an environment's resources, and the shared PostgreSQL cluster and Storage process have no check yet that would make such a list honest. The [API reference](docs/reference/api.md) said delete "can answer" `409`; it now says it always does, and a test pins the current behaviour.
+
+## [0.6.0] - 2026-10-23
 
 ### Added
 
@@ -23,10 +29,6 @@ The declared package version is 0.5.13. Historical 0.1.0 and 0.2.0 entries retai
 ### Security
 
 - **A tenant could become a superuser of the shared cluster.** When direct database access was turned on, and whenever Studio started, the platform ran a superuser script in the environment's database that called `pg_has_role(...)` without naming its schema. The environment's developer login can create functions in `public`, and a `public.pg_has_role(text, text, text)` matched that call better than PostgreSQL's own, so it ran as the superuser. Those scripts now run with `search_path` set to `pg_catalog` and name it on their calls; a live check plants such a function and runs the old script as a control ([design](docs/engineering/DATA-API-SCHEMAS.md)). Present since 0.5.8. The event trigger guards also search the session's temporary schema last.
-
-### Still open
-
-- **Deleting an environment does not work on an ordinary installation.** It always answers `409` with "Exact ownership inventory unavailable" and changes nothing, so restore and purge cannot be reached either. Provisioning never records the exact list of an environment's resources, and the shared PostgreSQL cluster and Storage process have no check yet that would make such a list honest. The [API reference](docs/reference/api.md) said delete "can answer" `409`; it now says it always does, and a test pins the current behaviour.
 
 ## [0.5.13] - 2026-10-19
 
