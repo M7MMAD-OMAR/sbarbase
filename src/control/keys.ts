@@ -1,6 +1,7 @@
 import {Database} from 'bun:sqlite';
 import {createHash, randomBytes, randomUUID} from 'node:crypto';
 import {chmodSync} from 'node:fs';
+import {hasSchema,migrateStore,refuseNewer} from './store-version';
 
 export type KeyKind = 'publishable' | 'secret';
 /** `environment` holds the opaque runtime id (`e_<24 hex>`), not the catalog's environment
@@ -8,6 +9,8 @@ export type KeyKind = 'publishable' | 'secret';
 export type KeyRecord = {id:string;environment:string;kind:KeyKind;name:string;created_at:number;revoked_at:number|null;
   /** The publishable key itself, for one issued since 0.5.0; never for a secret key. */
   token?:string|null};
+/** Bumped with each step of the key store ladder; lab/upgrade.py reads it to guard a rollback. */
+export const KEY_STORE_SCHEMA_VERSION=0;
 /** A key's name, as on Supabase: 4 to 64 characters, lowercase letters, digits and underscores. */
 export const KEY_NAME=/^[a-z_][a-z0-9_]{3,63}$/;
 const digest=(token:string)=>createHash('sha256').update(token).digest('hex');
@@ -28,20 +31,32 @@ export class KeyStore {
   confirmationProbe?:(environment:string,token:string)=>boolean;
   constructor(path:string) {
     this.db=new Database(path,{create:true,strict:true});
-    if(path!==':memory:') chmodSync(path,0o600);
-    this.db.exec(`PRAGMA journal_mode=DELETE; PRAGMA busy_timeout=5000;
-      CREATE TABLE IF NOT EXISTS api_keys(
+    try {
+      this.db.exec('PRAGMA busy_timeout=5000;');
+      refuseNewer(this.db,'Key store',KEY_STORE_SCHEMA_VERSION);
+      if(path!==':memory:') chmodSync(path,0o600);
+      this.db.exec('PRAGMA journal_mode=DELETE;');
+      this.migrate();
+    } catch(error) {this.db.close();throw error;}
+  }
+  private migrate() {
+    const ready=()=>hasSchema(this.db,{api_keys:['runtime_epoch','name','token']},['api_keys_environment']);
+    migrateStore(this.db,'Key store',KEY_STORE_SCHEMA_VERSION,ready,version=>{
+      this.db.exec(`CREATE TABLE IF NOT EXISTS api_keys(
         id TEXT PRIMARY KEY, environment TEXT NOT NULL,
         kind TEXT NOT NULL CHECK(kind IN ('publishable','secret')),
         digest TEXT NOT NULL UNIQUE, created_at INTEGER NOT NULL, revoked_at INTEGER
       );
       CREATE INDEX IF NOT EXISTS api_keys_environment ON api_keys(environment);`);
-    if(!this.db.query<{name:string},[]>('PRAGMA table_info(api_keys)').all().some(column=>column.name==='runtime_epoch'))
-      this.db.exec('ALTER TABLE api_keys ADD COLUMN runtime_epoch INTEGER NOT NULL DEFAULT 0');
-    if(!this.db.query<{name:string},[]>('PRAGMA table_info(api_keys)').all().some(column=>column.name==='name'))
-      this.db.exec("ALTER TABLE api_keys ADD COLUMN name TEXT NOT NULL DEFAULT 'default'");
-    if(!this.db.query<{name:string},[]>('PRAGMA table_info(api_keys)').all().some(column=>column.name==='token'))
-      this.db.exec("ALTER TABLE api_keys ADD COLUMN token TEXT CHECK(token IS NULL OR kind='publishable')");
+      if(version<1) {
+        // Columns added before the ladder: version 0 is the shape with all three, and a store of an
+        // earlier release may lack some of them.
+        const columns=this.db.query<{name:string},[]>('PRAGMA table_info(api_keys)').all().map(column=>column.name);
+        if(!columns.includes('runtime_epoch'))this.db.exec('ALTER TABLE api_keys ADD COLUMN runtime_epoch INTEGER NOT NULL DEFAULT 0');
+        if(!columns.includes('name'))this.db.exec("ALTER TABLE api_keys ADD COLUMN name TEXT NOT NULL DEFAULT 'default'");
+        if(!columns.includes('token'))this.db.exec("ALTER TABLE api_keys ADD COLUMN token TEXT CHECK(token IS NULL OR kind='publishable')");
+      }
+    });
   }
   issue(environment:string,kind:KeyKind='publishable',name='default') {
     if(!/^[a-z][a-z0-9_]{1,30}$/.test(environment)) throw new Error('Invalid environment');

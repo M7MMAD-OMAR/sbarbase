@@ -66,6 +66,16 @@ PROXY_UNIT = 'sbarbase-tls.service'
 # `db` entry is a lab probe image, overridden by distro-image.lock.json in the runtime.
 MIGRATING = {('images.lock.json', 'auth'): 'Auth', ('storage-image.lock.json', 'default'): 'Storage',
              ('realtime-image.lock.json', 'default'): 'Realtime'}
+# What every control store's schema is, per version (tests/store-schema-fingerprint.test.ts keeps it
+# true). A move that changes it changes a store the old and new console processes would both open,
+# so the check reports it beside the class, never as one.
+SCHEMAS = 'src/control/store-schemas.json'
+# Where each control store declares its schema version (src/control/store-version.ts and the
+# catalog's own ladder): read by the rollback guard (lab/upgrade.py schema_support), never to
+# decide stores_changed.
+STORES = {'src/control/catalog.ts': 'CATALOG_SCHEMA_VERSION', 'src/control/keys.ts': 'KEY_STORE_SCHEMA_VERSION',
+          'src/control/access-tokens.ts': 'ACCESS_TOKEN_SCHEMA_VERSION',
+          'src/control/deployment-setup.ts': 'DEPLOYMENT_SETUP_SCHEMA_VERSION'}
 SEMVER = re.compile(r'(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?')
 TIMEOUT = 120
 
@@ -83,7 +93,8 @@ def git(*args, check=True, network=False):
     # prompt the supervisor raises.
     env = {**os.environ, 'GIT_TERMINAL_PROMPT': '0'} if network else None
     try:
-        result = subprocess.run(['git', *args], cwd=ROOT, text=True, capture_output=True, env=env,
+        # Output is parsed: the operator's colour settings must not reach it.
+        result = subprocess.run(['git', '-c', 'color.ui=never', *args], cwd=ROOT, text=True, capture_output=True, env=env,
                                 timeout=TIMEOUT if network else None)
     except subprocess.TimeoutExpired:
         raise ReleaseError(f'git {args[0]} did not finish within {TIMEOUT} seconds')
@@ -374,6 +385,139 @@ def findings(current, target, release=None, diffs=None):
     return {'manual': manual, 'rebuild': rebuild, 'attended': migrating(diffs)}
 
 
+# A numeric literal as TypeScript writes one: decimal, hex, octal or binary, with _ separators.
+NUMBER = r'0[xX][0-9a-fA-F](?:_?[0-9a-fA-F])*|0[oO][0-7](?:_?[0-7])*|0[bB][01](?:_?[01])*|[0-9](?:_?[0-9])*'
+# The one declaration read as a value, complete on its own line: the semicolon is required, so a
+# value that goes on to the next line (`=0` then `+1;`) or anything after the literal is unknown.
+STRICT = r'\s*export\s+const\s+{name}(?:\s*:\s*number)?\s*=\s*({number})\s*(?:as\s+const\s*)?;\s*(?://.*)?'
+# Words that declare, export or import a name: a line with one of them, or one that assigns to
+# the name, is a declaration, and only the strict form may be one.
+DECLARING = re.compile(r'\b(?:export|import|const|let|var|declare|enum|namespace)\b')
+
+
+def schema_reading(text, constant):
+    """('absent', 0), ('declared', value) or ('unknown', None) for a constant in a source file.
+
+    Absent only when the name does not occur in the file at all. Declared when exactly one line
+    declares it and that line is the strict form. Anything else that may declare it is unknown:
+    another declaration or export form, a re-export, a duplicate, a comment inside the declaration,
+    a value that is not one numeric literal or goes on past its line. A module with any unicode
+    escape is unknown too, since `\\u0058` may spell the name on any line. Plain uses of the name
+    elsewhere (a comparison, a call) are fine.
+
+    Known limit (X2): this reads lines, not TypeScript. A strict line inside a block comment or a
+    template literal, with the real declaration split so that no line both names and assigns the
+    constant (`export const` / `X` / `= 1;` on three lines), reads as the commented value.
+    `lab/release.py prepare` catches it by running StoreVersionParserTests, which compares this
+    parser with what Bun evaluates. Only the rollback guard reads constants this way, where reading
+    too little only refuses more; whether a release changes a store is read from the recorded
+    schemas instead (stores_changed)."""
+    if '\\u' in text:
+        return 'unknown', None
+    name = re.escape(constant)
+    lines = [line for line in text.splitlines() if re.search(rf'\b{name}\b', line)]
+    if not lines:
+        return 'absent', 0
+    declaring = [line for line in lines if DECLARING.search(line) or re.search(rf'\b{name}\s*(?:[-+*/%&|^]|\*\*|<<|>>>?|\?\?|&&|\|\|)?=(?!=)', line)]
+    found = re.fullmatch(STRICT.format(name=name, number=NUMBER), declaring[0].rstrip()) if len(declaring) == 1 else None
+    if not found:
+        return 'unknown', None
+    literal = found.group(1).replace('_', '')
+    return 'declared', int(literal, 0) if literal[:2].lower() in ('0x', '0o', '0b') else int(literal)
+
+
+def schema_constant(text, constant):
+    """A constant's value in a source file: 0 when absent, None when unknown (schema_reading)."""
+    return schema_reading(text, constant)[1]
+
+
+# Only regular files are read: a symlink or a submodule is unknown.
+REGULAR = ('100644', '100755')
+# Every git call here parses its output, whichever runner runs it.
+PLAIN = ('-c', 'color.ui=never')
+
+
+def regular_blob(commit, path, run):
+    """('absent' | 'regular' | 'unknown') for a path at a commit, from its git ls-tree entry."""
+    if run(*PLAIN, 'cat-file', '-e', f'{commit}^{{commit}}').returncode:
+        return 'unknown'
+    listed = run(*PLAIN, 'ls-tree', commit, '--', path)
+    if listed.returncode:
+        return 'unknown'
+    if not listed.stdout.strip():
+        return 'absent'
+    entry = listed.stdout.split('\t', 1)[0].split()
+    return 'regular' if len(entry) == 3 and entry[0] in REGULAR and entry[1] == 'blob' else 'unknown'
+
+
+def store_reading(commit, path, constant, run=None):
+    """One store's schema constant at a commit, as schema_reading gives it: absent when the commit
+    has no such file, unknown when the commit or the file cannot be read or decoded or is not a
+    regular file (a symlink). Absent is only what git ls-tree says is absent; any other failure,
+    such as a missing or corrupt object, is unknown. `run` runs git in another checkout
+    (lab/upgrade.py passes its own)."""
+    run = run or (lambda *args: git(*args, check=False))
+    try:
+        kind = regular_blob(commit, path, run)
+        if kind != 'regular':
+            return ('absent', 0) if kind == 'absent' else ('unknown', None)
+        result = run(*PLAIN, 'show', f'{commit}:{path}')
+    except UnicodeDecodeError:
+        return 'unknown', None
+    return ('unknown', None) if result.returncode else schema_reading(result.stdout, constant)
+
+
+def store_version(commit, path, constant, run=None):
+    """One store's schema version at a commit: 0 when absent, None when unknown (store_reading)."""
+    return store_reading(commit, path, constant, run)[1]
+
+
+def store_versions(commit):
+    """{constant: version} of every control store schema at a commit (store_version)."""
+    return {constant: store_version(commit, path, constant) for path, constant in STORES.items()}
+
+
+def store_schemas(commit, run=None):
+    """The recorded control store schemas (SCHEMAS) at a commit, {store: {version, sha256}}, or None
+    when they are missing, unreadable, not a regular file, not JSON or not that shape.
+    tests/store-schema-fingerprint.test.ts keeps the file equal to what the code creates."""
+    run = run or (lambda *args: git(*args, check=False))
+    try:
+        if regular_blob(commit, SCHEMAS, run) != 'regular':
+            return None
+        result = run(*PLAIN, 'show', f'{commit}:{SCHEMAS}')
+        value = None if result.returncode else json.loads(result.stdout)
+    except ValueError:
+        return None
+    hexadecimal = re.compile(r'[0-9a-f]{64}')
+    if not isinstance(value, dict) or not value or not all(
+            isinstance(name, str) and isinstance(item, dict) and set(item) == {'version', 'sha256'}
+            and type(item['version']) is int and item['version'] >= 0
+            and isinstance(item['sha256'], str) and hexadecimal.fullmatch(item['sha256'])
+            for name, item in value.items()):
+        return None
+    return value
+
+
+def stores_changed(current, target):
+    """Whether moving between two commits changes a control store schema: the recorded schemas
+    differ as data. Missing or unreadable at either commit counts as a change, so a move from a
+    version before the record (v0.6.0 and earlier) always does. As a safety net, a schema constant
+    the rollback guard reads differently at the two commits (store_version), or cannot read at
+    either one where its module exists, is a change too, whatever the record says."""
+    try:
+        before, after = store_schemas(current), store_schemas(target)
+        if before is None or after is None or before != after:
+            return True
+        for path, constant in STORES.items():
+            (was, old), (now, new) = store_reading(current, path, constant), store_reading(target, path, constant)
+            if 'unknown' in (was, now) or old != new:
+                return True
+    except (ReleaseError, OSError, subprocess.SubprocessError):
+        return True
+    return False
+
+
 def kind_of(found):
     """('safe' | 'attended' | 'rebuild' | 'manual', reasons) from findings(). The most demanding
     class wins (manual, then rebuild, then attended); the reasons list every finding from that
@@ -429,7 +573,7 @@ def examine(tag, current, where=None, signers=None):
     kind, reasons = kind_of(found)
     details = {'version': release['version'], 'tag': tag, 'commit': commit, 'class': kind, 'reasons': reasons,
                'notes': release['notes'], 'changes': changes(current['commit'], commit, diffs), 'signed': refusal is None,
-               'minimum_from': release['minimum_from']}
+               'minimum_from': release['minimum_from'], 'stores_changed': stores_changed(current['commit'], commit)}
     blockers = [refusal] if refusal else []
     if kind == 'manual':
         blockers.append(f'{tag} cannot be applied as an upgrade: ' + '; '.join(reasons))

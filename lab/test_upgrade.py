@@ -394,6 +394,21 @@ def locked(path):
         yield
 
 
+class UnsnapshottedStoreTests(unittest.TestCase):
+    def test_a_store_the_snapshot_leaves_out_stays_at_the_baseline(self):
+        """A store outside the snapshot cannot be restored on the way back, so its schema may not
+        move: before its constant is bumped it must be snapshotted, which needs its home in the
+        guard's default homes (lab/upgrade_guard.py Layout) and a minimum_from whose guard knows it."""
+        root = Path(__file__).resolve().parents[1]
+        paths = {constant: path for path, constant in release_channel.STORES.items()}
+        for constant in upgrade.UNSNAPSHOTTED:
+            value = release_channel.schema_constant((root / paths[constant]).read_text(), constant)
+            self.assertEqual(value, 0, f'{constant} is {value}, but its store is not in the control state snapshot '
+                             '(upgrade.UNSNAPSHOTTED). Snapshot it first: add its home to the default homes of '
+                             'lab/upgrade_guard.py Layout and to upgrade.homes(), and raise minimum_from to a release '
+                             'whose guard knows that home; only then bump the constant')
+
+
 class ControlStateTests(Checkout):
     """The control state snapshot, the way back that restores it, preconditions and the hold."""
 
@@ -611,6 +626,50 @@ class ControlStateTests(Checkout):
         with self.assertRaisesRegex(upgrade.UpgradeError, 'forward only'):
             upgrade.rollback()
         self.assertEqual(self.head(), self.second)
+
+    def test_every_versioned_store_is_snapshotted_and_checked_on_the_way_back(self):
+        """Every store with a schema constant is in the rollback check, and in the snapshot unless
+        named in UNSNAPSHOTTED; the snapshot names only homes the default guard layout restores."""
+        stores = upgrade.versioned_stores()
+        self.assertEqual(set(stores), set(release_channel.STORES.values()))
+        self.assertLessEqual(set(upgrade.UNSNAPSHOTTED), set(stores))
+        for _, path in stores.values():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            store(path, 0, 1)
+        snapshotted = {path for _, path in upgrade.stores()}
+        for constant, (label, path) in stores.items():
+            self.assertEqual(path in snapshotted, constant not in upgrade.UNSNAPSHOTTED, label)
+        self.assertLessEqual({home for home, _ in upgrade.stores()}, set(upgrade_guard.Layout(self.repo.root).homes))
+        self.confirmed_upgrade()
+        for constant, (label, path) in stores.items():
+            store(path, 1, 1)
+            self.assertRegex(upgrade.rollback_refusal(), f'{label} is at schema 1.*opens only up to 0')
+            store(path, 0, 1)
+        self.assertIsNone(upgrade.rollback_refusal())
+
+    def test_the_access_token_store_is_restored_with_its_owner_and_mode(self):
+        tokens = upgrade.access_token_store()
+        store(tokens, 0, 2)
+        tokens.chmod(0o640)
+        upgrade.start(self.second)
+        upgrade.before_start()
+        store(tokens, 3, 9)
+        self.assertTrue(upgrade.after_start(False))
+        self.assertEqual(contents(tokens), (0, 2))
+        self.assertEqual(stat.S_IMODE(tokens.stat().st_mode), 0o640)
+
+    def test_a_declared_version_that_cannot_be_parsed_refuses_the_rollback(self):
+        store(self.catalog, 0, 3)
+        self.repo.git('checkout', '-q', '--detach', self.first)
+        base = self.repo.commit('odd', {'src/control/keys.ts': 'export const KEY_STORE_SCHEMA_VERSION=ONE;\n'})
+        self.repo.locks['images.lock.json']['rest'] = pin('postgrest:v3', '9')
+        target = self.repo.commit('target', {'src/control/keys.ts': 'export const KEY_STORE_SCHEMA_VERSION=0;\n'})
+        self.repo.git('checkout', '-q', '--detach', base)
+        upgrade.start(target)
+        upgrade.before_start()
+        self.assertFalse(upgrade.after_start(True))
+        self.assertRegex(upgrade.rollback_refusal(), 'whether it opens the key store is unknown')
+        self.assertEqual(upgrade.schema_support(target, 'src/control/keys.ts', 'KEY_STORE_SCHEMA_VERSION'), 0)
 
     def test_a_previous_version_that_cannot_be_read_refuses_the_rollback(self):
         store(self.catalog, 0, 3)

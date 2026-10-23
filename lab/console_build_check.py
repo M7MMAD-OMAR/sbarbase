@@ -54,7 +54,7 @@ def verify(out=OUT):
                      'assets':assets,'referenced':len(references)}
 
 
-SOURCE_ROOTS=('ui','vite.config.ts','vite.config.mts','vite.config.js','vite.config.mjs','package.json','tsconfig.json','index.html')
+SOURCE_ROOTS=('ui','src','vite.config.ts','vite.config.mts','vite.config.js','vite.config.mjs','package.json','tsconfig.json','index.html')
 SOURCE_SUFFIXES=('.ts','.tsx','.mts','.js','.jsx','.mjs','.css','.scss','.html','.json','.svg','.map')
 
 
@@ -80,6 +80,42 @@ def is_fresh(out=OUT,roots=None):
     built=(out/'index.html').stat().st_mtime
     if built<newest:return False,'a source file is newer than the built page'
     return True,'built page is newer than every input'
+
+
+# An upgrade builds the console of the version it moved to here, beside the page the running
+# console still serves, and the next start puts it in place (lab/upgrade.py, lab/dev.py), so the
+# build is not part of the restart.
+STAGED=ROOT/'.lab'/'ui-next'
+PREVIOUS=ROOT/'.lab'/'ui-previous'
+
+
+# A build takes a few hundred MiB; ahead of a restart every application still runs, so it is left
+# to the start when the host has less than this available.
+STAGE_MIN_AVAILABLE_MIB=1024
+
+
+def stage(timeout=900,meminfo=Path('/proc/meminfo')):
+    """Builds the console into STAGED. True when the result is a usable page; False, building nothing,
+    when the host has less than STAGE_MIN_AVAILABLE_MIB available."""
+    try:available=int(next(line.split()[1] for line in meminfo.read_text().splitlines() if line.startswith('MemAvailable:')))//1024
+    except (OSError,StopIteration,ValueError):available=0
+    if available<STAGE_MIN_AVAILABLE_MIB:return False
+    record=build(('bun','run','build:ui','--outDir','../.lab/ui-next','--emptyOutDir'),timeout=timeout)
+    return record['exit']==0 and is_fresh(STAGED)[0]
+
+
+def adopt_staged(out=OUT,staged=STAGED,previous=PREVIOUS):
+    """Puts a staged build in place of `out` when it is usable and newer than every input; a staged
+    build that is not is removed, and the start builds as before. True when one was put in place."""
+    import shutil
+    if not staged.exists():return False
+    if not is_fresh(staged)[0]:
+        shutil.rmtree(staged,ignore_errors=True);return False
+    shutil.rmtree(previous,ignore_errors=True)
+    if out.exists():out.rename(previous)
+    staged.rename(out)
+    shutil.rmtree(previous,ignore_errors=True)
+    return True
 
 
 def build(command=('bun','run','build:ui'),cwd=ROOT,timeout=900):

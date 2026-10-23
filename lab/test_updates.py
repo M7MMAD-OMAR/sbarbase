@@ -752,6 +752,7 @@ class RestartTests(ProducerCase):
                 patch.object(dev, 'settle_leftover'), \
                 patch.object(dev, 'upgrade_outcome', return_value=False), patch.object(dev, 'upgrade_notices'), \
                 patch.object(dev.console_build_check, 'is_fresh', return_value=(True, 'fresh')), \
+                patch.object(dev.console_build_check, 'adopt_staged', return_value=False), patch.object(dev.kept_runtime, 'head', return_value=None), patch.object(dev.kept_runtime, 'discard'), patch.object(dev.kept_runtime, 'claim'), \
                 patch.object(dev, 'Supervisor', Moved), patch.object(dev.os, 'chdir'), patch.object(dev.sys, 'argv', ['dev.py']), \
                 patch('builtins.print'):
             with self.assertRaises(SystemExit) as raised:

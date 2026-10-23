@@ -221,6 +221,13 @@ def capacity(reachable=True):
     else:
         placement_mib,placement_cpus,origin=PLANNED_MIB,PLANNED_CPUS,'full split placement (daemon unreachable)'
     needed,composition=headroom_requirement(moved,measured,placement_mib,origin)
+    # Containers a planned upgrade restart left running already hold memory the host no longer
+    # counts as available, and the placement counts them again: what they use now is added back.
+    record=kept_record()[0] if reachable else None
+    if record is not None:
+        credit=kept_credit_mib(record)
+        memory+=credit*1024
+        composition+=f'; {credit} MiB held by the containers a planned upgrade restart left running counted as available'
     if memory/1024<needed:
         findings.append(('blocker',f'Host headroom insufficient: {memory//1024} MiB available, plan needs {needed} MiB ({composition})'))
     from combined_admission import cpu_headroom_refused,cores_needed,CPU_OVERCOMMIT,HOST_CPU_RESERVE
@@ -255,6 +262,17 @@ def current_prefix():
     return resource_policy.recovery_target_prefix(STATE)
 
 
+def kept_record():
+    """(record, reason) of the containers a planned upgrade restart left running (lab/kept_runtime.py)."""
+    import kept_runtime
+    return kept_runtime.current(STATE, grace=kept_runtime.LATER_GRACE)
+
+
+def kept_credit_mib(record):
+    import kept_runtime
+    return kept_runtime.credit_mib(record['containers'])
+
+
 def never_started(name):
     """True when Docker created the container but never ran it."""
     result=docker('inspect','--format','{{.State.StartedAt}}',name,check=False)
@@ -269,7 +287,12 @@ def state():
     containers=docker('ps','-a','--filter','label=io.sbarbase.owner=durable-upstream','--format','{{.Names}}',check=False).stdout.split()
     targets=docker('ps','-a','--filter','label=io.sbarbase.owner=recovery-target','--format','{{.Names}}',check=False).stdout.split()
     running=docker('ps','--filter','label=io.sbarbase.owner=durable-upstream','-q',check=False).stdout.strip()
-    if running:findings.append(('blocker','Owned containers are already running; stop or supervise them instead of installing'))
+    if running:
+        # A planned upgrade restart leaves them for the next start to adopt (lab/kept_runtime.py).
+        if kept_record()[0] is None:
+            findings.append(('blocker','Owned containers are already running; stop or supervise them instead of installing'))
+        else:
+            findings.append(('action','Owned containers a planned upgrade restart left running are adopted by this start'))
     for name in ('hba-operation.json','worker-effect.json'):
         if (STATE/name).exists():findings.append(('blocker','Pending authority state '+name+' requires reconciliation before install'))
     if containers or targets:

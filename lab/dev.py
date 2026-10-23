@@ -5,6 +5,7 @@ import console_build_check
 import docker_profile
 import fcntl
 import host_watch
+import kept_runtime
 import json
 import notification_producers
 import os
@@ -27,6 +28,8 @@ STATE = ROOT / '.lab/upstream'
 # (RestartForceExitStatus= in deploy/sbarbase.service), Docker's `restart: unless-stopped` on
 # any exit. Neither restarts a clean exit 0, so this is never 0.
 RESTART_FOR_UPGRADE = 42
+# The owned runtime stop stage; lab/durable_runtime.py stop() and lab/leftover_runtime.py fit inside it.
+STOP_STAGE_SECONDS = 90
 # Read without importing lab/upgrade.py, so a start can tell that an upgrade is pending even
 # when that module (the new version's code) cannot be imported.
 UPGRADE_STATE = ROOT / '.lab/upgrades/state.json'
@@ -563,6 +566,9 @@ class Supervisor:
             updates.finish_request(request, 'done', detail, moment)
         print(detail, flush=True)
         self.restart_for_upgrade = True
+        # The checkout is where the child moved it: the owned containers stay up for that version's
+        # start to adopt (main, lab/kept_runtime.py). Every other way out of a start stops them (close_runtime).
+        self.keep_runtime = True
         self.stop_event.set()
 
     def studio_requests(self):
@@ -974,6 +980,52 @@ def settle_leftover():
         raise SystemExit(str(error))
     if outcome == 'decline':
         print(reason, file=sys.stderr, flush=True)
+    return outcome
+
+
+def close_runtime(owned, keep, origin=None):
+    """How a start ends for the owned runtime: kept for the version the checkout moved to after an
+    upgrade or rollback (leave_runtime), else stopped whenever this start owns it."""
+    if not owned:
+        return
+    if keep and leave_runtime(origin):
+        print('The owned containers keep running for the version the checkout moved to.', flush=True)
+        return
+    kept_runtime.discard(STATE)
+    result = run_stage(['/usr/bin/python3', 'lab/installation_runtime.py', 'stop'], threading.Event(), timeout=STOP_STAGE_SECONDS)
+    if result:
+        print('Owned runtime stop failed; inspect its current container state.', file=sys.stderr)
+    else:
+        # The stop stage returned success, so the owned runtime is down and
+        # that is the durable state change. emit() never raises, so the
+        # installation's exit status is unaffected.
+        notify_installation('installation.stopped')
+
+
+def leave_runtime(origin=None):
+    """After an upgrade or rollback moved the checkout: records the running owned containers for the
+    next start to adopt (lab/kept_runtime.py) instead of stopping them. False, and the caller stops them
+    as before, when the version the checkout holds does not know the record or Docker cannot be asked."""
+    if not kept_runtime.supported(ROOT):
+        return False
+    # Only a service manager starts the next version by itself (the unit and the container's start
+    # script both set SBARBASE_GUARDED); from a terminal nobody would own the containers left running.
+    if os.environ.get('SBARBASE_GUARDED') != '1':
+        return False
+    # A moved environment's recovery target runs beside the source and is not in the record; the
+    # combined admission of the next start counts it as before only when it starts from stopped.
+    if (STATE/'cutover-operation.json').exists():
+        return False
+    try:
+        containers, commit = kept_runtime.running(), kept_runtime.head(ROOT)
+        if not containers or commit is None:
+            return False
+        kept_runtime.leave(containers, commit, STATE, origin=origin)
+    except OSError as error:
+        print(f'The owned containers could not be left for the next start ({error}); they are stopped.', file=sys.stderr)
+        kept_runtime.discard(STATE)
+        return False
+    return True
 
 
 def upgrade_confirmation(supervisor):
@@ -995,8 +1047,11 @@ def main():
     import run
     run.private_dir(STATE)
     stop_event = threading.Event()
-    signal.signal(signal.SIGTERM, lambda *_: stop_event.set())
-    signal.signal(signal.SIGINT, lambda *_: stop_event.set())
+    # A stop asked for (the service stopped, Ctrl+C) stops the owned runtime even when it arrives after
+    # an upgrade moved the checkout: only the planned restart alone leaves it running.
+    asked = threading.Event()
+    signal.signal(signal.SIGTERM, lambda *_: (asked.set(), stop_event.set()))
+    signal.signal(signal.SIGINT, lambda *_: (asked.set(), stop_event.set()))
     with (STATE/'supervisor.lock').open('a') as lock, (STATE/'worker.lock').open('a') as worker_lock:
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -1009,17 +1064,30 @@ def main():
             raise SystemExit('Stop the existing manual worker before starting the runner.')
         # Outside the try below: refusing here is not a failed start of this version, so it
         # never takes an upgrade's way back.
-        settle_leftover()
+        # Containers a planned upgrade restart left running belong to this start from here on: any
+        # way out before its runtime is up stops them, as a way out after it does.
+        held = settle_leftover() == 'kept'
+        origin = None
         started = False
         restart = False
+        keep = False
         gated = False
         failed = False
         try:
+            if held:
+                kept_runtime.claim(STATE)
+            else:
+                # Whatever this start runs, it starts it itself: no later start may take it for kept.
+                kept_runtime.discard(STATE)
+            # The commit this start runs: a planned exit records it beside the containers it leaves.
+            origin = kept_runtime.head(ROOT)
             # Before the settle stage, which may open and migrate the control catalog.
             gated = upgrade_prepare()
             if run_stage(['/usr/bin/python3','lab/worker.py','--upstream','--settle-only'],stop_event,
                          pass_fds=(worker_lock.fileno(),),env=dict(os.environ,SBARBASE_WORKER_FD=str(worker_lock.fileno()))):
                 raise RuntimeError('Provisioning receipt requires reconciliation before startup')
+            if console_build_check.adopt_staged():
+                print('console build the upgrade made ahead is in place')
             fresh,detail=console_build_check.is_fresh()
             if fresh:
                 # Rebuilding an up-to-date page costs a few hundred MiB and a minute.
@@ -1034,6 +1102,8 @@ def main():
             if run_stage(['/usr/bin/python3', 'lab/installation_runtime.py', 'up'], stop_event, timeout=300,
                          pass_fds=(worker_lock.fileno(),),env=dict(os.environ,SBARBASE_WORKER_FD=str(worker_lock.fileno()))):
                 raise RuntimeError('Runtime startup failed; the installation runtime reported its own reason above')
+            # Containers a planned upgrade restart left are adopted now; a later crash stops them as before.
+            kept_runtime.discard(STATE)
             # The runtime start stage returned success, so the installation runtime is
             # durable: that is the state change this event records. A stage that fails
             # leaves no durable start, and no event is emitted for it here.
@@ -1050,6 +1120,7 @@ def main():
                     supervisor.confirm = upgrade_confirmation(supervisor)
                 supervisor.run()
                 restart = getattr(supervisor, 'restart_for_upgrade', False)
+                keep = restart and getattr(supervisor, 'keep_runtime', False) and not asked.is_set()
         except InterruptedError:
             print('Local installation startup cancelled.', file=sys.stderr)
         except KeyboardInterrupt:
@@ -1077,18 +1148,10 @@ def main():
             if gated and not failed:
                 # Stopped before the health checks decided (a stop signal, Ctrl+C): not a crash.
                 upgrade_close_attempt()
-            if started:
-                result = run_stage(['/usr/bin/python3', 'lab/installation_runtime.py', 'stop'], threading.Event(), timeout=90)
-                if result:
-                    print('Owned runtime stop failed; inspect its current container state.', file=sys.stderr)
-                else:
-                    # The stop stage returned success, so the owned runtime is down and
-                    # that is the durable state change. emit() never raises, so the
-                    # installation's exit status is unaffected.
-                    notify_installation('installation.stopped')
+            close_runtime(started or held, keep, origin)
     if restart:
-        # After the owned runtime stopped and the locks are released: the service manager
-        # starts the version the checkout moved to.
+        # After the owned runtime stopped, or was left for the next start, and the locks are released:
+        # the service manager starts the version the checkout moved to.
         print('Sbarbase moved to another version and stopped so it can start on it. Under systemd or '
               'Docker it starts again by itself; in a terminal, start it again: /usr/bin/python3 lab/dev.py',
               file=sys.stderr, flush=True)

@@ -163,7 +163,7 @@ class SupervisorStartTests(Fixture):
         source = Path(dev.__file__).read_text()
         main = source[source.index('def main():'):]
         self.assertLess(main.index("'Stop the existing manual worker"), main.index('settle_leftover()'))
-        self.assertLess(main.index('settle_leftover()'), main.index('try:\n            # Before the settle stage'))
+        self.assertLess(main.index('settle_leftover()'), main.index('try:\n            if held:'))
 
 
 if __name__ == '__main__':

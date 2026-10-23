@@ -759,6 +759,8 @@ class MainTests(unittest.TestCase):
                      patch.object(dev, 'upgrade_prepare', return_value=True),
                      patch.object(dev, 'run_stage', return_value=0), patch.object(dev, 'settle_leftover'),
                      patch.object(dev.console_build_check, 'is_fresh', return_value=(True, 'fresh')),
+                     # Neither the checkout's staged console nor its kept runtime record, nor its git.
+                     patch.object(dev.console_build_check, 'adopt_staged', return_value=False), patch.object(dev.kept_runtime, 'head', return_value=None), patch.object(dev.kept_runtime, 'discard'), patch.object(dev.kept_runtime, 'claim'),
                      patch.object(dev, 'notify_installation'), patch.object(dev, 'upgrade_notices'),
                      patch.object(dev, 'upgrade_confirmation'),
                      patch.object(dev, 'upgrade_outcome', side_effect=lambda started, catalog=None, reason=None:

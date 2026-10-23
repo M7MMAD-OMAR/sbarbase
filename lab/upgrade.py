@@ -224,11 +224,31 @@ def present(path):
 
 def stores():
     """(home, path) of every SQLite store a release may migrate: each one directly under
-    .lab/upstream (the control catalog) and the key store."""
+    .lab/upstream (the control catalog), the key store and the access token store beside it."""
     found = [('upstream', path) for path in sorted(UPSTREAM.glob('*.sqlite')) if path.is_file()]
-    if KEY_STORE.is_file():
-        found.append(('keys', KEY_STORE))
+    for path in (KEY_STORE, access_token_store()):
+        if path.is_file():
+            found.append(('keys', path))
     return found
+
+
+def access_token_store():
+    """Beside the key store, in the home every guard knows (lab/upstream-app.ts opens it)."""
+    return KEY_STORE.parent / 'access-tokens.sqlite'
+
+
+def versioned_stores():
+    """{schema constant (lab/release_channel.py STORES): (label, path)} of every versioned control store."""
+    return {'CATALOG_SCHEMA_VERSION': ('control catalog', UPSTREAM / 'control.sqlite'),
+            'KEY_STORE_SCHEMA_VERSION': ('key store', KEY_STORE),
+            'ACCESS_TOKEN_SCHEMA_VERSION': ('access token store', access_token_store()),
+            'DEPLOYMENT_SETUP_SCHEMA_VERSION': ('deployment setup store', ROOT / '.secrets' / 'deployment' / 'setup.sqlite')}
+
+
+# Versioned stores the snapshot leaves out, and why. The way back restores a snapshot with the guard
+# of the version it returns to, which refuses a snapshot naming a home it does not know; the
+# deployment setup store has a home of its own (.secrets/deployment) that no released guard knows.
+UNSNAPSHOTTED = {'DEPLOYMENT_SETUP_SCHEMA_VERSION': 'its folder is a snapshot home no released guard restores'}
 
 
 def homes():
@@ -355,40 +375,38 @@ def install_guard():
     effect_receipt.sync_directory(target.parent)
 
 
-def catalog_version():
-    """The control catalog's schema version now, or None without a catalog."""
-    path = UPSTREAM / 'control.sqlite'
+def store_schema(label, path):
+    """A store's schema version now (PRAGMA user_version), or None without that store."""
     if not path.is_file():
         return None
     try:
         with contextlib.closing(sqlite3.connect(f'file:{path}?mode=ro', uri=True, timeout=30)) as database:
             return database.execute('PRAGMA user_version').fetchone()[0]
     except sqlite3.Error as error:
-        raise UpgradeError(f'The control catalog cannot be read ({error})') from None
+        raise UpgradeError(f'The {label} cannot be read ({error})') from None
+
+
+def catalog_version():
+    """The control catalog's schema version now, or None without a catalog."""
+    return store_schema('control catalog', UPSTREAM / 'control.sqlite')
 
 
 def key_store_version():
     """The key store's schema version now, or None without a key store."""
-    if not KEY_STORE.is_file():
-        return None
-    try:
-        with contextlib.closing(sqlite3.connect(f'file:{KEY_STORE}?mode=ro', uri=True, timeout=30)) as database:
-            return database.execute('PRAGMA user_version').fetchone()[0]
-    except sqlite3.Error as error:
-        raise UpgradeError(f'The key store cannot be read ({error})') from None
+    return store_schema('key store', KEY_STORE)
 
 
 def schema_support(commit, path, constant):
     """The newest schema of one store a version opens, or None when that version cannot be read.
 
-    A version that declares no such constant (every release before the catalog got its schema
-    ladder, and every release so far for the key store) never wrote PRAGMA user_version, so the
-    only schema it is known to open is the baseline, 0. That is not the same as "unknown": a
-    commit git cannot read at all is unknown, and the caller refuses."""
-    if subprocess.run(['git', 'cat-file', '-e', f'{commit}^{{commit}}'], cwd=ROOT, capture_output=True).returncode:
-        return None
-    found = re.search(constant + r'\s*=\s*(\d+)', git('show', f'{commit}:{path}', check=False))
-    return int(found.group(1)) if found else 0
+    A version that declares no such constant (every release before that store got its schema
+    ladder) never wrote PRAGMA user_version, so the only schema it is known to open is the
+    baseline, 0. That is not the same as "unknown": a commit or file git cannot read, or a
+    declaration whose value cannot be parsed, is unknown, and the caller refuses
+    (lab/release_channel.py store_version). The release check compares
+    src/control/store-schemas.json instead."""
+    return release_channel.store_version(commit, path, constant, lambda *args: subprocess.run(
+        ['git', *args], cwd=ROOT, text=True, capture_output=True))
 
 
 def catalog_support(commit):
@@ -567,9 +585,33 @@ def checkout(commit, intent):
     install_dependencies()
 
 
+def stage_console():
+    """Builds the console of the version the checkout holds beside the one the running console serves,
+    so the restart puts it in place instead of building it while applications wait
+    (lab/console_build_check.py). Only for a version whose start puts a staged build in place: an older
+    one would build it again. A build that fails leaves it to the start, as before."""
+    try:
+        if 'def adopt_staged(' not in (ROOT / 'lab' / 'console_build_check.py').read_text():
+            return
+    except OSError:
+        return
+    import console_build_check
+    # The page served now already fits this version's inputs: the start builds nothing either.
+    if console_build_check.is_fresh()[0]:
+        return
+    try:
+        staged = console_build_check.stage()
+    except (OSError, subprocess.SubprocessError):
+        staged = False
+    if not staged:
+        print('The console of this version could not be built ahead; the start builds it.', flush=True)
+
+
 def install_dependencies():
+    """The dependencies of the version the checkout holds, then its console built ahead (stage_console)."""
     if subprocess.run(['bun', 'install', '--frozen-lockfile'], cwd=ROOT).returncode:
         raise UpgradeError('bun install failed for this version')
+    stage_console()
 
 
 def move_back(commit, intent, state):
@@ -703,10 +745,12 @@ def rollback_refusal(state=None, automatic=False):
         # After confirmation the fix is forward only: later writes stay, so every store must be
         # one the previous version can still open. Unknown support refuses; it never allows.
         source = state['from']
-        for label, current, supported in (('control catalog', catalog_version(), catalog_support(source)),
-                                          ('key store', key_store_version(), key_store_support(source))):
+        paths = {constant: path for path, constant in release_channel.STORES.items()}
+        for constant, (label, path) in versioned_stores().items():
+            current = store_schema(label, path)
             if current is None:
                 continue
+            supported = schema_support(source, paths[constant], constant)
             if supported is None:
                 return (f'Version {source[:12]} cannot be read from this checkout, so whether it opens the {label} '
                         'is unknown. Nothing was changed')
@@ -935,6 +979,8 @@ def show_channel(result):
             print('reason     ' + reason)
         for row in available['changes']:
             print(f"image      {row['image']}: {row['from']} -> {row['to']}")
+        if available.get('stores_changed'):
+            print('stores     a control store schema changes, so the old and new console processes must not overlap')
         print('notes      ' + available['notes']['en'])
     else:
         print('available  nothing newer')

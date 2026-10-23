@@ -6,6 +6,7 @@ import {closeSync,constants,fchmodSync,fstatSync,lstatSync,mkdirSync,openSync} f
 import {resolve,join,parse} from 'node:path';
 import type {Catalog} from './catalog';
 import type {ManagementIdentity} from './auth';
+import {hasSchema,migrateStore,refuseNewer} from './store-version';
 
 /** A preparation intent. Runtime acceptance comes from a separately owned probe role. */
 export type DeploymentIntent={version:1;profile:'local'|'public';public_url:string;ipv4:string[];ipv6:string[];
@@ -71,6 +72,9 @@ function openDirectory(directory:string):number{
  return descriptor;
 }
 
+/** Bumped with each step of the setup store ladder (src/control/store-version.ts). */
+export const DEPLOYMENT_SETUP_SCHEMA_VERSION=0;
+
 /** Separate private intent storage. No pending preparation is labelled applied. */
 export class DeploymentSetupStore{
  private db:Database;
@@ -84,12 +88,16 @@ export class DeploymentSetupStore{
   try{const info=fstatSync(descriptor);if(!info.isFile()||info.uid!==process.getuid?.()||(info.mode&0o077)||info.nlink!==1)
     throw new DeploymentRefusal('private_file');fchmodSync(descriptor,0o600);}
   catch(error){closeSync(this.directoryFd);throw error;}finally{closeSync(descriptor);}
-  try{this.db=new Database(filename,{strict:true});this.db.exec(`PRAGMA busy_timeout=3000;PRAGMA journal_mode=DELETE;
-   CREATE TABLE IF NOT EXISTS setup(environment TEXT PRIMARY KEY,runtime TEXT NOT NULL,revision INTEGER NOT NULL,
+  let db:Database|undefined;
+  try{db=this.db=new Database(filename,{strict:true});this.db.exec('PRAGMA busy_timeout=3000;');
+   refuseNewer(this.db,'Deployment setup store',DEPLOYMENT_SETUP_SCHEMA_VERSION);
+   this.db.exec('PRAGMA journal_mode=DELETE;');
+   // Opened per request: a GET reads past a writer and takes the write lock only to migrate.
+   migrateStore(this.db,'Deployment setup store',DEPLOYMENT_SETUP_SCHEMA_VERSION,()=>hasSchema(this.db,{setup:['preview'],events:['created']}),()=>this.db.exec(`CREATE TABLE IF NOT EXISTS setup(environment TEXT PRIMARY KEY,runtime TEXT NOT NULL,revision INTEGER NOT NULL,
     operation TEXT NOT NULL UNIQUE,actor TEXT NOT NULL,epoch INTEGER NOT NULL,routing_revision INTEGER NOT NULL,intent TEXT NOT NULL,preview TEXT NOT NULL);
    CREATE TABLE IF NOT EXISTS events(operation TEXT PRIMARY KEY,environment TEXT NOT NULL,actor TEXT NOT NULL,
-    epoch INTEGER NOT NULL,revision INTEGER NOT NULL,created INTEGER NOT NULL);`);}
-  catch(error){closeSync(this.directoryFd);throw error;}
+    epoch INTEGER NOT NULL,revision INTEGER NOT NULL,created INTEGER NOT NULL);`));}
+  catch(error){db?.close();closeSync(this.directoryFd);throw error;}
  }
  get(environment:string,runtime:string):DeploymentSetupView{
   const row=this.db.query<{revision:number;operation:string;intent:string;preview:string},[string,string]>(

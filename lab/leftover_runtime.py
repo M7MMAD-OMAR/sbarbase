@@ -19,12 +19,16 @@ only when both hold:
   generation migration record or a recovery target's HBA journal. Those keep blocking, and the
   runtime stays as the crash left it for whoever reconciles them.
 
+One exit leaves them running on purpose: a planned upgrade restart, which records the containers
+it left (lab/kept_runtime.py). While that record holds, they are kept for the start to adopt; a
+record that does not hold is discarded and they are stopped as above.
+
     /usr/bin/python3 lab/leftover_runtime.py
 
-Exit 0: nothing owned was running, Docker could not be asked (the preflight names that), or the
-leftover runtime was stopped. Exit 1: it declined or the stop failed; the reason is on standard
-error. Only the containers labelled io.sbarbase.owner=durable-upstream count as running, the
-same query as the preflight's.
+Exit 0: nothing owned was running, Docker could not be asked (the preflight names that), the
+leftover runtime was stopped, or a planned upgrade restart's runtime is kept. Exit 1: it
+declined or the stop failed; the reason is on standard error. Only the containers labelled
+io.sbarbase.owner=durable-upstream count as running, the same query as the preflight's.
 """
 import contextlib
 import fcntl
@@ -122,10 +126,22 @@ def decide(running, waiting, held):
     return 'stop', None
 
 
-def settle(state=STATE, *, caller_holds=(), running=docker_ps, stop=installation_stop, say=print):
+def kept_record(state):
+    import kept_runtime
+    return kept_runtime.current(state)
+
+
+def kept_discard(state):
+    import kept_runtime
+    kept_runtime.discard(state)
+
+
+def settle(state=STATE, *, caller_holds=(), running=docker_ps, stop=installation_stop, say=print,
+           kept=kept_record, discard=kept_discard):
     """Stops a leftover owned runtime when decide() allows it. Returns (outcome, reason), outcome
-    one of 'nothing', 'unknown' (Docker could not be asked), 'stopped' or 'decline'. Raises
-    StopFailed when the stop ran and did not succeed.
+    one of 'nothing', 'unknown' (Docker could not be asked), 'stopped', 'kept' (a planned upgrade
+    restart left them for this start, lab/kept_runtime.py) or 'decline'. Raises StopFailed when
+    the stop ran and did not succeed.
 
     `caller_holds` names the locks the caller already holds (lab/dev.py holds supervisor.lock and
     worker.lock): flock refuses a second open file of the same lock even in the same process, so
@@ -134,11 +150,26 @@ def settle(state=STATE, *, caller_holds=(), running=docker_ps, stop=installation
     if ids is None:
         return 'unknown', None
     if not ids:
+        # Nothing runs for a record to be about: one left from a planned restart whose containers
+        # stopped since (a reboot, a Docker restart) must not let a later start adopt what this one
+        # starts again with the same ids, should this one die before its runtime is up.
+        discard(state)
         return 'nothing', None
     with probe(state, [name for name in LOCKS if name not in caller_holds]) as held:
         outcome, reason = decide(ids, pending(state), held)
         if outcome != 'stop':
             return outcome, reason
+        # A planned upgrade restart left them running for this start to adopt (lab/kept_runtime.py).
+        # A record that does not hold is thrown away, and they are stopped as before.
+        record, why = kept(state)
+        if record is not None:
+            say(f'{len(ids)} owned container(s) were left running by a planned upgrade restart; '
+                'this start adopts them.', flush=True)
+            return 'kept', None
+        if why != 'no record':
+            say(f'The record of containers a planned upgrade restart left running does not hold ({why}); '
+                'it is discarded.', flush=True)
+            discard(state)
         say(f'{len(ids)} owned container(s) were left running by a supervisor that did not stop cleanly; '
             'stopping them as its own stop does (containers and volumes are kept).', flush=True)
         result = stop()
@@ -163,6 +194,8 @@ def main():
         return 1
     if outcome == 'stopped':
         print('The leftover owned runtime is stopped; the start goes on.', flush=True)
+    if outcome == 'kept':
+        print('The owned runtime a planned upgrade restart left running is kept; the start goes on.', flush=True)
     return 0
 
 

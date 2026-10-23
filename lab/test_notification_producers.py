@@ -186,6 +186,7 @@ class InstallationProducerTests(ProducerCase):
     def main(self, run_stage, supervisor):
         with admitted_host_fixture() as admission, patch.object(dev, 'run_stage', run_stage), patch.object(dev, 'settle_leftover'), \
              patch.object(dev.console_build_check, 'is_fresh', return_value=(True, 'fresh')), \
+             patch.object(dev.console_build_check, 'adopt_staged', return_value=False), patch.object(dev.kept_runtime, 'head', return_value=None), patch.object(dev.kept_runtime, 'discard'), patch.object(dev.kept_runtime, 'claim'), \
              patch.object(dev, 'Supervisor', supervisor), \
              patch.object(dev.os, 'chdir'), \
              patch.object(dev.sys, 'argv', ['dev.py']):

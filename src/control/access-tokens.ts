@@ -1,6 +1,7 @@
 import {Database} from 'bun:sqlite';
 import {createHash,randomBytes,randomUUID} from 'node:crypto';
 import {chmodSync} from 'node:fs';
+import {hasSchema,migrateStore,refuseNewer} from './store-version';
 
 /** Personal access tokens for agents and tools (docs/guides/agents.md).
  *
@@ -23,6 +24,8 @@ import {chmodSync} from 'node:fs';
 export const ACCESS_TOKEN=/^sbp_[a-f0-9]{40}$/;
 export const TOKEN_NAME=/^[\p{L}\p{N} ._()'@:\/+-]{1,64}$/u;
 export const MAX_TOKEN_DAYS=365;
+/** Bumped with each step of the access token store ladder (src/control/store-version.ts). */
+export const ACCESS_TOKEN_SCHEMA_VERSION=0;
 const MAX_LIVE=50;
 export type TokenScope={kind:'all'}|{kind:'organization';id:string}|{kind:'project';id:string};
 export type AccessToken={id:string;name:string;actor:string;scope:TokenScope;read_only:boolean;created_at:number;expires_at:number;last_used_at:number|null;revoked_at:number|null};
@@ -46,16 +49,24 @@ export class AccessTokenStore {
  private db:Database;
  constructor(path:string,private readonly now:()=>number=Date.now) {
   this.db=new Database(path,{create:true,strict:true});
-  if(path!==':memory:')chmodSync(path,0o600);
-  this.db.exec(`PRAGMA journal_mode=DELETE; PRAGMA busy_timeout=5000;
-   CREATE TABLE IF NOT EXISTS access_tokens(
+  try {
+   this.db.exec('PRAGMA busy_timeout=5000;');
+   refuseNewer(this.db,'Access token store',ACCESS_TOKEN_SCHEMA_VERSION);
+   if(path!==':memory:')chmodSync(path,0o600);
+   this.db.exec('PRAGMA journal_mode=DELETE;');
+   this.migrate();
+  } catch(error) {this.db.close();throw error;}
+ }
+ private migrate() {
+  const ready=()=>hasSchema(this.db,{access_tokens:['epoch','revoked_at']},['access_tokens_actor']);
+  migrateStore(this.db,'Access token store',ACCESS_TOKEN_SCHEMA_VERSION,ready,()=>this.db.exec(`CREATE TABLE IF NOT EXISTS access_tokens(
     id TEXT PRIMARY KEY, name TEXT NOT NULL, actor TEXT NOT NULL, digest TEXT NOT NULL UNIQUE,
     scope_kind TEXT NOT NULL CHECK(scope_kind IN ('all','organization','project')), scope_id TEXT,
     read_only INTEGER NOT NULL CHECK(read_only IN (0,1)), epoch TEXT NOT NULL,
     created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, last_used_at INTEGER, revoked_at INTEGER,
     CHECK((scope_kind='all')=(scope_id IS NULL))
    );
-   CREATE INDEX IF NOT EXISTS access_tokens_actor ON access_tokens(actor);`);
+   CREATE INDEX IF NOT EXISTS access_tokens_actor ON access_tokens(actor);`));
  }
 
  /** A new token for `actor`, whose authority epoch is `epoch` now (tokenEpoch). The token is returned once. */

@@ -10,7 +10,9 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
+import time
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -24,6 +26,8 @@ ROOT = Path(__file__).resolve().parents[1]
 # Isolated from the user's git configuration (a global tag.gpgSign would sign every tag).
 ISOLATED = {'GIT_CONFIG_GLOBAL': os.devnull, 'GIT_CONFIG_NOSYSTEM': '1', 'GIT_TERMINAL_PROMPT': '0'}
 IDENTITY = ('-c', 'user.name=test', '-c', 'user.email=test@example.com')
+# PrepareTests replaces release.dirty; its own test calls the real one.
+DIRTY = release.dirty
 
 
 def git(cwd, *args, check=True):
@@ -249,6 +253,138 @@ class ChannelTests(Fixture):
         channel.fetch_release('v' + version)
         return channel.classify(self.first, commit)
 
+    def commit_local(self, message, files, start):
+        """A commit in the installation's own clone, from `start`, for trees git cannot publish as text."""
+        self.local('checkout', '-q', '--detach', start)
+        for target, value in files.items():
+            path = self.checkout / target
+            path.parent.mkdir(parents=True, exist_ok=True)
+            if path.is_symlink() or path.exists():
+                path.unlink()
+            if isinstance(value, tuple):
+                path.symlink_to(value[1])
+            elif value is not None:
+                path.write_text(value)
+        git(self.checkout, 'add', '-A')
+        git(self.checkout, 'commit', '-q', '-m', message)
+        return git(self.checkout, 'rev-parse', 'HEAD')
+
+    def test_a_store_schema_change_is_read_from_the_recorded_schemas_beside_the_class(self):
+        record = (ROOT / channel.SCHEMAS).read_text()
+        schemas = json.loads(record)
+        bumped_schemas = {**schemas, 'keys': {'version': 1, 'sha256': 'a' * 64}}
+        # Like v0.6.0: no recorded schemas at all.
+        old = self.releases.set_and_commit('before the record', {'src/control/keys.ts': 'export {}\n'})
+        base = self.releases.set_and_commit('recorded', {channel.SCHEMAS: record})
+        same = self.releases.set_and_commit('code only', {'src/code.ts': 'export const version = 2\n'})
+        reformatted = self.releases.set_and_commit('reformatted', {channel.SCHEMAS: json.dumps(schemas, indent=4)})
+        # The forms that once hid a bump from a source parser: a renamed constant with the old one left as
+        # a stale literal, a second module (.mts), a property. With the record updated, as the fingerprint
+        # test requires, each is a change.
+        bumped = self.releases.set_and_commit('key store 1', {
+            'src/control/keys.ts': '/** @deprecated */ export const KEY_STORE_SCHEMA_VERSION=0;\nexport const KEYS_SCHEMA_VERSION=1;\n',
+            'src/control/keys-impl.mts': 'export const KEY_STORE_SCHEMA_VERSION = 1;\n',
+            'src/control/keys-shape.ts': 'export const versions = {KEY_STORE_SCHEMA_VERSION: 1};\n',
+            channel.SCHEMAS: json.dumps(bumped_schemas)})
+        # The same sources without the record updated: the fingerprint test fails on them, and the
+        # release check trusts the record, so it reports no change here.
+        unrecorded = self.releases.set_and_commit('unrecorded', {channel.SCHEMAS: record})
+        broken = self.releases.set_and_commit('not json', {channel.SCHEMAS: '{"keys": '})
+        shapeless = self.releases.set_and_commit('wrong shape', {channel.SCHEMAS: json.dumps({'keys': {'version': '1', 'sha256': 'a' * 64}})})
+        removed = self.releases.set_and_commit('no record', {channel.SCHEMAS: None})
+        self.follow()
+        linked = self.commit_local('symlinked record', {'src/control/real-schemas.json': record,
+                                                        channel.SCHEMAS: ('link', 'real-schemas.json')}, base)
+        self.assertIs(channel.stores_changed(base, same), False)
+        self.assertIs(channel.stores_changed(base, reformatted), False)
+        self.assertIs(channel.stores_changed(same, bumped), True)
+        self.assertIs(channel.stores_changed(bumped, unrecorded), True)
+        # The record alone would say nothing changed here, but the rollback reader cannot read the
+        # stale keys.ts literal: the safety net reports a change.
+        self.assertIs(channel.stores_changed(base, unrecorded), True)
+        # Missing, unreadable, not JSON, not the shape, not a regular file: always a change.
+        self.assertIs(channel.stores_changed(old, base), True)
+        self.assertIs(channel.stores_changed(base, removed), True)
+        for commit in (broken, shapeless, linked, '0' * 40):
+            self.assertIs(channel.stores_changed(base, commit), True, commit)
+            self.assertIs(channel.stores_changed(commit, base), True, commit)
+        real = channel.git
+
+        def failing(*args, **options):
+            if 'show' in args and f'{base}:{channel.SCHEMAS}' in args:
+                return subprocess.CompletedProcess(args, 128, '', 'fatal: unreadable')
+            return real(*args, **options)
+        with patch.object(channel, 'git', failing):
+            self.assertIs(channel.stores_changed(base, same), True)
+        # The operator's git configuration does not reach what is parsed.
+        colour = {'GIT_CONFIG_COUNT': '3', 'GIT_CONFIG_KEY_0': 'color.ui', 'GIT_CONFIG_VALUE_0': 'always',
+                  'GIT_CONFIG_KEY_1': 'grep.column', 'GIT_CONFIG_VALUE_1': 'true',
+                  'GIT_CONFIG_KEY_2': 'color.diff', 'GIT_CONFIG_VALUE_2': 'always'}
+        with patch.dict(os.environ, colour):
+            self.assertIs(channel.stores_changed(base, same), False)
+            self.assertIs(channel.stores_changed(same, bumped), True)
+            self.assertEqual(channel.store_schemas(base), schemas)
+        # The safety net: with the record unchanged, a constant that reads differently, or cannot be
+        # read where its module exists, is a change; this code against itself is not.
+        self.local('checkout', '-q', 'main')
+        real = self.releases.set_and_commit('this code', {**{path: (ROOT / path).read_text() for path in channel.STORES},
+                                                          channel.SCHEMAS: record, 'src/control/keys-impl.mts': None,
+                                                          'src/control/keys-shape.ts': None})
+        again = self.releases.set_and_commit('this code, more code', {'src/code.ts': 'export const version = 3\n'})
+        quiet_bump = self.releases.set_and_commit('quiet bump', {
+            'src/control/keys.ts': (ROOT / 'src/control/keys.ts').read_text().replace(
+                'export const KEY_STORE_SCHEMA_VERSION=0;', 'export const KEY_STORE_SCHEMA_VERSION=1;')})
+        self.follow()
+        linked_module = self.commit_local('symlinked module', {'src/control/keys-real.ts': (ROOT / 'src/control/keys.ts').read_text(),
+                                                               'src/control/keys.ts': ('link', 'keys-real.ts')}, real)
+        self.assertEqual(channel.store_versions(real), {'CATALOG_SCHEMA_VERSION': 4, 'KEY_STORE_SCHEMA_VERSION': 0,
+                                                        'ACCESS_TOKEN_SCHEMA_VERSION': 0, 'DEPLOYMENT_SETUP_SCHEMA_VERSION': 0})
+        self.assertIs(channel.stores_changed(real, again), False)
+        self.assertIs(channel.stores_changed(old, real), True)
+        self.assertIs(channel.stores_changed(again, quiet_bump), True)
+        self.assertIs(channel.stores_changed(real, linked_module), True)
+        self.local('checkout', '-q', 'main')
+        commit = self.releases.release('0.2.0', **{channel.SCHEMAS: json.dumps(bumped_schemas)})
+        channel.fetch_release('v0.2.0')
+        self.assertEqual(channel.classify(base, commit), ('safe', []))
+
+    def test_the_rollback_guard_reads_a_store_constant_only_from_a_readable_regular_module(self):
+        base = self.releases.set_and_commit('baseline', {path: f'export const {constant}={4 if "CATALOG" in constant else 0};\n'
+                                                         for path, constant in channel.STORES.items()})
+        self.follow()
+        keys = ('src/control/keys.ts', 'KEY_STORE_SCHEMA_VERSION')
+        self.assertEqual(channel.store_versions(base), {'CATALOG_SCHEMA_VERSION': 4, 'KEY_STORE_SCHEMA_VERSION': 0,
+                                                        'ACCESS_TOKEN_SCHEMA_VERSION': 0, 'DEPLOYMENT_SETUP_SCHEMA_VERSION': 0})
+        # No such module: the baseline. A commit that cannot be read: unknown.
+        self.assertEqual(channel.store_version(base, 'src/control/missing.ts', 'NOWHERE_SCHEMA_VERSION'), 0)
+        self.assertIsNone(channel.store_version('0' * 40, *keys))
+        # A symlinked module is unknown.
+        linked = self.commit_local('symlinked', {'src/control/keys-real.ts': 'export const KEY_STORE_SCHEMA_VERSION=0;\n',
+                                                 'src/control/keys.ts': ('link', 'keys-real.ts')}, base)
+        self.assertEqual(channel.store_reading(linked, *keys), ('unknown', None))
+        self.assertIsNone(upgrade.schema_support(linked, *keys))
+        # A missing object is unknown, never absent: ls-tree still lists the file, git show fails.
+        corrupt = self.commit_local('corrupt', {'src/control/access-tokens.ts': 'export const ACCESS_TOKEN_SCHEMA_VERSION=0; // corrupt\n'}, base)
+        blob = self.local('rev-parse', f'{corrupt}:src/control/access-tokens.ts')
+        loose = self.checkout / '.git' / 'objects' / blob[:2] / blob[2:]
+        self.assertTrue(loose.is_file())
+        loose.chmod(0o600)
+        loose.unlink()
+        self.assertIsNone(channel.store_version(corrupt, 'src/control/access-tokens.ts', 'ACCESS_TOKEN_SCHEMA_VERSION'))
+        # A module that is not UTF-8 is unknown, never an error.
+        self.local('checkout', '-q', '--detach', base)
+        (self.checkout / keys[0]).write_bytes(b'export const KEY_STORE_SCHEMA_VERSION=1; // \xff\xfe\n')
+        git(self.checkout, 'commit', '-q', '-am', 'not utf-8')
+        binary = git(self.checkout, 'rev-parse', 'HEAD')
+        self.assertIsNone(channel.store_version(binary, *keys))
+        self.assertIsNone(upgrade.schema_support(binary, *keys))
+        # Colour and column settings do not change the reading, through either runner.
+        colour = {'GIT_CONFIG_COUNT': '2', 'GIT_CONFIG_KEY_0': 'color.ui', 'GIT_CONFIG_VALUE_0': 'always',
+                  'GIT_CONFIG_KEY_1': 'grep.column', 'GIT_CONFIG_VALUE_1': 'true'}
+        with patch.dict(os.environ, colour), patch.object(upgrade, 'ROOT', self.checkout):
+            self.assertEqual(channel.store_version(base, *keys), 0)
+            self.assertEqual(upgrade.schema_support(base, 'src/control/catalog.ts', 'CATALOG_SCHEMA_VERSION'), 4)
+
     def test_code_dependency_and_non_migrating_pin_changes_are_safe(self):
         # PostgREST, Edge Functions and Studio never change an environment database; the images.lock.json
         # db entry is a lab probe image the runtime overrides with distro-image.lock.json.
@@ -330,7 +466,9 @@ class ChannelTests(Fixture):
         self.assertEqual((result['refusals'], result['skipped'], result['newest']), ([], [], None))
         available = result['available']
         self.assertEqual(set(available), {'version', 'tag', 'commit', 'class', 'reasons', 'notes', 'changes', 'signed',
-                                          'minimum_from'})
+                                          'minimum_from', 'stores_changed'})
+        # This fixture records no store schemas, so whether a store changes is unknown: a change.
+        self.assertIs(available['stores_changed'], True)
         self.assertEqual((available['version'], available['tag'], available['commit'], available['class'], available['signed']),
                          ('0.3.0', 'v0.3.0', commit, 'safe', True))
         self.assertEqual(available['notes'], {'en': 'Version 0.3.0.', 'ar': 'الإصدار 0.3.0.'})
@@ -544,6 +682,47 @@ class StartReleaseTests(Fixture):
         self.assertEqual(json.loads(self.available.read_text()), printed)
 
 
+class StoreVersionParserTests(unittest.TestCase):
+    def test_every_form_typescript_allows_is_read_and_anything_else_is_unknown(self):
+        read = functools.partial(channel.schema_constant, constant='X')
+        for text, value in (('export const X=1;', 1), ('export const X = 2 as const;', 2), ('export const X:number=3;', 3),
+                            ('export const X: number = 4 as const;', 4), ('export const X=6; // why', 6),
+                            ('export const X=0x1_0;', 16), ('export const X=1_000;', 1000), ('export const X=0b11;', 3),
+                            ('  export const X=7;', 7), ('export const X=8;\nif(v>X)throw new Error(`newer than ${X}`);', 8),
+                            # The name does not occur: the baseline. A longer name is another name.
+                            ('', 0), ('export const XY=3;', 0), ('// nothing here', 0)):
+            self.assertEqual(read(text), value, text)
+        # Any other form that may declare it is unknown, never the baseline.
+        for text in ('export const X=foo;', 'export const X=1+1;', 'export const X=-1;', 'export const X=1.5;',
+                     'export const X=1;\nexport const X=2;', 'export const X=\n  3;', 'export let X=1;', 'export var X=1;',
+                     'const X=1; export {X}', 'const X=1;\nexport {X};', 'export /*x*/ const X=1;', 'export const /*x*/ X=1;',
+                     "export {X} from './other';", "export * as X from './other';", "import {X} from './other';\nexport {X};",
+                     'export const X=1;\nX=2;', 'export const X=1;\nexport {X as Y};', '// export const X=9;', 'const X=7;',
+                     'export declare const X: number;',
+                     # The declaration must end on its own line: no semicolon may mean the value goes on.
+                     'export const X=5', 'export const X=0\n+1;', 'export const X=0\n*2;', 'export const X=1?0:1;',
+                     'export const X=0 // base\n+1;', 'export const X=0; Object.defineProperty(exports,"X",{value:1});',
+                     'export const X=(1);', 'export const X=1 satisfies number;', 'export const Y=0, X=1;',
+                     'module.exports.X=1;', 'export default {X:1};', 'export const \\u0058=1;',
+                     'export const X=0;\n/*\nexport const X=1;\n*/'):
+            self.assertIsNone(read(text), text)
+
+    @unittest.skipUnless(shutil.which('bun'), 'bun is not installed')
+    def test_the_parser_reads_each_store_constant_as_bun_evaluates_it(self):
+        modules = sorted({path for path in channel.STORES})
+        imports = ';'.join(f'import * as m{index} from "./{path}"' for index, path in enumerate(modules))
+        values = ','.join(f'{constant}:(m{modules.index(path)} as any).{constant}' for path, constant in channel.STORES.items())
+        result = subprocess.run(['bun', '-e', f'{imports};console.log(JSON.stringify({{{values}}}))'], cwd=ROOT,
+                                capture_output=True, text=True, check=True)
+        evaluated = json.loads(result.stdout.strip().splitlines()[-1])
+        parsed = {constant: channel.schema_constant((ROOT / path).read_text(), constant) for path, constant in channel.STORES.items()}
+        self.assertEqual(parsed, evaluated)
+        self.assertTrue(all(isinstance(value, int) for value in evaluated.values()))
+        # The rollback guard reads each constant from its regular module, never through a symlink.
+        for path in channel.STORES:
+            self.assertFalse((ROOT / path).is_symlink(), path)
+
+
 class VersionTests(unittest.TestCase):
     def test_semver_precedence(self):
         ordered = ['0.9.0', '0.10.0', '1.0.0-alpha', '1.0.0-alpha.1', '1.0.0-alpha.beta', '1.0.0-beta', '1.0.0-beta.2',
@@ -577,9 +756,114 @@ class PrepareTests(unittest.TestCase):
         (base / 'package.json').write_text(package)
         (base / 'registry.json').write_text((ROOT / 'deploy' / 'capabilities' / 'registry.json').read_text())
         for item in (patch.object(release, 'RELEASE', base / 'release.json'), patch.object(release, 'PACKAGE', base / 'package.json'),
-                     patch.object(release, 'REGISTRY', base / 'registry.json')):
+                     patch.object(release, 'REGISTRY', base / 'registry.json'),
+                     patch.object(release, 'RUNNER', self.run_tests), patch.object(release, 'dirty', lambda: self.changed)):
             item.start()
             self.addCleanup(item.stop)
+        self.test_runs, self.test_options, self.test_result, self.changed = [], [], 0, []
+
+    def run_tests(self, command, **options):
+        self.test_runs.append(command)
+        self.test_options.append(options)
+        code = self.test_result.get(command[-1], 0) if isinstance(self.test_result, dict) else self.test_result
+        return subprocess.CompletedProcess(command, code, 'store tests ran\n', 'fingerprint changed\n')
+
+    def test_prepare_runs_the_store_checks_and_refuses_when_one_fails_or_times_out(self):
+        release.prepare('0.2.0', 'en', 'ar')
+        self.assertEqual(self.test_runs[0][1:], ['test', *release.STORE_TESTS])
+        self.assertEqual(self.test_runs[1], ['/usr/bin/env', 'PYTHONPATH=lab', '/usr/bin/python3', '-m', 'unittest', release.PARSER_TEST])
+        self.assertTrue(all(options['timeout'] == release.STORE_TEST_TIMEOUT and options['cwd'] == release.ROOT
+                            for options in self.test_options))
+        self.test_result = 1
+        with self.assertRaisesRegex(release.PrepareError, 'store checks fail(.|\n)*fingerprint changed'):
+            release.prepare('0.3.0', 'en', 'ar')
+        self.assertEqual(json.loads(release.RELEASE.read_text())['version'], '0.2.0')
+        # The parser test alone failing refuses too.
+        self.test_result = {release.PARSER_TEST: 1}
+        with self.assertRaisesRegex(release.PrepareError, 'store checks fail'):
+            release.prepare('0.3.0', 'en', 'ar')
+        for error, message in ((subprocess.TimeoutExpired('bun', 600), 'did not finish within 600 seconds'),
+                               (FileNotFoundError('bun'), 'could not run')):
+            with patch.object(release, 'RUNNER', side_effect=error):
+                with self.assertRaisesRegex(release.PrepareError, message):
+                    release.prepare('0.3.0', 'en', 'ar')
+        self.assertEqual(json.loads(release.RELEASE.read_text())['version'], '0.2.0')
+
+    def test_a_store_check_that_times_out_takes_its_whole_process_group_with_it(self):
+        pid_file = Path(self.enterContext(tempfile.TemporaryDirectory())) / 'grandchild'
+        # The pid file appears whole (written aside, then renamed), so a kill cannot leave it empty.
+        script = ('import os, pathlib, subprocess, sys, time\n'
+                  "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])\n"
+                  f'pathlib.Path({str(pid_file) + ".part"!r}).write_text(str(child.pid))\n'
+                  f'os.replace({str(pid_file) + ".part"!r}, {str(pid_file)!r})\n'
+                  'time.sleep(60)\n')
+        started = time.monotonic()
+        with self.assertRaises(subprocess.TimeoutExpired):
+            release.run_group([sys.executable, '-c', script], cwd=ROOT, timeout=2)
+        self.assertLess(time.monotonic() - started, 30)
+        deadline = time.monotonic() + 10
+        while not pid_file.is_file() and time.monotonic() < deadline:
+            time.sleep(0.05)
+        grandchild = int(pid_file.read_text())
+
+        def alive():
+            # Dead once it is a zombie (Z) or being reaped (X); an orphan passes through both.
+            try:
+                return Path(f'/proc/{grandchild}/stat').read_text().split(')')[-1].split()[0] not in ('Z', 'X')
+            except OSError:
+                return False
+        deadline = time.monotonic() + 10
+        while alive() and time.monotonic() < deadline:
+            time.sleep(0.05)
+        self.assertFalse(alive())
+        done = release.run_group([sys.executable, '-c', 'print("ok")'], cwd=ROOT, timeout=30)
+        self.assertEqual((done.returncode, done.stdout), (0, 'ok\n'))
+
+    def test_an_interrupted_store_check_takes_its_whole_process_group_with_it(self):
+        pid_file = Path(self.enterContext(tempfile.TemporaryDirectory())) / 'child'
+        script = (f'import os, pathlib, time\npathlib.Path({str(pid_file) + ".part"!r}).write_text(str(os.getpid()))\n'
+                  f'os.replace({str(pid_file) + ".part"!r}, {str(pid_file)!r})\ntime.sleep(60)\n')
+        real = subprocess.Popen.communicate
+        calls = []
+
+        def interrupted(process, *args, **options):
+            # Only the wait for the check is interrupted; the reaping wait after the kill runs for real.
+            calls.append(options.get('timeout'))
+            deadline = time.monotonic() + 10
+            while not pid_file.exists() and time.monotonic() < deadline:
+                time.sleep(0.02)
+            if len(calls) == 1:
+                raise KeyboardInterrupt
+            return real(process, *args, **options)
+        with patch.object(subprocess.Popen, 'communicate', interrupted):
+            with self.assertRaises(KeyboardInterrupt):
+                release.run_group([sys.executable, '-c', script], cwd=ROOT, timeout=600)
+        child = int(pid_file.read_text())
+        state = Path(f'/proc/{child}/stat')
+        self.assertFalse(state.exists() and state.read_text().split(')')[-1].split()[0] not in ('Z', 'X'))
+        self.assertEqual(calls, [600, 10])
+
+    def test_prepare_refuses_a_checkout_with_changes_before_any_check_or_write(self):
+        self.changed = ['src/control/store-schemas.json', 'notes.txt']
+        with self.assertRaisesRegex(release.PrepareError, 'leave out: src/control/store-schemas.json, notes.txt'):
+            release.prepare('0.2.0', 'en', 'ar')
+        self.assertEqual((self.test_runs, json.loads(release.RELEASE.read_text())['version']), ([], '0.1.0'))
+
+    def test_the_checkout_changes_are_every_tracked_and_untracked_path_git_reports(self):
+        root = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        git(root, 'init', '-q')
+        (root / 'store-schemas.json').write_text('{}\n')
+        git(root, 'add', '-A')
+        git(root, 'commit', '-q', '-m', 'first')
+        colour = {'GIT_CONFIG_COUNT': '2', 'GIT_CONFIG_KEY_0': 'color.ui', 'GIT_CONFIG_VALUE_0': 'always',
+                  'GIT_CONFIG_KEY_1': 'status.short', 'GIT_CONFIG_VALUE_1': 'true'}
+        with patch.object(release, 'ROOT', root), patch.dict(os.environ, colour):
+            self.assertEqual(DIRTY(), [])
+            (root / 'store-schemas.json').write_text('{"keys": 1}\n')
+            self.assertEqual(DIRTY(), ['store-schemas.json'])
+            (root / 'store-schemas.json').write_text('{}\n')
+            (root / 'new file.ts').write_text('export {}\n')
+            self.assertEqual(DIRTY(), ['new file.ts'])
 
     def test_prepare_writes_the_manifest_and_only_the_package_version(self):
         before = release.PACKAGE.read_text()

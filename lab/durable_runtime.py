@@ -33,6 +33,7 @@ import scheduled_jobs
 import data_api
 import mail_state
 import private_directories
+import kept_runtime
 
 MAIL_KEY_PREFIXES = ('GOTRUE_SMTP_', 'GOTRUE_MAILER_', 'GOTRUE_RATE_LIMIT_')
 
@@ -405,6 +406,47 @@ def functions_count():
     return sum(1 for entry in published_endpoints().values() if isinstance(entry, dict) and entry.get('functions'))
 
 
+# How functions_start runs an environment's Edge Functions; functions_kept compares a running one with it.
+FUNCTIONS_COMMAND = ('start', '--main-service', '/home/deno/main', '-p', str(FUNCTIONS_PORT))
+
+
+def launch_spec(component, reference, memory, cpus, tier, network, volumes=(), binds=(), command=()):
+    """A digest of everything launch gives a new container besides its settings: the image, the tier's
+    limits, the network, the mounts, the command and the log options. Recorded as a label, so a container
+    kept across an upgrade restart can be compared with what this version would create."""
+    flags = resource_policy.container_flags(tier)
+    described = [component, reference, memory, str(cpus), sorted(flags.items()), list(resource_policy.io_flags(tier)), network,
+                 [list(item) for item in volumes], [[str(source), target] for source, target in binds], list(command),
+                 STOP_DATABASE_SECONDS if component == 'db' else None, 'max-size=5m', 'max-file=2']
+    return hashlib.sha256(json.dumps(described, sort_keys=True, default=str).encode()).hexdigest()[:32]
+
+
+# The keys functions get. Each carries the time it was made, so a running container's are compared
+# by what they grant, not byte for byte (valid_service_token).
+FUNCTIONS_KEYS = {'SUPABASE_ANON_KEY': 'anon', 'SUPABASE_SERVICE_ROLE_KEY': 'service_role'}
+
+
+def functions_binds(e):
+    return [(lab.ROOT/'lab'/'functions'/'main', '/home/deno/main'), (functions_code(e), '/home/deno/functions'), (functions_private(e), '/run/sbarbase')]
+
+
+def valid_service_token(token, secret, role, margin=30 * 24 * 3600):
+    """True when `token` is an HS256 token service_token made with `secret` for `role`, issued by
+    sbarbase, and valid for at least `margin` seconds more."""
+    try:
+        head, body, signature = (token or '').split('.')
+        expected = base64.urlsafe_b64encode(hmac.new(secret.encode(), (head + '.' + body).encode(), hashlib.sha256).digest()).rstrip(b'=').decode()
+        if not hmac.compare_digest(expected, signature):
+            return False
+        claims = json.loads(base64.urlsafe_b64decode(body + '=' * (-len(body) % 4)))
+        header = json.loads(base64.urlsafe_b64decode(head + '=' * (-len(head) % 4)))
+    except (ValueError, AttributeError):
+        return False
+    return (header == {'alg': 'HS256', 'typ': 'JWT'} and set(claims) == {'role', 'iss', 'iat', 'exp'}
+            and claims.get('role') == role and claims.get('iss') == 'sbarbase'
+            and isinstance(claims.get('exp'), int) and claims['exp'] > time.time() + margin)
+
+
 def functions_code(e):
     """Deployed function code, written by the console (src/control/functions.ts)."""
     return STATE/'functions'/e
@@ -604,6 +646,8 @@ class Runtime:
             self.hba_writer.before_start(inspect('container',DB),inspect('volume',database_volume.current(STATE)) is not None)
         elif operation_fd is not None:
             self.hba_writer.worker_preflight(worker_runtime)
+        self.kept = None
+        self.touched = set()
         self.path = PRIVATE/'runtime.json'
         if not self.path.exists():
             atomic(self.path, {**{key: secrets.token_hex(32) for key in ('admin', 'storage_control', 'storage_admin', 'encryption')}, 'environments': {}})
@@ -644,7 +688,10 @@ class Runtime:
                         settings_only(component, configured, env) or (rotating and signing_only(component, configured, env)))):
                     raise RuntimeError('Runtime drift requires explicit reconciliation')
                 # An upgrade or rollback: replace the stateless container with the pinned
-                # image and the configuration this version computes, keeping its volumes.
+                # image and the configuration this version computes, keeping its volumes. One a planned
+                # upgrade restart left running stops as a stop would, before it is removed.
+                if actual.get('State', {}).get('Running'):
+                    lab.docker('stop', actual['Id'])
                 lab.docker('rm', '-f', actual['Id'])
                 actual = None
         if actual:
@@ -655,6 +702,7 @@ class Runtime:
                 raise RuntimeError('Runtime network mismatch')
             lab.docker('start', actual['Id'])
             join(name, functions_links(name, component))
+            self.adopted(actual['Id'])
             return actual['Id'],False
         flags = resource_policy.container_flags(tier)
         if (flags['memory'] is not None and flags['memory'] != memory) or (flags['cpus'] is not None and float(flags['cpus']) != float(cpus)):
@@ -662,6 +710,8 @@ class Runtime:
         path = PRIVATE/(name+'.env')
         lab.secure_file(path, ''.join(f'{k}={v}\n' for k, v in env.items()))
         args = ['run', '-d', '--pull=never', '--name', name, '--label', 'io.sbarbase.owner='+OWNER, '--label', 'io.sbarbase.tier='+flags['label'], '--network', network,
+                '--label', 'io.sbarbase.spec='+launch_spec(component, reference, memory, cpus, tier, network, volumes, binds, command),
+                *(('--stop-timeout', str(STOP_DATABASE_SECONDS)) if component == 'db' else ()),
                 '--memory', memory, '--memory-swap', memory, '--cpus', str(cpus), '--pids-limit', str(flags['pids']),
                 '--cpu-shares', str(flags['shares']), '--blkio-weight', str(flags['weight']),
                 *resource_policy.io_flags(tier),
@@ -675,7 +725,30 @@ class Runtime:
         created = lab.docker(*args, reference, *command).stdout.strip()
         # A recreated Auth, REST or Storage would otherwise drop off the environment networks.
         join(name, functions_links(name, component))
+        self.adopted(created)
         return created,True
+
+    def adopted(self, cid):
+        """Notes a container this start runs, so retire_unadopted leaves it alone."""
+        if not hasattr(self, 'touched'):
+            self.touched = set()
+        self.touched.add(cid)
+
+    def retire_unadopted(self):
+        """Stops each container a planned upgrade restart kept that this start neither started nor
+        adopted: a kind this version no longer runs would otherwise keep running unmanaged, and be
+        credited memory the placement does not count. Studio is left to its own reset (lab/studio.py)."""
+        kept = getattr(self, 'kept', None)
+        if not kept:
+            return
+        touched = getattr(self, 'touched', set())
+        for cid, entry in kept['containers'].items():
+            if cid in touched or str(entry.get('name', '')).endswith(kept_runtime.STUDIO):
+                continue
+            item = inspect('container', cid)
+            if item and item.get('State', {}).get('Running'):
+                print(f"{entry.get('name')} was kept by a planned upgrade restart and this version does not run it; it is stopped.", flush=True)
+                lab.docker('stop', cid)
 
     def endpoint(self, name, port, network=NETWORK):
         item = inspect('container', name)
@@ -705,6 +778,16 @@ class Runtime:
         self.hba_writer.startup.verify()
         available = int(next(x.split()[1] for x in lab.Path('/proc/meminfo').read_text().splitlines() if x.startswith('MemAvailable:')))
         placement, _ = resource_policy.start_placement(len(self.values['environments']), realtime_count(), functions_count())
+        # The containers a planned upgrade restart left running (lab/kept_runtime.py) are adopted below
+        # through launch's own identity and drift checks; the memory they hold now, which the host no
+        # longer counts as available, is counted back, since the placement counts them again.
+        self.kept, why = kept_runtime.current(STATE, grace=kept_runtime.LATER_GRACE)
+        if self.kept is None and kept_runtime.path(STATE).exists():
+            # The settle let this start adopt them and the record no longer holds: nothing here could
+            # tell which of them to retire, so the start stops and its supervisor stops them all.
+            raise RuntimeError('The containers a planned upgrade restart kept can no longer be adopted ('+why+')')
+        if self.kept is not None:
+            available += kept_runtime.credit_mib(self.kept['containers']) * 1024
         if available < (placement + resource_policy.START_RESERVE_MIB) * 1024:
             raise RuntimeError('Insufficient runtime memory headroom')
         if not inspect('network', NETWORK):
@@ -735,6 +818,7 @@ class Runtime:
             '512m', .5, [(PREFIX+'-objects', '/tmp/storage-data')], tier='system.storage')
         self.wait(self.endpoint(PREFIX+'-storage', 5001)+'/tenants', {'apikey': self.values['storage_admin']})
         self.resume_published_environments()
+        self.retire_unadopted()
 
     def resume_published_environments(self):
         # Credential reservations must only be dispatched by an authorized worker.
@@ -764,6 +848,8 @@ class Runtime:
         # at once and could take the rows again before the pin, so it is stopped first; `launch` starts it.
         rest=PREFIX+'-'+e+'-rest'
         item=inspect('container',rest)
+        # Also one a planned upgrade restart left running (lab/kept_runtime.py): no session of the REST
+        # login may outlive the pin with settings tenant code chose, so REST always stops for it.
         if item and item.get('State',{}).get('Running'):
             lab.docker('stop',rest)
         self.rest_deadlines(e,rewrite=True,end_sessions=True)
@@ -771,6 +857,14 @@ class Runtime:
         self.data_api(e,refuse_missing=False)
         self.activate_services(e,self.values['environments'][e],creating=False)
         self.scheduled_jobs_back(e)
+
+    def kept_running(self, item):
+        """True when this running container is one a planned upgrade restart left, unchanged since."""
+        kept = getattr(self, 'kept', None)
+        if not kept or not item or not item.get('State', {}).get('Running'):
+            return False
+        entry = kept['containers'].get(item.get('Id'))
+        return isinstance(entry, dict) and entry.get('image') == item.get('Image') and entry.get('name') == item.get('Name', '').lstrip('/')
 
     def rest_deadlines(self, e, executor=None, validate_only=False, rewrite=False, end_sessions=False):
         execute = executor or self.sql
@@ -1361,8 +1455,7 @@ COMMIT;""", e)
         name = PREFIX+'-'+e+'-realtime'
         if migrate:
             self.realtime_database(e, v)
-            if inspect('container', name):
-                lab.docker('rm', '-f', name)
+            retire(name)
             self.sql(f'ALTER ROLE {e}_realtime SUPERUSER;')
         try:
             self.launch(name, 'realtime', self.realtime_configuration(e, v), '320m', .25, tier='production.realtime')
@@ -1670,6 +1763,7 @@ GRANT CREATE ON DATABASE {e} TO {role};
                 return
             raise RuntimeError('Database connection limit could not be raised')
         print(f'Raising the database connection limit to {connection_budget.MAX_CONNECTIONS}; the database restarts once', flush=True)
+        checkpoint()
         lab.docker('restart', '-t', '60', DB)
         self.wait_database()
         if current() < connection_budget.MAX_CONNECTIONS:
@@ -1697,13 +1791,17 @@ GRANT CREATE ON DATABASE {e} TO {role};
         private.mkdir(mode=0o700, parents=True, exist_ok=True)
         if not (private/'secrets.json').exists():
             lab.secure_file(private/'secrets.json', '{}')
-        # Removed first, so a container from before the outbound network changed no longer names
-        # the earlier one when ensure_egress decides whether that one can go.
-        if inspect('container', name):
-            lab.docker('rm', '-f', name)
         # Functions run code that handles visitor input, so they sit on their environment's own
         # network, never on the runtime network every environment's services share.
         network = functions_network(e)
+        # Removed first, so a container from before the outbound network changed no longer names
+        # the earlier one when ensure_egress decides whether that one can go. One a planned upgrade
+        # restart left running, on exactly this network and the outbound one, with the image,
+        # settings and mounts this start would give it, keeps serving instead (functions_kept).
+        item = inspect('container', name)
+        kept = item['Id'] if item and self.functions_kept(e, v, item, network) else None
+        if item and not kept:
+            retire(name)
         item = inspect('network', network)
         if not item:
             lab.docker('network', 'create', '--internal', '--label', 'io.sbarbase.owner='+OWNER, '--label', 'io.sbarbase.functions='+e, network)
@@ -1718,10 +1816,14 @@ GRANT CREATE ON DATABASE {e} TO {role};
             lab.docker('network', 'disconnect', '--force', network, PREFIX+'-storage')
         gateway, subnet = functions_address(network)
         ensure_egress()
-        self.launch(name, 'functions', self.functions_configuration(e, v, gateway), '384m', .5, tier='production.functions',
-                    binds=[(lab.ROOT/'lab'/'functions'/'main', '/home/deno/main'), (code, '/home/deno/functions'), (private, '/run/sbarbase')],
-                    command=('start', '--main-service', '/home/deno/main', '-p', str(FUNCTIONS_PORT)), network=network)
-        lab.docker('network', 'connect', EGRESS, name)
+        # A kept one was checked against all of this already (functions_kept); launch would compare
+        # its two keys with freshly made ones and refuse them as drift.
+        if kept:
+            self.adopted(kept)
+        else:
+            self.launch(name, 'functions', self.functions_configuration(e, v, gateway), '384m', .5, tier='production.functions',
+                        binds=functions_binds(e), command=FUNCTIONS_COMMAND, network=network)
+            lab.docker('network', 'connect', EGRESS, name)
         base = self.endpoint(name, FUNCTIONS_PORT, network)
         # A name no function can have: the main service answers 404 once it serves.
         for _ in range(FUNCTIONS_BOOT_SECONDS * 2):
@@ -1737,6 +1839,49 @@ GRANT CREATE ON DATABASE {e} TO {role};
         # accepts a packet for any host address on any interface, so the address alone is not enough.
         return {'url': base, 'image': self.pins['functions']['id'],
                 'storage': {'host': gateway, 'port': FUNCTIONS_STORAGE_PORT, 'subnet': subnet}}
+
+    def functions_kept(self, e, v, item, network):
+        """A Functions container a planned upgrade restart left running, that functions_start would start
+        exactly so: the pinned image, launch's own description of it (launch_spec: the tier's limits, the
+        command, the mounts, the logs), its environment's network and the outbound one only, the three
+        mounts read-only, the settings functions_configuration gives
+        (its two keys need only still be valid ones of this environment, since they carry when they were
+        made), and the main service's code unchanged since the commit it was started with: the runtime
+        reads that code once, when it starts."""
+        if not self.kept_running(item):
+            return False
+        try:
+            networks = set(item['NetworkSettings']['Networks'])
+            if networks != {network, EGRESS} or not inspect('network', network):
+                return False
+            reference, image = self.image('functions')
+            spec = launch_spec('functions', reference, '384m', .5, 'production.functions', network, binds=functions_binds(e), command=FUNCTIONS_COMMAND)
+            if item['Image'] != image or (item['Config'].get('Labels') or {}).get('io.sbarbase.spec') != spec:
+                return False
+            gateway, _subnet = functions_address(network)
+            configured = dict(entry.split('=', 1) for entry in item['Config'].get('Env', []) if '=' in entry)
+            wanted = self.functions_configuration(e, v, gateway)
+            # Both ways: a setting this version no longer gives must not stay on a kept container. What
+            # the image itself sets is not ours.
+            own = json.loads(lab.docker('image', 'inspect', '--format', '{{json .Config.Env}}', reference).stdout or 'null') or []
+            image = {entry.split('=', 1)[0] for entry in own if '=' in entry}
+            if set(configured) - (image - set(wanted)) != set(wanted):
+                return False
+            for key, value in wanted.items():
+                if key in FUNCTIONS_KEYS:
+                    if not valid_service_token(configured.get(key), v['jwt'], FUNCTIONS_KEYS[key]):
+                        return False
+                elif configured.get(key) != value:
+                    return False
+            mounts = {(m.get('Source'), m.get('Destination'), m.get('RW')) for m in item.get('Mounts', [])}
+            for source, target in functions_binds(e):
+                if (str(source), target, False) not in mounts:
+                    return False
+            origin = (self.kept or {}).get('from')
+            return bool(origin) and subprocess.run(['git', 'diff', '--quiet', origin, 'HEAD', '--', 'lab/functions/main'],
+                                                   cwd=lab.ROOT, capture_output=True, timeout=30).returncode == 0
+        except (KeyError, RuntimeError, ValueError, OSError, subprocess.SubprocessError, resource_policy.ResourcePolicyError):
+            return False
 
     def functions_turn(self, e, on):
         """Turn one environment's Edge Functions on or off: an operator action from the console."""
@@ -2084,10 +2229,50 @@ def data_api_command(e, runtime=None):
         print('Studio could not start again; open it once more to see the new schemas.', file=sys.stderr)
 
 
+# The database stops last, after a CHECKPOINT, so its own shutdown checkpoint has little left to
+# write and fits STOP_DATABASE_SECONDS; Docker's default 10 s could otherwise end it with SIGKILL
+# and leave crash recovery to the next start. Both, with the services' 10 s, stay inside the
+# supervisor's 90 s stop stage (lab/dev.py STOP_STAGE_SECONDS). A moved environment's recovery target
+# stops first and can take longer than that stage alone (lab/target_runtime.py), as before. A database container this module creates from now on also carries the same stop
+# timeout, so Docker's own stop at a host shutdown gives it the same time; one created earlier, or by
+# a generation change (lab/hba_migration.py), keeps Docker's 10 s there.
+CHECKPOINT_SECONDS = 15
+STOP_DATABASE_SECONDS = 40
+
+
+def checkpoint():
+    """A CHECKPOINT before the database stops, bounded, so its own shutdown checkpoint is short."""
+    try:
+        subprocess.run(docker_profile.docker_command('exec', DB, 'psql', '-X', '-U', 'supabase_admin', '-d', 'postgres', '-qAt', '-c', 'CHECKPOINT;'),
+                       capture_output=True, text=True, timeout=CHECKPOINT_SECONDS)
+    except subprocess.TimeoutExpired:
+        pass
+
+
+def retire(name):
+    """Removes a container that is replaced, stopping it first when it runs (one a planned upgrade
+    restart kept), so it ends as a stop would end it rather than with SIGKILL."""
+    item = inspect('container', name)
+    if not item:
+        return
+    if item.get('State', {}).get('Running'):
+        lab.docker('stop', name)
+    lab.docker('rm', '-f', name)
+
+
 def stop():
-    names = lab.docker('ps', '-q', '--filter', 'label=io.sbarbase.owner='+OWNER).stdout.split()
-    if names:
-        lab.docker('stop', *names)
+    # A stopped runtime has nothing a planned upgrade restart kept (lab/kept_runtime.py).
+    kept_runtime.discard(STATE)
+    names = lab.docker('ps', '-q', '--no-trunc', '--filter', 'label=io.sbarbase.owner='+OWNER).stdout.split()
+    if not names:
+        return
+    database = lab.docker('ps', '-q', '--no-trunc', '--filter', 'label=io.sbarbase.owner='+OWNER, '--filter', 'name=^/'+DB+'$').stdout.split()
+    services = [name for name in names if name not in database]
+    if services:
+        lab.docker('stop', *services)
+    if database:
+        checkpoint()
+        lab.docker('stop', '-t', str(STOP_DATABASE_SECONDS), *database)
 
 
 if __name__ == '__main__':

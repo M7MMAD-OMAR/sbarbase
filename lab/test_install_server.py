@@ -91,7 +91,8 @@ class UnreachableDaemonPreflightTests(IsolatedHostCase):
     """Without a daemon the preflight must not guess about images or containers."""
 
     def preflight(self,side_effect):
-        with patch.object(install_server,'docker',side_effect=side_effect):
+        # No record of a planned restart's containers: the checkout's own state is never read.
+        with patch.object(install_server,'docker',side_effect=side_effect),patch.object(install_server,'kept_record',return_value=(None,'no record')):
             return install_server.preflight()
 
     def test_no_pull_or_fresh_install_claim_is_made_without_a_daemon(self):
