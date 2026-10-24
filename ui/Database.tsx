@@ -1,5 +1,5 @@
 import {useEffect,useState} from 'react';
-import {Database as DatabaseIcon,Square,RotateCcw,Copy} from 'lucide-react';
+import {Database as DatabaseIcon,Square,RotateCcw,Copy,Download} from 'lucide-react';
 import {useData,type Api} from './api';
 import {ErrorMessage,Loading} from './components';
 import {DatabaseWorkflow} from './DatabaseWorkflow';
@@ -37,8 +37,45 @@ export function DatabaseSection({path,request}:{path:string;request:Api}){
    ?<><button disabled={busy||current.state==='pending'} onClick={()=>void act('POST','/password')}><RotateCcw aria-hidden="true"/>New password</button>
      <button disabled={busy||current.state==='pending'} onClick={()=>void act('PUT','',{enabled:false})}><Square aria-hidden="true"/>Turn off</button></>
    :<button className="primary" disabled={busy||current.state==='pending'} onClick={()=>void act('PUT','',{enabled:true})}><DatabaseIcon aria-hidden="true"/>Turn on database access</button>}</div>
-  {tunnel&&<p className="small muted">To connect through SSH, run <code>{tunnel.command}</code> on your computer. Then use <code>{tunnel.url}</code>, replacing <code>[YOUR-PASSWORD]</code> with your saved password.</p>}
+  {tunnel&&<><p className="small muted">To connect through SSH, run <code>{tunnel.command}</code> on your computer. Then use <code>{tunnel.url}</code>, replacing <code>[YOUR-PASSWORD]</code> with your saved password.</p>
+   <div className="form-row"><button onClick={()=>void copy(tunnel.command)}><Copy aria-hidden="true"/>Copy SSH command</button>
+    <button onClick={()=>void copy(tunnel.url)}><Copy aria-hidden="true"/>Copy local connection string</button></div></>}
+  {on&&current.state==='on'&&<ExternalAccess path={path} request={request}/>}
   {current.workflow&&<><p className="small muted">Connection pooling is pending native admission. The current address uses direct access.</p>
    <DatabaseWorkflow runtime={current.workflow.runtime} endpoints={current.workflow.endpoints} budget={current.workflow.budget??undefined}/></>}
  </>}</section>;
+}
+
+type External={enabled:boolean;available:boolean;listener:{host:string;port:number}|null;ca:string|null;user:string;database:string;sslmode:string};
+
+/** External access: TLS-only connections for a service that cannot use an SSH tunnel, such as Cloudflare
+ * Hyperdrive through a Cloudflare Tunnel (docs/guides/database-access.md). Closed until an owner or admin opens it. */
+function ExternalAccess({path,request}:{path:string;request:Api}){
+ const data=useData<{data:External}>(signal=>request(path+'/database/external','GET',undefined,signal),[path,request]);
+ const [busy,setBusy]=useState(false),[error,setError]=useState(''),[copied,setCopied]=useState('');
+ const current=data.data?.data;
+ async function set(enabled:boolean){
+  setBusy(true);setError('');
+  try{await request(path+'/database/external','PUT',{enabled});data.refresh();}
+  catch(e){setError((e as Error).message);}finally{setBusy(false);}
+ }
+ async function copy(text:string){try{await navigator.clipboard.writeText(text);setCopied('Copied to clipboard.');}catch{setCopied('Copy unavailable. Select and copy the text manually.');}}
+ function download(ca:string){
+  const url=URL.createObjectURL(new Blob([ca],{type:'application/x-pem-file'}));
+  const link=document.createElement('a');link.href=url;link.download='sbarbase-database-ca.pem';link.click();URL.revokeObjectURL(url);
+ }
+ return <div><h3>External access</h3>
+ <p className="muted small">For a service that cannot open an SSH tunnel, such as Cloudflare Hyperdrive. Connections must use TLS and the developer login's password; nothing else is opened to the internet.</p>
+ <ErrorMessage message={error||data.error}/>{data.loading?<Loading/>:current&&<>
+  <p><span className={'state '+(current.enabled?(current.available?'applied':'running'):'')}>{current.enabled?(current.available?'On':'On, listener unavailable'):'Off'}</span></p>
+  {current.enabled&&current.listener&&<>
+   <p className="small muted">Point your tunnel or private network at <code>{current.listener.host}:{current.listener.port}</code> on the server and connect with <code>sslmode={current.sslmode}</code> as <code>{current.user}</code> to <code>{current.database}</code>. Give the client this certificate authority:</p>
+   {current.ca&&<><textarea readOnly aria-label="Certificate authority" value={current.ca}/>
+    <div className="form-row"><button onClick={()=>void copy(current.ca!)}><Copy aria-hidden="true"/>Copy certificate</button>
+     <button onClick={()=>download(current.ca!)}><Download aria-hidden="true"/>Download certificate</button></div></>}
+   <p className="small muted" role="status">{copied}</p></>}
+  <div className="form-row">{current.enabled
+   ?<button disabled={busy} onClick={()=>void set(false)}><Square aria-hidden="true"/>Close external access</button>
+   :<button disabled={busy} onClick={()=>void set(true)}><DatabaseIcon aria-hidden="true"/>Allow external connections</button>}</div>
+ </>}</div>;
 }

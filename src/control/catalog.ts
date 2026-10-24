@@ -134,7 +134,7 @@ function credentialShape(value:string):boolean {
 export {ENVIRONMENT_LIMIT};
 
 /** Bumped with each step of Catalog.migrate(). */
-export const CATALOG_SCHEMA_VERSION=4;
+export const CATALOG_SCHEMA_VERSION=5;
 /** What PostgREST serves for an environment with no saved Data API settings (lab/data_api.py). */
 export const DATA_API_DEFAULT={schemas:['public'],extraSearchPath:['public'],maxRows:null as number|null};
 
@@ -272,6 +272,9 @@ export class Catalog {
         desired TEXT NOT NULL CHECK(desired IN ('on','off')),
         state TEXT NOT NULL CHECK(state IN ('off','pending','on','failed')),
         failure TEXT, actor TEXT NOT NULL, updated_at INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS database_external(
+        runtime TEXT PRIMARY KEY REFERENCES provision_jobs(runtime),
+        enabled INTEGER NOT NULL CHECK(enabled IN (0,1)), actor TEXT NOT NULL, updated_at INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS signing_keys(
         runtime TEXT PRIMARY KEY REFERENCES provision_jobs(runtime),
         desired TEXT NOT NULL CHECK(desired IN ('rotate')),
@@ -355,6 +358,7 @@ export class Catalog {
         if(duplicate){this.db.exec('PRAGMA user_version=1');this.allowTelegramDeliveries();return;}
         this.db.exec('CREATE UNIQUE INDEX IF NOT EXISTS projects_organization_name ON projects(organization,name)');
       }
+      // Version 5: the database_external table (external database access), created by the schema above.
       this.db.exec(`PRAGMA user_version=${CATALOG_SCHEMA_VERSION}`);
     }).immediate();
     this.allowTelegramDeliveries();
@@ -1149,10 +1153,36 @@ export class Catalog {
       return state;
     }).immediate();
   }
+  /** Whether this environment may be reached on the external database listener (src/http/database-external.ts).
+   * Read by the listener for every connection, with no actor: the listener is not a management caller. */
+  externalDatabaseEnabled(runtime:string):boolean {
+    const row=this.db.query<{enabled:number},[string]>('SELECT enabled FROM database_external WHERE runtime=?').get(runtime);
+    return row?.enabled===1;
+  }
+  /** External database access for one environment: closed by default, opened by an owner or admin
+   * only while direct database access is on, and closed again when that is turned off. */
+  externalDatabase(actor:string,environment:string):{runtime:string;enabled:boolean;updatedAt:number|null} {
+    const access=this.databaseAccess(actor,environment);
+    const row=this.db.query<{enabled:number;updated_at:number},[string]>(
+      'SELECT enabled,updated_at FROM database_external WHERE runtime=?').get(access.runtime);
+    return {runtime:access.runtime,enabled:row?.enabled===1,updatedAt:row?.updated_at??null};
+  }
+  setExternalDatabase(actor:string,environment:string,on:boolean) {
+    return this.db.transaction(()=>{
+      const access=this.databaseAccess(actor,environment);
+      if(on&&!(access.desired==='on'&&access.state==='on'))throw new Error('Turn on database access first');
+      this.db.query(`INSERT INTO database_external(runtime,enabled,actor,updated_at) VALUES (?,?,?,?)
+        ON CONFLICT(runtime) DO UPDATE SET enabled=excluded.enabled,actor=excluded.actor,updated_at=excluded.updated_at`)
+        .run(access.runtime,on?1:0,actor,Date.now());
+      this.record(actor,on?'database.external_enabled':'database.external_disabled',environment,{});
+      return this.externalDatabase(actor,environment);
+    }).immediate();
+  }
   requestDatabaseAccess(actor:string,environment:string,on:boolean):RealtimeState {
     return this.db.transaction(()=>{
       const current=this.databaseAccess(actor,environment);
       if(current.state==='pending')throw new Error('Database access change in progress');
+      if(!on)this.db.query('DELETE FROM database_external WHERE runtime=?').run(current.runtime);
       this.db.query(`INSERT INTO database_access(runtime,desired,state,failure,actor,updated_at) VALUES (?,?,'pending',NULL,?,?)
         ON CONFLICT(runtime) DO UPDATE SET desired=excluded.desired,state='pending',failure=NULL,actor=excluded.actor,
         updated_at=excluded.updated_at`).run(current.runtime,on?'on':'off',actor,Date.now());

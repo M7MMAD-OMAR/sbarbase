@@ -4,7 +4,7 @@ import {randomBytes} from 'node:crypto';
 import {Catalog} from './catalog';
 import {authenticate,reply,type ManagementIdentity} from './auth';
 import {requireCurrentManagement,refreshCurrentManagement} from './management-context';
-import {directDatabaseEndpoint,type DirectDatabase} from '../http/database-proxy';
+import {directDatabaseEndpoint,externalDatabaseEndpoint,type DirectDatabase} from '../http/database-proxy';
 import {bindDatabasePublication} from './database-publication';
 import type {WorkflowEndpoint} from './database-workflow';
 
@@ -92,6 +92,48 @@ export function databaseHandler(catalog:Catalog,identify:ManagementIdentity,dire
    const message=error instanceof Error?error.message:'';
    if(message==='Forbidden')return reply(403,{message:'Forbidden'});
    if(message==='Environment is not ready'||message==='Database access change in progress')return reply(409,{message});
+   return reply(500,{message:'Management operation failed'});
+  }
+ };
+}
+
+/** External database access for one environment (docs/guides/database-access.md, docs/engineering/EXTERNAL-DATABASE.md).
+ *
+ * GET /environments/{id}/database/external   state, the listener's address and the CA to verify it with
+ * PUT /environments/{id}/database/external   {"enabled": true|false}; owner or admin, and only while database access is on
+ *
+ * The password is the developer login's, set by `database`; nothing here shows or changes it. */
+export function externalDatabaseHandler(catalog:Catalog,identify:ManagementIdentity,direct?:DirectDatabase) {
+ return async(request:Request):Promise<Response>=>{
+  const match=new URL(request.url).pathname.match(/^\/management\/v1\/environments\/([a-f0-9-]{36})\/database\/external$/);
+  if(!match)return reply(404,{message:'Unknown route'});
+  if(!['GET','PUT'].includes(request.method))return reply(405,{message:'Method not allowed'});
+  const actor=await authenticate(identify,request);
+  if(actor instanceof Response)return actor;
+  const epoch=catalog.managementSecurity.epoch(actor);
+  const environment=match[1]!;
+  try {
+   // Pinned to the management epoch the request was authenticated under, as the database handler is.
+   const runtime=catalog.databaseWorkflowState(actor,environment,epoch).runtime;
+   let state=catalog.externalDatabase(actor,environment);
+   if(request.method==='PUT'){
+    let input:unknown;
+    try{input=await request.json();}catch{return reply(400,{message:'Invalid JSON'});}
+    const value=(input as {enabled?:unknown}|null)?.enabled;
+    if(typeof value!=='boolean'||Object.keys(input as object).length!==1)return reply(400,{message:'Send {"enabled": true} or {"enabled": false}'});
+    await refreshCurrentManagement();
+    catalog.databaseWorkflowState(actor,environment,epoch,runtime);
+    state=catalog.setExternalDatabase(actor,environment,value);
+   }
+   requireCurrentManagement();
+   const listener=externalDatabaseEndpoint(direct);
+   return reply(200,{data:{enabled:state.enabled,updatedAt:state.updatedAt,
+    available:!!listener?.ready,listener:listener?{host:listener.host,port:listener.port}:null,
+    ca:listener?.ca??null,user:`${state.runtime}_developer`,database:state.runtime,sslmode:'verify-ca'}});
+  } catch(error) {
+   const message=error instanceof Error?error.message:'';
+   if(message==='Forbidden')return reply(403,{message:'Forbidden'});
+   if(message==='Environment is not ready'||message==='Turn on database access first')return reply(409,{message});
    return reply(500,{message:'Management operation failed'});
   }
  };

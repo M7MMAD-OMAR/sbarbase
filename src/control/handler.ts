@@ -13,7 +13,7 @@ import {scheduledJobsHandler} from './scheduled-jobs';
 import {dataApiHandler} from './data-api';
 import {observeHandler,type ContainerReader} from './observe';
 import {functionsHandler} from './functions';
-import {databaseHandler} from './database';
+import {databaseHandler,externalDatabaseHandler} from './database';
 import type {DirectDatabase} from '../http/database-proxy';
 import {signingHandler} from './signing';
 import {RequestLog} from '../gateway/observe';
@@ -24,7 +24,7 @@ export function controlHandler(catalog:Catalog,keys:KeyStore,identity:Management
  const metadata=managementHandler(catalog,identity,undefined,keys),credentials=keyHandler(catalog,keys,identity,services);
  const studio=studioKey?studioHandler(catalog,identity,studioKey):undefined,signIn=signInHandler(catalog,identity),
   realtime=realtimeHandler(catalog,identity),scheduledJobs=scheduledJobsHandler(catalog,identity),observe=observeHandler(catalog,identity,requests,containers),
-  functions=functionsHandler(catalog,identity),database=databaseHandler(catalog,identity,undefined,direct),
+  functions=functionsHandler(catalog,identity),database=databaseHandler(catalog,identity,undefined,direct),externalDatabase=externalDatabaseHandler(catalog,identity,direct),
   signing=signingHandler(catalog,identity),dataApi=dataApiHandler(catalog,identity);
  const share=shareHandler(catalog,identity),deploymentSetup=deploymentSetupHandler(catalog,identity);
  const invitations=invitationHandler(catalog,identity,accounts);
@@ -40,6 +40,7 @@ export function controlHandler(catalog:Catalog,keys:KeyStore,identity:Management
   if(/\/environments\/[^/]+\/data-api$/.test(path))return dataApi(request);
   if(/\/environments\/[^/]+\/(metrics|logs)$/.test(path))return observe(request);
   if(/\/environments\/[^/]+\/(functions|function-secrets)(\/|$)/.test(path))return functions(request);
+  if(/\/environments\/[^/]+\/database\/external$/.test(path))return externalDatabase(request);
   if(/\/environments\/[^/]+\/database(\/password)?$/.test(path))return database(request);
   if(/\/environments\/[^/]+\/signing-key(\/rotate)?$/.test(path))return signing(request);
   return /\/environments\/[^/]+\/(keys|connection)(\/|$)/.test(path)?credentials(request):metadata(request);

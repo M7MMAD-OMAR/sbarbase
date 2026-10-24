@@ -25,6 +25,8 @@ ssh -N -L 6543:127.0.0.1:6543 you@your-server
 psql "postgresql://e_…_developer:<password>@127.0.0.1:6543/e_…?sslmode=disable"
 ```
 
+`deploy/db-tunnel you@your-server` does the same and reconnects if the link drops (it is a small shell script; copy it to your computer if you do not have the repository).
+
 Examples:
 
 ```bash
@@ -34,6 +36,32 @@ DATABASE_URL="postgresql://…@127.0.0.1:6543/e_…?sslmode=disable" npx prisma 
 supabase db push --db-url "postgresql://…@127.0.0.1:6543/e_…?sslmode=disable"   # every file in supabase/migrations
 supabase gen types typescript --db-url "postgresql://…@127.0.0.1:6543/e_…?sslmode=disable" > database.types.ts
 ```
+
+## Connect from a service, such as Cloudflare Hyperdrive
+
+A Cloudflare Worker cannot open an SSH tunnel, and Hyperdrive requires TLS and has no fixed addresses to allow. For this, an owner or admin can open **external access** for one environment. It is off until you do, and it needs database access on.
+
+1. Under **Database**, press **Allow external connections**. The console shows the certificate authority (CA) that clients verify the server with; copy or download it.
+2. Make the listener reachable by the service **without opening a port to the internet**. It listens on the server's loopback address, port 6545 (`SBARBASE_DATABASE_EXTERNAL_PORT`). With Cloudflare, run a Cloudflare Tunnel connector on the server and give Workers VPC a TCP service that points at it:
+
+```bash
+wrangler tunnel create my-server-db                    # prints the tunnel id
+# on the server: run cloudflared with that tunnel's token as a service (cloudflared tunnel run --token-file ...)
+wrangler vpc service create my-server-db --type tcp --tcp-port 6545 --app-protocol postgresql \
+  --tunnel-id <tunnel-id> --ipv4 127.0.0.1 --cert-verification-mode disabled
+```
+
+   `disabled` is meant: Workers VPC trusts only public and Cloudflare Origin CA certificates, and the Cloudflare Tunnel is the authenticated, encrypted path to your server. Without Cloudflare, use any private network or tunnel that reaches port 6545 (WireGuard, Tailscale, a TLS-passthrough proxy). Setting `SBARBASE_DATABASE_EXTERNAL_BIND` to a public address publishes the port: do it only behind a firewall that allows the service's addresses, and add the host name to `SBARBASE_DATABASE_TLS_NAMES` so `sslmode=verify-full` can match.
+3. Create the Hyperdrive with the environment's developer login (the password you saved) and caching off, since a payment flow needs fresh reads:
+
+```bash
+wrangler hyperdrive create my-db --service-id <vpc-service-id> --database e_… --user e_…_developer \
+  --password '<password>' --caching-disabled --origin-connection-limit 10
+```
+
+4. In the Worker, use the binding's connection string with a driver that supports transactions (`pg` 8.16.3 or newer, `postgres`). A transaction (`sql.begin`) works because Hyperdrive gives the Worker a real PostgreSQL session.
+
+Other clients connect straight to the listener with `sslmode=verify-ca` and the CA from the console (`sslrootcert=ca.pem`). A cleartext connection to this port is refused, and so is any login other than this environment's developer login. Closing external access, or turning database access off, refuses new connections at once and ends this environment's open external sessions within a second. Whatever tunnel or network you put in front of the port must itself be authenticated (a Cloudflare Tunnel behind Workers VPC, WireGuard, SSH), because everything behind it reaches the listener as one address.
 
 ## What the developer login can do
 
@@ -59,13 +87,14 @@ It is not a superuser, cannot create roles or databases, and cannot reach anothe
 
 - The listener is on the server's loopback address, port 6543 by default. It reads each connection's login before anything reaches PostgreSQL and passes on only an environment's developer login asking for that environment's own database. Every other login, the superuser included, is refused there.
 - PostgreSQL then checks the password (SCRAM). Turning access off closes the login and every session it has open.
-- Traffic is not encrypted by the listener; the SSH tunnel encrypts it. `SBARBASE_DATABASE_BIND` can expose the listener on another address, but do that only on a network you trust ([configuration](../reference/configuration.md)).
+- The listener on 6543 accepts TLS (`sslmode=require` works) and also cleartext; the SSH tunnel encrypts it for you. `SBARBASE_DATABASE_BIND` can expose it on another address, but do that only on a network you trust ([configuration](../reference/configuration.md)).
+- The external listener (6545) takes TLS only, only for environments whose external access is on, and with the same login rules. Each attempt counts against a per-address and a total budget, and ten failed passwords for one environment in a minute close its external logins for a minute. TLS uses a private certificate authority Sbarbase makes on first start, kept in `.secrets/upstream/database-tls` (the server's `openssl` makes it; without it the external listener stays off) ([design](../engineering/EXTERNAL-DATABASE.md)).
 
 CI turns access on for an environment on a clean machine with every change, runs a Supabase-style migration through the listener, and checks the refusals, a password reset and turning it off ([evidence](../evidence/docker-database-checks.json)). A separate check signs in as one environment's login and tries every reserved schema name, renames, refused extensions, the Realtime publication, the guard itself, Vault and the other environment's database ([evidence](../evidence/developer-schema-checks-2026-10-19.json)).
 
 ## Limits
 
 - One login per environment, with up to 10 connections; there is no connection pooler yet.
-- The listener declines TLS; use `sslmode=disable` or `prefer` through the tunnel.
+- Through the SSH tunnel `sslmode=disable` still works; `require` works too. The external listener refuses cleartext.
 - Turning access on, and **New password**, give the login its rights on your tables again. A transaction your own application leaves open on one of them (a request still running, a session idle in a transaction) makes this wait up to 10 seconds per step; after that it fails and says so, and you try again. Other environments on the server do not wait for it ([design](../engineering/DATABASE-ACCESS.md)).
 - A migration that names the `postgres` role, for example `alter default privileges for role postgres`, is refused: each environment's developer login plays that part, and `postgres` itself is shared by the whole server. Write it without `for role postgres`, so it applies to the login running it.

@@ -164,6 +164,9 @@ Set these in `compose.yaml` (Docker) or as `Environment=` lines of the systemd s
 | `SBARBASE_RELEASE_SOURCE` | the canonical repository | Where the update check reads signed releases: a mirror's Git URL or path |
 | `SBARBASE_DATABASE_PORT` | `6543` | Port of the direct database access listener ([database access](../guides/database-access.md)); `off` turns it off |
 | `SBARBASE_DATABASE_BIND` | `127.0.0.1` | Address that listener binds. Keep loopback and use an SSH tunnel; another address sends database traffic unencrypted |
+| `SBARBASE_DATABASE_EXTERNAL_PORT` | `6545` | Port of the external database listener: TLS only, only for environments whose external access is on ([database access](../guides/database-access.md)); `off` turns it off. It also stays off when the server has no `openssl` to make the certificate |
+| `SBARBASE_DATABASE_EXTERNAL_BIND` | `127.0.0.1` | Address that listener binds. Keep loopback and reach it through a tunnel; another address publishes it to that network |
+| `SBARBASE_DATABASE_TLS_NAMES` | none | Extra host names or IP addresses written into the database server certificate (`localhost`, `127.0.0.1` and `::1` are always there), for `sslmode=verify-full` |
 | `SBARBASE_UPLOAD_LIMIT_MB` | `50` | The largest file an application may upload to Storage, in MiB (1 to 5120), as Supabase's global file size limit. Larger uploads get `413`. A change applies at the next start, which recreates the shared Storage container; a bucket's own limit can be lower ([evidence](../evidence/docker-upload-checks.json)) |
 
 With Docker, `deploy/compose.sh` also reads these. It refuses when the socket or Docker's data directory is missing, or when `SBARBASE_ROOT` is not this checkout:

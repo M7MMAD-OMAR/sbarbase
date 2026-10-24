@@ -5,6 +5,8 @@ import {studioRuntime} from '../src/control/studio';
 import {isRealtimeSocket} from '../src/gateway/realtime';
 import {readFileSync,unlinkSync} from 'node:fs';
 import {databaseListen} from '../src/http/database-proxy';
+import {externalListen,ExternalGuard} from '../src/http/database-external';
+import {ensureDatabaseTls,watchDatabaseTls} from '../src/http/database-tls';
 import {readJsonCached} from '../src/http/cached-json';
 import {upgradeHold} from '../src/gateway/hold';
 import {confirmationProbe,holdExceptProbe} from '../src/gateway/hold-bypass';
@@ -58,16 +60,30 @@ const functionsStorageAt=functionsStorageListeners({read:endpointsNow,log:line=>
 await functionsStorageAt.reconcile();
 const functionsTimer=setInterval(()=>void functionsStorageAt.reconcile(),2000);
 // Direct database access (migrations, psql, an ORM): developer logins only, to their own database.
-const databaseAt=databaseListen();
-if(databaseAt)await app.database.start({...databaseAt,log:line=>console.log(line),target:()=>{
+// TLS for the database listeners: a private CA and server certificate made on first start. Without
+// `openssl` the listeners stay cleartext on loopback and the external one stays off.
+let tls:ReturnType<typeof ensureDatabaseTls>|undefined;
+try{tls=ensureDatabaseTls();}catch(error){console.error(`Database TLS unavailable: ${(error as Error).message}`);}
+const databaseTarget=()=>{
  if(held())return undefined;
  try{const value=readJsonCached('.lab/upstream/database.json') as {host?:string;port?:number};
   return value.host&&value.port?{host:value.host,port:value.port}:undefined;}catch{return undefined;}
-}}).catch(error=>{console.error('Direct database access unavailable:',(error as Error).message);});
+};
+const databaseAt=databaseListen();
+if(databaseAt)await app.database.start({...databaseAt,log:line=>console.log(line),tls,target:databaseTarget})
+ .catch(error=>{console.error('Direct database access unavailable:',(error as Error).message);});
+// External access (docs/engineering/EXTERNAL-DATABASE.md): TLS only, and only the environments that opted in.
+const externalAt=tls?externalListen():null;
+if(externalAt&&tls){
+ const guard=new ExternalGuard(runtime=>app.catalog.externalDatabaseEnabled(runtime),line=>console.log(line));
+ await app.database.startExternal({...externalAt,log:line=>console.log(line),tls,guard,maxConnections:128,target:databaseTarget},tls.ca)
+  .catch(error=>{console.error('External database access unavailable:',(error as Error).message);});
+}
+const tlsRenewal=tls?watchDatabaseTls(tls,renewed=>void app.database.reloadTls(renewed).catch(error=>console.error(`Database TLS reload failed: ${(error as Error).message}`)),undefined,undefined,undefined,line=>console.log(line)):undefined;
 await Bun.write('.lab/upstream/server.json',JSON.stringify({url:`http://127.0.0.1:${server.port}`,pid:process.pid}));
 console.log(`Local Sbarbase API: http://127.0.0.1:${server.port}`);
 function stop(){
- clearInterval(studioTimer);internal?.stop(true);clearInterval(functionsTimer);functionsStorageAt.stop();server.stop(true);app.close();
+ tlsRenewal?.();clearInterval(studioTimer);internal?.stop(true);clearInterval(functionsTimer);functionsStorageAt.stop();server.stop(true);app.close();
  try {if(JSON.parse(readFileSync('.lab/upstream/server.json','utf8')).pid===process.pid)unlinkSync('.lab/upstream/server.json');}catch {}
  process.exit(0);
 }

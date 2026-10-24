@@ -1,0 +1,21 @@
+#!/bin/sh
+# Opens the SSH tunnel to an Sbarbase server's database listener, from your own computer:
+#   deploy/db-tunnel you@your-server [local-port] [server-port]
+# Then connect to 127.0.0.1:<local-port> with the connection string from the console. It reconnects
+# if the link drops and stops with Ctrl+C. Nothing is installed on the server for this.
+set -eu
+if [ $# -lt 1 ] || [ $# -gt 3 ]; then
+  echo 'usage: db-tunnel [user@]server [local-port] [server-port]' >&2
+  exit 2
+fi
+server=$1
+local=${2:-6543}
+remote=${3:-6543}
+case $local$remote in *[!0-9]*) echo 'db-tunnel: ports are numbers' >&2; exit 2;; esac
+echo "Tunnel to $server: 127.0.0.1:$local -> the server's 127.0.0.1:$remote (Ctrl+C stops it)" >&2
+while :; do
+  ssh -N -L "127.0.0.1:$local:127.0.0.1:$remote" \
+    -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 "$server" && break
+  echo 'db-tunnel: link dropped, retrying in 3 s' >&2
+  sleep 3
+done

@@ -34,6 +34,7 @@ Start with the [project goal](../../PROJECT_GOAL.md), [product and portability p
 - [REALTIME](REALTIME.md): one Realtime per environment, its login and its superuser window, and the socket path through the gateway.
 - [SIGNING-ROTATION](SIGNING-ROTATION.md): the session revocation of a signing key rotation, why it runs as the Auth login and not the superuser, and its bounds under the operation lock.
 - [DATABASE-ACCESS](DATABASE-ACCESS.md): turning direct database access on with its grants outside the operation lock, opening the developer login without a tenant holding it up, and one supervisor child per environment for every console change.
+- [EXTERNAL-DATABASE](EXTERNAL-DATABASE.md): the TLS database listener a Cloudflare Hyperdrive or other external service reaches through a tunnel, its per-environment opt-in, guard and private certificate authority.
 - [SCHEDULED-JOBS](SCHEDULED-JOBS.md): `cron` and `net` compatibility schemas per environment, the scheduler login that runs jobs as the developer, the scheduler process, the outgoing request policy, and what stays different from pg_cron and pg_net.
 - [DATA-API-SCHEMAS](DATA-API-SCHEMAS.md): exposed schemas per environment, kept in the environment's own database and applied by a PostgREST pre-config function, the guard against a missing schema taking the API down, and what was measured.
 - [STUDIO-INTEGRATION](STUDIO-INTEGRATION.md): specification for one upstream Studio per environment (on-demand path implemented; see the update at its top).

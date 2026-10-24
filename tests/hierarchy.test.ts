@@ -152,7 +152,7 @@ test('the catalog migrates an older file in place and refuses one written by a n
     legacy.close();
     const migrated=new Catalog(old);
     try {
-      expect(migrated.schemaVersion()).toBe(4);
+      expect(migrated.schemaVersion()).toBe(5);
       expect(migrated.listProjects('alice','o').map(project=>project.name)).toEqual(['Kept']);
       expect(()=>migrated.createProject('alice','o','Kept')).toThrow('Name already used');
     } finally {migrated.close();}
