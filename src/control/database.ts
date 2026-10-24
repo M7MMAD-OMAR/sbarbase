@@ -31,7 +31,7 @@ export function connectionString(details:DatabaseConnection,password='[YOUR-PASS
 
 function connectionHost(host:string){return host.includes(':')&&!host.startsWith('[')?`[${host}]`:host;}
 
-function savePassword(directory:string,runtime:string):string {
+export function savePassword(directory:string,runtime:string):string {
  if(!/^e_[a-f0-9]{24}$/.test(runtime))throw new Error('Invalid runtime');
  const password=randomBytes(24).toString('base64url');
  mkdirSync(directory,{recursive:true,mode:0o700});

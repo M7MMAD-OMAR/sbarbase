@@ -10,6 +10,10 @@ The declared package version is 0.6.2. Historical 0.1.0 and 0.2.0 entries retain
 
 ## [Unreleased]
 
+### Added
+
+- **`sbarbase database-password <environment> --output FILE`**, on the server, replaces an environment's developer database password as the console's New password does, waits for the supervisor to apply it, and writes the connection string to a new private file; the password is never printed. For an operator who cannot sign in to the console.
+
 ### Still open
 
 - **Deleting an environment does not work on an ordinary installation.** It always answers `409` with "Exact ownership inventory unavailable" and changes nothing, so restore and purge cannot be reached either. Provisioning never records the exact list of an environment's resources, and the shared PostgreSQL cluster and Storage process have no check yet that would make such a list honest. The [API reference](docs/reference/api.md) said delete "can answer" `409`; it now says it always does, and a test pins the current behaviour.

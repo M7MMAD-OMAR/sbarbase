@@ -1,6 +1,6 @@
 import {test,expect,afterAll} from 'bun:test';
 import {Database} from 'bun:sqlite';
-import {chmodSync,mkdirSync,mkdtempSync,rmSync,writeFileSync,readFileSync} from 'node:fs';
+import {chmodSync,mkdirSync,mkdtempSync,rmSync,writeFileSync,readFileSync,statSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {Catalog} from '../src/control/catalog';
@@ -683,4 +683,26 @@ test('database-external shows, opens and closes an environment from the server s
  expect(await main(['database-external',production,'off'],off.deps)).toBe(EXIT.ok);
  expect(off.printed()).toContain('external database access is off');
  expect(await main(['database-external',runtime,'maybe'],harness(root).deps)).toBe(EXIT.usage);
+});
+
+test('database-password writes a new connection string to a private new file, never prints it, and waits for the supervisor',async()=>{
+ const {root,runtime}=installation();
+ const output=join(root,'url.txt');
+ expect(await main(['database-password',runtime],harness(root).deps)).toBe(EXIT.usage);
+ expect(await main(['database-password',runtime,'--output',output],harness(root).deps)).toBe(EXIT.refused);
+ const database=new Database(join(root,'.lab','upstream','control.sqlite'));
+ database.query("INSERT INTO database_access(runtime,desired,state,actor,updated_at) VALUES (?,'on','on','alice',1)").run(runtime);
+ // The supervisor's side: apply the request a moment later.
+ const timer=setInterval(()=>{database.query("UPDATE database_access SET state='on' WHERE runtime=? AND state='pending'").run(runtime);},100);
+ const run=harness(root);
+ try {expect(await main(['database-password','shop/production','--output',output],run.deps)).toBe(EXIT.ok);}
+ finally {clearInterval(timer);}
+ const url=readFileSync(output,'utf8').trim();
+ expect(url).toMatch(new RegExp(`^postgresql://${runtime}_developer:[A-Za-z0-9_-]{32}@127\\.0\\.0\\.1:6543/${runtime}$`));
+ expect(statSync(output).mode&0o777).toBe(0o600);
+ const password=url.split(':')[2]!.split('@')[0]!;
+ expect(run.printed()).not.toContain(password);
+ expect(JSON.parse(readFileSync(join(root,'.secrets','upstream','database',`${runtime}.json`),'utf8')).password).toBe(password);
+ expect(await main(['database-password',runtime,'--output',output],harness(root).deps)).toBe(EXIT.refused);
+ database.close();
 });

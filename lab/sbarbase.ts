@@ -84,6 +84,8 @@ Commands
   studio start|stop <environment>     ask for Studio through the management API; the supervisor runs it
   share <environment> [<n>]           show an environment's gateway share, or set it (operators only)
   reset-password <email>              on the server, set a new password for a management account
+  database-password <environment> --output FILE
+                                      on the server, new developer password; the connection string goes to FILE
   database-external <environment> [on|off]
                                       on the server, show or set an environment's external database access
   logs [supervisor|auth|rest|storage|database] [<environment>] [--lines N] [--follow]
@@ -119,6 +121,13 @@ On the server, as the service account: set a new password for a management accou
 password was lost. The new password is asked twice without echo, at least 12 characters.
 Every console and Studio session of that account ends; its authenticator, if any, stays.
 It reads the management realm's secret from .secrets, so only someone with this shell can.`,
+ 'database-password':`sbarbase database-password <environment> --output FILE
+
+On the server, as the service account: replace the environment's developer password, as the
+console's New password does (the old one stops working), wait until the supervisor has applied it,
+and write the connection string to FILE, which must not exist and is created private (0600). The
+password is never printed. Database access must already be on. For an operator who cannot sign in
+to the console, such as an agent working over SSH.`,
  'database-external':`sbarbase database-external <environment> [on|off]
 
 On the server, as the service account: show whether an environment accepts external database
@@ -215,7 +224,7 @@ const ALLOWED:Record<string,string[]>={
  relink:['--email','--operator-file','--password-stdin'],
  'add-environment':['--email','--operator-file','--password-stdin'],
  'rotate-key':['--email','--operator-file','--password-stdin','--revoke'],
- 'reset-password':[],'database-external':[],
+ 'reset-password':[],'database-external':[],'database-password':['--output'],
  upgrade:['--to','--release','--allow-class','--json','--check'],studio:['--email','--operator-file','--password-stdin'],share:['--email','--operator-file','--password-stdin'],logs:['--lines','--follow'],help:[],
 };
 
@@ -830,6 +839,7 @@ export async function main(argv:string[],deps:Deps):Promise<number> {
    case 'share':return await share(deps,parsed);
    case 'reset-password':return await resetPassword(deps,parsed);
    case 'database-external':return await databaseExternal(deps,parsed);
+   case 'database-password':return await databasePassword(deps,parsed);
    case 'logs':return await logs(deps,parsed);
   }
   return EXIT.usage;
@@ -875,6 +885,42 @@ async function databaseExternal(deps:Deps,parsed:Parsed) {
   if(message==='Turn on database access first'||message==='Environment is not ready')throw new Refusal(message);
   throw error;
  } finally {catalog.close();}
+ return EXIT.ok;
+}
+async function databasePassword(deps:Deps,parsed:Parsed) {
+ arity(parsed,1,1);
+ const output=parsed.flags['--output'];
+ if(typeof output!=='string'||!output)throw new Usage('database-password needs --output FILE, where the connection string is written');
+ if(existsSync(output))throw new Refusal(`${output} exists already; name a new file`);
+ const id=environmentId(deps,parsed.args[0]!);
+ const {Catalog}=await import('../src/control/catalog');
+ const {savePassword,connection,connectionString}=await import('../src/control/database');
+ const catalog=new Catalog(join(deps.root,'.lab/upstream/control.sqlite'));
+ try {
+  const runtime=runtimeOf(deps,parsed.args[0]!);
+  // Refuse before a password exists when the change cannot be requested.
+  const probe=catalog.databaseAccessProgressLocal(runtime);
+  if(probe.state==='pending')throw new Refusal('Database access change in progress');
+  if(probe.state!=='on')throw new Refusal('Turn on database access first');
+  const password=savePassword(join(deps.root,'.secrets/upstream/database'),runtime);
+  try {catalog.requestDatabasePasswordLocal(id);}
+  catch(error) {
+   const message=error instanceof Error?error.message:'';
+   if(message==='Turn on database access first'||message==='Environment is not ready'||message==='Database access change in progress')throw new Refusal(message);
+   throw error;
+  }
+  const deadline=Date.now()+180_000;
+  let progress=catalog.databaseAccessProgressLocal(runtime);
+  while(progress.state==='pending'&&Date.now()<deadline) {
+   await new Promise(resolve=>setTimeout(resolve,1000));
+   progress=catalog.databaseAccessProgressLocal(runtime);
+  }
+  if(progress.state==='failed')throw new Refusal(`The supervisor could not apply the new password: ${progress.failure??'unknown failure'}`);
+  if(progress.state!=='on')throw new Refusal('The new password was not applied within 3 minutes; run the command again');
+  const descriptor=openSync(output,'wx',0o600);
+  try {writeSync(descriptor,connectionString(connection(runtime),password)+'\n');} finally {closeSync(descriptor);}
+ } finally {catalog.close();}
+ deps.out(`The developer password of ${parsed.args[0]} was replaced and its connection string was written to ${output} (mode 0600). The old password no longer works.`);
  return EXIT.ok;
 }
 function externalListenText():string {

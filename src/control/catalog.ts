@@ -1195,6 +1195,25 @@ export class Catalog {
       return {runtime:job.runtime,enabled:this.externalDatabaseEnabled(job.runtime)};
     }).immediate();
   }
+  /** The operator's shell on the server (`sbarbase database-password`): a new developer password is a request to
+   * apply database access again, as the console's New password is. Needs access already on; actor `local:operator`. */
+  requestDatabasePasswordLocal(environment:string):{runtime:string} {
+    return this.db.transaction(()=>{
+      const job=this.job(environment);
+      if(!job||job.state!=='succeeded'||this.runtimeDeleted(job.runtime))throw new Error('Environment is not ready');
+      const row=this.db.query<{desired:string;state:string},[string]>('SELECT desired,state FROM database_access WHERE runtime=?').get(job.runtime);
+      if(row?.state==='pending')throw new Error('Database access change in progress');
+      if(!(row?.desired==='on'))throw new Error('Turn on database access first');
+      this.db.query(`UPDATE database_access SET desired='on',state='pending',failure=NULL,actor='local:operator',updated_at=? WHERE runtime=?`).run(Date.now(),job.runtime);
+      this.record('local:operator','database.access_requested',environment,{});
+      return {runtime:job.runtime};
+    }).immediate();
+  }
+  /** Where a database access change stands, for the shell command waiting on the supervisor. */
+  databaseAccessProgressLocal(runtime:string):{state:string;failure:string|null} {
+    const row=this.db.query<{state:string;failure:string|null},[string]>('SELECT state,failure FROM database_access WHERE runtime=?').get(runtime);
+    return {state:row?.state??'off',failure:row?.failure??null};
+  }
   requestDatabaseAccess(actor:string,environment:string,on:boolean):RealtimeState {
     return this.db.transaction(()=>{
       const current=this.databaseAccess(actor,environment);
