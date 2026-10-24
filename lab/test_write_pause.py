@@ -807,8 +807,11 @@ class RestartTests(unittest.TestCase):
                 os.kill(child, 0)
             except ProcessLookupError:
                 break
-            if Path(f'/proc/{child}/stat').read_text().split()[2] == 'Z':
-                break
+            try:
+                if Path(f'/proc/{child}/stat').read_text().split()[2] in ('Z', 'X'):
+                    break
+            except OSError:
+                break  # gone between the two checks
             time.sleep(.1)
         else:
             os.kill(child, signal.SIGKILL)

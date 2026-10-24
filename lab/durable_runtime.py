@@ -34,6 +34,7 @@ import data_api
 import mail_state
 import private_directories
 import kept_runtime
+import rolling
 
 MAIL_KEY_PREFIXES = ('GOTRUE_SMTP_', 'GOTRUE_MAILER_', 'GOTRUE_RATE_LIMIT_')
 
@@ -167,9 +168,12 @@ REPLACEABLE = ('auth', 'rest', 'storage', 'realtime', 'functions')
 
 # Operator settings of a stateless service that a restart may apply by recreating it.
 # The role settings the platform leaves on each environment's REST login, in its own database.
+# Its two deadlines: a request REST serves ends within the longer one (lab/rolling.py drains for it).
+REST_STATEMENT_SECONDS = 8
+REST_TRANSACTION_SECONDS = 12
 REST_PINS = ("ALTER ROLE {e}_rest IN DATABASE {e} SET search_path = pg_catalog; "
-             "ALTER ROLE {e}_rest IN DATABASE {e} SET statement_timeout = '8s'; "
-             "ALTER ROLE {e}_rest IN DATABASE {e} SET transaction_timeout = '12s';")
+             f"ALTER ROLE {{e}}_rest IN DATABASE {{e}} SET statement_timeout = '{REST_STATEMENT_SECONDS}s'; "
+             f"ALTER ROLE {{e}}_rest IN DATABASE {{e}} SET transaction_timeout = '{REST_TRANSACTION_SECONDS}s';")
 # The REST login's role settings are rows tenant code can lock (it can run `ALTER ROLE` on itself in
 # a transaction it leaves open), so every platform statement that writes them is bounded: it
 # gives up with an error instead of waiting, and the start stops or the change is refused.
@@ -212,6 +216,21 @@ def rest_pin_sql(e, end_sessions=False, password=None):
   END LOOP;
 END $$;
 {REST_PINS.format(e=e)} COMMIT;""")
+
+
+def rest_settings_sql(e):
+    """Every role setting of the REST login, in any database or globally, as one sorted line."""
+    if not re.fullmatch(r'e_[a-f0-9]{24}', e):
+        raise RuntimeError('Invalid environment runtime identifier')
+    return (data_api.SAFE + f"SELECT coalesce(pg_catalog.string_agg(coalesce(d.datname, '*') || ':' || setting, ',' "
+            f"ORDER BY coalesce(d.datname, '*'), setting), '') FROM pg_catalog.pg_db_role_setting s LEFT JOIN pg_catalog.pg_database d "
+            f"ON d.oid = s.setdatabase, pg_catalog.unnest(s.setconfig) setting WHERE s.setrole = '{e}_rest'::pg_catalog.regrole;")
+
+
+def rest_exact(e):
+    """What rest_settings_sql reads when the login has exactly REST_PINS."""
+    return (f'{e}:search_path=pg_catalog,{e}:statement_timeout={REST_STATEMENT_SECONDS}s,'
+            f'{e}:transaction_timeout={REST_TRANSACTION_SECONDS}s')
 
 
 def rest_password_sql(e, password, end_sessions=False):
@@ -683,17 +702,24 @@ class Runtime:
             # longer exists (reconcile_mail names the same hazard for its own path).
             stale = [key for key in configured if is_mail_key(key) and key not in env]
             if actual['Image'] != expected or any(configured.get(k) != v for k, v in env.items()) or stale:
-                # A new signing secret is accepted only while its environment has a recorded rotation.
-                if not upgrade_allows(component, image) and not (actual['Image'] == expected and (
-                        settings_only(component, configured, env) or (rotating and signing_only(component, configured, env)))):
-                    raise RuntimeError('Runtime drift requires explicit reconciliation')
-                # An upgrade or rollback: replace the stateless container with the pinned
-                # image and the configuration this version computes, keeping its volumes. One a planned
-                # upgrade restart left running stops as a stop would, before it is removed.
-                if actual.get('State', {}).get('Running'):
-                    lab.docker('stop', actual['Id'])
-                lab.docker('rm', '-f', actual['Id'])
-                actual = None
+                # An Auth or REST whose only change is its pin, when SBARBASE_ROLLING_SERVICES names it, keeps
+                # its previous image: the supervisor replaces it side by side once the upgrade is confirmed
+                # (lab/rolling.py). Its settings must match this version's exactly.
+                matches = not stale and all(configured.get(k) == v for k, v in env.items())
+                if not (actual['Image'] != expected and matches and not volumes and not binds and not command
+                        and rolling.defer(self, name, component, actual, expected, image)):
+                    # A new signing secret is accepted only while its environment has a recorded rotation.
+                    # The plan's own replacement goes ahead in place too, when the switch no longer defers it.
+                    if not upgrade_allows(component, image) and not rolling.planned(name, component, actual, expected) and not (actual['Image'] == expected and (
+                            settings_only(component, configured, env) or (rotating and signing_only(component, configured, env)))):
+                        raise RuntimeError('Runtime drift requires explicit reconciliation')
+                    # An upgrade or rollback: replace the stateless container with the pinned
+                    # image and the configuration this version computes, keeping its volumes. One a planned
+                    # upgrade restart left running stops as a stop would, before it is removed.
+                    if actual.get('State', {}).get('Running'):
+                        lab.docker('stop', actual['Id'])
+                    lab.docker('rm', '-f', actual['Id'])
+                    actual = None
         if actual:
             mounts = {(m.get('Name'), m['Destination']) for m in actual['Mounts']}
             if any((name, destination) not in mounts for name, destination in volumes):
@@ -772,6 +798,8 @@ class Runtime:
 
     def start(self):
         effect_receipt.require_settled(STATE)
+        # A value of the switch that names anything else refuses every start, not only one that changes a pin.
+        rolling.chosen()
         if lab.docker('ps','-q','--filter','label=io.sbarbase.owner=recovery-target').stdout.strip():
             raise RuntimeError('Staged source mode requires stopped recovery targets')
         if self.hba_writer is None or self.hba_writer.startup is None:raise RuntimeError('Explicit startup HBA ownership required')
@@ -817,7 +845,12 @@ class Runtime:
             'X_FORWARDED_HOST_REGEXP': r'^(e_[a-f0-9]{24})\.storage\.internal$', 'LOG_LEVEL': 'error'},
             '512m', .5, [(PREFIX+'-objects', '/tmp/storage-data')], tier='system.storage')
         self.wait(self.endpoint(PREFIX+'-storage', 5001)+'/tenants', {'apikey': self.values['storage_admin']})
+        # A side by side replacement a crash interrupted is finished or undone before anything resumes,
+        # and the start of an upgrade begins a new plan of what the supervisor replaces after it.
+        rolling.repair(self)
+        rolling.begin(self)
         self.resume_published_environments()
+        rolling.finish_start(self)
         self.retire_unadopted()
 
     def resume_published_environments(self):
@@ -839,6 +872,7 @@ class Runtime:
             raise RuntimeError('Resume requires a published environment')
         if source_fence.is_fenced(self.sql,e):
             raise RuntimeError('Environment database is fenced; explicit reconciliation required')
+        rolling.require_settled(e,plan=False)
         for service in ('auth','rest'):
             if not inspect('container',PREFIX+'-'+e+'-'+service):
                 raise RuntimeError('Resume requires retained service containers')
@@ -849,12 +883,21 @@ class Runtime:
         rest=PREFIX+'-'+e+'-rest'
         item=inspect('container',rest)
         # Also one a planned upgrade restart left running (lab/kept_runtime.py): no session of the REST
-        # login may outlive the pin with settings tenant code chose, so REST always stops for it.
-        if item and item.get('State',{}).get('Running'):
-            lab.docker('stop',rest)
-        self.rest_deadlines(e,rewrite=True,end_sessions=True)
+        # login may outlive the pin with settings tenant code chose, so REST stops for it, unless
+        # SBARBASE_ROLLING_SERVICES names `rest`: then the kept one keeps serving, and every session of
+        # its login is ended once more after the pin (lab/rolling.py pin_serving).
+        running=bool(item and item.get('State',{}).get('Running'))
+        serving=running and rolling.keeps_serving(self,e,item) and rolling.pin_serving(self,e)
+        if not serving:
+            if running:
+                lab.docker('stop',rest)
+            self.rest_deadlines(e,rewrite=True,end_sessions=True)
         # The catalog says what the Data API serves; a restored or rebuilt database gets it again here.
         self.data_api(e,refuse_missing=False)
+        if serving:
+            # That write ends the login's sessions again before its own commit; one the serving REST opened
+            # in between has the settings from before it, so every session ends once more.
+            self.sql(rolling.sessions_sql(e))
         self.activate_services(e,self.values['environments'][e],creating=False)
         self.scheduled_jobs_back(e)
 
@@ -876,16 +919,14 @@ class Runtime:
             # (REST_PINS): anything else changes how its sessions run, and a global one makes a restore
             # refuse. The search path keeps a function planted in `public` from taking the place of a
             # built-in in the query PostgREST loads its configuration with.
-            exact = execute(data_api.SAFE + f"SELECT coalesce(pg_catalog.string_agg(coalesce(d.datname, '*') || ':' || setting, ',' "
-                            f"ORDER BY coalesce(d.datname, '*'), setting), '') FROM pg_catalog.pg_db_role_setting s LEFT JOIN pg_catalog.pg_database d "
-                            f"ON d.oid = s.setdatabase, pg_catalog.unnest(s.setconfig) setting WHERE s.setrole = '{e}_rest'::pg_catalog.regrole;").stdout.strip()
+            exact = execute(rest_settings_sql(e)).stdout.strip()
             # The password too, whenever the runtime file holds it: a settings save (end_sessions False)
             # leaves it alone, since REST is serving, and every path that starts REST writes it again.
             password = (((getattr(self, 'values', None) or {}).get('environments') or {}).get(e) or {}).get('rest') if end_sessions else None
             # Generated passwords are 64 hex characters (secrets.token_hex(32)); anything else is not ours to write.
             if not (password and re.fullmatch(r'[a-f0-9]{64}', password)):
                 password = None
-            if exact != f'{e}:search_path=pg_catalog,{e}:statement_timeout=8s,{e}:transaction_timeout=12s':
+            if exact != rest_exact(e):
                 # In one transaction with the password, after ending the sessions (rest_pin_sql).
                 execute(rest_pin_sql(e, end_sessions, password))
             elif password:
@@ -1188,15 +1229,11 @@ class Runtime:
         # mail_config.load returns None when the environment has no mail file,
         # and the builder then returns exactly the dict it returned before.
         mail = mail_config.load(e)
-        for service, builder, port, suffix in [('auth', lab.auth_configuration, 9999, '/health'), ('rest', lab.rest_configuration, 3000, '/')]:
+        for service, port, suffix in [('auth', 9999, '/health'), ('rest', 3000, '/')]:
             name = PREFIX+'-'+e+'-'+service
             # No per-environment class field exists yet, so both environment
             # services launch under the production row (docs/engineering/RESOURCE-POLICY.md 3.2).
-            config = builder(e, v, DB, mail, load_settings(e)) if service == 'auth' else builder(e, v, DB)
-            if service == 'rest':
-                # The function that applies the Data API settings, and the empty schema as the container's
-                # own: a load that function refuses falls back to these, never to `public`.
-                config = {**config, **data_api.CONTAINER_ENV}
+            config = self.service_configuration(e, v, service, mail)
             self.launch(name, service, config, '256m', .25, existing_only=not creating, tier='production', rotating=rotating)
             endpoints[service] = self.endpoint(name, port)
             self.wait(endpoints[service]+suffix)
@@ -1253,6 +1290,17 @@ class Runtime:
             else:
                 print(f'Environment {e}: the signing rotation is unfinished, its Auth sessions could not be ended; rotate again.', file=sys.stderr)
 
+    def service_configuration(self, e, v, service, mail=None):
+        """The settings this version runs the environment's Auth or REST with (activate_services, and
+        lab/rolling.py for a side by side replacement)."""
+        if service == 'auth':
+            return lab.auth_configuration(e, v, DB, mail, load_settings(e))
+        # The function that applies the Data API settings, and the empty schema as the container's
+        # own: a load that function refuses falls back to these, never to `public`.
+        config = lab.rest_configuration(e, v, DB)
+        config = {**config, **data_api.CONTAINER_ENV}
+        return config
+
     def functions_back(self, e, entry):
         """Edge Functions come back with the environment's other services, on a start or a signing key
         rotation, except while a write pause holds it: they stay stopped, and keep their entry, until
@@ -1274,6 +1322,7 @@ class Runtime:
             raise RuntimeError('Rotation needs a published environment')
         if source_fence.is_fenced(self.sql, e):
             raise RuntimeError('Environment database is fenced; explicit reconciliation required')
+        rolling.require_settled(e)
         for service in ('auth', 'rest'):
             if not inspect('container', PREFIX+'-'+e+'-'+service):
                 raise RuntimeError('Rotation needs the retained service containers')
@@ -1312,6 +1361,7 @@ class Runtime:
             raise RuntimeError('Reconcile requires a published environment')
         if source_fence.is_fenced(self.sql,e):
             raise RuntimeError('Environment database is fenced; explicit reconciliation required')
+        rolling.require_settled(e)
         name = PREFIX+'-'+e+'-auth'
         actual = inspect('container', name)
         if not actual:
@@ -1347,6 +1397,7 @@ class Runtime:
             raise RuntimeError('Sign-in settings need a published environment')
         if source_fence.is_fenced(self.sql,e):
             raise RuntimeError('Environment database is fenced; explicit reconciliation required')
+        rolling.require_settled(e)
         name = PREFIX+'-'+e+'-auth'
         if not inspect('container', name):
             raise RuntimeError('Sign-in settings need the retained Auth container')

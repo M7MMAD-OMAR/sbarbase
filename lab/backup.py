@@ -836,7 +836,14 @@ SERVICE_PINS = {'auth': ('images.lock.json', 'auth'), 'rest': ('images.lock.json
 def require_service_images(e):
     """Each of the environment's services runs the image this version pins. A way back that stopped
     before it replaced them can leave a newer release's Auth, which would migrate a restored schema
-    forward again, so a restore refuses before it changes anything, and never starts one."""
+    forward again, so a restore refuses before it changes anything, and never starts one.
+    So does an unfinished side by side replacement (lab/rolling.py): its containers are not where their
+    names say until the next start repairs it."""
+    import rolling
+    try:
+        rolling.require_settled(e)
+    except RuntimeError as error:
+        raise BackupError(str(error)) from None
     for name in service_names(e):
         service = name.rsplit('-', 1)[1]
         filename, key = SERVICE_PINS[service]

@@ -47,6 +47,7 @@ import sys
 import time
 
 import durable_runtime as runtime
+import rolling
 import scheduled_jobs
 import run as lab
 
@@ -371,6 +372,12 @@ def pause(e, *, state=None, query=sql, route=operator, endpoints=None, writers=N
         published = runtime.published_endpoints() if endpoints is None else endpoints
         if e not in published:
             raise PauseError('Only a published environment can be paused')
+        # Before anything is recorded or stopped: the pause stops and starts Auth and REST by name, which an
+        # unfinished side by side replacement (lab/rolling.py) does not leave where they say.
+        try:
+            rolling.require_settled(e)
+        except RuntimeError as error:
+            raise PauseError(str(error)) from None
         record = read_record(e, state)
         current = route({'action': 'read', 'runtimes': [e]})[e]
         if current.get('placement') is not None:

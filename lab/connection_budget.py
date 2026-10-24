@@ -21,6 +21,10 @@ SCHEDULER_CONNECTIONS = 4
 # them 41. The image's default of 100 held four. The database tier's process limit
 # (resource_policy.TIERS['system.db'].pids) must stay above this, one process per connection.
 MAX_CONNECTIONS = 200
+# Added to one environment login's limit, and to its database's, while an old and a new Auth or REST
+# container of that environment run side by side (lab/rolling.py): each holds its own pool, the old one
+# until it is stopped. Taken back as soon as the old one is gone.
+SWAP_CONNECTIONS = SERVICE_LIMIT
 
 
 def database_limit(studio=False, realtime=False, direct=False, cron=False):
@@ -34,3 +38,12 @@ def fits(environments, maximum, superuser_reserved, reserved):
     if any(type(value) is not int or value < 0 for value in values):
         raise ValueError('Invalid connection budget measurement')
     return environments*ENVIRONMENT_LIMIT+SHARED_LIMIT+OPERATIONS_RESERVE <= maximum-superuser_reserved-reserved
+
+
+def swap_fits(available, promised):
+    """Whether one side by side replacement fits: the connection limits every database already promises,
+    the replacement's SWAP_CONNECTIONS and the operations reserve, within what the cluster lets logins use
+    (max_connections less the reserved slots)."""
+    if any(type(value) is not int or value < 0 for value in (available, promised)):
+        raise ValueError('Invalid connection budget measurement')
+    return promised + SWAP_CONNECTIONS + OPERATIONS_RESERVE <= available

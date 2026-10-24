@@ -8,6 +8,7 @@ import host_watch
 import kept_runtime
 import json
 import notification_producers
+import rolling
 import os
 from pathlib import Path
 import signal
@@ -145,6 +146,10 @@ class Supervisor:
         # update drains the supervisor, and when it may start again after it exited.
         self.scheduler = None
         self.scheduler_after = 0.0
+        # The side by side replacement of Auth and REST after a pin change (lab/rolling.py): one child, one
+        # environment per run, and when it may run again.
+        self.rolling = None
+        self.rolling_after = 0.0
         self.backup_hour = backup_hour()
         self.backup_keep = backup_keep()
         self.restarts = collections.deque()
@@ -432,7 +437,7 @@ class Supervisor:
         receipt, an HBA journal or migration) waits to be settled."""
         if self.worker is not None or self.backup is not None or self.sign_in or self.studios:
             return False
-        if self.data_api or self.toggles or self.scheduler is not None:
+        if self.data_api or self.toggles or self.scheduler is not None or self.rolling is not None:
             return False
         import upgrade
         return not any(upgrade.present(upgrade.UPSTREAM / name) for name in upgrade.UNSETTLED)
@@ -723,6 +728,22 @@ class Supervisor:
             return
         self.scheduler = self.spawn(['bun', 'lab/scheduler.ts'])
 
+    def schedule_rolling(self):
+        """Replace the environments a pin change left on their previous Auth or REST, side by side, once the
+        upgrade is confirmed and while nothing pauses the supervisor (lab/rolling.py): one child at a time,
+        one environment per child. A child that found the operation lock held is asked again shortly; one
+        with nothing to do, or that failed, after a minute."""
+        if self.rolling is not None:
+            status = child_status(self.rolling)
+            if status is None:
+                return
+            terminate_group(self.rolling, grace=0)
+            self.rolling = None
+            self.rolling_after = time.monotonic() + (1 if status == 0 else 5 if status == rolling.BUSY else 60)
+        if self.paused() or self.confirm is not None or time.monotonic() < self.rolling_after or not rolling.due():
+            return
+        self.rolling = self.spawn(['/usr/bin/python3', 'lab/rolling.py', 'roll'])
+
     def reset_studios(self):
         """No Studio container outlives a restart, since its login must close. A session used in the
         last eight hours comes back on its own: its browser cookie is still valid (the session key is
@@ -784,6 +805,12 @@ class Supervisor:
                 self.schedule_data_api()
                 self.schedule_toggles()
                 self.schedule_scheduler()
+                try:
+                    self.schedule_rolling()
+                except Exception as error:
+                    # The side by side replacement never stops the installation; it tries again later.
+                    print(f'Side by side replacement scheduling failed: {error}', file=sys.stderr, flush=True)
+                    self.rolling_after = time.monotonic() + 60
                 if not self.paused():
                     # Disk space and stopped service containers, once a minute (lab/host_watch.py).
                     self.host_watch.step()
@@ -809,6 +836,9 @@ class Supervisor:
                 terminate_group(process)
             for process in self.toggles.values():
                 terminate_group(process)
+            if self.rolling:
+                # Stopped in the middle of a swap, the next start or roll repairs it (rolling.repair).
+                terminate_group(self.rolling)
             # Stop new HTTP mutations first, then drain the active worker effect.
             if self.server:
                 terminate_group(self.server)

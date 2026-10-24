@@ -54,6 +54,7 @@ import hba_journal
 import install_server
 import image_identity
 import release_channel
+import rolling
 import run as lab
 import upgrade_guard
 
@@ -77,8 +78,10 @@ UPSTREAM = runtime.STATE
 KEY_STORE = runtime.PRIVATE / 'managed-keys.sqlite'
 SUPERVISOR_LOCK = UPSTREAM / 'supervisor.lock'
 BACKUP_LOCK = UPSTREAM / 'backup.lock'
-# Records that must be reconciled before anything moves (the same set hba_startup refuses).
-UNSETTLED = ('worker-effect.json', hba_journal.NAME, hba_generation.MIGRATION)
+# Records that must be reconciled before anything moves (the same set hba_startup refuses), and an
+# unfinished side by side replacement of Auth or REST (lab/rolling.py), which the version that left it
+# repairs at its next start or roll: a version without that module would never repair it.
+UNSETTLED = ('worker-effect.json', hba_journal.NAME, hba_generation.MIGRATION, rolling.NAME)
 # Which lock entry each replaceable service runs, as durable_runtime reads them.
 SERVICES = upgrade_guard.SERVICES
 DEFAULT_TARGET = 'origin/main'
@@ -721,6 +724,13 @@ def rollback_refusal(state=None, automatic=False):
     if present(DATABASE_MOVE):
         # The move owns the checkout and the database image until it completes or is dropped.
         return 'A database move is recorded; continue or abandon it first (lab/upgrade.py database). Nothing was changed'
+    if not automatic and present(UPSTREAM / rolling.NAME):
+        # Left by a roll of this confirmed version: the previous version may not know the record, and a later
+        # one would repair a stale record against containers the way back replaced. The automatic way back of a
+        # start that failed goes on: only a roll after a confirmation writes the record, so the version it
+        # returns to is the one that wrote it, and that version repairs it at its start.
+        return ('A side by side replacement of Auth or REST is unfinished; the supervisor repairs it within a minute, '
+                'or restart Sbarbase once. Nothing was changed')
     if not automatic:
         changed = local_changes()
         if changed:
@@ -773,7 +783,29 @@ def way_back(state):
     return state.get('way_back') or {'pins': pins_at(state['from']), 'from': state['to'], 'to': state['from']}
 
 
+# How long an operator's rollback waits for the installation operation lock (operation_guard).
+OPERATION_WAIT = 30
+
+
+def operation_guard(automatic):
+    """An operator's rollback holds the installation operation lock from its checks until the checkout moved:
+    the supervisor's side by side replacement (lab/rolling.py) takes it for every swap, so none starts between
+    the check that no swap is recorded and the move to a version that may not know the record. The automatic
+    way back runs inside a start that already settled such a record (UNSETTLED), and holds no lock here."""
+    if automatic:
+        return contextlib.nullcontext()
+    # Only a lock, never a state change: taken through the channel's helper directly.
+    return release_channel.exclusive(UPSTREAM / 'operation.lock', 'Another operation on the runtime is running (a side by '
+                                     'side replacement, a provisioning or a console change); try the rollback again shortly',
+                                     OPERATION_WAIT, UpgradeError)
+
+
 def go_back(automatic, reason=None):
+    with operation_guard(automatic):
+        way_back_now(automatic, reason)
+
+
+def way_back_now(automatic, reason=None):
     state = load_state()
     refusal = rollback_refusal(state, automatic)
     if refusal:
@@ -964,6 +996,13 @@ def status():
     if state.get('snapshot'):
         restored = ' (restored on the way back)' if state.get('restored') == state['snapshot'] else ''
         print(f"control  snapshot {SNAPSHOTS.relative_to(ROOT) if SNAPSHOTS.is_relative_to(ROOT) else SNAPSHOTS}/{state['snapshot']}{restored}")
+    progress = rolling.status()
+    if progress is not None:
+        # Auth or REST the new pin replaces environment by environment after the confirmation (lab/rolling.py).
+        waiting = sorted(f'{e} {service} {state}' for e, services in progress['environments'].items()
+                         for service, state in services.items() if state != 'new')
+        print('rolling  ' + (f"stopped: {progress['stopped']}; " if progress['stopped'] else '')
+              + ('previous pin: ' + ', '.join(waiting) if waiting else 'done'))
     print(f"now at  {git('rev-parse', 'HEAD')[:12]}")
 
 

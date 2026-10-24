@@ -21,7 +21,8 @@ Files, all in .lab/upgrades, private (0600), each replaced atomically:
                      never tries a spent or rolled back version again
   current.json       the supervisor's word to the console (publish_current): {version, commit,
                      written_at, rollback: {started_at, possible, reason}, apply: null | {version,
-                     tag, class, possible, reason, acknowledgement}, pending, timezone: {name, offset}}
+                     tag, class, possible, reason, acknowledgement}, pending, timezone: {name, offset},
+                     rolling: null | {stopped, canary, environments: {runtime: {auth|rest: old|new|failed}}}}
   available.json     the last check's result, written by lab/release_channel.py; one made on
                      another commit is moved to available.previous.json
   outcome.json       how the last child the supervisor ran ended, written by lab/upgrade.py:
@@ -43,6 +44,7 @@ from pathlib import Path
 
 import effect_receipt
 import notification_producers
+import rolling
 
 ROOT = Path(__file__).resolve().parents[1]
 UPGRADES = ROOT / '.lab' / 'upgrades'
@@ -638,6 +640,9 @@ def publish_current(upgrade_state, moment=None, running=None, rollback=None, blo
       apply            whether the release on offer can be installed now (apply_verdict)
       pending          an upgrade or rollback waits for its restart or its confirmation
       timezone         the zone the maintenance window is read in
+      rolling          which environments still run the previous Auth or REST pin after an upgrade
+                       that changed it, and whether that replacement stopped (lab/rolling.py status);
+                       recorded here for operators and tools, the console does not show it yet
     A check result made on another commit is set aside first. With `previous` (the record last
     written), nothing is written when only the time would change; returns the record in force."""
     if running is None:
@@ -650,7 +655,8 @@ def publish_current(upgrade_state, moment=None, running=None, rollback=None, blo
     record = {'version': running['version'], 'commit': running['commit'], 'written_at': stamp(moment),
               'rollback': {'started_at': state.get('started_at'), 'possible': possible, 'reason': reason},
               'apply': apply_verdict(document, upgrade_state, blockers),
-              'pending': state.get('phase') in ('applied', 'rolling_back'), 'timezone': zone(moment)}
+              'pending': state.get('phase') in ('applied', 'rolling_back'), 'timezone': zone(moment),
+              'rolling': rolling.status()}
     if isinstance(previous, dict) and {**previous, 'written_at': None} == {**record, 'written_at': None}:
         return previous
     write('current.json', record)
