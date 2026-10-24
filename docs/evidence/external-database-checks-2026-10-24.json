@@ -1,0 +1,27 @@
+{
+  "scope": "External database access on the owner's real server (Ubuntu 26.04, Sbarbase 0.6.1 to 0.6.3 installed through the signed release channel), environment fanio (e_7fcba0bea7b22726ce369832). Run by an agent on 2026-10-24. Not a security certification and not a load test.",
+  "versions": {"installed": ["v0.6.1", "v0.6.2", "v0.6.3"], "each_confirmed_by_health_checks": true, "note": "each install restarts every application on the server for about two minutes (the documented restart); the in-place handover for code only releases is still a design"},
+  "path": "Cloudflare Hyperdrive -> Workers VPC service (tcp 127.0.0.1:6545, certificate verification disabled) -> Cloudflare Tunnel connector (cloudflared 2026.10.3, systemd unit, DynamicUser) -> Sbarbase external listener (TLS only) -> PostgreSQL SCRAM",
+  "before_opt_in": {
+    "hyperdrive_create_with_wrong_password_answer": "Failed to connect to the provided database: External database access is not enabled for this environment (SQLSTATE 28000) [code: 2015]",
+    "meaning": "Hyperdrive reached the listener through the tunnel, finished TLS (sslmode require) and sent its startup message; the listener refused the environment before PostgreSQL"
+  },
+  "negative_checks_from_the_server_to_127.0.0.1:6545": {
+    "cleartext_startup": "refused: This address requires TLS (sslmode=require)",
+    "wrong_password_own_environment": "password authentication failed (PostgreSQL's own SCRAM answer)",
+    "login_of_an_environment_that_did_not_opt_in": "refused: External database access is not enabled for this environment",
+    "superuser_login": "refused: Only an environment developer login (e_…_developer) can connect here",
+    "service_login": "refused: Only an environment developer login (e_…_developer) can connect here",
+    "own_login_other_database": "refused: The developer login connects to its own database",
+    "twelve_wrong_passwords": "attempts 1 to 8 answered by PostgreSQL, the 9th and later refused: Too many failed logins; the journal records 'closed for 60 s after 10 failed logins' (two earlier probes counted)"
+  },
+  "after_opt_in": {
+    "opened_with": "sbarbase database-external sbarah/fanio/production on (v0.6.2)",
+    "password_replaced_with": "sbarbase database-password sbarah/fanio/production --output FILE (v0.6.3); the connection string never reached a screen or a log",
+    "hyperdrive_create": "fanio-db created, caching disabled, 8 origin connections; its creation tests a real login",
+    "worker_transaction": {"worker": "temporary, behind a random header, deleted afterwards", "result": {"ok": true, "current_user_is_the_developer_login": true, "rows_inserted_in_a_transaction": 2, "temp_table_left_after_rollback": 0, "ms": 653}},
+    "without_the_header": "404"
+  },
+  "local_tunnel": {"command": "deploy/db-tunnel sbarbase-vps", "sslmode_disable": "connected", "sslmode_require": "connected (the 6543 listener now answers SSLRequest)"},
+  "not_covered": ["load or many concurrent Hyperdrive sessions", "certificate renewal on the real server (unit tested by comparing what a client trusting each authority sees)", "a client other than Hyperdrive on a public address", "a second independent installation"]
+}
