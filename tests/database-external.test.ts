@@ -6,7 +6,7 @@ import {tmpdir} from 'node:os';
 import {X509Certificate} from 'node:crypto';
 import {databaseProxy,DirectDatabase,externalDatabaseEndpoint,directDatabaseEndpoint,innerTlsPort} from '../src/http/database-proxy';
 import {ExternalGuard,externalListen,DEFAULT_LIMITS} from '../src/http/database-external';
-import {ensureDatabaseTls,tlsNames} from '../src/http/database-tls';
+import {ensureDatabaseTls,tlsNames,watchDatabaseTls} from '../src/http/database-tls';
 import {externalDatabaseHandler} from '../src/control/database';
 import {Catalog} from '../src/control/catalog';
 
@@ -332,4 +332,24 @@ test('a renewed certificate is what new connections are served, and a cancel lea
   expect(sneaky.secure).toBe(true);
   expect(Buffer.concat(upstream.received).equals(cancelRequest())).toBe(true);
  } finally {direct.stop();upstream.close();rmSync(first,{recursive:true,force:true});rmSync(second,{recursive:true,force:true});}
+});
+
+test('a renewed certificate that the listeners could not take is offered again at the next check',async()=>{
+ const directory=mkdtempSync(join(tmpdir(),'dbtls-'));
+ const lines:string[]=[];let calls=0;
+ try {
+  const current=ensureDatabaseTls(directory,tlsNames({}));
+  const taken=new Promise<string>(resolve=>{
+   const stop=watchDatabaseTls(current,async next=>{
+    calls++;
+    if(calls===1)throw new Error('listen failed');
+    stop();resolve(next.cert);
+   },directory,tlsNames({SBARBASE_DATABASE_TLS_NAMES:'renewed.example.com'}),40,line=>lines.push(line));
+   setTimeout(()=>{stop();resolve('timeout');},3000);
+  });
+  const cert=await taken;
+  expect(cert).not.toBe('timeout');expect(cert).not.toBe(current.cert);
+  expect(calls).toBe(2);
+  expect(lines.join('\n')).toContain('renewal failed: listen failed');
+ } finally {rmSync(directory,{recursive:true,force:true});}
 });

@@ -704,5 +704,11 @@ test('database-password writes a new connection string to a private new file, ne
  expect(run.printed()).not.toContain(password);
  expect(JSON.parse(readFileSync(join(root,'.secrets','upstream','database',`${runtime}.json`),'utf8')).password).toBe(password);
  expect(await main(['database-password',runtime,'--output',output],harness(root).deps)).toBe(EXIT.refused);
+ // A path that cannot be created is refused before any password changes.
+ const before=readFileSync(join(root,'.secrets','upstream','database',`${runtime}.json`),'utf8');
+ const bad=harness(root);
+ expect(await main(['database-password',runtime,'--output',join(root,'no-such-folder','url.txt')],bad.deps)).toBe(EXIT.refused);
+ expect(bad.printed()).toContain('cannot be created');
+ expect(readFileSync(join(root,'.secrets','upstream','database',`${runtime}.json`),'utf8')).toBe(before);
  database.close();
 });

@@ -86,7 +86,10 @@ export class DirectDatabase {
  /** A renewed certificate for both listeners (src/http/database-tls.ts): connections that start from now on use it. */
  async reloadTls(tls:{cert:string;key:string}):Promise<void>{
   const owned=directOwners.get(this)!;
-  for(const proxy of [owned.proxy,owned.external])if(proxy)await reloaders.get(proxy)?.(tls);
+  const failures:string[]=[];
+  for(const proxy of [owned.proxy,owned.external])
+   if(proxy)try{await reloaders.get(proxy)?.(tls);}catch(error){failures.push((error as Error).message);}
+  if(failures.length)throw new Error(failures.join('; '));
  }
  /** The external listener (TLS only, per-environment opt-in; src/http/database-external.ts). `ca` is the
   * public certificate authority clients verify it with. */
@@ -121,7 +124,7 @@ export function databaseProxy(options:ProxyOptions) {
  // Bun cannot start TLS on an accepted socket after the SSLRequest, so a client that asks for TLS is
  // piped to a TLS listener on a loopback port of this process, which hands the decrypted stream back
  // to `serve`. A connection that did not come through the outer listener (no entry in `pending`) is dropped.
- const pending=new Map<number,{raw:Socket;remote:string;address:string;timer:ReturnType<typeof setTimeout>}>();
+ const pending=new Map<string,{raw:Socket;remote:string;address:string;timer:ReturnType<typeof setTimeout>}>();
  let inner:TlsServer|undefined,innerPort=0;
  const server=createServer(raw=>{
   sockets.add(raw);raw.once('close',()=>sockets.delete(raw));
@@ -152,14 +155,17 @@ export function databaseProxy(options:ProxyOptions) {
      // starts it would hold a connection slot for ever.
      base.write('S');
      const handshake=setTimeout(()=>base.destroy(),options.startupMs??10_000);
-     let port=-1;
-     const up=connect(innerPort,'127.0.0.1',()=>{
-      port=up.localPort!;
+     // Keyed by the inner port as well: after a certificate swap two inner servers exist, and the same
+     // ephemeral source port can be handed to a connection of each.
+     let port='';
+     const target=innerPort;
+     const up=connect(target,'127.0.0.1',()=>{
+      port=`${target}:${up.localPort}`;
       pending.set(port,{raw:base,remote,address:up.localAddress!,timer:handshake});
       base.pipe(up);up.pipe(base);base.resume();
      });
      // up.localPort is gone once the socket closes, so the key is kept from the connect.
-     const done=()=>{clearTimeout(handshake);if(port>=0&&pending.get(port)?.raw===base)pending.delete(port);up.destroy();base.destroy();};
+     const done=()=>{clearTimeout(handshake);if(port&&pending.get(port)?.raw===base)pending.delete(port);up.destroy();base.destroy();};
      up.once('close',done);base.once('close',done);up.on('error',()=>{});
      return;
     }
@@ -196,14 +202,14 @@ export function databaseProxy(options:ProxyOptions) {
     if(buffer.length)upstream.write(buffer);
     if(options.guard){
      const runtime=user.match(DEVELOPER_LOGIN)![1]!;
-     watchOutcome(upstream,runtime,remote,options.guard);
-     const release=options.guard.session?.(runtime,close);
+     let release:(()=>void)|undefined;
+     try{watchOutcome(upstream,runtime,remote,options.guard);release=options.guard.session?.(runtime,close);}catch{close();return;}
      if(release)client.once('close',release);
     }
     client.pipe(upstream);upstream.pipe(client);client.resume();
     options.log?.(`database connection for ${user}${secured?' (tls)':''}`);
    });
-   upstream.once('error',()=>{if(!client.destroyed)client.end(errorPacket('The database is not reachable'));upstream.destroy();});
+   upstream.on('error',()=>{if(!client.destroyed)client.end(errorPacket('The database is not reachable'));upstream.destroy();});
    client.once('close',close);upstream.once('close',()=>client.destroy());
   };
   client.on('data',onData);
@@ -214,10 +220,11 @@ export function databaseProxy(options:ProxyOptions) {
   try{
    server=createTlsServer({cert:tls.cert,key:tls.key,minVersion:'TLSv1.2',handshakeTimeout:10_000},tlsSocket=>{
     tlsSocket.on('error',()=>tlsSocket.destroy());
-    const entry=pending.get(tlsSocket.remotePort!);
+    const key=`${(server.address() as {port:number}).port}:${tlsSocket.remotePort}`;
+    const entry=pending.get(key);
     // One claim per piped connection, and only from the address the outer listener connected from.
     if(!entry||entry.address!==tlsSocket.remoteAddress){tlsSocket.destroy();return;}
-    pending.delete(tlsSocket.remotePort!);clearTimeout(entry.timer);
+    pending.delete(key);clearTimeout(entry.timer);
     serve(tlsSocket,entry.raw,entry.remote,true);
    });
   }catch{reject(new Error('The database TLS certificate or key is not usable'));return;}
@@ -233,8 +240,11 @@ export function databaseProxy(options:ProxyOptions) {
  };
  /** Bun's setSecureContext does not change what a running TLS server presents, so a renewed
   * certificate starts a new loopback TLS server; the old one finishes the connections it has. */
+ let closed=false;
  const swapInner=async(tls:{cert:string;key:string})=>{
   const made=await makeInner(tls);
+  // A stop or drain that came while the new server was starting must not leave it listening.
+  if(closed){made.server.close();return;}
   const old=inner;inner=made.server;innerPort=made.port;old?.close();
  };
  return startInner().then(()=>new Promise<ProxyHandle>((resolve,reject)=>{
@@ -246,7 +256,7 @@ export function databaseProxy(options:ProxyOptions) {
    const boundHost=typeof address==='object'&&address?address.address:options.host;
    let stopped=false;
    const handle={port:typeof address==='object'&&address?address.port:options.port,
-    stop(){stopped=true;for(const socket of sockets)socket.destroy();server.close();inner?.close();}};
+    stop(){stopped=true;closed=true;for(const socket of sockets)socket.destroy();server.close();inner?.close();}};
    innerPorts.set(handle,()=>innerPort);
    reloaders.set(handle,tls=>swapInner(tls));
    observedProxies.set(handle,()=>{

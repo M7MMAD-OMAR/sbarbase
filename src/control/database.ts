@@ -35,7 +35,7 @@ export function savePassword(directory:string,runtime:string):string {
  if(!/^e_[a-f0-9]{24}$/.test(runtime))throw new Error('Invalid runtime');
  const password=randomBytes(24).toString('base64url');
  mkdirSync(directory,{recursive:true,mode:0o700});
- const path=join(directory,`${runtime}.json`),pending=path+'.pending';
+ const path=join(directory,`${runtime}.json`),pending=`${path}.${randomBytes(6).toString('hex')}.pending`;
  writeFileSync(pending,JSON.stringify({password}),{mode:0o600});
  renameSync(pending,path);
  return password;

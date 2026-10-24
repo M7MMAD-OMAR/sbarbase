@@ -84,14 +84,21 @@ export function databaseCa(directory='.secrets/upstream/database-tls'):string|un
 
 /** Checks the certificate now and then (every 6 hours) and hands a renewed one to `renewed`, so a
  * process that runs for more than a year keeps serving a valid certificate. Returns the stop. */
-export function watchDatabaseTls(current:DatabaseTls,renewed:(tls:DatabaseTls)=>void,directory='.secrets/upstream/database-tls',
+export function watchDatabaseTls(current:DatabaseTls,renewed:(tls:DatabaseTls)=>void|Promise<void>,directory='.secrets/upstream/database-tls',
  names=current.names,everyMs=6*3600*1000,log:(line:string)=>void=()=>{}):()=>void {
- let last=current.cert;
- const timer=setInterval(()=>{
+ let last=current.cert,busy=false;
+ const timer=setInterval(async()=>{
+  if(busy)return;
+  busy=true;
   try{
    const next=ensureDatabaseTls(directory,names);
-   if(next.cert!==last){last=next.cert;renewed(next);log('database TLS certificate renewed');}
+   if(next.cert!==last){
+    await renewed(next);
+    // Only after the listeners took it: a failed reload is tried again at the next check.
+    last=next.cert;log('database TLS certificate renewed');
+   }
   }catch(error){log(`database TLS certificate renewal failed: ${(error as Error).message}`);}
+  finally{busy=false;}
  },everyMs);
  timer.unref();
  return ()=>clearInterval(timer);

@@ -15,7 +15,7 @@
  * Passwords are never read from arguments; the access token is never stored or printed.
  */
 import {Database} from 'bun:sqlite';
-import {existsSync,lstatSync,readdirSync,readFileSync,openSync,closeSync,writeSync} from 'node:fs';
+import {existsSync,lstatSync,readdirSync,readFileSync,openSync,closeSync,writeSync,unlinkSync} from 'node:fs';
 import {join,resolve} from 'node:path';
 import {createClient,type SupabaseClient} from '@supabase/supabase-js';
 import {managementPublishableKey} from './upstream-app';
@@ -891,22 +891,27 @@ async function databasePassword(deps:Deps,parsed:Parsed) {
  arity(parsed,1,1);
  const output=parsed.flags['--output'];
  if(typeof output!=='string'||!output)throw new Usage('database-password needs --output FILE, where the connection string is written');
- if(existsSync(output))throw new Refusal(`${output} exists already; name a new file`);
  const id=environmentId(deps,parsed.args[0]!);
  const {Catalog}=await import('../src/control/catalog');
  const {savePassword,connection,connectionString}=await import('../src/control/database');
  const catalog=new Catalog(join(deps.root,'.lab/upstream/control.sqlite'));
+ let descriptor:number|undefined;
+ const secrets=join(deps.root,'.secrets/upstream/database');
  try {
   const runtime=runtimeOf(deps,parsed.args[0]!);
   // Refuse before a password exists when the change cannot be requested.
   const probe=catalog.databaseAccessProgressLocal(runtime);
   if(probe.state==='pending')throw new Refusal('Database access change in progress');
   if(probe.state!=='on')throw new Refusal('Turn on database access first');
-  const password=savePassword(join(deps.root,'.secrets/upstream/database'),runtime);
+  // The file is made first, so a bad path costs nothing: after the rotation the old password is gone.
+  try {descriptor=openSync(output,'wx',0o600);}
+  catch(error) {throw new Refusal(`${output} cannot be created (${(error as NodeJS.ErrnoException).code??'error'}); name a new file in a folder you can write`);}
+  const password=savePassword(secrets,runtime);
   try {catalog.requestDatabasePasswordLocal(id);}
   catch(error) {
    const message=error instanceof Error?error.message:'';
-   if(message==='Turn on database access first'||message==='Environment is not ready'||message==='Database access change in progress')throw new Refusal(message);
+   if(message==='Turn on database access first'||message==='Environment is not ready'||message==='Database access change in progress')
+    throw new Refusal(`${message}. A new password was saved in ${secrets} but not applied; run this command again`);
    throw error;
   }
   const deadline=Date.now()+180_000;
@@ -915,10 +920,13 @@ async function databasePassword(deps:Deps,parsed:Parsed) {
    await new Promise(resolve=>setTimeout(resolve,1000));
    progress=catalog.databaseAccessProgressLocal(runtime);
   }
-  if(progress.state==='failed')throw new Refusal(`The supervisor could not apply the new password: ${progress.failure??'unknown failure'}`);
-  if(progress.state!=='on')throw new Refusal('The new password was not applied within 3 minutes; run the command again');
-  const descriptor=openSync(output,'wx',0o600);
-  try {writeSync(descriptor,connectionString(connection(runtime),password)+'\n');} finally {closeSync(descriptor);}
+  if(progress.state==='failed')throw new Refusal(`The supervisor could not apply the new password: ${progress.failure??'unknown failure'}. The change stays requested; run this command again`);
+  if(progress.state!=='on')throw new Refusal('The new password was not applied within 3 minutes and the request is still pending; run this command again');
+  writeSync(descriptor,connectionString(connection(runtime),password)+'\n');
+  closeSync(descriptor);descriptor=undefined;
+ } catch(error) {
+  if(descriptor!==undefined){try{closeSync(descriptor);unlinkSync(output);}catch{}}
+  throw error;
  } finally {catalog.close();}
  deps.out(`The developer password of ${parsed.args[0]} was replaced and its connection string was written to ${output} (mode 0600). The old password no longer works.`);
  return EXIT.ok;

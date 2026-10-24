@@ -79,7 +79,7 @@ if(externalAt&&tls){
  await app.database.startExternal({...externalAt,log:line=>console.log(line),tls,guard,maxConnections:128,target:databaseTarget},tls.ca)
   .catch(error=>{console.error('External database access unavailable:',(error as Error).message);});
 }
-const tlsRenewal=tls?watchDatabaseTls(tls,renewed=>void app.database.reloadTls(renewed).catch(error=>console.error(`Database TLS reload failed: ${(error as Error).message}`)),undefined,undefined,undefined,line=>console.log(line)):undefined;
+const tlsRenewal=tls?watchDatabaseTls(tls,renewed=>app.database.reloadTls(renewed),undefined,undefined,undefined,line=>console.log(line)):undefined;
 await Bun.write('.lab/upstream/server.json',JSON.stringify({url:`http://127.0.0.1:${server.port}`,pid:process.pid}));
 console.log(`Local Sbarbase API: http://127.0.0.1:${server.port}`);
 function stop(){
