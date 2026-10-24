@@ -337,8 +337,12 @@ class ChannelTests(Fixture):
         self.follow()
         linked_module = self.commit_local('symlinked module', {'src/control/keys-real.ts': (ROOT / 'src/control/keys.ts').read_text(),
                                                                'src/control/keys.ts': ('link', 'keys-real.ts')}, real)
-        self.assertEqual(channel.store_versions(real), {'CATALOG_SCHEMA_VERSION': 4, 'KEY_STORE_SCHEMA_VERSION': 0,
-                                                        'ACCESS_TOKEN_SCHEMA_VERSION': 0, 'DEPLOYMENT_SETUP_SCHEMA_VERSION': 0})
+        # The constants read through the rollback reader equal the versions this code records.
+        recorded = json.loads((ROOT / channel.SCHEMAS).read_text())
+        self.assertEqual(channel.store_versions(real), {'CATALOG_SCHEMA_VERSION': recorded['catalog']['version'],
+                                                        'KEY_STORE_SCHEMA_VERSION': recorded['keys']['version'],
+                                                        'ACCESS_TOKEN_SCHEMA_VERSION': recorded['access_tokens']['version'],
+                                                        'DEPLOYMENT_SETUP_SCHEMA_VERSION': recorded['deployment_setup']['version']})
         self.assertIs(channel.stores_changed(real, again), False)
         self.assertIs(channel.stores_changed(old, real), True)
         self.assertIs(channel.stores_changed(again, quiet_bump), True)
