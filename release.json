@@ -1,9 +1,9 @@
 {
-  "version": "0.6.1",
+  "version": "0.6.2",
   "minimum_from": "0.3.1",
   "notes": {
-    "en": "Services that cannot use an SSH tunnel, such as Cloudflare Hyperdrive, can reach an environment's database over TLS once an owner or admin allows it. The database listener now serves TLS, and a second listener takes TLS only, per environment. The control catalog moves to schema 5. Not production ready.",
-    "ar": "تستطيع الخدمات التي لا تستخدم نفق SSH، مثل Cloudflare Hyperdrive، الوصول إلى قاعدة بيانات البيئة عبر TLS متى سمح المالك أو المسؤول بذلك. صار مستمع قاعدة البيانات يخدم TLS، ومستمع ثانٍ لا يقبل إلا TLS لكل بيئة على حدة. وينتقل كتالوج التحكم إلى المخطط 5. ليس جاهزًا للإنتاج."
+    "en": "Adds sbarbase database-external, which opens or closes an environment's external database access from the server shell. Not production ready.",
+    "ar": "يضيف الأمر sbarbase database-external الذي يفتح الوصول الخارجي إلى قاعدة بيانات بيئة أو يغلقه من صدفة الخادم. ليس جاهزًا للإنتاج."
   },
   "migrations": []
 }

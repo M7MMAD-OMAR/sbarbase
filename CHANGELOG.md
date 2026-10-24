@@ -6,17 +6,19 @@ All notable changes to sbarbase. The format follows Keep a Changelog and the
 project uses Semantic Versioning, which for a 0.x version means the interface may
 still change between releases.
 
-The declared package version is 0.6.1. Historical 0.1.0 and 0.2.0 entries retain their original scope. Later Docker and VM rehearsals are dated in [status](docs/reference/status.md); no independent public-server or production release acceptance is established.
+The declared package version is 0.6.2. Historical 0.1.0 and 0.2.0 entries retain their original scope. Later Docker and VM rehearsals are dated in [status](docs/reference/status.md); no independent public-server or production release acceptance is established.
 
 ## [Unreleased]
-
-### Added
-
-- **`sbarbase database-external <environment> [on|off]`**, on the server, shows or sets an environment's external database access from the shell, the twin of the console's **Allow external connections** button for an operator who cannot sign in (same catalog row and audit entry, actor `local:operator`; it needs database access on).
 
 ### Still open
 
 - **Deleting an environment does not work on an ordinary installation.** It always answers `409` with "Exact ownership inventory unavailable" and changes nothing, so restore and purge cannot be reached either. Provisioning never records the exact list of an environment's resources, and the shared PostgreSQL cluster and Storage process have no check yet that would make such a list honest. The [API reference](docs/reference/api.md) said delete "can answer" `409`; it now says it always does, and a test pins the current behaviour.
+
+## [0.6.2] - 2026-10-24
+
+### Added
+
+- **`sbarbase database-external <environment> [on|off]`**, on the server, shows or sets an environment's external database access from the shell, the twin of the console's **Allow external connections** button for an operator who cannot sign in (same catalog row and audit entry, actor `local:operator`; it needs database access on).
 
 ## [0.6.1] - 2026-10-24
 
