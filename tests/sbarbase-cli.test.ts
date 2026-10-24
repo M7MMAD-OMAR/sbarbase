@@ -659,3 +659,28 @@ test('cancellation while decoding a successful mutation suppresses completion ou
  expect(run.calls.filter(call=>call.url.includes('/management/v1/')).every(call=>call.headers.authorization==='Bearer '+PASSWORD_TOKEN)).toBe(true);
  expect(run.calls.some(call=>call.url.includes('/challenge')||call.url.includes('/verify'))).toBe(false);
 });
+
+test('database-external shows, opens and closes an environment from the server shell, and needs database access on',async()=>{
+ const {root,production,runtime}=installation();
+ const h=harness(root);
+ expect(await main(['database-external',runtime],h.deps)).toBe(EXIT.ok);
+ expect(h.printed()).toContain('external database access is off');
+ expect(await main(['database-external',runtime,'on'],h.deps)).toBe(EXIT.refused);
+ expect(h.printed()).toContain('Turn on database access first');
+ const database=new Database(join(root,'.lab','upstream','control.sqlite'));
+ database.query("INSERT INTO database_access(runtime,desired,state,actor,updated_at) VALUES (?,'on','on','alice',1)").run(runtime);
+ database.close();
+ const on=harness(root);
+ expect(await main(['database-external','shop/production','on'],on.deps)).toBe(EXIT.ok);
+ expect(on.printed()).toContain('external database access is on');
+ const catalog=new Catalog(join(root,'.lab','upstream','control.sqlite'));
+ expect(catalog.externalDatabaseEnabled(runtime)).toBe(true);
+ catalog.close();
+ const check=new Database(join(root,'.lab','upstream','control.sqlite'),{readonly:true});
+ expect(check.query("SELECT actor FROM audit_events WHERE action='database.external_enabled'").all()).toEqual([{actor:'local:operator'}]);
+ check.close();
+ const off=harness(root);
+ expect(await main(['database-external',production,'off'],off.deps)).toBe(EXIT.ok);
+ expect(off.printed()).toContain('external database access is off');
+ expect(await main(['database-external',runtime,'maybe'],harness(root).deps)).toBe(EXIT.usage);
+});

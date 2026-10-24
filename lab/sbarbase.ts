@@ -84,6 +84,8 @@ Commands
   studio start|stop <environment>     ask for Studio through the management API; the supervisor runs it
   share <environment> [<n>]           show an environment's gateway share, or set it (operators only)
   reset-password <email>              on the server, set a new password for a management account
+  database-external <environment> [on|off]
+                                      on the server, show or set an environment's external database access
   logs [supervisor|auth|rest|storage|database] [<environment>] [--lines N] [--follow]
                                       journalctl for the supervisor, docker logs for a service
   help [<command>]                    this text
@@ -117,6 +119,14 @@ On the server, as the service account: set a new password for a management accou
 password was lost. The new password is asked twice without echo, at least 12 characters.
 Every console and Studio session of that account ends; its authenticator, if any, stays.
 It reads the management realm's secret from .secrets, so only someone with this shell can.`,
+ 'database-external':`sbarbase database-external <environment> [on|off]
+
+On the server, as the service account: show whether an environment accepts external database
+connections (TLS only, for a service such as Cloudflare Hyperdrive), or open or close it. It is the
+shell equivalent of the console's "Allow external connections" button, for an operator who cannot or
+would rather not sign in: it needs database access to be on for the environment, writes the same
+catalog row and audit entry (actor local:operator), and takes effect on the next connection; closing
+it ends the environment's open external sessions within a second.`,
  status:`sbarbase status [--json]
 
 Reads the state the runtime already writes, without signing in: the supervisor service, the
@@ -205,7 +215,7 @@ const ALLOWED:Record<string,string[]>={
  relink:['--email','--operator-file','--password-stdin'],
  'add-environment':['--email','--operator-file','--password-stdin'],
  'rotate-key':['--email','--operator-file','--password-stdin','--revoke'],
- 'reset-password':[],
+ 'reset-password':[],'database-external':[],
  upgrade:['--to','--release','--allow-class','--json','--check'],studio:['--email','--operator-file','--password-stdin'],share:['--email','--operator-file','--password-stdin'],logs:['--lines','--follow'],help:[],
 };
 
@@ -819,6 +829,7 @@ export async function main(argv:string[],deps:Deps):Promise<number> {
    case 'studio':return await studio(deps,parsed);
    case 'share':return await share(deps,parsed);
    case 'reset-password':return await resetPassword(deps,parsed);
+   case 'database-external':return await databaseExternal(deps,parsed);
    case 'logs':return await logs(deps,parsed);
   }
   return EXIT.usage;
@@ -847,6 +858,28 @@ async function resetPassword(deps:Deps,parsed:Parsed):Promise<number> {
  finally {catalog.close();}
  deps.out(`The password of ${email} was replaced and its open sessions were ended. Sign in with the new one.`);
  return EXIT.ok;
+}
+
+async function databaseExternal(deps:Deps,parsed:Parsed) {
+ arity(parsed,1,2);
+ const choice=parsed.args[1];
+ if(choice!==undefined&&choice!=='on'&&choice!=='off')throw new Usage('Say on or off, or nothing to show the state');
+ const id=environmentId(deps,parsed.args[0]!);
+ const {Catalog}=await import('../src/control/catalog');
+ const catalog=new Catalog(join(deps.root,'.lab/upstream/control.sqlite'));
+ try {
+  const state=catalog.setExternalDatabaseLocal(id,choice===undefined?undefined:choice==='on');
+  deps.out(`${parsed.args[0]}: external database access is ${state.enabled?'on':'off'}${state.enabled?` (listener ${externalListenText()})`:''}.`);
+ } catch(error) {
+  const message=error instanceof Error?error.message:'';
+  if(message==='Turn on database access first'||message==='Environment is not ready')throw new Refusal(message);
+  throw error;
+ } finally {catalog.close();}
+ return EXIT.ok;
+}
+function externalListenText():string {
+ const port=(process.env.SBARBASE_DATABASE_EXTERNAL_PORT??'').trim()||'6545',host=(process.env.SBARBASE_DATABASE_EXTERNAL_BIND??'').trim()||'127.0.0.1';
+ return `${host}:${port}`;
 }
 
 // ---- The real process ----------------------------------------------------------------

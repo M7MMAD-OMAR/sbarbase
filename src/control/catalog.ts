@@ -1178,6 +1178,23 @@ export class Catalog {
       return this.externalDatabase(actor,environment);
     }).immediate();
   }
+  /** The operator's shell on the server (`sbarbase database-external`): the same row and audit entry as the
+   * console, with the actor `local:operator`. `on` undefined only reads. Opening needs database access on. */
+  setExternalDatabaseLocal(environment:string,on?:boolean):{runtime:string;enabled:boolean} {
+    return this.db.transaction(()=>{
+      const job=this.job(environment);
+      if(!job||job.state!=='succeeded'||this.runtimeDeleted(job.runtime))throw new Error('Environment is not ready');
+      if(on!==undefined) {
+        const access=this.db.query<{desired:string;state:string},[string]>('SELECT desired,state FROM database_access WHERE runtime=?').get(job.runtime);
+        if(on&&!(access?.desired==='on'&&access.state==='on'))throw new Error('Turn on database access first');
+        this.db.query(`INSERT INTO database_external(runtime,enabled,actor,updated_at) VALUES (?,?,?,?)
+          ON CONFLICT(runtime) DO UPDATE SET enabled=excluded.enabled,actor=excluded.actor,updated_at=excluded.updated_at`)
+          .run(job.runtime,on?1:0,'local:operator',Date.now());
+        this.record('local:operator',on?'database.external_enabled':'database.external_disabled',environment,{});
+      }
+      return {runtime:job.runtime,enabled:this.externalDatabaseEnabled(job.runtime)};
+    }).immediate();
+  }
   requestDatabaseAccess(actor:string,environment:string,on:boolean):RealtimeState {
     return this.db.transaction(()=>{
       const current=this.databaseAccess(actor,environment);

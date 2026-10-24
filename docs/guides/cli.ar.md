@@ -42,6 +42,7 @@ docker compose exec sbarbase deploy/sbarbase status
 | تدوير مفتاح عام | `sbarbase rotate-key <environment>` | واجهة المفاتيح، كما تفعل لوحة الإدارة |
 | حصة البوابة | `sbarbase share <environment> [<n>]` | واجهة الإدارة البرمجية، كما تفعل لوحة الإدارة |
 | نسيت كلمة مرور اللوحة | `sbarbase reset-password <email>` | واجهة الإدارة لخدمة تسجيل الدخول، على الخادم فقط |
+| الوصول الخارجي إلى قاعدة البيانات | `sbarbase database-external <environment> [on\|off]` | كتالوج التحكم، على الخادم فقط؛ مقابل زر اللوحة في الصدفة ([الوصول إلى قاعدة البيانات](database-access.ar.md)) |
 | الترقية | `sbarbase upgrade [check\|start\|status\|rollback\|channel]` | `lab/upgrade.py` |
 | Studio | `sbarbase studio start\|stop <environment>` | واجهة الإدارة البرمجية، ثم يشغّل المشرف `lab/studio.py` |
 | السجلات | `sbarbase logs [supervisor\|auth\|rest\|storage\|database]` | `journalctl` أو `docker logs` |

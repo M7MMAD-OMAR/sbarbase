@@ -41,7 +41,7 @@ supabase gen types typescript --db-url "postgresql://…@127.0.0.1:6543/e_…?ss
 
 لا يستطيع Worker على Cloudflare فتح نفق SSH، وHyperdrive يشترط TLS وليس له عناوين ثابتة لتُسمح. لذلك يستطيع المالك أو المسؤول فتح **الوصول الخارجي** لبيئة واحدة. هو مطفأ حتى تفتحه، ويحتاج إلى تشغيل الوصول إلى قاعدة البيانات.
 
-1. تحت **Database** اضغط **Allow external connections**. تعرض اللوحة جهة إصدار الشهادات (CA) التي يتحقق بها العميل من الخادم؛ انسخها أو نزّلها.
+1. تحت **Database** اضغط **Allow external connections**. تعرض اللوحة جهة إصدار الشهادات (CA) التي يتحقق بها العميل من الخادم؛ انسخها أو نزّلها. وعلى الخادم يفعل `sbarbase database-external <environment> on` الشيء نفسه من الصدفة ([الأمر](cli.ar.md)).
 2. اجعل المنفذ قابلًا للوصول من الخدمة **دون فتح أي منفذ على الإنترنت**. يستمع على عنوان loopback في الخادم، على المنفذ 6545 (`SBARBASE_DATABASE_EXTERNAL_PORT`). مع Cloudflare شغّل موصل Cloudflare Tunnel على الخادم، ثم أنشئ في Workers VPC خدمة TCP تشير إليه:
 
 ```bash

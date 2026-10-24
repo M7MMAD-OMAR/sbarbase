@@ -42,6 +42,7 @@ docker compose exec sbarbase deploy/sbarbase status
 | Rotate a publishable key | `sbarbase rotate-key <environment>` | the key API, as the console |
 | Gateway share | `sbarbase share <environment> [<n>]` | the management API, as the console |
 | A forgotten console password | `sbarbase reset-password <email>` | the management realm's admin API, on the server only |
+| External database access | `sbarbase database-external <environment> [on\|off]` | the control catalog, on the server only; the shell twin of the console button ([database access](database-access.md)) |
 | Upgrade | `sbarbase upgrade [check\|start\|status\|rollback\|channel]` | `lab/upgrade.py` |
 | Studio | `sbarbase studio start\|stop <environment>` | the management API; the supervisor runs `lab/studio.py` |
 | Logs | `sbarbase logs [supervisor\|auth\|rest\|storage\|database]` | `journalctl` or `docker logs` |

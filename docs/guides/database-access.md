@@ -41,7 +41,7 @@ supabase gen types typescript --db-url "postgresql://…@127.0.0.1:6543/e_…?ss
 
 A Cloudflare Worker cannot open an SSH tunnel, and Hyperdrive requires TLS and has no fixed addresses to allow. For this, an owner or admin can open **external access** for one environment. It is off until you do, and it needs database access on.
 
-1. Under **Database**, press **Allow external connections**. The console shows the certificate authority (CA) that clients verify the server with; copy or download it.
+1. Under **Database**, press **Allow external connections**. The console shows the certificate authority (CA) that clients verify the server with; copy or download it. On the server, `sbarbase database-external <environment> on` does the same from the shell ([the command](cli.md)).
 2. Make the listener reachable by the service **without opening a port to the internet**. It listens on the server's loopback address, port 6545 (`SBARBASE_DATABASE_EXTERNAL_PORT`). With Cloudflare, run a Cloudflare Tunnel connector on the server and give Workers VPC a TCP service that points at it:
 
 ```bash
