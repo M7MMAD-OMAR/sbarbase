@@ -6,17 +6,19 @@ All notable changes to sbarbase. The format follows Keep a Changelog and the
 project uses Semantic Versioning, which for a 0.x version means the interface may
 still change between releases.
 
-The declared package version is 0.6.3. Historical 0.1.0 and 0.2.0 entries retain their original scope. Later Docker and VM rehearsals are dated in [status](docs/reference/status.md); no independent public-server or production release acceptance is established.
+The declared package version is 0.6.4. Historical 0.1.0 and 0.2.0 entries retain their original scope. Later Docker and VM rehearsals are dated in [status](docs/reference/status.md); no independent public-server or production release acceptance is established.
 
 ## [Unreleased]
-
-### Fixed
-
-- **External database access: hardening found by a third independent review.** A renewed database certificate that the listeners could not take is tried again at the next check instead of being logged as renewed; a stop during a renewal no longer leaves a TLS server listening; the loopback TLS handoff is keyed by its inner port as well; `database-password` makes its output file before it changes the password, so a bad path costs nothing, and names the saved file when the change is refused; two simultaneous password writes no longer share one temporary file. Not yet installed on the real server (0.6.3 runs without them).
 
 ### Still open
 
 - **Deleting an environment does not work on an ordinary installation.** It always answers `409` with "Exact ownership inventory unavailable" and changes nothing, so restore and purge cannot be reached either. Provisioning never records the exact list of an environment's resources, and the shared PostgreSQL cluster and Storage process have no check yet that would make such a list honest. The [API reference](docs/reference/api.md) said delete "can answer" `409`; it now says it always does, and a test pins the current behaviour.
+
+## [0.6.4] - 2026-10-24
+
+### Fixed
+
+- **External database access: hardening found by a third independent review.** A renewed database certificate that the listeners could not take is tried again at the next check instead of being logged as renewed; a stop during a renewal no longer leaves a TLS server listening; the loopback TLS handoff is keyed by its inner port as well; `database-password` makes its output file before it changes the password, so a bad path costs nothing, and names the saved file when the change is refused; two simultaneous password writes no longer share one temporary file.
 
 ## [0.6.3] - 2026-10-24
 

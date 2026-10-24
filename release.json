@@ -1,9 +1,9 @@
 {
-  "version": "0.6.3",
+  "version": "0.6.4",
   "minimum_from": "0.3.1",
   "notes": {
-    "en": "Adds sbarbase database-password, which replaces an environment's developer database password from the server shell and writes the connection string to a private file. Not production ready.",
-    "ar": "يضيف الأمر sbarbase database-password الذي يستبدل كلمة مرور حساب المطوّر لقاعدة بيانات بيئة من صدفة الخادم ويكتب سلسلة الاتصال في ملف خاص. ليس جاهزًا للإنتاج."
+    "en": "Hardens external database access: a certificate renewal that fails is retried, a stop during renewal leaves nothing listening, and database-password no longer changes the password when its output file cannot be made. Not production ready.",
+    "ar": "تحصين الوصول الخارجي إلى قاعدة البيانات: يُعاد تجديد الشهادة إن فشل، والإيقاف أثناء التجديد لا يترك شيئًا يستمع، والأمر database-password لا يغيّر كلمة المرور إن تعذّر إنشاء ملف الإخراج. ليس جاهزًا للإنتاج."
   },
   "migrations": []
 }
