@@ -1,9 +1,9 @@
 {
-  "version": "0.6.2",
+  "version": "0.6.3",
   "minimum_from": "0.3.1",
   "notes": {
-    "en": "Adds sbarbase database-external, which opens or closes an environment's external database access from the server shell. Not production ready.",
-    "ar": "يضيف الأمر sbarbase database-external الذي يفتح الوصول الخارجي إلى قاعدة بيانات بيئة أو يغلقه من صدفة الخادم. ليس جاهزًا للإنتاج."
+    "en": "Adds sbarbase database-password, which replaces an environment's developer database password from the server shell and writes the connection string to a private file. Not production ready.",
+    "ar": "يضيف الأمر sbarbase database-password الذي يستبدل كلمة مرور حساب المطوّر لقاعدة بيانات بيئة من صدفة الخادم ويكتب سلسلة الاتصال في ملف خاص. ليس جاهزًا للإنتاج."
   },
   "migrations": []
 }
