@@ -1,0 +1,58 @@
+#!/bin/sh
+# Creates a Cloudflare Hyperdrive for one Sbarbase environment, from your own computer.
+#   deploy/hyperdrive you@your-server <environment> <hyperdrive-name> --tunnel-id ID [options]
+# Needs: ssh access to the server, `wrangler login` done on this computer, and a Cloudflare Tunnel whose
+# connector (cloudflared) already runs on the server (Cloudflare dashboard, Networking, Tunnels).
+# It opens the environment's external access, replaces its developer password (the old one stops working),
+# makes a Workers VPC service for the tunnel unless you pass --service-id, creates the Hyperdrive and prints
+# its id. The password goes straight from the server to Cloudflare; it is never printed.
+# Options:
+#   --tunnel-id ID       the tunnel (needed unless --service-id is given)
+#   --service-id ID      reuse a Workers VPC service made earlier (one per server is enough)
+#   --save-url FILE      also append DATABASE_URL=<local connection string> to FILE (created 0600)
+#   --remote-cmd CMD     how to run sbarbase on the server (default: sudo -u sbarbase /opt/sbarbase/deploy/sbarbase)
+set -eu
+usage() { sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+[ $# -ge 3 ] || usage
+server=$1; environment=$2; name=$3; shift 3
+tunnel=; service=; saveurl=; remote='sudo -u sbarbase /opt/sbarbase/deploy/sbarbase'
+while [ $# -gt 0 ]; do
+  case $1 in
+    --tunnel-id) tunnel=${2:?}; shift 2;;
+    --service-id) service=${2:?}; shift 2;;
+    --save-url) saveurl=${2:?}; shift 2;;
+    --remote-cmd) remote=${2:?}; shift 2;;
+    *) usage;;
+  esac
+done
+[ -n "$tunnel" ] || [ -n "$service" ] || { echo 'hyperdrive: pass --tunnel-id (or --service-id)' >&2; exit 2; }
+WRANGLER=${WRANGLER:-"bunx wrangler"}
+umask 077
+if [ -n "$saveurl" ] && [ -e "$saveurl" ] && grep -q '^DATABASE_URL=' "$saveurl"; then
+  echo "hyperdrive: $saveurl already has DATABASE_URL; nothing was changed" >&2; exit 3
+fi
+remote_file=.hyperdrive-url-$$
+echo "1/4 Opening external access for $environment on the server"
+ssh "$server" "$remote database-external $environment on"
+echo "2/4 Replacing the developer password (the old one stops working)"
+ssh "$server" "rm -f \$HOME/$remote_file; $remote database-password $environment --output \$HOME/$remote_file"
+url=$(ssh "$server" "cat \$HOME/$remote_file; shred -u \$HOME/$remote_file")
+rest=${url#postgresql://}; user=${rest%%:*}; rest=${rest#*:}; pw=${rest%%@*}; db=${url##*/}
+[ -n "$user" ] && [ -n "$pw" ] && [ "$user" = "${db}_developer" ] || { echo 'hyperdrive: the server answered something unexpected' >&2; exit 4; }
+if [ -z "$service" ]; then
+  echo "3/4 Making the Workers VPC service for the tunnel"
+  service=$($WRANGLER vpc service create "sbarbase-$name" --type tcp --tcp-port 6545 --app-protocol postgresql \
+    --tunnel-id "$tunnel" --ipv4 127.0.0.1 --cert-verification-mode disabled | sed -n 's/.*Created VPC service: *//p' | head -n 1)
+  [ -n "$service" ] || { echo 'hyperdrive: the VPC service was not created' >&2; exit 5; }
+else
+  echo "3/4 Using the Workers VPC service $service"
+fi
+echo "4/4 Creating the Hyperdrive"
+out=$($WRANGLER hyperdrive create "$name" --service-id "$service" --database "$db" --user "$user" --password "$pw" \
+  --caching-disabled --origin-connection-limit 8 2>&1) || { echo "$out" | sed "s/$pw/<hidden>/g" >&2; exit 6; }
+id=$(printf '%s\n' "$out" | sed -n 's/.*Hyperdrive PostgreSQL config: *//p' | head -n 1)
+if [ -n "$saveurl" ]; then printf 'DATABASE_URL=%s\n' "$url" >> "$saveurl"; echo "Local connection string appended to $saveurl"; fi
+echo
+echo "Hyperdrive id: $id"
+echo 'In the Worker config: "compatibility_flags": ["nodejs_compat"], "hyperdrive": [{"binding": "HYPERDRIVE", "id": "'"$id"'"}]'
+echo 'In code: postgres(env.HYPERDRIVE.connectionString)'

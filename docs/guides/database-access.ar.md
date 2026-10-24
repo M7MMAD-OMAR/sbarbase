@@ -37,9 +37,31 @@ supabase db push --db-url "postgresql://…@127.0.0.1:6543/e_…?sslmode=disable
 supabase gen types typescript --db-url "postgresql://…@127.0.0.1:6543/e_…?sslmode=disable" > database.types.ts
 ```
 
+## الترحيلات وأوامر Supabase
+
+ملفات الترحيل هي نفسها كما في Supabase: ملفات SQL في `supabase/migrations`. والفرق في كيف يجد الأمرُ قاعدةَ البيانات. في supabase.com يتصل `supabase link` و`supabase db push` بواجهة Supabase السحابية، وهي غير موجودة في Sbarbase. فمرّر سلسلة الاتصال بدلها، عبر النفق:
+
+| Supabase السحابي | Sbarbase |
+|---|---|
+| `supabase link` ثم `supabase db push` | `supabase db push --db-url "<connection string>"` |
+| `supabase gen types typescript --linked` | `supabase gen types typescript --db-url "<connection string>"` |
+| محرر SQL في اللوحة | Studio للبيئة، أو `psql "<connection string>"` |
+
+تعمل الأوامر التي تقبل `--db-url`، ولا تعمل التي تحتاج `link` أو حساب Supabase. ويُحفظ سجل الترحيلات في `supabase_migrations` كما في Supabase.
+
 ## الاتصال من خدمة، مثل Cloudflare Hyperdrive
 
 لا يستطيع Worker على Cloudflare فتح نفق SSH، وHyperdrive يشترط TLS وليس له عناوين ثابتة لتُسمح. لذلك يستطيع المالك أو المسؤول فتح **الوصول الخارجي** لبيئة واحدة. هو مطفأ حتى تفتحه، ويحتاج إلى تشغيل الوصول إلى قاعدة البيانات.
+
+### الخلاصة لـ Cloudflare Hyperdrive
+
+مرة واحدة لكل خادم: أنشئ Cloudflare Tunnel من اللوحة (Networking ثم Tunnels) ونفّذ على الخادم أمر التثبيت الذي تعرضه. بعدها، من حاسوبك (بعد `wrangler login`)، أمر واحد يتولى الباقي لكل بيئة:
+
+```bash
+deploy/hyperdrive you@your-server <environment> my-db --tunnel-id <tunnel-id> --save-url .secrets/production.env
+```
+
+يفتح الوصول الخارجي، ويستبدل كلمة مرور حساب المطوّر، وينشئ خدمة Workers VPC وHyperdrive، ثم يطبع المعرّف والسطرين اللذين تضيفهما إلى الـ Worker (`nodejs_compat` وربط `hyperdrive`). والخطوات اليدوية أدناه هي ما ينفّذه.
 
 1. تحت **Database** اضغط **Allow external connections**. تعرض اللوحة جهة إصدار الشهادات (CA) التي يتحقق بها العميل من الخادم؛ انسخها أو نزّلها. وعلى الخادم يفعل `sbarbase database-external <environment> on` الشيء نفسه من الصدفة ([الأمر](cli.ar.md)).
 2. اجعل المنفذ قابلًا للوصول من الخدمة **دون فتح أي منفذ على الإنترنت**. يستمع على عنوان loopback في الخادم، على المنفذ 6545 (`SBARBASE_DATABASE_EXTERNAL_PORT`). مع Cloudflare شغّل موصل Cloudflare Tunnel على الخادم، ثم أنشئ في Workers VPC خدمة TCP تشير إليه:

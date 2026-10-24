@@ -37,9 +37,31 @@ supabase db push --db-url "postgresql://…@127.0.0.1:6543/e_…?sslmode=disable
 supabase gen types typescript --db-url "postgresql://…@127.0.0.1:6543/e_…?sslmode=disable" > database.types.ts
 ```
 
+## Migrations and the Supabase commands
+
+Migration files are the same as on Supabase: SQL files in `supabase/migrations`. What differs is how the command finds the database. On supabase.com, `supabase link` and `supabase db push` talk to Supabase's cloud API, which Sbarbase does not have. Pass the connection string instead, through the tunnel:
+
+| Supabase cloud | Sbarbase |
+|---|---|
+| `supabase link`, then `supabase db push` | `supabase db push --db-url "<connection string>"` |
+| `supabase gen types typescript --linked` | `supabase gen types typescript --db-url "<connection string>"` |
+| the dashboard's SQL editor | Studio for the environment, or `psql "<connection string>"` |
+
+Commands that take `--db-url` work; commands that need `link` or a Supabase account do not. Migration history is kept in `supabase_migrations`, as on Supabase.
+
 ## Connect from a service, such as Cloudflare Hyperdrive
 
 A Cloudflare Worker cannot open an SSH tunnel, and Hyperdrive requires TLS and has no fixed addresses to allow. For this, an owner or admin can open **external access** for one environment. It is off until you do, and it needs database access on.
+
+### The short version for Cloudflare Hyperdrive
+
+Once per server, create a Cloudflare Tunnel in the dashboard (Networking, Tunnels) and run the install command it shows on the server. Then, from your computer (after `wrangler login`), one command does the rest for each environment:
+
+```bash
+deploy/hyperdrive you@your-server <environment> my-db --tunnel-id <tunnel-id> --save-url .secrets/production.env
+```
+
+It opens external access, replaces the developer password, makes the Workers VPC service, creates the Hyperdrive and prints its id and the two lines to add to the Worker (`nodejs_compat` and the `hyperdrive` binding). The manual steps below are what it runs.
 
 1. Under **Database**, press **Allow external connections**. The console shows the certificate authority (CA) that clients verify the server with; copy or download it. On the server, `sbarbase database-external <environment> on` does the same from the shell ([the command](cli.md)).
 2. Make the listener reachable by the service **without opening a port to the internet**. It listens on the server's loopback address, port 6545 (`SBARBASE_DATABASE_EXTERNAL_PORT`). With Cloudflare, run a Cloudflare Tunnel connector on the server and give Workers VPC a TCP service that points at it:

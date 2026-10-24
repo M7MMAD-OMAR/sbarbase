@@ -10,6 +10,10 @@ The declared package version is 0.6.4. Historical 0.1.0 and 0.2.0 entries retain
 
 ## [Unreleased]
 
+### Added
+
+- **`deploy/hyperdrive`**, run from your own computer, creates a Cloudflare Hyperdrive for an environment in one command (opens external access, replaces the developer password, makes the Workers VPC service, creates the Hyperdrive, prints its id). The database access guide gains a short Hyperdrive version and a table of the Supabase commands that work with `--db-url`.
+
 ### Still open
 
 - **Deleting an environment does not work on an ordinary installation.** It always answers `409` with "Exact ownership inventory unavailable" and changes nothing, so restore and purge cannot be reached either. Provisioning never records the exact list of an environment's resources, and the shared PostgreSQL cluster and Storage process have no check yet that would make such a list honest. The [API reference](docs/reference/api.md) said delete "can answer" `409`; it now says it always does, and a test pins the current behaviour.
