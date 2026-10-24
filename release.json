@@ -1,9 +1,9 @@
 {
-  "version": "0.6.0",
+  "version": "0.6.1",
   "minimum_from": "0.3.1",
   "notes": {
-    "en": "Each environment chooses which schemas its Data API serves. Scheduled jobs and outgoing HTTP from the database, per environment. One environment can no longer hold up another's changes or starts, and a tenant can no longer stop a signing rotation or become a cluster superuser. The first start recreates each environment's REST container once. Not production ready.",
-    "ar": "تختار كل بيئة المخططات التي تخدمها واجهة البيانات. ومهام مجدولة وطلبات HTTP صادرة من قاعدة البيانات، لكل بيئة. ولم تعد بيئة تستطيع تأخير تغييرات بيئة أخرى أو تشغيلها، ولا يستطيع المستأجر إيقاف تدوير مفاتيح التوقيع أو أن يصير مديرًا للعنقود. وأول تشغيل يعيد إنشاء حاوية REST لكل بيئة مرة واحدة. ليس جاهزًا للإنتاج."
+    "en": "Services that cannot use an SSH tunnel, such as Cloudflare Hyperdrive, can reach an environment's database over TLS once an owner or admin allows it. The database listener now serves TLS, and a second listener takes TLS only, per environment. The control catalog moves to schema 5. Not production ready.",
+    "ar": "تستطيع الخدمات التي لا تستخدم نفق SSH، مثل Cloudflare Hyperdrive، الوصول إلى قاعدة بيانات البيئة عبر TLS متى سمح المالك أو المسؤول بذلك. صار مستمع قاعدة البيانات يخدم TLS، ومستمع ثانٍ لا يقبل إلا TLS لكل بيئة على حدة. وينتقل كتالوج التحكم إلى المخطط 5. ليس جاهزًا للإنتاج."
   },
   "migrations": []
 }
