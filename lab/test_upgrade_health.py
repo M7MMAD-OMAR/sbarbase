@@ -104,6 +104,21 @@ class ProbeTests(unittest.TestCase):
         self.assertEqual((healthy, detail), (False, 'console did not answer (ConnectionRefusedError)'))
         self.assertNotIn('x' * 64, detail)
 
+    def test_environments_whose_lifecycle_is_not_active_are_not_probed(self):
+        runtimes = {state: 'e_' + digit * 24 for state, digit in zip(
+            ('active', 'deleting', 'deleted', 'restoring', 'quarantined', 'purging'), '456789')}
+        with contextlib.closing(sqlite3.connect(self.state / 'control.sqlite')) as database, database:
+            database.executescript('CREATE TABLE provision_jobs(runtime TEXT, state TEXT);'
+                                   'CREATE TABLE deleted_runtimes(runtime TEXT);'
+                                   'CREATE TABLE runtime_routing(runtime TEXT, maintenance INTEGER, placement TEXT);')
+            database.executemany('INSERT INTO provision_jobs VALUES (?,?)', [(r, 'succeeded') for r in runtimes.values()])
+        self.assertEqual(upgrade_health.routed(self.state), set(runtimes.values()))
+        with contextlib.closing(sqlite3.connect(self.state / 'control.sqlite')) as database, database:
+            database.execute('CREATE TABLE environment_lifecycle(runtime TEXT, state TEXT)')
+            database.executemany('INSERT INTO environment_lifecycle VALUES (?,?)', list(zip(runtimes.values(), runtimes)))
+        self.assertEqual(upgrade_health.routed(self.state), {runtimes['active']})
+        (self.state / 'control.sqlite').unlink()
+
     def test_only_runtimes_the_gateway_serves_are_probed(self):
         other, deleted, moved = ('e_' + digit * 24 for digit in '234')
         endpoints = json.loads((self.state / 'endpoints.json').read_text())

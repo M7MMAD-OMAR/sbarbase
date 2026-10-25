@@ -143,14 +143,14 @@ export class NativeLifecycleAuthority {
 }
 export function captureLifecycleAuthorization(catalog:Catalog,row:Binding,renewal=false):{digest:string;identity:string}|null {
  const authority=scope.getStore();if(authority){if(!authority.owns(catalog))return refused();return authority.capture(row,renewal);}
- if(!softCoverage(row.coverage))return refused();return null;
+ if(catalog.lifecycleAuthorizationStore||!softCoverage(row.coverage))return refused();return null;
 }
 export function requireLifecycleAuthorization(catalog:Catalog,row:LifecycleOperation):void {
- if(!catalog.lifecycleAuthorizationDigest(row.operation)&&softCoverage(row.coverage))return;
+ if(!catalog.lifecycleAuthorizationStore&&!catalog.lifecycleAuthorizationDigest(row.operation)&&softCoverage(row.coverage))return;
  const authority=scope.getStore();if(!authority||!authority.owns(catalog))return refused();authority.assertCurrent(row);
 }
 export async function refreshLifecycleAuthorization(catalog:Catalog,row:LifecycleOperation):Promise<void>{
- if(!catalog.lifecycleAuthorizationDigest(row.operation)&&softCoverage(row.coverage))return;
+ if(!catalog.lifecycleAuthorizationStore&&!catalog.lifecycleAuthorizationDigest(row.operation)&&softCoverage(row.coverage))return;
  const authority=scope.getStore();if(!authority||!authority.owns(catalog))return refused();await authority.refresh(row);
 }
 

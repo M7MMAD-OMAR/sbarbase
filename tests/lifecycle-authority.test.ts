@@ -1,5 +1,5 @@
 import {afterAll,beforeAll,test,expect} from 'bun:test';
-import {mkdtempSync,rmSync,readFileSync,chmodSync,writeFileSync,readdirSync} from 'node:fs';
+import {mkdirSync,mkdtempSync,rmSync,readFileSync,chmodSync,writeFileSync,readdirSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {randomUUID} from 'node:crypto';
@@ -249,3 +249,83 @@ test('password lifecycle authority completes and survives owned controller resta
   expect(f.catalog.lifecycleAuthorizationOperation(row.operation)!.state).toBe('deleted');
  }finally{f.close();}
 });
+
+function durableInventory(runtime:string):LifecycleResource[] {
+ const installation=randomUUID(),container=(service:string):LifecycleResource=>({kind:'durable-container',id:`sbarbase-durable-${runtime}-${service}`,resource:randomUUID(),installation,runtime,service:service as 'auth'});
+ return [container('auth'),container('rest'),{kind:'durable-tenant',id:runtime,resource:randomUUID(),installation,runtime,
+  durable:{database:runtime,roles:['auth','rest','storage'].map(role=>`${runtime}_${role}`),storageTenant:runtime}}];
+}
+/** The installed store of production (not the fixture store), over a stub of the retained Auth realm script and a stubbed native Auth. */
+function installedFixture(){
+ const checkout=mkdtempSync(join(tmpdir(),'lifecycle-installed-'));chmodSync(checkout,0o700);
+ mkdirSync(join(checkout,'lab'),{recursive:true});mkdirSync(join(checkout,'.lab/upstream'),{recursive:true});
+ writeFileSync(join(checkout,'lab/lifecycle_auth_realm.py'),`import json,sys\nif '--material' in sys.argv:\n print(json.dumps({'factors':[{'id':'${factorId}','factor_type':'totp','status':'verified'}]}))\nelse:\n print(json.dumps({'auth':'http://original-management.invalid','key':'native-anon','process':'a'*64+':'+'b'*64}))\n`);
+ const path=join(checkout,'.lab/upstream/control.sqlite');
+ const catalog=new Catalog(path);catalog.initializeInstallation('bootstrap','owner','Installation');
+ const organization=catalog.createOrganization('owner','Customer'),project=catalog.createProject('owner',organization,'Project');
+ const environment=catalog.createEnvironment('owner',project,'production'),job=catalog.claimProvision()!;
+ catalog.applyProvisionReceipt(environment,job.runtime,job.claim!,job.attempt,0);
+ catalog.registerDurableInventory(job.runtime,durableInventory(job.runtime));
+ const now=Math.floor(Date.now()/1000),realFetch=globalThis.fetch;
+ globalThis.fetch=Object.assign(async()=>Response.json({id:'owner',is_anonymous:false,factors:[verifiedFactor]}),{preconnect:()=>{}}) as typeof fetch;
+ catalog.lifecycleAuthorizationStore=LifecycleAuthorizationStore.installed(checkout);
+ catalog.managementSecurity.grant('owner',sessionId,factorId,now,now+50000,0);
+ const request=()=>new Request('http://local',{headers:{authorization:'Bearer '+managementToken('owner','aal2',sessionId,now)}});
+ return {catalog,environment,job,request,root:checkout,close(){globalThis.fetch=realFetch;catalog.close();rmSync(checkout,{recursive:true,force:true});}};
+}
+
+test('an installed authorization store is never bypassed by the soft coverage fallback',async()=>{
+ const f=installedFixture();try{
+  const path=join(f.root,'.lab/upstream/control.sqlite'),transport=globalThis.fetch;
+  f.catalog.lifecycleAuthorizationStore=LifecycleAuthorizationStore.fixtureOnly(path,join(f.root,'fixture-private'),async()=>({auth:'http://original-management.invalid',key:'k',process:'p'}),transport,()=>[verifiedFactor]);
+  // A store is installed and no request authority is in scope: durable coverage must not slip through unauthorised.
+  expect(()=>f.catalog.deleteEnvironment('owner',f.environment)).toThrow();
+  expect(f.catalog.lifecycle('owner',f.environment)!.state).toBe('active');
+    // Even with the fixture store's own authority the fixture store may only authorise the fixture coverage.
+  const authority=await NativeLifecycleAuthority.request(f.catalog,f.catalog.lifecycleAuthorizationStore!,f.request(),transport);
+  expect(()=>authority.run(()=>f.catalog.deleteEnvironment('owner',f.environment))).toThrow();
+  expect(f.catalog.lifecycle('owner',f.environment)!.state).toBe('active');
+ }finally{f.close();}
+});
+
+test('durable-environment coverage is captured and resumed through an installed store, not the fallback',async()=>{
+ const f=installedFixture();try{
+  const authority=await NativeLifecycleAuthority.request(f.catalog,f.catalog.lifecycleAuthorizationStore!,f.request(),fetch);
+  authority.run(()=>f.catalog.deleteEnvironment('owner',f.environment));
+  const row=f.catalog.lifecycle('owner',f.environment)!;
+  expect(row.coverage).toBe('durable-environment');expect(row.state).toBe('deleting');
+  // A digest exists only when the production path captured it.
+  expect(f.catalog.lifecycleAuthorizationDigest(row.operation)).toBeTruthy();
+  const seen:string[]=[];
+  const recorder:LifecycleAdapter=async input=>{seen.push(input.action);return adapter(input);};
+  await runLifecycleOperation(f.catalog,recorder,row);
+  expect(f.catalog.lifecycleAuthorizationOperation(row.operation)!.state).toBe('deleted');
+  expect(seen).toContain('quarantine');
+  // Resume after a restart of the owner reads the captured material again.
+  const again=await NativeLifecycleAuthority.request(f.catalog,f.catalog.lifecycleAuthorizationStore!,f.request(),fetch);
+  again.run(()=>f.catalog.restoreEnvironment('owner',f.environment,randomUUID()));
+  const restoring=f.catalog.lifecycle('owner',f.environment)!;expect(restoring.state).toBe('restoring');
+  await runLifecycleOperation(f.catalog,adapter,restoring,async()=>true);
+  expect(f.catalog.lifecycle('owner',f.environment)!.state).toBe('active');
+  // Without any authority in scope an installed store refuses a durable delete instead of falling back.
+  expect(()=>f.catalog.deleteEnvironment('owner',f.environment)).toThrow();
+  expect(f.catalog.lifecycle('owner',f.environment)!.state).toBe('active');
+ }finally{f.close();}
+},60_000);
+
+test('each soft coverage fallback is reachable only while no authorization store is installed',async()=>{
+ const f=installedFixture();try{
+  const {captureLifecycleAuthorization,requireLifecycleAuthorization,refreshLifecycleAuthorization}=await import('../src/control/lifecycle-authority');
+  const row={...f.catalog.lifecycle('owner',f.environment)!,state:'deleting' as const,actor:'owner',management_epoch:0};
+  expect(row.coverage).toBe('durable-environment');
+  // With the store installed, none of the three entry points may fall back, whatever the coverage.
+  expect(()=>captureLifecycleAuthorization(f.catalog,row)).toThrow('Lifecycle authority revoked');
+  expect(()=>requireLifecycleAuthorization(f.catalog,row)).toThrow('Lifecycle authority revoked');
+  await expect(refreshLifecycleAuthorization(f.catalog,row)).rejects.toThrow('Lifecycle authority revoked');
+  // Only a host with no store at all still takes the fallback.
+  f.catalog.lifecycleAuthorizationStore=undefined;
+  expect(captureLifecycleAuthorization(f.catalog,row)).toBeNull();
+  expect(()=>requireLifecycleAuthorization(f.catalog,row)).not.toThrow();
+  await refreshLifecycleAuthorization(f.catalog,row);
+ }finally{f.close();}
+},60_000);

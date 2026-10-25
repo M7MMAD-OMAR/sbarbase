@@ -24,8 +24,14 @@ IMAGES = {'db': 'postgres:17-alpine', 'auth': 'public.ecr.aws/supabase/gotrue:v2
           'rest': 'public.ecr.aws/supabase/postgrest:v14.15'}
 
 
-def docker(*args, data=None, check=True):
-    result = subprocess.run(docker_profile.docker_command(*args), input=data, text=True, capture_output=True)
+def docker(*args, data=None, check=True, timeout=None):
+    """timeout (seconds) is optional: without it the call waits as it always did. With it a client that has not
+    finished is killed and reaped, and the call fails with RuntimeError, so a caller that passes one fails closed."""
+    try:
+        result = subprocess.run(docker_profile.docker_command(*args), input=data, text=True, capture_output=True,
+                                timeout=timeout)
+    except subprocess.TimeoutExpired:
+        raise RuntimeError(f'Docker operation {args[0]} timed out after {timeout}s') from None
     if check and result.returncode:
         # Docker/SQL errors may contain generated credentials. Do not echo them.
         raise RuntimeError(f'Docker operation {args[0]} failed; exit {result.returncode}')

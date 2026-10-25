@@ -12,6 +12,10 @@ import runtime_files
 
 DB = 'sbarbase-durable-db'
 JOURNALS = 'durable-lifecycle'
+# Seconds one docker client may run (subprocess.run kills it at the limit): a stuck daemon or database fails the
+# operation closed, and the journal keeps it resumable. SQL gets more than its 30s statement_timeout.
+DOCKER_TIMEOUT = 60
+SQL_TIMEOUT = 45
 
 
 class LiveProbe:
@@ -21,21 +25,21 @@ class LiveProbe:
 
     # Docker -----------------------------------------------------------------------------------
     def containers(self):
-        ids = lab.docker('ps', '-a', '-q', '--no-trunc').stdout.split()
+        ids = lab.docker('ps', '-a', '-q', '--no-trunc', timeout=DOCKER_TIMEOUT).stdout.split()
         if not ids:
             return []
-        value = json.loads(lab.docker('inspect', *ids).stdout)
+        value = json.loads(lab.docker('inspect', *ids, timeout=DOCKER_TIMEOUT).stdout)
         if not isinstance(value, list):
             raise RuntimeError('Container inventory unavailable')
         return value
 
     def docker(self, *args):
-        return lab.docker(*args)
+        return lab.docker(*args, timeout=DOCKER_TIMEOUT)
 
     # PostgreSQL: the superuser of the shared cluster, exactly as lab/durable_runtime.py runs it ---
     def sql(self, query, database='postgres'):
         return lab.docker('exec', '-i', DB, 'psql', '-X', '-v', 'ON_ERROR_STOP=1', '-U', 'supabase_admin',
-                          '-d', database, '-qAt', data=query).stdout
+                          '-d', database, '-qAt', data=query, timeout=SQL_TIMEOUT).stdout
 
     # State -------------------------------------------------------------------------------------
     def endpoints(self):

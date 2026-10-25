@@ -1,6 +1,6 @@
 import {test,expect} from 'bun:test';
 import {randomUUID} from 'node:crypto';
-import {mkdtempSync,rmSync} from 'node:fs';
+import {mkdtempSync,rmSync,writeFileSync,readFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {spawnSync} from 'node:child_process';
@@ -9,7 +9,7 @@ import {KeyStore} from '../src/control/keys';
 import {managementHandler} from '../src/control/http';
 import {runLifecycleOperation,type LifecycleAdapter} from '../src/control/lifecycle';
 import {DURABLE_COVERAGE,InventoryRefusal,validateLifecycleCoverage,validateDurableInventory,type LifecycleResource} from '../src/control/lifecycle-contract';
-import {durableAdapter,durableInventoryDeriver,runNextDurableOperation,type PythonRun} from '../src/control/durable-lifecycle';
+import {durableAdapter,durableInventoryDeriver,pythonRunner,runNextDurableOperation,type PythonRun} from '../src/control/durable-lifecycle';
 
 const INSTALLATION='11111111-2222-4333-8444-555555555555';
 /** What lab/durable_inventory.py derives for one environment: its containers and its database, logins and tenant. */
@@ -309,3 +309,30 @@ test('the python deriver and the TypeScript contract agree on the same inventory
  expect(()=>validateLifecycleCoverage(runtime,value.resources,value.coverage)).not.toThrow();
  expect(value.resources.map((item:LifecycleResource)=>item.service??item.kind)).toEqual(['auth','rest','realtime','durable-tenant']);
 });
+
+test('a python run that outlives its limit is killed and fails the operation closed',async()=>{
+ const directory=mkdtempSync(join(tmpdir(),'durable-timeout-')),script=join(directory,'stuck.py'),marker=join(directory,'pid');
+ writeFileSync(script,`import os,time\nopen(${JSON.stringify(marker)},'w').write(str(os.getpid()))\ntime.sleep(60)\n`);
+ try{
+  const started=Date.now();
+  await expect(pythonRunner(700)(script,[],'{}')).rejects.toThrow('timed out');
+  expect(Date.now()-started).toBeLessThan(10_000);
+  const pid=Number(readFileSync(marker,'utf8'));await Bun.sleep(100);
+  let alive=true;try{process.kill(pid,0);}catch{alive=false;}
+  if(alive){try{alive=readFileSync(`/proc/${pid}/stat`,'utf8').split(') ').pop()![0]!=='Z';}catch{alive=false;}}
+  expect(alive).toBe(false);
+  // A fast run is untouched by the limit.
+  const quick=join(directory,'quick.py');writeFileSync(quick,'import sys\nprint(sys.stdin.read())\n');
+  expect(await pythonRunner(30_000)(quick,[],'ok')).toEqual({code:0,stdout:'ok\n',stderr:''});
+  // The deriver turns a timeout into a closed refusal, the adapter into a refusal the worker records and retries.
+  const timedOut:PythonRun=async()=>{throw new Error('Python run timed out');};
+  await expect(durableInventoryDeriver('.',timedOut)('e_'+'1'.repeat(24),INSTALLATION)).rejects.toThrow(InventoryRefusal);
+  const f=fixture();try{
+   f.catalog.registerDurableInventory(f.runtime,inventoryOf(f.runtime));f.catalog.deleteEnvironment('alice',f.environment);
+   const attempts=new Map<string,number>();const errors=console.error;console.error=()=>{};
+   try{expect(await runNextDurableOperation(f.catalog,durableAdapter('.','c.sqlite',timedOut),attempts,{retryMs:0})).toBe(true);}finally{console.error=errors;}
+   expect(f.catalog.lifecycle('alice',f.environment)!.state).toBe('deleting');
+   await drain(f.catalog,stub);expect(f.catalog.lifecycle('alice',f.environment)!.state).toBe('deleted');
+  }finally{f.catalog.close();}
+ }finally{rmSync(directory,{recursive:true,force:true});}
+},30_000);

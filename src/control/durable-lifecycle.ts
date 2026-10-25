@@ -8,17 +8,29 @@ import {LifecycleAuthorizationStore} from './lifecycle-authority';
 export type PythonRun=(script:string,args:string[],input?:string)=>Promise<{code:number;stdout:string;stderr:string}>;
 const REASON=/^[a-z_]{1,40}(:[a-z]{1,12})?$/;
 
-const bun:PythonRun=async(script,args,input)=>{
- const child=Bun.spawn(['/usr/bin/python3',script,...args],{stdin:input===undefined?'ignore':'pipe',stdout:'pipe',stderr:'pipe',env:{...process.env,PYTHONDONTWRITEBYTECODE:'1'}});
- if(input!==undefined){child.stdin!.write(input);child.stdin!.end();}
- const [stdout,stderr,code]=await Promise.all([new Response(child.stdout).text(),new Response(child.stderr).text(),child.exited]);
- return {code,stdout,stderr};
-};
+/** Longest one python run may take. The derivation reads docker and the database; an effect makes several calls of at most
+ * a minute each. A run that outlives it is killed and fails the operation closed: every effect journals its intent first, so
+ * the operation stays pending and is repeated safely. */
+export const DERIVE_TIMEOUT_MS=120_000,EFFECT_TIMEOUT_MS=300_000;
+export function pythonRunner(timeoutMs:number):PythonRun {
+ return async(script,args,input)=>{
+  const child=Bun.spawn(['/usr/bin/python3',script,...args],{stdin:input===undefined?'ignore':'pipe',stdout:'pipe',stderr:'pipe',env:{...process.env,PYTHONDONTWRITEBYTECODE:'1'}});
+  let timedOut=false;const timer=setTimeout(()=>{timedOut=true;child.kill('SIGKILL');},timeoutMs);
+  try{
+   if(input!==undefined){child.stdin!.write(input);child.stdin!.end();}
+   const [stdout,stderr,code]=await Promise.all([new Response(child.stdout).text(),new Response(child.stderr).text(),child.exited]);
+   if(timedOut)throw new Error('Python run timed out');
+   return {code,stdout,stderr};
+  }finally{clearTimeout(timer);if(child.exitCode===null)child.kill('SIGKILL');}
+ };
+}
 
 /** Derives an environment's exact inventory from durable state on this host, or refuses with a closed reason. */
-export function durableInventoryDeriver(checkout:string,run:PythonRun=bun):(runtime:string,installation:string)=>Promise<LifecycleResource[]> {
+export function durableInventoryDeriver(checkout:string,run:PythonRun=pythonRunner(DERIVE_TIMEOUT_MS)):(runtime:string,installation:string)=>Promise<LifecycleResource[]> {
  return async(runtime,installation)=>{
-  const result=await run(resolve(checkout,'lab/durable_inventory.py'),['derive','--runtime',runtime,'--installation',installation]);
+  let result:Awaited<ReturnType<PythonRun>>;
+  try{result=await run(resolve(checkout,'lab/durable_inventory.py'),['derive','--runtime',runtime,'--installation',installation]);}
+  catch{throw new InventoryRefusal('observation_unavailable');}
   let value:any;try{value=JSON.parse(result.stdout);}catch{throw new InventoryRefusal('observation_unavailable');}
   if(!value||typeof value!=='object')throw new InventoryRefusal('observation_unavailable');
   if(value.ok!==true)throw new InventoryRefusal(typeof value.reason==='string'&&REASON.test(value.reason)?value.reason:'observation_unavailable');
@@ -29,7 +41,7 @@ export function durableInventoryDeriver(checkout:string,run:PythonRun=bun):(runt
 
 /** The adapter of the durable runtime: every effect is one python run that takes the operation lock and
  * refuses unless the catalog durably records the same operation, epoch, state and resource. */
-export function durableAdapter(checkout:string,catalogPath:string,run:PythonRun=bun):LifecycleAdapter {
+export function durableAdapter(checkout:string,catalogPath:string,run:PythonRun=pythonRunner(EFFECT_TIMEOUT_MS)):LifecycleAdapter {
  return async input=>{
   const result=await run(resolve(checkout,'lab/durable_lifecycle.py'),['--catalog',catalogPath],JSON.stringify(input));
   if(result.code!==0)throw new Error('Resource adapter refused');

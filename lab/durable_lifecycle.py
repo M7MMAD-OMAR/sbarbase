@@ -249,7 +249,7 @@ class Effects:
             closing = [name for name in roles if part['roles'][name]]
             if closing:
                 self.probe.sql(self.bounds() + ' '.join('ALTER ROLE "' + name + '" NOLOGIN;' for name in closing))
-            self.probe.sql("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE usename IN (" +
+            self.probe.sql(self.bounds() + "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE usename IN (" +
                            ','.join("'" + name + "'" for name in roles) + ');')
             endpoints = self.probe.endpoints()
             if runtime in endpoints:

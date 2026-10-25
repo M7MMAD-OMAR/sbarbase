@@ -64,10 +64,16 @@ def routed(state):
     deleted or moved runtime, and its old address answering nothing must not fail an upgrade."""
     path = state / 'control.sqlite'
     with contextlib.closing(sqlite3.connect(f'file:{path}?mode=ro', uri=True, timeout=5)) as database:
+        # An environment whose lifecycle is not active (deleting, deleted, restoring, quarantined, purging, purged)
+        # is stopped on purpose or on its way there: a stuck delete must not fail an upgrade. A control database
+        # from before soft delete has no lifecycle table, and then nothing is excluded.
+        lifecycle = database.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='environment_lifecycle'").fetchone()
+        inactive = (" AND runtime NOT IN (SELECT runtime FROM environment_lifecycle WHERE state != 'active')"
+                    if lifecycle else '')
         return {row[0] for row in database.execute(
             "SELECT runtime FROM provision_jobs WHERE state='succeeded' AND runtime IS NOT NULL "
             "AND runtime NOT IN (SELECT runtime FROM deleted_runtimes) "
-            "AND runtime NOT IN (SELECT runtime FROM runtime_routing WHERE maintenance=1 OR placement IS NOT NULL)")}
+            "AND runtime NOT IN (SELECT runtime FROM runtime_routing WHERE maintenance=1 OR placement IS NOT NULL)" + inactive)}
 
 
 def write_paused(state):
