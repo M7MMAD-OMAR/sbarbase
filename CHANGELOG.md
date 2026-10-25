@@ -10,9 +10,18 @@ The declared package version is 0.8.0. Historical 0.1.0 and 0.2.0 entries retain
 
 ## [Unreleased]
 
+### Added
+
+- **Soft delete and restore of an environment on an ordinary installation.** Delete used to answer `409` "Exact ownership inventory unavailable" on every installation. Now the exact inventory is recorded at provisioning for new environments and derived at delete time from verifiable durable state for existing ones (exact container names and owner labels, the database and logins named by the runtime id); anything ambiguous or foreign refuses with a precise reason and changes nothing. Delete stops that environment's containers, closes its logins and removes its published address, crash safe with a journal written before each effect; restore reverses exactly what was recorded. Purge is still refused, because it would remove objects of the shared PostgreSQL cluster and Storage process. Every external call is bounded by a timeout, and an environment in a lifecycle state other than active is not probed by the upgrade health check. Proven by unit tests and stubs only; never run on a real server.
+- **`lab/rolling.py repair --force ENV`** repairs a swap record the ordinary repair does not recognise, never removing a container it did not create; a start now holds only that environment (its reason shows in `lab/upgrade.py status` and `current.json`) and starts the others.
+
+### Changed
+
+- A fenced environment waits for a roll like a paused one; an environment that is not running is skipped with a visible reason and retried by itself when it runs again; `x-sbarbase-pid` is sent only by a process taking part in a handover; the database window re-reads the upgrade hold marker under its locks.
+
 ### Still open
 
-- **Deleting an environment does not work on an ordinary installation.** It always answers `409` with "Exact ownership inventory unavailable" and changes nothing, so restore and purge cannot be reached either. Provisioning never records the exact list of an environment's resources, and the shared PostgreSQL cluster and Storage process have no check yet that would make such a list honest. The [API reference](docs/reference/api.md) said delete "can answer" `409`; it now says it always does, and a test pins the current behaviour.
+- **Purging a deleted environment is refused**, because nothing proves that only that environment wrote the shared PostgreSQL cluster and Storage objects; delete and restore are soft.
 
 ## [0.8.0] - 2026-10-26
 
