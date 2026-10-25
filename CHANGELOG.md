@@ -6,9 +6,15 @@ All notable changes to sbarbase. The format follows Keep a Changelog and the
 project uses Semantic Versioning, which for a 0.x version means the interface may
 still change between releases.
 
-The declared package version is 0.6.4. Historical 0.1.0 and 0.2.0 entries retain their original scope. Later Docker and VM rehearsals are dated in [status](docs/reference/status.md); no independent public-server or production release acceptance is established.
+The declared package version is 0.7.0. Historical 0.1.0 and 0.2.0 entries retain their original scope. Later Docker and VM rehearsals are dated in [status](docs/reference/status.md); no independent public-server or production release acceptance is established.
 
 ## [Unreleased]
+
+### Still open
+
+- **Deleting an environment does not work on an ordinary installation.** It always answers `409` with "Exact ownership inventory unavailable" and changes nothing, so restore and purge cannot be reached either. Provisioning never records the exact list of an environment's resources, and the shared PostgreSQL cluster and Storage process have no check yet that would make such a list honest. The [API reference](docs/reference/api.md) said delete "can answer" `409`; it now says it always does, and a test pins the current behaviour.
+
+## [0.7.0] - 2026-10-25
 
 ### Added
 
@@ -20,10 +26,6 @@ The declared package version is 0.6.4. Historical 0.1.0 and 0.2.0 entries retain
 ### Changed
 
 - **The console process now stops gracefully.** On a stop it refuses new connections, lets running requests and database sessions finish (up to `SBARBASE_DRAIN_MS`, 15 seconds by default), then exits, so a stop takes at least about a second and can take the full drain time when a client keeps a database session open. Its fixed ports are bound so that a newer process can share them during a handover, which also means a second process of the same user can bind a port a first one holds.
-
-### Still open
-
-- **Deleting an environment does not work on an ordinary installation.** It always answers `409` with "Exact ownership inventory unavailable" and changes nothing, so restore and purge cannot be reached either. Provisioning never records the exact list of an environment's resources, and the shared PostgreSQL cluster and Storage process have no check yet that would make such a list honest. The [API reference](docs/reference/api.md) said delete "can answer" `409`; it now says it always does, and a test pins the current behaviour.
 
 ## [0.6.4] - 2026-10-24
 

@@ -1,9 +1,9 @@
 {
-  "version": "0.6.4",
+  "version": "0.7.0",
   "minimum_from": "0.3.1",
   "notes": {
-    "en": "Hardens external database access: a certificate renewal that fails is retried, a stop during renewal leaves nothing listening, and database-password no longer changes the password when its output file cannot be made. Not production ready.",
-    "ar": "تحصين الوصول الخارجي إلى قاعدة البيانات: يُعاد تجديد الشهادة إن فشل، والإيقاف أثناء التجديد لا يترك شيئًا يستمع، والأمر database-password لا يغيّر كلمة المرور إن تعذّر إنشاء ملف الإخراج. ليس جاهزًا للإنتاج."
+    "en": "The console process stops gracefully and can share its ports with a newer process. Adds two experimental, off by default upgrade features, rolling service updates and in place console handover, proven by unit tests only. Not production ready.",
+    "ar": "تتوقف عملية وحدة التحكم بهدوء ويمكنها مشاركة منافذها مع عملية أحدث. يضيف ميزتي ترقية تجريبيتين ومتوقفتين افتراضيًا، هما تحديث الخدمات تدريجيًا وتسليم وحدة التحكم في مكانها، ولم يثبتا إلا باختبارات الوحدة. ليس جاهزًا للإنتاج."
   },
   "migrations": []
 }
