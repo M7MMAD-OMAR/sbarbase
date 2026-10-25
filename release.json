@@ -1,9 +1,9 @@
 {
-  "version": "0.7.0",
+  "version": "0.7.1",
   "minimum_from": "0.3.1",
   "notes": {
-    "en": "The console process stops gracefully and can share its ports with a newer process. Adds two experimental, off by default upgrade features, rolling service updates and in place console handover, proven by unit tests only. Not production ready.",
-    "ar": "تتوقف عملية وحدة التحكم بهدوء ويمكنها مشاركة منافذها مع عملية أحدث. يضيف ميزتي ترقية تجريبيتين ومتوقفتين افتراضيًا، هما تحديث الخدمات تدريجيًا وتسليم وحدة التحكم في مكانها، ولم يثبتا إلا باختبارات الوحدة. ليس جاهزًا للإنتاج."
+    "en": "Adds an experimental, off by default bounded database restart window, and documents the upgrade switches and every known limit. Not production ready.",
+    "ar": "يضيف نافذة تجريبية ومحدودة ومتوقفة افتراضيًا لإعادة تشغيل قاعدة البيانات، ويوثّق مفاتيح الترقية وكل حد معروف. ليس جاهزًا للإنتاج."
   },
   "migrations": []
 }

@@ -6,18 +6,20 @@ All notable changes to sbarbase. The format follows Keep a Changelog and the
 project uses Semantic Versioning, which for a 0.x version means the interface may
 still change between releases.
 
-The declared package version is 0.7.0. Historical 0.1.0 and 0.2.0 entries retain their original scope. Later Docker and VM rehearsals are dated in [status](docs/reference/status.md); no independent public-server or production release acceptance is established.
+The declared package version is 0.7.1. Historical 0.1.0 and 0.2.0 entries retain their original scope. Later Docker and VM rehearsals are dated in [status](docs/reference/status.md); no independent public-server or production release acceptance is established.
 
 ## [Unreleased]
+
+### Still open
+
+- **Deleting an environment does not work on an ordinary installation.** It always answers `409` with "Exact ownership inventory unavailable" and changes nothing, so restore and purge cannot be reached either. Provisioning never records the exact list of an environment's resources, and the shared PostgreSQL cluster and Storage process have no check yet that would make such a list honest. The [API reference](docs/reference/api.md) said delete "can answer" `409`; it now says it always does, and a test pins the current behaviour.
+
+## [0.7.1] - 2026-10-26
 
 ### Added
 
 - **A bounded held window around a PostgreSQL restart, off by default** (`SBARBASE_DATABASE_WINDOW`, `lab/upgrade.py database --window SETTING`): it checkpoints, holds application traffic for at most 30 seconds by default (cap 120), restarts the database, checks it answers and releases the hold, and a failure or timeout always releases it. It takes the upgrade lock and is refused during a backup. Proven by unit tests only.
 - **Operator documentation for upgrades**: what an upgrade does by release type, the three off by default switches, the graceful stop, and a list of every known limit (`docs/engineering/upgrades-known-limits.md`).
-
-### Still open
-
-- **Deleting an environment does not work on an ordinary installation.** It always answers `409` with "Exact ownership inventory unavailable" and changes nothing, so restore and purge cannot be reached either. Provisioning never records the exact list of an environment's resources, and the shared PostgreSQL cluster and Storage process have no check yet that would make such a list honest. The [API reference](docs/reference/api.md) said delete "can answer" `409`; it now says it always does, and a test pins the current behaviour.
 
 ## [0.7.0] - 2026-10-25
 
