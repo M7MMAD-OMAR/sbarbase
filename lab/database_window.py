@@ -151,16 +151,25 @@ def needs_restart(names, database):
 
 
 @contextlib.contextmanager
-def exclusive(lock=None):
-    """One window at a time: a second one is refused, not queued."""
+def exclusive(lock=None, upgrade_lock=None, backup_lock=None):
+    """One window at a time: a second one is refused, not queued. It also takes the upgrade lock, so no start,
+    rollback or confirmation runs while the database restarts, and it is refused while a backup holds its lock."""
     lock = lock or LOCK
+    upgrade_lock = upgrade_lock or upgrade.LOCK
+    backup_lock = backup_lock or lab.STATE / 'backup.lock'
     lock.parent.mkdir(parents=True, exist_ok=True)
     with lock.open('a') as handle:
         try:
             fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             raise WindowError('Another database window is open') from None
-        yield
+        if upgrade.held(backup_lock):
+            raise WindowError('A backup or restore holds its lock; wait for it, nothing was changed')
+        try:
+            with upgrade.exclusive(upgrade_lock, 'An upgrade or rollback is running; wait for it, nothing was changed'):
+                yield
+        except upgrade.UpgradeError as error:
+            raise WindowError(str(error)) from None
 
 
 def open_hold(seconds, marker=None, wall=time.time):

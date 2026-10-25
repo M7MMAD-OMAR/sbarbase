@@ -71,10 +71,14 @@ class Case(unittest.TestCase):
         self.folder = Path(tempfile.mkdtemp(prefix='sbarbase-window-'))
         self.addCleanup(shutil.rmtree, self.folder, ignore_errors=True)
         self.marker, self.lock_path = self.folder / 'database-window', self.folder / 'database-window.lock'
+        self.upgrade_lock, self.backup_lock = self.folder / 'upgrade.lock', self.folder / 'backup.lock'
         self.log, self.clock, self.until, self.settled_after = [], Clock(), None, []
         hold_file = patch.object(upgrade, 'HOLD', self.folder / 'upgrade-hold')
         hold_file.start()
         self.addCleanup(hold_file.stop)
+
+    def exclusive(self):
+        return database_window.exclusive(self.lock_path, self.upgrade_lock, self.backup_lock)
 
     def hold(self, seconds):
         self.log.append('hold')
@@ -93,7 +97,7 @@ class Case(unittest.TestCase):
     def go(self, database, names=('max_connections',), environ=ON):
         reports = []
         result = database_window.run(list(names), environ=environ, database=database, hold=self.hold, release=self.release,
-                                     lock=lambda: database_window.exclusive(self.lock_path),
+                                     lock=lambda: self.exclusive(),
                                      clock=self.clock, sleep=self.sleep, report=reports.append)
         self.reports = reports
         return result
@@ -161,7 +165,7 @@ class FailureTests(Case):
             raise OSError('disk')
         with self.assertRaises(OSError):
             database_window.run(['max_connections'], environ=ON, database=Stub(self.log), hold=broken, release=self.release,
-                                lock=lambda: database_window.exclusive(self.lock_path), clock=self.clock, sleep=self.clock.sleep)
+                                lock=lambda: self.exclusive(), clock=self.clock, sleep=self.clock.sleep)
         self.assertNotIn('restart', self.log)
         self.assert_released()
 
@@ -321,6 +325,34 @@ class ConcurrencyTests(Case):
         self.assertTrue(outcome['marker'], 'the refused window released the first one hold')
         self.assertEqual(self.log, FULL)
         self.assert_released()
+
+
+class OtherOperationsTests(Case):
+    def test_a_running_upgrade_or_rollback_refuses_the_window_and_nothing_is_touched(self):
+        with upgrade.exclusive(self.upgrade_lock, 'busy'):
+            database = Stub(self.log)
+            with self.assertRaises(database_window.WindowError) as caught:
+                self.go(database)
+        self.assertIn('upgrade or rollback is running', str(caught.exception))
+        self.assertEqual(self.log, [], 'the refused window touched the database or the hold')
+        self.assertFalse(self.marker.exists())
+
+    def test_a_backup_holding_its_lock_refuses_the_window(self):
+        import fcntl
+        with self.backup_lock.open('a') as handle:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            with self.assertRaises(database_window.WindowError) as caught:
+                self.go(Stub(self.log))
+        self.assertIn('backup or restore', str(caught.exception))
+        self.assertEqual(self.log, [])
+
+    def test_the_upgrade_lock_is_taken_during_the_window_and_freed_after(self):
+        seen = {}
+        database = Stub(self.log)
+        database.on_restart = lambda: seen.update(held=upgrade.held(self.upgrade_lock))
+        self.go(database)
+        self.assertTrue(seen['held'])
+        self.assertFalse(upgrade.held(self.upgrade_lock))
 
 
 class StatusTests(Case):
