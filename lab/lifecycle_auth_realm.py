@@ -9,6 +9,7 @@ import sys
 import urllib.request
 import durable_runtime as native
 import run
+import runtime_files
 from management_access import factor_matches
 
 
@@ -29,7 +30,7 @@ def private_json(path, expected_identity=None):
 def realm():
     # Retain original Runtime read methods without its credential-generating constructor.
     runtime = object.__new__(native.Runtime)
-    runtime.values = private_json(native.PRIVATE / 'runtime.json')
+    runtime.values = private_json(runtime_files.runtime_secret_path_for_tool(native.PRIVATE))
     runtime.pins = json.loads((run.ROOT / 'lab/images.lock.json').read_text())
     name = native.PREFIX + '-management-auth'
     item = native.inspect('container', name)
@@ -41,7 +42,7 @@ def realm():
     if any(actual.get(key) != value for key, value in expected.items()):
         raise ValueError('Retained original Auth unavailable')
     endpoint = runtime.endpoint(name, 9999)
-    projection = private_json(native.STATE / 'management.json')
+    projection = private_json(runtime_files.management_path(native.STATE))
     if projection != {'auth': endpoint}:
         raise ValueError('Retained original Auth unavailable')
     return {'auth': endpoint, 'key': native.token(runtime.values['management']['jwt'], 'anon'),

@@ -12,7 +12,7 @@ lock of COMMIT, proven on this daemon and never pulled) in a build container on 
   2. the build container ``sbarbase-rebuild-<12 hex>``, owner ``durable-rebuild`` (nothing that
      settles or counts the runtime's containers acts on it), without network;
   3. the managed roles from the inventory, with the passwords the runtime itself keeps
-     (``.secrets/upstream/runtime.json``, and the developer login's own file); a login whose
+     (the runtime secret file, and the developer login's own file); a login whose
      password is not kept (Studio's, one per session; a developer login without its file) is
      created closed, and the runtime opens it again when it is turned on;
   4. the management database, ``storage_metadata`` and every environment database, each through
@@ -50,6 +50,7 @@ import durable_runtime as runtime
 import release_channel
 import resource_policy
 import run as lab
+import runtime_files
 import upgrade
 from restore_sql import PlanError, plan_archive
 
@@ -128,7 +129,7 @@ def chosen_image(commit=None):
 def passwords():
     """The passwords the runtime keeps, by role name. Read here, never printed or recorded."""
     try:
-        values = json.loads((runtime.PRIVATE / 'runtime.json').read_text())
+        values = runtime_files.read_runtime_secret(runtime.PRIVATE)
     except (OSError, ValueError):
         raise RebuildError('The runtime credentials cannot be read; run this as the service account') from None
     found = {}

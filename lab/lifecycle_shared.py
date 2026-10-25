@@ -5,6 +5,7 @@ migration and lifecycle entry points refuse before any external resource effect.
 Shared engines and global roles are never removed.
 """
 import hashlib
+import runtime_files
 import ctypes
 import signal
 import sys
@@ -177,7 +178,7 @@ def writer_ready(writer,resource=None,state=None):
         return False
     from urllib.parse import urlsplit
     import http.client
-    endpoints=json.loads((Path(state)/'endpoints.json').read_text())
+    endpoints=runtime_files.read_endpoints(state,required=True)
     endpoint=urlsplit(endpoints.get(resource['runtime'],{}).get('storage',{}).get('url',''))
     networks=writer.get('NetworkSettings',{}).get('Networks') or {}
     if (endpoint.scheme!='http' or endpoint.port!=5000 or endpoint.username or endpoint.password
@@ -568,7 +569,7 @@ def migrate_legacy_service(resource,shared_resource,docker,state,secrets_path):
             or secrets_path.stat().st_uid!=os.getuid()):
         raise SharedRefusal('legacy_service_private_configuration_required')
     secrets=json.loads(secrets_path.read_text())['environments'][resource['runtime']]
-    endpoints=json.loads((Path(state)/'endpoints.json').read_text())
+    endpoints=runtime_files.read_endpoints(state,required=True)
     service=resource['service']
     if endpoints.get(resource['runtime'],{}).get(service)!=legacy['endpoint']:
         raise SharedRefusal('legacy_service_publication_binding_mismatch')

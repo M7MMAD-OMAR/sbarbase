@@ -162,6 +162,9 @@ class CombinedAdmission:
             item=json.loads(lab.docker('inspect',name).stdout)[0]
             if item.get('State',{}).get('Running') and item['Id'] not in self.ids:raise RuntimeError('Unexpected running owned resource')
         available=int(next(line.split()[1] for line in Path('/proc/meminfo').read_text().splitlines() if line.startswith('MemAvailable:')))*1024
+        # The console process a handover leaves serving (lab/handover.py) holds memory its exit returns.
+        import kept_runtime
+        available+=kept_runtime.admission_credit_mib()*MIB
         reason=refusal(memory,cpus,available,os.cpu_count() or 0)
         if reason:raise RuntimeError('Combined resource admission refused: '+reason)
         metrics={'cpu_some10':avg10(Path('/proc/pressure/cpu').read_text(),'some'),'io_full10':avg10(Path('/proc/pressure/io').read_text(),'full'),'memory_full10':avg10(Path('/proc/pressure/memory').read_text(),'full')}

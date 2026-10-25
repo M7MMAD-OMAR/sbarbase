@@ -24,7 +24,7 @@ nothing else attached). Studio listens only on its address there, which the host
 attachment to the runtime network carries only its own outbound calls, to the database and to
 the internal route. postgres-meta shares Studio's network namespace and listens on loopback.
 
-State for the loopback server is ``.lab/upstream/studio.json``; the request and outcome of
+State for the loopback server is the Studio state file (lab/runtime_files.py); the request and outcome of
 each session live in the control catalog (``studio_sessions``).
 """
 import argparse
@@ -51,12 +51,13 @@ import durable_runtime as runtime
 import image_identity
 import resource_policy
 import run as lab
+import runtime_files
 import rolling
 import source_fence
 import write_pause
 
 PREFIX = runtime.PREFIX
-STATE_FILE = runtime.STATE / 'studio.json'
+STATE_FILE = runtime_files.studio_path(runtime.STATE)
 CATALOG = runtime.STATE / 'control.sqlite'
 RUNTIME_ID = re.compile(r'e_[a-f0-9]{24}')
 # Below Linux's ephemeral range (32768 to 60999): the host's own outbound connections into the
@@ -91,11 +92,11 @@ def session_network(e):
 
 
 def load_state():
-    return json.loads(STATE_FILE.read_text()) if STATE_FILE.exists() else {'sessions': {}}
+    return runtime_files.read_studio(STATE_FILE.parent)
 
 
 def save_state(value):
-    runtime.atomic(STATE_FILE, value)
+    runtime_files.write_studio(value, STATE_FILE.parent)
 
 
 def network_gateway():
@@ -410,7 +411,7 @@ def display_names(e):
 def up(e):
     if not RUNTIME_ID.fullmatch(e):
         raise StudioError('Invalid environment')
-    endpoints = json.loads((runtime.STATE / 'endpoints.json').read_text()) if (runtime.STATE / 'endpoints.json').exists() else {}
+    endpoints = runtime_files.read_endpoints(runtime.STATE, strict=True)
     if e not in endpoints:
         raise StudioError('Only a published environment can open Studio')
     if source_fence.is_fenced(lambda query: lab.docker('exec', '-i', runtime.DB, 'psql', '-X', '-qAt', '-U', 'supabase_admin',
@@ -425,7 +426,7 @@ def up(e):
     image = ensure_images()
     headroom(resource_policy.memory_mib(resource_policy.TIERS['operator.studio'].memory)
              + resource_policy.memory_mib(resource_policy.TIERS['operator.meta'].memory))
-    values = json.loads((runtime.PRIVATE / 'runtime.json').read_text())['environments'][e]
+    values = runtime_files.read_runtime_secret(runtime.PRIVATE)['environments'][e]
     password = secrets.token_hex(32)
     crypto = secrets.token_hex(32)
     service = runtime.token(values['jwt'], 'service_role')

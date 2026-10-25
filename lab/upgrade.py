@@ -44,6 +44,7 @@ import shutil
 import sqlite3
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import backup
@@ -71,6 +72,11 @@ KEEP_SNAPSHOTS = 3
 # Present while a new version waits for its health checks: the gateway holds application
 # traffic (src/gateway/hold.ts). It counts only while the state below says a start is pending.
 HOLD = UPGRADES / 'hold'
+# A handover start (lab/handover.py) writes the hold while the previous version's console process
+# still serves, then waits this long before it takes the snapshot: above the 1000 ms answer cache
+# of upgradeHoldScope (src/gateway/hold.ts), so every change that console accepted is in the
+# snapshot and none lands after it.
+HOLD_SETTLE_SECONDS = 1.5
 PENDING = upgrade_guard.PENDING
 INTENT = runtime.UPGRADE_INTENT
 UPSTREAM = runtime.STATE
@@ -838,7 +844,7 @@ def way_back_now(automatic, reason=None):
     print(f'The checkout is back at {source[:12]}.' + ('' if automatic else f' Restart Sbarbase now:\n  {RESTART}'))
 
 
-def before_start():
+def before_start(settle=False):
     """Called by the supervisor after taking its locks and before anything opens the control
     state. Returns True when this start confirms a pending upgrade or rollback, which the
     supervisor then does only after its health checks pass (lab/upgrade_health.py).
@@ -853,6 +859,11 @@ def before_start():
     version was attempted. Later starts of the same version keep that snapshot: the catalog may
     already be migrated. A snapshot that fails raises UpgradeError, and the caller moves back
     before the new version touched anything.
+
+    With `settle` (a handover start, while the previous version's console process still serves),
+    the first start writes the hold before the snapshot and waits HOLD_SETTLE_SECONDS, so no change
+    that console accepts can land after the snapshot; without it the snapshot comes first, as it
+    always has.
     """
     import database_move
     refusal = database_move.start_refusal()
@@ -882,13 +893,44 @@ def before_start():
                     save_state({**state, 'retryable': True})
                 raise UpgradeError(f'The previous version left a pending operation record ({name}); it settles it first. '
                                    'Start the upgrade again once it has')
+        if settle:
+            hold(state['phase'])
+            time.sleep(HOLD_SETTLE_SECONDS)
         with exclusive(LOCK, 'Another upgrade or rollback is running', wait=30):
             taken = snapshot(state['from'])
             state.update({'snapshot': taken, 'attempted_at': now()})
             save_state(state)
         prune_snapshots()
+        if settle:
+            return True
     hold(state['phase'])
     return True
+
+
+def narrow_hold(scope):
+    """Rewrites the hold marker with a scope (src/gateway/hold.ts HoldScope), as {phase, since, scope},
+    through a private file and a rename. `management` lets the tenant data plane through again and
+    holds everything else. Narrowing only lets more through, so the readers' answer cache cannot lose
+    a change. Raises OSError, UpgradeError or ValueError when the marker cannot be read or written."""
+    marker = json.loads(HOLD.read_text())
+    if not isinstance(marker, dict) or not isinstance(marker.get('phase'), str):
+        raise UpgradeError('The hold marker cannot be narrowed: it is not a hold')
+    lab.atomic(HOLD, {**marker, 'scope': scope})
+
+
+def withdraw_attempt():
+    """Takes back the attempt the guard opened for a start that reached no verdict about the
+    version (a handover that did not go ahead): the attempt is closed and no longer counted, under
+    the upgrade lock, so the restart that follows counts its own. Returns whether it changed anything."""
+    with exclusive(LOCK, 'Another upgrade or rollback is running', wait=30):
+        state = load_state()
+        if not state or state.get('phase') not in PENDING:
+            return False
+        record = state.get('guard')
+        if not isinstance(record, dict) or record.get('phase') != state['phase'] or not isinstance(record.get('attempts'), int):
+            return False
+        save_state({**state, 'guard': {**record, 'open': False, 'attempts': max(0, record['attempts'] - 1)}})
+        return True
 
 
 def clear_notices(count):

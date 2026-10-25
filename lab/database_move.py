@@ -57,6 +57,7 @@ import hba_migration
 import image_identity
 import release_channel
 import run as lab
+import runtime_files
 import upgrade
 import write_pause
 
@@ -88,11 +89,8 @@ def save(record):
 
 def published():
     """The published environments; an unreadable list refuses rather than reading as none."""
-    path = runtime.STATE / 'endpoints.json'
-    if not path.exists():
-        return {}
     try:
-        value = json.loads(path.read_text())
+        value = runtime_files.read_endpoints(runtime.STATE, strict=True)
     except (OSError, ValueError):
         raise MoveError('The published environments cannot be read; nothing was changed') from None
     if not isinstance(value, dict):
@@ -200,7 +198,7 @@ def database_stopped():
 def migration_command(reconcile):
     command = ['/usr/bin/python3', 'lab/migrate-generation.py', '--state', str(runtime.STATE),
                '--volume', database_volume.current(runtime.STATE), '--network', runtime.NETWORK, '--tier', 'system.db',
-               '--inventory-runtime', str(runtime.PRIVATE / 'runtime.json'),
+               '--inventory-runtime', str(runtime_files.runtime_secret_path_for_tool(runtime.PRIVATE)),
                '--retired', 'stopped', '--assert-retired-will-not-return',
                '--attended-retained', '--confirm-retained', runtime.DB]
     return command + (['--reconcile'] if reconcile else ['--image-from-lock'])

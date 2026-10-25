@@ -126,6 +126,101 @@ class ProbeTests(unittest.TestCase):
         self.assertEqual(upgrade_health.check(self.state, 42, self.secrets, self.get(), token=self.token)[0], False)
 
 
+    def test_a_handover_probes_the_candidates_private_address_from_candidate_json(self):
+        # server.json names the previous console process; candidate.json the new one, on its private port.
+        (self.state / 'candidate.json').write_text(json.dumps({'url': 'http://127.0.0.1:41000', 'pid': 99, 'protocol': 1}))
+        healthy, detail = upgrade_health.check(self.state, 99, self.secrets, self.get(), {RUNTIME}, token=self.token, server_file='candidate.json')
+        self.assertTrue(healthy, detail)
+        urls = [url for url, _ in self.asked]
+        self.assertIn('http://127.0.0.1:41000/health', urls)
+        self.assertIn(f'http://127.0.0.1:41000/{RUNTIME}/rest/v1/', urls)
+        self.assertFalse(any(url.startswith('http://127.0.0.1:4000/') for url in urls))
+        # The previous process's pid is not the candidate's: nothing is probed on its say-so.
+        healthy, detail = upgrade_health.check(self.state, 42, self.secrets, self.get(), {RUNTIME}, token=self.token, server_file='candidate.json')
+        self.assertEqual((healthy, detail), (False, 'health probes unavailable: candidate.json does not name the console this supervisor started'))
+        (self.state / 'candidate.json').unlink()
+        healthy, detail = upgrade_health.check(self.state, 99, self.secrets, self.get(), {RUNTIME}, token=self.token, server_file='candidate.json')
+        self.assertEqual((healthy, detail), (False, 'health probes unavailable: the console has not published its address yet'))
+
+    def test_the_files_are_read_as_they_always_were_a_missing_one_skips_its_probes_and_a_malformed_one_fails_the_round(self):
+        def old_read(path):
+            try:
+                return json.loads(path.read_text())
+            except FileNotFoundError:
+                return None
+        for name in ('management.json', 'endpoints.json'):
+            with self.subTest(name=name):
+                (self.state / name).write_text('{"auth": ')
+                try:
+                    old_read(self.state / name)
+                except ValueError as error:
+                    expected = (False, f'health probes unavailable: {error}')
+                self.assertEqual(upgrade_health.check(self.state, 42, self.secrets, self.get(), {RUNTIME}, token=self.token), expected)
+                (self.state / name).unlink()
+                healthy, detail = upgrade_health.check(self.state, 42, self.secrets, self.get(), {RUNTIME}, token=self.token)
+                self.assertTrue(healthy, detail)
+                (self.state / name).write_text('[]' if name == 'management.json' else '{}')
+        (self.state / 'management.json').write_text(json.dumps({'auth': 'http://10.0.0.2:9999'}))
+
+    def test_the_default_file_is_server_json(self):
+        self.assertEqual(upgrade_health.probes(self.state, 42, self.secrets, set(), self.token)[0][1], 'http://127.0.0.1:4000/health')
+
+    def test_the_console_probe_passes_only_for_the_process_whose_pid_it_expects(self):
+        def answering(pid):
+            def get(url, headers):
+                return (200, {'x-sbarbase-pid': str(pid)} if url.endswith(':4000/health') else {})
+            return get
+        self.assertTrue(upgrade_health.check(self.state, 42, self.secrets, answering(42), set(), expect_pid=42)[0])
+        healthy, detail = upgrade_health.check(self.state, 42, self.secrets, answering(7), set(), expect_pid=42)
+        self.assertEqual((healthy, detail), (False, 'console was answered by another process'))
+        # No header at all is the old process (or one behind a proxy): never the candidate.
+        healthy, detail = upgrade_health.check(self.state, 42, self.secrets, lambda url, headers: (200, {}), set(), expect_pid=42)
+        self.assertEqual((healthy, detail), (False, 'console was answered by another process'))
+        # A bare status from a probe that cannot show headers is not proof either.
+        healthy, detail = upgrade_health.check(self.state, 42, self.secrets, lambda url, headers: 200, set(), expect_pid=42)
+        self.assertFalse(healthy)
+
+    def test_without_an_expected_pid_nothing_about_headers_is_asked(self):
+        self.assertTrue(upgrade_health.check(self.state, 42, self.secrets, lambda url, headers: 200, set())[0])
+
+    def test_only_the_console_probe_carries_the_pid_check(self):
+        def get(url, headers):
+            return (200, {'x-sbarbase-pid': '42'} if url.endswith(':4000/health') else {})
+        self.assertTrue(upgrade_health.check(self.state, 42, self.secrets, get, {RUNTIME}, token=self.token, expect_pid=42)[0])
+
+    def test_the_default_getter_returns_headers_when_a_pid_is_expected(self):
+        seen = []
+        with patch.object(upgrade_health, 'fetch_seen', side_effect=lambda url, headers=None, timeout=5: seen.append(url) or (200, {'x-sbarbase-pid': '42'})), \
+                patch.object(upgrade_health, 'fetch', side_effect=lambda url, headers=None, timeout=5: seen.append('plain') or 200):
+            self.assertTrue(upgrade_health.check(self.state, 42, self.secrets, serving=set(), expect_pid=42)[0])
+            self.assertNotIn('plain', seen)
+            seen.clear()
+            self.assertTrue(upgrade_health.check(self.state, 42, self.secrets, serving=set())[0])
+            self.assertEqual(set(seen), {'plain'})
+
+    def test_fetch_seen_returns_the_status_and_lower_case_headers_even_for_an_error_status(self):
+        import http.server
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(200 if self.path == '/ok' else 503)
+                self.send_header('X-Sbarbase-Pid', '123')
+                self.send_header('content-length', '0')
+                self.end_headers()
+
+            def log_message(self, *args):
+                pass
+        server = http.server.HTTPServer(('127.0.0.1', 0), Handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        base = f'http://127.0.0.1:{server.server_port}'
+        self.assertEqual(upgrade_health.fetch_seen(base + '/ok')[0], 200)
+        self.assertEqual(upgrade_health.fetch_seen(base + '/ok')[1]['x-sbarbase-pid'], '123')
+        status, headers = upgrade_health.fetch_seen(base + '/down')
+        self.assertEqual((status, headers['x-sbarbase-pid']), (503, '123'))
+
+
 class ConfirmationTests(unittest.TestCase):
     def test_confirms_once_a_round_passes(self):
         clock, rounds, confirmed = Clock(), iter([(False, 'rest answered HTTP 503'), (True, 'ok')]), []

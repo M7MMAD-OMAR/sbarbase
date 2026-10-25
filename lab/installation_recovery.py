@@ -6,6 +6,7 @@ The published collection is private plaintext and cannot authorize restore/purge
 """
 import contextlib
 import hashlib
+import runtime_files
 import json
 import os
 from pathlib import Path
@@ -290,7 +291,7 @@ def collect(root, output, *, timeout=30, max_bytes=MAX_BYTES):
             name = str(path.relative_to(root))
             if name not in databases:
                 payloads[name] = read(path, deadline, budget, private=name.startswith('.secrets/'))
-        if '.secrets/upstream/runtime.json' not in payloads:
+        if runtime_files.runtime_secret_relative() not in payloads:
             raise Refused('Original private runtime configuration required')
         external_modules = functions(root, payloads, runtimes, deadline)
         # Verify enumeration and identities again before any publication.

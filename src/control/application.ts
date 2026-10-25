@@ -38,7 +38,8 @@ export function application(catalog:Catalog,keys:KeyStore,realm:ManagementRealm,
   throw new Error('Invalid management Auth endpoint');
  const identityTransport=(async(input,init)=>{
   if(String(input)!=='http://management.internal/auth/v1/user')throw new Error('Unexpected identity request');
-  return transport(new URL('/user',auth),init);
+  // The realm's address is read on each use (PROTOCOL 1, docs/engineering/HANDOVER.md): a replaced management Auth moves it.
+  return transport(new URL('/user',new URL(realm.auth)),init);
  }) as typeof fetch;
  const passwordIdentity=managementPasswordIdentity('http://management.internal',realm.publishableKey,identityTransport);
  const identityCache=new WeakMap<Request,Promise<PasswordIdentity|null>>();

@@ -49,6 +49,7 @@ import durable_runtime as runtime
 import import_inspect
 import image_identity
 import run as lab
+import runtime_files
 
 TOOL = 'sbarbase-import-tool'
 KEEP_ROLES = ('anon', 'authenticated', 'service_role', 'PUBLIC')
@@ -250,7 +251,7 @@ def http(url, method='GET', headers=None, body=None, timeout=300):
 
 def copy_objects(source, e, settings, report):
     endpoints = runtime.published_endpoints()[e]
-    secret = json.loads((runtime.PRIVATE / 'runtime.json').read_text())['environments'][e]['jwt']
+    secret = runtime_files.read_runtime_secret(runtime.PRIVATE)['environments'][e]['jwt']
     target_headers = {'authorization': 'Bearer ' + runtime.token(secret, 'service_role'), 'x-forwarded-host': endpoints['storage']['tenantHost'],
                       'x-upsert': 'true'}
     api = settings['api_url'].rstrip('/') + '/storage/v1'

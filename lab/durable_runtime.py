@@ -34,6 +34,7 @@ import data_api
 import mail_state
 import private_directories
 import kept_runtime
+import runtime_files
 import rolling
 
 MAIL_KEY_PREFIXES = ('GOTRUE_SMTP_', 'GOTRUE_MAILER_', 'GOTRUE_RATE_LIMIT_')
@@ -373,11 +374,7 @@ def functions_address(network):
 
 
 def published_endpoints():
-    path = STATE/'endpoints.json'
-    try:
-        return json.loads(path.read_text()) if path.exists() else {}
-    except (OSError, ValueError):
-        return {}
+    return runtime_files.read_endpoints(STATE)
 
 
 def realtime_on(e):
@@ -400,11 +397,7 @@ def cron_on(e):
 
 
 def studio_running(e):
-    path = STATE/'studio.json'
-    try:
-        return e in (json.loads(path.read_text()).get('sessions', {}) if path.exists() else {})
-    except (OSError, ValueError):
-        return False
+    return e in runtime_files.studio_sessions(STATE)
 
 
 def current_database_limit(e, *, studio=None, realtime=None, direct=None, cron=None):
@@ -652,7 +645,7 @@ class Runtime:
         private_directories.prepare(lab.ROOT)
         # Verify ignore rules before persisting generated credentials.
         import subprocess
-        if subprocess.run(['git', 'check-ignore', '-q', str(PRIVATE/'runtime.json')], cwd=lab.ROOT).returncode:
+        if subprocess.run(['git', 'check-ignore', '-q', str(runtime_files.runtime_secret_path_for_tool(PRIVATE))], cwd=lab.ROOT).returncode:
             raise RuntimeError('Runtime secrets must be ignored')
         self.pins = json.loads((lab.ROOT/'lab/images.lock.json').read_text())
         for component, filename in [('db', 'distro-image.lock.json'), ('storage', 'storage-image.lock.json'),
@@ -667,13 +660,13 @@ class Runtime:
             self.hba_writer.worker_preflight(worker_runtime)
         self.kept = None
         self.touched = set()
-        self.path = PRIVATE/'runtime.json'
+        self.path = runtime_files.runtime_secret_path_for_tool(PRIVATE)
         if not self.path.exists():
-            atomic(self.path, {**{key: secrets.token_hex(32) for key in ('admin', 'storage_control', 'storage_admin', 'encryption')}, 'environments': {}})
-        self.values = json.loads(self.path.read_text())
+            runtime_files.write_runtime_secret({**{key: secrets.token_hex(32) for key in ('admin', 'storage_control', 'storage_admin', 'encryption')}, 'environments': {}}, self.path.parent)
+        self.values = runtime_files.read_runtime_secret(self.path.parent)
         if 'management' not in self.values:
             self.values['management'] = {k: secrets.token_hex(32) for k in ('auth', 'jwt')}
-            atomic(self.path, self.values)
+            runtime_files.write_runtime_secret(self.values, self.path.parent)
 
     def sql(self, query, database='postgres', check=True):
         return lab.docker('exec', '-i', DB, 'psql', '-X', '-v', 'ON_ERROR_STOP=1', '-U', 'supabase_admin', '-d', database, '-qAt', data=query, check=check)
@@ -816,6 +809,8 @@ class Runtime:
             raise RuntimeError('The containers a planned upgrade restart kept can no longer be adopted ('+why+')')
         if self.kept is not None:
             available += kept_runtime.credit_mib(self.kept['containers']) * 1024
+        # The console process a handover leaves serving (lab/handover.py) holds memory its exit returns.
+        available += kept_runtime.admission_credit_mib() * 1024
         if available < (placement + resource_policy.START_RESERVE_MIB) * 1024:
             raise RuntimeError('Insufficient runtime memory headroom')
         if not inspect('network', NETWORK):
@@ -827,7 +822,7 @@ class Runtime:
         self.ensure_connection_capacity()
         self.hba_writer.ready(launched_cid,created=created)
         # Where direct database access connects (src/http/database-proxy.ts); the address changes only with the container.
-        atomic(STATE/'database.json', {'host': self.endpoint(DB, 5432).split('//')[1].split(':')[0], 'port': 5432})
+        runtime_files.write_database(self.endpoint(DB, 5432).split('//')[1].split(':')[0], 5432, STATE)
         if self.sql("SELECT 1 FROM pg_roles WHERE rolname='storage_control';").stdout.strip() != '1':
             self.sql(f"CREATE ROLE storage_control LOGIN NOINHERIT PASSWORD '{self.values['storage_control']}';")
         if self.sql("SELECT 1 FROM pg_database WHERE datname='storage_metadata';").stdout.strip() != '1':
@@ -855,8 +850,7 @@ class Runtime:
 
     def resume_published_environments(self):
         # Credential reservations must only be dispatched by an authorized worker.
-        path = STATE/'endpoints.json'
-        published = json.loads(path.read_text()) if path.exists() else {}
+        published = runtime_files.read_endpoints(STATE, strict=True)
         for e in tuple(self.values['environments']):
             if e in published and not source_fence.is_fenced(self.sql,e):
                 self.resume(e)
@@ -866,8 +860,7 @@ class Runtime:
         effect_receipt.require_settled(STATE)
         if not re.fullmatch(r'e_[a-f0-9]{24}', e):
             raise RuntimeError('Invalid environment runtime identifier')
-        path=STATE/'endpoints.json'
-        published=json.loads(path.read_text()) if path.exists() else {}
+        published = runtime_files.read_endpoints(STATE, strict=True)
         if e not in published or e not in self.values['environments']:
             raise RuntimeError('Resume requires a published environment')
         if source_fence.is_fenced(self.sql,e):
@@ -1207,7 +1200,7 @@ class Runtime:
         effect_receipt.sql_identity(STATE,e,'preflight')
         if new_environment:
             self.values['environments'][e] = {k: secrets.token_hex(32) for k in ('auth', 'rest', 'storage', 'jwt')}
-            atomic(self.path, self.values)
+            runtime_files.write_runtime_secret(self.values, self.path.parent)
         if source_fence.is_fenced(self.sql,e):
             raise RuntimeError('Environment database is fenced; explicit reconciliation required')
         v = self.values['environments'][e]
@@ -1222,7 +1215,7 @@ class Runtime:
 
     def activate_services(self,e,v,*,creating):
         endpoints = {}
-        # A rotation recorded in runtime.json and not finished yet, whether it runs now or was
+        # A rotation recorded in the runtime secret and not finished yet, whether it runs now or was
         # interrupted: every service that holds the signing secret takes the new one.
         rotating = not creating and bool(v.get('jwt_rotating'))
         # This environment's own mail configuration, read once per invocation.
@@ -1263,8 +1256,7 @@ class Runtime:
         endpoints['storage'] = {'url': public, 'tenantHost': e+'.storage.internal'}
         endpoints['serviceConcurrency'] = {'rest': int(lab.rest_configuration(e, v, DB)['PGRST_DB_POOL'])}
         if creating:effect_receipt.native_stage(STATE,e,'publication')
-        path = STATE/'endpoints.json'
-        all_endpoints = json.loads(path.read_text()) if path.exists() else {}
+        all_endpoints = runtime_files.read_endpoints(STATE, strict=True)
         previous = all_endpoints.get(e, {}).get('realtime')
         if previous and not creating:
             # Realtime was turned on for this environment: bring it back, and let it run its
@@ -1279,14 +1271,14 @@ class Runtime:
         if all_endpoints.get(e, {}).get('cron') and not creating:
             endpoints['cron'] = all_endpoints[e]['cron']
         all_endpoints[e] = endpoints
-        atomic(path, all_endpoints)
+        runtime_files.write_endpoints(all_endpoints, STATE)
         if rotating:
             # Not as the superuser, and bounded (SESSIONS_REVOKE). Sessions one environment's tenant code holds
             # never stop a start: the mark stays, the rotation is reported unfinished, and the next start or
             # rotation ends them. `rotate_signing` itself fails then.
             if revoke_auth_sessions(e, v['auth']):
                 v.pop('jwt_rotating', None)
-                atomic(self.path, self.values)
+                runtime_files.write_runtime_secret(self.values, self.path.parent)
             else:
                 print(f'Environment {e}: the signing rotation is unfinished, its Auth sessions could not be ended; rotate again.', file=sys.stderr)
 
@@ -1330,7 +1322,7 @@ class Runtime:
         if not v.get('jwt_rotating'):
             v['jwt'] = secrets.token_hex(32)
             v['jwt_rotating'] = True
-            atomic(self.path, self.values)
+            runtime_files.write_runtime_secret(self.values, self.path.parent)
         # The recreated REST container reads its settings at startup, so the login is pinned first, and
         # its sessions are ended so that tenant code holding the role-setting rows open cannot stop a
         # rotation (REST is recreated right after).
@@ -1355,8 +1347,7 @@ class Runtime:
             raise RuntimeError('Invalid environment runtime identifier')
         if not inspect('container', DB) or not inspect('container', PREFIX+'-storage'):
             raise RuntimeError('Start the upstream runtime first')
-        path = STATE/'endpoints.json'
-        published = json.loads(path.read_text()) if path.exists() else {}
+        published = runtime_files.read_endpoints(STATE, strict=True)
         if e not in published or e not in self.values['environments']:
             raise RuntimeError('Reconcile requires a published environment')
         if source_fence.is_fenced(self.sql,e):
@@ -1391,8 +1382,7 @@ class Runtime:
             raise RuntimeError('Invalid environment runtime identifier')
         if not inspect('container', DB) or not inspect('container', PREFIX+'-storage'):
             raise RuntimeError('Start the upstream runtime first')
-        path = STATE/'endpoints.json'
-        published = json.loads(path.read_text()) if path.exists() else {}
+        published = runtime_files.read_endpoints(STATE, strict=True)
         if e not in published or e not in self.values['environments']:
             raise RuntimeError('Sign-in settings need a published environment')
         if source_fence.is_fenced(self.sql,e):
@@ -1426,11 +1416,10 @@ class Runtime:
 
     def publish_auth(self, e, name):
         """A recreated Auth may hold a new address; the gateway reads it from here."""
-        path = STATE/'endpoints.json'
-        endpoints = json.loads(path.read_text()) if path.exists() else {}
+        endpoints = runtime_files.read_endpoints(STATE, strict=True)
         if e in endpoints:
             endpoints[e]['auth'] = self.endpoint(name, 9999)
-            atomic(path, endpoints)
+            runtime_files.write_endpoints(endpoints, STATE)
 
     def realtime_values(self, e):
         """Realtime's own credentials for this environment, generated once and kept with the others."""
@@ -1439,7 +1428,7 @@ class Runtime:
         if any(key not in v for key in missing):
             for key, size in missing.items():
                 v.setdefault(key, secrets.token_hex(size))
-            atomic(self.path, self.values)
+            runtime_files.write_runtime_secret(self.values, self.path.parent)
         return v
 
     def realtime_configuration(self, e, v):
@@ -1702,7 +1691,7 @@ GRANT CREATE ON DATABASE {e} TO {role};
             self.sql(scheduled_jobs.limit_sql(e, current_database_limit(e, direct=False)))
             endpoints = published_endpoints()
             endpoints[e].pop('database', None)
-            atomic(STATE/'endpoints.json', endpoints)
+            runtime_files.write_endpoints(endpoints, STATE)
 
     def developer_ready(self, e):
         """The saved password, once the login's access rule and the exposed schema guard are in place."""
@@ -1758,7 +1747,7 @@ GRANT CREATE ON DATABASE {e} TO {role};
                  f"AND backend_start < '{written}'::timestamptz;")
         endpoints = published_endpoints()
         endpoints[e]['database'] = {'user': role, 'database': e}
-        atomic(STATE/'endpoints.json', endpoints)
+        runtime_files.write_endpoints(endpoints, STATE)
 
     def developer_on(self, e):
         """The developer login on, with the password the console saved last, in one go. Only for
@@ -1972,7 +1961,7 @@ GRANT CREATE ON DATABASE {e} TO {role};
             endpoints[e]['functions'] = entry
         else:
             endpoints[e].pop('functions', None)
-        atomic(STATE/'endpoints.json', endpoints)
+        runtime_files.write_endpoints(endpoints, STATE)
 
     def functions_network_remove(self, e):
         """Take the environment's Auth and REST (and Storage, attached by an earlier version) off its
@@ -2031,7 +2020,7 @@ GRANT CREATE ON DATABASE {e} TO {role};
             endpoints[e]['realtime'] = entry
         else:
             endpoints[e].pop('realtime', None)
-        atomic(STATE/'endpoints.json', endpoints)
+        runtime_files.write_endpoints(endpoints, STATE)
 
     def scheduler_password(self, e):
         """The scheduler login's password, generated once and kept with the environment's other credentials,
@@ -2039,7 +2028,7 @@ GRANT CREATE ON DATABASE {e} TO {role};
         v = self.values['environments'][e]
         if not scheduled_jobs.password_ok(v.get('cron')):
             v['cron'] = secrets.token_hex(32)
-            atomic(self.path, self.values)
+            runtime_files.write_runtime_secret(self.values, self.path.parent)
         return v['cron']
 
     def scheduled_jobs_turn(self, e, on):
@@ -2065,7 +2054,7 @@ GRANT CREATE ON DATABASE {e} TO {role};
             self.sql(scheduled_jobs.limit_sql(e, current_database_limit(e, cron=False)))
             endpoints = published_endpoints()
             endpoints[e].pop('cron', None)
-            atomic(STATE/'endpoints.json', endpoints)
+            runtime_files.write_endpoints(endpoints, STATE)
             return
         if write_pause.is_paused(e):
             raise OperationBusy('A write pause holds the environment')
@@ -2086,7 +2075,7 @@ GRANT CREATE ON DATABASE {e} TO {role};
         self.sql(scheduled_jobs.open_sql(e))
         endpoints = published_endpoints()
         endpoints[e]['cron'] = {'user': login}
-        atomic(STATE/'endpoints.json', endpoints)
+        runtime_files.write_endpoints(endpoints, STATE)
 
     def scheduled_jobs_back(self, e):
         """At a start, the scheduler login as Scheduled jobs say: its password, limit and role settings
@@ -2138,7 +2127,7 @@ GRANT CREATE ON DATABASE {e} TO {role};
         self.launch(name, 'auth', config, '256m', .25, tier='system.management-auth')
         endpoint = self.endpoint(name, 9999)
         self.wait(endpoint+'/health')
-        atomic(STATE/'management.json', {'auth': endpoint})
+        runtime_files.update_management(endpoint, STATE)
 
 
 def developer_login_sql(e, on):

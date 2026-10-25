@@ -11,6 +11,7 @@ when a health probe failed, or when the host's available memory fell under 512 M
 over the run is reported, not judged: a run of hours says nothing about a week.
 """
 import argparse
+import runtime_files
 import json
 import os
 import shutil
@@ -100,7 +101,7 @@ def sample(with_volumes=False):
             logs += os.stat(log).st_size
         except OSError:
             pass
-    endpoints = json.loads((STATE / 'endpoints.json').read_text()) if (STATE / 'endpoints.json').exists() else {}
+    endpoints = runtime_files.read_endpoints(STATE, strict=True)
     health = {'console': install_server.console_answer(STATE)[0]}
     for e, item in endpoints.items():
         health[e] = answers(item['auth'] + '/health') and answers(item['rest'] + '/')

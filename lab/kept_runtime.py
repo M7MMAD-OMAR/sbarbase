@@ -208,6 +208,18 @@ STUDIO = ('-studio', '-meta')
 COUNTED = re.compile(r'sbarbase-durable-(db|storage|management-auth|e_[a-f0-9]{24}-(auth|rest|realtime|functions))')
 
 
+# The environment variable with which a handover start (lab/handover.py) tells the stages it runs beside
+# the previous console process how much memory that process holds, so an admission counts it as available.
+ADMISSION_CREDIT = 'SBARBASE_ADMISSION_CREDIT_MIB'
+
+
+def admission_credit_mib(environ=os.environ):
+    """MiB the previous console process holds that an admission may count as available: a plain number
+    in the environment, 0 for anything else (a stage that was not given one counts nothing)."""
+    text = environ.get(ADMISSION_CREDIT, '')
+    return int(text) if re.fullmatch(r'[0-9]{1,7}', text) else 0
+
+
 def credit_mib(containers, cgroup=CGROUP):
     """MiB the kept containers hold now that the host does not count as available: their anonymous
     and shared memory (cgroup v2 memory.stat `anon` and `shmem`). Their file cache is left out, since

@@ -26,6 +26,7 @@ import time
 from pathlib import Path
 
 import console_build_check
+import runtime_files
 import pinned_images_check
 import docker_profile
 import image_identity
@@ -224,6 +225,13 @@ def capacity(reachable=True):
     # Containers a planned upgrade restart left running already hold memory the host no longer
     # counts as available, and the placement counts them again: what they use now is added back.
     record=kept_record()[0] if reachable else None
+    # The previous console process a handover leaves serving (lab/handover.py) holds memory its exit
+    # returns: this stage runs beside it, and the start from stopped it measures against has none.
+    import kept_runtime
+    console_credit=kept_runtime.admission_credit_mib()
+    if console_credit:
+        memory+=console_credit*1024
+        composition+=f'; {console_credit} MiB held by the console process a handover leaves serving counted as available'
     if record is not None:
         credit=kept_credit_mib(record)
         memory+=credit*1024
@@ -281,7 +289,7 @@ def never_started(name):
 
 def state():
     findings=[]
-    ignored=run(['git','check-ignore','-q',str(PRIVATE/'runtime.json')],cwd=ROOT,check=False)
+    ignored=run(['git','check-ignore','-q',str(runtime_files.runtime_secret_path_for_tool(PRIVATE))],cwd=ROOT,check=False)
     if ignored.returncode:
         findings.append(('blocker','.secrets/upstream must be git-ignored before credentials are written'))
     containers=docker('ps','-a','--filter','label=io.sbarbase.owner=durable-upstream','--format','{{.Names}}',check=False).stdout.split()
@@ -528,14 +536,13 @@ def smoke():
     import urllib.request
     checks=[]
     routes={}
-    if (STATE/'management.json').exists():
-        routes['management-auth']=json.loads((STATE/'management.json').read_text()).get('auth')
+    if runtime_files.management_present(STATE):
+        routes['management-auth']=runtime_files.read_management(STATE).get('auth')
     else:
         routes['management-auth']=None
-    if (STATE/'endpoints.json').exists():
-        for environment,endpoints in json.loads((STATE/'endpoints.json').read_text()).items():
-            routes[environment+':auth']=endpoints.get('auth')
-            routes[environment+':rest']=endpoints.get('rest')
+    for environment,endpoints in runtime_files.read_endpoints(STATE,strict=True).items():
+        routes[environment+':auth']=endpoints.get('auth')
+        routes[environment+':rest']=endpoints.get('rest')
     for name,base in routes.items():
         if not base:checks.append((name,'missing endpoint'));continue
         url=base+('/health' if name.endswith('auth') else '/')

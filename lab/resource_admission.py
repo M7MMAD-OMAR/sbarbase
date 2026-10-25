@@ -64,7 +64,9 @@ def snapshot():
     fields = memory['MemAvailable'].split()
     if len(fields) != 2 or fields[1] != 'kB':
         raise RuntimeError('Memory measurement unavailable')
-    return Snapshot(int(fields[0])*1024,
+    # The console process a handover leaves serving (lab/handover.py) holds memory its exit returns.
+    import kept_runtime
+    return Snapshot(int(fields[0])*1024+kept_runtime.admission_credit_mib()*1024*1024,
         disk_free('sbarbase-durable-db', '/var/lib/postgresql/data'),
         disk_free('sbarbase-durable-storage', '/tmp/storage-data'),
         disk_free('sbarbase-durable-db', '/var/lib/postgresql/data', True),

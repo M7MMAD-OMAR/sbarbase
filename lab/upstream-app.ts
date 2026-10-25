@@ -55,16 +55,23 @@ export function studioState():{upstream?:{host:string;port:number};sessions:Reco
 /** Account operations for invitations through the management realm's admin API. The service
  * role token is made here, from the private runtime secret, and never leaves this process.
  * docs/engineering/INVITATIONS.md */
-export function invitationAccounts(url:string,serviceRole:string,request:typeof fetch=fetch):InvitationAccounts {
- // `url` is the realm's own Auth service, which serves /admin/users and /user at its root, so
+export function invitationAccounts(address:string|(()=>string),serviceRole:string,request:typeof fetch=fetch):InvitationAccounts {
+ // `address` is the realm's own Auth service, which serves /admin/users and /user at its root, so
  // the Auth client is used directly: supabase-js would address it at /auth/v1, which only an
- // API gateway serves (every call answered 404 until the first live invitation run).
- const auth=new AuthClient({url:url.replace(/\/+$/,''),headers:{Authorization:`Bearer ${serviceRole}`,apikey:serviceRole},
-  persistSession:false,autoRefreshToken:false,detectSessionInUrl:false,
-  fetch:((input,init)=>request(input,{...init,redirect:'error',signal:AbortSignal.timeout(10_000)})) as typeof fetch});
+ // API gateway serves (every call answered 404 until the first live invitation run). A function
+ // is asked on each use, so a realm that moved (a replaced container, with a handover running the
+ // previous version beside the new one) is reached at its new address.
+ let client:{url:string;auth:InstanceType<typeof AuthClient>}|undefined;
+ const current=()=>{
+  const url=(typeof address==='string'?address:address()).replace(/\/+$/,'');
+  if(client?.url!==url)client={url,auth:new AuthClient({url,headers:{Authorization:`Bearer ${serviceRole}`,apikey:serviceRole},
+   persistSession:false,autoRefreshToken:false,detectSessionInUrl:false,
+   fetch:((input,init)=>request(input,{...init,redirect:'error',signal:AbortSignal.timeout(10_000)})) as typeof fetch})};
+  return client.auth;
+ };
  return {
   async create(email,password) {
-   const {data,error}=await auth.admin.createUser({email,password,email_confirm:true,app_metadata:{sbarbase_invited:true}});
+   const {data,error}=await current().admin.createUser({email,password,email_confirm:true,app_metadata:{sbarbase_invited:true}});
    if(error){
     // Only these codes mean the email is taken; other 422s are validation, never 'exists'.
     if(['email_exists','user_already_exists'].includes(error.code??''))return 'exists';
@@ -74,7 +81,7 @@ export function invitationAccounts(url:string,serviceRole:string,request:typeof 
    return {id:data.user.id};
   },
   async session(token) {
-   const {data,error}=await auth.getUser(token);
+   const {data,error}=await current().getUser(token);
    return error||!data.user?.id||!data.user.email?null:{id:data.user.id,email:data.user.email};
   },
  };
@@ -84,7 +91,9 @@ export function openUpstreamApplication() {
  let key:Buffer|undefined;
  const studioSessionKey=()=>key??=studioKey('.secrets/upstream/studio-session.key');
  const secrets=load('.secrets/upstream/runtime.json');
- const management=load('.lab/upstream/management.json');
+ // The management realm's address is read on each use: the new version rewrites management.json while
+ // the previous version's process still serves (lab/handover.py, PROTOCOL in src/control/handover-formats.json).
+ const managementAuth=()=>(readJsonCached('.lab/upstream/management.json') as {auth:string}).auth;
  const receipt=process.env.SBARBASE_LIFECYCLE_RECOVERY_RECEIPT;
  const catalog=new Catalog('.lab/upstream/control.sqlite',{lifecycleAdmission:receipt?installedLifecycleAdmission(process.cwd(),receipt):undefined});
  catalog.lifecycleAuthorizationStore=LifecycleAuthorizationStore.installed(process.cwd());
@@ -105,9 +114,9 @@ export function openUpstreamApplication() {
  };
  const requests=new RequestLog();
  const database=new DirectDatabase();
- const handler=application(catalog,keys,{auth:management.auth,publishableKey:managementPublishableKey,
+ const handler=application(catalog,keys,{get auth(){return managementAuth();},publishableKey:managementPublishableKey,
   anonymousToken:internalToken(secrets.management.jwt,'anon')},resolve,fetch,studioSessionKey,requests,undefined,
-   invitationAccounts(management.auth,internalToken(secrets.management.jwt,'service_role')),database,{tokens,loopback:()=>loopback});
+   invitationAccounts(managementAuth,internalToken(secrets.management.jwt,'service_role')),database,{tokens,loopback:()=>loopback});
  const socket=realtimeUpgrade({
   route:catalogRealtimeRoute(catalog,resolve),
   verifyKey:(runtime,key)=>keys.resolve(runtime,key)});

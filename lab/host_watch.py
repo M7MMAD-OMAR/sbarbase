@@ -17,6 +17,7 @@ restore or a write pause stops some of them for seconds, and Edge Functions stay
 design while an environment is paused, so they are not watched. Nothing here starts, stops or changes anything.
 """
 import json
+import runtime_files
 import os
 import re
 import shutil
@@ -34,7 +35,7 @@ STOPPED_SECONDS = 300
 # One notice per condition an hour while it lasts; the notifier's own window is five minutes for
 # a critical event, which would page every five minutes through a long outage.
 REPEAT_SECONDS = 3600
-ENDPOINTS = ROOT / '.lab' / 'upstream' / 'endpoints.json'
+ENDPOINTS = runtime_files.endpoints_path(ROOT / '.lab' / 'upstream')
 WATCHED = re.compile(r'sbarbase-durable-(db|storage|management-auth|e_[a-f0-9]{24}-(auth|rest|realtime))')
 GIB = 2**30
 

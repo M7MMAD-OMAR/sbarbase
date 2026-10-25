@@ -72,6 +72,7 @@ from pathlib import Path
 
 import data_api
 import image_identity
+import runtime_files
 import backup_consistency
 import scheduled_jobs
 
@@ -292,8 +293,7 @@ def resolve(name, catalog=None):
 
 
 def published():
-    path = STATE / 'endpoints.json'
-    return json.loads(path.read_text()) if path.exists() else {}
+    return runtime_files.read_endpoints(STATE, strict=True)
 
 
 def digest(path):
@@ -768,13 +768,12 @@ def start_management():
     if not address:
         raise BackupError('Management Auth has no address after the restore')
     endpoint = f'http://{address}:9999'
-    path = STATE / 'management.json'
-    current = json.loads(path.read_text()) if path.exists() else {}
+    current = runtime_files.read_management(STATE) or {}
     # Rewritten only when the address moved, so only a move is announced (address_notice).
     if current.get('auth') != endpoint:
         # The marker first: an interruption between the two still leaves the notice standing.
         mark_management_moved()
-        durable_runtime.atomic(path, {**current, 'auth': endpoint})
+        runtime_files.update_management(endpoint, STATE, writer=durable_runtime.atomic)
     return endpoint
 
 
@@ -913,8 +912,7 @@ def start_services(e):
     except Exception as error:
         print(f'Scheduled jobs of {e} could not be set up again after the restore ({type(error).__name__}).', file=sys.stderr)
     run(['docker', 'start', *service_names(e)])
-    path = STATE / 'endpoints.json'
-    endpoints = json.loads(path.read_text())
+    endpoints = runtime_files.read_endpoints(STATE, required=True)
     for service, port in (('auth', 9999), ('rest', 3000), ('realtime', durable_runtime.REALTIME_PORT)):
         if service == 'realtime' and not endpoints[e].get('realtime'):
             continue
@@ -926,7 +924,7 @@ def start_services(e):
             endpoints[e]['realtime']['url'] = f'http://{address}:{port}'
         else:
             endpoints[e][service] = f'http://{address}:{port}'
-    durable_runtime.atomic(path, endpoints)
+    runtime_files.write_endpoints(endpoints, STATE)
 
 
 
@@ -1108,12 +1106,11 @@ def start_storage():
     address = item['NetworkSettings']['Networks'][durable_runtime.NETWORK]['IPAddress'] if item else ''
     if not address:
         raise BackupError('Storage has no address after the restore')
-    path = STATE / 'endpoints.json'
-    endpoints = json.loads(path.read_text()) if path.exists() else {}
+    endpoints = runtime_files.read_endpoints(STATE, strict=True)
     for entry in endpoints.values():
         if isinstance(entry, dict) and isinstance(entry.get('storage'), dict):
             entry['storage']['url'] = f'http://{address}:{STORAGE_PORT}'
-    durable_runtime.atomic(path, endpoints)
+    runtime_files.write_endpoints(endpoints, STATE)
     return address
 
 

@@ -56,6 +56,7 @@ cd /opt/sbarbase && sudo SBARBASE_PUBLIC_URL=https://api.example.com SBARBASE_ST
 
 - الإعداد `SBARBASE_PUBLIC_URL`: العنوان الذي يصل منه الناس ومزوّدو OAuth إلى هذا الخادم؛ ومنه يبني Auth روابط البريد وعناوين الرجوع.
 - الإعداد `SBARBASE_STUDIO_HOST`: عنوان Studio العام لكل بيئة، و`{id}` مكان أحرفها الست عشرية الأربعة والعشرين. أعطِ وكيل TLS القيمة نفسها. يكتب `lab/studio_address.py apply` ملفات systemd إضافية، فهو لتثبيت systemd؛ أما `plan` و`verify` فيعملان هنا أيضًا ([Studio](studio.ar.md)).
+- الإعداد `SBARBASE_HANDOVER` (متوقف): الأمر `sudo SBARBASE_HANDOVER=1 deploy/compose.sh up` يجعل التحديث الذي يغيّر الشيفرة وحدها يستبدل عملية وحدة التحكم في مكانها بدل إعادة تشغيلها، والغاية تقصير مدة الانقطاع لا إلغاؤه. ميزة تجريبية ومتوقفة افتراضيًا، ولم يثبت عملها حتى الآن إلا باختبارات الوحدة، ولا تعمل إلا انطلاقًا من تحديث يلي التحديث الذي يضيفها.
 - وكذلك `SBARBASE_UPLOAD_LIMIT_MB` (50)، و`SBARBASE_MANAGEMENT_SESSION_SECONDS` (ثلاثون يومًا)، و`SBARBASE_DATABASE_PORT` (6543) و`SBARBASE_DATABASE_BIND` (`127.0.0.1`)، و`SBARBASE_BACKUP_HOUR` و`SBARBASE_BACKUP_KEEP`، وإعدادا التحديث أدناه.
 
 كل إعداد منها مشروح في [الإعدادات](../reference/configuration.ar.md). لا شيء يحفظها: أعطِ القيم نفسها في كل `deploy/compose.sh up`، ومنها الأمر الذي يلي `upgrade`، وإلا بدأت الحاوية المعاد إنشاؤها بالقيم الافتراضية. أما إعادة التشغيل من لوحة الإدارة أو عبر `restart: unless-stopped` فتحتفظ بها.

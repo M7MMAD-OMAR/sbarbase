@@ -1,0 +1,91 @@
+{
+  ".lab/upstream/endpoints.json": {
+    "scope": "an object with one entry per runtime id (e_ and 24 hex digits); the keys below are the entry's",
+    "required": {
+      "auth": {
+        "type": "string",
+        "meaning": "base URL of the environment's Auth service"
+      },
+      "rest": {
+        "type": "string",
+        "meaning": "base URL of the environment's REST service"
+      }
+    },
+    "optional": {
+      "storage": {
+        "type": "object",
+        "meaning": "the shared Storage as this environment reaches it: url and tenantHost (read on the routing path)"
+      },
+      "functions": {
+        "type": "object",
+        "meaning": "Edge Functions of the environment: url (read on the routing path) and storage, the listener {host, port, subnet} that gives them the shared Storage"
+      },
+      "realtime": {
+        "type": "object",
+        "meaning": "the environment's own Realtime service: url and tenantHost (read on the routing path)"
+      },
+      "serviceConcurrency": {
+        "type": "object",
+        "meaning": "the gateway's admission maximum for auth, rest and storage, as numbers (read on the routing path)"
+      }
+    }
+  },
+  ".lab/upstream/database.json": {
+    "scope": "an object",
+    "required": {
+      "host": {
+        "type": "string",
+        "meaning": "address of the shared PostgreSQL cluster the direct database listener forwards to"
+      },
+      "port": {
+        "type": "number",
+        "meaning": "port of the shared PostgreSQL cluster"
+      }
+    },
+    "optional": {}
+  },
+  ".lab/upstream/studio.json": {
+    "scope": "an object",
+    "required": {
+      "sessions": {
+        "type": "object",
+        "meaning": "one entry per runtime id with a Studio session; url is where it is served"
+      }
+    },
+    "optional": {
+      "upstream": {
+        "type": "object",
+        "meaning": "host and port of the internal listener Studio's server-side calls arrive on"
+      }
+    }
+  },
+  ".lab/upstream/write-pauses/e_*.json": {
+    "scope": "one object per environment paused for writes; the file's existence is the pause",
+    "required": {},
+    "optional": {}
+  },
+  ".lab/upstream/management.json": {
+    "scope": "an object",
+    "required": {
+      "auth": {
+        "type": "string",
+        "meaning": "base URL of the management Auth realm"
+      }
+    },
+    "optional": {}
+  },
+  ".secrets/upstream/runtime.json": {
+    "scope": "an object, read by its shape only and never printed",
+    "required": {
+      "management": {
+        "type": "object",
+        "meaning": "the management realm's signing secret as jwt"
+      },
+      "environments": {
+        "type": "object",
+        "meaning": "one entry per runtime id, with the environment's signing secret as jwt"
+      }
+    },
+    "optional": {}
+  }
+}

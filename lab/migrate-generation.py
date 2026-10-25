@@ -3,7 +3,7 @@
 Usage:
   /usr/bin/python3 lab/migrate-generation.py --state .lab/upstream \
       --volume <the volume lab/database_volume.py names> --network sbarbase-durable-net \
-      --tier system.db --inventory-runtime .secrets/upstream/runtime.json \
+      --tier system.db --inventory-runtime <the runtime secret file> \
       --retired stopped --assert-retired-will-not-return
 
   /usr/bin/python3 lab/migrate-generation.py --state .lab/upstream ... --reconcile

@@ -8,13 +8,16 @@ from pathlib import Path
 import subprocess
 import sys
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import runtime_files
+
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--stdin', action='store_true', help='Read JSON with email, password and organization from stdin')
 args = parser.parse_args()
 root = Path(__file__).resolve().parents[1]
 os.chdir(root)
 private = root / '.secrets/upstream'
-if not private.is_dir() or not (root / '.lab/upstream/management.json').exists():
+if not private.is_dir() or not runtime_files.management_present(root / '.lab/upstream'):
     raise SystemExit('Start the durable upstream runtime before operator setup.')
 if subprocess.run(['git', 'check-ignore', '-q', str(private/'bootstrap.json')]).returncode:
     raise SystemExit('Bootstrap state must be ignored by Git.')

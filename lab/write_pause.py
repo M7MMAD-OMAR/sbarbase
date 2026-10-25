@@ -48,6 +48,7 @@ import time
 
 import durable_runtime as runtime
 import rolling
+import runtime_files
 import scheduled_jobs
 import run as lab
 
@@ -62,23 +63,23 @@ class PauseError(RuntimeError):
 
 
 def folder(state=None):
-    return (state or runtime.STATE) / 'write-pauses'
+    return runtime_files.pauses_folder(state or runtime.STATE)
 
 
 def record_path(e, state=None):
     if not isinstance(e, str) or not RUNTIME.fullmatch(e):
         raise PauseError('Name an environment by its runtime id (e_ and 24 hex)')
-    return folder(state) / (e + '.json')
+    return runtime_files.pause_path(e, state or runtime.STATE)
 
 
 def read_record(e, state=None):
-    path = record_path(e, state)
-    if not path.exists():
-        return None
+    record_path(e, state)
     try:
-        value = json.loads(path.read_text())
+        value = runtime_files.read_pause(e, state or runtime.STATE)
     except (OSError, ValueError):
         raise PauseError('The write pause record of ' + e + ' cannot be read; it needs review') from None
+    if value is None:
+        return None
     if not isinstance(value, dict) or value.get('version') != 1 or value.get('runtime') != e \
             or value.get('phase') not in ('pausing', 'held', 'resuming'):
         raise PauseError('The write pause record of ' + e + ' is malformed; it needs review')
@@ -91,13 +92,7 @@ def is_paused(e, state=None):
 
 
 def write_record(path, value):
-    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    temporary = path.with_name('.' + path.name + '.tmp')
-    temporary.write_text(json.dumps(value, indent=2) + '\n')
-    os.chmod(temporary, 0o600)
-    with temporary.open('rb') as handle:
-        os.fsync(handle.fileno())
-    os.replace(temporary, path)
+    runtime_files.write_pause(path, value)
 
 
 @contextlib.contextmanager
@@ -279,10 +274,8 @@ class Writers:
         does: the current image pin and signing secret, even when a Sbarbase start or a signing key
         rotation happened during the pause and left the old container stopped. Then publish it."""
         entry = runtime.Runtime().functions_start(e)
-        path = runtime.STATE / 'endpoints.json'
-        endpoints = json.loads(path.read_text())
-        endpoints[e]['functions'] = entry
-        runtime.atomic(path, endpoints)
+        runtime_files.read_endpoints(runtime.STATE, required=True)
+        runtime_files.update_endpoints(e, lambda published: published.__setitem__('functions', entry), runtime.STATE)
         return entry
 
 # Every failure after the record is written says so: the record refuses turning Studio, direct database

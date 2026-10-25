@@ -19,6 +19,7 @@ import urllib.error
 import urllib.request
 
 import durable_runtime as runtime
+import runtime_files
 
 DEADLINE = 120
 INTERVAL = 2
@@ -40,6 +41,16 @@ def fetch(url, headers=None, timeout=TIMEOUT):
         return error.code
 
 
+def fetch_seen(url, headers=None, timeout=TIMEOUT):
+    """(status, response headers in lower case) of one GET, for the probe that checks which process answered."""
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    try:
+        with opener.open(urllib.request.Request(url, headers=headers or {}), timeout=timeout) as response:
+            return response.status, {name.lower(): value for name, value in response.headers.items()}
+    except urllib.error.HTTPError as error:
+        return error.code, {name.lower(): value for name, value in error.headers.items()}
+
+
 def read(path):
     try:
         return json.loads(path.read_text())
@@ -49,7 +60,7 @@ def read(path):
 
 def routed(state):
     """Runtimes the gateway serves from their published endpoints: provisioned, not deleted, not
-    paused for maintenance and not moved to another placement. endpoints.json can still list a
+    paused for maintenance and not moved to another placement. the published endpoints can still list a
     deleted or moved runtime, and its old address answering nothing must not fail an upgrade."""
     path = state / 'control.sqlite'
     with contextlib.closing(sqlite3.connect(f'file:{path}?mode=ro', uri=True, timeout=5)) as database:
@@ -63,8 +74,7 @@ def write_paused(state):
     """Runtimes an operator paused for writes (lab/write_pause.py): the gateway answers 503 for
     them, but their own services keep running and must still pass, or a release that broke them
     would be confirmed behind the pause."""
-    folder = state / 'write-pauses'
-    return {path.stem for path in folder.glob('e_*.json')} if folder.is_dir() else set()
+    return runtime_files.paused_runtimes(state)
 
 
 def probe_token(path=None):
@@ -74,22 +84,24 @@ def probe_token(path=None):
         raise ValueError('the confirmation probe token is missing') from None
 
 
-def probes(state, server_pid, secrets, serving=None, token=None, paused=None):
-    """(name, url, headers) of every probe, or raises ValueError naming what is missing."""
-    server = read(state / 'server.json')
+def probes(state, server_pid, secrets, serving=None, token=None, paused=None, server_file='server.json'):
+    """(name, url, headers) of every probe, or raises ValueError naming what is missing.
+    `server_file` is where the console's address is read: server.json, or candidate.json during a
+    handover (lab/handover.py), which holds the candidate's private address."""
+    server = read(state / server_file)
     if not isinstance(server, dict) or not isinstance(server.get('url'), str):
         raise ValueError('the console has not published its address yet')
     # A crashed earlier run can leave server.json behind: only this supervisor's server counts.
     if server_pid is None or server.get('pid') != server_pid:
-        raise ValueError('server.json does not name the console this supervisor started')
+        raise ValueError(f'{server_file} does not name the console this supervisor started')
     console = server['url'].rstrip('/')
     found = [('console', console + '/health', None)]
-    management = read(state / 'management.json')
+    management = runtime_files.read_management(state)
     if isinstance(management, dict) and management.get('auth'):
         found.append(('management auth', management['auth'] + '/health', None))
     serving = routed(state) if serving is None else serving
     paused = write_paused(state) if paused is None else paused
-    for e, item in sorted((read(state / 'endpoints.json') or {}).items()):
+    for e, item in sorted((runtime_files.read_endpoints(state, strict=True) or {}).items()):
         if e not in serving and e not in paused:
             continue
         found.append((f'{e} auth', item['auth'] + '/health', None))
@@ -114,29 +126,42 @@ def probes(state, server_pid, secrets, serving=None, token=None, paused=None):
 
 
 def private_values():
-    return json.loads((runtime.PRIVATE / 'runtime.json').read_text())
+    return runtime_files.read_runtime_secret(runtime.PRIVATE)
 
 
-def check(state, server_pid, secrets=None, get=fetch, serving=None, token=None, paused=None):
+def check(state, server_pid, secrets=None, get=None, serving=None, token=None, paused=None, server_file='server.json',
+          expect_pid=None):
     """(healthy, detail) for one round of probes. Never raises; detail never holds a secret.
+    With `expect_pid`, the console probe also passes only when the answer's x-sbarbase-pid header
+    names that process (a handover probes the candidate, never the old process still serving).
 
     The probes of a round run at once (at most WORKERS together), so a round with many
     environments takes about as long as its slowest probe, not the sum of them; the detail
     names the first failure in probe order, as a round one after the other would."""
     try:
-        rows = probes(state, server_pid, secrets if secrets is not None else private_values(), serving, token, paused)
+        rows = probes(state, server_pid, secrets if secrets is not None else private_values(), serving, token, paused,
+                      server_file)
     except ValueError as error:
         return False, f'health probes unavailable: {error}'
     except (OSError, KeyError, TypeError, AttributeError, sqlite3.Error) as error:
         return False, f'health probes unavailable ({error.__class__.__name__})'
 
+    ask = get or (fetch_seen if expect_pid is not None else fetch)
+
     def failure(row):
         name, url, headers = row
         try:
-            status = get(url, headers)
+            status = ask(url, headers)
         except Exception as error:
             return f'{name} did not answer ({error.__class__.__name__})'
-        return None if status == 200 else f'{name} answered HTTP {status}'
+        seen = None
+        if isinstance(status, tuple):
+            status, seen = status
+        if status != 200:
+            return f'{name} answered HTTP {status}'
+        if expect_pid is not None and name == 'console' and (seen or {}).get('x-sbarbase-pid') != str(expect_pid):
+            return 'console was answered by another process'
+        return None
     with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, min(WORKERS, len(rows)))) as pool:
         found = next((item for item in pool.map(failure, rows) if item), None)
     if found:

@@ -19,7 +19,7 @@ does that:
   3. for REST, the platform's role settings are written again, every session of the new container is ended
      and the settings are read back exact, so none it serves with was opened before them
      (Runtime.rest_deadlines says why), and it must answer again;
-  4. the record says `switched`, then the environment's address in endpoints.json is replaced in one rename,
+  4. the record says `switched`, then the environment's address in the published endpoints is replaced in one rename,
      which the gateway reads on its next request (src/http/cached-json.ts);
   5. for the watch window (watch_seconds: REST's longest deadline and a margin, so whatever the old one
      still serves ends) the new one is asked for its health every CHECK_SECONDS while the old one keeps
@@ -57,6 +57,7 @@ import time
 import urllib.parse
 
 import connection_budget
+import runtime_files
 
 SWITCH = 'SBARBASE_ROLLING_SERVICES'
 CANARY = 'SBARBASE_ROLLING_CANARY'
@@ -386,12 +387,10 @@ def host(url):
 def point(e, service, url):
     """Publish the address the gateway sends this environment's service requests to, in one rename."""
     rt = runtime_module()
-    target = rt.STATE / 'endpoints.json'
-    endpoints = json.loads(target.read_text()) if target.exists() else {}
+    endpoints = runtime_files.read_endpoints(rt.STATE, strict=True)
     if e not in endpoints or endpoints[e].get(service) == url:
         return
-    endpoints[e][service] = url
-    rt.atomic(target, endpoints)
+    runtime_files.update_endpoints(e, lambda entry: entry.__setitem__(service, url), rt.STATE, writer=rt.atomic)
 
 
 def attach(e, temporary, name):
@@ -676,7 +675,7 @@ def main(argv=None):
         print(json.dumps(status(), indent=2, sort_keys=True))
         return 0
     rt = runtime_module()
-    # The operation lock, and the backup lock a restore holds instead while it writes endpoints.json too.
+    # The operation lock, and the backup lock a restore holds instead while it writes the published endpoints too.
     try:
         lock = rt.operation_lock()
     except BlockingIOError:

@@ -4,11 +4,13 @@ import datetime
 import console_build_check
 import docker_profile
 import fcntl
+import handover
 import host_watch
 import kept_runtime
 import json
 import notification_producers
 import rolling
+import runtime_files
 import os
 from pathlib import Path
 import signal
@@ -124,6 +126,14 @@ def backup_due(now, last_day, hour):
 
 
 class Supervisor:
+    # The handover (lab/handover.py, behind SBARBASE_HANDOVER=1): the previous version's console
+    # process this start adopted and still lets serve until the new one took over (None otherwise), whether a
+    # stop was asked for, and the plan an upgrade child that completed leaves for the exec that replaces this
+    # program (None unless every condition held). main sets the first two.
+    retiring = None
+    asked = None
+    handover = None
+
     def __init__(self, stop_event=None, worker_fd=None, catalog=None):
         self.stop_event = stop_event or threading.Event()
         self.server = None
@@ -194,6 +204,8 @@ class Supervisor:
         record = {'pid': os.getpid(), 'serverPid': self.server.pid if self.server else None,
                   'workerPid': self.worker.pid if self.worker else None,
                   'workerRestarts': len(self.restarts)}
+        if self.retiring and not self.retiring.reaped:
+            record['retiringPid'] = self.retiring.pid
         temporary = STATE/'supervisor.pending'
         temporary.write_text(json.dumps(record))
         temporary.replace(STATE/'supervisor.json')
@@ -215,8 +227,20 @@ class Supervisor:
         Studio, sign-in or toggle apply, and no backup."""
         return self.drain is not None or (self.update is not None and self.update['kind'] != 'check')
 
+    def retired(self):
+        """The previous console process is gone: supervisor.json stops naming it."""
+        self.descriptor()
+
     def check(self):
-        if child_status(self.server) is not None:
+        if self.retiring and not self.retiring.reaped and getattr(self.confirm, 'retired_at', None) is None \
+                and self.retiring.exited():
+            # The previous console process exited on its own before it was asked to (a crash before
+            # promotion): reaped here, and the handover goes on or fails on what it finds.
+            print('The previous console process exited on its own.', flush=True)
+        # From the moment the handover sends the promote signal until it saw the promoted server.json, a
+        # candidate exit is the handover's to judge (handover.Promotion), not a failure of the version.
+        owns_exit = getattr(self.confirm, 'owns_exit', None)
+        if child_status(self.server) is not None and not (owns_exit and owns_exit()):
             raise RuntimeError('Local API exited; stopping the installation')
         if self.worker is not None and child_status(self.worker) is not None:
             terminate_group(self.worker, grace=0)
@@ -249,8 +273,7 @@ class Supervisor:
             terminate_group(self.backup, grace=0)
             self.backup = None
             self.refresh_current()
-            path = STATE/'endpoints.json'
-            count = len(json.loads(path.read_text())) if path.exists() else 0
+            count = len(runtime_files.read_endpoints(STATE, strict=True))
             if status == 3:
                 # Local backups succeeded; the off-host copy failed and backup.py already
                 # reported that as backup.failed, so a 'completed' notice would contradict it.
@@ -574,6 +597,9 @@ class Supervisor:
         # The checkout is where the child moved it: the owned containers stay up for that version's
         # start to adopt (main, lab/kept_runtime.py). Every other way out of a start stops them (close_runtime).
         self.keep_runtime = True
+        # With the handover switched on and every condition holding, the console process is not
+        # stopped: this program replaces itself with the new version's (handover.leave_for_exec).
+        self.handover = handover.qualifies(self, kind, completed, self.asked, child_status)
         self.stop_event.set()
 
     def studio_requests(self):
@@ -682,9 +708,9 @@ class Supervisor:
             return []
         # A write pause refuses turning database access, Edge Functions or Scheduled jobs on: such a request
         # (a password reset included) stays pending until write_pause.py resume, without holding up the others.
-        paused = STATE/'write-pauses'
+        paused = runtime_files.paused_runtimes(STATE)
         return [runtime for runtime, desired in rows
-                if not (service in ('database', 'functions', 'cron') and desired == 'on' and (paused/f'{runtime}.json').exists())]
+                if not (service in ('database', 'functions', 'cron') and desired == 'on' and runtime in paused)]
 
     def schedule_toggles(self):
         """Turn an environment's Realtime, Edge Functions or database access on or off, or rotate its signing key
@@ -784,7 +810,12 @@ class Supervisor:
             # A drain left by the process before (an update that moved the checkout, or a crash)
             # must not keep this worker from claiming jobs.
             self.drain_marker().unlink(missing_ok=True)
-            self.server = self.spawn(['bun', 'lab/upstream-server.ts'])
+            if self.retiring:
+                # The candidate: it serves privately, joins the shared ports when told, and the previous
+                # version's console process retires once it has (lab/handover.py).
+                self.server = self.spawn(['bun', 'lab/upstream-server.ts'], env=dict(os.environ, **{handover.CANDIDATE_MARKER: '1'}))
+            else:
+                self.server = self.spawn(['bun', 'lab/upstream-server.ts'])
             if self.confirm is None:
                 self.start_worker()
             else:
@@ -796,6 +827,9 @@ class Supervisor:
                     if not self.confirm.poll():
                         continue
                     self.confirm = None
+                    # A handover is complete: the previous console process is gone, and this one is the only
+                    # console process, which a later stop or handover treats as any other.
+                    self.retiring = None
                     self.start_worker()
                     # Confirmed: the console may now offer a rollback.
                     self.publish_current()
@@ -840,7 +874,11 @@ class Supervisor:
                 # Stopped in the middle of a swap, the next start or roll repairs it (rolling.repair).
                 terminate_group(self.rolling)
             # Stop new HTTP mutations first, then drain the active worker effect.
-            if self.server:
+            if self.retiring:
+                # Both console processes, one grace for both, before anything restores a snapshot.
+                self.retiring.end(also=self.server)
+            elif self.server and not self.handover:
+                # With a handover plan the console process keeps serving through the exec (main).
                 terminate_group(self.server)
             if self.worker:
                 terminate_group(self.worker)
@@ -935,8 +973,10 @@ def upgrade_pending():
     return isinstance(state, dict) and state.get('phase') in ('applied', 'rolling_back')
 
 
-def upgrade_prepare():
+def upgrade_prepare(handover=False):
     """True when this start confirms a pending upgrade or rollback (lab/upgrade.py before_start).
+    A handover start (the previous version's console process still serves) holds first and snapshots
+    after the hold took effect.
 
     A control state snapshot that cannot be taken, or a checkout that is not the version being
     confirmed, is a failed start, so the way back runs before the new version touched anything.
@@ -946,7 +986,7 @@ def upgrade_prepare():
     """
     try:
         import upgrade
-        return upgrade.before_start()
+        return upgrade.before_start(settle=True) if handover else upgrade.before_start()
     except Exception as error:
         if error.__class__.__name__ == 'UpgradeError':
             raise RuntimeError(f'The pending upgrade cannot start: {error}') from None
@@ -971,13 +1011,14 @@ def checkout_head():
     return result.stdout.strip() if result.returncode == 0 else None
 
 
-def run_guard(environment=os.environ):
+def run_guard(environment=os.environ, force=False):
     """The upgrade guard (lab/upgrade_guard.py) follows read-only host admission. The systemd
     unit and the container's start script run it before this process (and say so with
     SBARBASE_GUARDED=1); a start from a terminal runs it here, before taking any lock, since the
     guard takes the supervisor lock itself. When it moved the checkout back, nothing more of
-    this version runs: the process exits so the previous version starts."""
-    if environment.get('SBARBASE_GUARDED') == '1':
+    this version runs: the process exits so the previous version starts. A handover start (`force`)
+    runs it although SBARBASE_GUARDED is 1: the exec skipped the unit's and the script's own guard."""
+    if environment.get('SBARBASE_GUARDED') == '1' and not force:
         return
     copy = ROOT / '.lab' / 'upgrades' / 'guard.py'
     script = copy if copy.is_file() else ROOT / 'lab' / 'upgrade_guard.py'
@@ -1013,14 +1054,18 @@ def settle_leftover():
     return outcome
 
 
-def close_runtime(owned, keep, origin=None):
+def close_runtime(owned, keep, origin=None, before_stop=None):
     """How a start ends for the owned runtime: kept for the version the checkout moved to after an
-    upgrade or rollback (leave_runtime), else stopped whenever this start owns it."""
+    upgrade or rollback (leave_runtime), else stopped whenever this start owns it. `before_stop`
+    runs only when the runtime is about to be stopped: a console process that is to survive the exec
+    (lab/handover.py) is stopped first, so the runtime is never stopped under a serving console."""
     if not owned:
         return
     if keep and leave_runtime(origin):
         print('The owned containers keep running for the version the checkout moved to.', flush=True)
         return
+    if before_stop is not None:
+        before_stop()
     kept_runtime.discard(STATE)
     result = run_stage(['/usr/bin/python3', 'lab/installation_runtime.py', 'stop'], threading.Event(), timeout=STOP_STAGE_SECONDS)
     if result:
@@ -1066,6 +1111,54 @@ def upgrade_confirmation(supervisor):
         lambda: upgrade_confirmed(supervisor.catalog))
 
 
+# What start_after_handover hands to main: the adopted console process, the stop events and whether the guard
+# opened an attempt. None for every other start.
+HANDOVER_START = None
+
+
+def install_signal_handlers(stop_event, asked):
+    """A stop asked for (the service stopped, Ctrl+C) stops the owned runtime even when it arrives after
+    an upgrade moved the checkout: only the planned restart alone leaves it running."""
+    signal.signal(signal.SIGTERM, lambda *_: (asked.set(), stop_event.set()))
+    signal.signal(signal.SIGINT, lambda *_: (asked.set(), stop_event.set()))
+
+
+def upgrade_withdraw_attempt():
+    """W5: the attempt the guard opened is closed and no longer counted (lab/upgrade.py withdraw_attempt)."""
+    try:
+        import upgrade
+        return upgrade.withdraw_attempt()
+    except Exception as error:
+        print(f'Upgrade bookkeeping failed: {error}', file=sys.stderr)
+        return False
+
+
+def stop_kept_console(supervisor):
+    """The console process a completed upgrade was to leave serving through the exec (handover plan) is
+    stopped and reaped when this start does not exec after all, before anything restores a snapshot."""
+    plan = getattr(supervisor, 'handover', None)
+    if plan is not None:
+        terminate_group(plan.server)
+
+
+def credit_environment(retiring, environment=os.environ):
+    """The environment of a stage that runs beside the previous console process: its resident memory
+    is credited to the admission, which makes today's arithmetic, where that process is gone."""
+    try:
+        return {**environment, handover.CREDIT: str(handover.vm_rss_mib(retiring.pid))}
+    except handover.Refused:
+        return dict(environment)
+
+
+def narrow_hold(scope):
+    """B9a: once the runtime start returned, the hold lets the tenant data plane through again."""
+    try:
+        import upgrade
+        upgrade.narrow_hold(scope)
+    except Exception as error:
+        print(f'The hold could not be narrowed ({error}); it stays full until the start is confirmed.', file=sys.stderr, flush=True)
+
+
 def main():
     if sys.argv[1:]:
         if sys.argv[1:] in (['--help'], ['-h']):
@@ -1076,12 +1169,18 @@ def main():
     os.chdir(ROOT)
     import run
     run.private_dir(STATE)
-    stop_event = threading.Event()
-    # A stop asked for (the service stopped, Ctrl+C) stops the owned runtime even when it arrives after
-    # an upgrade moved the checkout: only the planned restart alone leaves it running.
-    asked = threading.Event()
-    signal.signal(signal.SIGTERM, lambda *_: (asked.set(), stop_event.set()))
-    signal.signal(signal.SIGINT, lambda *_: (asked.set(), stop_event.set()))
+    # The previous version's console process a handover start adopted (inert otherwise), and the
+    # stop events its handlers already serve (handover.enter installed them before any child started).
+    global HANDOVER_START
+    retiring, events, attempt_open = HANDOVER_START or (None, None, False)
+    HANDOVER_START = None
+    retiring = retiring or handover.Retiring()
+    if events is None:
+        stop_event = threading.Event()
+        asked = threading.Event()
+        install_signal_handlers(stop_event, asked)
+    else:
+        stop_event, asked = events
     with (STATE/'supervisor.lock').open('a') as lock, (STATE/'worker.lock').open('a') as worker_lock:
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -1103,6 +1202,8 @@ def main():
         keep = False
         gated = False
         failed = False
+        withdrawn = False
+        supervisor = None
         try:
             if held:
                 kept_runtime.claim(STATE)
@@ -1111,14 +1212,27 @@ def main():
                 kept_runtime.discard(STATE)
             # The commit this start runs: a planned exit records it beside the containers it leaves.
             origin = kept_runtime.head(ROOT)
+            if retiring:
+                # B7: the start gates the exec skipped. A refusal is not a failed version (HandoverFailed).
+                for command in handover.start_gates(os.environ):
+                    if run_stage(command, stop_event, env=credit_environment(retiring)):
+                        raise handover.HandoverFailed('B7', f'{Path(command[1]).name} {" ".join(command[2:])} refused the start')
             # Before the settle stage, which may open and migrate the control catalog.
-            gated = upgrade_prepare()
+            gated = upgrade_prepare(handover=True) if retiring else upgrade_prepare()
+            if retiring and not gated:
+                # Nothing pending to confirm (a rollback command settled the upgrade in the gap between the exec
+                # and this start): no Promotion would retire the previous console process, and two versions
+                # would run side by side. Today's restart of the same version instead.
+                raise handover.HandoverFailed('B8', 'no upgrade is pending any more')
             if run_stage(['/usr/bin/python3','lab/worker.py','--upstream','--settle-only'],stop_event,
                          pass_fds=(worker_lock.fileno(),),env=dict(os.environ,SBARBASE_WORKER_FD=str(worker_lock.fileno()))):
                 raise RuntimeError('Provisioning receipt requires reconciliation before startup')
             if console_build_check.adopt_staged():
                 print('console build the upgrade made ahead is in place')
             fresh,detail=console_build_check.is_fresh()
+            if retiring and not fresh:
+                # Never a build beside two console processes (no admission covers it): today's restart builds it.
+                raise handover.HandoverFailed('B9', 'console build needed')
             if fresh:
                 # Rebuilding an up-to-date page costs a few hundred MiB and a minute.
                 print('console build up to date: '+detail)
@@ -1130,8 +1244,12 @@ def main():
             # 300 s: a start may restart the database once to raise its connection limit
             # (durable_runtime.ensure_connection_capacity).
             if run_stage(['/usr/bin/python3', 'lab/installation_runtime.py', 'up'], stop_event, timeout=300,
-                         pass_fds=(worker_lock.fileno(),),env=dict(os.environ,SBARBASE_WORKER_FD=str(worker_lock.fileno()))):
+                         pass_fds=(worker_lock.fileno(),),
+                         env=dict(credit_environment(retiring) if retiring else os.environ,SBARBASE_WORKER_FD=str(worker_lock.fileno()))):
                 raise RuntimeError('Runtime startup failed; the installation runtime reported its own reason above')
+            if retiring and gated:
+                # B9a: the runtime start (which may stop or replace containers) ran under the full hold.
+                narrow_hold('management')
             # Containers a planned upgrade restart left are adopted now; a later crash stops them as before.
             kept_runtime.discard(STATE)
             # The runtime start stage returned success, so the installation runtime is
@@ -1144,7 +1262,14 @@ def main():
                 upgrade_outcome(True)
             if not stop_event.is_set():
                 supervisor = Supervisor(stop_event, worker_lock.fileno())
-                if gated:
+                supervisor.asked = asked
+                supervisor.retiring = retiring or None
+                if gated and retiring:
+                    # B10: the candidate is probed, promoted, steered to and confirmed in place of the
+                    # previous console process (lab/handover.py); a deadline passed raises RuntimeError.
+                    supervisor.confirm = handover.Promotion(supervisor, retiring, lambda: upgrade_confirmed(supervisor.catalog),
+                                                            status=child_status)
+                elif gated:
                     # Confirmed only once the console and every environment answer; a deadline
                     # passed raises RuntimeError below, and the way back runs.
                     supervisor.confirm = upgrade_confirmation(supervisor)
@@ -1157,6 +1282,26 @@ def main():
             # Ctrl+C normally arrives as the stop event above; either way it is a stop, not a
             # failure, so it never takes the way back.
             print('Local installation stopped.', file=sys.stderr)
+        except handover.HandoverFailed as error:
+            # W3 and W5: the version passed its round (or the start gates refused), so it is not at
+            # fault: both console processes end, nothing is restored, and today's planned restart of
+            # the same version follows, which a handover to this commit is never tried for again.
+            print(str(error), file=sys.stderr)
+            retiring.end()
+            stop_kept_console(supervisor)
+            if error.step.startswith('H'):
+                # Only a version that passed its round and then failed the handover (W3, steps H2 to H7) is never
+                # tried again; a refusal at a start gate or a stale console build (B4, B7, B8, B9) may be gone next time.
+                try:
+                    handover.write_failed(checkout_head(), error.step, error.reason)
+                except OSError as failure:
+                    print(f'The failed handover could not be recorded ({failure}).', file=sys.stderr)
+            if not asked.is_set():
+                withdrawn = upgrade_withdraw_attempt()
+                restart = keep = True
+            else:
+                # A stop was asked for meanwhile: the service is stopping (W4), the runtime stops.
+                restart = keep = False
         except BaseException as error:
             # Every failure of this start, not only the RuntimeError its own stages raise: an
             # exception in new startup code (a TypeError, an ImportError, a Studio reset that
@@ -1170,16 +1315,38 @@ def main():
                 traceback.print_exc()
             detail = str(error) or error.__class__.__name__
             print(detail, file=sys.stderr)
+            # Every console process is gone before the way back restores a snapshot.
+            retiring.end()
+            stop_kept_console(supervisor)
             if upgrade_outcome(False, reason=detail):
                 print('The new version did not start, so the checkout moved back to the previous version. '
                       'It starts again on that version; lab/upgrade.py status shows the outcome.', file=sys.stderr)
             raise SystemExit(1)
         finally:
-            if gated and not failed:
+            # A stop never stops the runtime under a serving console process.
+            retiring.end()
+            if (gated or attempt_open) and not failed and not withdrawn:
                 # Stopped before the health checks decided (a stop signal, Ctrl+C): not a crash.
                 upgrade_close_attempt()
-            close_runtime(started or held, keep, origin)
+            # The console process an upgrade that completed leaves serving through the exec (handover plan),
+            # however the supervisor ended: whatever does not exec stops it.
+            plan = getattr(supervisor, 'handover', None)
+            holder = {'plan': plan}
+            if plan is not None and not (keep and not failed):
+                # The console process was to survive the exec, and this start does not exec after all.
+                terminate_group(plan.server)
+                holder['plan'] = None
+            if holder['plan'] is not None:
+                def before_stop():
+                    terminate_group(holder['plan'].server)
+                    holder['plan'] = None
+                close_runtime(started or held, keep, origin, before_stop=before_stop)
+            else:
+                close_runtime(started or held, keep, origin)
     if restart:
+        if holder['plan'] is not None:
+            # A4 to A9: the locks are released; this program replaces itself with the new version's.
+            handover.leave_for_exec(holder['plan'], asked, child_status, terminate_group)
         # After the owned runtime stopped, or was left for the next start, and the locks are released:
         # the service manager starts the version the checkout moved to.
         print('Sbarbase moved to another version and stopped so it can start on it. Under systemd or '
@@ -1188,7 +1355,42 @@ def main():
         raise SystemExit(RESTART_FOR_UPGRADE)
 
 
-if __name__ == '__main__':
+def start_after_handover(events):
+    """B2 to B5 and the start itself, in a program that replaced the previous version's supervisor
+    (lab/handover.py leave_for_exec). The previous console process is this process's child and keeps
+    serving; whatever ends this start ends it too (B3)."""
+    stop_event, asked = events
+    retiring = handover.adopt(checkout_head(), True)
+    try:
+        # B4: read-only host admission, before the guard, as the service manager orders it.
+        docker_profile.require_or_exit()
+        for command in handover.host_admission(os.environ, ROOT):
+            try:
+                refused = run_stage(command, stop_event)
+            except InterruptedError:
+                raise SystemExit(0) from None
+            if refused:
+                print(f'The host admission refused the handover start ({Path(command[1]).name}); '
+                      'the console restarts as it always has.', file=sys.stderr, flush=True)
+                # W5, before anything of the new version ran: no attempt is open, the runtime is untouched.
+                raise SystemExit(0 if asked.is_set() else RESTART_FOR_UPGRADE)
+        # B5: the guard, although SBARBASE_GUARDED is 1; a stuck guard exits at once.
+        run_guard(force=True)
+        global HANDOVER_START
+        HANDOVER_START = (retiring, events, upgrade_pending())
+        try:
+            main()
+        except docker_profile.ProfileError as error:
+            raise SystemExit(str(error)) from None
+    finally:
+        retiring.end()
+
+
+def ordinary_start():
+    """A start that no handover exec made. B2 applies to it too: a handover.json it finds is stale (its unit or
+    container ended) and is removed, and one that names a live process that is not this one's child means a handover
+    is in progress under another process, so this start refuses before it takes any lock."""
+    handover.adopt(None, False, handover.STATE)
     if not sys.argv[1:]:
         # Admission precedes the guard, which may persist upgrade or lock state.
         docker_profile.require_or_exit()
@@ -1197,3 +1399,11 @@ if __name__ == '__main__':
         main()
     except docker_profile.ProfileError as error:
         raise SystemExit(str(error)) from None
+
+
+if __name__ == '__main__':
+    events = (threading.Event(), threading.Event())
+    if handover.enter(os.environ, *events, install_signal_handlers):
+        start_after_handover(events)
+    else:
+        ordinary_start()

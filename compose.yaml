@@ -33,6 +33,8 @@ services:
       DOCKER_TLS_VERIFY: ""
       SBARBASE_ROOT: ${SBARBASE_ROOT:-${PWD}}
       SBARBASE_CONSOLE_PORT: ${SBARBASE_CONSOLE_PORT:-8790}
+      # 1 lets a code only update replace the console process in place (lab/handover.py); empty is off.
+      SBARBASE_HANDOVER: ${SBARBASE_HANDOVER:-}
       SBARBASE_BACKUP_HOUR: ${SBARBASE_BACKUP_HOUR:-3}
       SBARBASE_BACKUP_KEEP: ${SBARBASE_BACKUP_KEEP:-7}
       # The maintenance window of automatic updates is read in this container's local time,
