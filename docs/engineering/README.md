@@ -107,6 +107,9 @@ Start with the [project goal](../../PROJECT_GOAL.md), [product and portability p
 - [OPERATOR-NOTIFICATIONS](OPERATOR-NOTIFICATIONS.md): operator events by email or signed webhook (design record; implemented in 0.1.0).
 - [UPSTREAM-UPDATE-POLICY](UPSTREAM-UPDATE-POLICY.md): the binding rules for changing a pinned upstream image.
 - [UPDATE-CHANNEL](UPDATE-CHANNEL.md): signed releases, classification from the diff, console requests, the health-gated confirmation and hold, snapshots and the way back (unit tests and the CI cases on a clean machine; bounded VM rehearsal recorded on 2026-09-26; independent public-server acceptance open).
+- [Upgrades without an outage: study](plans/2026-10-23-upgrades-without-outage.md): why every release stops every tenant today, what others do, and the five phases proposed; numbers in it are targets.
+- [HANDOVER](HANDOVER.md): the in-place handover of the console process behind `SBARBASE_HANDOVER`; unit and two-process tests only.
+- [upgrades-known-limits](upgrades-known-limits.md): every accepted limit of the upgrade work (kept containers, proxy retry, graceful stop, handover, rolling replacement, database window), its consequence and what would close it.
 
 ## Reviews
 

@@ -1,0 +1,110 @@
+# Upgrades without an outage: known limits
+
+Recorded for checkpoint cp8 of the [upgrades without an outage](plans/2026-10-23-upgrades-without-outage.md) study. English only, like the rest of the engineering notebook; the operator view is in the [upgrades guide](../guides/upgrades.md#what-an-upgrade-does-now-by-release-type).
+
+## What this list is
+
+Every limit that the independent reviews of this work accepted, deferred or left as a minor finding, one entry each, with the consequence and what would close it. Nothing here blocks the three switches being off, which is their default. The source of each entry is its tag: `cpN` is the checkpoint, `std` and `spec` the standards and specification reviewers, `rN` the review round.
+
+**The whole body of work is proven by unit tests only.** The kept containers, the TLS proxy retry, the graceful stop, the in-place handover (`SBARBASE_HANDOVER`), the rolling replacement (`SBARBASE_ROLLING_SERVICES`) and the database window (`SBARBASE_DATABASE_WINDOW`) have not run on a real server, in a container or in the rehearsal VM. The measured outage numbers in the study describe the old behavior; the targets in it are targets. The acceptance run is the one the study describes (three environments with data, steady client traffic through the TLS proxy, the broken-release cases, a kill of the supervisor during each new step) and it has not been done.
+
+Entries marked **Fixed** were found, repaired and are kept here so the history is complete. Entries marked **Closed in cp8** were documentation gaps this checkpoint closed.
+
+## Found while writing cp8
+
+- **`SBARBASE_ROLLING_SERVICES` cannot be set through the Docker launcher.** `deploy/compose.sh`, `compose.yaml` and `deploy/host-preflight.sh` list `SBARBASE_HANDOVER` and not this variable. Consequence: the rolling replacement is available under systemd only. Closes it: add the variable to the three places the way `SBARBASE_HANDOVER` is carried (this makes the release a rebuild class, since it changes `compose.yaml`), plus the Docker guide.
+- **A bad `SBARBASE_DRAIN_MS` stops the console process from starting** (`drainDeadline` throws at start, `lab/upstream-server.ts`). Consequence: a typo in a drop-in turns a restart into an outage. Closes it: validate the value in the host preflight, or fall back to the default with a log line.
+
+## The update channel and the control stores (cp2)
+
+- **UPDATE-CHANNEL.md was out of date on snapshot scope and rollback rules** (std round 3). **Closed in cp8**: the page now says the access token store is snapshotted under the keys home, the deployment setup store is versioned and deliberately not snapshotted (with the reason), the rollback checks every versioned store through the shared parser, and what `stores_changed` is. It also states `prepare`'s clean tree rule and its store checks (cp2 r6 repair).
+- **A store module that is not UTF-8 raised `UnicodeDecodeError`** (std round 3). **Fixed**: it now reads as unknown, which refuses.
+- **`check_stores` timeout killed only the child** (std round 3). **Fixed**: it kills the process group.
+- **A crash in the middle of a migration** leaves a store with its rollback journal, which the Python read-only readers cannot read. Consequence: the rollback check and the snapshot refuse until a Bun process opens the store again. It fails closed, and was already true for the catalog and the key store. Closes it: a Python reader that replays the journal, or a Bun helper the check can call.
+- **Parser forms with continuation lines** (spec round 3). **Fixed**: a semicolon is required, everything else reads as unknown.
+- **A store missing at snapshot time and created later at a bumped schema survives an applied-phase way back** (std r6). The restore never removes extra files and the schema check runs only in the confirmed phase. Consequence: none today, because every non-catalog store is at version 0, which makes it impossible. Closes it: a rule in the restore that removes or checks stores the manifest does not name, before the first non-catalog schema bump.
+- **`run_group` runs in its own session** (std r6). A `SIGTERM` or a closed terminal leaves the prepare checks running to completion, and a decode error in their output is a traceback, not a refusal message. Nothing is written either way. Closes it: forward the signal to the group, and catch the decode error where the output is read.
+- **A control store table created lazily outside a store's constructor or migrate step is invisible to the fingerprint** (spec r6, Y2). No current code does this. The rule is that every control store DDL runs in its constructor or migrate step. Closes it: a test that fails on DDL outside those places.
+- **`schema_support`'s docstring said the release check uses the same parser** (r6 repair). **Fixed**: it now says the release check compares `src/control/store-schemas.json`.
+- **`stores_changed` reads only the fixed `STORES` path** (spec r7, S1). A module renamed at one commit reads as 0, so a rename plus a schema bump with a stale record slips through when a release skips `prepare`. The fingerprint test refuses it inside `prepare`. Closes it: make an unreadable path where the module exists at the other commit a change.
+- **`dirty()` relies on `git status`** (spec r7, S2). Files marked assume-unchanged or skip-worktree, private excludes and edits made while the checks run are not seen. Consequence: a release could leave such a file out of the tag. Closes it: compare against `git diff` of the index with `--no-assume-unchanged` handling, and re-run the check after the store tests.
+- **Untested fail-closed branches** in `dirty()` (a failed `git status`) and `stores_changed` (the exception path and both-unknown) (std r7, below the ending rule). Closes it: two tests with a stubbed `git`.
+
+## The TLS proxy retry (cp3)
+
+- **A Realtime upstream that accepts TCP and never answers the handshake** leaves the client socket open with no time limit (std round 3; it predates the change). Such a socket writes no `WEBSOCKET` log line, and on a retried connect it holds one of the 64 waiting slots until the client leaves. Closes it: a handshake deadline on the upstream.
+- **256 waiting buffered bodies can cost about 650 MB resident**: the cap counts payload bytes. Consequence: memory pressure on a small host during a long restart under heavy upload load. Closes it: a cap on waiting bodies by total memory, or a lower count.
+- **Deadlines use `Date.now()`**: a backward clock step can extend a wait past the window. Closes it: a monotonic clock.
+- **Two tests skip some cleanup after an early failure.** Closes it: `try/finally` around the setup.
+- **The proxy has no cap on concurrent requests in general** (round 2). A message above 4 MiB drops the connection with code 1006, not 1009. Closes it: a concurrency cap, and sending the close code the protocol defines.
+- **The streamed body guard and the waiting counter decrements have no pinning test** (spec r3). Measured harmless. Closes it: tests that fail when either is removed.
+- **The study said the proxy retries the hold's `503`**, which it does not and must not (spec r3). **Closed in cp8**: the study's target table now says the proxy retries refused connections only.
+- **`closedPort()` in the test frees a port and relies on it staying free** (std r4). A busy host could make it flake. Closes it: keep the listener bound and closed in one step, or pick the port inside the proxy under test.
+- **`--retry-window` and `SBARBASE_PROXY_RETRY_MS` were undocumented** in the server deployment guide (spec r3 S3). **Closed in cp8**, English and Arabic, and in the configuration reference. Changing `deploy/console-tls-proxy.ts` makes the carrying release a rebuild class, which the guide now says.
+
+## Kept containers and the admission (cp1)
+
+- **A `SIGTERM` after the keep is computed in `dev.main` still keeps the runtime and exits 42** (std r6, S2). It is the same exposure as the documented gap after exit 42. Consequence: a stop in that moment leaves containers running until the next start adopts them within the record's age or stops them. Closes it: re-read the stop flag after the keep is recorded and remove the record.
+- **The memory credit adds back only anon and shmem, not kernel memory** (std r6, S3). An adopting start is slightly stricter than strictly needed. A headroom refusal sends a gated start down the way back, and under systemd the preflight keeps refusing until the record passes `MAX_AGE` (30 minutes) with the gateway down. Closes it: count the kernel memory of the kept containers, and let the preflight drop a record it already refused on.
+- **A `stage()` timeout kills only `bun`** (std r6, S4). Vite may keep writing `.lab/ui-next`. Closes it: a process group, as `check_stores` has.
+- **`SIGINT` does not set `asked`** (spec r6, X2). Guarded modes stop with `SIGTERM`; a start from a terminal keeps nothing. Dropping `realtime` from the counted list would only shrink the credit. No consequence for operators; closes with the `SIGINT` handler setting `asked`.
+- **The console still builds inside the restart** below 1024 MiB available memory, after a failed staged build, and on the automatic way back (spec r6, X3). That is the pre-cp1 behavior. Consequence: a longer restart in those three cases, which the study estimates at about a minute and nobody measured. Closes it: build in the upgrade child on small hosts, with a swap file or a lower build footprint.
+- **The guide and study said Functions are recreated on every start** (spec r6, X4). **Closed in cp8**: the guide now says Functions are kept when nothing about them changed and REST restarts on every start by design. The window between exit 42 and the next start, in which no process owns the containers, is in the guide's operator section and in `lab/kept_runtime.py`'s docstring.
+- **The `install_server` preflight credit test is not pinned exactly** (std r7, S1): the 600 MiB credit has no exact boundary test there. `Runtime.start` repeats the admission with an exact 475 and 476 test. Closes it: add the boundary pair to the preflight test.
+
+## The in-place handover and the console's fronts (cp4, cp5, design)
+
+- **With `SO_REUSEPORT` a second same-user instance silently shares port 6543 and a pinned console port** instead of failing to bind (cp4 spec r1, S3). Consequence: an operator who starts `bun lab/upstream-server.ts` by hand next to the service gets half the connections. It is also why the changelog says a second process of the same user can bind a held port. Closes it: a lock file on the fixed ports in non-handover mode.
+- **A failed database bind now stops the installation** (cp4 spec r1, judgement). An existing install whose 6543 is taken fails its post-upgrade health round and rolls back; the release notes must say so. `/health` reports `held:false` under a management hold, and `lab/upgrade-check.py` line 456 asserts `held` is false, which cp9 must account for once cp5 writes scopes. Closes it: a preflight line that names the port in use before the upgrade moves anything.
+- **Functions Storage and Studio internal listeners keep retrying every 2 seconds instead of failing closed** (cp4 decision). Exiting would stop every tenant. Consequence: a taken port leaves those services unreachable while the rest runs, with a log line each time. Closes it: a health round that includes them.
+- **Residual loss at the end of the grace** (cp4 r3). The rule "complete head kept at grace end" stays as a cheap defence; its window is under one loop turn with `settled()` and could not be reproduced deterministically, so no test pins it. On the wire, 4 of about 20,900 requests were lost on reused connections in the worst measured series, and a client that does not read for more than `PIPE_FLUSH_MS` (5 s) after the close loses the rest of its answer. Closes it: the proxy retrying non-idempotent requests, which is the proxy's own release.
+- **A client that never reads costs about 2.7 MB per connection through the front against 1.15 MB without** (cp4 spec r3). The front never answers a request whose client half-closes; this concerns only the Functions Storage and Studio internal listeners, whose clients do not half-close. Closes it: handle the half-close in the front.
+- **A client that takes nothing of its answer keeps its connection and the inner answer stream up to `FRONT_STALL_MS` (30 s)** (cp4 round 5). Closes it: a shorter stall limit, chosen by measurement.
+- **Refused clients now get a reset** (Bun's `terminate()`) instead of a clean close (cp4 round 5). Consequence: a client behind a direct connection sees `ECONNRESET` rather than end of stream when it is refused during a hold. Closes it: a close that sends a final answer first, where Bun allows it.
+- **An external database listener that fails to bind stops the console process after its retries** (cp4 round 5). `SBARBASE_DATABASE_EXTERNAL_PORT=off` turns the listener off. Consequence: a taken external port stops every tenant. Closes it: report it and keep the console up, as for the internal listeners.
+- **The steering evidence in HANDOVER.md was measured on `node:net` listeners** (cp4 round 5), while the console, Studio and Functions Storage fronts are `Bun.listen`. The design note has a row measured on `Bun.listen` since, but it must be measured again on the shipped fronts before the cp5a review is relied on, and it was never run in a container. Closes it: the Docker rehearsal the design's tests section requires.
+- **The old Bun crashing before promotion leaves nothing listening for a bounded window** (handover design r1, deferred). No worse than today's restart. Closes it: a supervisor that starts the new process before the old one is told to stop, which is what the handover does when it is on.
+- **`.lab/ui` is swapped while the old Bun still serves it** (handover design r1, deferred). An operator loading the console in that window can get the new page against the old management API. No application traffic or control state. Closes it: serve the console from a versioned directory.
+- **New connections can wait for the promotion window**, about 0.5 to 1 s and up to 1.5 s under load (cp5), and loopback SYN stalls of seconds were seen under back-to-back load with many `TIME-WAIT` sockets. cp9 was to measure the real gap. Closes it: the acceptance run.
+- **The switch is unproven on a server or in a container** (cp5). The same item as the one at the top of this page.
+- **cp5 test and fixture limits**, all in tests and not in product code: the first retry round (H10) is not pinned to `INTERVAL` (timing only); `management.json`'s auth address is validated once at construction in `application.ts`; the process test runs steering once with 8 clients (150 runs happen in the load bar); the port claim fixture has a rename race; `test_b10...` leaves an orphan 60 s sleeper because `addCleanup` binds the harness stub, so a pipe on that run waits 60 s; and `fsync` in `write_pause` (`runtime_files`) is untested, as it was at the commit before. Each is closed by a small test change.
+
+## The rolling replacement (cp6)
+
+- **A roll holds the operation lock for at least two 17 s watch windows per environment and restarts 1 s after a success** (std r2, N5). Console changes that retry every 5 s mostly find the lock held for minutes during a roll. Closes it: a shorter watch window by measurement, or a queue for console changes.
+- **The `limits_sql` and `sessions_sql` input checks are untested** (std r2, N6). Every input is validated earlier and there is no injection path today. Closes it: tests that call them with bad input.
+- **During a Studio launch, before `save_state`, `studio_running` is false** (spec r3, X3), so widening or narrowing writes the limit without Studio's connections. It is the same class as the existing toggles and only lowers a limit. Closes it: take the limit after Studio's state is saved.
+- **`limit_lock`'s environment identifier check is untested** (std r3, S3). Every caller validates it first. Closes it: one test.
+- **`test_updates` unlinks the real worker drain file through `dev.Supervisor.run`** (std r3, side note). It predates this work; the isolation gap is in the tests, outside these checkpoints. Closes it: point the test at a temporary state folder.
+- **The operator rollback's 30 s `OPERATION_WAIT` (`lab/upgrade.py:793`) is not pinned by a test** (spec round 4, X1). With 0 it refuses sooner, before it checks or moves anything. **Closed in cp8 in the docs**: the rollback waits up to 30 seconds for the operation lock and refuses after that, and so does the automatic way back (UPDATE-CHANNEL.md says 30 seconds). A pin test is still open.
+- **A test race outside this work**: `test_write_pause.RestartTests.test_the_routing_operator_ends_when_the_command_is_killed` reads `/proc/<pid>/stat` after the child exited, a `FileNotFoundError` race that predates the work (cp6, implementer). Closes it: tolerate the missing file in the test.
+
+## The database window (cp7)
+
+- **Proven by unit tests only**: stubbed Docker and database, real marker and lock files in a temporary folder. It has never run against a real PostgreSQL container or a server.
+- **The direct and external database listeners refuse new sessions during the window; they do not queue them.** `applicationHeld()` makes their target undefined, as every hold does. Consequence: a client that connects during the window gets an error and must retry. Closes it: queueing in `src/http/database-proxy.ts` and `database-external.ts`.
+- **Sessions already open die with the container restart.** Auth, REST, Storage, Realtime and Functions reconnect on their own, which was not measured. Writes are not paused (`write_pause.py` is not used), so a request that passed the gateway just before the hold can fail during the restart. Closes it: pause writes first, then restart, which also needs the pause tool to work without Sbarbase's own traffic.
+- **The plan names a `wait-window` command; none was built.** The commands are `lab/database_window.py run|status` and `lab/upgrade.py database --window SETTING...`, the second only while the variable is `1`.
+- **The window restarts the same image** (`docker restart`) for a `postmaster` setting. A PostgreSQL image change is still `lab/database_move.py` plus `lab/migrate-generation.py` with Sbarbase stopped, and the window is not part of that flow.
+- **The gateway ends the hold by the marker's own wall-clock `until`**, at most 600 s ahead, else ignored. A wall clock stepped during a window can lengthen or shorten the hold; the tool's own deadline uses the monotonic clock. Readers cache the marker for 1 s, so the hold starts and ends up to 1 s late, and the tool waits 1.5 s before it restarts. Closes it: a monotonic expiry in the reader.
+- **A timeout releases the hold while PostgreSQL may still be starting.** The report says so and nothing retries. Closes it: keep the hold until the database answers or a longer hard limit passes.
+- **Only the environment of the command that runs the tool is read.** `deploy/compose.sh` and `host-preflight.sh` do not forward `SBARBASE_DATABASE_WINDOW`, so the docs say to give it to the command itself.
+- **A window is refused while an upgrade hold marker exists; the reverse is not enforced.** An upgrade start during a window writes its own hold and the window's release does not touch it, but one lock does not serialize the two. Closes it: one lock for both.
+- **`pg_settings.context` is read before the restart**, so a setting changed in the file after the check is not seen. Names are validated to lower case letters, digits, `_` and `.`. Closes it: read the context again after the hold begins.
+- **The console wiring of the new default `window` path is covered only through `upgradeHoldScope` defaults**, not by a process test, and `tests/hold.test.ts` `windowOpen` uses a stubbed wall clock. Closes it: a process test that writes a marker and requests through the gateway.
+
+## Flakes and test infrastructure under load
+
+These passed alone and in reruns; none produced a false pass.
+
+- `test_native_root_key` had 3 errors in one full run under load (not in cp1's scope).
+- `test_release_channel`'s process group interrupt test failed once under load from concurrent reviews, and passes alone three times.
+- The process group tests write their pid file atomically; under 24 busy loops on 20 CPUs, 1 of 290 runs still failed once, cause not captured, the timeout test's 2 s window under extreme load the likely one (cp2 std r8).
+- One unexplained `TimeoutExpired not raised` in the timeout process group test during heavy concurrent load, not reproduced in about 600 later runs (cp2 std r10).
+- `test_notifications` failed in a reviewer's full suite under heavy load, outside these checkpoints.
+
+Closes them: run the full Python suite on an idle host before a release, and give the timeout tests a window that scales with load.
+
+## What would close the most
+
+In order of value: the acceptance run on the rehearsal VM and then the real server (it turns every "proven by unit tests only" above into a measurement or a defect); queueing at the database listeners; pausing writes around a database window; carrying `SBARBASE_ROLLING_SERVICES` through the Docker launcher; and the proxy retrying non-idempotent requests after a refused or reset connection.

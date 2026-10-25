@@ -44,7 +44,7 @@ Read these to understand the design. Each page has the same shape: what it is, w
 - [Supabase Studio](guides/studio.md): open the original Studio for one environment, behind the console login, through an SSH tunnel or on its own public address.
 - [Backup and restore](guides/backup-and-restore.md): the current operator workflow, including scheduled backups and bounded offsite recovery.
 - [Pausing writes](guides/write-pause.md): stopping application writes to one environment before work whose way back restores a backup.
-- [Upgrades](guides/upgrades.md): updates from the console, opt-in automatic updates and the command line, with an automatic way back.
+- [Upgrades](guides/upgrades.md): updates from the console, opt-in automatic updates and the command line, with an automatic way back. What the upgrade work does and where it stops: [known limits](engineering/upgrades-known-limits.md).
 - [The sbarbase command](guides/cli.md): status, backups, restore, environments, keys, upgrade, Studio and logs from one command.
 
 ## Reference: facts to look up

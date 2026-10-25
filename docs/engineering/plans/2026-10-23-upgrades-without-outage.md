@@ -1,6 +1,6 @@
 # Upgrades without an outage: study
 
-Recorded 2026-10-23. Status: study and proposal, nothing built. It asks whether the way a release installs today is the right one for an installation that serves client applications, and what would make it faster without giving up any of the safety the [update channel](../UPDATE-CHANNEL.md) already has. Every claim about the current code cites a file and line as of commit `b90cd93`; everything else is marked as measured, inferred or unknown.
+Recorded 2026-10-23. Status: study, written before the work it proposes. Parts of phases 1 to 4 have since been built, by default (kept containers) or behind switches that are off by default; what the code does now is in the [upgrades guide](../../guides/upgrades.md#what-an-upgrade-does-now-by-release-type) and the gaps in [upgrades known limits](../upgrades-known-limits.md). Every number below is a target or a measurement of the old behavior, not a result of the new. It asks whether the way a release installs today is the right one for an installation that serves client applications, and what would make it faster without giving up any of the safety the [update channel](../UPDATE-CHANNEL.md) already has. Every claim about the current code cites a file and line as of commit `b90cd93`; everything else is marked as measured, inferred or unknown.
 
 ## The answer in short
 
@@ -93,7 +93,7 @@ Each phase stands on its own and leaves the installation safer than before. The 
 | Change | Today | Target |
 |---|---|---|
 | Code only (Bun, Python, console), no pin, no control store schema change, TLS proxy unchanged | about 20 s outage for every tenant, longer with more environments | no failed request; added latency of about a second while the new process takes over |
-| Code with a control store schema change | the same | a short held window (the hold's 503, measured at about half a second) that the TLS proxy retries where it runs; management changes paused for the hold, as today |
+| Code with a control store schema change | the same | a short held window (the hold's 503, measured at about half a second); the TLS proxy retries refused connections only, never a 503, so a client behind it sees a `503` with `Retry-After` for the window; management changes paused for the hold, as today |
 | TLS proxy changed | the same, plus its own restart by hand | a short window at the edge for everyone, announced; its own design (see phase 2) |
 | PostgREST pin | the same | per environment, side by side, no failed request |
 | Auth, Storage or Realtime pin (`attended`) | the same, plus migrated data after a way back | per environment where upstream migrations allow it; otherwise a short held window per environment, never all at once |

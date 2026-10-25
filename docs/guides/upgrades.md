@@ -23,7 +23,7 @@ Sbarbase checks every 6 hours, starting 5 minutes after it starts. A check that 
 1. Open **Updates** and read the release notes and the list of what changes.
 2. Press **Install update**. The button is available only when the server says the release can be installed now.
 3. For a release marked **Needs your confirmation**, read the warning and tick the box that says environment data may need restoring from the backups if the update returns to the current version. Then press **Install now**.
-4. Stay on the page. It shows each stage: waiting for the server, finishing running work, backup and move, restart, health checks. While Sbarbase restarts, the console and every application on the server are unreachable, then the console reconnects by itself. In the rehearsal VM, with one environment and no Realtime or Edge Functions, that took about 20 seconds; it grows with the number of environments, since they start one after another. Choose a quiet time for your applications.
+4. Stay on the page. It shows each stage: waiting for the server, finishing running work, backup and move, restart, health checks. While Sbarbase restarts, the console is unreachable and applications see a delay or errors until the new version passes its health checks (see [what an upgrade does now](#what-an-upgrade-does-now-by-release-type)); then the console reconnects by itself. The only timing measured, in the rehearsal VM with one environment and no Realtime or Edge Functions, was about 20 seconds, taken before containers were kept across the restart; no timing exists for the current behavior. Choose a quiet time for your applications.
 5. When it says the update is installed and healthy, press **Reload console** so the page loads the new version.
 
 If the new version does not become healthy, the page says so and Sbarbase is back on the version you had. If the page has no final outcome after 10 minutes, run `python3 lab/upgrade.py status` on the server.
@@ -37,7 +37,7 @@ If the new version does not become healthy, the page says so and Sbarbase is bac
 5. **Backup.** It backs up every environment on this server and Storage's shared `storage_metadata` database ([backup and restore](backup-and-restore.md)), all under one run time. The start of this step is the point of no return for an automatic try. Backups taken for an upgrade are marked as such. Once the checkout has moved, the run is also recorded in `.lab/backups/upgrade-moved.json`: the backups of the last 3 upgrades that moved the checkout are kept whatever their age, and they do not count against `SBARBASE_BACKUP_KEEP`. A try that stopped before the move keeps ordinary backups.
 6. **Control snapshot and guard.** It copies the control state (the control catalog, every SQLite store directly under `.lab/upstream/`, and the key store `.secrets/upstream/managed-keys.sqlite`) into `.lab/upgrades/snapshots/`, and copies this version's start guard to `.lab/upgrades/guard.py` (see [the start guard](#the-start-guard)).
 7. **The move.** It moves the checkout to the release commit and installs its dependencies.
-8. **Restart.** The supervisor stops the console and the owned containers cleanly, then exits with code 42. systemd (`RestartForceExitStatus=42` in the unit) and Docker (`restart: unless-stopped`) start it again. From the command line you restart it yourself.
+8. **Restart.** The supervisor stops the console process cleanly (see [the graceful stop](#the-graceful-stop)) and leaves the owned containers running, recording which ones in `.lab/upstream/kept-runtime.json`, then exits with code 42. systemd (`RestartForceExitStatus=42` in the unit) and Docker (`restart: unless-stopped`) start it again. From the command line you restart it yourself.
 9. **Guard, then the new version.** Every start runs the guard first. If the previous version left an operation record unsettled, the new version's first start moves back at once, before it touches anything, so the previous version can settle it; such a way back does not count against the release for automatic updates.
 10. **Hold.** Before anything opens the control catalog, the new version takes a fresh snapshot of the control state; this is the one the way back restores. Until the health checks pass:
     - requests through the gateway get `503` with `Retry-After: 5`, and Realtime sockets and direct database access are refused;
@@ -47,7 +47,82 @@ If the new version does not become healthy, the page says so and Sbarbase is bac
 11. **Health checks.** Once the console process runs, one round of checks must all answer within 120 seconds: the console's own `/health` (which reads the control catalog and the key store), the management Auth, for every environment in service its Auth, REST and Storage directly, and then its REST and Auth once more through the gateway, the way an application reaches them, with a token valid for this start only. When a round passes, the update is confirmed: traffic flows, the worker starts, and `update.applied` is sent. A Studio used in the last eight hours then starts again by itself, and an open Studio tab reloads and continues ([Studio](studio.md)).
 12. **The way back.** If a start stage fails, or no round passes within 120 seconds, the supervisor moves the checkout back and restores the snapshot from step 10, then exits with an error. The restart policy starts the previous version with its previous images. It goes through the same hold and health checks before it is recorded as `rolled_back`, and `update.rolled_back` is sent. If the previous version does not start either, the state is `rollback_failed`, `update.rollback_failed` is sent, and the way forward is to restore the backups from step 5.
 
-The restart stops every container Sbarbase runs, the database included, and starts them again; application traffic stops for every environment until the new version passes its health checks. Of those, only the Auth, REST, Storage and Realtime containers whose pinned image or configuration changed are replaced, and the way back puts the previous images back. Edge Functions containers are created again on every start. The database container is stopped and started again but never replaced by an upgrade. Why, and how this could change: [upgrades without an outage](../engineering/plans/2026-10-23-upgrades-without-outage.md).
+The restart stops the console process, not the containers: the database, Auth, REST, Storage, Realtime and Edge Functions containers keep running and the next start adopts them. Only a container whose pinned image or computed configuration changed is replaced, and the way back puts the previous images back. REST is stopped and started for each environment on every start, so that its role settings are written again. Edge Functions containers are kept when nothing about them changed. The database container is never replaced by an upgrade. Application traffic is still held with `503` until the new version passes its health checks. Why, and how this could change: [upgrades without an outage](../engineering/plans/2026-10-23-upgrades-without-outage.md).
+
+## What an upgrade does now, by release type
+
+This section says what the current code does, release type by release type, and which parts are switches you turn on. Read [what has been proven](#what-has-been-proven-about-this-work) before you rely on any of it, and the [known limits](../engineering/upgrades-known-limits.md) (English) for every gap that is recorded.
+
+Three things are true for every release, with no switch on:
+
+- **The owned containers are kept.** The planned restart after an upgrade no longer stops the database, Auth, REST, Storage, Realtime or Edge Functions containers. The supervisor records which ones it left running (`.lab/upstream/kept-runtime.json`) and the next start adopts them, replacing any whose image or computed settings changed. The record is used only while the checkout is the commit the exit moved to and the record is younger than 30 minutes; otherwise the containers are stopped as before. Any other exit (a stop, a failed start, a way back, a killed supervisor) keeps nothing. Between the exit and the next start (the service manager's restart delay and start checks) no process owns the containers: a stop of the service in those seconds leaves them running until the next start adopts them or, after the record is too old, stops them.
+- **The console process still restarts.** It is the gateway, the console and the direct database listener in one process, so until the new version's process is up nothing listens on the console port. Behind the TLS proxy that ships with Sbarbase, a connection that is refused is tried again for up to 15 seconds (`--retry-window`, or `SBARBASE_PROXY_RETRY_MS`; `0` turns it off), so a client sees a delay. Without that proxy, or for a failure that may have reached the console, the client gets an error. Once the new process is up, requests get `503` with `Retry-After: 5` until the health checks pass.
+- **REST is restarted for each environment on every start**, in place, so that its role settings are written again and no session opened under the old ones survives. Edge Functions containers are kept when nothing about them changed.
+
+| Release | With no switch | With a switch |
+|---|---|---|
+| Code only (class safe, no pin change, no control store schema change) | The three points above. The shared database container is not touched | `SBARBASE_HANDOVER=1`: the console process is replaced in place, without the exit and restart. Falls back to the default when any of its conditions fails |
+| An Auth or PostgREST pin change | Every environment's container is replaced at the start, while application traffic is held | `SBARBASE_ROLLING_SERVICES`: the start keeps the previous image, and the supervisor replaces one environment at a time after the upgrade is confirmed |
+| A Storage or Realtime pin change (needs your confirmation) | As today: replaced at the start, with the warning | Nothing. The rolling switch does not name them |
+| A setting that only a PostgreSQL restart applies | Not part of an upgrade. A restart of the database container drops every connection | `SBARBASE_DATABASE_WINDOW=1`: a short held window around a restart of the same image |
+| A PostgreSQL image change | Refused by `start`; it stays the attended move ([above](#moving-to-another-postgresql-image)) | No switch changes this |
+
+All three switches are off unless the variable is exactly `1` (for `SBARBASE_ROLLING_SERVICES`, unless it names services). Turning one on is a deliberate act, and each can be turned off the same way, by removing the variable and restarting.
+
+### SBARBASE_HANDOVER: replace the console process in place
+
+**What it does.** For a release that changes code only, the old supervisor replaces its own program with the new version's (`execve`, the same process id, the same unit or container). The old console process keeps serving until the new one has passed a health round on a private port, joined the shared ports and been given every new connection; only then does the old one finish its work and exit. It is designed to shorten the interruption, not to remove it: requests can still get `503` for a few seconds while the new version is held.
+
+**When it applies.** Only when every condition of the design holds ([in-place handover](../engineering/HANDOVER.md), Q1 to Q12): the release is an upgrade of class safe with no pin change and no control store schema change; a service manager runs the supervisor; `SBARBASE_CONSOLE_PORT` is set to a fixed port; the running version already carries the handover; the host passes a steering trial and has memory for two console processes; and no console rebuild is needed. When one fails, the log says `The handover is not used (...)` with the reason and the console restarts as it always has. A handover that fails after the new version passed its health round is recorded in `.lab/upstream/handover-failed.json` and is not tried again for that commit.
+
+**How to enable.** Under systemd, a drop-in with `Environment=SBARBASE_HANDOVER=1` for the unit, then a restart. Under Docker, the launcher forwards it: `sudo SBARBASE_HANDOVER=1 deploy/compose.sh up`, and every later `up` must give it again ([Docker](docker.md)). The first release that carries the handover installs the old way; only upgrades after it can hand over.
+
+**How to tell it worked.** The supervisor keeps its process id and the unit does not restart (`systemctl show sbarbase -p NRestarts` does not grow, and the journal has no exit 42 for that upgrade). A request to the console's loopback port without forwarding headers answers `/health` with an `x-sbarbase-pid` header, and that value changes from the old console process to the new one. `python3 lab/upgrade.py status` shows the upgrade as confirmed.
+
+**How to back out.** Remove the variable and restart (under Docker, run `sudo deploy/compose.sh up` without it). The next upgrade then takes the default path. A failed handover needs nothing from you: the record only stops the same commit from being tried again.
+
+### SBARBASE_ROLLING_SERVICES: replace Auth and REST one environment at a time
+
+**What it does.** With `rest`, `auth` or `auth,rest` named, a release that changes that pin no longer replaces every environment's container at the start. The start keeps the previous image, and the health round and the confirmation run on it, which is also what the way back runs. After the upgrade is confirmed the supervisor replaces the containers while the gateway serves, one environment per run, the canary first (`SBARBASE_ROLLING_CANARY`, otherwise the first by name). For each: the new container starts beside the old one under a temporary name and must answer its health; for REST the role settings are written again and the new container's sessions are ended; the environment's address is switched in one rename; and for a watch window the new container is asked for its health every second. One answer missed switches the address back to the old container and removes the new one. Naming `rest` also lets a kept REST container keep serving through a planned restart, instead of being restarted environment by environment.
+
+**What it does not cover.** Only Auth and REST. A name other than `auth` or `rest` refuses the start. Auth runs its schema migrations when it starts, so the old Auth serves on a schema the new one migrated while both run: name `auth` only when the upstream review of that pin range says its migrations are additive.
+
+**How to enable.** Under systemd, a drop-in with `Environment=SBARBASE_ROLLING_SERVICES=rest` (or `auth,rest`), then a restart. Under Docker the launcher does not forward this variable: neither `deploy/compose.sh` nor `compose.yaml` lists it, so it cannot be turned on through the launcher in this version.
+
+**How to tell it worked.** `python3 lab/upgrade.py status` prints a `rolling` line that says `done` or `previous pin:` followed by each environment and service still on the old image. `python3 lab/rolling.py status` prints the full record as JSON.
+
+**How to back out.** If the roll stops, the first failed environment is marked `failed` and the rest keep the previous pin. `python3 lab/rolling.py retry` starts the roll again. To give the switch up, remove the variable and restart: the plan's own replacement then goes ahead in place at the next start. While an environment is still on its previous pin, the commands that stop or start its containers by name refuse. A crash in the middle of a swap is repaired from its record by the next start or the next roll.
+
+### SBARBASE_DATABASE_WINDOW: a short held window for a PostgreSQL restart
+
+**What it does.** Some settings only a restart applies (those whose `pg_settings.context` is `postmaster`, such as `max_connections`). The window restarts the database container, the same image, inside a bounded hold: it refuses when a reload is enough, runs `CHECKPOINT`, holds application traffic at the gateway (`503` with `Retry-After`), pauses management changes and closes the direct and external database listeners to new sessions, waits 1.5 seconds for every reader of the marker, runs `docker restart`, checks that the database answers and releases the hold. The window lasts at most `SBARBASE_DATABASE_WINDOW_SECONDS` (30 by default, never more than 120). A failure at any step, or the end of the window, releases the hold and says what happened; the marker is removed even if the command fails, and its own end time makes the gateway stop holding if the command is killed.
+
+**What it is not.** It is not part of the upgrade flow and does not change a PostgreSQL image: that is still the attended move above. It is run by hand.
+
+**How to enable.** Give the variable to the command itself, not to the launcher:
+
+```
+SBARBASE_DATABASE_WINDOW=1 /usr/bin/python3 lab/database_window.py run --setting max_connections
+SBARBASE_DATABASE_WINDOW=1 /usr/bin/python3 lab/upgrade.py database --window max_connections
+```
+
+**How to tell it worked.** The command prints each step and exits `0`. While it runs, `python3 lab/database_window.py status` says `A window is open, N s left.`; afterwards it says `No database window is open.` Then read the setting back from PostgreSQL.
+
+**How to back out.** Without `SBARBASE_DATABASE_WINDOW=1` the command refuses and changes nothing. To end a window early, stop the command: the hold is released, and a marker that stays behind is ignored once its end time passes. A window is refused while an upgrade holds traffic or waits for confirmation. The reverse is not enforced: do not start an upgrade during a window. `upgrade.py database --window` exists only while the variable is `1`.
+
+### The graceful stop
+
+The console process now stops gracefully, with no switch. On `SIGTERM` it answers every request with `connection: close`, closes Realtime sockets, keeps accepting for 300 ms so that connections already queued are answered, then refuses new connections and lets running requests and database sessions finish, up to `SBARBASE_DRAIN_MS` (15000 by default). What is still running at the deadline is closed. A second `SIGTERM` finishes at once.
+
+- `SBARBASE_DRAIN_MS` is a whole number of milliseconds from 0 to 19000. Any other value makes the console process refuse to start with a message naming the range, so check it before restarting. The limit sits below the 20 seconds `lab/dev.py` gives the process before `SIGKILL`; the systemd unit allows 150 seconds.
+- A stop takes at least about a second, and the full drain time when a client holds a database session open.
+- Its fixed ports are bound so that a newer process can share them during a handover. A second process of the same user can therefore also bind a port a first one holds, without an error.
+
+### What has been proven about this work
+
+**Proven by unit tests only. None of it has been run on a real server, in a container or in the rehearsal VM.** Each switch is covered by Python and Bun tests against stubbed Docker, stubbed databases and temporary folders, and the handover also by two-process tests on a workstation. The kernel mechanisms the handover stands on were measured on a development host, not through the TLS proxy with real environments.
+
+**The numbers in the design documents are targets, not results.** "About a second of added latency and no failed request" for a code only release, "a few seconds" of interruption, and "a short held window" for PostgreSQL are what the work was designed to reach. The only outage measured end to end is the old one: about 20 to 23 seconds in the rehearsal VM, with one empty environment, before containers were kept. No timing exists for a release that keeps them, with or without a switch. The first real measurement is the acceptance run the [study](../engineering/plans/2026-10-23-upgrades-without-outage.md) describes, on three environments with real traffic, and it has not been done.
 
 ## The start guard
 
@@ -158,6 +233,8 @@ The check reads the canonical repository over HTTPS, not your `origin`. To read 
 - It is offered only for the last update, and not while another request is under way.
 - It is refused, from the page or the command line, while tracked files outside `docs/evidence/` have local changes, because the way back would move them aside; the refusal names them. Commit or discard them on the server first. The automatic way back never refuses for this: it sets the changes aside.
 - Going back does not undo a change a newer Auth, Storage or Realtime made to the environment databases when it started (see [releases that need your confirmation](#releases-that-need-your-confirmation)). If the previous version does not run on it, follow [when Sbarbase cannot start after a way back](backup-and-restore.md#when-sbarbase-cannot-start-after-a-way-back): `storage_metadata` first there, then the environments.
+
+An operator's rollback waits up to 30 seconds for the installation's operation lock; if it is still held, the rollback refuses before it checks or moves anything.
 
 `python3 lab/upgrade.py rollback --check` says whether a rollback would go ahead, and why not, without changing anything.
 
@@ -287,3 +364,4 @@ The way back to the previous image is the same move towards the previous version
 - Automatic updates install only safe releases. A release that needs your confirmation, a rebuild or a migration always waits for you.
 - The forced way back, the 3-move limit and the stopped state live in the guard, and the way back runs the guard copied from the version the upgrade left. So they protect only upgrades started from a version that has them.
 - A guard that cannot write `state.json` at all (a full or read-only disk) cannot count its failures, so the service restarts in a loop until the disk is writable again.
+- Work toward fewer interruptions (kept containers, the rolling switch, the handover, the database window, the graceful stop) is proven by unit tests only and has not run on a real server; every recorded gap is in the [known limits](../engineering/upgrades-known-limits.md).

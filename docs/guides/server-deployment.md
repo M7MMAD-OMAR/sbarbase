@@ -365,6 +365,15 @@ before the request reaches the console. It serves only `--public-host`, loopback
 names and Studio addresses that match `--studio-host`, and answers any other host
 with 421, so a wildcard DNS record never shows the console under another name.
 
+The proxy also waits out a console restart. While the console restarts for an upgrade, a
+request whose connection is refused never reached it, so the proxy sends it again with
+backoff for up to `--retry-window` milliseconds (`SBARBASE_PROXY_RETRY_MS` when the flag is
+absent, 15000 by default, `0` turns it off), and a Realtime socket's upstream connect the
+same. Any other failure may have reached the console and is answered `502` as before, a body
+larger than the buffered size is streamed and never sent twice, and the hold's own `503` is
+not retried. Changing `deploy/console-tls-proxy.ts` makes the release that carries it a
+rebuild class, and the proxy's own unit is restarted by hand.
+
 Its own hardening is part of the checks: the redirect and the forwarded host come
 from `--public-host`, never from the client's `Host` header (an attacker supplied
 host cannot turn the redirect into an open redirect), hop by hop headers are
