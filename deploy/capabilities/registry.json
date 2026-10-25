@@ -46,7 +46,7 @@
     {
       "id": "compose",
       "path": "compose.yaml",
-      "sha256": "2c08351543de41846fc2a9e7c024994ee9fd229aa84506b3c87af684d07997dd"
+      "sha256": "3becfab2b073179e81efdcc40c94e50e94084ffd1e67e9c87ee1322f8164562e"
     },
     {
       "id": "host-config",

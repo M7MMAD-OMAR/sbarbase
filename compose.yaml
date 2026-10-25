@@ -37,6 +37,9 @@ services:
       SBARBASE_HANDOVER: ${SBARBASE_HANDOVER:-}
       # Which services a pin change rolls side by side (lab/rolling.py): empty is rest, auth,rest adds Auth, none is off.
       SBARBASE_ROLLING_SERVICES: ${SBARBASE_ROLLING_SERVICES:-}
+      # The database window (lab/database_window.py) is available unless this is 0; the seconds cap it (default 30, at most 120).
+      SBARBASE_DATABASE_WINDOW: ${SBARBASE_DATABASE_WINDOW:-}
+      SBARBASE_DATABASE_WINDOW_SECONDS: ${SBARBASE_DATABASE_WINDOW_SECONDS:-}
       SBARBASE_BACKUP_HOUR: ${SBARBASE_BACKUP_HOUR:-3}
       SBARBASE_BACKUP_KEEP: ${SBARBASE_BACKUP_KEEP:-7}
       # The maintenance window of automatic updates is read in this container's local time,

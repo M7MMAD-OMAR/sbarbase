@@ -417,7 +417,7 @@ class StartTests(Fixture):
     def test_a_switch_naming_anything_else_refuses_the_start_before_any_docker_call(self):
         self.build()
         order = []
-        with self.assertRaisesRegex(RuntimeError, 'only auth and rest'):
+        with self.assertRaisesRegex(RuntimeError, 'may be empty .rest., rest, auth'):
             with patch.object(self.fake, 'docker', side_effect=lambda *a, **k: order.append('docker')):
                 self.start(order, switch='rest,storage')
         self.assertEqual(order, [])
@@ -425,22 +425,22 @@ class StartTests(Fixture):
     def test_a_switch_naming_anything_else_refuses(self):
         for value in ('rest,storage', 'yes', 'rest,'):
             with self.subTest(value), patch.dict(os.environ, {rolling.SWITCH: value}):
-                with self.assertRaisesRegex(RuntimeError, 'only auth and rest'):
+                with self.assertRaisesRegex(RuntimeError, 'may be empty .rest., rest, auth'):
                     rolling.chosen()
         with patch.dict(os.environ, {rolling.SWITCH: ' rest , auth '}):
             self.assertEqual(rolling.chosen(), {'auth', 'rest'})
         for environ in ({}, {rolling.SWITCH: ''}, {rolling.SWITCH: '  '}):
             with patch.dict(os.environ, environ, clear=True):
                 self.assertEqual(rolling.chosen(), frozenset({'rest'}))
-        for value in ('none', '0', ' none '):
-            with patch.dict(os.environ, {rolling.SWITCH: value}):
+        for value in ('none', '0', ' none ', 'off', 'false', 'OFF', 'None', 'False'):
+            with self.subTest(value), patch.dict(os.environ, {rolling.SWITCH: value}):
                 self.assertEqual(rolling.chosen(), frozenset())
         for value, names in (('auth', {'auth'}), ('rest', {'rest'}), ('auth,rest', {'auth', 'rest'})):
             with patch.dict(os.environ, {rolling.SWITCH: value}):
                 self.assertEqual(rolling.chosen(), names)
         for value in ('none,rest', 'none,none', '0,rest'):
             with self.subTest(value), patch.dict(os.environ, {rolling.SWITCH: value}):
-                with self.assertRaisesRegex(RuntimeError, 'only auth and rest'):
+                with self.assertRaisesRegex(RuntimeError, 'may be empty .rest., rest, auth'):
                     rolling.chosen()
 
 

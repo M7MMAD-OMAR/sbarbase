@@ -3342,6 +3342,14 @@ class SwitchTests(unittest.TestCase):
         self.assertIn('SBARBASE_ROLLING_SERVICES="${SBARBASE_ROLLING_SERVICES-}"', launcher[launcher.index('exec env -i'):])
         self.assertIn('scalar SBARBASE_ROLLING_SERVICES "${SBARBASE_ROLLING_SERVICES-}"', (ROOT / 'deploy/host-preflight.sh').read_text())
 
+    def test_the_database_window_switch_and_seconds_reach_the_container_the_same_way(self):
+        for name in ('SBARBASE_DATABASE_WINDOW', 'SBARBASE_DATABASE_WINDOW_SECONDS'):
+            self.assertIn(f'{name}: ${{{name}:-}}', (ROOT / 'compose.yaml').read_text())
+            launcher = (ROOT / 'deploy/compose.sh').read_text()
+            self.assertIn(f'scalar {name} "${{{name}-}}"', launcher)
+            self.assertIn(f'{name}="${{{name}-}}"', launcher[launcher.index('exec env -i'):])
+            self.assertIn(f'scalar {name} "${{{name}-}}"', (ROOT / 'deploy/host-preflight.sh').read_text())
+
     def test_the_container_gets_the_switch_through_compose_yaml_and_the_launcher(self):
         self.assertIn('SBARBASE_HANDOVER: ${SBARBASE_HANDOVER:-}', (ROOT / 'compose.yaml').read_text())
         launcher = (ROOT / 'deploy/compose.sh').read_text()
@@ -3355,7 +3363,7 @@ class SwitchTests(unittest.TestCase):
 
     def test_the_docker_guide_lists_it_in_both_languages(self):
         for name in ('docker.md', 'docker.ar.md'):
-            self.assertIn('sudo SBARBASE_HANDOVER=1 deploy/compose.sh up', (ROOT / 'docs/guides' / name).read_text())
+            self.assertIn('sudo SBARBASE_HANDOVER=0 deploy/compose.sh up', (ROOT / 'docs/guides' / name).read_text())
 
     def test_the_launcher_refuses_a_switch_with_a_control_character(self):
         result = subprocess.run(['/bin/sh', str(ROOT / 'deploy/compose.sh'), 'check'], capture_output=True, text=True, timeout=60,

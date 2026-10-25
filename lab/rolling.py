@@ -93,16 +93,17 @@ def runtime_module():
 
 def chosen():
     """The services the switch names. Unset or empty means `rest` (Auth stays opt in: a schema migrating
-    Auth cannot be rolled back by repair); `none` or `0` keeps every start as it was; a value naming
+    Auth cannot be rolled back by repair); `none`, `0`, `off` or `false` keeps every start as it was; a value naming
     anything else refuses the start rather than guessing."""
     value = os.environ.get(SWITCH, '').strip()
     if not value:
         return frozenset({'rest'})
-    if value in ('none', '0'):
+    if value.lower() in ('none', '0', 'off', 'false'):
         return frozenset()
     names = {part.strip() for part in value.split(',')}
     if not names <= set(SERVICES):
-        raise RuntimeError(f'{SWITCH} may name only auth and rest')
+        raise RuntimeError(f'{SWITCH} may be empty (rest), rest, auth, auth,rest, or none, 0, off or false to turn rolling off; '
+                           f'got {value[:40]!r}')
     return frozenset(names)
 
 
