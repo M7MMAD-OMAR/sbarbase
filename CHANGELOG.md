@@ -13,6 +13,13 @@ The declared package version is 0.6.4. Historical 0.1.0 and 0.2.0 entries retain
 ### Added
 
 - **`deploy/hyperdrive`**, run from your own computer, creates a Cloudflare Hyperdrive for an environment in one command (opens external access, replaces the developer password, makes the Workers VPC service, creates the Hyperdrive, prints its id). The database access guide gains a short Hyperdrive version and a table of the Supabase commands that work with `--db-url`.
+- **Rolling service updates, off by default** (`SBARBASE_ROLLING_SERVICES`): after an upgrade, an environment's Auth and REST are replaced one environment at a time, with the first environment as a canary, a health watch, and a way back. Proven by unit tests only.
+- **In-place handover of the console process, off by default** (`SBARBASE_HANDOVER`): an update that changes code only can replace the console process without a full restart, which shortens the interruption and does not remove it. Proven by unit tests only.
+- **A design study for per-environment Query Performance** (`docs/engineering/plans/2026-10-24-query-performance-per-environment.md`), no code.
+
+### Changed
+
+- **The console process now stops gracefully.** On a stop it refuses new connections, lets running requests and database sessions finish (up to `SBARBASE_DRAIN_MS`, 15 seconds by default), then exits, so a stop takes at least about a second and can take the full drain time when a client keeps a database session open. Its fixed ports are bound so that a newer process can share them during a handover, which also means a second process of the same user can bind a port a first one holds.
 
 ### Still open
 
