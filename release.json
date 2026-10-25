@@ -1,9 +1,9 @@
 {
-  "version": "0.8.0",
+  "version": "0.9.0",
   "minimum_from": "0.3.1",
   "notes": {
-    "en": "Turns the in place console handover, REST side by side rolling and the database restart window on by default, each with an opt out. Proven by unit tests and one real update, not yet measured under load on a real server.",
-    "ar": "يفعّل افتراضيًا تسليم وحدة التحكم في مكانها واستبدال REST جنبًا إلى جنب ونافذة إعادة تشغيل قاعدة البيانات، ولكل منها إيقاف صريح. ثبتت باختبارات الوحدات وبتحديث حقيقي واحد، ولم تُقَس تحت حمل على خادم حقيقي."
+    "en": "Adds soft delete and restore of an environment on ordinary installations, repair --force for a swap record, and review fixes to the new upgrade defaults. Proven by unit tests and one real update; not yet measured under load on a real server.",
+    "ar": "يضيف الحذف الناعم واستعادة البيئة في التثبيت العادي، والأمر repair --force لسجل التبديل، وإصلاحات المراجعة للإعدادات الافتراضية الجديدة. ثبت باختبارات الوحدات وبتحديث حقيقي واحد، ولم يُقَس تحت حمل على خادم حقيقي."
   },
   "migrations": []
 }
