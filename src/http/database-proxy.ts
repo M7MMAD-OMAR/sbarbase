@@ -1,5 +1,6 @@
 import {connect,createServer,type Socket} from 'node:net';
 import {createServer as createTlsServer,type Server as TlsServer} from 'node:tls';
+import {ACCEPT_GRACE_MS,pause} from './local-server';
 
 /** Direct database access for one environment at a time (docs/guides/database-access.md).
  *
@@ -61,7 +62,7 @@ export type ConnectionGuard={
 };
 type ProxyOptions={port:number;host:string;target:()=>{host:string;port:number}|undefined;log?:(line:string)=>void;
  tls?:{cert:string;key:string};requireTls?:boolean;guard?:ConnectionGuard;maxConnections?:number;startupMs?:number};
-type ProxyHandle={port:number;stop:()=>void};
+type ProxyHandle={port:number;stop:()=>void;drain:(graceMs?:number)=>Promise<void>};
 type DirectEndpoint={host:string;port:number;ready:boolean};
 const observedProxies=new WeakMap<ProxyHandle,()=>DirectEndpoint>();
 const innerPorts=new WeakMap<ProxyHandle,()=>number>();
@@ -100,6 +101,11 @@ export class DirectDatabase {
   if(owned.closed){proxy.stop();return;}
   owned.external=proxy;owned.externalCa=ca;
  }
+ /** Stops accepting after the grace and settles once every session has ended; stop() closes the rest. */
+ drain(graceMs?:number):Promise<void>{
+  const owned=directOwners.get(this)!;
+  return Promise.all([owned.proxy?.drain(graceMs),owned.external?.drain(graceMs)]).then(()=>undefined);
+ }
  stop(){
   const owned=directOwners.get(this)!;owned.closed=true;owned.proxy?.stop();owned.proxy=undefined;
   owned.external?.stop();owned.external=undefined;
@@ -117,6 +123,10 @@ export function externalDatabaseEndpoint(direct?:DirectDatabase):(DirectEndpoint
  return observed&&owned?.externalCa?{...observed,ca:owned.externalCa}:undefined;
 }
 
+/** The listener binds with SO_REUSEPORT, so a newer version's process can listen on the same
+ * port while this one drains: `drain()` keeps accepting for the grace (ACCEPT_GRACE_MS, which
+ * says why), then stops accepting and lets every session, and every connection still in its
+ * startup, run until it ends; `stop()` closes them. */
 export function databaseProxy(options:ProxyOptions) {
  // Retain the exact address and forwarding callback used for this listener's lifetime.
  options=Object.freeze({...options});
@@ -250,13 +260,21 @@ export function databaseProxy(options:ProxyOptions) {
  return startInner().then(()=>new Promise<ProxyHandle>((resolve,reject)=>{
   const failed=(error:Error)=>{inner?.close();reject(error);};
   server.once('error',failed);
-  server.listen(options.port,options.host,()=>{
+  server.listen({port:options.port,host:options.host,reusePort:true},()=>{
    server.off('error',failed);server.on('error',()=>{});
    const address=server.address();
    const boundHost=typeof address==='object'&&address?address.address:options.host;
    let stopped=false;
    const handle={port:typeof address==='object'&&address?address.port:options.port,
-    stop(){stopped=true;closed=true;for(const socket of sockets)socket.destroy();server.close();inner?.close();}};
+    stop(){stopped=true;closed=true;for(const socket of sockets)socket.destroy();server.close();inner?.close();},
+    async drain(graceMs=ACCEPT_GRACE_MS){
+     stopped=true;await pause(graceMs);server.close();
+     return new Promise<void>(resolve=>{
+      const settle=()=>{closed=true;inner?.close();resolve();};
+      if(!sockets.size){settle();return;}
+      const timer=setInterval(()=>{if(!sockets.size){clearInterval(timer);settle();}},25);
+     });
+    }};
    innerPorts.set(handle,()=>innerPort);
    reloaders.set(handle,tls=>swapInner(tls));
    observedProxies.set(handle,()=>{

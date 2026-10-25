@@ -99,3 +99,41 @@ test('/health fails when the key store cannot be read',()=>{
  keys.close();
  expect(health(new Request('http://127.0.0.1/health')).status).toBe(503);
 });
+
+test('under a management hold the probe still confirms, and application requests pass without it',async()=>{
+ const files=place();
+ try {
+  let scope:'all'|'management'|undefined='management';
+  const held=()=>scope!==undefined;
+  const probe=confirmationProbe(held,files.token,{ttlMs:0});
+  expect(probe.key(TOKEN)).toBe(true);
+  const seen:string[]=[];
+  const handler=holdExceptProbe(async request=>{seen.push(new URL(request.url).pathname);return new Response('ok');},()=>scope,probe);
+  expect((await handler(new Request(`http://127.0.0.1/${RUNTIME}/rest/v1/items`))).status).toBe(200);
+  expect((await handler(probeRequest(`/${RUNTIME}/rest/v1/`))).status).toBe(200);
+  expect((await handler(new Request('http://127.0.0.1/management/v1/organizations',{method:'POST'}))).status).toBe(409);
+  expect(seen).toEqual([`/${RUNTIME}/rest/v1/items`,`/${RUNTIME}/rest/v1/`]);
+  scope='all';
+  expect((await handler(new Request(`http://127.0.0.1/${RUNTIME}/rest/v1/items`))).status).toBe(503);
+  expect((await handler(probeRequest(`/${RUNTIME}/rest/v1/`))).status).toBe(200);
+  scope=undefined;
+  expect(probe.key(TOKEN)).toBe(false);
+ } finally {files.done();}
+});
+
+test('the token cache runs on a monotonic clock: a wall clock stepped back does not keep a replaced token',async()=>{
+ const files=place();const wall=Date.now;
+ try {
+  // The wall clock is stubbed from the start, so a cache that read it would read the stub.
+  let clock=wall();Date.now=()=>clock;
+  const probe=confirmationProbe(()=>true,files.token,{ttlMs:50});
+  expect(probe.key(TOKEN)).toBe(true);
+  const next='n'.repeat(43);
+  writeFileSync(files.token,next+'\n');
+  // The wall clock steps back a day; the cached token must still be reread after 50 ms.
+  clock-=86_400_000;
+  await Bun.sleep(80);
+  expect(probe.key(next)).toBe(true);
+  expect(probe.key(TOKEN)).toBe(false);
+ } finally {Date.now=wall;files.done();}
+});

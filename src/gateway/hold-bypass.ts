@@ -2,7 +2,7 @@ import {readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {timingSafeEqual} from 'node:crypto';
 import {UPDATES_DIRECTORY} from '../control/updates';
-import {holdApplication} from './hold';
+import {holdApplication,type HoldScope} from './hold';
 
 export const PROBE_TOKEN=join(UPDATES_DIRECTORY,'probe-token');
 export const PROBE_HEADER='x-sbarbase-upgrade-probe';
@@ -24,8 +24,11 @@ const PROBED=/^\/[a-z][a-z0-9_]{1,30}\/(rest|auth)\/v1(\/|$)/;
  * keeps digests only; a publishable key grants what any application visitor already has, and
  * the stored keys are still looked up first (KeyStore.confirmationProbe).
  *
- * The token is reread at most once per `ttlMs`, as the hold itself is. */
-export function confirmationProbe(held:()=>boolean,path=PROBE_TOKEN,{ttlMs=1000,now=Date.now}:{ttlMs?:number;now?:()=>number}={}) {
+ * `held` is true under a hold of either scope (src/gateway/hold.ts): under a `management` hold
+ * application traffic flows, and the probe still confirms the version with the same token.
+ *
+ * The token is reread at most once per `ttlMs`, on the same monotonic clock as the hold. */
+export function confirmationProbe(held:()=>boolean,path=PROBE_TOKEN,{ttlMs=1000,now=()=>performance.now()}:{ttlMs?:number;now?:()=>number}={}) {
  let checked=-Infinity,token:string|undefined;
  const current=()=>{
   const at=now();
@@ -50,14 +53,14 @@ export function confirmationProbe(held:()=>boolean,path=PROBE_TOKEN,{ttlMs=1000,
    if(!PROBED.test(new URL(request.url).pathname))return false;
    return same(request.headers.get(PROBE_HEADER));
   },
-  /** The probe's token as an API key, while the hold is on: only the probe reaches the gateway then. */
+  /** The probe's token as an API key, while a hold is on. */
   key(value:string):boolean {return held()&&same(value);},
  };
 }
 
 /** holdApplication, except that the supervisor's probe reaches the gateway. The management API
  * is never the probe's path, so whatever the hold decides for it stays as it is. */
-export function holdExceptProbe(handler:(request:Request)=>Promise<Response>,held:()=>boolean,
+export function holdExceptProbe(handler:(request:Request)=>Promise<Response>,held:()=>boolean|HoldScope|undefined,
  probe:{matches(request:Request):boolean}) {
  const holding=holdApplication(handler,held);
  return (request:Request):Promise<Response>=>probe.matches(request)?handler(request):holding(request);

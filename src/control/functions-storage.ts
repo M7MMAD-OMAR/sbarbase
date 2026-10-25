@@ -62,22 +62,27 @@ export function functionsStorage(options:{runtime:string;storage:()=>StorageEndp
  };
 }
 
-type Listener={stop(force?:boolean):void};
+type Listener={stop(force?:boolean):void;drain?(graceMs?:number):Promise<void>};
 
 /** Keeps one listener per environment in step with the published endpoints: opens new ones,
  * and closes those whose environment turned Functions off or whose network changed. */
 export function functionsStorageListeners(options:{read:()=>Record<string,any>;
  open:(runtime:string,at:FunctionsStorageAt)=>Promise<Listener>;log?:(line:string)=>void}) {
  const open=new Map<string,{key:string;listener:Listener}>();
- let busy=false;
+ let busy=false,closed=false;
  return {
   async reconcile(){
    // A slow bind must not let the next tick open the same listener twice.
-   if(busy)return;busy=true;
+   if(busy||closed)return;busy=true;
    try{await step();}finally{busy=false;}
   },
   runtimes:()=>[...open.keys()],
-  stop(){for(const current of open.values())current.listener.stop(true);open.clear();},
+  /** Opens nothing more and drains every open listener; stop() closes what is left. */
+  async drain(graceMs?:number){
+   closed=true;
+   await Promise.all([...open.values()].map(current=>current.listener.drain?.(graceMs)));
+  },
+  stop(){closed=true;for(const current of open.values())current.listener.stop(true);open.clear();},
  };
  async function step(){
   let wanted:Map<string,FunctionsStorageAt>;
@@ -89,7 +94,12 @@ export function functionsStorageListeners(options:{read:()=>Record<string,any>;
   }
   for(const [runtime,at] of wanted){
    if(open.has(runtime))continue;
-   try{open.set(runtime,{key:`${at.host}:${at.port}:${at.subnet}`,listener:await options.open(runtime,at)});}
+   try{
+    const listener=await options.open(runtime,at);
+    // A stop that began during the bind: the new listener closes at once.
+    if(closed){listener.stop(true);return;}
+    open.set(runtime,{key:`${at.host}:${at.port}:${at.subnet}`,listener});
+   }
    catch(error){options.log?.(`Functions Storage listener for ${runtime} unavailable: ${(error as Error).message}`);}
   }
  }
