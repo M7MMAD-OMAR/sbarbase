@@ -1,9 +1,9 @@
 {
-  "version": "0.7.1",
+  "version": "0.8.0",
   "minimum_from": "0.3.1",
   "notes": {
-    "en": "Adds an experimental, off by default bounded database restart window, and documents the upgrade switches and every known limit. Not production ready.",
-    "ar": "يضيف نافذة تجريبية ومحدودة ومتوقفة افتراضيًا لإعادة تشغيل قاعدة البيانات، ويوثّق مفاتيح الترقية وكل حد معروف. ليس جاهزًا للإنتاج."
+    "en": "Turns the in place console handover, REST side by side rolling and the database restart window on by default, each with an opt out. Proven by unit tests and one real update, not yet measured under load on a real server.",
+    "ar": "يفعّل افتراضيًا تسليم وحدة التحكم في مكانها واستبدال REST جنبًا إلى جنب ونافذة إعادة تشغيل قاعدة البيانات، ولكل منها إيقاف صريح. ثبتت باختبارات الوحدات وبتحديث حقيقي واحد، ولم تُقَس تحت حمل على خادم حقيقي."
   },
   "migrations": []
 }
