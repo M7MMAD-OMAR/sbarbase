@@ -7,7 +7,7 @@ URL = 'postgresql://e_aaaaaaaaaaaaaaaaaaaaaaaa_developer:S3cretPw_value@127.0.0.
 
 
 class HyperdriveScript(unittest.TestCase):
-    def run_script(self, *args):
+    def run_script(self, *args, stub_id=True):
         with tempfile.TemporaryDirectory() as folder:
             home = Path(folder)
             log = home / 'calls.log'
@@ -16,7 +16,7 @@ class HyperdriveScript(unittest.TestCase):
             wrangler = home / 'wrangler'
             wrangler.write_text('#!/bin/sh\necho "wrangler $*" >> "%s"\ncase "$*" in\n'
                                 '*"vpc service create"*) echo "Created VPC service: svc-123";;\n'
-                                '*"hyperdrive create"*) echo "Created new Hyperdrive PostgreSQL config: hd-456";;\nesac\n' % log)
+                                '*"hyperdrive create"*) echo "%s";;\nesac\n' % (log, 'Created new Hyperdrive PostgreSQL config: hd-456' if stub_id else 'created'))
             for tool in (ssh, wrangler):
                 tool.chmod(tool.stat().st_mode | stat.S_IXUSR)
             env = dict(os.environ, PATH=f'{home}:{os.environ["PATH"]}', WRANGLER=str(wrangler), HOME=str(home))
@@ -34,6 +34,12 @@ class HyperdriveScript(unittest.TestCase):
         self.assertIn('--tunnel-id tun-1', calls)
         self.assertIn('--service-id svc-123', calls)
         self.assertIn('--caching-disabled', calls)
+        self.assertEqual(self.saved, (0o600, f'DATABASE_URL={URL}\n'))
+
+    def test_unreadable_id_fails_and_keeps_the_saved_url(self):
+        result, calls, home = self.run_script('you@srv', 'shop/production', 'my-db', '--service-id', 'svc-9', '--save-url', 'out.env', stub_id=False)
+        self.assertEqual(result.returncode, 7)
+        self.assertNotIn('S3cretPw_value', result.stdout + result.stderr)
         self.assertEqual(self.saved, (0o600, f'DATABASE_URL={URL}\n'))
 
     def test_existing_service_is_reused(self):

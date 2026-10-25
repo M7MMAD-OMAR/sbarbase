@@ -12,7 +12,7 @@
 #   --save-url FILE      also append DATABASE_URL=<local connection string> to FILE (created 0600)
 #   --remote-cmd CMD     how to run sbarbase on the server (default: sudo -u sbarbase /opt/sbarbase/deploy/sbarbase)
 set -eu
-usage() { sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+usage() { sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 [ $# -ge 3 ] || usage
 server=$1; environment=$2; name=$3; shift 3
 tunnel=; service=; saveurl=; remote='sudo -u sbarbase /opt/sbarbase/deploy/sbarbase'
@@ -39,6 +39,7 @@ ssh "$server" "rm -f \$HOME/$remote_file; $remote database-password $environment
 url=$(ssh "$server" "cat \$HOME/$remote_file; shred -u \$HOME/$remote_file")
 rest=${url#postgresql://}; user=${rest%%:*}; rest=${rest#*:}; pw=${rest%%@*}; db=${url##*/}
 [ -n "$user" ] && [ -n "$pw" ] && [ "$user" = "${db}_developer" ] || { echo 'hyperdrive: the server answered something unexpected' >&2; exit 4; }
+if [ -n "$saveurl" ]; then printf 'DATABASE_URL=%s\n' "$url" >> "$saveurl"; echo "Local connection string appended to $saveurl"; fi
 if [ -z "$service" ]; then
   echo "3/4 Making the Workers VPC service for the tunnel"
   service=$($WRANGLER vpc service create "sbarbase-$name" --type tcp --tcp-port 6545 --app-protocol postgresql \
@@ -49,9 +50,9 @@ else
 fi
 echo "4/4 Creating the Hyperdrive"
 out=$($WRANGLER hyperdrive create "$name" --service-id "$service" --database "$db" --user "$user" --password "$pw" \
-  --caching-disabled --origin-connection-limit 8 2>&1) || { echo "$out" | sed "s/$pw/<hidden>/g" >&2; exit 6; }
+  --caching-disabled --origin-connection-limit 8 2>&1) || { printf '%s\n' "$out" | grep -vF -e "$pw" >&2; exit 6; }
 id=$(printf '%s\n' "$out" | sed -n 's/.*Hyperdrive PostgreSQL config: *//p' | head -n 1)
-if [ -n "$saveurl" ]; then printf 'DATABASE_URL=%s\n' "$url" >> "$saveurl"; echo "Local connection string appended to $saveurl"; fi
+[ -n "$id" ] || { echo 'hyperdrive: the Hyperdrive was created but its id could not be read; look it up with: wrangler hyperdrive list' >&2; exit 7; }
 echo
 echo "Hyperdrive id: $id"
 echo 'In the Worker config: "compatibility_flags": ["nodejs_compat"], "hyperdrive": [{"binding": "HYPERDRIVE", "id": "'"$id"'"}]'
