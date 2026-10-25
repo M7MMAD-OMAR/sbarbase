@@ -6,7 +6,7 @@ import {chmodSync} from 'node:fs';
 import {ManagementSecurity} from './management-security';
 import {requireCurrentManagement} from './management-context';
 import {captureLifecycleAuthorization,requireLifecycleAuthorization,type LifecycleAuthorizationStore} from './lifecycle-authority';
-import {type LifecycleAdmission,type LifecycleResource,type LifecycleOperation,type LifecycleState,RETENTION_MS,inventoryDigest,placementDigest,validateLifecycleCoverage} from './lifecycle-contract';
+import {type LifecycleAdmission,type LifecycleResource,type LifecycleOperation,type LifecycleState,RETENTION_MS,DURABLE_COVERAGE,InventoryRefusal,inventoryDigest,placementDigest,validateLifecycleCoverage} from './lifecycle-contract';
 
 export type MembershipRole = 'owner' | 'admin' | 'viewer';
 type Project = {id:string;organization:string;name:string};
@@ -181,6 +181,8 @@ export class Catalog {
   private channels:NotificationChannel[];
   private readonly lifecycleAdmission:LifecycleAdmission|undefined;
   lifecycleAuthorizationStore:LifecycleAuthorizationStore|undefined;
+  /** Installed by the serving process (lab/upstream-app.ts): derives an environment's exact inventory from durable state, or refuses with a reason. */
+  durableInventory:((runtime:string,installation:string)=>Promise<LifecycleResource[]>)|undefined;
   constructor(path:string,options?:{channels?:NotificationChannel[];lifecycleAdmission?:LifecycleAdmission}) {
     this.lifecycleAdmission=options?.lifecycleAdmission;
     this.db=new Database(path,{create:true,strict:true});
@@ -1499,6 +1501,50 @@ export class Catalog {
       this.record(actor,'environment.renamed',environment,{});
     }).immediate();
   }
+  /** The refusals deleteEnvironment makes before it records anything, without recording. Returns whether an ownership
+   * inventory still has to be derived: none is recorded, or the one recorded is of the durable runtime and is checked again. */
+  deletionPreflight(actor:string,environment:string):{runtime:string;enroll:boolean} {
+    this.retainedProject(actor,environment,['owner']);
+    const job=this.job(environment);
+    if(!job)throw new Error('No provisioning operation');
+    this.assertLifecycleRuntimeUnheld(job.runtime);
+    const current=this.lifecycleRow(environment);
+    if(current&&current.state!=='active')return {runtime:job.runtime,enroll:false};
+    if(['queued','running'].includes(job.state))throw new Error('Provisioning is active');
+    if(this.runtimeServicesActive(job.runtime))throw new Error('Environment services are still on');
+    return {runtime:job.runtime,enroll:!current?.resources.length||current.coverage===DURABLE_COVERAGE};
+  }
+  /** Before a delete: derive the exact inventory of an environment of the durable runtime from its durable state and
+   * record it, or refuse with a precise reason (InventoryRefusal) and change nothing. A no-op where no deriver is installed. */
+  async prepareDeletion(actor:string,environment:string):Promise<void> {
+    const pre=this.deletionPreflight(actor,environment);
+    if(!pre.enroll||!this.durableInventory)return;
+    const installation=this.installationBootstrap()?.organization;
+    if(!installation)throw new InventoryRefusal('installation_unrecorded');
+    let resources:LifecycleResource[];
+    try{resources=await this.durableInventory(pre.runtime,installation);}
+    catch(error){throw error instanceof InventoryRefusal?error:new InventoryRefusal('observation_unavailable');}
+    try{this.registerDurableInventory(pre.runtime,resources);}
+    catch(error){throw error instanceof Error&&error.message==='Invalid ownership inventory'?new InventoryRefusal('inventory_invalid'):error;}
+  }
+  /** The exact inventory of a durable runtime environment, recorded at provisioning and checked again at deletion.
+   * It may be replaced while the environment is active (an optional container can appear); never during an operation. */
+  registerDurableInventory(runtime:string,resources:LifecycleResource[]):void {
+    validateLifecycleCoverage(runtime,resources,DURABLE_COVERAGE);
+    this.db.transaction(()=>{
+      this.assertLifecycleRuntimeUnheld(runtime);
+      const job=this.db.query<ProvisionJob,[string]>('SELECT * FROM provision_jobs WHERE runtime=?').get(runtime);
+      if(!job)throw new Error('Runtime unavailable');
+      const row=this.lifecycleRow(job.environment),inventory=JSON.stringify(resources);
+      if(row&&row.state!=='active')throw new Error('Lifecycle operation is active');
+      if(row?.inventory&&row.coverage!==DURABLE_COVERAGE)throw new Error('Ownership inventory is immutable');
+      if(row?.inventory===inventory)return;
+      this.db.query(`INSERT INTO environment_lifecycle(environment,runtime,state,epoch,operation,inventory,coverage)
+        VALUES (?,?,'active',0,?,?,?) ON CONFLICT(environment) DO UPDATE SET inventory=excluded.inventory,coverage=excluded.coverage`)
+        .run(job.environment,runtime,randomUUID(),inventory,DURABLE_COVERAGE);
+      this.record('system:lifecycle',row?.inventory?'lifecycle.resources_refreshed':'lifecycle.resources_enrolled',job.environment,{runtime,resources:resources.length,coverage:DURABLE_COVERAGE});
+    }).immediate();
+  }
   /** Retain hierarchy, settings and receipts while revoking all runtime access immediately. */
   deleteEnvironment(actor:string,environment:string):{runtime:string|null} {
     return this.db.transaction(()=>{
@@ -1581,6 +1627,7 @@ export class Catalog {
         throw new Error('Lifecycle operation identity was already used');
       if(!row||row.state!=='deleted')throw new Error('Lifecycle operation is active');
       if(!row.resources.length)throw new Error('Exact ownership inventory unavailable');
+      if(state==='purging'&&row.coverage===DURABLE_COVERAGE)throw new Error('Shared writer isolation unavailable');
       validateLifecycleCoverage(row.runtime,row.resources,row.coverage);
       if(state==='restoring'&&Date.now()>=row.retain_until!)throw new Error('Retention has expired');
       let receipt:string|null=null;
@@ -1638,8 +1685,10 @@ export class Catalog {
     return {environment:row.environment,runtime:row.runtime,epoch:row.epoch,coverage:row.coverage,placement:resolveRuntimePlacement(row.runtime,routing).profile,
       inventoryDigest:inventoryDigest(row.resources),placementDigest:placementDigest(routing)};
   }
-  nextLifecycleOperation():LifecycleOperation|null {
-    const row=this.db.query<{environment:string},[]>(`SELECT environment FROM environment_lifecycle WHERE state IN ('deleting','restoring','purging') ORDER BY environment LIMIT 1`).get();
+  /** `durable` selects the operations of the durable runtime, `other` all the rest: each worker takes only its own. */
+  nextLifecycleOperation(scope?:'durable'|'other'):LifecycleOperation|null {
+    const filter=scope==='durable'?`AND coverage='${DURABLE_COVERAGE}'`:scope==='other'?`AND COALESCE(coverage,'')!='${DURABLE_COVERAGE}'`:'';
+    const row=this.db.query<{environment:string},[]>(`SELECT environment FROM environment_lifecycle WHERE state IN ('deleting','restoring','purging') ${filter} ORDER BY environment LIMIT 1`).get();
     return row?this.lifecycleRow(row.environment):null;
   }
   assertLifecycleOperation(row:LifecycleOperation):void {

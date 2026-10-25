@@ -50,8 +50,8 @@ async function runAuthorizedLifecycleOperation(catalog:Catalog,adapter:Lifecycle
    measurements.set(resource.resource,bytes);
   }
   const ordered=[...row.resources].sort((a,b)=>{
-   const rank=(item:LifecycleResource)=>action==='restore'?(item.kind==='shared-database'?0:item.kind==='container'?2:1):
-    item.kind==='container'?0:item.kind==='shared-database'?1:item.kind==='volume'?2:3;
+   const rank=(item:LifecycleResource)=>action==='restore'?(item.kind==='shared-database'||item.kind==='durable-tenant'?0:item.kind==='container'||item.kind==='durable-container'?2:1):
+    item.kind==='container'||item.kind==='durable-container'?0:item.kind==='shared-database'?1:item.kind==='volume'?2:3;
    return rank(a)-rank(b);
   });
   for(const resource of ordered){

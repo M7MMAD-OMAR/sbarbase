@@ -185,9 +185,10 @@ test('unenrolled deletion refuses before revoking readiness or runtime epoch',()
  }finally{catalog.close();}
 });
 
-// Characterizes the current gap, not the intended contract: ordinary provisioning never enrolls
-// an ownership inventory, and its legacy-shared placement could not enroll one honestly.
-test('deleting an ordinarily provisioned environment answers 409 and changes nothing',async()=>{
+// The contract of an ordinary installation: its legacy-shared runtime has no recorded inventory, so the deriver the
+// serving process installs (lab/upstream-app.ts) names the exact resources at delete time. Where no deriver is installed
+// the old refusal stands (tests/durable-lifecycle.test.ts).
+test('deleting an ordinarily provisioned environment derives its inventory, revokes access and retains it',async()=>{
  const {KeyStore}=await import('../src/control/keys');
  const {managementHandler}=await import('../src/control/http');
  const {resolveRuntimePlacement}=await import('../src/control/placement');
@@ -198,14 +199,24 @@ test('deleting an ordinarily provisioned environment answers 409 and changes not
   const environment=catalog.createEnvironment('alice',project,'production'),job=catalog.claimProvision()!;
   catalog.applyProvisionReceipt(environment,job.runtime,job.claim!,job.attempt,0);
   expect(resolveRuntimePlacement(job.runtime,catalog.runtimeRouting(job.runtime)).profile).toBe('legacy-shared');
+  catalog.durableInventory=async(runtime,installation)=>['auth','rest'].map(service=>({kind:'durable-container' as const,id:`sbarbase-durable-${runtime}-${service}`,
+   resource:randomUUID(),installation,runtime,service:service as 'auth'|'rest'}));
   const key=keys.issue(job.runtime);
   const handler=managementHandler(catalog,async request=>request.headers.get('authorization'),'.',keys);
-  const response=await handler(new Request(`http://local/management/v1/environments/${environment}`,{method:'DELETE',headers:{authorization:'alice'}}));
-  expect(response.status).toBe(409);
-  expect((await response.json()).message).toBe('Exact ownership inventory unavailable');
+  // A tenant is part of every durable inventory: an inventory without it is refused, and nothing changes.
+  const refused=await handler(new Request(`http://local/management/v1/environments/${environment}`,{method:'DELETE',headers:{authorization:'alice'}}));
+  expect(refused.status).toBe(409);
+  expect(await refused.json()).toEqual({message:'Exact ownership inventory unavailable',reason:'inventory_invalid'});
   expect(catalog.runtimeReady(job.runtime)).toBe(true);expect(catalog.runtimeEpoch(job.runtime)).toBe(0);
-  expect(catalog.lifecycle('alice',environment)).toBeNull();
   expect(keys.list(job.runtime).find(record=>record.id===key.id)?.revoked_at).toBeNull();
+  catalog.durableInventory=async(runtime,installation)=>[...['auth','rest'].map(service=>({kind:'durable-container' as const,id:`sbarbase-durable-${runtime}-${service}`,
+   resource:randomUUID(),installation,runtime,service:service as 'auth'|'rest'})),{kind:'durable-tenant' as const,id:runtime,resource:randomUUID(),installation,runtime,
+   durable:{database:runtime,roles:['auth','rest','storage'].map(role=>`${runtime}_${role}`),storageTenant:runtime}}];
+  const response=await handler(new Request(`http://local/management/v1/environments/${environment}`,{method:'DELETE',headers:{authorization:'alice'}}));
+  expect(response.status).toBe(200);
+  expect(catalog.runtimeReady(job.runtime)).toBe(false);expect(catalog.runtimeEpoch(job.runtime)).toBe(1);
+  expect(catalog.lifecycle('alice',environment)!.state).toBe('deleting');
+  expect(keys.list(job.runtime).find(record=>record.id===key.id)?.revoked_at).toBeNumber();
  }finally{keys.close();catalog.close();}
 });
 

@@ -55,7 +55,7 @@ try {
   }
   await enrollLifecycleResources(catalog,adapter,values.runtime,resources,values.coverage);
  }else{
-  const row=catalog.nextLifecycleOperation();
+  const row=catalog.nextLifecycleOperation('other');
   if(row)await runLifecycleOperation(catalog,adapter,row,async current=>{
    try{
     const placement=resolveRuntimePlacement(current.runtime,catalog.runtimeRouting(current.runtime));

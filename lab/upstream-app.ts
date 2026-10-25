@@ -8,6 +8,7 @@ import {PressureMonitor} from '../src/gateway/pressure';
 import {applicationConcurrency} from '../src/gateway/managed';
 import {createHmac} from 'node:crypto';
 import {Catalog} from '../src/control/catalog';
+import {durableInventoryDeriver} from '../src/control/durable-lifecycle';
 import {KeyStore} from '../src/control/keys';
 import {AccessTokenStore} from '../src/control/access-tokens';
 import {application} from '../src/control/application';
@@ -97,6 +98,8 @@ export function openUpstreamApplication() {
  const receipt=process.env.SBARBASE_LIFECYCLE_RECOVERY_RECEIPT;
  const catalog=new Catalog('.lab/upstream/control.sqlite',{lifecycleAdmission:receipt?installedLifecycleAdmission(process.cwd(),receipt):undefined});
  catalog.lifecycleAuthorizationStore=LifecycleAuthorizationStore.installed(process.cwd());
+ // An environment's exact inventory is derived from this host's durable state when it is deleted (src/control/durable-lifecycle.ts).
+ catalog.durableInventory=durableInventoryDeriver(process.cwd());
  const keys=new KeyStore('.secrets/upstream/managed-keys.sqlite');
  const tokens=new AccessTokenStore('.secrets/upstream/access-tokens.sqlite');
  // The server's own loopback address, set once it listens: the MCP endpoint reaches the

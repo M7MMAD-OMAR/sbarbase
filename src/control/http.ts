@@ -1,6 +1,7 @@
 import {bindManagementPublication,managementPublication,requireOperatorPublication,requireOrganizationPublication} from './management-publication';
 import {refreshCurrentManagement} from './management-context';
 import {refreshLifecycleRequest} from './lifecycle-authority';
+import {InventoryRefusal} from './lifecycle-contract';
 import {Catalog,type MembershipRole,type Ownership} from './catalog';
 import type {KeyStore} from './keys';
 import {authenticate,reply,type ManagementIdentity} from './auth';
@@ -100,11 +101,12 @@ const CONFLICTS=new Set(['Name already used','Environment capacity reached','Org
   'Environment services are still on','Runtime was deleted here','Organization name belongs to another organization',
   'Project belongs to another organization','Environment exists with another project or runtime',
   'Runtime belongs to another environment','Lifecycle operation is active','Exact ownership inventory unavailable',
-  'Retention has expired','Retention has not expired','Complete recovery proof unavailable']);
+  'Retention has expired','Retention has not expired','Complete recovery proof unavailable','Shared writer isolation unavailable']);
 const INVALID=new Set(['Invalid name','Invalid ownership','Invalid runtime','Invalid lifecycle operation']);
 function refusal(error:unknown):Response {
   const message=error instanceof Error?error.message:'';
   if(error instanceof UpdateRefusal)return reply(error.status,{message});
+  if(error instanceof InventoryRefusal)return reply(409,{message,reason:error.reason});
   if(error instanceof InputError||INVALID.has(message))return reply(400,{message:'Invalid request'});
   if(message==='Forbidden')return reply(403,{message:'Forbidden'});
   if(CONFLICTS.has(message))return reply(409,{message});
@@ -218,6 +220,7 @@ export function managementHandler(catalog:Catalog,identify:ManagementIdentity,ma
         if(kind==='projects'){catalog.deleteProject(actor,id);return reply(200,{deleted:true});}
         if(!keys)return reply(500,{message:'Key revocation unavailable'});
         await refreshLifecycleRequest(catalog);
+        await catalog.prepareDeletion(actor,id);
         const {runtime}=catalog.deleteEnvironment(actor,id);
         // The catalog commits first, so a refusal changes nothing. From then on the gateway
         // answers 401 for the runtime whatever happens to the keys; revoking them keeps it so.

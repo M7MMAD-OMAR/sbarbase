@@ -5,7 +5,7 @@ import {constants,openSync,closeSync,fstatSync,readFileSync,writeFileSync,fsyncS
 import {resolve,join} from 'node:path';
 import {managementPasswordIdentity,hasManagementAccess,type PasswordIdentity} from './auth';
 import type {Catalog} from './catalog';
-import type {LifecycleOperation} from './lifecycle-contract';
+import {softCoverage,type LifecycleOperation} from './lifecycle-contract';
 
 export type LifecycleRealm={auth:string;key:string;process:string};
 export type LifecycleRealmReader=()=>Promise<LifecycleRealm>;
@@ -143,14 +143,14 @@ export class NativeLifecycleAuthority {
 }
 export function captureLifecycleAuthorization(catalog:Catalog,row:Binding,renewal=false):{digest:string;identity:string}|null {
  const authority=scope.getStore();if(authority){if(!authority.owns(catalog))return refused();return authority.capture(row,renewal);}
- if(row.coverage!=='disposable-fixture')return refused();return null;
+ if(!softCoverage(row.coverage))return refused();return null;
 }
 export function requireLifecycleAuthorization(catalog:Catalog,row:LifecycleOperation):void {
- if(!catalog.lifecycleAuthorizationDigest(row.operation)&&row.coverage==='disposable-fixture')return;
+ if(!catalog.lifecycleAuthorizationDigest(row.operation)&&softCoverage(row.coverage))return;
  const authority=scope.getStore();if(!authority||!authority.owns(catalog))return refused();authority.assertCurrent(row);
 }
 export async function refreshLifecycleAuthorization(catalog:Catalog,row:LifecycleOperation):Promise<void>{
- if(!catalog.lifecycleAuthorizationDigest(row.operation)&&row.coverage==='disposable-fixture')return;
+ if(!catalog.lifecycleAuthorizationDigest(row.operation)&&softCoverage(row.coverage))return;
  const authority=scope.getStore();if(!authority||!authority.owns(catalog))return refused();await authority.refresh(row);
 }
 
