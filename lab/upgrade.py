@@ -87,7 +87,7 @@ BACKUP_LOCK = UPSTREAM / 'backup.lock'
 # Records that must be reconciled before anything moves (the same set hba_startup refuses), and an
 # unfinished side by side replacement of Auth or REST (lab/rolling.py), which the version that left it
 # repairs at its next start or roll: a version without that module would never repair it.
-UNSETTLED = ('worker-effect.json', hba_journal.NAME, hba_generation.MIGRATION, rolling.NAME)
+UNSETTLED = ('worker-effect.json', hba_journal.NAME, hba_generation.MIGRATION, rolling.NAME, rolling.HELD)
 # Which lock entry each replaceable service runs, as durable_runtime reads them.
 SERVICES = upgrade_guard.SERVICES
 DEFAULT_TARGET = 'origin/main'
@@ -1011,10 +1011,27 @@ def after_start(started, reason=None):
         release_hold()
 
 
+def show_rolling():
+    progress = rolling.status()
+    if progress is not None:
+        # Auth or REST the new pin replaces environment by environment after the confirmation (lab/rolling.py).
+        waiting = sorted(f'{e} {service} {state}' for e, services in progress['environments'].items()
+                         for service, state in services.items() if state != 'new')
+        print('rolling  ' + (f"stopped: {progress['stopped']}; " if progress['stopped'] else '')
+              + ('previous pin: ' + ', '.join(waiting) if waiting else 'done'))
+        for what, reason in sorted(progress.get('skipped', {}).get('reasons', {}).items()):
+            print(f'rolling  skipped {what}: {reason or "no reason recorded"}')
+        for e, reason in sorted(progress.get('held', {}).items()):
+            print(f'rolling  held {e}: {reason}; after checking its containers run '
+                  f'python3 lab/rolling.py repair --force {e}, it resumes at the next supervisor start')
+
+
 def status():
     state = load_state()
     if not state:
         print('No upgrade has run on this installation.')
+        # An environment held at a start is worth showing whatever the upgrade history says.
+        show_rolling()
         return
     words = {'applied': 'waiting for the new version to start and pass its health checks',
              'confirmed': 'the new version started and passed its health checks',
@@ -1038,13 +1055,7 @@ def status():
     if state.get('snapshot'):
         restored = ' (restored on the way back)' if state.get('restored') == state['snapshot'] else ''
         print(f"control  snapshot {SNAPSHOTS.relative_to(ROOT) if SNAPSHOTS.is_relative_to(ROOT) else SNAPSHOTS}/{state['snapshot']}{restored}")
-    progress = rolling.status()
-    if progress is not None:
-        # Auth or REST the new pin replaces environment by environment after the confirmation (lab/rolling.py).
-        waiting = sorted(f'{e} {service} {state}' for e, services in progress['environments'].items()
-                         for service, state in services.items() if state != 'new')
-        print('rolling  ' + (f"stopped: {progress['stopped']}; " if progress['stopped'] else '')
-              + ('previous pin: ' + ', '.join(waiting) if waiting else 'done'))
+    show_rolling()
     print(f"now at  {git('rev-parse', 'HEAD')[:12]}")
 
 

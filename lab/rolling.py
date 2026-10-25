@@ -28,8 +28,9 @@ does that:
      name and its settings file, the limits go back, and the record goes last.
 - **An environment that is not running is skipped.** Nothing serves from it, so its entry is marked `skipped`
   with the reason, it stays on its previous pin (the by-name commands still refuse for it, and the next start
-  replaces it in place) and the other environments go on; so is a fenced one. `retry` asks for it again. A paused or
-  unpublished environment keeps waiting as `old` and makes `due` false until it returns.
+  replaces it in place) and the other environments go on. It is not permanent: `due` looks again (a bounded,
+  rate limited check) and a roll takes the entry back to `old` once its container runs; `retry` asks at once.
+  A paused, fenced or unpublished environment keeps waiting as `old` and makes `due` false until it returns.
 - **The first failure stops the roll.** The environment is marked `failed` and the plan `stopped`: the rest
   keep the previous pin, `rolling.py status` and `upgrade.py status` say which environment runs which (the
   same is written to current.json, which the console does not show yet), and `rolling.py retry` starts the
@@ -37,8 +38,9 @@ does that:
   settings that cannot be written beside the serving REST count as failures; nothing changed then.
 
 A swap record in a state repair does not recognise (a container removed by hand) holds only that environment
-at a start (repair_or_hold): the others start, and `lab/rolling.py repair --force ENVIRONMENT` settles it, never
-removing a container it did not create (repair_force).
+(repair_or_hold, at a start and at every roll): the others start and roll, the held one and its reason are in
+`status`, and `lab/rolling.py repair --force ENVIRONMENT` settles it, never removing a container it did not
+create (repair_force); the environment resumes at the next supervisor start.
 
 A crash leaves the swap record, and the next start, or the next roll, repairs from it first (repair):
 before `switched` the new container goes; at `switched` the address goes back to the old one, which is
@@ -74,10 +76,19 @@ SERVICES = {'auth': (9999, '/health'), 'rest': (3000, '/')}
 # The new container's name until the old one is gone; reconcile_auth's own is `-previous`.
 SUFFIX = '-next'
 NAME = 'rolling.json'
+# The swap records repair_or_hold moved aside (an environment held, and why), for `status` (another process) and the guards.
+HELD = 'rolling-held.json'
 PLAN = 'rolling-plan.json'
 PHASES = ('starting', 'switched', 'retiring')
-# `skipped`: left on its previous pin on purpose, with the reason in the entry (an environment that is not running, or fenced).
+# `skipped`: left on its previous pin on purpose, with the reason in the entry (an environment that is not running; asked again once it runs).
 STATES = ('old', 'new', 'failed', 'skipped')
+# due() looks at skipped entries (are they running again?) at most this often and for at most this many per look.
+SKIP_RECHECK_SECONDS = 30
+SKIP_RECHECK_MAX = 16
+# due() reports an error it swallows at most this often.
+DUE_LOG_SECONDS = 300
+_due_logged = None
+_skip_checked = None
 # Added to REST's longest deadline: the old container keeps running at least this long after the switch.
 DRAIN_MARGIN_SECONDS = 5
 CHECK_SECONDS = 1
@@ -209,6 +220,10 @@ def require_settled(e=None, plan=True):
             record = None
         if record is None or e is None or record['environment'] == e:
             raise RuntimeError('A side by side replacement of Auth or REST is unfinished; start Sbarbase once so it is repaired')
+    held = held_environments()
+    if e is None and held or e in held:
+        raise RuntimeError('A side by side replacement of Auth or REST is held (lab/rolling.py status); '
+                           'check its containers and run lab/rolling.py repair --force ENVIRONMENT')
     if plan and plan_path().exists():
         try:
             current = read_plan()
@@ -286,39 +301,116 @@ def finish_start(runtime):
     write_plan(plan)
 
 
+def held_path():
+    return runtime_module().STATE / HELD
+
+
+def read_held():
+    """{environment: {'reason', 'record'}} of the swap records repair_or_hold moved aside, so that the single
+    record slot is free for the other environments' swaps. Never raises: it is for display, due and the guards."""
+    try:
+        data = json.loads(held_path().read_text())
+        held = data['held']
+        return {e: item for e, item in held.items() if ENVIRONMENT.fullmatch(str(e)) and isinstance(item, dict)
+                and isinstance(item.get('reason'), str) and isinstance(item.get('record'), dict)}
+    except (OSError, ValueError, KeyError, AttributeError, TypeError):
+        return {}
+
+
+def held_environments():
+    """{environment: reason} for the environments repair_or_hold holds."""
+    return {e: item['reason'] for e, item in read_held().items()}
+
+
+def write_held(held):
+    if held:
+        runtime_module().atomic(held_path(), {'version': 1, 'held': held})
+    else:
+        settle(held_path())
+
+
 def status():
     """Which environment runs which pin while a roll is not finished, for current.json and `status`; None
-    when nothing waits. A plan that cannot be read says so in `stopped`."""
+    when nothing waits and nothing is held. `skipped` is {count, reasons} for the entries left on their pin
+    on purpose, `held` is {environment: reason} for an environment whose swap record repair does not
+    recognise (it resumes at the first supervisor start after `repair --force`). A plan that cannot be
+    read says so in `stopped`."""
     try:
         plan = read_plan()
     except RuntimeError as error:
         return {'stopped': str(error), 'environments': {}}
-    if plan is None:
+    held = held_environments()
+    if plan is None and not held:
         return None
-    return {'stopped': plan['stopped'], 'canary': plan['canary'],
-            'environments': {e: {s: item['state'] for s, item in services.items()} for e, services in plan['environments'].items()}}
+    environments = {} if plan is None else plan['environments']
+    skipped = {f'{e} {s}': item.get('reason', '') for e, services in environments.items()
+               for s, item in services.items() if item['state'] == 'skipped'}
+    return {'stopped': None if plan is None else plan['stopped'], 'canary': None if plan is None else plan['canary'],
+            'environments': {e: {s: item['state'] for s, item in services.items()} for e, services in environments.items()},
+            'skipped': {'count': len(skipped), 'reasons': skipped},
+            'held': held}
+
+
+def log_due(error):
+    """One line to stderr naming the error due() swallowed, at most once per DUE_LOG_SECONDS."""
+    global _due_logged
+    now = time.monotonic()
+    if _due_logged is None or now - _due_logged >= DUE_LOG_SECONDS:
+        _due_logged = now
+        print(f'rolling.due: {type(error).__name__}: {error}; treated as nothing due', file=sys.stderr, flush=True)
+
+
+def revivable(plan, limit=SKIP_RECHECK_MAX):
+    """The (environment, service) pairs of skipped entries whose container runs again, looking at no more than
+    `limit` of them."""
+    rt = runtime_module()
+    found = []
+    for e, services in plan['environments'].items():
+        for service, item in services.items():
+            if item['state'] != 'skipped':
+                continue
+            if limit <= 0:
+                return found
+            limit -= 1
+            container = rt.inspect('container', canonical(e, service))
+            if container and container.get('State', {}).get('Running'):
+                found.append((e, service))
+    return found
 
 
 def due():
     """True when the supervisor has a replacement to make now, or a swap record to repair (a roll repairs
-    first). Not for a plan that cannot be read: that waits for an operator (status says why)."""
-    if path().exists():
-        return True
+    first). Not for a plan that cannot be read: that waits for an operator (status says why). A held
+    environment (its record was moved aside) is not due: an operator settles it, and nor are its entries. A skipped entry is
+    looked at again at most every SKIP_RECHECK_SECONDS and is due once its container runs. Any other
+    error is logged (rate limited) and counts as nothing due."""
+    global _skip_checked
     try:
+        held = held_environments()
+        if path().exists():
+            return True
         plan = read_plan()
-    except RuntimeError:
-        return False
-    if plan is None or plan['stopped'] is not None:
-        return False
-    # Only an environment a roll could take now: one that is paused or not published waits for its return
-    # (a roll child would find nothing to do every minute), and a skipped one waits for `retry`.
-    import write_pause
-    rt = runtime_module()
-    try:
+        if plan is None or plan['stopped'] is not None:
+            return False
+        # Only an environment a roll could take now: one that is paused or not published waits for its return
+        # (a roll child would find nothing to do every minute).
+        import write_pause
+        rt = runtime_module()
         published = rt.published_endpoints()
-        return any(item['state'] == 'old' and e in published and not write_pause.is_paused(e)
-                   for e, services in plan['environments'].items() for item in services.values())
-    except Exception:
+        if any(item['state'] == 'old' and e in published and e not in held and not write_pause.is_paused(e)
+               for e, services in plan['environments'].items() for item in services.values()):
+            return True
+        now = time.monotonic()
+        if _skip_checked is None or now - _skip_checked >= SKIP_RECHECK_SECONDS:
+            _skip_checked = now
+            return any(e in published and e not in held and not write_pause.is_paused(e)
+                       for e, _ in revivable(plan))
+        return False
+    except RuntimeError:
+        # An unreadable plan: status says why.
+        return False
+    except Exception as error:
+        log_due(error)
         return False
 
 
@@ -587,20 +679,24 @@ def repair(runtime):
 
 
 def repair_or_hold(runtime):
-    """The start's repair: {environment: reason} for the one environment whose record is in a state `repair`
-    does not recognise, which this start does not resume (it is held until `repair --force` or a hand fix),
-    {} when the record was repaired or there was none. Any other failure still refuses the start: a record that
-    cannot be read names no environment, and a Docker or database error is not a state of this record."""
+    """The start's (and the roll's) repair: {environment: reason} for every environment held, which this start does
+    not resume until `repair --force` or a hand fix. A record in a state `repair` does not recognise is moved
+    aside into the held file (written first, then the record removed: a crash between repeats it), which frees
+    the one record slot for the other environments' swaps. Any other failure still refuses the start: a record
+    that cannot be read names no environment, and a Docker or database error is not a state of this record."""
     try:
         repair(runtime)
-        return {}
     except Unrecognised as error:
         record = read()
         reason = str(error)
+        held = read_held()
+        held[record['environment']] = {'reason': reason, 'record': record}
+        write_held(held)
+        settle(path())
         print(f'Environment {record["environment"]} is held: {reason}. The other environments start. '
-              f'Run lab/rolling.py repair --force {record["environment"]} once you checked its containers.',
-              file=sys.stderr, flush=True)
-        return {record['environment']: reason}
+              f'Run lab/rolling.py repair --force {record["environment"]} once you checked its containers; '
+              'it resumes at the next supervisor start.', file=sys.stderr, flush=True)
+    return held_environments()
 
 
 def repair_force(runtime, e):
@@ -616,6 +712,14 @@ def repair_force(runtime, e):
     - then the address is published again for a running canonical container, the limits go back and the record
       goes last. Each action is printed (the supervisor's journal), and the actions are returned.
     A step that fails leaves the record, as the ordinary repair does."""
+    held = read_held()
+    if e in held:
+        # Put the record back in its slot to work on it: a step that fails leaves it there, and the next start holds it again.
+        if path().exists():
+            raise RuntimeError('Another side by side replacement is recorded; start Sbarbase once so it is repaired, then repeat')
+        runtime_module().atomic(path(), held[e]['record'])
+        del held[e]
+        write_held(held)
     record = read()
     if record is None or record['environment'] != e:
         raise RuntimeError(f'No side by side replacement is recorded for {e}; nothing was changed')
@@ -696,10 +800,16 @@ def roll_once(runtime):
     """Replace the next environment of the plan (both its services). Returns IDLE when there is nothing
     to do now, else 0; a failure is recorded in the plan, which then stops."""
     rt = runtime_module()
-    repair(runtime)
+    # One record repair does not recognise holds its environment only; the others roll.
+    held = repair_or_hold(runtime)
     plan = read_plan()
     if plan is None or plan['stopped'] is not None:
         return IDLE
+    # A skipped entry whose container runs again is asked for again.
+    for e, service in revivable(plan):
+        plan['environments'][e][service]['state'] = 'old'
+        plan['environments'][e][service].pop('reason', None)
+        write_plan(plan)
     canary, ordered = order(plan)
     plan['canary'] = canary
     published = rt.published_endpoints()
@@ -709,16 +819,12 @@ def roll_once(runtime):
         waiting = [s for s in ('auth', 'rest') if s in services and services[s]['state'] == 'old']
         if not waiting:
             continue
-        # A paused environment's services are stopped on purpose; it waits for its resume.
-        if e not in published or write_pause.is_paused(e):
+        # A paused environment's services are stopped on purpose; it waits for its resume. So does a held one.
+        if e in held or e not in published or write_pause.is_paused(e):
             continue
+        # Being moved or restored: it waits as a paused one does, and is rolled once the fence clears.
         if rt.source_fence.is_fenced(runtime.sql, e):
-            # Being moved or restored: not rolled, and not asked for again every minute.
-            for service in waiting:
-                services[service]['state'] = 'skipped'
-                services[service]['reason'] = f'{e} is fenced'
-            write_plan(plan)
-            return 0
+            continue
         # A console Data API change writes its settings and signals the serving REST under this lock alone
         # (durable_runtime.data_api_command): a new REST started meanwhile could miss them. So the roll holds
         # it for the environment, tried and never waited for under the operation lock.

@@ -22,7 +22,8 @@ Files, all in .lab/upgrades, private (0600), each replaced atomically:
   current.json       the supervisor's word to the console (publish_current): {version, commit,
                      written_at, rollback: {started_at, possible, reason}, apply: null | {version,
                      tag, class, possible, reason, acknowledgement}, pending, timezone: {name, offset},
-                     rolling: null | {stopped, canary, environments: {runtime: {auth|rest: old|new|failed}}}}
+                     rolling: null | {stopped, canary, environments: {runtime: {auth|rest: old|new|failed|skipped}},
+                              skipped: {count, reasons}, held: {runtime: reason}}}
   available.json     the last check's result, written by lab/release_channel.py; one made on
                      another commit is moved to available.previous.json
   outcome.json       how the last child the supervisor ran ended, written by lab/upgrade.py:
@@ -641,7 +642,8 @@ def publish_current(upgrade_state, moment=None, running=None, rollback=None, blo
       pending          an upgrade or rollback waits for its restart or its confirmation
       timezone         the zone the maintenance window is read in
       rolling          which environments still run the previous Auth or REST pin after an upgrade
-                       that changed it, and whether that replacement stopped (lab/rolling.py status);
+                       that changed it, whether that replacement stopped, the skipped entries with their
+                       reasons, and the environment held for an unrecognised swap record (lab/rolling.py status);
                        recorded here for operators and tools, the console does not show it yet
     A check result made on another commit is set aside first. With `previous` (the record last
     written), nothing is written when only the time would change; returns the record in force."""

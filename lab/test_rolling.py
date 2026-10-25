@@ -1159,16 +1159,26 @@ class RollGuardTests(Fixture):
                     self.patches = lambda: [p for p in real() if getattr(p, 'attribute', None) != 'is_fenced'] + \
                         [patch.object(runtime.source_fence, 'is_fenced', return_value=True)]
                     try:
-                        # Skipped, not idle: the other environments go on in the next run.
-                        self.assertEqual(self.roll(), 0)
+                        # Waits like a paused one: nothing to do now, and it stays old.
+                        self.assertEqual(self.roll(), rolling.IDLE)
                     finally:
                         self.patches = real
                 self.assertNotIn('run', self.fake.calls)
-                item = self.saved_plan()['environments'][E]['rest']
-                # An unpublished environment waits as it is; a fenced one is skipped with the reason.
-                self.assertEqual(item['state'], 'skipped' if label == 'fenced' else 'old')
-                if label == 'fenced':
-                    self.assertIn('fenced', item['reason'])
+                self.assertEqual(self.saved_plan()['environments'][E]['rest']['state'], 'old')
+
+    def test_a_fence_that_clears_is_rolled_later(self):
+        self.build()
+        self.plan()
+        real = self.patches
+        self.patches = lambda: [p for p in real() if getattr(p, 'attribute', None) != 'is_fenced'] + \
+            [patch.object(runtime.source_fence, 'is_fenced', return_value=True)]
+        try:
+            self.assertEqual(self.roll(), rolling.IDLE)
+        finally:
+            self.patches = real
+        self.assertEqual(self.roll(), 0)
+        self.assertIsNone(self.saved_plan(), 'both services replaced, so the plan is settled')
+        self.assertIn('run', self.fake.calls)
 
     def test_a_stopped_container_is_never_swapped(self):
         self.build(running=False)
@@ -1546,6 +1556,60 @@ class SkipTests(Fixture):
         self.assertEqual(self.roll(), 0)
         self.assertIsNone(self.saved_plan())
 
+    def test_a_skipped_entry_is_retried_by_due_and_the_roll_once_its_container_runs(self):
+        self.build(environments=(E, F))
+        self.plan(environments=(E, F), services=('rest',))
+        rest = self.fake.containers[self.old[E, 'rest']]
+        self.fake.running(rest, False)
+        self.roll(), self.roll()
+        rolling._skip_checked = None
+        # Still not running: not due, and the check is not repeated inside its interval.
+        self.assertFalse(self.run_patched(rolling.due))
+        self.assertFalse(self.run_patched(rolling.due))
+        self.fake.running(rest, True)
+        # The interval has not passed, so no docker look yet; after it, due says so.
+        self.assertFalse(self.run_patched(rolling.due))
+        rolling._skip_checked = -10 ** 9
+        self.assertTrue(self.run_patched(rolling.due))
+        self.assertEqual(self.saved_plan()['environments'][E]['rest']['state'], 'skipped', 'due changes nothing')
+        self.assertEqual(self.roll(), 0)
+        self.assertIsNone(self.saved_plan())
+        self.assertNotEqual(self.fake.named(self.name('rest', E)), self.old[E, 'rest'])
+
+    def test_the_check_of_skipped_entries_is_bounded(self):
+        self.build()
+        self.plan(services=('rest',))
+        plan = self.saved_plan()
+        plan['environments'][E]['rest'].update(state='skipped', reason='x')
+        with patch.object(runtime, 'inspect', return_value=None) as looked, patch.object(rolling, 'SKIP_RECHECK_MAX', 0):
+            self.assertEqual(self.run_patched(rolling.revivable, plan, 0), [])
+        looked.assert_not_called()
+
+    def test_status_returns_the_reason_and_the_count_of_skipped_entries(self):
+        self.build(environments=(E, F))
+        self.plan(environments=(E, F), services=('rest',))
+        self.fake.running(self.fake.containers[self.old[E, 'rest']], False)
+        self.roll()
+        skipped = self.run_patched(rolling.status)['skipped']
+        self.assertEqual(skipped['count'], 1)
+        self.assertIn('not running', skipped['reasons'][f'{E} rest'])
+
+    def test_due_logs_the_error_it_swallows_once_per_interval(self):
+        self.build()
+        self.plan(services=('rest',))
+        rolling._due_logged = None
+
+        def calls():
+            with patch.object(runtime, 'published_endpoints', side_effect=OSError('endpoints gone')), \
+                    patch.object(rolling.time, 'monotonic',
+                                 side_effect=[100.0, 101.0, 100.0 + rolling.DUE_LOG_SECONDS + 5]):
+                return [rolling.due(), rolling.due(), rolling.due()], sys.stderr.getvalue()
+        results, text = self.run_patched(calls)
+        self.assertEqual(results, [False, False, False])
+        lines = text.splitlines()
+        self.assertEqual(len(lines), 2, lines)
+        self.assertIn('OSError: endpoints gone', lines[0])
+
     def test_a_service_of_a_running_environment_is_still_replaced_when_the_other_one_is_not_running(self):
         self.build()
         self.plan()
@@ -1607,9 +1671,9 @@ class SkipTests(Fixture):
 class ForceTests(Fixture):
     """`repair --force` and the start that holds one environment instead of refusing every start."""
 
-    def stuck(self, phase='starting', remove_canonical=True, temporary=True):
+    def stuck(self, phase='starting', remove_canonical=True, temporary=True, environments=(E,)):
         """A swap record in a state repair does not recognise: the canonical container was removed by hand."""
-        self.build()
+        self.build(environments=environments)
         new = self.fake.add(self.name() + rolling.SUFFIX, NEW_IMAGE) if temporary else None
         (self.root / 'private' / (self.name() + rolling.SUFFIX + '.env')).write_text('X=new\n')
         if remove_canonical:
@@ -1757,7 +1821,8 @@ class ForceTests(Fixture):
         held = self.run_patched(rolling.repair_or_hold, self.target)
         self.assertEqual(list(held), [E])
         self.assertIn('not as recorded', held[E])
-        self.assertIsNotNone(self.record(), 'the record stays for the operator')
+        self.assertIsNone(self.record(), 'the record is moved aside, which frees its slot for the other environments')
+        self.assertEqual(list(self.run_patched(rolling.read_held)), [E], 'and kept for the operator')
         target = self.target
         target.values['environments'] = {E: {}, F: {}}
         target.held = held
@@ -1765,6 +1830,74 @@ class ForceTests(Fixture):
         (self.state / 'endpoints.json').write_text(json.dumps({E: {}, F: {}}))
         self.run_patched(lambda: runtime.Runtime.resume_published_environments(target))
         self.assertEqual([call.args for call in target.resume.call_args_list], [(F,)])
+
+    def test_a_held_environment_is_visible_in_status_current_json_and_upgrade_status_until_settled(self):
+        self.stuck()
+        held = self.run_patched(rolling.repair_or_hold, self.target)
+        shown = self.run_patched(rolling.status)
+        self.assertEqual(shown['held'], held)
+        self.assertIn('not as recorded', shown['held'][E])
+        with tempfile.TemporaryDirectory() as folder, patch.object(runtime, 'STATE', self.state), \
+                patch.object(updates, 'UPGRADES', Path(folder)), \
+                patch.object(updates, 'apply_verdict', return_value=None), patch.object(updates, 'zone', return_value=None):
+            record = updates.publish_current(None, running={'version': '1', 'commit': 'c' * 40}, rollback=(False, 'x.'))
+            self.assertEqual(record['rolling']['held'], held)
+            for state in (None, {'from': 'a' * 40, 'to': 'b' * 40, 'started_at': 'x', 'phase': 'confirmed'}):
+                with patch.object(upgrade, 'load_state', return_value=state), patch.object(upgrade, 'git', return_value='c' * 40), \
+                        patch('sys.stdout', new_callable=io.StringIO) as out:
+                    upgrade.status()
+                self.assertIn(f'held {E}', out.getvalue())
+                self.assertIn('not as recorded', out.getvalue())
+                self.assertIn('repair --force', out.getvalue())
+        self.force()
+        self.assertIsNone(self.run_patched(rolling.status))
+
+    def test_a_held_environment_refuses_the_by_name_commands_and_an_update(self):
+        self.stuck()
+        self.run_patched(rolling.repair_or_hold, self.target)
+        with self.assertRaisesRegex(RuntimeError, 'held'):
+            self.run_patched(rolling.require_settled, E)
+        with self.assertRaisesRegex(RuntimeError, 'held'):
+            self.run_patched(rolling.require_settled)
+        self.run_patched(rolling.require_settled, F)
+        self.assertIn(rolling.HELD, upgrade.UNSETTLED)
+
+    def test_force_works_from_the_held_record_and_a_failure_puts_it_back_in_its_slot(self):
+        new = self.stuck()
+        self.run_patched(rolling.repair_or_hold, self.target)
+        def failing():
+            with patch.object(runtime.lab, 'docker', side_effect=RuntimeError('rm failed')):
+                return rolling.repair_force(self.target, E)
+        with self.assertRaisesRegex(RuntimeError, 'rm failed'):
+            self.run_patched(failing)
+        self.assertIsNotNone(self.record(), 'a step that failed leaves the record')
+        # The next start holds it again, and force then settles it.
+        self.assertEqual(list(self.run_patched(rolling.repair_or_hold, self.target)), [E])
+        self.force()
+        self.assertIsNone(self.record())
+        self.assertEqual(self.run_patched(rolling.held_environments), {})
+        self.assertNotIn(new, self.fake.containers)
+
+    def test_a_roll_holds_only_the_one_environment_and_rolls_the_others(self):
+        self.stuck(environments=(E, F))
+        self.plan(environments=(E, F), services=('rest',))
+        # E's record is the stuck one; the roll holds E, replaces F and raises nothing.
+        self.assertEqual(self.roll(), 0)
+        plan = self.saved_plan()
+        self.assertEqual(plan['environments'][E]['rest']['state'], 'old')
+        self.assertEqual(plan['environments'][F]['rest']['state'], 'new')
+        self.assertIsNone(plan['stopped'])
+        self.assertIsNone(self.record())
+        self.assertEqual(list(self.run_patched(rolling.status)['held']), [E])
+        self.assertEqual(self.roll(), rolling.IDLE)
+        self.assertFalse(self.run_patched(rolling.due), 'a held environment is for the operator, not a roll every minute')
+
+    def test_after_force_the_environment_is_no_longer_held(self):
+        self.stuck(environments=(E, F))
+        self.run_patched(rolling.repair_or_hold, self.target)
+        self.force()
+        self.assertEqual(self.run_patched(rolling.held_environments), {})
+        self.assertEqual(self.run_patched(rolling.repair_or_hold, self.target), {})
 
     def test_a_start_with_no_held_environment_resumes_every_one(self):
         self.build(environments=(E, F))
