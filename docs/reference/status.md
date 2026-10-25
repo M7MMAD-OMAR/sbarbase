@@ -2,7 +2,15 @@
 
 # Status
 
-## Not yet released, 2026-10-21
+## Current state, 2026-10-26
+
+- **Released.** v0.7.0 and v0.7.1 are on GitHub. The owner's real server runs v0.7.1, installed through the update channel: the first real channel update, and it passed its health checks. It was an update of code only, so it says nothing about outage time, load or fault handling.
+- **In v0.7.0 and v0.7.1.** The console process stops gracefully by default (`SBARBASE_DRAIN_MS`, 15000 by default, 0 to 19000), and its fixed listeners share ports with a newer process (`SO_REUSEPORT`). The in-place handover, the rolling replacement of Auth and REST and the database window are in these releases but off unless switched on.
+- **Target for 0.8.0, not yet released.** The handover is on by default (`SBARBASE_HANDOVER=0` opts out). With `SBARBASE_ROLLING_SERVICES` unset, `rest` is rolled side by side; Auth stays opt in (`auth,rest`); `none` or `0` turns it off. The database window is available by default and runs only when the operator passes `--window` with named settings (`SBARBASE_DATABASE_WINDOW=0` opts out). Until 0.8.0 is released, the behavior of a released version is the one in the previous bullet.
+- **Proven:** unit tests (3417 Python lab tests, recounted from the source, plus the Bun suite) and the first real channel update.
+- **Not proven:** the handover, the rolling replacement and the database window have not been measured under load or by fault injection on a real server. The outage numbers in the [upgrade plan](../engineering/plans/2026-10-23-upgrades-without-outage.md) are design targets, not results. The owner will test them locally. The project is not independently accepted for production. Every recorded gap is in the [known limits](../engineering/upgrades-known-limits.md); the operator view is the [upgrades guide](../guides/upgrades.md).
+
+## Release 0.6.0, 2026-10-23
 
 - **Exposed schemas for the Data API.** Each environment chooses the schemas its PostgREST serves, its extra search path and row limit, in the console or through `GET`/`PATCH /v1/projects/{ref}/postgrest`, without a restart ([Data API](../guides/data-api.md), [design](../engineering/DATA-API-SCHEMAS.md)). 60 of 60 live checks passed on 2026-10-22 against the pinned images in disposable containers, including both orders of a tenant racing the platform ([evidence](../evidence/data-api-checks-2026-10-21.json)). Reviewed by independent reviewers on specification and security over several rounds. Not run on a real server.
 - **Scheduled jobs and outgoing HTTP.** An environment that turns Scheduled jobs on gets `cron.schedule`, `cron.unschedule`, `cron.alter_job`, `cron.job` and `cron.job_run_details` with pg_cron 1.6.4's signatures, and `net.http_get`, `net.http_post` and `net.http_delete` with pg_net 0.20.4's, in its own database; the real extensions stay refused. Jobs run as the developer role through a login of their own; requests leave under a policy that refuses loopback, private and reserved addresses, the server's own addresses and its Docker networks, except the installation's public address ([Scheduled jobs](../guides/scheduled-jobs.md), [design](../engineering/SCHEDULED-JOBS.md)). 39 of 39 live checks passed on 2026-10-22 against the pinned PostgreSQL in a disposable container ([evidence](../evidence/scheduled-jobs-checks-2026-10-22.json)). Not run on a real server. Studio's Cron page stays closed.
@@ -21,7 +29,7 @@ The declared version is 0.5.12. What these releases added and what was checked; 
 
 ## The real server and 0.3.0, 2026-10-16 and 17
 
-- **Where it runs.** A real server (Hostinger, Ubuntu 26.04, 4 cores, 16 GiB) runs main at sbarbase.sbarah.com, with systemd and the TLS proxy behind Cloudflare. It was upgraded from 0.2.0 with `lab/upgrade.py start --to`, each step confirmed by the health checks; it holds one environment and no application data.
+- **Where it runs.** A real server (Hostinger, Ubuntu 26.04, 4 cores, 16 GiB) runs v0.7.1 (installed through the update channel) at sbarbase.sbarah.com, with systemd and the TLS proxy behind Cloudflare. It was upgraded from 0.2.0 with `lab/upgrade.py start --to`, each step confirmed by the health checks; it holds one environment and no application data.
 - **Upstream images.** Auth v2.197.0, PostgREST v14.18 and Storage v1.83.3 run there; Realtime v2.144.0, Edge Runtime v1.77.4, Studio 2026.10.12 and postgres-meta v0.100.0 are pinned and pulled. Their live acceptance gate is pending ([plan](../engineering/plans/2026-10-14-upstream-currency.md)).
 - **Restores on the server.** A restore of the environment from its local backup and a restore served only from the encrypted run set in Cloudflare R2 brought sentinel rows back exactly; one environment, no users or files, no traffic, no interruption.
 - **Security.** Studio and postgres-meta are confined to a per-session network; a probe from the shared network ran SQL through them before the fix and was refused after it. `.lab/upstream` is kept 0700.
@@ -278,14 +286,14 @@ The integrated source now contains durable management grant and rate-limit primi
 - Point-in-time recovery, SSH or rsync targets for the off-host copies (S3-compatible storage only), and rebuilding a whole lost server from the off-site copies in one step (each environment's copy restores, on a new installation after `sbarbase relink` recreates its client, project and environment with their original ids; the installation manifest records what the backups need, but members, keys and settings do not travel with it yet, and this path was rehearsed onto a second VM on 2026-09-25 for environments that never used Studio, Realtime or direct database access).
 - Importing schemas other than `public`, Vault secrets and cron jobs from a Supabase project (the [import](../guides/move-from-supabase.md) moves `public`, users, rows and files).
 - Automatic recovery of later-stage provisioning failures; they block until an operator reconciles them.
-- Adoption of any upstream release through the update policy. A run of the update channel on a real server: automatic updates exist, off by default, and have run only in unit tests, the CI cases and the local rehearsal VM (above).
+- Adoption of any upstream release through the update policy. Automatic updates on a real server: they exist, off by default, and have run only in unit tests, the CI cases and the local rehearsal VM (above). A manual run of the channel on the real server happened once, to v0.7.1 (see Current state).
 - MFA and login rate limits. Moving a project between clients revokes its API keys but does not rotate its JWT signing key or direct database password. Deleting an environment keeps its runtime (database, containers, files), which still counts against the environment limit; reclaiming it is not built.
 - Multi-server placement and coordination.
 - Resumable (TUS) uploads through the gateway; standard uploads go up to the upload limit, 50 MiB by default.
 
 ## Current priorities
 
-Follow the October product plan and execution method, with the ledger as the scoped evidence index. Continue the required service, recovery and security/profile contracts after the accepted bounded configured-effects fragment. The upstream currency plan ([plan](../engineering/plans/2026-10-14-upstream-currency.md)) is the active work; its open items are S4, P3 part 4 acceptance, A7 (PostgreSQL 17.11, waiting for its VM rehearsal), B1 and F1 to F8. A real server (Hostinger, Ubuntu 26.04, 4 cores, 16 GiB) runs main at sbarbase.sbarah.com; formal production acceptance is not established. Independent-host portability and physical HA require separate evidence. This page does not authorize infrastructure purchases or host changes.
+Follow the October product plan and execution method, with the ledger as the scoped evidence index. Continue the required service, recovery and security/profile contracts after the accepted bounded configured-effects fragment. The upstream currency plan ([plan](../engineering/plans/2026-10-14-upstream-currency.md)) is the active work; its open items are S4, P3 part 4 acceptance, A7 (PostgreSQL 17.11, waiting for its VM rehearsal), B1 and F1 to F8. A real server (Hostinger, Ubuntu 26.04, 4 cores, 16 GiB) runs v0.7.1 (installed through the update channel) at sbarbase.sbarah.com; formal production acceptance is not established. Independent-host portability and physical HA require separate evidence. This page does not authorize infrastructure purchases or host changes.
 
 ## September next-step record
 

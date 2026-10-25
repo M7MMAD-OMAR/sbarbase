@@ -333,6 +333,8 @@ printf '[Service]\nEnvironment=SBARBASE_CONSOLE_PORT=8787\n' | sudo tee /etc/sys
 sudo systemctl daemon-reload && sudo systemctl restart sbarbase
 ```
 
+The fixed port is also one of the conditions of the console's in-place handover, which is on by default from 0.8.0 ([upgrades](upgrades.md#the-handover-sbarbase_handover-replace-the-console-process-in-place)); without it every code only update restarts the console process instead. The handover is proven by unit tests, not yet measured under load on a server.
+
 ```
 bun deploy/console-tls-proxy.ts \
     --cert /etc/letsencrypt/live/console.example.com/fullchain.pem \

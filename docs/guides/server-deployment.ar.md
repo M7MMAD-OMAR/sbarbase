@@ -314,6 +314,8 @@ printf '[Service]\nEnvironment=SBARBASE_CONSOLE_PORT=8787\n' | sudo tee /etc/sys
 sudo systemctl daemon-reload && sudo systemctl restart sbarbase
 ```
 
+المنفذ الثابت أيضًا أحد شروط استبدال عملية وحدة التحكم في مكانها، وهو مفعّل افتراضيًا من 0.8.0 ([الترقيات](upgrades.ar.md)). وبدونه يعيد كل تحديث يغيّر الشيفرة وحدها تشغيل عملية وحدة التحكم بدل ذلك. ثبت الاستبدال باختبارات الوحدة ولم يُقَس بعد تحت حمل على خادم.
+
 ```
 bun deploy/console-tls-proxy.ts \
     --cert /etc/letsencrypt/live/console.example.com/fullchain.pem \

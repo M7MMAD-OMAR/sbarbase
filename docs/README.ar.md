@@ -60,7 +60,7 @@
 
 ## اتجاه العمل الآن
 
-يعتمد المشروع على خدمات Supabase الأصلية، ويهدف إلى تسهيل تشغيلها وإدارتها وتخصيصها على Linux عبر Docker. العمل النشط هو [خطة مواكبة الإصدارات الأصلية](engineering/plans/2026-10-14-upstream-currency.ar.md)، ويعمل الفرع الرئيسي على خادم حقيقي ([الحالة](reference/status.ar.md)). تسجّل [أهداف المشروع](../PROJECT_GOAL.md) المتطلبات، وتحدد [خطة المنتج وقابلية التشغيل](engineering/plans/2026-10-03-product-and-portability-plan.md) الأولويات. وتربط [طريقة التنفيذ والتحقق](engineering/plans/2026-10-03-gauntlet-execution-method.md) كل نتيجة بنطاقها، مع [عقد مكان التشغيل الأصلي](engineering/plans/2026-10-03-native-placement-identity.md) و[سجل الأدلة](engineering/gauntlet-ledger.json).
+يعتمد المشروع على خدمات Supabase الأصلية، ويهدف إلى تسهيل تشغيلها وإدارتها وتخصيصها على Linux عبر Docker. العمل النشط هو [خطة مواكبة الإصدارات الأصلية](engineering/plans/2026-10-14-upstream-currency.ar.md)، ويعمل خادم حقيقي على v0.7.1، ثُبّت عبر قناة التحديث ([الحالة](reference/status.ar.md)). تسجّل [أهداف المشروع](../PROJECT_GOAL.md) المتطلبات، وتحدد [خطة المنتج وقابلية التشغيل](engineering/plans/2026-10-03-product-and-portability-plan.md) الأولويات. وتربط [طريقة التنفيذ والتحقق](engineering/plans/2026-10-03-gauntlet-execution-method.md) كل نتيجة بنطاقها، مع [عقد مكان التشغيل الأصلي](engineering/plans/2026-10-03-native-placement-identity.md) و[سجل الأدلة](engineering/gauntlet-ledger.json).
 
 ## القرارات
 
