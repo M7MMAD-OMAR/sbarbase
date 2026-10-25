@@ -26,7 +26,7 @@ DEFAULT_SECONDS, never more than HARD_SECONDS). A failure at any step, or the wi
 the hold and reports; a window never stays open: the marker is removed in a `finally`, and its own
 `until` makes the gateway stop holding even when this process is killed. Writes are not paused
 (lab/write_pause.py is not used), so there is nothing to leave paused. One window at a time (a
-lock), and none while an upgrade waits for its confirmation or holds its marker.
+lock), and none while an upgrade waits for its confirmation or holds its marker (read before the locks and again once they are held).
 
 Limits, as built: the direct database listeners refuse new sessions during the window (as every
 hold does), they do not queue them; sessions already open die with the restart, and each service
@@ -203,6 +203,10 @@ def run(names, *, environ=os.environ, database=None, hold=open_hold, release=rel
     database = database or Docker()
     seconds = window_seconds(environ)
     with lock():
+        # Read again with the locks held: an upgrade hold written between the first read and the locks is seen now.
+        why = refusal(environ)
+        if why:
+            raise WindowError(why)
         needs_restart(names, database)
         database.checkpoint()
         started = clock()

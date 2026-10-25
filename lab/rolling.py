@@ -26,11 +26,19 @@ does that:
      running. One answer missed and the address goes back to the old one and the new one is removed;
   6. otherwise the record says `retiring`, the old container is removed, the new one takes the canonical
      name and its settings file, the limits go back, and the record goes last.
+- **An environment that is not running is skipped.** Nothing serves from it, so its entry is marked `skipped`
+  with the reason, it stays on its previous pin (the by-name commands still refuse for it, and the next start
+  replaces it in place) and the other environments go on; so is a fenced one. `retry` asks for it again. A paused or
+  unpublished environment keeps waiting as `old` and makes `due` false until it returns.
 - **The first failure stops the roll.** The environment is marked `failed` and the plan `stopped`: the rest
   keep the previous pin, `rolling.py status` and `upgrade.py status` say which environment runs which (the
   same is written to current.json, which the console does not show yet), and `rolling.py retry` starts the
   roll again. A replacement not admitted (memory, connection headroom) or REST
   settings that cannot be written beside the serving REST count as failures; nothing changed then.
+
+A swap record in a state repair does not recognise (a container removed by hand) holds only that environment
+at a start (repair_or_hold): the others start, and `lab/rolling.py repair --force ENVIRONMENT` settles it, never
+removing a container it did not create (repair_force).
 
 A crash leaves the swap record, and the next start, or the next roll, repairs from it first (repair):
 before `switched` the new container goes; at `switched` the address goes back to the old one, which is
@@ -68,7 +76,8 @@ SUFFIX = '-next'
 NAME = 'rolling.json'
 PLAN = 'rolling-plan.json'
 PHASES = ('starting', 'switched', 'retiring')
-STATES = ('old', 'new', 'failed')
+# `skipped`: left on its previous pin on purpose, with the reason in the entry (an environment that is not running, or fenced).
+STATES = ('old', 'new', 'failed', 'skipped')
 # Added to REST's longest deadline: the old container keeps running at least this long after the switch.
 DRAIN_MARGIN_SECONDS = 5
 CHECK_SECONDS = 1
@@ -83,6 +92,16 @@ BUSY, IDLE = 75, 3
 
 class RollError(RuntimeError):
     """One environment's replacement did not happen; the previous container serves."""
+
+
+class Unrecognised(RuntimeError):
+    """A swap record and containers in a state `repair` does not recognise. Only `repair --force` (or a hand fix)
+    gets past it; a start holds that one environment instead of refusing every start (repair_or_hold)."""
+
+
+class Skipped(RollError):
+    """One environment's service cannot be replaced now and that is not a failure of the roll: it is not
+    running, so nothing serves from it. It is left on its previous pin with the reason recorded, and the others go on."""
 
 
 def runtime_module():
@@ -163,7 +182,7 @@ def read_plan():
         plan = None
     def entry(item):
         return (isinstance(item, dict) and item.get('state') in STATES and isinstance(item.get('from'), str)
-                and isinstance(item.get('to'), str))
+                and isinstance(item.get('to'), str) and isinstance(item.get('reason', ''), str))
     if (not isinstance(plan, dict) or plan.get('version') != 1 or not isinstance(plan.get('environments'), dict)
             or not (plan.get('stopped') is None or isinstance(plan.get('stopped'), str))
             or not (plan.get('canary') is None or ENVIRONMENT.fullmatch(str(plan.get('canary'))))
@@ -289,8 +308,18 @@ def due():
         plan = read_plan()
     except RuntimeError:
         return False
-    return (plan is not None and plan['stopped'] is None
-            and any(item['state'] == 'old' for services in plan['environments'].values() for item in services.values()))
+    if plan is None or plan['stopped'] is not None:
+        return False
+    # Only an environment a roll could take now: one that is paused or not published waits for its return
+    # (a roll child would find nothing to do every minute), and a skipped one waits for `retry`.
+    import write_pause
+    rt = runtime_module()
+    try:
+        published = rt.published_endpoints()
+        return any(item['state'] == 'old' and e in published and not write_pause.is_paused(e)
+                   for e, services in plan['environments'].items() for item in services.values())
+    except Exception:
+        return False
 
 
 def order(plan):
@@ -524,7 +553,7 @@ def repair(runtime):
     name = canonical(e, service)
     temporary = name + SUFFIX
     current, upcoming = rt.inspect('container', name), rt.inspect('container', temporary)
-    unknown = RuntimeError(f'The containers of the side by side replacement of {name} are not as recorded; '
+    unknown = Unrecognised(f'The containers of the side by side replacement of {name} are not as recorded; '
                            'explicit reconciliation required')
     if upcoming and record['new'] is not None and upcoming['Id'] != record['new']:
         raise unknown
@@ -557,13 +586,100 @@ def repair(runtime):
         settle(path())
 
 
+def repair_or_hold(runtime):
+    """The start's repair: {environment: reason} for the one environment whose record is in a state `repair`
+    does not recognise, which this start does not resume (it is held until `repair --force` or a hand fix),
+    {} when the record was repaired or there was none. Any other failure still refuses the start: a record that
+    cannot be read names no environment, and a Docker or database error is not a state of this record."""
+    try:
+        repair(runtime)
+        return {}
+    except Unrecognised as error:
+        record = read()
+        reason = str(error)
+        print(f'Environment {record["environment"]} is held: {reason}. The other environments start. '
+              f'Run lab/rolling.py repair --force {record["environment"]} once you checked its containers.',
+              file=sys.stderr, flush=True)
+        return {record['environment']: reason}
+
+
+def repair_force(runtime, e):
+    """The operator's way past a record `repair` does not recognise, for the environment named, bounded:
+
+    - it needs a record naming that environment, and tries the ordinary repair first (a record it can repair
+      needs no force);
+    - the canonical container is never removed, stopped or renamed, whatever it is: it serves;
+    - the only container it removes is the `-next` one this replacement created (the id the record holds); a
+      container of that name it did not create refuses, and nothing is changed for it;
+    - with no canonical container, the one it created is removed too when the phase is `starting` (it was
+      never proven); a later phase renames it into place as the ordinary repair does;
+    - then the address is published again for a running canonical container, the limits go back and the record
+      goes last. Each action is printed (the supervisor's journal), and the actions are returned.
+    A step that fails leaves the record, as the ordinary repair does."""
+    record = read()
+    if record is None or record['environment'] != e:
+        raise RuntimeError(f'No side by side replacement is recorded for {e}; nothing was changed')
+    service = record['service']
+    rt = runtime_module()
+    name = canonical(e, service)
+    temporary = name + SUFFIX
+    did = []
+
+    def say(text):
+        did.append(text)
+        print(f'rolling repair --force {name}: {text}', flush=True)
+    try:
+        repair(runtime)
+        say(f'the recorded replacement (phase {record["phase"]}) was repaired the ordinary way; nothing forced')
+        return did
+    except Unrecognised:
+        pass
+    current, upcoming = rt.inspect('container', name), rt.inspect('container', temporary)
+    created = bool(upcoming) and record['new'] is not None and upcoming['Id'] == record['new']
+    if upcoming and not created:
+        raise RuntimeError(f'{temporary} was not created by this replacement (the record names {record["new"]}); '
+                           'it is not removed: check it and remove it by hand, nothing was changed')
+    say(f'phase {record["phase"]}, canonical container {"present" if current else "absent"}, '
+        f'{"the replacement own" if created else "no"} {temporary}')
+    if current:
+        if created:
+            rt.lab.docker('rm', '-f', upcoming['Id'])
+            drop_settings(temporary)
+            say(f'removed {temporary} ({upcoming["Id"][:12]}), created by this replacement; {name} serves')
+        elif record['new'] is not None and current['Id'] == record['new']:
+            take_settings(temporary, name)
+            say(f'{name} is the container of the replacement itself; it keeps the name')
+        else:
+            say(f'{name} ({current["Id"][:12]}) is kept as it is')
+    elif created and record['phase'] == 'starting':
+        rt.lab.docker('rm', '-f', upcoming['Id'])
+        drop_settings(temporary)
+        say(f'removed {temporary} ({upcoming["Id"][:12]}), created by this replacement and never proven; '
+            f'the next start creates {name}')
+    elif created:
+        rt.lab.docker('rename', temporary, name)
+        take_settings(temporary, name)
+        say(f'{temporary} renamed to {name}')
+    else:
+        say(f'neither container exists; the next start creates {name}')
+    item = rt.inspect('container', name)
+    if item and item.get('State', {}).get('Running'):
+        point(e, service, runtime.endpoint(name, SERVICES[service][0]))
+        say(f'the address of {name} is published')
+    with limit_lock(e):
+        narrow(runtime, e, service)
+        settle(path())
+    say('the connection limits went back and the record was removed')
+    return did
+
+
 def swap(runtime, e, service, entry):
     """Replace one environment's service as the plan says, or raise RollError."""
     rt = runtime_module()
     name = canonical(e, service)
     old = rt.inspect('container', name)
     if not old or not old.get('State', {}).get('Running'):
-        raise RollError(f'{name} is not running')
+        raise Skipped(f'{name} is not running')
     if old.get('Image') == entry['to']:
         return old['Id']
     if old.get('Image') != entry['from']:
@@ -594,8 +710,15 @@ def roll_once(runtime):
         if not waiting:
             continue
         # A paused environment's services are stopped on purpose; it waits for its resume.
-        if e not in published or write_pause.is_paused(e) or rt.source_fence.is_fenced(runtime.sql, e):
+        if e not in published or write_pause.is_paused(e):
             continue
+        if rt.source_fence.is_fenced(runtime.sql, e):
+            # Being moved or restored: not rolled, and not asked for again every minute.
+            for service in waiting:
+                services[service]['state'] = 'skipped'
+                services[service]['reason'] = f'{e} is fenced'
+            write_plan(plan)
+            return 0
         # A console Data API change writes its settings and signals the serving REST under this lock alone
         # (durable_runtime.data_api_command): a new REST started meanwhile could miss them. So the roll holds
         # it for the environment, tried and never waited for under the operation lock.
@@ -616,6 +739,14 @@ def roll_environment(runtime, plan, e, services, waiting):
     for service in waiting:
         try:
             swap(runtime, e, service, services[service])
+        except Skipped as error:
+            # Not running: nothing serves from it. Left on its previous pin and recorded; the plan goes on.
+            services[service]['state'] = 'skipped'
+            services[service]['reason'] = str(error)
+            write_plan(plan)
+            print(f'Environment {e}: {service} skipped ({error}); the other environments go on. '
+                  'lab/rolling.py retry tries it again.', file=sys.stderr, flush=True)
+            continue
         except RollError as error:
             services[service]['state'] = 'failed'
             plan['stopped'] = f'{e} {service}: {error}'
@@ -638,8 +769,9 @@ def retry():
         return False
     for services in plan['environments'].values():
         for item in services.values():
-            if item['state'] == 'failed':
+            if item['state'] in ('failed', 'skipped'):
                 item['state'] = 'old'
+                item.pop('reason', None)
     plan['stopped'] = None
     write_plan(plan)
     return True
@@ -673,8 +805,15 @@ def pin_serving(runtime, e):
 def main(argv=None):
     import argparse
     parser = argparse.ArgumentParser(description='Auth and REST replaced side by side after a pin change (lab/rolling.py).')
-    parser.add_argument('command', choices=('roll', 'status', 'retry'))
+    parser.add_argument('command', choices=('roll', 'status', 'retry', 'repair'))
+    parser.add_argument('environment', nargs='?', help='repair --force: the environment whose record is forced')
+    parser.add_argument('--force', action='store_true',
+                        help='repair: get past a record in a state repair does not recognise (see repair_force)')
     args = parser.parse_args(argv)
+    if args.force and args.command != 'repair':
+        parser.error('--force is for repair')
+    if args.command == 'repair' and args.force and not (args.environment and ENVIRONMENT.fullmatch(args.environment)):
+        parser.error('repair --force names the environment (e_ and 24 hex digits)')
     if args.command == 'status':
         print(json.dumps(status(), indent=2, sort_keys=True))
         return 0
@@ -691,6 +830,16 @@ def main(argv=None):
             return BUSY
         if args.command == 'retry':
             return 0 if retry() else IDLE
+        if args.command == 'repair':
+            try:
+                if args.force:
+                    repair_force(rt.Runtime(), args.environment)
+                else:
+                    repair(rt.Runtime())
+                return 0
+            except Exception as error:
+                print(f'Repair stopped: {error}', file=sys.stderr, flush=True)
+                return 1
         try:
             rt.effect_receipt.require_settled(rt.STATE)
             return roll_once(rt.Runtime())

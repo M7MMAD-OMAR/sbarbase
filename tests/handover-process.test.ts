@@ -152,5 +152,8 @@ test('a SIGTERM to the candidate before it was promoted ends it and leaves the o
  expect(await Promise.race([candidate.child.exited,Bun.sleep(25_000).then(() => 'late')])).toBe(0);
  expect(existsSync(join(where.state,`listeners-${candidate.pid}.json`))).toBe(false);
  expect(existsSync(join(where.state,'candidate.json'))).toBe(false);
- expect((await ask(where.ports.PORT)).pid).toBe(String(old.pid));
+ // Never named for a handover: the old process answers without an id.
+ const seen=await ask(where.ports.PORT);
+ expect(seen.error).toBeUndefined();
+ expect(seen.pid).toBeNull();
 },60_000);

@@ -842,7 +842,8 @@ class Runtime:
         self.wait(self.endpoint(PREFIX+'-storage', 5001)+'/tenants', {'apikey': self.values['storage_admin']})
         # A side by side replacement a crash interrupted is finished or undone before anything resumes,
         # and the start of an upgrade begins a new plan of what the supervisor replaces after it.
-        rolling.repair(self)
+        # One record in a state repair does not recognise holds that environment only (lab/rolling.py repair_or_hold).
+        self.held = rolling.repair_or_hold(self)
         rolling.begin(self)
         self.resume_published_environments()
         rolling.finish_start(self)
@@ -852,6 +853,8 @@ class Runtime:
         # Credential reservations must only be dispatched by an authorized worker.
         published = runtime_files.read_endpoints(STATE, strict=True)
         for e in tuple(self.values['environments']):
+            if e in getattr(self,'held',{}):
+                continue
             if e in published and not source_fence.is_fenced(self.sql,e):
                 self.resume(e)
 

@@ -5,7 +5,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {startGateway,type GatewayApplication,type GatewayOptions} from '../lab/upstream-server';
 import {DirectDatabase} from '../src/http/database-proxy';
-import {candidateSignals,candidateRequested,processStart,handoverEnabled,libcSteering,listeningInodes,ListenerRecord,namedForHandover,ownDescriptor,procAddress,
+import {candidateSignals,coordinated,candidateRequested,processStart,handoverEnabled,libcSteering,listeningInodes,ListenerRecord,namedForHandover,ownDescriptor,procAddress,
  protocolOf,publishPromoted,withPidHeader,type Steering} from '../src/http/handover';
 import {invitationAccounts} from '../lab/upstream-app';
 import {ensureDatabaseTls} from '../src/http/database-tls';
@@ -167,6 +167,15 @@ describe('records, the switch and the pid header',() => {
   expect(JSON.parse(readFileSync(join(folder,'server.json'),'utf8'))).toEqual({url:'http://127.0.0.1:7000',pid:99,protocol:1,
    private:'http://127.0.0.1:41000',promoted:true});
   expect(existsSync(join(folder,'server.json.pending'))).toBe(false);
+ });
+ test('the pid header is offered only to a candidate or a process named for the handover',() => {
+  const folder=temporary(),pid=process.pid;
+  expect(coordinated(folder,pid,false)).toBe(false);
+  expect(coordinated(folder,pid,true)).toBe(true);
+  writeFileSync(join(folder,'handover.json'),JSON.stringify({pid:pid+1,started:processStart(pid)}));
+  expect(coordinated(folder,pid,false)).toBe(false);
+  writeFileSync(join(folder,'handover.json'),JSON.stringify({pid,started:processStart(pid)}));
+  expect(coordinated(folder,pid,false)).toBe(true);
  });
  test('the pid header goes to a direct caller and to nobody behind the proxy',async() => {
   const answer=() => Response.json({status:'ok'});
@@ -508,9 +517,12 @@ describe('a serving gateway with the switch on',() => {
     {name:'console',host:'127.0.0.1',port:consolePort,steered:false},{name:'database',host:'127.0.0.1',port:databasePort,steered:false}]});
    at=studio;
    expect(await until(() => record().listeners.some((item:{name:string}) => item.name==='studio-internal'))).toBe(true);
-   expect((await get(consolePort)).headers.get('x-sbarbase-pid')).toBe(String(process.pid));
+   // Nothing is pending: a direct caller learns no process id.
+   expect((await get(consolePort)).headers.get('x-sbarbase-pid')).toBeNull();
    writeFileSync(join(state,'handover.json'),JSON.stringify({pid:process.pid,started:processStart(process.pid)}));
    expect(await until(() => record().frozen===true)).toBe(true);
+   // Named for the handover: now it answers with its id.
+   expect((await get(consolePort)).headers.get('x-sbarbase-pid')).toBe(String(process.pid));
    // Frozen: the Studio route is no longer closed or opened, whatever the state says.
    at=undefined;
    await Bun.sleep(300);

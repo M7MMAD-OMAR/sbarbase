@@ -6,6 +6,7 @@ import io
 import json
 import os
 import re
+import sys
 import tempfile
 import time
 import unittest
@@ -383,7 +384,7 @@ class StartTests(Fixture):
         self.run_patched(rolling.finish_start, self.target)
         self.assertIsNone(self.saved_plan())
 
-    def start(self, order, switch='rest'):
+    def start(self, order, switch='rest', real_repair=False):
         """Runtime.start with everything but its order of steps faked."""
         target = self.target
         target.values.update({key: 'f' * 64 for key in ('admin', 'storage_control', 'storage_admin', 'encryption')})
@@ -401,7 +402,7 @@ class StartTests(Fixture):
                 patch.object(runtime.lab, 'Path', meminfo), \
                 patch.object(runtime.resource_policy, 'start_placement', return_value=(1, 1)), \
                 patch.object(runtime.kept_runtime, 'current', return_value=(None, 'no record')), \
-                patch.object(rolling, 'repair', side_effect=lambda r: order.append('repair')), \
+                patch.object(rolling, 'repair', side_effect=(rolling.repair if real_repair else lambda r: order.append('repair'))), \
                 patch.object(rolling, 'begin', side_effect=lambda r: order.append('begin')), \
                 patch.object(rolling, 'finish_start', side_effect=lambda r: order.append('finish')):
             self.run_patched(target.start)
@@ -1158,11 +1159,16 @@ class RollGuardTests(Fixture):
                     self.patches = lambda: [p for p in real() if getattr(p, 'attribute', None) != 'is_fenced'] + \
                         [patch.object(runtime.source_fence, 'is_fenced', return_value=True)]
                     try:
-                        self.assertEqual(self.roll(), rolling.IDLE)
+                        # Skipped, not idle: the other environments go on in the next run.
+                        self.assertEqual(self.roll(), 0)
                     finally:
                         self.patches = real
                 self.assertNotIn('run', self.fake.calls)
-                self.assertEqual(self.saved_plan()['environments'][E]['rest']['state'], 'old')
+                item = self.saved_plan()['environments'][E]['rest']
+                # An unpublished environment waits as it is; a fenced one is skipped with the reason.
+                self.assertEqual(item['state'], 'skipped' if label == 'fenced' else 'old')
+                if label == 'fenced':
+                    self.assertIn('fenced', item['reason'])
 
     def test_a_stopped_container_is_never_swapped(self):
         self.build(running=False)
@@ -1491,6 +1497,302 @@ class RollbackRaceTests(Fixture):
             fcntl.flock(held, fcntl.LOCK_EX)
             upgrade.go_back(True)
         moved.assert_called_once_with(True, None)
+
+
+class SkipTests(Fixture):
+    """An environment that is not running is skipped and recorded; the others go on; a paused or skipped one
+    never makes the supervisor spawn a roll every minute."""
+
+    def test_a_crashed_rest_is_skipped_with_its_reason_and_the_other_environments_are_rolled(self):
+        self.build(environments=(E, F, G))
+        self.plan(environments=(E, F, G), services=('rest',))
+        self.fake.running(self.fake.containers[self.old[E, 'rest']], False)
+        self.assertEqual(self.roll(), 0)
+        plan = self.saved_plan()
+        item = plan['environments'][E]['rest']
+        self.assertEqual(item['state'], 'skipped')
+        self.assertIn('not running', item['reason'])
+        self.assertIn(self.name('rest', E), item['reason'])
+        self.assertIsNone(plan['stopped'], plan)
+        self.assertNotIn('run', self.fake.calls)
+        # The next runs replace the others, which a stopped plan would have left on the old pin.
+        self.assertEqual(self.roll(), 0)
+        self.assertEqual(self.roll(), 0)
+        plan = self.saved_plan()
+        self.assertEqual([plan['environments'][e]['rest']['state'] for e in (E, F, G)], ['skipped', 'new', 'new'])
+        self.assertIsNone(plan['stopped'])
+        self.assertNotEqual(self.fake.named(self.name('rest', F)), self.old[F, 'rest'])
+        self.assertNotEqual(self.fake.named(self.name('rest', G)), self.old[G, 'rest'])
+        self.assertEqual(self.fake.named(self.name('rest', E)), self.old[E, 'rest'])
+        # Nothing is due for the skipped one: no child every minute.
+        self.assertFalse(self.run_patched(rolling.due))
+        self.assertEqual(self.roll(), rolling.IDLE)
+        self.assertEqual(self.run_patched(rolling.status)['environments'][E], {'rest': 'skipped'})
+        # It still refuses the by-name commands, as an environment on its previous pin does.
+        with self.assertRaisesRegex(RuntimeError, 'previous pin'):
+            self.run_patched(rolling.require_settled, E)
+
+    def test_a_skipped_environment_is_asked_for_again_by_retry_once_it_runs(self):
+        self.build(environments=(E, F))
+        self.plan(environments=(E, F), services=('rest',))
+        self.fake.running(self.fake.containers[self.old[E, 'rest']], False)
+        self.roll(), self.roll()
+        self.assertFalse(self.run_patched(rolling.due))
+        self.fake.running(self.fake.containers[self.old[E, 'rest']], True)
+        self.assertTrue(self.run_patched(rolling.retry))
+        item = self.saved_plan()['environments'][E]['rest']
+        self.assertEqual(item, {'state': 'old', 'from': OLD_IMAGE, 'to': NEW_IMAGE})
+        self.assertTrue(self.run_patched(rolling.due))
+        self.assertEqual(self.roll(), 0)
+        self.assertIsNone(self.saved_plan())
+
+    def test_a_service_of_a_running_environment_is_still_replaced_when_the_other_one_is_not_running(self):
+        self.build()
+        self.plan()
+        self.fake.running(self.fake.containers[self.old['rest']], False)
+        self.assertEqual(self.roll(), 0)
+        states = {s: i['state'] for s, i in self.saved_plan()['environments'][E].items()}
+        self.assertEqual(states, {'auth': 'new', 'rest': 'skipped'})
+        self.assertIsNone(self.saved_plan()['stopped'])
+
+    def test_a_failure_that_is_not_a_missing_container_still_stops_the_plan(self):
+        self.build(environments=(E, F))
+        self.plan(environments=(E, F), services=('rest',))
+        self.fake.failing_sql = (f'CONNECTION LIMIT {2 * connection_budget.SERVICE_LIMIT};',)
+        self.roll()
+        self.assertIsNotNone(self.saved_plan()['stopped'])
+
+    def test_a_paused_or_unpublished_environment_does_not_make_a_roll_due(self):
+        self.build(environments=(E, F))
+        self.plan(environments=(E, F), services=('rest',))
+        self.assertTrue(self.run_patched(rolling.due))
+        pauses = self.state / 'write-pauses'
+        pauses.mkdir()
+        for e in (E, F):
+            (pauses / f'{e}.json').write_text(json.dumps({'version': 1, 'runtime': e, 'phase': 'held'}))
+        self.assertFalse(self.run_patched(rolling.due))
+        (pauses / f'{F}.json').unlink()
+        self.assertTrue(self.run_patched(rolling.due))
+        (self.state / 'endpoints.json').write_text(json.dumps({E: {}}))
+        self.assertFalse(self.run_patched(rolling.due))
+
+    def test_the_supervisor_spawns_no_roll_child_for_a_plan_of_paused_or_skipped_environments(self):
+        self.build()
+        self.plan(services=('rest',))
+        (self.state / 'write-pauses').mkdir()
+        (self.state / 'write-pauses' / f'{E}.json').write_text(json.dumps({'version': 1, 'runtime': E, 'phase': 'held'}))
+        supervisor = SupervisorLoopTests.supervisor(self)
+        supervisor.paused = Mock(return_value=False)
+        supervisor.rolling = None
+        supervisor.rolling_after = 0.0
+        supervisor.confirm = None
+        supervisor.spawn = Mock()
+        with patch.object(runtime, 'STATE', self.state):
+            dev.Supervisor.schedule_rolling(supervisor)
+        supervisor.spawn.assert_not_called()
+
+    def test_a_plan_entry_with_a_reason_is_read_and_a_reason_that_is_not_text_is_not(self):
+        self.build()
+        self.plan(services=('rest',))
+        plan = self.saved_plan()
+        plan['environments'][E]['rest'].update(state='skipped', reason='x is not running')
+        (self.state / rolling.PLAN).write_text(json.dumps(plan))
+        self.assertEqual(self.run_patched(rolling.read_plan)['environments'][E]['rest']['reason'], 'x is not running')
+        plan['environments'][E]['rest']['reason'] = 5
+        (self.state / rolling.PLAN).write_text(json.dumps(plan))
+        with self.assertRaisesRegex(RuntimeError, 'cannot be read'):
+            self.run_patched(rolling.read_plan)
+
+
+class ForceTests(Fixture):
+    """`repair --force` and the start that holds one environment instead of refusing every start."""
+
+    def stuck(self, phase='starting', remove_canonical=True, temporary=True):
+        """A swap record in a state repair does not recognise: the canonical container was removed by hand."""
+        self.build()
+        new = self.fake.add(self.name() + rolling.SUFFIX, NEW_IMAGE) if temporary else None
+        (self.root / 'private' / (self.name() + rolling.SUFFIX + '.env')).write_text('X=new\n')
+        if remove_canonical:
+            del self.fake.containers[self.old['rest']]
+        record = {'version': 1, 'environment': E, 'service': 'rest', 'phase': phase, 'old': self.old['rest'], 'new': new,
+                  'at': 1}
+        (self.state / rolling.NAME).write_text(json.dumps(record))
+        return new
+
+    def force(self, e=E):
+        return self.run_patched(rolling.repair_force, self.target, e)
+
+    def test_the_record_is_one_repair_does_not_recognise(self):
+        self.stuck()
+        with self.assertRaises(rolling.Unrecognised):
+            self.run_patched(rolling.repair, self.target)
+        self.assertIsNotNone(self.record())
+
+    def test_force_removes_only_the_container_the_replacement_created_and_settles_the_record(self):
+        new = self.stuck()
+        did = self.force()
+        self.assertIsNone(self.record())
+        self.assertNotIn(new, self.fake.containers)
+        self.assertIsNone(self.fake.find(self.name()))
+        self.assertIsNone(self.settings_of(self.name() + rolling.SUFFIX))
+        removed = [call for call in self.fake.calls if call == 'rm']
+        self.assertEqual(removed, ['rm'])
+        self.assertIn(f'ALTER ROLE {E}_rest CONNECTION LIMIT {connection_budget.SERVICE_LIMIT};', self.fake.limits())
+        self.assertTrue(any('removed' in line and rolling.SUFFIX in line for line in did), did)
+
+    def test_force_records_what_it_did_in_the_journal(self):
+        self.stuck()
+        patches = self.patches()
+        for item in patches:
+            item.start()
+        try:
+            did = rolling.repair_force(self.target, E)
+            printed = sys.stdout.getvalue()
+        finally:
+            for item in reversed(patches):
+                item.stop()
+        self.assertGreaterEqual(len(did), 3)
+        for line in did:
+            self.assertIn(f'rolling repair --force {self.name()}: {line}', printed)
+
+    def test_force_never_touches_a_canonical_container_even_one_it_does_not_know(self):
+        new = self.stuck(remove_canonical=False)
+        # Someone replaced the canonical container by hand: it is not the one the record names.
+        hand = self.fake.add('hand-made', OLD_IMAGE)
+        del self.fake.containers[self.old['rest']]
+        self.fake.containers[hand]['Name'] = '/' + self.name()
+        with self.assertRaises(rolling.Unrecognised):
+            self.run_patched(rolling.repair, self.target)
+        self.force()
+        self.assertIsNone(self.record())
+        self.assertEqual(self.fake.named(self.name()), hand)
+        self.assertTrue(self.fake.containers[hand]['State']['Running'])
+        self.assertNotIn(new, self.fake.containers)
+        self.assertEqual(self.endpoints()['rest'], self.url(hand))
+        self.assertEqual([call for call in self.fake.calls if call in ('stop', 'rm', 'rename')], ['rm'])
+
+    def test_force_keeps_the_replacements_own_container_that_already_holds_the_name(self):
+        new = self.stuck(remove_canonical=True)
+        self.fake.containers[new]['Name'] = '/' + self.name()
+        with self.assertRaises(rolling.Unrecognised):
+            self.run_patched(rolling.repair, self.target)
+        self.force()
+        self.assertEqual(self.fake.named(self.name()), new)
+        self.assertEqual(self.settings_of(self.name()), 'X=new\n')
+        self.assertIsNone(self.settings_of(self.name() + rolling.SUFFIX))
+        self.assertNotIn('rm', self.fake.calls)
+        self.assertIsNone(self.record())
+
+    def test_force_refuses_a_temporary_container_it_did_not_create(self):
+        new = self.stuck()
+        stranger = self.fake.add('stranger', NEW_IMAGE)
+        self.fake.containers[new]['Name'] = '/other'
+        self.fake.containers[stranger]['Name'] = '/' + self.name() + rolling.SUFFIX
+        with self.assertRaisesRegex(RuntimeError, 'not created by this replacement'):
+            self.force()
+        self.assertIn(stranger, self.fake.containers)
+        self.assertIn(new, self.fake.containers)
+        self.assertNotIn('rm', self.fake.calls)
+        self.assertIsNotNone(self.record())
+
+    def test_force_refuses_a_temporary_container_when_the_record_names_none(self):
+        self.stuck(temporary=False)
+        stranger = self.fake.add(self.name() + rolling.SUFFIX, NEW_IMAGE)
+        with self.assertRaisesRegex(RuntimeError, 'not created by this replacement'):
+            self.force()
+        self.assertIn(stranger, self.fake.containers)
+        self.assertIsNotNone(self.record())
+
+    def test_force_needs_a_record_for_the_environment_it_is_given(self):
+        self.build(environments=(E, F))
+        with self.assertRaisesRegex(RuntimeError, 'No side by side replacement'):
+            self.force()
+        self.stuck()
+        with self.assertRaisesRegex(RuntimeError, 'No side by side replacement'):
+            self.force(F)
+        self.assertIsNotNone(self.record())
+        self.assertEqual(self.fake.calls.count('rm'), 0)
+
+    def test_a_record_the_ordinary_repair_handles_needs_no_force(self):
+        self.build()
+        temporary = self.fake.add(self.name() + rolling.SUFFIX, NEW_IMAGE)
+        (self.state / rolling.NAME).write_text(json.dumps({'version': 1, 'environment': E, 'service': 'rest', 'phase': 'switched',
+                                                          'old': self.old['rest'], 'new': temporary, 'at': 1}))
+        did = self.force()
+        self.assertIn('ordinary way', did[0])
+        self.assertIsNone(self.record())
+        self.assertEqual(self.fake.named(self.name()), self.old['rest'])
+
+    def test_force_finishes_a_later_phase_by_renaming_the_container_it_created(self):
+        new = self.stuck(phase='retiring')
+        # The ordinary repair knows this one (the new container takes the name), so force changes nothing more.
+        self.force()
+        self.assertEqual(self.fake.named(self.name()), new)
+        self.assertIsNone(self.record())
+
+    def test_a_failed_step_leaves_the_record(self):
+        self.stuck()
+        self.fake.failing_sql = (f'ALTER ROLE {E}_rest CONNECTION LIMIT',)
+        with self.assertRaises(RuntimeError):
+            self.force()
+        self.assertIsNotNone(self.record())
+
+    def test_the_command_takes_the_environment_and_runs_under_the_locks(self):
+        self.stuck()
+        with patch.object(runtime, 'Runtime', return_value=self.target):
+            self.assertEqual(self.run_patched(rolling.main, ['repair', '--force', E]), 0)
+        self.assertIsNone(self.record())
+        for argv in (['repair', '--force'], ['repair', '--force', 'e_nothex'], ['roll', '--force']):
+            with self.subTest(argv), self.assertRaises(SystemExit):
+                self.run_patched(rolling.main, argv)
+
+    def test_the_command_without_force_still_refuses_what_it_does_not_recognise(self):
+        self.stuck()
+        with patch.object(runtime, 'Runtime', return_value=self.target):
+            self.assertEqual(self.run_patched(rolling.main, ['repair']), 1)
+        self.assertIsNotNone(self.record())
+
+    def test_a_start_holds_the_one_environment_and_resumes_the_others(self):
+        self.stuck()
+        held = self.run_patched(rolling.repair_or_hold, self.target)
+        self.assertEqual(list(held), [E])
+        self.assertIn('not as recorded', held[E])
+        self.assertIsNotNone(self.record(), 'the record stays for the operator')
+        target = self.target
+        target.values['environments'] = {E: {}, F: {}}
+        target.held = held
+        target.resume = Mock()
+        (self.state / 'endpoints.json').write_text(json.dumps({E: {}, F: {}}))
+        self.run_patched(lambda: runtime.Runtime.resume_published_environments(target))
+        self.assertEqual([call.args for call in target.resume.call_args_list], [(F,)])
+
+    def test_a_start_with_no_held_environment_resumes_every_one(self):
+        self.build(environments=(E, F))
+        target = self.target
+        target.held = {}
+        target.resume = Mock()
+        self.run_patched(lambda: runtime.Runtime.resume_published_environments(target))
+        self.assertEqual(sorted(call.args[0] for call in target.resume.call_args_list), [E, F])
+
+    def test_runtime_start_holds_instead_of_refusing(self):
+        self.stuck()
+        order = []
+        # The real repair runs against the record; everything else of the start is faked.
+        StartTests.start(self, order, real_repair=True)
+        self.assertEqual(list(self.target.held), [E])
+        self.assertIn('resume', order)
+
+    def test_only_an_unrecognised_state_holds_the_start_anything_else_refuses_it(self):
+        self.build()
+        (self.state / rolling.NAME).write_text('{')
+        with self.assertRaisesRegex(RuntimeError, 'cannot be read'):
+            self.run_patched(rolling.repair_or_hold, self.target)
+        self.stuck()
+        with patch.object(rolling, 'repair', side_effect=RuntimeError('Docker operation rm failed')), \
+                self.assertRaisesRegex(RuntimeError, 'Docker operation'):
+            self.run_patched(rolling.repair_or_hold, self.target)
+        self.build()
+        self.assertEqual(self.run_patched(rolling.repair_or_hold, self.target), {})
 
 
 class UpgradeTests(Fixture):

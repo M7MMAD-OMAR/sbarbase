@@ -125,12 +125,17 @@ export function namedForHandover(directory:string,pid:number,proc='/proc'):boole
 }
 
 /** The pid header of `GET /health`, only for a direct loopback caller: a request that carries
- * `forwarded` or any `x-forwarded-*` header came through the TLS proxy and sees nothing. */
+ * `forwarded` or any `x-forwarded-*` header came through the TLS proxy and sees nothing. The caller adds it only
+ * while a handover is pending or being coordinated (`coordinated`). */
 export function withPidHeader(response:Response,request:Request,pid=process.pid):Response {
  for(const name of request.headers.keys())if(name==='forwarded'||name.startsWith('x-forwarded-'))return response;
  const headers=new Headers(response.headers);headers.set('x-sbarbase-pid',String(pid));
  return new Response(response.body,{status:response.status,headers});
 }
+
+/** Whether this process takes part in a handover now: a candidate always does (the supervisor probes it by its pid),
+ * a serving process once `handover.json` names it. Any other direct request to `/health` learns nothing about the process. */
+export const coordinated=(directory:string,pid:number,candidate:boolean,proc='/proc'):boolean => candidate||namedForHandover(directory,pid,proc);
 
 /** H3: the promoted candidate's `server.json`, written only once every fixed listener is bound and
  * steered: the shared console address, this process, the protocol and the private address beside it. */

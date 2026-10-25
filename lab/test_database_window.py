@@ -354,6 +354,21 @@ class ConcurrencyTests(Case):
 
 
 class OtherOperationsTests(Case):
+    def test_an_upgrade_hold_written_after_the_first_read_but_before_the_locks_refuses_the_window(self):
+        @contextlib.contextmanager
+        def late_hold():
+            with self.exclusive():
+                upgrade.HOLD.write_text('{}')  # written in the gap: the first read saw nothing
+                yield
+        database = Stub(self.log)
+        with self.assertRaises(database_window.WindowError) as caught:
+            database_window.run(['max_connections'], environ=ON, database=database, hold=self.hold, release=self.release,
+                                lock=late_hold, clock=self.clock, sleep=self.sleep, report=lambda text: None)
+        self.assertIn('upgrade', str(caught.exception))
+        self.assertEqual(self.log, [], 'the window touched the database or the hold')
+        self.assertFalse(self.marker.exists())
+        self.assertTrue(upgrade.HOLD.exists())
+
     def test_a_running_upgrade_or_rollback_refuses_the_window_and_nothing_is_touched(self):
         with upgrade.exclusive(self.upgrade_lock, 'busy'):
             database = Stub(self.log)

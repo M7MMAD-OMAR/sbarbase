@@ -12,7 +12,7 @@ import {upgradeHoldScope,type HoldScope} from '../src/gateway/hold';
 import {confirmationProbe,holdExceptProbe} from '../src/gateway/hold-bypass';
 import {healthHandler} from '../src/http/health';
 import {functionsStorage,functionsStorageListeners,functionsStorageWanted,inSubnet} from '../src/control/functions-storage';
-import {candidateRequested,candidateSignals,handoverEnabled,libcSteering,ListenerRecord,namedForHandover,ownDescriptor,PROMOTION_FAILED,publishPromoted,readProtocol,
+import {candidateRequested,coordinated,candidateSignals,handoverEnabled,libcSteering,ListenerRecord,namedForHandover,ownDescriptor,PROMOTION_FAILED,publishPromoted,readProtocol,
  STATE_DIRECTORY,withPidHeader,type FixedListener,type Steering} from '../src/http/handover';
 
 // Local experimental API only. No remote bind or default production exposure.
@@ -165,7 +165,7 @@ export async function startGateway(app:GatewayApplication,options:GatewayOptions
   if(studioRuntime(url.hostname))return app.studio(request);
   if(!['127.0.0.1','localhost'].includes(url.hostname))return new Response('Invalid host',{status:403});
   if(url.pathname==='/favicon.ico')return new Response(null,{status:204});
-  if(url.pathname==='/health')return handover?withPidHeader(health(request),request,pid):health(request);
+  if(url.pathname==='/health')return handover&&coordinated(directory,pid,candidate,proc)?withPidHeader(health(request),request,pid):health(request);
   return await uiStatic(request)??handler(request);
  };
  const consoleOptions={hostnames:(name:string)=>!!studioRuntime(name),
