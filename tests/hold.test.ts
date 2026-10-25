@@ -2,7 +2,7 @@ import {test,expect} from 'bun:test';
 import {mkdirSync,mkdtempSync,rmSync,unlinkSync,writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {PAUSED_CHANGES,holdApplication,holdScope,passesHold,upgradeHold,upgradeHoldScope} from '../src/gateway/hold';
+import {PAUSED_CHANGES,holdApplication,holdScope,passesHold,upgradeHold,upgradeHoldScope,windowOpen,WINDOW_MAX_MS} from '../src/gateway/hold';
 import {healthHandler} from '../src/http/health';
 
 function directory() {
@@ -194,4 +194,26 @@ test('the cache runs on a monotonic clock: a wall clock stepped back does not ke
   await Bun.sleep(80);
   expect(scope()).toBe('all');
  } finally {Date.now=wall;place.done();}
+});
+
+test('an open database window holds everything with no upgrade pending, ends by itself, and a bad marker holds nothing',()=>{
+ const place=directory();const window=join(place.path,'database-window');
+ try {
+  let wall=1_000_000,clock=0;
+  const scope=()=>upgradeHoldScope(place.marker,place.state,{ttlMs:0,now:()=>clock++,window,wall:()=>wall})();
+  expect(scope()).toBeUndefined();
+  writeFileSync(window,JSON.stringify({until:wall+5000}));
+  expect(scope()).toBe('all');
+  // The end is in the marker: a tool that died leaves a marker that stops holding.
+  wall+=5000;
+  expect(scope()).toBeUndefined();
+  for(const text of ['','not json','null','{}',JSON.stringify({until:'soon'}),JSON.stringify({until:wall+WINDOW_MAX_MS+1}),JSON.stringify({until:wall-1})]) {
+   writeFileSync(window,text);
+   expect(windowOpen(window,()=>wall)).toBe(false);
+  }
+  writeFileSync(window,JSON.stringify({until:wall+WINDOW_MAX_MS}));
+  expect(windowOpen(window,()=>wall)).toBe(true);
+  unlinkSync(window);
+  expect(scope()).toBeUndefined();
+ } finally {place.done();}
 });

@@ -1123,6 +1123,10 @@ def main(argv=None):
     step.add_argument('--to', help='prepare the move to this version (Sbarbase running, writes paused)')
     step.add_argument('--continue', dest='resume', action='store_true', help='move, with Sbarbase stopped')
     step.add_argument('--abandon', action='store_true', help='drop a prepared move')
+    if os.environ.get('SBARBASE_DATABASE_WINDOW') == '1':
+        # A restart of the same image for a setting that needs one (lab/database_window.py); off by default.
+        step.add_argument('--window', nargs='+', metavar='SETTING',
+                          help='restart the database in a short held window for these settings (SBARBASE_DATABASE_WINDOW=1)')
     back = sub.add_parser('rollback')
     back.add_argument('--check', action='store_true', help='only say whether a rollback would refuse, and why')
     # The supervisor's run id: the command then records how it ended (record_outcome).
@@ -1136,6 +1140,13 @@ def main(argv=None):
         if args.command == 'channel':
             channel(args.json, args.preview)
             record_outcome(request, kind)
+            return 0
+        if args.command == 'database' and getattr(args, 'window', None):
+            import database_window
+            try:
+                database_window.run(args.window)
+            except database_window.WindowError as error:
+                raise UpgradeError(str(error)) from None
             return 0
         if args.command == 'database':
             import database_move

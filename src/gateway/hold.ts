@@ -7,6 +7,23 @@ import {withCors} from './handler';
 
 export const HOLD_MARKER=join(UPDATES_DIRECTORY,'hold');
 export const UPGRADE_STATE=join(UPDATES_DIRECTORY,'state.json');
+/** The bounded window for a PostgreSQL restart (lab/database_window.py, behind SBARBASE_DATABASE_WINDOW). */
+export const WINDOW_MARKER=join(UPDATES_DIRECTORY,'database-window');
+/** The longest a window marker may say it lasts. A marker with a later end, or none, holds nothing. */
+export const WINDOW_MAX_MS=600_000;
+
+/** Whether the window marker says a window is open now: `{until}` is a wall clock time in
+ * milliseconds that lies ahead and within WINDOW_MAX_MS. The end is in the marker, so a tool that
+ * died with the marker in place stops holding by itself, and anything unreadable, expired or
+ * implausible holds nothing (a stale marker must never wedge an installation). */
+export function windowOpen(marker=WINDOW_MARKER,wall=()=>Date.now()):boolean {
+ try{
+  const until=(JSON.parse(readFileSync(marker,'utf8')) as {until?:unknown}|null)?.until;
+  const left=typeof until==='number'?until-wall():NaN;
+  return left>0&&left<=WINDOW_MAX_MS;
+ }
+ catch{return false;}
+}
 
 /** What a hold covers. `all`, today's hold: application traffic waits and management changes
  * pause. `management`: the same, except that the tenant data plane keeps flowing: each
@@ -41,12 +58,14 @@ export function holdScope(text:string):HoldScope {
  * second and a removed or rescoped marker takes effect without a restart. The cache runs on a
  * monotonic clock (performance.now): a wall clock stepped back must not keep a cached answer,
  * such as "no hold", past its time. */
-export function upgradeHoldScope(marker=HOLD_MARKER,state=UPGRADE_STATE,{ttlMs=1000,now=()=>performance.now()}:{ttlMs?:number;now?:()=>number}={}) {
+export function upgradeHoldScope(marker=HOLD_MARKER,state=UPGRADE_STATE,{ttlMs=1000,now=()=>performance.now(),window=WINDOW_MARKER,wall}:{ttlMs?:number;now?:()=>number;window?:string;wall?:()=>number}={}) {
  let checked=-Infinity,scope:HoldScope|undefined;
  return ():HoldScope|undefined=>{
   const at=now();
   if(at-checked<ttlMs)return scope;
   checked=at;
+  // An open database window (windowOpen) holds everything, as `all` does.
+  if(windowOpen(window,wall)){scope='all';return scope;}
   try{
    statSync(marker);
    if(!PENDING.includes(String((readJsonCached(state) as {phase?:unknown}|null)?.phase)))scope=undefined;
@@ -59,7 +78,7 @@ export function upgradeHoldScope(marker=HOLD_MARKER,state=UPGRADE_STATE,{ttlMs=1
 }
 
 /** True while any hold is in force (upgradeHoldScope), whatever its scope. */
-export function upgradeHold(marker=HOLD_MARKER,state=UPGRADE_STATE,options:{ttlMs?:number;now?:()=>number}={}) {
+export function upgradeHold(marker=HOLD_MARKER,state=UPGRADE_STATE,options:{ttlMs?:number;now?:()=>number;window?:string;wall?:()=>number}={}) {
  const scope=upgradeHoldScope(marker,state,options);
  return ():boolean=>scope()!==undefined;
 }
