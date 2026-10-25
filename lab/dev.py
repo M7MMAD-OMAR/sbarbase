@@ -126,7 +126,7 @@ def backup_due(now, last_day, hour):
 
 
 class Supervisor:
-    # The handover (lab/handover.py, behind SBARBASE_HANDOVER=1): the previous version's console
+    # The handover (lab/handover.py, on unless SBARBASE_HANDOVER=0): the previous version's console
     # process this start adopted and still lets serve until the new one took over (None otherwise), whether a
     # stop was asked for, and the plan an upgrade child that completed leaves for the exec that replaces this
     # program (None unless every condition held). main sets the first two.

@@ -225,30 +225,56 @@ class TimeoutTests(Case):
 
 class SwitchTests(Case):
     def test_flag_off_does_nothing_at_all(self):
-        for environ in ({}, {database_window.SWITCH: ''}, {database_window.SWITCH: '0'}, {database_window.SWITCH: 'true'}):
+        environ = {database_window.SWITCH: '0'}
+        with self.assertRaises(database_window.WindowError) as caught:
+            self.go(Stub(self.log), environ=environ)
+        self.assertIn('is 0; nothing was changed', str(caught.exception))
+        self.assertEqual(self.log, [])
+        self.assertFalse(self.marker.exists())
+        self.assertFalse(self.lock_path.exists())
+
+    def test_available_unless_exactly_zero_and_an_unknown_value_does_not_crash(self):
+        self.assertFalse(database_window.enabled({database_window.SWITCH: '0'}))
+        for environ in ({}, {database_window.SWITCH: ''}, {database_window.SWITCH: '1'}, {database_window.SWITCH: 'yes'},
+                        {database_window.SWITCH: 'true'}):
             with self.subTest(environ=environ):
-                with self.assertRaises(database_window.WindowError) as caught:
-                    self.go(Stub(self.log), environ=environ)
-                self.assertIn('not 1', str(caught.exception))
-                self.assertEqual(self.log, [])
-                self.assertFalse(self.marker.exists())
-                self.assertFalse(self.lock_path.exists())
+                self.assertTrue(database_window.enabled(environ))
+                self.assertIsNone(database_window.refusal(environ))
 
     def without_flag(self):
         return patch.dict(os.environ, {k: v for k, v in os.environ.items() if k != database_window.SWITCH}, clear=True)
 
-    def test_upgrade_database_has_no_window_option_without_the_flag(self):
-        with self.without_flag(), patch('sys.stderr', io.StringIO()), patch('database_window.run') as run:
+    def zero(self):
+        return patch.dict(os.environ, {database_window.SWITCH: '0'})
+
+    def test_upgrade_database_has_the_window_option_by_default_empty_or_unknown(self):
+        for value in (None, '', 'yes'):
+            with self.subTest(value):
+                with self.without_flag():
+                    if value is not None:
+                        os.environ[database_window.SWITCH] = value
+                    with patch('database_window.run') as run:
+                        self.assertEqual(upgrade.main(['database', '--window', 'max_connections']), 0)
+                run.assert_called_once_with(['max_connections'])
+
+    def test_upgrade_database_has_no_window_option_with_zero(self):
+        with self.zero(), patch('sys.stderr', io.StringIO()), patch('database_window.run') as run:
             with self.assertRaises(SystemExit) as caught:
                 upgrade.main(['database', '--window', 'max_connections'])
         self.assertEqual(caught.exception.code, 2)
         run.assert_not_called()
 
-    def test_upgrade_database_help_is_unchanged_without_the_flag(self):
-        with self.without_flag(), patch('sys.stdout', io.StringIO()) as out:
+    def test_upgrade_database_help_is_unchanged_with_zero(self):
+        with self.zero(), patch('sys.stdout', io.StringIO()) as out:
             with self.assertRaises(SystemExit):
                 upgrade.main(['database', '--help'])
         self.assertNotIn('window', out.getvalue())
+
+    def test_upgrade_database_help_names_the_window_by_default(self):
+        with self.without_flag(), patch('sys.stdout', io.StringIO()) as out:
+            with self.assertRaises(SystemExit):
+                upgrade.main(['database', '--help'])
+        self.assertIn('--window', out.getvalue())
 
     def test_upgrade_database_window_runs_the_window_with_the_flag(self):
         with patch.dict(os.environ, ON), patch('database_window.run') as run:

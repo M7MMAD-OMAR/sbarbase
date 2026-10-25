@@ -263,11 +263,11 @@ class FileTests(Folder):
         for value in (None, '', '-5', '3.5', 'x', '1e3', ' 5', '12345678', '\u00b2', '+5', '5\n'):
             self.assertEqual(handover.credit_mib({handover.CREDIT: value} if value is not None else {}), 0)
 
-    def test_the_switch_is_exactly_one(self):
-        self.assertTrue(handover.enabled({'SBARBASE_HANDOVER': '1'}))
-        for value in ('', '0', 'true', 'yes', '11'):
-            self.assertFalse(handover.enabled({'SBARBASE_HANDOVER': value}))
-        self.assertFalse(handover.enabled({}))
+    def test_the_switch_is_on_unless_it_is_exactly_zero(self):
+        self.assertFalse(handover.enabled({'SBARBASE_HANDOVER': '0'}))
+        for value in ('1', '', 'true', 'yes', '11', ' 0', '00', 'off'):
+            self.assertTrue(handover.enabled({'SBARBASE_HANDOVER': value}), value)
+        self.assertTrue(handover.enabled({}))
 
 
 class AddressTests(unittest.TestCase):
@@ -601,12 +601,17 @@ class Qualification(Folder):
         return reason
 
     def test_q1_the_switch_an_upgrade_and_its_completion(self):
-        for value in (None, '', '0', 'true'):
+        self.environ['SBARBASE_HANDOVER'] = '0'
+        self.assertEqual(self.refused('Q1'), 'Q1: SBARBASE_HANDOVER is 0')
+        # Unset, empty, `1` and an unknown value such as `yes` are all on: no refusal, and no crash.
+        for value in (None, '', '1', 'yes', 'true'):
             with self.subTest(switch=value):
                 self.environ.pop('SBARBASE_HANDOVER', None)
                 if value is not None:
-                    self.environ['SBARBASE_HANDOVER'] = value
-                self.refused('Q1')
+                    self.environ[ 'SBARBASE_HANDOVER'] = value
+                reason, plan = self.why()
+                self.assertIsNone(reason)
+                self.assertIsNotNone(plan)
         self.environ['SBARBASE_HANDOVER'] = '1'
         for kind in ('rollback', 'check', 'anything'):
             self.refused('Q1', kind=kind)
@@ -1950,7 +1955,7 @@ class SupervisorIntegration(DrainFixture):
     def test_a1_with_the_switch_off_the_real_qualifies_reads_nothing(self):
         job = {'kind': 'apply', 'request': None, 'run': 'run-1', 'process': None}
         with patch.object(self.supervisor, 'moved_for_good', return_value=True), patch.dict(os.environ, {}, clear=False), quiet():
-            os.environ.pop('SBARBASE_HANDOVER', None)
+            os.environ['SBARBASE_HANDOVER'] = '0'
             self.supervisor.update_finished(job, 0, at(12))
         self.assertIsNone(self.supervisor.handover)
 
@@ -3330,6 +3335,13 @@ class CreditTests(Folder):
 class SwitchTests(unittest.TestCase):
     """SBARBASE_HANDOVER reaches the supervisor under systemd and in the container."""
 
+    def test_the_rolling_services_reach_the_container_the_same_way(self):
+        self.assertIn('SBARBASE_ROLLING_SERVICES: ${SBARBASE_ROLLING_SERVICES:-}', (ROOT / 'compose.yaml').read_text())
+        launcher = (ROOT / 'deploy/compose.sh').read_text()
+        self.assertIn('scalar SBARBASE_ROLLING_SERVICES "${SBARBASE_ROLLING_SERVICES-}"', launcher)
+        self.assertIn('SBARBASE_ROLLING_SERVICES="${SBARBASE_ROLLING_SERVICES-}"', launcher[launcher.index('exec env -i'):])
+        self.assertIn('scalar SBARBASE_ROLLING_SERVICES "${SBARBASE_ROLLING_SERVICES-}"', (ROOT / 'deploy/host-preflight.sh').read_text())
+
     def test_the_container_gets_the_switch_through_compose_yaml_and_the_launcher(self):
         self.assertIn('SBARBASE_HANDOVER: ${SBARBASE_HANDOVER:-}', (ROOT / 'compose.yaml').read_text())
         launcher = (ROOT / 'deploy/compose.sh').read_text()
@@ -3354,7 +3366,7 @@ class SwitchTests(unittest.TestCase):
     def test_the_unit_gets_it_as_a_drop_in_and_nothing_in_the_unit_sets_it_by_default(self):
         self.assertNotIn('SBARBASE_HANDOVER', (ROOT / 'deploy/sbarbase.service').read_text())
 
-    def test_the_bun_process_turns_the_candidate_on_only_with_the_switch(self):
+    def test_the_bun_process_turns_the_candidate_on_unless_the_switch_is_zero(self):
         text = (ROOT / 'lab/upstream-server.ts').read_text()
         self.assertIn('handoverEnabled()?{candidate:candidateRequested()', text)
 

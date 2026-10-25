@@ -20,7 +20,7 @@ import {candidateRequested,candidateSignals,handoverEnabled,libcSteering,Listene
 // with a fixed --upstream, so SBARBASE_CONSOLE_PORT pins the loopback port. Without
 // it the port is ephemeral, which suits the lab and breaks a proxy on restart.
 if(import.meta.main){
-// The handover (src/http/handover.ts, lab/handover.py): on only with SBARBASE_HANDOVER=1. A candidate
+// The handover (src/http/handover.ts, lab/handover.py): on unless SBARBASE_HANDOVER=0. A candidate
 // is the new version's process while the previous version's still serves; it installs its signal
 // handlers before anything else, serves privately, and joins the shared ports when told (SIGUSR2).
 const handover=handoverEnabled()?{candidate:candidateRequested(),protocol:readProtocol(),stateDirectory:STATE_DIRECTORY}:undefined;

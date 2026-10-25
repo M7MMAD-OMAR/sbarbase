@@ -3,7 +3,7 @@ import {join} from 'node:path';
 import {isIPv4,isIPv6} from 'node:net';
 
 /** The console process's side of the in-place handover (docs/engineering/HANDOVER.md, lab/handover.py).
- * Behind SBARBASE_HANDOVER=1 only: off, nothing here runs. A candidate (SBARBASE_CANDIDATE=1) binds the
+ * On unless SBARBASE_HANDOVER=0: with that value nothing here runs. A candidate (SBARBASE_CANDIDATE=1) binds the
  * fixed listeners with SO_REUSEPORT, finds its own descriptor for each in /proc and attaches a one
  * instruction reuseport program to it, so every new connection of the group comes to it while the
  * previous version's process, which joined first, retires. */
@@ -13,7 +13,7 @@ export const SOL_SOCKET=1,SO_ATTACH_REUSEPORT_CBPF=51,SO_DETACH_REUSEPORT_BPF=68
 export const PROMOTION_FAILED=75;
 export const STATE_DIRECTORY='.lab/upstream';
 
-export const handoverEnabled=(env:Record<string,string|undefined>=process.env)=>env.SBARBASE_HANDOVER==='1';
+export const handoverEnabled=(env:Record<string,string|undefined>=process.env)=>env.SBARBASE_HANDOVER!=='0';
 export const candidateRequested=(env:Record<string,string|undefined>=process.env)=>handoverEnabled(env)&&env.SBARBASE_CANDIDATE==='1';
 
 /** The PROTOCOL of a lab/handover.py read as text: exactly one line `PROTOCOL = <n>`. */

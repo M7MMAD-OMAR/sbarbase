@@ -1,6 +1,6 @@
-"""An environment's Auth or REST replaced side by side after a release changes its pin. Off by default.
+"""An environment's Auth or REST replaced side by side after a release changes its pin. REST by default, Auth opt in.
 
-Without the switch, the start after an upgrade that changes the Auth or PostgREST pin replaces every
+Without it (SBARBASE_ROLLING_SERVICES=none), the start after an upgrade that changes the Auth or PostgREST pin replaces every
 environment's container in place, all while the gateway is down for the restart. With
 SBARBASE_ROLLING_SERVICES naming the service (`rest`, `auth` or `auth,rest`) a pin change no longer
 does that:
@@ -92,10 +92,13 @@ def runtime_module():
 
 
 def chosen():
-    """The services the switch names. Empty (the default) keeps every start as it was; a value naming
+    """The services the switch names. Unset or empty means `rest` (Auth stays opt in: a schema migrating
+    Auth cannot be rolled back by repair); `none` or `0` keeps every start as it was; a value naming
     anything else refuses the start rather than guessing."""
     value = os.environ.get(SWITCH, '').strip()
     if not value:
+        return frozenset({'rest'})
+    if value in ('none', '0'):
         return frozenset()
     names = {part.strip() for part in value.split(',')}
     if not names <= set(SERVICES):

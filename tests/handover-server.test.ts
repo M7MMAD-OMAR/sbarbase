@@ -30,8 +30,10 @@ function installation() {
  return root;
 }
 const until=async(done:() => boolean,ms=20_000) => {const deadline=Date.now()+ms;while(!done()&&Date.now()<deadline)await Bun.sleep(10);return done();};
-function start(root:string,port:number,env:Record<string,string>) {
- const child=Bun.spawn(['bun',server],{cwd:root,env:{...process.env,SBARBASE_CONSOLE_PORT:String(port),SBARBASE_DATABASE_PORT:'off',
+function start(root:string,port:number,env:Record<string,string>,without:string[]=[]) {
+ const inherited:Record<string,string|undefined>={...process.env};
+ for(const name of without)delete inherited[name];
+ const child=Bun.spawn(['bun',server],{cwd:root,env:{...inherited,SBARBASE_CONSOLE_PORT:String(port),SBARBASE_DATABASE_PORT:'off',
   SBARBASE_DATABASE_EXTERNAL_PORT:'off',...env},stdout:'pipe',stderr:'pipe'});
  children.push(child);
  void new Response(child.stdout).text();void new Response(child.stderr).text();
@@ -46,9 +48,9 @@ async function pid(port:number):Promise<string|null> {
  catch{return 'error';}
 }
 
-test('the switch off: no new file is written, no header added and a candidate marker alone changes nothing',async() => {
+test('the switch off (0): no new file is written, no header added and a candidate marker alone changes nothing',async() => {
  const root=installation(),port=await freePort();
- const process_=start(root,port,{SBARBASE_CANDIDATE:'1'});
+ const process_=start(root,port,{SBARBASE_HANDOVER:'0',SBARBASE_CANDIDATE:'1'});
  expect(await until(() => json(root,'.lab/upstream/server.json')?.pid===process_.pid)).toBe(true);
  expect(Object.keys(json(root,'.lab/upstream/server.json')).sort()).toEqual(['pid','url']);
  expect(await pid(port)).toBeNull();
@@ -57,6 +59,19 @@ test('the switch off: no new file is written, no header added and a candidate ma
  process_.kill('SIGTERM');
  expect(await process_.exited).toBe(0);
 },60_000);
+
+for(const [label,env,without] of [['unset',{},['SBARBASE_HANDOVER']],['empty',{SBARBASE_HANDOVER:''},[]],['an unknown value (yes)',{SBARBASE_HANDOVER:'yes'},[]]] as [string,Record<string,string>,string[]][]){
+ test(`the switch ${label} means on: the process keeps its listener record and answers with its pid`,async() => {
+  const root=installation(),port=await freePort();
+  const process_=start(root,port,env,without);
+  expect(await until(() => json(root,'.lab/upstream/server.json')?.pid===process_.pid)).toBe(true);
+  expect(await until(() => json(root,`.lab/upstream/listeners-${process_.pid}.json`)!==undefined)).toBe(true);
+  expect(json(root,`.lab/upstream/listeners-${process_.pid}.json`)).toMatchObject({role:'serving'});
+  expect(await pid(port)).toBe(String(process_.pid));
+  process_.kill('SIGTERM');
+  expect(await process_.exited).toBe(0);
+ },60_000);
+}
 
 test('the real entry point: an old process, a candidate that waits, a promotion, and the release',async() => {
  const root=installation(),port=await freePort();

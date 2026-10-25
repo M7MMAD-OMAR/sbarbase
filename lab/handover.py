@@ -1,6 +1,7 @@
-"""In-place handover of the console process (docs/engineering/HANDOVER.md), behind SBARBASE_HANDOVER=1.
+"""In-place handover of the console process (docs/engineering/HANDOVER.md), on unless SBARBASE_HANDOVER=0.
 
-Off, nothing here runs: lab/dev.py keeps today's planned restart (exit 42, kept runtime). On, a
+Off (the value is exactly `0`), nothing here runs: lab/dev.py keeps the planned restart (exit 42, kept runtime).
+Unset, empty or any other value is on. On, a
 code only upgrade does not stop the Bun process that serves every application. The old
 supervisor replaces its own program with the new version's (`execve`, same process id), the old
 Bun keeps serving, and the new version's Bun (the candidate) joins the shared ports, steers
@@ -92,7 +93,8 @@ class Refused(Exception):
 
 
 def enabled(environ=os.environ):
-    return environ.get(SWITCH) == '1'
+    # On unless the value is exactly `0`: unset, empty and anything else (even `yes`) mean on.
+    return environ.get(SWITCH) != '0'
 
 
 def retire_wait_seconds(environ=os.environ):
@@ -466,7 +468,7 @@ def refusal(supervisor, kind, completed, asked, status, head, environ=os.environ
     checked in lab/dev.py when the runtime is left), else (None, plan)."""
     # Q1
     if not enabled(environ):
-        return 'Q1: SBARBASE_HANDOVER is not 1', None
+        return 'Q1: SBARBASE_HANDOVER is 0', None
     if kind != 'apply' or not completed:
         return 'Q1: not a completed upgrade', None
     # Q2

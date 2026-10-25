@@ -301,14 +301,32 @@ class StartTests(Fixture):
         self.run_patched(rolling.finish_start, self.target)
         self.assertTrue(self.run_patched(rolling.due))
 
-    def test_without_the_switch_the_start_replaces_in_place_as_before(self):
-        self.build()
-        self.intent()
-        with patch.dict(os.environ, {rolling.SWITCH: ''}):
-            cid, created = self.launch()
-        self.assertTrue(created)
-        self.assertEqual(self.fake.calls[:3], ['stop', 'rm', 'run'])
-        self.assertIsNone(self.saved_plan())
+    def test_with_the_switch_none_or_zero_the_start_replaces_in_place_as_before(self):
+        for value in ('none', '0'):
+            with self.subTest(value):
+                self.build()
+                self.intent()
+                with patch.dict(os.environ, {rolling.SWITCH: value}):
+                    cid, created = self.launch()
+                self.assertTrue(created)
+                self.assertEqual(self.fake.calls[:3], ['stop', 'rm', 'run'])
+                self.assertIsNone(self.saved_plan())
+
+    def test_unset_or_empty_rolls_rest_and_replaces_auth_in_place(self):
+        for value in (None, ''):
+            with self.subTest(value):
+                self.build()
+                self.intent()
+                environ = {k: v for k, v in os.environ.items() if k != rolling.SWITCH}
+                if value is not None:
+                    environ[rolling.SWITCH] = value
+                with patch.dict(os.environ, environ, clear=True):
+                    self.assertEqual(rolling.chosen(), frozenset({'rest'}))
+                    cid, created = self.launch()
+                    self.assertEqual((cid, created), (self.old['rest'], False))
+                    self.assertNotIn('rm', self.fake.calls)
+                    self.assertEqual(self.saved_plan()['environments'], {E: {'rest': {'state': 'old', 'from': OLD_IMAGE, 'to': NEW_IMAGE}}})
+                    self.assertEqual(rolling.chosen() & {'auth'}, frozenset())
 
     def test_a_container_whose_settings_changed_too_is_replaced_in_place(self):
         self.build()
@@ -338,7 +356,7 @@ class StartTests(Fixture):
             self.launch()
 
     def test_with_the_switch_turned_off_a_planned_replacement_finishes_in_place_and_the_plan_goes(self):
-        for value in ('', 'auth'):
+        for value in ('none', '0', 'auth'):
             with self.subTest(value):
                 self.build()
                 self.plan(services=('rest',))
@@ -411,8 +429,19 @@ class StartTests(Fixture):
                     rolling.chosen()
         with patch.dict(os.environ, {rolling.SWITCH: ' rest , auth '}):
             self.assertEqual(rolling.chosen(), {'auth', 'rest'})
-        with patch.dict(os.environ, {}, clear=True):
-            self.assertEqual(rolling.chosen(), frozenset())
+        for environ in ({}, {rolling.SWITCH: ''}, {rolling.SWITCH: '  '}):
+            with patch.dict(os.environ, environ, clear=True):
+                self.assertEqual(rolling.chosen(), frozenset({'rest'}))
+        for value in ('none', '0', ' none '):
+            with patch.dict(os.environ, {rolling.SWITCH: value}):
+                self.assertEqual(rolling.chosen(), frozenset())
+        for value, names in (('auth', {'auth'}), ('rest', {'rest'}), ('auth,rest', {'auth', 'rest'})):
+            with patch.dict(os.environ, {rolling.SWITCH: value}):
+                self.assertEqual(rolling.chosen(), names)
+        for value in ('none,rest', 'none,none', '0,rest'):
+            with self.subTest(value), patch.dict(os.environ, {rolling.SWITCH: value}):
+                with self.assertRaisesRegex(RuntimeError, 'only auth and rest'):
+                    rolling.chosen()
 
 
 class RollTests(Fixture):
@@ -953,7 +982,7 @@ class ResumeTests(Fixture):
                 self.build()
                 if label == 'not kept':
                     self.target.kept = None
-                with patch.dict(os.environ, {rolling.SWITCH: '' if label == 'switch off' else 'rest'}):
+                with patch.dict(os.environ, {rolling.SWITCH: 'none' if label == 'switch off' else 'rest'}):
                     self.resume(guard='f' if label == 'no guard' else 't')
                 self.assertEqual(self.fake.calls[0], 'stop')
                 self.assertFalse(any(q == rolling.sessions_sql(E) for q in self.fake.queries))

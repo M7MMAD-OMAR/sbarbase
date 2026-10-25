@@ -103,14 +103,19 @@ describe('the program',() => {
 });
 
 describe('records, the switch and the pid header',() => {
- test('the switch is exactly 1',() => {
-  expect(handoverEnabled({SBARBASE_HANDOVER:'1'})).toBe(true);
-  for(const value of [undefined,'','0','true','yes','11'])expect(handoverEnabled({SBARBASE_HANDOVER:value})).toBe(false);
+ test('the switch is on unless it is exactly 0',() => {
+  expect(handoverEnabled({SBARBASE_HANDOVER:'0'})).toBe(false);
+  expect(handoverEnabled({})).toBe(true);
+  for(const value of [undefined,'','1','true','yes','11',' 0','00'])expect(handoverEnabled({SBARBASE_HANDOVER:value})).toBe(true);
  });
- test('a candidate needs the switch as well as its marker',() => {
+ test('a candidate needs its marker, and the switch not to be 0',() => {
   expect(candidateRequested({SBARBASE_HANDOVER:'1',SBARBASE_CANDIDATE:'1'})).toBe(true);
-  expect(candidateRequested({SBARBASE_CANDIDATE:'1'})).toBe(false);
+  expect(candidateRequested({SBARBASE_CANDIDATE:'1'})).toBe(true);
+  expect(candidateRequested({SBARBASE_HANDOVER:'',SBARBASE_CANDIDATE:'1'})).toBe(true);
+  expect(candidateRequested({SBARBASE_HANDOVER:'yes',SBARBASE_CANDIDATE:'1'})).toBe(true);
+  expect(candidateRequested({SBARBASE_HANDOVER:'0',SBARBASE_CANDIDATE:'1'})).toBe(false);
   expect(candidateRequested({SBARBASE_HANDOVER:'1'})).toBe(false);
+  expect(candidateRequested({})).toBe(false);
  });
  test('PROTOCOL is read from exactly one line of lab/handover.py as text',() => {
   expect(protocolOf('x\nPROTOCOL = 7\ny')).toBe(7);

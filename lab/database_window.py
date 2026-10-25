@@ -1,7 +1,7 @@
 """A short, bounded, held window for a change that must restart PostgreSQL. Off by default.
 
-Behind SBARBASE_DATABASE_WINDOW=1 (the same pattern as SBARBASE_ROLLING_SERVICES and
-SBARBASE_HANDOVER); without it nothing here runs and nothing else changes. Upstream currency P2
+Available unless SBARBASE_DATABASE_WINDOW=0 (the same pattern as SBARBASE_ROLLING_SERVICES and
+SBARBASE_HANDOVER); with 0 nothing here runs and nothing else changes. It still opens only when the operator asks for it with --window and named settings. Upstream currency P2
 and the study docs/engineering/plans/2026-10-23-upgrades-without-outage.md (PostgreSQL restarts).
 
   /usr/bin/python3 lab/database_window.py run --setting max_connections [--setting NAME ...] [--seconds N]
@@ -69,7 +69,8 @@ class WindowError(RuntimeError):
 
 
 def enabled(environ=os.environ):
-    return environ.get(SWITCH) == '1'
+    # Available unless the value is exactly `0`; the window still runs only when asked for with settings.
+    return environ.get(SWITCH) != '0'
 
 
 def window_seconds(environ=os.environ):
@@ -187,7 +188,7 @@ def release_hold(marker=None):
 def refusal(environ=os.environ):
     """Why a window must not open now, or None."""
     if not enabled(environ):
-        return f'{SWITCH} is not 1; nothing was changed'
+        return f'{SWITCH} is 0; nothing was changed'
     if upgrade.HOLD.exists():
         return 'An upgrade holds application traffic or waits for its confirmation; wait for it, nothing was changed'
     return None

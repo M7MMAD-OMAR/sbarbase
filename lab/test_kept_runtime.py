@@ -511,6 +511,20 @@ class RuntimeFixture(Folder):
 
 class ResumeTests(RuntimeFixture):
     def test_a_rest_a_planned_restart_kept_still_stops_before_the_pin(self):
+        for value in ('none', '0'):
+            with self.subTest(value), patch.dict(os.environ, {'SBARBASE_ROLLING_SERVICES': value}):
+                self.assertEqual(self.resume_order(), [('stop', f'sbarbase-durable-{E}-rest'), 'pin', 'data api', 'activate'])
+
+    def test_by_default_a_rest_a_planned_restart_kept_keeps_serving_through_the_pin(self):
+        for value in (None, ''):
+            with self.subTest(value):
+                environ = {k: v for k, v in os.environ.items() if k != 'SBARBASE_ROLLING_SERVICES'}
+                if value is not None:
+                    environ['SBARBASE_ROLLING_SERVICES'] = value
+                with patch.dict(os.environ, environ, clear=True):
+                    self.assertEqual(self.resume_order(), ['pin', 'data api', 'activate'])
+
+    def resume_order(self):
         order = []
         self.runtime.rest_deadlines = Mock(side_effect=lambda *a, **k: order.append('pin'))
         self.runtime.data_api = Mock(side_effect=lambda *a, **k: order.append('data api'))
@@ -521,7 +535,7 @@ class ResumeTests(RuntimeFixture):
                 patch.object(runtime.effect_receipt, 'require_settled'), patch.object(runtime, 'inspect', return_value=self.item()), \
                 patch.object(runtime.lab, 'docker', side_effect=lambda *a, **k: order.append(a[:2])):
             self.runtime.resume(E)
-        self.assertEqual(order, [('stop', f'sbarbase-durable-{E}-rest'), 'pin', 'data api', 'activate'])
+        return order
 
     def test_only_a_running_container_the_record_kept_unchanged_counts(self):
         self.assertTrue(self.runtime.kept_running(self.item()))
@@ -532,6 +546,7 @@ class ResumeTests(RuntimeFixture):
 
 
 class LaunchTests(RuntimeFixture):
+    @patch.dict(os.environ, {'SBARBASE_ROLLING_SERVICES': 'none'})
     def test_a_running_container_that_must_be_replaced_is_stopped_before_it_is_removed(self):
         calls = []
         item = {'Id': 'id-rest', 'Image': 'sha256:old', 'State': {'Running': True}, 'Config': {'Env': []}}

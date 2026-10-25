@@ -1123,10 +1123,10 @@ def main(argv=None):
     step.add_argument('--to', help='prepare the move to this version (Sbarbase running, writes paused)')
     step.add_argument('--continue', dest='resume', action='store_true', help='move, with Sbarbase stopped')
     step.add_argument('--abandon', action='store_true', help='drop a prepared move')
-    if os.environ.get('SBARBASE_DATABASE_WINDOW') == '1':
-        # A restart of the same image for a setting that needs one (lab/database_window.py); off by default.
+    if os.environ.get('SBARBASE_DATABASE_WINDOW') != '0':
+        # A restart of the same image for a setting that needs one (lab/database_window.py); available unless SBARBASE_DATABASE_WINDOW=0.
         step.add_argument('--window', nargs='+', metavar='SETTING',
-                          help='restart the database in a short held window for these settings (SBARBASE_DATABASE_WINDOW=1)')
+                          help='restart the database in a short held window for these settings (disabled by SBARBASE_DATABASE_WINDOW=0)')
     back = sub.add_parser('rollback')
     back.add_argument('--check', action='store_true', help='only say whether a rollback would refuse, and why')
     # The supervisor's run id: the command then records how it ended (record_outcome).
