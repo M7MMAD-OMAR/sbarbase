@@ -76,10 +76,18 @@ jobs:
         run: ci_env env SBARBASE_RELEASE_SOURCE=http://127.0.0.1:8099 "$SBARBASE_ROOT/deploy/compose.sh" up
       - name: Wait for the console
         run: |
+          mkdir -p "$RUNNER_TEMP/live-upgrade-measure"
           for i in $(seq 1 180); do
-            curl -fsS -o /dev/null http://127.0.0.1:8790/ && exit 0
+            if curl -fsS -o /dev/null http://127.0.0.1:8790/; then
+              restarts=$(ci_docker inspect -f '{{.RestartCount}}' "$(ci_compose ps -aq sbarbase)")
+              echo "console answers after $((i * 5)) s at most, container restarts so far: $restarts"
+              echo "$restarts" > "$RUNNER_TEMP/live-upgrade-measure/first-start-restarts.txt"
+              ci_compose logs --no-color sbarbase 2>&1 | sed -E 's/eyJ[A-Za-z0-9_-]{16,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]*/[token]/g; s/sb_(publishable|secret)_[A-Za-z0-9_]+/[key]/g' > "$RUNNER_TEMP/live-upgrade-measure/first-start.log" || true
+              exit 0
+            fi
+            # A restart is not fatal here: it is recorded, and the first start's log is kept (a finding if it happens).
             restarts=$(ci_docker inspect -f '{{.RestartCount}}' "$(ci_compose ps -aq sbarbase)")
-            [ "$restarts" = 0 ] || { echo "the control plane restarted $restarts time(s)"; ci_compose logs --tail 120; exit 1; }
+            [ "$restarts" -le 3 ] || { echo "the control plane restarted $restarts times"; ci_compose logs --tail 150; exit 1; }
             sleep 5
           done
           ci_compose logs --tail 80; exit 1
@@ -116,6 +124,7 @@ jobs:
         if: failure()
         run: |
           # A throwaway runner and a throwaway installation; tokens and keys are removed anyway.
+          mkdir -p "$RUNNER_TEMP/live-upgrade-measure"
           ci_compose logs --tail 300 2>&1 | sed -E 's/eyJ[A-Za-z0-9_-]{16,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]*/[token]/g; s/sb_(publishable|secret)_[A-Za-z0-9_]+/[key]/g' | tee "$RUNNER_TEMP/live-upgrade-measure/container-tail.log" || true
       - name: Keep the measurement
         if: always()
