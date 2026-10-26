@@ -5,7 +5,8 @@ import {ErrorMessage,Loading} from './components';
 import {signInErrors,type FieldErrors} from './settings-validation';
 
 type Provider={enabled:boolean;client_id:string;secret_set?:boolean;secret?:string;url:string};
-type Settings={site_url:string;redirect_urls:string[];signup:boolean;anonymous:boolean;providers:Record<string,Provider>};
+type Session={access_token_seconds:number|null;timebox_seconds:number|null;inactivity_seconds:number|null};
+type Settings={site_url:string;redirect_urls:string[];signup:boolean;anonymous:boolean;session:Session;providers:Record<string,Provider>};
 type State={state:'unconfigured'|'pending'|'applied'|'failed';failure:string|null;callback_url:string;settings:Settings|null};
 
 /** The providers Auth offers, as people know them. `url` marks those that name their own server. */
@@ -16,16 +17,37 @@ export const PROVIDERS:Record<string,{label:string;url?:'optional'|'required'}>=
  slack_oidc:{label:'Slack'},spotify:{label:'Spotify'},twitch:{label:'Twitch'},twitter:{label:'X (Twitter)'},workos:{label:'WorkOS',url:'optional'},
  zoom:{label:'Zoom'}};
 const STATE_TEXT:Record<State['state'],string>={unconfigured:'Default settings',pending:'Applying…',applied:'Applied',failed:'Not applied'};
-const EMPTY:Settings={site_url:'http://localhost:3000',redirect_urls:[],signup:true,anonymous:false,providers:{}};
+const EMPTY:Settings={site_url:'http://localhost:3000',redirect_urls:[],signup:true,anonymous:false,
+ session:{access_token_seconds:null,timebox_seconds:null,inactivity_seconds:null},providers:{}};
+type SessionText={token:string;timebox:string;inactivity:string};
+
+/** The wire carries seconds; the two long lifetimes are entered as whole hours, so a part of
+ * an hour is refused instead of rounded. Empty means no cap. */
+function sessionErrors(value:SessionText):FieldErrors {
+ const errors:FieldErrors={};
+ const token=value.token.trim();
+ if(token&&(!/^\d+$/.test(token)||Number(token)<60||Number(token)>86400))
+  errors['session-token']='Use whole seconds from 60 to 86400, or leave this empty for the pinned default.';
+ const hours=(id:string,text:string)=>{
+  const raw=text.trim();if(!raw)return;
+  if(!/^\d+$/.test(raw)){errors[id]=/^\d+\.\d+$/.test(raw)?'Use whole hours, not part of an hour.':'Use whole hours.';return;}
+  if(Number(raw)<1||Number(raw)>87600)errors[id]='Use whole hours from 1 to 87600, or leave this empty for no limit.';
+ };
+ hours('session-timebox',value.timebox);hours('session-inactivity',value.inactivity);
+ return errors;
+}
+const secondsOrNull=(text:string)=>text.trim()===''?null:Number(text.trim());
+const hoursOrNull=(text:string)=>{const value=secondsOrNull(text);return value===null?null:value*3600;};
 
 /** Where Auth sends people, who may sign up, and which OAuth providers the environment offers. */
 export function SignInSection({path,request}:{path:string;request:Api}){
  const data=useData<{data:State}>(signal=>request(path+'/sign-in','GET',undefined,signal),[path,request]);
  const current=data.data?.data;
  const [form,setForm]=useState<Settings>(EMPTY),[redirects,setRedirects]=useState(''),[adding,setAdding]=useState('');
+ const [session,setSession]=useState<SessionText>({token:'',timebox:'',inactivity:''});
  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[copied,setCopied]=useState('');
  const [validated,setValidated]=useState(false);
- const fields:FieldErrors=validated?signInErrors(form.site_url,redirects,form.providers):{};
+ const fields:FieldErrors=validated?{...signInErrors(form.site_url,redirects,form.providers),...sessionErrors(session)}:{};
  const field=(id:string)=>({disabled:busy,'aria-invalid':Boolean(fields[id]),'aria-describedby':fields[id]?id+'-error':undefined});
  const fieldMessage=(id:string)=>fields[id]?<p id={id+'-error'} className="field-error" role="alert">{fields[id]}</p>:null;
  useEffect(()=>{
@@ -33,18 +55,23 @@ export function SignInSection({path,request}:{path:string;request:Api}){
   const saved=current.settings??EMPTY;setValidated(false);
   setForm({...saved,providers:Object.fromEntries(Object.entries(saved.providers).map(([name,entry])=>[name,{...entry,secret:''}]))});
   setRedirects(saved.redirect_urls.join('\n'));
+  const lifetimes=saved.session??EMPTY.session,hours=(seconds:number|null)=>seconds===null?'':String(seconds/3600);
+  setSession({token:lifetimes.access_token_seconds===null?'':String(lifetimes.access_token_seconds),
+   timebox:hours(lifetimes.timebox_seconds),inactivity:hours(lifetimes.inactivity_seconds)});
  },[current?.settings]);
  useEffect(()=>{if(current?.state!=='pending')return;const timer=setTimeout(data.refresh,3000);return()=>clearTimeout(timer);},[current?.state,data.data]);
  const provider=(name:string,change:Partial<Provider>)=>setForm(value=>({...value,providers:{...value.providers,[name]:{...value.providers[name]!,...change}}}));
  function remove(name:string){setForm(value=>{const providers={...value.providers};delete providers[name];return {...value,providers};});}
  async function save(){
-  if(busy)return;const invalid=signInErrors(form.site_url,redirects,form.providers);setValidated(true);const first=Object.keys(invalid)[0];if(first){document.getElementById(first)?.focus();return;}
+  if(busy)return;const invalid={...signInErrors(form.site_url,redirects,form.providers),...sessionErrors(session)};setValidated(true);const first=Object.keys(invalid)[0];if(first){document.getElementById(first)?.focus();return;}
   setBusy(true);setError('');
   try {
    const providers=Object.fromEntries(Object.entries(form.providers).map(([name,{enabled,client_id,secret,url}])=>
     [name,{enabled,client_id,secret:secret??'',url}]));
    await request(path+'/sign-in','PUT',{site_url:form.site_url.trim(),redirect_urls:redirects.split('\n').map(line=>line.trim()).filter(Boolean),
-    signup:form.signup,anonymous:form.anonymous,providers});
+    signup:form.signup,anonymous:form.anonymous,providers,
+    session:{access_token_seconds:secondsOrNull(session.token),timebox_seconds:hoursOrNull(session.timebox),
+     inactivity_seconds:hoursOrNull(session.inactivity)}});
    data.refresh();
   } catch(e){setError((e as Error).message);} finally{setBusy(false);}
  }
@@ -65,6 +92,20 @@ export function SignInSection({path,request}:{path:string;request:Api}){
   <p className="small muted">One per line. <code>*</code> and <code>**</code> match parts of an address.</p>
   <label className="check"><input type="checkbox" disabled={busy} checked={form.signup} onChange={event=>setForm({...form,signup:event.target.checked})}/>Allow new users to sign up</label>
   <label className="check"><input type="checkbox" disabled={busy} checked={form.anonymous} onChange={event=>setForm({...form,anonymous:event.target.checked})}/>Allow anonymous sign-ins</label>
+  <h3>Session</h3>
+  <p className="small muted">How long a session lasts. A field left empty sets no limit: Auth sets no cap there and that session does not expire.</p>
+  <label htmlFor="session-token">Access token lifetime (seconds)</label>
+  <input id="session-token" type="number" min={60} max={86400} step={1} placeholder="3600" {...field('session-token')} value={session.token} onChange={event=>setSession({...session,token:event.target.value})}/>
+  {fieldMessage('session-token')}
+  <p className="small muted">Empty keeps the default Auth applies.</p>
+  <label htmlFor="session-timebox">Signed in for at most (hours)</label>
+  <input id="session-timebox" type="number" min={1} max={87600} step={1} {...field('session-timebox')} value={session.timebox} onChange={event=>setSession({...session,timebox:event.target.value})}/>
+  {fieldMessage('session-timebox')}
+  <p className="small muted">Empty means no limit.</p>
+  <label htmlFor="session-inactivity">Sign out after (hours) of inactivity</label>
+  <input id="session-inactivity" type="number" min={1} max={87600} step={1} {...field('session-inactivity')} value={session.inactivity} onChange={event=>setSession({...session,inactivity:event.target.value})}/>
+  {fieldMessage('session-inactivity')}
+  <p className="small muted">Empty means no limit.</p>
   <h3>Sign-in providers</h3>
   <label htmlFor="callback">Callback address to give each provider</label>
   <div className="form-row"><input id="callback" readOnly value={current.callback_url}/><button onClick={()=>void copy(current.callback_url)}><Copy aria-hidden="true"/>Copy</button></div>

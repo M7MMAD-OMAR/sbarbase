@@ -414,7 +414,7 @@ export function managementHandler(catalog:Catalog,identify:ManagementIdentity,ma
         return managementPublication(catalog,()=>{
           const current=catalog.getProvision(actor,id);
           if(current.runtime!==job.runtime||catalog.runtimeEpoch(current.runtime)!==epoch)throw new Error('Forbidden');
-          return reply(200,{data:mailEntry(mailEntries(mailDirectory),current.runtime)});
+          return reply(200,{data:{...mailEntry(mailEntries(mailDirectory),current.runtime),runtime:current.runtime}});
         });
       } catch(error) {
         if(error instanceof Error&&error.message==='Forbidden')return reply(403,{message:'Forbidden'});

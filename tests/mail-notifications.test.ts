@@ -54,12 +54,12 @@ test('the console mail route answers from the runtime record, never from the cat
 
 test('an environment with no mail entry is unconfigured and an unknown environment matches the neighbour',async()=>{
   const directory=mkdtempSync(join(tmpdir(),'sbarbase-mail-empty-'));
-  const {catalog,environment}=fixture();
+  const {catalog,environment,runtime}=fixture();
   try {
     const handler=managementHandler(catalog,identify,directory);
     const missing=await call(handler,`/management/v1/environments/${environment}/mail`);
     expect(missing.status).toBe(200);
-    expect(await missing.json()).toEqual({data:{state:'unconfigured'}});
+    expect(await missing.json()).toEqual({data:{state:'unconfigured',runtime}});
     // An environment uuid the catalog does not hold: the mail route answers exactly what the
     // neighbouring environment route answers, so the console has one unknown answer to render.
     const unknown='11111111-1111-1111-1111-111111111111';

@@ -6,10 +6,11 @@ import {Catalog} from './catalog';
 import {authenticate,reply,type ManagementIdentity} from './auth';
 
 /** Sign-in settings for one environment: where Auth sends people after a login or an email
- * link, and which OAuth providers it offers. The console saves them here; the supervisor
- * recreates that environment's Auth with them (lab/auth_settings.py) and records the outcome.
- * A provider's client secret is written to the private settings file and never read back:
- * answers carry only whether one is set. The rules mirror lab/auth_settings.py `validate`. */
+ * link, which OAuth providers it offers, and how long its sessions live. The console saves
+ * them here; the supervisor recreates that environment's Auth with them
+ * (lab/auth_settings.py) and records the outcome. A provider's client secret is written to
+ * the private settings file and never read back: answers carry only whether one is set.
+ * The rules mirror lab/auth_settings.py `validate`. */
 
 export const PROVIDERS=['apple','azure','bitbucket','discord','facebook','figma','github','gitlab','google','kakao',
  'keycloak','linkedin_oidc','notion','slack_oidc','spotify','twitch','twitter','workos','zoom'] as const;
@@ -19,10 +20,18 @@ const MAX_REDIRECTS=50;
 const SECRETS_DIRECTORY='.secrets/upstream';
 
 type Provider={enabled:boolean;client_id:string;secret:string;url:string};
+/** The three session lifetimes Auth applies: the access token lifetime, the longest a person
+ * may stay signed in, and the idle time before a sign out. A null member sets no variable,
+ * so that session does not expire. The ranges mirror lab/auth_settings.py `validate`. */
+export type SignInSession={access_token_seconds:number|null;timebox_seconds:number|null;inactivity_seconds:number|null};
 export type SignInSettings={revision:number;site_url:string;redirect_urls:string[];signup:boolean;anonymous:boolean;
- providers:Record<string,Provider>};
+ session:SignInSession;providers:Record<string,Provider>};
 export type SignInView=Omit<SignInSettings,'providers'|'revision'>&{providers:Record<string,{enabled:boolean;client_id:string;
  secret_set:boolean;url:string}>};
+const NO_CAP:SignInSession={access_token_seconds:null,timebox_seconds:null,inactivity_seconds:null};
+const SESSION_RANGE:Record<keyof SignInSession,[number,number]>={access_token_seconds:[60,86400],
+ timebox_seconds:[3600,315360000],inactivity_seconds:[300,315360000]};
+const SESSION_KEYS=Object.keys(SESSION_RANGE) as (keyof SignInSession)[];
 
 export class SettingsError extends Error {}
 
@@ -40,12 +49,32 @@ function redirectAddress(value:unknown):string {
  return value;
 }
 
+/** One session object from the console's input. An omitted object, or an omitted member,
+ * keeps what is saved, so a save that does not touch sessions cannot wipe them. */
+function sessionFromInput(value:unknown,current:SignInSession|null):SignInSession {
+ const saved=current??NO_CAP;
+ if(value===undefined)return {...saved};
+ if(!value||typeof value!=='object'||Array.isArray(value))throw new SettingsError('session');
+ const given=value as Record<string,unknown>;
+ for(const key of Object.keys(given))if(!(SESSION_KEYS as string[]).includes(key))throw new SettingsError(key);
+ const session={...saved};
+ for(const key of SESSION_KEYS) {
+  const member=given[key];
+  if(member===undefined)continue;
+  if(member===null){session[key]=null;continue;}
+  const [low,high]=SESSION_RANGE[key];
+  if(typeof member!=='number'||!Number.isInteger(member)||member<low||member>high)throw new SettingsError(key);
+  session[key]=member;
+ }
+ return session;
+}
+
 /** The settings to save, from the console's input and what is saved now. An empty secret
  * keeps the saved one, so the console never needs to hold it. */
 export function settingsFromInput(input:unknown,current:SignInSettings|null):SignInSettings {
  if(!input||typeof input!=='object'||Array.isArray(input))throw new SettingsError('settings');
  const value=input as Record<string,unknown>;
- const allowed=new Set(['site_url','redirect_urls','signup','anonymous','providers']);
+ const allowed=new Set(['site_url','redirect_urls','signup','anonymous','session','providers']);
  if(Object.keys(value).some(key=>!allowed.has(key)))throw new SettingsError('settings');
  const site_url=webAddress(value.site_url,'site_url');
  const redirects=value.redirect_urls??[];
@@ -70,7 +99,8 @@ export function settingsFromInput(input:unknown,current:SignInSettings|null):Sig
   else if(enabled&&PROVIDER_URL[name])throw new SettingsError(name);
   providers[name]={enabled,client_id:client,secret,url};
  }
- return {revision:(current?.revision??0)+1,site_url,redirect_urls:redirects.map(redirectAddress),signup,anonymous,providers};
+ return {revision:(current?.revision??0)+1,site_url,redirect_urls:redirects.map(redirectAddress),signup,anonymous,
+  session:sessionFromInput(value.session,current?.session??null),providers};
 }
 
 export function view(settings:SignInSettings|null):SignInView|null {
@@ -78,7 +108,8 @@ export function view(settings:SignInSettings|null):SignInView|null {
  const providers:SignInView['providers']={};
  for(const [name,entry] of Object.entries(settings.providers))
   providers[name]={enabled:entry.enabled,client_id:entry.client_id,secret_set:!!entry.secret,url:entry.url};
- return {site_url:settings.site_url,redirect_urls:settings.redirect_urls,signup:settings.signup,anonymous:settings.anonymous,providers};
+ return {site_url:settings.site_url,redirect_urls:settings.redirect_urls,signup:settings.signup,anonymous:settings.anonymous,
+  session:settings.session,providers};
 }
 
 /** The installation's public address, as lab/auth_settings.py `public_url` reads it. */
@@ -96,7 +127,11 @@ function file(directory:string,runtime:string) {
 export function readSettings(directory:string,runtime:string):SignInSettings|null {
  const path=file(directory,runtime);
  if(!existsSync(path))return null;
- return JSON.parse(readFileSync(path,'utf8')) as SignInSettings;
+ // A file written before sessions were saved has no `session`: it reads as no cap and stays
+ // as it is on disk until the next save writes the whole object.
+ const saved=JSON.parse(readFileSync(path,'utf8')) as SignInSettings;
+ const session=saved.session&&typeof saved.session==='object'?saved.session:NO_CAP;
+ return {...saved,session:{...NO_CAP,...session}};
 }
 
 function writeSettings(directory:string,runtime:string,settings:SignInSettings) {
