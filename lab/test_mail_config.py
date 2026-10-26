@@ -138,7 +138,7 @@ class SchemaTests(unittest.TestCase):
         self.assertEqual(mail_config.KEY_ORDER, (
             'host', 'port', 'user', 'pass', 'admin_email', 'sender_name', 'reply_to', 'max_frequency',
             'otp_exp', 'otp_length', 'secure_email_change', 'autoconfirm', 'rate_limit_email_sent',
-            'rate_limit_otp', 'rate_limit_verify', 'rate_limit_header'))
+            'rate_limit_otp', 'rate_limit_verify', 'rate_limit_header', 'magic_link_template'))
 
     def test_a_valid_object_is_normalized(self):
         config = mail_config.validate(self.payload(rate_limit_email_sent=30))
@@ -320,6 +320,71 @@ class StorageTests(unittest.TestCase):
         mail_config.write_config(self.path, mail_config.validate(dict(CONFIG, host='mailpit-b')), force=True)
         self.assertEqual(mail_config.load(RUNTIME_ID, self.directory.name)['host'], 'mailpit-b')
         self.assertEqual(stat.S_IMODE(self.path.stat().st_mode), 0o600)
+
+
+class TemplateTests(unittest.TestCase):
+    """magic_link_template: the one optional key, where it lands, and what is refused."""
+
+    def test_a_file_written_before_the_key_existed_loads_with_an_empty_value(self):
+        self.assertNotIn('magic_link_template', CONFIG)
+        self.assertEqual(mail_config.OPTIONAL, {'magic_link_template': ''})
+        self.assertEqual(mail_config.validate(dict(CONFIG))['magic_link_template'], '')
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        path = Path(directory.name) / (RUNTIME_ID + '-mail.json')
+        mail_config.write_config(path, dict(CONFIG))
+        # The whole file round trips: the missing key arrives as the empty default.
+        self.assertEqual(mail_config.load(RUNTIME_ID, directory.name), dict(CONFIG, magic_link_template=''))
+
+    def test_every_other_key_is_still_required(self):
+        payload = dict(CONFIG)
+        payload.pop('rate_limit_header')
+        with self.assertRaises(mail_config.InvalidMailConfiguration) as caught:
+            mail_config.validate(payload)
+        self.assertIn('rate_limit_header', str(caught.exception))
+
+    def test_an_https_address_and_a_single_slash_path_reach_the_container(self):
+        for value in ('https://cdn.example.test/magic-link-code.html', '/email-templates/magic-link-code.html'):
+            mail = mail_config.validate(dict(CONFIG, magic_link_template=value))
+            configuration = lab.auth_configuration(RUNTIME_ID, VALUES, 'sbarbase-db', mail)
+            self.assertEqual(configuration['GOTRUE_MAILER_TEMPLATES_MAGIC_LINK'], value)
+
+    def test_an_empty_value_adds_no_key(self):
+        self.assertNotIn('GOTRUE_MAILER_TEMPLATES_MAGIC_LINK',
+                         lab.auth_configuration(RUNTIME_ID, VALUES, 'sbarbase-db', mail_config.validate(dict(CONFIG))))
+        # A builder call handed the raw object, not a validated one, still adds nothing.
+        self.assertEqual(lab.auth_configuration(RUNTIME_ID, VALUES, 'sbarbase-db', dict(CONFIG)),
+                         lab.auth_configuration(RUNTIME_ID, VALUES, 'sbarbase-db', mail_config.validate(dict(CONFIG))))
+
+    def test_a_value_that_is_neither_an_address_nor_a_single_slash_path_is_refused(self):
+        for value in ('javascript:alert(1)', '//evil.example/x', '/a path.html', 'a-relative.html',
+                      'https://user:pass@example.test/x.html', 'ftp://example.test/x.html', 'x' * 3000, 42, None):
+            with self.assertRaises(mail_config.InvalidMailConfiguration) as caught:
+                mail_config.validate(dict(CONFIG, magic_link_template=value))
+            self.assertIn('magic_link_template', str(caught.exception))
+            self.assertNotIn('javascript', str(caught.exception))
+            self.assertNotIn('evil', str(caught.exception))
+
+    def test_a_two_thousand_and_forty_eight_character_address_is_accepted(self):
+        value = 'https://cdn.example.test/' + 'a' * (2048 - len('https://cdn.example.test/'))
+        self.assertEqual(len(value), 2048)
+        self.assertEqual(mail_config.validate(dict(CONFIG, magic_link_template=value))['magic_link_template'], value)
+
+    def test_the_path_warning_names_the_site_url_and_an_address_has_none(self):
+        for value, warned in (('/email-templates/magic-link-code.html', True),
+                              ('https://cdn.example.test/magic-link-code.html', False)):
+            config = mail_config.validate(dict(CONFIG, magic_link_template=value))
+            said = [line for line in mail_config.warnings(config) if 'magic_link_template' in line]
+            self.assertEqual(len(said), 1 if warned else 0)
+            if warned:
+                self.assertIn('GOTRUE_SITE_URL', said[0])
+                self.assertIn('fetch', said[0])
+
+    def test_summarize_reports_default_when_empty_and_the_value_otherwise(self):
+        self.assertEqual(mail_config.summarize(mail_config.validate(dict(CONFIG)))['magic_link_template'], 'default')
+        self.assertEqual(mail_config.summarize(
+            mail_config.validate(dict(CONFIG, magic_link_template='/email-templates/magic-link-code.html')))
+            ['magic_link_template'], '/email-templates/magic-link-code.html')
 
 
 class CommandTests(unittest.TestCase):

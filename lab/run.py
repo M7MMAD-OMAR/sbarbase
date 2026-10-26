@@ -185,6 +185,11 @@ def auth_configuration(e, v, database_host, mail=None, settings=None):
         # SMTP header, which upstream parses as JSON into map[string][]string.
         # The key is omitted when empty so no empty header is ever sent.
         config['GOTRUE_SMTP_HEADERS'] = json.dumps({'Reply-To': [mail['reply_to']]})
+    if mail.get('magic_link_template'):
+        # An http address is fetched as given; a path is resolved against GOTRUE_SITE_URL
+        # (internal/mailer/templatemailer/template.go, loadEntryBody). Omitted when empty,
+        # so the pinned Auth keeps its own body and the dict stays as it was.
+        config['GOTRUE_MAILER_TEMPLATES_MAGIC_LINK'] = mail['magic_link_template']
     return config
 
 

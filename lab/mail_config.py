@@ -29,6 +29,8 @@ Rules this module holds to:
   client is worse than a refused start.
 - A write refuses to proceed outside the git ignored secrets tree, the same guard
   the durable runtime applies before it persists anything.
+- `magic_link_template` is the one optional key, because a file written before it
+  existed must still load. An empty value means the pinned Auth's own body.
 
 The four states an environment's mail can be in, named by the design and rendered
 by the console, are `unconfigured`, `applied`, `failed` and `off`. The classified
@@ -44,6 +46,7 @@ import stat
 import subprocess
 import sys
 from pathlib import Path
+from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 MAIL_DIR = ROOT / '.secrets' / 'upstream'
@@ -83,8 +86,11 @@ SCHEMA = (
     ('rate_limit_otp', 'positive'),
     ('rate_limit_verify', 'positive'),
     ('rate_limit_header', 'optional_header'),
+    ('magic_link_template', 'template_url'),
 )
 KEY_ORDER = tuple(key for key, _ in SCHEMA)
+# Key to default, for the keys a file may leave out. Every other key is required.
+OPTIONAL = {'magic_link_template': ''}
 
 
 class MailConfigurationError(Exception):
@@ -168,23 +174,41 @@ def _one(key, kind, value):
         if not isinstance(value, str) or (value and not HEADER.fullmatch(value)):
             _refuse(key, 'must be empty or an HTTP header name')
         return value
+    if kind == 'template_url':
+        # Either an absolute http or https address, or a path the pinned Auth resolves
+        # against GOTRUE_SITE_URL and fetches from there over HTTP.
+        if not isinstance(value, str) or len(value) > 2048:
+            _refuse(key, 'must be a string of at most 2048 characters')
+        if any(character.isspace() or ord(character) < 32 or ord(character) == 127 for character in value):
+            _refuse(key, 'must not contain whitespace or control characters')
+        if value == '':
+            return value
+        if value.startswith('/'):
+            if value.startswith('//'):
+                _refuse(key, 'must not be protocol relative: a path begins with a single slash')
+            return value
+        parts = urlsplit(value)
+        if parts.scheme not in ('http', 'https') or not parts.hostname or parts.username or parts.password:
+            _refuse(key, 'must be an absolute http or https address or a path beginning with a single slash')
+        return value
     raise MailConfigurationError('unknown field kind: ' + kind)
 
 
 def validate(payload):
     """Return the normalized configuration, or raise naming the offending key.
 
-    Exactly the keys in SCHEMA, no others. No value ever appears in an error:
-    the password is one of the values this function rejects.
+    Exactly the keys in SCHEMA, no others; the keys in OPTIONAL may be absent and
+    take their default. No value ever appears in an error: the password is one of
+    the values this function rejects.
     """
     if not isinstance(payload, dict):
         raise InvalidMailConfiguration('the configuration must be a JSON object')
     for key in sorted(set(payload) - set(KEY_ORDER)):
         _refuse(key, 'is not a recognized mail configuration key')
     for key in KEY_ORDER:
-        if key not in payload:
+        if key not in payload and key not in OPTIONAL:
             _refuse(key, 'is required and is missing')
-    return {key: _one(key, kind, payload[key]) for key, kind in SCHEMA}
+    return {key: _one(key, kind, payload[key] if key in payload else OPTIONAL[key]) for key, kind in SCHEMA}
 
 
 def parse(raw):
@@ -218,6 +242,9 @@ def warnings(config):
     if re.fullmatch(r'[0-9.]+', config['host']):
         said.append('host is an address literal: the pinned client verifies the certificate against the host '
                     'name, so a bare address fails the handshake on port 465 and after any STARTTLS upgrade')
+    if config.get('magic_link_template', '').startswith('/'):
+        said.append('magic_link_template is a path: the pinned Auth resolves it against the environment site '
+                    'URL (GOTRUE_SITE_URL) and fetches it over HTTP, so that site has to serve it')
     return said
 
 
@@ -240,6 +267,8 @@ def summarize(config):
         'rate_limit_otp': config['rate_limit_otp'],
         'rate_limit_verify': config['rate_limit_verify'],
         'rate_limit_header': config['rate_limit_header'] if config['rate_limit_header'] else 'empty',
+        # Read through get(): a caller holding a dict written before the key existed sees the default.
+        'magic_link_template': config.get('magic_link_template', '') or 'default',
     }
 
 

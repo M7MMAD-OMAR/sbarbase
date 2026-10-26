@@ -66,6 +66,106 @@ class ConfigurationTests(unittest.TestCase):
                 auth_settings.public_url()
 
 
+class SessionTests(unittest.TestCase):
+    """The three session settings: what they become, and that an unset one adds nothing."""
+
+    def configuration(self, **session):
+        settings = auth_settings.validate({**VALID, **({'session': session} if session else {})})
+        with patch.dict(os.environ, {'SBARBASE_PUBLIC_URL': 'https://api.example.com/'}):
+            return auth_settings.configuration(E, settings)
+
+    def expected(self):
+        """The whole dict a settings file without a session key has always produced."""
+        external = f'https://api.example.com/{E}/auth/v1'
+        return {
+            'API_EXTERNAL_URL': external,
+            'GOTRUE_SITE_URL': 'https://app.example.com',
+            'GOTRUE_URI_ALLOW_LIST': 'https://app.example.com/**,myapp://callback',
+            'GOTRUE_DISABLE_SIGNUP': 'true',
+            'GOTRUE_EXTERNAL_ANONYMOUS_USERS_ENABLED': 'true',
+            'GOTRUE_EXTERNAL_GITHUB_ENABLED': 'true', 'GOTRUE_EXTERNAL_GITHUB_CLIENT_ID': 'Iv1.abc',
+            'GOTRUE_EXTERNAL_GITHUB_SECRET': 's3cret', 'GOTRUE_EXTERNAL_GITHUB_REDIRECT_URI': external + '/callback',
+            'GOTRUE_EXTERNAL_KEYCLOAK_ENABLED': 'true', 'GOTRUE_EXTERNAL_KEYCLOAK_CLIENT_ID': 'kc',
+            'GOTRUE_EXTERNAL_KEYCLOAK_SECRET': 'k', 'GOTRUE_EXTERNAL_KEYCLOAK_REDIRECT_URI': external + '/callback',
+            'GOTRUE_EXTERNAL_KEYCLOAK_URL': 'https://id.example.com/realms/a'}
+
+    def test_a_file_without_a_session_key_yields_exactly_the_configuration_it_did_before(self):
+        config = self.configuration()
+        self.assertEqual(config, self.expected())
+        self.assertEqual([key for key in config if key == 'GOTRUE_JWT_EXP' or key.startswith('GOTRUE_SESSIONS_')], [])
+
+    def test_each_member_alone_adds_exactly_its_one_variable(self):
+        base = self.configuration()
+        for member, raw, variable, value in (
+                ('access_token_seconds', 900, 'GOTRUE_JWT_EXP', '900'),
+                ('timebox_seconds', 86400, 'GOTRUE_SESSIONS_TIMEBOX', '86400s'),
+                ('inactivity_seconds', 7200, 'GOTRUE_SESSIONS_INACTIVITY_TIMEOUT', '7200s')):
+            config = self.configuration(**{member: raw})
+            self.assertEqual(set(config) - set(base), {variable})
+            self.assertEqual(config[variable], value)
+            self.assertEqual({key: config[key] for key in base}, base)
+
+    def test_the_three_members_together_add_the_three_variables(self):
+        config = self.configuration(access_token_seconds=600, timebox_seconds=315360000, inactivity_seconds=3600)
+        self.assertEqual(config['GOTRUE_JWT_EXP'], '600')
+        self.assertEqual(config['GOTRUE_SESSIONS_TIMEBOX'], '315360000s')
+        self.assertEqual(config['GOTRUE_SESSIONS_INACTIVITY_TIMEOUT'], '3600s')
+        self.assertEqual(set(config) - set(self.expected()),
+                         {'GOTRUE_JWT_EXP', 'GOTRUE_SESSIONS_TIMEBOX', 'GOTRUE_SESSIONS_INACTIVITY_TIMEOUT'})
+
+    def test_null_members_and_a_partial_object_add_nothing(self):
+        self.assertEqual(self.configuration(access_token_seconds=None, timebox_seconds=None, inactivity_seconds=None),
+                         self.expected())
+        settings = auth_settings.validate({**VALID, 'session': {'timebox_seconds': 3600}})
+        self.assertEqual(settings['session'], {'access_token_seconds': None, 'timebox_seconds': 3600,
+                                               'inactivity_seconds': None})
+
+    def test_the_session_variables_are_owned_settings_and_the_jwt_secret_is_not(self):
+        for key in ('GOTRUE_JWT_EXP', 'GOTRUE_SESSIONS_TIMEBOX', 'GOTRUE_SESSIONS_INACTIVITY_TIMEOUT'):
+            self.assertTrue(auth_settings.owned(key))
+        for key in ('GOTRUE_JWT_SECRET', 'GOTRUE_JWT_AUD', 'GOTRUE_SESSIONS'):
+            self.assertFalse(auth_settings.owned(key))
+        # The one caller that matters: a retained Auth may be recreated for these alone.
+        base = {'GOTRUE_JWT_SECRET': 'j', 'GOTRUE_SITE_URL': 'http://localhost'}
+        self.assertTrue(durable_runtime.settings_only('auth', base, {**base, 'GOTRUE_JWT_EXP': '600'}))
+        # In both directions: dropping a session setting is an operator change, not drift.
+        self.assertTrue(durable_runtime.settings_only('auth', {**base, 'GOTRUE_SESSIONS_TIMEBOX': '86400s'}, base))
+        self.assertFalse(durable_runtime.settings_only('auth', base, {**base, 'GOTRUE_JWT_SECRET': 'other'}))
+
+    def test_a_session_member_outside_its_range_or_not_an_integer_is_refused(self):
+        for session, field in (
+                ({'access_token_seconds': True}, 'access_token_seconds'),
+                ({'access_token_seconds': '900'}, 'access_token_seconds'),
+                ({'access_token_seconds': 1.5}, 'access_token_seconds'),
+                ({'access_token_seconds': 59}, 'access_token_seconds'),
+                ({'access_token_seconds': 86401}, 'access_token_seconds'),
+                ({'timebox_seconds': 3599}, 'timebox_seconds'),
+                ({'timebox_seconds': 315360001}, 'timebox_seconds'),
+                ({'inactivity_seconds': 299}, 'inactivity_seconds'),
+                ({'inactivity_seconds': 315360001}, 'inactivity_seconds'),
+                ({'token_seconds': 600}, 'session')):
+            with self.assertRaises(auth_settings.SettingsError) as error:
+                auth_settings.validate({**VALID, 'session': session})
+            self.assertEqual(str(error.exception), field)
+
+    def test_a_session_value_that_is_not_an_object_is_refused(self):
+        for value in ([], 'session', 600, True):
+            with self.assertRaises(auth_settings.SettingsError) as error:
+                auth_settings.validate({**VALID, 'session': value})
+            self.assertEqual(str(error.exception), 'session')
+
+    def test_load_of_a_file_written_before_sessions_still_returns_a_null_session(self):
+        self.assertNotIn('session', VALID)
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        root = Path(directory.name)
+        (root / f'{E}-auth.json').write_text(json.dumps(VALID))
+        with patch.object(auth_settings, 'DIRECTORY', root):
+            loaded = auth_settings.load(E) or {}
+        self.assertEqual(loaded['session'], {'access_token_seconds': None, 'timebox_seconds': None,
+                                             'inactivity_seconds': None})
+
+
 class RecreateTests(unittest.TestCase):
     def test_only_a_difference_in_sign_in_settings_lets_start_recreate_auth(self):
         base = {'GOTRUE_JWT_SECRET': 'j', 'GOTRUE_SITE_URL': 'http://localhost'}

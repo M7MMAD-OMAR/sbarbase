@@ -16,6 +16,12 @@ reads it back: it shows only whether one is set.
 The public address Auth uses for links and OAuth callbacks is installation wide,
 `SBARBASE_PUBLIC_URL` (for example https://api.example.com). Each environment's Auth
 answers under `<public address>/<runtime>/auth/v1`.
+
+A file may also carry a top level `session` object with three members:
+`access_token_seconds`, `timebox_seconds` and `inactivity_seconds`. They become
+GOTRUE_JWT_EXP, GOTRUE_SESSIONS_TIMEBOX and GOTRUE_SESSIONS_INACTIVITY_TIMEOUT. A member
+left null adds nothing to the container's environment, and an unset cap means a session
+does not expire: the pinned Auth reads an unset timebox and inactivity timeout that way.
 """
 import argparse
 import fcntl
@@ -43,11 +49,16 @@ PROVIDER_URL = {'azure': False, 'gitlab': False, 'keycloak': True, 'workos': Fal
 MAX_REDIRECTS = 50
 MAX_BYTES = 65536
 DEFAULT_PUBLIC_URL = 'http://localhost'
+# The session members a file may set, with their inclusive ranges in seconds.
+SESSION_LIMITS = {'access_token_seconds': (60, 86400), 'timebox_seconds': (3600, 315360000),
+                  'inactivity_seconds': (300, 315360000)}
 # Configuration keys this module owns. A retained Auth container that differs from the
 # desired configuration only in these may be recreated at start: they are the operator's
 # own settings, never a sign of drift.
+# GOTRUE_JWT_EXP and GOTRUE_SESSIONS_ are the session settings below: operator settings of that
+# environment, never drift.
 OWNED_PREFIXES = ('GOTRUE_EXTERNAL_', 'GOTRUE_SITE_URL', 'GOTRUE_URI_ALLOW_LIST', 'GOTRUE_DISABLE_SIGNUP',
-                  'API_EXTERNAL_URL')
+                  'API_EXTERNAL_URL', 'GOTRUE_JWT_EXP', 'GOTRUE_SESSIONS_')
 
 
 class SettingsError(ValueError):
@@ -80,7 +91,8 @@ def redirect_address(value):
 
 def validate(settings):
     """The settings as the file holds them, or SettingsError naming the first bad field."""
-    if not isinstance(settings, dict) or set(settings) - {'revision', 'site_url', 'redirect_urls', 'signup', 'anonymous', 'providers'}:
+    if not isinstance(settings, dict) or set(settings) - {'revision', 'site_url', 'redirect_urls', 'signup', 'anonymous',
+                                                          'providers', 'session'}:
         raise SettingsError('settings')
     result = {'revision': settings.get('revision', 0), 'site_url': web_address(settings.get('site_url'), 'site_url'),
               'signup': settings.get('signup', True), 'anonymous': settings.get('anonymous', False)}
@@ -114,6 +126,20 @@ def validate(settings):
         elif enabled and PROVIDER_URL.get(name):
             raise SettingsError(name)
         result['providers'][name] = {'enabled': enabled, 'client_id': client, 'secret': secret, 'url': url}
+    # A file written before sessions existed, and a session object missing a member, both mean
+    # every member is null: no such variable reaches the container.
+    session = settings['session'] if 'session' in settings else {}
+    if not isinstance(session, dict) or set(session) - set(SESSION_LIMITS):
+        raise SettingsError('session')
+    result['session'] = {}
+    for name, (low, high) in SESSION_LIMITS.items():
+        value = session.get(name)
+        if value is None:
+            result['session'][name] = None
+        elif isinstance(value, bool) or not isinstance(value, int) or not low <= value <= high:
+            raise SettingsError(name)
+        else:
+            result['session'][name] = value
     return result
 
 
@@ -148,6 +174,13 @@ def configuration(e, settings):
                    'GOTRUE_URI_ALLOW_LIST': ','.join(settings['redirect_urls']),
                    'GOTRUE_DISABLE_SIGNUP': 'false' if settings['signup'] else 'true',
                    'GOTRUE_EXTERNAL_ANONYMOUS_USERS_ENABLED': 'true' if settings['anonymous'] else 'false'})
+    # A null member adds nothing, so a file without session settings yields the same dict as before.
+    session = settings.get('session') or {}
+    for name, variable in (('access_token_seconds', 'GOTRUE_JWT_EXP'), ('timebox_seconds', 'GOTRUE_SESSIONS_TIMEBOX'),
+                           ('inactivity_seconds', 'GOTRUE_SESSIONS_INACTIVITY_TIMEOUT')):
+        if session.get(name) is not None:
+            # JWT_EXP is a count of seconds; the two caps are Go duration strings.
+            config[variable] = str(session[name]) if name == 'access_token_seconds' else f'{session[name]}s'
     for name, entry in settings['providers'].items():
         if not entry['enabled']:
             continue
