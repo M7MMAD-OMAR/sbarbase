@@ -10,6 +10,10 @@ The declared package version is 0.9.0. Historical 0.1.0 and 0.2.0 entries retain
 
 ## [Unreleased]
 
+### Added
+
+- **A live measurement of the upgrade features (cp9), and its numbers in the docs.** A `workflow_dispatch` workflow on a free GitHub Actions runner installs a release, creates one environment, pulses it every 200 ms and runs the real scenarios: a plain restart, a code only release with the handover on, the same release after a `SIGKILL` of the serving console, a PostgREST pin change with the rolling on and off, and a database restart through the window. Measured: plain restart 22.2 s of failed environment reads; handover 7.2 s with no failed console read; REST rolling no failed read in 1826 s against 12.8 s; database window 3.4 s; killed handover refused at H2 and fell back at 29.8 s. The arm with the handover off recorded no failure and is published as inconclusive. A runner is not a production server: one environment, no customers.
+
 ### Still open
 
 - **Purging a deleted environment is refused**, because nothing proves that only that environment wrote the shared PostgreSQL cluster and Storage objects; delete and restore are soft.

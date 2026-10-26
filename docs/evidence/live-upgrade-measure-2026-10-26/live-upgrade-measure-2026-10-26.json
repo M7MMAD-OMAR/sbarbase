@@ -1,0 +1,954 @@
+{
+ "schema": 1,
+ "check": "live-upgrade-measure",
+ "runner": {
+  "GITHUB_RUN_ID": "40284949045",
+  "GITHUB_RUN_ATTEMPT": "1",
+  "GITHUB_SHA": "e452bd952f42a734d8f18bf7e4e6287f18ba9dce",
+  "GITHUB_REF": "refs/heads/main",
+  "GITHUB_REPOSITORY": "M7MMAD-OMAR/sbarbase",
+  "RUNNER_OS": "Linux",
+  "RUNNER_ARCH": "X64",
+  "ImageOS": "ubuntu24",
+  "ImageVersion": "20261023.334.3",
+  "cpus": "4",
+  "memory": "15989 MiB total, 14348 MiB available",
+  "kernel": "6.17.0-1022-azure",
+  "os": "\"Ubuntu 24.04.5 LTS\"",
+  "docker": "Docker version 28.0.4, build b8034c0",
+  "python": "Python 3.12.3",
+  "disk": "145G total, 79G free"
+ },
+ "started": "2026-10-26T07:35:15Z",
+ "finished": "2026-10-26T08:42:43Z",
+ "releases": {
+  "v0.9.1": "ee819b7c1e686ab1d8204348af3af23643aee17c",
+  "v0.9.2": "c0803444bf39a0e26738e3c98da61132083a6269",
+  "v0.9.3": "7b969f2baa0216598e5c2e4c7bc79ae1e7c54818",
+  "v0.9.4": "440ffc8bfe5082a75e0c45269f484cea47c2b10b",
+  "v0.9.5": "95c887cc07d497162bc213bad69a9f0003407acb"
+ },
+ "base_commit": "8f0f25f51de58d5e7ca964355d2363b85ebfcab8",
+ "installed_commit": "1c01fc6e04d44ebccf2ca536eeeb0f892a636621",
+ "readings": {
+  "total": 40228,
+  "first": 1793000140.517,
+  "last": 1793004163.117
+ },
+ "scenarios": [
+  {
+   "name": "setup",
+   "status": "ran",
+   "start": 1793000143.4678752,
+   "end": 1793000143.4678764,
+   "note": "one environment, one table, the pulse client started",
+   "seconds": 0.0,
+   "stats": {
+    "env": {
+     "n": 0,
+     "ok": 0,
+     "held": 0,
+     "wrong": 0,
+     "error": 0,
+     "failed": 0,
+     "latency_ms": {
+      "p50": null,
+      "p95": null,
+      "p99": null,
+      "max": null
+     },
+     "longest_gap_s": 0.194,
+     "longest_failure_run_s": 0.0
+    },
+    "health": {
+     "n": 0,
+     "ok": 0,
+     "held": 0,
+     "wrong": 0,
+     "error": 0,
+     "failed": 0,
+     "latency_ms": {
+      "p50": null,
+      "p95": null,
+      "p99": null,
+      "max": null
+     },
+     "longest_gap_s": 0.197,
+     "longest_failure_run_s": 0.0
+    }
+   },
+   "raw_columns": [
+    "seconds_from_start",
+    "kind",
+    "status",
+    "ms",
+    "verdict",
+    "error"
+   ]
+  },
+  {
+   "name": "steady",
+   "note": "nothing happens: the noise floor of the runner",
+   "start": 1793000143.4682035,
+   "status": "ran",
+   "end": 1793000213.027428,
+   "seconds": 69.559,
+   "stats": {
+    "env": {
+     "n": 348,
+     "ok": 348,
+     "held": 0,
+     "wrong": 0,
+     "error": 0,
+     "failed": 0,
+     "latency_ms": {
+      "p50": 4.7,
+      "p95": 5.6,
+      "p99": 6.3,
+      "max": 7.4
+     },
+     "longest_gap_s": 0.196,
+     "longest_failure_run_s": 0.0
+    },
+    "health": {
+     "n": 348,
+     "ok": 348,
+     "held": 0,
+     "wrong": 0,
+     "error": 0,
+     "failed": 0,
+     "latency_ms": {
+      "p50": 2.7,
+      "p95": 3.3,
+      "p99": 3.8,
+      "max": 5.7
+     },
+     "longest_gap_s": 0.198,
+     "longest_failure_run_s": 0.0
+    }
+   },
+   "raw_columns": [
+    "seconds_from_start",
+    "kind",
+    "status",
+    "ms",
+    "verdict",
+    "error"
+   ]
+  },
+  {
+   "name": "base",
+   "note": "an ordinary `docker compose restart` (a stop of everything, not the planned exit 42) after `upgrade.py start --to`",
+   "start": 1793000213.0281324,
+   "base": "8f0f25f51de58d5e7ca964355d2363b85ebfcab8",
+   "installed": "1c01fc6e04d44ebccf2ca536eeeb0f892a636621",
+   "status": "ran",
+   "end": 1793000265.348446,
+   "seconds": 52.32,
+   "stats": {
+    "env": {
+     "n": 262,
+     "ok": 150,
+     "held": 16,
+     "wrong": 0,
+     "error": 96,
+     "failed": 112,
+     "latency_ms": {
+      "p50": 4.7,
+      "p95": 6.2,
+      "p99": 7.3,
+      "max": 7.4
+     },
+     "longest_gap_s": 22.595,
+     "longest_failure_run_s": 22.205,
+     "unexpected": {
+      "held:503": 16
+     },
+     "errors": {
+      "ConnectionRefusedError": 96
+     }
+    },
+    "health": {
+     "n": 262,
+     "ok": 166,
+     "held": 0,
+     "wrong": 0,
+     "error": 96,
+     "failed": 96,
+     "latency_ms": {
+      "p50": 2.8,
+      "p95": 3.8,
+      "p99": 4.5,
+      "max": 15.1
+     },
+     "longest_gap_s": 19.397,
+     "longest_failure_run_s": 19.002,
+     "errors": {
+      "ConnectionRefusedError": 96
+     }
+    }
+   },
+   "raw_columns": [
+    "seconds_from_start",
+    "kind",
+    "status",
+    "ms",
+    "verdict",
+    "error"
+   ]
+  },
+  {
+   "name": "handover",
+   "note": "a code only release from the console, SBARBASE_HANDOVER at its default (on)",
+   "tag": "v0.9.1",
+   "kind": "code",
+   "commit": "ee819b7c1e686ab1d8204348af3af23643aee17c",
+   "state_before": {
+    "phase": "confirmed",
+    "to": "8f0f25f51de58d5e7ca964355d2363b85ebfcab8",
+    "from": "1c01fc6e04d44ebccf2ca536eeeb0f892a636621"
+   },
+   "console": {
+    "offered": {
+     "version": "0.9.1",
+     "class": "safe",
+     "signed": true
+    },
+    "applied": true,
+    "status": 202,
+    "at": 1793000270.96
+   },
+   "outcome": {
+    "phase": "confirmed",
+    "trigger": "console",
+    "moved": true,
+    "automatic": false,
+    "failure": null,
+    "started_at": "2026-10-26T07:37:53+00:00",
+    "finished_at": "2026-10-26T07:38:08+00:00"
+   },
+   "seconds_to_outcome": 18.4,
+   "handover": {
+    "result": "handover",
+    "reason": null,
+    "container_restarted": false
+   },
+   "log_lines": [
+    "2026-10-26T07:37:51.546907003Z Update to a newer Sbarbase release started.",
+    "2026-10-26T07:37:53.801632638Z The checkout moved to Sbarbase 0.9.1. Sbarbase restarts on it now.",
+    "2026-10-26T07:37:53.950737874Z The owned containers keep running for the version the checkout moved to."
+   ],
+   "start": 1793000270.96,
+   "end": 1793000313.944772,
+   "status": "ran",
+   "seconds": 42.985,
+   "stats": {
+    "env": {
+     "n": 215,
+     "ok": 178,
+     "held": 37,
+     "wrong": 0,
+     "error": 0,
+     "failed": 37,
+     "latency_ms": {
+      "p50": 4.5,
+      "p95": 6.3,
+      "p99": 9.7,
+      "max": 15.4
+     },
+     "longest_gap_s": 7.596,
+     "longest_failure_run_s": 7.203,
+     "unexpected": {
+      "held:503": 37
+     }
+    },
+    "health": {
+     "n": 215,
+     "ok": 215,
+     "held": 0,
+     "wrong": 0,
+     "error": 0,
+     "failed": 0,
+     "latency_ms": {
+      "p50": 2.7,
+      "p95": 4.0,
+      "p99": 6.0,
+      "max": 8.3
+     },
+     "longest_gap_s": 0.199,
+     "longest_failure_run_s": 0.0
+    }
+   },
+   "raw_columns": [
+    "seconds_from_start",
+    "kind",
+    "status",
+    "ms",
+    "verdict",
+    "error"
+   ]
+  },
+  {
+   "name": "kill",
+   "note": "a code only release from the console with the handover on, and the serving console process killed with SIGKILL once the candidate exists",
+   "tag": "v0.9.2",
+   "kind": "code",
+   "commit": "c0803444bf39a0e26738e3c98da61132083a6269",
+   "state_before": {
+    "phase": "confirmed",
+    "to": "ee819b7c1e686ab1d8204348af3af23643aee17c",
+    "from": "8f0f25f51de58d5e7ca964355d2363b85ebfcab8"
+   },
+   "console": {
+    "offered": {
+     "version": "0.9.2",
+     "class": "safe",
+     "signed": true
+    },
+    "applied": true,
+    "status": 202,
+    "at": 1793000319.752
+   },
+   "outcome": {
+    "phase": "confirmed",
+    "trigger": "console",
+    "moved": true,
+    "automatic": false,
+    "failure": null,
+    "started_at": "2026-10-26T07:38:42+00:00",
+    "finished_at": "2026-10-26T07:39:12+00:00"
+   },
+   "seconds_to_outcome": 34.5,
+   "handover": {
+    "result": "failed",
+    "reason": "H2: the old console process did not freeze its listeners",
+    "container_restarted": true
+   },
+   "log_lines": [
+    "2026-10-26T07:38:40.520281534Z Update to a newer Sbarbase release started.",
+    "2026-10-26T07:38:42.775598625Z The checkout moved to Sbarbase 0.9.2. Sbarbase restarts on it now.",
+    "2026-10-26T07:38:42.928584836Z The owned containers keep running for the version the checkout moved to.",
+    "2026-10-26T07:39:01.410826317Z The handover failed at H2: the old console process did not freeze its listeners",
+    "2026-10-26T07:39:01.450985580Z The owned containers keep running for the version the checkout moved to.",
+    "2026-10-26T07:39:01.451022412Z Sbarbase moved to another version and stopped so it can start on it. Under systemd or Docker it starts again by itself; in a terminal, start it again: /usr/bin/python3 lab/dev.py"
+   ],
+   "kill": "local-v1 preflight passed; supported-profile acceptance unproven; production unproven\n{\"killed\": true, \"target\": \"the serving console process\", \"pid\": 8874, \"candidate\": 8874, \"t\": 1793000322.9338706}",
+   "start": 1793000319.752,
+   "end": 1793000378.7561889,
+   "status": "ran",
+   "seconds": 59.004,
+   "stats": {
+    "env": {
+     "n": 295,
+     "ok": 145,
+     "held": 16,
+     "wrong": 0,
+     "error": 134,
+     "failed": 150,
+     "latency_ms": {
+      "p50": 4.2,
+      "p95": 5.4,
+      "p99": 7.2,
+      "max": 8.4
+     },
+     "longest_gap_s": 30.195,
+     "longest_failure_run_s": 29.805,
+     "unexpected": {
+      "held:503": 16
+     },
+     "errors": {
+      "ConnectionRefusedError": 134
+     }
+    },
+    "health": {
+     "n": 295,
+     "ok": 161,
+     "held": 0,
+     "wrong": 0,
+     "error": 134,
+     "failed": 134,
+     "latency_ms": {
+      "p50": 2.5,
+      "p95": 3.5,
+      "p99": 7.7,
+      "max": 15.2
+     },
+     "longest_gap_s": 26.997,
+     "longest_failure_run_s": 26.601,
+     "errors": {
+      "ConnectionRefusedError": 134
+     }
+    }
+   },
+   "raw_columns": [
+    "seconds_from_start",
+    "kind",
+    "status",
+    "ms",
+    "verdict",
+    "error"
+   ]
+  },
+  {
+   "name": "rest",
+   "note": "a PostgREST pin change from the console, rolling at its default (rest)",
+   "tag": "v0.9.3",
+   "kind": "rest-newer",
+   "commit": "7b969f2baa0216598e5c2e4c7bc79ae1e7c54818",
+   "state_before": {
+    "phase": "confirmed",
+    "to": "c0803444bf39a0e26738e3c98da61132083a6269",
+    "from": "ee819b7c1e686ab1d8204348af3af23643aee17c"
+   },
+   "console": {
+    "offered": {
+     "version": "0.9.3",
+     "class": "safe",
+     "signed": true
+    },
+    "applied": true,
+    "status": 202,
+    "at": 1793000384.376
+   },
+   "outcome": {
+    "phase": "confirmed",
+    "trigger": "console",
+    "moved": true,
+    "automatic": false,
+    "failure": null,
+    "started_at": "2026-10-26T07:38:42+00:00",
+    "finished_at": "2026-10-26T07:39:12+00:00"
+   },
+   "seconds_to_outcome": 1200.6,
+   "roll": {
+    "target": "public.ecr.aws/supabase/postgrest:v14.16",
+    "seconds_after_outcome": null,
+    "containers": [
+     [
+      "sbarbase-durable-e_fb546d5f0f1a68d85569dc3d-rest",
+      "sha256:455fe971661e8c8c2722aece9f1e40e15871fb350724ca5433d54e40f5ade3c8"
+     ]
+    ]
+   },
+   "handover": {
+    "result": "handover",
+    "reason": null,
+    "container_restarted": false
+   },
+   "log_lines": [
+    "2026-10-26T07:39:44.970530787Z Update to a newer Sbarbase release started."
+   ],
+   "start": 1793000384.376,
+   "end": 1793002210.3503397,
+   "status": "ran",
+   "seconds": 1825.974,
+   "stats": {
+    "env": {
+     "n": 9130,
+     "ok": 9130,
+     "held": 0,
+     "wrong": 0,
+     "error": 0,
+     "failed": 0,
+     "latency_ms": {
+      "p50": 3.9,
+      "p95": 4.4,
+      "p99": 5.0,
+      "max": 14.8
+     },
+     "longest_gap_s": 0.197,
+     "longest_failure_run_s": 0.0
+    },
+    "health": {
+     "n": 9130,
+     "ok": 9130,
+     "held": 0,
+     "wrong": 0,
+     "error": 0,
+     "failed": 0,
+     "latency_ms": {
+      "p50": 2.2,
+      "p95": 2.5,
+      "p99": 2.9,
+      "max": 5.6
+     },
+     "longest_gap_s": 0.2,
+     "longest_failure_run_s": 0.0
+    }
+   },
+   "raw_columns": [
+    "seconds_from_start",
+    "kind",
+    "status",
+    "ms",
+    "verdict",
+    "error"
+   ]
+  },
+  {
+   "name": "reconfigure",
+   "note": "the container recreated with SBARBASE_HANDOVER=0 and SBARBASE_ROLLING_SERVICES=none",
+   "start": 1793002210.6141994,
+   "env": {
+    "SBARBASE_HANDOVER": "0",
+    "SBARBASE_ROLLING_SERVICES": "none"
+   },
+   "status": "ran",
+   "end": 1793002256.183185,
+   "seconds": 45.569,
+   "stats": {
+    "env": {
+     "n": 228,
+     "ok": 131,
+     "held": 0,
+     "wrong": 0,
+     "error": 97,
+     "failed": 97,
+     "latency_ms": {
+      "p50": 4.4,
+      "p95": 6.0,
+      "p99": 7.4,
+      "max": 37.9
+     },
+     "longest_gap_s": 19.596,
+     "longest_failure_run_s": 19.2,
+     "errors": {
+      "ConnectionRefusedError": 97
+     }
+    },
+    "health": {
+     "n": 228,
+     "ok": 131,
+     "held": 0,
+     "wrong": 0,
+     "error": 97,
+     "failed": 97,
+     "latency_ms": {
+      "p50": 2.6,
+      "p95": 3.7,
+      "p99": 4.5,
+      "max": 30.3
+     },
+     "longest_gap_s": 19.598,
+     "longest_failure_run_s": 19.201,
+     "errors": {
+      "ConnectionRefusedError": 97
+     }
+    }
+   },
+   "raw_columns": [
+    "seconds_from_start",
+    "kind",
+    "status",
+    "ms",
+    "verdict",
+    "error"
+   ]
+  },
+  {
+   "name": "baseline",
+   "note": "the same kind of release as `handover` with SBARBASE_HANDOVER=0",
+   "tag": "v0.9.4",
+   "kind": "code",
+   "commit": "440ffc8bfe5082a75e0c45269f484cea47c2b10b",
+   "state_before": {
+    "phase": "confirmed",
+    "to": "c0803444bf39a0e26738e3c98da61132083a6269",
+    "from": "ee819b7c1e686ab1d8204348af3af23643aee17c"
+   },
+   "console": {
+    "offered": {
+     "version": "0.9.4",
+     "class": "safe",
+     "signed": true
+    },
+    "applied": true,
+    "status": 202,
+    "at": 1793002261.576
+   },
+   "outcome": {
+    "phase": "confirmed",
+    "trigger": "console",
+    "moved": true,
+    "automatic": false,
+    "failure": null,
+    "started_at": "2026-10-26T07:38:42+00:00",
+    "finished_at": "2026-10-26T07:39:12+00:00"
+   },
+   "seconds_to_outcome": 1200.6,
+   "handover": {
+    "result": "handover",
+    "reason": null,
+    "container_restarted": false
+   },
+   "log_lines": [
+    "2026-10-26T08:11:02.238432929Z Update to a newer Sbarbase release started."
+   ],
+   "start": 1793002261.576,
+   "end": 1793003486.6991472,
+   "status": "ran",
+   "seconds": 1225.123,
+   "stats": {
+    "env": {
+     "n": 6125,
+     "ok": 6125,
+     "held": 0,
+     "wrong": 0,
+     "error": 0,
+     "failed": 0,
+     "latency_ms": {
+      "p50": 3.8,
+      "p95": 4.4,
+      "p99": 5.0,
+      "max": 6.9
+     },
+     "longest_gap_s": 0.197,
+     "longest_failure_run_s": 0.0
+    },
+    "health": {
+     "n": 6125,
+     "ok": 6125,
+     "held": 0,
+     "wrong": 0,
+     "error": 0,
+     "failed": 0,
+     "latency_ms": {
+      "p50": 2.1,
+      "p95": 2.5,
+      "p99": 2.8,
+      "max": 4.2
+     },
+     "longest_gap_s": 0.199,
+     "longest_failure_run_s": 0.0
+    }
+   },
+   "raw_columns": [
+    "seconds_from_start",
+    "kind",
+    "status",
+    "ms",
+    "verdict",
+    "error"
+   ]
+  },
+  {
+   "name": "rest-none",
+   "note": "a PostgREST pin change with SBARBASE_ROLLING_SERVICES=none",
+   "tag": "v0.9.5",
+   "kind": "rest-original",
+   "commit": "95c887cc07d497162bc213bad69a9f0003407acb",
+   "state_before": {
+    "phase": "confirmed",
+    "to": "c0803444bf39a0e26738e3c98da61132083a6269",
+    "from": "ee819b7c1e686ab1d8204348af3af23643aee17c"
+   },
+   "console": {
+    "offered": {
+     "version": "0.9.5",
+     "class": "safe",
+     "signed": true
+    },
+    "applied": true,
+    "status": 202,
+    "at": 1793003492.424
+   },
+   "outcome": {
+    "phase": "confirmed",
+    "trigger": "console",
+    "moved": true,
+    "automatic": false,
+    "failure": null,
+    "started_at": "2026-10-26T08:31:35+00:00",
+    "finished_at": "2026-10-26T08:31:47+00:00"
+   },
+   "seconds_to_outcome": 16.4,
+   "roll": {
+    "target": "public.ecr.aws/supabase/postgrest:v14.18",
+    "seconds_after_outcome": null,
+    "containers": [
+     [
+      "sbarbase-durable-e_fb546d5f0f1a68d85569dc3d-rest",
+      "sha256:455fe971661e8c8c2722aece9f1e40e15871fb350724ca5433d54e40f5ade3c8"
+     ]
+    ]
+   },
+   "handover": {
+    "result": "restarted",
+    "reason": "the planned exit 42 and a container restart",
+    "container_restarted": true
+   },
+   "log_lines": [
+    "2026-10-26T08:31:33.043923809Z Update to a newer Sbarbase release started.",
+    "2026-10-26T08:31:35.298972049Z The checkout moved to Sbarbase 0.9.5. Sbarbase restarts on it now.",
+    "2026-10-26T08:31:36.706809359Z The owned containers keep running for the version the checkout moved to.",
+    "2026-10-26T08:31:36.706864398Z Sbarbase moved to another version and stopped so it can start on it. Under systemd or Docker it starts again by itself; in a terminal, start it again: /usr/bin/python3 lab/dev.py"
+   ],
+   "start": 1793003492.424,
+   "end": 1793004133.9879386,
+   "status": "ran",
+   "seconds": 641.564,
+   "stats": {
+    "env": {
+     "n": 3208,
+     "ok": 3143,
+     "held": 16,
+     "wrong": 0,
+     "error": 49,
+     "failed": 65,
+     "latency_ms": {
+      "p50": 3.9,
+      "p95": 4.6,
+      "p99": 5.4,
+      "max": 8.1
+     },
+     "longest_gap_s": 13.196,
+     "longest_failure_run_s": 12.805,
+     "unexpected": {
+      "held:503": 16
+     },
+     "errors": {
+      "ConnectionRefusedError": 49
+     }
+    },
+    "health": {
+     "n": 3208,
+     "ok": 3159,
+     "held": 0,
+     "wrong": 0,
+     "error": 49,
+     "failed": 49,
+     "latency_ms": {
+      "p50": 2.2,
+      "p95": 2.7,
+      "p99": 3.2,
+      "max": 14.1
+     },
+     "longest_gap_s": 9.998,
+     "longest_failure_run_s": 9.6,
+     "errors": {
+      "ConnectionRefusedError": 49
+     }
+    }
+   },
+   "raw_columns": [
+    "seconds_from_start",
+    "kind",
+    "status",
+    "ms",
+    "verdict",
+    "error"
+   ]
+  },
+  {
+   "name": "window",
+   "note": "`upgrade.py database --window max_connections`",
+   "start": 1793004134.2318897,
+   "command_seconds": 3.0,
+   "exit": 0,
+   "output": "local-v1 preflight passed; supported-profile acceptance unproven; production unproven\nThe database restarted and answers; the hold lasted 2.4 s of at most 30 s.",
+   "status": "ran",
+   "end": 1793004163.2739546,
+   "seconds": 29.042,
+   "stats": {
+    "env": {
+     "n": 145,
+     "ok": 127,
+     "held": 15,
+     "wrong": 3,
+     "error": 0,
+     "failed": 18,
+     "latency_ms": {
+      "p50": 3.9,
+      "p95": 4.3,
+      "p99": 6.6,
+      "max": 13.8
+     },
+     "longest_gap_s": 3.796,
+     "longest_failure_run_s": 3.403,
+     "unexpected": {
+      "held:503": 15,
+      "wrong:404": 3
+     }
+    },
+    "health": {
+     "n": 145,
+     "ok": 145,
+     "held": 0,
+     "wrong": 0,
+     "error": 0,
+     "failed": 0,
+     "latency_ms": {
+      "p50": 2.1,
+      "p95": 2.4,
+      "p99": 2.8,
+      "max": 3.0
+     },
+     "longest_gap_s": 0.198,
+     "longest_failure_run_s": 0.0
+    }
+   },
+   "raw_columns": [
+    "seconds_from_start",
+    "kind",
+    "status",
+    "ms",
+    "verdict",
+    "error"
+   ]
+  }
+ ],
+ "all": {
+  "env": {
+   "n": 20114,
+   "ok": 19635,
+   "held": 100,
+   "wrong": 3,
+   "error": 376,
+   "failed": 479,
+   "latency_ms": {
+    "p50": 3.9,
+    "p95": 4.6,
+    "p99": 5.6,
+    "max": 37.9
+   },
+   "longest_gap_s": 30.195,
+   "longest_failure_run_s": 29.805,
+   "unexpected": {
+    "held:503": 100,
+    "wrong:404": 3
+   },
+   "errors": {
+    "ConnectionRefusedError": 376
+   }
+  },
+  "health": {
+   "n": 20114,
+   "ok": 19738,
+   "held": 0,
+   "wrong": 0,
+   "error": 376,
+   "failed": 376,
+   "latency_ms": {
+    "p50": 2.2,
+    "p95": 2.7,
+    "p99": 3.3,
+    "max": 30.3
+   },
+   "longest_gap_s": 26.997,
+   "longest_failure_run_s": 26.601,
+   "errors": {
+    "ConnectionRefusedError": 376
+   }
+  }
+ },
+ "marks": [
+  {
+   "t": 1793000143.468,
+   "name": "steady:begin"
+  },
+  {
+   "t": 1793000213.027,
+   "name": "steady:end"
+  },
+  {
+   "t": 1793000213.028,
+   "name": "base:begin"
+  },
+  {
+   "t": 1793000265.348,
+   "name": "base:end"
+  },
+  {
+   "t": 1793000265.823,
+   "name": "handover:begin"
+  },
+  {
+   "t": 1793000271.26,
+   "name": "handover:applied"
+  },
+  {
+   "t": 1793000313.945,
+   "name": "handover:end"
+  },
+  {
+   "t": 1793000314.623,
+   "name": "kill:begin"
+  },
+  {
+   "t": 1793000320.009,
+   "name": "kill:applied"
+  },
+  {
+   "t": 1793000378.756,
+   "name": "kill:end"
+  },
+  {
+   "t": 1793000379.421,
+   "name": "rest:begin"
+  },
+  {
+   "t": 1793000384.662,
+   "name": "rest:applied"
+  },
+  {
+   "t": 1793002210.35,
+   "name": "rest:end"
+  },
+  {
+   "t": 1793002210.614,
+   "name": "reconfigure:begin"
+  },
+  {
+   "t": 1793002256.183,
+   "name": "reconfigure:end"
+  },
+  {
+   "t": 1793002256.61,
+   "name": "baseline:begin"
+  },
+  {
+   "t": 1793002261.883,
+   "name": "baseline:applied"
+  },
+  {
+   "t": 1793003486.699,
+   "name": "baseline:end"
+  },
+  {
+   "t": 1793003487.365,
+   "name": "rest-none:begin"
+  },
+  {
+   "t": 1793003492.684,
+   "name": "rest-none:applied"
+  },
+  {
+   "t": 1793004133.988,
+   "name": "rest-none:end"
+  },
+  {
+   "t": 1793004134.232,
+   "name": "window:begin"
+  },
+  {
+   "t": 1793004163.274,
+   "name": "window:end"
+  }
+ ],
+ "provenance": {
+  "workflow": ".github/workflows/live-upgrade-measure.yml (workflow_dispatch only)",
+  "command": "gh workflow run live-upgrade-measure.yml --ref main",
+  "run": "https://github.com/M7MMAD-OMAR/sbarbase/actions/runs/40284949045",
+  "artifact": "live-upgrade-measure (live-upgrade-measure.json, pulse.jsonl, scenarios.json, logs/)",
+  "installed": "v0.9.0 (1c01fc6e04d4) at the start, releasing v0.9.1 to v0.9.5 test tags during the run",
+  "raw": "pulse.jsonl.gz holds every sample (40253 lines: timestamp, kind health or env, status, ms, verdict, error)"
+ },
+ "not_verified": [
+  "A GitHub runner is not the production VPS: no customers, one environment, a tiny table, four cores, shared runner noise.",
+  "Latency percentiles describe the runner; the outage figures are the measured part.",
+  "The `baseline` arm (a code only release with SBARBASE_HANDOVER=0) recorded no failed request, which contradicts the `base` arm and the earlier behaviour. It is reported as inconclusive rather than as a result: the switch may not have reached the process the upgrade restarted. One more run is needed to make the off arm trustworthy.",
+  "The kill arm exercised a refused handover. The failure of a handover after its point of no return was not exercised.",
+  "Storage, Realtime and Functions pins were not changed; only REST was.",
+  "The database window restarted the same image, not a new one."
+ ]
+}
