@@ -23,6 +23,8 @@ export type MailEntry = {
   rate_limit_otp?: number;
   rate_limit_verify?: number;
   rate_limit_header?: string;
+  /** The address of the sign-in mail body, or `default` when the pinned Auth uses its own. */
+  magic_link_template?: string;
 };
 
 const LABEL: Record<string, string> = {
@@ -61,6 +63,9 @@ export function mailDetails(entry?: MailEntry): Row[] {
   if (typeof entry.rate_limit_email_sent === 'string') rows.push({ label: 'Email rate limit', value: entry.rate_limit_email_sent });
   if (typeof entry.otp_exp === 'number' && typeof entry.otp_length === 'number') {
     rows.push({ label: 'One time code', value: entry.otp_length + ' digits, valid ' + entry.otp_exp + ' seconds' });
+  }
+  if (entry.magic_link_template && entry.magic_link_template !== 'default') {
+    rows.push({ label: 'Sign-in mail body', value: entry.magic_link_template });
   }
   return rows;
 }
