@@ -97,7 +97,14 @@ jobs:
           cat "$RUNNER_TEMP/pins.txt"
           bash "$RUNNER_TEMP/tools/lab/live-upgrade-pull.sh" "$RUNNER_TEMP/pins.txt"
       - name: Build and start (the release source is the local one the driver serves on 127.0.0.1:8099)
-        run: ci_env env SBARBASE_RELEASE_SOURCE=http://127.0.0.1:8099 "$SBARBASE_ROOT/deploy/compose.sh" up
+        # The image build reads packages from snapshot.ubuntu.com, which answered 404 and 97 kB/s on one run:
+        # the build is tried three times (finished layers are kept).
+        run: |
+          for attempt in 1 2 3; do
+            if ci_env env SBARBASE_RELEASE_SOURCE=http://127.0.0.1:8099 "$SBARBASE_ROOT/deploy/compose.sh" up; then exit 0; fi
+            echo "build and start failed (attempt $attempt)"; sleep 60
+          done
+          exit 1
       - name: Wait for the console
         run: |
           mkdir -p "$RUNNER_TEMP/live-upgrade-measure"
