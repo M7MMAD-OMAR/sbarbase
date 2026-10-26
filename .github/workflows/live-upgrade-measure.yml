@@ -108,7 +108,16 @@ jobs:
       - name: Wait for the console
         run: |
           mkdir -p "$RUNNER_TEMP/live-upgrade-measure"
+          seeded=false
           for i in $(seq 1 180); do
+            # v0.9.0 finding: on a new installation (no environment yet) .lab/upstream/endpoints.json does not exist
+            # and the console process dies on it (src/http/cached-json.ts, ENOENT) at every start, so the container
+            # restarts forever. An empty registry, which is what no environment means, is written once, as root inside
+            # the container like the rest of .lab; the log of the failing starts is kept in first-start.log.
+            if [ "$seeded" = false ] && ci_exec sbarbase sh -c 'test -d .lab/upstream && { test -e .lab/upstream/endpoints.json || printf "{}" > .lab/upstream/endpoints.json; } && test -e .lab/upstream/endpoints.json' >/dev/null 2>&1; then
+              seeded=true; echo "endpoints.json seeded with an empty registry after about $((i * 5)) s"
+              echo seeded > "$RUNNER_TEMP/live-upgrade-measure/endpoints-seeded.txt"
+            fi
             if curl -fsS -o /dev/null http://127.0.0.1:8790/; then
               restarts=$(ci_docker inspect -f '{{.RestartCount}}' "$(ci_compose ps -aq sbarbase)")
               echo "console answers after $((i * 5)) s at most, container restarts so far: $restarts"
