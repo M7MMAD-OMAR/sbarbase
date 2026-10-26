@@ -34,6 +34,18 @@ In your application, sign in the usual way:
 await supabase.auth.signInWithOAuth({ provider: 'github', options: { redirectTo: 'https://app.example.com/welcome' } })
 ```
 
+## 4. Choose how long a session lasts
+
+Section **Session** sets three lifetimes. All three are optional, and an empty field means no cap: Auth sets no variable there, so the session does not end on that count. With all three empty, a person who signs in once stays signed in, which is what a store that never wants to log a buyer out wants.
+
+| Field | What it sets | Empty means |
+|---|---|---|
+| **Access token lifetime (seconds)** | `GOTRUE_JWT_EXP`, how long one access token is valid | the pinned Auth default, 3600 seconds. The client refreshes it, so this does not sign anyone out |
+| **Signed in for at most (hours)** | `GOTRUE_SESSIONS_TIMEBOX`, the longest a session may live from the moment it started | no limit |
+| **Sign out after (hours) of inactivity** | `GOTRUE_SESSIONS_INACTIVITY_TIMEOUT`, the idle time before a session ends | no limit |
+
+A cap applies to sessions started after the change; a session already running keeps the lifetime it started with. The fields take whole numbers: hours for the two caps, seconds for the token.
+
 ## What happens when you save
 
 Saving recreates that environment's Auth with the new settings; other environments are not touched. Users, sessions and every row stay, because Auth keeps them in the environment's database. The section shows **Applying…**, then **Applied**. If Auth does not start with the new settings, the previous Auth keeps running and the section says **Not applied**.

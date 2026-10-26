@@ -312,7 +312,8 @@ bytes on stdin, no password echoed, values never printed. New file:
 lab/mail_config.py
 ```
 
-Content schema, exactly these keys, no others:
+Content schema: every key below except `magic_link_template`, which is the one optional key
+that a file written before it existed may leave out. No other key is accepted.
 
 | Key | Type | Required | Meaning |
 |---|---|---|---|
@@ -332,6 +333,7 @@ Content schema, exactly these keys, no others:
 | `rate_limit_otp` | integer | yes | per 5 minute bucket for signup, recover, resend, magiclink, otp, user |
 | `rate_limit_verify` | integer | yes | per 5 minute bucket for token verification |
 | `rate_limit_header` | string, may be empty | yes | header carrying the trusted client address |
+| `magic_link_template` | empty, an absolute `http`/`https` address, or a path beginning with a single `/`, at most 2048 characters, no whitespace | no, defaults to empty | becomes `GOTRUE_MAILER_TEMPLATES_MAGIC_LINK`. Empty keeps the body compiled into the pinned Auth, which carries the link only. A path is resolved against that environment's site URL and fetched over HTTP from there, so the site serves it. Section 4 has the file that ships for a typed sign-in code |
 
 Command surface of `lab/mail_config.py`:
 
@@ -725,47 +727,55 @@ environment that actually sends confirmation mail sets `autoconfirm` to false, a
   `Data`, `Email`, `NewEmail`, `RedirectTo`, `SendingTo`, `SiteURL`, `Token`, `TokenHash`
   (`template.go:573-583`).
 
-### 4.2 Recommendation: ship the upstream defaults, and do not add a template surface yet
+### 4.2 What shipped: one body, only when asked for, and no template service
 
-Recommendation: for the first increment, set no `GOTRUE_MAILER_TEMPLATES_*` and no
-`GOTRUE_MAILER_SUBJECTS_*`. Reasons:
+The defaults stay: no `GOTRUE_MAILER_TEMPLATES_*` and no `GOTRUE_MAILER_SUBJECTS_*` unless a
+mail file sets `magic_link_template`. At that point exactly one body variable is set, and
+nothing else. The reasons the defaults stay are unchanged:
 
-1. The bodies are versioned with the pinned Auth image, so they cannot drift from it, and
-   every body is already a working, plain, functional message.
-2. Overriding a body requires an HTTP endpoint reachable **from inside the environment's
-   internal network**. `NETWORK` is created with `--internal`
-   (`lab/durable_runtime.py:186`: `lab.docker('network', 'create', '--internal', ...)`), so
-   the Auth container has no egress to the public internet and cannot fetch a template from a
-   public HTTPS URL. A relative path is worse: it resolves against `GOTRUE_SITE_URL`, which is
-   `http://localhost` today, that is, the container itself.
-3. Adding a template service means adding a process to the network and a new failure mode on
-   the path that sends confirmation mail, which is the path signup depends on.
+1. The compiled bodies are versioned with the pinned Auth image, so they cannot drift from it,
+   and every one of them is a working, plain message.
+2. A body override is a new way for a send to fail: the fetch has a ten second timeout, needs
+   status 200, and an error is an error on the path signup depends on.
+3. A template service inside the environment network would be one more process and one more
+   failure mode. Nothing here adds one: the body is fetched over HTTP, from the site URL for a
+   path, or from the address given for an absolute URL.
 
-### 4.3 Where per environment templates would live, if and when they are added
+What changed since the first increment, and why the override is possible at all: a configured
+environment now joins the outbound network (section 2.7), so a fetch outside the host
+succeeds. Before that, every override was unreachable, which is also why a public relay was
+unreachable.
 
-If the operator later needs branded mail, the design that fits the constraints is:
+The reason to override at all is the typed sign-in code. The pinned default magic link body
+carries `{{ .ConfirmationURL }}` and no code, so a store that wants a buyer to type eight
+digits instead of following a link has no way to show them. `lab/email-templates/magic-link-code.html`
+is the file this project ships for that: the code from `{{ .Token }}` at the top, the link as
+the fallback, and one line saying both do the same thing. `otp_length` in the same file sets
+how many digits, so `8` is a setting and not a rewrite. Host it where the environment can
+reach it (the application's own site is the natural place, and a path in
+`magic_link_template` resolves there), then set that path, keep `otp_length` and `otp_exp` as
+you want them, and reconcile.
 
-- Source of truth: one HTML file per mail type per environment inside the installation's
-  configuration tree, under a mail root keyed by the environment identifier, for example
-  `<mail root>/<environment runtime id>/confirmation.html`. The file is deployment content,
-  not a credential, so it does not belong under `.secrets/`.
-- Delivery: the per environment gateway, which already has an environment aware route
-  (`src/gateway/handler.ts`, `src/control/application.ts:36-48`), serves that file on a path
-  inside the environment's prefix, and the gateway joins `NETWORK` so the Auth container can
-  reach it by container name.
-- Wiring: `GOTRUE_MAILER_TEMPLATES_CONFIRMATION` (and the other types) set to the absolute
-  internal URL, for example `http://<gateway container name>:<port>/e_<id>/mail-templates/confirmation.html`.
-  An absolute `http://` URL is required because of the `strings.HasPrefix(url, "http")` test
-  above, and it must be absolute because `SITE_URL` is `http://localhost`.
-- Caching: keep `GOTRUE_MAILER_TEMPLATE_MAX_AGE` at its 10 minute default, so a template edit
-  takes effect within 10 minutes, and leave `GOTRUE_MAILER_TEMPLATE_RELOADING_ENABLED` false
-  so a broken template cannot fail a send in the background path.
-- Failure: `fetch` failing raises through `wrapError` and the send fails, so an override is a
-  new way for signup to break. The verification in section 6 must therefore be rerun after any
-  template override, with the count assertion changed from 1 to 2 mails.
+### 4.3 Where a body lives, and what is still deferred
 
-That is a later increment with its own gate. It is specified here only so that the first
-increment does not accidentally ship a partial template mechanism.
+The pin needs no template service and no new mount: a body is a URL, fetched over HTTP. So the
+file lives wherever that URL points, and the installation writes no copy of it:
+
+- The natural host is the application's own site, because a path is resolved against
+  `GOTRUE_SITE_URL`, which that site owns. Nothing is served by the platform itself.
+- The file is deployment content, not a credential: it carries no address, no price and no
+  key, only the two template variables the pin substitutes.
+- Caching keeps the pin's 10 minute default (`GOTRUE_MAILER_TEMPLATE_MAX_AGE`), so an edit to
+  a hosted body takes effect within ten minutes, and `TEMPLATE_RELOADING_ENABLED` stays false
+  so a broken body cannot fail a send in the background path.
+- Failure: a refused fetch raises through `wrapError` and the send fails. Trying a body means
+  sending a real message through the real relay, which is the check section 9 item 2 still
+  wants and the console still does not offer.
+
+Still deferred: branded bodies for the other mail types (confirmation, recovery, invite,
+email change). The schema accepts one key today, `magic_link_template`, because the typed
+sign-in code is the case an operator asked for. A second one is a schema change with its own
+test, not a data entry.
 
 ## 5. The operator decision surface
 
@@ -1232,7 +1242,9 @@ against `lab/pin_update.py show`.
    environment, and returns a refusal explaining why when it does not. It needs its own
    rate limit reasoning, because it would consume the environment's `GOTRUE_RATE_LIMIT_OTP`
    bucket from the platform's own address.
-3. **No template override.** Section 4.3. It needs the gateway on the runtime network first.
+3. **One template override, and no others.** `magic_link_template` (sections 2.2 and 4.2)
+   covers the typed sign-in code. The confirmation, recovery, invite and email change bodies
+   stay the pin's own.
 4. **No account change notifications.** `GOTRUE_MAILER_NOTIFICATIONS_*` stay off. Turning them
    on sends mail on ordinary account activity and needs its own abuse reasoning.
 5. **No invite flow.** `GOTRUE_EXTERNAL_EMAIL_ENABLED` is already true and the invite endpoint

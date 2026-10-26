@@ -1,22 +1,39 @@
 {
  "scope": "Install step \"console built\", isolated: the production UI build is run and the produced page is checked for a non-empty index and for every local asset it references. Not a browser render, not a serving check, not the console API.",
- "build": null,
+ "build": {
+  "command": "bun run build:ui",
+  "exit": 0,
+  "seconds": 0.34,
+  "tail": ".lab/ui/assets/lucide-BkFaz07K.js               17.68 kB \u2502 gzip:  6.32 kB\n.lab/ui/assets/react-runtime-BPeupeul.js       218.84 kB \u2502 gzip: 68.25 kB\n.lab/ui/assets/index-Ca2KZ-cA.js               389.15 kB \u2502 gzip: 99.67 kB\n\n\u2713 built in 173ms\n$ vite build"
+ },
  "page": {
-  "page_bytes": 392,
-  "page_sha256": "6a708019e50f066b4742537ed814ab84b3af23a345213638641ece966016298b",
+  "page_bytes": 797,
+  "page_sha256": "08982aeaa86e4df9b0b174bf0f8a5c1afe8b98adb3311fe9a129100a40f51476",
   "assets": {
-   "assets/index-03pyDXHP.js": {
-    "bytes": 454098,
-    "sha256": "b969fa0a9ee5870420a2491a3181ba319e1e8ca3b69cac978f0c620fe27144a0"
+   "assets/sbarbase-mark-96-BpB05cjQ.webp": {
+    "bytes": 7904,
+    "sha256": "8d85121a5fee99c4fb61c3309486461f607d7ed23ac78fdd08728be2ee946ba6"
    },
-   "assets/index-NdYKSyHJ.css": {
-    "bytes": 6954,
-    "sha256": "7afed8fae3bd6eb7a73c57a13c87bea9a07c4c2bb9300f5511cac83fe994d3c2"
+   "assets/index-Ca2KZ-cA.js": {
+    "bytes": 389153,
+    "sha256": "14646137f07ef1174e9618d1f54874b29adcdadeca040f41a75ff85f0219b5f4"
+   },
+   "assets/react-runtime-BPeupeul.js": {
+    "bytes": 218849,
+    "sha256": "fa49b9439cc058ab069068094eda638052dd3a909f5e9910b295a437c08d5efc"
+   },
+   "assets/lucide-BkFaz07K.js": {
+    "bytes": 17680,
+    "sha256": "61ab2e9eaba66a9a3373b639e0e36740741f0c87962988e2e85c990c32f4a1a3"
+   },
+   "assets/index-DpgEtcnu.css": {
+    "bytes": 32423,
+    "sha256": "6d2414d32f6ea4cdb8393f91085a2350635763ef52c00bfc000be4399bf6a26e"
    }
   },
-  "referenced": 2
+  "referenced": 5
  },
  "problems": [],
- "run_at": "2026-09-20T15:31:14+04:00",
+ "run_at": "2026-10-26T20:11:56+04:00",
  "passed": true
 }

@@ -10,6 +10,19 @@ The declared package version is 0.9.1. Historical 0.1.0 and 0.2.0 entries retain
 
 ## [Unreleased]
 
+### Added
+
+- **Session lifetimes per environment.** Sign-in settings gain three optional lifetimes: the access token lifetime (`GOTRUE_JWT_EXP`), the longest a session may stay open from its start (`GOTRUE_SESSIONS_TIMEBOX`), and the idle time before a sign out (`GOTRUE_SESSIONS_INACTIVITY_TIMEOUT`). An empty field sets no variable, so no cap applies and a person who signs in once stays signed in, which is what a store that never signs a buyer out wants; the three fields are what turns that default into a deliberate setting. Saved in the environment's sign-in settings file, applied by recreating only that Auth, proven by unit tests on the Python and the control plane side and by the console's own save path.
+- **A typed sign-in code instead of a link.** The mail file gains one optional key, `magic_link_template`, which sets `GOTRUE_MAILER_TEMPLATES_MAGIC_LINK` and nothing else. `lab/email-templates/magic-link-code.html` is the body this ships for it: the one time code from `{{ .Token }}` at the top, the link as the fallback. With `otp_length: 8` a buyer types eight digits. An empty value keeps the pinned Auth's own body, which carries the link only, so nothing changes for a file written before this key existed.
+
+### Fixed
+
+- **No environment's Auth could reach a mail relay outside the host.** Every environment ran on a network created `--internal`, so its Auth resolved no public name and opened no public connection: measured on a real installation, `getent hosts smtp.resend.com` failed and `nc -z smtp.resend.com 587` reported BLOCKED from `sbarbase-durable-net`, while the same probe on `sbarbase-durable-outbound` reported REACHABLE. A mail configuration could therefore be written, validated and applied, and the first message would still have failed. An environment now joins the outbound network while, and only while, it has a mail configuration, from every path that creates or recreates that Auth (start, mail, auth, the rolling replacement), and leaves it again when the file is removed. An environment without mail keeps the internal-only posture, and the management realm never joins it. Proven by unit tests and by the two measurements above; a real message through a real relay from a real server is still unmeasured.
+
+### Changed
+
+- **The console's Email section shows how to turn mail on.** For an environment with no configuration it renders the two host commands with that environment's runtime id, and one line saying why there is no form: the SMTP password never crosses the management API. The mail answer carries the runtime id for that, and a configured environment shows the sign-in mail body it applies.
+
 ### Still open
 
 - **Purging a deleted environment is refused**, because nothing proves that only that environment wrote the shared PostgreSQL cluster and Storage objects; delete and restore are soft.
