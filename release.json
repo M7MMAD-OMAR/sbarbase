@@ -1,9 +1,9 @@
 {
-  "version": "0.9.0",
+  "version": "0.9.1",
   "minimum_from": "0.3.1",
   "notes": {
-    "en": "Adds soft delete and restore of an environment on ordinary installations, repair --force for a swap record, and review fixes to the new upgrade defaults. Proven by unit tests and one real update; not yet measured under load on a real server.",
-    "ar": "يضيف الحذف الناعم واستعادة البيئة في التثبيت العادي، والأمر repair --force لسجل التبديل، وإصلاحات المراجعة للإعدادات الافتراضية الجديدة. ثبت باختبارات الوحدات وبتحديث حقيقي واحد، ولم يُقَس تحت حمل على خادم حقيقي."
+    "en": "Adds the live measurement of the upgrade features on a free CI runner: a plain restart 22.2 s of failed reads, the handover 7.2 s with none on the console, REST rolling none in 1826 s, the database window 3.4 s, a killed handover refused and fallen back at 29.8 s. One arm is inconclusive and says so.",
+    "ar": "يضيف القياس الحي لميزات الترقية على مشغّل CI مجاني: إعادة تشغيل عادية 22.2 ثانية، والتسليم 7.2 ثانية بلا فشل على وحدة التحكم، واستبدال REST بلا فشل في 1826 ثانية، ونافذة قاعدة البيانات 3.4 ثانية، وتسليم مقتول رُفض ورجع عند 29.8 ثانية. وفرع واحد غير حاسم ويقول ذلك."
   },
   "migrations": []
 }
