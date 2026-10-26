@@ -558,7 +558,7 @@ def mail_egress(name, configured):
     item = inspect('container', name)
     if not item:
         return
-    attached = EGRESS in item['NetworkSettings']['Networks']
+    attached = EGRESS in ((item.get('NetworkSettings') or {}).get('Networks') or {})
     if configured and not attached:
         ensure_egress()
         lab.docker('network', 'connect', EGRESS, name)

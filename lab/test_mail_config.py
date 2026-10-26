@@ -528,10 +528,19 @@ class ReconcileMailTests(unittest.TestCase):
         self.target.wait = Mock()
         self.calls = []
         self.retained = []
+        self.networks = [self.runtime.NETWORK]
 
-    def container(self, kind, name):
+    def inspect(self, kind, name):
+        # The outbound network a configured environment joins (durable_runtime.mail_egress), with
+        # the option the runtime refuses to lose. Every other name is the Auth container.
+        if kind == 'network':
+            if name != self.runtime.EGRESS:
+                return None
+            return {'Name': name, 'Internal': False, 'Labels': {'io.sbarbase.owner': self.runtime.OWNER},
+                    'Options': {self.runtime.NO_ICC: 'false'}}
         return {'Id': 'cid-' + name,
-                'NetworkSettings': {'Networks': {self.runtime.NETWORK: {'IPAddress': '127.0.0.1'}}},
+                'NetworkSettings': {'Networks': {network: ({'IPAddress': '127.0.0.1'} if network == self.runtime.NETWORK else {})
+                                                for network in self.networks}},
                 'Config': {'Labels': {'io.sbarbase.owner': self.runtime.OWNER}, 'Env': list(self.retained)}}
 
     def docker(self, *arguments, **kwargs):
@@ -541,7 +550,7 @@ class ReconcileMailTests(unittest.TestCase):
     def reconcile(self, mail=None, off=False, load_error=None):
         loader = Mock(side_effect=load_error) if load_error else Mock(return_value=mail)
         with patch.object(self.runtime, 'STATE', self.state), \
-             patch.object(self.runtime, 'inspect', self.container), \
+             patch.object(self.runtime, 'inspect', self.inspect), \
              patch.object(self.runtime.lab, 'docker', self.docker), \
              patch.object(self.runtime.lab, 'auth_configuration', lab.auth_configuration), \
              patch.object(self.runtime.source_fence, 'is_fenced', return_value=False), \
@@ -567,6 +576,19 @@ class ReconcileMailTests(unittest.TestCase):
         # unchanged reconcile records that the configuration is applied. That
         # nothing had to be recreated is the two assertions above, not a state.
         self.assertEqual(record.call_args.args[1], 'applied')
+
+    def test_a_configured_environment_joins_the_outbound_network(self):
+        """An internal network has no route to a relay outside the host (design section 2.7)."""
+        mail = self.configured()
+        self.retained = [f'{key}={value}' for key, value in
+                         lab.auth_configuration(self.RUNTIME_ID, self.values, self.runtime.DB, mail).items()]
+        self.reconcile(mail)
+        self.assertIn(('network', 'connect', self.runtime.EGRESS, self.auth_name()), self.calls)
+
+    def test_turning_mail_off_takes_the_outbound_network_away(self):
+        self.networks = [self.runtime.NETWORK, self.runtime.EGRESS]
+        self.reconcile(None, off=True)
+        self.assertIn(('network', 'disconnect', '--force', self.runtime.EGRESS, self.auth_name()), self.calls)
 
     def test_removing_the_configuration_and_reconciling_off_drops_every_mail_key(self):
         mail = self.configured()
