@@ -73,9 +73,9 @@ jobs:
           done
           echo 'SBARBASE_CI_SETUP=1' >> "$GITHUB_ENV"
       - name: Pull the pinned images, patiently
-        # public.ecr.aws limits anonymous pulls per address, and runners share addresses: the install's own
-        # pull gives up after four attempts (about 2.5 minutes), so a limited address fails the whole run. The
-        # same images, by the same digests, are pulled here with a long retry; the install then finds them present.
+        # public.ecr.aws limits anonymous pulls per address by bytes, and runners share addresses; the install's
+        # own pull gives up after four attempts. lab/live-upgrade-pull.sh pulls the same digests, from a mirror
+        # when the registry refuses, and then from the registry again (no layer data), so the install finds them.
         run: |
           python3 - <<'EOF' > "$RUNNER_TEMP/pins.txt"
           import json, pathlib
@@ -95,16 +95,7 @@ jobs:
           print('\n'.join(seen))
           EOF
           cat "$RUNNER_TEMP/pins.txt"
-          while read -r ref; do
-            ok=false
-            for attempt in $(seq 1 40); do
-              if ci_docker pull -q "$ref" >/dev/null 2>"$RUNNER_TEMP/pull.err"; then ok=true; break; fi
-              echo "pull of $ref failed (attempt $attempt): $(tail -c 200 "$RUNNER_TEMP/pull.err")"
-              sleep 60
-            done
-            [ "$ok" = true ] || { echo "could not pull $ref"; exit 1; }
-            echo "pulled $ref"
-          done < "$RUNNER_TEMP/pins.txt"
+          bash "$RUNNER_TEMP/tools/lab/live-upgrade-pull.sh" "$RUNNER_TEMP/pins.txt"
       - name: Build and start (the release source is the local one the driver serves on 127.0.0.1:8099)
         run: ci_env env SBARBASE_RELEASE_SOURCE=http://127.0.0.1:8099 "$SBARBASE_ROOT/deploy/compose.sh" up
       - name: Wait for the console
