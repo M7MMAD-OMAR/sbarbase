@@ -792,8 +792,14 @@ def swap(runtime, e, service, entry):
         raise RollError(f'this version no longer pins the image the plan recorded for {service}')
     v = runtime.values['environments'][e]
     import mail_config
-    env = runtime.service_configuration(e, v, service, mail_config.load(e))
-    return replace(runtime, name, service, env, '256m', .25, 'production', rt.NETWORK, old)
+    mail = mail_config.load(e)
+    env = runtime.service_configuration(e, v, service, mail)
+    did = replace(runtime, name, service, env, '256m', .25, 'production', rt.NETWORK, old)
+    if service == 'auth':
+        # The replacement container is new, so it does not inherit the outbound network a
+        # configured environment needs to reach its relay (lab/durable_runtime.py mail_egress).
+        rt.mail_egress(name, mail is not None)
+    return did
 
 
 def roll_once(runtime):

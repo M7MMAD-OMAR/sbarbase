@@ -471,11 +471,16 @@ unconfirmed were re-read from the tag's own source files and are settled:
   example value for either, so there is nothing to copy and the compiled default
   body and subject apply. Both stay unset here.
 
-The consequence, and it is why this design ships no template override: the runtime
-network is `--internal`, so a template URL is fetched from inside that network and
-an external one fails the send with `template_body_http_error`. The compiled
-defaults keep the send path free of an outbound fetch, and an operator who wants
-custom bodies has to serve them from inside the runtime network.
+The consequence: the runtime network is `--internal`, and a configured environment also
+joins the outbound network (section 2.7), so a template URL outside the host is fetched
+from a container that has a route to it. The compiled defaults remain the default: an
+empty value keeps the send path free of any fetch. An operator opts in by setting one
+value, `magic_link_template` in the environment's mail file, which becomes
+`GOTRUE_MAILER_TEMPLATES_MAGIC_LINK` and nothing else. A relative value is resolved
+against that environment's site URL, so the application that owns the address serves it;
+an absolute `https://` URL is fetched as it stands. `lab/email-templates/magic-link-code.html`
+is the file this ships for the sign-in code case: it shows the one time code and keeps the
+link as the fallback. A wrong URL is a refused send, so the first real message is the check.
 
 ### 2.5 Disabled by default, proven
 
@@ -552,6 +557,45 @@ Sequencing note that must be respected: the operation holds
 `.lab/upstream/operation.lock` the way `provision` does (`:380-381`) and must not run while
 `lab/dev.py` or a lifecycle check owns the runtime. `lab/README.md:101` already says do not run
 manual lifecycle commands concurrently with the runner.
+
+### 2.7 The outbound network: the reason mail could not leave the host
+
+Measured on 2026-10-26, on the installation this design was written for, inside the runtime
+network Auth runs on:
+
+```
+$ docker run --rm --network sbarbase-durable-net --entrypoint sh postgres:17-alpine \
+    -c 'getent hosts smtp.resend.com; nc -z -w5 smtp.resend.com 587'
+DNS_FAIL
+BLOCKED
+$ docker run --rm --network sbarbase-durable-outbound --entrypoint sh postgres:17-alpine \
+    -c 'nc -z -w5 smtp.resend.com 587 && echo REACHABLE'
+REACHABLE
+```
+
+`NETWORK` is created `--internal` (`lab/durable_runtime.py`), so a container on it resolves no
+public name and opens no public connection: the pinned DNS resolver forwards nothing and the
+network has no route off the host. Every environment's Auth therefore had no way to reach any
+relay outside the host, which is the real reason mail could not be turned on for a real
+installation, whatever the configuration said. A relay on the same internal network was
+reachable, and that is the only path the 36 live checks of `lab/mail-check.py` ever exercised:
+they launch their own mailbox container on their own internal network.
+
+The rule now: an environment joins the outbound network while, and only while, it has a mail
+configuration. `durable_runtime.mail_egress(name, configured)` joins `EGRESS` when a mail file is
+present and disconnects it when the file is removed, and it runs on every path that creates or
+recreates that environment's Auth: the start (`activate_services`), `mail`, `auth`, and the
+side by side replacement in `lab/rolling.py`. `ensure_egress` keeps its existing guarantee: the
+network turns traffic between its own containers off (`enable_icc=false`), so joining it adds a
+route to the internet and no route between environments.
+
+An environment without mail keeps the internal-only posture, and the management realm never
+joins the outbound network at all: it sends no mail.
+
+What this does not prove: a real message through a real provider from a real server. The lab
+mailbox is still on the probe's own internal network, so the first real relay is a check the
+operator runs with `mail-check` unchanged, and a signed in user of that environment receiving
+a recovery message.
 
 ## 3. Rate limits and abuse controls
 
@@ -729,7 +773,7 @@ increment does not accidentally ship a partial template mechanism.
 
 | Decision | Constraint that comes from the pin, not from preference | Failure mode if violated |
 |---|---|---|
-| Provider and relay host | The host must be reachable from inside the environment's internal network. A public provider is reachable only if the network is not internal, which it is today. A relay on the same network is reachable by container name. | Mail fails at send time, signup returns 500. |
+| Provider and relay host | The host must be reachable from the container Auth runs in. A configured environment also joins the outbound network (section 2.7), so a public provider is reachable; an environment without a mail file keeps the internal-only posture and reaches only what sits on its own network. | Mail fails at send time, signup returns 500. |
 | Port | 465 selects implicit TLS in the pinned client (`gomail` `smtp.go:46`: `SSL: port == 465`). Any other port is plaintext and is upgraded only if the server advertises STARTTLS (`smtp.go:81-87`). | Port 587 against a relay without STARTTLS sends the password in clear text. Port 465 against a relay that speaks STARTTLS on 465 fails to connect. |
 | Credentials | `user` and `pass`. An empty `user` means the client sends no AUTH at all (`smtp.go:90`: `if d.Auth == nil && d.Username != ""`). | A relay requiring AUTH rejects the submission. |
 | Certificate | The pinned client never sets `TLSConfig`, so `tlsConfig()` returns `&tls.Config{ServerName: d.Host}` (`smtp.go:117-122`) with verification on. There is no knob in the Auth configuration to skip verification. | A self signed certificate, or a host given as a bare IP, fails at handshake on 465 and on any STARTTLS upgrade. Use a provider hostname with a valid certificate. |

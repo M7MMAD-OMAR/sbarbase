@@ -543,6 +543,29 @@ def join(container, networks):
             lab.docker('network', 'connect', network, container)
 
 
+def mail_egress(name, configured):
+    """Give an environment's Auth a way out when, and only when, it has a mail configuration.
+
+    The runtime network is created `--internal`, so nothing outside this host is reachable
+    from it: measured on 2026-10-26, `getent hosts smtp.resend.com` fails and
+    `nc -z -w5 smtp.resend.com 587` reports BLOCKED from a container on `sbarbase-durable-net`,
+    while the same probe on `sbarbase-durable-outbound` reports REACHABLE. A configured
+    environment therefore also joins the outbound network, so its Auth can reach its relay;
+    the network turns traffic between its own containers off, so this adds no path between
+    environments. Without a mail configuration Auth leaves it again: a relay the environment
+    cannot reach is not a setting worth keeping.
+    """
+    item = inspect('container', name)
+    if not item:
+        return
+    attached = EGRESS in item['NetworkSettings']['Networks']
+    if configured and not attached:
+        ensure_egress()
+        lab.docker('network', 'connect', EGRESS, name)
+    elif not configured and attached:
+        lab.docker('network', 'disconnect', '--force', EGRESS, name)
+
+
 def inspect(kind, name):
     result = lab.docker(kind, 'inspect', name, check=False) if kind != 'container' else lab.docker('inspect', name, check=False)
     if result.returncode:
@@ -1231,6 +1254,9 @@ class Runtime:
             # services launch under the production row (docs/engineering/RESOURCE-POLICY.md 3.2).
             config = self.service_configuration(e, v, service, mail)
             self.launch(name, service, config, '256m', .25, existing_only=not creating, tier='production', rotating=rotating)
+            if service == 'auth':
+                # A retained Auth from before this rule had no way out; a configured one gets it here.
+                mail_egress(name, mail is not None)
             endpoints[service] = self.endpoint(name, port)
             self.wait(endpoints[service]+suffix)
         if creating:effect_receipt.native_stage(STATE,e,'storage')
@@ -1363,6 +1389,10 @@ class Runtime:
         mail = None if off else mail_config.load(e)
         desired = lab.auth_configuration(e, self.values['environments'][e], DB, mail, load_settings(e))
         configured = dict(entry.split('=', 1) for entry in actual['Config'].get('Env', []) if '=' in entry)
+        # Before the comparison: a mail configuration written before the outbound network existed
+        # leaves every mail key equal here, and the environment would keep an Auth that cannot
+        # reach the relay it is configured with.
+        mail_egress(name, mail is not None)
         if {k: v for k, v in configured.items() if is_mail_key(k)} == {k: v for k, v in desired.items() if is_mail_key(k)}:
             # The recorded state is the four state vocabulary the configuration
             # defines, so an unchanged reconcile records that the configuration is
@@ -1373,6 +1403,7 @@ class Runtime:
             return
         lab.docker('rm', '-f', name)
         self.launch(name, 'auth', desired, '256m', .25, tier='production')
+        mail_egress(name, mail is not None)
         self.wait(self.endpoint(name, 9999)+'/health')
         self.publish_auth(e, name)
         mail_state.record(e, 'off' if off else 'applied', mail)
@@ -1395,7 +1426,8 @@ class Runtime:
         if not inspect('container', name):
             raise RuntimeError('Sign-in settings need the retained Auth container')
         settings = auth_settings.load(e)
-        desired = lab.auth_configuration(e, self.values['environments'][e], DB, mail_config.load(e), settings)
+        mail = mail_config.load(e)
+        desired = lab.auth_configuration(e, self.values['environments'][e], DB, mail, settings)
         # The running Auth steps aside rather than going away, so a new one that does not
         # start leaves the environment exactly as it was.
         previous = name+'-previous'
@@ -1405,6 +1437,7 @@ class Runtime:
         lab.docker('rename', name, previous)
         try:
             self.launch(name, 'auth', desired, '256m', .25, tier='production')
+            mail_egress(name, mail is not None)
             self.wait(self.endpoint(name, 9999)+'/health')
         except Exception:
             if inspect('container', name):
