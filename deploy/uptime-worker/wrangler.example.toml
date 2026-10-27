@@ -9,7 +9,7 @@ compatibility_date = "2026-09-01"
 workers_dev = false
 
 [triggers]
-crons = ["*/5 * * * *"]
+crons = ["0 * * * *"]
 
 [vars]
 HEALTH_URL = "https://sbarbase.example.com/health"
