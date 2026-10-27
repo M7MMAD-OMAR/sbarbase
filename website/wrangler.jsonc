@@ -5,5 +5,6 @@
  "compatibility_date":"2026-09-20",
  "assets":{"directory":"./dist","not_found_handling":"404-page"},
  "routes":[{"pattern":"base.sbarah.com","custom_domain":true}],
- "workers_dev":true
+ // The custom domain is the only address: no public workers.dev URL.
+ "workers_dev":false
 }
