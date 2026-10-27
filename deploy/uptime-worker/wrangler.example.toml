@@ -9,7 +9,9 @@ compatibility_date = "2026-09-01"
 workers_dev = false
 
 [triggers]
-crons = ["0 * * * *"]
+# Once a day: with no customers on the platform yet, an hourly check only
+# burns the account's daily free request quota.
+crons = ["0 4 * * *"]
 
 [vars]
 HEALTH_URL = "https://sbarbase.example.com/health"
