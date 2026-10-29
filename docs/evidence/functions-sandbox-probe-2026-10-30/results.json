@@ -1,0 +1,19 @@
+{
+  "scope": "One host (the owner's workstation), Docker bridge network, edge-runtime pinned by lab/functions-image.lock.json (v1.77.4, sha256:ad45164b7548bf5820ed7be714789c17ac2865edce79a09cfb4c3756c3d365a8) started standalone as fnr-* throwaway containers with default Docker flags, a test main service (main/index.ts) and a probe function (probe/index.ts). Not a Sbarbase runtime, no gateway, no environment network. A worker is reused by service path, so each variant ran on a freshly restarted container. A listener was not started on the host, so the host reach rows show a connection attempt from the container, not a served response.",
+  "date": "2026-10-30",
+  "results": {
+    "netAccessDisabled_true_ignored": "fetch of https://example.com returned 200 with netAccessDisabled: true and top-level importMapPath: null",
+    "default_filesystem": "reads of /proc/1/environ, /run/sbarbase/secrets.json, /home/deno/functions/other/index.ts and /etc/passwd all denied (path not found), writes outside /tmp denied, fetch(file:///proc/1/environ) denied",
+    "default_tmp": "200 MiB written to /tmp with no error when no tmpFsConfig is given",
+    "default_subprocess": "Deno.Command denied: Spawning subprocesses is not allowed on Supabase Edge Runtime. node:child_process execSync('id') failed with Command failed: id, which is inconclusive (the image may have no id binary)",
+    "default_env": "Deno.env.get('SB_JWT_SECRET') undefined; only envVars passed to the worker and SB_EXECUTION_ID visible",
+    "default_network": "fetch to the Docker bridge gateway 172.17.0.1:8443 (a port the host listens on) reached it (error after sending the request, from the container address); fetch to 127.0.0.1:9000 (the main service) answered HTTP 500; 169.254.169.254 and 10.255.255.1 timed out on this workstation (not reachable here, not blocked by the runtime)",
+    "tmpFsConfig_quota_32MiB": "the same 200 MiB write failed with: filesystem quota exceeded",
+    "permissions_allow_net_list": "with allow_net: ['example.com:443', 'registry.npmjs.org:443'] every other host failed with NotCapable (Requires net access)",
+    "permissions_only_deny_net": "a permissions object with only deny_net made every other permission default to denied: all net, all env and all writes failed with NotCapable",
+    "permissions_allow_empty_plus_deny": "allow_net: [], allow_env: [], allow_read: ['/tmp'], allow_write: ['/tmp'] plus deny_net of literal addresses: example.com reachable, 169.254.169.254, 172.17.0.1 and 127.0.0.1 denied with NotCapable, env readable (the worker's own variables only)",
+    "deny_net_cidr": "deny_net with 169.254.0.0/16 or 10.0.0.0/8 refused at worker creation: invalid host (invalid char found in FQDN). CIDR is not supported in this version",
+    "deny_net_dns_rebinding_bypass": "with 172.17.0.1 in deny_net, fetch('http://172.17.0.1.sslip.io:8443/') still connected to 172.17.0.1:8443: a host name that resolves to a denied address passes the check",
+    "event_worker": "with --event-worker, a user worker emitted a Boot event (boot_time ms) and, when it ended by wall clock, a Shutdown event with reason, cpu_time_used (79 ms for three requests of a 30 million iteration loop) and memory_used (total, heap, external). Three requests used one worker, so the numbers are per worker lifetime, not per request. No Log or UncaughtException event was exercised."
+  }
+}
