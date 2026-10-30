@@ -1,9 +1,9 @@
 {
-  "version": "0.10.2",
+  "version": "0.11.0",
   "minimum_from": "0.3.1",
   "notes": {
-    "en": "Confirm email and the email limits no longer need custom SMTP, the SMTP, phone and template routes share one helper, and new walkthrough guides with screenshots cover the Authentication workspace, Edge Functions and the console.",
-    "ar": "لم يعد Confirm email وحدود البريد يحتاجان إلى SMTP مخصص، وتشترك مسارات SMTP والهاتف والقوالب في مساعد واحد، وأدلة جديدة بلقطات شاشة تغطي مساحة المصادقة والدوال الطرفية واللوحة."
+    "en": "Services page per environment, On demand mode for Edge Functions and Realtime, hints for unused services, and server capacity with a safe build cache cleanup.",
+    "ar": "صفحة Services لكل بيئة، ووضع On demand لـ Edge Functions وRealtime، وتلميحات للخدمات غير المستخدمة، وسعة الخادم مع تنظيف آمن لذاكرة البناء."
   },
   "migrations": []
 }
