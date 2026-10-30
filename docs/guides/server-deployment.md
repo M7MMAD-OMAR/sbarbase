@@ -406,6 +406,34 @@ listener then refuses sources outside its own environment's network. Opening Stu
 checks the first route from inside Studio and stops with a message naming the firewall
 when it is blocked.
 
+### Limit what Edge Functions can reach
+
+A function runs your code, and its container can open connections to the internet. Nothing else stops it from also reaching the host's own addresses, the cloud provider's metadata address and private networks. Sbarbase generates host firewall rules that close those routes. It never applies them: you read them, check them and load them yourself. Nothing here has been applied on a real server yet, so treat the steps as untried.
+
+Run these from a checkout, with Docker running and the runtime started (the rules are built from the subnets Docker reports for `sbarbase-durable-outbound` and for each environment's Edge Functions network):
+
+```
+deploy/functions-egress.sh plan
+deploy/functions-egress.sh verify-plan
+deploy/functions-egress.sh apply --output "$HOME/functions-egress.nft"
+```
+
+- `plan` prints the rules. `verify-plan` checks the generated plan without root and applies nothing; it also checks the syntax with `nft` in a private namespace when `nft` and `unshare` are installed, and says `skipped` otherwise. `apply --output PATH` writes the file and prints the commands to activate it; it changes no firewall.
+- **Review the file before you load it.** Look for the allow list in its header. Name resolution through a private resolver and a mail relay on a private address both fail if they are not allowed. The host's nameservers are allowed automatically; add a relay with `--allow 192.168.1.10:587/tcp`, or `--allow-host CIDR:port/proto` when it runs on the host itself. `deploy/functions-egress.sh apply --help` lists every option.
+- Activate it with the commands `apply` prints, which for the default `nft` format are:
+
+```
+sudo nft -c -f "$HOME/functions-egress.nft"
+sudo nft -f "$HOME/functions-egress.nft"
+```
+
+- The file is loaded as root, so keep it in a directory only you can write. To remove the rules: `sudo nft delete table inet sbarbase_functions`. They do not survive a reboot unless you include the file from `/etc/nftables.conf` and start `nftables.service` after `docker.service`.
+- Generate and load the file again whenever you turn Edge Functions on or off for an environment, or the outbound network is recreated. Connections already open keep running.
+- The Storage allow rule in the section above is still needed with a default-deny firewall: these rules only narrow what is allowed.
+- `--format ufw` and `--format firewalld` write translations of the same rules. They were not tried on a real firewall; the ufw route rules are probably ignored for container traffic because Docker accepts it first, and the ufw output has neither the reverse-path check nor neighbour discovery handling; the firewalld output leaves out two rules (link-local IPv6 and the reverse-path check). Use `nft` unless you cannot.
+
+Not verified: loading these rules on a real server and probing from inside a function that the host, the metadata address and private ranges are unreachable while the internet, name resolution and Storage still work; rootless Docker, a remapped user namespace and SELinux; the ufw and firewalld output. The rules also do not limit public destinations, rate or volume, and they do not cover containers on other networks or on the host network.
+
 ## If a restore is interrupted
 
 A failed restore leaves `.lab/upstream/recovery-target.json`, and a plain rerun
