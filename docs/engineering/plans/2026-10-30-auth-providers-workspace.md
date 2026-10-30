@@ -87,6 +87,21 @@ An independent design review (EGM, read only, against the code) found these. Eac
 
 Revised order: **A0** (read side, shipped first) then **A0.5** (items 2, 5, 6, 10 and the classifier work of 1: no new setting until saving is safe) then **A1** to **A6** with items 1, 3, 4, 7, 8, 11 and 12 inside them as written above.
 
+## Phase status and the A3 design (2026-10-30, after A2)
+
+Accepted and committed with independent reviews: A0 (read side), A0.5 (safe saving), U0 (tabbed page, logos), A1 (manual linking, provider switches, spaced saves, audit of changed names), A2 (Sessions, Rate Limits, Attack Protection, Multi-Factor). Open: A3 to A7, and the live probes the earlier phases could not run (no Auth variable name was tried on a running Auth; see each phase's `results.json`).
+
+**A3, Email (SMTP, then templates), decisions from reading the code.**
+
+1. **The apply path already exists.** `reconcile_auth` (`lab/durable_runtime.py`) loads `mail_config.load(e)` next to the sign-in settings, builds the Auth environment from both, swaps the container with rollback and gives it the outbound network. So a console SMTP save is: write `<runtime>-mail.json`, record a pending revision in the same `auth_settings` row, let the supervisor's existing `apply` run. No second apply loop. `reconcile_auth` must also call `mail_state.record` so the Overview Email card stays true (today only `reconcile_mail` does).
+2. **The SMTP password crosses the management API**, like every provider secret does today. The earlier design kept it host only ("never crosses the management API"); the owner's request to move SMTP into the console reverses that on purpose. It is masked on every read ("Stored password is hidden. Enter a new password to replace it."), never logged, never in the catalog or the audit (names only), and the 0600 file rules of `mail_config` are reproduced in the TypeScript writer (no link, mode, key set).
+3. **One writer shape.** `mail.json` requires every key; the cloud page has seven fields. The console fills the rest from defaults kept in the registry (`mail_defaults`), with a Python test that `mail_config.validate` accepts exactly what the TypeScript writer produces, and the existing `refuse_unthrottled` rule for `autoconfirm` stays.
+4. **Confirm email** (cloud: User signups) is the inverse of `GOTRUE_MAILER_AUTOCONFIRM`, owned by `mail.json`. It appears on Sign In / Providers only when SMTP is on; without SMTP it is shown off and explained ("needs custom SMTP"), because the base configuration forces autoconfirm on when no relay exists. The three mail rate limits (`RATE_LIMIT_EMAIL_SENT`, `OTP`, `VERIFY`) and the minimum interval per user (`SMTP_MAX_FREQUENCY`) join the Rate Limits page as mail owned fields, writable only while SMTP is on.
+5. **Templates are URLs, not bodies**, in the pinned Auth. The console serves each environment's templates itself: a loopback route reachable only from that environment's Auth, on an unguessable per environment path, returning that environment's saved body (size capped, rendered by Auth only). The template fields keep the cloud's names and variable list, a reset to default, and the existing `magic_link_template` pointer keeps working. Until that route exists the Templates tab says so and offers nothing it cannot deliver.
+6. **A3 order:** A3a SMTP page plus Confirm email plus the mail rate limits; A3b templates. Each with its own review, bilingual docs and a live check on a lab Auth with a stub SMTP receiver (one container at a time).
+
+**Still true for A4 to A7:** Phone and SMS need the SMS secrets and the SMS rate limit; hooks need the egress review; SAML is a study first; Audit Logs reads `auth.audit_log_entries` read only and adds the cloud's "write audit logs to the database" switch.
+
 ## Security gates
 
 1. **No secret outside file and container.** A test greps every API answer, log line, audit row and catalog column of a saved environment for the secrets used in the test.
