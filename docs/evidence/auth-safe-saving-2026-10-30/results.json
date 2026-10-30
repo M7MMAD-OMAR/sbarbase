@@ -1,0 +1,28 @@
+{
+ "date": "2026-10-30",
+ "checkpoint": "A0.5 safe saving of per environment sign-in settings",
+ "base_commit": "9deea4fc3bf12e829645259e3561c6bdcb9808f5",
+ "staged_blobs": {
+  "lab/auth_settings.py": "bcb6755c9d8fe440a3fd7625e2472f8eb9780883",
+  "lab/test_auth_settings.py": "7fe82097d934297d7f6005ce9deaef283a7a4bff",
+  "lab/test_mail_config.py": "1814175420aa9bf64ffbfe2871b48cdcacb5838f",
+  "src/control/sign-in.ts": "00bd25c9a95c4b6aa38e2bfdb7a5450c93b295a5",
+  "tests/sign-in.test.ts": "75a6898388ac91b3ccc9e1e7c2cad3359acbd5a8",
+  "ui/SignIn.tsx": "d2e008cddd24477c7d5db05dc5a6276cccf1c9a4",
+  "docs/guides/sign-in.md": "3b81f58179efe92c6d297365c8e20aa24ec16a70",
+  "docs/guides/sign-in.ar.md": "b0be7abbda331e3ac6573fc1cf4147b882875f21",
+  "lab/durable_runtime.py": "801a9e592bb0918c408294a17e7e81e495d6eb41",
+  "lab/rolling.py": "963e3548ea35d01bec77d1022d4d7392b4423c14"
+ },
+ "checks": {
+  "python unittest test_auth_settings test_mail_config test_rolling test_signing test_auth_config_registry (lab/)": "236 tests OK",
+  "bun test tests/sign-in.test.ts tests/auth-config.test.ts": "11 pass",
+  "bun run typecheck:ui and tsc -p tsconfig.control.json": "ok",
+  "python unittest discover -s lab (before the review fixes)": "3734 tests, 1 failure in test_upgrade_check (release channel signatures), not in these files"
+ },
+ "review": "Independent read only review found 8 items; fixed: stray -previous restored at every start and apply, one environment unreadable settings no longer stop the others (start and rolling), removed settings recorded applied, applied copy written inside the recreate from the same settings, applied copy created private without a link window, dangling links refused, TS reader checks version and the console says the file must be fixed on the host, pending cleanup only for copies older than a minute, null base revision accepted.",
+ "known_limits": [
+  "A planned upgrade restart: an environment whose settings are refused is skipped, and retire_unadopted may stop its kept containers. Not tested live.",
+  "Live apply, kill mid swap and rolling replacement were not run on a container host; covered by unit tests with mocked Docker."
+ ]
+}

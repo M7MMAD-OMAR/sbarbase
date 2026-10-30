@@ -61,6 +61,12 @@ Editing every page of this view in the console, the way the cloud does, is plann
 
 Saving recreates that environment's Auth with the new settings; other environments are not touched. Users, sessions and every row stay, because Auth keeps them in the environment's database. The section shows **Applying…**, then **Applied**. If Auth does not start with the new settings, the previous Auth keeps running and the section says **Not applied**.
 
+Saving is safe against two people at once and against a bad file:
+
+- A save made from a page that was opened before another save is refused with "These settings changed since you opened them", so it cannot overwrite the newer one. Reload and save again.
+- Restarts of Auth, and replacements during an upgrade, use the **last applied** settings, never a change that failed or is still waiting. A saved file that cannot be read (damaged, from a newer version, a link, or readable by other users) stops that environment's start with a message instead of bringing Auth back on defaults; the other environments start normally.
+- If an apply is interrupted after the old Auth was stopped, the next apply puts the old Auth back first.
+
 The client secret is written to a private file on the server and handed to that environment's Auth. The console never shows it again: an empty secret field keeps the saved one.
 
 Email links and OAuth steps reach Auth without an API key, as they do on Supabase, because a browser following a link cannot send one. Only those steps are open: `verify`, `authorize` and `callback`.

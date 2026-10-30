@@ -29,6 +29,7 @@ import json
 import os
 import re
 import sqlite3
+import stat
 import subprocess
 import sys
 import time
@@ -47,6 +48,8 @@ PROVIDERS = ('apple', 'azure', 'bitbucket', 'discord', 'facebook', 'figma', 'git
              'keycloak', 'linkedin_oidc', 'notion', 'slack_oidc', 'spotify', 'twitch', 'twitter', 'workos', 'zoom')
 PROVIDER_URL = {'azure': False, 'gitlab': False, 'keycloak': True, 'workos': False}
 MAX_REDIRECTS = 50
+# The file format this version reads. A file from a newer version is refused, never half read.
+VERSION = 1
 MAX_BYTES = 65536
 DEFAULT_PUBLIC_URL = 'http://localhost'
 # The session members a file may set, with their inclusive ranges in seconds.
@@ -91,9 +94,12 @@ def redirect_address(value):
 
 def validate(settings):
     """The settings as the file holds them, or SettingsError naming the first bad field."""
-    if not isinstance(settings, dict) or set(settings) - {'revision', 'site_url', 'redirect_urls', 'signup', 'anonymous',
+    if not isinstance(settings, dict) or set(settings) - {'version', 'revision', 'site_url', 'redirect_urls', 'signup', 'anonymous',
                                                           'providers', 'session'}:
         raise SettingsError('settings')
+    version = settings.get('version', 1)
+    if isinstance(version, bool) or not isinstance(version, int) or not 1 <= version <= VERSION:
+        raise SettingsError('version')
     result = {'revision': settings.get('revision', 0), 'site_url': web_address(settings.get('site_url'), 'site_url'),
               'signup': settings.get('signup', True), 'anonymous': settings.get('anonymous', False)}
     if not isinstance(result['revision'], int) or result['revision'] < 0:
@@ -149,14 +155,50 @@ def path(e):
     return DIRECTORY / f'{e}-auth.json'
 
 
+def applied_path(e):
+    """The last settings Auth was successfully recreated with: what every start uses, so a saved
+    change that failed, or has not been applied yet, never reaches a restart."""
+    if not RUNTIME.fullmatch(e):
+        raise SettingsError('environment')
+    return DIRECTORY / f'{e}-auth.applied.json'
+
+
+def read_private(file):
+    """Text of a settings file, refused when it is a link or readable by anyone but the owner."""
+    status = file.lstat()
+    if not stat.S_ISREG(status.st_mode) or status.st_mode & 0o077 or status.st_size > MAX_BYTES:
+        raise SettingsError('settings')
+    return file.read_text()
+
+
+def load_applied(e):
+    """The last applied settings, or None before the first apply. An unreadable copy raises."""
+    file = applied_path(e)
+    if not os.path.lexists(file):
+        return None
+    return validate(json.loads(read_private(file)))
+
+
+def write_applied(e, settings):
+    """Keeps the settings just applied, created private (mode 0600, never a link) and replaced in one step."""
+    file = applied_path(e)
+    pending = file.with_name(file.name + '.pending')
+    pending.unlink(missing_ok=True)
+    descriptor = os.open(pending, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(descriptor, 'w') as handle:
+        handle.write(json.dumps(settings))
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(pending, file)
+
+
 def load(e):
     """The environment's settings, or None when it has none. A file that fails validation raises."""
     file = path(e)
-    if not file.exists():
+    # lexists: a link that points nowhere is a refusal, not "no settings".
+    if not os.path.lexists(file):
         return None
-    if file.stat().st_size > MAX_BYTES:
-        raise SettingsError('settings')
-    return validate(json.loads(file.read_text()))
+    return validate(json.loads(read_private(file)))
 
 
 def public_url():
@@ -193,11 +235,19 @@ def configuration(e, settings):
 
 
 def record(e, state, failure=None, revision=None):
-    """The outcome, in the catalog row the console reads."""
+    """The outcome, in the catalog row the console reads. `revision` is the one this outcome is for.
+    A newer revision saved while it ran is still pending: its row keeps that state, and only
+    `applied` moves, so a save made during an apply is never marked done or failed unseen."""
     try:
         with closing(sqlite3.connect(CATALOG, timeout=5)) as database, database:
-            database.execute('UPDATE auth_settings SET state=?, failure=?, applied=COALESCE(?, applied), updated_at=? WHERE runtime=?',
-                             (state, failure, revision, int(time.time() * 1000), e))
+            if revision is None:
+                database.execute('UPDATE auth_settings SET state=?, failure=?, updated_at=? WHERE runtime=?',
+                                 (state, failure, int(time.time() * 1000), e))
+            else:
+                database.execute('UPDATE auth_settings SET state=CASE WHEN revision<=? THEN ? ELSE state END, '
+                                 'failure=CASE WHEN revision<=? THEN ? ELSE failure END, '
+                                 'applied=CASE WHEN ?=\'applied\' THEN ? ELSE applied END, updated_at=? WHERE runtime=?',
+                                 (revision, state, revision, failure, state, revision, int(time.time() * 1000), e))
     except sqlite3.Error:
         pass
 
@@ -219,6 +269,12 @@ def busy():
 def apply(e):
     """Recreates the environment's Auth with its saved settings and records the outcome."""
     try:
+        # A crash between writing and renaming leaves the pending copy, which holds secrets.
+        stale = path(e).with_name(path(e).name + '.pending')
+        # The console writes this copy and renames it at once; only one that has sat for a minute is a crash's.
+        if os.path.lexists(stale) and time.time() - stale.lstat().st_mtime > 60:
+            stale.unlink(missing_ok=True)
+        applied_path(e).with_name(applied_path(e).name + '.pending').unlink(missing_ok=True)
         settings = load(e)
     except (SettingsError, ValueError, OSError):
         record(e, 'failed', 'The saved settings are not valid. Save them again.')
@@ -230,10 +286,12 @@ def apply(e):
     if result.returncode == BUSY:
         # The operation lock was taken after busy() looked: nothing changed, ask again.
         return 75
+    revision = settings['revision'] if settings else None
     if result.returncode:
-        record(e, 'failed', 'Auth did not start with these settings, so the previous settings stay in use.')
+        record(e, 'failed', 'Auth did not start with these settings, so the previous settings stay in use.', revision)
         return 1
-    record(e, 'applied', None, settings['revision'] if settings else 0)
+    # The copy restarts use was kept by the recreate itself, from the settings Auth started with.
+    record(e, 'applied', None, revision)
     return 0
 
 

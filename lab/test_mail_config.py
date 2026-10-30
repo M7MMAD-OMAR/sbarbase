@@ -617,8 +617,11 @@ class ReconcileMailTests(unittest.TestCase):
              patch.object(self.runtime.rolling, 'require_settled'), \
              patch.object(self.runtime.source_fence, 'is_fenced', return_value=False), \
              patch.object(self.runtime.auth_settings, 'load', return_value=settings), \
+             patch.object(self.runtime.auth_settings, 'write_applied') as kept, \
              patch.object(self.runtime.mail_config, 'load', return_value=None):
             self.target.reconcile_auth(self.RUNTIME_ID)
+        # The copy restarts use is kept from the same settings, before the old Auth is removed.
+        kept.assert_called_once_with(self.RUNTIME_ID, settings)
         self.assertIn(('network', 'connect', self.runtime.EGRESS, self.auth_name()), self.calls)
 
     def test_removing_the_configuration_and_reconciling_off_drops_every_mail_key(self):

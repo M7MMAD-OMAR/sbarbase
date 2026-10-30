@@ -7,7 +7,7 @@ import {signInErrors,type FieldErrors} from './settings-validation';
 type Provider={enabled:boolean;client_id:string;secret_set?:boolean;secret?:string;url:string};
 type Session={access_token_seconds:number|null;timebox_seconds:number|null;inactivity_seconds:number|null};
 type Settings={site_url:string;redirect_urls:string[];signup:boolean;anonymous:boolean;session:Session;providers:Record<string,Provider>};
-type State={state:'unconfigured'|'pending'|'applied'|'failed';failure:string|null;callback_url:string;settings:Settings|null};
+type State={state:'unconfigured'|'pending'|'applied'|'failed';revision:number;failure:string|null;callback_url:string;settings:Settings|null};
 
 /** The providers Auth offers, as people know them. `url` marks those that name their own server. */
 export const PROVIDERS:Record<string,{label:string;url?:'optional'|'required'}>={
@@ -68,7 +68,7 @@ export function SignInSection({path,request}:{path:string;request:Api}){
   try {
    const providers=Object.fromEntries(Object.entries(form.providers).map(([name,{enabled,client_id,secret,url}])=>
     [name,{enabled,client_id,secret:secret??'',url}]));
-   await request(path+'/sign-in','PUT',{site_url:form.site_url.trim(),redirect_urls:redirects.split('\n').map(line=>line.trim()).filter(Boolean),
+   await request(path+'/sign-in','PUT',{base_revision:current?.revision,site_url:form.site_url.trim(),redirect_urls:redirects.split('\n').map(line=>line.trim()).filter(Boolean),
     signup:form.signup,anonymous:form.anonymous,providers,
     session:{access_token_seconds:secondsOrNull(session.token),timebox_seconds:hoursOrNull(session.timebox),
      inactivity_seconds:hoursOrNull(session.inactivity)}});

@@ -793,7 +793,10 @@ def swap(runtime, e, service, entry):
     v = runtime.values['environments'][e]
     import mail_config
     mail = mail_config.load(e)
-    env = runtime.service_configuration(e, v, service, mail)
+    try:
+        env = runtime.service_configuration(e, v, service, mail)
+    except rt.SettingsRefused as error:
+        raise RollError(str(error)) from error
     did = replace(runtime, name, service, env, '256m', .25, 'production', rt.NETWORK, old)
     if service == 'auth':
         # The replacement container is new, so it does not inherit the outbound network an

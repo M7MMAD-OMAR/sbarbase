@@ -331,13 +331,21 @@ def signing_only(component, configured, desired):
     return all(patched.get(k) == v for k, v in desired.items()) or settings_only(component, patched, desired)
 
 
+class SettingsRefused(RuntimeError):
+    """An environment's saved sign-in settings cannot be used; only that environment is affected."""
+
+
 def load_settings(e):
-    """The environment's sign-in settings; a file that fails validation is reported and left out."""
+    """The sign-in settings the environment's Auth runs with: the last applied copy, else the saved
+    file of an installation from before copies existed. A file that is invalid, newer than this
+    version, a link or open to other users raises, and the start is refused: an Auth that silently
+    came back on defaults would drop its providers and redirect list for everyone. The settings a
+    person saved and has not had applied yet are never read here; `reconcile_auth` reads those."""
     try:
-        return auth_settings.load(e)
+        applied = auth_settings.load_applied(e)
+        return applied if applied is not None else auth_settings.load(e)
     except (auth_settings.SettingsError, ValueError, OSError) as error:
-        print(f'Sign-in settings for {e} are not valid ({error}); Auth starts without them.', file=sys.stderr)
-        return None
+        raise SettingsRefused(f'Sign-in settings for {e} cannot be read ({error}); Auth was not changed. Fix the file and apply again.') from error
 
 
 REALTIME_PORT = 4000
@@ -927,7 +935,11 @@ class Runtime:
             if e in getattr(self,'held',{}):
                 continue
             if e in published and not source_fence.is_fenced(self.sql,e):
-                self.resume(e)
+                try:
+                    self.resume(e)
+                except SettingsRefused as error:
+                    # This environment's sign-in settings cannot be read: it is skipped, and the others start.
+                    print(f'Environment {e} was not resumed: {error}', file=sys.stderr, flush=True)
 
     def resume(self, e):
         """Resume published state without native schema repair or tenant creation."""
@@ -940,6 +952,7 @@ class Runtime:
         if source_fence.is_fenced(self.sql,e):
             raise RuntimeError('Environment database is fenced; explicit reconciliation required')
         rolling.require_settled(e,plan=False)
+        self.restore_stray_previous(e)
         for service in ('auth','rest'):
             if not inspect('container',PREFIX+'-'+e+'-'+service):
                 raise RuntimeError('Resume requires retained service containers')
@@ -1459,6 +1472,21 @@ class Runtime:
         mail_state.record(e, 'off' if off else 'applied', mail)
         print('Environment Auth service recreated to apply the mail configuration.')
 
+    def restore_stray_previous(self, e):
+        """An apply that stopped after stepping the old Auth aside leaves `<name>-previous`. The old
+        Auth is the one known to work, so it comes back: a new one that was started and never checked
+        is removed first. Runs at every start and before every apply."""
+        name = PREFIX+'-'+e+'-auth'
+        previous = name+'-previous'
+        if not inspect('container', previous):
+            return
+        if inspect('container', name):
+            lab.docker('rm', '-f', name)
+        lab.docker('rename', previous, name)
+        lab.docker('start', name)
+        self.wait(self.endpoint(name, 9999)+'/health')
+        self.publish_auth(e, name)
+
     def reconcile_auth(self, e):
         """Apply one environment's sign-in settings: recreate its Auth with them, as mail does."""
         effect_receipt.require_settled(STATE)
@@ -1473,6 +1501,8 @@ class Runtime:
             raise RuntimeError('Environment database is fenced; explicit reconciliation required')
         rolling.require_settled(e)
         name = PREFIX+'-'+e+'-auth'
+        previous = name+'-previous'
+        self.restore_stray_previous(e)
         if not inspect('container', name):
             raise RuntimeError('Sign-in settings need the retained Auth container')
         settings = auth_settings.load(e)
@@ -1480,7 +1510,6 @@ class Runtime:
         desired = lab.auth_configuration(e, self.values['environments'][e], DB, mail, settings)
         # The running Auth steps aside rather than going away, so a new one that does not
         # start leaves the environment exactly as it was.
-        previous = name+'-previous'
         if inspect('container', previous):
             lab.docker('rm', '-f', previous)
         lab.docker('stop', name)
@@ -1489,6 +1518,12 @@ class Runtime:
             self.launch(name, 'auth', desired, '256m', .25, tier='production')
             egress(name, egress_wanted(mail, settings))
             self.wait(self.endpoint(name, 9999)+'/health')
+            # The copy every restart uses, from the very settings this Auth started with, kept before the
+            # old Auth is removed: a failure here rolls back like a failed start.
+            if settings is None:
+                auth_settings.applied_path(e).unlink(missing_ok=True)
+            else:
+                auth_settings.write_applied(e, settings)
         except Exception:
             if inspect('container', name):
                 lab.docker('rm', '-f', name)

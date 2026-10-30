@@ -3,10 +3,11 @@ import json
 import os
 import sqlite3
 import tempfile
+import time
 import unittest
 from contextlib import closing
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import auth_settings
 import durable_runtime
@@ -160,6 +161,7 @@ class SessionTests(unittest.TestCase):
         self.addCleanup(directory.cleanup)
         root = Path(directory.name)
         (root / f'{E}-auth.json').write_text(json.dumps(VALID))
+        (root / f'{E}-auth.json').chmod(0o600)
         with patch.object(auth_settings, 'DIRECTORY', root):
             loaded = auth_settings.load(E) or {}
         self.assertEqual(loaded['session'], {'access_token_seconds': None, 'timebox_seconds': None,
@@ -207,6 +209,7 @@ class ApplyTests(unittest.TestCase):
             item.start()
             self.addCleanup(item.stop)
         (root / f'{E}-auth.json').write_text(json.dumps(VALID))
+        (root / f'{E}-auth.json').chmod(0o600)
 
     def row(self):
         with closing(sqlite3.connect(self.catalog)) as database:
@@ -241,6 +244,136 @@ class ApplyTests(unittest.TestCase):
             self.assertEqual(auth_settings.apply(E), 1)
         run.assert_not_called()
         self.assertEqual(self.row()[0], 'failed')
+
+    def test_the_applied_copy_is_private_and_is_what_starts_use(self):
+        auth_settings.write_applied(E, auth_settings.validate(VALID))
+        copy = auth_settings.applied_path(E)
+        self.assertEqual(copy.stat().st_mode & 0o777, 0o600)
+        self.assertEqual(auth_settings.load_applied(E)['revision'], 3)
+        # The saved file moves on and fails; starts still use what was applied.
+        (auth_settings.DIRECTORY / f'{E}-auth.json').write_text(json.dumps({**VALID, 'revision': 4, 'site_url': 'nope'}))
+        self.assertEqual(durable_runtime.load_settings(E)['revision'], 3)
+
+    def test_a_failed_apply_leaves_the_applied_copy_alone(self):
+        auth_settings.write_applied(E, auth_settings.validate(VALID))
+        (auth_settings.DIRECTORY / f'{E}-auth.json').write_text(json.dumps({**VALID, 'revision': 4}))
+        with patch.object(auth_settings.subprocess, 'run', return_value=type('R', (), {'returncode': 1})()):
+            self.assertEqual(auth_settings.apply(E), 1)
+        self.assertEqual(auth_settings.load_applied(E)['revision'], 3)
+        self.assertEqual(durable_runtime.load_settings(E)['revision'], 3)
+
+    def test_an_applied_copy_is_never_created_through_a_planted_link(self):
+        copy = auth_settings.applied_path(E)
+        target = auth_settings.DIRECTORY / 'victim'
+        target.write_text('x')
+        copy.with_name(copy.name + '.pending').symlink_to(target)
+        auth_settings.write_applied(E, auth_settings.validate(VALID))
+        self.assertEqual(target.read_text(), 'x')
+        self.assertEqual(copy.stat().st_mode & 0o777, 0o600)
+
+    def test_removed_settings_are_recorded_as_applied(self):
+        (auth_settings.DIRECTORY / f'{E}-auth.json').unlink()
+        with patch.object(auth_settings.subprocess, 'run', return_value=type('R', (), {'returncode': 0})()):
+            self.assertEqual(auth_settings.apply(E), 0)
+        self.assertEqual(self.row()[0], 'applied')
+
+    def test_a_dangling_link_is_a_refusal_not_no_settings(self):
+        file = auth_settings.DIRECTORY / f'{E}-auth.json'
+        file.unlink()
+        file.symlink_to(auth_settings.DIRECTORY / 'missing.json')
+        with self.assertRaises(auth_settings.SettingsError):
+            auth_settings.load(E)
+        with self.assertRaises(RuntimeError):
+            durable_runtime.load_settings(E)
+
+    def test_a_save_made_during_an_apply_stays_pending(self):
+        def apply_while_a_newer_save_lands(*args, **kwargs):
+            with closing(sqlite3.connect(self.catalog)) as database, database:
+                database.execute("UPDATE auth_settings SET revision=4, state='pending' WHERE runtime=?", (E,))
+            return type('R', (), {'returncode': 0})()
+        with patch.object(auth_settings.subprocess, 'run', side_effect=apply_while_a_newer_save_lands):
+            auth_settings.apply(E)
+        state, failure, applied = self.row()
+        self.assertEqual((state, applied), ('pending', 3))
+        with closing(sqlite3.connect(self.catalog)) as database:
+            self.assertEqual(database.execute('SELECT revision FROM auth_settings').fetchone()[0], 4)
+
+    def test_a_start_refuses_a_bad_file_instead_of_using_defaults(self):
+        (auth_settings.DIRECTORY / f'{E}-auth.json').write_text(json.dumps({**VALID, 'site_url': 'nope'}))
+        with self.assertRaises(RuntimeError) as raised:
+            durable_runtime.load_settings(E)
+        self.assertNotIn('nope', str(raised.exception))
+        # A file from a newer version is refused the same way, never half read.
+        (auth_settings.DIRECTORY / f'{E}-auth.json').write_text(json.dumps({**VALID, 'version': 2}))
+        with self.assertRaises(RuntimeError):
+            durable_runtime.load_settings(E)
+
+    def test_a_file_open_to_other_users_or_a_link_is_refused(self):
+        file = auth_settings.DIRECTORY / f'{E}-auth.json'
+        file.chmod(0o644)
+        with self.assertRaises(auth_settings.SettingsError):
+            auth_settings.load(E)
+        file.chmod(0o600)
+        target = auth_settings.DIRECTORY / 'other.json'
+        file.rename(target)
+        file.symlink_to(target)
+        with self.assertRaises(auth_settings.SettingsError):
+            auth_settings.load(E)
+
+    def test_a_stale_pending_copy_is_removed_at_apply_but_a_fresh_one_is_not(self):
+        stale = auth_settings.DIRECTORY / f'{E}-auth.json.pending'
+        stale.write_text('{"secret": "left by a crash"}')
+        with patch.object(auth_settings, 'busy', return_value=True):
+            auth_settings.apply(E)
+        # A save is renaming this copy right now; only one that has sat for a minute is a crash's.
+        self.assertTrue(stale.exists())
+        old = time.time() - 120
+        os.utime(stale, (old, old))
+        with patch.object(auth_settings, 'busy', return_value=True):
+            auth_settings.apply(E)
+        self.assertFalse(stale.exists())
+
+
+class OwnerSetTests(unittest.TestCase):
+    def test_no_registry_key_is_claimed_by_the_mail_owner(self):
+        registry = json.loads((Path(__file__).resolve().parents[1] / 'src' / 'control' / 'auth-config-registry.json').read_text())
+        for entry in registry['core']:
+            variable = 'GOTRUE_' + entry['key']
+            self.assertTrue(auth_settings.owned(variable), variable)
+            self.assertFalse(durable_runtime.is_mail_key(variable), variable)
+
+
+class StartTests(unittest.TestCase):
+    def test_a_stray_previous_auth_comes_back_and_an_unchecked_new_one_goes(self):
+        name = durable_runtime.PREFIX + '-' + E + '-auth'
+        present = {name, name + '-previous'}
+        calls = []
+        target = Mock()
+        target.endpoint.return_value = 'http://127.0.0.1:1'
+        with patch.object(durable_runtime, 'inspect', side_effect=lambda kind, item: {'Id': item} if item in present else None), \
+             patch.object(durable_runtime.lab, 'docker', side_effect=lambda *args, **kwargs: calls.append(args)):
+            durable_runtime.Runtime.restore_stray_previous(target, E)
+        self.assertEqual(calls, [('rm', '-f', name), ('rename', name + '-previous', name), ('start', name)])
+        target.wait.assert_called_once()
+        target.publish_auth.assert_called_once_with(E, name)
+        present.discard(name + '-previous')
+        calls.clear()
+        with patch.object(durable_runtime, 'inspect', side_effect=lambda kind, item: {'Id': item} if item in present else None), \
+             patch.object(durable_runtime.lab, 'docker', side_effect=lambda *args, **kwargs: calls.append(args)):
+            durable_runtime.Runtime.restore_stray_previous(target, E)
+        self.assertEqual(calls, [])
+
+    def test_one_environments_unreadable_settings_do_not_stop_the_others(self):
+        first, second = E, 'e_' + 'b' * 24
+        target = Mock()
+        target.values = {'environments': {first: {}, second: {}}}
+        target.held = {}
+        target.sql = Mock()
+        target.resume.side_effect = [durable_runtime.SettingsRefused('first cannot be read'), None]
+        with patch.object(durable_runtime.runtime_files, 'read_endpoints', return_value={first: {}, second: {}}), \
+             patch.object(durable_runtime.source_fence, 'is_fenced', return_value=False):
+            durable_runtime.Runtime.resume_published_environments(target)
+        self.assertEqual([call.args[0] for call in target.resume.call_args_list], [first, second])
 
 
 if __name__ == '__main__':

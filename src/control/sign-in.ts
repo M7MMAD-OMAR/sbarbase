@@ -1,6 +1,6 @@
 import {bindReadyEnvironmentPublication} from './ready-publication';
 import {refreshCurrentManagement} from './management-context';
-import {existsSync,mkdirSync,readFileSync,renameSync,writeFileSync} from 'node:fs';
+import {lstatSync,mkdirSync,readFileSync,renameSync,writeFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {Catalog} from './catalog';
 import {authenticate,reply,type ManagementIdentity} from './auth';
@@ -25,7 +25,7 @@ type Provider={enabled:boolean;client_id:string;secret:string;url:string};
  * may stay signed in, and the idle time before a sign out. A null member sets no variable,
  * so that session does not expire. The ranges mirror lab/auth_settings.py `validate`. */
 export type SignInSession={access_token_seconds:number|null;timebox_seconds:number|null;inactivity_seconds:number|null};
-export type SignInSettings={revision:number;site_url:string;redirect_urls:string[];signup:boolean;anonymous:boolean;
+export type SignInSettings={version?:number;revision:number;site_url:string;redirect_urls:string[];signup:boolean;anonymous:boolean;
  session:SignInSession;providers:Record<string,Provider>};
 export type SignInView=Omit<SignInSettings,'providers'|'revision'>&{providers:Record<string,{enabled:boolean;client_id:string;
  secret_set:boolean;url:string}>};
@@ -33,6 +33,9 @@ const NO_CAP:SignInSession={access_token_seconds:null,timebox_seconds:null,inact
 const SESSION_RANGE:Record<keyof SignInSession,[number,number]>={access_token_seconds:[60,86400],
  timebox_seconds:[3600,315360000],inactivity_seconds:[300,315360000]};
 const SESSION_KEYS=Object.keys(SESSION_RANGE) as (keyof SignInSession)[];
+
+/** The file format this version reads and writes (lab/auth_settings.py VERSION). */
+const FILE_VERSION=1;
 
 export class SettingsError extends Error {}
 
@@ -75,7 +78,7 @@ function sessionFromInput(value:unknown,current:SignInSession|null):SignInSessio
 export function settingsFromInput(input:unknown,current:SignInSettings|null):SignInSettings {
  if(!input||typeof input!=='object'||Array.isArray(input))throw new SettingsError('settings');
  const value=input as Record<string,unknown>;
- const allowed=new Set(['site_url','redirect_urls','signup','anonymous','session','providers']);
+ const allowed=new Set(['site_url','redirect_urls','signup','anonymous','session','providers','base_revision']);
  if(Object.keys(value).some(key=>!allowed.has(key)))throw new SettingsError('settings');
  const site_url=webAddress(value.site_url,'site_url');
  const redirects=value.redirect_urls??[];
@@ -100,7 +103,7 @@ export function settingsFromInput(input:unknown,current:SignInSettings|null):Sig
   else if(enabled&&PROVIDER_URL[name])throw new SettingsError(name);
   providers[name]={enabled,client_id:client,secret,url};
  }
- return {revision:(current?.revision??0)+1,site_url,redirect_urls:redirects.map(redirectAddress),signup,anonymous,
+ return {version:FILE_VERSION,revision:(current?.revision??0)+1,site_url,redirect_urls:redirects.map(redirectAddress),signup,anonymous,
   session:sessionFromInput(value.session,current?.session??null),providers};
 }
 
@@ -127,10 +130,15 @@ function file(directory:string,runtime:string) {
 
 export function readSettings(directory:string,runtime:string):SignInSettings|null {
  const path=file(directory,runtime);
- if(!existsSync(path))return null;
+ // As lab/auth_settings.py `read_private`: a link (a dangling one included), or a file open to other users, is not read.
+ let status;
+ try{status=lstatSync(path);}catch(error){if((error as {code?:string}).code==='ENOENT')return null;throw error;}
+ if(!status.isFile()||(status.mode&0o077)!==0)throw new SettingsError('file');
  // A file written before sessions were saved has no `session`: it reads as no cap and stays
  // as it is on disk until the next save writes the whole object.
- const saved=JSON.parse(readFileSync(path,'utf8')) as SignInSettings;
+ const saved=JSON.parse(readFileSync(path,'utf8')) as SignInSettings&{version?:number};
+ // A file from a newer version is not rewritten by this one: its fields would be dropped.
+ if(saved.version!==undefined&&saved.version>FILE_VERSION)throw new SettingsError('file');
  const session=saved.session&&typeof saved.session==='object'?saved.session:NO_CAP;
  // A file may lack `providers`, which the Python validator reads as none.
  return {...saved,providers:saved.providers??{},session:{...NO_CAP,...session}};
@@ -164,11 +172,15 @@ export function signInHandler(catalog:Catalog,identify:ManagementIdentity,direct
    try{input=await request.json();}catch{return reply(400,{message:'Invalid JSON'});}
    await refreshCurrentManagement();
    state=catalog.signIn(actor,environment);
+   // A save made from an older page would overwrite a newer one it never saw.
+   const base=input&&typeof input==='object'?(input as Record<string,unknown>).base_revision:undefined;
+   if(base!==undefined&&base!==null&&base!==state.revision)return reply(409,{message:'These settings changed since you opened them. Reload and try again.'});
    const settings=settingsFromInput(input,readSettings(directory,state.runtime));
    writeSettings(directory,state.runtime,settings);
    const saved=catalog.requestSignIn(actor,environment,settings.revision);
    return answer(reply(202,{data:{...saved,callback_url,settings:view(settings)}}));
   } catch(error) {
+   if(error instanceof SettingsError&&error.message==='file')return reply(409,{message:'The saved settings file cannot be read on the server (a link, wrong permissions, or a newer version). Fix it on the host.'});
    if(error instanceof SettingsError)return reply(400,{message:`Check the ${error.message.replace(/_/g,' ')} setting`});
    if(error instanceof Error&&error.message==='Forbidden')return reply(403,{message:'Forbidden'});
    if(error instanceof Error&&error.message==='Environment is not ready')return reply(409,{message:'Environment is not ready'});

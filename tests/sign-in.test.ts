@@ -1,5 +1,5 @@
 import {test,expect} from 'bun:test';
-import {mkdtempSync,readFileSync,statSync,writeFileSync} from 'node:fs';
+import {chmodSync,mkdtempSync,readFileSync,renameSync,rmSync,statSync,symlinkSync,writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {Catalog} from '../src/control/catalog';
@@ -116,4 +116,56 @@ test('a saved file with no session key reads back as three nulls and is left unt
  writeFileSync(file,before,{mode:0o600});
  expect(readSettings(directory,runtime)!.session).toEqual({access_token_seconds:null,timebox_seconds:null,inactivity_seconds:null});
  expect(readFileSync(file,'utf8')).toBe(before);
+});
+
+test('a save made from an older page is refused, and a link or open file is not read',async()=>{
+ const catalog=new Catalog(':memory:');
+ const directory=mkdtempSync(join(tmpdir(),'sign-in-'));
+ try {
+  const org=catalog.createOrganization('alice','A');
+  const environment=catalog.createEnvironment('alice',catalog.createProject('alice',org,'P'),'production');
+  const job=catalog.claimProvision()!;catalog.finishProvision(environment,job.claim!,true);
+  const handler=signInHandler(catalog,async request=>request.headers.get('authorization'),directory);
+  const put=(body:unknown)=>handler(new Request(`http://local/management/v1/environments/${environment}/sign-in`,
+   {method:'PUT',headers:{authorization:'alice','content-type':'application/json'},body:JSON.stringify(body)}));
+  expect((await put({...valid,base_revision:0})).status).toBe(202);
+  // Two pages opened at revision 0: the second save carries a base the first one already moved.
+  expect((await put({...valid,base_revision:0})).status).toBe(409);
+  expect((await put({...valid,base_revision:1})).status).toBe(202);
+  expect((await put(valid)).status).toBe(202);
+  const runtime=catalog.getProvision('alice',environment).runtime;
+  const file=join(directory,runtime+'-auth.json');
+  chmodSync(file,0o644);
+  expect(()=>readSettings(directory,runtime)).toThrow(SettingsError);
+  chmodSync(file,0o600);
+  expect(readSettings(directory,runtime)!.revision).toBe(3);
+  const target=join(directory,'elsewhere.json');renameSync(file,target);symlinkSync(target,file);
+  expect(()=>readSettings(directory,runtime)).toThrow(SettingsError);
+ } finally {catalog.close();}
+});
+
+test('a dangling link and a newer file version are refused, and the console says so',async()=>{
+ const catalog=new Catalog(':memory:');
+ const directory=mkdtempSync(join(tmpdir(),'sign-in-'));
+ try {
+  const org=catalog.createOrganization('alice','A');
+  const environment=catalog.createEnvironment('alice',catalog.createProject('alice',org,'P'),'production');
+  const job=catalog.claimProvision()!;catalog.finishProvision(environment,job.claim!,true);
+  const runtime=catalog.getProvision('alice',environment).runtime;
+  const handler=signInHandler(catalog,async request=>request.headers.get('authorization'),directory);
+  const call=(method='GET',body?:unknown)=>handler(new Request(`http://local/management/v1/environments/${environment}/sign-in`,
+   {method,headers:{authorization:'alice','content-type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)}));
+  const file=join(directory,runtime+'-auth.json');
+  symlinkSync(join(directory,'missing.json'),file);
+  expect(()=>readSettings(directory,runtime)).toThrow(SettingsError);
+  const refused=await call();
+  expect(refused.status).toBe(409);expect((await refused.json() as {message:string}).message).toContain('cannot be read on the server');
+  rmSync(file);
+  writeFileSync(file,JSON.stringify({...valid,version:2,revision:1}),{mode:0o600});
+  expect(()=>readSettings(directory,runtime)).toThrow(SettingsError);
+  expect((await call('PUT',valid)).status).toBe(409);
+  rmSync(file);
+  expect((await call('PUT',valid)).status).toBe(202);
+  expect(JSON.parse(readFileSync(file,'utf8')).version).toBe(1);
+ } finally {catalog.close();}
 });
