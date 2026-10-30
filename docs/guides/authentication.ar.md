@@ -183,17 +183,35 @@ await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo:
 
 شغّل **Enable custom SMTP** ثم املأ **Sender email address** و**Sender name** و**Host** و**Port number** (المعتاد 465 أو 587، وتجنّب 25) و**Username** و**Password**، واضغط **Save changes**.
 
+![SMTP Settings مع custom SMTP مفتوح. 1 المفتاح، 2 Sender email address، 3 Host، 4 Password، 5 Confirm email، 6 Save changes.](images/authentication/emails-smtp.webp)
+
+*بيانات تجريبية. كلمة المرور محفوظة من قبل، لذلك يظهر في الحقل "Stored password is hidden".*
+
 - **لا تُعرض كلمة المرور مرة ثانية.** المحفوظة تظهر "Stored password is hidden. Enter a new password to replace it.". اترك الحقل فارغًا لتبقيها.
-- **بلا custom SMTP لا يُرسل أي بريد**، وتؤكَّد التسجيلات الجديدة تلقائيًا.
-- مع custom SMTP يجب أن يؤكد المسجِّلون الجدد بريدهم؛ ولا يتأثر من سجّل قبلهم.
-- إيقاف المفتاح ثم الحفظ يحذف إعدادات SMTP وكلمة مروره المخزّنة، ويعيد Confirm email وحدود البريد إلى قيمها الافتراضية.
+- **بلا custom SMTP لا يُرسل أي بريد.** وبيئة جديدة يكون فيها **Confirm email** مغلقًا، فتؤكَّد تسجيلاتها تلقائيًا.
+- إيقاف المفتاح ثم الحفظ يحذف إعدادات SMTP وكلمة مروره المخزّنة. أما **Confirm email** والحدود التي تحته فتبقى كما هي.
 - تعني **Applied** أن Auth بدأ بالإعدادات. لا تعني أن مزوّد SMTP قبلها. جرّب تسجيلًا تجريبيًا.
 
-**Confirm email** وحدود البريد في صفحة Emails (اليوم تحت **Confirmation and limits** في SMTP Settings، وتظهر ما دام custom SMTP مفتوحًا). **انتبه إلى Confirm email:** حين يُغلق لا يُتحقق من عنوان المسجِّلين الجدد، فيستطيع أي شخص تسجيل عنوان ليس له، ولا يطبّق Auth حد الرسائل في الساعة.
+### Confirm email وحدود البريد
+
+تحت **Confirmation and limits** في الصفحة نفسها يوجد **Confirm email** وأربعة حدود. هي من إعدادات الدخول، فتظهر وتُحفظ بـ **Save changes** حتى مع إغلاق custom SMTP.
+
+![SMTP Settings مع custom SMTP مغلق: Confirm email والحدود ما زالت موجودة. 1 المفتاح، 2 Confirm email، 3 Rate limit for sending emails، 4 Save changes.](images/authentication/emails-off.webp)
+
+*بيانات تجريبية. يظهر التنبيه حين يكون Confirm email مفتوحًا وcustom SMTP مغلقًا.*
+
+- يسري **Confirm email** على التسجيلات الجديدة؛ ولا يتأثر من سجّل قبلها.
+- **انتبه:** حين يُغلق Confirm email لا يُتحقق من عنوان المسجِّلين الجدد، فيستطيع أي شخص تسجيل عنوان ليس له، ولا يطبّق Auth حد الرسائل في الساعة.
+- **انتبه:** مع custom SMTP مغلق وConfirm email مفتوح، لا يستطيع الجدد تأكيد عناوينهم إلا إذا سلّم خطاف Send Email الرسالة.
+- الحدود هي عدد الرسائل في الساعة، وطلبات رسائل الدخول والتحقق من الرموز كل 5 دقائق، وأقل عدد من الثواني بين رسالتين لشخص واحد. في الفحص الحي لم يظهر أثر للحدّين المحسوبين كل 5 دقائق في المسارات المجرَّبة، فجرّبهما قبل أن تعتمد عليهما.
 
 ### Templates
 
 افتح **Templates** لتعدّل الرسائل الست: Confirm sign up وInvite user وMagic link وChange email address وReset password وReauthentication. لكل رسالة **Subject heading** وجسم HTML، وعرض **Source** وعرض **Preview**، وقائمة بالمتغيّرات التي يملؤها Auth مثل `{{ .ConfirmationURL }}` و`{{ .Token }}`. ويعيد **Reset to default** نص Supabase الأصلي.
+
+![صفحة Templates. 1 Templates، 2 Subject heading، 3 Source وPreview، 4 Reset to default، 5 Save changes.](images/authentication/emails-templates.webp)
+
+*بيانات تجريبية.*
 
 - لا تُسلَّم الرسالة المخصّصة إلا ما دام custom SMTP مفتوحًا. وتقول الصفحة ذلك حين يكون مغلقًا.
 - العنوان سطر واحد بحد أقصى 200 بايت، والجسم 32 KiB على الأكثر، ولكل `{{` ما يقابله `}}`. ترفض الصفحة الأقواس غير المتقابلة قبل الحفظ، وقد يرفض الخادم قالبًا مشوّهًا برسالة عند الحفظ.

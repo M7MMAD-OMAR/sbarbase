@@ -183,17 +183,35 @@ Turn on **Enable phone sign-ups and sign-ins**, pick a **Provider** (Twilio, Twi
 
 Turn on **Enable custom SMTP**, then fill **Sender email address**, **Sender name**, **Host**, **Port number** (465 or 587 are usual; avoid 25), **Username** and **Password**, and press **Save changes**.
 
+![SMTP Settings with custom SMTP on. 1 the switch, 2 Sender email address, 3 Host, 4 Password, 5 Confirm email, 6 Save changes.](images/authentication/emails-smtp.webp)
+
+*Demo data. The password was saved earlier, so the field reads "Stored password is hidden".*
+
 - **The password is never shown again.** A saved one reads "Stored password is hidden. Enter a new password to replace it." Leave the field empty to keep it.
-- **Without custom SMTP, no email is sent**, and new sign-ups are confirmed automatically.
-- With custom SMTP on, new sign-ups must confirm their email address; people who signed up before are not affected.
-- Turning the switch off and saving removes the stored SMTP settings and password, and Confirm email and the mail limits go back to their defaults.
+- **Without custom SMTP, no email is sent.** A new environment has **Confirm email** off, so its sign-ups are confirmed automatically.
+- Turning the switch off and saving removes the stored SMTP settings and password. **Confirm email** and the limits below are kept as they are.
 - **Applied** means Auth started with the settings. It does not mean your SMTP provider accepts them. Send a test sign-up.
 
-**Confirm email** and the mail limits are on the Emails page (today under **Confirmation and limits** in SMTP Settings, shown while custom SMTP is on). **Be careful with Confirm email:** turned off, new sign-ups are not checked against the address they give, so anyone can register an address that is not theirs, and Auth no longer applies the hourly email limit.
+### Confirm email and the mail limits
+
+Under **Confirmation and limits** on the same page, **Confirm email** and four limits are sign-in settings, so they show and save with **Save changes** even while custom SMTP is off.
+
+![SMTP Settings with custom SMTP off: Confirm email and the limits are still there. 1 the switch, 2 Confirm email, 3 Rate limit for sending emails, 4 Save changes.](images/authentication/emails-off.webp)
+
+*Demo data. The notice appears when Confirm email is on and custom SMTP is off.*
+
+- **Confirm email** applies to new sign-ups; people who already signed up are not affected.
+- **Be careful:** with Confirm email off, new sign-ups are not checked against the address they give, so anyone can register an address that is not theirs, and Auth no longer applies the hourly email limit.
+- **Be careful:** with custom SMTP off and Confirm email on, new people cannot confirm their address unless a Send Email hook delivers the message.
+- The limits are emails per hour, sign-in email requests and token verifications per 5 minutes, and the minimum seconds between two emails to one person. In the live check the two 5 minute limits showed no effect on the paths tried, so test them before you rely on them.
 
 ### Templates
 
 Open **Templates** to edit the six messages: Confirm sign up, Invite user, Magic link, Change email address, Reset password and Reauthentication. Each has a **Subject heading** and an HTML body, a **Source** and a **Preview** view, and a list of the variables Auth fills in, such as `{{ .ConfirmationURL }}` and `{{ .Token }}`. **Reset to default** brings back Supabase's own text.
+
+![The Templates page. 1 Templates, 2 Subject heading, 3 Source and Preview, 4 Reset to default, 5 Save changes.](images/authentication/emails-templates.webp)
+
+*Demo data.*
 
 - A template is delivered only while custom SMTP is on. The page says so when it is off.
 - A subject is one line of at most 200 bytes, a body at most 32 KiB, and every `{{` needs its `}}`. The page refuses unpaired braces before you save, and the server can still refuse a malformed template with a message when you save.
