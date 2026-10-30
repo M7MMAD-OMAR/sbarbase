@@ -41,6 +41,8 @@ Read these to understand the design. Each page has the same shape: what it is, w
 - [Edge Functions](guides/edge-functions.md): deploy a Supabase functions folder to an environment and call it with supabase-js.
 - [Logs and metrics](guides/logs-and-metrics.md): requests, errors, response times and service logs per environment.
 - [Sign-in settings](guides/sign-in.md): site URL, redirect addresses and OAuth providers (Google, GitHub, Apple and others) per environment.
+- [Authentication in the console](guides/authentication.md): a walkthrough with screenshots of every Authentication page, from providers to audit logs.
+- [Console tour](guides/console-tour.md): every section of an environment in the console and when to use it.
 - [Supabase Studio](guides/studio.md): open the original Studio for one environment, behind the console login, through an SSH tunnel or on its own public address.
 - [Backup and restore](guides/backup-and-restore.md): the current operator workflow, including scheduled backups and bounded offsite recovery.
 - [Pausing writes](guides/write-pause.md): stopping application writes to one environment before work whose way back restores a backup.

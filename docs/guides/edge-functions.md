@@ -30,16 +30,60 @@ Owners and admins open **Edge Functions** in the environment's page. It has two 
 
 **Functions** lists every function with its address (with a copy button), when it was created and last deployed, and how many times it was deployed. Search by name, sort by name, created or updated, and refresh. The switch at the top shows whether the environment's runtime is Off, Applying, On or Not applied, and turns it on or off. **Add function** opens an editor that starts from a template (Hello world, Webhook, Read with supabase-js, or Browser calls with CORS, which also shows a shared file), or offers the deploy command for a project folder, which stays the way for a whole `supabase/functions` folder with `config.toml`.
 
+![The Functions list. 1 Edge Functions in the environment menu, 2 Add function, 3 a function to open.](images/edge-functions/list.webp)
+
+*Demo data. Search, sort and Refresh are above the list; the switch at the top shows the runtime state.*
+
+![The same list in a right to left page. The console's text is English only for now, but its layout mirrors.](images/edge-functions/list-rtl.webp)
+
+*Demo data.*
+
+![The Add function panel with its templates.](images/edge-functions/add.webp)
+
+*Demo data. Pick a template, name the function, then deploy.*
+
 Open a function to see its tabs. **Download** and **Test** are in the header of every tab.
 
 - **Overview.** Pick 15 min, 1 hour, 3 hours or 1 day: total invocations, the 5xx rate and the 4xx rate with a chart, errors since the last deploy, and the average and longest response time. The numbers are counted in memory by Sbarbase's gateway, a day of minutes per function, and start again when Sbarbase restarts; the page says since when it has been counting. The time is until the function starts to answer, not until a streamed answer ends. Under **Usage**: the average and the longest CPU time of a worker, its average memory, and the shares of that memory held as heap and as external memory, with two bar charts. These come from the runtime's event worker, and a worker reports when the runtime drops it, about a minute after its last call (75 seconds in the one measurement), so a function called all day on one worker shows nothing until that worker ends. Each number is for a worker's whole life, not one call, and memory is what the worker held when it ended, not its peak. If the runtime is off or started before this version, the section says so; it gets an event worker the next time Edge Functions start. Calls you send from **Test** count too.
+
+![The Overview tab of a function. 1 Logs, 2 Code, 3 Settings, 4 the time range, 5 Test.](images/edge-functions/overview.webp)
+
+*Demo data. Invocations with the 5xx and 4xx rates, errors since the last deploy, and response time.*
+
+![The Usage section of Overview: CPU time and memory of the workers.](images/edge-functions/usage.webp)
+
+*Demo data. Usage appears after the runtime's event worker reports a worker that ended.*
 - **Logs.** The calls to this function that the gateway counted in the time range you choose (15 min to 1 day, 1 hour at first), from the last 200 it holds: time, method, path, status and time taken. The query string is never kept, and a part of the path that looks like a token is hidden. Filter by text, show errors only, or turn on **Live**. Below, **Output of** this function: what it wrote with `console.log` and `console.error`, with its level, as the event worker reports it (the last 200 lines since the runtime started, each cut at 1000 characters; the same filters apply, and keys, tokens, passwords and the values of this environment's own secrets (six characters or more) are hidden). If the runtime is off or has no event worker yet, the page shows the lines of the whole environment instead and says so.
+
+![The Logs tab. 1 Logs, 2 the filter, 3 Live.](images/edge-functions/logs.webp)
+
+*Demo data. Calls on top, what the function wrote with console.log and console.error below.*
 - **Code.** The files of the running version as a tree, with shared code under `../_shared`, in an editor with line numbers and colours. **Add File** makes a file (name a shared one `../_shared/name.ts`), the pencil renames and the bin deletes the open file. Tab indents; press Escape, then Tab, to leave the editor with the keyboard. **Deploy updates** sends every file as a new version. If the environment's runtime is running, it is asked to start the new version first, and a version it cannot start (a syntax error, an import it cannot find) is refused with the runtime's own message, and the running version stays. A deploy without an index entry point (`index.ts` or `index.js`) is refused earlier, as `400`. The check does not call the function's handler, but the file's top level code does run once while the worker starts (with the permissions of a call, no variables, and at most 15 seconds): an error thrown at the top of a file, or a file that never calls `Deno.serve`, passes and shows at the first call or in the runtime's log. When Edge Functions are off, applying or not applied the deploy cannot be checked, and the page says so; if the runtime does not answer within 20 seconds the deploy goes on and says it was not checked. A function with a file over 256 KiB, or more than 2 MiB in all, opens read only: **Download** it, or deploy again from the project folder. Leaving the editor with changes asks first, from a tab, the back arrow, the environment's menu or the Environments button; the console's sidebar and top path do not ask, and reloading the page does.
+
+![The Code tab. 1 Code, 2 the editor, 3 Add File.](images/edge-functions/code.webp)
+
+*Demo data. The files of the running version, with shared code under ../_shared.*
+
+![After Deploy updates: the runtime started the new version before it went live. 1 the result of the deploy check, 2 Deploy updates.](images/edge-functions/code-deployed.webp)
+
+*Demo data. This is the deploy check passing. A version the runtime cannot start is refused with the runtime's own message and the running version stays.*
 - **Settings.** **Verify JWT** as a switch with **Save changes** (it takes effect on the next call and does not make a new version), how to call the function from cURL, JavaScript, Swift, Flutter and Python with a placeholder key (**Show publishable key** puts this environment's own in the example), the deploy command, and **Delete function**, which asks you to type the function's name.
+
+![The Settings tab. 1 Settings, 2 Save changes for Verify JWT, 3 Show publishable key, 4 Delete edge function.](images/edge-functions/settings.webp)
+
+*Demo data. The example key is a placeholder until you press Show publishable key.*
 - **Test.** Sends one request from your browser with this environment's publishable key: method, body, headers and query parameters. It shows the status, the time and the body. A browser lets the page read only the response headers the gateway exposes, so the header list is short.
 - **Download.** A ZIP laid out like a project: `<name>/index.ts` and `_shared/...`.
 
 **Secrets** adds or replaces secrets, one row each (a value may have several lines; **Add another** adds a row; pasting `NAME=value` lines, as in a `.env` file, into a name field makes a row for each), lists the custom secrets with a digest and when each was set, deletes any of them, and lists the default secrets. A value is never shown again. The digest is an HMAC-SHA256 with a key that belongs to this environment, so it shows whether a value changed, the same value in another environment gives another digest, and a short secret cannot be guessed from it without that key. It is not the plain SHA256 that the Supabase cloud may show. A secret saved before this page existed shows its time as unknown.
+
+![The Secrets page. 1 a secret name, 2 Add another, 3 Save.](images/edge-functions/secrets.webp)
+
+*Demo data. The values were never shown after saving; the digest only tells you whether one changed.*
+
+![The function Overview in the dark theme.](images/edge-functions/overview-dark.webp)
+
+*Demo data. The console follows the system theme.*
 
 A deploy that the runtime cannot start is refused as `422` by `PUT /management/v1/environments/{id}/functions/{name}`, with the runtime's message; `lab/functions-deploy.ts` and the Supabase compatible deploy route show it. `PATCH` on the same route takes `{"verify_jwt": true}` or `false`.
 
