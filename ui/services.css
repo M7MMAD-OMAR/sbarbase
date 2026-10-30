@@ -1,0 +1,21 @@
+/* The Services page. Built on the Authentication workspace's `aw-*` surfaces: no borders, tone and space only, logical properties for right to left. */
+.svc-list{padding:4px 0}
+.svc-item+.svc-item{background:linear-gradient(var(--hover),var(--hover)) top/100% 1px no-repeat}
+.svc-row .aw-text{flex:1;min-width:0}
+.svc-name{padding:0;background:transparent;color:var(--text);font-size:14px;font-weight:500;min-height:0;cursor:pointer;text-align:start}
+.svc-name:hover{text-decoration:underline}
+.svc-spacer{flex:none;width:40px}
+.svc-item .aw-notice{margin:0 20px 14px}
+.svc-ask{margin:0 0 12px}
+.svc-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin:0 0 20px}
+.svc-facts div{padding:12px 16px;border-radius:var(--radius);background:var(--surface)}
+.svc-facts dt{margin:0 0 2px;color:var(--subtle);font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.svc-facts dd{margin:0;font-size:15px;font-weight:500}
+.svc-note{margin:12px 0 16px}
+.svc-readonly{margin-block-end:12px}
+@media (max-width:860px){
+ .svc-row{flex-wrap:wrap;gap:12px 16px;padding-inline:16px}
+ .svc-row .aw-text{flex:1 1 100%}
+ .svc-item .aw-notice{margin-inline:16px}
+}
+.svc-state{font-size:14px;font-weight:500;color:var(--text)}

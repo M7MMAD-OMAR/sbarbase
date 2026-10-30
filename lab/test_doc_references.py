@@ -17,7 +17,7 @@ DOCS = ROOT / 'docs'
 # because they must keep saying what was true when they were written.
 DOCUMENTS = (DOCS / 'guides' / 'server-deployment.md', DOCS / 'guides' / 'operator-setup.md', DOCS / 'guides' / 'cli.md',
              DOCS / 'guides' / 'backup-and-restore.md', DOCS / 'guides' / 'upgrades.md',
-             DOCS / 'guides' / 'local-lab.md', DOCS / 'reference' / 'deployment-readiness.md',
+             DOCS / 'guides' / 'local-lab.md', DOCS / 'guides' / 'services.md', DOCS / 'reference' / 'deployment-readiness.md',
              DOCS / 'reference' / 'status.md', DOCS / 'reference' / 'configuration.md',
              DOCS / 'engineering' / 'INDEPENDENT-RESTORE.md', DOCS / 'engineering' / 'UPSTREAM-UPDATE-POLICY.md',
              DOCS / 'engineering' / 'handoff' / 'README.md')

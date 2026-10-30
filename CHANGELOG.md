@@ -10,6 +10,10 @@ The declared package version is 0.9.2. Historical 0.1.0 and 0.2.0 entries retain
 
 ## [Unreleased]
 
+### Added
+
+- **A Services page for every environment.** One page lists Realtime, Edge Functions, scheduled jobs, direct database access and Studio with each one's state, the memory its container holds now (measured once a minute by the supervisor, shown as out of date after three minutes), when it was last used, and what turning it on needs against the server's free memory. Every member can read it; only owners and admins switch a service. Turning off Realtime or Edge Functions while connections are open or calls are running asks first and says how many. New route `GET /management/v1/environments/{id}/services`; the switches and their audit events are unchanged. See [Services](docs/guides/services.md).
+
 ### Still open
 
 - **Purging a deleted environment is refused**, because nothing proves that only that environment wrote the shared PostgreSQL cluster and Storage objects; delete and restore are soft.

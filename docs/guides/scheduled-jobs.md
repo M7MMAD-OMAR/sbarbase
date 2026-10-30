@@ -7,9 +7,9 @@ Scheduled jobs let an environment run SQL on a schedule with `cron.schedule()`, 
 ## Turn them on
 
 1. Open the environment in the console, then **Services**.
-2. Under **Scheduled jobs**, press **Turn on scheduled jobs**. It shows **Applying…**, then **On**, usually within seconds.
+2. Open **Scheduled jobs** in the side list and turn its switch on. It shows **Starting…**, then **On**, usually within seconds.
 
-Only owners and admins of the client see this section. If the server has no database connections to spare, the section says so and nothing changes.
+Every member can read the [Services page](services.md); only owners and admins can switch a service. If the server has no database connections to spare, the section says so and nothing changes.
 
 Jobs run as the environment's developer role, the one [direct database access](database-access.md) signs in with. That role exists once database access was turned on once; until then every run is recorded as failed with "The developer role does not exist yet; turn database access on once". Direct access may be off afterwards: jobs keep running.
 

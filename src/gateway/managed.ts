@@ -4,6 +4,7 @@ import {Catalog} from '../control/catalog';
 import {resolveRuntimePlacement,placementServices,type RuntimeRouting,type ResolvedPlacement} from '../control/placement';
 import {KeyStore} from '../control/keys';
 import {createGateway,gatewayKeyAccess,withCors,type EnvironmentRoute} from './handler';
+import type {ServiceActivity} from './activity';
 
 /** A guaranteed share per environment (8 unless the catalog records another), borrowing up to 24
  * while the neighbours' shares stay free (docs/engineering/FAIR-SHARE-ADMISSION.md). */
@@ -27,7 +28,7 @@ export function routeWithPlacement(configured:EnvironmentRoute|undefined,routing
 /** Runtime configuration comes from the trusted installer, never HTTP input.
  * Resolve on every request so routing does not outlive its control-plane state.
  */
-export function managedGateway(catalog:Catalog,keys:KeyStore,resolve:(runtime:string)=>EnvironmentRoute|undefined,transport:typeof fetch=fetch, concurrency=applicationConcurrency) {
+export function managedGateway(catalog:Catalog,keys:KeyStore,resolve:(runtime:string)=>EnvironmentRoute|undefined,transport:typeof fetch=fetch, concurrency=applicationConcurrency, activity?:ServiceActivity) {
  keys.useRuntimeEpoch(runtime=>catalog.runtimeEpoch(runtime));
  // Its own refusals carry the browser headers too, so a page sees the status, not a network error.
  return async(request:Request):Promise<Response>=>withCors(await route(request),request);
@@ -52,6 +53,9 @@ export function managedGateway(catalog:Catalog,keys:KeyStore,resolve:(runtime:st
     {status:503,headers:{'retry-after':'1','cache-control':'no-store'}});
    const route=routeWithPlacement(resolve(runtime),routing,resolved);
    if(!route) return Response.json({message:'Environment routing unavailable'},{status:503});
+   // A request that carried a verified API key and reached a running service counts as use of it (src/gateway/activity.ts).
+   // A preflight and a call without a key do not: anyone can send those.
+   if(activity&&match[2]==='functions'&&route.functions&&access.apiKey!==null&&request.method!=='OPTIONS')activity.touch(runtime,'functions');
    const guardedTransport=(async(input,init)=>{
     if(!allowed())return Response.json({message:'Invalid API key'},{status:401});
     const response=await transport(input,init);

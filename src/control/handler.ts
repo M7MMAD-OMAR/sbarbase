@@ -23,15 +23,18 @@ import {databaseHandler,externalDatabaseHandler} from './database';
 import type {DirectDatabase} from '../http/database-proxy';
 import {signingHandler} from './signing';
 import {RequestLog} from '../gateway/observe';
+import {servicesHandler,type Stats} from './services';
+import type {ServiceActivity} from '../gateway/activity';
+export type ServicesOptions={activity?:ServiceActivity;stats?:()=>Stats|undefined;memory?:()=>{availableBytes:number|null;totalBytes:number|null};now?:()=>number};
 
 export function controlHandler(catalog:Catalog,keys:KeyStore,identity:ManagementIdentity,services?:ServiceDiscovery,
- studioKey?:()=>Buffer,requests=new RequestLog(),containers?:ContainerReader,accounts?:InvitationAccounts,direct?:DirectDatabase,functionsBoot?:Boot,functionsUsage?:UsageSource,authAdmin?:AuthAdmin) {
+ studioKey?:()=>Buffer,requests=new RequestLog(),containers?:ContainerReader,accounts?:InvitationAccounts,direct?:DirectDatabase,functionsBoot?:Boot,functionsUsage?:UsageSource,authAdmin?:AuthAdmin,serviceOptions:ServicesOptions={}) {
  keys.useRuntimeEpoch(runtime=>catalog.runtimeEpoch(runtime));
  const metadata=managementHandler(catalog,identity,undefined,keys),credentials=keyHandler(catalog,keys,identity,services);
  const studio=studioKey?studioHandler(catalog,identity,studioKey):undefined,signIn=signInHandler(catalog,identity),smtp=smtpHandler(catalog,identity,'.secrets/upstream'),mailTemplates=mailTemplatesHandler(catalog,identity,'.secrets/upstream'),sms=smsHandler(catalog,identity,'.secrets/upstream'),authAdminRoutes=authAdminHandler(catalog,identity,authAdmin),
   realtime=realtimeHandler(catalog,identity),scheduledJobs=scheduledJobsHandler(catalog,identity),observe=observeHandler(catalog,identity,requests,containers),
   functions=functionsHandler(catalog,identity,undefined,undefined,requests,functionsBoot,functionsUsage),database=databaseHandler(catalog,identity,undefined,direct),externalDatabase=externalDatabaseHandler(catalog,identity,direct),
-  signing=signingHandler(catalog,identity),dataApi=dataApiHandler(catalog,identity);
+  signing=signingHandler(catalog,identity),dataApi=dataApiHandler(catalog,identity),servicesRoute=servicesHandler(catalog,identity,serviceOptions);
  const share=shareHandler(catalog,identity),deploymentSetup=deploymentSetupHandler(catalog,identity);
  const invitations=invitationHandler(catalog,identity,accounts);
  return (request:Request)=>{
@@ -45,6 +48,7 @@ export function controlHandler(catalog:Catalog,keys:KeyStore,identity:Management
   if(/\/environments\/[^/]+\/(auth-audit|sso-providers)(\/[^/]+)?$/.test(path))return authAdminRoutes(request);
   if(/\/environments\/[^/]+\/share$/.test(path))return share(request);
   if(path==='/management/invitations/redeem'||/\/organizations\/[^/]+\/invitations(\/|$)/.test(path))return invitations(request);
+  if(/\/environments\/[^/]+\/services$/.test(path))return servicesRoute(request);
   if(/\/environments\/[^/]+\/realtime$/.test(path))return realtime(request);
   if(/\/environments\/[^/]+\/scheduled-jobs$/.test(path))return scheduledJobs(request);
   if(/\/environments\/[^/]+\/data-api$/.test(path))return dataApi(request);

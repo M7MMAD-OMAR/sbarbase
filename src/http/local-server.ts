@@ -4,7 +4,8 @@ import {EventEmitter} from 'node:events';
 
 /** What the listener does with a WebSocket upgrade: connect it to host:port and send `head`,
  * or answer it with a status. */
-export type UpgradeDecision={ok:true;host:string;port:number;head:string}|{ok:false;status:number;message:string};
+/** `onOpen` is called once the socket reaches its upstream; the function it returns is called when the socket closes (the Services page counts open sockets). */
+export type UpgradeDecision={ok:true;host:string;port:number;head:string;onOpen?:()=>()=>void}|{ok:false;status:number;message:string};
 export type Upgrade=(path:string,headers:Headers)=>UpgradeDecision|Promise<UpgradeDecision>;
 const MAX_HEAD=16384;
 /** An unread request body up to this size is read and discarded after an early answer, for at
@@ -562,6 +563,7 @@ async function frontListener(port:number,bind:string,innerHost:string,inner:numb
    const head=decision.head;
    const upstream=connect(decision.port,decision.host,()=>{
     upstream.write(head);
+    if(decision.onOpen){const release=decision.onOpen();if(socket.destroyed)release();else socket.once('close',release);}
     const rest=buffer.subarray(end+4);if(rest.length)upstream.write(rest);
     pipe(socket,upstream);socket.resume();
    });

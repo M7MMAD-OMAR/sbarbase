@@ -134,7 +134,7 @@ function credentialShape(value:string):boolean {
 export {ENVIRONMENT_LIMIT};
 
 /** Bumped with each step of Catalog.migrate(). */
-export const CATALOG_SCHEMA_VERSION=5;
+export const CATALOG_SCHEMA_VERSION=6;
 /** What PostgREST serves for an environment with no saved Data API settings (lab/data_api.py). */
 export const DATA_API_DEFAULT={schemas:['public'],extraSearchPath:['public'],maxRows:null as number|null};
 
@@ -150,6 +150,9 @@ export type DataApiState=DataApiSettings&{runtime:string;state:'default'|'pendin
 /** What lab/data_api.py serves when none of the exposed schemas exists: an empty platform schema. */
 export const DATA_API_EMPTY='sbarbase_empty';
 export type RealtimeState={runtime:string;desired:'on'|'off';state:'off'|'pending'|'on'|'failed';failure:string|null;updatedAt:number|null};
+export type ServiceRow={desired:'on'|'off';state:'off'|'pending'|'on'|'failed';failure:string|null;updatedAt:number|null};
+export type ServicesState={runtime:string;realtime:ServiceRow;functions:ServiceRow;database:ServiceRow;cron:ServiceRow;studio:ServiceRow;
+ activity:Record<string,number>;actorCanChange:boolean};
 /** The environment's JWT signing secret: never rotated, a rotation waiting or failed, or the last one done. */
 export type SigningState={runtime:string;state:'never'|'pending'|'done'|'failed';failure:string|null;rotatedAt:number|null;updatedAt:number|null};
 export type SignInState={runtime:string;revision:number;applied:number|null;
@@ -234,6 +237,11 @@ export class Catalog {
       -- table of its own, so an older release reading this catalog simply ignores it.
       CREATE TABLE IF NOT EXISTS studio_activity(
         runtime TEXT PRIMARY KEY, seen_at INTEGER NOT NULL);
+      -- When each optional service of a runtime was last used (a Realtime socket, an Edge Functions call), written by the
+      -- gateway at most once a minute (src/gateway/activity.ts). The Services page shows it. A new table moves
+      -- CATALOG_SCHEMA_VERSION to 6, so the previous release refuses this catalog: the way back is the pre-upgrade snapshot.
+      CREATE TABLE IF NOT EXISTS service_activity(
+        runtime TEXT NOT NULL, service TEXT NOT NULL, last_at INTEGER NOT NULL, PRIMARY KEY(runtime,service));
       CREATE TABLE IF NOT EXISTS invitations(
         id TEXT PRIMARY KEY, organization TEXT NOT NULL REFERENCES organizations(id),
         email TEXT NOT NULL, role TEXT NOT NULL CHECK(role IN ('owner','admin','viewer')),
@@ -361,6 +369,7 @@ export class Catalog {
         this.db.exec('CREATE UNIQUE INDEX IF NOT EXISTS projects_organization_name ON projects(organization,name)');
       }
       // Version 5: the database_external table (external database access), created by the schema above.
+      // Version 6: the service_activity table (when each optional service was last used), created by the schema above.
       this.db.exec(`PRAGMA user_version=${CATALOG_SCHEMA_VERSION}`);
     }).immediate();
     this.allowTelegramDeliveries();
@@ -1140,6 +1149,48 @@ export class Catalog {
         updated_at=excluded.updated_at`).run(current.runtime,on?'on':'off',actor,Date.now());
       this.record(actor,on?'functions.requested':'functions.stop_requested',environment,{});
       return this.functions(actor,environment);
+    }).immediate();
+  }
+  /** The five optional services of one environment as the Services page shows them: what is asked for and what the supervisor
+   * last did, never a key or a secret. Readable by every member; turning one on or off stays with owners and admins. */
+  services(actor:string,environment:string):ServicesState {
+    return this.db.transaction(()=>{
+      this.environmentProject(actor,environment,['owner','admin','viewer']);
+      const job=this.job(environment);
+      if(!job||job.state!=='succeeded'||this.runtimeDeleted(job.runtime))throw new Error('Environment is not ready');
+      const read=(table:string)=>{
+        const row=this.db.query<{desired:string;state:string;failure:string|null;updated_at:number},[string]>(
+          `SELECT desired,state,failure,updated_at FROM ${table} WHERE runtime=?`).get(job.runtime);
+        return {desired:(row?.desired??'off') as 'on'|'off',state:(row?.state??'off') as ServiceRow['state'],failure:row?.failure??null,updatedAt:row?.updated_at??null};
+      };
+      const studio=this.db.query<{desired:string;state:string;failure:string|null;updated_at:number},[string]>(
+        'SELECT desired,state,failure,updated_at FROM studio_sessions WHERE runtime=?').get(job.runtime);
+      const studioState=studio?.state==='running'?'on':studio?.state==='starting'?'pending':studio?.state==='failed'?'failed':'off';
+      return {runtime:job.runtime,
+        realtime:read('realtime_settings'),functions:read('functions_settings'),database:read('database_access'),cron:read('scheduled_jobs'),
+        // Studio's own failure text is an exception message: owners and admins read it on the Studio page, other members get a fixed sentence.
+        studio:{desired:studio?.desired==='running'?'on':'off',state:studioState,failure:studio?.failure?'Studio could not start. Open it again; if it keeps failing, ask the installation operator.':null,updatedAt:studio?.updated_at??null} as ServiceRow,
+        activity:this.serviceActivity(job.runtime),
+        actorCanChange:this.canChangeServices(actor,environment)};
+    }).immediate();
+  }
+  private canChangeServices(actor:string,environment:string):boolean {
+    try{this.environmentProject(actor,environment,['owner','admin']);return true;}catch{return false;}
+  }
+  /** Last use of each service of a runtime, in milliseconds, from what the gateway wrote and Studio's own mark. */
+  serviceActivity(runtime:string):Record<string,number> {
+    const out:Record<string,number>={};
+    for(const row of this.db.query<{service:string;last_at:number},[string]>('SELECT service,last_at FROM service_activity WHERE runtime=?').all(runtime))out[row.service]=row.last_at;
+    const studio=this.db.query<{seen_at:number},[string]>('SELECT seen_at FROM studio_activity WHERE runtime=?').get(runtime);
+    if(studio)out.studio=studio.seen_at;
+    return out;
+  }
+  /** The gateway's counters, kept at most once a minute. A later time wins; an earlier one never replaces it. */
+  saveServiceActivity(rows:{runtime:string;service:string;at:number}[]):void {
+    if(!rows.length)return;
+    this.db.transaction(()=>{
+      const statement=this.db.query('INSERT INTO service_activity(runtime,service,last_at) VALUES (?,?,?) ON CONFLICT(runtime,service) DO UPDATE SET last_at=max(last_at,excluded.last_at)');
+      for(const row of rows)statement.run(row.runtime,row.service,row.at);
     }).immediate();
   }
   /** Direct database access for one environment: the developer login is on or off, and a new

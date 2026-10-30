@@ -30,6 +30,7 @@ Read these to understand the design. Each page has the same shape: what it is, w
 - [Local lab](guides/local-lab.md): run the stack on your own machine for evaluation.
 - [Operator setup](guides/operator-setup.md): create the first operator and client.
 - [Server deployment](guides/server-deployment.md): the server runbook and its known gaps.
+- [Services](guides/services.md): what each optional service holds in memory, when it was last used, and how to turn it on or off.
 - [Realtime](guides/realtime.md): database changes, broadcast and presence per environment.
 - [Data API](guides/data-api.md): expose schemas of your own through PostgREST, with the grants they need.
 - [Scheduled jobs](guides/scheduled-jobs.md): `cron.schedule` and `net.http_*` per environment, and the rule outgoing requests follow.

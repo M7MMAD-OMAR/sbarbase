@@ -9,7 +9,7 @@ import {publishDatabaseResponse} from './database-publication';
 import {publishReadyEnvironmentResponse} from './ready-publication';
 import {publishManagementResponse} from './management-publication';
 import type {DirectDatabase} from '../http/database-proxy';
-import {controlHandler} from './handler';
+import {controlHandler,type ServicesOptions} from './handler';
 import type {InvitationAccounts} from './invitations';
 import {managedGateway,routeWithPlacement} from '../gateway/managed';
 import type {EnvironmentRoute} from '../gateway/handler';
@@ -36,7 +36,7 @@ export type AgentOptions={tokens:AccessTokenStore;sql?:SqlRunner;loopback?:()=>s
  */
 export function application(catalog:Catalog,keys:KeyStore,realm:ManagementRealm,
  resolve:(runtime:string)=>EnvironmentRoute|undefined,transport:typeof fetch=fetch,studioKey?:()=>Buffer,
- requests=new RequestLog(),containers?:ContainerReader,accounts?:InvitationAccounts,direct?:DirectDatabase,agents?:AgentOptions) {
+ requests=new RequestLog(),containers?:ContainerReader,accounts?:InvitationAccounts,direct?:DirectDatabase,agents?:AgentOptions,serviceOptions:ServicesOptions={}) {
  const auth=new URL(realm.auth);
  if(!['http:','https:'].includes(auth.protocol)||auth.username||auth.password||auth.search||auth.hash||auth.pathname!=='/')
   throw new Error('Invalid management Auth endpoint');
@@ -81,9 +81,9 @@ export function application(catalog:Catalog,keys:KeyStore,realm:ManagementRealm,
    if(!route||!route.enabled)throw new Error('Runtime routing unavailable');
    return [...(route.storage?['auth','rest','storage'] as const:['auth','rest'] as const),...(route.realtime?['realtime'] as const:[]),...(route.functions?['functions'] as const:[])];
   }catch(error){throw error instanceof PlacementUnavailable?error:new PlacementUnavailable();}
- },studioKey,requests,containers,accounts,direct,functionsBoot,functionsUsage,authAdmin);
+ },studioKey,requests,containers,accounts,direct,functionsBoot,functionsUsage,authAdmin,serviceOptions);
  // Each environment's answers are counted for its logs and metrics (src/gateway/observe.ts).
- const gateway=observedGateway(managedGateway(catalog,keys,resolve,transport),requests,runtime=>{
+ const gateway=observedGateway(managedGateway(catalog,keys,resolve,transport,undefined,serviceOptions.activity),requests,runtime=>{
   try{
    const routing=catalog.runtimeRouting(runtime);
    if(routing.maintenance)return false;

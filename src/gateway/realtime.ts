@@ -9,7 +9,7 @@ import type {RuntimeRouting} from '../control/placement';
  * key; an open socket keeps it until it closes, even when the key is revoked)
  * and the Host header naming the tenant, as upstream's gateway does. */
 export type RealtimeDecision =
- {ok:true;host:string;port:number;head:string}|
+ {ok:true;host:string;port:number;head:string;onOpen?:()=>()=>void}|
  {ok:false;status:number;message:string};
 
 const PATH=/^\/([a-z][a-z0-9_]{1,30})\/realtime\/v1\/websocket$/;

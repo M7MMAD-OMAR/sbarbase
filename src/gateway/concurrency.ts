@@ -39,6 +39,9 @@ export class ConcurrencyGate {
   };
  }
 
+ /** Calls of one service in flight in this environment. Only a service that runs with a budget is counted (Edge Functions always do). */
+ inFlight(environment:string,service:string):number {return this.services.get(JSON.stringify([environment,service]))??0;}
+
  private notifyDrain(environment:string) {
   for(const done of [...(this.drainWaiters.get(environment)??[])])done();
  }

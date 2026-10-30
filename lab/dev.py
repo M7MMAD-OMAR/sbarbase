@@ -11,6 +11,7 @@ import json
 import notification_producers
 import rolling
 import runtime_files
+import service_stats
 import os
 from pathlib import Path
 import signal
@@ -168,6 +169,8 @@ class Supervisor:
         # default upstream path; a test passes a private temporary catalog.
         self.catalog = catalog
         self.host_watch = host_watch.HostWatch(catalog=catalog)
+        # Memory of the service containers for the console's Services page, once a minute (lab/service_stats.py).
+        self.service_stats = service_stats.ServiceStats()
         # While an upgrade waits for its health checks (lab/upgrade_health.Confirmation): polled
         # each turn, True once confirmed, RuntimeError past its deadline. Until then only the
         # console runs: no worker, backup, Studio, sign-in or toggle may leave an effect that
@@ -848,6 +851,7 @@ class Supervisor:
                 if not self.paused():
                     # Disk space and stopped service containers, once a minute (lab/host_watch.py).
                     self.host_watch.step()
+                    self.service_stats.step()
                 if time.monotonic() >= self.updates_after:
                     try:
                         self.schedule_updates()

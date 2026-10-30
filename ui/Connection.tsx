@@ -5,8 +5,7 @@ import {useData,type Api,type Organization,type Environment} from './api';
 import {mailDetails,mailState,type MailEntry} from './mail';
 import {ErrorMessage,Loading,Refresh} from './components';
 import {SignInSection} from './SignIn';
-import {RealtimeSection} from './Realtime';
-import {ScheduledJobsSection} from './ScheduledJobs';
+import {ServicesPage} from './Services';
 import {MetricsSection,LogsSection} from './Observe';
 import {FunctionsWorkspace} from './FunctionsWorkspace';
 import {DatabaseSection} from './Database';
@@ -38,7 +37,7 @@ export function Connection({environment,organization,request,onBack}:{environmen
  const [section,setSection]=useState('overview'),[functionsDirty,setFunctionsDirty]=useState(false);
  // Edits in the Edge Functions editor are not saved until they are deployed: leaving its section asks first.
  const leave=()=>!functionsDirty||window.confirm('You have Edge Functions changes that are not deployed. Leave and lose them?');
- const sections=[{id:'overview',label:'Overview',Icon:LayoutGrid},...(canWrite?[{id:'database',label:'Database connection',Icon:Database},{id:'authentication',label:'Sign-in settings',Icon:Shield},{id:'services',label:'Services',Icon:Layers},{id:'functions',label:'Edge Functions',Icon:Code2}]:[]),{id:'usage',label:'Usage',Icon:Activity},{id:'keys',label:'API keys',Icon:KeyRound}];
+ const sections=[{id:'overview',label:'Overview',Icon:LayoutGrid},...(canWrite?[{id:'database',label:'Database connection',Icon:Database},{id:'authentication',label:'Sign-in settings',Icon:Shield}]:[]),{id:'services',label:'Services',Icon:Layers},...(canWrite?[{id:'functions',label:'Edge Functions',Icon:Code2}]:[]),{id:'usage',label:'Usage',Icon:Activity},{id:'keys',label:'API keys',Icon:KeyRound}];
  const activeSection=sections.some(item=>item.id===section)?section:'overview';
  const info=useData<{apiPath:string;services:string[]}|undefined>(signal=>activeSection==='overview'?request(path+'/connection','GET',undefined,signal):Promise.resolve(undefined),[environment.id,request,activeSection]);
  const mail=useData<{data:MailAnswer}|undefined>(signal=>activeSection==='overview'?request(path+'/mail','GET',undefined,signal):Promise.resolve(undefined),[environment.id,request,activeSection]);
@@ -62,10 +61,7 @@ export function Connection({environment,organization,request,onBack}:{environmen
  </div>}{activeSection==='authentication'&&<div>
  {canWrite&&<SignInSection path={path} request={request}/>}
  {canWrite&&<SigningSection path={path} request={request}/>}
- </div>}{activeSection==='services'&&<div>
- {canWrite&&<RealtimeSection path={path} request={request}/>}
-  {canWrite&&<ScheduledJobsSection path={path} request={request}/>}
- </div>}{activeSection==='functions'&&canWrite&&<FunctionsWorkspace path={path} request={request} environmentId={environment.id} onDirtyChange={setFunctionsDirty}/>}{activeSection==='database'&&<div>
+ </div>}{activeSection==='services'&&<ServicesPage path={path} request={request} go={id=>{if(leave())setSection(id);}}/>}{activeSection==='functions'&&canWrite&&<FunctionsWorkspace path={path} request={request} environmentId={environment.id} onDirtyChange={setFunctionsDirty}/>}{activeSection==='database'&&<div>
  {canWrite&&<DatabaseSection path={path} request={request}/>}
  {canWrite&&<DataApiSection path={path} request={request}/>}
  </div>}{activeSection==='usage'&&<div>

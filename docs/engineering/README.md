@@ -32,6 +32,7 @@ Start with the [project goal](../../PROJECT_GOAL.md), [product and portability p
 - [EDGE-FUNCTIONS](EDGE-FUNCTIONS.md): one edge-runtime per environment, its mounts and networks, deploy versions and the gateway path.
 - [FUNCTIONS-NETWORK-ISOLATION](FUNCTIONS-NETWORK-ISOLATION.md): why Functions left the shared runtime network, the environment and outbound networks, how Functions reach the shared Storage through a host listener that sets the tenant, and the planned live check.
 - [REALTIME](REALTIME.md): one Realtime per environment, its login and its superuser window, and the socket path through the gateway.
+- [OPTIONAL-SERVICES](OPTIONAL-SERVICES.md): the Services page of an environment, how memory and last use are measured, hints for unused services and the On demand mode.
 - [SIGNING-ROTATION](SIGNING-ROTATION.md): the session revocation of a signing key rotation, why it runs as the Auth login and not the superuser, and its bounds under the operation lock.
 - [DATABASE-ACCESS](DATABASE-ACCESS.md): turning direct database access on with its grants outside the operation lock, opening the developer login without a tenant holding it up, and one supervisor child per environment for every console change.
 - [EXTERNAL-DATABASE](EXTERNAL-DATABASE.md): the TLS database listener a Cloudflare Hyperdrive or other external service reaches through a tunnel, its per-environment opt-in, guard and private certificate authority.

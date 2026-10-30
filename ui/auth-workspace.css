@@ -120,3 +120,6 @@
 .aw-hook+.aw-hook{margin-block-start:8px}
 .aw-hook-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0 16px;padding:0 20px 8px}
 .aw-lead code{font-size:12px;padding:1px 6px;border-radius:6px;background:var(--code-bg)}
+
+/* A phone's 36px minimum for buttons (style.css) must not stretch the switch into a block. */
+.app-shell .aw button.aw-switch[role=switch]{min-height:22px;height:22px}

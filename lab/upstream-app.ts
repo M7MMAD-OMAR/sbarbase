@@ -6,6 +6,8 @@ import type {InvitationAccounts} from '../src/control/invitations';
 import {AuthClient} from '@supabase/auth-js';
 import {PressureMonitor} from '../src/gateway/pressure';
 import {applicationConcurrency} from '../src/gateway/managed';
+import {ServiceActivity} from '../src/gateway/activity';
+import {createServerHealthReader} from '../src/control/server-health';
 import {createHmac} from 'node:crypto';
 import {Catalog} from '../src/control/catalog';
 import {durableInventoryDeriver} from '../src/control/durable-lifecycle';
@@ -117,10 +119,17 @@ export function openUpstreamApplication() {
    ...(endpoints[runtime].realtime?{realtimeToken:realtimeToken(secret),realtimeServiceToken:serviceToken(secret,24*3600)}:{})};
  };
  const requests=new RequestLog();
+ // When each optional service was last used and what is using it now: the Services page reads it, and an On demand service's
+ // sleep depends on it (src/gateway/activity.ts). Written to the catalog at most once a minute.
+ const activity=new ServiceActivity({load:runtime=>catalog.serviceActivity(runtime),save:rows=>catalog.saveServiceActivity(rows)},Date.now,
+  runtime=>applicationConcurrency.inFlight(runtime,'functions'));
+ activity.start();
+ const health=createServerHealthReader();
  const database=new DirectDatabase();
  const handler=application(catalog,keys,{get auth(){return managementAuth();},publishableKey:managementPublishableKey,
   anonymousToken:internalToken(secrets.management.jwt,'anon')},resolve,fetch,studioSessionKey,requests,undefined,
-   invitationAccounts(managementAuth,internalToken(secrets.management.jwt,'service_role')),database,{tokens,loopback:()=>loopback});
+   invitationAccounts(managementAuth,internalToken(secrets.management.jwt,'service_role')),database,{tokens,loopback:()=>loopback},
+   {activity,memory:()=>{const memory=health().memory;return {availableBytes:memory.availableBytes,totalBytes:memory.totalBytes};}});
  const socket=realtimeUpgrade({
   route:catalogRealtimeRoute(catalog,resolve),
   verifyKey:(runtime,key)=>keys.resolve(runtime,key)});
@@ -130,7 +139,7 @@ export function openUpstreamApplication() {
   const runtime=new URL(path,'http://local').pathname.split('/')[1]??'';
   try{if(resolve(runtime))requests.record(runtime,{method:'GET',service:'realtime',path:'/websocket',
    status:decision.ok?101:decision.status,ms:performance.now()-started});}catch{}
-  return decision;
+  return decision.ok?{...decision,onOpen:()=>activity.socketOpened(runtime)}:decision;
  };
   const studio=studioProxy({key:studioSessionKey,allowed:(actor,runtime)=>catalog.studioAllowed(actor,runtime),epoch:actor=>catalog.managementSecurity.epoch(actor),runtimeEpoch:runtime=>catalog.runtimeEpoch(runtime),
    navigation:(actor,runtime,organization,project)=>catalog.studioNavigation(actor,runtime,organization,project),
@@ -149,5 +158,5 @@ export function openUpstreamApplication() {
   // The internal route also serves each environment's email templates to its own Auth (src/control/mail-templates.ts).
   const templates=mailTemplateRoute('.secrets/upstream');
   return {handler,studio,upstream:(request:Request)=>templates(request)??upstream(request),realtime,catalog,keys,tokens,database,listening(port:number){loopback=`http://127.0.0.1:${port}`;},
-   close(){database.stop();pressure.stop();catalog.close();keys.close();tokens.close();}};
+   close(){activity.stop();database.stop();pressure.stop();catalog.close();keys.close();tokens.close();}};
 }
