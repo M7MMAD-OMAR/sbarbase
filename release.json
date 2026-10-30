@@ -1,9 +1,9 @@
 {
-  "version": "0.10.0",
+  "version": "0.10.1",
   "minimum_from": "0.3.1",
   "notes": {
-    "en": "Adds an Authentication workspace and an Edge Functions workspace to the console, per environment: sign-in providers with logos, URL configuration, sessions, rate limits, attack protection, multi-factor, custom SMTP and email templates, phone, hooks, single sign-on and audit logs; and a function list, code editor with start-checked deploys, secrets, settings, logs and metrics, with a locked down runtime and per environment call limits.",
-    "ar": "يضيف إلى اللوحة مساحة للمصادقة ومساحة للدوال الطرفية لكل بيئة: مزوّدو الدخول بشعاراتهم، وإعداد الروابط، والجلسات، وحدود المعدل، والحماية من الهجمات، والتحقق الثنائي، وSMTP مخصص وقوالب البريد، والهاتف، والخطّافات، والدخول الموحّد، وسجل التدقيق؛ وقائمة الدوال ومحرر الشيفرة مع نشر يفحص الإقلاع، والأسرار، والإعدادات، والسجلات والمقاييس، مع بيئة تشغيل محصّنة وحدود نداءات لكل بيئة."
+    "en": "Fixes found in review of 0.10.0: a refused phone or email template save no longer stays on disk, template bodies follow the Auth that is running, an SMTP host that is local or link-local is refused, and a function's output hides more forms of its secrets.",
+    "ar": "إصلاحات من مراجعة 0.10.0: حفظ مرفوض للهاتف أو قوالب البريد لم يعد يبقى على القرص، ونصوص القوالب تتبع Auth الجاري، ويُرفض مضيف SMTP المحلي أو المحلي الارتباط، وتخفي مخرجات الدالة صيغًا أكثر من أسرارها."
   },
   "migrations": []
 }
