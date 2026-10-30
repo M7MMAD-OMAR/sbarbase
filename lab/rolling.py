@@ -796,9 +796,9 @@ def swap(runtime, e, service, entry):
     env = runtime.service_configuration(e, v, service, mail)
     did = replace(runtime, name, service, env, '256m', .25, 'production', rt.NETWORK, old)
     if service == 'auth':
-        # The replacement container is new, so it does not inherit the outbound network a
-        # configured environment needs to reach its relay (lab/durable_runtime.py mail_egress).
-        rt.mail_egress(name, mail is not None)
+        # The replacement container is new, so it does not inherit the outbound network an
+        # environment with mail or an OAuth provider needs (lab/durable_runtime.py egress).
+        rt.egress(name, rt.egress_wanted(mail, rt.load_settings(e)))
     return did
 
 

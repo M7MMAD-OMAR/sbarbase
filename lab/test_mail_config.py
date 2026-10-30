@@ -531,7 +531,7 @@ class ReconcileMailTests(unittest.TestCase):
         self.networks = [self.runtime.NETWORK]
 
     def inspect(self, kind, name):
-        # The outbound network a configured environment joins (durable_runtime.mail_egress), with
+        # The outbound network a configured environment joins (durable_runtime.egress), with
         # the option the runtime refuses to lose. Every other name is the Auth container.
         if kind == 'network':
             if name != self.runtime.EGRESS:
@@ -589,6 +589,37 @@ class ReconcileMailTests(unittest.TestCase):
         self.networks = [self.runtime.NETWORK, self.runtime.EGRESS]
         self.reconcile(None, off=True)
         self.assertIn(('network', 'disconnect', '--force', self.runtime.EGRESS, self.auth_name()), self.calls)
+
+    def test_turning_mail_off_keeps_the_outbound_network_for_an_enabled_provider(self):
+        """Google sign-in still needs Auth to reach accounts.google.com (issue 22)."""
+        self.networks = [self.runtime.NETWORK, self.runtime.EGRESS]
+        settings = {'site_url': 'https://app.example.com', 'redirect_urls': [], 'signup': True, 'anonymous': False,
+                    'providers': {'google': {'enabled': True, 'client_id': 'id', 'secret': 's', 'url': ''}}}
+        with patch.object(self.runtime, 'load_settings', return_value=settings):
+            self.reconcile(None, off=True)
+        self.assertNotIn(('network', 'disconnect', '--force', self.runtime.EGRESS, self.auth_name()), self.calls)
+
+    def test_saving_a_provider_joins_the_outbound_network(self):
+        """The Fanio failure of issue 22: Google saved, Auth still on the internal network only."""
+        settings = {'site_url': 'https://app.example.com', 'redirect_urls': [], 'signup': True, 'anonymous': False,
+                    'providers': {'google': {'enabled': True, 'client_id': 'id', 'secret': 's', 'url': ''}}}
+        self.target.sql = Mock()
+        self.target.pending = Mock()
+        self.target.endpoint = Mock(return_value='http://127.0.0.1:1')
+        self.target.wait = Mock()
+        self.target.publish_auth = Mock()
+        with patch.object(self.runtime, 'STATE', self.state), \
+             patch.object(self.runtime, 'inspect', self.inspect), \
+             patch.object(self.runtime.lab, 'docker', self.docker), \
+             patch.object(self.runtime.lab, 'auth_configuration', lab.auth_configuration), \
+             patch.object(self.runtime.effect_receipt, 'require_settled'), \
+             patch.object(self.runtime.runtime_files, 'read_endpoints', return_value={self.RUNTIME_ID: {}}), \
+             patch.object(self.runtime.rolling, 'require_settled'), \
+             patch.object(self.runtime.source_fence, 'is_fenced', return_value=False), \
+             patch.object(self.runtime.auth_settings, 'load', return_value=settings), \
+             patch.object(self.runtime.mail_config, 'load', return_value=None):
+            self.target.reconcile_auth(self.RUNTIME_ID)
+        self.assertIn(('network', 'connect', self.runtime.EGRESS, self.auth_name()), self.calls)
 
     def test_removing_the_configuration_and_reconciling_off_drops_every_mail_key(self):
         mail = self.configured()

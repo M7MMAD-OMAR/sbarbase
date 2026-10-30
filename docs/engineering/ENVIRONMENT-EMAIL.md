@@ -583,15 +583,20 @@ installation, whatever the configuration said. A relay on the same internal netw
 reachable, and that is the only path the 36 live checks of `lab/mail-check.py` ever exercised:
 they launch their own mailbox container on their own internal network.
 
-The rule now: an environment joins the outbound network while, and only while, it has a mail
-configuration. `durable_runtime.mail_egress(name, configured)` joins `EGRESS` when a mail file is
-present and disconnects it when the file is removed, and it runs on every path that creates or
-recreates that environment's Auth: the start (`activate_services`), `mail`, `auth`, and the
-side by side replacement in `lab/rolling.py`. `ensure_egress` keeps its existing guarantee: the
+The rule now: an environment joins the outbound network while, and only while, its Auth has
+something to reach outside the host: a mail configuration (its relay) or at least one enabled
+OAuth provider in its sign-in settings (Auth fetches the provider's discovery document and token
+endpoint itself, so an `--internal` network failed every provider that is not on the host; issue
+22, found on a real Google sign-in). `durable_runtime.egress(name, wanted)` joins `EGRESS` when
+`egress_wanted(mail, settings)` is true and disconnects it when neither is left, and it runs on
+every path that creates or recreates that environment's Auth: the start (`activate_services`),
+`mail`, `auth`, and the side by side replacement in `lab/rolling.py`. Removing the mail file
+therefore no longer cuts off an environment whose provider is still enabled.
+`ensure_egress` keeps its existing guarantee: the
 network turns traffic between its own containers off (`enable_icc=false`), so joining it adds a
 route to the internet and no route between environments.
 
-An environment without mail keeps the internal-only posture, and the management realm never
+An environment with neither mail nor an enabled provider keeps the internal-only posture, and the management realm never
 joins the outbound network at all: it sends no mail.
 
 What this does not prove: a real message through a real provider from a real server. The lab

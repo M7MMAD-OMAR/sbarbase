@@ -543,26 +543,33 @@ def join(container, networks):
             lab.docker('network', 'connect', network, container)
 
 
-def mail_egress(name, configured):
-    """Give an environment's Auth a way out when, and only when, it has a mail configuration.
+def egress_wanted(mail, settings):
+    """Whether an environment's Auth needs a way out: a mail configuration or an enabled OAuth provider."""
+    providers = (settings or {}).get('providers') or {}
+    return mail is not None or any(entry.get('enabled') for entry in providers.values())
+
+
+def egress(name, wanted):
+    """Give an environment's Auth a way out when, and only when, it needs one.
 
     The runtime network is created `--internal`, so nothing outside this host is reachable
     from it: measured on 2026-10-26, `getent hosts smtp.resend.com` fails and
     `nc -z -w5 smtp.resend.com 587` reports BLOCKED from a container on `sbarbase-durable-net`,
-    while the same probe on `sbarbase-durable-outbound` reports REACHABLE. A configured
-    environment therefore also joins the outbound network, so its Auth can reach its relay;
-    the network turns traffic between its own containers off, so this adds no path between
-    environments. Without a mail configuration Auth leaves it again: a relay the environment
-    cannot reach is not a setting worth keeping.
+    while the same probe on `sbarbase-durable-outbound` reports REACHABLE. Two things make Auth
+    call out: a mail configuration (its relay) and an enabled OAuth provider (Auth fetches the
+    provider's discovery document and token endpoint, issue 22). An environment with either
+    also joins the outbound network; the network turns traffic between its own containers off,
+    so this adds no path between environments. With neither, Auth leaves it again: a route
+    nothing uses is not one worth keeping. Pass `egress_wanted(mail, settings)`.
     """
     item = inspect('container', name)
     if not item:
         return
     attached = EGRESS in ((item.get('NetworkSettings') or {}).get('Networks') or {})
-    if configured and not attached:
+    if wanted and not attached:
         ensure_egress()
         lab.docker('network', 'connect', EGRESS, name)
-    elif not configured and attached:
+    elif not wanted and attached:
         lab.docker('network', 'disconnect', '--force', EGRESS, name)
 
 
@@ -1248,6 +1255,7 @@ class Runtime:
         # mail_config.load returns None when the environment has no mail file,
         # and the builder then returns exactly the dict it returned before.
         mail = mail_config.load(e)
+        settings = load_settings(e)
         for service, port, suffix in [('auth', 9999, '/health'), ('rest', 3000, '/')]:
             name = PREFIX+'-'+e+'-'+service
             # No per-environment class field exists yet, so both environment
@@ -1255,8 +1263,8 @@ class Runtime:
             config = self.service_configuration(e, v, service, mail)
             self.launch(name, service, config, '256m', .25, existing_only=not creating, tier='production', rotating=rotating)
             if service == 'auth':
-                # A retained Auth from before this rule had no way out; a configured one gets it here.
-                mail_egress(name, mail is not None)
+                # A retained Auth from before this rule had no way out; one with mail or a provider gets it here.
+                egress(name, egress_wanted(mail, settings))
             endpoints[service] = self.endpoint(name, port)
             self.wait(endpoints[service]+suffix)
         if creating:effect_receipt.native_stage(STATE,e,'storage')
@@ -1387,12 +1395,13 @@ class Runtime:
         if not actual:
             raise RuntimeError('Reconcile requires the retained Auth container')
         mail = None if off else mail_config.load(e)
-        desired = lab.auth_configuration(e, self.values['environments'][e], DB, mail, load_settings(e))
+        settings = load_settings(e)
+        desired = lab.auth_configuration(e, self.values['environments'][e], DB, mail, settings)
         configured = dict(entry.split('=', 1) for entry in actual['Config'].get('Env', []) if '=' in entry)
         # Before the comparison: a mail configuration written before the outbound network existed
         # leaves every mail key equal here, and the environment would keep an Auth that cannot
         # reach the relay it is configured with.
-        mail_egress(name, mail is not None)
+        egress(name, egress_wanted(mail, settings))
         if {k: v for k, v in configured.items() if is_mail_key(k)} == {k: v for k, v in desired.items() if is_mail_key(k)}:
             # The recorded state is the four state vocabulary the configuration
             # defines, so an unchanged reconcile records that the configuration is
@@ -1403,7 +1412,7 @@ class Runtime:
             return
         lab.docker('rm', '-f', name)
         self.launch(name, 'auth', desired, '256m', .25, tier='production')
-        mail_egress(name, mail is not None)
+        egress(name, egress_wanted(mail, settings))
         self.wait(self.endpoint(name, 9999)+'/health')
         self.publish_auth(e, name)
         mail_state.record(e, 'off' if off else 'applied', mail)
@@ -1437,7 +1446,7 @@ class Runtime:
         lab.docker('rename', name, previous)
         try:
             self.launch(name, 'auth', desired, '256m', .25, tier='production')
-            mail_egress(name, mail is not None)
+            egress(name, egress_wanted(mail, settings))
             self.wait(self.endpoint(name, 9999)+'/health')
         except Exception:
             if inspect('container', name):
