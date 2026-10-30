@@ -120,6 +120,36 @@ SYSTEM_ROWS = ('system.db', 'system.storage', 'system.management-auth')
 REALTIME_ROW = 'production.realtime'
 FUNCTIONS_ROW = 'production.functions'
 ENVIRONMENT_ROWS = ('production', 'production')
+
+# The tiers whose containers run code a tenant wrote (docs/engineering/EDGE-FUNCTIONS.md) start locked
+# down: no capabilities, no privilege gain, a read-only root and a non root user, with a sized tmpfs for
+# the two places the runtime writes. Measured on the pinned edge-runtime (docs/evidence/functions-container-hardening-2026-10-30):
+# /tmp, and the Deno cache, which lives under $HOME and so needs DENO_DIR set for a user without one.
+# A tmpfs is charged to the container's memory limit and never reclaimed (memory-swap equals memory): with
+# the pinned runtime, four warm functions hold about 150 MiB of anonymous memory, and one 130 MiB worker call
+# on top of full tmpfs of 64m and 96m was OOM killed in 3 of 3 runs (exit 137, nothing restarts it). At 32m
+# and 32m the same call survived 3 of 3 runs, peaking at 355 to 365 MiB of the 384 MiB, so the margin is thin
+# and this is the most they can take. Measured 16 MiB of cache for supabase-js, zod and ms.
+HARDENED_TIERS = (FUNCTIONS_ROW,)
+HARDENED_CACHE_DIR = '/deno-dir'
+HARDENED_TMP_SIZE = '32m'
+HARDENED_CACHE_SIZE = '32m'
+
+
+def hardening_flags(tier, uid=None, gid=None):
+    """The docker run arguments that lock a hardened tier's container down, or () for any other tier.
+    The user is the owner of the private directory the container reads (durable_runtime.functions_user):
+    a mode 600 file is readable only by its owner, and a user that cannot read it sees no secrets at all."""
+    if tier not in HARDENED_TIERS:
+        return ()
+    if any(type(value) is not int or value <= 0 for value in (uid, gid)):
+        raise ResourcePolicyError('hardened_needs_unprivileged_user')
+    options = 'rw,nosuid,nodev,noexec'
+    return ('--user', f'{uid}:{gid}', '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges', '--read-only',
+            '--tmpfs', f'/tmp:{options},size={HARDENED_TMP_SIZE}',
+            '--tmpfs', f'{HARDENED_CACHE_DIR}:{options},size={HARDENED_CACHE_SIZE},mode=0700,uid={uid},gid={gid}')
+
+
 START_RESERVE_MIB = 2560
 
 

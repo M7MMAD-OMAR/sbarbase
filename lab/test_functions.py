@@ -27,7 +27,8 @@ class FunctionsRuntimeTests(unittest.TestCase):
         self.runtime.values = {'environments': {E: {'jwt': 'j' * 64}, OTHER: {'jwt': 'k' * 64}}}
         self.runtime.pins = {'functions': {'id': 'sha256:fn'}}
         self.docker = []
-        for item in [patch.object(durable_runtime, 'STATE', self.root / 'state'), patch.object(durable_runtime, 'PRIVATE', self.root / 'private'),
+        for item in [patch.object(durable_runtime, 'functions_user', return_value=(1000, 1000)),
+                     patch.object(durable_runtime, 'STATE', self.root / 'state'), patch.object(durable_runtime, 'PRIVATE', self.root / 'private'),
                      patch.object(durable_runtime, 'inspect', return_value=None),
                      patch.object(durable_runtime, 'functions_address', return_value=('172.30.4.1', '172.30.4.0/24')),
                      patch.object(durable_runtime.lab, 'docker', side_effect=lambda *args, **kw: self.docker.append(args) or SimpleNamespace(stdout='', returncode=0)),
@@ -198,7 +199,8 @@ class FunctionsRuntimeTests(unittest.TestCase):
         with patch.object(durable_runtime.resource_policy, 'container_flags', return_value={'memory': '384m', 'cpus': .5, 'label': 'production', 'pids': 256, 'shares': 512, 'weight': 400}), \
              patch.object(durable_runtime.resource_policy, 'io_flags', return_value=[]), \
              patch.object(durable_runtime.lab, 'secure_file'), patch.object(durable_runtime.lab, 'docker', docker):
-            self.runtime.launch('c', 'functions', {}, '384m', .5, tier='production.functions', binds=[('/src', '/dst')])
+            self.runtime.launch('c', 'functions', {}, '384m', .5, tier='production.functions', binds=[('/src', '/dst')],
+                                hardening=resource_policy.hardening_flags('production.functions', 1000, 1000))
         run = next(args for args in self.docker if args and args[0] == 'run')
         self.assertIn('/src:/dst:ro', run)
 

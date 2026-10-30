@@ -1,0 +1,92 @@
+=== 64m + 96m (first sizes), both full, ONE 130 MiB worker, run 1
+after warm-up:    memory.current=178 anon=150 shmem=15 file=19 swap=0 swap.max=0 peak=180 MiB (limit 384)
+both tmpfs full:  memory.current=323 anon=151 shmem=160 file=163 swap=0 swap.max=0 peak=323 MiB (limit 384)
+StartedAt before: 2026-10-29T23:55:30.904144966Z
+alloc1 http=000
+State.Status=exited OOMKilled=true ExitCode=137 RestartCount=0
+the container is not running
+=== 64m + 96m (first sizes), both full, ONE 130 MiB worker, run 2
+after warm-up:    memory.current=182 anon=152 shmem=15 file=21 swap=0 swap.max=0 peak=183 MiB (limit 384)
+both tmpfs full:  memory.current=326 anon=152 shmem=160 file=165 swap=0 swap.max=0 peak=327 MiB (limit 384)
+StartedAt before: 2026-10-29T23:55:51.412569937Z
+alloc1 http=000
+State.Status=exited OOMKilled=true ExitCode=137 RestartCount=0
+the container is not running
+=== 64m + 96m (first sizes), both full, ONE 130 MiB worker, run 3
+after warm-up:    memory.current=181 anon=151 shmem=15 file=21 swap=0 swap.max=0 peak=182 MiB (limit 384)
+both tmpfs full:  memory.current=321 anon=147 shmem=160 file=165 swap=0 swap.max=0 peak=325 MiB (limit 384)
+StartedAt before: 2026-10-29T23:56:10.058635464Z
+alloc1 http=000
+State.Status=exited OOMKilled=true ExitCode=137 RestartCount=0
+the container is not running
+=== 32m + 32m, both full, ONE 130 MiB worker, run 1
+after warm-up:    memory.current=176 anon=147 shmem=15 file=21 swap=0 swap.max=0 peak=180 MiB (limit 384)
+both tmpfs full:  memory.current=224 anon=147 shmem=64 file=69 swap=0 swap.max=0 peak=228 MiB (limit 384)
+StartedAt before: 2026-10-29T23:56:29.163378071Z
+alloc1 http=200
+State.Status=running OOMKilled=false ExitCode=0 RestartCount=0
+after the call:   memory.current=231 anon=154 shmem=64 file=69 swap=0 swap.max=0 peak=365 MiB (limit 384)
+StartedAt after:  2026-10-29T23:56:29.163378071Z
+du /tmp 32768 KiB, /deno-dir 32768 KiB
+hello after: {"hello":"world","secret":"s3cret"} [200]
+=== 32m + 32m, both full, ONE 130 MiB worker, run 2
+after warm-up:    memory.current=173 anon=149 shmem=15 file=15 swap=0 swap.max=0 peak=177 MiB (limit 384)
+both tmpfs full:  memory.current=225 anon=153 shmem=64 file=64 swap=0 swap.max=0 peak=227 MiB (limit 384)
+StartedAt before: 2026-10-29T23:56:50.655724908Z
+alloc1 http=200
+State.Status=running OOMKilled=false ExitCode=0 RestartCount=0
+after the call:   memory.current=227 anon=156 shmem=64 file=64 swap=0 swap.max=0 peak=362 MiB (limit 384)
+StartedAt after:  2026-10-29T23:56:50.655724908Z
+du /tmp 32768 KiB, /deno-dir 32768 KiB
+hello after: {"hello":"world","secret":"s3cret"} [200]
+=== 32m + 32m, both full, ONE 130 MiB worker, run 3
+after warm-up:    memory.current=170 anon=146 shmem=15 file=15 swap=0 swap.max=0 peak=172 MiB (limit 384)
+both tmpfs full:  memory.current=217 anon=146 shmem=64 file=64 swap=0 swap.max=0 peak=219 MiB (limit 384)
+StartedAt before: 2026-10-29T23:57:12.292796214Z
+alloc1 http=200
+State.Status=running OOMKilled=false ExitCode=0 RestartCount=0
+after the call:   memory.current=220 anon=149 shmem=64 file=64 swap=0 swap.max=0 peak=355 MiB (limit 384)
+StartedAt after:  2026-10-29T23:57:12.292796214Z
+du /tmp 32768 KiB, /deno-dir 32768 KiB
+hello after: {"hello":"world","secret":"s3cret"} [200]
+=== 32m + 32m, tmpfs empty, TWO concurrent 130 MiB workers
+after warm-up:    memory.current=172 anon=148 shmem=15 file=16 swap=0 swap.max=0 peak=176 MiB (limit 384)
+StartedAt before: 2026-10-29T23:57:32.433074042Z
+alloc1 http=000
+alloc2 http=000
+State.Status=exited OOMKilled=true ExitCode=137 RestartCount=0
+the container is not running
+=== 32m + 32m, both full, TWO concurrent 130 MiB workers
+after warm-up:    memory.current=168 anon=140 shmem=15 file=20 swap=0 swap.max=0 peak=171 MiB (limit 384)
+both tmpfs full:  memory.current=220 anon=143 shmem=64 file=68 swap=0 swap.max=0 peak=221 MiB (limit 384)
+StartedAt before: 2026-10-29T23:57:49.15887769Z
+alloc2 http=000
+alloc1 http=000
+State.Status=exited OOMKilled=true ExitCode=137 RestartCount=0
+the container is not running
+=== default flags (root, no tmpfs, as before this change), TWO concurrent 130 MiB workers
+after warm-up:    memory.current=223 anon=151 shmem=0 file=64 swap=0 swap.max=0 peak=226 MiB (limit 384)
+StartedAt before: 2026-10-29T23:58:06.03001057Z
+alloc2 http=000
+alloc1 http=000
+State.Status=exited OOMKilled=true ExitCode=137 RestartCount=0
+the container is not running
+=== 64m + 96m both full, TWO workers, no restart policy
+after warm-up:    memory.current=224 anon=150 shmem=15 file=65 swap=0 swap.max=0 peak=227 MiB (limit 384)
+both tmpfs full:  memory.current=365 anon=147 shmem=160 file=209 swap=0 swap.max=0 peak=368 MiB (limit 384)
+StartedAt before: 2026-10-29T23:58:23.828512718Z
+alloc1 http=000
+alloc2 http=000
+State.Status=exited OOMKilled=true ExitCode=137 RestartCount=0
+the container is not running
+=== 64m + 96m both full, TWO workers, --restart on-failure:3
+after warm-up:    memory.current=225 anon=151 shmem=15 file=65 swap=0 swap.max=0 peak=228 MiB (limit 384)
+both tmpfs full:  memory.current=370 anon=151 shmem=160 file=209 swap=0 swap.max=0 peak=371 MiB (limit 384)
+StartedAt before: 2026-10-29T23:58:41.449082213Z
+alloc1 http=000
+alloc2 http=000
+State.Status=running OOMKilled=false ExitCode=0 RestartCount=1
+after the call:   memory.current=50 anon=18 shmem=0 file=24 swap=0 swap.max=0 peak=51 MiB (limit 384)
+StartedAt after:  2026-10-29T23:58:53.673270503Z
+du /tmp 0 KiB, /deno-dir 88 KiB
+hello after: {"hello":"world","secret":"s3cret"} [200]

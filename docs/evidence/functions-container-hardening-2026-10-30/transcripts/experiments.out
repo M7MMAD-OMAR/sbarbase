@@ -1,0 +1,98 @@
+=== 1. baseline: default flags (root, writable layer); what does the runtime write? (docker diff, cache part only)
+== hello
+{"hello":"world","secret":"s3cret"} [200]
+== sbjs
+{"client":"function","auth":"function"} [200]
+== sbnpm
+{"client":"function","auth":"function"} [200]
+== npmfn
+{"ms":172800000,"zod":true} [200]
+== probe
+{"write_tmp":"OK undefined","write_home_deno":"ERR NotFound: entity not found: writefile '/home/deno/a': entity not found: writefile '/home/deno/a': en","write_etc":"ERR NotFound: entity not found: writefile '/etc/a': entity not found: writefile '/etc/a': entity not fou","write_root":"ERR NotFound: entity not found: writefile '/a': entity not found: writefile '/a': entity not found","fetch_https":"OK 200"} [200]
+C /home
+A /home/deno
+A /home/deno/functions
+A /home/deno/main
+C /root
+A /root/.cache
+A /root/.cache/deno
+A /root/.cache/deno/node_analysis_cache_v2-wal
+A /root/.cache/deno/npm
+A /root/.cache/deno/remote
+A /root/.cache/deno/remote/https
+A /root/.cache/deno/remote/https/jsr.io
+A /root/.cache/deno/remote/https/jsr.io/18541f73e804d5da1e627e76d7fc176a04a12e52c108a1d3e12d34bdf69131d5
+A /root/.cache/deno/remote/https/jsr.io/b1add7176f4ef878a4fb188035bd1793d278b438e2b9ae4d1e5406507152967f
+A /root/.cache/deno/remote/https/jsr.io/ea27b61990838af7d13735d7b41081f977b8d893fc9fb0b1f57593f28a848bee
+A /root/.cache/deno/remote/https/jsr.io/0ad95a066ae34add6f67a4ff2a80690fbca872db637888db382267ff6308fdfd
+A /root/.cache/deno/remote/https/jsr.io/2698ddf780abe6771d9256577f4271c7176352eab68760d0b5e476a06558975b
+A /root/.cache/deno/remote/https/jsr.io/8be9d7aad2204f8bb55d770deddbcfb8e2c1e6a3e28ad0660b4e0065dffd221d
+A /root/.cache/deno/remote/https/jsr.io/c14cd8b4294f46d1e6f2e51a4a54d2e4012a7c95eb9d1edb49079f504ccbf0f5
+A /root/.cache/deno/remote/https/jsr.io/c6963ae2ba5fdc1809644ff055c0aa4225c225e82a55d6489c3755b3bc8c7173
+uid=0(root) gid=0(root) groups=0(root)
+HOME=/root DENO_DIR=
+
+=== 2. hardened, only /tmp writable, no DENO_DIR (HOME is / for an unlisted uid): npm functions must fail
+== hello
+{"hello":"world","secret":"s3cret"} [200]
+== sbjs
+{"message":"Function failed; see the Edge Functions log"} [500]
+== sbnpm
+{"message":"Function failed; see the Edge Functions log"} [500]
+== npmfn
+{"message":"Function failed; see the Edge Functions log"} [500]
+== probe
+{"write_tmp":"OK undefined","write_home_deno":"ERR NotFound: entity not found: writefile '/home/deno/a': entity not found: writefile '/home/deno/a': en","write_etc":"ERR NotFound: entity not found: writefile '/etc/a': entity not found: writefile '/etc/a': entity not fou","write_root":"ERR NotFound: entity not found: writefile '/a': entity not found: writefile '/a': entity not found","fetch_https":"OK 200"} [200]
+uid=1000 gid=1000 groups=1000
+HOME=/
+worker boot error: failed to bootstrap runtime: failed to create the graph: Failed caching npm package 'tslib@2.8.1'.
+    0: Read-only file system (os error 30)
+worker boot error: failed to bootstrap runtime: failed to create the graph: Failed caching npm package 'tslib@2.8.1'.
+
+=== 3. hardened, /tmp and the Deno cache tmpfs
+== hello
+{"hello":"world","secret":"s3cret"} [200]
+== sbjs
+{"client":"function","auth":"function"} [200]
+== sbnpm
+{"client":"function","auth":"function"} [200]
+== npmfn
+{"ms":172800000,"zod":true} [200]
+== probe
+{"write_tmp":"OK undefined","write_home_deno":"ERR NotFound: entity not found: writefile '/home/deno/a': entity not found: writefile '/home/deno/a': en","write_etc":"ERR NotFound: entity not found: writefile '/etc/a': entity not found: writefile '/etc/a': entity not fou","write_root":"ERR NotFound: entity not found: writefile '/a': entity not found: writefile '/a': entity not found","fetch_https":"OK 200"} [200]
+A /deno-dir
+C /home
+A /home/deno
+A /home/deno/functions
+A /home/deno/main
+C /run
+A /run/sbarbase
+16280	/deno-dir
+4	/tmp
+CapEff:	0000000000000000
+CapBnd:	0000000000000000
+NoNewPrivs:	1
+touch: cannot touch '/x': Read-only file system
+touch: cannot touch '/home/deno/x': Read-only file system
+ReadonlyRootfs=true CapDrop=[ALL] SecurityOpt=[no-new-privileges] User=1000:1000 Tmpfs=map[/deno-dir:rw,nosuid,nodev,noexec,size=32m,mode=0700,uid=1000,gid=1000 /tmp:rw,nosuid,nodev,noexec,size=32m]
+-- readability check as the container user
+readable
+
+=== 4. the uid trap: a private directory (700) with secrets.json (600) owned by uid 2000
+-- private dir owner 2000, container user 1000:1000: {"hello":"world","secret":null} [200]
+check: NOT readable
+-- private dir owner 2000, container user 2000:2000: {"hello":"world","secret":"s3cret"} [200]
+check: readable
+-- private dir owner 2000, container user 65534:65534: {"hello":"world","secret":null} [200]
+check: NOT readable
+-- private dir owner 1000 (the host user), container user 65534
+{"hello":"world","secret":null} [200]
+check: NOT readable
+
+=== 5. tmpfs size cap and memory charge (cgroup v2 memory.current inside the container)
+memory.current before: 27480064
+write of 100M into the tmpfs /tmp: rc=1
+head: error writing 'standard output': No space left on device
+tmpfs            32M   32M     0 100% /tmp
+memory.current after: 58519552
+shmem 33644544

@@ -1,0 +1,11 @@
+hardened round 1: sbjs=200 sbnpm=200 npmfn=200 hello=200
+deno cache KiB after the four functions: 16280
+hardened round 2: sbjs=200 sbnpm=200 npmfn=200 hello=200
+hardened round 3: sbjs=200 sbnpm=200 npmfn=200 hello=200
+hardened round 4: sbjs=200 sbnpm=200 npmfn=200 hello=200
+hardened round 5: sbjs=200 sbnpm=200 npmfn=200 hello=200
+root round 1: sbjs=200 sbnpm=200 npmfn=200 hello=200
+root round 2: sbjs=200 sbnpm=200 npmfn=200 hello=200
+root round 3: sbjs=200 sbnpm=200 npmfn=200 hello=200
+root round 4: sbjs=200 sbnpm=200 npmfn=200 hello=200
+root round 5: sbjs=200 sbnpm=200 npmfn=200 hello=200

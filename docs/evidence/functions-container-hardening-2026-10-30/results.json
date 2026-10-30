@@ -1,0 +1,68 @@
+{
+  "scope": "One host (the owner's Fedora 44 workstation, kernel 7.2.11, Docker 29.9.2 rootful, cgroup v2, security options seccomp and cgroupns; SELinux is not among Docker's security options), the edge-runtime pinned by lab/functions-image.lock.json (v1.77.4, public.ecr.aws/supabase/edge-runtime@sha256:ad45164b7548bf5820ed7be714789c17ac2865edce79a09cfb4c3756c3d365a8), started standalone as one throwaway container at a time named fnr-ctr-*, published on 127.0.0.1 only, on Docker's default bridge (internet reachable). The real lab/functions/main/index.ts (as it stood in the working tree on 2026-10-30, including the other checkpoint's per worker permissions and tmpFsConfig quota of 64 MiB) is the main service, mounted read-only with a code directory and a private directory the way durable_runtime.functions_binds does. Limits as launch gives them: --memory 384m --memory-swap 384m --cpus 0.5 --pids-limit 256. The flags under test are exactly those of resource_policy.hardening_flags for uid 1000: --user 1000:1000 --cap-drop ALL --security-opt no-new-privileges --read-only --tmpfs /tmp:rw,nosuid,nodev,noexec,size=32m -e DENO_DIR=/deno-dir --tmpfs /deno-dir:rw,nosuid,nodev,noexec,size=32m,mode=0700,uid=1000,gid=1000 (the first session used 64m and 96m; section memory explains why they were refused). Not a Sbarbase runtime: no environment network, no outbound network, no gateway, no Auth or REST behind SUPABASE_URL. NOT tested: rootless Docker, a remapped user namespace (userns-remap), SELinux enforcing with labelled bind mounts (the binds carry no :z or :Z), Docker Desktop or another OS, a host with swap allowed to these containers, the kept-container path against a real upgrade restart, native-addon npm packages under noexec, the unit-tested start and kept paths against a real runtime. Scripts: sources/ (setup.sh builds the work directory, then experiments.sh, parallelism.sh, repeat.sh, memory.sh). Raw outputs: transcripts/. Unit tests (no Docker): lab/test_functions_container.py.",
+  "date": "2026-10-30",
+  "results": {
+    "baseline_defaults": {
+      "command": "sources/run.sh fnr-ctr-base 19200 (no extra flags), then sources/hit.sh (transcripts/experiments.out, section 1)",
+      "result": "root, HOME=/root, DENO_DIR unset. hello, sbjs (jsr:@supabase/supabase-js@2), sbnpm (npm:@supabase/supabase-js@2) and npmfn (npm:ms, npm:zod) answer 200. docker diff shows the only paths written by the runtime are /root/.cache/deno (HOME-relative Deno cache, including npm and jsr.io downloads) and /tmp (.tmp* directories); the rest of the diff is the mountpoints."
+    },
+    "writable_paths_found": {
+      "paths": ["/tmp", "the Deno cache: $DENO_DIR, default $HOME/.cache/deno"],
+      "how": "docker diff of a default-flag container after exercising plain, jsr: and npm: functions. Nothing else outside the mountpoints was written; the probe function's writes to /home/deno, /etc and / are refused by the worker sandbox whatever the file system flags are."
+    },
+    "hardened_without_a_cache_directory": {
+      "command": "sources/experiments.sh section 2: the flags and a /tmp tmpfs only",
+      "result": "boots; hello answers 200 with its secret; every function that needs a package download answers 500 (jsr and npm), log: Failed caching npm package, Read-only file system (os error 30). For a user without a passwd entry HOME is / so the cache path is /.cache/deno. The cache directory is therefore required, not optional."
+    },
+    "hardened_with_tmp_and_cache_tmpfs": {
+      "command": "sources/experiments.sh section 3, at the final sizes",
+      "result": "boots and serves: hello (with its secret from secrets.json), sbjs, sbnpm and npmfn all 200, probe fetch of https://example.com 200. CapEff, CapBnd 0, NoNewPrivs 1. touch / and touch /home/deno fail with Read-only file system. docker inspect: ReadonlyRootfs=true CapDrop=[ALL] SecurityOpt=[no-new-privileges] User=1000:1000 and both Tmpfs entries. Deno cache after the four functions: 16 MiB (16280 KiB), inside the 32m cache tmpfs."
+    },
+    "jsr_and_npm_under_the_flags": {
+      "command": "sources/repeat.sh hardened and sources/repeat.sh root, each a fresh container per round with the jsr: function as the first request",
+      "result": "hardened (32m + 32m): sbjs, sbnpm, npmfn, hello all 200 in 5 of 5 rounds. Default (root) flags: all 200 in 5 of 5 rounds. The first session's 5 of 5 at 64m + 96m also passed.",
+      "unexplained": "In the first session, the jsr: function answered 500 (Requires import access to jsr.io:443) as the first request in two fresh containers, one with default flags and one hardened without a cache directory. It did not recur in 20 later fresh containers. The cause is not known; it was seen with the unhardened default configuration too, so it is not caused by the flags."
+    },
+    "uid_trap": {
+      "setup": "A private directory with mode 700 and secrets.json with mode 600, created as lab.secure_file does, mounted read-only at /run/sbarbase. Owner = the host user (1000), or changed to uid 2000 with a root helper container.",
+      "commands": "sources/experiments.sh section 4 (the check is the test -r / test -x line in sources/flags.sh)",
+      "result": "owner 2000, container user 1000: hello answers 200 with secret null (no error: the main service treats an unreadable secrets file as empty), the in-container check fails. Owner 2000, container user 2000: secret read, check passes. Owner 1000, container user 65534 (a fixed nobody): secret null, check fails. So the container user must be the owner of the private directory, and an uid mismatch is silent without the check.",
+      "decision": "durable_runtime.functions_user(e) returns os.stat(private directory).st_uid and st_gid (a group of 0 becomes the uid) and refuses root ownership. After every start of the container, new or kept, functions_readable runs a check through docker exec (30 s timeout): secrets.json and main/index.ts readable, and nothing unreadable in the code directory or the main directory at any depth (GNU find, present in the image; the first unreadable entry ends the scan, a folder without the search bit makes its entries unreadable, and the whole scan is bounded by the 30 s timeout and the deploy size limit). A failure, or a check that times out, removes the container and fails the start; removal matters because launch_spec would otherwise match and functions_kept would keep the container at the next start. The script is unit-tested against a real directory tree (unreadable files and folders, folders with mode 600, a file nine levels deep)."
+    },
+    "memory": {
+      "command": "sources/memory.sh all (transcripts/memory.out). Per case: a fresh hardened container with the real launch limits (--memory 384m --memory-swap 384m), hello, sbjs, sbnpm, npmfn warmed, then both tmpfs filled with /dev/urandom data, then alloc1 (a worker that holds a 130 MiB buffer for 3 s; the worker limit is 150 MiB), or alloc1 and alloc2 at once.",
+      "facts": [
+        "tmpfs pages are charged to the container's memory limit and, with swap off (memory-swap equals memory, memory.swap.max 0), cannot be reclaimed: filling /tmp raised memory.current by the written amount (shmem).",
+        "After warming the four functions the container holds about 150 MiB of anonymous memory (140 to 156 MiB over 21 runs), plus 15 MiB of Deno cache in shmem.",
+        "64m + 96m, both full, one 130 MiB worker: OOMKilled=true, exit 137, in 3 of 3 runs (peak reached the 384 MiB limit). This reproduces the independent review's finding.",
+        "32m + 32m, both full, one 130 MiB worker: survived in 3 of 3 runs, hello answered 200 afterwards, peak 355, 362 and 365 MiB of 384. The margin is about 20 to 30 MiB, so these sizes are the most they can take, not a comfortable figure.",
+        "Two concurrent 130 MiB workers: OOMKilled=true, exit 137, with 32m + 32m (tmpfs empty and full), with 64m + 96m full, and with the default flags before this change (root, no tmpfs, no read-only). That is a property of the 384m tier with this runtime and is independent of the lock down; the tier row and the gateway cap are what bound it.",
+        "Harness error found and corrected, kept as transcripts/memory-with-swap-allowed-harness-error.out: a first run omitted --memory-swap, so Docker allowed 384 MiB of swap (memory.swap.max=402653184) and nothing was OOM killed, with up to 206 MiB swapped. A host that lets these containers swap hides the problem; the production launch sets memory-swap equal to memory. An earlier run that filled with /dev/zero also hid it, because zero pages were moved out of the charge."
+      ],
+      "chosen": "/tmp 32m, Deno cache 32m (resource_policy.HARDENED_TMP_SIZE, HARDENED_CACHE_SIZE). The cache held 16 MiB for supabase-js, zod and ms; a function set whose imports exceed 32 MiB will fail its later imports until the container is recreated. The per worker tmpFsConfig quota in main (64 MiB) is larger than the container's /tmp tmpfs, so the tmpfs is the effective bound on /tmp across all workers. A unit test pins the sum to at most 64 MiB."
+    },
+    "restart_policy": {
+      "decision": "No restart policy is added. An OOM kill leaves the environment's functions down until functions_start runs again (the next runtime start, or turning Functions off and on).",
+      "measured": [
+        "Before this change the same happens: the default-flag container (root, no tmpfs) was OOMKilled=true exit 137 under two concurrent 130 MiB workers and stayed exited with RestartCount=0 (transcripts/memory.out).",
+        "With --restart on-failure:3 the container restarted in about 12 s after the OOM kill (RestartCount=1) and answered hello 200 again; its tmpfs came back empty, so the Deno cache was cold (88 KiB)."
+      ],
+      "why": "Every other runtime container is launched without a restart policy, and several verifiers in deploy/verify and lab require RestartPolicy {Name: no} for the containers they inspect. A Docker initiated restart bypasses the runtime's own start path (admission, the readiness wait, the kept and drift checks, the ordered network joins) and could bring a container back after a host reboot before the runtime has run. It would also have to enter launch_spec and functions_kept and be reconciled with retire, stop and the upgrade restart. That is a lifecycle decision for the owner, not a side effect of the lock down; this measurement shows it would work as a recovery for the OOM case."
+    },
+    "max_parallelism": {
+      "help": "--max-parallelism <COUNT> exists in start --help on v1.77.4 (transcripts/parallelism.out).",
+      "command": "sources/parallelism.sh: three distinct functions that each answer after 4 s, called at once",
+      "result": "With --max-parallelism 1 the three calls all finished in about 4.03 s, as did 5 concurrent calls to one function, and as did --policy per_request --max-parallelism 1 and the control without the flag. The flag had no observable effect on the user workers this main service creates with EdgeRuntime.userWorkers.create.",
+      "decision": "Not added to FUNCTIONS_COMMAND: a limit that limits nothing would repeat the netAccessDisabled mistake. The concurrency cap stays at the gateway."
+    },
+    "kept_container_verification": {
+      "what": "functions_kept now compares the running container's HostConfig as docker inspect reports it (hardening_applied), after the spec label: Privileged false, ReadonlyRootfs true, CapDrop containing ALL, no CapAdd, SecurityOpt exactly [no-new-privileges] (any seccomp, apparmor or label option, or another spelling, is refused), Config.User equal to uid:gid, and exactly the two tmpfs mounts with the same options (compared as sets, so their order does not matter). Seventeen doctored inspect results with a correct label (privileged, writable root, no cap drop, another cap drop, a capability added, no or another security option, seccomp, apparmor or label switched off besides no-new-privileges, a missing or extra or larger or executable tmpfs), four wrong users and a missing HostConfig are each refused in lab/test_functions_container.py.",
+      "mutations": "Round 1: 21 mutations on copies outside the repository, 20 killed. After the second review: security option contains instead of equals, security option ignored, find predicate ignored, depth cap restored, early quit removed, secrets and main checks removed: all killed. One survivor remains, removing 2>&1 from the find call: find reports nothing on stderr that its -readable test does not already report, so it is a fail closed net for find errors such as I/O errors, not killable by a unit test. The directory-executable clause was removed as redundant (a folder without the search bit makes its children fail -readable; an empty one has nothing to read)."
+    }
+  },
+  "predictions_not_tested": [
+    "Rootless Docker or userns-remap: host uid N maps to a subordinate uid inside the container, so the container user cannot read the mode 600 file; the post-launch check should then refuse the start with its message. Not run.",
+    "SELinux enforcing: an unlabelled bind mount may be unreadable to the container; the same check would refuse it. Not run.",
+    "A host that gives these containers swap changes every memory figure above; the production launch forbids it."
+  ]
+}

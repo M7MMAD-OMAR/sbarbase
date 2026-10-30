@@ -422,20 +422,58 @@ def functions_count():
 FUNCTIONS_COMMAND = ('start', '--main-service', '/home/deno/main', '-p', str(FUNCTIONS_PORT))
 
 
-def launch_spec(component, reference, memory, cpus, tier, network, volumes=(), binds=(), command=()):
+def launch_spec(component, reference, memory, cpus, tier, network, volumes=(), binds=(), command=(), hardening=()):
     """A digest of everything launch gives a new container besides its settings: the image, the tier's
-    limits, the network, the mounts, the command and the log options. Recorded as a label, so a container
-    kept across an upgrade restart can be compared with what this version would create."""
+    limits, the network, the mounts, the command, the lock down flags and the log options. Recorded as a
+    label, so a container kept across an upgrade restart can be compared with what this version would
+    create. The flags enter only when there are some, so every other component keeps its earlier digest."""
     flags = resource_policy.container_flags(tier)
     described = [component, reference, memory, str(cpus), sorted(flags.items()), list(resource_policy.io_flags(tier)), network,
                  [list(item) for item in volumes], [[str(source), target] for source, target in binds], list(command),
                  STOP_DATABASE_SECONDS if component == 'db' else None, 'max-size=5m', 'max-file=2']
+    if hardening:
+        described.append(list(hardening))
     return hashlib.sha256(json.dumps(described, sort_keys=True, default=str).encode()).hexdigest()[:32]
 
+
+# What a Functions container's user must be able to read, run inside it: find prints the first entry it cannot
+# read (a directory without the search bit makes its entries unreadable), and its own errors are captured too: any output is a failure.
+FUNCTIONS_READABLE = ('test -r /run/sbarbase/secrets.json && test -r /home/deno/main/index.ts && '
+                      'test -z "$(find /home/deno/functions /home/deno/main ! -readable -print -quit 2>&1)"')
+FUNCTIONS_READABLE_SECONDS = 30
 
 # The keys functions get. Each carries the time it was made, so a running container's are compared
 # by what they grant, not byte for byte (valid_service_token).
 FUNCTIONS_KEYS = {'SUPABASE_ANON_KEY': 'anon', 'SUPABASE_SERVICE_ROLE_KEY': 'service_role'}
+
+
+def functions_user(e):
+    """The user and group the Functions container runs as: the owner of the environment's private
+    directory, read when the container is made. The console writes secrets.json there with mode 600, so
+    only its owner can read it, and the main service answers an unreadable file with no secrets and no
+    error. Never a fixed number, and never root: a console run as root leaves no unprivileged owner."""
+    status = os.stat(functions_private(e))
+    if status.st_uid == 0:
+        raise RuntimeError('The Edge Functions secrets belong to root; run the console as an unprivileged user')
+    return status.st_uid, status.st_gid or status.st_uid
+
+
+def functions_hardening(e):
+    return resource_policy.hardening_flags(resource_policy.FUNCTIONS_ROW, *functions_user(e))
+
+
+def hardening_applied(item, hardening):
+    """Whether a container as docker inspect reports it carries the lock down launch was given (the
+    arguments of resource_policy.hardening_flags), not only the spec label that says so: not
+    privileged, a read-only root, every capability dropped and none added, exactly the security option
+    no-new-privileges (a seccomp, apparmor or label option would loosen the profile), the user, and exactly the two tmpfs mounts with their options."""
+    args = list(hardening)
+    host = item.get('HostConfig') or {}
+    wanted = {value.split(':', 1)[0]: set(value.split(':', 1)[1].split(',')) for flag, value in zip(args, args[1:]) if flag == '--tmpfs'}
+    held = {path: set(str(options).split(',')) for path, options in (host.get('Tmpfs') or {}).items()}
+    return (host.get('Privileged') is False and host.get('ReadonlyRootfs') is True and 'ALL' in (host.get('CapDrop') or [])
+            and not host.get('CapAdd') and list(host.get('SecurityOpt') or []) == ['no-new-privileges']
+            and (item.get('Config') or {}).get('User') == args[args.index('--user') + 1] and held == wanted)
 
 
 def functions_binds(e):
@@ -709,7 +747,7 @@ class Runtime:
             raise image_identity.inspection_failure(reference, result.stdout, result.stderr)
         return reference, image_identity.resolved_id(reference, image_identity.record(result.stdout))
 
-    def launch(self, name, component, env, memory, cpus, volumes=(), command=(), existing_only=False, tier=None, binds=(), rotating=False, network=NETWORK):
+    def launch(self, name, component, env, memory, cpus, volumes=(), command=(), existing_only=False, tier=None, binds=(), rotating=False, network=NETWORK, hardening=()):
         reference, expected = self.image(component)
         image = self.pins[component]['id']
         actual = inspect('container', name)
@@ -754,16 +792,19 @@ class Runtime:
             self.adopted(actual['Id'])
             return actual['Id'],False
         flags = resource_policy.container_flags(tier)
+        # A tier that runs tenant code never starts without its lock down, whatever the caller forgot.
+        if tier in resource_policy.HARDENED_TIERS and not hardening:
+            raise RuntimeError('Tier placement requires the container lock down')
         if (flags['memory'] is not None and flags['memory'] != memory) or (flags['cpus'] is not None and float(flags['cpus']) != float(cpus)):
             raise RuntimeError('Tier placement disagrees with the requested limits')
         path = PRIVATE/(name+'.env')
         lab.secure_file(path, ''.join(f'{k}={v}\n' for k, v in env.items()))
         args = ['run', '-d', '--pull=never', '--name', name, '--label', 'io.sbarbase.owner='+OWNER, '--label', 'io.sbarbase.tier='+flags['label'], '--network', network,
-                '--label', 'io.sbarbase.spec='+launch_spec(component, reference, memory, cpus, tier, network, volumes, binds, command),
+                '--label', 'io.sbarbase.spec='+launch_spec(component, reference, memory, cpus, tier, network, volumes, binds, command, hardening),
                 *(('--stop-timeout', str(STOP_DATABASE_SECONDS)) if component == 'db' else ()),
                 '--memory', memory, '--memory-swap', memory, '--cpus', str(cpus), '--pids-limit', str(flags['pids']),
                 '--cpu-shares', str(flags['shares']), '--blkio-weight', str(flags['weight']),
-                *resource_policy.io_flags(tier),
+                *resource_policy.io_flags(tier), *hardening,
                 '--log-opt', 'max-size=5m', '--log-opt', 'max-file=2', '--env-file', str(path)]
         for volume, destination in volumes:
             if not inspect('volume', volume):
@@ -1864,7 +1905,9 @@ GRANT CREATE ON DATABASE {e} TO {role};
                 'SUPABASE_ANON_KEY': service_token(v['jwt'], {'role': 'anon', 'iss': 'sbarbase'}, ten_years),
                 'SUPABASE_SERVICE_ROLE_KEY': service_token(v['jwt'], {'role': 'service_role', 'iss': 'sbarbase'}, ten_years),
                 'SB_AUTH_URL': f'http://{PREFIX}-{e}-auth:9999', 'SB_REST_URL': f'http://{PREFIX}-{e}-rest:3000',
-                'SB_STORAGE_URL': f'http://{gateway}:{FUNCTIONS_STORAGE_PORT}'}
+                'SB_STORAGE_URL': f'http://{gateway}:{FUNCTIONS_STORAGE_PORT}',
+                # The root file system is read-only and the user has no home: the Deno cache goes to its tmpfs.
+                'DENO_DIR': resource_policy.HARDENED_CACHE_DIR}
 
     def functions_start(self, e):
         """Run the environment's Edge Functions: a fresh container of the pinned edge-runtime, with
@@ -1903,12 +1946,15 @@ GRANT CREATE ON DATABASE {e} TO {role};
         ensure_egress()
         # A kept one was checked against all of this already (functions_kept); launch would compare
         # its two keys with freshly made ones and refuse them as drift.
+        hardening = functions_hardening(e)
         if kept:
             self.adopted(kept)
+            self.functions_readable(name, hardening[1])
         else:
             self.launch(name, 'functions', self.functions_configuration(e, v, gateway), '384m', .5, tier='production.functions',
-                        binds=functions_binds(e), command=FUNCTIONS_COMMAND, network=network)
+                        binds=functions_binds(e), command=FUNCTIONS_COMMAND, network=network, hardening=hardening)
             lab.docker('network', 'connect', EGRESS, name)
+            self.functions_readable(name, hardening[1])
         base = self.endpoint(name, FUNCTIONS_PORT, network)
         # A name no function can have: the main service answers 404 once it serves.
         for _ in range(FUNCTIONS_BOOT_SECONDS * 2):
@@ -1925,10 +1971,27 @@ GRANT CREATE ON DATABASE {e} TO {role};
         return {'url': base, 'image': self.pins['functions']['id'],
                 'storage': {'host': gateway, 'port': FUNCTIONS_STORAGE_PORT, 'subnet': subnet}}
 
+    def functions_readable(self, name, user):
+        """Fails a Functions container, and removes it, when its user cannot read what it is given: the
+        secrets, the main service and every directory and file of the deployed code, whatever the depth
+        (version folders, `_shared`); the tree is bounded by the deploy size limit and the scan by its timeout. The main service answers an unreadable secrets file with no
+        secrets and no error, and the kept check would accept the same container at the next start, so
+        this is where it shows. It runs for a new container and for a kept one. Rootless Docker, a
+        remapped user namespace and SELinux are refused here too, as unreadable. A check that cannot
+        finish within the time is a failure."""
+        try:
+            failed = lab.docker('exec', name, 'sh', '-c', FUNCTIONS_READABLE, check=False, timeout=FUNCTIONS_READABLE_SECONDS).returncode
+        except RuntimeError:
+            failed = 1
+        if failed:
+            retire(name)
+            raise RuntimeError(f'Edge Functions as user {user} cannot read their code or secrets; the private directory must belong to that user')
+
     def functions_kept(self, e, v, item, network):
         """A Functions container a planned upgrade restart left running, that functions_start would start
         exactly so: the pinned image, launch's own description of it (launch_spec: the tier's limits, the
-        command, the mounts, the logs), its environment's network and the outbound one only, the three
+        command, the lock down flags, the mounts, the logs) and the lock down as inspect reports it
+        (hardening_applied), its environment's network and the outbound one only, the three
         mounts read-only, the settings functions_configuration gives
         (its two keys need only still be valid ones of this environment, since they carry when they were
         made), and the main service's code unchanged since the commit it was started with: the runtime
@@ -1940,8 +2003,13 @@ GRANT CREATE ON DATABASE {e} TO {role};
             if networks != {network, EGRESS} or not inspect('network', network):
                 return False
             reference, image = self.image('functions')
-            spec = launch_spec('functions', reference, '384m', .5, 'production.functions', network, binds=functions_binds(e), command=FUNCTIONS_COMMAND)
+            hardening = functions_hardening(e)
+            spec = launch_spec('functions', reference, '384m', .5, 'production.functions', network, binds=functions_binds(e), command=FUNCTIONS_COMMAND,
+                               hardening=hardening)
             if item['Image'] != image or (item['Config'].get('Labels') or {}).get('io.sbarbase.spec') != spec:
+                return False
+            # The label is what launch wrote; what the container really runs with is checked too.
+            if not hardening_applied(item, hardening):
                 return False
             gateway, _subnet = functions_address(network)
             configured = dict(entry.split('=', 1) for entry in item['Config'].get('Env', []) if '=' in entry)

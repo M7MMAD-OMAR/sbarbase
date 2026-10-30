@@ -608,6 +608,10 @@ class FunctionsTests(RuntimeFixture):
         self.diff = 0
         # What the image itself sets, which a container carries besides the settings launch gives it.
         self.image_env = ['PATH=/usr/local/bin:/usr/bin', 'DENO_DIR=/deno-dir']
+        # The container's user is the owner of the private directory (functions_user); the lock down is part of the spec.
+        patcher = patch.object(runtime, 'functions_user', return_value=(1000, 1000))
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def container(self, **overrides):
         key = lambda role, seconds=10 * 365 * 24 * 3600, secret='j' * 64: runtime.service_token(secret, {'role': role, 'iss': 'sbarbase'}, seconds)
@@ -616,10 +620,12 @@ class FunctionsTests(RuntimeFixture):
         env.update(overrides.pop('env', {}))
         label = overrides.pop('spec', 'same')
         spec = runtime.launch_spec('functions', 'ref', '384m', .5, 'production.functions', self.network,
-                                   binds=runtime.functions_binds(E), command=runtime.FUNCTIONS_COMMAND)
+                                   binds=runtime.functions_binds(E), command=runtime.FUNCTIONS_COMMAND, hardening=runtime.functions_hardening(E))
         item = {'Id': 'id-fn', 'Image': 'sha256:fn', 'Name': f'/sbarbase-durable-{E}-functions', 'State': {'Running': True},
-                'Config': {'Env': [f'{k}={v}' for k, v in env.items()],
+                'Config': {'Env': [f'{k}={v}' for k, v in env.items()], 'User': '1000:1000',
                            'Labels': {} if label is None else {'io.sbarbase.spec': spec if label == 'same' else label}},
+                'HostConfig': {'Privileged': False, 'ReadonlyRootfs': True, 'CapDrop': ['ALL'], 'CapAdd': None, 'SecurityOpt': ['no-new-privileges'],
+                               'Tmpfs': {'/tmp': 'rw,nosuid,nodev,noexec,size=32m', '/deno-dir': 'rw,nosuid,nodev,noexec,size=32m,mode=0700,uid=1000,gid=1000'}},
                 'Mounts': self.mounts,
                 'NetworkSettings': {'Networks': {self.network: {}, runtime.EGRESS: {}}}}
         item.update(overrides)
@@ -733,7 +739,8 @@ class KeptFunctionsStartTests(FunctionsTests):
                     stdout=json.dumps(self.image_env) if a[:2] == ('image', 'inspect') else '', returncode=0)):
             item['Mounts'] = [{'Source': str(source), 'Destination': target, 'RW': False} for source, target in runtime.functions_binds(E)]
             item['Config']['Labels'] = {'io.sbarbase.spec': runtime.launch_spec('functions', 'ref', '384m', .5, 'production.functions', self.network,
-                                                                                 binds=runtime.functions_binds(E), command=runtime.FUNCTIONS_COMMAND)}
+                                                                                 binds=runtime.functions_binds(E), command=runtime.FUNCTIONS_COMMAND,
+                                                                                 hardening=runtime.functions_hardening(E))}
             self.runtime.functions_start(E)
         self.assertFalse([call for call in calls if call[0] in ('run', 'rm', 'stop')])
         # Noted as run by this start, so retire_unadopted leaves it alone.

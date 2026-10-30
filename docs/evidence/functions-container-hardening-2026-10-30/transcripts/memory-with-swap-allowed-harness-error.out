@@ -1,0 +1,114 @@
+=== 64m + 96m (first sizes), both full, ONE 130 MiB worker, run 1
+after warm-up:    memory.current=178 anon=147 shmem=15 file=22 swap=0 swap.max=402653184 peak=181 MiB (limit 384)
+both tmpfs full:  memory.current=325 anon=151 shmem=160 file=166 swap=0 swap.max=402653184 peak=328 MiB (limit 384)
+StartedAt before: 2026-10-29T23:50:52.34665189Z
+alloc1 http=200
+State.Status=running OOMKilled=false ExitCode=0 RestartCount=0
+after the call:   memory.current=246 anon=151 shmem=82 file=88 swap=77 swap.max=402653184 peak=384 MiB (limit 384)
+StartedAt after:  2026-10-29T23:50:52.34665189Z
+du /tmp 65536 KiB, /deno-dir 98304 KiB
+hello after: {"hello":"world","secret":"s3cret"} [200]
+=== 64m + 96m (first sizes), both full, ONE 130 MiB worker, run 2
+after warm-up:    memory.current=172 anon=147 shmem=15 file=15 swap=0 swap.max=402653184 peak=175 MiB (limit 384)
+both tmpfs full:  memory.current=315 anon=147 shmem=160 file=160 swap=0 swap.max=402653184 peak=318 MiB (limit 384)
+StartedAt before: 2026-10-29T23:51:14.385617639Z
+alloc1 http=200
+State.Status=running OOMKilled=false ExitCode=0 RestartCount=0
+after the call:   memory.current=251 anon=154 shmem=88 file=88 swap=71 swap.max=402653184 peak=384 MiB (limit 384)
+StartedAt after:  2026-10-29T23:51:14.385617639Z
+du /tmp 65536 KiB, /deno-dir 98304 KiB
+hello after: {"hello":"world","secret":"s3cret"} [200]
+=== 64m + 96m (first sizes), both full, ONE 130 MiB worker, run 3
+after warm-up:    memory.current=172 anon=148 shmem=15 file=15 swap=0 swap.max=402653184 peak=176 MiB (limit 384)
+both tmpfs full:  memory.current=321 anon=152 shmem=160 file=160 swap=0 swap.max=402653184 peak=322 MiB (limit 384)
+StartedAt before: 2026-10-29T23:51:40.560176182Z
+alloc1 http=200
+State.Status=running OOMKilled=false ExitCode=0 RestartCount=0
+after the call:   memory.current=251 anon=155 shmem=87 file=87 swap=72 swap.max=402653184 peak=384 MiB (limit 384)
+StartedAt after:  2026-10-29T23:51:40.560176182Z
+du /tmp 65536 KiB, /deno-dir 98304 KiB
+hello after: {"hello":"world","secret":"s3cret"} [200]
+=== 32m + 32m, both full, ONE 130 MiB worker, run 1
+after warm-up:    memory.current=175 anon=152 shmem=15 file=15 swap=0 swap.max=402653184 peak=177 MiB (limit 384)
+both tmpfs full:  memory.current=220 anon=148 shmem=64 file=64 swap=0 swap.max=402653184 peak=224 MiB (limit 384)
+StartedAt before: 2026-10-29T23:52:05.116517374Z
+alloc1 http=200
+State.Status=running OOMKilled=false ExitCode=0 RestartCount=0
+after the call:   memory.current=223 anon=151 shmem=64 file=64 swap=0 swap.max=402653184 peak=361 MiB (limit 384)
+StartedAt after:  2026-10-29T23:52:05.116517374Z
+du /tmp 32768 KiB, /deno-dir 32768 KiB
+hello after: {"hello":"world","secret":"s3cret"} [200]
+=== 32m + 32m, both full, ONE 130 MiB worker, run 2
+after warm-up:    memory.current=178 anon=149 shmem=15 file=15 swap=0 swap.max=402653184 peak=178 MiB (limit 384)
+both tmpfs full:  memory.current=221 anon=149 shmem=64 file=64 swap=0 swap.max=402653184 peak=224 MiB (limit 384)
+StartedAt before: 2026-10-29T23:52:26.660225609Z
+alloc1 http=200
+State.Status=running OOMKilled=false ExitCode=0 RestartCount=0
+after the call:   memory.current=228 anon=156 shmem=64 file=64 swap=0 swap.max=402653184 peak=362 MiB (limit 384)
+StartedAt after:  2026-10-29T23:52:26.660225609Z
+du /tmp 32768 KiB, /deno-dir 32768 KiB
+hello after: {"hello":"world","secret":"s3cret"} [200]
+=== 32m + 32m, both full, ONE 130 MiB worker, run 3
+after warm-up:    memory.current=176 anon=151 shmem=15 file=15 swap=0 swap.max=402653184 peak=177 MiB (limit 384)
+both tmpfs full:  memory.current=224 anon=151 shmem=64 file=64 swap=0 swap.max=402653184 peak=225 MiB (limit 384)
+StartedAt before: 2026-10-29T23:52:47.530988137Z
+alloc1 http=200
+State.Status=running OOMKilled=false ExitCode=0 RestartCount=0
+after the call:   memory.current=223 anon=151 shmem=64 file=64 swap=0 swap.max=402653184 peak=360 MiB (limit 384)
+StartedAt after:  2026-10-29T23:52:47.530988137Z
+du /tmp 32768 KiB, /deno-dir 32768 KiB
+hello after: {"hello":"world","secret":"s3cret"} [200]
+=== 32m + 32m, tmpfs empty, TWO concurrent 130 MiB workers
+after warm-up:    memory.current=240 anon=147 shmem=15 file=81 swap=0 swap.max=402653184 peak=241 MiB (limit 384)
+StartedAt before: 2026-10-29T23:53:10.352672947Z
+alloc1 http=200
+alloc2 http=200
+State.Status=running OOMKilled=false ExitCode=0 RestartCount=0
+after the call:   memory.current=121 anon=77 shmem=0 file=37 swap=94 swap.max=402653184 peak=384 MiB (limit 384)
+StartedAt after:  2026-10-29T23:53:10.352672947Z
+du /tmp 0 KiB, /deno-dir 16284 KiB
+hello after: {"hello":"world","secret":"s3cret"} [200]
+=== 32m + 32m, both full, TWO concurrent 130 MiB workers
+after warm-up:    memory.current=200 anon=149 shmem=15 file=42 swap=0 swap.max=402653184 peak=202 MiB (limit 384)
+both tmpfs full:  memory.current=244 anon=146 shmem=64 file=90 swap=0 swap.max=402653184 peak=248 MiB (limit 384)
+StartedAt before: 2026-10-29T23:53:34.11878477Z
+alloc2 http=200
+alloc1 http=200
+State.Status=running OOMKilled=false ExitCode=0 RestartCount=0
+after the call:   memory.current=114 anon=104 shmem=0 file=2 swap=108 swap.max=402653184 peak=384 MiB (limit 384)
+StartedAt after:  2026-10-29T23:53:34.11878477Z
+du /tmp 32768 KiB, /deno-dir 32768 KiB
+hello after: {"hello":"world","secret":"s3cret"} [200]
+=== default flags (root, no tmpfs, as before this change), TWO concurrent 130 MiB workers
+after warm-up:    memory.current=182 anon=148 shmem=0 file=26 swap=0 swap.max=402653184 peak=187 MiB (limit 384)
+StartedAt before: 2026-10-29T23:53:58.106916054Z
+alloc1 http=200
+alloc2 http=200
+State.Status=running OOMKilled=false ExitCode=0 RestartCount=0
+after the call:   memory.current=113 anon=98 shmem=0 file=0 swap=55 swap.max=402653184 peak=384 MiB (limit 384)
+StartedAt after:  2026-10-29T23:53:58.106916054Z
+du: cannot access '/deno-dir': No such file or directory
+du /tmp 0 KiB, /deno-dir  KiB
+hello after: {"hello":"world","secret":"s3cret"} [200]
+=== 64m + 96m both full, TWO workers, no restart policy
+after warm-up:    memory.current=175 anon=141 shmem=15 file=25 swap=0 swap.max=402653184 peak=179 MiB (limit 384)
+both tmpfs full:  memory.current=323 anon=145 shmem=160 file=170 swap=0 swap.max=402653184 peak=325 MiB (limit 384)
+StartedAt before: 2026-10-29T23:54:25.909029735Z
+alloc1 http=200
+alloc2 http=200
+State.Status=running OOMKilled=false ExitCode=0 RestartCount=0
+after the call:   memory.current=115 anon=104 shmem=0 file=0 swap=202 swap.max=402653184 peak=384 MiB (limit 384)
+StartedAt after:  2026-10-29T23:54:25.909029735Z
+du /tmp 65536 KiB, /deno-dir 98304 KiB
+hello after: {"hello":"world","secret":"s3cret"} [200]
+=== 64m + 96m both full, TWO workers, --restart on-failure:3
+after warm-up:    memory.current=176 anon=142 shmem=15 file=25 swap=0 swap.max=402653184 peak=180 MiB (limit 384)
+both tmpfs full:  memory.current=320 anon=142 shmem=160 file=169 swap=0 swap.max=402653184 peak=323 MiB (limit 384)
+StartedAt before: 2026-10-29T23:54:49.225356417Z
+alloc1 http=200
+alloc2 http=200
+State.Status=running OOMKilled=false ExitCode=0 RestartCount=0
+after the call:   memory.current=115 anon=101 shmem=0 file=6 swap=206 swap.max=402653184 peak=384 MiB (limit 384)
+StartedAt after:  2026-10-29T23:54:49.225356417Z
+du /tmp 65536 KiB, /deno-dir 98304 KiB
+hello after: {"hello":"world","secret":"s3cret"} [200]

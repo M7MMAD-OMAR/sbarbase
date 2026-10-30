@@ -1,0 +1,23 @@
+      --policy <POLICY>
+          Policy to enforce in the worker pool [default: per_worker] [possible values: per_worker, per_request, oneshot]
+--
+      --max-parallelism <COUNT>
+          Maximum count of workers that can exist in the worker pool simultaneously
+=== --max-parallelism 1 (default per_worker policy), 3 distinct functions at once
+slow1 200 4.035550s
+slow3 200 4.035681s
+slow2 200 4.037521s
+=== --max-parallelism 1, 5 calls to the same function at once
+slow1#2 200 4.016078s
+slow1#4 200 4.014802s
+slow1#1 200 4.016101s
+slow1#5 200 4.016089s
+slow1#3 200 4.014287s
+=== --policy per_request --max-parallelism 1, 3 distinct at once (exploratory)
+slow2 200 4.046365s
+slow1 200 4.047705s
+slow3 200 4.049396s
+=== control: no flag
+slow2 200 4.037029s
+slow1 200 4.043341s
+slow3 200 4.043001s
