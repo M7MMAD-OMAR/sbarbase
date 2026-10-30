@@ -54,10 +54,12 @@ export function usageView(buckets:Bucket[],range:FunctionRange,since:number,now=
   heapPercent:total.memSum?Math.round(total.heapSum/total.memSum*1000)/10:null,externalPercent:total.memSum?Math.round(total.externalSum/total.memSum*1000)/10:null,errors:total.errors}};
 }
 
-/** Replaces each of the environment's own secret values (six characters or more) wherever a line holds it, so what a function echoes
- * back cannot show a secret that the console never displays. Longest first, so a value that contains another is replaced whole. */
+/** Replaces each of the environment's own secret values (six characters or more; shorter ones would hide ordinary words and numbers), and its JSON escaped and base64 forms, wherever a line holds
+ * it, so what a function echoes back cannot show a secret that the console never displays. Longest first, so a value that contains another is
+ * replaced whole. */
 export function maskValues(text:string,values:string[]):string {
  let result=text;
- for(const value of [...new Set(values)].filter(item=>item.length>=6).sort((a,b)=>b.length-a.length))result=result.split(value).join('[redacted]');
+ const forms=[...new Set(values)].filter(item=>item.length>=6).flatMap(item=>[item,JSON.stringify(item).slice(1,-1),Buffer.from(item).toString('base64').replace(/=+$/,'')]);
+ for(const value of [...new Set(forms)].filter(item=>item.length>=6).sort((a,b)=>b.length-a.length))result=result.split(value).join('[redacted]');
  return result;
 }

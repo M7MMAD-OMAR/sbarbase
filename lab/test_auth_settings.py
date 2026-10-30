@@ -475,6 +475,17 @@ class MailPriorTests(unittest.TestCase):
         self.assertFalse(self.mail.exists())
         self.assertFalse(self.prior.exists())
 
+    def test_a_failed_apply_puts_phone_settings_and_templates_back_to_the_applied_copies(self):
+        for kind in ('sms', 'templates'):
+            live, applied = self.root / f'{E}-{kind}.json', self.root / f'{E}-{kind}.applied.json'
+            live.write_text('{"new": 1}')
+            applied.write_text('{"old": 1}')
+        (self.root / f'{E}-sms.applied.json').unlink()
+        auth_settings.settle_unapplied_files(E)
+        self.assertFalse((self.root / f'{E}-sms.json').exists())
+        self.assertEqual(json.loads((self.root / f'{E}-templates.json').read_text()), {'old': 1})
+        self.assertEqual(json.loads((self.root / f'{E}-templates.applied.json').read_text()), {'old': 1})
+
     def test_without_a_sign_in_file_the_catalog_row_stands_for_its_revision(self):
         with tempfile.TemporaryDirectory() as directory:
             catalog = Path(directory) / 'control.sqlite'

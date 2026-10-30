@@ -17,6 +17,16 @@ import {readSettings,writeSettingsFile,SAVE_INTERVAL_MS,SettingsError} from './s
 const MAIL_DIRECTORY='.secrets/upstream';
 const HOST=/^[A-Za-z0-9][A-Za-z0-9._-]*$/,ADDRESS=/^[^@\s<>,;:"]+@[^@\s<>,;:"]+\.[^@\s<>,;:"]+$/;
 const MAX_BYTES=8192;
+/** Hosts an environment's Auth must not be pointed at: this machine, link-local and unspecified addresses (the cloud metadata address
+ * among them), numeric forms of those, and this installation's own containers. A relay on a private network is allowed; the host
+ * firewall decides what the outbound network reaches. */
+const internalHost=(host:string)=>{
+ const name=host.toLowerCase();
+ if(/^\d+$/.test(name)||/^0x[0-9a-f]+$/.test(name)||name==='localhost'||name.endsWith('.localhost')||name.startsWith('sbarbase-'))return true;
+ const parts=name.split('.').map(Number);
+ if(parts.length!==4||!/^[0-9.]+$/.test(name))return false;
+ return parts[0]===127||parts[0]===0||(parts[0]===169&&parts[1]===254);
+};
 
 export class SmtpError extends Error {}
 
@@ -68,7 +78,7 @@ export function mailFromInput(input:unknown,current:Record<string,unknown>|null)
  for(const key of Object.keys(value))if(!['enabled','admin_email','sender_name','host','port','user','password','base_revision','confirm_email','rate_limit_email_sent','rate_limit_otp','rate_limit_verify','min_interval_seconds'].includes(key))throw new SmtpError('settings');
  const admin=plain(value.admin_email,'admin_email',false),host=plain(value.host,'host',false);
  if(!ADDRESS.test(admin))throw new SmtpError('admin_email');
- if(!HOST.test(host))throw new SmtpError('host');
+ if(!HOST.test(host)||internalHost(host))throw new SmtpError('host');
  const name=plain(value.sender_name??'','sender_name',true);
  if(/[<>"]/.test(name))throw new SmtpError('sender_name');
  const port=value.port;

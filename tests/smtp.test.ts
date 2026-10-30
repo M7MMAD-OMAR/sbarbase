@@ -141,3 +141,10 @@ test('a stale page is refused, saves are spaced, and a linked or open mail file 
   chmodSync(file,0o600);rmSync(file);symlinkSync(join(mail,'x'),file);expect(()=>readMail(mail,runtime)).toThrow(SmtpError);
  } finally {catalog.close();}
 });
+
+test('a host that is this machine, link-local or one of this installation containers is refused',()=>{
+ const base={admin_email:'a@example.com',host:'smtp.example.com',port:587,user:'u',password:'p'};
+ for(const host of ['localhost','mail.localhost','127.0.0.1','169.254.169.254','0.0.0.0','2130706433','0x7f000001','sbarbase-durable-db'])
+  expect(()=>mailFromInput({...base,host},null)).toThrow(SmtpError);
+ expect(()=>mailFromInput({...base,host:'10.0.0.5'},null)).not.toThrow();
+});

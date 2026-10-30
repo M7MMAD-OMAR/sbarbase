@@ -33,7 +33,7 @@ export function HooksPanel({fields,cfg,setCfg,busy,errors,authRole,failed,persis
     }}/>
     {on&&<div className="aw-hook-fields">
      <div className="aw-field"><label htmlFor={'hook-schema-'+base}>Schema</label><input id={'hook-schema-'+base} disabled={busy} maxLength={63} value={schema} aria-invalid={Boolean(problem)} onChange={event=>write(event.target.value,name)}/></div>
-     <div className="aw-field"><label htmlFor={'hook-name-'+base}>Function</label><input id={'config-'+uriKey} disabled={busy} maxLength={63} value={name} placeholder="my_hook" aria-invalid={Boolean(problem)} aria-describedby={problem?'hook-error-'+base:undefined} onChange={event=>write(schema,event.target.value)}/>
+     <div className="aw-field"><label htmlFor={'config-'+uriKey}>Function</label><input id={'config-'+uriKey} disabled={busy} maxLength={63} value={name} placeholder="my_hook" aria-invalid={Boolean(problem)} aria-describedby={problem?'hook-error-'+base:undefined} onChange={event=>write(schema,event.target.value)}/>
       {problem&&<p id={'hook-error-'+base} className="aw-error" role="alert">{problem}</p>}</div>
     </div>}
    </div>;

@@ -103,8 +103,8 @@ test('the internal route serves an environment its own body for its own token an
  const dir=mkdtempSync(join(tmpdir(),'tpl-'));
  const a='e_'+'a'.repeat(24),b='e_'+'b'.repeat(24);
  const tokenA='1'.repeat(64),tokenB='2'.repeat(64);
- write(join(dir,a+'-templates.json'),JSON.stringify({version:1,token:tokenA,templates:{confirmation:{subject:'',body:BODY},recovery:{subject:'Only a subject',body:''}}}),{mode:0o600});
- write(join(dir,b+'-templates.json'),JSON.stringify({version:1,token:tokenB,templates:{confirmation:{subject:'',body:'<p>B</p>'}}}),{mode:0o600});
+ write(join(dir,a+'-templates.applied.json'),JSON.stringify({version:1,token:tokenA,templates:{confirmation:{subject:'',body:BODY},recovery:{subject:'Only a subject',body:''}}}),{mode:0o600});
+ write(join(dir,b+'-templates.applied.json'),JSON.stringify({version:1,token:tokenB,templates:{confirmation:{subject:'',body:'<p>B</p>'}}}),{mode:0o600});
  const route=mailTemplateRoute(dir);
  const get=(path:string,method='GET')=>route(new Request('http://gateway:25432'+path,{method}));
  const ok=get(`/${a}/mail-templates/${tokenA}/confirmation`)!;
@@ -119,6 +119,12 @@ test('the internal route serves an environment its own body for its own token an
  expect(get(`/${a}/mail-templates/${tokenA}/confirmation`,'POST')!.status).toBe(404);
  // Environment B reads its own.
  return Promise.resolve(get(`/${b}/mail-templates/${tokenB}/confirmation`)!.text()).then(text=>expect(text).toBe('<p>B</p>'));
+});
+
+test('braces must open and close in order',()=>{
+ expect(()=>templatesFromInput({templates:{confirmation:{body:'Hi }} {{ .Email'}}},null)).toThrow(TemplateError);
+ expect(()=>templatesFromInput({templates:{confirmation:{body:'{{ {{ .Email }} }}'}}},null)).toThrow(TemplateError);
+ expect(()=>templatesFromInput({templates:{confirmation:{body:'<a href="{{ .ConfirmationURL }}">{{ .Email }}</a>'}}},null)).not.toThrow();
 });
 
 test('a lone surrogate, extra members and oversized values in a host edited file are refused on both sides',()=>{

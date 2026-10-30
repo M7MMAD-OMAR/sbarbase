@@ -33,9 +33,9 @@ type Entry={subject:string;body:string};
 type Saved={version:number;token:string;templates:Record<string,Entry>};
 export type TemplateView={kind:string;label:string;subject:string;body:string;default_subject:string;default_body:string;customized:boolean};
 
-function file(directory:string,runtime:string) {
+function file(directory:string,runtime:string,applied=false) {
  if(!/^e_[a-f0-9]{24}$/.test(runtime))throw new Error('Invalid runtime');
- return join(directory,runtime+'-templates.json');
+ return join(directory,runtime+(applied?'-templates.applied.json':'-templates.json'));
 }
 
 /** As lab/mail_templates.py `validate`: the same fields, the same limits. */
@@ -58,8 +58,8 @@ function normalize(parsed:unknown):Saved {
 }
 
 /** The saved templates, or null when there are none. A link, a file open to other users or an unreadable one is refused. */
-export function readTemplates(directory:string,runtime:string):Saved|null {
- const path=file(directory,runtime);
+export function readTemplates(directory:string,runtime:string,applied=false):Saved|null {
+ const path=file(directory,runtime,applied);
  let status;
  try{status=lstatSync(path);}catch(error){if((error as {code?:string}).code==='ENOENT')return null;throw error;}
  if(!status.isFile()||(status.mode&0o077)!==0||status.size>MAX_BYTES)throw new TemplateError('file');
@@ -80,8 +80,10 @@ export function templatesView(saved:Saved|null):TemplateView[] {
 function field(value:unknown,name:string,limit:number,single:boolean):string {
  // A lone surrogate is refused: Python could not encode it, and the apply would fail on a file this side wrote.
  if(typeof value!=='string'||!wellFormed(value)||Buffer.byteLength(value)>limit||/\x00/.test(value)||(single&&/[\r\n]/.test(value)))throw new TemplateError(name);
- const open=value.split('{{').length-1,close=value.split('}}').length-1;
- if(open!==close)throw new TemplateError(name);
+ // Each `{{` must be closed by a `}}` before the next `{{`: a count alone accepts `}} {{`.
+ let inside=false;
+ for(const mark of value.match(/\{\{|\}\}/g)??[]){if((mark==='{{')===inside)throw new TemplateError(name);inside=mark==='{{';}
+ if(inside)throw new TemplateError(name);
  return value;
 }
 
@@ -145,7 +147,7 @@ export function mailTemplatesHandler(catalog:Catalog,identify:ManagementIdentity
    let state=catalog.signIn(actor,environment);
    const answer=(response:Response)=>bindReadyEnvironmentPublication(response,catalog,actor,environment,state.runtime,true);
    // Templates are used only while custom SMTP is on; the page says so when it is not.
-   const mailOn=()=>{try{return readMail(DIRECTORY,state.runtime)!==null;}catch{return false;}};
+   const mailOn=()=>{try{return readMail(directory,state.runtime)!==null;}catch{return false;}};
    const shown=(saved:Saved|null)=>({...state,templates:templatesView(saved),variables:defaults.variables,mail_enabled:mailOn()});
    if(request.method==='GET')return answer(reply(200,{data:shown(readTemplates(directory,state.runtime))}));
    let input:unknown;
@@ -189,7 +191,8 @@ export function mailTemplateRoute(directory=DIRECTORY) {
   if(!match)return null;
   if(request.method!=='GET')return notFound();
   try {
-   const saved=readTemplates(directory,match[1]!);
+   // The copy the running Auth was started with, never a save still waiting or one that was rolled back.
+   const saved=readTemplates(directory,match[1]!,true);
    const [,,token,kind]=match;
    const given=Buffer.from(token!),expected=Buffer.from(saved?.token??'0'.repeat(64));
    const entry=saved?.templates[kind!];

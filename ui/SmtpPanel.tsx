@@ -37,21 +37,24 @@ export function SmtpPanel({path,request,onSaved}:{path:string;request:Api;onSave
   whole('sent',value.sent,1000000,true);whole('otp',value.otp,1000000,false);whole('verify',value.verify,1000000,false);whole('interval',value.interval,86400,true);
   return found;
  };
- const errors:Record<string,string>={};
- if(validated&&form.enabled){
-  if(!ADDRESS.test(form.admin_email.trim()))errors.admin_email='Enter one email address, with no name or angle brackets.';
-  if(/[<>"\r\n]/.test(form.sender_name))errors.sender_name='Do not use angle brackets, quotes or line breaks.';
-  if(!HOST.test(form.host.trim()))errors.host='Enter a host name only, with no scheme or port.';
-  const port=Number(form.port);if(!Number.isInteger(port)||port<1||port>65535)errors.port='Enter a port from 1 to 65535.';
-  if(!current?.smtp.password_set&&!form.password)errors.password='Enter the SMTP password.';
-  Object.assign(errors,limitErrors(form));
- }
+ /** Every field's error for a form that is switched on: shown after the first Save click, and what stops that click. */
+ const problems=(value:typeof form):Record<string,string>=>{
+  const errors:Record<string,string>={};
+  if(!ADDRESS.test(value.admin_email.trim()))errors.admin_email='Enter one email address, with no name or angle brackets.';
+  if(/[<>"\r\n]/.test(value.sender_name))errors.sender_name='Do not use angle brackets, quotes or line breaks.';
+  if(!HOST.test(value.host.trim()))errors.host='Enter a host name only, with no scheme or port.';
+  const port=Number(value.port);if(!Number.isInteger(port)||port<1||port>65535)errors.port='Enter a port from 1 to 65535.';
+  if(!current?.smtp.password_set&&!value.password)errors.password='Enter the SMTP password.';
+  Object.assign(errors,limitErrors(value));
+  return errors;
+ };
+ const errors=validated&&form.enabled?problems(form):{};
  const dirty=loaded!==''&&JSON.stringify(form)!==loaded;
  const bad=(id:string)=>({'aria-invalid':Boolean(errors[id]),'aria-describedby':errors[id]?id+'-error':undefined,disabled:busy});
  const message=(id:string)=>errors[id]?<p id={id+'-error'} className="aw-error" role="alert">{errors[id]}</p>:null;
  async function save(){
   if(busy)return;setValidated(true);
-  if(form.enabled&&(Object.keys(limitErrors(form)).length>0||!ADDRESS.test(form.admin_email.trim())||/[<>"\r\n]/.test(form.sender_name)||!HOST.test(form.host.trim())||!Number.isInteger(Number(form.port))||Number(form.port)<1||Number(form.port)>65535||(!current?.smtp.password_set&&!form.password)))return;
+  if(form.enabled&&Object.keys(problems(form)).length>0)return;
   setBusy(true);setError('');
   try{
    await request(path+'/smtp','PUT',form.enabled?{enabled:true,base_revision:current?.revision,admin_email:form.admin_email.trim(),sender_name:form.sender_name,host:form.host.trim(),
@@ -86,7 +89,7 @@ export function SmtpPanel({path,request,onSaved}:{path:string;request:Api;onSave
    <div className="aw-field"><label htmlFor="limit-interval">Minimum interval per user (seconds)</label><input id="limit-interval" type="number" min={1} max={86400} {...bad('interval')} value={form.interval} placeholder={current.smtp.min_interval_seconds===null?'Set in the mail file':'60'} onChange={event=>setForm({...form,interval:event.target.value})}/>{message('interval')}<p className="aw-hint">Minimum time between emails sent to the same user.</p></div>
   </>}
   {form.enabled&&<p className="aw-hint" role="note">With custom SMTP on, new sign-ups must confirm their email address; people who already signed up are not affected. Applied means this environment's Auth started with these settings, not that your SMTP provider accepts them: send a test sign-up to check.</p>}
-  {!form.enabled&&current.smtp.enabled&&<p className="aw-notice" role="status">Saving with this off removes the stored SMTP settings and password from this environment.</p>}
+  {!form.enabled&&current.smtp.enabled&&<p className="aw-notice" role="status">Saving with this off removes the stored SMTP settings and password from this environment, and Confirm email and the mail limits go back to their defaults.</p>}
   <div className="aw-actions aw-inline"><button type="button" className="aw-primary" disabled={busy||(!dirty&&current.state!=='failed')||current.state==='pending'} onClick={()=>void save()}><Save aria-hidden="true"/>Save changes</button></div>
  </>;
 }

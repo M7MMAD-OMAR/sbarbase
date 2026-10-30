@@ -374,6 +374,27 @@ def settle_prior_mail(e, applied):
         pass
 
 
+def settle_unapplied_files(e):
+    """After a failed apply: put the phone settings and the email templates back to the copies the running Auth was started with
+    (or remove the file when it had none), so a refused save does not stay on disk and fail every later apply."""
+    for kind in ('sms', 'templates'):
+        live = DIRECTORY / f'{e}-{kind}.json'
+        applied = DIRECTORY / f'{e}-{kind}.applied.json'
+        try:
+            if os.path.lexists(applied):
+                data = applied.read_text()
+                pending = live.with_name(live.name + '.pending')
+                pending.unlink(missing_ok=True)
+                descriptor = os.open(pending, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+                with os.fdopen(descriptor, 'w') as handle:
+                    handle.write(data)
+                os.replace(pending, live)
+            else:
+                live.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
 def row_revision(e):
     """The revision the catalog holds for this environment, or None."""
     try:
@@ -409,6 +430,7 @@ def apply(e):
     revision = settings['revision'] if settings else (row_revision_at_start if row_revision_at_start is not None else None)
     if result.returncode:
         settle_prior_mail(e, False)
+        settle_unapplied_files(e)
         record(e, 'failed', 'Auth did not start with these settings, so the previous settings stay in use.', revision)
         return 1
     # The copy restarts use was kept by the recreate itself, from the settings Auth started with.

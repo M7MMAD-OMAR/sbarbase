@@ -1,5 +1,5 @@
 import {test,expect} from 'bun:test';
-import {mkdtempSync,readdirSync,readFileSync,statSync} from 'node:fs';
+import {copyFileSync,mkdtempSync,readdirSync,readFileSync,statSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {Catalog} from '../src/control/catalog';
@@ -50,6 +50,8 @@ test('secrets and tokens saved for one environment appear in no answer, audit ro
   for(const environment of [first,second])for(const leaf of Object.keys(routes) as (keyof typeof routes)[])await record(await call(leaf,environment));
   seen.push(JSON.stringify(catalog.auditEvents('alice',org,200)));
   // The internal route serves a body to its own token only: the token is in its URL, not in any answer above.
+  const runtimeOf=catalog.getProvision('alice',first).runtime;
+  copyFileSync(join(secrets,runtimeOf+'-templates.json'),join(secrets,runtimeOf+'-templates.applied.json'));
   const internal=mailTemplateRoute(secrets)(new Request(`http://gateway:25432/${catalog.getProvision('alice',first).runtime}/mail-templates/${token}/confirmation`))!;
   expect(internal.status).toBe(200);
   const everything=seen.join('\n');
