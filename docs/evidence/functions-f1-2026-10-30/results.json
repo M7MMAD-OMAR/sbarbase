@@ -27,5 +27,12 @@
  },
  "interaction_checked": "Keyboard on the sort list (ArrowDown opens, Enter picks, focus returns), secret save with an uppercased name and a multi line value, Test send, tabs, delete confirmation not exercised in the render (covered by the typed name rule in code)",
  "not_exercised": "A live installation, the real download of a ZIP in a browser (the fetch and the ZIP are tested separately), the CSP in a served build (no inline style attribute exists in the sources; checked by test), Firefox and Safari (the masked secret field uses -webkit-text-security, which Firefox may ignore)",
- "review_fixes": "After the independent review: the Test dialog is portalled with the page behind inert, Escape closes the open list first, focus returns to Test; the console's bordered Empty and ErrorMessage are replaced by Nothing and Problem (a test forbids importing them); a new deploy opens once listed; the select is a combobox with aria-activedescendant; the back arrow mirrors; inline code is isolated; the clock is 12 hour with Western digits; Retry on a failed first load; Download shows Preparing; a deploy over an existing name says it replaces; the log filter waits 300 ms; log rows have labels on a phone."
+ "review_fixes": "After the independent review: the Test dialog is portalled with the page behind inert, Escape closes the open list first, focus returns to Test; the console's bordered Empty and ErrorMessage are replaced by Nothing and Problem (a test forbids importing them); a new deploy opens once listed; the select is a combobox with aria-activedescendant; the back arrow mirrors; inline code is isolated; the clock is 12 hour with Western digits; Retry on a failed first load; Download shows Preparing; a deploy over an existing name says it replaces; the log filter waits 300 ms; log rows have labels on a phone.",
+ "counter_memory": {
+  "what": "100 functions called every minute for 1440 minutes in one environment, through RequestLog.recordFunction",
+  "buckets_asked": 144000,
+  "buckets_kept": 40000,
+  "heap_after_gc_mib": 4.5,
+  "how": "a throwaway Bun script run once on 2026-10-30 (process.memoryUsage().heapUsed after Bun.gc(true), minus the value before); the committed gate is tests/functions-read.test.ts, heap under 40 MiB at the ceiling, not a repeat of the 4.5 MiB figure"
+ }
 }

@@ -52,6 +52,18 @@ Function calls pass through the same gateway gate as the other services (`src/ga
 - **Order.** The key is checked before admission, so an invalid key never takes a slot.
 - Unit tests: `tests/functions-gateway.test.ts`. Not measured under load on a real server.
 
+## Console workspace and read model (F1, 2026-10-30)
+
+Plan: [edge-functions-execution](plans/2026-10-30-edge-functions-execution.md). The console section is `ui/FunctionsWorkspace.tsx` with `ui/functions-workspace/`; everything it reads is under `/management/v1/environments/{id}/`, owners and admins only, through `catalog.functions` (a viewer and a non member get 403):
+
+- `GET functions` adds `created_at` and `deployments` (a manifest entry written before them reads as created at its last deploy and deployed once). A deploy of a new name is refused at 100 functions. Every manifest lookup uses `entryOf`: `constructor` and `toString` are valid function names and properties of every object.
+- `GET functions/{name}/source` and `download`: `functions-read.ts` reads the current version, never follows a link, caps inline content at 256 KiB a file and 2 MiB in all. The ZIP is stored (no compression), `<name>/...` and `_shared/...`, and refuses an entry name with `..`, a leading slash or a backslash.
+- `GET functions/{name}/metrics` and `logs`: `RequestLog.recordFunction` in `src/gateway/observe.ts`, called by `observedGateway` only for a name in that environment's manifest (`functionNames`, a `stat` per counted call). One bucket a minute for a day per function; at the environment's own ceiling (40,000 buckets), or the installation's (400,000), the environment that needs room gives up its own oldest minute; it never takes another's. A cumulative counter, reset by each deploy (`deployedFunction`), gives "since the last deploy" and says whether this process saw the deploy. `forgetFunction` runs on delete. Call logs keep method, path without query, status and time; the answer passes the path through `redactCallPath` and `redact`, and the `q` filter runs on that redacted text. Kept: 40,000 of the 144,000 buckets that 100 functions called every minute for a day ask for; the test gates the heap under 40 MiB, and 4.5 MiB was seen once on 2026-10-30 ([record](../evidence/functions-f1-2026-10-30/results.json)).
+- `GET function-secrets`: names, an HMAC-SHA256 digest (`createHmac` over name, NUL and value, with a 32 byte key per runtime) and the update time, plus the default secrets list. The key and the times live in `.secrets/upstream/function-digests/<runtime>.key` and `.json`, mode 600, outside `functions/<runtime>`, the only folder mounted into the container (`lab/test_functions_digest_mount.py` asserts it against `functions_binds`). The recovery collection takes the folder with the rest of `.secrets/upstream` (`lab/test_installation_recovery.py` passes with digest files present).
+- Test runs in the browser with a publishable key, through the public gateway address, so it adds no server authority. Download is fetched with the session token (`download()` in `ui/api.ts`).
+
+Not done: edit and deploy from the console (F2), CPU and memory and attributed output (F3), the Studio proxy fix (deferred in the plan). Tests: `tests/functions-read.test.ts`, `tests/functions-workspace-ui.test.ts`, `tests/api-helper.test.ts`. Renders: [functions-f1-2026-10-30](../evidence/functions-f1-2026-10-30/results.json).
+
 ## Limits
 
 - A function with `verify_jwt` off accepts calls with no key, so anyone who can reach the gateway can hold the 4 slots of that environment and make its other function calls answer `429`. REST and Auth keep their share. There is no per caller limit.

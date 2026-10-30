@@ -28,6 +28,10 @@ Before a line leaves the server, keys, tokens, passwords, signed JWTs, OAuth cod
 
 CI uses an environment through supabase-js on a clean machine with every change, then reads its usage and every log source and checks that no key or token appears in any answer ([evidence](../evidence/docker-observe-checks.json)).
 
+## One function
+
+The **Edge Functions** page has the numbers and the calls of each function: see [Edge Functions](edge-functions.md#the-edge-functions-page). They come from the same gateway counting as **Usage**, kept per function for a day, in memory.
+
 ## From a script
 
 The same data is available through the management API with an operator token:
