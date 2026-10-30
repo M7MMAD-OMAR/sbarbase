@@ -51,7 +51,7 @@ class RegistryParityTests(unittest.TestCase):
             elif entry['type'] == 'list':
                 self.assertEqual(value, ','.join(saved), entry['key'])
             elif entry['type'] == 'int':
-                self.assertEqual(value, str(saved), entry['key'])
+                self.assertEqual(value, str(saved) + entry.get('emit_suffix', ''), entry['key'])
             elif entry['type'] == 'seconds':
                 # JWT_EXP is a count of seconds; the two caps are Go durations in seconds.
                 self.assertEqual(value, str(saved) if entry['key'] == 'JWT_EXP' else f'{saved}s', entry['key'])
@@ -103,7 +103,11 @@ class RegistryParityTests(unittest.TestCase):
                 # No default claimed: this repository sets nothing, so the pinned Auth's own applies.
                 self.assertNotIn(variable, base, entry['key'])
             elif entry['type'] == 'bool':
-                self.assertNotIn(variable, base, entry['key'])
+                # Confirm email is the one default the base configuration sets itself: no mail is sent without custom SMTP, so sign-ups are confirmed.
+                if entry['key'] == 'MAILER_AUTOCONFIRM':
+                    self.assertEqual(base[variable], 'true' if entry['default'] else 'false')
+                else:
+                    self.assertNotIn(variable, base, entry['key'])
 
 
 if __name__ == '__main__':

@@ -81,13 +81,23 @@ The plan and its limits are in [the Authentication workspace plan](../engineerin
 ## Emails: custom SMTP
 
 On the **Emails** page, turn on **Enable custom SMTP**, then enter **Sender email address**, **Sender name**, **Host**, **Port number**, **Username** and **Password** and press **Save changes**. Saving writes this environment's private mail file on the server and restarts its Auth with it; if Auth does not start, the previous Auth keeps running, the mail file goes back to what it was, and the badge says **Not applied**. **Applied** means Auth started with the settings, not that your SMTP provider accepts them: try a test sign-up.
-- **New sign-ups must then confirm their email address** (people who already signed up are not affected). Under **Confirmation and limits** on the same page, **Confirm email** turns that off (recovery and magic link emails then lose the confirmation throttle), and four numbers set the email limits: emails per hour, sign-in email requests and token verifications in 5 minutes (counted for the whole environment, not per visitor), and the minimum seconds between two emails to one user. The emails per hour and the minimum seconds may be left empty to keep the value in the file; the two 5 minute limits are required. Turning **Confirm email** off means new sign-ups are not checked against the address they give (anyone can register an address that is not theirs), and Auth then does not apply the hourly email limit.
 
+- Confirm email and the email limits do not need custom SMTP: see [Confirm email and the email limits](#confirm-email-and-the-email-limits) below.
 - The password is never shown again: a saved one reads "Stored password is hidden. Enter a new password to replace it." Leaving the field empty keeps it.
-- Turning the switch off and saving removes the stored SMTP settings and password from this environment. The settings you do not see here (code length and lifetime, the trusted client address header, reply-to) keep their file values, or these defaults for a new file: a 6 digit code valid for one hour and no reply-to address. A new file starts with 60 s between two mails to one user, 30 emails an hour, 30 sign-in email requests and 30 verifications in 5 minutes, and confirmation required.
+- Turning the switch off and saving removes the stored SMTP settings and password from this environment. Confirm email and the email limits stay as they are. The settings you do not see here (code length and lifetime, the trusted client address header, reply-to) keep their file values, or these defaults for a new file: a 6 digit code valid for one hour and no reply-to address.
 - The same file can still be written from the host with `lab/mail_config.py` ([environment email](../engineering/ENVIRONMENT-EMAIL.md)).
-- Without SMTP no email is sent: sign-ups are confirmed automatically, as on any Auth with no mail relay.
+- Without SMTP no email is sent: with nothing saved, sign-ups are confirmed automatically, as on any Auth with no mail relay.
 - Email templates have their own sub page, below.
+
+### Confirm email and the email limits
+
+Under **Confirmation and limits** on the same page, whether or not custom SMTP is on:
+
+- **Confirm email** makes new people confirm their email address before their first sign-in. People who already signed up are not affected. With nothing saved and custom SMTP off, it is off, because this environment sends no email. The first time you turn custom SMTP on, the switch turns on with it, as it always did; you can turn it back off before saving. With it off, new sign-ups are not checked against the address they give (anyone can register an address that is not theirs), recovery and magic link emails lose the confirmation throttle, and Auth does not apply the hourly email limit. With it on and custom SMTP off, nothing can be sent, so new people cannot confirm unless a Send Email hook delivers the message; the page says so.
+- Four numbers set the limits: emails per hour (default 30), sign-in email requests and token verifications in 5 minutes (default 30 each; counted for the whole environment, not per visitor), and the minimum seconds between two emails to one user (default 60). An empty field puts the limit back to its default.
+- The live check showed the hourly limit and the minimum interval working. It did not show the two 5 minute limits (sign-in emails, token verifications) refusing anything on the paths it tried, with or without a client address header, so treat those two as unproven.
+- These are sign-in settings (`MAILER_AUTOCONFIRM`, `RATE_LIMIT_EMAIL_SENT`, `RATE_LIMIT_OTP`, `RATE_LIMIT_VERIFY`, `SMTP_MAX_FREQUENCY`), saved with the same request as custom SMTP and restarting Auth once. Only what you changed is saved.
+- **Environments installed before this change keep what they had.** A mail file written by an earlier version still carries these values, and they stay in force until the settings name them. The first save from this page moves them into the sign-in settings and takes them out of the file; turning custom SMTP off moves them too, so Confirm email and the limits are no longer reset by it. A value the page cannot hold (a limit written by hand as `30/1h`, an interval such as `1h30m`) stays in the file, shows as "Set in the mail file", and is lost only if you turn custom SMTP off.
 
 ## Emails: templates
 

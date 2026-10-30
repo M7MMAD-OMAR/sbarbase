@@ -441,9 +441,15 @@ class ConfigStoreTests(unittest.TestCase):
             self.assertTrue(auth_settings.owned(variable), variable)
             self.assertFalse(durable_runtime.is_mail_key(variable), variable)
         # The mail owner keeps what it always had.
-        for variable in ('GOTRUE_SMTP_HOST', 'GOTRUE_MAILER_OTP_EXP', 'GOTRUE_RATE_LIMIT_EMAIL_SENT', 'GOTRUE_RATE_LIMIT_OTP', 'GOTRUE_RATE_LIMIT_VERIFY'):
+        for variable in ('GOTRUE_SMTP_HOST', 'GOTRUE_MAILER_OTP_EXP', 'GOTRUE_RATE_LIMIT_HEADER'):
             self.assertTrue(durable_runtime.is_mail_key(variable), variable)
             self.assertFalse(auth_settings.owned(variable), variable)
+        # Confirm email and the email limits moved to the sign-in settings; a mail file written before still carries them, and a mail
+        # reconcile still compares them.
+        for variable in auth_settings.SHARED_WITH_MAIL:
+            self.assertTrue(auth_settings.owned(variable), variable)
+            self.assertFalse(durable_runtime.is_mail_key(variable), variable)
+            self.assertTrue(durable_runtime.is_mail_compared(variable), variable)
 
 
 class MailPriorTests(unittest.TestCase):

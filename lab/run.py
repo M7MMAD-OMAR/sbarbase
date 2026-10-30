@@ -161,7 +161,8 @@ def auth_configuration(e, v, database_host, mail=None, settings=None, applied=Fa
     # The public address, and the environment's own sign-in settings when it has them
     # (lab/auth_settings.py). Without either, the values above stay as they are.
     import auth_settings
-    config.update(auth_settings.configuration(e, settings))
+    sign_in = auth_settings.configuration(e, settings)
+    config.update(sign_in)
     # Phone sign-in and its SMS provider (lab/sms_config.py): its own private file, nothing added without it.
     import sms_config
     config.update(sms_config.configuration(e, applied=applied))
@@ -183,6 +184,8 @@ def auth_configuration(e, v, database_host, mail=None, settings=None, applied=Fa
         'GOTRUE_RATE_LIMIT_OTP': str(mail['rate_limit_otp']),
         'GOTRUE_RATE_LIMIT_VERIFY': str(mail['rate_limit_verify']),
         'GOTRUE_RATE_LIMIT_HEADER': mail['rate_limit_header']})
+    # Confirm email and the email limits the sign-in settings name win over a mail file that also carries them (written by an earlier version).
+    config.update({key: value for key, value in sign_in.items() if key in auth_settings.SHARED_WITH_MAIL})
     if mail['reply_to']:
         # Reply-To is not a first class variable in this pin: it travels as an
         # SMTP header, which upstream parses as JSON into map[string][]string.

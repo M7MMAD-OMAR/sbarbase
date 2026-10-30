@@ -49,6 +49,11 @@ def is_mail_key(key):
     return key.startswith(MAIL_KEY_PREFIXES) and not auth_settings.owned(key)
 
 
+def is_mail_compared(key):
+    """What a mail reconcile compares: the mail keys, and the few a mail file may still carry that the sign-in settings own."""
+    return is_mail_key(key) or key in auth_settings.SHARED_WITH_MAIL
+
+
 def run_locked(main, failure):
     """Run main under the installation operation lock. Any failure, a held lock included,
     exits with only the given message, so no sensitive output reaches the terminal."""
@@ -312,6 +317,10 @@ def settings_only(component, configured, desired):
         # An environment's email templates and subjects (lab/mail_templates.py) are settings too: a file saved ahead of a failed
         # apply, or a moved route address, recreates that Auth in place instead of counting as drift.
         owned = lambda key: auth_settings.owned(key) or key.startswith(mail_templates.OWNED_PREFIXES)
+        # A mail configuration that is gone from the desired configuration (a deleted mail file) is never replaced in place at start: it is reconciled
+        # explicitly (reconcile_mail). Confirm email and the email limits are sign-in settings now, so they cannot show it alone.
+        if any(is_mail_key(key) for key in configured if key not in desired):
+            return False
     elif component in TUNABLE:
         owned = TUNABLE[component].__contains__
     else:
@@ -798,7 +807,7 @@ class Runtime:
             # Auth container restarted with its live SMTP credentials and rate
             # limits, and mail would keep flowing from a configuration that no
             # longer exists (reconcile_mail names the same hazard for its own path).
-            stale = [key for key in configured if is_mail_key(key) and key not in env]
+            stale = [key for key in configured if is_mail_compared(key) and key not in env]
             if actual['Image'] != expected or any(configured.get(k) != v for k, v in env.items()) or stale:
                 # An Auth or REST whose only change is its pin, when SBARBASE_ROLLING_SERVICES names it, keeps
                 # its previous image: the supervisor replaces it side by side once the upgrade is confirmed
@@ -1491,7 +1500,7 @@ class Runtime:
         # leaves every mail key equal here, and the environment would keep an Auth that cannot
         # reach the relay it is configured with.
         egress(name, egress_wanted(mail, settings, e))
-        if {k: v for k, v in configured.items() if is_mail_key(k)} == {k: v for k, v in desired.items() if is_mail_key(k)}:
+        if {k: v for k, v in configured.items() if is_mail_compared(k)} == {k: v for k, v in desired.items() if is_mail_compared(k)}:
             # The recorded state is the four state vocabulary the configuration
             # defines, so an unchanged reconcile records that the configuration is
             # applied. That nothing had to be recreated is a run outcome, and it is

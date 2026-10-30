@@ -1,6 +1,6 @@
 {
  "version": 1,
- "about": "One map of the Authentication settings an environment can hold. Read by src/control/auth-config.ts and checked against lab/auth_settings.py by lab/test_auth_config_registry.py. Key names are the platform config names the pinned Studio carries (docs/evidence/auth-config-study-2026-10-30/study.json); each becomes the GOTRUE_ variable of the same name. A key has one owner file. A default is listed only where this repository sets it; JWT_EXP has none here (the pinned Auth applies its own), so it shows null_text.",
+ "about": "One map of the Authentication settings an environment can hold. Read by src/control/auth-config.ts and checked against lab/auth_settings.py by lab/test_auth_config_registry.py. Key names are the platform config names the pinned Studio carries (docs/evidence/auth-config-study-2026-10-30/study.json); each becomes the GOTRUE_ variable of the same name. A key has one owner file. A default is listed only where this repository sets it; JWT_EXP has none here (the pinned Auth applies its own), so it shows null_text. A setting with emit_suffix is saved as a whole number and reaches Auth with that suffix (a Go duration).",
  "retired": {
   "SECURITY_REFRESH_TOKEN_ROTATION_ENABLED": "live check 2026-10-30: with the switch off a refresh still gave a new refresh token, so the setting has no effect",
   "SECURITY_REFRESH_TOKEN_REUSE_INTERVAL": "live check 2026-10-30: a reused token was refused the same way with the interval at 0, 1 and the default",
@@ -28,6 +28,10 @@
   {
    "id": "mfa",
    "label": "Multi-Factor"
+  },
+  {
+   "id": "emails",
+   "label": "Emails"
   },
   {
    "id": "hooks",
@@ -407,6 +411,84 @@
    "max": 160,
    "example": "pg-functions://postgres/public/my_hook",
    "hint": "A Postgres function in this environment's database, as schema and name."
+  },
+  {
+   "key": "MAILER_AUTOCONFIRM",
+   "page": "emails",
+   "label": "Confirm email",
+   "type": "bool",
+   "from": "config.MAILER_AUTOCONFIRM",
+   "store": "config",
+   "default": true,
+   "invert": true,
+   "owner": "auth",
+   "hint": "People must confirm their email address before signing in for the first time. Without custom SMTP this environment sends no email, so a confirmation can only arrive through a Send Email hook.",
+   "evidence": "live check 2026-10-30 (lab/auth-names-check.py mail_settings, docs/evidence/settings-routes-2026-10-30/mail-settings-names.json): set through the sign-in settings with no mail file, false left a new user unconfirmed and sent the confirmation mail"
+  },
+  {
+   "key": "RATE_LIMIT_EMAIL_SENT",
+   "page": "emails",
+   "label": "Rate limit for sending emails",
+   "type": "int",
+   "from": "config.RATE_LIMIT_EMAIL_SENT",
+   "store": "config",
+   "default": null,
+   "unit": "emails/h",
+   "min": 1,
+   "max": 1000000,
+   "null_text": "Default (30)",
+   "owner": "auth",
+   "hint": "Emails Auth may send per hour from this environment. Applied only while Confirm email is on.",
+   "evidence": "live check 2026-10-30 (mail_settings): set to 1 through the sign-in settings, the second mail was refused with over_email_send_rate_limit"
+  },
+  {
+   "key": "RATE_LIMIT_OTP",
+   "page": "emails",
+   "label": "Rate limit for sign-in emails",
+   "type": "int",
+   "from": "config.RATE_LIMIT_OTP",
+   "store": "config",
+   "default": null,
+   "unit": "requests/5 min",
+   "min": 1,
+   "max": 1000000,
+   "null_text": "Default (30)",
+   "owner": "auth",
+   "hint": "Sign-up, recovery, magic link and one-time code requests in 5 minutes, counted for the whole environment.",
+   "evidence": "live check 2026-10-30 (mail_settings): set to 1, no refusal was seen on /magiclink or /otp, with or without a client address header; the name is the one the mail file always used, and its effect is not shown"
+  },
+  {
+   "key": "RATE_LIMIT_VERIFY",
+   "page": "emails",
+   "label": "Rate limit for token verifications",
+   "type": "int",
+   "from": "config.RATE_LIMIT_VERIFY",
+   "store": "config",
+   "default": null,
+   "unit": "requests/5 min",
+   "min": 1,
+   "max": 1000000,
+   "null_text": "Default (30)",
+   "owner": "auth",
+   "hint": "OTP and magic link verifications in 5 minutes, counted for the whole environment.",
+   "evidence": "live check 2026-10-30 (mail_settings): set to 1, no refusal was seen on POST /verify, with or without a client address header; the name is the one the mail file always used, and its effect is not shown"
+  },
+  {
+   "key": "SMTP_MAX_FREQUENCY",
+   "page": "emails",
+   "label": "Minimum interval per user",
+   "type": "int",
+   "from": "config.SMTP_MAX_FREQUENCY",
+   "store": "config",
+   "default": null,
+   "unit": "seconds",
+   "min": 1,
+   "max": 86400,
+   "null_text": "Default (60)",
+   "emit_suffix": "s",
+   "owner": "auth",
+   "hint": "The shortest time between two emails sent to the same person.",
+   "evidence": "live check 2026-10-30 (mail_settings): saved as 1 and sent as 1s, a resend at once was refused and one two seconds later was accepted"
   }
  ],
  "provider_fields": [

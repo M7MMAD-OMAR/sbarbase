@@ -90,7 +90,10 @@ SCHEMA = (
 )
 KEY_ORDER = tuple(key for key, _ in SCHEMA)
 # Key to default, for the keys a file may leave out. Every other key is required.
-OPTIONAL = {'magic_link_template': ''}
+# The five after the first are Confirm email and the email limits. The console keeps them in the sign-in settings now
+# (src/control/sign-in.ts `config`) and writes a file without them; a file written before still carries them and is read as it was.
+OPTIONAL = {'magic_link_template': '', 'max_frequency': '60s', 'autoconfirm': False, 'rate_limit_email_sent': '30',
+            'rate_limit_otp': 30, 'rate_limit_verify': 30}
 
 
 class MailConfigurationError(Exception):

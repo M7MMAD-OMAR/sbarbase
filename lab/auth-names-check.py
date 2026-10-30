@@ -1,6 +1,6 @@
 """Live check of the Auth variable names the console writes (docs/engineering/plans/2026-10-30-auth-providers-workspace.md, A6).
 
-Usage: /usr/bin/python3 lab/auth-names-check.py [--evidence PATH]   (from the repository root)
+Usage: /usr/bin/python3 lab/auth-names-check.py [--evidence PATH] [--only SECTION]   (from the repository root)
 
 Starts, on a private internal Docker network of its own, one small PostgreSQL (postgres:17-alpine), the
 pinned Auth image (images.lock.json) and, for the template check, the pinned mail catcher, all named
@@ -414,6 +414,55 @@ def findings_that_retired_settings():
             record(f'retired: RATE_LIMIT_ANONYMOUS_USERS 1 limits only when a client address header is configured (header {header})', (429 in codes) == header, str(codes))
 
 
+def mail_settings():
+    """Confirm email and the email limits, set through the sign-in settings (the `config` store) with no mail file: each must change what Auth does."""
+    if sh('docker', 'inspect', MAIL, '--format', '{{.State.Running}}', check=False).stdout.strip() != 'true':
+        sh('docker', 'rm', '-f', MAIL, check=False)
+        sh('docker', 'run', '-d', '--name', MAIL, '--network', NET, '--memory', '128m', MAIL_IMAGE)
+        time.sleep(3)
+    relay = {'GOTRUE_SMTP_HOST': MAIL, 'GOTRUE_SMTP_PORT': '1025', 'GOTRUE_SMTP_USER': '', 'GOTRUE_SMTP_PASS': '', 'GOTRUE_SMTP_ADMIN_EMAIL': 'a@example.com'}
+    mail_ip = container_ip(MAIL)
+
+    def mailbox():
+        with urllib.request.urlopen(f'http://{mail_ip}:8025/api/v1/messages?limit=100', timeout=5) as r:
+            return json.loads(r.read())['messages']
+    at = started('MAILER_AUTOCONFIRM', relay, config={'MAILER_AUTOCONFIRM': False, 'RATE_LIMIT_EMAIL_SENT': 1})
+    if at:
+        before = len(mailbox())
+        (s, b), email = signup(at)
+        time.sleep(2)
+        record('MAILER_AUTOCONFIRM false (from the sign-in settings) leaves a new user unconfirmed and sends the confirmation mail',
+               s == 200 and 'access_token' not in b and len(mailbox()) > before, f'{s} messages+={len(mailbox()) - before}')
+        (s2, b2), _ = signup(at)
+        record('RATE_LIMIT_EMAIL_SENT 1 refuses the second mail', s2 == 429 and b2.get('error_code') == 'over_email_send_rate_limit', f'{s2} {b2.get("error_code")}')
+    at = started('SMTP_MAX_FREQUENCY', relay, config={'MAILER_AUTOCONFIRM': False, 'SMTP_MAX_FREQUENCY': 1})
+    if at:
+        (s, b), email = signup(at)
+        quick, _ = request(at, 'POST', '/resend', {'type': 'signup', 'email': email})
+        time.sleep(2)
+        later, _ = request(at, 'POST', '/resend', {'type': 'signup', 'email': email})
+        record('SMTP_MAX_FREQUENCY 1 (saved as whole seconds, sent as 1s) refuses a resend at once and allows it after two seconds',
+               quick == 429 and later == 200, f'at once {quick}, after 2 s {later}')
+    # The two 5 minute limits count per client address: Auth applies them only when it is told which request header carries that address
+    # (GOTRUE_RATE_LIMIT_HEADER, which the gateway does not set), the same finding as the retired per client limits.
+    for header in (True, False):
+        extra = {**relay, **({'GOTRUE_RATE_LIMIT_HEADER': 'X-Forwarded-For'} if header else {})}
+        hdr = {'X-Forwarded-For': '203.0.113.40'} if header else {}
+        at = started('RATE_LIMIT_OTP', extra, config={'MAILER_AUTOCONFIRM': False, 'RATE_LIMIT_OTP': 1, 'RATE_LIMIT_VERIFY': 1})
+        if at:
+            codes = [request(at, 'POST', '/magiclink', {'email': f'o{secrets.token_hex(4)}@example.com'}, headers=hdr)[0] for _ in range(3)]
+            record(f'observed: RATE_LIMIT_OTP 1 on /magiclink (header {header})', True, str(codes))
+            codes = [request(at, 'POST', '/otp', {'email': f'p{secrets.token_hex(4)}@example.com'}, headers=hdr)[0] for _ in range(3)]
+            record(f'observed: RATE_LIMIT_OTP 1 on /otp (header {header})', True, str(codes))
+            codes = [request(at, 'POST', '/verify', {'type': 'signup', 'token': 'x', 'email': 'v@example.com'}, headers=hdr)[0] for _ in range(3)]
+            record(f'observed: RATE_LIMIT_VERIFY 1 on POST /verify (header {header})', True, str(codes))
+            try:
+                codes = [request(at, 'GET', '/verify?type=signup&token=x', None, headers=hdr)[0] for _ in range(3)]
+            except Exception as error:
+                codes = [type(error).__name__]
+            record(f'observed: RATE_LIMIT_VERIFY 1 on GET /verify (header {header})', True, str(codes))
+
+
 def main():
     evidence = sys.argv[sys.argv.index('--evidence') + 1] if '--evidence' in sys.argv else 'docs/evidence/auth-live-names-checks.json'
     started_at = time.time()
@@ -421,8 +470,12 @@ def main():
         setup()
         first = start_auth()
         record('first start with the console base configuration', first is not None, '' if first else auth_log())
-        for section in (names_with_effect, downtime, hooks_saml_sms, templates, findings_that_retired_settings):
-            section()
+        sections = (names_with_effect, downtime, hooks_saml_sms, templates, mail_settings, findings_that_retired_settings)
+        # `--only mail_settings` runs just that section, for a check of one change.
+        only = sys.argv[sys.argv.index('--only') + 1] if '--only' in sys.argv else None
+        for section in sections:
+            if only is None or section.__name__ == only:
+                section()
     finally:
         cleanup()
     passed = bool(CHECKS) and all(item['ok'] for item in CHECKS)

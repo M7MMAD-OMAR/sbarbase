@@ -112,10 +112,28 @@ test('the simple settings appear on their pages with hints, units and bounds, an
  const settings={revision:1,site_url:'https://a.example.com',redirect_urls:[],signup:true,anonymous:false,manual_linking:false,
   session:{access_token_seconds:null,timebox_seconds:null,inactivity_seconds:null},config:{MFA_MAX_ENROLLED_FACTORS:25,SESSIONS_SINGLE_PER_USER:true},providers:{}} as never;
  const view=authConfigView(settings,'e_'+'e'.repeat(24),'http://localhost');
- expect(view.pages.map(page=>page.id)).toEqual(['providers','url-configuration','sessions','protection','mfa','hooks','sso','audit']);
+ expect(view.pages.map(page=>page.id)).toEqual(['providers','url-configuration','sessions','protection','mfa','emails','hooks','sso','audit']);
  expect(field(view,'MFA_MAX_ENROLLED_FACTORS')).toMatchObject({value:25,from_default:false,store:'config',min:1});
  expect(field(view,'SESSIONS_SINGLE_PER_USER')).toMatchObject({value:true,store:'config'});
  expect(field(view,'SESSIONS_SINGLE_PER_USER').from_default).toBe(false);
  expect(view.pages.flatMap(page=>page.fields).some(entry=>entry.key==='RATE_LIMIT_WEB3')).toBe(false);
  expect(field(view,'PASSWORD_MIN_LENGTH').hint).toContain('rejected');
+});
+
+test('Confirm email and the mail limits are sign-in settings on the Emails page, and the sign-in route keeps them',async()=>{
+ const empty=authConfigView(null,'e_'+'a'.repeat(24),'http://localhost');
+ const emails=empty.pages.find(page=>page.id==='emails')!;
+ expect(emails.fields.map(entry=>entry.key)).toEqual(['MAILER_AUTOCONFIRM','RATE_LIMIT_EMAIL_SENT','RATE_LIMIT_OTP','RATE_LIMIT_VERIFY','SMTP_MAX_FREQUENCY']);
+ expect(emails.fields.every(entry=>entry.store==='config')).toBe(true);
+ // Confirm email is shown turned over (the key is autoconfirm) and starts true: with nothing saved this environment confirms sign-ups by itself.
+ expect(field(empty,'MAILER_AUTOCONFIRM')).toMatchObject({invert:true,value:true,from_default:true});
+ expect(field(empty,'SMTP_MAX_FREQUENCY')).toMatchObject({min:1,max:86400,unit:'seconds',value:null});
+ const {settingsFromInput}=await import('../src/control/sign-in');
+ const saved=settingsFromInput({site_url:'https://a.example.com',config:{MAILER_AUTOCONFIRM:false,RATE_LIMIT_OTP:12,SMTP_MAX_FREQUENCY:90}},null);
+ expect(saved.config).toEqual({MAILER_AUTOCONFIRM:false,RATE_LIMIT_OTP:12,SMTP_MAX_FREQUENCY:90});
+ for(const config of [{RATE_LIMIT_OTP:0},{RATE_LIMIT_VERIFY:1000001},{SMTP_MAX_FREQUENCY:86401},{MAILER_AUTOCONFIRM:'no'},{RATE_LIMIT_EMAIL_SENT:1.5}])
+  expect(()=>settingsFromInput({site_url:'https://a.example.com',config},null)).toThrow();
+ const view=authConfigView({...saved,revision:1} as never,'e_'+'b'.repeat(24),'http://localhost');
+ expect(field(view,'MAILER_AUTOCONFIRM')).toMatchObject({value:false,from_default:false});
+ expect(field(view,'SMTP_MAX_FREQUENCY')).toMatchObject({value:90,from_default:false});
 });

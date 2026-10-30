@@ -4,7 +4,7 @@ import {Catalog,type SignInState} from './catalog';
 import {authenticate,reply,type ManagementIdentity} from './auth';
 import {bindReadyEnvironmentPublication} from './ready-publication';
 import {refreshCurrentManagement} from './management-context';
-import {readSettings,writeSettingsFile,SettingsError} from './sign-in';
+import {readSettings,writeSettingsFile,SettingsError,type SignInSettings} from './sign-in';
 
 /** What the per environment settings routes share (`/smtp`, `/sms`, `/mail-templates`): the path match, the management check, the
  * stale page and spacing refusals, the order of reading, checking and writing, the pending revision in the sign-in row, and the
@@ -73,8 +73,11 @@ export type SettingsRoute<Saved> = {
  next:(input:unknown,body:Record<string,unknown>,before:Saved|null)=>Saved|null;
  write:(runtime:string,after:Saved|null)=>void;
  changed:(before:Saved|null,after:Saved|null)=>string[];
- /** The members the route adds to the sign-in row in its answers. */
- view:(runtime:string,saved:Saved|null)=>Record<string,unknown>;
+ /** A route that also keeps settings in the environment's sign-in file (its `config` store) gives this. It sees the file as it is, may change what is
+  * saved (the route's file and the sign-in settings are written together, under one revision), and names the platform keys it changed. */
+ refine?:(context:{input:unknown;body:Record<string,unknown>;before:Saved|null;after:Saved|null;settings:SignInSettings|null})=>{after:Saved|null;settings:SignInSettings|null;keys:string[]};
+ /** The members the route adds to the sign-in row in its answers. `settings` is the sign-in file, read only for a route that has `refine`. */
+ view:(runtime:string,saved:Saved|null,settings:SignInSettings|null)=>Record<string,unknown>;
 };
 
 export const SIGN_IN_FILE_MESSAGE='The saved sign-in settings file cannot be read on the server (a link, wrong permissions, or a newer version). Fix it on the host.';
@@ -92,7 +95,8 @@ export function settingsHandler<Saved>(catalog:Catalog,identify:ManagementIdenti
   try {
    let state:SignInState=catalog.signIn(actor,environment);
    const answer=(response:Response)=>bindReadyEnvironmentPublication(response,catalog,actor,environment,state.runtime,true);
-   if(request.method==='GET')return answer(reply(200,{data:{...state,...route.view(state.runtime,route.read(state.runtime))}}));
+   const sharing=route.refine!==undefined;
+   if(request.method==='GET')return answer(reply(200,{data:{...state,...route.view(state.runtime,route.read(state.runtime),sharing?readSettings(signInDirectory,state.runtime):null)}}));
    let input:unknown;
    try{input=await request.json();}catch{return reply(400,{message:'Invalid JSON'});}
    await refreshCurrentManagement();
@@ -108,13 +112,14 @@ export function settingsHandler<Saved>(catalog:Catalog,identify:ManagementIdenti
    // Everything that can refuse is read and checked before anything is written.
    const before=route.read(state.runtime);
    const settings=readSettings(signInDirectory,state.runtime);
-   const after=route.next(input,body,before);
+   const next=route.next(input,body,before);
+   const planned=route.refine?.({input,body,before,after:next,settings})??{after:next,settings,keys:[]};
    const revision=Math.max(state.revision,settings?.revision??0)+1;
-   route.write(state.runtime,after);
+   route.write(state.runtime,planned.after);
    // The apply records its outcome against the revision of the sign-in file when there is one, so that file moves with the row.
-   if(settings)writeSettingsFile(signInDirectory,state.runtime,{...settings,revision});
-   const saved=catalog.requestSignIn(actor,environment,revision,route.changed(before,after));
-   return answer(reply(202,{data:{...saved,...route.view(state.runtime,after)}}));
+   if(planned.settings)writeSettingsFile(signInDirectory,state.runtime,{...planned.settings,revision});
+   const saved=catalog.requestSignIn(actor,environment,revision,[...route.changed(before,planned.after),...planned.keys]);
+   return answer(reply(202,{data:{...saved,...route.view(state.runtime,planned.after,planned.settings)}}));
   } catch(error) {
    if(error instanceof SettingsError&&error.message==='file')return reply(409,{message:SIGN_IN_FILE_MESSAGE});
    if(error instanceof route.error&&error.message==='file')return reply(409,{message:route.fileMessage});

@@ -73,7 +73,15 @@ SESSION_LIMITS = {'access_token_seconds': (60, 86400), 'timebox_seconds': (3600,
 OWNED_PREFIXES = ('GOTRUE_RATE_LIMIT_TOKEN_REFRESH', 'GOTRUE_RATE_LIMIT_ANONYMOUS_USERS', 'GOTRUE_RATE_LIMIT_WEB3', 'GOTRUE_SECURITY_REFRESH_TOKEN_',
                   'GOTRUE_EXTERNAL_', 'GOTRUE_PASSWORD_', 'GOTRUE_MFA_', 'GOTRUE_SECURITY_MANUAL_LINKING_', 'GOTRUE_SMS_', 'GOTRUE_RATE_LIMIT_SMS_SENT',
                   'GOTRUE_HOOK_', 'GOTRUE_SAML_', 'GOTRUE_AUDIT_LOG_', 'GOTRUE_SITE_URL', 'GOTRUE_URI_ALLOW_LIST', 'GOTRUE_DISABLE_SIGNUP',
-                  'API_EXTERNAL_URL', 'GOTRUE_JWT_EXP', 'GOTRUE_SESSIONS_')
+                  'API_EXTERNAL_URL', 'GOTRUE_JWT_EXP', 'GOTRUE_SESSIONS_',
+                  # Confirm email and the email limits are sign-in settings, so they save with custom SMTP off. A mail file written
+                  # before that may still carry them: see SHARED_WITH_MAIL.
+                  'GOTRUE_MAILER_AUTOCONFIRM', 'GOTRUE_RATE_LIMIT_EMAIL_SENT', 'GOTRUE_RATE_LIMIT_OTP', 'GOTRUE_RATE_LIMIT_VERIFY',
+                  'GOTRUE_SMTP_MAX_FREQUENCY')
+# The variables a mail file written by an earlier version also carries (lab/mail_config.py). Where the sign-in settings name one, it wins
+# over the file (lab/run.py `auth_configuration`); where they do not, the file's value stays, so nothing changes on upgrade.
+SHARED_WITH_MAIL = ('GOTRUE_MAILER_AUTOCONFIRM', 'GOTRUE_RATE_LIMIT_EMAIL_SENT', 'GOTRUE_RATE_LIMIT_OTP', 'GOTRUE_RATE_LIMIT_VERIFY',
+                    'GOTRUE_SMTP_MAX_FREQUENCY')
 
 
 class SettingsError(ValueError):
@@ -285,7 +293,7 @@ def configuration(e, settings):
         config['GOTRUE_SECURITY_MANUAL_LINKING_ENABLED'] = 'true'
     # A value the person set, and only that: an unset key adds nothing, so Auth keeps its own default.
     for key, value in (settings.get('config') or {}).items():
-        config['GOTRUE_' + key] = ('true' if value else 'false') if isinstance(value, bool) else str(value)
+        config['GOTRUE_' + key] = ('true' if value else 'false') if isinstance(value, bool) else str(value) + CONFIG_KEYS[key].get('emit_suffix', '')
     # SAML needs the environment's signing key (lab/saml_key.py): turning it on without one is refused, never started without.
     if config.get('GOTRUE_SAML_ENABLED') == 'true':
         import saml_key

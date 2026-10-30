@@ -322,12 +322,72 @@ class StorageTests(unittest.TestCase):
         self.assertEqual(stat.S_IMODE(self.path.stat().st_mode), 0o600)
 
 
+class SharedWithSignInTests(unittest.TestCase):
+    """Confirm email and the email limits live in the sign-in settings; a mail file written before still carries them."""
+    import auth_settings as _settings
+
+    def settings(self, config):
+        return self._settings.validate({'revision': 1, 'site_url': 'https://a.example.com', 'redirect_urls': [], 'signup': True, 'anonymous': False,
+                                        'config': config, 'providers': {}})
+
+    def built(self, mail, config=None):
+        return lab.auth_configuration(RUNTIME_ID, VALUES, 'db', mail, self.settings(config) if config is not None else None)
+
+    def test_a_file_without_the_five_loads_with_the_old_defaults(self):
+        bare = {key: value for key, value in CONFIG.items() if key not in ('autoconfirm', 'rate_limit_email_sent', 'rate_limit_otp', 'rate_limit_verify', 'max_frequency')}
+        loaded = mail_config.validate(bare)
+        self.assertEqual((loaded['autoconfirm'], loaded['rate_limit_email_sent'], loaded['rate_limit_otp'], loaded['rate_limit_verify'], loaded['max_frequency']),
+                         (False, '30', 30, 30, '60s'))
+
+    def test_a_legacy_file_alone_keeps_its_values_so_an_upgrade_changes_nothing(self):
+        legacy = mail_config.validate(dict(CONFIG, autoconfirm=True, rate_limit_otp=7, rate_limit_email_sent='9', max_frequency='2m'))
+        for with_settings in (None, {}):
+            built = self.built(legacy, with_settings)
+            self.assertEqual((built['GOTRUE_MAILER_AUTOCONFIRM'], built['GOTRUE_RATE_LIMIT_OTP'], built['GOTRUE_RATE_LIMIT_EMAIL_SENT'], built['GOTRUE_SMTP_MAX_FREQUENCY']),
+                             ('true', '7', '9', '2m'))
+
+    def test_a_sign_in_setting_wins_over_the_file_one_key_at_a_time(self):
+        legacy = mail_config.validate(dict(CONFIG, autoconfirm=True, rate_limit_otp=7, rate_limit_verify=8))
+        built = self.built(legacy, {'MAILER_AUTOCONFIRM': False, 'RATE_LIMIT_OTP': 50, 'SMTP_MAX_FREQUENCY': 90})
+        self.assertEqual(built['GOTRUE_MAILER_AUTOCONFIRM'], 'false')
+        self.assertEqual(built['GOTRUE_RATE_LIMIT_OTP'], '50')
+        self.assertEqual(built['GOTRUE_SMTP_MAX_FREQUENCY'], '90s')
+        # Not named by the settings: the file's value stays.
+        self.assertEqual(built['GOTRUE_RATE_LIMIT_VERIFY'], '8')
+
+    def test_the_settings_apply_with_custom_smtp_off(self):
+        off = self.built(None, {'MAILER_AUTOCONFIRM': False, 'RATE_LIMIT_EMAIL_SENT': 12})
+        self.assertEqual((off['GOTRUE_MAILER_AUTOCONFIRM'], off['GOTRUE_RATE_LIMIT_EMAIL_SENT']), ('false', '12'))
+        self.assertFalse([key for key in off if key.startswith('GOTRUE_SMTP_') and key != 'GOTRUE_SMTP_MAX_FREQUENCY'])
+        self.assertEqual(self.built(None, {})['GOTRUE_MAILER_AUTOCONFIRM'], 'true')
+        self.assertEqual(self.built(None)['GOTRUE_MAILER_AUTOCONFIRM'], 'true')
+
+    def test_a_new_file_without_the_five_takes_the_settings_and_the_old_defaults_otherwise(self):
+        bare = mail_config.validate({key: value for key, value in CONFIG.items() if key not in ('autoconfirm', 'rate_limit_otp')})
+        built = self.built(bare, {'RATE_LIMIT_OTP': 11})
+        self.assertEqual((built['GOTRUE_MAILER_AUTOCONFIRM'], built['GOTRUE_RATE_LIMIT_OTP']), ('false', '11'))
+        self.assertEqual(self.built(bare, {})['GOTRUE_RATE_LIMIT_OTP'], '30')
+
+    def test_a_sign_in_only_change_is_replaced_in_place_at_start_but_a_deleted_mail_file_is_not(self):
+        import durable_runtime
+        bare = self.built(None, {})
+        ahead = self.built(None, {'MAILER_AUTOCONFIRM': False, 'RATE_LIMIT_OTP': 9})
+        # A save of Confirm email or a limit that is ahead of the running Auth (a failed apply, a restart before the apply) is a settings change.
+        self.assertTrue(durable_runtime.settings_only('auth', bare, ahead))
+        self.assertTrue(durable_runtime.settings_only('auth', ahead, bare))
+        # Mail keys the desired configuration no longer has are a deleted mail configuration: explicit reconciliation, never in place.
+        mail = mail_config.validate(dict(CONFIG, autoconfirm=True))
+        with_mail = self.built(mail, {})
+        self.assertFalse(durable_runtime.settings_only('auth', with_mail, bare))
+
+
 class TemplateTests(unittest.TestCase):
     """magic_link_template: the one optional key, where it lands, and what is refused."""
 
     def test_a_file_written_before_the_key_existed_loads_with_an_empty_value(self):
         self.assertNotIn('magic_link_template', CONFIG)
-        self.assertEqual(mail_config.OPTIONAL, {'magic_link_template': ''})
+        self.assertEqual(mail_config.OPTIONAL, {'magic_link_template': '', 'max_frequency': '60s', 'autoconfirm': False, 'rate_limit_email_sent': '30',
+                                                'rate_limit_otp': 30, 'rate_limit_verify': 30})
         self.assertEqual(mail_config.validate(dict(CONFIG))['magic_link_template'], '')
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)

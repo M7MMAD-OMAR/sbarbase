@@ -1,0 +1,71 @@
+{
+ "check": "auth-names",
+ "recorded": "2026-10-30T12:28:31Z",
+ "passed": true,
+ "count": 12,
+ "seconds": 29,
+ "auth_image": "public.ecr.aws/supabase/gotrue:v2.197.0",
+ "checks": [
+  {
+   "check": "first start with the console base configuration",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "MAILER_AUTOCONFIRM false (from the sign-in settings) leaves a new user unconfirmed and sends the confirmation mail",
+   "ok": true,
+   "detail": "200 messages+=1"
+  },
+  {
+   "check": "RATE_LIMIT_EMAIL_SENT 1 refuses the second mail",
+   "ok": true,
+   "detail": "429 over_email_send_rate_limit"
+  },
+  {
+   "check": "SMTP_MAX_FREQUENCY 1 (saved as whole seconds, sent as 1s) refuses a resend at once and allows it after two seconds",
+   "ok": true,
+   "detail": "at once 429, after 2 s 200"
+  },
+  {
+   "check": "observed: RATE_LIMIT_OTP 1 on /magiclink (header True)",
+   "ok": true,
+   "detail": "[200, 200, 200]"
+  },
+  {
+   "check": "observed: RATE_LIMIT_OTP 1 on /otp (header True)",
+   "ok": true,
+   "detail": "[200, 200, 200]"
+  },
+  {
+   "check": "observed: RATE_LIMIT_VERIFY 1 on POST /verify (header True)",
+   "ok": true,
+   "detail": "[403, 403, 403]"
+  },
+  {
+   "check": "observed: RATE_LIMIT_VERIFY 1 on GET /verify (header True)",
+   "ok": true,
+   "detail": "['URLError']"
+  },
+  {
+   "check": "observed: RATE_LIMIT_OTP 1 on /magiclink (header False)",
+   "ok": true,
+   "detail": "[200, 200, 200]"
+  },
+  {
+   "check": "observed: RATE_LIMIT_OTP 1 on /otp (header False)",
+   "ok": true,
+   "detail": "[200, 200, 200]"
+  },
+  {
+   "check": "observed: RATE_LIMIT_VERIFY 1 on POST /verify (header False)",
+   "ok": true,
+   "detail": "[403, 403, 403]"
+  },
+  {
+   "check": "observed: RATE_LIMIT_VERIFY 1 on GET /verify (header False)",
+   "ok": true,
+   "detail": "['URLError']"
+  }
+ ],
+ "scope": "The Auth variables the console writes, each tried on the pinned Auth with a real request, on a private internal Docker network with a throwaway PostgreSQL. No installation, retained volume or real provider was involved."
+}

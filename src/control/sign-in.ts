@@ -40,6 +40,13 @@ const FILE_VERSION=2;
 
 export class SettingsError extends Error {}
 
+/** The Site URL an environment's Auth has before any sign-in setting is saved (lab/run.py `auth_configuration`). */
+export const BASE_SITE_URL='http://localhost';
+
+/** The settings an environment has when nothing is saved, as a file: the same values Auth runs with, so writing them changes nothing by itself.
+ * Used where a setting of the `config` store is saved before the Authentication page ever was. */
+export const baseSettings=():SignInSettings=>settingsFromInput({site_url:BASE_SITE_URL},null);
+
 function webAddress(value:unknown,field:string):string {
  if(typeof value!=='string'||!value||value.length>2048||/[\s\x00-\x1f]/.test(value))throw new SettingsError(field);
  let url:URL;

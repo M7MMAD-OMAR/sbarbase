@@ -1382,3 +1382,23 @@ Rules that follow, and that a reviewer should enforce:
    `lab/README.md` already forbids concurrent lab use, and that rule is sufficient here.
 5. **One image, one pin.** Both use the `mailer` pin added in step 1 of section 8. Neither may
    pull a second mailbox image, and neither may rename that pin's component key.
+
+## Update 2026-10-30: Confirm email and the mail limits moved to the sign-in settings
+
+`GOTRUE_MAILER_AUTOCONFIRM`, `GOTRUE_RATE_LIMIT_EMAIL_SENT`, `GOTRUE_RATE_LIMIT_OTP`, `GOTRUE_RATE_LIMIT_VERIFY` and
+`GOTRUE_SMTP_MAX_FREQUENCY` are owned by `lab/auth_settings.py` now (registry page `emails`, store `config`), so the console saves them
+with custom SMTP off. The rest of the mail file is unchanged.
+
+- Precedence in `lab/run.py auth_configuration`: the base value, then the mail file, then the sign-in settings. A setting the sign-in
+  settings name wins over a mail file that also carries it; one they do not name keeps the file's value. So a mail file written by an
+  earlier version changes nothing until a save.
+- `lab/mail_config.py` accepts a file without the five keys (`OPTIONAL`), with the values a file always had by default (confirm
+  required, 30 emails an hour, 30 and 30 in 5 minutes, 60 s). The console now writes files without them.
+- `src/control/smtp.ts sharedSettings` moves a value only the file holds into the sign-in settings on the first save through the
+  route, or when SMTP is turned off, so removing the file loses nothing. A form the console cannot hold (`30/1h`, `1h30m`) stays in the file.
+  With no sign-in settings saved and nothing named, nothing moves and no settings are made.
+- `durable_runtime.py`: a mail reconcile still compares these five (`is_mail_compared`), and a change in them found at start is
+  refused as drift (`settings_only` does not treat them as sign-in settings there), as a deleted mail configuration always was.
+- With no mail file and nothing saved the base configuration sets `GOTRUE_MAILER_AUTOCONFIRM` true: Confirm email is off.
+- Live check: `lab/auth-names-check.py --only mail_settings` (evidence in `docs/evidence/settings-routes-2026-10-30/`). The two 5 minute
+  limits showed no effect on the paths tried.
