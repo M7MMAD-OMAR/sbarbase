@@ -5,10 +5,18 @@ import {dirname,join} from 'node:path';
 import {randomBytes} from 'node:crypto';
 import {Catalog} from './catalog';
 import {authenticate,reply,type ManagementIdentity} from './auth';
+import {DEFAULT_SECRETS,functionArchive,functionSource,noteSecretTimes,redactCallPath,secretRows} from './functions-read';
+import {redact} from './observe';
+import {FUNCTION_RANGES,type FunctionRange,type RequestLog} from '../gateway/observe';
 
 /** Edge Functions for one environment (docs/guides/edge-functions.md).
  *
  * GET    /environments/{id}/functions              state, deployed functions and secret names
+ * GET    /environments/{id}/functions/{name}/source    the files of the current version, for the code viewer
+ * GET    /environments/{id}/functions/{name}/download  the same files as a project shaped ZIP
+ * GET    /environments/{id}/functions/{name}/metrics   calls, errors and response time (?range=15m|1h|3h|1d)
+ * GET    /environments/{id}/functions/{name}/logs      the function's recent calls (?errors=1&q=&range=&limit=)
+ * GET    /environments/{id}/function-secrets           secret names with a digest and when each was set, and the default secrets
  * PUT    /environments/{id}/functions              {"enabled": true|false}
  * PUT    /environments/{id}/functions/{name}       deploy: {"files": {"index.ts": "..."}, "shared"?: {...}, "verify_jwt"?: bool}
  * DELETE /environments/{id}/functions/{name}
@@ -22,13 +30,17 @@ import {authenticate,reply,type ManagementIdentity} from './auth';
 export const FUNCTION_NAME=/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 const SECRET_NAME=/^[A-Z_][A-Z0-9_]{0,127}$/;
 const FILE_PATH=/^[A-Za-z0-9_][A-Za-z0-9_.@+-]*(\/[A-Za-z0-9_][A-Za-z0-9_.@+-]*)*$/;
-const MAX_BODY=10*1024*1024,MAX_FILES=500,MAX_SECRETS=100,MAX_SECRET=65536;
+const MAX_BODY=10*1024*1024,MAX_FILES=500,MAX_SECRETS=100,MAX_SECRET=65536,MAX_FUNCTIONS=100;
 import {ENTRYPOINTS} from './function-contract.mjs';
 export {ENTRYPOINTS} from './function-contract.mjs';
 
-export type FunctionEntry={version:string;verify_jwt:boolean;updated_at:number;size:number};
+/** `created_at` and `deployments` came with the console's function pages; an entry written before them reads as created at its
+ * last deploy and deployed once. */
+export type FunctionEntry={version:string;verify_jwt:boolean;updated_at:number;size:number;created_at?:number;deployments?:number};
 export type Manifest={functions:Record<string,FunctionEntry>};
 export class DeployError extends Error {}
+/** A function's entry, or undefined. A name such as `constructor` or `toString` is a valid function name and a property of every object, so the lookup counts only what the manifest itself holds. */
+export function entryOf(manifest:Manifest,name:string):FunctionEntry|undefined {return Object.hasOwn(manifest.functions,name)?manifest.functions[name]:undefined;}
 
 function runtimeDirectory(root:string,runtime:string) {
  if(!/^e_[a-f0-9]{24}$/.test(runtime))throw new Error('Invalid runtime');
@@ -82,11 +94,13 @@ export function deployment(input:unknown):{files:Record<string,string>;shared:Re
 export function deploy(codeRoot:string,runtime:string,name:string,input:ReturnType<typeof deployment>,now=Date.now()):FunctionEntry {
  const root=runtimeDirectory(codeRoot,runtime);
  const version=`v${now.toString(36)}-${randomBytes(4).toString('hex')}`;
+ const manifest=readManifest(codeRoot,runtime);
+ const before=entryOf(manifest,name);
+ if(!before&&Object.keys(manifest.functions).length>=MAX_FUNCTIONS)throw new DeployError('functions: at most 100 in an environment');
  let size=0;
  for(const [path,content] of Object.entries(input.files)){atomicWrite(join(root,version,name,path),content);size+=Buffer.byteLength(content);}
  for(const [path,content] of Object.entries(input.shared)){atomicWrite(join(root,version,'_shared',path),content);size+=Buffer.byteLength(content);}
- const manifest=readManifest(codeRoot,runtime);
- const entry={version,verify_jwt:input.verify_jwt,updated_at:now,size};
+ const entry={version,verify_jwt:input.verify_jwt,updated_at:now,size,created_at:before?(before.created_at??before.updated_at):now,deployments:(before?.deployments??(before?1:0))+1};
  manifest.functions[name]=entry;
  atomicWrite(join(root,'functions.json'),JSON.stringify(manifest,null,1));
  prune(root,manifest,now);
@@ -96,7 +110,7 @@ export function deploy(codeRoot:string,runtime:string,name:string,input:ReturnTy
 export function remove(codeRoot:string,runtime:string,name:string,now=Date.now()):boolean {
  const root=runtimeDirectory(codeRoot,runtime);
  const manifest=readManifest(codeRoot,runtime);
- if(!manifest.functions[name])return false;
+ if(!entryOf(manifest,name))return false;
  delete manifest.functions[name];
  atomicWrite(join(root,'functions.json'),JSON.stringify(manifest,null,1));
  prune(root,manifest,now);
@@ -114,7 +128,7 @@ function prune(root:string,manifest:Manifest,now:number) {
  }
 }
 
-export function changeSecrets(secretsRoot:string,runtime:string,input:unknown):string[] {
+export function changeSecrets(secretsRoot:string,runtime:string,input:unknown,now=Date.now()):string[] {
  const changes=(input as {secrets?:unknown}|null)?.secrets;
  if(!changes||typeof changes!=='object'||Array.isArray(changes)||Object.keys(input as object).length!==1)throw new DeployError('secrets');
  const current=readSecrets(secretsRoot,runtime);
@@ -124,10 +138,13 @@ export function changeSecrets(secretsRoot:string,runtime:string,input:unknown):s
   if(typeof value!=='string'||value.length>MAX_SECRET)throw new DeployError(`secret ${name}`);
   current[name]=value;
  }
+ const names=Object.keys(changes as Record<string,unknown>);
  if(Object.keys(current).length>MAX_SECRETS)throw new DeployError('secrets: at most 100');
  const directory=runtimeDirectory(secretsRoot,runtime);
  mkdirSync(directory,{recursive:true,mode:0o700});
  atomicWrite(join(directory,'secrets.json'),JSON.stringify(current),0o600);
+ // The update times and the digest key sit outside the folder the functions container mounts.
+ try{noteSecretTimes(secretsRoot,runtime,Object.fromEntries(names.map(name=>[name,(changes as Record<string,string|null>)[name]!])),now);}catch{}
  return Object.keys(current).sort();
 }
 
@@ -150,12 +167,13 @@ async function body(request:Request):Promise<unknown> {
 }
 
 export function functionsHandler(catalog:Catalog,identify:ManagementIdentity,codeRoot='.lab/upstream/functions',
- secretsRoot='.secrets/upstream/functions') {
+ secretsRoot='.secrets/upstream/functions',log?:RequestLog) {
  return async(request:Request):Promise<Response>=>{
-  const match=new URL(request.url).pathname.match(/^\/management\/v1\/environments\/([a-f0-9-]{36})\/(functions|function-secrets)(?:\/([^/]+))?$/);
+  const url=new URL(request.url);
+  const match=url.pathname.match(/^\/management\/v1\/environments\/([a-f0-9-]{36})\/(functions|function-secrets)(?:\/([^/]+)(?:\/(source|download|metrics|logs))?)?$/);
   if(!match||(match[2]==='function-secrets'&&match[3]))return reply(404,{message:'Unknown route'});
-  const [,environment,kind,name]=match as unknown as [string,string,string,string|undefined];
-  const allowed=kind==='function-secrets'?['PUT']:name?['PUT','DELETE']:['GET','PUT'];
+  const [,environment,kind,name,part]=match as unknown as [string,string,string,string|undefined,string|undefined];
+  const allowed=kind==='function-secrets'?['GET','PUT']:part?['GET']:name?['PUT','DELETE']:['GET','PUT'];
   if(!allowed.includes(request.method))return reply(405,{message:'Method not allowed'});
   if(name!==undefined&&!FUNCTION_NAME.test(name))return reply(400,{message:'A function name is letters, digits, - and _, at most 64'});
   const actor=await authenticate(identify,request);
@@ -167,9 +185,13 @@ export function functionsHandler(catalog:Catalog,identify:ManagementIdentity,cod
     const manifest=readManifest(codeRoot,state.runtime);
     return {...catalog.functions(actor,environment!),
      functions:Object.entries(manifest.functions).sort(([a],[b])=>a.localeCompare(b))
-      .map(([fn,entry])=>({name:fn,verify_jwt:entry.verify_jwt,updated_at:entry.updated_at,size:entry.size,path:`/${state.runtime}/functions/v1/${fn}`})),
+      .map(([fn,entry])=>({name:fn,verify_jwt:entry.verify_jwt,updated_at:entry.updated_at,size:entry.size,path:`/${state.runtime}/functions/v1/${fn}`,
+       created_at:entry.created_at??entry.updated_at,deployments:entry.deployments??1})),
      secrets:Object.keys(readSecrets(secretsRoot,state.runtime)).sort()};
    };
+   if(kind==='function-secrets'&&request.method==='GET'){
+    return answer(reply(200,{data:{secrets:secretRows(secretsRoot,state.runtime,readSecrets(secretsRoot,state.runtime)),defaults:DEFAULT_SECRETS}}));
+   }
    if(kind==='function-secrets'){
     const input=await body(request);
     state=catalog.functions(actor,environment!);
@@ -178,6 +200,30 @@ export function functionsHandler(catalog:Catalog,identify:ManagementIdentity,cod
     return answer(reply(200,{data:{secrets:names}}));
    }
    if(!name&&request.method==='GET')return answer(reply(200,{data:view()}));
+   if(part&&name){
+    const entry=entryOf(readManifest(codeRoot,state.runtime),name);
+    if(!entry)return answer(reply(404,{message:'Function not found'}));
+    if(part==='source')return answer(reply(200,{data:{name,...functionSource(codeRoot,state.runtime,entry.version,name)}}));
+    if(part==='download'){
+     const archive=functionArchive(codeRoot,state.runtime,entry.version,name,entry.updated_at);
+     return answer(new Response(new Uint8Array(archive),{status:200,headers:{'content-type':'application/zip','content-disposition':`attachment; filename="${name}.zip"`,
+      'cache-control':'no-store','x-content-type-options':'nosniff'}}));
+    }
+    const range=url.searchParams.get('range')??'1h';
+    if(!Object.hasOwn(FUNCTION_RANGES,range))return reply(400,{message:'Choose a range: 15m, 1h, 3h or 1d'});
+    if(!log)return reply(503,{message:'Function counters are unavailable'});
+    if(part==='metrics')return answer(reply(200,{data:log.functionMetrics(state.runtime,name,range as FunctionRange)}));
+    const limit=Number(url.searchParams.get('limit')??'100');
+    if(!Number.isInteger(limit)||limit<1||limit>200)return reply(400,{message:'Ask for 1 to 200 calls'});
+    const query=(url.searchParams.get('q')??'').slice(0,100);
+    const since=Date.now()-FUNCTION_RANGES[range as FunctionRange].minutes*60_000;
+    // The filter looks at what the person would see, the redacted path, never at the stored one: a search must not be able to
+    // find a token that the answer hides.
+    const needle=query.toLowerCase();
+    const calls=log.functionCalls(state.runtime,name,{errors:url.searchParams.get('errors')==='1',since,limit:200}).map(call=>({...call,path:redact(redactCallPath(call.path))}))
+     .filter(call=>!needle||`${call.method} ${call.path} ${call.status}`.toLowerCase().includes(needle)).slice(0,limit);
+    return answer(reply(200,{data:{calls}}));
+   }
    if(!name){
     let input:unknown;
     try{input=await request.json();}catch{return reply(400,{message:'Invalid JSON'});}
@@ -189,6 +235,7 @@ export function functionsHandler(catalog:Catalog,identify:ManagementIdentity,cod
    }
    if(request.method==='DELETE'){
     if(!remove(codeRoot,state.runtime,name))return answer(reply(404,{message:'Function not found'}));
+    log?.forgetFunction(state.runtime,name);
     catalog.recordFunction(actor,environment!,'functions.deleted',{name});
     return answer(reply(200,{data:view()}));
    }
@@ -196,6 +243,7 @@ export function functionsHandler(catalog:Catalog,identify:ManagementIdentity,cod
    // Body reads may outlive membership changes. Recheck before publishing files.
    state=catalog.functions(actor,environment!);
    const entry=deploy(codeRoot,state.runtime,name,input);
+   log?.deployedFunction(state.runtime,name,entry.updated_at);
    catalog.recordFunction(actor,environment!,'functions.deployed',{name,version:entry.version,size:entry.size});
    // The first deploy starts the environment's Edge Functions, as on Supabase.
    if(state.desired==='off'&&state.state!=='pending')catalog.requestFunctions(actor,environment!,true);

@@ -5,7 +5,7 @@ import {DATA_API_EMPTY,type AgentDirectoryEntry,type Catalog} from './catalog';
 import {reply} from './auth';
 import {tokenEpoch,type AccessToken,type AccessTokenStore} from './access-tokens';
 import {SqlRefusal,type SqlRunner,type SqlTarget} from './agent-sql';
-import {ENTRYPOINTS,FUNCTION_NAME,readManifest} from './functions';
+import {ENTRYPOINTS,FUNCTION_NAME,entryOf,readManifest} from './functions';
 import {uploadLimit} from '../gateway/handler';
 import {mergeDataApi} from './data-api';
 
@@ -122,8 +122,8 @@ export function splitDeployFiles(files:{name:string;content:string}[],entrypoint
   target[name]=file.content;
  }
  const entry=entrypoint?project(clean(entrypoint.replace(/^file:\/\//,''))):undefined;
- if(!ENTRYPOINTS.some(name=>name in own)){
-  if(!entry||!(entry in own))refuse(400,'Send the function\'s entry point file (index.ts)');
+ if(!ENTRYPOINTS.some(name=>Object.hasOwn(own,name))){
+  if(!entry||!Object.hasOwn(own,entry))refuse(400,'Send the function\'s entry point file (index.ts)');
   // The runtime starts index.ts; an entry point named otherwise is imported from one.
   own['index.ts']=`import './${entry}';\n`;
  }
@@ -191,7 +191,7 @@ export function supabaseApi(options:SupabaseApiOptions) {
 
  function functionView(entry:AgentDirectoryEntry,name:string,detail:{verify_jwt:boolean;updated_at:number}) {
   const runtime=entry.runtime!,id=functionId(runtime,name),version=Math.max(1,Math.floor(detail.updated_at/1000));
-  const manifest=readManifest(functionsRoot,runtime).functions[name];
+  const manifest=entryOf(readManifest(functionsRoot,runtime),name);
   const folder=manifest?join(functionsRoot,runtime,manifest.version,name):'';
   const entrypoint=ENTRYPOINTS.find(file=>folder&&existsSync(join(folder,file)))??'index.ts';
   const deployment=`${refOf(entry.environment)}_${id}_${version}`;
@@ -233,7 +233,7 @@ export function supabaseApi(options:SupabaseApiOptions) {
 
  function functionBody(entry:AgentDirectoryEntry,name:string):Response {
   const runtime=entry.runtime!;
-  const manifest=readManifest(functionsRoot,runtime).functions[name];
+  const manifest=entryOf(readManifest(functionsRoot,runtime),name);
   if(!manifest)refuse(404,'Function not found');
   const version=join(functionsRoot,runtime,manifest!.version);
   // multipart/form-data by hand: one metadata part, then one part per file, as Supabase answers.

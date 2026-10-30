@@ -14,6 +14,7 @@ import type {InvitationAccounts} from './invitations';
 import {managedGateway,routeWithPlacement} from '../gateway/managed';
 import type {EnvironmentRoute} from '../gateway/handler';
 import {observedGateway,RequestLog} from '../gateway/observe';
+import {functionNames} from './functions-read';
 import type {ContainerReader} from './observe';
 import {AccessTokenStore,tokenEpoch,type AccessToken} from './access-tokens';
 import {accessTokenHandler} from './access-token-http';
@@ -68,7 +69,7 @@ export function application(catalog:Catalog,keys:KeyStore,realm:ManagementRealm,
    if(routing.maintenance)return false;
    placementServices(resolveRuntimePlacement(runtime,routing));return !!resolve(runtime);
   }catch{return false;}
- });
+ },undefined,functionNames(agents?.functionsRoot??'.lab/upstream/functions'));
  const login=managementAuth(catalog,realm,identify,transport);
  // Agents: a token acts as its owner through the same console routes, with their checks, and is
  // asked again before anything it changed is published. A separate route table: no token can
