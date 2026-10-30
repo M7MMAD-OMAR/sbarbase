@@ -1,5 +1,5 @@
 import {test,expect} from 'bun:test';
-import {chmodSync,mkdtempSync,readFileSync,renameSync,rmSync,statSync,symlinkSync,writeFileSync} from 'node:fs';
+import {chmodSync,existsSync,mkdtempSync,readFileSync,renameSync,rmSync,statSync,symlinkSync,writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {Catalog} from '../src/control/catalog';
@@ -267,4 +267,30 @@ test('the simple settings of the registry are validated by type and range, kept 
  // A retired key is ignored on input and dropped from a saved one, not refused.
  expect(settingsFromInput({...valid,config:{RATE_LIMIT_WEB3:20,SESSIONS_SINGLE_PER_USER:true}},null).config).toEqual({SESSIONS_SINGLE_PER_USER:true});
  expect(settingsFromInput(valid,{...first,config:{...first.config,RATE_LIMIT_WEB3:5}} as never).config).toEqual(first.config);
+});
+
+test('turning SAML on makes the environment signing key once, a refused save makes none, and off keeps it',async()=>{
+ const catalog=new Catalog(':memory:');
+ const directory=mkdtempSync(join(tmpdir(),'sign-in-saml-'));
+ try {
+  const org=catalog.createOrganization('alice','A');
+  const environment=catalog.createEnvironment('alice',catalog.createProject('alice',org,'P'),'production');
+  const job=catalog.claimProvision()!;catalog.finishProvision(environment,job.claim!,true);
+  const runtime=catalog.getProvision('alice',environment).runtime;
+  const handler=signInHandler(catalog,async request=>request.headers.get('authorization'),directory,0);
+  const put=(body:unknown)=>handler(new Request(`http://local/management/v1/environments/${environment}/sign-in`,{method:'PUT',headers:{authorization:'alice','content-type':'application/json'},body:JSON.stringify(body)}));
+  const key=join(directory,runtime+'-saml.json');
+  expect((await put({...valid,config:{SAML_ENABLED:'yes'}})).status).toBe(400);
+  expect(existsSync(key)).toBe(false);
+  expect((await put({...valid,config:{SAML_ENABLED:true}})).status).toBe(202);
+  const made=readFileSync(key,'utf8');
+  expect(statSync(key).mode&0o777).toBe(0o600);
+  expect((await put({...valid,config:{SAML_ENABLED:false}})).status).toBe(202);
+  expect(readFileSync(key,'utf8')).toBe(made);
+  expect((await put({...valid,config:{SAML_ENABLED:true}})).status).toBe(202);
+  expect(readFileSync(key,'utf8')).toBe(made);
+  // The key is in no answer or audit row.
+  const answer=JSON.stringify(await (await handler(new Request(`http://local/management/v1/environments/${environment}/auth-config`,{headers:{authorization:'alice'}}))).json())+JSON.stringify(catalog.auditEvents('alice',org));
+  expect(answer).not.toContain(JSON.parse(made).private_key);
+ } finally {catalog.close();}
 });

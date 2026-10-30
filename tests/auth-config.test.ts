@@ -112,7 +112,7 @@ test('the simple settings appear on their pages with hints, units and bounds, an
  const settings={revision:1,site_url:'https://a.example.com',redirect_urls:[],signup:true,anonymous:false,manual_linking:false,
   session:{access_token_seconds:null,timebox_seconds:null,inactivity_seconds:null},config:{MFA_MAX_ENROLLED_FACTORS:25,SESSIONS_SINGLE_PER_USER:true},providers:{}} as never;
  const view=authConfigView(settings,'e_'+'e'.repeat(24),'http://localhost');
- expect(view.pages.map(page=>page.id)).toEqual(['providers','url-configuration','sessions','protection','mfa']);
+ expect(view.pages.map(page=>page.id)).toEqual(['providers','url-configuration','sessions','protection','mfa','hooks','sso','audit']);
  expect(field(view,'MFA_MAX_ENROLLED_FACTORS')).toMatchObject({value:25,from_default:false,store:'config',min:1});
  expect(field(view,'SESSIONS_SINGLE_PER_USER')).toMatchObject({value:true,store:'config'});
  expect(field(view,'SESSIONS_SINGLE_PER_USER').from_default).toBe(false);

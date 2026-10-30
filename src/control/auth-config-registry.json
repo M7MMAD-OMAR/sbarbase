@@ -28,6 +28,18 @@
   {
    "id": "mfa",
    "label": "Multi-Factor"
+  },
+  {
+   "id": "hooks",
+   "label": "Hooks"
+  },
+  {
+   "id": "sso",
+   "label": "Single Sign-On"
+  },
+  {
+   "id": "audit",
+   "label": "Audit Logs"
   }
  ],
  "core": [
@@ -188,6 +200,213 @@
    "owner": "auth",
    "hint": "Turn this off to stop TOTP codes being accepted. Use with care: people who rely on them cannot pass a second factor.",
    "evidence": "json tag verify_enabled in the pinned Auth binary; default true in the same binary tag"
+  },
+  {
+   "key": "SAML_ENABLED",
+   "page": "sso",
+   "label": "Enable SAML 2.0 Single Sign-On",
+   "type": "bool",
+   "from": "config.SAML_ENABLED",
+   "store": "config",
+   "default": false,
+   "owner": "auth",
+   "hint": "Let people sign in through their company's SAML identity provider. The first time you turn it on, the console makes this environment's signing key and keeps it, because identity providers trust its certificate.",
+   "evidence": "live check 2026-10-30: GOTRUE_SAML_ENABLED with a PKCS#1 key shows saml_enabled in Auth's settings and the admin API manages providers"
+  },
+  {
+   "key": "AUDIT_LOG_DISABLE_POSTGRES",
+   "page": "audit",
+   "label": "Write audit logs to the database",
+   "type": "bool",
+   "from": "config.AUDIT_LOG_DISABLE_POSTGRES",
+   "store": "config",
+   "default": false,
+   "invert": true,
+   "owner": "auth",
+   "hint": "Auth records sign-ins and account changes in its audit table. Off stops new entries; the entries already there stay.",
+   "evidence": "live check 2026-10-30: GOTRUE_AUDIT_LOG_DISABLE_POSTGRES=true left the audit table empty after a sign-up"
+  },
+  {
+   "key": "HOOK_CUSTOM_ACCESS_TOKEN_ENABLED",
+   "page": "hooks",
+   "label": "Customize Access Token (JWT) Claims",
+   "type": "bool",
+   "from": "config.HOOK_CUSTOM_ACCESS_TOKEN_ENABLED",
+   "store": "config",
+   "default": false,
+   "owner": "auth",
+   "hint": "Customize the claims in the access token Auth issues.",
+   "evidence": "live check 2026-10-30: HOOK_CUSTOM_ACCESS_TOKEN_ENABLED and _URI with a Postgres function added a claim to the token; the other hooks use the same naming and were not tried"
+  },
+  {
+   "key": "HOOK_CUSTOM_ACCESS_TOKEN_URI",
+   "page": "hooks",
+   "label": "Customize Access Token (JWT) Claims (function)",
+   "type": "text",
+   "from": "config.HOOK_CUSTOM_ACCESS_TOKEN_URI",
+   "store": "config",
+   "default": "",
+   "owner": "auth",
+   "pattern": "^pg-functions://postgres/[A-Za-z_][A-Za-z0-9_]{0,62}/[A-Za-z_][A-Za-z0-9_]{0,62}$",
+   "max": 160,
+   "example": "pg-functions://postgres/public/my_hook",
+   "hint": "A Postgres function in this environment's database, as schema and name."
+  },
+  {
+   "key": "HOOK_SEND_EMAIL_ENABLED",
+   "page": "hooks",
+   "label": "Send Email",
+   "type": "bool",
+   "from": "config.HOOK_SEND_EMAIL_ENABLED",
+   "store": "config",
+   "default": false,
+   "owner": "auth",
+   "hint": "Replace Auth's own email sending with your function.",
+   "evidence": "same naming as HOOK_CUSTOM_ACCESS_TOKEN, not tried individually"
+  },
+  {
+   "key": "HOOK_SEND_EMAIL_URI",
+   "page": "hooks",
+   "label": "Send Email (function)",
+   "type": "text",
+   "from": "config.HOOK_SEND_EMAIL_URI",
+   "store": "config",
+   "default": "",
+   "owner": "auth",
+   "pattern": "^pg-functions://postgres/[A-Za-z_][A-Za-z0-9_]{0,62}/[A-Za-z_][A-Za-z0-9_]{0,62}$",
+   "max": 160,
+   "example": "pg-functions://postgres/public/my_hook",
+   "hint": "A Postgres function in this environment's database, as schema and name."
+  },
+  {
+   "key": "HOOK_SEND_SMS_ENABLED",
+   "page": "hooks",
+   "label": "Send SMS",
+   "type": "bool",
+   "from": "config.HOOK_SEND_SMS_ENABLED",
+   "store": "config",
+   "default": false,
+   "owner": "auth",
+   "hint": "Replace Auth's own SMS sending with your function.",
+   "evidence": "same naming as HOOK_CUSTOM_ACCESS_TOKEN, not tried individually"
+  },
+  {
+   "key": "HOOK_SEND_SMS_URI",
+   "page": "hooks",
+   "label": "Send SMS (function)",
+   "type": "text",
+   "from": "config.HOOK_SEND_SMS_URI",
+   "store": "config",
+   "default": "",
+   "owner": "auth",
+   "pattern": "^pg-functions://postgres/[A-Za-z_][A-Za-z0-9_]{0,62}/[A-Za-z_][A-Za-z0-9_]{0,62}$",
+   "max": 160,
+   "example": "pg-functions://postgres/public/my_hook",
+   "hint": "A Postgres function in this environment's database, as schema and name."
+  },
+  {
+   "key": "HOOK_MFA_VERIFICATION_ATTEMPT_ENABLED",
+   "page": "hooks",
+   "label": "MFA Verification Attempt",
+   "type": "bool",
+   "from": "config.HOOK_MFA_VERIFICATION_ATTEMPT_ENABLED",
+   "store": "config",
+   "default": false,
+   "owner": "auth",
+   "hint": "Decide what happens after a multi-factor verification attempt.",
+   "evidence": "same naming as HOOK_CUSTOM_ACCESS_TOKEN, not tried individually"
+  },
+  {
+   "key": "HOOK_MFA_VERIFICATION_ATTEMPT_URI",
+   "page": "hooks",
+   "label": "MFA Verification Attempt (function)",
+   "type": "text",
+   "from": "config.HOOK_MFA_VERIFICATION_ATTEMPT_URI",
+   "store": "config",
+   "default": "",
+   "owner": "auth",
+   "pattern": "^pg-functions://postgres/[A-Za-z_][A-Za-z0-9_]{0,62}/[A-Za-z_][A-Za-z0-9_]{0,62}$",
+   "max": 160,
+   "example": "pg-functions://postgres/public/my_hook",
+   "hint": "A Postgres function in this environment's database, as schema and name."
+  },
+  {
+   "key": "HOOK_PASSWORD_VERIFICATION_ATTEMPT_ENABLED",
+   "page": "hooks",
+   "label": "Password Verification Attempt",
+   "type": "bool",
+   "from": "config.HOOK_PASSWORD_VERIFICATION_ATTEMPT_ENABLED",
+   "store": "config",
+   "default": false,
+   "owner": "auth",
+   "hint": "Decide what happens after a password verification attempt.",
+   "evidence": "same naming as HOOK_CUSTOM_ACCESS_TOKEN, not tried individually"
+  },
+  {
+   "key": "HOOK_PASSWORD_VERIFICATION_ATTEMPT_URI",
+   "page": "hooks",
+   "label": "Password Verification Attempt (function)",
+   "type": "text",
+   "from": "config.HOOK_PASSWORD_VERIFICATION_ATTEMPT_URI",
+   "store": "config",
+   "default": "",
+   "owner": "auth",
+   "pattern": "^pg-functions://postgres/[A-Za-z_][A-Za-z0-9_]{0,62}/[A-Za-z_][A-Za-z0-9_]{0,62}$",
+   "max": 160,
+   "example": "pg-functions://postgres/public/my_hook",
+   "hint": "A Postgres function in this environment's database, as schema and name."
+  },
+  {
+   "key": "HOOK_BEFORE_USER_CREATED_ENABLED",
+   "page": "hooks",
+   "label": "Before User Created",
+   "type": "bool",
+   "from": "config.HOOK_BEFORE_USER_CREATED_ENABLED",
+   "store": "config",
+   "default": false,
+   "owner": "auth",
+   "hint": "Accept or refuse a new user before Auth creates them.",
+   "evidence": "same naming as HOOK_CUSTOM_ACCESS_TOKEN, not tried individually"
+  },
+  {
+   "key": "HOOK_BEFORE_USER_CREATED_URI",
+   "page": "hooks",
+   "label": "Before User Created (function)",
+   "type": "text",
+   "from": "config.HOOK_BEFORE_USER_CREATED_URI",
+   "store": "config",
+   "default": "",
+   "owner": "auth",
+   "pattern": "^pg-functions://postgres/[A-Za-z_][A-Za-z0-9_]{0,62}/[A-Za-z_][A-Za-z0-9_]{0,62}$",
+   "max": 160,
+   "example": "pg-functions://postgres/public/my_hook",
+   "hint": "A Postgres function in this environment's database, as schema and name."
+  },
+  {
+   "key": "HOOK_AFTER_USER_CREATED_ENABLED",
+   "page": "hooks",
+   "label": "After User Created",
+   "type": "bool",
+   "from": "config.HOOK_AFTER_USER_CREATED_ENABLED",
+   "store": "config",
+   "default": false,
+   "owner": "auth",
+   "hint": "Run your function after Auth creates a user.",
+   "evidence": "same naming as HOOK_CUSTOM_ACCESS_TOKEN, not tried individually"
+  },
+  {
+   "key": "HOOK_AFTER_USER_CREATED_URI",
+   "page": "hooks",
+   "label": "After User Created (function)",
+   "type": "text",
+   "from": "config.HOOK_AFTER_USER_CREATED_URI",
+   "store": "config",
+   "default": "",
+   "owner": "auth",
+   "pattern": "^pg-functions://postgres/[A-Za-z_][A-Za-z0-9_]{0,62}/[A-Za-z_][A-Za-z0-9_]{0,62}$",
+   "max": 160,
+   "example": "pg-functions://postgres/public/my_hook",
+   "hint": "A Postgres function in this environment's database, as schema and name."
   }
  ],
  "provider_fields": [

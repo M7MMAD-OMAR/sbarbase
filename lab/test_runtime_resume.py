@@ -13,6 +13,8 @@ class ResumeTests(unittest.TestCase):
         self.e='e_'+'a'*24
         self.target=runtime.Runtime.__new__(runtime.Runtime)
         self.target.values={'environments':{self.e:{}}}
+        # Every container check answers yes here; a stray `-previous` Auth is tested in test_auth_settings.
+        self.target.restore_stray_previous=Mock()
         # Every check answers yes; asked which schemas exist (lab/data_api.py present_sql), `public` does.
         self.target.sql=Mock(side_effect=lambda query,*args,**kwargs:SimpleNamespace(
             stdout='public' if 'FROM pg_catalog.unnest(ARRAY[' in query and 'SELECT name' in query
@@ -29,6 +31,8 @@ class ResumeTests(unittest.TestCase):
             with patch.object(runtime,'STATE',state),patch.object(runtime.source_fence,'is_fenced',return_value=False),patch.object(runtime,'inspect',return_value={'owned':True}):
                 self.target.resume(self.e)
         self.target.activate_services.assert_called_once_with(self.e,{},creating=False)
+        # A stray `-previous` Auth is put back at every start (lab/test_auth_settings.py tests the function itself).
+        self.target.restore_stray_previous.assert_called_once_with(self.e)
         # A read may first pin its own session's search path (lab/data_api.py SAFE); that changes nothing stored.
         self.assertTrue(all(call.args[0].removeprefix('SET search_path TO pg_catalog, pg_temp; ').startswith('SELECT')
                             for call in self.target.sql.call_args_list))

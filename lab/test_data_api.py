@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import data_api
 import durable_runtime
@@ -458,6 +458,8 @@ class RuntimeTests(unittest.TestCase):
         self.addCleanup(directory.cleanup)
         self.catalog = Path(directory.name) / 'control.sqlite'
         self.runtime = object.__new__(durable_runtime.Runtime)
+        # Every container check answers yes here; a stray `-previous` Auth is tested in test_auth_settings.
+        self.runtime.restore_stray_previous = Mock()
         self.statements = []
         self.existing = 'public\ni2s\nextensions\n'
         # The pgrst settings sbarbase_rest.settings() answers now, and whether the guard is in place.
@@ -1062,6 +1064,7 @@ class RuntimeTests(unittest.TestCase):
     def test_resume_applies_before_services(self):
         order = []
         runtime = object.__new__(durable_runtime.Runtime)
+        runtime.restore_stray_previous = Mock()
         runtime.values = {'environments': {E: {}}}
         runtime.sql = lambda *args, **kwargs: SimpleNamespace(stdout='', returncode=0)
         runtime.rest_deadlines = lambda e, rewrite=False, end_sessions=False: order.append('deadlines')

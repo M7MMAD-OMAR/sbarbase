@@ -801,7 +801,7 @@ def swap(runtime, e, service, entry):
     if service == 'auth':
         # The replacement container is new, so it does not inherit the outbound network an
         # environment with mail or an OAuth provider needs (lab/durable_runtime.py egress).
-        rt.egress(name, rt.egress_wanted(mail, rt.load_settings(e)))
+        rt.egress(name, rt.egress_wanted(mail, rt.load_settings(e), e))
     return did
 
 

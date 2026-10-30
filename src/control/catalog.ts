@@ -708,7 +708,7 @@ export class Catalog {
         if(typeof value==='number'||typeof value==='boolean')detail[key]=value;
         else if(typeof value==='string'&&(/^[a-z_]{1,40}$/.test(value)||(key==='target'&&value.length<=200)||
           // An access token or API key by its id, a query by its digest, a migration by its version.
-          ((key==='token'||key==='key')&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(value))||
+          ((key==='token'||key==='key'||key==='provider')&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(value))||
           (key==='query'&&/^[0-9a-f]{16}$/.test(value))||(key==='version'&&/^[0-9]{14}$/.test(value))||
           // The platform key names a sign-in save changed (values are never recorded).
           (row.action==='sign_in.saved'&&key==='changed'&&/^[A-Z0-9_,]{1,2000}$/.test(value))||
@@ -1034,6 +1034,11 @@ export class Catalog {
       this.record(actor,'sign_in.saved',environment,{revision,changed:changed.join(',')});
       return this.signIn(actor,environment);
     }).immediate();
+  }
+  /** A single sign-on provider added to or removed from an environment's Auth (src/control/auth-admin.ts). Only its id is recorded. */
+  recordSsoProvider(actor:string,environment:string,action:'sso_provider.created'|'sso_provider.removed',provider:string) {
+    this.signIn(actor,environment);
+    this.record(actor,action,environment,{provider});
   }
   /** Data API settings for one environment: the schemas PostgREST exposes, its extra search path
    * and row limit. Owners and admins save them; the supervisor applies them (lab/data_api.py) and

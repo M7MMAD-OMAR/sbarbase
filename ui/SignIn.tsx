@@ -5,15 +5,19 @@ import {ErrorMessage,Loading} from './components';
 import {signInErrors,type FieldErrors} from './settings-validation';
 import {ProviderIcon} from './ProviderIcon';
 import {Switch} from './AwSwitch';
-import {SmtpPanel} from './SmtpPanel';
+import {EmailsTab} from './EmailsTab';
+import {SmsPanel} from './SmsPanel';
+import {HooksPanel,hookErrors} from './HooksPanel';
+import {AuditPanel} from './AuditPanel';
+import {SsoPanel} from './SsoPanel';
 import './auth-workspace.css';
 
 type Provider={enabled:boolean;client_id:string;secret_set?:boolean;secret?:string;url:string;skip_nonce_check?:boolean;email_optional?:boolean};
 /** The providers whose sign-in accepts ID tokens with any nonce (the switch the cloud shows for them). */
 const NONCE_PROVIDERS=['apple','google'];
 type Session={access_token_seconds:number|null;timebox_seconds:number|null;inactivity_seconds:number|null};
-type ConfigValue=boolean|number;
-type SchemaField={key:string;label:string;type:string;value?:unknown;hint?:string;unit?:string;min?:number;max?:number;null_text?:string;store?:string};
+type ConfigValue=boolean|number|string;
+type SchemaField={key:string;label:string;type:string;value?:unknown;hint?:string;unit?:string;min?:number;max?:number;null_text?:string;store?:string;invert?:boolean;pattern?:string};
 type SchemaPage={id:string;fields:SchemaField[]};
 type Settings={config?:Record<string,ConfigValue>;site_url:string;redirect_urls:string[];signup:boolean;anonymous:boolean;manual_linking:boolean;session:Session;providers:Record<string,Provider>};
 type State={state:'unconfigured'|'pending'|'applied'|'failed';revision:number;failure:string|null;callback_url:string;settings:Settings|null};
@@ -52,10 +56,14 @@ const TABS=[{id:'signin',label:'Sign In / Providers',hint:'Who can sign up, and 
  {id:'sessions',label:'Sessions',hint:'How long a person stays signed in, and how access and refresh tokens behave.'},
  {id:'protection',label:'Attack Protection',hint:'Security settings that protect this environment from attacks.'},
  {id:'mfa',label:'Multi-Factor',hint:'Requires people to provide additional verification factors to authenticate.'},
- {id:'emails',label:'Emails',hint:'Configure how this environment sends its authentication emails.'}] as const;
+ {id:'phone',label:'Phone',hint:'Let people sign up and sign in with a phone number and a code sent by SMS.'},
+ {id:'emails',label:'Emails',hint:'Configure how this environment sends its authentication emails.'},
+ {id:'hooks',label:'Hooks',hint:'Postgres functions that Auth calls at set points, to change what it does.'},
+ {id:'sso',label:'Single Sign-On',hint:'Let people sign in through their company\'s SAML identity provider.'},
+ {id:'audit',label:'Audit Logs',hint:'What Auth recorded about sign-ins and account changes in this environment.'}] as const;
 type TabId=typeof TABS[number]['id'];
 /** The registry's pages that hold simple settings, by tab. */
-const CONFIG_TABS:string[]=['sessions','protection','mfa'];
+const CONFIG_TABS:string[]=['sessions','protection','mfa','sso','audit'];
 
 
 /** The registry's simple settings of one page: a switch for each true or false setting, a number field for the rest.
@@ -63,10 +71,11 @@ const CONFIG_TABS:string[]=['sessions','protection','mfa'];
 function ConfigFields({fields,cfg,setCfg,busy,errors,persisted,failed}:{fields:SchemaField[];cfg:Record<string,ConfigValue|null>;setCfg:(value:Record<string,ConfigValue|null>)=>void;busy:boolean;errors:FieldErrors;persisted:Record<string,ConfigValue>;failed:string}){
  if(failed)return <p className="aw-notice" role="alert">These settings could not be loaded. Reload the page to try again. {failed}</p>;
  if(fields.length===0)return <p className="aw-hint">Loading these settings…</p>;
- const switches=fields.filter(field=>field.type==='bool'),numbers=fields.filter(field=>field.type!=='bool');
+ const switches=fields.filter(field=>field.type==='bool'),numbers=fields.filter(field=>field.type==='int');
  return <>{switches.length>0&&<div className="aw-group">{switches.map(field=>{
-   const saved=cfg[field.key],on=typeof saved==='boolean'?saved:field.value===true;
-   return <Switch key={field.key} id={'config-'+field.key} checked={on} disabled={busy} label={field.label} hint={field.hint??''} onChange={value=>setCfg({...cfg,[field.key]:value===(field.value===true)&&persisted[field.key]===undefined?null:value})}/>;})}</div>}
+   // A setting shown turned over (`invert`, such as "Write audit logs" for a disable flag) keeps the platform key's own value in `cfg`.
+   const turned=field.invert===true,saved=cfg[field.key],stored=typeof saved==='boolean'?saved:field.value===true,on=turned?!stored:stored;
+   return <Switch key={field.key} id={'config-'+field.key} checked={on} disabled={busy} label={field.label} hint={field.hint??''} onChange={value=>{const next=turned?!value:value;setCfg({...cfg,[field.key]:next===(field.value===true)&&persisted[field.key]===undefined?null:next});}}/>;})}</div>}
   {numbers.map(field=>{const value=cfg[field.key],id='config-'+field.key;
    return <div className="aw-field" key={field.key}><label htmlFor={id}>{field.label}{field.unit?` (${field.unit})`:''}</label>
     <input id={id} type="number" min={field.min} max={field.max} step={1} disabled={busy} aria-invalid={Boolean(errors[id])} aria-describedby={errors[id]?id+'-error':undefined}
@@ -97,6 +106,8 @@ export function SignInSection({path,request}:{path:string;request:Api}){
  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[copied,setCopied]=useState('');
  const [validated,setValidated]=useState(false),[tab,setTab]=useState<TabId>('signin'),[open,setOpen]=useState('');
  const [baseline,setBaseline]=useState('');
+ // The environment's own Auth login in its database, named after its runtime id (the callback address carries it).
+ const authRole=((current?.callback_url??'').match(/\/(e_[a-f0-9]{24})\//)?.[1]??'e_…')+'_auth';
  const fields:FieldErrors=validated?{...signInErrors(form.site_url,redirects,form.providers),...sessionErrors(session),...configErrors()}:{};
  const field=(id:string)=>({disabled:busy,'aria-invalid':Boolean(fields[id]),'aria-describedby':fields[id]?id+'-error':undefined});
  const fieldMessage=(id:string)=>fields[id]?<p id={id+'-error'} className="aw-error" role="alert">{fields[id]}</p>:null;
@@ -108,6 +119,7 @@ export function SignInSection({path,request}:{path:string;request:Api}){
    if(field.store!=='config'||field.type!=='int'||value===null||value===undefined)continue;
    if(typeof value!=='number'||!Number.isInteger(value)||value<field.min!||value>field.max!)errors['config-'+field.key]=`Use a whole number from ${field.min} to ${field.max}.`;
   }
+  Object.assign(errors,hookErrors(configFields('hooks'),cfg));
   return errors;
  }
  /** What the person can change, as one string: the save bar is lit only when it differs from what loaded.
@@ -193,8 +205,12 @@ export function SignInSection({path,request}:{path:string;request:Api}){
      <textarea id="redirects" rows={5} {...field('redirects')} value={redirects} onChange={event=>setRedirects(event.target.value)} placeholder={'https://app.example.com/**\nmyapp://callback'}/>
      {fieldMessage('redirects')}<p className="aw-hint">One address per line. Wildcards are allowed: <code>*</code> and <code>**</code> match parts of an address. Total: {redirects.split('\n').map(line=>line.trim()).filter(Boolean).length}.</p></div>
    </>}
-   {tab==='emails'&&<SmtpPanel path={path} request={request} onSaved={data.refresh}/>}
+   {tab==='emails'&&<EmailsTab path={path} request={request} onSaved={data.refresh}/>}
+   {tab==='phone'&&<SmsPanel path={path} request={request} onSaved={data.refresh}/>}
+   {tab==='hooks'&&<HooksPanel fields={schema.data?.data.config.pages.find(item=>item.id==='hooks')?.fields.filter(field=>field.store==='config')??[]} cfg={cfg} setCfg={setCfg} busy={busy} errors={fields} authRole={authRole} failed={schema.error} persisted={current?.settings?.config??{}}/>}
    {CONFIG_TABS.includes(tab)&&tab!=='sessions'&&<ConfigFields fields={configFields(tab)} cfg={cfg} setCfg={setCfg} busy={busy} errors={fields} persisted={current?.settings?.config??{}} failed={schema.error}/>}
+   {tab==='sso'&&<SsoPanel path={path} request={request} enabled={current?.settings?.config?.SAML_ENABLED===true} applying={current.state!=='applied'} callbackBase={current.callback_url.replace(/\/callback$/,'')}/>}
+   {tab==='audit'&&<AuditPanel path={path} request={request} writesOff={current?.settings?.config?.AUDIT_LOG_DISABLE_POSTGRES===true}/>}
    {tab==='sessions'&&<>
     <div className="aw-field"><label htmlFor="session-token">Access token expiry time (seconds)</label>
      <input id="session-token" type="number" min={60} max={86400} step={1} placeholder="3600" {...field('session-token')} value={session.token} onChange={event=>setSession({...session,token:event.target.value})}/>
@@ -209,7 +225,7 @@ export function SignInSection({path,request}:{path:string;request:Api}){
    </>}
   </div>
  </div>}
- {current&&tab!=='emails'&&<div className="aw-savebar" role="region" aria-label="Save changes" inert={open?true:undefined}>
+ {current&&tab!=='emails'&&tab!=='phone'&&<div className="aw-savebar" role="region" aria-label="Save changes" inert={open?true:undefined}>
   <p role="status">{dirty?'You have unsaved changes.':current.state==='failed'?'Not applied. Save again to retry.':current.state==='pending'?'Auth is restarting with the saved settings.':'Saving restarts this environment\'s Auth. Users and sessions are kept.'}</p>
   <div className="aw-actions"><button type="button" className="aw-ghost" disabled={busy||!dirty} onClick={discard}>Discard</button>
    <button type="button" className="aw-primary" disabled={busy||(!dirty&&current.state!=='failed')||current.state==='pending'||Boolean(schema.error)} onClick={()=>void save()}><Save aria-hidden="true"/>Save and apply</button></div>

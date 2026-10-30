@@ -5,6 +5,7 @@ import {join} from 'node:path';
 import {Catalog} from './catalog';
 import {authenticate,reply,type ManagementIdentity} from './auth';
 import {authConfigView,REGISTRY} from './auth-config';
+import {ensureSamlKey} from './saml-key';
 
 /** Sign-in settings for one environment: where Auth sends people after a login or an email
  * link, which OAuth providers it offers, and how long its sessions live. The console saves
@@ -25,9 +26,9 @@ type Provider={enabled:boolean;client_id:string;secret:string;url:string;skip_no
  * may stay signed in, and the idle time before a sign out. A null member sets no variable,
  * so that session does not expire. The ranges mirror lab/auth_settings.py `validate`. */
 export type SignInSession={access_token_seconds:number|null;timebox_seconds:number|null;inactivity_seconds:number|null};
-export type SignInSettings={version?:number;revision:number;site_url:string;redirect_urls:string[];signup:boolean;anonymous:boolean;manual_linking:boolean;config:Record<string,boolean|number>;
+export type SignInSettings={version?:number;revision:number;site_url:string;redirect_urls:string[];signup:boolean;anonymous:boolean;manual_linking:boolean;config:Record<string,boolean|number|string>;
  session:SignInSession;providers:Record<string,Provider>};
-export type SignInView=Omit<SignInSettings,'providers'|'revision'|'version'|'config'>&{config:Record<string,boolean|number>}&{providers:Record<string,{enabled:boolean;client_id:string;
+export type SignInView=Omit<SignInSettings,'providers'|'revision'|'version'|'config'>&{config:Record<string,boolean|number|string>}&{providers:Record<string,{enabled:boolean;client_id:string;
  secret_set:boolean;url:string;skip_nonce_check:boolean;email_optional:boolean}>};
 const NO_CAP:SignInSession={access_token_seconds:null,timebox_seconds:null,inactivity_seconds:null};
 const SESSION_RANGE:Record<keyof SignInSession,[number,number]>={access_token_seconds:[60,86400],
@@ -76,11 +77,11 @@ function sessionFromInput(value:unknown,current:SignInSession|null):SignInSessio
 /** The registry's simple settings (store `config`): booleans and bounded integers, one entry each. */
 /** Keys the registry retired: dropped on read and ignored on input, so a file saved before the change still loads. */
 const RETIRED=new Set(Object.keys((REGISTRY as unknown as {retired?:Record<string,string>}).retired??{}));
-const withoutRetired=(config:Record<string,boolean|number>)=>Object.fromEntries(Object.entries(config).filter(([key])=>!RETIRED.has(key)));
+const withoutRetired=(config:Record<string,boolean|number|string>)=>Object.fromEntries(Object.entries(config).filter(([key])=>!RETIRED.has(key)));
 const CONFIG_KEYS=new Map(REGISTRY.core.filter(entry=>entry.store==='config').map(entry=>[entry.key,entry]));
 
 /** One config object from the console's input. An omitted object or member keeps what is saved; null clears a member. */
-function configFromInput(value:unknown,current:Record<string,boolean|number>):Record<string,boolean|number> {
+function configFromInput(value:unknown,current:Record<string,boolean|number|string>):Record<string,boolean|number|string> {
  const result=withoutRetired(current);
  if(value===undefined)return result;
  if(!value||typeof value!=='object'||Array.isArray(value))throw new SettingsError('config');
@@ -90,6 +91,13 @@ function configFromInput(value:unknown,current:Record<string,boolean|number>):Re
   if(!entry)throw new SettingsError('config');
   if(member===null){delete result[key];continue;}
   if(entry.type==='bool'){if(typeof member!=='boolean')throw new SettingsError(key);result[key]=member;continue;}
+  // A text setting is checked against the registry's pattern and length; an empty text clears it, as null does.
+  if(entry.type==='text'){
+   if(typeof member!=='string'||member.length>entry.max!)throw new SettingsError(key);
+   if(member===''){delete result[key];continue;}
+   if(!new RegExp('^(?:'+entry.pattern!+')$').test(member))throw new SettingsError(key);
+   result[key]=member;continue;
+  }
   if(typeof member!=='number'||!Number.isInteger(member)||member<entry.min!||member>entry.max!)throw new SettingsError(key);
   result[key]=member;
  }
@@ -258,11 +266,14 @@ export function signInHandler(catalog:Catalog,identify:ManagementIdentity,direct
    const settings=settingsFromInput(input,before);
    // A save of the mail settings moves the row ahead of this file; the revision never goes back below it.
    settings.revision=Math.max(settings.revision,state.revision+1);
+   // Turning SAML on makes the environment's signing key once (src/control/saml-key.ts); it is kept when SAML is turned off.
+   if(settings.config.SAML_ENABLED===true){try{ensureSamlKey(directory,state.runtime);}catch{throw new SettingsError('saml_key');}}
    writeSettings(directory,state.runtime,settings);
    const saved=catalog.requestSignIn(actor,environment,settings.revision,changedKeys(before,settings));
    return answer(reply(202,{data:{...saved,callback_url,settings:view(settings)}}));
   } catch(error) {
    if(error instanceof SettingsError&&error.message==='file')return reply(409,{message:'The saved settings file cannot be read on the server (a link, wrong permissions, or a newer version). Fix it on the host.'});
+   if(error instanceof SettingsError&&error.message==='saml_key')return reply(409,{message:"This environment's SAML key file cannot be used (a link, wrong permissions or not a key). Fix or remove it on the host; removing it makes a new key, and identity providers must then be given the new certificate."});
    if(error instanceof SettingsError)return reply(400,{message:`Check the ${error.message.replace(/_/g,' ')} setting`});
    if(error instanceof Error&&error.message==='Forbidden')return reply(403,{message:'Forbidden'});
    if(error instanceof Error&&error.message==='Environment is not ready')return reply(409,{message:'Environment is not ready'});

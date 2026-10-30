@@ -1,9 +1,9 @@
 {
  "check": "auth-names",
- "recorded": "2026-10-30T06:55:13Z",
+ "recorded": "2026-10-30T07:33:18Z",
  "passed": true,
- "count": 36,
- "seconds": 69,
+ "count": 46,
+ "seconds": 81,
  "auth_image": "public.ecr.aws/supabase/gotrue:v2.197.0",
  "checks": [
   {
@@ -87,19 +87,39 @@
    "detail": "200 n=5"
   },
   {
+   "check": "an audit entry has the fields the console shows",
+   "ok": true,
+   "detail": "keys=['created_at', 'id', 'ip_address', 'payload'] payload=['action', 'actor_id', 'actor_username', 'actor_via_sso', 'log_type', 'traits']"
+  },
+  {
    "check": "GOTRUE_AUDIT_LOG_DISABLE_POSTGRES true stops audit rows",
    "ok": true,
    "detail": ""
   },
   {
-   "check": "PASSWORD_HIBP_ENABLED refuses a leaked password (needs outbound access)",
+   "check": "default deny: with no outbound network Auth cannot reach the leaked password service (the password is accepted)",
+   "ok": true,
+   "detail": "200"
+  },
+  {
+   "check": "PASSWORD_HIBP_ENABLED refuses a leaked password once Auth has outbound access",
    "ok": true,
    "detail": "422"
+  },
+  {
+   "check": "measured: one Auth restart (stop 0.2 s, start to healthy 1.4 s, 1.6 s in all)",
+   "ok": true,
+   "detail": "stop_s=0.2 start_to_healthy_s=1.4 total_s=1.6"
   },
   {
    "check": "HOOK_CUSTOM_ACCESS_TOKEN: an enabled hook naming a missing function fails the sign up",
    "ok": true,
    "detail": "500"
+  },
+  {
+   "check": "a Postgres function hook adds a claim when the auth role may run it",
+   "ok": true,
+   "detail": "200 hooked=True"
   },
   {
    "check": "SAML_ENABLED with a PKCS#1 key shows saml_enabled in the settings",
@@ -124,12 +144,17 @@
   {
    "check": "SAML_ENABLED without a key is refused at start",
    "ok": true,
-   "detail": "{\"level\":\"fatal\",\"msg\":\"Failed to load configuration: SAML private key not in PKCS#1 format\",\"time\":\"2026-10-30T06:54:49Z\"}"
+   "detail": "{\"level\":\"fatal\",\"msg\":\"Failed to load configuration: SAML private key not in PKCS#1 format\",\"time\":\"2026-10-30T07:32:47Z\"}"
   },
   {
    "check": "RATE_LIMIT_SMS_SENT 1 limits the second message",
    "ok": true,
    "detail": "['sms_send_failed', 'over_sms_send_rate_limit', 'over_sms_send_rate_limit']"
+  },
+  {
+   "check": "SMS_AUTOCONFIRM true signs a new number in without sending a code",
+   "ok": true,
+   "detail": "200"
   },
   {
    "check": "SMS provider messagebird: the variables reach the provider call",
@@ -152,19 +177,44 @@
    "detail": "422"
   },
   {
-   "check": "Auth on the internal network fetched the template from the network gateway address",
+   "check": "Auth on the internal network fetched templates from the network gateway address",
    "ok": true,
-   "detail": "['/token/confirmation']"
+   "detail": "['/token/confirmation', '/token/email_change', '/token/invite', '/token/magic_link', '/token/reauthentication', '/token/recovery']"
   },
   {
-   "check": "the mail carries the custom subject",
+   "check": "MAILER_TEMPLATES_CONFIRMATION and MAILER_SUBJECTS_CONFIRMATION apply to the confirmation message",
    "ok": true,
-   "detail": ""
+   "detail": "messages=1"
   },
   {
-   "check": "the mail body is the served template, with Auth filling the variable",
+   "check": "MAILER_TEMPLATES_INVITE and MAILER_SUBJECTS_INVITE apply to the invite message",
    "ok": true,
-   "detail": ""
+   "detail": "messages=1"
+  },
+  {
+   "check": "MAILER_TEMPLATES_MAGIC_LINK and MAILER_SUBJECTS_MAGIC_LINK apply to the magic_link message",
+   "ok": true,
+   "detail": "messages=1"
+  },
+  {
+   "check": "MAILER_TEMPLATES_EMAIL_CHANGE and MAILER_SUBJECTS_EMAIL_CHANGE apply to the email_change message",
+   "ok": true,
+   "detail": "messages=2"
+  },
+  {
+   "check": "MAILER_TEMPLATES_RECOVERY and MAILER_SUBJECTS_RECOVERY apply to the recovery message",
+   "ok": true,
+   "detail": "messages=1"
+  },
+  {
+   "check": "MAILER_TEMPLATES_REAUTHENTICATION and MAILER_SUBJECTS_REAUTHENTICATION apply to the reauthentication message",
+   "ok": true,
+   "detail": "messages=1"
+  },
+  {
+   "check": "observed: with the template address unreachable, a recovery request still sends a message",
+   "ok": true,
+   "detail": "status=200 new_messages=1 subjects=['Probe recovery'] custom_body_used=True"
   },
   {
    "check": "retired: with GOTRUE_SECURITY_REFRESH_TOKEN_ROTATION_ENABLED=false a refresh still gives a new refresh token",

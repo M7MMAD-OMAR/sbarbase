@@ -492,6 +492,8 @@ class RuntimeFixture(Folder):
         device.start()
         self.addCleanup(device.stop)
         self.runtime = runtime.Runtime.__new__(runtime.Runtime)
+        # These tests answer every container check with yes; a stray `-previous` Auth is tested in test_auth_settings.
+        self.runtime.restore_stray_previous = Mock()
         self.runtime.values = {'environments': {E: {'rest': REST_PASSWORD}}}
         self.runtime.kept = {'containers': {'id-rest': {'image': 'sha256:rest', 'name': f'sbarbase-durable-{E}-rest'}}}
         self.runtime.sql = Mock(side_effect=self.answer)

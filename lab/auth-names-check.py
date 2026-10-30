@@ -227,6 +227,8 @@ def names_with_effect():
         record('audit rows are written by default (control)', int(psql('SELECT count(*) FROM auth.audit_log_entries', E)) > 0)
         s, listing = request(at, 'GET', '/admin/audit?per_page=5', None, service_token())
         record('the admin audit endpoint lists the entries without database access', s == 200 and isinstance(listing, list) and len(listing) > 0, f'{s} n={len(listing) if isinstance(listing, list) else listing}')
+        first = listing[0] if isinstance(listing, list) and listing else {}
+        record('an audit entry has the fields the console shows', {'id', 'created_at', 'ip_address', 'payload'} <= set(first) and {'action', 'log_type'} <= set(first.get('payload', {})), f'keys={sorted(first)} payload={sorted(first.get("payload", {}))}')
     psql('TRUNCATE auth.audit_log_entries', E)
     at = started('audit off', {'GOTRUE_AUDIT_LOG_DISABLE_POSTGRES': 'true'})
     if at:
@@ -234,10 +236,28 @@ def names_with_effect():
         record('GOTRUE_AUDIT_LOG_DISABLE_POSTGRES true stops audit rows', int(psql('SELECT count(*) FROM auth.audit_log_entries', E)) == 0)
     at = started('HIBP', config={'PASSWORD_HIBP_ENABLED': True})
     if at:
+        # Default deny: on the internal network alone Auth has no way out, so the range service cannot be asked and the password is accepted.
+        (s0, _), _ = signup(at, 'password123456')
+        record('default deny: with no outbound network Auth cannot reach the leaked password service (the password is accepted)', s0 == 200, f'{s0}')
         sh('docker', 'network', 'connect', OPEN, AUTH)
         time.sleep(1)
         (s, b), _ = signup(at, 'password123456')
-        record('PASSWORD_HIBP_ENABLED refuses a leaked password (needs outbound access)', s == 422 and b.get('error_code') == 'weak_password', f'{s}')
+        record('PASSWORD_HIBP_ENABLED refuses a leaked password once Auth has outbound access', s == 422 and b.get('error_code') == 'weak_password', f'{s}')
+
+
+def downtime():
+    """How long one Auth restart takes on this machine: the swap the console's apply performs (stop, start, wait for health)."""
+    at = start_auth()
+    if not at:
+        record('measured: Auth restarts', False, auth_log())
+        return
+    begun = time.time()
+    sh('docker', 'stop', AUTH)
+    stopped = time.time()
+    again = start_auth()
+    healthy = time.time()
+    record(f'measured: one Auth restart (stop {stopped - begun:.1f} s, start to healthy {healthy - stopped:.1f} s, {healthy - begun:.1f} s in all)', again is not None,
+           f'stop_s={stopped - begun:.1f} start_to_healthy_s={healthy - stopped:.1f} total_s={healthy - begun:.1f}')
 
 
 def hooks_saml_sms():
@@ -245,6 +265,13 @@ def hooks_saml_sms():
     if at:
         (s, b), _ = signup(at)
         record('HOOK_CUSTOM_ACCESS_TOKEN: an enabled hook naming a missing function fails the sign up', s == 500 and 'hook' in json.dumps(b).lower(), f'{s}')
+    psql(f'CREATE OR REPLACE FUNCTION public.hook_probe(event jsonb) RETURNS jsonb LANGUAGE plpgsql AS $$ BEGIN RETURN jsonb_set(event, \'{{claims,hooked}}\', \'true\'); END $$', E)
+    psql(f'GRANT USAGE ON SCHEMA public TO {E}_auth; GRANT EXECUTE ON FUNCTION public.hook_probe(jsonb) TO {E}_auth', E)
+    at = started('hook that runs', {'GOTRUE_HOOK_CUSTOM_ACCESS_TOKEN_ENABLED': 'true', 'GOTRUE_HOOK_CUSTOM_ACCESS_TOKEN_URI': 'pg-functions://postgres/public/hook_probe'})
+    if at:
+        (s, b), _ = signup(at)
+        claims = json.loads(base64.urlsafe_b64decode(b['access_token'].split('.')[1] + '=='))
+        record('a Postgres function hook adds a claim when the auth role may run it', s == 200 and claims.get('hooked') is True, f'{s} hooked={claims.get("hooked")}')
     key = subprocess.run(['openssl', 'genrsa', '-traditional', '2048'], capture_output=True).stdout
     der = subprocess.run(['openssl', 'rsa', '-traditional', '-outform', 'DER'], input=key, capture_output=True).stdout
     at = started('SAML', {'GOTRUE_SAML_ENABLED': 'true', 'GOTRUE_SAML_PRIVATE_KEY': base64.b64encode(der).decode()})
@@ -270,6 +297,11 @@ def hooks_saml_sms():
     if at:
         codes = [request(at, 'POST', '/signup', {'phone': f'+1555000{i:04d}', 'password': 'correct-horse-battery'})[1].get('error_code') for i in range(3)]
         record('RATE_LIMIT_SMS_SENT 1 limits the second message', codes[0] == 'sms_send_failed' and codes[1] == 'over_sms_send_rate_limit', str(codes))
+    at = started('SMS autoconfirm', {**sms, 'GOTRUE_SMS_AUTOCONFIRM': 'true', 'GOTRUE_SMS_PROVIDER': 'twilio', 'GOTRUE_SMS_TWILIO_ACCOUNT_SID': 'AC1',
+                                     'GOTRUE_SMS_TWILIO_AUTH_TOKEN': 'tok', 'GOTRUE_SMS_TWILIO_MESSAGE_SERVICE_SID': 'MG1'})
+    if at:
+        s, b = request(at, 'POST', '/signup', {'phone': '+15550002222', 'password': 'correct-horse-battery'})
+        record('SMS_AUTOCONFIRM true signs a new number in without sending a code', s == 200 and 'access_token' in (b if isinstance(b, dict) else {}), f'{s}')
     providers = {'messagebird': {'GOTRUE_SMS_MESSAGEBIRD_ACCESS_KEY': 'k', 'GOTRUE_SMS_MESSAGEBIRD_ORIGINATOR': 'o'},
                  'textlocal': {'GOTRUE_SMS_TEXTLOCAL_API_KEY': 'k', 'GOTRUE_SMS_TEXTLOCAL_SENDER': 's'},
                  'vonage': {'GOTRUE_SMS_VONAGE_API_KEY': 'k', 'GOTRUE_SMS_VONAGE_API_SECRET': 's', 'GOTRUE_SMS_VONAGE_FROM': 'f'},
@@ -283,16 +315,19 @@ def hooks_saml_sms():
 
 
 def templates():
+    """All six messages: the address and subject variables of each, fetched from the network gateway address."""
     gateway = sh('docker', 'network', 'inspect', NET, '--format', '{{(index .IPAM.Config 0).Gateway}}').stdout.strip()
     hits = []
+    kinds = ('confirmation', 'invite', 'magic_link', 'email_change', 'recovery', 'reauthentication')
 
     class Handler(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
             hits.append(self.path)
+            kind = self.path.rsplit('/', 1)[-1]
             self.send_response(200)
             self.send_header('content-type', 'text/html')
             self.end_headers()
-            self.wfile.write(b'<html><body><h2>PROBE-TEMPLATE</h2><a href="{{ .ConfirmationURL }}">go</a></body></html>')
+            self.wfile.write(f'<html><body><h2>PROBE-{kind.upper()}</h2><a href="{{{{ .ConfirmationURL }}}}">go</a> {{{{ .Token }}}}</body></html>'.encode())
 
         def log_message(self, *args):
             pass
@@ -302,21 +337,59 @@ def templates():
     sh('docker', 'run', '-d', '--name', MAIL, '--network', NET, '--memory', '128m', MAIL_IMAGE)
     time.sleep(3)
     mail_ip = container_ip(MAIL)
-    at = start_auth({'GOTRUE_SMTP_HOST': MAIL, 'GOTRUE_SMTP_PORT': '1025', 'GOTRUE_SMTP_USER': '', 'GOTRUE_SMTP_PASS': '',
-                     'GOTRUE_SMTP_ADMIN_EMAIL': 'a@example.com', 'GOTRUE_MAILER_AUTOCONFIRM': 'false',
-                     'GOTRUE_MAILER_TEMPLATES_CONFIRMATION': f'http://{gateway}:18181/token/confirmation',
-                     'GOTRUE_MAILER_SUBJECTS_CONFIRMATION': 'Probe subject'}, settings())
-    if at:
-        signup(at)
-        time.sleep(3)
-        with urllib.request.urlopen(f'http://{mail_ip}:8025/api/v1/messages', timeout=5) as r:
-            messages = json.loads(r.read())
-        record('Auth on the internal network fetched the template from the network gateway address', hits == ['/token/confirmation'], str(hits))
-        record('the mail carries the custom subject', 'Probe subject' in json.dumps(messages))
-        with urllib.request.urlopen(f'http://{mail_ip}:8025/api/v1/message/{messages["messages"][0]["ID"]}', timeout=5) as r:
-            message = json.loads(r.read())
-        record('the mail body is the served template, with Auth filling the variable', 'PROBE-TEMPLATE' in message.get('HTML', '') and '{{' not in message.get('HTML', ''))
+    env = {'GOTRUE_SMTP_HOST': MAIL, 'GOTRUE_SMTP_PORT': '1025', 'GOTRUE_SMTP_USER': '', 'GOTRUE_SMTP_PASS': '', 'GOTRUE_SMTP_ADMIN_EMAIL': 'a@example.com',
+           'GOTRUE_MAILER_AUTOCONFIRM': 'false', 'GOTRUE_SMTP_MAX_FREQUENCY': '1s'}
+    for kind in kinds:
+        env['GOTRUE_MAILER_TEMPLATES_' + kind.upper()] = f'http://{gateway}:18181/token/{kind}'
+        env['GOTRUE_MAILER_SUBJECTS_' + kind.upper()] = f'Probe {kind}'
+    at = start_auth(env, settings())
+    if not at:
+        record('templates: Auth starts with all six addresses and subjects', False, auth_log())
+        server.shutdown()
+        return
+    admin = service_token()
+
+    def user():
+        email = f'u{secrets.token_hex(4)}@example.com'
+        request(at, 'POST', '/admin/users', {'email': email, 'password': 'correct-horse-battery-staple', 'email_confirm': True}, admin)
+        s, b = request(at, 'POST', '/token?grant_type=password', {'email': email, 'password': 'correct-horse-battery-staple'})
+        return email, b.get('access_token')
+
+    signup(at)
+    request(at, 'POST', '/invite', {'email': f'i{secrets.token_hex(4)}@example.com'}, admin)
+    request(at, 'POST', '/magiclink', {'email': user()[0]})
+    request(at, 'POST', '/recover', {'email': user()[0]})
+    email, token = user()
+    request(at, 'PUT', '/user', {'email': f'n{secrets.token_hex(4)}@example.com'}, token)
+    request(at, 'GET', '/reauthenticate', None, token)
+    time.sleep(4)
+
+    def mailbox():
+        with urllib.request.urlopen(f'http://{mail_ip}:8025/api/v1/messages?limit=100', timeout=5) as r:
+            return json.loads(r.read())['messages']
+
+    def body(message):
+        with urllib.request.urlopen(f'http://{mail_ip}:8025/api/v1/message/{message["ID"]}', timeout=5) as r:
+            return json.loads(r.read()).get('HTML', '')
+    messages = mailbox()
+    record('Auth on the internal network fetched templates from the network gateway address', len(hits) > 0, str(sorted(set(hits))))
+    for kind in kinds:
+        found = [m for m in messages if m['Subject'] == f'Probe {kind}']
+        text = body(found[0]) if found else ''
+        record(f'MAILER_TEMPLATES_{kind.upper()} and MAILER_SUBJECTS_{kind.upper()} apply to the {kind} message',
+               bool(found) and f'PROBE-{kind.upper()}' in text and '{{' not in text, f'messages={len(found)}')
+    # The console being unreachable: Auth is asked to send a message whose template cannot be fetched.
     server.shutdown()
+    server.server_close()
+    before = len(mailbox())
+    s, b = request(at, 'POST', '/recover', {'email': user()[0]})
+    time.sleep(3)
+    after = mailbox()
+    default_sent = [m for m in after[:len(after) - before] if 'Probe recovery' in m['Subject']] if len(after) > before else []
+    fresh = after[: len(after) - before] if len(after) > before else []
+    html = body(fresh[0]) if fresh else ''
+    record('observed: with the template address unreachable, a recovery request ' + ('still sends a message' if fresh else 'is refused (no message sent)'),
+           True, f'status={s} new_messages={len(fresh)} subjects={[m["Subject"] for m in fresh]} custom_body_used={"PROBE-" in html}')
 
 
 def findings_that_retired_settings():
@@ -348,7 +421,7 @@ def main():
         setup()
         first = start_auth()
         record('first start with the console base configuration', first is not None, '' if first else auth_log())
-        for section in (names_with_effect, hooks_saml_sms, templates, findings_that_retired_settings):
+        for section in (names_with_effect, downtime, hooks_saml_sms, templates, findings_that_retired_settings):
             section()
     finally:
         cleanup()

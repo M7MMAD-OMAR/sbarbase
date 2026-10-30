@@ -92,3 +92,31 @@
 .aw-inline{margin-block-start:8px}
 
 .aw-group+.aw-field{margin-block-start:20px}
+
+/* Emails: the sub navigation, the template editor and its variable list. Tone steps and spacing, no borders. */
+.aw-sub{display:flex;gap:4px;flex-wrap:wrap;margin-block-end:20px}
+.aw-sub button{width:auto;padding:6px 14px;border-radius:999px;background:var(--surface);color:var(--muted);font-size:13px;cursor:pointer}
+.aw-sub button:hover{background:var(--hover);color:var(--text)}
+.aw-sub button.active{background:var(--selected);color:var(--text)}
+.aw-dot{display:inline-block;width:6px;height:6px;margin-inline-start:8px;border-radius:50%;background:var(--accent-solid);vertical-align:middle}
+.aw-wide{max-width:760px}
+.aw-tabs-inline{display:flex;gap:4px;margin-block-end:4px}
+.aw-tabs-inline button{padding:4px 12px;border-radius:var(--radius);background:transparent;color:var(--muted);font-size:13px;cursor:pointer}
+.aw-tabs-inline button.active{background:var(--selected);color:var(--text)}
+.aw-code{width:100%;min-height:260px;padding:12px 14px;border-radius:var(--radius);background:var(--surface);color:var(--text);font-family:var(--mono,ui-monospace,monospace);font-size:13px;line-height:20px;resize:vertical}
+.aw-preview{width:100%;min-height:260px;border-radius:var(--radius);background:#ffffff;color-scheme:light}
+.aw-vars{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:6px}
+.aw-vars li{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;padding:8px 12px;border-radius:var(--radius);background:var(--surface)}
+.aw-vars code{font-size:13px}
+.aw-vars span{color:var(--subtle);font-size:13px}
+.aw-table{overflow-x:auto;border-radius:var(--radius);background:var(--surface)}
+.aw-table table{width:100%}
+.aw-table th{padding:10px 14px;text-align:start;font-size:12px;font-weight:600;color:var(--subtle);text-transform:uppercase;letter-spacing:.05em}
+.aw-table td{padding:10px 14px;font-size:13px;background:linear-gradient(var(--hover),var(--hover)) top/100% 1px no-repeat;vertical-align:top}
+.aw-tag{margin-inline-start:8px;padding:1px 8px;border-radius:999px;background:var(--selected);color:var(--subtle);font-size:11px}
+.aw-group-form{margin-block-start:16px;padding:16px;border-radius:var(--radius);background:var(--surface)}
+.aw-vars strong{font-size:14px}
+.aw-vars button{margin-inline-start:auto}
+.aw-hook+.aw-hook{margin-block-start:8px}
+.aw-hook-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0 16px;padding:0 20px 8px}
+.aw-lead code{font-size:12px;padding:1px 6px;border-radius:6px;background:var(--code-bg)}

@@ -68,7 +68,11 @@ SESSION_LIMITS = {'access_token_seconds': (60, 86400), 'timebox_seconds': (3600,
 # own settings, never a sign of drift.
 # GOTRUE_JWT_EXP and GOTRUE_SESSIONS_ are the session settings below: operator settings of that
 # environment, never drift.
-OWNED_PREFIXES = ('GOTRUE_EXTERNAL_', 'GOTRUE_PASSWORD_', 'GOTRUE_MFA_', 'GOTRUE_SECURITY_MANUAL_LINKING_', 'GOTRUE_SITE_URL', 'GOTRUE_URI_ALLOW_LIST', 'GOTRUE_DISABLE_SIGNUP',
+# The three per client rate limits and the two refresh token settings were retired from the console (the registry's `retired`), but a
+# container started with them still carries them: they stay owned so that container is recreated in place, never reported as drift.
+OWNED_PREFIXES = ('GOTRUE_RATE_LIMIT_TOKEN_REFRESH', 'GOTRUE_RATE_LIMIT_ANONYMOUS_USERS', 'GOTRUE_RATE_LIMIT_WEB3', 'GOTRUE_SECURITY_REFRESH_TOKEN_',
+                  'GOTRUE_EXTERNAL_', 'GOTRUE_PASSWORD_', 'GOTRUE_MFA_', 'GOTRUE_SECURITY_MANUAL_LINKING_', 'GOTRUE_SMS_', 'GOTRUE_RATE_LIMIT_SMS_SENT',
+                  'GOTRUE_HOOK_', 'GOTRUE_SAML_', 'GOTRUE_AUDIT_LOG_', 'GOTRUE_SITE_URL', 'GOTRUE_URI_ALLOW_LIST', 'GOTRUE_DISABLE_SIGNUP',
                   'API_EXTERNAL_URL', 'GOTRUE_JWT_EXP', 'GOTRUE_SESSIONS_')
 
 
@@ -135,6 +139,12 @@ def validate(settings):
         if entry['type'] == 'bool':
             if not isinstance(value, bool):
                 raise SettingsError(key)
+        elif entry['type'] == 'text':
+            # An empty text clears the setting, as None does; any other must match the registry's pattern and length.
+            if not isinstance(value, str) or len(value) > entry['max'] or (value and not re.fullmatch(entry['pattern'], value)):
+                raise SettingsError(key)
+            if not value:
+                continue
         elif isinstance(value, bool) or not isinstance(value, int) or not entry['min'] <= value <= entry['max']:
             raise SettingsError(key)
         result['config'][key] = value
@@ -276,6 +286,16 @@ def configuration(e, settings):
     # A value the person set, and only that: an unset key adds nothing, so Auth keeps its own default.
     for key, value in (settings.get('config') or {}).items():
         config['GOTRUE_' + key] = ('true' if value else 'false') if isinstance(value, bool) else str(value)
+    # SAML needs the environment's signing key (lab/saml_key.py): turning it on without one is refused, never started without.
+    if config.get('GOTRUE_SAML_ENABLED') == 'true':
+        import saml_key
+        try:
+            key = saml_key.load(e)
+        except saml_key.SamlKeyError as error:
+            raise SettingsError('saml_key') from error
+        if key is None:
+            raise SettingsError('saml_key')
+        config['GOTRUE_SAML_PRIVATE_KEY'] = key
     # A null member adds nothing, so a file without session settings yields the same dict as before.
     session = settings.get('session') or {}
     for name, variable in (('access_token_seconds', 'GOTRUE_JWT_EXP'), ('timebox_seconds', 'GOTRUE_SESSIONS_TIMEBOX'),

@@ -28,7 +28,7 @@ test('the workspace uses logical properties so it mirrors right to left',()=>{
 });
 
 test('the sign-in screen sets no inline style and loads nothing from the network',()=>{
- for(const file of ['ui/SignIn.tsx','ui/ProviderIcon.tsx']) {
+ for(const file of ['ui/SignIn.tsx','ui/ProviderIcon.tsx','ui/SmtpPanel.tsx','ui/TemplatesPanel.tsx','ui/EmailsTab.tsx']) {
   const source=readFileSync(file,'utf8');
   expect(source).not.toMatch(/style=\{/);
   expect(source).not.toMatch(/https?:\/\/(?!app\.example|idp\.|api\.example)[^'"`\s]*\.(?:svg|png|jpe?g|webp)/);

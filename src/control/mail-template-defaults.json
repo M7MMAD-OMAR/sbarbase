@@ -1,0 +1,38 @@
+{
+ "about": "The subject and body the pinned Auth sends for each message when an environment has no template of its own (the Supabase defaults), and the variables a template may use. The console shows these; Auth fills the variables.",
+ "kinds": ["confirmation", "invite", "magic_link", "email_change", "recovery", "reauthentication"],
+ "labels": {
+  "confirmation": "Confirm sign up",
+  "invite": "Invite user",
+  "magic_link": "Magic link",
+  "email_change": "Change email address",
+  "recovery": "Reset password",
+  "reauthentication": "Reauthentication"
+ },
+ "subjects": {
+  "confirmation": "Confirm Your Signup",
+  "invite": "You have been invited",
+  "magic_link": "Your Magic Link",
+  "email_change": "Confirm Change of Email",
+  "recovery": "Reset Your Password",
+  "reauthentication": "Confirm reauthentication"
+ },
+ "bodies": {
+  "confirmation": "<h2>Confirm your signup</h2>\n\n<p>Follow this link to confirm your user:</p>\n<p><a href=\"{{ .ConfirmationURL }}\">Confirm your mail</a></p>\n",
+  "invite": "<h2>You have been invited</h2>\n\n<p>You have been invited to create a user on {{ .SiteURL }}. Follow this link to accept the invite:</p>\n<p><a href=\"{{ .ConfirmationURL }}\">Accept the invite</a></p>\n",
+  "magic_link": "<h2>Magic Link</h2>\n\n<p>Follow this link to login:</p>\n<p><a href=\"{{ .ConfirmationURL }}\">Log In</a></p>\n",
+  "email_change": "<h2>Confirm Change of Email</h2>\n\n<p>Follow this link to confirm the update of your email from {{ .Email }} to {{ .NewEmail }}:</p>\n<p><a href=\"{{ .ConfirmationURL }}\">Change Email</a></p>\n",
+  "recovery": "<h2>Reset Password</h2>\n\n<p>Follow this link to reset the password for your user:</p>\n<p><a href=\"{{ .ConfirmationURL }}\">Reset Password</a></p>\n",
+  "reauthentication": "<h2>Confirm reauthentication</h2>\n\n<p>Enter the code: {{ .Token }}</p>\n"
+ },
+ "variables": [
+  {"name": "{{ .ConfirmationURL }}", "about": "The link the person follows"},
+  {"name": "{{ .Token }}", "about": "The 6 digit one time code"},
+  {"name": "{{ .TokenHash }}", "about": "The hashed token, for a link to your own page"},
+  {"name": "{{ .SiteURL }}", "about": "The environment's site URL"},
+  {"name": "{{ .RedirectTo }}", "about": "The redirect address the app asked for"},
+  {"name": "{{ .Email }}", "about": "The person's email address"},
+  {"name": "{{ .NewEmail }}", "about": "The new address, in an email change"},
+  {"name": "{{ .Data }}", "about": "The person's user metadata"}
+ ]
+}

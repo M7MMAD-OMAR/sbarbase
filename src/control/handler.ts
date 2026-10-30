@@ -6,6 +6,9 @@ import type {ManagementIdentity} from './auth';
 import {studioHandler} from './studio';
 import {signInHandler} from './sign-in';
 import {smtpHandler} from './smtp';
+import {mailTemplatesHandler} from './mail-templates';
+import {smsHandler} from './sms';
+import {authAdminHandler,type AuthAdmin} from './auth-admin';
 import {deploymentSetupHandler} from './deployment-setup';
 import {shareHandler} from './share';
 import {invitationHandler,type InvitationAccounts} from './invitations';
@@ -22,10 +25,10 @@ import {signingHandler} from './signing';
 import {RequestLog} from '../gateway/observe';
 
 export function controlHandler(catalog:Catalog,keys:KeyStore,identity:ManagementIdentity,services?:ServiceDiscovery,
- studioKey?:()=>Buffer,requests=new RequestLog(),containers?:ContainerReader,accounts?:InvitationAccounts,direct?:DirectDatabase,functionsBoot?:Boot,functionsUsage?:UsageSource) {
+ studioKey?:()=>Buffer,requests=new RequestLog(),containers?:ContainerReader,accounts?:InvitationAccounts,direct?:DirectDatabase,functionsBoot?:Boot,functionsUsage?:UsageSource,authAdmin?:AuthAdmin) {
  keys.useRuntimeEpoch(runtime=>catalog.runtimeEpoch(runtime));
  const metadata=managementHandler(catalog,identity,undefined,keys),credentials=keyHandler(catalog,keys,identity,services);
- const studio=studioKey?studioHandler(catalog,identity,studioKey):undefined,signIn=signInHandler(catalog,identity),smtp=smtpHandler(catalog,identity,'.secrets/upstream'),
+ const studio=studioKey?studioHandler(catalog,identity,studioKey):undefined,signIn=signInHandler(catalog,identity),smtp=smtpHandler(catalog,identity,'.secrets/upstream'),mailTemplates=mailTemplatesHandler(catalog,identity,'.secrets/upstream'),sms=smsHandler(catalog,identity,'.secrets/upstream'),authAdminRoutes=authAdminHandler(catalog,identity,authAdmin),
   realtime=realtimeHandler(catalog,identity),scheduledJobs=scheduledJobsHandler(catalog,identity),observe=observeHandler(catalog,identity,requests,containers),
   functions=functionsHandler(catalog,identity,undefined,undefined,requests,functionsBoot,functionsUsage),database=databaseHandler(catalog,identity,undefined,direct),externalDatabase=externalDatabaseHandler(catalog,identity,direct),
   signing=signingHandler(catalog,identity),dataApi=dataApiHandler(catalog,identity);
@@ -37,6 +40,9 @@ export function controlHandler(catalog:Catalog,keys:KeyStore,identity:Management
   if(/\/environments\/[^/]+\/deployment-setup$/.test(path))return deploymentSetup(request);
   if(/\/environments\/[^/]+\/(sign-in|auth-config)$/.test(path))return signIn(request);
   if(/\/environments\/[^/]+\/smtp$/.test(path))return smtp(request);
+  if(/\/environments\/[^/]+\/mail-templates$/.test(path))return mailTemplates(request);
+  if(/\/environments\/[^/]+\/sms$/.test(path))return sms(request);
+  if(/\/environments\/[^/]+\/(auth-audit|sso-providers)(\/[^/]+)?$/.test(path))return authAdminRoutes(request);
   if(/\/environments\/[^/]+\/share$/.test(path))return share(request);
   if(path==='/management/invitations/redeem'||/\/organizations\/[^/]+\/invitations(\/|$)/.test(path))return invitations(request);
   if(/\/environments\/[^/]+\/realtime$/.test(path))return realtime(request);

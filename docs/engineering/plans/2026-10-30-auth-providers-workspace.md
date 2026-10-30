@@ -114,6 +114,18 @@ Accepted and committed with independent reviews: A0, A0.5, U0, A1, A2, A3a (cust
 
 None of the accepted phases was run against a live Auth with stub providers. That live pass is the first thing A6 does, and it decides which of the variable names added in A1, A2 and A3 are real.
 
+## Status after A7 (2026-10-30)
+
+All phases are built and committed, each after an independent read only review whose findings were fixed first. What each one does and does not do:
+
+- **A6, live names.** `lab/auth-names-check.py` runs the pinned Auth on a private internal network with a throwaway PostgreSQL and tries each variable with a real request (evidence: `docs/evidence/auth-live-names-2026-10-30/`). It showed that five settings the console offered do nothing and removed them: refresh token rotation and reuse interval (no observable effect), and the token refresh, anonymous and Web3 rate limits (Auth keys them by a client address header that the gateway does not forward; without it they never apply). It also showed that all six `MAILER_TEMPLATES_*` and `MAILER_SUBJECTS_*` names work, that a template is fetched from the runtime network's gateway address, that Auth keeps a fetched body in memory, that a Postgres function hook adds a claim, that `/admin/audit` and `/admin/sso/providers` work without database access, that SMS provider variables reach the provider call, that `RATE_LIMIT_SMS_SENT` limits the second message, and that without an outbound network Auth cannot ask the leaked password service.
+- **A3b, templates.** Auth fetches a body from a URL, so the console serves each environment's saved bodies on its internal route (token in the path) and the runtime records that route's address at start. Decision recorded: other containers on the host's Docker networks can reach that address, so the random token is the protection; `admit` by subnet was not added.
+- **A4, Phone and Hooks.** SMS credentials follow the SMTP pattern (private file, never returned, apply with rollback, outbound network only while on). Only settings the live check could observe are offered (provider, credentials, phone confirmations, hourly limit). Hooks are Postgres functions only: an HTTPS hook needs outbound access and a secret.
+- **A5, SAML.** The console makes and keeps a per environment signing key, turns SAML on, and manages identity providers through the environment's own Auth admin API (three allowed paths, that environment's service token). Metadata is pasted, not fetched.
+- **A7, Audit Logs.** The viewer reads Auth's `/admin/audit`, so the environment's database access stays off; the switch is `AUDIT_LOG_DISABLE_POSTGRES` shown as "Write audit logs to the database". This resolves the open question about the viewer path: Auth's own admin API, not `developerSql`.
+
+Not verified, and the honest limits: delivery through a real SMS provider, a sign-in through a real SAML identity provider, the six hooks other than the access token one, the two provider switches Skip nonce check and Allow users without an email, a Studio-style run of the whole console against a running installation with two environments (the secret scan and the isolation checks run in unit tests against the real handlers and files, `tests/auth-secret-scan.test.ts`, not against a live gateway), and what Auth sends when its first template fetch fails. Per runtime private files (`-auth.json`, `-mail.json`, `-templates.json`, `-sms.json`, `-saml.json`) stay with a soft deleted environment like the others: no purge exists yet (`lab/durable_lifecycle.py`).
+
 ## Security gates
 
 1. **No secret outside file and container.** A test greps every API answer, log line, audit row and catalog column of a saved environment for the secrets used in the test.

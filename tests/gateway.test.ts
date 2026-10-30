@@ -148,16 +148,19 @@ test('upstream answers carry the gateway browser headers, not the upstream ones'
 test('a browser following an email link or an OAuth redirect reaches Auth without a key, and only there',async()=>{
  const {handler,calls}=setup();
  for(const [method,path] of [['GET','/a_prod/auth/v1/verify?token=t&type=signup'],['GET','/a_prod/auth/v1/authorize?provider=github'],
-  ['GET','/a_prod/auth/v1/callback?code=c&state=s'],['POST','/a_prod/auth/v1/callback']] as const)
+  ['GET','/a_prod/auth/v1/callback?code=c&state=s'],['POST','/a_prod/auth/v1/callback'],
+  // SAML: the identity provider's administrator reads the metadata, the visitor's browser posts the answer.
+  ['GET','/a_prod/auth/v1/sso/saml/metadata?download=true'],['POST','/a_prod/auth/v1/sso/saml/acs'],['GET','/a_prod/auth/v1/sso/saml/slo'],['POST','/a_prod/auth/v1/sso/saml/slo']] as const)
   expect((await handler(new Request('http://local'+path,{method,body:method==='POST'?'code=c':undefined}))).status).toBe(200);
- expect(calls).toHaveLength(4);
+ expect(calls).toHaveLength(8);
  expect(calls[0]!.url).toBe('http://auth:9999/verify?token=t&type=signup');
  // The anonymous token stands in for the missing key, as it does for a keyed call.
  expect(new Headers(calls[1]!.options.headers).get('authorization')).toBe('Bearer anon-a');
  for(const [method,path] of [['POST','/a_prod/auth/v1/verify'],['GET','/a_prod/auth/v1/user'],['GET','/a_prod/auth/v1/admin/users'],
-  ['GET','/a_prod/rest/v1/authorize'],['DELETE','/a_prod/auth/v1/callback']] as const)
+  ['GET','/a_prod/rest/v1/authorize'],['DELETE','/a_prod/auth/v1/callback'],['POST','/a_prod/auth/v1/sso/saml/metadata'],['GET','/a_prod/auth/v1/sso/saml/acs'],
+  ['GET','/a_prod/auth/v1/sso/providers'],['GET','/a_prod/auth/v1/admin/sso/providers'],['POST','/a_prod/auth/v1/sso/saml/other']] as const)
   expect((await handler(new Request('http://local'+path,{method}))).status).toBe(401);
- expect(calls).toHaveLength(4);
+ expect(calls).toHaveLength(8);
 });
 test('a Storage upload streams through up to the upload limit; other bodies stay small',async()=>{
  const storageRoute={...route,storage:{url:'http://shared-storage:5000',tenantHost:'a_prod.storage.internal'}};

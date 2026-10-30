@@ -140,7 +140,7 @@ def provision_environment(e, credentials, checkpoint=lambda phase: None, executo
     checkpoint('permissions')
 
 
-def auth_configuration(e, v, database_host, mail=None, settings=None):
+def auth_configuration(e, v, database_host, mail=None, settings=None, applied=False):
     """The environment's Auth environment. Without mail the dict is unchanged, byte for byte.
 
     `mail` is the validated per environment mail configuration, or None. It is
@@ -162,6 +162,9 @@ def auth_configuration(e, v, database_host, mail=None, settings=None):
     # (lab/auth_settings.py). Without either, the values above stay as they are.
     import auth_settings
     config.update(auth_settings.configuration(e, settings))
+    # Phone sign-in and its SMS provider (lab/sms_config.py): its own private file, nothing added without it.
+    import sms_config
+    config.update(sms_config.configuration(e, applied=applied))
     if mail is None:
         return config
     config.update({
@@ -190,6 +193,10 @@ def auth_configuration(e, v, database_host, mail=None, settings=None):
         # (internal/mailer/templatemailer/template.go, loadEntryBody). Omitted when empty,
         # so the pinned Auth keeps its own body and the dict stays as it was.
         config['GOTRUE_MAILER_TEMPLATES_MAGIC_LINK'] = mail['magic_link_template']
+    # The environment's own templates from the console (lab/mail_templates.py) come last, so a message
+    # edited there wins over the older magic link pointer in the mail file. Nothing is added without a file.
+    import mail_templates
+    config.update(mail_templates.configuration(e, applied=applied))
     return config
 
 

@@ -1,58 +1,54 @@
 {
- "phase": "A6a live names",
+ "phase": "A3b templates, A4 phone and hooks, A5 SAML, A6 acceptance, A7 audit logs",
  "recorded": "2026-10-30",
  "sources": {
-  "lab/auth-names-check.py": "5e7c3ce8294167aba41a79f9495934211e2c335e",
-  "src/control/auth-config-registry.json": "9bb4281137ed2400b70546eea9d38741612664ce",
-  "src/control/sign-in.ts": "caa736aba38cb7df5c1a0ad40e6573f6fe9d441e",
-  "lab/auth_settings.py": "37fdb201f07553dd5919ea86b23842f52be5d45e",
-  "ui/SignIn.tsx": "eb72809cf2db5770b635f52b0ab63c6bad0a66a9",
-  "ui/SmtpPanel.tsx": "21a8eea6a9fb10fed4326e789a6461e0b08287bb"
+  "lab/auth-names-check.py": "9a6e811b27c7378692f69ea237fdc14ee44e6916",
+  "lab/mail_templates.py": "002422bd1c768626b85f0bb6798892c1689f7b40",
+  "lab/sms_config.py": "f3828f2e05484124071ef15094ee268236ca0a5b",
+  "lab/saml_key.py": "be1b9a9656cc9a3e2b2e0ce8205a44eed1663896",
+  "lab/auth_settings.py": "46761d84cb8fa4119e500d987b25e4284db975ed",
+  "lab/durable_runtime.py": "75dfc9bda8d5a67a0561560d47bc6d22d885053f",
+  "lab/run.py": "492f50e2947a9987ee063405e687e018771ae900",
+  "src/control/mail-templates.ts": "80d7a85ee34a18ad0a391b3bff4b985536ccbae0",
+  "src/control/sms.ts": "c3a373ae5dbbbc9f6ea3d70bba2040d4c1ae753f",
+  "src/control/auth-admin.ts": "29f0d673539d478191140babd15ef271b591e266",
+  "src/control/saml-key.ts": "c0a71e397d4ef59d8997604e593417595d1fa3cd",
+  "src/control/sign-in.ts": "8d6713488825f7f0affcdbf3f88611a15db93cdc",
+  "src/control/auth-config-registry.json": "662d1c3ac481fa8627ec9584712760069dc72415",
+  "src/gateway/handler.ts": "e77bfdc3d6809c394ace73bfe429b4a3169b1eb5",
+  "ui/TemplatesPanel.tsx": "75b1f8aa73543e37edb13423122dbfbac2a309bd",
+  "ui/SmsPanel.tsx": "aa126e664b6b8769b50410cad94cb56f3a4fd11a",
+  "ui/HooksPanel.tsx": "caad9f59cc37e68f6eb288ea87b7a254a8cea922",
+  "ui/SsoPanel.tsx": "a2cb885e37b10935a55ba5c4911dd78a0bbda9e3",
+  "ui/AuditPanel.tsx": "da26e2bd958a819b8a4edbca2ff8d0c21c44b7f7",
+  "ui/SignIn.tsx": "fffdea23430bcacd5542ca7d9dad7a2236d828a4"
  },
  "live_check": {
   "file": "checks.json",
   "passed": true,
-  "count": 36,
-  "seconds": 69,
+  "count": 46,
+  "seconds": 81,
   "auth_image": "public.ecr.aws/supabase/gotrue:v2.197.0"
  },
- "findings": {
-  "removed": [
-   "SECURITY_REFRESH_TOKEN_ROTATION_ENABLED",
-   "SECURITY_REFRESH_TOKEN_REUSE_INTERVAL",
-   "RATE_LIMIT_TOKEN_REFRESH",
-   "RATE_LIMIT_ANONYMOUS_USERS",
-   "RATE_LIMIT_WEB3"
-  ],
-  "confirmed_names": [
-   "DISABLE_SIGNUP",
-   "JWT_EXP",
-   "PASSWORD_MIN_LENGTH",
-   "PASSWORD_HIBP_ENABLED",
-   "SESSIONS_SINGLE_PER_USER",
-   "SESSIONS_TIMEBOX",
-   "SESSIONS_INACTIVITY_TIMEOUT",
-   "MFA_MAX_ENROLLED_FACTORS",
-   "MFA_TOTP_ENROLL_ENABLED",
-   "MFA_TOTP_VERIFY_ENABLED",
-   "SECURITY_MANUAL_LINKING_ENABLED",
-   "EXTERNAL_ANONYMOUS_USERS_ENABLED",
-   "AUDIT_LOG_DISABLE_POSTGRES",
-   "HOOK_CUSTOM_ACCESS_TOKEN_ENABLED/URI",
-   "SAML_ENABLED/SAML_PRIVATE_KEY",
-   "SMS provider variables for twilio, twilio_verify, messagebird, textlocal, vonage",
-   "RATE_LIMIT_SMS_SENT",
-   "MAILER_TEMPLATES_CONFIRMATION and MAILER_SUBJECTS_CONFIRMATION"
-  ]
+ "measured": {
+  "one Auth restart on this machine (pinned Auth, small database)": "stop 0.2 s, start to healthy 1.4 s, 1.6 s in all; the console apply adds a rename and a health poll"
  },
+ "reviews": [
+  "independent review of A3b: 11 findings, all fixed (templates file ahead of a failed apply handled by settings ownership, retired keys kept owned, lone surrogates, UI byte limits, route reach wording, studio reset keeps the route address)",
+  "independent review of A4 to A7: 14 findings, fixed (SAML metadata and ACS now pass the gateway without a key, applied copies for phone and templates, SAML key validation at save, hooks UI, SSO gating, provider name guard, anchored pattern, docs wording)"
+ ],
  "tests": {
-  "bun": "tests/sign-in.test.ts tests/auth-config.test.ts tests/smtp.test.ts tests/auth-workspace-ui.test.ts: 30 pass",
-  "python": "test_auth_settings test_auth_config_registry test_smtp_console test_mail_config test_doc_references test_docs_bilingual test_docs_links: 146 pass"
+  "bun": "sign-in, auth-config, smtp, auth-workspace-ui, mail-templates, sms, auth-admin, saml-key, auth-secret-scan, gateway: 69 pass",
+  "python": "all lab tests except pre-existing failures (test_capability_registry binds catalog.ts hash at release, test_upgrade_check channel releases, acceptance style checks needing a server)"
  },
+ "visual": "built-in browser with a throwaway Vite harness (deleted): Templates, Hooks, Single Sign-On and Audit Logs pages at desktop width, Templates at mobile width; no horizontal overflow",
  "not_verified": [
-  "SKIP_NONCE_CHECK and EMAIL_OPTIONAL provider variables (effect needs a real provider sign-in)",
-  "the other six hooks beyond CUSTOM_ACCESS_TOKEN (same naming pattern, not tried)",
-  "HTTPS hooks and SMS delivery to a real provider",
-  "the console path end to end on a live installation"
+  "delivery through a real SMS provider",
+  "a sign-in through a real SAML identity provider",
+  "the six hooks other than the access token one",
+  "Skip nonce check and Allow users without an email provider switches",
+  "a live two environment run through the real gateway and console (isolation and secret scan are unit tests against the real handlers and files)",
+  "what Auth sends when its first template fetch fails",
+  "Arabic RTL rendering of the new pages (layout uses logical properties; the console text is English only)"
  ]
 }

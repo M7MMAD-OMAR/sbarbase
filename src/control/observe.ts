@@ -38,11 +38,12 @@ const QUERY_SECRET=/([?&](?:code|key|sig|state)=)([^&\s"',;}]+)/gi;
 const BEARER=/\b(bearer\s+)[A-Za-z0-9._~+/=-]+/gi;
 const JWT=/\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]*/g;
 const PUBLISHABLE=/\bsb_(publishable|secret)_[A-Za-z0-9_-]+/g;
+const TEMPLATE_TOKEN=/(\/mail-templates\/)[a-f0-9]{64}/g;
 const CONNECTION=/(postgres(?:ql)?:\/\/[^:\s/@]+:)[^@\s]+@/gi;
 
 /** Removes what could let someone act as a user or the service from a log line. */
 export function redact(line:string):string {
- return line.replace(CONNECTION,'$1[redacted]@').replace(JWT,'[redacted]').replace(PUBLISHABLE,'[redacted]')
+ return line.replace(TEMPLATE_TOKEN,'$1[redacted]').replace(CONNECTION,'$1[redacted]@').replace(JWT,'[redacted]').replace(PUBLISHABLE,'[redacted]')
   .replace(BEARER,'$1[redacted]').replace(SECRET_PARAMETER,'$1[redacted]')
   .replace(QUERY_SECRET,'$1[redacted]');
 }

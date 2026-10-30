@@ -137,9 +137,11 @@ export function gatewayKeyAccess(request:Request,service:string,path:string,veri
     !!signedTokens[0]&&signedTokens[0].length<=8192);
   // A browser reaches these by following a link or a redirect, so it cannot send a key:
   // an email link (verify), the start of an OAuth sign-in (authorize) and the provider's
-  // return (callback, which Apple posts as a form). Auth checks each one itself.
-  const browserAuthStep=service==='auth'&&(readMethod&&/^\/(authorize|verify|callback)$/.test(path)||
-    request.method==='POST'&&path==='/callback');
+  // return (callback, which Apple posts as a form). Auth checks each one itself. SAML works the same
+  // way: an identity provider's administrator reads the service provider metadata, and the visitor's
+  // browser posts the identity provider's answer to the assertion consumer service (acs).
+  const browserAuthStep=service==='auth'&&(readMethod&&/^\/(authorize|verify|callback|sso\/saml\/(metadata|slo))$/.test(path)||
+    request.method==='POST'&&/^\/(callback|sso\/saml\/(acs|slo))$/.test(path));
   // A function may be called without a key (a payment provider's webhook, say): the function's
   // own verify_jwt setting decides, in the Edge Functions runtime, as on Supabase.
   const keylessFunction=service==='functions'&&apiKey===null;

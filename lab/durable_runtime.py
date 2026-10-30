@@ -29,6 +29,9 @@ import pressure_admission
 import source_fence
 import mail_config
 import auth_settings
+import mail_templates
+import sms_config
+import saml_key
 import scheduled_jobs
 import data_api
 import mail_state
@@ -306,7 +309,9 @@ def settings_only(component, configured, desired):
     sign-in settings (lab/auth_settings.py), or a retained Storage only in its upload limit,
     in either direction."""
     if component == 'auth':
-        owned = auth_settings.owned
+        # An environment's email templates and subjects (lab/mail_templates.py) are settings too: a file saved ahead of a failed
+        # apply, or a moved route address, recreates that Auth in place instead of counting as drift.
+        owned = lambda key: auth_settings.owned(key) or key.startswith(mail_templates.OWNED_PREFIXES)
     elif component in TUNABLE:
         owned = TUNABLE[component].__contains__
     else:
@@ -330,6 +335,24 @@ def signing_only(component, configured, desired):
         return False
     patched = {**configured, key: desired.get(key)}
     return all(patched.get(k) == v for k, v in desired.items()) or settings_only(component, patched, desired)
+
+
+# What building an environment's Auth configuration refuses with: a settings, template, phone or SAML file that cannot be used.
+CONFIG_ERRORS = (mail_templates.TemplatesError, sms_config.SmsError, saml_key.SamlKeyError, auth_settings.SettingsError)
+
+
+def publish_internal_route():
+    """Record where the console's internal route listens: the host's address on the runtime network and the
+    port Studio uses. The console opens that listener when it sees the record, and Auth fetches an
+    environment's email templates there (lab/mail_templates.py). Nothing else is added to the Studio state."""
+    gateway = lab.docker('network', 'inspect', NETWORK, '--format', '{{(index .IPAM.Config 0).Gateway}}').stdout.strip()
+    if not re.fullmatch(r'\d+\.\d+\.\d+\.\d+', gateway):
+        return
+    state = runtime_files.read_studio(STATE)
+    wanted = {'host': gateway, 'port': mail_templates.ROUTE_PORT}
+    if state.get('upstream') != wanted:
+        state['upstream'] = wanted
+        runtime_files.write_studio(state, STATE)
 
 
 class SettingsRefused(RuntimeError):
@@ -592,12 +615,13 @@ def join(container, networks):
             lab.docker('network', 'connect', network, container)
 
 
-def egress_wanted(mail, settings):
-    """Whether an environment's Auth needs a way out: a mail configuration, an enabled OAuth provider, or leaked
-    password protection (Auth asks the Have I Been Pwned range service)."""
+def egress_wanted(mail, settings, e=None, phone=None):
+    """Whether an environment's Auth needs a way out: a mail configuration, an enabled OAuth provider, leaked
+    password protection (Auth asks the Have I Been Pwned range service), or an SMS provider (lab/sms_config.py)."""
     providers = (settings or {}).get('providers') or {}
     leaked = bool(((settings or {}).get('config') or {}).get('PASSWORD_HIBP_ENABLED'))
-    return mail is not None or leaked or any(entry.get('enabled') for entry in providers.values())
+    texting = (phone is not None and sms_config.wanted(e, document=phone)) or (phone is None and e is not None and sms_config.wanted(e))
+    return mail is not None or leaked or texting or any(entry.get('enabled') for entry in providers.values())
 
 
 def egress(name, wanted):
@@ -899,6 +923,7 @@ class Runtime:
             raise RuntimeError('Insufficient runtime memory headroom')
         if not inspect('network', NETWORK):
             lab.docker('network', 'create', '--internal', '--label', 'io.sbarbase.owner='+OWNER, NETWORK)
+        publish_internal_route()
         launched_cid,created=self.launch(DB, 'db', {'POSTGRES_PASSWORD': self.values['admin'], 'POSTGRES_HOST': '/var/run/postgresql', 'POSTGRES_DB': 'postgres'},
                     '1024m', 1, database_mounts(),
                     ('postgres', '-c', 'config_file=/etc/postgresql/postgresql.conf', '-c', 'log_statement=none'), tier='system.db')
@@ -1323,7 +1348,7 @@ class Runtime:
             self.launch(name, service, config, '256m', .25, existing_only=not creating, tier='production', rotating=rotating)
             if service == 'auth':
                 # A retained Auth from before this rule had no way out; one with mail or a provider gets it here.
-                egress(name, egress_wanted(mail, settings))
+                egress(name, egress_wanted(mail, settings, e))
             endpoints[service] = self.endpoint(name, port)
             self.wait(endpoints[service]+suffix)
         if creating:effect_receipt.native_stage(STATE,e,'storage')
@@ -1382,7 +1407,12 @@ class Runtime:
         """The settings this version runs the environment's Auth or REST with (activate_services, and
         lab/rolling.py for a side by side replacement)."""
         if service == 'auth':
-            return lab.auth_configuration(e, v, DB, mail, load_settings(e))
+            settings = load_settings(e)
+            try:
+                # A start or a replacement uses what the running Auth was last applied with, never a save still waiting for its apply.
+                return lab.auth_configuration(e, v, DB, mail, settings, applied=True)
+            except CONFIG_ERRORS as error:
+                raise SettingsRefused(f'Email templates or phone settings for {e} cannot be used ({error}); Auth was not changed. Fix the file and apply again.') from error
         # The function that applies the Data API settings, and the empty schema as the container's
         # own: a load that function refuses falls back to these, never to `public`.
         config = lab.rest_configuration(e, v, DB)
@@ -1455,12 +1485,12 @@ class Runtime:
             raise RuntimeError('Reconcile requires the retained Auth container')
         mail = None if off else mail_config.load(e)
         settings = load_settings(e)
-        desired = lab.auth_configuration(e, self.values['environments'][e], DB, mail, settings)
+        desired = lab.auth_configuration(e, self.values['environments'][e], DB, mail, settings, applied=True)
         configured = dict(entry.split('=', 1) for entry in actual['Config'].get('Env', []) if '=' in entry)
         # Before the comparison: a mail configuration written before the outbound network existed
         # leaves every mail key equal here, and the environment would keep an Auth that cannot
         # reach the relay it is configured with.
-        egress(name, egress_wanted(mail, settings))
+        egress(name, egress_wanted(mail, settings, e))
         if {k: v for k, v in configured.items() if is_mail_key(k)} == {k: v for k, v in desired.items() if is_mail_key(k)}:
             # The recorded state is the four state vocabulary the configuration
             # defines, so an unchanged reconcile records that the configuration is
@@ -1471,7 +1501,7 @@ class Runtime:
             return
         lab.docker('rm', '-f', name)
         self.launch(name, 'auth', desired, '256m', .25, tier='production')
-        egress(name, egress_wanted(mail, settings))
+        egress(name, egress_wanted(mail, settings, e))
         self.wait(self.endpoint(name, 9999)+'/health')
         self.publish_auth(e, name)
         mail_state.record(e, 'off' if off else 'applied', mail)
@@ -1512,7 +1542,14 @@ class Runtime:
             raise RuntimeError('Sign-in settings need the retained Auth container')
         settings = auth_settings.load(e)
         mail = mail_config.load(e)
-        desired = lab.auth_configuration(e, self.values['environments'][e], DB, mail, settings)
+        try:
+            templates = mail_templates.load(e)
+            phone = sms_config.load(e)
+            if templates is not None:
+                publish_internal_route()
+            desired = lab.auth_configuration(e, self.values['environments'][e], DB, mail, settings)
+        except CONFIG_ERRORS as error:
+            raise RuntimeError(f'Email templates or phone settings cannot be used ({error}); Auth was not changed') from error
         # The running Auth steps aside rather than going away, so a new one that does not
         # start leaves the environment exactly as it was.
         if inspect('container', previous):
@@ -1521,7 +1558,7 @@ class Runtime:
         lab.docker('rename', name, previous)
         try:
             self.launch(name, 'auth', desired, '256m', .25, tier='production')
-            egress(name, egress_wanted(mail, settings))
+            egress(name, egress_wanted(mail, settings, e, phone=phone))
             self.wait(self.endpoint(name, 9999)+'/health')
             # The copy every restart uses, from the very settings this Auth started with, kept before the
             # old Auth is removed: a failure here rolls back like a failed start.
@@ -1529,6 +1566,9 @@ class Runtime:
                 auth_settings.applied_path(e).unlink(missing_ok=True)
             else:
                 auth_settings.write_applied(e, settings)
+            # The same for the email templates and the phone settings: restarts read these copies, never a save still waiting.
+            mail_templates.write_applied(e, templates)
+            sms_config.write_applied(e, phone)
         except Exception:
             if inspect('container', name):
                 lab.docker('rm', '-f', name)

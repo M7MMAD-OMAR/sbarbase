@@ -24,6 +24,7 @@ import {supabaseApi,refOf,inScope} from './supabase-api';
 import {developerSql,type SqlRunner} from './agent-sql';
 import {mcpEndpoint} from './mcp';
 import {publicUrl} from './sign-in';
+import {authAdminThrough} from './auth-admin';
 
 /** Access for agents and tools (docs/guides/agents.md): personal access tokens, the
  * Supabase-compatible API under /v1 and the MCP endpoint. Off when no token store is given. */
@@ -60,6 +61,14 @@ export function application(catalog:Catalog,keys:KeyStore,realm:ManagementRealm,
   const route=routeWithPlacement(resolve(runtime),routing,resolveRuntimePlacement(runtime,routing));
   return {url:route?.functions?.url,token:route?.serviceToken};
  };
+ // The Authentication pages that use the environment's own Auth admin API (Audit Logs, Single sign-on) reach it the same way.
+ const authWhere=(runtime:string)=>{
+  const routing=catalog.runtimeRouting(runtime);
+  if(routing.maintenance)return 'maintenance' as const;
+  const route=routeWithPlacement(resolve(runtime),routing,resolveRuntimePlacement(runtime,routing));
+  return {url:route?.auth,token:route?.serviceToken};
+ };
+ const authAdmin=authAdminThrough(authWhere,transport);
  const functionsBoot=bootThrough(functionsWhere,transport);
  const functionsUsage=usageThrough(functionsWhere,transport);
  const control=controlHandler(catalog,keys,identity,runtime=>{
@@ -72,7 +81,7 @@ export function application(catalog:Catalog,keys:KeyStore,realm:ManagementRealm,
    if(!route||!route.enabled)throw new Error('Runtime routing unavailable');
    return [...(route.storage?['auth','rest','storage'] as const:['auth','rest'] as const),...(route.realtime?['realtime'] as const:[]),...(route.functions?['functions'] as const:[])];
   }catch(error){throw error instanceof PlacementUnavailable?error:new PlacementUnavailable();}
- },studioKey,requests,containers,accounts,direct,functionsBoot,functionsUsage);
+ },studioKey,requests,containers,accounts,direct,functionsBoot,functionsUsage,authAdmin);
  // Each environment's answers are counted for its logs and metrics (src/gateway/observe.ts).
  const gateway=observedGateway(managedGateway(catalog,keys,resolve,transport),requests,runtime=>{
   try{

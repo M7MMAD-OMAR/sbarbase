@@ -515,7 +515,8 @@ def reset():
     for e in sorted(targets):
         if RUNTIME_ID.fullmatch(e):
             down(e)
-    save_state({'sessions': {}})
+    # The internal route's address stays recorded: Auth fetches email templates there (lab/mail_templates.py), so a reset must not close it.
+    save_state({'sessions': {}, **({'upstream': state['upstream']} if isinstance(state.get('upstream'), dict) else {})})
     return sorted(targets)
 
 

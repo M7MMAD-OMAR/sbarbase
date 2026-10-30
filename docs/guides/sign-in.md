@@ -76,18 +76,59 @@ One bar at the bottom of the page saves everything: it says when you have unsave
 - Only owners and admins see the page.
 - The logos are local files of the console, never loaded from another site; their source and terms are in `ui/assets/providers/SOURCES.md`. Microsoft (Azure) and WorkOS show a letter instead of a logo.
 
-The remaining Authentication pages of the Supabase cloud (email templates and SMTP, rate limits, multi-factor, attack protection, audit logs) are planned in [the Authentication workspace plan](../engineering/plans/2026-10-30-auth-providers-workspace.md). Studio's own Authentication settings pages stay hidden by upstream design, so the console is where they are built.
+The plan and its limits are in [the Authentication workspace plan](../engineering/plans/2026-10-30-auth-providers-workspace.md). Studio's own Authentication settings pages stay hidden by upstream design, so the console is where they are built.
 
 ## Emails: custom SMTP
 
 On the **Emails** page, turn on **Enable custom SMTP**, then enter **Sender email address**, **Sender name**, **Host**, **Port number**, **Username** and **Password** and press **Save changes**. Saving writes this environment's private mail file on the server and restarts its Auth with it; if Auth does not start, the previous Auth keeps running, the mail file goes back to what it was, and the badge says **Not applied**. **Applied** means Auth started with the settings, not that your SMTP provider accepts them: try a test sign-up.
-- **New sign-ups must then confirm their email address** (people who already signed up are not affected). Under **Confirmation and limits** on the same page, **Confirm email** turns that off (recovery and magic link emails then lose the confirmation throttle), and four numbers set the email limits: emails per hour, sign-in email requests and token verifications per IP in 5 minutes, and the minimum seconds between two emails to one user. The emails per hour and the minimum seconds may be left empty to keep the value in the file; the two per IP limits are required. Turning **Confirm email** off means new sign-ups are not checked against the address they give (anyone can register an address that is not theirs), and Auth then does not apply the hourly email limit.
+- **New sign-ups must then confirm their email address** (people who already signed up are not affected). Under **Confirmation and limits** on the same page, **Confirm email** turns that off (recovery and magic link emails then lose the confirmation throttle), and four numbers set the email limits: emails per hour, sign-in email requests and token verifications in 5 minutes (counted for the whole environment, not per visitor), and the minimum seconds between two emails to one user. The emails per hour and the minimum seconds may be left empty to keep the value in the file; the two 5 minute limits are required. Turning **Confirm email** off means new sign-ups are not checked against the address they give (anyone can register an address that is not theirs), and Auth then does not apply the hourly email limit.
 
 - The password is never shown again: a saved one reads "Stored password is hidden. Enter a new password to replace it." Leaving the field empty keeps it.
-- Turning the switch off and saving removes the stored SMTP settings and password from this environment. The settings you do not see here (code length and lifetime, the trusted client address header, reply-to) keep their file values, or these defaults for a new file: a 6 digit code valid for one hour and no reply-to address. A new file starts with 60 s between two mails to one user, 30 emails an hour, 30 sign-in email requests and 30 verifications per IP in 5 minutes, and confirmation required.
+- Turning the switch off and saving removes the stored SMTP settings and password from this environment. The settings you do not see here (code length and lifetime, the trusted client address header, reply-to) keep their file values, or these defaults for a new file: a 6 digit code valid for one hour and no reply-to address. A new file starts with 60 s between two mails to one user, 30 emails an hour, 30 sign-in email requests and 30 verifications in 5 minutes, and confirmation required.
 - The same file can still be written from the host with `lab/mail_config.py` ([environment email](../engineering/ENVIRONMENT-EMAIL.md)).
 - Without SMTP no email is sent: sign-ups are confirmed automatically, as on any Auth with no mail relay.
-- Email templates are not on this page yet.
+- Email templates have their own sub page, below.
+
+## Emails: templates
+
+Under **Emails**, open **Templates**. The six messages Auth sends (Confirm sign up, Invite user, Magic link, Change email address, Reset password, Reauthentication) each have a **Subject heading** and an HTML message, with a **Source** and a **Preview** view and the list of variables Auth fills in (`{{ .ConfirmationURL }}`, `{{ .Token }}`, `{{ .Email }}` and the others). **Reset to default** brings back Supabase's own text; a message left as the default is stored as nothing, and Auth keeps using its own.
+
+- The pinned Auth does not take a message body in its settings: it takes the address of a page and fetches it each time it sends. The console serves each environment's messages on its internal route, `/<environment>/mail-templates/<token>/<message>`, on the host's address on the runtime network. Other containers on this host's Docker networks can reach that address, so the token is the protection, not the network. The token is random, one per environment, kept in a private file (`<runtime>-templates.json`, mode 0600) and in that environment's Auth only; it is never shown. A request that names another environment, a wrong token or a message with no custom body gets the same plain 404.
+- Saving restarts this environment's Auth, like every Authentication change, because the addresses and subjects are Auth settings. If it does not start, the previous Auth keeps running and the badge says **Not applied**.
+- A message needs **custom SMTP** to be delivered; templates alone send nothing, and Auth is given them only while custom SMTP is on. The page says so when SMTP is off.
+- The route answers only while the console is running and the host firewall lets containers reach the runtime network address (the same port Studio uses, 25432 unless `SBARBASE_STUDIO_UPSTREAM_PORT` says otherwise). A firewall rule that blocks it makes Auth fall back to its own text although the badge says **Applied**; Applied does not probe the route.
+- A template that Auth cannot parse (for example a `{{` with no `}}`) is refused when you save. A variable name Auth does not know is not caught here; send a test message to check.
+- Auth keeps a body in memory after it first fetches it. The live check in `docs/evidence/auth-live-names-2026-10-30/` stopped the template server after Auth had fetched the six messages and asked for a password recovery: the message was sent with the custom subject and the custom body. That is why every save restarts Auth: a changed body is picked up when Auth starts again. What Auth sends when the first fetch fails was not tested.
+- A custom body saved here wins over the older `magic_link_template` address in the mail file.
+
+## Phone
+
+**Phone** turns on sign-up and sign-in with a phone number and a code sent by SMS. Pick a **Provider** (Twilio, Twilio Verify, MessageBird, Textlocal or Vonage), enter its credentials, and press **Save changes**. Credentials are written to a private file on the server (`<runtime>-sms.json`, mode 0600) and never shown again; a stored one reads "Stored value is hidden". Changing the provider needs that provider's own credentials: the old ones are not carried over. **Enable phone confirmations** is on by default; turning it off signs new numbers in without checking that the number is theirs. **Rate limit for sending SMS** caps the messages this environment sends per hour, across all numbers, which bounds what the provider can bill you.
+
+- While phone sign-in is on, this environment's Auth can reach the internet, because every provider is an HTTPS service. Turning it off removes the credentials from the file and that access again (unless mail or another provider needs it).
+- The live check (`lab/auth-names-check.py`) showed that each provider's variables reach the provider call and that the hourly limit stops the second message. It did not deliver a message through a real provider: sign up with a real number to check the credentials.
+- Not offered: the minimum interval per number, the message template and the code length and lifetime. The live check could not observe them without a real provider.
+
+## Hooks
+
+**Hooks** lists the seven Auth hooks of the Supabase cloud (Customize Access Token claims, Send Email, Send SMS, MFA Verification Attempt, Password Verification Attempt, Before User Created, After User Created). Turn one on and name a Postgres function by schema and name; Auth calls it in this environment's database as its own Auth login (`<runtime>_auth`). Create the function in the SQL editor, then run the two `grant` lines the page shows so that login may run it. The live check ran a hook that adds a claim to the access token and saw the claim in the token; a hook naming a missing function makes sign-up fail with an error, so test a hook before you leave it on.
+
+- Only Postgres function hooks are offered. An HTTPS hook needs the environment's Auth to reach the internet and a shared secret, which the console does not set up.
+- The live check tried the access token hook; the other six use the same variable names and were not tried one by one.
+
+## Single Sign-On (SAML)
+
+**Single Sign-On** turns on SAML 2.0 for the environment and manages its identity providers. The first time you turn on **Enable SAML 2.0 Single Sign-On** and save, the console makes the environment's SAML signing key (a private file, `<runtime>-saml.json`, mode 0600) and keeps it when SAML is turned off, because identity providers trust its certificate. Once applied, the page shows the **SAML metadata URL** and the **ACS URL** to give to the identity provider, lists the providers, adds one from pasted **Metadata XML** with the **Domains** whose people it serves, and removes one. People whose email is on a listed domain can sign in through that provider when your app asks for single sign-on (`signInWithSSO`).
+
+- A metadata web address is not fetched: Auth would need to reach the internet for that. Download the XML from the identity provider and paste it.
+- The providers live in the environment's Auth and are managed through its admin API, so the environment's database access does not need to be on. Adding and removing a provider is in the activity log by provider id.
+- The metadata and ACS addresses are served through the gateway without an API key, as an identity provider's administrator and the visitor's browser cannot send one (a gateway test covers the paths).
+- The signing key file is kept when SAML is turned off. If it is removed or damaged, saves that keep SAML on are refused with a message, and a start of that environment is refused until the file is fixed on the host; removing it makes a new key, and every identity provider must then be given the new certificate.
+- The live check turned SAML on with a generated key, created a provider from metadata XML, listed and removed it. It did not complete a sign-in through a real identity provider.
+
+## Audit Logs
+
+**Audit Logs** lists what the environment's Auth recorded (sign-ins, sign-ups, token refreshes, account changes), newest first, 50 to a page, with who, what, the IP address and when. The list comes from Auth's own admin API, so the environment's database access does not need to be on. **Write audit logs to the database** is the switch; off stops new entries and keeps the old ones, and the page says so. The people in the list are that environment's users: only owners and admins see it.
 
 ## What happens when you save
 

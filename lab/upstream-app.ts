@@ -15,6 +15,7 @@ import {application} from '../src/control/application';
 import {readJsonCached} from '../src/http/cached-json';
 import {DirectDatabase} from '../src/http/database-proxy';
 import {studioKey,studioProxy,studioUpstream} from '../src/control/studio';
+import {mailTemplateRoute} from '../src/control/mail-templates';
 import {catalogRealtimeRoute,realtimeUpgrade} from '../src/gateway/realtime';
 import {RequestLog} from '../src/gateway/observe';
 import type {EnvironmentRoute} from '../src/gateway/handler';
@@ -145,6 +146,8 @@ export function openUpstreamApplication() {
   // One monitor per process, over the one application gate: a busy environment's operator notice.
   const pressure=new PressureMonitor(applicationConcurrency,(runtime,saturation)=>catalog.environmentSaturated(runtime,saturation));
   pressure.start();
-  return {handler,studio,upstream,realtime,catalog,keys,tokens,database,listening(port:number){loopback=`http://127.0.0.1:${port}`;},
+  // The internal route also serves each environment's email templates to its own Auth (src/control/mail-templates.ts).
+  const templates=mailTemplateRoute('.secrets/upstream');
+  return {handler,studio,upstream:(request:Request)=>templates(request)??upstream(request),realtime,catalog,keys,tokens,database,listening(port:number){loopback=`http://127.0.0.1:${port}`;},
    close(){database.stop();pressure.stop();catalog.close();keys.close();tokens.close();}};
 }
