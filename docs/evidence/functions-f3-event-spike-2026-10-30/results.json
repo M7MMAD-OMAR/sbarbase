@@ -1,0 +1,120 @@
+{
+ "date": "2026-10-30",
+ "what": "What the pinned edge-runtime (v1.77.4) event worker receives, measured in one throwaway container launched with the production flags (cap-drop ALL, no-new-privileges, read only root, 32m noexec tmpfs, unprivileged user, 384m, 0.5 CPU) with `--event-worker /home/deno/event` and four functions (talk: console.log and console.error, burn: 40 million loop iterations, boom: throws in the handler, heap: allocates 2 million strings), each called once or twice through the real lab/functions/main. The event worker only printed what it received. Removed afterwards.",
+ "event_types_seen": {
+  "Boot": 4,
+  "Log": 5,
+  "Shutdown": 4
+ },
+ "samples": {
+  "Boot": {
+   "timestamp": "2026-10-30T05:37:42.693Z",
+   "event_type": "Boot",
+   "event": {
+    "boot_time": 25
+   },
+   "metadata": {
+    "service_path": "/home/deno/functions/v1/talk",
+    "execution_id": "80cf6aed-8d55-476b-964f-04a38806f40e",
+    "otel_attributes": {
+     "edge_runtime.worker.kind": "user"
+    }
+   }
+  },
+  "Log": {
+   "timestamp": "2026-10-30T05:37:42.708Z",
+   "event_type": "Log",
+   "event": {
+    "msg": "hello from talk\n",
+    "level": "Info"
+   },
+   "metadata": {
+    "service_path": "/home/deno/functions/v1/talk",
+    "execution_id": "80cf6aed-8d55-476b-964f-04a38806f40e",
+    "otel_attributes": {
+     "edge_runtime.worker.kind": "user"
+    }
+   }
+  },
+  "Shutdown": {
+   "timestamp": "2026-10-30T05:38:57.713Z",
+   "event_type": "Shutdown",
+   "event": {
+    "reason": "EarlyDrop",
+    "cpu_time_used": 9,
+    "memory_used": {
+     "total": 11209703,
+     "heap": 8177896,
+     "external": 3031807,
+     "mem_check_captured": {
+      "current": {
+       "totalHeapSize": 9609216,
+       "totalHeapSizeExecutable": 262144,
+       "totalPhysicalSize": 8601600,
+       "totalAvailableSize": 150468496,
+       "totalGlobalHandlesSize": 24576,
+       "usedGlobalHandlesSize": 20608,
+       "usedHeapSize": 8178016,
+       "mallocedMemory": 278624,
+       "externalMemory": 3031807,
+       "peakMallocedMemory": 188920
+      },
+      "exceeded": false
+     }
+    }
+   },
+   "metadata": {
+    "service_path": "/home/deno/functions/v1/talk",
+    "execution_id": "80cf6aed-8d55-476b-964f-04a38806f40e",
+    "otel_attributes": {
+     "edge_runtime.worker.kind": "user"
+    }
+   }
+  }
+ },
+ "shutdown_values": [
+  {
+   "function": "talk",
+   "reason": "EarlyDrop",
+   "cpu_time_used_ms": 9,
+   "memory_total": 11209703,
+   "heap": 8177896,
+   "external": 3031807
+  },
+  {
+   "function": "burn",
+   "reason": "EarlyDrop",
+   "cpu_time_used_ms": 65,
+   "memory_total": 10529935,
+   "heap": 7498128,
+   "external": 3031807
+  },
+  {
+   "function": "boom",
+   "reason": "EarlyDrop",
+   "cpu_time_used_ms": 9,
+   "memory_total": 10613977,
+   "heap": 7582144,
+   "external": 3031833
+  },
+  {
+   "function": "heap",
+   "reason": "EarlyDrop",
+   "cpu_time_used_ms": 18,
+   "memory_total": 10527615,
+   "heap": 7495808,
+   "external": 3031807
+  }
+ ],
+ "findings": [
+  "A Boot event carries boot_time in ms; a Log event carries msg and level (Info, Error) with the function's service_path and an execution_id; a handler that throws is a Log at level Error with the stack, not an UncaughtException event.",
+  "A Shutdown event comes when the worker is dropped, here reason EarlyDrop about 75 seconds after its last call, with cpu_time_used in ms and memory_used total, heap and external in bytes. The numbers are per worker lifetime (the burn function that ran a 40 million iteration loop shows 65 ms against 9 to 18 ms for the others) and memory is what the worker held at shutdown, not its peak: the heap function shows no more than the others.",
+  "The event worker can read the container's environment (SB_JWT_SECRET is there; user workers get only the variables the main service passes) and can open connections, so it can send what it learns to the main service with a token only it can sign. Its first connection to 127.0.0.1:9000 was refused because the main service was not listening yet: it must retry.",
+  "No event was seen for a worker that is still serving: CPU and memory arrive after the worker ends, so a function that is called all day on one worker reports nothing until that worker is dropped."
+ ],
+ "not_established": [
+  "Shutdown for the wall clock timeout and for a worker killed for memory or CPU (reasons other than EarlyDrop)",
+  "UncaughtException events (none seen)",
+  "the cost of the event worker's own memory in the 384 MiB container"
+ ]
+}
