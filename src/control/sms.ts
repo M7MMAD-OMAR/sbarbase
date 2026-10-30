@@ -1,10 +1,7 @@
-import {existsSync,lstatSync,mkdirSync,readFileSync,renameSync,rmSync,writeFileSync} from 'node:fs';
-import {join} from 'node:path';
 import {Catalog} from './catalog';
-import {authenticate,reply,type ManagementIdentity} from './auth';
-import {bindReadyEnvironmentPublication} from './ready-publication';
-import {refreshCurrentManagement} from './management-context';
-import {readSettings,writeSettingsFile,SAVE_INTERVAL_MS,SettingsError} from './sign-in';
+import {type ManagementIdentity} from './auth';
+import {SAVE_INTERVAL_MS} from './sign-in';
+import {cleanText,PRIVATE_DIRECTORY,readPrivateObject,runtimeFile,settingsHandler,writePrivateFile} from './settings-route';
 
 /** Phone sign-in for one environment, as the Supabase cloud's Phone provider page: the switch, the SMS provider and its credentials, phone
  * confirmations, and two limits. The console writes the environment's private SMS file (`<runtime>-sms.json`, mode 0600, read by
@@ -12,7 +9,6 @@ import {readSettings,writeSettingsFile,SAVE_INTERVAL_MS,SettingsError} from './s
  * and rolls back if it does not start. A credential is written to that file and never read back: answers say only whether one is set. Only
  * settings tried against the pinned Auth are offered (lab/auth-names-check.py). */
 
-const DIRECTORY='.secrets/upstream';
 const MAX_BYTES=8192,MAX_VALUE=256;
 /** As lab/sms_config.py PROVIDERS: each provider's fields, in order, and which are secret. */
 export const PROVIDERS:Record<string,{label:string;fields:{name:string;label:string;secret:boolean}[]}>={
@@ -28,19 +24,11 @@ type Saved=Record<string,unknown>&{version:number;enabled:boolean;provider:strin
 export type SmsView={enabled:boolean;provider:string;phone_confirmations:boolean;rate_limit_sms_sent:number;
  fields:Record<string,string>;secrets_set:Record<string,boolean>;providers:{id:string;label:string;fields:{name:string;label:string;secret:boolean}[]}[]};
 
-function file(directory:string,runtime:string) {
- if(!/^e_[a-f0-9]{24}$/.test(runtime))throw new Error('Invalid runtime');
- return join(directory,runtime+'-sms.json');
-}
+const file=(directory:string,runtime:string)=>runtimeFile(directory,runtime,'-sms.json');
 
 export function readSms(directory:string,runtime:string):Saved|null {
- const path=file(directory,runtime);
- let status;
- try{status=lstatSync(path);}catch(error){if((error as {code?:string}).code==='ENOENT')return null;throw error;}
- if(!status.isFile()||(status.mode&0o077)!==0||status.size>MAX_BYTES)throw new SmsError('file');
- let parsed:unknown;
- try{parsed=JSON.parse(readFileSync(path,'utf8'));}catch{throw new SmsError('file');}
- if(!parsed||typeof parsed!=='object'||Array.isArray(parsed))throw new SmsError('file');
+ const parsed=readPrivateObject(file(directory,runtime),MAX_BYTES,()=>new SmsError('file'));
+ if(parsed===null)return null;
  const saved=parsed as Saved;
  if(saved.version!==1||!Object.hasOwn(PROVIDERS,saved.provider)||typeof saved.enabled!=='boolean')throw new SmsError('file');
  return saved;
@@ -62,8 +50,7 @@ export function smsView(saved:Saved|null):SmsView {
 }
 
 const plain=(value:unknown,name:string)=>{
- // A lone surrogate is refused: Python could not encode it into the container's environment file.
- if(typeof value!=='string'||value===''||value.length>MAX_VALUE||/[\x00-\x1f\x7f]/.test(value)||/[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/.test(value))throw new SmsError(name);
+ if(!cleanText(value,MAX_VALUE,{control:true}))throw new SmsError(name);
  return value;
 };
 
@@ -95,16 +82,6 @@ export function smsFromInput(input:unknown,current:Saved|null):Saved {
  return out;
 }
 
-function writeSms(directory:string,runtime:string,saved:Saved|null) {
- mkdirSync(directory,{recursive:true,mode:0o700});
- const path=file(directory,runtime),pending=path+'.pending';
- if(existsSync(path)&&lstatSync(path).isSymbolicLink())throw new SmsError('file');
- if(!saved){rmSync(path,{force:true});return;}
- rmSync(pending,{force:true});
- writeFileSync(pending,JSON.stringify(saved),{mode:0o600,flag:'wx'});
- renameSync(pending,path);
-}
-
 /** The platform key names of what a save changed, never a value. */
 export function changedSmsKeys(before:Saved|null,after:Saved|null):string[] {
  const on=(saved:Saved|null)=>!!saved?.enabled;
@@ -120,44 +97,14 @@ export function changedSmsKeys(before:Saved|null,after:Saved|null):string[] {
 }
 
 /** GET and PUT `/environments/{id}/sms`, for owners and admins of a ready environment. */
-export function smsHandler(catalog:Catalog,identify:ManagementIdentity,signInDirectory:string,directory=DIRECTORY,saveInterval=SAVE_INTERVAL_MS) {
- return async(request:Request):Promise<Response>=>{
-  const match=new URL(request.url).pathname.match(/^\/management\/v1\/environments\/([a-f0-9-]{36})\/sms$/);
-  if(!match)return reply(404,{message:'Unknown route'});
-  if(!['GET','PUT'].includes(request.method))return reply(405,{message:'Method not allowed'});
-  const actor=await authenticate(identify,request);
-  if(actor instanceof Response)return actor;
-  const environment=match[1]!;
-  try {
-   let state=catalog.signIn(actor,environment);
-   const answer=(response:Response)=>bindReadyEnvironmentPublication(response,catalog,actor,environment,state.runtime,true);
-   if(request.method==='GET')return answer(reply(200,{data:{...state,sms:smsView(readSms(directory,state.runtime))}}));
-   let input:unknown;
-   try{input=await request.json();}catch{return reply(400,{message:'Invalid JSON'});}
-   await refreshCurrentManagement();
-   state=catalog.signIn(actor,environment);
-   const body=input&&typeof input==='object'&&!Array.isArray(input)?input as Record<string,unknown>:{};
-   const base=body.base_revision;
-   if(base!==undefined&&base!==null&&base!==state.revision)return reply(409,{message:'These settings changed since you opened them. Reload and try again.'});
-   const waited=state.updatedAt===null?Infinity:Date.now()-state.updatedAt;
-   if(waited>=0&&waited<saveInterval){const busy=reply(429,{message:'Wait a few seconds before saving again.'});busy.headers.set('retry-after',String(Math.ceil((saveInterval-waited)/1000)));return busy;}
-   if(body.enabled!==undefined&&typeof body.enabled!=='boolean')throw new SmsError('enabled');
-   // Everything that can refuse is read and checked before anything is written.
-   const before=readSms(directory,state.runtime);
-   const settings=readSettings(signInDirectory,state.runtime);
-   const after=body.enabled===false?null:smsFromInput(input,before);
-   const revision=Math.max(state.revision,settings?.revision??0)+1;
-   writeSms(directory,state.runtime,after);
-   if(settings)writeSettingsFile(signInDirectory,state.runtime,{...settings,revision});
-   const saved=catalog.requestSignIn(actor,environment,revision,changedSmsKeys(before,after));
-   return answer(reply(202,{data:{...saved,sms:smsView(after)}}));
-  } catch(error) {
-   if(error instanceof SettingsError&&error.message==='file')return reply(409,{message:'The saved sign-in settings file cannot be read on the server (a link, wrong permissions, or a newer version). Fix it on the host.'});
-   if(error instanceof SmsError&&error.message==='file')return reply(409,{message:'The saved phone settings file cannot be read on the server (a link, wrong permissions or a bad format). Fix it on the host.'});
-   if(error instanceof SmsError)return reply(400,{message:`Check the ${error.message.replace(/_/g,' ')} setting`});
-   if(error instanceof Error&&error.message==='Forbidden')return reply(403,{message:'Forbidden'});
-   if(error instanceof Error&&error.message==='Environment is not ready')return reply(409,{message:'Environment is not ready'});
-   return reply(500,{message:'Management operation failed'});
-  }
- };
+export function smsHandler(catalog:Catalog,identify:ManagementIdentity,signInDirectory:string,directory=PRIVATE_DIRECTORY,saveInterval=SAVE_INTERVAL_MS) {
+ return settingsHandler<Saved>(catalog,identify,signInDirectory,saveInterval,{
+  segment:'sms',error:SmsError,noun:'setting',
+  fileMessage:'The saved phone settings file cannot be read on the server (a link, wrong permissions or a bad format). Fix it on the host.',
+  read:runtime=>readSms(directory,runtime),
+  check:body=>{if(body.enabled!==undefined&&typeof body.enabled!=='boolean')throw new SmsError('enabled');},
+  next:(input,body,before)=>body.enabled===false?null:smsFromInput(input,before),
+  write:(runtime,after)=>writePrivateFile(directory,file(directory,runtime),after&&JSON.stringify(after),()=>new SmsError('file')),
+  changed:changedSmsKeys,
+  view:(_runtime,saved)=>({sms:smsView(saved)})});
 }

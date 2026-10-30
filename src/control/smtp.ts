@@ -1,11 +1,9 @@
 import defaults from './mail-defaults.json';
-import {copyFileSync,existsSync,lstatSync,mkdirSync,readFileSync,renameSync,rmSync,writeFileSync} from 'node:fs';
-import {join} from 'node:path';
+import {copyFileSync,existsSync,mkdirSync,writeFileSync} from 'node:fs';
 import {Catalog} from './catalog';
-import {authenticate,reply,type ManagementIdentity} from './auth';
-import {bindReadyEnvironmentPublication} from './ready-publication';
-import {refreshCurrentManagement} from './management-context';
-import {readSettings,writeSettingsFile,SAVE_INTERVAL_MS,SettingsError} from './sign-in';
+import {type ManagementIdentity} from './auth';
+import {SAVE_INTERVAL_MS} from './sign-in';
+import {cleanText,PRIVATE_DIRECTORY,readPrivateObject,runtimeFile,settingsHandler,writePrivateFile} from './settings-route';
 
 /** Custom SMTP for one environment, as the Supabase cloud's Emails > SMTP Settings page: sender email and name, host,
  * port, username and password. The console writes the environment's private mail file (`<runtime>-mail.json`, mode 0600,
@@ -14,7 +12,6 @@ import {readSettings,writeSettingsFile,SAVE_INTERVAL_MS,SettingsError} from './s
  * written to that file and never read back: answers carry only whether one is set. The keys the console does not ask
  * for keep what the file had, or `mail-defaults.json`. */
 
-const MAIL_DIRECTORY='.secrets/upstream';
 const HOST=/^[A-Za-z0-9][A-Za-z0-9._-]*$/,ADDRESS=/^[^@\s<>,;:"]+@[^@\s<>,;:"]+\.[^@\s<>,;:"]+$/;
 const MAX_BYTES=8192;
 /** Hosts an environment's Auth must not be pointed at: this machine, link-local and unspecified addresses (the cloud metadata address
@@ -35,20 +32,11 @@ export type SmtpFields={admin_email:string;sender_name:string;host:string;port:n
 export type MailLimits={confirm_email:boolean;rate_limit_email_sent:number|null;rate_limit_otp:number;rate_limit_verify:number;min_interval_seconds:number|null};
 export type SmtpView=SmtpFields&MailLimits&{enabled:boolean;password_set:boolean};
 
-function file(directory:string,runtime:string) {
- if(!/^e_[a-f0-9]{24}$/.test(runtime))throw new Error('Invalid runtime');
- return join(directory,runtime+'-mail.json');
-}
+const file=(directory:string,runtime:string)=>runtimeFile(directory,runtime,'-mail.json');
 
 /** The saved mail file, or null when there is none. A link, a file open to other users or an unreadable one is refused. */
 export function readMail(directory:string,runtime:string):Record<string,unknown>|null {
- const path=file(directory,runtime);
- let status;
- try{status=lstatSync(path);}catch(error){if((error as {code?:string}).code==='ENOENT')return null;throw error;}
- if(!status.isFile()||(status.mode&0o077)!==0||status.size>MAX_BYTES)throw new SmtpError('file');
- const parsed=JSON.parse(readFileSync(path,'utf8')) as unknown;
- if(!parsed||typeof parsed!=='object'||Array.isArray(parsed))throw new SmtpError('file');
- return parsed as Record<string,unknown>;
+ return readPrivateObject(file(directory,runtime),MAX_BYTES,()=>new SmtpError('file'));
 }
 
 const LIMIT_DEFAULTS={rate_limit_email_sent:defaults.rate_limit_email_sent,rate_limit_otp:defaults.rate_limit_otp,rate_limit_verify:defaults.rate_limit_verify,min_interval_seconds:60};
@@ -67,7 +55,7 @@ export function smtpView(mail:Record<string,unknown>|null):SmtpView {
 /** Field limits: the file must stay under lab/mail_config.py MAX_BYTES, or the environment could not start. */
 const LIMITS:Record<string,number>={admin_email:254,sender_name:200,host:253,user:512,password:1024};
 const plain=(value:unknown,field:string,allowEmpty:boolean)=>{
- if(typeof value!=='string'||/[\r\n\x00]/.test(value)||(!allowEmpty&&value==='')||value.length>(LIMITS[field]??512))throw new SmtpError(field);
+ if(!cleanText(value,LIMITS[field]??512,{allowEmpty}))throw new SmtpError(field);
  return value;
 };
 
@@ -85,7 +73,7 @@ export function mailFromInput(input:unknown,current:Record<string,unknown>|null)
  if(typeof port!=='number'||!Number.isInteger(port)||port<1||port>65535)throw new SmtpError('port');
  const user=plain(value.user??'','user',true);
  const given=value.password??'';
- if(typeof given!=='string'||/[\r\n\x00]/.test(given)||given.length>LIMITS.password!)throw new SmtpError('password');
+ if(!cleanText(given,LIMITS.password!,{allowEmpty:true}))throw new SmtpError('password');
  const pass=given||(typeof current?.pass==='string'?current.pass:'');
  if(!pass)throw new SmtpError('password');
  const {about:_about,...base}=defaults as Record<string,unknown>;
@@ -106,18 +94,10 @@ export function mailFromInput(input:unknown,current:Record<string,unknown>|null)
 /** The mail file as it was before the first unapplied save, so a failed apply can put it back (lab/auth_settings.py `apply`). A second
  * save while one is pending keeps the first copy. `none` marks that there was no file. */
 function keepPrior(directory:string,runtime:string) {
+ mkdirSync(directory,{recursive:true,mode:0o700});
  const path=file(directory,runtime),prior=path.replace(/-mail\.json$/,'-mail.prior');
  if(existsSync(prior))return;
  if(existsSync(path))copyFileSync(path,prior);else writeFileSync(prior,'none',{mode:0o600});
-}
-
-function writeMail(directory:string,runtime:string,mail:Record<string,unknown>) {
- mkdirSync(directory,{recursive:true,mode:0o700});
- const path=file(directory,runtime),pending=path+'.pending';
- if(existsSync(path)&&lstatSync(path).isSymbolicLink())throw new SmtpError('file');
- rmSync(pending,{force:true});
- writeFileSync(pending,JSON.stringify(mail),{mode:0o600,flag:'wx'});
- renameSync(pending,path);
 }
 
 /** The platform key names of what a save changed, never a value. */
@@ -131,46 +111,14 @@ export function changedSmtpKeys(before:Record<string,unknown>|null,after:Record<
 }
 
 /** GET and PUT `/environments/{id}/smtp`, for owners and admins of a ready environment. */
-export function smtpHandler(catalog:Catalog,identify:ManagementIdentity,signInDirectory:string,directory=MAIL_DIRECTORY,saveInterval=SAVE_INTERVAL_MS) {
- return async(request:Request):Promise<Response>=>{
-  const match=new URL(request.url).pathname.match(/^\/management\/v1\/environments\/([a-f0-9-]{36})\/smtp$/);
-  if(!match)return reply(404,{message:'Unknown route'});
-  if(!['GET','PUT'].includes(request.method))return reply(405,{message:'Method not allowed'});
-  const actor=await authenticate(identify,request);
-  if(actor instanceof Response)return actor;
-  const environment=match[1]!;
-  try {
-   let state=catalog.signIn(actor,environment);
-   const answer=(response:Response)=>bindReadyEnvironmentPublication(response,catalog,actor,environment,state.runtime,true);
-   if(request.method==='GET')return answer(reply(200,{data:{...state,smtp:smtpView(readMail(directory,state.runtime))}}));
-   let input:unknown;
-   try{input=await request.json();}catch{return reply(400,{message:'Invalid JSON'});}
-   await refreshCurrentManagement();
-   state=catalog.signIn(actor,environment);
-   const body=input&&typeof input==='object'&&!Array.isArray(input)?input as Record<string,unknown>:{};
-   const base=body.base_revision;
-   if(base!==undefined&&base!==null&&base!==state.revision)return reply(409,{message:'These settings changed since you opened them. Reload and try again.'});
-   const waited=state.updatedAt===null?Infinity:Date.now()-state.updatedAt;
-   if(waited>=0&&waited<saveInterval){const busy=reply(429,{message:'Wait a few seconds before saving again.'});busy.headers.set('retry-after',String(Math.ceil((saveInterval-waited)/1000)));return busy;}
-   if(body.enabled!==undefined&&typeof body.enabled!=='boolean')throw new SmtpError('enabled');
-   // Everything that can refuse is read and checked before anything is written.
-   const before=readMail(directory,state.runtime);
-   const settings=readSettings(signInDirectory,state.runtime);
-   const after=body.enabled===false?null:mailFromInput(input,before);
-   const revision=Math.max(state.revision,settings?.revision??0)+1;
-   keepPrior(directory,state.runtime);
-   if(after)writeMail(directory,state.runtime,after);else rmSync(file(directory,state.runtime),{force:true});
-   // The apply records its outcome against the revision of the sign-in file when there is one, so that file moves with the row.
-   if(settings)writeSettingsFile(signInDirectory,state.runtime,{...settings,revision});
-   const saved=catalog.requestSignIn(actor,environment,revision,changedSmtpKeys(before,after));
-   return answer(reply(202,{data:{...saved,smtp:smtpView(after)}}));
-  } catch(error) {
-   if(error instanceof SettingsError&&error.message==='file')return reply(409,{message:'The saved sign-in settings file cannot be read on the server (a link, wrong permissions, or a newer version). Fix it on the host.'});
-   if(error instanceof SmtpError&&error.message==='file')return reply(409,{message:'The saved mail file cannot be read on the server (a link or wrong permissions). Fix it on the host.'});
-   if(error instanceof SmtpError)return reply(400,{message:`Check the ${error.message.replace(/_/g,' ')} setting`});
-   if(error instanceof Error&&error.message==='Forbidden')return reply(403,{message:'Forbidden'});
-   if(error instanceof Error&&error.message==='Environment is not ready')return reply(409,{message:'Environment is not ready'});
-   return reply(500,{message:'Management operation failed'});
-  }
- };
+export function smtpHandler(catalog:Catalog,identify:ManagementIdentity,signInDirectory:string,directory=PRIVATE_DIRECTORY,saveInterval=SAVE_INTERVAL_MS) {
+ return settingsHandler<Record<string,unknown>>(catalog,identify,signInDirectory,saveInterval,{
+  segment:'smtp',error:SmtpError,noun:'setting',
+  fileMessage:'The saved mail file cannot be read on the server (a link or wrong permissions). Fix it on the host.',
+  read:runtime=>readMail(directory,runtime),
+  check:body=>{if(body.enabled!==undefined&&typeof body.enabled!=='boolean')throw new SmtpError('enabled');},
+  next:(input,body,before)=>body.enabled===false?null:mailFromInput(input,before),
+  write:(runtime,after)=>{keepPrior(directory,runtime);writePrivateFile(directory,file(directory,runtime),after&&JSON.stringify(after),()=>new SmtpError('file'));},
+  changed:changedSmtpKeys,
+  view:(_runtime,saved)=>({smtp:smtpView(saved)})});
 }

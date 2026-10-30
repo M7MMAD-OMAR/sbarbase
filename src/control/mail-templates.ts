@@ -1,13 +1,10 @@
 import defaults from './mail-template-defaults.json';
-import {existsSync,lstatSync,mkdirSync,readFileSync,renameSync,rmSync,writeFileSync} from 'node:fs';
 import {randomBytes,timingSafeEqual} from 'node:crypto';
-import {join} from 'node:path';
 import {Catalog} from './catalog';
-import {authenticate,reply,type ManagementIdentity} from './auth';
-import {bindReadyEnvironmentPublication} from './ready-publication';
-import {refreshCurrentManagement} from './management-context';
-import {readSettings,writeSettingsFile,SAVE_INTERVAL_MS,SettingsError} from './sign-in';
+import {type ManagementIdentity} from './auth';
+import {SAVE_INTERVAL_MS} from './sign-in';
 import {readMail} from './smtp';
+import {PRIVATE_DIRECTORY,readPrivateJson,runtimeFile,settingsHandler,wellFormed,writePrivateFile} from './settings-route';
 
 /** Email templates for one environment, as the Supabase cloud's Emails > Templates page: a subject and an HTML body for each of
  * the six messages Auth sends. The pinned Auth takes the address of a page, not a body, and fetches it when it sends. So the
@@ -18,14 +15,10 @@ import {readMail} from './smtp';
  * returned. A save records a pending revision, and the supervisor's apply recreates that environment's Auth with the new addresses
  * and subjects, rolling back if it does not start. */
 
-const DIRECTORY='.secrets/upstream';
 export const KINDS=defaults.kinds;
 export const MAX_BODY=32768,MAX_SUBJECT=200,MAX_BYTES=262144;
 const VERSION=1;
 const TOKEN=/^[a-f0-9]{64}$/;
-
-/** No lone surrogate: Python could not encode it. */
-const wellFormed=(text:string)=>!/[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/.test(text);
 
 export class TemplateError extends Error {}
 
@@ -33,10 +26,7 @@ type Entry={subject:string;body:string};
 type Saved={version:number;token:string;templates:Record<string,Entry>};
 export type TemplateView={kind:string;label:string;subject:string;body:string;default_subject:string;default_body:string;customized:boolean};
 
-function file(directory:string,runtime:string,applied=false) {
- if(!/^e_[a-f0-9]{24}$/.test(runtime))throw new Error('Invalid runtime');
- return join(directory,runtime+(applied?'-templates.applied.json':'-templates.json'));
-}
+const file=(directory:string,runtime:string,applied=false)=>runtimeFile(directory,runtime,applied?'-templates.applied.json':'-templates.json');
 
 /** As lab/mail_templates.py `validate`: the same fields, the same limits. */
 function normalize(parsed:unknown):Saved {
@@ -59,11 +49,8 @@ function normalize(parsed:unknown):Saved {
 
 /** The saved templates, or null when there are none. A link, a file open to other users or an unreadable one is refused. */
 export function readTemplates(directory:string,runtime:string,applied=false):Saved|null {
- const path=file(directory,runtime,applied);
- let status;
- try{status=lstatSync(path);}catch(error){if((error as {code?:string}).code==='ENOENT')return null;throw error;}
- if(!status.isFile()||(status.mode&0o077)!==0||status.size>MAX_BYTES)throw new TemplateError('file');
- try{return normalize(JSON.parse(readFileSync(path,'utf8')));}catch(error){if(error instanceof TemplateError)throw error;throw new TemplateError('file');}
+ const parsed=readPrivateJson(file(directory,runtime,applied),MAX_BYTES,()=>new TemplateError('file'));
+ return parsed===undefined?null:normalize(parsed);
 }
 
 export function templatesView(saved:Saved|null):TemplateView[] {
@@ -113,16 +100,6 @@ export function templatesFromInput(input:unknown,current:Saved|null):Saved|null 
  return saved;
 }
 
-function writeTemplates(directory:string,runtime:string,saved:Saved|null) {
- mkdirSync(directory,{recursive:true,mode:0o700});
- const path=file(directory,runtime),pending=path+'.pending';
- if(existsSync(path)&&lstatSync(path).isSymbolicLink())throw new TemplateError('file');
- if(!saved){rmSync(path,{force:true});return;}
- rmSync(pending,{force:true});
- writeFileSync(pending,JSON.stringify(saved),{mode:0o600,flag:'wx'});
- renameSync(pending,path);
-}
-
 /** The platform key names of what a save changed, never a value. */
 export function changedTemplateKeys(before:Saved|null,after:Saved|null):string[] {
  const keys:string[]=[];
@@ -135,49 +112,17 @@ export function changedTemplateKeys(before:Saved|null,after:Saved|null):string[]
 }
 
 /** GET and PUT `/environments/{id}/mail-templates`, for owners and admins of a ready environment. */
-export function mailTemplatesHandler(catalog:Catalog,identify:ManagementIdentity,signInDirectory:string,directory=DIRECTORY,saveInterval=SAVE_INTERVAL_MS) {
- return async(request:Request):Promise<Response>=>{
-  const match=new URL(request.url).pathname.match(/^\/management\/v1\/environments\/([a-f0-9-]{36})\/mail-templates$/);
-  if(!match)return reply(404,{message:'Unknown route'});
-  if(!['GET','PUT'].includes(request.method))return reply(405,{message:'Method not allowed'});
-  const actor=await authenticate(identify,request);
-  if(actor instanceof Response)return actor;
-  const environment=match[1]!;
-  try {
-   let state=catalog.signIn(actor,environment);
-   const answer=(response:Response)=>bindReadyEnvironmentPublication(response,catalog,actor,environment,state.runtime,true);
-   // Templates are used only while custom SMTP is on; the page says so when it is not.
-   const mailOn=()=>{try{return readMail(directory,state.runtime)!==null;}catch{return false;}};
-   const shown=(saved:Saved|null)=>({...state,templates:templatesView(saved),variables:defaults.variables,mail_enabled:mailOn()});
-   if(request.method==='GET')return answer(reply(200,{data:shown(readTemplates(directory,state.runtime))}));
-   let input:unknown;
-   try{input=await request.json();}catch{return reply(400,{message:'Invalid JSON'});}
-   await refreshCurrentManagement();
-   state=catalog.signIn(actor,environment);
-   const body=input&&typeof input==='object'&&!Array.isArray(input)?input as Record<string,unknown>:{};
-   const base=body.base_revision;
-   if(base!==undefined&&base!==null&&base!==state.revision)return reply(409,{message:'These settings changed since you opened them. Reload and try again.'});
-   const waited=state.updatedAt===null?Infinity:Date.now()-state.updatedAt;
-   if(waited>=0&&waited<saveInterval){const busy=reply(429,{message:'Wait a few seconds before saving again.'});busy.headers.set('retry-after',String(Math.ceil((saveInterval-waited)/1000)));return busy;}
-   // Everything that can refuse is read and checked before anything is written.
-   const before=readTemplates(directory,state.runtime);
-   const settings=readSettings(signInDirectory,state.runtime);
-   const after=templatesFromInput(input,before);
-   const revision=Math.max(state.revision,settings?.revision??0)+1;
-   writeTemplates(directory,state.runtime,after);
-   // The apply records its outcome against the revision of the sign-in file when there is one, so that file moves with the row.
-   if(settings)writeSettingsFile(signInDirectory,state.runtime,{...settings,revision});
-   const saved=catalog.requestSignIn(actor,environment,revision,changedTemplateKeys(before,after));
-   return answer(reply(202,{data:{...saved,templates:templatesView(after),variables:defaults.variables,mail_enabled:mailOn()}}));
-  } catch(error) {
-   if(error instanceof SettingsError&&error.message==='file')return reply(409,{message:'The saved sign-in settings file cannot be read on the server (a link, wrong permissions, or a newer version). Fix it on the host.'});
-   if(error instanceof TemplateError&&error.message==='file')return reply(409,{message:'The saved templates file cannot be read on the server (a link, wrong permissions or a bad format). Fix it on the host.'});
-   if(error instanceof TemplateError)return reply(400,{message:`Check the ${error.message.replace(/_/g,' ')} template`});
-   if(error instanceof Error&&error.message==='Forbidden')return reply(403,{message:'Forbidden'});
-   if(error instanceof Error&&error.message==='Environment is not ready')return reply(409,{message:'Environment is not ready'});
-   return reply(500,{message:'Management operation failed'});
-  }
- };
+export function mailTemplatesHandler(catalog:Catalog,identify:ManagementIdentity,signInDirectory:string,directory=PRIVATE_DIRECTORY,saveInterval=SAVE_INTERVAL_MS) {
+ // Templates are used only while custom SMTP is on; the page says so when it is not.
+ const mailOn=(runtime:string)=>{try{return readMail(directory,runtime)!==null;}catch{return false;}};
+ return settingsHandler<Saved>(catalog,identify,signInDirectory,saveInterval,{
+  segment:'mail-templates',error:TemplateError,noun:'template',
+  fileMessage:'The saved templates file cannot be read on the server (a link, wrong permissions or a bad format). Fix it on the host.',
+  read:runtime=>readTemplates(directory,runtime),
+  next:(input,_body,before)=>templatesFromInput(input,before),
+  write:(runtime,after)=>writePrivateFile(directory,file(directory,runtime),after&&JSON.stringify(after),()=>new TemplateError('file')),
+  changed:changedTemplateKeys,
+  view:(runtime,saved)=>({templates:templatesView(saved),variables:defaults.variables,mail_enabled:mailOn(runtime)})});
 }
 
 const notFound=()=>new Response('Not found',{status:404,headers:{'cache-control':'no-store'}});
@@ -185,7 +130,7 @@ const notFound=()=>new Response('Not found',{status:404,headers:{'cache-control'
 /** The internal route Auth fetches a body from: `GET /<runtime>/mail-templates/<token>/<kind>`. It answers only a request that names
  * the environment's own token, with that environment's own body, and the same 404 for everything else, so an unknown environment, kind or token cannot be told apart.
  * Returns null for a path that is not this route. */
-export function mailTemplateRoute(directory=DIRECTORY) {
+export function mailTemplateRoute(directory=PRIVATE_DIRECTORY) {
  return (request:Request):Response|null=>{
   const match=new URL(request.url).pathname.match(/^\/(e_[a-f0-9]{24})\/mail-templates\/([a-f0-9]{64})\/([a-z_]{1,32})$/);
   if(!match)return null;
