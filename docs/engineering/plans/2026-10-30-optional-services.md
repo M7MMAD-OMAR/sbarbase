@@ -26,6 +26,19 @@ Realtime is already off for a new environment (`realtime_settings` has no row, s
 3. **Sleep is a mode the person chooses, never silent.** Each optional service has `Off`, `On` or `On demand`. `On` is what exists now. `On demand` is offered only for Realtime and Functions and only after the cold start numbers are measured (phase S3).
 4. **The console is the only control surface.** No host command is needed to switch a service, see its cost or understand a refusal.
 
+## Principle (owner, 2026-10-30)
+
+An unused service must cost nothing, and a used one must never break. This is for every installation, not for one owner: no default, name or timer may assume a particular project. So the end state is not "off unless someone remembers to switch it on", it is **On demand by default** for Realtime and Edge Functions: no container while nothing uses it, started by the first authenticated request, stopped after a quiet period. A chat app keeps working because its first connection starts Realtime and its open connections keep it running.
+
+What this changes in the phases below:
+
+- **S3 becomes the default behaviour,** not only an opt-in, once its gate passes (measured cold start, wake limits, drain). Until then new environments keep `Off` as today and nothing existing changes. An environment that already has a service `On` keeps it `On`: the page only offers "switch to On demand" with the exact effect in words.
+- **Never stopped while used:** a service sleeps only after the whole quiet period with zero open websockets (Realtime) and zero in-flight calls (Functions). Any activity restarts the timer.
+- **Quiet period defaults:** Realtime 30 minutes with no open connection; Edge Functions 15 minutes with no call. Floors of 5 minutes, settable per environment in the Services page. These are starting values to confirm with the measurement, not promises.
+- **First request after sleep:** the gateway holds a websocket upgrade or a function call while the service starts, up to a cap taken from the measured cold start (an initial cap of 20 seconds), then answers `503` with `retry-after`. supabase-js reconnects on its own, so a slow start is a delayed first message at worst.
+- **Nothing is lost by sleeping:** Realtime is not a queue; with no connection there is no subscriber, and a client that connects later loads its history from the database as it already must. The replication slot is the one hazard: a stopped Realtime must not leave a slot that holds WAL. The existing stop path already drops inactive slots (`lab/durable_runtime.py`, the realtime off branch), and the sleep path reuses it; a test must prove the slot is gone after a sleep and recreated after a wake.
+- **Anyone can hold it awake, nobody can break it:** the public key in an app can start the service, so wakes are limited per environment (6 an hour), one at a time on the installation, and bounded by admission. The worst case is a service that stays on, which is the cost of today's `On`.
+
 ## Phases
 
 ### S1. A Services page per environment (no new risk)
@@ -90,5 +103,5 @@ Unit and handler tests per phase; the live probes one container at a time (`lab/
 
 ## Open questions for the owner
 
-1. Is 15 idle minutes the right default for Functions, and 30 for Realtime?
-2. Should S3 wait for the measurements, or ship S1 and S2 first? (Recommended: S1 and S2 first.)
+1. Confirm the starting quiet periods (Realtime 30 minutes, Functions 15 minutes) after the cold start measurement.
+2. Ship S1 and S2 first (recommended), then S3 as the default only after its gate passes.
