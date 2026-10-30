@@ -69,6 +69,12 @@ function readSecrets(secretsRoot:string,runtime:string):Record<string,string> {
  try{return JSON.parse(readFileSync(join(runtimeDirectory(secretsRoot,runtime),'secrets.json'),'utf8'));}catch{return {};}
 }
 
+/** A name that is also a folder of another file (`lib` next to `lib/util.ts`) cannot be written: the second write fails and the request would end as a 500. */
+function collides(paths:string[]):string|undefined {
+ const set=new Set(paths);
+ return paths.find(path=>{for(let at=path.indexOf('/');at!==-1;at=path.indexOf('/',at+1))if(set.has(path.slice(0,at)))return true;return false;});
+}
+
 function files(value:unknown,field:string):Record<string,string> {
  if(value===undefined)return {};
  if(!value||typeof value!=='object'||Array.isArray(value))throw new DeployError(field);
@@ -78,6 +84,8 @@ function files(value:unknown,field:string):Record<string,string> {
    throw new DeployError(`${field}: ${path.slice(0,80)}`);
   result[path]=content;
  }
+ const clash=collides(Object.keys(result));
+ if(clash)throw new DeployError(`${field}: ${clash.slice(0,80)} is both a file and a folder`);
  return result;
 }
 

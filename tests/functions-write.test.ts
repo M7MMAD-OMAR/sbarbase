@@ -305,3 +305,18 @@ test('a message from the runtime loses plain container paths as well as file add
   .toBe('error at [path] and [path] ([path])');
  expect(bootMessage('import "../_shared/cors.ts" failed')).toBe('import "../_shared/cors.ts" failed');
 });
+
+test('a file that is also the folder of another file is refused with a 400, not a failed write',async()=>{
+ expect(()=>deployment({files:{'index.ts':'x','lib':'a','lib/util.ts':'b'}})).toThrow(DeployError);
+ expect(()=>deployment({files:{'index.ts':'x'},shared:{'a':'1','a/b.ts':'2'}})).toThrow(DeployError);
+ expect(()=>deployment({files:{'index.ts':'x','lib/a.ts':'a','lib/b.ts':'b','library.ts':'c'}})).not.toThrow();
+ // A name in the function's files and the same name in shared are different places.
+ expect(()=>deployment({files:{'index.ts':'x','cors.ts':'a'},shared:{'cors.ts':'b'}})).not.toThrow();
+ const t=await setup(undefined);
+ try {
+  const answer=await t.call('alice',t.environment,'functions/hello','PUT',{files:{'index.ts':'x','lib':'a','lib/util.ts':'b'}});
+  expect(answer.status).toBe(400);
+  expect(((await answer.json()) as any).message).toContain('both a file and a folder');
+  expect(readManifest(t.code,t.runtime).functions).toEqual({});
+ } finally {t.done();}
+});
