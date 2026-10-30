@@ -94,11 +94,15 @@ export class ConcurrencyGate {
   if(!this.borrow||count>=Math.max(this.borrow.ceiling,share))return 429;
   return this.maximum-this.total>this.reserve(environment,now)?0:429;
  }
- async run(environment:string,request:Pick<Request,'signal'>,forward:(signal:AbortSignal)=>Promise<Response>,budget?:{service:string;maximum:number;drainOnCancel?:boolean}):Promise<Response> {
+ async run(environment:string,request:Pick<Request,'signal'>,forward:(signal:AbortSignal)=>Promise<Response>,budget?:{service:string;maximum:number;drainOnCancel?:boolean;deadlineMs?:number}):Promise<Response> {
   if(this.paused.has(environment))return Response.json({message:'Environment temporarily paused'},{status:503,headers:{'retry-after':'1','cache-control':'no-store'}});
   if(request.signal.aborted)return Response.json({message:'Request cancelled'},{status:408});
   if(budget&&(!Number.isSafeInteger(budget.maximum)||budget.maximum<1))
    return Response.json({message:'Invalid service capacity'},{status:503});
+  // A service with longer calls (Functions) sets its own header and body deadline; the rest keep the gate's.
+  if(budget?.deadlineMs!==undefined&&!(Number.isSafeInteger(budget.deadlineMs)&&budget.deadlineMs>0))
+   return Response.json({message:'Invalid service deadline'},{status:503});
+  const forwardTimeoutMs=budget?.deadlineMs??this.forwardTimeoutMs,responseTimeoutMs=budget?.deadlineMs??this.responseTimeoutMs;
   const serviceKey=budget?JSON.stringify([environment,budget.service]):undefined;
   const serviceCount=serviceKey?this.services.get(serviceKey)??0:0;
   const count=this.active.get(environment)??0;
@@ -137,7 +141,7 @@ export class ConcurrencyGate {
    });
    const cancelled=()=>stop(408);
    request.signal.addEventListener('abort',cancelled,{once:true});
-   timer=setTimeout(()=>stop(504),this.forwardTimeoutMs);timer.unref?.();
+   timer=setTimeout(()=>stop(504),forwardTimeoutMs);timer.unref?.();
    let result:Response|408|504;
    try {
     if(request.signal.aborted)cancelled();
@@ -189,7 +193,7 @@ export class ConcurrencyGate {
     },
    });
    request.signal.addEventListener('abort',abort,{once:true});
-   responseTimer=setTimeout(abort,this.responseTimeoutMs);responseTimer.unref?.();
+   responseTimer=setTimeout(abort,responseTimeoutMs);responseTimer.unref?.();
    if(request.signal.aborted)abort();
    return new Response(body,{status:response.status,statusText:response.statusText,headers:response.headers});
   }catch(error){release();throw error;}

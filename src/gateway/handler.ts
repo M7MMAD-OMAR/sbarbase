@@ -1,4 +1,5 @@
 import {ConcurrencyGate} from './concurrency';
+import {FUNCTION_CONCURRENCY,FUNCTION_DEADLINE_MS} from './shares';
 import { timingSafeEqual } from 'node:crypto';
 
 export type EnvironmentRoute = {
@@ -20,7 +21,8 @@ export type EnvironmentRoute = {
   serviceToken?: string;
   realtimeServiceToken?: string;
   enabled: boolean;
-  serviceConcurrency?:Partial<Record<'auth'|'rest'|'storage',number>>;
+  /** In-flight calls one service may hold in this environment. Functions default to FUNCTION_CONCURRENCY. */
+  serviceConcurrency?:Partial<Record<'auth'|'rest'|'storage'|'functions',number>>;
 };
 export type RouteRegistry = ReadonlyMap<string, EnvironmentRoute>;
 // A function sees the caller's own headers (a webhook's signature, for example), less these.
@@ -216,6 +218,10 @@ function gatewayHandler(registry:RouteRegistry, transport:typeof fetch, verifyKe
      headers.set('host',route.realtime.tenantHost);headers.set('apikey',keyToken!);
     }
     const retainRest=service==='rest'&&route.serviceConcurrency?.rest!==undefined;
+    // Functions always have a cap (a long call must not take the share REST and Auth need); the
+    // other services only when the installer published one, and Realtime's broadcast never.
+    const cap=service==='functions'?route.serviceConcurrency?.functions??FUNCTION_CONCURRENCY:service==='realtime'?undefined:route.serviceConcurrency?.[service];
+    const budgetFor=cap===undefined?undefined:{service,maximum:cap,drainOnCancel:retainRest,...(service==='functions'?{deadlineMs:FUNCTION_DEADLINE_MS}:{})};
     // Upload cancellation still uses the real request below. Once dispatched,
     // REST must settle independently of a disconnected client.
     const admissionRequest=retainRest?{signal:new AbortController().signal}:request;
@@ -267,10 +273,10 @@ function gatewayHandler(registry:RouteRegistry, transport:typeof fetch, verifyKe
     if(request.signal.aborted)return error(408,'Request cancelled');
     try {
       return await transport(target,{method:request.method,headers,body,redirect:'manual',decompress:false,
-        signal:AbortSignal.any([signal,...(retainRest?[]:[request.signal]),AbortSignal.timeout(service==='functions'?150_000:15_000)])});
+        signal:AbortSignal.any([signal,...(retainRest?[]:[request.signal]),AbortSignal.timeout(service==='functions'?FUNCTION_DEADLINE_MS:15_000)])});
     } catch {
       return error(502,'Upstream unavailable');
     }
-    },service==='realtime'||service==='functions'||route.serviceConcurrency?.[service]===undefined?undefined:{service,maximum:route.serviceConcurrency[service]!,drainOnCancel:retainRest});
+    },budgetFor);
   };
 }

@@ -73,10 +73,12 @@ export class RequestLog {
  }
 }
 
-const GATEWAY_PATH=/^\/([a-z][a-z0-9_]{1,30})\/(auth|rest|storage|realtime)\/v1(\/[^?]*)?$/;
+const GATEWAY_PATH=/^\/([a-z][a-z0-9_]{1,30})\/(auth|rest|storage|realtime|functions)\/v1(\/[^?]*)?$/;
 
-/** Wraps the gateway so each answer is counted for its environment. `known` keeps names that
- * are not environments out of the log. */
+/** Wraps the gateway so each answer is counted for its environment, Function calls and the gateway's
+ * own refusals (429, 503) included. `known` keeps names that are not environments out of the log.
+ * `ms` is the time to the response headers, not to the end of the body: for a streamed Function
+ * answer it is not the call's duration. The path is the pathname alone: no query, header or key. */
 export function observedGateway(gateway:(request:Request)=>Promise<Response>,log:RequestLog,known:(runtime:string)=>boolean,
  now:()=>number=performance.now.bind(performance)) {
  return async(request:Request):Promise<Response>=>{
