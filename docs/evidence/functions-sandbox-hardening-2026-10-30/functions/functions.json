@@ -1,0 +1,84 @@
+{
+ "functions": {
+  "supa": {
+   "version": "v1",
+   "verify_jwt": false
+  },
+  "npmimp": {
+   "version": "v1",
+   "verify_jwt": false
+  },
+  "envs": {
+   "version": "v1",
+   "verify_jwt": false
+  },
+  "extfetch": {
+   "version": "v1",
+   "verify_jwt": false
+  },
+  "rest": {
+   "version": "v1",
+   "verify_jwt": false
+  },
+  "probe": {
+   "version": "v1",
+   "verify_jwt": false
+  },
+  "other": {
+   "version": "v1",
+   "verify_jwt": false
+  },
+  "httpsimp": {
+   "version": "v1",
+   "verify_jwt": false
+  },
+  "things": {
+   "version": "v1",
+   "verify_jwt": false
+  },
+  "health": {
+   "version": "v1",
+   "verify_jwt": false
+  },
+  "bucket": {
+   "version": "v1",
+   "verify_jwt": false
+  },
+  "forms": {
+   "version": "v1",
+   "verify_jwt": false
+  },
+  "fill1": {
+   "version": "v1",
+   "verify_jwt": false
+  },
+  "fill2": {
+   "version": "v1",
+   "verify_jwt": false
+  },
+  "fill3": {
+   "version": "v1",
+   "verify_jwt": false
+  },
+  "fill4": {
+   "version": "v1",
+   "verify_jwt": false
+  },
+  "fill5": {
+   "version": "v1",
+   "verify_jwt": false
+  },
+  "fill6": {
+   "version": "v1",
+   "verify_jwt": false
+  },
+  "fill7": {
+   "version": "v1",
+   "verify_jwt": false
+  },
+  "fill8": {
+   "version": "v1",
+   "verify_jwt": false
+  }
+ }
+}

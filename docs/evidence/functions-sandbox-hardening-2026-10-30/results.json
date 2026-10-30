@@ -1,0 +1,201 @@
+{
+  "scope": "One host (the owner's workstation, Linux, Docker default bridge), edge-runtime pinned by lab/functions-image.lock.json (v1.77.4, public.ecr.aws/supabase/edge-runtime@sha256:ad45164b7548bf5820ed7be714789c17ac2865edce79a09cfb4c3756c3d365a8). One throwaway container, fnr-sbx-main, removed afterwards, started by run_main.sh in this directory: the real lab/functions/main/index.ts mounted read-only at /home/deno/main, the functions of ./functions at /home/deno/functions and ./private/secrets.json at /run/sbarbase, both read-only; docker flags --memory 384m --cpus 0.5 --pids-limit 256; published on 127.0.0.1:19100 only. SB_SELF_URL, SB_AUTH_URL, SB_REST_URL and SB_STORAGE_URL all point at the container itself (127.0.0.1:9000), where the functions things, health and bucket stand in for Auth, REST and Storage. Not a Sbarbase runtime: no gateway, no environment network, no cap-drop, read-only root or non root user. Not tested: a real supabase-js call against a real REST, npm: packages with native or postinstall needs, SB_SELF_URL as the container host name a real environment uses, Storage as the host listener at the network gateway, egress to the host or to private ranges (the host firewall, lab/functions_egress.py, is the boundary and is checked elsewhere), CPU and memory limits under load, behaviour after a worker is recycled. A worker is reused by service path, so the final_config run started on a freshly created container. jsr.io, registry.npmjs.org, unpkg.com and example.com were reached over the real internet. The 'variants' section was run earlier against previous revisions of the main service (git HEAD, and the final options with allow_read and allow_write []) and is not rerun; only the dimensions it names are relevant.",
+  "date": "2026-10-30",
+  "main_service_sha256_tested": "bb41d4574efd76ec8ba7f7f56a4624a14e927631aa0179a644ba88634a7b36af",
+  "options_source": "github.com/supabase/edge-runtime tag v1.77.4: ext/workers/lib.rs (UserWorkerCreateOptions, JsPermissionsOptions) and crates/fs/impl/tmp_fs.rs (TmpFsConfig: base, prefix, suffix, randomLen, quota)",
+  "summary": "deny_net is defence in depth only: the literal spellings listed in the main service are blocked, host names and every unlisted spelling are not. The boundary is allow_net [] plus the host firewall (lab/functions_egress.py). File isolation between functions and from the container comes from the runtime's virtual filesystem, not from the permissions object. The /tmp quota is per worker, not per container.",
+  "findings": {
+    "allow_import_is_a_fifth_key": "JsPermissionsOptions has allow_import. With a permissions object that omitted it, a jsr: import failed at worker boot: 'JSR package manifest for @supabase/supabase-js failed to load. Requires import access to jsr.io:443, run again with the --allow-import flag' (function returned 500). npm: and https: imports are not affected by that omission in the first run (npm:hono served 200 before allow_import was added; the https: import was tested only after). With allow_import: [] jsr:, npm: and an https: import from unpkg.com (not in Deno's default list) all serve, so [] means every host.",
+    "deny_net_is_defence_in_depth_only": "deny_net takes literal addresses; a CIDR range makes worker creation fail. IPv6 literals must be bracketed in the list: 'fd00:ec2::254' without brackets fails worker boot with 'ipv6 addresses must be enclosed in square brackets'. With deny_net ['169.254.169.254', '[::ffff:169.254.169.254]', '[fd00:ec2::254]'] the forms in deny_net_forms are blocked (NotCapable) or not (timeout, because the address is unreachable on the test host, so a not blocked row shows the check let the attempt through, not that a response came back). Not blocked: the decimal integer form 2851995902, the NAT64 form [64:ff9b::a9fe:a9fe], and every host name that resolves to a listed address (169.254.169.254.sslip.io; metadata.google.internal failed to connect here, which is also not a deny_net refusal). A scratch variant that also listed '2851995902' accepted the entry and still did not block it; listing '[64:ff9b::a9fe:a9fe]' did block that form. Without the mapped entry, an IPv4 mapped IPv6 literal bypasses the dotted entry (a reviewer reproduced this with a reachable address); with it the mapped spellings tested here are blocked. This is not an egress boundary.",
+    "tmp_quota_is_per_worker": "tmpFsConfig quota applies to each worker, not to the container. Eight distinct functions (fill1 to fill8) each wrote 40 MiB concurrently with no error, and after the probe function had also been filled to its 64 MiB quota, /tmp in the container held 384 MiB in total (du), container memory 290.9 MiB of 384 MiB (docker stats, includes cache). N workers can hold N times 64 MiB of the container's writable layer; files are removed when a worker is recycled (a reviewer saw /tmp empty after about 150 s; not re-measured here).",
+    "file_isolation_is_the_virtual_filesystem": "Reads of /proc, /run/sbarbase, other functions' code, the main service and /etc, and writes outside /tmp, fail with NotFound from the runtime's virtual filesystem; they failed identically with allow_read and allow_write [] (variants.read_write_unrestricted) and with no permissions option at all (variants.before_unmodified_main_service_at_HEAD). Limiting allow_read and allow_write to /tmp changes only fetch('file:///...'), which fails with NotCapable instead of a generic network error. The permissions object is a second layer for files.",
+    "allow_read_allow_write_limited_to_tmp_work": "Module loading, the jsr and npm caches and worker boot work with allow_read and allow_write limited to ['/tmp'].",
+    "before_vs_after_tmp": "Unmodified main service: 200 MiB written to /tmp without error. Hardened main service: 'filesystem quota exceeded' (quota 64 MiB).",
+    "before_netaccessdisabled": "With netAccessDisabled: true in the unmodified file, example.com still answered 200 (the option is ignored). Removed.",
+    "loopback_still_allowed": "SUPABASE_URL (http://127.0.0.1:9000/_sb) reached the main service and, through its /_sb proxy, the stub Auth, REST and Storage functions with the hardened options: 127.0.0.1 is not denied. The /_sb/rest/v1/things call by supabase-js returned the stub body.",
+    "secret_hygiene": "SUPABASE_EVIL from secrets.json was not passed (SUPABASE_ prefix filter), SB_JWT_SECRET and SB_AUTH_URL are not visible; the worker sees only MY_SECRET, SB_EXECUTION_ID, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL."
+  },
+  "deny_net_forms": {
+    "deny_net": [
+      "169.254.169.254",
+      "[::ffff:169.254.169.254]",
+      "[fd00:ec2::254]"
+    ],
+    "source": "functions/v1/forms/index.ts",
+    "results": {
+      "2851995902": "NOT BLOCKED TimeoutError: Signal timed out.",
+      "169.254.169.254": "BLOCKED NotCapable",
+      "0xa9fea9fe": "BLOCKED NotCapable",
+      "0251.0376.0251.0376": "BLOCKED NotCapable",
+      "169.254.43518": "BLOCKED NotCapable",
+      "169.254.169.254.": "BLOCKED NotCapable",
+      "[::ffff:169.254.169.254]": "BLOCKED NotCapable",
+      "[::ffff:a9fe:a9fe]": "BLOCKED NotCapable",
+      "[0:0:0:0:0:ffff:a9fe:a9fe]": "BLOCKED NotCapable",
+      "[fd00:ec2::254]": "BLOCKED NotCapable",
+      "[fd00:0ec2:0:0:0:0:0:254]": "BLOCKED NotCapable",
+      "[64:ff9b::a9fe:a9fe]": "NOT BLOCKED TypeError: error sending request for url (http://[64:ff9b::a9fe:a9fe]/",
+      "169.254.169.254.sslip.io": "NOT BLOCKED TimeoutError: Signal timed out.",
+      "metadata.google.internal": "NOT BLOCKED TypeError: error sending request for url (http://metadata.google.inter"
+    }
+  },
+  "final_config": {
+    "a_jsr_supabase_js": {
+      "createClient": "function",
+      "data": {
+        "stub": true,
+        "path": "/things",
+        "method": "GET"
+      },
+      "error": null
+    },
+    "a_npm_hono": {
+      "hono": true,
+      "path": "/npmimp/x"
+    },
+    "a_https_import_unpkg": {
+      "id_length": 21
+    },
+    "b_env_and_secret": {
+      "MY_SECRET": "s3cret-value-123",
+      "SUPABASE_EVIL": null,
+      "SUPABASE_URL": "http://127.0.0.1:9000/_sb",
+      "has_anon": true,
+      "has_service_role": true,
+      "SB_JWT_SECRET": null,
+      "SB_AUTH_URL": null,
+      "all_keys": [
+        "MY_SECRET",
+        "SB_EXECUTION_ID",
+        "SUPABASE_ANON_KEY",
+        "SUPABASE_SERVICE_ROLE_KEY",
+        "SUPABASE_URL"
+      ]
+    },
+    "c_external_https_fetch": {
+      "status": 200,
+      "length": 577
+    },
+    "d_supabase_url_proxy": {
+      "/rest/v1/things": "HTTP 200 {\"stub\":true,\"path\":\"/things\",\"method\":\"GET\"}",
+      "/auth/v1/health": "HTTP 200 {\"stub\":true,\"path\":\"/health\",\"method\":\"GET\"}",
+      "/storage/v1/bucket": "HTTP 200 {\"stub\":true,\"path\":\"/bucket\",\"method\":\"GET\"}"
+    },
+    "e_sandbox_probe": {
+      "fetch_metadata_169_254_169_254": "DENIED NotCapable: Requires net access to \"169.254.169.254:80\", run again with the --allow-net flag",
+      "metadata_via_dns_name_rebinding": "OK REACHED-OR-FAILED TimeoutError: Signal timed out.",
+      "fetch_file_proc_environ": "DENIED NotCapable: Requires read access to \"/proc/1/environ\", run again with the --allow-read flag",
+      "read_proc_environ": "DENIED NotFound: path not found: /proc/1/environ: readfile '/proc/1/environ': path not found: /proc/1/environ: readfile '/proc/1/environ': path not found: /proc/1/envi",
+      "read_proc_self_status": "DENIED NotFound: path not found: /proc/self/status: readfile '/proc/self/status': path not found: /proc/self/status: readfile '/proc/self/status': path not found: /pro",
+      "read_run_secrets": "DENIED NotFound: path not found: /run/sbarbase/secrets.json: readfile '/run/sbarbase/secrets.json': path not found: /run/sbarbase/secrets.json: readfile '/run/sbarbase",
+      "read_other_function": "DENIED NotFound: path not found: /home/deno/functions/v1/other/index.ts: readfile '/home/deno/functions/v1/other/index.ts': path not found: /home/deno/functions/v1/oth",
+      "read_functions_json": "DENIED NotFound: path not found: /home/deno/functions/functions.json: readfile '/home/deno/functions/functions.json': path not found: /home/deno/functions/functions.js",
+      "read_main_service": "DENIED NotFound: path not found: /home/deno/main/index.ts: readfile '/home/deno/main/index.ts': path not found: /home/deno/main/index.ts: readfile '/home/deno/main/ind",
+      "read_etc_passwd": "DENIED NotFound: path not found: /etc/passwd: readfile '/etc/passwd': path not found: /etc/passwd: readfile '/etc/passwd': path not found: /etc/passwd",
+      "write_etc": "DENIED NotFound: entity not found: writefile '/etc/pwned': entity not found: writefile '/etc/pwned': entity not found",
+      "write_home": "DENIED NotFound: entity not found: writefile '/home/deno/pwned': entity not found: writefile '/home/deno/pwned': entity not found",
+      "write_tmp_small": "OK undefined",
+      "read_tmp_small": "OK x",
+      "deno_command": "DENIED Error: Spawning subprocesses is not allowed on Supabase Edge Runtime.",
+      "env_sb_jwt": "OK undefined",
+      "tmp_fill_200mb": "DENIED Error: filesystem quota exceeded"
+    },
+    "f_tmp_quota_per_worker": [
+      {
+        "written_mib": 40
+      },
+      {
+        "written_mib": 40
+      },
+      {
+        "written_mib": 40
+      },
+      {
+        "written_mib": 40
+      },
+      {
+        "written_mib": 40
+      },
+      {
+        "written_mib": 40
+      },
+      {
+        "written_mib": 40
+      },
+      {
+        "written_mib": 40
+      }
+    ]
+  },
+  "variants": {
+    "before_unmodified_main_service_at_HEAD": {
+      "probe": {
+        "fetch_metadata_169_254_169_254": "DENIED TimeoutError: Signal timed out.",
+        "metadata_via_dns_name_rebinding": "OK REACHED-OR-FAILED TimeoutError: Signal timed out.",
+        "fetch_file_proc_environ": "DENIED TypeError: NetworkError when attempting to fetch resource",
+        "read_proc_environ": "DENIED NotFound: path not found: /proc/1/environ: readfile '/proc/1/environ': path not found: /proc/1/environ: readfile '/proc/1/environ': path not found: /proc/1/envi",
+        "read_proc_self_status": "DENIED NotFound: path not found: /proc/self/status: readfile '/proc/self/status': path not found: /proc/self/status: readfile '/proc/self/status': path not found: /pro",
+        "read_run_secrets": "DENIED NotFound: path not found: /run/sbarbase/secrets.json: readfile '/run/sbarbase/secrets.json': path not found: /run/sbarbase/secrets.json: readfile '/run/sbarbase",
+        "read_other_function": "DENIED NotFound: path not found: /home/deno/functions/v1/other/index.ts: readfile '/home/deno/functions/v1/other/index.ts': path not found: /home/deno/functions/v1/oth",
+        "read_functions_json": "DENIED NotFound: path not found: /home/deno/functions/functions.json: readfile '/home/deno/functions/functions.json': path not found: /home/deno/functions/functions.js",
+        "read_main_service": "DENIED NotFound: path not found: /home/deno/main/index.ts: readfile '/home/deno/main/index.ts': path not found: /home/deno/main/index.ts: readfile '/home/deno/main/ind",
+        "read_etc_passwd": "DENIED NotFound: path not found: /etc/passwd: readfile '/etc/passwd': path not found: /etc/passwd: readfile '/etc/passwd': path not found: /etc/passwd",
+        "write_etc": "DENIED NotFound: entity not found: writefile '/etc/pwned': entity not found: writefile '/etc/pwned': entity not found",
+        "write_home": "DENIED NotFound: entity not found: writefile '/home/deno/pwned': entity not found: writefile '/home/deno/pwned': entity not found",
+        "write_tmp_small": "OK undefined",
+        "read_tmp_small": "OK x",
+        "deno_command": "DENIED Error: Spawning subprocesses is not allowed on Supabase Edge Runtime.",
+        "env_sb_jwt": "OK undefined",
+        "tmp_fill_200mb": "OK 200 MiB written"
+      },
+      "supa": {
+        "createClient": "function",
+        "data": {
+          "stub": true,
+          "path": "/things",
+          "method": "GET"
+        },
+        "error": null
+      },
+      "extfetch": {
+        "status": 200,
+        "length": 577
+      }
+    },
+    "read_write_unrestricted": {
+      "probe": {
+        "fetch_metadata_169_254_169_254": "DENIED NotCapable: Requires net access to \"169.254.169.254:80\", run again with the --allow-net flag",
+        "metadata_via_dns_name_rebinding": "OK REACHED-OR-FAILED TimeoutError: Signal timed out.",
+        "fetch_file_proc_environ": "DENIED TypeError: NetworkError when attempting to fetch resource",
+        "read_proc_environ": "DENIED NotFound: path not found: /proc/1/environ: readfile '/proc/1/environ': path not found: /proc/1/environ: readfile '/proc/1/environ': path not found: /proc/1/envi",
+        "read_proc_self_status": "DENIED NotFound: path not found: /proc/self/status: readfile '/proc/self/status': path not found: /proc/self/status: readfile '/proc/self/status': path not found: /pro",
+        "read_run_secrets": "DENIED NotFound: path not found: /run/sbarbase/secrets.json: readfile '/run/sbarbase/secrets.json': path not found: /run/sbarbase/secrets.json: readfile '/run/sbarbase",
+        "read_other_function": "DENIED NotFound: path not found: /home/deno/functions/v1/other/index.ts: readfile '/home/deno/functions/v1/other/index.ts': path not found: /home/deno/functions/v1/oth",
+        "read_functions_json": "DENIED NotFound: path not found: /home/deno/functions/functions.json: readfile '/home/deno/functions/functions.json': path not found: /home/deno/functions/functions.js",
+        "read_main_service": "DENIED NotFound: path not found: /home/deno/main/index.ts: readfile '/home/deno/main/index.ts': path not found: /home/deno/main/index.ts: readfile '/home/deno/main/ind",
+        "read_etc_passwd": "DENIED NotFound: path not found: /etc/passwd: readfile '/etc/passwd': path not found: /etc/passwd: readfile '/etc/passwd': path not found: /etc/passwd",
+        "write_etc": "DENIED NotFound: entity not found: writefile '/etc/pwned': entity not found: writefile '/etc/pwned': entity not found",
+        "write_home": "DENIED NotFound: entity not found: writefile '/home/deno/pwned': entity not found: writefile '/home/deno/pwned': entity not found",
+        "write_tmp_small": "OK undefined",
+        "read_tmp_small": "OK x",
+        "deno_command": "DENIED Error: Spawning subprocesses is not allowed on Supabase Edge Runtime.",
+        "env_sb_jwt": "OK undefined",
+        "tmp_fill_200mb": "DENIED Error: filesystem quota exceeded"
+      },
+      "supa": {
+        "createClient": "function",
+        "data": {
+          "stub": true,
+          "path": "/things",
+          "method": "GET"
+        },
+        "error": null
+      },
+      "extfetch": {
+        "status": 200,
+        "length": 577
+      }
+    }
+  },
+  "variant_note": "read_write_unrestricted is the final main service with allow_read: [] and allow_write: [] only (a scratch copy, not committed). before is git HEAD's lab/functions/main/index.ts."
+}

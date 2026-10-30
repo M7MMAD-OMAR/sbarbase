@@ -25,6 +25,26 @@ const NAME = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 const HOP = new Set(['host', 'connection', 'keep-alive', 'transfer-encoding', 'te', 'trailer', 'upgrade', 'content-length',
   'x-forwarded-host', 'x-forwarded-for', 'x-forwarded-proto']);
 
+// What each function's worker may do: the pinned runtime's per worker `permissions` (snake case keys). A key left out
+// is DENIED, not defaulted (without `allow_import` a jsr: import fails at boot), so every allow list is given. `[]`
+// for net, env and import means everything: npm:, jsr: and https: imports, outbound calls, SUPABASE_URL and the
+// worker's own variables. Egress is not limited here; its boundary is the host firewall (lab/functions_egress.py).
+// `deny_net` is defence in depth only. It takes literal addresses (a CIDR range makes worker creation fail), blocks
+// just the spellings listed, and a host name that resolves to a listed address passes it. 127.0.0.1 and the gateway
+// stay allowed: SUPABASE_URL is this service, and Storage is the listener at the gateway.
+// Files: isolation between functions and from the container comes from the runtime's virtual filesystem; limiting
+// `allow_read` and `allow_write` to /tmp is a second layer. The /tmp quota is per worker, not per container, so N
+// workers can hold N times 64 MiB. The evidence is in docs/evidence/functions-sandbox-hardening-2026-10-30.
+const TMP_QUOTA_BYTES = 64 * 1024 * 1024;
+const PERMISSIONS = {
+  allow_net: [] as string[],
+  allow_env: [] as string[],
+  allow_read: ['/tmp'],
+  allow_write: ['/tmp'],
+  allow_import: [] as string[],
+  deny_net: ['169.254.169.254', '[::ffff:169.254.169.254]', '[fd00:ec2::254]'],
+};
+
 type Entry = { version: string; verify_jwt: boolean; entrypoint?: string };
 
 function json(status: number, message: string) {
@@ -91,10 +111,10 @@ Deno.serve(async (request: Request) => {
       cpuTimeSoftLimitMs: 10_000,
       cpuTimeHardLimitMs: 20_000,
       noModuleCache: false,
-      importMapPath: null,
       envVars,
       forceCreate: false,
-      netAccessDisabled: false,
+      tmpFsConfig: { quota: TMP_QUOTA_BYTES },
+      permissions: PERMISSIONS,
     });
     return await worker.fetch(request);
   } catch (error) {
