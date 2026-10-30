@@ -67,6 +67,8 @@ test('the JWT check changes without a new version, and only for a function that 
 
 async function setup(boot:Boot|undefined,log?:RequestLog){
  const catalog=new Catalog(':memory:'),code=temporary(),secrets=temporary();
+ // These tests are about an environment whose Edge Functions are Off (a new one is On demand by default, which a deploy never changes).
+ catalog.initializeInstallation('op-1','alice','Home');catalog.setInstallationServices('alice',{defaultMode:'off'});
  const org=catalog.createOrganization('alice','A');catalog.setMember('alice',org,'carol','viewer');
  const environment=catalog.createEnvironment('alice',catalog.createProject('alice',org,'P'),'production');
  const other=catalog.createOrganization('bob','B');

@@ -1058,6 +1058,7 @@ class SupervisorLoopTests(Fixture):
         supervisor.spawn = Mock(return_value='server')
         supervisor.drain_marker = Mock()
         supervisor.host_watch = Mock()
+        supervisor.service_stats = Mock()
         supervisor.confirm, supervisor.drain, supervisor.update, supervisor.backup = None, None, None, None
         supervisor.scheduler, supervisor.server, supervisor.worker = None, None, None
         supervisor.studios, supervisor.sign_in, supervisor.data_api, supervisor.toggles = {}, {}, {}, {}

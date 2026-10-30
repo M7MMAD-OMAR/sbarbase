@@ -1,0 +1,197 @@
+{
+  "check": "on-demand",
+  "recorded": "2026-10-30T16:40:58Z",
+  "scope": "Disposable containers of the pinned images on a developer workstation (one PostgreSQL, one Realtime or one Edge Functions at a time, placeholder Auth and REST), driven by the same Runtime code the supervisor runs for a wake and a sleep. Not the retained lab, not a server.",
+  "host_available_mib_at_start": 9716,
+  "runs": 5,
+  "realtime": {
+    "first_start_seconds": 26.1,
+    "first_start_phases_seconds": {
+      "realtime_database": [
+        0.16
+      ],
+      "launch": [
+        1.27
+      ],
+      "realtime_register": [
+        0.05
+      ],
+      "realtime_start": [
+        26.06
+      ]
+    },
+    "wake_phases_seconds": {
+      "realtime_database": [
+        0.17,
+        0.16,
+        0.17,
+        0.27,
+        0.16
+      ],
+      "launch": [
+        1.06,
+        1.17,
+        1.09,
+        1.43,
+        1.1
+      ],
+      "realtime_start": [
+        12.1,
+        12.2,
+        14.63,
+        13.96,
+        12.13
+      ]
+    },
+    "sleep_seconds": [
+      0.39,
+      0.48,
+      0.46,
+      0.68,
+      0.41
+    ],
+    "wake_seconds": [
+      12.3,
+      12.4,
+      14.83,
+      14.28,
+      12.32
+    ],
+    "wake_to_first_answer_seconds": [
+      12.31,
+      12.41,
+      14.84,
+      14.28,
+      12.32
+    ],
+    "wake_to_channel_joined_seconds": [
+      12.32,
+      12.42,
+      14.87,
+      14.3,
+      12.34
+    ],
+    "slots": [
+      {
+        "run": 1,
+        "after_sleep": [],
+        "after_wake": [
+          "supabase_realtime_messages_replication_slot_5610716ee186:true"
+        ],
+        "slot_recreated": true,
+        "channel_joined": true
+      },
+      {
+        "run": 2,
+        "after_sleep": [],
+        "after_wake": [
+          "supabase_realtime_messages_replication_slot_5610716ee186:true"
+        ],
+        "slot_recreated": true,
+        "channel_joined": true
+      },
+      {
+        "run": 3,
+        "after_sleep": [],
+        "after_wake": [
+          "supabase_realtime_messages_replication_slot_5610716ee186:true"
+        ],
+        "slot_recreated": true,
+        "channel_joined": true
+      },
+      {
+        "run": 4,
+        "after_sleep": [],
+        "after_wake": [
+          "supabase_realtime_messages_replication_slot_5610716ee186:true"
+        ],
+        "slot_recreated": true,
+        "channel_joined": true
+      },
+      {
+        "run": 5,
+        "after_sleep": [],
+        "after_wake": [
+          "supabase_realtime_messages_replication_slot_5610716ee186:true"
+        ],
+        "slot_recreated": true,
+        "channel_joined": true
+      }
+    ],
+    "wake_to_channel_joined_summary": {
+      "runs": 5,
+      "min": 12.32,
+      "median": 12.42,
+      "max": 14.87,
+      "mean": 13.25
+    },
+    "wake_to_first_answer_summary": {
+      "runs": 5,
+      "min": 12.31,
+      "median": 12.41,
+      "max": 14.84,
+      "mean": 13.23
+    }
+  },
+  "functions": {
+    "first_start_seconds": 3.43,
+    "sleep_seconds": [
+      0.76,
+      0.54,
+      0.54,
+      0.98,
+      1.26
+    ],
+    "wake_seconds": [
+      1.81,
+      1.73,
+      2.12,
+      2.49,
+      3.23
+    ],
+    "wake_to_first_call_seconds": [
+      1.88,
+      1.75,
+      2.16,
+      2.52,
+      3.44
+    ],
+    "wake_to_first_call_summary": {
+      "runs": 5,
+      "min": 1.75,
+      "median": 2.16,
+      "max": 3.44,
+      "mean": 2.35
+    }
+  },
+  "checks": [
+    {
+      "check": "Realtime: every sleep left no replication slot of the environment",
+      "ok": true,
+      "detail": "[[], [], [], [], []]"
+    },
+    {
+      "check": "Realtime: the slot was recreated by every wake",
+      "ok": true,
+      "detail": "the slot appears once a client joins a channel that listens to database changes"
+    },
+    {
+      "check": "Realtime: every wake answered",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "Realtime: a client joined a channel after every wake",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "Edge Functions: every wake answered a real call",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "host_available_mib_at_end": 8413,
+  "passed": true,
+  "not_included": "The supervisor looks for a request every quarter second (0.25 s at most), the gateway adds milliseconds, and a Realtime client joins a channel after its socket opens. The numbers are the work the supervisor does, to the first answer of the service itself."
+}

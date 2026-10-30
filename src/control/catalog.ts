@@ -1,5 +1,6 @@
 import {Database} from 'bun:sqlite';
 import {ENVIRONMENT_LIMIT,GATEWAY} from '../gateway/shares';
+import {DEFAULT_NEW_MODE,HOLD_MS,ON_DEMAND_BY_DEFAULT,ON_DEMAND_SERVICES,WAKES_PER_HOUR,WAKE_WINDOW_MS,idleMinutes,isMode,validIdleMinutes,type Mode,type OnDemandService} from './on-demand-policy';
 import {NOTIFY_EVERY_MS,UNUSED_CEILING_DAYS,UNUSED_FLOOR_DAYS,unusedDays} from './service-hints';
 import {validatePlacement,validatePlacementTransition,resolveRuntimePlacement,placementServices,type RuntimePlacement,type RuntimeRouting} from './placement';
 import {randomUUID,randomBytes,createHash} from 'node:crypto';
@@ -137,7 +138,7 @@ function credentialShape(value:string):boolean {
 export {ENVIRONMENT_LIMIT};
 
 /** Bumped with each step of Catalog.migrate(). */
-export const CATALOG_SCHEMA_VERSION=7;
+export const CATALOG_SCHEMA_VERSION=8;
 /** What PostgREST serves for an environment with no saved Data API settings (lab/data_api.py). */
 export const DATA_API_DEFAULT={schemas:['public'],extraSearchPath:['public'],maxRows:null as number|null};
 
@@ -153,10 +154,21 @@ export type DataApiState=DataApiSettings&{runtime:string;state:'default'|'pendin
 /** What lab/data_api.py serves when none of the exposed schemas exists: an empty platform schema. */
 export const DATA_API_EMPTY='sbarbase_empty';
 export type RealtimeState={runtime:string;desired:'on'|'off';state:'off'|'pending'|'on'|'failed';failure:string|null;updatedAt:number|null};
-export type InstallationServices={unusedDays:number};
+export type InstallationServices={unusedDays:number;
+ /** One switch that makes every On demand service behave as On, without touching anyone's saved choice. */
+ killSwitch:boolean;
+ /** The mode a new environment gets for Realtime and Edge Functions, and the quiet period it starts with. */
+ defaultMode:'off'|'on_demand';idleMinutes:Record<OnDemandService,number>;
+ /** An operator allows Realtime to be chosen as On demand (its wake takes longer than a client waits comfortably; see on-demand-policy.ts). */
+ realtimeOnDemand:boolean;
+ /** Shown read only: what the gateway enforces and cannot be changed from the console. */
+ limits:{wakesPerHour:number;holdSeconds:number}};
+export type ServiceModeState={mode:Mode;idleMinutes:number;/** Saved by a person or by the default for new environments; false when implied by the settings row. */saved:boolean};
 export type ServiceRow={desired:'on'|'off';state:'off'|'pending'|'on'|'failed';failure:string|null;updatedAt:number|null};
 export type ServicesState={runtime:string;realtime:ServiceRow;functions:ServiceRow;database:ServiceRow;cron:ServiceRow;studio:ServiceRow;
- activity:Record<string,number>;actorCanChange:boolean};
+ activity:Record<string,number>;actorCanChange:boolean;
+ /** The saved mode and quiet period of Realtime and Edge Functions, and whether the kill switch is on. */
+ modes:Record<OnDemandService,ServiceModeState>;killSwitch:boolean;onDemandAvailable:Record<OnDemandService,boolean>};
 /** The environment's JWT signing secret: never rotated, a rotation waiting or failed, or the last one done. */
 export type SigningState={runtime:string;state:'never'|'pending'|'done'|'failed';failure:string|null;rotatedAt:number|null;updatedAt:number|null};
 export type SignInState={runtime:string;revision:number;applied:number|null;
@@ -254,6 +266,12 @@ export class Catalog {
       -- every 14 days (src/control/service-hints.ts), whatever the outbox window.
       CREATE TABLE IF NOT EXISTS service_hints(
         runtime TEXT NOT NULL, service TEXT NOT NULL, notified_at INTEGER NOT NULL, PRIMARY KEY(runtime,service));
+      -- The saved choice of an optional service: Off, On or On demand, and the quiet period before it sleeps. Whether the container runs now
+      -- is the realtime_settings or functions_settings row; a runtime with no row here has the mode its settings row implies.
+      CREATE TABLE IF NOT EXISTS service_modes(
+        runtime TEXT NOT NULL, service TEXT NOT NULL CHECK(service IN ('realtime','functions')),
+        mode TEXT NOT NULL CHECK(mode IN ('off','on','on_demand')), idle_minutes INTEGER,
+        actor TEXT NOT NULL, updated_at INTEGER NOT NULL, PRIMARY KEY(runtime,service));
       CREATE TABLE IF NOT EXISTS invitations(
         id TEXT PRIMARY KEY, organization TEXT NOT NULL REFERENCES organizations(id),
         email TEXT NOT NULL, role TEXT NOT NULL CHECK(role IN ('owner','admin','viewer')),
@@ -353,6 +371,8 @@ export class Catalog {
         ON notification_delivery(state,next_attempt_at);
       CREATE INDEX IF NOT EXISTS notification_windows
         ON notification_outbox(dedupe_key,window_until);
+      -- The wake limit reads the last hour of one environment's wake requests (wakesInWindow).
+      CREATE INDEX IF NOT EXISTS audit_events_action_subject ON audit_events(action,subject,at);
       CREATE INDEX IF NOT EXISTS projects_organization ON projects(organization);
       CREATE INDEX IF NOT EXISTS environments_project ON environments(project);
       CREATE INDEX IF NOT EXISTS memberships_actor ON memberships(actor);
@@ -383,6 +403,7 @@ export class Catalog {
       // Version 5: the database_external table (external database access), created by the schema above.
       // Version 6: the service_activity table (when each optional service was last used), created by the schema above.
       // Version 7: installation_services (installation wide settings of the optional services) and service_hints (when an unused service was last reported), created by the schema above.
+      // Version 8: service_modes (Off, On or On demand, and the quiet period, per environment and service), created by the schema above.
       this.db.exec(`PRAGMA user_version=${CATALOG_SCHEMA_VERSION}`);
     }).immediate();
     this.allowTelegramDeliveries();
@@ -1116,6 +1137,7 @@ export class Catalog {
       this.db.query(`INSERT INTO realtime_settings(runtime,desired,state,failure,actor,updated_at) VALUES (?,?,'pending',NULL,?,?)
         ON CONFLICT(runtime) DO UPDATE SET desired=excluded.desired,state='pending',failure=NULL,actor=excluded.actor,
         updated_at=excluded.updated_at`).run(current.runtime,on?'on':'off',actor,Date.now());
+      this.saveMode(current.runtime,'realtime',on?'on':'off',actor);
       this.record(actor,on?'realtime.requested':'realtime.stop_requested',environment,{});
       return this.realtime(actor,environment);
     }).immediate();
@@ -1160,6 +1182,7 @@ export class Catalog {
       this.db.query(`INSERT INTO functions_settings(runtime,desired,state,failure,actor,updated_at) VALUES (?,?,'pending',NULL,?,?)
         ON CONFLICT(runtime) DO UPDATE SET desired=excluded.desired,state='pending',failure=NULL,actor=excluded.actor,
         updated_at=excluded.updated_at`).run(current.runtime,on?'on':'off',actor,Date.now());
+      this.saveMode(current.runtime,'functions',on?'on':'off',actor);
       this.record(actor,on?'functions.requested':'functions.stop_requested',environment,{});
       return this.functions(actor,environment);
     }).immediate();
@@ -1188,7 +1211,9 @@ export class Catalog {
       realtime:read('realtime_settings'),functions:read('functions_settings'),database:read('database_access'),cron:read('scheduled_jobs'),
       // Studio's own failure text is an exception message: owners and admins read it on the Studio page, other members get a fixed sentence.
       studio:{desired:studio?.desired==='running'?'on':'off',state:studioState,failure:studio?.failure?'Studio could not start. Open it again; if it keeps failing, ask the installation operator.':null,updatedAt:studio?.updated_at??null} as ServiceRow,
-      activity:this.serviceActivity(runtime)};
+      activity:this.serviceActivity(runtime),
+      modes:{realtime:this.serviceMode(runtime,'realtime'),functions:this.serviceMode(runtime,'functions')},killSwitch:this.installationServices().killSwitch,
+      onDemandAvailable:{realtime:this.onDemandAvailable('realtime'),functions:this.onDemandAvailable('functions')}};
   }
   private canChangeServices(actor:string,environment:string):boolean {
     try{this.environmentProject(actor,environment,['owner','admin']);return true;}catch{return false;}
@@ -1212,21 +1237,151 @@ export class Catalog {
   /** Installation wide settings of the optional services, with their defaults. */
   installationServices():InstallationServices {
     const value=(key:string)=>this.db.query<{value:string},[string]>('SELECT value FROM installation_services WHERE key=?').get(key)?.value;
-    return {unusedDays:unusedDays(value('unused_days'))};
+    const mode=value('default_mode');
+    return {unusedDays:unusedDays(value('unused_days')),killSwitch:value('kill_switch')==='1',defaultMode:mode==='on_demand'?'on_demand':mode==='off'?'off':DEFAULT_NEW_MODE,realtimeOnDemand:value('realtime_on_demand')==='1',
+      idleMinutes:{realtime:idleMinutes(value('idle_realtime'),'realtime'),functions:idleMinutes(value('idle_functions'),'functions')},
+      limits:{wakesPerHour:WAKES_PER_HOUR,holdSeconds:HOLD_MS/1000}};
   }
-  /** Only installation operators change them. A value outside the floor and ceiling is refused, never clamped. */
-  setInstallationServices(actor:string,patch:{unusedDays?:number}):InstallationServices {
+  /** Only installation operators change them. A value outside its floor and ceiling is refused, never clamped; each change is an audit event. */
+  setInstallationServices(actor:string,patch:{unusedDays?:number;killSwitch?:boolean;defaultMode?:string;realtimeOnDemand?:boolean;idleMinutes?:Partial<Record<OnDemandService,number>>}):InstallationServices {
     return this.db.transaction(()=>{
       if(!this.installationOperator(actor))throw new Error('Forbidden');
+      const before=this.installationServices();
+      const write=(key:string,value:string,setting:string,from:unknown,to:unknown)=>{
+        this.db.query('INSERT INTO installation_services(key,value,actor,updated_at) VALUES (?,?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,actor=excluded.actor,updated_at=excluded.updated_at')
+          .run(key,value,actor,Date.now());
+        this.record(actor,'services.settings_changed','installation',{setting,from,to});
+      };
       if(patch.unusedDays!==undefined){
         if(!Number.isSafeInteger(patch.unusedDays)||patch.unusedDays<UNUSED_FLOOR_DAYS||patch.unusedDays>UNUSED_CEILING_DAYS)throw new Error('Invalid services setting');
-        const before=this.installationServices().unusedDays;
-        this.db.query('INSERT INTO installation_services(key,value,actor,updated_at) VALUES (?,?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,actor=excluded.actor,updated_at=excluded.updated_at')
-          .run('unused_days',String(patch.unusedDays),actor,Date.now());
-        this.record(actor,'services.settings_changed','installation',{setting:'unused_days',from:before,to:patch.unusedDays});
+        if(patch.unusedDays!==before.unusedDays)write('unused_days',String(patch.unusedDays),'unused_days',before.unusedDays,patch.unusedDays);
+      }
+      if(patch.killSwitch!==undefined){
+        if(typeof patch.killSwitch!=='boolean')throw new Error('Invalid services setting');
+        if(patch.killSwitch!==before.killSwitch)write('kill_switch',patch.killSwitch?'1':'0','kill_switch',before.killSwitch,patch.killSwitch);
+      }
+      if(patch.realtimeOnDemand!==undefined){
+        if(typeof patch.realtimeOnDemand!=='boolean')throw new Error('Invalid services setting');
+        if(patch.realtimeOnDemand!==before.realtimeOnDemand)write('realtime_on_demand',patch.realtimeOnDemand?'1':'0','realtime_on_demand',before.realtimeOnDemand,patch.realtimeOnDemand);
+      }
+      if(patch.defaultMode!==undefined){
+        if(patch.defaultMode!=='off'&&patch.defaultMode!=='on_demand')throw new Error('Invalid services setting');
+        if(patch.defaultMode!==before.defaultMode)write('default_mode',patch.defaultMode,'default_mode',before.defaultMode,patch.defaultMode);
+      }
+      for(const service of ON_DEMAND_SERVICES){
+        const minutes=patch.idleMinutes?.[service];
+        if(minutes===undefined)continue;
+        if(!validIdleMinutes(minutes))throw new Error('Invalid services setting');
+        if(minutes!==before.idleMinutes[service])write('idle_'+service,String(minutes),'idle_'+service,before.idleMinutes[service],minutes);
       }
       return this.installationServices();
     }).immediate();
+  }
+  /** Whether On demand can be chosen for this service on this installation. */
+  onDemandAvailable(service:OnDemandService):boolean {return ON_DEMAND_BY_DEFAULT[service]||(service==='realtime'&&this.installationServices().realtimeOnDemand);}
+  private settingsTable(service:OnDemandService){return service==='realtime'?'realtime_settings':'functions_settings';}
+  /** The saved mode of a service of a runtime, or the one its settings row implies (on if it is asked to run, otherwise off). */
+  serviceMode(runtime:string,service:OnDemandService):ServiceModeState {
+    const row=this.db.query<{mode:string;idle_minutes:number|null},[string,string]>('SELECT mode,idle_minutes FROM service_modes WHERE runtime=? AND service=?').get(runtime,service);
+    if(row&&isMode(row.mode))return {mode:row.mode,idleMinutes:idleMinutes(row.idle_minutes??this.installationServices().idleMinutes[service],service),saved:true};
+    const settings=this.db.query<{desired:string;state:string},[string]>(`SELECT desired,state FROM ${this.settingsTable(service)} WHERE runtime=?`).get(runtime);
+    return {mode:settings&&(settings.desired==='on'||settings.state==='on')?'on':'off',idleMinutes:this.installationServices().idleMinutes[service],saved:false};
+  }
+  /** Saves the mode a person (or the default for a new environment) chose, keeping the quiet period unless a new one is given. Records a change. */
+  private saveMode(runtime:string,service:OnDemandService,mode:Mode,actor:string,idle?:number,reason='user'):void {
+    const before=this.serviceMode(runtime,service);
+    const minutes=idle??before.idleMinutes;
+    const environment=this.db.query<{environment:string},[string]>('SELECT environment FROM provision_jobs WHERE runtime=?').get(runtime)?.environment??runtime;
+    this.db.query('INSERT INTO service_modes(runtime,service,mode,idle_minutes,actor,updated_at) VALUES (?,?,?,?,?,?) ON CONFLICT(runtime,service) DO UPDATE SET mode=excluded.mode,idle_minutes=excluded.idle_minutes,actor=excluded.actor,updated_at=excluded.updated_at')
+      .run(runtime,service,mode,minutes,actor,Date.now());
+    // A choice that changes nothing is not an event; the default given to a new environment is, once, so the audit trail says where its mode came from.
+    if(before.mode!==mode||before.idleMinutes!==minutes||reason==='default')
+      this.record(actor,service+'.mode_changed',environment,{from:before.mode,to:mode,idle_minutes:minutes,reason});
+  }
+  /** A new environment gets the installation's default mode for Realtime and Edge Functions; an environment that exists keeps what it has. */
+  private applyDefaultModes(environment:string):void {
+    const job=this.job(environment);
+    if(!job)return;
+    const defaults=this.installationServices();
+    if(defaults.defaultMode!=='on_demand')return;
+    for(const service of ON_DEMAND_SERVICES){
+      if(!this.onDemandAvailable(service))continue;
+      if(this.db.query('SELECT 1 FROM service_modes WHERE runtime=? AND service=?').get(job.runtime,service))continue;
+      const settings=this.db.query<{desired:string}, [string]>(`SELECT desired FROM ${this.settingsTable(service)} WHERE runtime=?`).get(job.runtime);
+      if(settings?.desired==='on')continue;
+      this.saveMode(job.runtime,service,'on_demand','system:default',defaults.idleMinutes[service],'default');
+    }
+  }
+  /** Chooses Off, On or On demand for a service of an environment (owners and admins). On starts it now when it is not running; Off stops it;
+   * On demand never starts or stops anything by itself: a running service sleeps after its quiet period, a sleeping one stays asleep until used.
+   * `idle` is the quiet period in minutes (floor 5), kept when omitted. */
+  setServiceMode(actor:string,environment:string,service:OnDemandService,mode:Mode,idle?:number):{runtime:string;mode:ServiceModeState;state:ServiceRow} {
+    return this.db.transaction(()=>{
+      this.environmentProject(actor,environment,['owner','admin']);
+      const job=this.job(environment);
+      if(!job||job.state!=='succeeded'||this.runtimeDeleted(job.runtime))throw new Error('Environment is not ready');
+      if(!ON_DEMAND_SERVICES.includes(service)||!isMode(mode)||(idle!==undefined&&!validIdleMinutes(idle))||(mode==='on_demand'&&!this.onDemandAvailable(service)))throw new Error('Invalid services setting');
+      const row=this.servicesOf(job.runtime)[service];
+      if(row.state==='pending')throw new Error(service==='realtime'?'Realtime change in progress':'Edge Functions change in progress');
+      this.saveMode(job.runtime,service,mode,actor,idle);
+      const running=row.state==='on';
+      if(mode==='on'&&!running)this.writeRequest(job.runtime,service,true,actor,service+'.requested',environment,{reason:'user'});
+      if(mode==='off'&&(running||row.desired==='on'))this.writeRequest(job.runtime,service,false,actor,service+'.stop_requested',environment,{reason:'user'});
+      return {runtime:job.runtime,mode:this.serviceMode(job.runtime,service),state:this.servicesOf(job.runtime)[service]};
+    }).immediate();
+  }
+  private writeRequest(runtime:string,service:OnDemandService,on:boolean,actor:string,action:string,environment:string,detail:object):void {
+    this.db.query(`INSERT INTO ${this.settingsTable(service)}(runtime,desired,state,failure,actor,updated_at) VALUES (?,?,'pending',NULL,?,?)
+      ON CONFLICT(runtime) DO UPDATE SET desired=excluded.desired,state='pending',failure=NULL,actor=excluded.actor,updated_at=excluded.updated_at`)
+      .run(runtime,on?'on':'off',actor,Date.now());
+    this.record(actor,action,environment,detail);
+  }
+  /** The gateway or the sleeper asks the supervisor to wake or put to sleep a service (reason `wake`, `idle` or `kill_switch`), without touching
+   * the saved mode. `pending` when a change is already running, `noop` when it already is as asked (`force` asks again for a service the catalog calls on but whose container is not running). Every request is an audit event with its actor and reason. */
+  requestServiceChange(runtime:string,service:OnDemandService,on:boolean,actor:string,reason:'wake'|'idle'|'kill_switch',force=false):'requested'|'pending'|'noop' {
+    return this.db.transaction(()=>{
+      const job=this.db.query<ProvisionJob,[string]>('SELECT * FROM provision_jobs WHERE runtime=?').get(runtime);
+      if(!job||!this.runtimeReady(runtime))throw new Error('Environment is not ready');
+      const row=this.servicesOf(runtime)[service];
+      if(row.state==='pending')return 'pending' as const;
+      if(on&&row.state==='on'&&!force||!on&&row.state!=='on'&&row.desired==='off')return 'noop' as const;
+      this.writeRequest(runtime,service,on,actor,service+(on?'.wake_requested':'.sleep_requested'),job.environment,{reason});
+      return 'requested' as const;
+    }).immediate();
+  }
+  /** The one settings row of a service: what the gateway's hot path needs, in a single query. */
+  serviceRow(runtime:string,service:OnDemandService):ServiceRow {
+    const row=this.db.query<{desired:string;state:string;failure:string|null;updated_at:number;actor:string},[string]>(
+      `SELECT desired,state,failure,updated_at,actor FROM ${this.settingsTable(service)} WHERE runtime=?`).get(runtime);
+    return {desired:(row?.desired??'off') as 'on'|'off',state:(row?.state??'off') as ServiceRow['state'],failure:row?.failure??null,updatedAt:row?.updated_at??null};
+  }
+  /** A request arrived while the sleeper's stop was still waiting for the supervisor: the stop is called off, so a service that is running is not
+   * stopped and started again for the one who is waiting. Only a stop asked for by the sleeper and not yet applied is called off. */
+  cancelSleep(runtime:string,service:OnDemandService):boolean {
+    return this.db.transaction(()=>{
+      const result=this.db.query(`UPDATE ${this.settingsTable(service)} SET desired='on',state='on',failure=NULL,actor='system:wake' WHERE runtime=? AND state='pending' AND desired='off' AND actor='system:idle'`).run(runtime);
+      if(result.changes!==1)return false;
+      const job=this.db.query<{environment:string},[string]>('SELECT environment FROM provision_jobs WHERE runtime=?').get(runtime);
+      if(job)this.record('system:wake',service+'.sleep_cancelled',job.environment,{reason:'wake'});
+      return true;
+    }).immediate();
+  }
+  /** Wakes of one service of a runtime asked for by requests (not by the kill switch) in the last hour. */
+  wakesInWindow(runtime:string,service:OnDemandService,now=Date.now()):number {
+    const job=this.db.query<{environment:string},[string]>('SELECT environment FROM provision_jobs WHERE runtime=?').get(runtime);
+    if(!job)return 0;
+    return this.db.query<{count:number},[string,string,number]>(`SELECT count(*) count FROM audit_events WHERE action=? AND subject=? AND at>? AND detail LIKE '%"reason":"wake"%'`)
+      .get(service+'.wake_requested',job.environment,now-WAKE_WINDOW_MS)!.count;
+  }
+  /** Every ready runtime and service saved as On demand: what the sleeper looks at. */
+  onDemandTargets():{runtime:string;service:OnDemandService;idleMinutes:number}[] {
+    const out:{runtime:string;service:OnDemandService;idleMinutes:number}[]=[];
+    for(const row of this.db.query<{runtime:string;service:string},[]>("SELECT m.runtime runtime,m.service service FROM service_modes m WHERE m.mode='on_demand' ORDER BY m.runtime,m.service").all()){
+      if(!this.runtimeReady(row.runtime)||!ON_DEMAND_SERVICES.includes(row.service as OnDemandService))continue;
+      const service=row.service as OnDemandService;
+      out.push({runtime:row.runtime,service,idleMinutes:this.serviceMode(row.runtime,service).idleMinutes});
+    }
+    return out;
   }
   /** Every runtime that is ready (not deleted, not being restored). */
   readyRuntimes():string[] {
@@ -1421,7 +1576,7 @@ export class Catalog {
         .run(success?'succeeded':'failed',success?null:failure,environment,claim);
       if(result.changes!==1) throw new Error('Stale provisioning claim');
       this.record('system',success?'provision.succeeded':'provision.failed',environment,success?{}:{failure});
-      if(success)return;
+      if(success){this.applyDefaultModes(environment);return;}
       const job=this.job(environment);
       if(!job)return;
       const subject=this.notificationScope(environment,job.organization,job.runtime);

@@ -11,6 +11,10 @@ Realtime lets clients listen to database changes, and send broadcast and presenc
 
 Every member can read the page; only owners and admins can switch Realtime. If the server does not have the memory or the database connections for another Realtime, the section says so and nothing changes; see [choosing a server](choosing-a-server.md).
 
+## Modes: Off, On, On demand
+
+Realtime is **Off** for a new environment. **On** runs it all the time. **On demand** (only where an installation operator has allowed it, see [Services](services.md)) starts it on the first connection and stops it after a quiet period with no open connection. It is not the default for Realtime because its start measured 12 to 15 seconds on the machine it was tried on, longer than supabase-js waits for a channel to join; an app that needs live updates the moment a person opens it should keep Realtime **On**. A sleeping Realtime never keeps a replication slot, so it holds no WAL. [Why was my first request slow?](services.md) explains the delay.
+
 ## Use it
 
 Nothing changes in your application: point supabase-js at the environment's address with its publishable key, as for everything else.

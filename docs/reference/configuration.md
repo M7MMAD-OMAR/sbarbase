@@ -187,6 +187,10 @@ With Docker, `deploy/compose.sh` also reads these. It refuses when the socket or
 
 Other variables named `SBARBASE_*` (for example `SBARBASE_WORKER_FD`, `SBARBASE_EFFECT_TOKEN`, and `SBARBASE_DOCKER_PROFILE` and `SBARBASE_CONTAINER`, which `compose.yaml` sets) pass lock descriptors and tokens between Sbarbase's own processes. They are not operator settings; do not set them by hand.
 
+## Optional services
+
+Realtime and Edge Functions each have a mode (Off, On, On demand) per environment, and installation operators set the defaults, the kill switch and the quiet periods from the console (**Server**, **Optional services**) or through `GET` and `PUT /management/v1/installation/services`; none of it needs an environment variable or a host command. What the console shows read only: 6 wakes an hour per service and environment, a hold of 20 seconds for a first request, a floor of 5 minutes for a quiet period. See [Services](../guides/services.md).
+
 ## Not configurable yet
 
 Resource tiers and admission thresholds are fixed in code ([lab/resource_policy.py](../../lab/resource_policy.py), [lab/pressure_admission.py](../../lab/pressure_admission.py)). Gateway concurrency limits and deadlines are constructor defaults in [src/gateway/concurrency.ts](../../src/gateway/concurrency.ts).

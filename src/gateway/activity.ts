@@ -42,6 +42,27 @@ export class ServiceActivity {
    this.mark(runtime,'realtime');
   };
  }
+
+ private draining=new Map<string,number>();
+ /** Edge Functions of this runtime are being turned off: new calls are refused with a retry for a while, so the calls already running can end
+  * (`waitForCalls`) before the container goes. The refusal lapses by itself, so a stop that never happens cannot refuse calls for good. */
+ beginDrain(runtime:string,forMs:number) {this.draining.set(runtime,this.now()+forMs);}
+ endDrain(runtime:string){this.draining.delete(runtime);}
+ isDraining(runtime:string):boolean {
+  const until=this.draining.get(runtime);
+  if(until===undefined)return false;
+  if(this.now()>=until){this.draining.delete(runtime);return false;}
+  return true;
+ }
+ /** Resolves true once no call is in flight, false after `timeoutMs`. */
+ async waitForCalls(runtime:string,timeoutMs:number,pollMs=100):Promise<boolean> {
+  const deadline=this.now()+timeoutMs;
+  while(this.inFlightCalls(runtime)>0){
+   if(this.now()>=deadline)return false;
+   await new Promise(resolve=>setTimeout(resolve,pollMs));
+  }
+  return true;
+ }
  openSockets(runtime:string){return this.sockets.get(runtime)??0;}
  inFlightCalls(runtime:string){return this.functionsInFlight(runtime);}
  /** Last use in milliseconds, or null: what this process saw, or what an earlier one recorded. */

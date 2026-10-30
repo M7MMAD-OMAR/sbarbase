@@ -24,3 +24,22 @@
 .svc-hint p{margin:0}
 @media (max-width:860px){.svc-hint{flex-direction:column;align-items:stretch;margin-inline:16px}}
 .aw-pane>.svc-hint{margin:8px 0 0}
+.svc-mode{margin-block-end:12px}
+.svc-radios{margin-block-end:12px}
+.svc-radios button[disabled]{opacity:.6;cursor:not-allowed}
+.svc-effect{margin:0 0 12px;font-size:14px;color:var(--text)}
+.svc-idle{margin-block-start:8px;max-width:240px}
+.svc-limits{margin-block-start:4px}
+.svc-apply{margin-block-start:12px}
+.svc-mode-tag{margin-inline-start:8px;padding:1px 8px;border-radius:999px;background:var(--selected);color:var(--subtle);font-size:11px;font-weight:600;letter-spacing:.03em}
+.svc-line{margin-block-start:2px}
+.svc-open{flex:none}
+.svc-state-note{margin:0 0 12px}
+.svc-radios button.active{background:var(--accent-solid);color:var(--accent-fg)}
+.svc-radios button.active:hover{background:var(--accent-solid)}
+.svc-idle{max-width:none}
+.svc-idle input{max-width:160px}
+.svc-defaults{margin-block:32px}
+.aw-pane .svc-h{margin-block-start:28px}
+.svc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0 16px;margin-block-start:16px}
+.svc-defaults .svc-radios{margin-block-start:12px}

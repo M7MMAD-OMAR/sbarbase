@@ -5,6 +5,15 @@ import {resolveRuntimePlacement,placementServices,type RuntimeRouting,type Resol
 import {KeyStore} from '../control/keys';
 import {createGateway,gatewayKeyAccess,withCors,type EnvironmentRoute} from './handler';
 import type {ServiceActivity} from './activity';
+import type {OnDemandService} from '../control/on-demand-policy';
+
+/** What the gateway needs of On demand mode (src/control/on-demand.ts): whether a service is saved as On demand, and a way to wake it. */
+export type OnDemandGate={
+ isOnDemand(runtime:string,service:OnDemandService):boolean;
+ ensure(runtime:string,service:OnDemandService):Promise<{ok:true}|{ok:false;status:number;message:string;retryAfter?:number}>;
+ /** A Functions call with no API key may wake the runtime only for a function its owner made public (verify_jwt off). */
+ publicFunction?(runtime:string,name:string):boolean;
+};
 
 /** A guaranteed share per environment (8 unless the catalog records another), borrowing up to 24
  * while the neighbours' shares stay free (docs/engineering/FAIR-SHARE-ADMISSION.md). */
@@ -28,7 +37,7 @@ export function routeWithPlacement(configured:EnvironmentRoute|undefined,routing
 /** Runtime configuration comes from the trusted installer, never HTTP input.
  * Resolve on every request so routing does not outlive its control-plane state.
  */
-export function managedGateway(catalog:Catalog,keys:KeyStore,resolve:(runtime:string)=>EnvironmentRoute|undefined,transport:typeof fetch=fetch, concurrency=applicationConcurrency, activity?:ServiceActivity) {
+export function managedGateway(catalog:Catalog,keys:KeyStore,resolve:(runtime:string)=>EnvironmentRoute|undefined,transport:typeof fetch=fetch, concurrency=applicationConcurrency, activity?:ServiceActivity, onDemand?:OnDemandGate) {
  keys.useRuntimeEpoch(runtime=>catalog.runtimeEpoch(runtime));
  // Its own refusals carry the browser headers too, so a page sees the status, not a network error.
  return async(request:Request):Promise<Response>=>withCors(await route(request),request);
@@ -51,11 +60,35 @@ export function managedGateway(catalog:Catalog,keys:KeyStore,resolve:(runtime:st
     {status:503,headers:{'cache-control':'no-store'}});
    if(routing.maintenance)return Response.json({message:'Environment temporarily paused'},
     {status:503,headers:{'retry-after':'1','cache-control':'no-store'}});
-   const route=routeWithPlacement(resolve(runtime),routing,resolved);
+   let route=routeWithPlacement(resolve(runtime),routing,resolved);
    if(!route) return Response.json({message:'Environment routing unavailable'},{status:503});
+   // Edge Functions being turned off: calls that have not started wait out the drain, so the ones running can end.
+   if(activity&&match[2]==='functions'&&request.method!=='OPTIONS'&&activity.isDraining(runtime))
+    return Response.json({message:'Edge Functions are being turned off. Retry shortly.'},{status:503,headers:{'retry-after':'2','cache-control':'no-store'}});
+   // A service saved as On demand is started by the first request that carries a verified key, and held until it answers. A Functions call without a
+   // key may do the same only for a function its owner made public. Nothing else ever wakes anything.
+   const wakes:OnDemandService|undefined=match[2]==='functions'?'functions':match[2]==='realtime'?'realtime':undefined;
+   if(onDemand&&wakes&&request.method!=='OPTIONS'&&onDemand.isOnDemand(runtime,wakes)){
+    const name=(match[3]||'/').split('/')[1]??'';
+    const may=access.apiKey!==null||(wakes==='functions'&&access.keylessFunction&&!!onDemand.publicFunction?.(runtime,name));
+    if(may){
+     const outcome=await onDemand.ensure(runtime,wakes);
+     if(!outcome.ok)return Response.json({message:outcome.message},{status:outcome.status,
+      headers:{'cache-control':'no-store',...(outcome.retryAfter?{'retry-after':String(outcome.retryAfter)}:{})}});
+     if(!allowed())return Response.json({message:'Invalid API key'},{status:401});
+     route=routeWithPlacement(resolve(runtime),catalog.runtimeRouting(runtime),resolved);
+     if(!route) return Response.json({message:'Environment routing unavailable'},{status:503});
+    }
+   }
    // A request that carried a verified API key and reached a running service counts as use of it (src/gateway/activity.ts).
    // A preflight and a call without a key do not: anyone can send those.
-   if(activity&&match[2]==='functions'&&route.functions&&access.apiKey!==null&&request.method!=='OPTIONS')activity.touch(runtime,'functions');
+   // Edge Functions: a call with a verified key, or without one to a function its owner made public. Realtime's broadcast API: a call with a verified key.
+   // A preflight and anything else keyless do not count: anyone can send those.
+   if(activity&&request.method!=='OPTIONS'){
+    const name=(match[3]||'/').split('/')[1]??'';
+    if(match[2]==='functions'&&route.functions&&(access.apiKey!==null||(access.keylessFunction&&!!onDemand?.publicFunction?.(runtime,name))))activity.touch(runtime,'functions');
+    if(match[2]==='realtime'&&route.realtime&&access.apiKey!==null)activity.touch(runtime,'realtime');
+   }
    const guardedTransport=(async(input,init)=>{
     if(!allowed())return Response.json({message:'Invalid API key'},{status:401});
     const response=await transport(input,init);

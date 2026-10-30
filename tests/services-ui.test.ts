@@ -38,6 +38,7 @@ test('turning off asks first only when something is open, and says how many',()=
  expect(confirmOff(service({inUse:1}))).toContain('1 connection is open right now');
  expect(confirmOff(service({inUse:3}))).toContain('3 connections are open right now');
  expect(confirmOff(service({id:'functions',inUse:2}))).toContain('2 calls are running right now');
+ expect(confirmOff(service({id:'functions',inUse:2}))).toContain('waits up to 10 seconds');
  expect(confirmOff(service({id:'functions',inUse:1}))).toContain('1 call is running right now');
  expect(confirmOff(service({state:'off',inUse:4}))).toBeNull();
  expect(confirmOff(service({id:'cron',inUse:4}))).toBeNull();
@@ -67,5 +68,36 @@ test('the page text carries no long dash and the sources have no borders on card
   const text=readFileSync(new URL(file,import.meta.url),'utf8');
   expect(text).not.toMatch(/[–—]/);
  }
- expect(readFileSync(new URL('../ui/services.css',import.meta.url),'utf8')).not.toMatch(/border(-[a-z]+)?\s*:\s*[1-9]/);
+ expect(readFileSync(new URL('../ui/services.css',import.meta.url),'utf8')).not.toMatch(/border(?!-radius)(-[a-z-]+)?\s*:\s*[1-9]/);
+});
+
+import {STATE_CLASS,STATE_LABEL,STATE_NOTE,limitsText,modeEffect,onDemandLine} from '../ui/services-view';
+
+test('the line under an On demand service says what happens and warns about the first request, in the words the owner chose',()=>{
+ expect(onDemandLine(30)).toBe('Starts on the first request, stops after 30 quiet minutes. The first request after a pause can take a few seconds.');
+ expect(onDemandLine(1)).toContain('1 quiet minute.');
+});
+
+test('choosing a mode says its exact effect before it is applied, by what is saved and what runs now',()=>{
+ const rt=service({id:'realtime'}),fn=service({id:'functions'});
+ expect(modeEffect(rt,'off',30,'on',true)).toBe('Realtime stops now and nothing starts it again. Requests to it fail until you turn it on.');
+ expect(modeEffect(fn,'off',15,'on',true)).toContain('Your deployed code and secrets are kept.');
+ expect(modeEffect(rt,'on',30,'off',false)).toBe('Realtime starts now and runs all the time, holding its memory whether it is used or not.');
+ expect(modeEffect(rt,'on',30,'on',true)).toContain('keeps running all the time');
+ expect(modeEffect(rt,'on_demand',45,'on',true)).toBe(onDemandLine(45)+' It keeps running now, and stops by itself once it has been quiet that long with nothing open.');
+ expect(modeEffect(rt,'on_demand',30,'off',false)).toBe(onDemandLine(30)+' Nothing starts now: it stays asleep until something uses it.');
+ expect(modeEffect(rt,'on_demand',30,'on_demand',false)).toBe(onDemandLine(30));
+});
+
+test('the read only limits are said in one sentence from the numbers the server sends',()=>{
+ expect(limitsText({wakesPerHour:6,holdSeconds:20,idleFloorMinutes:5})).toBe('At most 6 starts an hour for each service, one start at a time on the whole server. A first request waits up to 20 seconds for the start, then gets a retry answer. Open connections, running calls and every request that reaches a service keep it awake for its quiet period.');
+});
+
+test('sleeping and waking are named plainly, are never red, and a waking service is waited for',()=>{
+ expect(STATE_LABEL.sleeping).toBe('Sleeping');expect(STATE_LABEL.waking).toBe('Waking…');
+ expect(STATE_CLASS.sleeping).toBe('');expect(STATE_CLASS.waking).toBe('pending');
+ expect(STATE_NOTE.sleeping).toContain('The first request starts it');
+ expect(changing(service({state:'waking'}))).toBe(true);expect(changing(service({state:'sleeping'}))).toBe(false);
+ expect(memoryText(service({state:'sleeping',memoryBytes:null}))).toBe('None while asleep');
+ expect(memoryText(service({state:'waking',memoryBytes:null}))).toBe('None while asleep');
 });

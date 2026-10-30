@@ -5,6 +5,9 @@ import {dirname,join} from 'node:path';
 import {randomBytes} from 'node:crypto';
 import {Catalog} from './catalog';
 import {authenticate,reply,type ManagementIdentity} from './auth';
+import type {ServiceActivity} from '../gateway/activity';
+import {DRAIN_MS} from './on-demand-policy';
+import {parseServiceChange,SERVICE_CHANGE_HELP} from './service-mode-http';
 import {settingsChange,type Boot,type BootCheck} from './functions-write';
 import {maskValues,usageView,type UsageSource} from './functions-worker';
 import {DEFAULT_SECRETS,functionArchive,functionSource,noteSecretTimes,redactCallPath,secretRows} from './functions-read';
@@ -56,6 +59,18 @@ function atomicWrite(path:string,content:string,mode=0o644) {
  const pending=`${path}.${randomBytes(4).toString('hex')}.pending`;
  writeFileSync(pending,content,{mode});
  renameSync(pending,path);
+}
+
+/** Whether a deployed function was made public by its owner (verify_jwt off): the only kind a call without an API key may wake the runtime for.
+ * The manifest is read from disk at most once every two seconds per environment. */
+const publicCache=new Map<string,{at:number;manifest:Manifest}>();
+export function isPublicFunction(codeRoot:string,runtime:string,name:string,now=Date.now()):boolean {
+ const key=codeRoot+'|'+runtime;let cached=publicCache.get(key);
+ if(!cached||now-cached.at>2000){
+  if(publicCache.size>2000)publicCache.clear();
+  cached={at:now,manifest:readManifest(codeRoot,runtime)};publicCache.set(key,cached);
+ }
+ return entryOf(cached.manifest,name)?.verify_jwt===false;
 }
 
 export function readManifest(codeRoot:string,runtime:string):Manifest {
@@ -208,7 +223,7 @@ async function body(request:Request):Promise<unknown> {
 }
 
 export function functionsHandler(catalog:Catalog,identify:ManagementIdentity,codeRoot='.lab/upstream/functions',
- secretsRoot='.secrets/upstream/functions',log?:RequestLog,boot?:Boot,usage?:UsageSource) {
+ secretsRoot='.secrets/upstream/functions',log?:RequestLog,boot?:Boot,usage?:UsageSource,activity?:ServiceActivity) {
  return async(request:Request):Promise<Response>=>{
   const url=new URL(request.url);
   const match=url.pathname.match(/^\/management\/v1\/environments\/([a-f0-9-]{36})\/(functions|function-secrets)(?:\/([^/]+)(?:\/(source|download|metrics|logs|usage|output))?)?$/);
@@ -224,7 +239,8 @@ export function functionsHandler(catalog:Catalog,identify:ManagementIdentity,cod
    const answer=(response:Response)=>bindReadyEnvironmentPublication(response,catalog,actor,environment!,state.runtime,true);
    const view=()=>{
     const manifest=readManifest(codeRoot,state.runtime);
-    return {...catalog.functions(actor,environment!),
+    const mode=catalog.serviceMode(state.runtime,'functions');
+    return {...catalog.functions(actor,environment!),mode:mode.mode,idle_minutes:mode.idleMinutes,kill_switch:catalog.installationServices().killSwitch,
      functions:Object.entries(manifest.functions).sort(([a],[b])=>a.localeCompare(b))
       .map(([fn,entry])=>({name:fn,verify_jwt:entry.verify_jwt,updated_at:entry.updated_at,size:entry.size,path:`/${state.runtime}/functions/v1/${fn}`,
        created_at:entry.created_at??entry.updated_at,deployments:entry.deployments??1})),
@@ -285,9 +301,16 @@ export function functionsHandler(catalog:Catalog,identify:ManagementIdentity,cod
     let input:unknown;
     try{input=await request.json();}catch{return reply(400,{message:'Invalid JSON'});}
     await refreshCurrentManagement();
-    const enabled=(input as {enabled?:unknown}|null)?.enabled;
-    if(typeof enabled!=='boolean'||Object.keys(input as object).length!==1)return reply(400,{message:'Send {"enabled": true} or {"enabled": false}'});
-    catalog.requestFunctions(actor,environment!,enabled);
+    const change=parseServiceChange(input);
+    if(!change)return reply(400,{message:SERVICE_CHANGE_HELP});
+    // Turning a running Edge Functions off: calls that have not started are refused with a retry, and the ones running get up to ten seconds
+    // to end, before the container goes. The deployed code and secrets are kept; only the container stops.
+    const stopping=(change.kind==='enabled'?!change.enabled:change.mode==='off')&&state.state==='on';
+    if(stopping&&activity){activity.beginDrain(state.runtime,DRAIN_MS+30_000);await activity.waitForCalls(state.runtime,DRAIN_MS);}
+    try{
+     if(change.kind==='enabled')catalog.requestFunctions(actor,environment!,change.enabled);
+     else catalog.setServiceMode(actor,environment!,'functions',change.mode,change.idle);
+    }catch(error){activity?.endDrain(state.runtime);throw error;}
     return answer(reply(202,{data:view()}));
    }
    if(request.method==='DELETE'){
@@ -327,13 +350,16 @@ export function functionsHandler(catalog:Catalog,identify:ManagementIdentity,cod
    catch(error){discardVersion(codeRoot,state.runtime,staged.version);throw error;}
    log?.deployedFunction(state.runtime,name,entry.updated_at);
    catalog.recordFunction(actor,environment!,'functions.deployed',{name,version:entry.version,size:entry.size,boot_check:check});
-   // The first deploy starts the environment's Edge Functions, as on Supabase.
-   if(state.desired==='off'&&state.state!=='pending')catalog.requestFunctions(actor,environment!,true);
-   return answer(reply(201,{data:{...view(),deployed:{name,...entry,boot_check:check}}}));
+   // The first deploy starts the environment's Edge Functions, as on Supabase, unless the environment saved them as On demand: then the
+   // first call starts them, and a deploy never changes the saved choice. `turned_on` says whether this deploy asked for the start.
+   const turnedOn=state.desired==='off'&&state.state!=='pending'&&catalog.serviceMode(state.runtime,'functions').mode==='off';
+   if(turnedOn)catalog.requestFunctions(actor,environment!,true);
+   return answer(reply(201,{data:{...view(),deployed:{name,...entry,boot_check:check,turned_on:turnedOn}}}));
   } catch(error) {
    const message=error instanceof Error?error.message:'';
    if(error instanceof DeployError)return reply(400,{message:`Check the ${message}`});
    if(message==='Forbidden')return reply(403,{message:'Forbidden'});
+   if(message==='Invalid services setting')return reply(400,{message:SERVICE_CHANGE_HELP});
    if(message==='Environment is not ready'||message==='Edge Functions change in progress')return reply(409,{message});
    return reply(500,{message:'Management operation failed'});
   }

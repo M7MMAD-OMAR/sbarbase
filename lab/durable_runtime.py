@@ -2185,8 +2185,12 @@ GRANT CREATE ON DATABASE {e} TO {role};
             lab.docker('network', 'disconnect', '--force', network, member, check=False)
         lab.docker('network', 'rm', network)
 
-    def realtime_turn(self, e, on):
-        """Turn one environment's Realtime on or off: an operator action from the console."""
+    def realtime_turn(self, e, on, wake=False, sleep=False):
+        """Turn one environment's Realtime on or off: an operator action from the console. `sleep` and `wake` are On demand mode's
+        two halves (docs/guides/services.md): a sleep is an off that remembers which image Realtime last migrated with, and a wake is an on
+        that skips the superuser migration window when the image did not change since, so the first request after a pause waits seconds,
+        not a full first start. Both go through the same admission as a manual start, and a sleeping Realtime is never started by anything else
+        (a restart, an update, a backup or a restore starts only what the published endpoints name)."""
         effect_receipt.require_settled(STATE)
         if not re.fullmatch(r'e_[a-f0-9]{24}', e):
             raise RuntimeError('Invalid environment runtime identifier')
@@ -2212,22 +2216,57 @@ GRANT CREATE ON DATABASE {e} TO {role};
                     "FROM pg_database WHERE datallowconn AND datname <> 'template1';").stdout.strip().split('|'))
                 if promised + connection_budget.REALTIME_CONNECTIONS > available:
                     raise AdmissionLimitError('Connection headroom unavailable')
-            entry = self.realtime_start(e, migrate=True)
+            asleep = endpoints[e].get('asleep', {}).get('realtime') if wake else None
+            migrate = not (isinstance(asleep, dict) and asleep.get('migrated') == self.pins['realtime']['id'])
+            if not migrate:
+                # A sleep closed the login (NOLOGIN) and its sessions; the schemas and the tenant are still there, so only the login
+                # and the connection limit come back, without the superuser window.
+                self.realtime_database(e, self.realtime_values(e))
+            entry = self.realtime_start(e, migrate=migrate)
         else:
             entry = None
+            previous = endpoints[e].get('realtime')
             if inspect('container', name):
                 lab.docker('rm', '-f', name)
             self.sql(f"DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{e}_realtime') THEN "
                      f"ALTER ROLE {e}_realtime NOLOGIN; END IF; END $$; "
                      f"SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE usename = '{e}_realtime';")
-            self.sql(f"SELECT count(pg_drop_replication_slot(slot_name)) FROM pg_replication_slots WHERE database = '{e}' AND NOT active;")
+            slots_left = self.realtime_drop_slots(e)
             self.sql(scheduled_jobs.limit_sql(e, current_database_limit(e, realtime=False)))
         endpoints = published_endpoints()
         if entry:
             endpoints[e]['realtime'] = entry
+            endpoints[e].get('asleep', {}).pop('realtime', None)
         else:
             endpoints[e].pop('realtime', None)
+            if sleep and isinstance(previous, dict) and previous.get('migrated'):
+                endpoints[e].setdefault('asleep', {})['realtime'] = {'migrated': previous['migrated']}
+        if not endpoints[e].get('asleep'):
+            endpoints[e].pop('asleep', None)
         runtime_files.write_endpoints(endpoints, STATE)
+        if not on and slots_left:
+            # Realtime is off and unpublished either way; a slot that stays would hold WAL for as long as Realtime sleeps, so it is reported.
+            raise RuntimeError('A Realtime replication slot remains after the stop')
+
+    def realtime_drop_slots(self, e):
+        """Drops Realtime's replication slots of this environment's database after its container is gone, and returns how many are left. A slot that
+        is still active (its walsender has not exited yet) has that backend ended first, and a slot that turns active between the look and the drop is
+        left for the next round, so the stop never ends on an error that leaves WAL retained: the loop looks again until none is left or ten seconds pass.
+        Only slots Realtime names (`supabase_realtime...`) are touched, never a slot an application made."""
+        match = f"database = '{e}' AND slot_name LIKE 'supabase\\_realtime%'"
+        remaining = 0
+        for _ in range(20):
+            self.sql(f"SELECT count(pg_terminate_backend(active_pid)) FROM pg_replication_slots WHERE {match} AND active;")
+            self.sql(f"""DO $$ DECLARE r record; BEGIN
+  FOR r IN SELECT slot_name FROM pg_replication_slots WHERE {match} AND NOT active LOOP
+    BEGIN PERFORM pg_drop_replication_slot(r.slot_name); EXCEPTION WHEN object_in_use THEN NULL; END;
+  END LOOP;
+END $$;""")
+            remaining = int(self.sql(f"SELECT count(*) FROM pg_replication_slots WHERE {match};").stdout.strip() or 0)
+            if not remaining:
+                return 0
+            time.sleep(.5)
+        return remaining
 
     def scheduler_password(self, e):
         """The scheduler login's password, generated once and kept with the environment's other credentials,
@@ -2527,6 +2566,8 @@ if __name__ == '__main__':
     parser.add_argument('command', choices=['up', 'stop', 'provision', 'mail', 'auth', 'realtime', 'functions', 'database', 'signing', 'data-api', 'cron'])
     parser.add_argument('environment', nargs='?')
     parser.add_argument('--off', action='store_true')
+    parser.add_argument('--wake', action='store_true')
+    parser.add_argument('--sleep', action='store_true')
     args = parser.parse_args()
     if args.command != 'stop':
         docker_profile.require_or_exit()
@@ -2548,7 +2589,7 @@ if __name__ == '__main__':
                 if args.command=='stop':stop()
                 elif args.command=='realtime':
                     if not args.environment:raise SystemExit('The realtime command needs an environment')
-                    Runtime().realtime_turn(args.environment, on=not args.off)
+                    Runtime().realtime_turn(args.environment, on=not args.off, wake=args.wake, sleep=args.sleep)
                 elif args.command=='signing':
                     if not args.environment:raise SystemExit('The signing command needs an environment')
                     Runtime().rotate_signing(args.environment)

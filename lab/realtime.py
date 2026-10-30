@@ -11,6 +11,7 @@ console to show.
 """
 import argparse
 import fcntl
+import json
 import re
 import sqlite3
 import subprocess
@@ -53,6 +54,29 @@ def desired(e, service='realtime'):
     return row[0] if row else None
 
 
+# On demand mode (docs/guides/services.md): the gateway, the sleeper and the kill switch write their requests as the system actors below.
+# They are the same pending rows a person's switch writes, applied here by the same code with the same admission; the actor only says which
+# half of On demand a request is, and why it was made (the reason of the audit event).
+SYSTEM_ACTORS = {'system:wake': 'wake', 'system:kill-switch': 'kill_switch', 'system:idle': 'idle'}
+
+
+def requested_by(e, service='realtime'):
+    with closing(sqlite3.connect(f'file:{CATALOG}?mode=ro', uri=True, timeout=5)) as database:
+        row = database.execute(f'SELECT actor FROM {SERVICES[service][0]} WHERE runtime=?', (e,)).fetchone()
+    return row[0] if row else None
+
+
+def audit(e, service, action, detail):
+    """One audit event for what the supervisor did (the request that asked for it is the console's own event)."""
+    try:
+        with closing(sqlite3.connect(CATALOG, timeout=5)) as database, database:
+            database.execute("INSERT INTO audit_events(actor, action, subject, detail, at) "
+                             "SELECT 'system:supervisor', ?, environment, ?, ? FROM provision_jobs WHERE runtime=?",
+                             (f'{service}.{action}', json.dumps(detail, separators=(',', ':')), int(time.time() * 1000), e))
+    except sqlite3.Error:
+        pass
+
+
 def record(e, state, failure=None, service='realtime'):
     try:
         with closing(sqlite3.connect(CATALOG, timeout=5)) as database, database:
@@ -81,14 +105,25 @@ def apply(e, service='realtime'):
     if busy():
         # Another runtime operation is running; the supervisor asks again shortly.
         return 75
+    reason = SYSTEM_ACTORS.get(requested_by(e, service) or '', 'user')
     command = ['/usr/bin/python3', 'lab/durable_runtime.py', service, e] + (['--off'] if want == 'off' else [])
+    if service == 'realtime' and reason in ('wake', 'kill_switch') and want == 'on':
+        command.append('--wake')
+    if service == 'realtime' and reason == 'idle' and want == 'off':
+        command.append('--sleep')
+    started = time.monotonic()
     result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
     if result.returncode == BUSY:
         return 75
+    seconds = round(time.monotonic() - started, 1)
     if result.returncode:
         record(e, 'failed', failure_text(service, result.returncode, want), service)
+        if service in ('realtime', 'functions'):
+            audit(e, service, 'apply_failed', {'want': want, 'reason': 'capacity' if result.returncode == CAPACITY else reason, 'seconds': seconds})
         return 1
     record(e, 'done' if want == 'rotate' else want, None, service)
+    if service in ('realtime', 'functions'):
+        audit(e, service, 'applied', {'state': want, 'reason': reason, 'seconds': seconds})
     return 0
 
 

@@ -2,6 +2,10 @@
 
 One upstream edge-runtime container per environment that turns it on (`lab/functions-image.lock.json`, tier `production.functions`, 384 MiB, 0.5 CPU, 256 pids, launched locked down as described under Container hardening), started by the first deploy through the same desired/state row pattern as Realtime (`functions_settings`, applied by `lab/realtime.py apply <e> --service functions`). A shared runtime was rejected: it would put every environment's code and secrets within reach of one process that runs every client's code, and isolating clients inside it would rest on the runtime's worker sandbox alone.
 
+## On demand
+
+An environment can save Edge Functions as On demand: no container while nothing calls a function, started by the first call that carries a verified key (or a call without one to a function with `verify_jwt` off), stopped after a quiet period. The wake is the ordinary turn on (about 2 s measured), the sleep the ordinary turn off; deploying never changes an On demand choice. [OPTIONAL-SERVICES](OPTIONAL-SERVICES.md) has the model, the limits and the measurements.
+
 ## Layout
 
 - Main service: `lab/functions/main/index.ts`, mounted read-only at `/home/deno/main`. It reads `functions.json` on each request, checks the JWT itself when the function's `verify_jwt` is true (HS256 with the environment's JWT secret, expiry honoured), and runs the function with `EdgeRuntime.userWorkers.create` (150 MiB, 150 s wall clock, 10/20 s CPU soft/hard, a 64 MiB `/tmp` quota and the `permissions` object under Worker permissions). `netAccessDisabled` and a top level `importMapPath` were passed here before; the pinned runtime (v1.77.4) ignores both, so they are gone ([probe](../evidence/functions-sandbox-probe-2026-10-30/results.json)). Workers get `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` and the environment's secrets, never the container's own variables.

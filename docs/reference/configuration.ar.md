@@ -187,6 +187,10 @@
 
 باقي المتغيرات التي تبدأ بـ`SBARBASE_*` (مثل `SBARBASE_WORKER_FD` و`SBARBASE_EFFECT_TOKEN`، و`SBARBASE_DOCKER_PROFILE` و`SBARBASE_CONTAINER` اللذين يضبطهما `compose.yaml`) تنقل واصفات الأقفال والرموز بين عمليات صباربيز نفسها. ليست إعدادات للمشغّل، فلا تضبطها يدويًا.
 
+## الخدمات الاختيارية
+
+لكل من Realtime وEdge Functions وضع (Off أو On أو On demand) لكل بيئة، ويضبط مشغّلو التثبيت القيم الافتراضية ومفتاح الإيقاف وفترات الهدوء من لوحة الإدارة (**Server** ثم **Optional services**) أو عبر `GET` و`PUT` على `/management/v1/installation/services`؛ ولا يحتاج شيء منها إلى متغير بيئة أو أمر على الخادم. وما تعرضه لوحة الإدارة للقراءة فقط: 6 إيقاظات في الساعة لكل خدمة وبيئة، ومدة انتظار 20 ثانية للطلب الأول، وحد أدنى 5 دقائق لفترة الهدوء. انظر [Services](../guides/services.ar.md).
+
 ## ما لا يمكن ضبطه بعد
 
 فئات الموارد وعتبات القبول ثابتة في الكود ([lab/resource_policy.py](../../lab/resource_policy.py)، [lab/pressure_admission.py](../../lab/pressure_admission.py)). حدود التزامن في البوابة ومهلها قيم افتراضية في المُنشئ داخل [src/gateway/concurrency.ts](../../src/gateway/concurrency.ts).

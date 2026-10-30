@@ -52,6 +52,8 @@ test('secrets are private, never named SUPABASE_, and removed with null',()=>{
 test('owners and admins deploy; the first deploy turns Edge Functions on; values of secrets never come back',async()=>{
  const catalog=new Catalog(':memory:'),code=temporary(),secrets=temporary();
  try {
+  // The legacy path: an environment whose Edge Functions are Off (a new environment is On demand by default, which a deploy never changes).
+  catalog.initializeInstallation('op-1','alice','Home');catalog.setInstallationServices('alice',{defaultMode:'off'});
   const org=catalog.createOrganization('alice','A');catalog.setMember('alice',org,'carol','viewer');
   const environment=catalog.createEnvironment('alice',catalog.createProject('alice',org,'P'),'production');
   const handler=functionsHandler(catalog,async request=>request.headers.get('authorization'),code,secrets);

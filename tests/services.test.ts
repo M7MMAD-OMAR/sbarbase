@@ -12,6 +12,8 @@ import {managedGateway} from '../src/gateway/managed';
 const MIB=1024*1024;
 function ready() {
  const catalog=new Catalog(':memory:');
+ catalog.initializeInstallation('op-1','alice','Home');
+ catalog.setInstallationServices('alice',{defaultMode:'off'});
  const org=catalog.createOrganization('alice','A');catalog.setMember('alice',org,'carol','viewer');catalog.setMember('alice',org,'dave','admin');
  const environment=catalog.createEnvironment('alice',catalog.createProject('alice',org,'P'),'production');
  const job=catalog.claimProvision()!;catalog.finishProvision(environment,job.claim!,true);

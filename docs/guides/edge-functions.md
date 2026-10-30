@@ -4,6 +4,10 @@
 
 Edge Functions run your own Deno code next to an environment, called with `supabase.functions.invoke()` at `<address>/functions/v1/<name>`, as on Supabase. Each environment has its own runtime, the original upstream edge-runtime, and it starts with the first deploy.
 
+## Modes: Off, On, On demand
+
+A new environment starts with Edge Functions **On demand**: no container while nothing calls a function, started by the first call, stopped after 15 quiet minutes (you can change that on the [Services](services.md) page). The first call after a pause waits about two seconds; if the start is refused or slow it gets `503` with `retry-after`, and a retry succeeds. Choose **On** to keep it running all the time, or **Off** to stop it. Deploying a function turns Edge Functions on only when they are **Off**; the answer says `turned_on`, and an environment saved as On demand is never changed by a deploy. A call without an API key can start a sleeping runtime only for a public function (`verify_jwt` off). [Why was my first request slow?](services.md) has the details.
+
 ## Deploy from a Supabase project
 
 If you already have functions in a Supabase project, deploy the whole `supabase/functions` folder in one command from a checkout of Sbarbase:

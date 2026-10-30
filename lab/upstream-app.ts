@@ -9,6 +9,8 @@ import {applicationConcurrency} from '../src/gateway/managed';
 import {ServiceActivity} from '../src/gateway/activity';
 import {createServerHealthReader} from '../src/control/server-health';
 import {checkUnusedServices} from '../src/control/service-hints';
+import {OnDemand} from '../src/control/on-demand';
+import {isPublicFunction} from '../src/control/functions';
 import {readStats} from '../src/control/services';
 import {createHmac} from 'node:crypto';
 import {Catalog} from '../src/control/catalog';
@@ -131,21 +133,32 @@ export function openUpstreamApplication() {
  // The first look waits fifteen minutes, so clients of a restarted console have reconnected before anything is called unused.
  const hintTimer=setInterval(hints,3600_000);hintTimer.unref?.();setTimeout(hints,15*60_000).unref?.();
  const health=createServerHealthReader();
+ // On demand services (src/control/on-demand.ts): started by the first request with a verified key, put to sleep after their quiet period.
+ // The sweeper runs every ten seconds; it decides about sleep once a minute and, with the kill switch on, wakes what sleeps.
+ const onDemand=new OnDemand(catalog,activity,(runtime,service)=>!!resolve(runtime)?.[service]);
+ const sweeper=setInterval(()=>{try{onDemand.sweep();}catch{console.error('The On demand sweep failed; it is tried again shortly.');}},10_000);sweeper.unref?.();
+ const gate={isOnDemand:(runtime:string,service:'realtime'|'functions')=>onDemand.isOnDemand(runtime,service),ensure:(runtime:string,service:'realtime'|'functions')=>onDemand.ensure(runtime,service),
+  // A Functions call without a key may wake the runtime only for a function its owner made public.
+  publicFunction:(runtime:string,name:string)=>isPublicFunction('.lab/upstream/functions',runtime,name)};
  const database=new DirectDatabase();
  const handler=application(catalog,keys,{get auth(){return managementAuth();},publishableKey:managementPublishableKey,
   anonymousToken:internalToken(secrets.management.jwt,'anon')},resolve,fetch,studioSessionKey,requests,undefined,
    invitationAccounts(managementAuth,internalToken(secrets.management.jwt,'service_role')),database,{tokens,loopback:()=>loopback},
-   {activity,memory:()=>{const memory=health().memory;return {availableBytes:memory.availableBytes,totalBytes:memory.totalBytes};}});
+   {activity,onDemand:gate,memory:()=>{const memory=health().memory;return {availableBytes:memory.availableBytes,totalBytes:memory.totalBytes};}});
  const socket=realtimeUpgrade({
   route:catalogRealtimeRoute(catalog,resolve),
-  verifyKey:(runtime,key)=>keys.resolve(runtime,key)});
+  verifyKey:(runtime,key)=>keys.resolve(runtime,key),
+  wake:{isOnDemand:runtime=>onDemand.isOnDemand(runtime,'realtime'),ensure:runtime=>onDemand.ensure(runtime,'realtime')}});
  // Socket openings count in the environment's logs too: 101 when one reaches Realtime.
  const realtime:typeof socket=(path,headers)=>{
   const started=performance.now(),decision=socket(path,headers);
   const runtime=new URL(path,'http://local').pathname.split('/')[1]??'';
-  try{if(resolve(runtime))requests.record(runtime,{method:'GET',service:'realtime',path:'/websocket',
-   status:decision.ok?101:decision.status,ms:performance.now()-started});}catch{}
-  return decision.ok?{...decision,onOpen:()=>activity.socketOpened(runtime)}:decision;
+  const finish=(done:Awaited<typeof decision>)=>{
+   try{if(resolve(runtime))requests.record(runtime,{method:'GET',service:'realtime',path:'/websocket',
+    status:done.ok?101:done.status,ms:performance.now()-started});}catch{}
+   return done.ok?{...done,onOpen:()=>activity.socketOpened(runtime)}:done;
+  };
+  return decision instanceof Promise?decision.then(finish):finish(decision);
  };
   const studio=studioProxy({key:studioSessionKey,allowed:(actor,runtime)=>catalog.studioAllowed(actor,runtime),epoch:actor=>catalog.managementSecurity.epoch(actor),runtimeEpoch:runtime=>catalog.runtimeEpoch(runtime),
    navigation:(actor,runtime,organization,project)=>catalog.studioNavigation(actor,runtime,organization,project),
@@ -164,5 +177,5 @@ export function openUpstreamApplication() {
   // The internal route also serves each environment's email templates to its own Auth (src/control/mail-templates.ts).
   const templates=mailTemplateRoute('.secrets/upstream');
   return {handler,studio,upstream:(request:Request)=>templates(request)??upstream(request),realtime,catalog,keys,tokens,database,listening(port:number){loopback=`http://127.0.0.1:${port}`;},
-   close(){clearInterval(hintTimer);activity.stop();database.stop();pressure.stop();catalog.close();keys.close();tokens.close();}};
+   close(){clearInterval(hintTimer);clearInterval(sweeper);activity.stop();database.stop();pressure.stop();catalog.close();keys.close();tokens.close();}};
 }

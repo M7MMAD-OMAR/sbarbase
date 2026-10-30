@@ -34,6 +34,7 @@ test('the period has a floor of one day and a ceiling, and a bad value means the
 function ready() {
  const catalog=new Catalog(':memory:');
  catalog.initializeInstallation('op-1','alice','Home');
+ catalog.setInstallationServices('alice',{defaultMode:'off'});
  const org=catalog.createOrganization('alice','A');catalog.setMember('alice',org,'carol','viewer');
  const environment=catalog.createEnvironment('alice',catalog.createProject('alice',org,'P'),'production');
  const job=catalog.claimProvision()!;catalog.finishProvision(environment,job.claim!,true);
@@ -105,7 +106,7 @@ test('the unused period is an installation setting only an operator reads or cha
   expect(catalog.installationServices().unusedDays).toBe(7);
   expect((await call('alice','PUT',{unusedDays:3})).status).toBe(200);
   expect(catalog.installationServices().unusedDays).toBe(3);
-  const audit=catalog.db.query<{actor:string;detail:string},[]>("SELECT actor,detail FROM audit_events WHERE action='services.settings_changed'").all();
+  const audit=catalog.db.query<{actor:string;detail:string},[]>("SELECT actor,detail FROM audit_events WHERE action='services.settings_changed' AND detail LIKE '%unused_days%'").all();
   expect(audit).toHaveLength(1);expect(audit[0]!.actor).toBe('alice');expect(JSON.parse(audit[0]!.detail)).toEqual({setting:'unused_days',from:7,to:3});
   // The Services route uses the stored period.
   turnOn(catalog,runtime,'realtime_settings',Date.now()-4*DAY);

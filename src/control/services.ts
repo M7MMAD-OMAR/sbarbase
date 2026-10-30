@@ -4,6 +4,7 @@ import {Catalog,type ServiceRow,type ServicesState} from './catalog';
 import {authenticate,reply,type ManagementIdentity} from './auth';
 import type {ServiceActivity} from '../gateway/activity';
 import {unusedHint,type Hint} from './service-hints';
+import {IDLE_FLOOR_MINUTES,HOLD_MS,WAKES_PER_HOUR,type OnDemandService} from './on-demand-policy';
 import {requireOperatorPublication,managementPublication,bindManagementPublication} from './management-publication';
 import {refreshCurrentManagement} from './management-context';
 
@@ -17,7 +18,7 @@ import {refreshCurrentManagement} from './management-context';
  * Docker socket. The file is read with a size cap, and a sample older than `STALE_MS` is reported as stale, never as current.
  * The answer holds container names' numbers and times only: no environment variable, key, log or address. */
 export type ServiceId='realtime'|'functions'|'database'|'cron'|'studio';
-export type ServiceState='off'|'starting'|'stopping'|'on'|'failed';
+export type ServiceState='off'|'starting'|'stopping'|'on'|'failed'|'sleeping'|'waking';
 export type ServiceView={id:ServiceId;state:ServiceState;failure:string|null;updatedAt:number|null;
  /** Resident memory and its ceiling, from the last sample; null when the service has no container of its own or none was sampled. */
  memoryBytes:number|null;memoryLimitBytes:number|null;
@@ -28,8 +29,12 @@ export type ServiceView={id:ServiceId;state:ServiceState;failure:string|null;upd
  /** Open Realtime sockets, or Edge Functions calls in flight, in this process; null for the other services. */
  inUse:number|null;
  /** Set when the service has been on with no use for the installation's number of days: a hint, never an action. */
- unused:Hint|null};
+ unused:Hint|null;
+ /** Realtime and Edge Functions only: the saved mode, the quiet period in minutes, and whether On demand can be chosen for it at all. */
+ mode?:'off'|'on'|'on_demand';idleMinutes?:number;onDemandAvailable?:boolean};
 export type ServicesAnswer={runtime:string;services:ServiceView[];canChange:boolean;
+ /** The kill switch is on: every On demand service is kept On. The wake limits are shown read only. */
+ killSwitch:boolean;limits:{wakesPerHour:number;holdSeconds:number;idleFloorMinutes:number};
  stats:{capturedAt:number|null;stale:boolean};
  capacity:{availableBytes:number|null;totalBytes:number|null}};
 export type Stats={capturedAt:number;containers:Record<string,{memoryBytes:number;limitBytes:number}>;costs:{realtime:number|null;functions:number|null}};
@@ -61,7 +66,7 @@ function stateOf(row:ServiceRow):ServiceState {
  return row.state==='pending'?row.desired==='on'?'starting':'stopping':SERVICE_STATE[row.state];
 }
 
-export type ServicesInput={state:Omit<ServicesState,'actorCanChange'>&{actorCanChange?:boolean};stats?:Stats;now:number;activity?:ServiceActivity;unusedDays?:number;
+export type ServicesInput={state:Omit<ServicesState,'actorCanChange'|'modes'|'killSwitch'|'onDemandAvailable'>&{actorCanChange?:boolean;modes?:ServicesState['modes'];killSwitch?:boolean;onDemandAvailable?:ServicesState['onDemandAvailable']};stats?:Stats;now:number;activity?:ServiceActivity;unusedDays?:number;
  memory?:{availableBytes:number|null;totalBytes:number|null}};
 
 /** Pure: the answer from what the catalog, the sampler and the gateway know. */
@@ -74,13 +79,24 @@ export function composeServices(input:ServicesInput):ServicesAnswer {
  };
  const row=(id:ServiceId,item:ServiceRow,extra:Partial<ServiceView>):ServiceView=>({id,state:stateOf(item),failure:item.state==='failed'?item.failure:null,updatedAt:item.updatedAt,
   memoryBytes:null,memoryLimitBytes:null,costBytes:null,lastUsedAt:state.activity[id]??null,tracked:false,inUse:null,unused:null,...extra});
- const withHint=(view:ServiceView,item:ServiceRow):ServiceView=>({...view,unused:input.unusedDays===undefined?null:unusedHint({state:view.state,inUse:view.inUse,lastUsedAt:view.lastUsedAt,onSince:item.updatedAt,now,days:input.unusedDays})});
- return {runtime:state.runtime,canChange:state.actorCanChange??false,
+ const withMode=(view:ServiceView,item:ServiceRow,service:OnDemandService):ServiceView=>{
+  const saved=state.modes?.[service];
+  if(!saved)return view;
+  // An On demand service that is off is asleep, one that is starting is waking: said plainly, never as a failure or as Off.
+  const shown:ServiceState=saved.mode==='on_demand'?(item.state==='off'?'sleeping':item.state==='pending'&&item.desired==='on'?'waking':view.state):view.state;
+  return {...view,state:shown,mode:saved.mode,idleMinutes:saved.idleMinutes,onDemandAvailable:state.onDemandAvailable?.[service]??false};
+ };
+ const withHint=(view:ServiceView,item:ServiceRow,service:OnDemandService):ServiceView=>{
+  const shaped=withMode(view,item,service);
+  return {...shaped,unused:input.unusedDays===undefined?null:unusedHint({state:shaped.state==='sleeping'||shaped.state==='waking'?'off':shaped.state,mode:shaped.mode,inUse:shaped.inUse,lastUsedAt:shaped.lastUsedAt,onSince:item.updatedAt,now,days:input.unusedDays})};
+ };
+ return {runtime:state.runtime,canChange:state.actorCanChange??false,killSwitch:state.killSwitch??false,
+  limits:{wakesPerHour:WAKES_PER_HOUR,holdSeconds:HOLD_MS/1000,idleFloorMinutes:IDLE_FLOOR_MINUTES},
   services:[
    withHint(row('realtime',state.realtime,{...memory('realtime'),costBytes:stats?.costs.realtime??null,tracked:true,
-    lastUsedAt:activity?.lastUsed(state.runtime,'realtime')??state.activity.realtime??null,inUse:activity?.openSockets(state.runtime)??null}),state.realtime),
+    lastUsedAt:activity?.lastUsed(state.runtime,'realtime')??state.activity.realtime??null,inUse:activity?.openSockets(state.runtime)??null}),state.realtime,'realtime'),
    withHint(row('functions',state.functions,{...memory('functions'),costBytes:stats?.costs.functions??null,tracked:true,
-    lastUsedAt:activity?.lastUsed(state.runtime,'functions')??state.activity.functions??null,inUse:activity?.inFlightCalls(state.runtime)??null}),state.functions),
+    lastUsedAt:activity?.lastUsed(state.runtime,'functions')??state.activity.functions??null,inUse:activity?.inFlightCalls(state.runtime)??null}),state.functions,'functions'),
    row('database',state.database,{}),
    row('cron',state.cron,{}),
    row('studio',state.studio,{...memory('studio'),tracked:true}),
@@ -110,8 +126,10 @@ export function servicesHandler(catalog:Catalog,identify:ManagementIdentity,opti
  };
 }
 
-/** GET and PUT `/management/v1/installation/services`: the installation wide settings of the optional services (`{"unusedDays": n}`, 1 to 365).
- * Installation operators only, for both. */
+const INSTALLATION_HELP='Send any of {"unusedDays": 1 to 365, "killSwitch": true or false, "defaultMode": "off" or "on_demand", "realtimeOnDemand": true or false, "idleMinutes": {"realtime": 5 or more, "functions": 5 or more}}';
+/** GET and PUT `/management/v1/installation/services`: the installation wide settings of the optional services: the days before an unused service is
+ * reported, the kill switch (every On demand service behaves as On), the mode and quiet periods a new environment starts with, and, read only, the
+ * wake limits. Installation operators only, for both. */
 export function installationServicesHandler(catalog:Catalog,identify:ManagementIdentity) {
  return async(request:Request):Promise<Response>=>{
   if(new URL(request.url).pathname!=='/management/v1/installation/services')return reply(404,{message:'Unknown route'});
@@ -124,14 +142,21 @@ export function installationServicesHandler(catalog:Catalog,identify:ManagementI
    let input:unknown;
    try{input=await request.json();}catch{return reply(400,{message:'Invalid JSON'});}
    await refreshCurrentManagement();
-   const body=input as {unusedDays?:unknown}|null;
-   if(!body||typeof body!=='object'||Array.isArray(body)||Object.keys(body).some(key=>key!=='unusedDays')||typeof body.unusedDays!=='number')return reply(400,{message:'Send {"unusedDays": 7}'});
-   const data=catalog.setInstallationServices(actor,{unusedDays:body.unusedDays});
+   const body=input as Record<string,unknown>|null;
+   const keys=body&&typeof body==='object'&&!Array.isArray(body)?Object.keys(body):[];
+   const idle=body?.idleMinutes as Record<string,unknown>|undefined;
+   const shapeOk=keys.length>0&&keys.every(key=>['unusedDays','killSwitch','defaultMode','idleMinutes','realtimeOnDemand'].includes(key))
+    &&(body!.unusedDays===undefined||typeof body!.unusedDays==='number')&&(body!.killSwitch===undefined||typeof body!.killSwitch==='boolean')
+    &&(body!.defaultMode===undefined||typeof body!.defaultMode==='string')&&(body!.realtimeOnDemand===undefined||typeof body!.realtimeOnDemand==='boolean')
+    &&(idle===undefined||(!!idle&&typeof idle==='object'&&!Array.isArray(idle)&&Object.keys(idle).every(key=>(key==='realtime'||key==='functions')&&typeof idle[key]==='number')));
+   if(!shapeOk)return reply(400,{message:INSTALLATION_HELP});
+   const data=catalog.setInstallationServices(actor,{unusedDays:body!.unusedDays as number|undefined,killSwitch:body!.killSwitch as boolean|undefined,
+    defaultMode:body!.defaultMode as string|undefined,realtimeOnDemand:body!.realtimeOnDemand as boolean|undefined,idleMinutes:idle as {realtime?:number;functions?:number}|undefined});
    return bindManagementPublication(reply(200,{data}),catalog,()=>{requireOperatorPublication(catalog,actor);return reply(200,{data:catalog.installationServices()});});
   }catch(error){
    const message=error instanceof Error?error.message:'';
    if(message==='Forbidden')return reply(403,{message:'Forbidden'});
-   if(message==='Invalid services setting')return reply(400,{message:'unusedDays must be a whole number from 1 to 365'});
+   if(message==='Invalid services setting')return reply(400,{message:INSTALLATION_HELP});
    return reply(500,{message:'Management operation failed'});
   }
  };

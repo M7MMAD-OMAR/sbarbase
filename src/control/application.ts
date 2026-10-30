@@ -83,7 +83,7 @@ export function application(catalog:Catalog,keys:KeyStore,realm:ManagementRealm,
   }catch(error){throw error instanceof PlacementUnavailable?error:new PlacementUnavailable();}
  },studioKey,requests,containers,accounts,direct,functionsBoot,functionsUsage,authAdmin,serviceOptions);
  // Each environment's answers are counted for its logs and metrics (src/gateway/observe.ts).
- const gateway=observedGateway(managedGateway(catalog,keys,resolve,transport,undefined,serviceOptions.activity),requests,runtime=>{
+ const gateway=observedGateway(managedGateway(catalog,keys,resolve,transport,undefined,serviceOptions.activity,serviceOptions.onDemand),requests,runtime=>{
   try{
    const routing=catalog.runtimeRouting(runtime);
    if(routing.maintenance)return false;

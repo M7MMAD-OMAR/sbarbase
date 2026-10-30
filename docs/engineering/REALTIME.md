@@ -22,6 +22,10 @@ The tenant's external id is the 24 hex digits: Realtime reads the tenant from th
 
 Bun's `node:http` does not deliver bytes written to an upgraded socket (checked on Bun 1.3.11 and 1.3.14), so the console listener gained a small TCP front (`src/http/local-server.ts`): it reads the first request head of each connection, hands ordinary connections byte for byte to the HTTP server on a private loopback port, and pipes accepted Realtime sockets to the environment's Realtime. `src/gateway/realtime.ts` decides first: a live publishable key of that environment, not paused, Realtime on. The publishable key is swapped for a ten-year anon JWT Realtime accepts, as upstream's Kong does, and cookies and credentials are not forwarded. `POST /realtime/v1/api/broadcast` goes through the ordinary gateway; the rest of Realtime's API, including tenant management, is not routed. The reference TLS proxy bridges the socket across TLS.
 
+## On demand
+
+A sleep (`realtime_turn(e, on=False, sleep=True)`) is an off that remembers the image Realtime last migrated with; a wake skips the superuser window when that image is still pinned (the login only comes back, `realtime_database`) and takes 12 to 15 s on the machine it was measured on, almost all of it Realtime's own start, which is why On demand is not Realtime's default ([OPTIONAL-SERVICES](OPTIONAL-SERVICES.md)). The stop drops only Realtime's own slots and checks that none remains.
+
 ## Not covered
 
 Backups include `_realtime` and `realtime`; a restore stops and restarts the environment's Realtime with its Auth and REST. Realtime's own dashboards and metrics endpoints are not exposed. Sustained load and memory under many subscribers are not measured.

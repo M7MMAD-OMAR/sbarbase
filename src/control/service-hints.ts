@@ -42,7 +42,7 @@ export function checkUnusedServices(catalog:Catalog,activity:ServiceActivity,now
   let state;try{state=catalog.servicesOf(runtime);}catch{continue;}
   for(const service of ['realtime','functions'] as const){
    const item=state[service];
-   const hint=unusedHint({state:item.state==='pending'?(item.desired==='on'?'starting':'stopping'):item.state==='on'?'on':item.state==='failed'?'failed':'off',
+   const hint=unusedHint({state:item.state==='pending'?(item.desired==='on'?'starting':'stopping'):item.state==='on'?'on':item.state==='failed'?'failed':'off',mode:state.modes[service].mode,
     inUse:service==='realtime'?activity.openSockets(runtime):activity.inFlightCalls(runtime),
     lastUsedAt:activity.lastUsed(runtime,service)??state.activity[service]??null,onSince:item.updatedAt,now,days});
    if(!hint)continue;
