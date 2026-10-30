@@ -255,13 +255,16 @@ test('a file with only the version 2 switches carries no config key',async()=>{
 });
 
 test('the simple settings of the registry are validated by type and range, kept when omitted, cleared by null, and audited by name',async()=>{
- const first=settingsFromInput({...valid,config:{SESSIONS_SINGLE_PER_USER:true,RATE_LIMIT_WEB3:20}},null);
- expect(first.config).toEqual({SESSIONS_SINGLE_PER_USER:true,RATE_LIMIT_WEB3:20});
+ const first=settingsFromInput({...valid,config:{SESSIONS_SINGLE_PER_USER:true,MFA_MAX_ENROLLED_FACTORS:20}},null);
+ expect(first.config).toEqual({SESSIONS_SINGLE_PER_USER:true,MFA_MAX_ENROLLED_FACTORS:20});
  // Omitted object or member: kept. Null: cleared.
  expect(settingsFromInput(valid,first).config).toEqual(first.config);
- const second=settingsFromInput({...valid,config:{RATE_LIMIT_WEB3:null,PASSWORD_MIN_LENGTH:10}},first);
+ const second=settingsFromInput({...valid,config:{MFA_MAX_ENROLLED_FACTORS:null,PASSWORD_MIN_LENGTH:10}},first);
  expect(second.config).toEqual({SESSIONS_SINGLE_PER_USER:true,PASSWORD_MIN_LENGTH:10});
- expect(changedKeys(first,second)).toEqual(['RATE_LIMIT_WEB3','PASSWORD_MIN_LENGTH']);
- for(const config of [{SESSIONS_SINGLE_PER_USER:1},{RATE_LIMIT_WEB3:0},{RATE_LIMIT_WEB3:1.5},{PASSWORD_MIN_LENGTH:5},{SECURITY_REFRESH_TOKEN_REUSE_INTERVAL:301},{NOT_A_KEY:1},[]])
+ expect(changedKeys(first,second)).toEqual(['PASSWORD_MIN_LENGTH','MFA_MAX_ENROLLED_FACTORS']);
+ for(const config of [{SESSIONS_SINGLE_PER_USER:1},{MFA_MAX_ENROLLED_FACTORS:0},{MFA_MAX_ENROLLED_FACTORS:1.5},{PASSWORD_MIN_LENGTH:5},{PASSWORD_MIN_LENGTH:73},{NOT_A_KEY:1},[]])
   expect(()=>settingsFromInput({...valid,config},null)).toThrow(SettingsError);
+ // A retired key is ignored on input and dropped from a saved one, not refused.
+ expect(settingsFromInput({...valid,config:{RATE_LIMIT_WEB3:20,SESSIONS_SINGLE_PER_USER:true}},null).config).toEqual({SESSIONS_SINGLE_PER_USER:true});
+ expect(settingsFromInput(valid,{...first,config:{...first.config,RATE_LIMIT_WEB3:5}} as never).config).toEqual(first.config);
 });

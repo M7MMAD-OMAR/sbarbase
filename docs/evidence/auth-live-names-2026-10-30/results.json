@@ -1,0 +1,58 @@
+{
+ "phase": "A6a live names",
+ "recorded": "2026-10-30",
+ "sources": {
+  "lab/auth-names-check.py": "5e7c3ce8294167aba41a79f9495934211e2c335e",
+  "src/control/auth-config-registry.json": "9bb4281137ed2400b70546eea9d38741612664ce",
+  "src/control/sign-in.ts": "caa736aba38cb7df5c1a0ad40e6573f6fe9d441e",
+  "lab/auth_settings.py": "37fdb201f07553dd5919ea86b23842f52be5d45e",
+  "ui/SignIn.tsx": "eb72809cf2db5770b635f52b0ab63c6bad0a66a9",
+  "ui/SmtpPanel.tsx": "21a8eea6a9fb10fed4326e789a6461e0b08287bb"
+ },
+ "live_check": {
+  "file": "checks.json",
+  "passed": true,
+  "count": 36,
+  "seconds": 69,
+  "auth_image": "public.ecr.aws/supabase/gotrue:v2.197.0"
+ },
+ "findings": {
+  "removed": [
+   "SECURITY_REFRESH_TOKEN_ROTATION_ENABLED",
+   "SECURITY_REFRESH_TOKEN_REUSE_INTERVAL",
+   "RATE_LIMIT_TOKEN_REFRESH",
+   "RATE_LIMIT_ANONYMOUS_USERS",
+   "RATE_LIMIT_WEB3"
+  ],
+  "confirmed_names": [
+   "DISABLE_SIGNUP",
+   "JWT_EXP",
+   "PASSWORD_MIN_LENGTH",
+   "PASSWORD_HIBP_ENABLED",
+   "SESSIONS_SINGLE_PER_USER",
+   "SESSIONS_TIMEBOX",
+   "SESSIONS_INACTIVITY_TIMEOUT",
+   "MFA_MAX_ENROLLED_FACTORS",
+   "MFA_TOTP_ENROLL_ENABLED",
+   "MFA_TOTP_VERIFY_ENABLED",
+   "SECURITY_MANUAL_LINKING_ENABLED",
+   "EXTERNAL_ANONYMOUS_USERS_ENABLED",
+   "AUDIT_LOG_DISABLE_POSTGRES",
+   "HOOK_CUSTOM_ACCESS_TOKEN_ENABLED/URI",
+   "SAML_ENABLED/SAML_PRIVATE_KEY",
+   "SMS provider variables for twilio, twilio_verify, messagebird, textlocal, vonage",
+   "RATE_LIMIT_SMS_SENT",
+   "MAILER_TEMPLATES_CONFIRMATION and MAILER_SUBJECTS_CONFIRMATION"
+  ]
+ },
+ "tests": {
+  "bun": "tests/sign-in.test.ts tests/auth-config.test.ts tests/smtp.test.ts tests/auth-workspace-ui.test.ts: 30 pass",
+  "python": "test_auth_settings test_auth_config_registry test_smtp_console test_mail_config test_doc_references test_docs_bilingual test_docs_links: 146 pass"
+ },
+ "not_verified": [
+  "SKIP_NONCE_CHECK and EMAIL_OPTIONAL provider variables (effect needs a real provider sign-in)",
+  "the other six hooks beyond CUSTOM_ACCESS_TOKEN (same naming pattern, not tried)",
+  "HTTPS hooks and SMS delivery to a real provider",
+  "the console path end to end on a live installation"
+ ]
+}

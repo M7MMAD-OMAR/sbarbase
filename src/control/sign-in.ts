@@ -74,14 +74,18 @@ function sessionFromInput(value:unknown,current:SignInSession|null):SignInSessio
 }
 
 /** The registry's simple settings (store `config`): booleans and bounded integers, one entry each. */
+/** Keys the registry retired: dropped on read and ignored on input, so a file saved before the change still loads. */
+const RETIRED=new Set(Object.keys((REGISTRY as unknown as {retired?:Record<string,string>}).retired??{}));
+const withoutRetired=(config:Record<string,boolean|number>)=>Object.fromEntries(Object.entries(config).filter(([key])=>!RETIRED.has(key)));
 const CONFIG_KEYS=new Map(REGISTRY.core.filter(entry=>entry.store==='config').map(entry=>[entry.key,entry]));
 
 /** One config object from the console's input. An omitted object or member keeps what is saved; null clears a member. */
 function configFromInput(value:unknown,current:Record<string,boolean|number>):Record<string,boolean|number> {
- const result={...current};
+ const result=withoutRetired(current);
  if(value===undefined)return result;
  if(!value||typeof value!=='object'||Array.isArray(value))throw new SettingsError('config');
  for(const [key,member] of Object.entries(value as Record<string,unknown>)) {
+  if(RETIRED.has(key))continue;
   const entry=CONFIG_KEYS.get(key);
   if(!entry)throw new SettingsError('config');
   if(member===null){delete result[key];continue;}
@@ -198,7 +202,7 @@ export function readSettings(directory:string,runtime:string):SignInSettings|nul
  // A file may lack `providers`, which the Python validator reads as none.
  // Files from before manual linking and the provider switches have none of them: all off, as Auth's own default.
  const providers=Object.fromEntries(Object.entries(saved.providers??{}).map(([name,entry])=>[name,{...entry,skip_nonce_check:entry.skip_nonce_check??false,email_optional:entry.email_optional??false}]));
- return {...saved,manual_linking:saved.manual_linking??false,config:saved.config??{},providers,session:{...NO_CAP,...session}};
+ return {...saved,manual_linking:saved.manual_linking??false,config:withoutRetired(saved.config??{}),providers,session:{...NO_CAP,...session}};
 }
 
 /** As lab/auth_settings.py `file_form`: the version 1 shape while no switch added with version 2 is on. */

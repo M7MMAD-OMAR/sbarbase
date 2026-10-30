@@ -56,12 +56,16 @@ In the console, open the environment, then **Sign-in settings**. The page has a 
 - **Sign In / Providers**: **User signups** (allow new users, allow anonymous sign-ins) and the list of **Auth providers**, each with its logo and an **Enabled** or **Disabled** badge. Opening a provider shows a panel with its switch, client ID, client secret, server address where the provider takes one, and the **Callback URL (for OAuth)** with a Copy button.
 - **URL Configuration**: **Site URL** and **Redirect URLs**.
 - **Sessions**: the three lifetimes.
-- **Sessions** also holds **Enforce single session per user**, **Detect and revoke potentially compromised refresh tokens** and **Refresh token reuse interval** (seconds, up to 300).
-- **Rate Limits**: token refreshes, anonymous sign-ins and Web3 sign-ins, each per IP address. An empty field keeps Auth's own default. The email, OTP and verification limits belong to the environment's mail settings, not to this page yet.
+- **Sessions** also holds **Enforce single session per user**.
 - **Attack Protection**: **Prevent use of leaked passwords** (the environment's Auth gets outbound network access while it is on, because Auth asks a public range service) and **Minimum password length** (6 to 72). The captcha setting of the cloud is not offered: its variable names could not be confirmed in the pinned Auth.
 - **Multi-Factor**: whether people may enroll and verify with an authenticator app (TOTP), and the maximum number of factors per person. Both TOTP switches show **on** because that is the default written in the pinned Auth's own configuration; nothing is sent until you change one, and changing one back to its default and saving sends nothing either.
 
-Honest limit of these four pages: the setting names were read from the pinned Auth program and from Supabase's own dashboard schema, not tried on a running Auth. The names for sessions, refresh tokens, the three rate limits and the TOTP and factor-count settings were found in the program; the names for leaked password protection and minimum length come only from the dashboard schema. A wrong name is ignored by Auth without an error, so check a setting with a real sign-in before relying on it.
+What was tried on a running Auth: `lab/auth-names-check.py` starts the pinned Auth on a private network with a throwaway database and checks each setting above with a real request (a sign-up refused, an expiry that changes, a second factor refused, a leaked password refused). The evidence is in `docs/evidence/auth-live-names-2026-10-30/`. Two things it found are why some cloud settings are missing here:
+
+- **Detect and revoke potentially compromised refresh tokens** and **Refresh token reuse interval** are not offered: with the pinned Auth, turning the first off, or setting the second to 0, changed nothing a client can observe.
+- **Rate limit for token refreshes, anonymous sign-ins and Web3** are not offered: the pinned Auth applies them per client address only when it is told which request header carries that address, and the gateway does not forward a trusted one yet. The mail limits on the **Emails** page count for the whole environment instead.
+
+Not tried: the two provider switches **Skip nonce check** and **Allow users without an email**, whose effect needs a real provider sign-in.
 
 One bar at the bottom of the page saves everything: it says when you have unsaved changes, **Discard** puts the page back to what is saved, and **Save and apply** saves and restarts this environment's Auth. The badge at the top shows **Applied**, **Applying…**, **Not applied** (with the reason) or **Default settings**.
 

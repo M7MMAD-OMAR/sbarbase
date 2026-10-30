@@ -110,11 +110,12 @@ test('a disabled provider is shown as saved but not used, and a file without pro
 
 test('the simple settings appear on their pages with hints, units and bounds, and a value saved is shown',()=>{
  const settings={revision:1,site_url:'https://a.example.com',redirect_urls:[],signup:true,anonymous:false,manual_linking:false,
-  session:{access_token_seconds:null,timebox_seconds:null,inactivity_seconds:null},config:{RATE_LIMIT_WEB3:25,SESSIONS_SINGLE_PER_USER:true},providers:{}} as never;
+  session:{access_token_seconds:null,timebox_seconds:null,inactivity_seconds:null},config:{MFA_MAX_ENROLLED_FACTORS:25,SESSIONS_SINGLE_PER_USER:true},providers:{}} as never;
  const view=authConfigView(settings,'e_'+'e'.repeat(24),'http://localhost');
- expect(view.pages.map(page=>page.id)).toEqual(['providers','url-configuration','sessions','rate-limits','protection','mfa']);
- expect(field(view,'RATE_LIMIT_WEB3')).toMatchObject({value:25,from_default:false,store:'config',unit:'requests/5 min',min:1});
+ expect(view.pages.map(page=>page.id)).toEqual(['providers','url-configuration','sessions','protection','mfa']);
+ expect(field(view,'MFA_MAX_ENROLLED_FACTORS')).toMatchObject({value:25,from_default:false,store:'config',min:1});
  expect(field(view,'SESSIONS_SINGLE_PER_USER')).toMatchObject({value:true,store:'config'});
- expect(field(view,'RATE_LIMIT_TOKEN_REFRESH')).toMatchObject({value:null,from_default:true,null_text:'Auth default'});
+ expect(field(view,'SESSIONS_SINGLE_PER_USER').from_default).toBe(false);
+ expect(view.pages.flatMap(page=>page.fields).some(entry=>entry.key==='RATE_LIMIT_WEB3')).toBe(false);
  expect(field(view,'PASSWORD_MIN_LENGTH').hint).toContain('rejected');
 });

@@ -414,18 +414,26 @@ class ConfigStoreTests(unittest.TestCase):
 
     def test_a_key_that_is_not_set_adds_nothing_and_a_set_one_reaches_auth(self):
         self.assertNotIn('GOTRUE_SESSIONS_SINGLE_PER_USER', auth_settings.configuration(E, auth_settings.validate(VALID)))
-        settings = auth_settings.validate({**VALID, 'config': {'SESSIONS_SINGLE_PER_USER': True, 'RATE_LIMIT_WEB3': 20,
-                                                                'PASSWORD_HIBP_ENABLED': False, 'MFA_MAX_ENROLLED_FACTORS': None}})
+        settings = auth_settings.validate({**VALID, 'config': {'SESSIONS_SINGLE_PER_USER': True, 'MFA_MAX_ENROLLED_FACTORS': 20,
+                                                                'PASSWORD_HIBP_ENABLED': False, 'MFA_TOTP_VERIFY_ENABLED': None}})
         config = auth_settings.configuration(E, settings)
-        self.assertEqual((config['GOTRUE_SESSIONS_SINGLE_PER_USER'], config['GOTRUE_RATE_LIMIT_WEB3'], config['GOTRUE_PASSWORD_HIBP_ENABLED']),
+        self.assertEqual((config['GOTRUE_SESSIONS_SINGLE_PER_USER'], config['GOTRUE_MFA_MAX_ENROLLED_FACTORS'], config['GOTRUE_PASSWORD_HIBP_ENABLED']),
                          ('true', '20', 'false'))
-        self.assertNotIn('GOTRUE_MFA_MAX_ENROLLED_FACTORS', config)
+        self.assertNotIn('GOTRUE_MFA_TOTP_VERIFY_ENABLED', config)
 
     def test_values_outside_the_registry_range_or_type_are_refused(self):
-        for bad in ({'SESSIONS_SINGLE_PER_USER': 1}, {'RATE_LIMIT_WEB3': 0}, {'RATE_LIMIT_WEB3': True},
-                    {'PASSWORD_MIN_LENGTH': 5}, {'SECURITY_REFRESH_TOKEN_REUSE_INTERVAL': 301}, {'NOT_A_KEY': 1}):
+        for bad in ({'SESSIONS_SINGLE_PER_USER': 1}, {'MFA_MAX_ENROLLED_FACTORS': 0}, {'MFA_MAX_ENROLLED_FACTORS': True},
+                    {'PASSWORD_MIN_LENGTH': 5}, {'PASSWORD_MIN_LENGTH': 73}, {'NOT_A_KEY': 1}):
             with self.assertRaises(auth_settings.SettingsError, msg=str(bad)):
                 auth_settings.validate({**VALID, 'config': bad})
+
+    def test_a_retired_key_in_a_saved_file_is_dropped_and_never_reaches_auth(self):
+        # The registry retired these after a live check showed they do nothing; a file saved before that must still load.
+        self.assertIn('RATE_LIMIT_WEB3', auth_settings.RETIRED_KEYS)
+        settings = auth_settings.validate({**VALID, 'config': {'RATE_LIMIT_WEB3': 20, 'SECURITY_REFRESH_TOKEN_ROTATION_ENABLED': False,
+                                                                'SESSIONS_SINGLE_PER_USER': True}})
+        self.assertEqual(settings['config'], {'SESSIONS_SINGLE_PER_USER': True})
+        self.assertNotIn('GOTRUE_RATE_LIMIT_WEB3', auth_settings.configuration(E, settings))
 
     def test_every_config_key_has_one_owner(self):
         for key in auth_settings.CONFIG_KEYS:

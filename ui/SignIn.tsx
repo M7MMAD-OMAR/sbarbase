@@ -50,13 +50,12 @@ const hoursOrNull=(text:string)=>{const value=secondsOrNull(text);return value==
 const TABS=[{id:'signin',label:'Sign In / Providers',hint:'Who can sign up, and which providers people sign in with.'},
  {id:'urls',label:'URL Configuration',hint:'Where Auth sends people after they sign in or open an email link.'},
  {id:'sessions',label:'Sessions',hint:'How long a person stays signed in, and how access and refresh tokens behave.'},
- {id:'rate-limits',label:'Rate Limits',hint:'Safeguard against bursts of incoming traffic to prevent abuse and maximize stability.'},
  {id:'protection',label:'Attack Protection',hint:'Security settings that protect this environment from attacks.'},
  {id:'mfa',label:'Multi-Factor',hint:'Requires people to provide additional verification factors to authenticate.'},
  {id:'emails',label:'Emails',hint:'Configure how this environment sends its authentication emails.'}] as const;
 type TabId=typeof TABS[number]['id'];
 /** The registry's pages that hold simple settings, by tab. */
-const CONFIG_TABS:string[]=['sessions','rate-limits','protection','mfa'];
+const CONFIG_TABS:string[]=['sessions','protection','mfa'];
 
 
 /** The registry's simple settings of one page: a switch for each true or false setting, a number field for the rest.

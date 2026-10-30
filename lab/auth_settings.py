@@ -42,6 +42,8 @@ ROOT = Path(__file__).resolve().parents[1]
 # and written from it, so a new one is one registry entry.
 REGISTRY = json.loads((ROOT / 'src' / 'control' / 'auth-config-registry.json').read_text())
 CONFIG_KEYS = {entry['key']: entry for entry in REGISTRY['core'] if entry.get('store') == 'config'}
+# Settings the console once offered that a live check showed to do nothing (see the registry's `retired`).
+RETIRED_KEYS = frozenset(REGISTRY.get('retired', {}))
 DIRECTORY = ROOT / '.secrets' / 'upstream'
 CATALOG = ROOT / '.lab' / 'upstream' / 'control.sqlite'
 OPERATION_LOCK = ROOT / '.lab' / 'upstream' / 'operation.lock'
@@ -66,8 +68,7 @@ SESSION_LIMITS = {'access_token_seconds': (60, 86400), 'timebox_seconds': (3600,
 # own settings, never a sign of drift.
 # GOTRUE_JWT_EXP and GOTRUE_SESSIONS_ are the session settings below: operator settings of that
 # environment, never drift.
-OWNED_PREFIXES = ('GOTRUE_EXTERNAL_', 'GOTRUE_PASSWORD_', 'GOTRUE_MFA_', 'GOTRUE_SECURITY_REFRESH_TOKEN_', 'GOTRUE_RATE_LIMIT_TOKEN_REFRESH',
-                  'GOTRUE_RATE_LIMIT_ANONYMOUS_USERS', 'GOTRUE_RATE_LIMIT_WEB3', 'GOTRUE_SECURITY_MANUAL_LINKING_', 'GOTRUE_SITE_URL', 'GOTRUE_URI_ALLOW_LIST', 'GOTRUE_DISABLE_SIGNUP',
+OWNED_PREFIXES = ('GOTRUE_EXTERNAL_', 'GOTRUE_PASSWORD_', 'GOTRUE_MFA_', 'GOTRUE_SECURITY_MANUAL_LINKING_', 'GOTRUE_SITE_URL', 'GOTRUE_URI_ALLOW_LIST', 'GOTRUE_DISABLE_SIGNUP',
                   'API_EXTERNAL_URL', 'GOTRUE_JWT_EXP', 'GOTRUE_SESSIONS_')
 
 
@@ -120,7 +121,11 @@ def validate(settings):
         raise SettingsError('redirect_urls')
     result['redirect_urls'] = [redirect_address(item) for item in redirects]
     config = settings.get('config', {})
-    if not isinstance(config, dict) or set(config) - set(CONFIG_KEYS):
+    if not isinstance(config, dict):
+        raise SettingsError('config')
+    # A key the registry retired is dropped, so a file saved before it was retired still loads.
+    config = {key: value for key, value in config.items() if key not in RETIRED_KEYS}
+    if set(config) - set(CONFIG_KEYS):
         raise SettingsError('config')
     result['config'] = {}
     for key, value in config.items():
