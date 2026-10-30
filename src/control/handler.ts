@@ -5,6 +5,7 @@ import {keyHandler,type ServiceDiscovery} from './key-http';
 import type {ManagementIdentity} from './auth';
 import {studioHandler} from './studio';
 import {signInHandler} from './sign-in';
+import {smtpHandler} from './smtp';
 import {deploymentSetupHandler} from './deployment-setup';
 import {shareHandler} from './share';
 import {invitationHandler,type InvitationAccounts} from './invitations';
@@ -22,7 +23,7 @@ export function controlHandler(catalog:Catalog,keys:KeyStore,identity:Management
  studioKey?:()=>Buffer,requests=new RequestLog(),containers?:ContainerReader,accounts?:InvitationAccounts,direct?:DirectDatabase) {
  keys.useRuntimeEpoch(runtime=>catalog.runtimeEpoch(runtime));
  const metadata=managementHandler(catalog,identity,undefined,keys),credentials=keyHandler(catalog,keys,identity,services);
- const studio=studioKey?studioHandler(catalog,identity,studioKey):undefined,signIn=signInHandler(catalog,identity),
+ const studio=studioKey?studioHandler(catalog,identity,studioKey):undefined,signIn=signInHandler(catalog,identity),smtp=smtpHandler(catalog,identity,'.secrets/upstream'),
   realtime=realtimeHandler(catalog,identity),scheduledJobs=scheduledJobsHandler(catalog,identity),observe=observeHandler(catalog,identity,requests,containers),
   functions=functionsHandler(catalog,identity,undefined,undefined,requests),database=databaseHandler(catalog,identity,undefined,direct),externalDatabase=externalDatabaseHandler(catalog,identity,direct),
   signing=signingHandler(catalog,identity),dataApi=dataApiHandler(catalog,identity);
@@ -33,6 +34,7 @@ export function controlHandler(catalog:Catalog,keys:KeyStore,identity:Management
   if(studio&&/\/environments\/[^/]+\/studio(\/|$)/.test(path))return studio(request);
   if(/\/environments\/[^/]+\/deployment-setup$/.test(path))return deploymentSetup(request);
   if(/\/environments\/[^/]+\/(sign-in|auth-config)$/.test(path))return signIn(request);
+  if(/\/environments\/[^/]+\/smtp$/.test(path))return smtp(request);
   if(/\/environments\/[^/]+\/share$/.test(path))return share(request);
   if(path==='/management/invitations/redeem'||/\/organizations\/[^/]+\/invitations(\/|$)/.test(path))return invitations(request);
   if(/\/environments\/[^/]+\/realtime$/.test(path))return realtime(request);

@@ -88,3 +88,5 @@
 .aw-switch[aria-checked=true]:hover{background:var(--accent-solid)}
 .aw-nav button.active:hover{background:var(--selected)}
 .aw-nav button:not(.active):hover{background:var(--hover)}
+
+.aw-inline{margin-block-start:8px}

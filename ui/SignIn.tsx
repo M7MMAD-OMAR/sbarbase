@@ -4,6 +4,8 @@ import {useData,type Api} from './api';
 import {ErrorMessage,Loading} from './components';
 import {signInErrors,type FieldErrors} from './settings-validation';
 import {ProviderIcon} from './ProviderIcon';
+import {Switch} from './AwSwitch';
+import {SmtpPanel} from './SmtpPanel';
 import './auth-workspace.css';
 
 type Provider={enabled:boolean;client_id:string;secret_set?:boolean;secret?:string;url:string;skip_nonce_check?:boolean;email_optional?:boolean};
@@ -50,15 +52,12 @@ const TABS=[{id:'signin',label:'Sign In / Providers',hint:'Who can sign up, and 
  {id:'sessions',label:'Sessions',hint:'How long a person stays signed in, and how access and refresh tokens behave.'},
  {id:'rate-limits',label:'Rate Limits',hint:'Safeguard against bursts of incoming traffic to prevent abuse and maximize stability.'},
  {id:'protection',label:'Attack Protection',hint:'Security settings that protect this environment from attacks.'},
- {id:'mfa',label:'Multi-Factor',hint:'Requires people to provide additional verification factors to authenticate.'}] as const;
+ {id:'mfa',label:'Multi-Factor',hint:'Requires people to provide additional verification factors to authenticate.'},
+ {id:'emails',label:'Emails',hint:'Configure how this environment sends its authentication emails.'}] as const;
 type TabId=typeof TABS[number]['id'];
 /** The registry's pages that hold simple settings, by tab. */
 const CONFIG_TABS:string[]=['sessions','rate-limits','protection','mfa'];
 
-function Switch({id,checked,disabled,label,hint,onChange}:{id:string;checked:boolean;disabled:boolean;label:string;hint:string;onChange:(value:boolean)=>void}){
- return <div className="aw-row"><div className="aw-text"><label id={id+'-label'} htmlFor={id}>{label}</label><p className="aw-hint">{hint}</p></div>
-  <button id={id} type="button" role="switch" aria-checked={checked} aria-labelledby={id+'-label'} disabled={disabled} className="aw-switch" onClick={()=>onChange(!checked)}><span/></button></div>;
-}
 
 /** The registry's simple settings of one page: a switch for each true or false setting, a number field for the rest.
  * A setting never touched stays unset, so Auth keeps its own default; clearing a number puts it back to that. */
@@ -195,6 +194,7 @@ export function SignInSection({path,request}:{path:string;request:Api}){
      <textarea id="redirects" rows={5} {...field('redirects')} value={redirects} onChange={event=>setRedirects(event.target.value)} placeholder={'https://app.example.com/**\nmyapp://callback'}/>
      {fieldMessage('redirects')}<p className="aw-hint">One address per line. Wildcards are allowed: <code>*</code> and <code>**</code> match parts of an address. Total: {redirects.split('\n').map(line=>line.trim()).filter(Boolean).length}.</p></div>
    </>}
+   {tab==='emails'&&<SmtpPanel path={path} request={request} onSaved={data.refresh}/>}
    {CONFIG_TABS.includes(tab)&&tab!=='sessions'&&<ConfigFields fields={configFields(tab)} cfg={cfg} setCfg={setCfg} busy={busy} errors={fields} persisted={current?.settings?.config??{}} failed={schema.error}/>}
    {tab==='sessions'&&<>
     <div className="aw-field"><label htmlFor="session-token">Access token expiry time (seconds)</label>
@@ -210,7 +210,7 @@ export function SignInSection({path,request}:{path:string;request:Api}){
    </>}
   </div>
  </div>}
- {current&&<div className="aw-savebar" role="region" aria-label="Save changes" inert={open?true:undefined}>
+ {current&&tab!=='emails'&&<div className="aw-savebar" role="region" aria-label="Save changes" inert={open?true:undefined}>
   <p role="status">{dirty?'You have unsaved changes.':current.state==='failed'?'Not applied. Save again to retry.':current.state==='pending'?'Auth is restarting with the saved settings.':'Saving restarts this environment\'s Auth. Users and sessions are kept.'}</p>
   <div className="aw-actions"><button type="button" className="aw-ghost" disabled={busy||!dirty} onClick={discard}>Discard</button>
    <button type="button" className="aw-primary" disabled={busy||(!dirty&&current.state!=='failed')||current.state==='pending'||Boolean(schema.error)} onClick={()=>void save()}><Save aria-hidden="true"/>Save and apply</button></div>

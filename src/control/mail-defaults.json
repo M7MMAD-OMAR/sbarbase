@@ -1,0 +1,14 @@
+{
+ "about": "The mail settings the console does not ask for, with the values a console written file gets. lab/mail_config.py validates the result; lab/test_smtp_console.py checks both sides agree.",
+ "reply_to": "",
+ "max_frequency": "60s",
+ "otp_exp": 3600,
+ "otp_length": 6,
+ "secure_email_change": true,
+ "autoconfirm": false,
+ "rate_limit_email_sent": 30,
+ "rate_limit_otp": 30,
+ "rate_limit_verify": 30,
+ "rate_limit_header": "",
+ "magic_link_template": ""
+}

@@ -325,6 +325,40 @@ def busy():
         return True
 
 
+def prior_path(e):
+    """The mail file as it was before an unapplied console save (src/control/smtp.ts `keepPrior`)."""
+    return DIRECTORY / f'{e}-mail.prior'
+
+
+def settle_prior_mail(e, applied):
+    """After an apply: drop the saved prior mail file when it worked, put it back when it did not, so the file on disk
+    never stays ahead of the Auth that runs."""
+    prior = prior_path(e)
+    if not os.path.lexists(prior):
+        return
+    try:
+        if not applied:
+            target = DIRECTORY / f'{e}-mail.json'
+            if prior.read_text() == 'none':
+                target.unlink(missing_ok=True)
+            else:
+                os.replace(prior, target)
+                return
+        prior.unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
+def row_revision(e):
+    """The revision the catalog holds for this environment, or None."""
+    try:
+        with closing(sqlite3.connect(CATALOG, timeout=5)) as database:
+            row = database.execute('SELECT revision FROM auth_settings WHERE runtime=?', (e,)).fetchone()
+        return row[0] if row else None
+    except sqlite3.Error:
+        return None
+
+
 def apply(e):
     """Recreates the environment's Auth with its saved settings and records the outcome."""
     try:
@@ -341,15 +375,19 @@ def apply(e):
     if busy():
         # Another operation is running; the supervisor asks again shortly.
         return 75
+    row_revision_at_start = row_revision(e) if settings is None else None
     result = subprocess.run(['/usr/bin/python3', 'lab/durable_runtime.py', 'auth', e], cwd=ROOT, capture_output=True, text=True)
     if result.returncode == BUSY:
         # The operation lock was taken after busy() looked: nothing changed, ask again.
         return 75
-    revision = settings['revision'] if settings else None
+    # Without a settings file the row's own revision stands for it, so a save made while this ran stays pending.
+    revision = settings['revision'] if settings else (row_revision_at_start if row_revision_at_start is not None else None)
     if result.returncode:
+        settle_prior_mail(e, False)
         record(e, 'failed', 'Auth did not start with these settings, so the previous settings stay in use.', revision)
         return 1
     # The copy restarts use was kept by the recreate itself, from the settings Auth started with.
+    settle_prior_mail(e, True)
     record(e, 'applied', None, revision)
     return 0
 

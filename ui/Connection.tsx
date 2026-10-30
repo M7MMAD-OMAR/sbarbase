@@ -56,7 +56,7 @@ export function Connection({environment,organization,request,onBack}:{environmen
   {mailCommands&&(mailView.state==='unconfigured'||mailView.state==='off')&&<><label htmlFor="mail-commands">Set it up on the host</label>
   <textarea id="mail-commands" readOnly rows={2} value={mailCommands}/>
   <div className="form-row"><button onClick={()=>void copy(mailCommands)}><Copy aria-hidden="true"/>Copy</button></div>
-  <p className="small muted">The SMTP password never crosses the management API, so this is a host command, not a console form.</p></>}</>}</section>
+  <p className="small muted">You can also set this up in the console: Sign-in settings, then Emails.</p></>}</>}</section>
  </div>}{activeSection==='authentication'&&<div>
  {canWrite&&<SignInSection path={path} request={request}/>}
  {canWrite&&<SigningSection path={path} request={request}/>}

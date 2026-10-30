@@ -74,6 +74,17 @@ One bar at the bottom of the page saves everything: it says when you have unsave
 
 The remaining Authentication pages of the Supabase cloud (email templates and SMTP, rate limits, multi-factor, attack protection, audit logs) are planned in [the Authentication workspace plan](../engineering/plans/2026-10-30-auth-providers-workspace.md). Studio's own Authentication settings pages stay hidden by upstream design, so the console is where they are built.
 
+## Emails: custom SMTP
+
+On the **Emails** page, turn on **Enable custom SMTP**, then enter **Sender email address**, **Sender name**, **Host**, **Port number**, **Username** and **Password** and press **Save changes**. Saving writes this environment's private mail file on the server and restarts its Auth with it; if Auth does not start, the previous Auth keeps running, the mail file goes back to what it was, and the badge says **Not applied**. **Applied** means Auth started with the settings, not that your SMTP provider accepts them: try a test sign-up.
+- **New sign-ups must then confirm their email address** (people who already signed up are not affected); the **Confirm email** switch is not on this page yet, so turning SMTP off is the way back to automatic confirmation.
+
+- The password is never shown again: a saved one reads "Stored password is hidden. Enter a new password to replace it." Leaving the field empty keeps it.
+- Turning the switch off and saving removes the stored SMTP settings and password from this environment. The settings you do not see here (resend interval, code length and lifetime, email rate limits) keep their file values, or these defaults for a new file: 60 s between two mails of one kind, a 6 digit code valid for one hour, 30 emails an hour, confirmation required.
+- The same file can still be written from the host with `lab/mail_config.py` ([environment email](../engineering/ENVIRONMENT-EMAIL.md)).
+- Without SMTP no email is sent: sign-ups are confirmed automatically, as on any Auth with no mail relay.
+- Email templates are not on this page yet.
+
 ## What happens when you save
 
 Saving recreates that environment's Auth with the new settings; other environments are not touched. Users, sessions and every row stay, because Auth keeps them in the environment's database. The badge at the top of the page shows **Applying…**, then **Applied**. If Auth does not start with the new settings, the previous Auth keeps running and the badge says **Not applied** with the reason; **Save and apply** stays available so you can retry.

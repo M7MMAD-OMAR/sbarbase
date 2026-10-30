@@ -288,7 +288,7 @@ never gains an SMTP host.
    (`internal/mailer/templatemailer/template.go:40-58` is called once from
    `internal/api/api.go:128-130`). There is no supported runtime reload of the mailer for
    this pin, so a mail change is a container reconcile, not a live patch.
-5. **The password never crosses the management API.** No HTTP path accepts or returns it.
+5. **The password crosses the management API only through `PUT /environments/{id}/smtp`** (the console's Emails page, since the Authentication workspace A3a step; the design before it kept the password host only). The route accepts it, writes it to the 0600 file, and never returns it: answers carry only whether one is set. The host command still works and writes the same file.
 
 ### 2.2 The operator supplied file
 

@@ -438,6 +438,48 @@ class ConfigStoreTests(unittest.TestCase):
             self.assertFalse(auth_settings.owned(variable), variable)
 
 
+class MailPriorTests(unittest.TestCase):
+    def setUp(self):
+        import shutil
+        self.root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.root)
+        item = patch.object(auth_settings, 'DIRECTORY', self.root)
+        item.start()
+        self.addCleanup(item.stop)
+        self.mail = self.root / f'{E}-mail.json'
+        self.prior = self.root / f'{E}-mail.prior'
+
+    def test_a_failed_apply_puts_the_prior_mail_file_back_and_a_good_one_drops_it(self):
+        self.mail.write_text('{"host": "new"}')
+        self.prior.write_text('{"host": "old"}')
+        auth_settings.settle_prior_mail(E, False)
+        self.assertEqual(json.loads(self.mail.read_text()), {'host': 'old'})
+        self.assertFalse(self.prior.exists())
+        self.prior.write_text('{"host": "older"}')
+        auth_settings.settle_prior_mail(E, True)
+        self.assertEqual(json.loads(self.mail.read_text()), {'host': 'old'})
+        self.assertFalse(self.prior.exists())
+
+    def test_a_failed_first_apply_removes_the_mail_file_that_did_not_exist_before(self):
+        self.mail.write_text('{"host": "new"}')
+        self.prior.write_text('none')
+        auth_settings.settle_prior_mail(E, False)
+        self.assertFalse(self.mail.exists())
+        self.assertFalse(self.prior.exists())
+
+    def test_without_a_sign_in_file_the_catalog_row_stands_for_its_revision(self):
+        with tempfile.TemporaryDirectory() as directory:
+            catalog = Path(directory) / 'control.sqlite'
+            with closing(sqlite3.connect(catalog)) as database, database:
+                database.execute('CREATE TABLE auth_settings(runtime TEXT PRIMARY KEY, revision INTEGER, applied INTEGER, state TEXT, failure TEXT, actor TEXT, updated_at INTEGER)')
+                database.execute("INSERT INTO auth_settings VALUES (?, 4, NULL, 'pending', NULL, 'alice', 0)", (E,))
+            with patch.object(auth_settings, 'CATALOG', catalog):
+                self.assertEqual(auth_settings.row_revision(E), 4)
+                auth_settings.record(E, 'applied', None, 3)
+                with closing(sqlite3.connect(catalog)) as database:
+                    self.assertEqual(database.execute('SELECT state, applied FROM auth_settings').fetchone(), ('pending', 3))
+
+
 class StartTests(unittest.TestCase):
     def test_a_stray_previous_auth_comes_back_and_an_unchecked_new_one_goes(self):
         name = durable_runtime.PREFIX + '-' + E + '-auth'

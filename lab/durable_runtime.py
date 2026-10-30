@@ -1537,6 +1537,11 @@ class Runtime:
             raise
         lab.docker('rm', '-f', previous)
         self.publish_auth(e, name)
+        # The Email card on the Overview reads this record: an apply that carried a mail configuration says so.
+        if mail is not None:
+            mail_state.record(e, 'applied', mail)
+        elif (mail_state.read().get(e) or {}).get('state') in ('applied', 'failed'):
+            mail_state.record(e, 'off', None)
 
     def publish_auth(self, e, name):
         """A recreated Auth may hold a new address; the gateway reads it from here."""

@@ -210,6 +210,9 @@ function fileForm(settings:SignInSettings):Record<string,unknown> {
  return {...rest,version:1,providers:Object.fromEntries(Object.entries(settings.providers).map(([name,{skip_nonce_check:_nonce,email_optional:_optional,...entry}])=>[name,entry]))};
 }
 
+/** Writes the settings file (private, replaced in one step); the SMTP route uses it to keep the revision in step. */
+export function writeSettingsFile(directory:string,runtime:string,settings:SignInSettings) {writeSettings(directory,runtime,settings);}
+
 function writeSettings(directory:string,runtime:string,settings:SignInSettings) {
  mkdirSync(directory,{recursive:true,mode:0o700});
  const path=file(directory,runtime),pending=path+'.pending';
@@ -249,6 +252,8 @@ export function signInHandler(catalog:Catalog,identify:ManagementIdentity,direct
    const waited=state.updatedAt===null?Infinity:Date.now()-state.updatedAt;
    if(waited>=0&&waited<saveInterval){const busy=reply(429,{message:'Wait a few seconds before saving again.'});busy.headers.set('retry-after',String(Math.ceil((saveInterval-waited)/1000)));return busy;}
    const settings=settingsFromInput(input,before);
+   // A save of the mail settings moves the row ahead of this file; the revision never goes back below it.
+   settings.revision=Math.max(settings.revision,state.revision+1);
    writeSettings(directory,state.runtime,settings);
    const saved=catalog.requestSignIn(actor,environment,settings.revision,changedKeys(before,settings));
    return answer(reply(202,{data:{...saved,callback_url,settings:view(settings)}}));
