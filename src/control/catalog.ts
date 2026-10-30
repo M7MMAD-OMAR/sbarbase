@@ -1253,7 +1253,7 @@ export class Catalog {
     }).immediate();
   }
   /** Records a deploy or a removal in the audit log. */
-  recordFunction(actor:string,environment:string,action:'functions.deployed'|'functions.deleted'|'functions.secrets_changed',detail:object) {
+  recordFunction(actor:string,environment:string,action:'functions.deployed'|'functions.deleted'|'functions.secrets_changed'|'functions.settings_changed'|'functions.deploy_refused',detail:object) {
     this.environmentProject(actor,environment,['owner','admin']);
     this.record(actor,action,environment,detail);
   }

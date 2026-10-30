@@ -60,20 +60,59 @@ function base64url(bytes: Uint8Array) {
   return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-/** True for an unexpired HS256 token signed with this environment's JWT secret. */
-async function validJwt(authorization: string | null): Promise<boolean> {
+/** The claims of an unexpired HS256 token signed with this environment's JWT secret, or null. */
+async function jwtClaims(authorization: string | null): Promise<Record<string, unknown> | null> {
   const token = authorization?.match(/^Bearer\s+(\S+)$/i)?.[1];
   const parts = token?.split('.');
-  if (!token || parts?.length !== 3 || !JWT_SECRET) return false;
+  if (!token || parts?.length !== 3 || !JWT_SECRET) return null;
   try {
     const header = JSON.parse(atob(parts[0].replace(/-/g, '+').replace(/_/g, '/')));
-    if (header.alg !== 'HS256') return false;
+    if (header.alg !== 'HS256') return null;
     const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(JWT_SECRET), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
     const signature = new Uint8Array(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(parts[0] + '.' + parts[1])));
-    if (base64url(signature) !== parts[2]) return false;
+    if (base64url(signature) !== parts[2]) return null;
     const claims = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
-    return typeof claims.exp !== 'number' || claims.exp > Date.now() / 1000;
-  } catch { return false; }
+    return typeof claims.exp !== 'number' || claims.exp > Date.now() / 1000 ? claims : null;
+  } catch { return null; }
+}
+async function validJwt(authorization: string | null): Promise<boolean> {
+  return (await jwtClaims(authorization)) !== null;
+}
+
+/** `POST /_sb_boot/<name>/<version>`: starts a worker on a version folder that has been written and is not live yet, so a deploy
+ * can be refused before the manifest switches to it. It reports what the runtime reports at worker creation: a syntax error, an
+ * import that cannot be resolved, a missing entry point. It does not run the function and cannot see a top level throw or a missing
+ * Deno.serve. The name starts with an underscore, so the gateway never sends it; a caller inside this container holds the same
+ * service role key the control plane uses, so it can ask for a boot of a folder of this environment and nothing else. */
+let booting = 0;
+async function boot(request: Request, name: string, version: string): Promise<Response> {
+  if (request.method !== 'POST') return json(405, 'Method not allowed');
+  const claims = await jwtClaims(request.headers.get('authorization'));
+  if (!claims || claims.role !== 'service_role') return json(401, 'Invalid JWT');
+  if (!NAME.test(name) || !/^[a-z0-9-]{1,64}$/.test(version)) return json(400, 'Invalid function');
+  // At most two at once: each creates a worker of up to 150 MiB in a 384 MiB container, and code holding the key can call this in a loop.
+  if (booting >= 2) return new Response(JSON.stringify({ message: 'Busy' }), { status: 429, headers: { 'content-type': 'application/json', 'retry-after': '1' } });
+  booting++;
+  try {
+    await EdgeRuntime.userWorkers.create({
+      servicePath: `${FUNCTIONS}/${version}/${name}`,
+      memoryLimitMb: 150,
+      workerTimeoutMs: 15_000,
+      cpuTimeSoftLimitMs: 5_000,
+      cpuTimeHardLimitMs: 10_000,
+      noModuleCache: false,
+      envVars: [],
+      forceCreate: true,
+      tmpFsConfig: { quota: TMP_QUOTA_BYTES },
+      permissions: PERMISSIONS,
+    });
+    return Response.json({ ok: true });
+  } catch (error) {
+    return new Response(JSON.stringify({ ok: false, message: error instanceof Error ? error.message.slice(0, 1000) : String(error).slice(0, 1000) }),
+      { status: 422, headers: { 'content-type': 'application/json' } });
+  } finally {
+    booting--;
+  }
 }
 
 async function proxy(request: Request, url: URL): Promise<Response> {
@@ -91,6 +130,8 @@ async function proxy(request: Request, url: URL): Promise<Response> {
 Deno.serve(async (request: Request) => {
   const url = new URL(request.url);
   if (url.pathname.startsWith('/_sb/')) return await proxy(request, url);
+  const staged = url.pathname.match(/^\/_sb_boot\/([^/]+)\/([^/]+)$/);
+  if (staged) return await boot(request, staged[1]!, staged[2]!);
   const name = url.pathname.split('/')[1] ?? '';
   if (!NAME.test(name)) return json(404, 'Function not found');
   const manifest = await readJson<{ functions?: Record<string, Entry> }>(`${FUNCTIONS}/functions.json`, {});

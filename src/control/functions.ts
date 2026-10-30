@@ -5,6 +5,7 @@ import {dirname,join} from 'node:path';
 import {randomBytes} from 'node:crypto';
 import {Catalog} from './catalog';
 import {authenticate,reply,type ManagementIdentity} from './auth';
+import {settingsChange,type Boot,type BootCheck} from './functions-write';
 import {DEFAULT_SECRETS,functionArchive,functionSource,noteSecretTimes,redactCallPath,secretRows} from './functions-read';
 import {redact} from './observe';
 import {FUNCTION_RANGES,type FunctionRange,type RequestLog} from '../gateway/observe';
@@ -90,21 +91,50 @@ export function deployment(input:unknown):{files:Record<string,string>;shared:Re
  return {files:code,shared,verify_jwt:verify};
 }
 
-/** Writes a version and switches the manifest to it; removes versions nothing uses any more. */
-export function deploy(codeRoot:string,runtime:string,name:string,input:ReturnType<typeof deployment>,now=Date.now()):FunctionEntry {
+/** Writes a version folder and returns its name and size; the manifest still points at the old version. */
+export function stageVersion(codeRoot:string,runtime:string,name:string,input:ReturnType<typeof deployment>,now=Date.now()):{version:string;size:number} {
  const root=runtimeDirectory(codeRoot,runtime);
  const version=`v${now.toString(36)}-${randomBytes(4).toString('hex')}`;
- const manifest=readManifest(codeRoot,runtime);
- const before=entryOf(manifest,name);
- if(!before&&Object.keys(manifest.functions).length>=MAX_FUNCTIONS)throw new DeployError('functions: at most 100 in an environment');
+ const before=entryOf(readManifest(codeRoot,runtime),name);
+ if(!before&&Object.keys(readManifest(codeRoot,runtime).functions).length>=MAX_FUNCTIONS)throw new DeployError('functions: at most 100 in an environment');
  let size=0;
  for(const [path,content] of Object.entries(input.files)){atomicWrite(join(root,version,name,path),content);size+=Buffer.byteLength(content);}
  for(const [path,content] of Object.entries(input.shared)){atomicWrite(join(root,version,'_shared',path),content);size+=Buffer.byteLength(content);}
- const entry={version,verify_jwt:input.verify_jwt,updated_at:now,size,created_at:before?(before.created_at??before.updated_at):now,deployments:(before?.deployments??(before?1:0))+1};
+ return {version,size};
+}
+
+/** A staged version that will not go live: removed at once, as nothing points at it. */
+export function discardVersion(codeRoot:string,runtime:string,version:string) {
+ if(!/^v[a-z0-9]+-[a-f0-9]{8}$/.test(version))throw new Error('Invalid version');
+ rmSync(join(runtimeDirectory(codeRoot,runtime),version),{recursive:true,force:true});
+}
+
+/** Switches the manifest to a staged version; removes versions nothing uses any more. */
+export function commitVersion(codeRoot:string,runtime:string,name:string,staged:{version:string;size:number},verify:boolean,now=Date.now()):FunctionEntry {
+ const root=runtimeDirectory(codeRoot,runtime);
+ const manifest=readManifest(codeRoot,runtime);
+ const before=entryOf(manifest,name);
+ // The cap is checked again here: the boot check between staging and committing can take seconds, and two deploys of new names can both pass at staging.
+ if(!before&&Object.keys(manifest.functions).length>=MAX_FUNCTIONS)throw new DeployError('functions: at most 100 in an environment');
+ const entry={version:staged.version,verify_jwt:verify,updated_at:now,size:staged.size,created_at:before?(before.created_at??before.updated_at):now,deployments:(before?.deployments??(before?1:0))+1};
  manifest.functions[name]=entry;
  atomicWrite(join(root,'functions.json'),JSON.stringify(manifest,null,1));
  prune(root,manifest,now);
  return entry;
+}
+
+/** Writes a version and switches the manifest to it; removes versions nothing uses any more. */
+export function deploy(codeRoot:string,runtime:string,name:string,input:ReturnType<typeof deployment>,now=Date.now()):FunctionEntry {
+ return commitVersion(codeRoot,runtime,name,stageVersion(codeRoot,runtime,name,input,now),input.verify_jwt,now);
+}
+
+/** Turns the JWT check of a deployed function on or off without a new version: the runtime reads the manifest on each call. */
+export function setVerifyJwt(codeRoot:string,runtime:string,name:string,verify:boolean):FunctionEntry|undefined {
+ const manifest=readManifest(codeRoot,runtime),before=entryOf(manifest,name);
+ if(!before)return undefined;
+ manifest.functions[name]={...before,verify_jwt:verify};
+ atomicWrite(join(runtimeDirectory(codeRoot,runtime),'functions.json'),JSON.stringify(manifest,null,1));
+ return manifest.functions[name];
 }
 
 export function remove(codeRoot:string,runtime:string,name:string,now=Date.now()):boolean {
@@ -167,13 +197,13 @@ async function body(request:Request):Promise<unknown> {
 }
 
 export function functionsHandler(catalog:Catalog,identify:ManagementIdentity,codeRoot='.lab/upstream/functions',
- secretsRoot='.secrets/upstream/functions',log?:RequestLog) {
+ secretsRoot='.secrets/upstream/functions',log?:RequestLog,boot?:Boot) {
  return async(request:Request):Promise<Response>=>{
   const url=new URL(request.url);
   const match=url.pathname.match(/^\/management\/v1\/environments\/([a-f0-9-]{36})\/(functions|function-secrets)(?:\/([^/]+)(?:\/(source|download|metrics|logs))?)?$/);
   if(!match||(match[2]==='function-secrets'&&match[3]))return reply(404,{message:'Unknown route'});
   const [,environment,kind,name,part]=match as unknown as [string,string,string,string|undefined,string|undefined];
-  const allowed=kind==='function-secrets'?['GET','PUT']:part?['GET']:name?['PUT','DELETE']:['GET','PUT'];
+  const allowed=kind==='function-secrets'?['GET','PUT']:part?['GET']:name?['PUT','PATCH','DELETE']:['GET','PUT'];
   if(!allowed.includes(request.method))return reply(405,{message:'Method not allowed'});
   if(name!==undefined&&!FUNCTION_NAME.test(name))return reply(400,{message:'A function name is letters, digits, - and _, at most 64'});
   const actor=await authenticate(identify,request);
@@ -239,15 +269,40 @@ export function functionsHandler(catalog:Catalog,identify:ManagementIdentity,cod
     catalog.recordFunction(actor,environment!,'functions.deleted',{name});
     return answer(reply(200,{data:view()}));
    }
+   if(request.method==='PATCH'){
+    const change=settingsChange(await body(request));
+    if(!change)return reply(400,{message:'Send {"verify_jwt": true} or {"verify_jwt": false}'});
+    state=catalog.functions(actor,environment!);
+    const entry=setVerifyJwt(codeRoot,state.runtime,name,change.verify_jwt);
+    if(!entry)return answer(reply(404,{message:'Function not found'}));
+    catalog.recordFunction(actor,environment!,'functions.settings_changed',{name,verify_jwt:change.verify_jwt});
+    return answer(reply(200,{data:view()}));
+   }
    const input=deployment(await body(request));
    // Body reads may outlive membership changes. Recheck before publishing files.
    state=catalog.functions(actor,environment!);
-   const entry=deploy(codeRoot,state.runtime,name,input);
+   const staged=stageVersion(codeRoot,state.runtime,name,input);
+   // A running runtime is asked to start the new version before anything points at it. A version it cannot start never goes live.
+   let check:BootCheck='skipped';
+   if(boot&&state.state==='on'){
+    // A check that fails to run is not a refusal: the deploy goes on and says it was not checked.
+    const result=await boot(state.runtime,staged.version,name).catch(()=>({state:'unreachable'} as const));
+    if(result.state==='refused'){
+     discardVersion(codeRoot,state.runtime,staged.version);
+     catalog.recordFunction(actor,environment!,'functions.deploy_refused',{name});
+     return reply(422,{message:result.message,boot_check:'failed'});
+    }
+    check=result.state==='passed'?'passed':result.state==='unreachable'?'unreachable':'skipped';
+    try{state=catalog.functions(actor,environment!);}catch(error){discardVersion(codeRoot,state.runtime,staged.version);throw error;}
+   }
+   let entry:FunctionEntry;
+   try{entry=commitVersion(codeRoot,state.runtime,name,staged,input.verify_jwt);}
+   catch(error){discardVersion(codeRoot,state.runtime,staged.version);throw error;}
    log?.deployedFunction(state.runtime,name,entry.updated_at);
-   catalog.recordFunction(actor,environment!,'functions.deployed',{name,version:entry.version,size:entry.size});
+   catalog.recordFunction(actor,environment!,'functions.deployed',{name,version:entry.version,size:entry.size,boot_check:check});
    // The first deploy starts the environment's Edge Functions, as on Supabase.
    if(state.desired==='off'&&state.state!=='pending')catalog.requestFunctions(actor,environment!,true);
-   return answer(reply(201,{data:{...view(),deployed:{name,...entry}}}));
+   return answer(reply(201,{data:{...view(),deployed:{name,...entry,boot_check:check}}}));
   } catch(error) {
    const message=error instanceof Error?error.message:'';
    if(error instanceof DeployError)return reply(400,{message:`Check the ${message}`});

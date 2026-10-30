@@ -14,18 +14,19 @@ import {scheduledJobsHandler} from './scheduled-jobs';
 import {dataApiHandler} from './data-api';
 import {observeHandler,type ContainerReader} from './observe';
 import {functionsHandler} from './functions';
+import type {Boot} from './functions-write';
 import {databaseHandler,externalDatabaseHandler} from './database';
 import type {DirectDatabase} from '../http/database-proxy';
 import {signingHandler} from './signing';
 import {RequestLog} from '../gateway/observe';
 
 export function controlHandler(catalog:Catalog,keys:KeyStore,identity:ManagementIdentity,services?:ServiceDiscovery,
- studioKey?:()=>Buffer,requests=new RequestLog(),containers?:ContainerReader,accounts?:InvitationAccounts,direct?:DirectDatabase) {
+ studioKey?:()=>Buffer,requests=new RequestLog(),containers?:ContainerReader,accounts?:InvitationAccounts,direct?:DirectDatabase,functionsBoot?:Boot) {
  keys.useRuntimeEpoch(runtime=>catalog.runtimeEpoch(runtime));
  const metadata=managementHandler(catalog,identity,undefined,keys),credentials=keyHandler(catalog,keys,identity,services);
  const studio=studioKey?studioHandler(catalog,identity,studioKey):undefined,signIn=signInHandler(catalog,identity),smtp=smtpHandler(catalog,identity,'.secrets/upstream'),
   realtime=realtimeHandler(catalog,identity),scheduledJobs=scheduledJobsHandler(catalog,identity),observe=observeHandler(catalog,identity,requests,containers),
-  functions=functionsHandler(catalog,identity,undefined,undefined,requests),database=databaseHandler(catalog,identity,undefined,direct),externalDatabase=externalDatabaseHandler(catalog,identity,direct),
+  functions=functionsHandler(catalog,identity,undefined,undefined,requests,functionsBoot),database=databaseHandler(catalog,identity,undefined,direct),externalDatabase=externalDatabaseHandler(catalog,identity,direct),
   signing=signingHandler(catalog,identity),dataApi=dataApiHandler(catalog,identity);
  const share=shareHandler(catalog,identity),deploymentSetup=deploymentSetupHandler(catalog,identity);
  const invitations=invitationHandler(catalog,identity,accounts);

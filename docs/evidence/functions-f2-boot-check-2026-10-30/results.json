@@ -1,0 +1,94 @@
+{
+ "date": "2026-10-30",
+ "what": "Live check of the boot route POST /_sb_boot/<name>/<version> of lab/functions/main/index.ts (F2.1), run by run.sh in this folder against the pinned edge-runtime image in one throwaway container with the production launch flags (384m with swap equal, 0.5 CPU, 256 pids, cap-drop ALL, no-new-privileges, read only root, 32m noexec tmpfs for /tmp and the Deno cache, the current unprivileged user). Removed afterwards. Run twice: the second run, recorded here, is on the main service with the boot route limited to two at a time and a worker lifetime of 15 seconds.",
+ "container": {
+  "user": "1000:1000",
+  "readonly": true,
+  "capdrop": [
+   "ALL"
+  ],
+  "security": [
+   "no-new-privileges"
+  ]
+ },
+ "probes": [
+  {
+   "probe": "boot good, service role",
+   "status": 200,
+   "body": "{\"ok\":true}"
+  },
+  {
+   "probe": "boot syntax error",
+   "status": 422,
+   "body": "{\"ok\":false,\"message\":\"worker boot error: failed to bootstrap runtime: failed to create the graph: The module's source code could not be parsed: Unexpected eof at file:///home/deno/functions/v1abc-00000001/syntax/index.ts:2:1\\n\\n  Deno.serve(() => new Response('x')\\n  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+  },
+  {
+   "probe": "boot missing import",
+   "status": 422,
+   "body": "{\"ok\":false,\"message\":\"worker boot error: failed to bootstrap runtime: failed to create the graph: Module not found \\\"file:///home/deno/functions/v1abc-00000001/nomodule/missing.ts\\\".\\n    at file:///home/deno/functions/v1abc-00000001/nomodule/index.ts:1:19\"}"
+  },
+  {
+   "probe": "boot no entry point",
+   "status": 422,
+   "body": "{\"ok\":false,\"message\":\"worker boot error: failed to bootstrap runtime: could not find an appropriate entrypoint\"}"
+  },
+  {
+   "probe": "boot top level throw (not caught by create)",
+   "status": 200,
+   "body": "{\"ok\":true}"
+  },
+  {
+   "probe": "boot unknown version folder",
+   "status": 422,
+   "body": "{\"ok\":false,\"message\":\"worker boot error: failed to bootstrap runtime: could not find an appropriate entrypoint\"}"
+  },
+  {
+   "probe": "no token",
+   "status": 401,
+   "body": "{\"message\":\"Invalid JWT\"}"
+  },
+  {
+   "probe": "anon token",
+   "status": 401,
+   "body": "{\"message\":\"Invalid JWT\"}"
+  },
+  {
+   "probe": "wrong method",
+   "status": 405,
+   "body": "{\"message\":\"Method not allowed\"}"
+  },
+  {
+   "probe": "bad name",
+   "status": 400,
+   "body": "{\"message\":\"Invalid function\"}"
+  },
+  {
+   "probe": "bad version",
+   "status": 400,
+   "body": "{\"message\":\"Invalid function\"}"
+  },
+  {
+   "probe": "a live function still answers (verify_jwt off)",
+   "status": 200,
+   "body": "good"
+  },
+  {
+   "probe": "an unknown function is 404",
+   "status": 404,
+   "body": "{\"message\":\"Function not found\"}"
+  }
+ ],
+ "reading": [
+  "A syntax error, a missing import and a folder without an entry point are refused with 422 and the runtime's message; the message carries container paths that functions-write.ts bootMessage removes.",
+  "A top level throw is NOT caught by worker creation (200): the page and the docs say so.",
+  "Only a service_role token of the environment opens the route; no token, an anon token, a wrong method and malformed names are refused (401, 401, 405, 400).",
+  "A live function and an unknown function answer as before (200, 404).",
+  "The route answers 429 with retry-after when two boots are already running (unit logic in main/index.ts; not provoked live because a boot takes about 20 ms)."
+ ],
+ "not_established": [
+  "an https or npm import the first time (network and cache): the control plane waits 20 seconds and treats a timeout as unreachable",
+  "memory held by a worker created with forceCreate until its workerTimeoutMs of 5 seconds",
+  "the route through the public gateway: it is not reachable there (a name starting with an underscore), checked by tests/functions.test.ts for the gateway side",
+  "the whole path through a running Sbarbase installation"
+ ]
+}
